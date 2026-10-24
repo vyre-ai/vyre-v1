@@ -1,0 +1,14 @@
+{
+  "_comment": "Speed and CI budgets that are acceptance, not targets. Rows are read by their probe; the perf harness (L11) merges these rows into perf/budgets.json.",
+  "theme_flash": {
+    "probe": "scripts/shots/theme-flash.mjs",
+    "what": "First frame of every place uses the right theme and skin",
+    "wrong_frames_max": 0,
+    "apply_ms_max": 50
+  },
+  "expo_web_export": {
+    "probe": "scripts/shots/shots.mjs",
+    "what": "Expo web export of the app, wall time in CI",
+    "seconds_max": 120
+  }
+}
