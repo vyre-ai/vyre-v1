@@ -1,0 +1,191 @@
+{
+  "budgets": [
+    {
+      "id": "startup",
+      "metric": "app.usable",
+      "p50": 1000,
+      "p95": 1000,
+      "machine": "mid laptop",
+      "probe": "screen.home.checklist",
+      "unit": "ms",
+      "sense": "max",
+      "also": [{ "metric": "app.usable", "p95": 1500, "machine": "mid phone" }]
+    },
+    {
+      "id": "navigate",
+      "metric": "nav.open",
+      "p50": 50,
+      "p95": 100,
+      "machine": "mid laptop",
+      "probe": "screen.shell.new-tab",
+      "unit": "ms",
+      "sense": "max"
+    },
+    {
+      "id": "search",
+      "metric": "search.local",
+      "p50": 50,
+      "p95": 50,
+      "machine": "mid laptop",
+      "probe": "screen.shell.cmdk",
+      "unit": "ms",
+      "sense": "max",
+      "also": [{ "metric": "search.server", "p95": 300 }]
+    },
+    {
+      "id": "chat_open",
+      "metric": "chat.open_ready",
+      "p50": 100,
+      "p95": 100,
+      "machine": "mid laptop",
+      "probe": "screen.chats.conversation",
+      "unit": "ms",
+      "sense": "max"
+    },
+    {
+      "id": "send",
+      "metric": "msg.send_visible",
+      "p50": 16,
+      "p95": 16,
+      "machine": "mid laptop",
+      "probe": "screen.chats.conversation",
+      "unit": "ms",
+      "sense": "max",
+      "also": [{ "metric": "turn.first_token_overhead", "p95": 150 }]
+    },
+    {
+      "id": "scroll",
+      "metric": "frame",
+      "p50": 16.7,
+      "p95": 16.7,
+      "machine": "mid laptop",
+      "probe": "screen.files.list",
+      "unit": "ms",
+      "sense": "max"
+    },
+    {
+      "id": "space_switch",
+      "metric": "space.switch",
+      "p50": 500,
+      "p95": 500,
+      "machine": "mid laptop",
+      "probe": "screen.shell.sync-status",
+      "unit": "ms",
+      "sense": "max",
+      "also": [{ "metric": "space.mixed_ids", "p95": 0 }]
+    },
+    {
+      "id": "edit",
+      "metric": "edit.local",
+      "p50": 10,
+      "p95": 10,
+      "machine": "mid laptop",
+      "probe": "screen.records.types",
+      "unit": "ms",
+      "sense": "max",
+      "also": [{ "metric": "edit.remote_seen", "p95": 500 }]
+    },
+    {
+      "id": "table100k",
+      "metric": "records.open",
+      "p50": 100,
+      "p95": 100,
+      "machine": "mid laptop",
+      "probe": "screen.records.types",
+      "unit": "ms",
+      "sense": "max",
+      "also": [{ "metric": "records.search", "p95": 50 }]
+    },
+    {
+      "id": "sync_snapshot",
+      "metric": "sync.snapshot",
+      "p50": 10000,
+      "p95": 10000,
+      "machine": "mid laptop",
+      "probe": "screen.records.sync-log",
+      "unit": "ms",
+      "sense": "max"
+    },
+    {
+      "id": "authz",
+      "metric": "authz.dur",
+      "p50": 0.05,
+      "p95": 0.05,
+      "machine": "mid laptop",
+      "probe": "screen.access.checker",
+      "unit": "ms",
+      "sense": "max",
+      "also": [{ "metric": "authz.per_sec", "p95": 500000, "sense": "min" }]
+    },
+    {
+      "id": "server_write",
+      "metric": "cap.commit",
+      "p50": 10,
+      "p95": 10,
+      "machine": "mid laptop",
+      "probe": "screen.console.server-logs",
+      "unit": "ms",
+      "sense": "max"
+    },
+    {
+      "id": "engine_pool",
+      "metric": "engine.acquire",
+      "p50": 20,
+      "p95": 20,
+      "machine": "mid laptop",
+      "probe": "screen.chats.agent-page",
+      "unit": "ms",
+      "sense": "max"
+    },
+    {
+      "id": "stream_render",
+      "metric": "frame",
+      "p50": 16.7,
+      "p95": 16.7,
+      "machine": "mid laptop",
+      "probe": "screen.chats.conversation",
+      "unit": "ms",
+      "sense": "max"
+    },
+    {
+      "id": "layout_shift",
+      "metric": "layout-shift",
+      "p50": 0,
+      "p95": 0,
+      "machine": "mid laptop",
+      "probe": "screen.home.checklist",
+      "unit": "cls",
+      "sense": "max"
+    },
+    {
+      "id": "prefetch",
+      "metric": "nav.prefetch_hit",
+      "p50": 90,
+      "p95": 90,
+      "machine": "mid laptop",
+      "probe": "screen.shell.new-tab",
+      "unit": "percent",
+      "sense": "min"
+    },
+    {
+      "id": "connection_count",
+      "metric": "ws.connections",
+      "p50": 1,
+      "p95": 1,
+      "machine": "mid laptop",
+      "probe": "screen.shell.sync-status",
+      "unit": "count",
+      "sense": "exact"
+    },
+    {
+      "id": "console_speed",
+      "metric": "spans",
+      "p50": 50,
+      "p95": 100,
+      "machine": "mid laptop",
+      "probe": "screen.console.speed",
+      "unit": "ms",
+      "sense": "max"
+    }
+  ]
+}
