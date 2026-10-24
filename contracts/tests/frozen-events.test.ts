@@ -119,4 +119,3 @@ test('every event has vis, label, redact and sv within the catalogue rules', () 
   }
 });
 
-
