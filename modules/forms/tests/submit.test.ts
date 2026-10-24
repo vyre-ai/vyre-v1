@@ -152,7 +152,7 @@ test("captcha on but no verifier configured fails closed; a verifier that throws
   const w2 = harness();
   const f2 = await openForm(w2, { captcha: true });
   w2.captcha.throws = true;
-  assert.equal(await code(submit(w2, f2, { answers: { email: "a@x.example" }, captcha: "human" })), "provider.unavailable");
+  assert.equal(await code(submit(f2, { answers: { email: "a@x.example" }, captcha: "human" })), "provider.unavailable");
   assert.equal(w2.records.size, 0);
   assert.ok(w2.warnings.some((m) => m.includes("captcha")));
 });
