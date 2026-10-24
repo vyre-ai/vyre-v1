@@ -184,12 +184,12 @@
     {
       "id": "mailgun",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "mcp",
       "owner": "L2",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "meetings",
@@ -254,7 +254,7 @@
     {
       "id": "resend",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "runbooks",
