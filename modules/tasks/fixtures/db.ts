@@ -10,7 +10,7 @@ import type { Db, TasksCtx } from "../projections.ts";
 import { NOW } from "./seed.ts";
 import type { Caller } from "./seed.ts";
 
-// Boundary B2 keeps `import ... from "node:sqlite"` out of modules: only the host builds a ctx and opens databases. A test still needs a real SQL engine behind the host's table guard,
+// Boundary B2 keeps the node:sqlite module out of the import lines of modules: only the host builds a ctx and opens databases. A test still needs a real SQL engine behind the host's table guard,
 // so the fixture asks the runtime for the built-in. Swap this for the testkit's in-memory database when it exports one.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 const schema = readFileSync(new URL("../../../generated/modules/tasks/schema.sql", import.meta.url), "utf8");
