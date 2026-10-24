@@ -231,13 +231,14 @@ test("a space key that misses the pinned fingerprint is refused before finish", 
     data.spacePublic = b64(other.publicKey);
     return new Response(JSON.stringify(data), { status: 200 });
   };
+  const device = await generateAgreementKey();
   await assert.rejects(
     () => pair({
       inviteCode: issued.code,
       spaceFingerprint: issued.fingerprint,
       pairBase: "https://space.example/pair",
       fetch,
-      deviceKey: await generateAgreementKey(),
+      deviceKey: device,
     }),
     /pinned fingerprint/,
   );
