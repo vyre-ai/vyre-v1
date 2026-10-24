@@ -11,6 +11,7 @@ import { consumers, inline } from "../projections.ts";
 import type { ProjEvent, ProjTx } from "../projections.ts";
 import { handleBranchMerged, handlers } from "../impl.ts";
 import { SPACE_DOMAIN } from "../fixtures/fakes.ts";
+import { seed } from "../fixtures/seed.ts";
 import { harness } from "../fixtures/world.ts";
 import type { World } from "../fixtures/world.ts";
 
@@ -548,4 +549,10 @@ test("activity projection: the last site event per site, idempotent on replay", 
   assert.deepEqual(w.db.rows("sites_activity"), [{ site_id: "sit_a", last_event: "site.deployed", at: 30 }]);
   p.reset(tx);
   assert.deepEqual(w.db.rows("sites_activity"), []);
+});
+
+test("seed: installs no rows; every site is created through sites.create", () => {
+  const w = harness();
+  assert.equal(seed.rows.length, 0);
+  assert.equal(w.db.rows(seed.table).length, 0);
 });
