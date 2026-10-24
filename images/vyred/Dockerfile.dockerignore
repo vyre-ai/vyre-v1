@@ -1,0 +1,14 @@
+# Used by BuildKit for images/vyred/Dockerfile only: keeps the context small and keeps secrets and local state out of the image.
+.git
+**/node_modules
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/dist
+**/.expo
+**/.turbo
+**/coverage
+.github
+docs
+spikes

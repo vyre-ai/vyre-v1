@@ -95,7 +95,8 @@
     "ui": [
       "client",
       "contracts",
-      "lib"
+      "lib",
+      "allowlist"
     ],
     "apps/*": [
       "lib",
@@ -103,7 +104,8 @@
       "contracts",
       "sync",
       "client",
-      "ui"
+      "ui",
+      "allowlist"
     ],
     "kits/*": [
       "lib",
@@ -167,6 +169,9 @@
       "noFetchIn": [
         "ui",
         "apps"
+      ],
+      "allowFetchIn": [
+        "apps/app/public/"
       ]
     },
     "B5": {
