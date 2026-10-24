@@ -320,8 +320,8 @@ export default defineManifest({
     write('changesets.revert_change', 'Revert a single change (one hunk or one file) inside a changeset', {
       in: { changesetId: id.changeset, path: t.str(), hunkId: t.opt(t.str()) }, out: { fileCount: t.int() }, emits: ['changeset.updated'], tool: 'files',
     }),
-    write('changesets.review_externally', 'Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token', {
-      in: { changesetId: id.changeset, actorId: t.opt(id.actor) }, out: { actorId: id.actor, expiresAt: t.ts() }, emits: ['changeset.sent_for_review'], audit: 'always', tool: 'files',
+    write('changesets.review_externally', 'Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token; returns a one-time review link (the token is in the link, shown once, never logged)', {
+      in: { changesetId: id.changeset, actorId: t.opt(id.actor) }, out: { actorId: id.actor, reviewUrl: t.str({ pattern: '^https?://', examples: ['https://northwind.example.com/review/cs_example?token=otk_example'] }), expiresAt: t.ts() }, emits: ['changeset.sent_for_review'], audit: 'always', tool: 'files',
     }),
     read('changesets.comments.list', 'List inline comments on a changeset', { in: { changesetId: id.changeset }, out: { comments: t.arr(commentRow) }, tool: 'files', label: 'check' }),
     write('changesets.comments.add', 'Add an inline comment to a changeset with @ people and agents (an @ agent answers in the thread)', {
