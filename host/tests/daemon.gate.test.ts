@@ -16,6 +16,8 @@ import { createCtxSeal } from "../src/ctx/seal.ts";
 import type { FetchLike } from "../src/ctx/http.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
+import { registry } from "../../generated/registry.ts";
+import { resolveResource } from "../src/routes/resource.ts";
 import { createGateHook, whenHolds } from "../src/daemon/gate-hook.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
@@ -201,6 +203,12 @@ test("daemon.gate: a hold whose stored caller was changed after it was parked do
     assert.notEqual(r.status, 200);
     assert.equal(net.emails.length, 0);
   } finally { await d.stop(); }
+});
+
+test("daemon.gate: a task made with no record (the Approve task the Gate opens) is created in the Space", () => {
+  const tasksCreate = (registry.capabilities as unknown as CapabilityDef[]).find((c) => c.name === "tasks.create")!;
+  assert.deepEqual(resolveResource(tasksCreate, { kind: "approve" }, CORE_SPACE), { type: "task", id: null, parent: CORE_SPACE });
+  assert.deepEqual(resolveResource(tasksCreate, { recordId: "rec_a1b2c3" }, CORE_SPACE), { type: "task", id: null, parent: "rec_a1b2c3" });
 });
 
 // ---- the capability's `when`
