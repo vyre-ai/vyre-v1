@@ -102,6 +102,7 @@
     document.documentElement.dataset.replica = wrote ? "wrote" : "bad";
   }
 
+  var lastError = "";
   async function sidecarOnce() {
     var ctrl = new AbortController();
     var timer = setTimeout(function () { ctrl.abort(); }, 2000);
@@ -111,6 +112,7 @@
       var ok = res.ok && body && body.ok === true && body.name === "vyred";
       return ok ? body : null;
     } catch (e) {
+      lastError = String(e && e.message || e);
       return null;
     } finally {
       clearTimeout(timer);
@@ -128,7 +130,7 @@
       setRow("sidecar", "sidecar: connected to " + body.name + " (pid " + body.pid + ")", "ok");
       document.documentElement.dataset.sidecar = "connected";
     } else {
-      setRow("sidecar", "sidecar: unreachable", "bad");
+      setRow("sidecar", "sidecar: unreachable " + lastError, "bad");
       document.documentElement.dataset.sidecar = "unreachable";
     }
   }
