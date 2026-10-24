@@ -20,6 +20,12 @@ function scratch(): string {
   fs.symlinkSync(path.join(REPO, "packages"), path.join(root, "packages"));
   return root;
 }
+/** Run a child `node --test` that is its own run: the parent test runner's context must not leak in. */
+const nodeTest = (cwd: string, files: string[]) => {
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  delete env["NODE_TEST_CONTEXT"];
+  return spawnSync(process.execPath, ["--test", "--test-reporter=tap", ...files], { cwd, encoding: "utf8", env });
+};
 const modulesOf = (root: string): ModulesFile => JSON.parse(fs.readFileSync(path.join(root, "host/modules.json"), "utf8")) as ModulesFile;
 
 test("the anatomy of a new module is the one in ARCH 2.3, and the README is ten lines at most", () => {
@@ -81,12 +87,12 @@ test("a scaffolded module builds: it is written, registered, and its generated t
   for (const p of r.written) assert.ok(fs.existsSync(path.join(root, p)), p);
   assert.deepEqual(modulesOf(root).modules.find((m) => m.id === "widgets"), { id: "widgets", owner: "L1", status: "stub" });
   assert.equal(modulesOf(root).modules.length, 73);
-  const run = spawnSync(process.execPath, ["--test", "modules/widgets/tests/widgets.contract.test.ts", "modules/widgets/tests/widgets.space.test.ts"], { cwd: root, encoding: "utf8" });
+  const run = nodeTest(root, ["modules/widgets/tests/widgets.contract.test.ts", "modules/widgets/tests/widgets.space.test.ts"]);
   assert.equal(run.status, 0, run.stdout + run.stderr);
-  assert.match(run.stdout, /pass 1/);
-  assert.match(run.stdout, /skipped 1/, "no testkit yet");
+  assert.match(run.stdout, /# pass 1\b/);
+  assert.match(run.stdout, /# skipped 1\b/, "no testkit yet");
   // the manifest it wrote loads and is the one the registry would read
-  const again = spawnSync(process.execPath, ["-e", "import('./manifests/widgets.ts').then((m) => console.log(m.default.id, m.default.owner, m.default.status, m.default.capabilities.length))"], { cwd: root, encoding: "utf8" });
+  const again = spawnSync(process.execPath, ["--input-type=module", "-e", "import('./manifests/widgets.ts').then((m) => console.log(m.default.id, m.default.owner, m.default.status, m.default.capabilities.length))"], { cwd: root, encoding: "utf8" });
   assert.equal(again.stdout.trim(), "widgets L1 stub 2", again.stderr);
 });
 
@@ -95,7 +101,7 @@ test("the contract test the scaffold writes has teeth: a handler missing from im
   writeScaffold(root, "gadgets", "L2");
   const impl = path.join(root, "modules/gadgets/impl.ts");
   fs.writeFileSync(impl, fs.readFileSync(impl, "utf8").replace(/\n  "gadgets\.get":.*\n/, "\n"));
-  const run = spawnSync(process.execPath, ["--test", "modules/gadgets/tests/gadgets.contract.test.ts"], { cwd: root, encoding: "utf8" });
+  const run = nodeTest(root, ["modules/gadgets/tests/gadgets.contract.test.ts"]);
   assert.notEqual(run.status, 0, "the contract test must notice");
 });
 

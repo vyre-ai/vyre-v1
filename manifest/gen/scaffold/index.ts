@@ -69,9 +69,9 @@ import manifest from "../../../manifests/${name}.ts";
 import { handlers } from "../impl.ts";
 
 test(${JSON.stringify(`${name}: one handler per capability, and every emitted event is declared`)}, () => {
-  assert.deepEqual(Object.keys(handlers).sort(), manifest.capabilities.map((c) => c.name).sort());
+  assert.deepEqual(Object.keys(handlers).sort(), (manifest.capabilities ?? []).map((c) => c.name).sort());
   const events = new Set((manifest.events ?? []).map((e) => e.name));
-  for (const c of manifest.capabilities) for (const e of c.emits ?? []) assert.ok(events.has(e), \`\${c.name} emits \${e}, which the manifest declares\`);
+  for (const c of manifest.capabilities ?? []) for (const e of c.emits ?? []) assert.ok(events.has(e), \`\${c.name} emits \${e}, which the manifest declares\`);
   assert.equal(manifest.owner, ${JSON.stringify(lane)});
 });
 `);
