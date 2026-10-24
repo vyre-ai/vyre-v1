@@ -1,5 +1,6 @@
 // The generated contract for logs, run against the REAL handlers: the same example inputs and outputs the stub answered with
 // (generated/modules/logs/stub-impl.ts), checked against the registry's schemas. This is the evidence for flipping logs to live (ARCH 12.4).
+// The flip itself is the lead's: it regenerates the registry, whose hash is pinned in docs/frozen.
 // @reads /generated/registry.json
 // @reads ../migrations/0001_init.sql
 
