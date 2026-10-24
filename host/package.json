@@ -1,0 +1,8 @@
+{
+  "name": "@vyre/host",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { "./invoke": "./src/invoke.ts", "./gateway": "./src/gateway.ts" },
+  "description": "Host: gateway and the capability invoke pipeline (ARCH 4.4)."
+}
