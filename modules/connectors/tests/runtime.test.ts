@@ -322,6 +322,7 @@ test("the framework: init, build, test, diff, publish, versions, rollback, expor
   assert.equal((await hs["connectors.publish"](k.ctx, { key: "acme" })).version, "1.0.1");
   const fewer: ConnectorDef = { ...more, actions: more.actions.filter((a) => a.name !== "raw"), tests: more.tests!.filter((t) => t.action !== "raw") };
   k.deps.loadFolderDef = async () => fewer;
+  await hs["connectors.build"](k.ctx, { key: "acme" });
   const d3 = await hs["connectors.diff"](k.ctx, { key: "acme" });
   assert.equal(d3.breaking, true, "an action was removed");
   assert.equal((await hs["connectors.publish"](k.ctx, { key: "acme" })).version, "2.0.0");
