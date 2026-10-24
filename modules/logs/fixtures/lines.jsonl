@@ -1,0 +1,7 @@
+{"at":1760000000000,"level":"info","traceId":"0123456789abcdef0123456789abcdef","spanId":"abcdef0123456789","actor":"usr_owner","onBehalf":"usr_ana","cap":"records.update","entity":"record","entityId":"rec_seed","result":"ok","durMs":4,"costMicros":0,"label":1,"appVersion":"1.0.0","serverVersion":"1.0.0","msg":"record.updated","attrs":{"count":1}}
+{"at":1760000000100,"level":"warn","traceId":"0123456789abcdef0123456789abcdef","actor":"usr_owner","cap":"mail.send","msg":"mail.held","attrs":{"text":"Dear client, the settlement is","count":2,"nested":{"body":"private","id":"rec_1"},"list":[{"subject":"Re: case"},{"n":3}]}}
+{"at":1760000000200,"level":"info","traceId":"0123456789abcdef0123456789abcdef","actor":"usr_owner","cap":"vault.use","msg":"vault.used","attrs":{"card":{"ciphertext":"c2VhbGVk"},"fieldLabel":{"label":"restricted","note":"x"},"n":1}}
+{"kind":"span","traceId":"0123456789abcdef0123456789abcdef","spanId":"1111111111111111","name":"invoke.handler","at":1760000000010,"durUs":3200,"attrs":{"cap":"records.update"}}
+{"kind":"span","traceId":"0123456789abcdef0123456789abcdef","spanId":"2222222222222222","parent":"1111111111111111","name":"module.records.write","at":1760000000020,"durUs":900}
+{"kind":"event","traceId":"0123456789abcdef0123456789abcdef","seq":41,"type":"record.updated","at":1760000000030,"actor":"usr_owner","entity":"record/rec_seed"}
+not json at all

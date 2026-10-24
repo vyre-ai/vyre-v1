@@ -1,0 +1,10 @@
+{
+  "targets": [
+    {
+      "id": "sample",
+      "route": "/",
+      "proto": "home,{skin}",
+      "note": "Tooling proof: the sample list from the shots fixture app against the prototype home place. Real screens add scripts/shots/targets/<packet>.json with their own route and prototype hash."
+    }
+  ]
+}

@@ -2,9 +2,9 @@
 
 Lane L7a. Kind module. Status stub. Version 0.1.0.
 
-Requires: nothing.
+Requires: access, members.
 
-## Capabilities (25)
+## Capabilities (26)
 
 - [identity.change_password](../capabilities/identity.change_password.md): Change my own password; keys are re-wrapped on the device first
 - [identity.github_link](../capabilities/identity.github_link.md): Link a GitHub account so it can sign in once the Space is named
@@ -31,6 +31,7 @@ Requires: nothing.
 - [identity.username_available](../capabilities/identity.username_available.md): Check a username is free (join page)
 - [identity.verify_second_factor](../capabilities/identity.verify_second_factor.md): Finish a sign-in with the second factor code
 - [identity.whoami](../capabilities/identity.whoami.md): Who the caller is here: person, roles, clearance, device, epoch
+- [invites.accept_create_account](../capabilities/invites.accept_create_account.md): Join by invite with no account yet: creates the person, sets the password, stores the wrapped keys and joins the Space with the invite's role and groups
 
 ## Events (10)
 

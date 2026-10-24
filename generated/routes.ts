@@ -14058,6 +14058,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/invites/accept_create_account",
+    "cap": "invites.accept_create_account",
+    "v": 1,
+    "module": "identity",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/journeys/advance",
     "cap": "journeys.advance",
     "v": 1,
