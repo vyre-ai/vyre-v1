@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_03-menu-tabs-pane",
+      "route": "/m/P-L9_03",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='menu']",
+      "note": "A right-click menu (ending in Report a problem), the main tab strip with its pane toggle at the far left, and the side pane header with the same toggle and the shared strip. The prototype cannot open its menu from a hash, so the prototype image shows the Chats place with its tab strip and right pane for the header and tab comparison."
+    }
+  ]
+}
