@@ -10,6 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { bootCore } from "../../fixtures/seed/core/index.ts";
 import { registry } from "../../generated/registry.ts";
+import { ROLE_PERMS } from "../../kernel/src/grants/roles.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 import { createInvoke, indexCapabilities } from "../src/invoke.ts";
 import type { CommitBatch, CtxSeed, GateHook, Handler, InvokeResult } from "../src/invoke.ts";
@@ -171,6 +172,12 @@ const tmp = (p: string): string => fs.mkdtempSync(path.join(os.tmpdir(), p));
 
 function seededDir(): string {
   const core = bootCore();
+  // the seed's owner role predates the comms permissions: give it the one the domain and route calls need
+  const [stored] = core.store.appendBatch([{
+    id: "evt_mailprov_0001", type: "role.defined", sv: 1, trace_id: "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0", actor: "svc_seed", vis: "space", entity: "role", entity_id: "owner",
+    payload: { id: "owner", clearance: 3, perms: [...ROLE_PERMS["owner"], "comms.domains"], name: "owner" },
+  }]);
+  assert.ok(stored?.ok, "the role event is accepted");
   const dir = tmp("vyre-mailprov-");
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
   fs.copyFileSync(core.file, path.join(dir, "events.db"));
