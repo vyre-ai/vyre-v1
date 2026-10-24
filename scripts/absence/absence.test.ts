@@ -1,5 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+// @reads scripts/absence/run.ts
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { checkRepo } from "./repo.ts";
 import { RULES, checkAbsence, checkAdrIndex, formatFindings, importSpecifiers, inScope } from "./absence.ts";
 
 function rulesHit(path: string, text?: string): string[] {
@@ -72,4 +79,29 @@ test("ADR index: lists every file, no gaps, no dead links, names checked", () =>
   assert.ok(checkAdrIndex({ files: ["README.md", "0001-first.md"], index }).some((e) => e.includes("links 0002-second.md, which does not exist")));
   assert.ok(checkAdrIndex({ files: ["README.md", "0001-first.md", "0003-third.md"], index: index + "\n[0003](0003-third.md)" }).some((e) => e.includes("without gaps")));
   assert.ok(checkAdrIndex({ files: ["README.md", "notes.md"], index: "" }).some((e) => e.includes("not named NNNN")));
+});
+
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+
+test("this repository passes the absence check and has a valid ADR index", () => {
+  const result = checkRepo(repoRoot, { runGen: false });
+  assert.deepEqual(result.errors, []);
+  assert.ok(result.scanned > 0);
+});
+
+test("a repo that imports a forbidden path fails the run, and the CLI exits non-zero", () => {
+  const dir = mkdtempSync(join(tmpdir(), "absence-"));
+  const git = (...args: string[]) => spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+  git("init", "-q");
+  mkdirSync(join(dir, "modules/vault"), { recursive: true });
+  mkdirSync(join(dir, "docs/adr"), { recursive: true });
+  writeFileSync(join(dir, "modules/vault/impl.ts"), "import { create } from '@simplewebauthn/browser';\n");
+  writeFileSync(join(dir, "docs/adr/README.md"), "# ADRs\n");
+  git("add", "-A");
+  const bad = checkRepo(dir, { runGen: false });
+  assert.ok(bad.errors.some((e) => e.startsWith("not-in-v1 passkeys: modules/vault/impl.ts imports")), bad.errors.join("\n"));
+  writeFileSync(join(dir, "modules/vault/impl.ts"), "export const ok = 1;\n");
+  assert.deepEqual(checkRepo(dir, { runGen: false }).errors, []);
+  const cli = spawnSync(process.execPath, [join(repoRoot, "scripts/absence/run.ts")], { cwd: repoRoot, encoding: "utf8" });
+  assert.equal(cli.status, 0, cli.stdout + cli.stderr);
 });
