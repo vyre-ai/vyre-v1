@@ -82,7 +82,8 @@ test("only the member a subscription watches, or an admin, can remove it; Micros
   await assert.rejects(() => calendarUnsubscribe(h.ctx, { ...act, subscriptionId: "subSam" }), (e) => codeOf(e) === "permission.no_grant");
   await assert.rejects(() => mailUnsubscribe(h.ctx, { ...act, subscriptionId: "nope" }), (e) => codeOf(e) === "validation.not_found");
   h.on("DELETE", `${GRAPH}/subscriptions/subSam`, { status: 503, body: {} });
-  const boss = ready({ admin: true });
+  const boss = harness({ admin: true });
+  seedConsent(boss, { members: [{ email: MAYA, userId: "usr_maya01" }, { email: SAM, userId: "usr_sam01" }] });
   boss.ctx.db.run(`INSERT INTO ms_subscription (id, kind, resource, mailbox, "connectionId", "notificationUrl", "clientState", "expiresAt", "maxMinutes", "changeType") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     "subSam", "mail", "users/sam@vyre.test/messages", SAM, CONN, URL_OK, "cs", NOW + MIN, 4230, "created");
   boss.on("DELETE", `${GRAPH}/subscriptions/subSam`, { status: 503, body: {} });
@@ -294,7 +295,7 @@ test("verify names missing permissions and the mailbox the access policy blocks,
   const ok = await consentVerify(h.ctx, {});
   assert.deepEqual(ok, { ok: true, missingPermissions: [] });
   assert.deepEqual(h.named("microsoft.consent_verified").at(-1)?.payload, { connector: "microsoft", ok: true, missingPermissions: [] });
-  assert.deepEqual(await consentStatus(h.ctx), { configured: true, tenantId: "tenant-guid", consentGiven: true, policyConfirmed: true, lastVerifyAt: NOW, autoConnect: true, mappedMembers: 2, excluded: [] });
+  assert.deepEqual(await consentStatus(h.ctx), { configured: true, tenantId: "tenant-guid", consentGiven: true, policyConfirmed: true, lastVerifyAt: NOW, autoConnect: true, mappedMembers: 3, excluded: [] });
   check("ms.consent.verify", ok);
 
   h.state.roles = PERMISSIONS.filter((p) => p !== "Mail.Send" && p !== "OnlineMeetingRecording.Read.All");
@@ -339,10 +340,10 @@ test("the consent link and the PowerShell snippet carry the client id and the ma
   const snippet = await consentSnippet(h.ctx);
   assert.equal(snippet.language, "powershell");
   assert.equal(snippet.groupName, "VyreMappedMembers");
-  assert.match(snippet.snippet, /New-DistributionGroup -Name "VyreMappedMembers" .* -Members "maya@vyre\.test"\r?\n/);
+  assert.match(snippet.snippet, /New-DistributionGroup -Name "VyreMappedMembers" .* -Members "kim@vyre\.test","maya@vyre\.test"\r?\n/);
   assert.ok(!snippet.snippet.includes(SAM));   // an excluded member is not given access
   assert.match(snippet.snippet, /New-ApplicationAccessPolicy -AppId "11111111-2222-3333-4444-555555555555" -PolicyScopeGroupId "vyremappedmembers@vyre\.test" -AccessRight RestrictAccess/);
-  assert.match(snippet.snippet, /Test-ApplicationAccessPolicy .* -Identity "maya@vyre\.test"/);
+  assert.match(snippet.snippet, /Test-ApplicationAccessPolicy .* -Identity "kim@vyre\.test"/);
   for (const [cap, out] of [["ms.consent.link", link], ["ms.consent.policy_snippet", snippet]] as const) check(cap, out);
 });
 
@@ -350,9 +351,9 @@ test("members list in pages; an exclusion stops every call for that member; turn
   const h = admin();
   await consentSetup(h.ctx, setupInput);
   const page = await consentMembers(h.ctx, { limit: 1 });
-  assert.deepEqual(page.members, [{ email: MAYA, userId: "usr_maya01", mapped: true, excluded: false, mailboxState: "pending" }]);
+  assert.deepEqual(page.members, [{ email: "kim@vyre.test", userId: "usr_kim01", mapped: true, excluded: false, mailboxState: "pending" }]);
   assert.equal(page.next, "1");
-  assert.deepEqual((await consentMembers(h.ctx, { limit: 1, cursor: page.next })).members.map((m) => m.email), [SAM]);
+  assert.deepEqual((await consentMembers(h.ctx, { limit: 1, cursor: page.next })).members.map((m) => m.email), [MAYA]);
   check("ms.consent.members", page);
   await assert.rejects(() => consentMembers(h.ctx, { limit: 0 }), (e) => codeOf(e) === "validation.bad_input");
   await assert.rejects(() => consentMembers(h.ctx, { cursor: "x" }), (e) => codeOf(e) === "validation.bad_input");

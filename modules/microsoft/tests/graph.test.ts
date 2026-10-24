@@ -241,7 +241,7 @@ const ev = { id: "e1", subject: "Intake", start: { dateTime: "2026-10-26T10:00:0
 
 test("calendars and events map to the contract; a view is asked for its range and paged by skip token", async () => {
   const h = ready();
-  h.on("GET", `${U}/calendars?`, { body: { value: [{ id: "cal1", name: "Calendar", color: "auto", isDefaultCalendar: true, canEdit: true }, { id: "cal2", name: "Team" }] } });
+  h.on("GET", `${U}/calendars`, { body: { value: [{ id: "cal1", name: "Calendar", color: "auto", isDefaultCalendar: true, canEdit: true }, { id: "cal2", name: "Team" }] } });
   h.on("GET", `${U}/calendar/calendarView?`, { body: { value: [ev], "@odata.nextLink": "https://graph.microsoft.com/v1.0/users('mid')/calendar/calendarView?$skiptoken=E2" } });
   h.on("GET", `${U}/calendars/cal2/calendarView?`, { body: { value: [] } });
   h.on("GET", `${U}/events/e1`, { body: ev });
