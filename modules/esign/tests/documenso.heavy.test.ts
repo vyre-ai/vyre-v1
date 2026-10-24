@@ -127,12 +127,11 @@ test("setup: the pinned stack boots (Postgres sidecar, Documenso, a sink for mai
 test("probe: what this Documenso answers", { skip }, async () => {
   const inApp = (cmd: string): string => dc(["exec", "-T", "documenso", "sh", "-c", cmd], { allowFail: true, timeout: 120_000 });
   const lim = (t: string, n = 3500): string => t.slice(0, n);
-  const R = "/app/apps/remix/build/server/hono/packages/auth/server";
-  say("auth routes", lim(inApp(`ls ${R}/routes; grep -ohE "\\.(get|post)\\(\\s*['\\"][^'\\"]+['\\"]" ${R}/routes/*.js | sort -u | head -40`)));
-  say("auth index", lim(inApp(`grep -ohE "(route|get|post|use)\\(['\\"][^'\\"]+['\\"]" ${R}/index.js | sort -u | head -30`)));
-  say("signup schema", lim(inApp(`cat ${R}/types/email-password.js | head -c 2500`)));
-  const S = "/app/apps/remix/build/server";
-  say("sign procs", lim(inApp(`grep -rhoE ".{0,200}(signFieldWithToken|completeDocumentWithToken)[A-Za-z]*.{0,300}" ${S} --include=*.js 2>/dev/null | head -c 3000`)));
+  const T = "/app/apps/remix/build/server/hono/packages/trpc/server";
+  say("trpc dirs", lim(inApp(`ls ${T}; ls ${T}/field-router ${T}/recipient-router 2>&1`)));
+  say("client sign calls", lim(inApp(`grep -rhoE "(field|recipient|envelope|document)\\.[A-Za-z]*([Ss]ign|[Cc]omplete)[A-Za-z]*" /app/apps/remix/build/client/assets 2>/dev/null | sort -u | head -40`)));
+  say("sign schemas", lim(inApp(`for f in ${T}/field-router/*.types.js ${T}/recipient-router/*.types.js; do echo "== $f"; grep -E "Sign|Complete" -A14 "$f" | head -70; done 2>&1 | head -c 6000`), 6000));
+  say("trpc mount", lim(inApp(`grep -rhoE "(/api/trpc|trpc)[^\\"' ]{0,30}" /app/apps/remix/build/server/hono/*.js 2>/dev/null | sort -u | head`)));
   const v1 = await (await fetch(`${state.base}/api/v1/openapi.json`)).json() as { paths: Record<string, Record<string, unknown>> };
   say("v1 paths", Object.entries(v1.paths).map(([p, m]) => `${Object.keys(m).join(",")} ${p}`).join("\n"));
   const v2 = await (await fetch(`${state.base}/api/v2/openapi.json`)).json() as { paths: Record<string, Record<string, unknown>> };
