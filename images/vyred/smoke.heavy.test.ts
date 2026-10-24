@@ -125,23 +125,26 @@ async function bootDaemon(role: "space" | "device"): Promise<{ dir: string; chil
   return { dir, child, stop };
 }
 
-for (const role of ["space", "device"] as const) {
-  test(`@heavy boot: vyred in the ${role} role starts and the container healthcheck reports ok, then unhealthy once it stops`, async () => {
-    const d = await bootDaemon(role);
-    try {
-      const up = await checkOf({ ...process.env, VYRE_DATA_DIR: d.dir, VYRE_ROLE: role });
-      assert.equal(up.ok, true, up.why);
-      const cli = spawnSync(process.execPath, [path.join(HERE, "healthcheck.mjs")], { env: { ...process.env, VYRE_DATA_DIR: d.dir, VYRE_ROLE: role }, encoding: "utf8" });
-      assert.equal(cli.status, 0, cli.stderr);
-    } finally { await d.stop(); }
-    const down = await checkOf({ ...process.env, VYRE_DATA_DIR: d.dir, VYRE_ROLE: role });
-    assert.equal(down.ok, false);
-    const cliDown = spawnSync(process.execPath, [path.join(HERE, "healthcheck.mjs")], { env: { ...process.env, VYRE_DATA_DIR: d.dir, VYRE_ROLE: role }, encoding: "utf8" });
-    assert.equal(cliDown.status, 1);
-    assert.match(cliDown.stderr, /^unhealthy: /);
-    fs.rmSync(d.dir, { recursive: true, force: true });
-  });
+async function bootAndCheck(role: "space" | "device"): Promise<void> {
+  const d = await bootDaemon(role);
+  try {
+    const up = await checkOf({ ...process.env, VYRE_DATA_DIR: d.dir, VYRE_ROLE: role });
+    assert.equal(up.ok, true, up.why);
+    const cli = spawnSync(process.execPath, [path.join(HERE, "healthcheck.mjs")], { env: { ...process.env, VYRE_DATA_DIR: d.dir, VYRE_ROLE: role }, encoding: "utf8" });
+    assert.equal(cli.status, 0, cli.stderr);
+  } finally { await d.stop(); }
+  const down = await checkOf({ ...process.env, VYRE_DATA_DIR: d.dir, VYRE_ROLE: role });
+  assert.equal(down.ok, false);
+  const cliDown = spawnSync(process.execPath, [path.join(HERE, "healthcheck.mjs")], { env: { ...process.env, VYRE_DATA_DIR: d.dir, VYRE_ROLE: role }, encoding: "utf8" });
+  assert.equal(cliDown.status, 1);
+  assert.match(cliDown.stderr, /^unhealthy: /);
+  fs.rmSync(d.dir, { recursive: true, force: true });
 }
+
+// both roles boot at once so the file stays well inside the 20 s cap
+test("@heavy boot: vyred in the space and the device role starts and the container healthcheck reports ok, then unhealthy once it stops", async () => {
+  await Promise.all([bootAndCheck("space"), bootAndCheck("device")]);
+});
 
 const dockerOn = process.env["VYRE_HEAVY_DOCKER"] === "1" && spawnSync("docker", ["version", "--format", "{{.Server.Version}}"], { encoding: "utf8" }).status === 0;
 test("@heavy docker: the image builds, boots in the device role and Docker reports it healthy", { skip: dockerOn ? false : "needs Docker and VYRE_HEAVY_DOCKER=1" }, async () => {
