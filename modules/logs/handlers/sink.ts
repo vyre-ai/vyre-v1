@@ -90,8 +90,10 @@ function term(expr: string, row: Row, args: unknown[]): boolean {
 }
 
 function matches(expr: string, row: Row, args: unknown[]): boolean {
-  for (const part of splitAnd(expr)) if (!term(part, row, args)) return false;
-  return true;
+  // Every term must run so a failed comparison still consumes its placeholders.
+  let ok = true;
+  for (const part of splitAnd(expr)) if (!term(part, row, args)) ok = false;
+  return ok;
 }
 
 function sortRows(rows: Row[], order: string): Row[] {
