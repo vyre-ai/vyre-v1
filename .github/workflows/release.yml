@@ -55,6 +55,7 @@ jobs:
     needs: live
     uses: ./.github/workflows/deploy.yml
   budget-tag:
+    permissions: { contents: read, actions: read }
     needs: [suite, client, kits, images, heavy, security, native, desktop, live, deploy]
     if: always()
     runs-on: [self-hosted, linux, v1]

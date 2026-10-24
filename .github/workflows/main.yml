@@ -60,6 +60,7 @@ jobs:
     steps:
       - run: echo "merge ok"
   budget-main:
+    permissions: { contents: read, actions: read }
     needs: [shards, golden-main, perf, contracts, merge-ok]
     if: always()
     runs-on: [self-hosted, linux, v1]

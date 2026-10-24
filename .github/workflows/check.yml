@@ -93,6 +93,7 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         run: tools/gen/check.sh
   budget:
+    permissions: { contents: read, actions: read }
     needs: [select, shards, check, golden]
     if: always()
     runs-on: [self-hosted, linux, v1]
