@@ -1,5 +1,39 @@
--- Runs engine tables (P-L6_03, ARCH 4.7, 7.7). runs_items is generated (generated/modules/runs/schema.sql); the tables below hold the durable step log,
--- the waits, the idempotent start keys and the per-run facts the Run row has no column for.
+-- Runs engine tables (P-L6_03, ARCH 4.7, 7.7). runs_items and runs_items__fm repeat generated/modules/runs/schema.sql exactly (IF NOT EXISTS), so either CREATE can run first;
+-- the tables below hold the durable step log, the waits, the idempotent start keys and the per-run facts the Run row has no column for.
+
+CREATE TABLE IF NOT EXISTS "runs_items" (
+  "id" TEXT PRIMARY KEY,
+  "kind" TEXT,
+  "name" TEXT,
+  "owner" TEXT,
+  "started_by" TEXT,
+  "subject" TEXT,
+  "status" TEXT,
+  "wait_reason" TEXT,
+  "definition_version" REAL,
+  "key_used" TEXT,
+  "model_used" TEXT,
+  "cost_micros" REAL,
+  "started_at" INTEGER,
+  "ended_at" INTEGER,
+  "parent_run" TEXT,
+  "thread_id" TEXT,
+  "trace_id" TEXT,
+  "summary" TEXT,
+  "version" INTEGER NOT NULL DEFAULT 0,
+  "updated_at" INTEGER,
+  "deleted_at" INTEGER
+);
+CREATE TABLE IF NOT EXISTS "runs_items__fm" (
+  "id" TEXT NOT NULL,
+  "field" TEXT NOT NULL,
+  "hlc" TEXT NOT NULL,
+  "actor" TEXT,
+  "seq" INTEGER,
+  PRIMARY KEY ("id", "field")
+);
+CREATE INDEX IF NOT EXISTS "runs_items__owner" ON "runs_items" ("owner");
+
 
 -- One row per step attempt: the durable step log. idem_key is run:step:attempt, so a replayed attempt reuses the key and a provider can dedupe.
 -- ord is the order a step was first seen; recovery resumes at the first step whose latest attempt is not terminal.
