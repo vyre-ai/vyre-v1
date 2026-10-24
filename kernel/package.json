@@ -1,0 +1,8 @@
+{
+  "name": "@vyre/kernel",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { "./log": "./src/log/index.ts", "./idempotency": "./src/idempotency/index.ts" },
+  "description": "Trusted core: event log with hash chain and group-commit db worker, idempotency."
+}
