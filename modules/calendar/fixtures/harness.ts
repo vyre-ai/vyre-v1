@@ -15,7 +15,7 @@ export const DAY = 86_400_000;
 /** Midnight UTC of the day NOW falls on. */
 export const DAY0 = Math.floor(NOW / DAY) * DAY;
 /** `hh:mm` on day `n` after DAY0, in UTC. */
-export const at = (day: number, hh: number, mm = 0): number => DAY0 + day * DAY + hh * HOUR + mm * MIN;
+export const at = (day: number, hh = 0, mm = 0): number => DAY0 + day * DAY + hh * HOUR + mm * MIN;
 
 export interface Emitted { name: string; subject: string; payload: Record<string, unknown>; vis?: string }
 export interface Called { cap: string; input: Record<string, unknown> }
