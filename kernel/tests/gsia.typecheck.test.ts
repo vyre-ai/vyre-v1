@@ -6,6 +6,14 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+// Imported so the affected-test selector reruns this gate whenever any of these changes.
+import "../src/identity/index.ts";
+import "../src/identity/errors.ts";
+import "../src/seal/index.ts";
+import "../src/audit/index.ts";
+import "../src/audit/key.ts";
+import "../src/audit/verify.ts";
+import "../src/grants/index.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const MINE = /^kernel\/(src\/(identity|seal|audit|grants)\/|tests\/gsia\.)/;
