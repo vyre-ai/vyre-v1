@@ -45,15 +45,17 @@ test("a create, update and delete are in the log with values and the rt_ row is 
   assert.deepEqual(seen[2]!.payload.prev, { name: "A", qty: 2, note: "n" });
 
   // Drop the projections and rebuild them from the log alone: rows and field clocks come back identical.
-  const rowBefore = await rec.store.get("item", id);
+  const rows = () => rec.host.tx.all("SELECT * FROM rt_item ORDER BY id");
+  const rowBefore = rows();
   const clocksBefore = rec.clocks("item", id);
   const historyBefore = rec.history("item", id);
   rec.host.rebuild("records.rows");
   rec.host.rebuild("records.field_meta");
-  assert.deepEqual(await rec.store.get("item", id), rowBefore);
+  assert.deepEqual(rows(), rowBefore);
   assert.deepEqual(rec.clocks("item", id), clocksBefore);
   assert.deepEqual(rec.history("item", id), historyBefore);
-  assert.equal((await rec.store.get("item", id))?.deleted_at !== undefined, true);
+  assert.equal(rowBefore.length, 1);
+  assert.notEqual((rows()[0] as { deleted_at: number | null }).deleted_at, null);
 });
 
 test("a write that is refused leaves no event in the log and none on the bus", async () => {

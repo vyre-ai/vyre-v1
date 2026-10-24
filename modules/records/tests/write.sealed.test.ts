@@ -58,9 +58,14 @@ test("sealed plaintext is refused and never written to the log, events, history 
   assert.equal(stored.includes("987-65-4321"), false);
   for (const payload of emitted) {
     const text = JSON.stringify(payload);
-    assert.equal(text.includes("sv_1"), false);
-    assert.equal(text.includes("sv_2"), false);
-    assert.equal(Object.prototype.hasOwnProperty.call(payload, "value"), false);
+    // Ruling 20: events carry values, and a sealed value is its reference only (never the plaintext or the raw copy).
+    assert.equal(text.includes('"raw"'), false);
+    assert.equal(text.includes(SECRET), false);
   }
+  const created = emitted[0] as { fields: { ssn: { ref: string } } };
+  assert.equal(created.fields.ssn.ref, "sv_1");
+  const updated = emitted[1] as { fields: { ssn: { ref: string } }; prev: { ssn: { ref: string } } };
+  assert.equal(updated.fields.ssn.ref, "sv_2");
+  assert.equal(updated.prev.ssn.ref, "sv_1");
   assert.ok(emitted.length >= 2);
 });
