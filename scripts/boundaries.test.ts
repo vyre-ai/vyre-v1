@@ -181,3 +181,35 @@ test('shipped boundaries.json agrees when the file is present', () => {
   assert.ok(!v.some((x) => x.file.startsWith('modules/engine')));
   assert.ok(layerDag(shipped).some((e) => e.kind === 'exception' && e.to === 'agent'));
 });
+
+test('an import is a statement: the word inside a string or a dotted name is not one', () => {
+  const src = [
+    'const ADMIN = ["records.import", "files.read", "from", "x"];',
+    'const msg = "do not import from here";',
+    'export const keys = ["import"] as const;',
+    'import real from "./real.ts";',
+  ].join('\n');
+  assert.deepEqual(parseImports(src).map((i) => i.spec), ['./real.ts']);
+  assert.deepEqual(parseImports('const a = 1; import b from "./b.ts"; export { c } from "./c.ts";').map((i) => i.spec), ['./b.ts', './c.ts']);
+});
+
+test('tests are exempt from B2, B3 and B4; named files, dynamicOk and ignoreImports follow the shipped config', () => {
+  if (!existsSync('scripts/boundaries.json')) return;
+  const shipped = JSON.parse(readFileSync('scripts/boundaries.json', 'utf8')) as BoundariesFile;
+  const files: Record<string, string> = {
+    'lib/acme/csr.ts': 'import crypto from "node:crypto";\n',
+    'lib/other.ts': 'import crypto from "node:crypto";\n',
+    'lib/tests/a.test.ts': 'import crypto from "node:crypto";\nimport { DatabaseSync } from "node:sqlite";\n',
+    'modules/mail/src/a.ts': 'import { DatabaseSync } from "node:sqlite";\n',
+    'ui/src/a.test.ts': 'const f = fetch("/x");\n',
+    'ui/src/a.ts': 'const f = fetch("/x");\n',
+    'host/src/loader.ts': 'const m = await import(path);\n',
+    'host/src/other.ts': 'const m = await import(path);\n',
+    'manifest/gen/scaffold/index.ts': 'const t = `import("../../../manifests/${name}.ts")`;\n',
+    'packages/contracts/tests/a.test.ts': 'import { all } from "../../../manifests/index.ts";\n',
+    'packages/contracts/src/a.ts': 'import { all } from "../../../manifests/index.ts";\n',
+    'testkit/src/x.ts': 'import { DatabaseSync } from "node:sqlite";\nimport "../../kernel/src/log/index.ts";\n',
+  };
+  const bad = new Set(checkSources(files, shipped, { deps: [] }).map((v) => v.file));
+  assert.deepEqual([...bad].sort(), ['host/src/other.ts', 'lib/other.ts', 'modules/mail/src/a.ts', 'packages/contracts/src/a.ts', 'ui/src/a.ts']);
+});

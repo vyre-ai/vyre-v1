@@ -1,6 +1,6 @@
 # Sync (sync)
 
-Lane L1. Kind module. Status stub. Version 0.1.0.
+Lane L1. Kind module. Version 0.1.0.
 
 Requires: nothing.
 

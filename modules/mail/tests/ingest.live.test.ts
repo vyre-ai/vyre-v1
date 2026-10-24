@@ -154,7 +154,7 @@ test("logout closes the socket when the goodbye fails and is safe to repeat", as
 
 test("the handler map covers exactly the capabilities this module has built, each in the registry", () => {
   const names = Object.keys(handlers).sort();
-  assert.deepEqual(names, ["mail.connect", "mail.draft", "mail.drafts.discard", "mail.drafts.list", "mail.ingest", "mail.sync_now"]);
+  assert.deepEqual(names, ["mail.connect", "mail.draft", "mail.drafts.discard", "mail.drafts.list", "mail.ingest", "mail.send", "mail.send_as", "mail.send_preview", "mail.sync_now"]);
   const known = new Set(registry.capabilities.filter((c) => c.module === "mail").map((c) => c.name));
   for (const n of names) assert.ok(known.has(n), `${n} is a mail capability`);
   assert.deepEqual(Object.keys(projections), ["inline", "consumers"]);

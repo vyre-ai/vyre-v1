@@ -19,7 +19,7 @@ export default defineManifest({
   ],
   capabilities: [
     read('health.status', 'Latest state of every health check, grouped by module', { out: { overall: state, checks: t.arr(checkRow) }, perm: 'console.access', tool: 'engineer' }),
-    write('health.run', 'Run one health check or all of them now', { in: { key: t.opt(t.str()) }, out: { checks: t.arr(checkRow) }, perm: 'console.access', tool: 'engineer' }),
+    write('health.run', 'Run one health check or all of them now', { in: { key: t.opt(t.str()) }, out: { checks: t.arr(checkRow) }, perm: 'console.access', emits: ['health.changed', 'health.paused', 'health.resumed'], tool: 'engineer' }),
     read('health.history', 'Samples of a health check over time', { in: { key: t.str(), sinceMs: t.opt(t.ts()) }, out: { samples: t.arr(t.obj({ at: t.ts(), state, latencyMs: t.opt(t.int()), detail: t.opt(t.str()) })) }, perm: 'console.access', tool: 'engineer' }),
     read('health.doctor', 'Doctor results: each check with a plain next step; same output as `vyre-server doctor`', { out: { ok: t.bool(), findings: t.arr(t.obj({ key: t.str(), state, next: t.str() })) }, perm: 'console.access', tool: 'engineer', cli: 'vyre doctor' }),
     read('health.paused_reasons', 'What is paused and why (shown on the paused automation, sync or campaign)', { out: { paused: t.arr(t.obj({ area: t.enm('automations', 'sync', 'sends', 'campaigns'), key: t.str(), reason: t.str() })) } }),

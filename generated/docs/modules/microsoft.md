@@ -1,6 +1,6 @@
 # Microsoft 365 (microsoft)
 
-Lane L5. Kind connector. Status stub. Version 0.1.0.
+Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 

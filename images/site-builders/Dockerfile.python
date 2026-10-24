@@ -1,0 +1,19 @@
+# Site builder: python (buildpacks-lite, spec 2.20, ARCH 7.6). Used when the repo has requirements.txt or pyproject.toml.
+# LOCK_HASH keys the dependency layer; INSTALL_CMD runs on the manifests alone, BUILD_CMD runs after the sources are copied (pyproject installs there).
+ARG PYTHON_IMAGE=python:3.13-slim
+FROM ${PYTHON_IMAGE}
+RUN useradd --create-home --uid 10001 site
+WORKDIR /app
+ENV PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+ARG LOCK_HASH=none
+ARG INSTALL_CMD="true"
+ARG BUILD_CMD=""
+ARG START_CMD="python app.py"
+COPY requirements*.txt pyproject.toml* poetry.lock* uv.lock* ./
+RUN echo "lock ${LOCK_HASH}" > /dev/null && sh -c "$INSTALL_CMD"
+COPY --chown=site . .
+RUN if [ -n "$BUILD_CMD" ]; then sh -c "$BUILD_CMD"; fi
+USER site
+ENV PORT=3000 VYRE_START="$START_CMD"
+EXPOSE 3000
+CMD ["sh", "-c", "exec $VYRE_START"]

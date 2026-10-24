@@ -18,11 +18,15 @@ export interface BoundariesFile {
   mayImport: Record<string, string[]>;
   rules?: {
     B2?: { allowNodeSqlite?: string[] };
-    B3?: { allowCrypto?: string[]; crypto?: string[] };
-    B4?: { noFetchIn?: string[] };
+    B3?: { allowCrypto?: string[]; allowCryptoFiles?: string[]; crypto?: string[] };
+    B4?: { noFetchIn?: string[]; allowFetchIn?: string[] };
     B5?: { generatedGlob?: string };
     B6?: { allowlist?: string };
-    B7?: { extra?: string[] };
+    B7?: { extra?: string[]; testMayImportOutside?: string[] };
+    /** files whose import() is computed on purpose (the module loader); a literal import() elsewhere is still checked */
+    dynamicOk?: string[];
+    /** files whose import-like text is a template for generated code, not an import of the file itself */
+    ignoreImports?: string[];
   };
   exceptions?: Array<{ id?: string; from: string[]; to: string[]; via?: string }>;
   forbidden?: Array<{ from: string[]; to: string[]; reason?: string }>;
@@ -64,6 +68,10 @@ export function packageOf(file: string): string | null {
   const parts = file.replace(/\\/g, '/').replace(/^\.\//, '').split('/').filter((p) => p.length > 0);
   const head = parts[0];
   if (!head) return null;
+  // The contracts layer lives at packages/contracts (the old top-level contracts/ holds only tests).
+  if (head === 'packages' && parts[1] === 'contracts') return 'contracts';
+  // generated/ is the generator's output of the contract (registry, types); it sits in the contracts layer.
+  if (head === 'generated') return 'contracts';
   if (MULTI.has(head)) {
     const name = parts[1];
     if (!name || name.includes('*')) return null;
@@ -190,8 +198,9 @@ export function parseImports(src: string): ImportRef[] {
     seen.add(key);
     out.push({ spec, dynamic, literal });
   };
-  for (const m of text.matchAll(/\b(?:import|export)\s+(?:type\s+)?[^'"`;]*?\bfrom\s*['"]([^'"]+)['"]/g)) add(m[1] ?? '', false, true);
-  for (const m of text.matchAll(/\bimport\s*['"]([^'"]+)['"]/g)) add(m[1] ?? '', false, true);
+  // A static import or re-export starts a statement (line start, or after ; { }); the word inside a string or a name such as "records.import" is not one.
+  for (const m of text.matchAll(/(?:^|[;{}])\s*(?:import|export)\s+(?:type\s+)?[^'"`;]*?\bfrom\s*['"]([^'"]+)['"]/gm)) add(m[1] ?? '', false, true);
+  for (const m of text.matchAll(/(?:^|[;{}])\s*import\s*['"]([^'"]+)['"]/gm)) add(m[1] ?? '', false, true);
   for (const m of text.matchAll(/\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) add(m[1] ?? '', false, true);
   for (const m of text.matchAll(/\bimport\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g)) add(m[1] ?? '', true, true);
   const rest = text.replace(/\bimport\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g, ' ');
@@ -245,18 +254,26 @@ function isCryptoSpec(spec: string, names: string[]): boolean {
   return names.some((name) => spec === name || spec.startsWith(`${name}/`));
 }
 
-function judgeNode(file: string, pkg: string, spec: string, config: BoundariesFile): Violation | null {
+const underAny = (file: string, list: string[]): boolean => list.some((p) => file === p || file.startsWith(p.endsWith('/') ? p : `${p}/`));
+
+/** B3 is about key handling in product code: tests may hash, and a few named files hold the one sanctioned use. */
+function cryptoAllowed(file: string, pkg: string, config: BoundariesFile, isTest: boolean): boolean {
+  if (isTest) return true;
+  const allow = config.rules?.B3?.allowCrypto ?? [];
+  return allow.some((p) => matchPkg(p, pkg)) || underAny(file, config.rules?.B3?.allowCryptoFiles ?? []);
+}
+
+function judgeNode(file: string, pkg: string, spec: string, config: BoundariesFile, isTest: boolean): Violation | null {
   if (spec === 'node:sqlite' || spec.startsWith('node:sqlite/')) {
     const allow = config.rules?.B2?.allowNodeSqlite ?? [];
-    if (!allow.some((p) => matchPkg(p, pkg))) {
+    if (!isTest && !allow.some((p) => matchPkg(p, pkg))) {
       return violation('B2', file, `node:sqlite is only allowed in ${allow.join(', ')}`, spec);
     }
   }
   const crypto = config.rules?.B3?.crypto ?? [];
   if (isCryptoSpec(spec, crypto)) {
-    const allow = config.rules?.B3?.allowCrypto ?? [];
-    if (!allow.some((p) => matchPkg(p, pkg))) {
-      return violation('B3', file, `crypto import ${spec} is only allowed in ${allow.join(', ')}`, spec);
+    if (!cryptoAllowed(file, pkg, config, isTest)) {
+      return violation('B3', file, `crypto import ${spec} is only allowed in ${(config.rules?.B3?.allowCrypto ?? []).join(', ')}`, spec);
     }
   }
   return null;
@@ -274,9 +291,8 @@ function judgeThird(
   const crypto = config.rules?.B3?.crypto ?? [];
   const cryptoHit = isCryptoSpec(spec, crypto) || isCryptoSpec(name, crypto);
   if (cryptoHit) {
-    const allow = config.rules?.B3?.allowCrypto ?? [];
-    if (!allow.some((p) => matchPkg(p, pkg))) {
-      return violation('B3', file, `crypto import ${name} is only allowed in ${allow.join(', ')}`, spec);
+    if (!cryptoAllowed(file, pkg, config, isTest)) {
+      return violation('B3', file, `crypto import ${name} is only allowed in ${(config.rules?.B3?.allowCrypto ?? []).join(', ')}`, spec);
     }
   }
   const permitted = mayImportOf(pkg, config);
@@ -298,7 +314,7 @@ function judge(
   isTest: boolean,
 ): Violation | null {
   if (isAbsentPath(spec)) return violation('absence', file, absentMessage(spec), spec);
-  if (spec.startsWith('node:')) return judgeNode(file, pkg, spec, config);
+  if (spec.startsWith('node:')) return judgeNode(file, pkg, spec, config, isTest);
 
   let targetPkg: string;
   let targetPath: string;
@@ -308,6 +324,8 @@ function judge(
     targetPath = resolved;
     if (isAbsentPath(targetPath)) return violation('absence', file, absentMessage(targetPath), spec);
     const found = packageOf(targetPath);
+    // a test may read the manifests, the generator and the seed fixtures it checks (B7)
+    if (found === null && isTest && underAny(targetPath, config.rules?.B7?.testMayImportOutside ?? [])) return null;
     if (found === null) return violation('layer', file, `import target ${targetPath} is outside the layer packages`, spec);
     targetPkg = found;
   } else {
@@ -348,6 +366,8 @@ function judge(
 
 function fetchBanned(pkg: string, file: string, config: BoundariesFile): boolean {
   const zones = config.rules?.B4?.noFetchIn ?? [];
+  // A service worker (apps/app/public/sw.js) must call fetch; allowFetchIn lists such paths.
+  if ((config.rules?.B4?.allowFetchIn ?? []).some((a) => file.startsWith(a))) return false;
   return zones.some((z) => pkg === z || pkg.startsWith(`${z}/`) || file === z || file.startsWith(`${z}/`));
 }
 
@@ -361,11 +381,13 @@ export function checkSources(files: Record<string, string>, config: BoundariesFi
     if (src === undefined) continue;
     const pkg = packageOf(file);
     if (!pkg) continue;
-    if (fetchBanned(pkg, file, config) && /\bfetch\s*\(/.test(stripComments(src))) {
+    const isTest = /\.test\.(?:m?js|cjs|tsx?)$/.test(file);
+    if (underAny(file, config.rules?.ignoreImports ?? [])) continue;
+    if (!isTest && fetchBanned(pkg, file, config) && /\bfetch\s*\(/.test(stripComments(src))) {
       out.push(violation('B4', file, `fetch is not allowed in ${pkg}`));
     }
-    const isTest = /\.test\.(?:m?js|cjs|tsx?)$/.test(file);
     for (const imp of parseImports(src)) {
+      if (!imp.literal && underAny(file, config.rules?.dynamicOk ?? [])) continue;
       if (!imp.literal) {
         out.push(violation('dynamic', file, 'dynamic import is not a string literal'));
         continue;

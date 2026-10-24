@@ -57,6 +57,7 @@ jobs:
         run: |
           lane=""
           case "$BRANCH" in
+            build/P-CI_02) lane=lead ;;   # contract steward: changes the contract types and the frozen hashes (ruling 25, 27)
             build/P-CI_*|build/P-CI-*) lane=L11 ;;
             build/P-CC_*|build/P-PR_*) lane=lead ;;
             *) lane="$(echo "$BRANCH" | sed -nE 's#^build/P-(L[0-9]+[a-z]?)_[0-9]+[a-z]?(-.*)?$#\1#p')"
@@ -69,13 +70,16 @@ jobs:
         run: |
           git fetch -q origin main
           base="$(git merge-base origin/main HEAD)"
+          orig="$(git rev-parse HEAD)"
           others="$(git log --format=%s "$base"..HEAD -- generated | grep -v '^chore(gen): regenerate' || true)"
           if [ -z "$others" ] && [ -n "$(git diff --name-only "$base"...HEAD -- generated)" ]; then
             git config user.name ci; git config user.email ci@example.invalid
             git checkout -q "$base" -- generated
             git commit -q -m "ci: drop bot-only generated/ from the ownership view"
           fi
-          node scripts/lanes-check.ts "${{ steps.lane.outputs.lane }}" "$base"
+          rc=0; node scripts/lanes-check.ts "${{ steps.lane.outputs.lane }}" "$base" || rc=$?
+          git reset -q --hard "$orig"   # the later steps (drift check, boundaries) must see the real tree, bot-generated files included
+          exit $rc
       - name: Layer boundaries B1 to B8 (scripts/boundaries.ts); main carries older violations, so only files this branch changed can fail it
         run: |
           git fetch -q origin main
@@ -105,6 +109,25 @@ jobs:
           tsc=tools/gen/node_modules/.bin/tsc
           [ -x "$tsc" ] || bash tools/gen/check.sh
           for d in $dirs; do echo "tsc -p $d"; "$tsc" -p "$d/tsconfig.json" --noEmit; done
+  images-docker:
+    # Ruling 31: when images/ changes, build the vyred image and boot it in Docker (VYRE_HEAVY_DOCKER=1 turns on the docker test in images/vyred/smoke.heavy.test.ts, which the 20 s shard cannot run).
+    # Not part of the `check` gate below: it reports its own result on the run.
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Did images/ change on this branch?
+        id: scope
+        run: |
+          git fetch -q origin main
+          base="$(git merge-base origin/main HEAD)"
+          if git diff --name-only --no-renames "$base"...HEAD -- images/ | grep -q .; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "images/ did not change; nothing to build"; fi
+      - name: Build the image, boot it, wait for healthy
+        if: steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+        run: node --test --test-timeout=900000 images/vyred/smoke.heavy.test.ts
   check:
     needs: [select, shards, gates]
     if: always()

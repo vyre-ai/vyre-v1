@@ -183,6 +183,76 @@
       "name": "@huggingface/transformers",
       "reason": "embeddings, WASM backend",
       "dev": false
+    },
+    {
+      "name": "react",
+      "reason": "UI runtime shared by every place",
+      "dev": false
+    },
+    {
+      "name": "react-dom",
+      "reason": "web renderer and server-render tests",
+      "dev": false
+    },
+    {
+      "name": "expo-*",
+      "reason": "Expo modules (constants, linking, status-bar, router helpers)",
+      "dev": false
+    },
+    {
+      "name": "@shopify/flash-list",
+      "reason": "virtualised lists on native (ruling 21)",
+      "dev": false
+    },
+    {
+      "name": "react-native-reanimated",
+      "reason": "motion (ruling 21)",
+      "dev": false
+    },
+    {
+      "name": "tsx",
+      "reason": "loader so .tsx tests run under node --test (ruling 21)",
+      "dev": true
+    },
+    {
+      "name": "react-native-safe-area-context",
+      "reason": "expo-router peer",
+      "dev": false
+    },
+    {
+      "name": "react-native-screens",
+      "reason": "expo-router peer",
+      "dev": false
+    },
+    {
+      "name": "react-native-worklets",
+      "reason": "reanimated peer",
+      "dev": false
+    },
+    {
+      "name": "@expo/metro-runtime",
+      "reason": "expo web runtime",
+      "dev": false
+    },
+    {
+      "name": "babel-preset-expo",
+      "reason": "Expo babel preset",
+      "dev": true
+    },
+    {
+      "name": "@testing-library/react-native",
+      "reason": "component tests (ruling 21)",
+      "dev": true
+    },
+    {
+      "name": "test-renderer",
+      "reason": "react-native-testing-library peer",
+      "dev": true
+    },
+    {
+      "name": "playwright-core",
+      "reason": "headless Chrome for screenshots and perf probes",
+      "dev": true
     }
   ],
   "notes": [

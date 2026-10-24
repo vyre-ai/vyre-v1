@@ -1,0 +1,26 @@
+{
+  "id": "g9",
+  "internetMessageId": "<OUT9@vyre.test>",
+  "conversationId": "conv1",
+  "subject": "Re: Can we talk?",
+  "from": {
+    "emailAddress": {
+      "address": "maya@vyre.test"
+    }
+  },
+  "toRecipients": [
+    {
+      "emailAddress": {
+        "address": "pat@acme.test"
+      }
+    }
+  ],
+  "receivedDateTime": "2026-10-25T08:20:00Z",
+  "sentDateTime": "2026-10-25T08:20:00Z",
+  "isDraft": false,
+  "hasAttachments": false,
+  "body": {
+    "contentType": "text",
+    "content": "Sure."
+  }
+}

@@ -14,7 +14,7 @@ The catalogue is the `events` array in `generated/registry.json`, emitted by too
 | Schema version | 1 on every event |
 | Distinct names | 598 |
 | Primitives | 139 |
-| Registry hash | `bcea987a731bec751cbd8c6987538c6eadca06dd1baa91bd1462e6debe54271f` (`generated/hash.txt`) |
+| Registry hash | `b70d841a423c0a01db1ad6997814385b3e99111467de7c96909eae360936617e` (`generated/hash.txt`) |
 
 The registry hash covers the whole registry. The event hash covers the events array only.
 

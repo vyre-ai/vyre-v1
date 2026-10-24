@@ -6,7 +6,7 @@ export type ThreadKind = "chat" | "channel" | "thread" | "ask" | "run" | "helper
 export type AgentMode = "lead" | "listen";
 export type QueueKind = "message" | "interrupt" | "wake" | "handoff";
 export type QueueState = "queued" | "running" | "done" | "consumed" | "cancelled";
-export type TurnState = "running" | "completed" | "failed" | "cancelled";
+export type TurnState = "running" | "waiting" | "completed" | "failed" | "cancelled";
 export type AccountReason = "starter" | "steerer";
 export type Placement = "host" | "device";
 
@@ -99,6 +99,8 @@ export type EngineEvent =
   | { type: "turn.started"; threadId: string; turnId: string; agentId: string; qseq: number; asker: string }
   | { type: "turn.block"; threadId: string; turnId: string; idx: number; kind: string }
   | { type: "turn.waiting"; threadId: string; reason: "hop_limit"; messageId: string }
+  /** A tool call was held at the Gate (ARCH 6.7): the turn parks on the approval task and a wake continues it once the task is answered. */
+  | { type: "turn.waiting"; threadId: string; reason: "approval"; turnId: string; agentId: string; taskId: string; runId?: string }
   | { type: "turn.completed"; threadId: string; turnId: string; agentId: string }
   | { type: "turn.failed"; threadId: string; turnId: string; agentId: string; code: string }
   | { type: "turn.cancelled"; threadId: string; turnId: string; agentId: string }
@@ -127,7 +129,11 @@ export interface TurnInput {
   /** Listening agents, shown to the lead as context ("Docs is listening"). They run no inference. */
   listeners: readonly { id: string; role?: string }[];
   asker: string;
+  /** Set on the wake that continues a turn parked on a held tool call: the answer to that call. */
+  resumed?: ResumedCall;
 }
+
+export interface ResumedCall { taskId: string; callId: string; toolName: string; approved: boolean; result: ToolResult }
 
 export interface EngineSession {
   send(input: TurnInput): AsyncIterable<DriverEvent>;

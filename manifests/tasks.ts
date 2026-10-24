@@ -68,6 +68,7 @@ export default defineManifest({
         assigned: assignee, reviewer: t.opt(assignee), approver: t.opt(assignee), due: t.opt(t.ts()), effort: t.opt(t.int({ minimum: 0 })),
         recordId: t.opt(id.record), fileIds: t.opt(t.arr(id.file)), source: t.opt(source), parentTaskId: t.opt(id.task), dependsOn: t.opt(t.arr(id.task)),
         expiresAt: t.opt(t.ts()), actions: t.opt(t.arr(action)),
+        decisionId: t.opt(t.str()), payloadHash: t.opt(t.str()),   // the Gate's Approve task keeps the held act's decision and payload hash (working notes decision_id, payload_hash)
       },
       out: { task: taskRow }, make: ['task', '/recordId'], emits: ['task.created', 'task.requested', 'task.assigned'], tool: 'tasks', offline: 'queue', hook: true, cli: 'vyre tasks create',
       errors: ['validation.precondition_failed'],

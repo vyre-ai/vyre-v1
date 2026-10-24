@@ -2480,6 +2480,12 @@
     },
     {
       "deferred": false,
+      "name": "files_knowledge",
+      "summary": "The Knowledge section of the tree: the knowledge folders and files the caller may read, plus the Memory and Graph entries",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
       "name": "files_lint",
       "summary": "Lint a guidance file: line counts against the limits, Inherits VYRE.md, Override lines, secret scan, agent.toml schema, routine prompt files, handoff names, repeated facts",
       "toolset": "files"
@@ -2578,6 +2584,12 @@
       "deferred": false,
       "name": "files_share_external",
       "summary": "Make a view-only link to a file for someone outside the Space, with an expiry",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
+      "name": "files_shared_with_me",
+      "summary": "Files and folders other people shared with the caller, newest share first (the Shared with me section of the tree)",
       "toolset": "files"
     },
     {
