@@ -100,3 +100,4 @@ test('the frozen doc lists exactly the default tools in the test', () => {
   assert.deepEqual([...inDoc].sort(), [...defaults].sort());
 });
 
+
