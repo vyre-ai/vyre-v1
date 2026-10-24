@@ -5,7 +5,6 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { AccessSnapshot, authorize } from "../../kernel/src/authorize/index.ts";
-import { LogClient } from "../../kernel/src/log/index.ts";
 import type { NewEvent, ReadQuery, StoredEvent } from "../../kernel/src/log/index.ts";
 import { createInvoke, indexCapabilities } from "../../host/src/invoke.ts";
 import type { AuditRow, CtxSeed, Handler, InvokeResult } from "../../host/src/invoke.ts";
@@ -17,6 +16,7 @@ import { roleDefaults } from "../../generated/permissions.ts";
 import { validateEvent, validateInput } from "../../generated/validators.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
+import { InProcLog } from "./log.ts";
 import { createClock } from "./clock.ts";
 import type { FakeClock } from "./clock.ts";
 import { templateFor } from "./template.ts";
@@ -104,8 +104,8 @@ export async function createTestSpace(o: TestSpaceOptions = {}): Promise<TestSpa
   const template = await templateFor(SPACE_ID);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-space-"));
   fs.copyFileSync(template, path.join(dir, "events.db"));
-  let log: LogClient;
-  try { log = await LogClient.open({ path: path.join(dir, "events.db"), space: SPACE_ID }); }
+  let log: InProcLog;
+  try { log = new InProcLog(path.join(dir, "events.db"), SPACE_ID, clock.now); }
   catch (e) { fs.rmSync(dir, { recursive: true, force: true }); throw e; }
 
   const access = accessFor(people);

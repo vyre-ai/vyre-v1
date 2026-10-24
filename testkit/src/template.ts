@@ -2,7 +2,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { LogClient, SCHEMA, sha256Hex } from "../../kernel/src/log/index.ts";
+import { DatabaseSync } from "node:sqlite";
+import { LogStore, SCHEMA, sha256Hex } from "../../kernel/src/log/index.ts";
 
 const dirs = new Map<string, string>();
 
@@ -15,8 +16,9 @@ export async function templateFor(space: string): Promise<string> {
   const file = path.join(dir, "events.db");
   if (!fs.existsSync(file)) {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-testkit-build-"));
-    const log = await LogClient.open({ path: path.join(tmp, "events.db"), space });
-    await log.close();
+    const store = new LogStore({ db: new DatabaseSync(path.join(tmp, "events.db")), space });
+    store.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    store.close();
     fs.mkdirSync(dir, { recursive: true });
     fs.copyFileSync(path.join(tmp, "events.db"), `${file}.${process.pid}.part`);   // closed cleanly, so the db file is whole; rename is atomic: two test files racing never see a half copy
     fs.renameSync(`${file}.${process.pid}.part`, file);
