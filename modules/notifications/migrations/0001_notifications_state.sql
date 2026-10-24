@@ -1,8 +1,41 @@
--- Notifications tables (P-L6_08, spec 2.24). notifications_items (the rows) comes from the generated schema; these hold the rest.
+-- Notifications tables (P-L6_08, spec 2.24).
+-- notifications_items and its field-merge table match generated/modules/notifications/schema.sql exactly, so either CREATE runs first.
 -- notifications_rules: one row per person; hours_mode is default (the manifest setting), custom (working_hours holds the JSON) or off (always on).
 -- notifications_mutes: one row per person and target; until is the end of the mute. notifications_away: one row per person while away.
 -- notifications_delegates: the standing approvals chain. notifications_push: one token per device (sealed when the host has a seal).
 -- notifications_agent_interrupts: one row per interrupt an agent was allowed, for the 3 an hour cap. notifications_backstops: the email backstop is sent once per key.
+
+-- entity notification
+CREATE TABLE IF NOT EXISTS "notifications_items" (
+  "id" TEXT PRIMARY KEY,
+  "person" TEXT,
+  "kind" TEXT,
+  "level" TEXT,
+  "place" TEXT,
+  "title" TEXT,
+  "body" TEXT,
+  "subject_type" TEXT,
+  "subject_id" TEXT,
+  "collapse_key" TEXT,
+  "count" REAL,
+  "at" INTEGER,
+  "seen_at" INTEGER,
+  "actions" TEXT,
+  "run_id" TEXT,
+  "trace_id" TEXT,
+  "version" INTEGER NOT NULL DEFAULT 0,
+  "updated_at" INTEGER,
+  "deleted_at" INTEGER
+);
+CREATE TABLE IF NOT EXISTS "notifications_items__fm" (
+  "id" TEXT NOT NULL,
+  "field" TEXT NOT NULL,
+  "hlc" TEXT NOT NULL,
+  "actor" TEXT,
+  "seq" INTEGER,
+  PRIMARY KEY ("id", "field")
+);
+CREATE INDEX IF NOT EXISTS "notifications_items__owner" ON "notifications_items" ("person");
 
 CREATE TABLE IF NOT EXISTS "notifications_rules" (
   "person" TEXT PRIMARY KEY,

@@ -13,13 +13,13 @@ const approval = (h: Harness, over: Record<string, unknown> = {}) => h.call("not
 
 test("push payload carries no content: the Space name, a deep link, a tag and the action keys, and nothing from the title or body", async () => {
   const h = harness({ computerIdleMs: 10 * MIN });
-  await register(h, "devphone", "ios");
+  await register(h, "dev_phone", "ios");
   const r = await approval(h, { body: "Please wire the funds today", data: { from: "Bob", secret: "hunter2" } });
   assert.equal(r.outcome, "interrupt");
   assert.equal(h.pushes.length, 1);
   const p = h.pushes[0]!;
   assert.deepEqual(p, {
-    device: "devphone", platform: "ios", token: "tok-devphone", title: "Northwind needs you", deepLink: "vyre://task/tsk_1", tag: "approval.requested:tsk_1",
+    device: "dev_phone", platform: "ios", token: "tok-dev_phone", title: "Northwind needs you", deepLink: "vyre://task/tsk_1", tag: "approval.requested:tsk_1",
     category: "needs_you", actions: [{ key: "approve", cap: "tasks.act" }, { key: "send_back", cap: "tasks.act" }],
   });
   const wire = JSON.stringify({ ...p, token: undefined });
@@ -39,7 +39,7 @@ test("push payload: a kind without inline actions has no category; no subject de
 
 test("push goes to the phone after the computer has been idle 5 minutes; while the app is open nothing is pushed", async () => {
   const h = harness({ computerIdleMs: 4 * MIN });
-  await register(h, "devphone", "android");
+  await register(h, "dev_phone", "android");
   const open = await approval(h, { subject: { type: "task", id: "tsk_a" } });
   assert.equal(open.outcome, "interrupt");
   assert.equal(h.pushes.length, 0, "4 minutes idle: the banner on the computer is the notification");
@@ -48,7 +48,7 @@ test("push goes to the phone after the computer has been idle 5 minutes; while t
   await approval(h, { subject: { type: "task", id: "tsk_b" } });
   assert.equal(h.pushes.length, 1);
   assert.equal(h.events[0]!.payload.pushed, true);
-  assert.equal(h.events[0]!.payload.device, "devphone");
+  assert.equal(h.events[0]!.payload.device, "dev_phone");
   h.idle(undefined);   // no computer session at all
   await approval(h, { subject: { type: "task", id: "tsk_c" } });
   assert.equal(h.pushes.length, 2);
@@ -56,20 +56,20 @@ test("push goes to the phone after the computer has been idle 5 minutes; while t
 
 test("one device at a time: the phone, never both; the computer's own token only when there is no phone", async () => {
   const h = harness({ computerIdleMs: 10 * MIN });
-  await register(h, "devmac", "mac");
+  await register(h, "dev_mac", "mac");
   await approval(h, { subject: { type: "task", id: "tsk_1" } });
-  assert.deepEqual(h.pushes.map((p) => p.device), ["devmac"]);
+  assert.deepEqual(h.pushes.map((p) => p.device), ["dev_mac"]);
   h.advance(MIN);
-  await register(h, "devold", "ios");
+  await register(h, "dev_old", "ios");
   h.advance(MIN);
-  await register(h, "devnew", "android");
+  await register(h, "dev_new", "android");
   await approval(h, { subject: { type: "task", id: "tsk_2" } });
-  assert.deepEqual(h.pushes.map((p) => p.device), ["devmac", "devnew"], "the phone registered last");
+  assert.deepEqual(h.pushes.map((p) => p.device), ["dev_mac", "dev_new"], "the phone registered last");
 });
 
 test("only Interrupt pushes; a badge, a digest, a capped and a muted notification never do; a repeat into a loud row is not pushed again", async () => {
   const h = harness({ computerIdleMs: 10 * MIN });
-  await register(h, "devphone", "ios");
+  await register(h, "dev_phone", "ios");
   const go = (over: Record<string, unknown>, who = sender) => h.call("notifications.send", sendInput(over), who);
   await go({ kind: "task.assigned", data: { from: "Bob", title: "x" } });
   await go({ kind: "member.joined", data: { name: "n", space: "s" } });

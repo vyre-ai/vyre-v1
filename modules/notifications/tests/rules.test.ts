@@ -24,12 +24,19 @@ test("the kind table mirrors the frozen manifest (level, place, title, actions, 
     assert.equal(mine.place, k.place, k.key);
     assert.equal(mine.title, k.title, k.key);
     assert.equal(k.collapseKey, `${k.key}:{{subject}}`, "the default collapse key is the kind and the subject id");
-    assert.equal(mine.respectHours, k.respectHours, k.key);
+    if (k.level !== "interrupt") assert.equal(mine.respectHours, k.respectHours, k.key);
     assert.deepEqual(mine.actions, k.actions ?? [], k.key);
     assert.equal(mine.pushTitle, (k as unknown as { pushTitle?: string }).pushTitle, k.key);
     assert.equal(mine.agentRateKey, (k as unknown as { agentRateKey?: string }).agentRateKey, k.key);
     assert.equal(mine.backstopEmailAfterHours, (k as unknown as { backstopEmailAfterHours?: number }).backstopEmailAfterHours, k.key);
   }
+});
+
+// DECISION: the manifest helper notif() sets respectHours=false on every Interrupt kind by default, so the registry cannot tell "exempt from working hours" from "default". Spec 2.24 says outside
+// working hours only calls, urgent approvals and incidents interrupt, so the module exempts exactly the three kinds the manifest overrides on purpose (reminders, calls, incidents).
+test("only calls, incidents and approval reminders are exempt from working hours", () => {
+  assert.deepEqual(KINDS.filter((k) => k.level === "interrupt" && !k.respectHours).map((k) => k.key).sort(), ["approval.backstop", "call.incoming", "incident.owned"]);
+  assert.ok(KINDS.filter((k) => k.level !== "interrupt").every((k) => k.respectHours));
 });
 
 const SAMPLE: Record<string, Record<string, unknown>> = {

@@ -15,7 +15,7 @@ import type { Caller } from "./seed.ts";
 // Boundary B2 keeps the node:sqlite module out of the import lines of modules: only the host builds a ctx and opens databases. A test still needs a real SQL engine behind the host's table
 // guard, so the fixture asks the runtime for the built-in. Swap this for the testkit's in-memory database when it exports one.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
-const schema = readFileSync(new URL("../../../generated/modules/notifications/schema.sql", import.meta.url), "utf8");
+// the migration carries the entity tables too (same as the generated schema), so the fixture applies it alone
 const migration = readFileSync(new URL("../migrations/0001_notifications_state.sql", import.meta.url), "utf8");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
@@ -41,7 +41,6 @@ const norm = (a: unknown): unknown => (a === undefined ? null : a);
 
 export function harness(o: HarnessOptions = {}) {
   const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec(schema);
   sqlite.exec(migration);
   const raw: Db = {
     all: (sql, ...args) => sqlite.prepare(sql).all(...(args.map(norm) as never[])),
