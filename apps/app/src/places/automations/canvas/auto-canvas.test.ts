@@ -9,7 +9,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { fileURLToPath } from "node:url";
-import type { Editor, PathBuild } from "./index.ts";
 
 registerHooks({
   load(url, context, nextLoad) {
@@ -40,13 +39,13 @@ const {
 } = await import("../sidebar/index.ts");
 const { nativeTokens, skinById } = await import("../../../../../../ui/src/tokens/skins.ts");
 
-const PATHS: readonly PathBuild[] = [
+const PATHS = [
   { name: "Won", when: "trigger.op == 'updated'", to: { id: "step_won", key: "stop", title: "Stop won", input: { outcome: "succeeded" } } },
   { name: "Lost", when: "", to: { id: "step_lost", key: "stop", title: "Stop lost", input: { outcome: "failed" } } },
   { name: "Open", when: "trigger.op == 'created'", to: { id: "step_open", key: "wait", title: "Wait", input: {} } },
 ];
 
-function threePath(): Editor {
+function threePath() {
   let editor = createEditor({ name: "Stage change", automationId: "aut_stage" });
   editor = addTrigger(editor, "record_change");
   editor = addPaths(editor, PATHS);
