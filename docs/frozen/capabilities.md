@@ -4,8 +4,8 @@ Review of the merged capability registry at the F11 freeze. `packages/contracts/
 
 ## Frozen values
 
-Registry hash: bcea987a731bec751cbd8c6987538c6eadca06dd1baa91bd1462e6debe54271f
-Capabilities: 1486
+Registry hash: d6793f7d703c893f44b3f36f72a6cea978eb87cdbc667f7abd018410d75c8f62
+Capabilities: 1487
 Events: 598
 Registry modules: 80
 Host modules: 72
@@ -32,7 +32,7 @@ Selection rule: capabilities of the lane (owner of the module) sorted by name, n
 | L4 | 105 | 11 |
 | L5 | 343 | 35 |
 | L6 | 161 | 17 |
-| L7a | 217 | 22 |
+| L7a | 218 | 22 |
 | L7b | 78 | 8 |
 | L8 | 133 | 14 |
 
@@ -48,7 +48,7 @@ L5: calendar.availability, calendar.ingest_event, contacts.address.add, contacts
 
 L6: automations.alerts.get, automations.groups.delete, automations.restore_version, automations.validate, gate.acts.list, home.activity, journeys.check_limits, journeys.rules.set, notifications.delegate.resolve, notifications.push.unregister, runs.preview_undo, runs.undo, scheduler.pause, scheduler.waits.register, tasks.escalate, tasks.release, webhooks.delete
 
-L7a: access.actors.create, access.groups.add_member, access.labels.set, access.request, access.roles.assign, access.unshare, audit.list, devices.revoke, folders.move, governance.holds.place, governance.tombstones.reapply, identity.passkey_remove, identity.totp_begin, members.invites.preview, members.sso.set, providers.subscription_start, settings.pages, spaces.matrix, vault.export_env, vault.import, vault.item.reveal, vault.requests.decline
+L7a: access.actors.create, access.groups.add_member, access.labels.set, access.request, access.roles.assign, access.unshare, audit.list, devices.revoke, folders.place, governance.holds.release, identity.change_password, identity.passkey_remove, identity.totp_begin, members.invites.list, members.sso.remove, providers.subscription_start, settings.pages, spaces.matrix, vault.export_env, vault.import, vault.item.reveal, vault.requests.decline
 
 L7b: backup.config_get, backup.verify, console.nav, health.history, logs.client_upload, logs.trace, network.server_remove, reports.send_to_vyre
 
