@@ -1,0 +1,24 @@
+{
+  "id": "g3",
+  "internetMessageId": "<AAA333@acme.test>",
+  "subject": "Third",
+  "from": {
+    "emailAddress": {
+      "address": "pat@acme.test"
+    }
+  },
+  "toRecipients": [
+    {
+      "emailAddress": {
+        "address": "maya@vyre.test"
+      }
+    }
+  ],
+  "receivedDateTime": "2026-10-25T08:10:00Z",
+  "isDraft": false,
+  "hasAttachments": false,
+  "body": {
+    "contentType": "text",
+    "content": "3"
+  }
+}
