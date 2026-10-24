@@ -159,7 +159,7 @@ export const routes: Route[] = ${JSON.stringify(routes, null, 2)};
       '',
       'export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C][\'in\']) => Promise<CapMap[C][\'out\']>;',
       '',
-      'export interface Handlers<X extends HandlerCtx = HandlerCtx> {',
+      'export type Handlers<X extends HandlerCtx = HandlerCtx> = {',
       ...mc.map((c) => `  ${q(c.name)}: Handler<${q(c.name)}, X>;`),
       '}',
       '',
