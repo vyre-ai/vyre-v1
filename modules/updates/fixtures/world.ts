@@ -113,6 +113,7 @@ export async function world(o: { version?: string } = {}): Promise<World> {
   };
   const backups: Backups = { runs: [{ backupId: "bkp_first1" }], listed: ["bkp_first1"], runError: null, calls: [] };
   let clock = NOW;
+  let runs = 0;
   const ctx = {
     space: SPACE,
     principal: { kind: "person", id: "usr_admin" },
@@ -130,7 +131,8 @@ export async function world(o: { version?: string } = {}): Promise<World> {
       if (cap === "backup.list") return { backups: backups.listed.map((backupId) => ({ backupId })), total: backups.listed.length };
       throw fail("internal.not_implemented", TRACE, { details: { cap } });
     }) as unknown as Ctx["call"],
-    run: "run_testrun1",
+    // each capability call is its own run, as in the pipeline: the id changes every time a handler asks for it
+    get run() { runs += 1; return `run_testrun${runs}`; },
   } as unknown as UpdateCtx;
   const drivers: UpdateDrivers = { feed, releaseKey: key.publicKey, installer };
   return {
