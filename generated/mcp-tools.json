@@ -36130,6 +36130,8 @@
                 "routine",
                 "campaign",
                 "deployment",
+                "connector_sync",
+                "connector_build",
                 "runbook",
                 "wait",
                 "terminal",
