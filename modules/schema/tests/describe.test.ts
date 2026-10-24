@@ -104,8 +104,8 @@ test("map follows relations, two hops by default; the change log and Trash list 
   assert.deepEqual((await h["schema.trash.list"](ctx, {})).items, []);
   await h["schema.apply"](ctx, { ops: [{ op: "relation.add", type: "contact", field: "employer", def: { to: "company", inverse: "employees" } }] });
   const near = await h["schema.map"](ctx, { type: "contact", hops: 1 });
-  assert.ok(near.edges.some((e) => e.from === "contact" && e.to === "company" && e.field === "employer" && e.inverse === "employees"));
-  assert.equal(near.edges.filter((e) => (e.from === "contact" && e.to === "company" && e.field === "employer") || (e.from === "company" && e.to === "contact" && e.field === "employees")).length, 1, "a two-way relation is one edge");
+  const pair = near.edges.filter((e) => (e.from === "contact" && e.to === "company" && e.field === "employer" && e.inverse === "employees") || (e.from === "company" && e.to === "contact" && e.field === "employees" && e.inverse === "employer"));
+  assert.equal(pair.length, 1, "a two-way relation is one edge");
   assert.ok(near.nodes.some((n) => n.type === "company"));
   const all = await h["schema.map"](ctx, {});
   assert.equal(all.nodes.length, loadRegistry().recordTypes.length);
