@@ -34,7 +34,7 @@ export default defineManifest({
   ],
 
   capabilities: [
-    read('spaces.get', 'The Space profile (regen proof): name, legal name, logo, address, hosting, defaults, kind', { ...V, in: {}, out: { space: spaceRow }, tool: 'meta' }),
+    read('spaces.get', 'The Space profile: name, legal name, logo, address, hosting, defaults, kind', { ...V, in: {}, out: { space: spaceRow }, tool: 'meta' }),
     write('spaces.update', 'Change the Space name, legal name, logo or defaults', {
       ...V, in: { name: t.opt(t.str()), legalName: t.opt(t.str()), logoFileId: t.nullable(id.file), defaults: t.opt(t.rec()) }, out: { space: spaceRow }, perm: 'policy.manage', emits: ['space.updated'], audit: 'always', tool: 'meta',
     }),
