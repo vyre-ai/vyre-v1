@@ -194,7 +194,9 @@ export function subjectFor(ctx: GoogleCtx, c: Pick<Call, "connectionId" | "as" |
   const own = person ? strOrNull(first(ctx.db.all(`SELECT email FROM google_member WHERE "userId" = ? AND mapped = ?`, person, 1)), "email") : null;
   const target = c.as ? normalizeEmail(c.as) : own;
   if (!target) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "You are not mapped to a Google Workspace user." });
-  if (c.as && target !== own && ctx.principal.kind !== "service") {
+  // Acting as someone else takes an admin or a service. The delegation's own probes (setup, probe, health) may always act as the admin address.
+  const probingAdmin = c.open === true && target === admin;
+  if (c.as && target !== own && ctx.principal.kind !== "service" && !probingAdmin) {
     if (ctx.authorize({ perm: "connectors.manage", level: "manage" }, { type: "connection", id: c.connectionId }).effect !== "allow") {
       throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only an admin can act as another member." });
     }

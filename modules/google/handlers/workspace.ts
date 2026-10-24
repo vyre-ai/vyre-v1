@@ -204,7 +204,7 @@ export async function dwdDisable(ctx: GoogleCtx) {
   ensure(ctx);
   ctx.db.run(`UPDATE google_config SET configured = ?, updated_at = ? WHERE id = ?`, 0, ctx.now(), CONFIG_ID);
   ctx.db.run(`UPDATE google_member SET "mailboxState" = ?, updated_at = ? WHERE mapped = ?`, "paused", ctx.now(), 1);
-  ctx.db.run(`UPDATE google_mailbox SET "nextPollAt" = ?`, null);
+  ctx.db.run(`UPDATE google_mailbox SET "nextPollAt" = ? WHERE "nextPollAt" IS NOT NULL`, null);
   forgetTokens();
   ctx.emit("google.dwd_revoked", "connector/google", { connector: "google", by: ctx.principal.id });
   return { disabled: true };

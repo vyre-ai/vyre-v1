@@ -108,7 +108,7 @@ test("status and scopes tell the wizard what is set and what to paste into the A
   assert.equal(scopes.clientId, "1234567890");
   assert.match(scopes.adminConsoleUrl, /^https:\/\/admin\.google\.com\//);
   check("google.dwd.scopes", scopes);
-  assert.equal((await dwdScopes(harness())).clientId, undefined);
+  assert.equal((await dwdScopes(harness().ctx)).clientId, undefined);
 });
 
 test("a probe names the scopes the Admin console is missing and proves the profile when none are", async () => {
@@ -240,9 +240,11 @@ test("a Gmail push is taken once, announced, pulled, and one future poll is queu
   assert.equal(h.scheduled.length, 1);
 
   h.advance(2 * 60_000);   // the queued poll fires: it pulls and queues the next one
+  h.ingestState.deduped.add("m1");   // nothing new arrives this round
+  h.ingestState.deduped.add("m3");
   await receivePush(h.ctx, h.scheduled[0]!.input as ReturnType<typeof push>);
   assert.equal(h.scheduled.length, 2);
-  assert.equal(h.scheduled[1]!.at, NOW + 2 * 60_000 + 15 * 60_000);   // nothing new arrived this round: the mailbox is idle
+  assert.equal(h.scheduled[1]!.at, NOW + 2 * 60_000 + 2 * 60_000);   // the mailbox was active two minutes ago, so it is still polled at the active interval
 });
 
 test("a push for an excluded or unmapped member, or after delegation is off, pulls nothing and queues nothing", async () => {
@@ -426,7 +428,7 @@ test("downloads, exports and uploads go through the host with a token for the me
   assert.deepEqual(ex, { blobId: "blb_download", size: 42 });
   assert.equal(up.file.name, "Contract.pdf");
   assert.equal(h.requests.length, 0);   // ctx.http carries only JSON; the transfers belong to the host
-  assert.deepEqual(h.minted.map((m) => m.scopes[0]), Array(3).fill("https://www.googleapis.com/auth/drive"));
+  assert.deepEqual(h.minted.map((m) => m.scopes[0]), ["https://www.googleapis.com/auth/drive"]);   // one token serves the three transfers
   assert.deepEqual(h.rows(`SELECT cap FROM google_read_log`).map((r) => r.cap), ["google.drive.download_file", "google.drive.export_file", "google.drive.upload_file"]);
   for (const [cap, out] of [["google.drive.download_file", dl], ["google.drive.export_file", ex], ["google.drive.upload_file", up]] as const) check(cap, out);
 });
@@ -481,7 +483,7 @@ test("spreadsheets: metadata, values as strings, writes with the right input opt
   h.on("PUT", `${SHEETS}/s1/values/`, { body: { updatedCells: 6 } });
   h.on("POST", `${SHEETS}/s1/values/Leads!A1:append`, { body: { updates: { updatedRows: 2 } } });
   h.on("POST", `${SHEETS}/s1:batchUpdate`, { body: { replies: [{}, {}] } });
-  h.on("POST", `${SHEETS}`, { body: { spreadsheetId: "s2" } });
+  h.on("POST", new RegExp(`^${SHEETS}$`), { body: { spreadsheetId: "s2" } });
   h.on("GET", `${DRIVE}/files/s2`, { body: { parents: ["myroot"] } });
   h.on("PATCH", `${DRIVE}/files/s2`, { body: {} });
   const meta = await sheetGet(h.ctx, { ...act, spreadsheetId: "s1" });
@@ -508,7 +510,7 @@ test("documents: read, create (in a folder), and edit with a request list", asyn
   const h = ready();
   h.on("GET", `${DOCS}/d1`, { body: { title: "Engagement letter", body: { content: [{ paragraph: {} }] } } });
   h.on("POST", `${DOCS}/d1:batchUpdate`, { body: { replies: [{}] } });
-  h.on("POST", DOCS, { body: { documentId: "d2" } });
+  h.on("POST", new RegExp(`^${DOCS}$`), { body: { documentId: "d2" } });
   h.on("GET", `${DRIVE}/files/d2`, { body: {} });
   h.on("PATCH", `${DRIVE}/files/d2`, { body: {} });
   const doc = await docGet(h.ctx, { ...act, documentId: "d1" });
@@ -516,8 +518,8 @@ test("documents: read, create (in a folder), and edit with a request list", asyn
   const made = await docCreate(h.ctx, { ...act, title: "Letter", parentId: "folder1" });
   assert.deepEqual(made, { documentId: "d2", url: "https://docs.google.com/document/d/d2/edit" });
   assert.equal(new URL(h.hits(`${DRIVE}/files/d2`, "PATCH")[0]!.url).searchParams.get("removeParents"), null);
-  const batch = await docBatch(h.ctx, { ...act, documentId: "d1", requests: [{ insertText: {} }] });
-  assert.equal(batch.applied, 1);
+  const batch = await docBatch(h.ctx, { ...act, documentId: "d1", requests: [{ insertText: {} }, { deleteContentRange: {} }] });
+  assert.equal(batch.applied, 1);   // Google's replies are the count it applied
   for (const [cap, out] of [["google.docs.get_document", doc], ["google.docs.create_document", made], ["google.docs.batch_update", batch]] as const) check(cap, out);
 });
 
