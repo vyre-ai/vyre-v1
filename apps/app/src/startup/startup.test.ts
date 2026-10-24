@@ -1,11 +1,11 @@
 // Startup order (ARCH 7, speed b12): no network on the critical path; app.usable fires after the first list is rendered from SQL.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { startup, FIRST_LIST_SQL } from "../src/startup/startup.ts";
-import type { ReplicaPort, UiStateStore } from "../src/startup/startup.ts";
-import { resolveLastPlace, loaderFor, isPlace, PLACES } from "../src/startup/places.ts";
-import { startupMs } from "../src/startup/marks.ts";
-import { webUiStateStore } from "../src/startup/persisted.ts";
+import { startup, FIRST_LIST_SQL } from "./startup.ts";
+import type { ReplicaPort, UiStateStore } from "./startup.ts";
+import { resolveLastPlace, loaderFor, isPlace, PLACES } from "./places.ts";
+import { startupMs } from "./marks.ts";
+import { webUiStateStore } from "./persisted.ts";
 
 function harness(lastPlace: string | null) {
   const log: string[] = [];
