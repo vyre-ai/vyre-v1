@@ -1,0 +1,35 @@
+{
+  "id": "m3",
+  "threadId": "t1",
+  "labelIds": [
+    "SENT"
+  ],
+  "snippet": "Sure",
+  "historyId": "1003",
+  "internalDate": "1760000200000",
+  "payload": {
+    "mimeType": "text/plain",
+    "headers": [
+      {
+        "name": "From",
+        "value": "maya@vyre.test"
+      },
+      {
+        "name": "To",
+        "value": "pat@acme.test"
+      },
+      {
+        "name": "Subject",
+        "value": "Re: Can we talk?"
+      },
+      {
+        "name": "Message-ID",
+        "value": "<out1@vyre.test>"
+      }
+    ],
+    "body": {
+      "size": 5,
+      "data": "U3VyZS4"
+    }
+  }
+}

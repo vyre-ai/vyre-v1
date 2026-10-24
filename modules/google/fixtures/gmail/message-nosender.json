@@ -1,0 +1,20 @@
+{
+  "id": "ns",
+  "threadId": "t7",
+  "labelIds": [
+    "INBOX"
+  ],
+  "internalDate": "1760000400000",
+  "payload": {
+    "mimeType": "text/plain",
+    "headers": [
+      {
+        "name": "Subject",
+        "value": "No sender"
+      }
+    ],
+    "body": {
+      "data": "eA"
+    }
+  }
+}
