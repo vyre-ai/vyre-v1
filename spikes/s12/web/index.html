@@ -34,7 +34,8 @@
     if (q) return q;
     if (window.__VYRE__ && window.__VYRE__.sidecar) return window.__VYRE__.sidecar;
     var host = location.hostname;
-    if (host === "127.0.0.1" || host === "localhost") return "/health";
+    // tauri://localhost has no port and no HTTP server behind it, so only a served page may use a relative path.
+    if ((host === "127.0.0.1" || host === "localhost") && location.protocol.indexOf("http") === 0 && location.port) return "/health";
     return "http://127.0.0.1:47211/health";
   }
 
