@@ -1,7 +1,7 @@
 // Capability handlers for health (spec 4.18, ARCH 7.10). Checks and probes live in checks.ts, services and the support bundle in services.ts.
 // Reading health is open to console.access; restarting a service needs server.services at manage level and is audited by the invoke pipeline.
 
-import { doctor, failWith, historyOf, loadDefs, pausedOf, readProbe, runChecks, statusOf } from "./checks.ts";
+import { doctor, failWith, historyOf, loadDefs, pausedOf, readProbe, reasonFor, runChecks, statusOf } from "./checks.ts";
 import type { HealthCtx } from "./checks.ts";
 import { listServices, restartService, supportBundle } from "./services.ts";
 
@@ -22,7 +22,8 @@ export async function run(ctx: HealthCtx, input: { key?: string }) {
     const subject = `check/${t.key}`;
     // a first observation has no earlier state, so it is not a change; it can still pause an area
     if (t.from !== null) ctx.emit("health.changed", subject, { key: t.key, from: t.from, to: t.to, ...(t.detail ? { detail: t.detail } : {}) });
-    if (t.paused.length > 0 && t.reason) ctx.emit("health.paused", subject, { key: t.key, paused: t.paused, reason: t.reason });
+    const def = defs.find((d) => d.key === t.key);
+    if (def && t.paused.length > 0) ctx.emit("health.paused", subject, { key: t.key, paused: t.paused, reason: reasonFor(def, { state: t.to, ...(t.detail ? { detail: t.detail } : {}) }) });
     if (t.resumed) ctx.emit("health.resumed", subject, { key: t.key });
   }
   return { checks: rows };
