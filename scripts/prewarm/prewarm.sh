@@ -29,10 +29,17 @@ hash_of() { sha256sum "$@" 2>/dev/null | sha256sum | cut -c1-16; }
 
 mkdir -p "$ROOT" "$WORK" 2>/dev/null
 
+# Six runners share a host: one prewarm at a time per host (the others wait, then find everything warm).
+if [ "$DRY" != "1" ] && [ -z "${PREWARM_LOCKED:-}" ] && command -v flock >/dev/null; then
+  exec env PREWARM_LOCKED=1 flock "$ROOT/.lock" "${BASH_SOURCE[0]}" "$@"
+fi
+# A private repo needs the job token; it goes in as a one-shot header and is never written to the mirror config.
+GIT_AUTH=(); [ -n "${PREWARM_TOKEN:-}" ] && GIT_AUTH=(-c "http.extraHeader=Authorization: Basic $(printf 'x-access-token:%s' "$PREWARM_TOKEN" | base64 -w0)")
+
 s_mirror() { # bare mirror of the repo, so checkout only fetches the delta
   local m="$ROOT/repo.git"
-  if [ -d "$m" ]; then git -C "$m" remote update --prune >/dev/null 2>&1 || return 1; echo "fetched $(git -C "$m" rev-parse --short HEAD)"; return 0; fi
-  git clone --mirror -q "$REPO" "$m" || return 1; echo "cloned"
+  if [ -d "$m" ]; then git "${GIT_AUTH[@]}" -C "$m" remote update --prune >/dev/null 2>&1 || return 1; echo "fetched $(git -C "$m" rev-parse --short HEAD)"; return 0; fi
+  git "${GIT_AUTH[@]}" clone --mirror -q "$REPO" "$m" || return 1; echo "cloned"
 }
 checkout() { # a scratch checkout of REF from the mirror, used by the steps below
   rm -rf "$WORK/src"; git clone -q "$ROOT/repo.git" "$WORK/src" && git -C "$WORK/src" checkout -q "$REF" 2>/dev/null || git -C "$WORK/src" checkout -q FETCH_HEAD 2>/dev/null || true

@@ -18,5 +18,6 @@ jobs:
       - name: Prewarm this host
         env:
           PREWARM_REPO: https://github.com/${{ github.repository }}.git
+          PREWARM_TOKEN: ${{ github.token }}
           PREWARM_REF: ${{ github.sha }}
         run: scripts/prewarm/prewarm.sh
