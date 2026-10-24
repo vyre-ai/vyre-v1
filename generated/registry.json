@@ -180031,10 +180031,10 @@
       "payload": {
         "properties": {
           "fields": {
-            "items": {
-              "type": "string"
+            "additionalProperties": {
+              "description": "Any JSON value"
             },
-            "type": "array"
+            "type": "object"
           },
           "recordId": {
             "examples": [
@@ -180063,7 +180063,7 @@
         "id": "/recordId",
         "type": "record"
       },
-      "summary": "A record was created",
+      "summary": "A record was created; fields carries the initial values (sealed and Restricted values as ciphertext only)",
       "sv": 1,
       "trigger": {
         "fields": [
@@ -180078,14 +180078,41 @@
       "module": "records",
       "name": "record.deleted",
       "payload": {
-        "$ref": "#/$defs/s_d2cd59697f"
+        "properties": {
+          "prev": {
+            "additionalProperties": {
+              "description": "Any JSON value"
+            },
+            "type": "object"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId",
+          "type",
+          "prev"
+        ],
+        "type": "object"
       },
       "replay": "pure",
       "subject": {
         "id": "/recordId",
         "type": "record"
       },
-      "summary": "A record moved to Trash",
+      "summary": "A record moved to Trash; prev carries the values it held (sealed and Restricted values as ciphertext only)",
       "sv": 1,
       "trigger": {
         "title": "A record is deleted"
@@ -180268,10 +180295,16 @@
       "payload": {
         "properties": {
           "fields": {
-            "items": {
-              "type": "string"
+            "additionalProperties": {
+              "description": "Any JSON value"
             },
-            "type": "array"
+            "type": "object"
+          },
+          "prev": {
+            "additionalProperties": {
+              "description": "Any JSON value"
+            },
+            "type": "object"
           },
           "recordId": {
             "examples": [
@@ -180295,6 +180328,7 @@
           "recordId",
           "type",
           "fields",
+          "prev",
           "version"
         ],
         "type": "object"
@@ -180304,7 +180338,7 @@
         "id": "/recordId",
         "type": "record"
       },
-      "summary": "Fields of a record changed (values never included for sealed fields)",
+      "summary": "Fields of a record changed; fields carries the new values and prev the old ones (sealed and Restricted values as ciphertext only)",
       "sv": 1,
       "trigger": {
         "fields": [

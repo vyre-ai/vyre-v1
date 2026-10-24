@@ -1,0 +1,253 @@
+// @reads /modules/records/migrations/0001_init.sql
+// RecordStore over rt_<type> (ARCH 4.3.1) plus per-field clocks (ARCH 4.3, 5.4).
+// API callers pass base_version and receive version_conflict. Sync passes a field hlc and baseSeq and merges per field.
+// The migration is read by the selector so a data file does not select every test in the repo.
+import { canonical } from "../../lib/canonical.ts";
+import { compareHlc, parseHlc } from "../../lib/hlc.ts";
+import { openRecordStore } from "../../kernel/src/store/records.ts";
+import { isSealedRef } from "../../kernel/src/store/values.ts";
+import { StoreError } from "../../kernel/src/store/types.ts";
+import type { FieldDef, Store, StoredRecord, TypeDef } from "../../kernel/src/store/types.ts";
+import type { ProjectionHost } from "../../kernel/src/store/projection.ts";
+import { createRecordsHandlers, RecordsError } from "./handlers/index.ts";
+import type { WriteHandlers } from "./handlers/index.ts";
+import { fieldMetaTable, historyText, recordsFieldMeta } from "./projections.ts";
+
+export interface FieldWrite {
+  value: unknown;
+  hlc: string;
+  baseSeq?: number;
+}
+
+export interface FieldClock {
+  field: string;
+  hlc: string;
+  actor: string;
+  seq: number;
+}
+
+export interface HistoryRow {
+  field: string;
+  value: unknown;
+  hlc: string;
+  actor: string;
+  seq: number;
+  reason: string;
+}
+
+export interface MergeLoss {
+  field: string;
+  reason: "lww_loser" | "conflict";
+}
+
+export interface RecordsHandle {
+  host: ProjectionHost;
+  store: Store;
+  handlers: WriteHandlers;
+  clocks(type: string, id: string): FieldClock[];
+  history(type: string, id: string): HistoryRow[];
+  mergeFields(type: string, id: string, fields: Record<string, FieldWrite>, actor: string): Promise<{ record: StoredRecord; applied: string[]; lost: MergeLoss[] }>;
+}
+
+const REF_TOKEN = /^[A-Za-z0-9_]{1,80}$/;
+
+function same(a: unknown, b: unknown): boolean {
+  const x = a === undefined ? null : a;
+  const y = b === undefined ? null : b;
+  if (x === y) return true;
+  try { return canonical(x) === canonical(y); } catch { return false; }
+}
+
+function sealRef(v: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { sealed: v.sealed, ref: v.ref, present: v.present };
+  if (typeof v.valid_format === "boolean") out.valid_format = v.valid_format;
+  if (typeof v.set_at === "number") out.set_at = v.set_at;
+  return out;
+}
+
+/** Refuse a plaintext sealed value. A reference keeps only the handle fields, so an extra copy of the secret is dropped. */
+function scrub(def: TypeDef, data: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...data };
+  for (const f of def.fields) {
+    if (f.kind !== "sealed" || !Object.prototype.hasOwnProperty.call(out, f.name)) continue;
+    const v = out[f.name];
+    if (v === null || v === undefined) continue;
+    if (!isSealedRef(v) || !REF_TOKEN.test((v as { ref: string }).ref)) {
+      throw new StoreError("sealed_value_refused", `${f.name} is sealed: a value is never stored, only a reference`);
+    }
+    out[f.name] = sealRef(v as Record<string, unknown>);
+  }
+  return out;
+}
+
+function policy(f: FieldDef): "lww" | "assistant" | "append" {
+  const m = f["merge"];
+  if (m === "append") return "append";
+  if (m === "assistant" || m === "text-crdt") return "assistant";
+  if (m === "lww") return "lww";
+  if (f["protected"] === true || f.kind === "sealed") return "assistant";
+  return "lww";
+}
+
+function assertWriteOnce(def: TypeDef, current: Record<string, unknown>, patch: Record<string, unknown>): void {
+  for (const [key, value] of Object.entries(patch)) {
+    const f = def.fields.find((x) => x.name === key);
+    if (f?.["write_once"] !== true) continue;
+    const had = Object.prototype.hasOwnProperty.call(current, key) && current[key] !== undefined && current[key] !== null;
+    if (had && !same(current[key], value)) throw new RecordsError("write_once", `${key} is write-once`);
+  }
+}
+
+export function openRecords(o: { path?: string; space?: string; actor?: string; clock?: () => number } = {}): RecordsHandle {
+  const opened = openRecordStore({
+    path: o.path ?? ":memory:",
+    space: o.space ?? "sp_records",
+    extra: [recordsFieldMeta],
+    ...(o.actor !== undefined ? { actor: o.actor } : {}),
+    ...(o.clock !== undefined ? { clock: o.clock } : {}),
+  });
+  const inner = opened.store;
+  const host = opened.host;
+  let typeCache: readonly TypeDef[] | null = null;
+  const allTypes = async (): Promise<readonly TypeDef[]> => {
+    if (!typeCache) typeCache = await inner.types();
+    return typeCache;
+  };
+  const needType = async (type: string): Promise<TypeDef> => {
+    const def = (await allTypes()).find((t) => t.name === type);
+    if (!def) throw new StoreError("unknown_type", `no type ${type}`);
+    return def;
+  };
+
+  const store: Store = {
+    ...inner,
+    async define(diff) {
+      const have = await allTypes();
+      for (const name of diff.remove_types ?? []) {
+        const t = have.find((x) => x.name === name);
+        if (t?.["protected"] === true) throw new RecordsError("protected", `type ${name} is protected and cannot be dropped`);
+      }
+      try { return await inner.define(diff); } finally { typeCache = null; }
+    },
+    async create(type, id, data) {
+      const def = await needType(type);
+      return inner.create(type, id, scrub(def, { ...data }));
+    },
+    async update(type, id, patch, base) {
+      const def = await needType(type);
+      const clean = scrub(def, { ...patch });
+      const row = await inner.get(type, id);
+      if (row && row.version === base) assertWriteOnce(def, row.data, clean);
+      return inner.update(type, id, clean, base);
+    },
+    async remove(type, id, base) {
+      const def = (await allTypes()).find((t) => t.name === type);
+      if (def?.["protected"] === true) throw new RecordsError("protected", `type ${type} is protected: its records cannot be deleted`);
+      const meta = host.tx.get<{ holds: number }>("SELECT holds FROM records_row_meta WHERE type = ? AND id = ?", type, id);
+      if ((meta?.holds ?? 0) > 0) throw new RecordsError("on_hold", `record ${id} is on hold`);
+      return inner.remove(type, id, base);
+    },
+  };
+
+  const metaOf = (type: string, id: string): { label: number; holds: number } => {
+    const row = host.tx.get<{ label: number; holds: number }>("SELECT label, holds FROM records_row_meta WHERE type = ? AND id = ?", type, id);
+    return { label: row?.label ?? 0, holds: row?.holds ?? 0 };
+  };
+
+  const clocks = (type: string, id: string): FieldClock[] => {
+    if (!/^[a-z][a-z0-9_]{0,62}$/.test(type)) return [];
+    return host.tx.all<FieldClock>(`SELECT field, hlc, actor, seq FROM "${fieldMetaTable(type)}" WHERE id = ? ORDER BY field`, id);
+  };
+
+  const history = (type: string, id: string): HistoryRow[] => {
+    const rows = host.tx.all<{ field: string; value: string | null; hlc: string; actor: string; seq: number; reason: string }>(
+      "SELECT field, value, hlc, actor, seq, reason FROM records_field_history WHERE type = ? AND id = ? ORDER BY rowid",
+      type, id,
+    );
+    return rows.map((r) => {
+      let value: unknown = null;
+      if (r.value !== null) { try { value = JSON.parse(r.value); } catch { value = r.value; } }
+      return { field: r.field, value, hlc: r.hlc, actor: r.actor, seq: r.seq, reason: r.reason };
+    });
+  };
+
+  async function mergeFields(type: string, id: string, fields: Record<string, FieldWrite>, actor: string): Promise<{ record: StoredRecord; applied: string[]; lost: MergeLoss[] }> {
+    const def = await needType(type);
+    const row = await store.get(type, id);
+    if (!row) throw new StoreError("not_found", `no ${type} ${id}`);
+    const known = new Map(def.fields.map((f) => [f.name, f]));
+    const clean: Record<string, FieldWrite> = {};
+    for (const [name, inc] of Object.entries(fields)) {
+      const f = known.get(name);
+      if (!f) throw new StoreError("unknown_field", `${type} has no field ${name}`);
+      if (!parseHlc(inc.hlc)) throw new StoreError("invalid", `${name} needs a field clock`);
+      const patch = scrub(def, { [name]: inc.value });
+      const value = patch[name];
+      assertWriteOnce(def, row.data, { [name]: value });
+      const next: FieldWrite = { value, hlc: inc.hlc };
+      if (inc.baseSeq !== undefined) next.baseSeq = inc.baseSeq;
+      clean[name] = next;
+    }
+    const have = new Map(clocks(type, id).map((c) => [c.field, c]));
+    const applied: string[] = [];
+    const lost: MergeLoss[] = [];
+    const patch: Record<string, unknown> = {};
+    for (const [name, inc] of Object.entries(clean)) {
+      const f = known.get(name)!;
+      const current = have.get(name);
+      if (same(row.data[name], inc.value)) continue;
+      const matchesBase = !current || (inc.baseSeq !== undefined && current.seq === inc.baseSeq);
+      let take = matchesBase;
+      let reason: MergeLoss["reason"] = "lww_loser";
+      if (!matchesBase) {
+        const how = policy(f);
+        if (how === "append") take = true;
+        else if (how === "assistant") { take = false; reason = "conflict"; }
+        else {
+          const incoming = parseHlc(inc.hlc)!;
+          const stored = current ? parseHlc(current.hlc) : null;
+          take = !stored || compareHlc(incoming, stored) > 0;
+          reason = "lww_loser";
+        }
+      }
+      if (take) { patch[name] = inc.value; applied.push(name); }
+      else lost.push({ field: name, reason });
+    }
+    const next = applied.length ? await store.update(type, id, patch, row.version) : row;
+    const table = fieldMetaTable(type);
+    for (const name of applied) {
+      const inc = clean[name]!;
+      host.tx.run(`UPDATE "${table}" SET hlc = ?, actor = ? WHERE id = ? AND field = ?`, inc.hlc, actor, id, name);
+    }
+    for (const loss of lost) {
+      const inc = clean[loss.field]!;
+      const seq = have.get(loss.field)?.seq ?? 0;
+      const kind = known.get(loss.field)?.kind;
+      host.tx.run(
+        "INSERT INTO records_field_history (type, id, field, value, hlc, actor, seq, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        type, id, loss.field, historyText(kind, loss.field, inc.value), inc.hlc, actor, seq, loss.reason,
+      );
+    }
+    const record = applied.length ? (await store.get(type, id)) ?? next : next;
+    return { record, applied, lost };
+  }
+
+  const handlers = createRecordsHandlers({ store, meta: metaOf });
+  return { host, store, handlers, clocks, history, mergeFields };
+}
+
+let shared: RecordsHandle | null = null;
+function live(): RecordsHandle {
+  if (!shared) shared = openRecords();
+  return shared;
+}
+
+/** Loader entry. The module stays stub until a later packet, which is when the host reads this. */
+export const handlers: WriteHandlers = {
+  "records.create": (ctx, input) => live().handlers["records.create"](ctx, input),
+  "records.update": (ctx, input) => live().handlers["records.update"](ctx, input),
+  "records.delete": (ctx, input) => live().handlers["records.delete"](ctx, input),
+  "records.restore": (ctx, input) => live().handlers["records.restore"](ctx, input),
+};
+
+export { RecordsError } from "./handlers/index.ts";

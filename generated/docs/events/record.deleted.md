@@ -1,6 +1,6 @@
 # record.deleted
 
-A record moved to Trash
+A record moved to Trash; prev carries the values it held (sealed and Restricted values as ciphertext only)
 
 | | |
 |---|---|
@@ -20,5 +20,6 @@ A record moved to Trash
 type Payload = {
   recordId: string;
   type: string;
+  prev: Record<string, unknown>;
 };
 ```

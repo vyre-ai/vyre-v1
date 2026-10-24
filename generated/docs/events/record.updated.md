@@ -1,6 +1,6 @@
 # record.updated
 
-Fields of a record changed (values never included for sealed fields)
+Fields of a record changed; fields carries the new values and prev the old ones (sealed and Restricted values as ciphertext only)
 
 | | |
 |---|---|
@@ -20,7 +20,8 @@ Fields of a record changed (values never included for sealed fields)
 type Payload = {
   recordId: string;
   type: string;
-  fields: Array<string>;
+  fields: Record<string, unknown>;
+  prev: Record<string, unknown>;
   version: number;
 };
 ```
