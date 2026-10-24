@@ -211,10 +211,10 @@ test("an import adds the first column of a file, skipping the header, blanks, re
   h.files.set("fil_list1", "Email,Name\r\nnew1@x.test,One\n\n\"New2@X.test\";Two\nnot-an-email,Three\nnew1@x.test,Again\nold@x.test,Old\nnew3@x.test\n");
   const out = await suppressionImport(h.ctx, { channel: "email", fileId: "fil_list1", idempotencyKey: "k1" });
   assert.deepEqual(out, { added: 3, skipped: 3 });
-  assert.deepEqual(contractErrors("contacts.suppression.import", "out", out), []);
+  assert.deepEqual(contractErrors(`contacts.suppression.import`, "out", out), []);
   const rows = live(h).filter((r) => r.source !== "manual");
   assert.deepEqual(rows.map((r) => [r.address, r.reason, r.source]).sort(), [
-    ["new1@x.test", "import", "import:fil_list1"], ["new2@x.test", "import", "import:fil_list1"], ["new3@x.test", "import", "import:fil_list1"],
+    ["new1@x.test", `import`, "import:fil_list1"], ["new2@x.test", `import`, "import:fil_list1"], ["new3@x.test", `import`, "import:fil_list1"],
   ]);
   assert.equal(h.named("suppression.added").length, 4);
 });
@@ -238,7 +238,7 @@ test("an import refuses a file it cannot read whole and one that is not there", 
   h.ctx.call = call;
   await refused(suppressionImport(h.ctx, { channel: "email", fileId: "fil_nothing" }), "validation.not_found");
   await refused(suppressionImport(h.ctx, { channel: "email", fileId: "file-1" }), "validation.bad_input");
-  await refused(suppressionImport(h.ctx, { channel: "email", fileId: "fil_big001", reason: "dislike" as unknown as "import" }), "validation.bad_input");
+  await refused(suppressionImport(h.ctx, { channel: "email", fileId: "fil_big001", reason: "dislike" as unknown as `import` }), "validation.bad_input");
   assert.equal(live(h).length, 0);
 });
 

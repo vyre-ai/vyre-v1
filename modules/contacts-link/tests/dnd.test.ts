@@ -90,13 +90,13 @@ test("Do-not-contact is named before a suppressed address, and an address two re
   await suppressionAdd(h.ctx, { channel: "email", addresses: ["dnd@x.test"], reason: "unsubscribe" });
   h.contact("rec_shared1", { name: "Shared One", email: "shared@x.test" });
   h.contact("rec_shared2", { name: "Shared Two", email: "shared@x.test", pref_do_not_contact: true });
-  const out = await dndScreen(h.ctx, { context: "import", candidates: [{ ref: "a", email: "dnd@x.test" }, { ref: "b", email: "shared@x.test" }] });
+  const out = await dndScreen(h.ctx, { context: `import`, candidates: [{ ref: "a", email: "dnd@x.test" }, { ref: "b", email: "shared@x.test" }] });
   assert.deepEqual(out.refused, [{ ref: "a", reason: "do_not_contact" }, { ref: "b", reason: "do_not_contact" }]);
 });
 
 test("a candidate with no usable address or contact is allowed, and a malformed address cannot refuse anyone", async () => {
   const h = await world();
-  const out = await dndScreen(h.ctx, { context: "import", candidates: [{ ref: "a" }, { ref: "b", email: "not-an-email" }, { ref: "c", phone: "555-0100" }, { ref: "d", contactId: "rec_nobody" }] });
+  const out = await dndScreen(h.ctx, { context: `import`, candidates: [{ ref: "a" }, { ref: "b", email: "not-an-email" }, { ref: "c", phone: "555-0100" }, { ref: "d", contactId: "rec_nobody" }] });
   assert.deepEqual([out.allowed, out.refused], [["a", "b", "c", "d"], []]);
 });
 

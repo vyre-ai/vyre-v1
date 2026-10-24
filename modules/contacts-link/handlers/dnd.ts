@@ -24,7 +24,7 @@ export interface Screened {
   removed: 0;
 }
 
-const CONTEXTS = ["audience", "campaign", "journey_enrol", "import"];
+const CONTEXTS = ["audience", "campaign", "journey_enrol", `import`];
 const MAX_CANDIDATES = 20_000;
 const BATCH = 200;
 

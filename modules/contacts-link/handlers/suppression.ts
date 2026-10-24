@@ -6,7 +6,7 @@ import { bad, ensure, first, getRecord, holders, isId, missing, newId, normChann
 import type { Channel, ContactsCtx, Row } from "../projections.ts";
 import { prefsOf, preferencesSet } from "./prefs.ts";
 
-export type Reason = "bounce_hard" | "complaint" | "unsubscribe" | "stop" | "manual" | "do_not_contact" | "import";
+export type Reason = "bounce_hard" | "complaint" | "unsubscribe" | "stop" | "manual" | "do_not_contact" | `import`;
 
 export interface SuppressionOut {
   id: string;
@@ -22,7 +22,7 @@ export interface SuppressionOut {
 
 const CHANNELS: readonly Channel[] = ["email", "sms", "call"];
 /** Strongest first: when an address is on the list for several reasons, the check answers with the first of these. */
-export const PRIORITY: readonly Reason[] = ["complaint", "bounce_hard", "unsubscribe", "stop", "do_not_contact", "manual", "import"];
+export const PRIORITY: readonly Reason[] = ["complaint", "bounce_hard", "unsubscribe", "stop", "do_not_contact", "manual", `import`];
 const MAX_CHECK = 5000;
 const MAX_IMPORT = 100_000;
 
@@ -235,7 +235,7 @@ export async function suppressionImport(
     else if (address || !(i === 0 && HEADERS.has(cell.toLowerCase()))) skipped++;   // a repeated or malformed value is skipped; a header line is not a value
   });
   const owners = await contactsOf(ctx, channel, valid);
-  const reason = input.reason ?? "import";
+  const reason = input.reason ?? `import`;
   let added = 0;
   for (const address of valid) {
     const row = insertRow(ctx, { channel, address, reason, source: `import:${input.fileId}`, contactId: owners.get(address), addedAt: ctx.now() });
