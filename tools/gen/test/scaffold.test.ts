@@ -8,6 +8,7 @@ import { scaffoldModule } from '../src/scaffold.ts';
 import { buildRegistry } from '../src/build.ts';
 import { validateAll } from '../src/validate.ts';
 import type { LaneTable } from '../src/validate.ts';
+import { ftype, t } from '../../../packages/contracts/src/index.ts';
 import { all } from '../../../manifests/index.ts';
 
 const hostModules = JSON.parse(readFileSync(new URL('../../../host/modules.json', import.meta.url), 'utf8')) as { modules: Array<{ id: string; owner: string; status: string }> };
@@ -22,7 +23,9 @@ test('host/modules.json lists the 72 modules with the manifest owner and status 
 });
 
 test('a scaffolded module has one capability, one event, one entity and passes validation', () => {
-  const { manifestSource, manifest, registryRow } = scaffoldModule('widgets', 'L1');
+  const scaffold = scaffoldModule('widgets', 'L1');
+  const { manifestSource, registryRow } = scaffold;
+  const manifest = { ...scaffold.manifest, fieldTypes: [ftype('text', 'Text', t.str())] };
   assert.match(manifestSource, /defineManifest/);
   assert.deepEqual(registryRow, { id: 'widgets', owner: 'L1', status: 'stub' });
   const table: LaneTable = { lanes: { L1: ['widgets'] }, extras: {}, frozenCount: 1, versioned: [] };

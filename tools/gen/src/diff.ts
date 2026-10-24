@@ -47,7 +47,7 @@ function compareSchema(path: string, a: JsonSchema, b: JsonSchema, side: 'in' | 
 
 export function diffRegistries(oldReg: Registry, newReg: Registry): DiffResult {
   const res: DiffResult = { breaking: [], additive: [] };
-  const caps = new Map(newReg.capabilities.map((c) => [`${c.name}@${c.v}`, c] as const));
+  const caps = new Map<string, (typeof newReg.capabilities)[number]>(newReg.capabilities.map((c) => [`${c.name}@${c.v}`, c]));
   for (const o of oldReg.capabilities) {
     const key = `${o.name}@${o.v}`;
     const n = caps.get(key);
