@@ -15,7 +15,7 @@ export function SampleList({ selected = "r2", rows = SAMPLE_ROWS }: { selected?:
     <View style={styles.page} accessibilityLabel="sample list">
       <Text style={styles.heading}>Sample</Text>
       {rows.map((r) => (
-        <Pressable key={r.id} accessibilityRole="button" style={[styles.row, r.id === selected && styles.selected]} accessibilityState={{ selected: r.id === selected }} testID={`row-${r.id}`}>
+        <Pressable key={r.id} accessibilityRole="button" style={[styles.row, r.id === selected && styles.selected]} testID={r.id === selected ? `row-${r.id}-selected` : `row-${r.id}`}>
           <Text style={styles.title}>{r.title}</Text>
           <Text style={styles.note}>{r.note}</Text>
         </Pressable>
