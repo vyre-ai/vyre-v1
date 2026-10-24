@@ -118,14 +118,14 @@ test("merge: picks per field, fills empty fields, rewrites relations, trashes th
   assert.deepEqual(merged.map((e) => e.payload.mergedId).sort(), [b, c].sort());
   assert.ok(merged.every((e) => e.payload.survivorId === a && e.payload.type === "party" && e.subject === `record/${a}`));
 
-  const hist = k.rec.history("party", a);
+  const hist = k.rec.history("party", a).filter((r) => r.reason.startsWith("merge:"));
   const has = (field: string, value: unknown, part: string) => hist.some((r) => r.field === field && JSON.stringify(r.value) === JSON.stringify(value) && r.reason.includes(part));
   assert.ok(has("name", "Ann", "survivor_replaced"), "the survivor's replaced value is kept");
   assert.ok(has("email", "ann2@x.com", `lost_from:${b}`), "a merged value that did not survive is kept");
   assert.ok(has("name", "A. Bee", `lost_from:${c}`));
   assert.ok(has("city", "Rome", `lost_from:${c}`));
   assert.ok(has("city", "OLD", `history_of:${b}:lww_loser`), "the merged record's own history comes along");
-  assert.ok(hist.every((r) => r.reason.startsWith("merge:")));
+  assert.ok(k.rec.history("party", a).some((r) => r.reason === "previous"), "the store's own previous-value rows stay");
   assert.equal(findMerge(k.deps, { survivorId: a })?.undoUntil, NOW + UNDO_WINDOW_MS);
 });
 
@@ -148,7 +148,7 @@ test("merge: undo within 30 days restores records, relations, survivor fields an
   assert.equal((await k.rec.store.get("party", b))?.data.name, "Ann B", "back from Trash");
   assert.deepEqual((await k.rec.store.get("deal", d1))?.data.owner, link(b));
   assert.deepEqual((await k.rec.store.get("deal", d1))?.data.partners, original);
-  assert.deepEqual(k.rec.history("party", a), [], "the merge's history rows go with it");
+  assert.deepEqual(k.rec.history("party", a).filter((r) => r.reason.startsWith("merge:")), [], "the merge's history rows go with it");
   assert.equal(findMerge(k.deps, { survivorId: a }), null, "nothing left to undo");
   await assert.rejects(undoMerge(k.deps, k.ctx, { survivorId: a }), (e: unknown) => (e as { code?: string }).code === "not_found");
 });
@@ -269,7 +269,7 @@ test("bulk_upsert: bad input is refused before the first write", async () => {
   await assert.rejects(up([{ email: "a@x.com" }, { email: "b@x.com", nope: 1 }]), vcode("validation.bad_input"));
   await assert.rejects(up([{ ssn: seal("sv_x") }], ["ssn"]), vcode("validation.bad_input"), "a sealed field cannot be a match key");
   await assert.rejects(up([{ email: "a@x.com" }], ["nope"]), vcode("validation.bad_input"));
-  await assert.rejects(up(Array.from({ length: 10_001 }, (_v, i) => ({ email: `u${i}@x.com` }))), vcode("validation.too_large"));
+  await assert.rejects(up(Array.from({ length: 10_001 }, (_v, i) => ({ email: `u${i}@x.com` }))), vcode("validation.bad_input"));
   assert.equal(await count(), 0);
 
   await party(k, { name: "One", email: "dup@x.com" });
@@ -277,7 +277,7 @@ test("bulk_upsert: bad input is refused before the first write", async () => {
   await assert.rejects(up([{ email: "dup@x.com", name: "X" }]), vcode("validation.duplicate"), "two records already match: resolve them first");
 });
 
-const decode = (b: Uint8Array): string => new TextDecoder().decode(b);
+const decode = (b: Uint8Array): string => new TextDecoder("utf-8", { ignoreBOM: true }).decode(b);
 
 test("export csv: quoted, formula-safe, sealed masked, view spec applies", async () => {
   const k = await kit([SHEET]);
@@ -292,24 +292,24 @@ test("export csv: quoted, formula-safe, sealed masked, view spec applies", async
   const f = k.files[0]!;
   assert.equal(f.name, "sheet-2027-01-15.csv");
   assert.equal(f.mime, "text/csv; charset=utf-8");
-  assert.equal(decode(f.bytes), "﻿name,qty,fee,ssn\r\n'=SUM(A1),-4,,\r\n\"Smith, John\",3,12.5 USD,[sealed]\r\nZed,,,\r\n");
+  assert.equal(decode(f.bytes), "\ufeffName,Qty,Fee,SSN\r\n'=SUM(A1),-4,,\r\n\"Smith, John\",3,12.5 USD,[sealed]\r\nZed,,,\r\n");
 
   await exp({ sort: [{ field: "name", dir: "asc" }] });
   const all = decode(k.files[1]!.bytes);
-  assert.ok(all.startsWith("﻿Name,Note,Qty,Fee,SSN\r\n"), "headers are the field labels");
+  assert.ok(all.startsWith("\ufeffName,Note,Qty,Fee,SSN\r\n"), "headers are the field labels");
   assert.ok(all.includes('"say ""hi""\nline2"'));
   assert.ok(!all.includes("sv_secret"), "a sealed handle never leaves");
 
   await exp({ filter: { field: "qty", op: "gt", value: 0 }, fields: ["name"] });
-  assert.equal(decode(k.files[2]!.bytes), '﻿Name\r\n"Smith, John"\r\n');
+  assert.equal(decode(k.files[2]!.bytes), '\ufeffName\r\n"Smith, John"\r\n');
   await exp({ limit: 2, fields: ["name"], sort: [{ field: "name", dir: "asc" }] });
   assert.equal(decode(k.files[3]!.bytes).split("\r\n").length, 4, "header, two rows, trailing break");
   await exp({ filter: { field: "qty", op: "gt", value: 1000 }, fields: ["name"] });
-  assert.equal(decode(k.files[4]!.bytes), "﻿Name\r\n");
+  assert.equal(decode(k.files[4]!.bytes), "\ufeffName\r\n");
 
   await assert.rejects(exp({ fields: ["nope"] }), vcode("validation.bad_input"));
   const bare = createMergeHandlers({ store: k.rec.store, tx: k.rec.host.tx });
-  await assert.rejects(bare["records.export"](k.ctx, { type: "sheet", format: "csv" }), vcode("internal.unavailable"));
+  await assert.rejects(bare["records.export"](k.ctx, { type: "sheet", format: "csv" }), (e: unknown) => e instanceof Error && /needs a file store/.test(e.message));
 });
 
 interface ZipEntry { name: string; data: Uint8Array; crc: number }

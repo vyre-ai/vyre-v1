@@ -15,7 +15,6 @@
 import { canonical } from "../../../lib/canonical.ts";
 import { formatHlc } from "../../../lib/hlc.ts";
 import { mintUuid } from "../../../lib/ids.ts";
-import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { isSealedRef } from "../../../kernel/src/store/values.ts";
 import { StoreError } from "../../../kernel/src/store/types.ts";
@@ -371,7 +370,7 @@ async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; row
     if (!f) throw new StoreError("unknown_field", `${input.type} has no field ${m}`);
     if (f.kind === "sealed") bad(ctx, `${m} is sealed and cannot be a match field`);
   }
-  if (input.rows.length > MAX_UPSERT_ROWS) throw new VyreErr({ code: "validation.too_large", message: `a bulk upsert takes at most ${MAX_UPSERT_ROWS} rows`, retryable: false, traceId: ctx.trace.traceId, next: [{ kind: "edit_input", label: "Split the rows into smaller batches" }] });
+  if (input.rows.length > MAX_UPSERT_ROWS) bad(ctx, `a bulk upsert takes at most ${MAX_UPSERT_ROWS} rows: split them into smaller batches`);
   const quiet = input.runAutomations !== true;
 
   // Plan: one entry per distinct match key; later rows with the same key fold into the first.
@@ -452,7 +451,7 @@ const csvCell = (c: { text: string; number?: number }, plainText: boolean): stri
 export function toCsv(columns: readonly FieldDef[], rows: readonly Record<string, unknown>[]): string {
   const lines = [columns.map((c) => csvCell({ text: c.label ?? c.name }, true)).join(",")];
   for (const r of rows) lines.push(columns.map((c) => csvCell(cellText(c, r[c.name]), true)).join(","));
-  return `﻿${lines.join("\r\n")}\r\n`;
+  return `\ufeff${lines.join("\r\n")}\r\n`;
 }
 
 const xmlEsc = (s: string): string =>
@@ -525,7 +524,7 @@ export function toXlsx(sheet: string, columns: readonly FieldDef[], rows: readon
 async function exportRows(deps: MergeDeps, ctx: ExportCtx, input: { type: string; format: "csv" | "xlsx" } & ViewSpec): Promise<{ fileId: string }> {
   const { store, tx } = deps;
   ensure(tx);
-  if (!deps.putFile) throw new VyreErr({ code: "internal.unavailable", message: "export has no file store to write to", retryable: true, traceId: ctx.trace.traceId, next: [{ kind: "retry", label: "Try again" }] });
+  if (!deps.putFile) throw new Error("records.export needs a file store: createMergeHandlers was given no putFile");
   const def = await needType(store, input.type);
   const wanted = input.fields && input.fields.length ? input.fields : def.fields.map((f) => f.name);
   const byName = new Map(def.fields.map((f) => [f.name, f]));
@@ -544,7 +543,7 @@ async function exportRows(deps: MergeDeps, ctx: ExportCtx, input: { type: string
     const res = runQuery(tx, input.type, { ...first, ...(cursor ? { cursor } : {}) });
     for (const r of res.rows) {
       if (rows.length >= want) break;
-      if (rows.length >= cap) throw new VyreErr({ code: "validation.too_large", message: "Excel holds at most 1,048,575 data rows: export CSV or narrow the view", retryable: false, traceId: ctx.trace.traceId, next: [{ kind: "edit_input", label: "Use CSV or filter the view" }] });
+      if (rows.length >= cap) bad(ctx, "Excel holds at most 1,048,575 data rows: export CSV or narrow the view");
       rows.push(r.fields);
     }
     if (!res.next || rows.length >= want) break;
