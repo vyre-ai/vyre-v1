@@ -1,0 +1,78 @@
+// One handler per access capability. Share, folders, requests and reviews land in later packets.
+import type { AccessCtx } from "../projections.ts";
+import { raise } from "../projections.ts";
+import {
+  actorsCreate, actorsEngineer, actorsList, actorsRedeem, actorsRevoke, actorsUpdate, check,
+  labelsList, labelsSet, policiesList, policiesReset, policiesSet, projectionHealth, viewAs,
+} from "./check.ts";
+import {
+  defaultsGet, defaultsSet, grantsList, grantsUpdate, groupsAddMember, groupsCreate, groupsDelete,
+  groupsGet, groupsList, groupsRemoveMember, groupsUpdate, principalsEffective, principalsGet,
+  principalsList, rolesApply, rolesAssign, rolesCreate, rolesDelete, rolesGet, rolesList,
+  rolesPreview, rolesUnassign, rolesUpdate,
+} from "./roles.ts";
+
+async function later(ctx: AccessCtx, _input: unknown): Promise<never> {
+  raise(ctx.trace.traceId, "internal.not_implemented", "this capability is a later packet");
+}
+
+export const handlers = {
+  "access.actors.create": actorsCreate,
+  "access.actors.list": actorsList,
+  "access.actors.redeem": actorsRedeem,
+  "access.actors.revoke": actorsRevoke,
+  "access.actors.set_engineer_mcp": actorsEngineer,
+  "access.actors.update": actorsUpdate,
+  "access.check": check,
+  "access.grants.list": grantsList,
+  "access.grants.update": grantsUpdate,
+  "access.groups.add_member": groupsAddMember,
+  "access.groups.create": groupsCreate,
+  "access.groups.defaults_get": defaultsGet,
+  "access.groups.defaults_set": defaultsSet,
+  "access.groups.delete": groupsDelete,
+  "access.groups.get": groupsGet,
+  "access.groups.list": groupsList,
+  "access.groups.remove_member": groupsRemoveMember,
+  "access.groups.update": groupsUpdate,
+  "access.labels.list": labelsList,
+  "access.labels.set": labelsSet,
+  "access.lists": later,
+  "access.policies.list": policiesList,
+  "access.policies.reset": policiesReset,
+  "access.policies.set": policiesSet,
+  "access.principals.effective": principalsEffective,
+  "access.principals.get": principalsGet,
+  "access.principals.list": principalsList,
+  "access.projection_health": projectionHealth,
+  "access.propose_change": later,
+  "access.request": later,
+  "access.requests.approve": later,
+  "access.requests.decline": later,
+  "access.requests.list": later,
+  "access.reviews.close": later,
+  "access.reviews.decide": later,
+  "access.reviews.get": later,
+  "access.reviews.list": later,
+  "access.reviews.start": later,
+  "access.roles.apply": rolesApply,
+  "access.roles.assign": rolesAssign,
+  "access.roles.create": rolesCreate,
+  "access.roles.delete": rolesDelete,
+  "access.roles.get": rolesGet,
+  "access.roles.list": rolesList,
+  "access.roles.preview": rolesPreview,
+  "access.roles.unassign": rolesUnassign,
+  "access.roles.update": rolesUpdate,
+  "access.share": later,
+  "access.shares_of": later,
+  "access.unshare": later,
+  "access.view_as": viewAs,
+  "folders.create": later,
+  "folders.delete": later,
+  "folders.list": later,
+  "folders.move": later,
+  "folders.place": later,
+  "folders.rename": later,
+  "folders.unplace": later,
+};
