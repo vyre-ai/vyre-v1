@@ -6,7 +6,10 @@ import fs from "node:fs";
 import path from "node:path";
 
 export class OpfsDirectory {
-  constructor(readonly root: string) {
+  readonly root: string;
+
+  constructor(root: string) {
+    this.root = root;
     fs.mkdirSync(root, { recursive: true });
   }
 

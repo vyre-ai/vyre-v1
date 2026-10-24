@@ -38,11 +38,15 @@ function asBlob(row: unknown): Buffer | undefined {
 }
 
 export class Replica {
-  private constructor(
-    private readonly opfs: OpfsDirectory,
-    private readonly key: Buffer,
-    private readonly db: DatabaseSync,
-  ) {}
+  private opfs: OpfsDirectory;
+  private key: Buffer;
+  private db: DatabaseSync;
+
+  private constructor(opfs: OpfsDirectory, key: Buffer, db: DatabaseSync) {
+    this.opfs = opfs;
+    this.key = key;
+    this.db = db;
+  }
 
   static open(dir: string, key: Buffer): Replica {
     if (key.length !== 32) throw new Error("replica key must be 32 bytes");
