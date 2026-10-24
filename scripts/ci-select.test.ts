@@ -172,5 +172,7 @@ test("--matrix with no base still lists every tracked test (never an empty matri
   const r = spawnSync("node", [path.join(path.dirname(new URL(import.meta.url).pathname), "ci-select.ts"), "", "--matrix", "--max", "8"], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
   const j = JSON.parse(r.stdout);
-  assert.ok(j.matrix.include.length > 0 && j.matrix.include.length <= 8);
+  const fast = j.matrix.include.filter((m: { slow: boolean }) => !m.slow);
+  // --max caps the fast shards; each test/slow.json entry adds its own slow job.
+  assert.ok(fast.length > 0 && fast.length <= 8);
 });
