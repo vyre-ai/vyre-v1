@@ -730,7 +730,8 @@ async function list(ctx: Ctx, input: { section?: "personal" | "shared" | "space"
   return out;
 }
 
-async function update(ctx: Ctx, input: { siteId: string; name?: string; settings?: Record<string, unknown> }): Promise<{ site: SiteBody }> {
+// Site update handler. The SQL helper in this module is already named update.
+async function updateSite(ctx: Ctx, input: { siteId: string; name?: string; settings?: Record<string, unknown> }): Promise<{ site: SiteBody }> {
   const site = requireSite(ctx, input.siteId);
   const traceId = ctx.trace.traceId;
   let name = site.name;
@@ -1039,7 +1040,7 @@ export const deployHandlers = {
   "sites.create": create,
   "sites.get": get,
   "sites.list": list,
-  "sites.update": update,
+  "sites.update": updateSite,
   "sites.delete": remove,
   "sites.build": build,
   "sites.deploy": deploy,
