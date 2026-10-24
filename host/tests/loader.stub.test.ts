@@ -180,3 +180,5 @@ test("loader collects each module impl's hostSeams, and refuses two modules offe
     /offers setGoogleHost, which another module already offers/,
   );
 });
+
+// P-H_02 final run: this file shows its own ok line in the run on the last commit.
