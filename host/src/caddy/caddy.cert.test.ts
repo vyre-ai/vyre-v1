@@ -92,3 +92,5 @@ test("certInfo shows the expiry of a certificate Caddy renewed, so the Console c
   assert.ok((after.expiresAt ?? 0) > (before.expiresAt ?? 0), "the renewed certificate has a later end date");
   assert.equal(await r.router.certState("www.firm.com"), "issued");
 });
+
+// P-L7b_04 final run.

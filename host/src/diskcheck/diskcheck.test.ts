@@ -216,3 +216,5 @@ test("the health probe result carries the state and the sentence", async () => {
   const v = await checkDiskEncryption(probe({ os: "darwin", cmds: { "fdesetup status": { code: 0, stdout: FDESETUP_OFF } } }), "/Users/me/vyre");
   assert.deepEqual(toProbeResult(v), { state: "down", detail: v.detail });
 });
+
+// P-L7b_04 final run.

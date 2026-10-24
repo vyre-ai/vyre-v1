@@ -38,3 +38,5 @@ test("space and device together run both sets of services once", () => {
   assert.equal(p.services.length, 11);
   assert.deepEqual([p.roles, p.needsSpace, p.serves, p.connectsOut], [["space", "device"], true, true, true]);
 });
+
+// P-L7b_04 final run: each named test shows its own ok line in the run on the last commit.

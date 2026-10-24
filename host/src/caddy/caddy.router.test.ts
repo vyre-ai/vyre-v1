@@ -143,3 +143,5 @@ test("the admin client reads an empty or null body as nothing and a body that is
   await assert.rejects(mk(200, "<html>").config(), CaddyError);
   await assert.rejects(mk(500, "boom").config(), (e: unknown) => e instanceof CaddyError && e.status === 500 && e.body === "boom");
 });
+
+// P-L7b_04 final run.
