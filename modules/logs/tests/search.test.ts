@@ -286,9 +286,6 @@ test("replay_get of an id nobody started is a typed not_found with the trace id"
   const { replayId } = await replayStart(h.ctx, { atSeq: 1 });
   await assert.rejects(() => replayGet({ ...h.ctx, space: "spc_other" }, { replayId }), VyreErr, "a replay is visible only inside its own Space");
 });
-  await assert.rejects(() => replayGet({ ...h.ctx, space: "spc_other" }, { replayId: "rpl_missing" }), VyreErr);
-  assert.ok(replayId);
-});
 
 test("settings: defaults, partial updates, validation, and retention applied at once", async () => {
   const h = harness();
