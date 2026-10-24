@@ -242,7 +242,7 @@ export async function evaluate(ctx: HealthCtx, def: HealthDef): Promise<Outcome>
   return out;
 }
 
-export interface Transition { key: string; from: State | null; to: State; detail?: string; paused: Area[]; resumed: boolean }
+export interface Transition { key: string; from: State | null; to: State; detail?: string; paused: Area[]; resumed: boolean; reason?: string }
 export interface RunResult { rows: CheckRow[]; transitions: Transition[] }
 
 function stored(ctx: HealthCtx): Map<string, { state: State; since: number; title: string }> {
@@ -293,6 +293,7 @@ export async function runChecks(ctx: HealthCtx, defs: readonly HealthDef[], only
     if (!prev || prev.state !== out.state) {
       const t: Transition = { key: def.key, from: prev?.state ?? null, to: out.state, paused: out.state === "healthy" ? [] : [...areas], resumed: out.state === "healthy" && prev !== undefined && areas.length > 0 };
       if (out.detail) t.detail = out.detail;
+      if (out.state !== "healthy" && areas.length > 0) t.reason = reasonFor(def, out);
       transitions.push(t);
     }
     const row: CheckRow = { key: def.key, title: def.title, state: out.state, checkedAt: now, module: def.module, next: def.next };

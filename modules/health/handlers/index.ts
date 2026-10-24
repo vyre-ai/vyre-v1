@@ -17,7 +17,14 @@ export async function run(ctx: HealthCtx, input: { key?: string }) {
   if (input.key !== undefined && !defs.some((d) => d.key === input.key)) {
     return failWith(ctx.trace.traceId, "validation.not_found", "There is no health check with that key.", { key: input.key });
   }
-  const { rows } = await runChecks(ctx, defs, input.key);
+  const { rows, transitions } = await runChecks(ctx, defs, input.key);
+  for (const t of transitions) {
+    const subject = `check/${t.key}`;
+    // a first observation has no earlier state, so it is not a change; it can still pause an area
+    if (t.from !== null) ctx.emit("health.changed", subject, { key: t.key, from: t.from, to: t.to, ...(t.detail ? { detail: t.detail } : {}) });
+    if (t.paused.length > 0 && t.reason) ctx.emit("health.paused", subject, { key: t.key, paused: t.paused, reason: t.reason });
+    if (t.resumed) ctx.emit("health.resumed", subject, { key: t.key });
+  }
   return { checks: rows };
 }
 
