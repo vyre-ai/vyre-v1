@@ -116,8 +116,8 @@ test("hello modes: an older client is read-only, a cursor ahead of the log is a 
   old.send(hello({ registryHash: "h0" }));
   const ahead = raw(rig, who(ADA, "d2"));
   ahead.send(hello({ cursor: 9999 }));
-  rig.r.s.setEpoch(ADA, 4);
-  const stale = raw(rig, who(ADA, "d3"));
+  rig.r.s.setEpoch(BO, 4);
+  const stale = raw(rig, who(BO, "d3"));
   stale.send(hello({ epoch: 1 }));
   await settle();
   assert.equal(old.ofType("hello_ok")[0]!.ok.mode, "update_required");

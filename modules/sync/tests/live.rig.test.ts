@@ -8,11 +8,11 @@ import type { Connection, Dial, EventBatch, ManualScheduler, MemoryLink } from "
 import type { LiveHub, LiveWho } from "../../../sync/src/live/index.ts";
 import { createSyncLiveHub } from "../handlers/live.ts";
 import type { LiveOpts } from "../handlers/live.ts";
-import { ADA, NOW } from "../fixtures/world.ts";
+import { ADA, BO, CY, NOW } from "../fixtures/world.ts";
 import { pushRig } from "./push.rig.test.ts";
 import type { PushRig } from "./push.rig.test.ts";
 
-export { ADA, NOW };
+export { ADA, BO, CY, NOW };
 export const settle = async (rounds = 12): Promise<void> => { for (let i = 0; i < rounds; i++) await new Promise<void>((r) => setImmediate(r)); };
 
 export interface DeviceClient { conn: Connection; st: { cursor: number; applied: EventBatch[]; at: number[]; ids: string[] } }
