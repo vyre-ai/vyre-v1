@@ -21,7 +21,7 @@ test("P-H_02: the impl exposes a handlers map the loader can read, and sync.push
   assert.deepEqual(Object.keys(handlers).sort(), ["sync.pull", "sync.push", "sync.snapshot.begin", "sync.snapshot.page"]);
   const trace = { traceId: "0123456789abcdef0123456789abcdef", spanId: "0123456789abcdef" };
   setPushDeps(null);
-  await assert.rejects(async () => handlers["sync.push"]({ trace, principal: { kind: "person", id: "usr_dana" }, device: "dev_a" }, {} as never), (e: { code?: string }) => e.code === "internal.unavailable");
+  await assert.rejects(async () => handlers["sync.push"]({ trace, principal: { kind: "person", id: "usr_dana" }, device: "dev_a" }, {} as never), (e: { error?: { code?: string } }) => e.error?.code === "internal.unavailable");
 });
 
 // P-H_01 final run: each named test shows its own ok line in the run on the last commit.
