@@ -319,7 +319,6 @@ function TabItem({ tab, on, dropTarget, canClose, nodeRef, onPress: press, onClo
       role="tab"
       aria-selected={on}
       aria-label={tab.title}
-      focusable={on}
       testID={on ? `tab-${tab.key}-selected` : `tab-${tab.key}`}
       onPress={press}
       onHoverIn={() => setOver(true)}
@@ -329,6 +328,7 @@ function TabItem({ tab, on, dropTarget, canClose, nodeRef, onPress: press, onClo
       {...trigger}
       {...webProps({
         title: tab.title,
+        tabIndex: on ? 0 : -1,
         onKeyDown: (event: EventLike) => { onKeyDown(event); (trigger["onKeyDown"] as ((e: unknown) => void) | undefined)?.(event); },
         onPointerDown: (event: EventLike) => { if (event.button === undefined || event.button === 0) onDragStart(); },
         onPointerEnter: onDragOver,

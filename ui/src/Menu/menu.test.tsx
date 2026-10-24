@@ -109,7 +109,7 @@ test("a rendered menu lists the items in order and Report a problem last, with a
   const html = renderToStaticMarkup(<Menu items={[{ head: "File" }, { label: "Open", icon: "open" }, { label: "Delete", icon: "trash", danger: true }, { label: "Pinned", icon: "star", checked: true }]} x={40} y={40} />);
   assert.match(html, /role="menu"/);
   assert.equal(html.match(/role="menuitem"/g)?.length, 4, "three items plus Report a problem");
-  const order = ["File", "Open", "Delete", "Pinned", REPORT_A_PROBLEM].map((l) => html.indexOf(l));
+  const order = ["File", "Open", "Delete", "Pinned", REPORT_A_PROBLEM].map((l) => html.indexOf(`>${l}<`));
   assert.ok(order.every((n) => n >= 0), "every label is rendered");
   assert.deepEqual(order, [...order].sort((a, b) => a - b), "labels render in order");
   assert.match(html, /data-separator="true"/);

@@ -319,7 +319,7 @@ export function Menu(props: MenuViewProps): ReactElement | null {
         accessibilityLabel="Close menu"
         style={styles.backdrop}
         onPress={close}
-        {...webProps({ onContextMenu: (event: KeyEventLike) => { event.preventDefault?.(); close(); }, tabIndex: -1 })}
+        {...webProps({ onContextMenu: (event: { preventDefault: () => void }) => { event.preventDefault(); close(); }, tabIndex: -1 })}
       />
       <View
         role="menu"
