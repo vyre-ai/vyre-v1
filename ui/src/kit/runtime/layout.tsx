@@ -133,7 +133,7 @@ function ListView({ node, scope, rt }: { node: ListNode; scope: Scope; rt: Layou
 export function Layout({ node, scope, rt }: { node: LayoutNode; scope: Scope; rt: LayoutRuntime }): ReactElement | null {
   switch (node.t) {
     case "stack":
-      return <View style={{ gap: node.gap ?? 0, flexShrink: 1, flex: 1 }}>{each(node.children, (c, i) => <Layout key={i} node={c} scope={scope} rt={rt} />)}</View>;
+      return <View style={{ gap: node.gap ?? 0, flexShrink: 1, flex: 1, minHeight: 0 }}>{each(node.children, (c, i) => <Layout key={i} node={c} scope={scope} rt={rt} />)}</View>;
     case "row":
       return <View style={{ flexDirection: "row", alignItems: "center", gap: node.gap ?? 8 }}>{each(node.children, (c, i) => <Layout key={i} node={c} scope={scope} rt={rt} />)}</View>;
     case "list": case "table": case "board":
@@ -168,7 +168,7 @@ export function Layout({ node, scope, rt }: { node: LayoutNode; scope: Scope; rt
 }
 
 const styles = StyleSheet.create({
-  list: { flex: 1 },
+  list: { flex: 1, minHeight: 0 },
   board: { flexDirection: "row", flexWrap: "wrap", gap: 12, padding: 12 },
   boardItem: { width: 240 },
   muted: { color: "var(--ink-3)" as string, fontSize: 13 },

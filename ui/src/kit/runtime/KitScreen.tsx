@@ -117,7 +117,7 @@ export function KitScreen({ def, env, state = EMPTY_STATE, builtins = defaultBui
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "var(--win)" as string },
+  screen: { flex: 1, minHeight: 0, overflow: "hidden", backgroundColor: "var(--win)" as string },
   missing: { color: "var(--ink-3)" as string, fontSize: 13, padding: 16 },
   failure: { color: "var(--danger)" as string, fontSize: 13, paddingHorizontal: 16, paddingVertical: 8 },
 });
