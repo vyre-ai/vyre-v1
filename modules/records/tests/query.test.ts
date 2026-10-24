@@ -1,5 +1,6 @@
 // @reads /modules/records/migrations/0001_init.sql
 // @reads /modules/records/migrations/0002_query.sql
+// The reference is the store itself: the same cursor format, so a cursor from one path continues on the other.
 // records.query, records.search, records.counts and saved views against the RecordStore as the reference: the SQL path and the
 // store's own filter, sort and keyset code must return the same rows in the same order, page after page.
 import test from "node:test";
