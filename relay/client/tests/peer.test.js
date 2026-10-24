@@ -161,8 +161,8 @@ test("peerclient: a stream the server opens delivers frames in order, including 
   assert.deepEqual(ended, ["server done"]);
   // closing a stream that already ended says nothing; one still open tells the server
   s.close();
-  const t = await client.openStream("watch", {}, { onframe: () => {} });
-  t.close();
+  const second = await client.openStream("watch", {}, { onframe: () => {} });
+  second.close();
   await settle();
   const closes = srv.log.frames.filter(f => f.type === T.streamEnd).map(f => JSON.parse(f.text));
   assert.deepEqual(closes, [{ id: "s1", why: "client" }]);

@@ -138,7 +138,7 @@ function mailbox(/** @type {{ lines: { i: number, line: string }[], status?: num
     const pub = await subtle.importKey("spki", fromBase64url(init.headers["x-vyre-setup-key"]), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
     const okSig = await subtle.verify({ name: "ECDSA", hash: "SHA-256" }, pub, fromBase64url(init.headers["x-vyre-setup-sig"]), utf8(`vyre-setup-read\n${loc}\n${init.headers["x-vyre-setup-ts"]}\n${after}`));
     if (!okSig || init.headers["x-vyre-setup-key"] !== base64url(spki)) return { status: 401, ok: false, json: async () => ({}) };
-    return { status: 200, ok: true, json: async () => ({ lines: state.lines.filter(l => l.i >= after) }) };
+    return { status: 200, ok: true, json: async () => ({ lines: state.lines.filter(l => !l || l.i >= after) }) };
   };
   return { fetch, calls };
 }
