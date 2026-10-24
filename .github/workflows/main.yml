@@ -1,0 +1,36 @@
+name: main
+on:
+  push:
+    branches: [main]
+concurrency:
+  group: main
+  cancel-in-progress: true
+jobs:
+  fast:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] # 10 shards + golden + perf = the 12 runners
+    steps:
+      - uses: actions/checkout@v4
+      - run: node scripts/test-run.mjs --all --shard ${{ matrix.shard }}/10
+  slow:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: node scripts/test-run.mjs --all --slow
+  golden:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "golden-flow placeholder (golden/ lands with the seeded Space)"
+  perf:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "perf placeholder (perf/ budgets land with section 9)"

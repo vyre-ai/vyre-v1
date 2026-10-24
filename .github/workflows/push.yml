@@ -1,0 +1,21 @@
+name: push
+on:
+  push:
+    branches-ignore: [main]
+concurrency:
+  group: push-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  affected:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Affected tests
+        run: |
+          BASE="${{ github.event.before }}"
+          if [ -z "$BASE" ] || echo "$BASE" | grep -Eq '^0+$'; then BASE=origin/main; fi
+          git rev-parse --verify -q "$BASE" >/dev/null || BASE=origin/main
+          node -v
+          node scripts/test-run.mjs --affected "$BASE"

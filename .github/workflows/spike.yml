@@ -1,0 +1,30 @@
+name: spike
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: "Repo path of the script to run (node for .mjs/.js/.ts, bash for .sh)"
+        required: true
+      args:
+        description: "Arguments"
+        required: false
+      ref:
+        description: "Branch or sha"
+        required: false
+jobs:
+  spike:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ inputs.ref || github.ref }}" }
+      - name: Run script
+        env:
+          SCRIPT: ${{ inputs.script }}
+          ARGS: ${{ inputs.args }}
+        run: |
+          case "$SCRIPT" in *..*|/*) echo "bad path"; exit 1;; esac
+          case "$SCRIPT" in
+            *.sh) bash "$SCRIPT" $ARGS ;;
+            *) node "$SCRIPT" $ARGS ;;
+          esac

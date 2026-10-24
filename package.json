@@ -1,0 +1,12 @@
+{
+  "name": "vyre-v1",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24 <25" },
+  "workspaces": ["lib", "contracts", "manifest", "kernel", "host", "sync", "agent", "sandbox", "modules/*", "client", "ui", "apps/*", "relay/*", "kits/*", "connectors/*", "testkit"],
+  "scripts": {
+    "test": "node scripts/test-run.mjs --all",
+    "test:affected": "node scripts/test-run.mjs --affected",
+    "select": "node scripts/ci-select.mjs"
+  }
+}
