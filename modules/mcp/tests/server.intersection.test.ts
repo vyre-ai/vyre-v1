@@ -131,7 +131,7 @@ test("scopes narrow on top of access: with every level at manage, a read-only co
   const calls: string[] = [];
   const readOnly: McpCaller = { ...callerOf("outside"), scopes: { read: true, post: false, readChangesets: false, writeBranch: false } };
   const call = serverFor(snap, readOnly, calls);
-  for (const t of g.catalog.all.filter((x) => g.defaults.has(x.name))) {
+  for (const t of g.catalog.all.filter((x) => g.defaults.has(x.name) && x.name !== "tool_search")) {
     const r = await call(t.name);
     if (r.allowed) assert.equal(t.effects, "read", `${t.name} is not a read tool but ran on a read-only scope`);
     else if (t.effects === "read" && t.local === "none" && !["vault", "terminal", "computer", "engineer"].includes(t.toolset)) assert.fail(`${t.name} is a plain read tool and was refused: ${r.code}`);

@@ -16,7 +16,7 @@ const call = async (hn: Harness, cap: string, input: unknown, ctx: Harness["ctx"
 };
 let keys = 0;
 const idem = (): string => `idem_${++keys}`;
-const rejects = async (p: Promise<unknown>): Promise<string> => { try { await p; } catch (e) { return codeOf(e); } return "no error"; };
+const rejects = async (f: () => unknown): Promise<string> => { try { await f(); } catch (e) { return codeOf(e); } return "no error"; };
 
 async function connect(hn: Harness, scopes?: { read: boolean; post: boolean; readChangesets: boolean; writeBranch: boolean }) {
   const issued = await call(hn, "mcp.token.issue", { name: "Claude Code", kind: "claude_code", idempotencyKey: idem(), ...(scopes ? { scopes } : {}) });
@@ -49,8 +49,8 @@ test("issue: scopes default to read, post and changesets with branch writes off;
   const row = tokenBy(hn.db, "token_id", out.tokenId)!;
   assert.deepEqual(row.scopes, { read: true, post: true, readChangesets: true, writeBranch: false });
   assert.equal(row.name, "Codex");
-  assert.equal(await rejects(h["mcp.token.issue"]!(hn.ctx, { name: "   ", kind: "codex", idempotencyKey: idem() })), "validation.bad_input");
-  assert.equal(await rejects(h["mcp.token.issue"]!(hn.ctx, { name: "x", kind: "vim", idempotencyKey: idem() })), "validation.bad_input");
+  assert.equal(await rejects(() => h["mcp.token.issue"]!(hn.ctx, { name: "   ", kind: "codex", idempotencyKey: idem() })), "validation.bad_input");
+  assert.equal(await rejects(() => h["mcp.token.issue"]!(hn.ctx, { name: "x", kind: "vim", idempotencyKey: idem() })), "validation.bad_input");
 });
 
 test("register: the one-time token becomes a credential, once; a second try, a wrong token and an expired one are refused alike", async () => {
@@ -67,14 +67,14 @@ test("register: the one-time token becomes a credential, once; a second try, a w
   assert.equal(row.credHash, await sha256(reg.token));
   assert.equal(JSON.stringify(hn.rows("SELECT * FROM mcp_tokens")).includes(reg.token), false, "the credential is stored only as a hash");
 
-  assert.equal(await rejects(h["mcp.token.register"]!(hn.ctx, { oneTimeToken: issued.oneTimeToken, clientName: "again" })), "auth.invalid_code", "works once");
-  assert.equal(await rejects(h["mcp.token.register"]!(hn.ctx, { oneTimeToken: "otk_nope", clientName: "x" })), "auth.invalid_code");
-  assert.equal(await rejects(h["mcp.token.register"]!(hn.ctx, { oneTimeToken: reg.token, clientName: "x" })), "auth.invalid_code", "the credential is not a registration token");
+  assert.equal(await rejects(() => h["mcp.token.register"]!(hn.ctx, { oneTimeToken: issued.oneTimeToken, clientName: "again" })), "auth.invalid_code", "works once");
+  assert.equal(await rejects(() => h["mcp.token.register"]!(hn.ctx, { oneTimeToken: "otk_nope", clientName: "x" })), "auth.invalid_code");
+  assert.equal(await rejects(() => h["mcp.token.register"]!(hn.ctx, { oneTimeToken: reg.token, clientName: "x" })), "auth.invalid_code", "the credential is not a registration token");
   assert.deepEqual(assertEventsConform(hn), []);
 
   const late = await call(hn, "mcp.token.issue", { name: "Late", kind: "other", idempotencyKey: idem() });
   hn.advance(10 * 60_000 + 1);
-  assert.equal(await rejects(h["mcp.token.register"]!(hn.ctx, { oneTimeToken: late.oneTimeToken, clientName: "x" })), "auth.expired");
+  assert.equal(await rejects(() => h["mcp.token.register"]!(hn.ctx, { oneTimeToken: late.oneTimeToken, clientName: "x" })), "auth.expired");
 });
 
 test("register one millisecond before the window closes works; at the closing instant it does not", async () => {
@@ -84,7 +84,7 @@ test("register one millisecond before the window closes works; at the closing in
   await call(hn, "mcp.token.register", { oneTimeToken: a.oneTimeToken, clientName: "x" });
   const b = await call(hn, "mcp.token.issue", { name: "B", kind: "other", idempotencyKey: idem() });
   hn.advance(10 * 60_000);
-  assert.equal(await rejects(h["mcp.token.register"]!(hn.ctx, { oneTimeToken: b.oneTimeToken, clientName: "x" })), "auth.expired");
+  assert.equal(await rejects(() => h["mcp.token.register"]!(hn.ctx, { oneTimeToken: b.oneTimeToken, clientName: "x" })), "auth.expired");
 });
 
 test("log_reveal: only the person who made the token, or someone who manages agents, can log that it was shown", async () => {
@@ -94,11 +94,11 @@ test("log_reveal: only the person who made the token, or someone who manages age
   assert.deepEqual(await call(hn, "mcp.token.log_reveal", { tokenId: issued.tokenId, action: "copy" }), { ok: true });
   assert.deepEqual(hn.named("token.revealed").map((e) => e.payload["action"]), ["reveal", "copy"]);
   assert.equal(tokenBy(hn.db, "token_id", issued.tokenId)?.reveals, 2);
-  assert.equal(await rejects(h["mcp.token.log_reveal"]!(hn.ctx, { tokenId: "tok_missing", action: "copy" })), "validation.bad_input");
+  assert.equal(await rejects(() => h["mcp.token.log_reveal"]!(hn.ctx, { tokenId: "tok_missing", action: "copy" })), "validation.bad_input");
 
   hn.allowOnly(() => false);
   const other = hn.as({ kind: "person", id: "usr_ravi" });
-  assert.equal(await rejects(h["mcp.token.log_reveal"]!(other, { tokenId: issued.tokenId, action: "reveal" })), "permission.no_grant");
+  assert.equal(await rejects(() => h["mcp.token.log_reveal"]!(other, { tokenId: issued.tokenId, action: "reveal" })), "permission.no_grant");
   hn.allowOnly(() => true);
   assert.deepEqual(await call(hn, "mcp.token.log_reveal", { tokenId: issued.tokenId, action: "reveal" }, other), { ok: true });
   assert.deepEqual(assertEventsConform(hn), []);
@@ -143,10 +143,10 @@ test("session.open: unknown, expired and revoked tokens are refused with their o
   const hn = harness();
   const { issued, reg } = await connect(hn);
   const anon = hn.as({ kind: "service", id: "anonymous" });
-  assert.equal(await rejects(h["mcp.session.open"]!(anon, { token: "vyr_unknown" })), "auth.unauthenticated");
-  assert.equal(await rejects(h["mcp.session.open"]!(anon, { token: issued.oneTimeToken })), "auth.unauthenticated", "the registration token is not a session token");
+  assert.equal(await rejects(() => h["mcp.session.open"]!(anon, { token: "vyr_unknown" })), "auth.unauthenticated");
+  assert.equal(await rejects(() => h["mcp.session.open"]!(anon, { token: issued.oneTimeToken })), "auth.unauthenticated", "the registration token is not a session token");
   revokeActor(hn.db, reg.actorId, hn.clock.t);
-  assert.equal(await rejects(h["mcp.session.open"]!(anon, { token: reg.token })), "permission.revoked");
+  assert.equal(await rejects(() => h["mcp.session.open"]!(anon, { token: reg.token })), "permission.revoked");
 });
 
 test("scopes.set: changes the actor's scopes, for its open sessions too; unknown and revoked actors are refused", async () => {
@@ -159,9 +159,9 @@ test("scopes.set: changes the actor's scopes, for its open sessions too; unknown
   assert.deepEqual(hn.named("mcp.scopes_changed")[0]?.payload, { actorId: reg.actorId, by: "usr_dana" });
   const session = hn.rows("SELECT scopes FROM mcp_sessions WHERE session_id = ?", opened.sessionId)[0]!;
   assert.deepEqual(JSON.parse(String(session["scopes"])), narrow);
-  assert.equal(await rejects(h["mcp.scopes.set"]!(hn.ctx, { actorId: "act_missing", scopes: narrow })), "validation.bad_input");
+  assert.equal(await rejects(() => h["mcp.scopes.set"]!(hn.ctx, { actorId: "act_missing", scopes: narrow })), "validation.bad_input");
   revokeActor(hn.db, reg.actorId, hn.clock.t);
-  assert.equal(await rejects(h["mcp.scopes.set"]!(hn.ctx, { actorId: reg.actorId, scopes: narrow })), "permission.no_grant");
+  assert.equal(await rejects(() => h["mcp.scopes.set"]!(hn.ctx, { actorId: reg.actorId, scopes: narrow })), "permission.no_grant");
   assert.deepEqual(assertEventsConform(hn), []);
 });
 
@@ -200,7 +200,7 @@ test("mint: a CLI engine's loopback session carries principal, person, thread, r
     });
   }
   hn.advance(120_001);
-  assert.equal(await rejects(h["mcp.session.open"]!(hn.as({ kind: "service", id: "anonymous" }), { token: out.sessionToken })), "auth.expired");
+  assert.equal(await rejects(() => h["mcp.session.open"]!(hn.as({ kind: "service", id: "anonymous" }), { token: out.sessionToken })), "auth.expired");
   assert.deepEqual(assertEventsConform(hn), []);
 });
 
@@ -221,7 +221,7 @@ test("close: ends a session once, idempotently, and says so in an event", async 
   assert.deepEqual(await call(hn, "mcp.session.close", { sessionId: out.sessionId }), { closed: true });
   assert.equal(hn.named("mcp.session_ended").length, 1);
   assert.deepEqual(hn.named("mcp.session_ended")[0]?.payload, { sessionId: out.sessionId, calls: 0 });
-  assert.equal(await rejects(h["mcp.session.close"]!(hn.ctx, { sessionId: "ses_missing" })), "validation.bad_input");
+  assert.equal(await rejects(() => h["mcp.session.close"]!(hn.ctx, { sessionId: "ses_missing" })), "validation.bad_input");
   const again = await callerForToken(hn.db, hn.ctx.space, out.sessionToken, hn.clock.t);
   assert.deepEqual(again, { refused: "revoked" });
   assert.deepEqual(assertEventsConform(hn), []);
