@@ -5,7 +5,6 @@
 // delivery reaches twilio.receive_webhook. Twilio signs with the account auth token, which is the item stored as Twilio_Auth.
 // DECISION: a delivery is remembered by a key built from the Sid plus the status; a replay gets the same TwiML back and nothing is landed twice.
 // DECISION: a softphone ring goes to `<Client>` with the target's id; the telephony module hands over person and agent ids, and expands groups itself.
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { fail } from "../../../host/src/routes/errors.ts";
 import { acct, api, bad, ensure, first, HANDLE, intOrUndef, list, needHost, obj, phone, sid, strOrUndef, text } from "../projections.ts";
 import type { Json, TwilioCtx } from "../projections.ts";
@@ -17,16 +16,26 @@ const pathPart = (v: string): string => encodeURIComponent(v);
 
 // ---- the signature
 
-/** What Twilio signs: the full address, then each parameter name followed by its value, names in order. */
-export function signatureOf(authToken: string, url: string, params: Record<string, string>): string {
-  const data = Object.keys(params).sort().reduce((acc, k) => acc + k + (params[k] ?? ""), url);
-  return createHmac("sha1", authToken).update(Buffer.from(data, "utf8")).digest("base64");
+const utf8 = (v: string) => new TextEncoder().encode(v);
+
+/** HMAC through the platform's Web Crypto (B3: product code does not import node:crypto). The key is the Vault secret handed over for this one call. */
+async function hmac(hash: "SHA-1" | "SHA-256", secret: string, data: string): Promise<Uint8Array> {
+  const key = await globalThis.crypto.subtle.importKey("raw", utf8(secret), { name: "HMAC", hash }, false, ["sign"]);
+  return new Uint8Array(await globalThis.crypto.subtle.sign("HMAC", key, utf8(data)));
 }
 
-export function signatureMatches(authToken: string, url: string, params: Record<string, string>, signature: string): boolean {
-  const want = Buffer.from(signatureOf(authToken, url, params));
-  const got = Buffer.from(signature);
-  return want.length === got.length && timingSafeEqual(want, got);
+/** What Twilio signs: the full address, then each parameter name followed by its value, names in order, HMAC-SHA1 with the auth token, in base64. */
+export async function signatureOf(authToken: string, url: string, params: Record<string, string>): Promise<string> {
+  const data = Object.keys(params).sort().reduce((acc, k) => acc + k + (params[k] ?? ""), url);
+  return Buffer.from(await hmac("SHA-1", authToken, data)).toString("base64");
+}
+
+export async function signatureMatches(authToken: string, url: string, params: Record<string, string>, signature: string): Promise<boolean> {
+  const want = await signatureOf(authToken, url, params);
+  if (want.length !== signature.length) return false;
+  let diff = 0;
+  for (let i = 0; i < want.length; i++) diff |= want.charCodeAt(i) ^ signature.charCodeAt(i);   // the whole string is read whatever the first difference
+  return diff === 0;
 }
 
 export interface HookIn {
@@ -42,7 +51,7 @@ export async function acceptHook(
 ): Promise<HookIn> {
   if (!HOOK_KINDS.includes(a.kind as HookKind)) bad(ctx, "Twilio sends voice, sms, status and recording hooks.");
   const token = await needHost(ctx).secret(ctx, HANDLE.auth);
-  if (!a.signature || !signatureMatches(token, a.url, a.params, a.signature)) {
+  if (!a.signature || !(await signatureMatches(token, a.url, a.params, a.signature))) {
     throw fail("auth.bad_credentials", ctx.trace.traceId, { message: "That request was not signed by Twilio." });
   }
   return hookInput(ctx, a.kind as HookKind, a.params);
@@ -156,7 +165,7 @@ export async function receiveWebhook(ctx: TwilioCtx, input: HookIn): Promise<{ a
 
 // ---- twilio.access_token (the Voice JS SDK)
 
-const b64url = (v: Buffer | string): string => Buffer.from(v).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const b64url = (v: Uint8Array | string): string => (typeof v === "string" ? Buffer.from(v) : Buffer.from(v)).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 export async function accessToken(ctx: TwilioCtx, input: { identity: string; ttlSec?: number }): Promise<{ token: string; expiresAt: number }> {
   if (typeof input.identity !== "string" || !/^[A-Za-z0-9_]{1,121}$/.test(input.identity)) bad(ctx, "The identity is letters, digits and underscores, up to 121 characters.");
@@ -173,7 +182,7 @@ export async function accessToken(ctx: TwilioCtx, input: { identity: string; ttl
   const header = { typ: "JWT", alg: "HS256", cty: "twilio-fpa;v=1" };
   const claims = { jti: `${keySid}-${iat}`, iss: keySid, sub: account, iat, exp, grants: { identity: input.identity, voice: { incoming: { allow: true }, outgoing: { application_sid: app } } } };
   const body = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(claims))}`;
-  const token = `${body}.${b64url(createHmac("sha256", secret).update(body).digest())}`;
+  const token = `${body}.${b64url(await hmac("SHA-256", secret, body))}`;
   return { token, expiresAt: exp * 1000 };
 }
 

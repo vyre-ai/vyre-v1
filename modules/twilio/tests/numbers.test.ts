@@ -136,7 +136,7 @@ test("the brand is registered through Trust Hub: business information, customer 
     legalName: "Lee & Partners PLLC", ein: "12-3456789", website: "https://leepartners.example.test", vertical: "PROFESSIONAL_SERVICES",
     address: { line1: "1 Main St", city: "Austin", region: "TX", postal: "78701", country: "US" }, contactName: "Maya Lee", contactEmail: "maya@leepartners.example.test",
   };
-  assert.deepEqual(contractErrors("twilio.a2p.create_brand", "in", input), []);
+  assert.deepEqual(contractErrors("twilio.a2p.create_brand", "in", { ...input, idempotencyKey: "twl_brand1" }), []);
   const out = await a2pCreateBrand(h.ctx, input);
   assert.deepEqual(out, { brandSid: BRAND_SID, status: "pending" });
   assert.deepEqual(contractErrors("twilio.a2p.create_brand", "out", out), []);
@@ -176,7 +176,7 @@ test("the campaign is registered under the brand on a new messaging service, and
   h.on(`POST ${MSG}/Services`, { status: 201, body: RECORDED.service });
   h.on(`POST ${MSG}/Services/${SERVICE_SID}/UsAppToPerson`, { status: 201, body: RECORDED.campaign });
   const input = { brandSid: BRAND_SID, useCase: "mixed", description: "Case updates and appointment reminders", sampleMessages: ["Hi Pat, your consult is at 3pm. Reply STOP to opt out."] };
-  assert.deepEqual(contractErrors("twilio.a2p.create_campaign", "in", input), []);
+  assert.deepEqual(contractErrors("twilio.a2p.create_campaign", "in", { ...input, idempotencyKey: "twl_camp1" }), []);
   const out = await a2pCreateCampaign(h.ctx, input);
   assert.deepEqual(out, { campaignSid: CAMPAIGN_SID, status: "in_progress" });
   assert.deepEqual(contractErrors("twilio.a2p.create_campaign", "out", out), []);

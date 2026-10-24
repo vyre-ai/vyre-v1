@@ -21,44 +21,44 @@ async function refused(p: Promise<unknown>, code: string): Promise<void> {
 
 const API = "api.twilio.com";
 const HOOK_URL = `${PUBLIC_URL}/hooks/twilio/voice`;
-const sign = (url: string, params: Record<string, string>): string => signatureOf(AUTH, url, params);
+const sign = (url: string, params: Record<string, string>): Promise<string> => signatureOf(AUTH, url, params);
 
 // ---- the signature
 
-test("Twilio signs the full address followed by each parameter name and value, names in order, with HMAC-SHA1 and the auth token", () => {
+test("Twilio signs the full address followed by each parameter name and value, names in order, with HMAC-SHA1 and the auth token", async () => {
   const params = { To: "+18005551212", Digits: "1234", CallSid: "CA1234567890ABCDE", From: "+14158675310" };
   const url = "https://mycompany.com/myapp.php?foo=1&bar=2";
   const joined = `${url}CallSidCA1234567890ABCDEDigits1234From+14158675310To+18005551212`;
   const expected = createHmac("sha1", "12345").update(joined).digest("base64");
-  assert.equal(signatureOf("12345", url, params), expected);
-  assert.equal(signatureMatches("12345", url, params, expected), true);
+  assert.equal(await signatureOf("12345", url, params), expected);
+  assert.equal(await signatureMatches("12345", url, params, expected), true);
 });
 
-test("a signature fails when the token, the address, a value or a name differs, or when it has a different length", () => {
+test("a signature fails when the token, the address, a value or a name differs, or when it has a different length", async () => {
   const url = HOOK_URL;
   const params = { A: "1", B: "2" };
-  const good = signatureOf(AUTH, url, params);
-  assert.equal(signatureMatches(AUTH, url, params, good), true);
-  assert.equal(signatureMatches("other-token", url, params, good), false);
-  assert.equal(signatureMatches(AUTH, `${url}x`, params, good), false);
-  assert.equal(signatureMatches(AUTH, url, { A: "1", B: "3" }, good), false);
-  assert.equal(signatureMatches(AUTH, url, { A: "1", C: "2" }, good), false);
-  assert.equal(signatureMatches(AUTH, url, params, "short"), false);
-  assert.equal(signatureMatches(AUTH, url, params, ""), false);
+  const good = await signatureOf(AUTH, url, params);
+  assert.equal(await signatureMatches(AUTH, url, params, good), true);
+  assert.equal(await signatureMatches("other-token", url, params, good), false);
+  assert.equal(await signatureMatches(AUTH, `${url}x`, params, good), false);
+  assert.equal(await signatureMatches(AUTH, url, { A: "1", B: "3" }, good), false);
+  assert.equal(await signatureMatches(AUTH, url, { A: "1", C: "2" }, good), false);
+  assert.equal(await signatureMatches(AUTH, url, params, "short"), false);
+  assert.equal(await signatureMatches(AUTH, url, params, ""), false);
 });
 
 test("a delivery with a valid signature is accepted and named by its Sid; one with an invalid signature is refused and nothing is landed", async () => {
   const h = harness();
   const params = { ...HOOKS.voice };
-  const accepted = await acceptHook(h.ctx, { kind: "voice", url: HOOK_URL, params, signature: sign(HOOK_URL, params) });
+  const accepted = await acceptHook(h.ctx, { kind: "voice", url: HOOK_URL, params, signature: await sign(HOOK_URL, params) });
   assert.deepEqual(accepted, { kind: "voice", sid: CALL_SID, dedupeKey: `voice:${CALL_SID}`, params });
   assert.deepEqual(contractErrors("twilio.receive_webhook", "in", accepted), []);
 
-  await refused(acceptHook(h.ctx, { kind: "voice", url: HOOK_URL, params, signature: sign(HOOK_URL, { ...params, From: "+19998887777" }) }), "auth.bad_credentials");   // a changed value
+  await refused(acceptHook(h.ctx, { kind: "voice", url: HOOK_URL, params, signature: await sign(HOOK_URL, { ...params, From: "+19998887777" }) }), "auth.bad_credentials");   // a changed value
   await refused(acceptHook(h.ctx, { kind: "voice", url: HOOK_URL, params, signature: "AAAAAAAAAAAAAAAAAAAAAAAAAAA=" }), "auth.bad_credentials");
   await refused(acceptHook(h.ctx, { kind: "voice", url: HOOK_URL, params, signature: undefined }), "auth.bad_credentials");
-  await refused(acceptHook(h.ctx, { kind: "voice", url: `${PUBLIC_URL}/hooks/twilio/sms`, params, signature: sign(HOOK_URL, params) }), "auth.bad_credentials");   // signed for another address
-  await refused(acceptHook(h.ctx, { kind: "fax", url: HOOK_URL, params, signature: sign(HOOK_URL, params) }), "validation.bad_input");
+  await refused(acceptHook(h.ctx, { kind: "voice", url: `${PUBLIC_URL}/hooks/twilio/sms`, params, signature: await sign(HOOK_URL, params) }), "auth.bad_credentials");   // signed for another address
+  await refused(acceptHook(h.ctx, { kind: "fax", url: HOOK_URL, params, signature: await sign(HOOK_URL, params) }), "validation.bad_input");
   assert.equal(h.called.length, 0, "a refused request reaches no other capability");
   assert.equal(h.emitted.length, 0);
 });
@@ -66,7 +66,7 @@ test("a delivery with a valid signature is accepted and named by its Sid; one wi
 test("a signed delivery missing the Sid it is named by is refused as bad input, for each kind", async () => {
   const h = harness();
   for (const [kind, params] of [["voice", { To: "+14155550123" }], ["sms", { Body: "x" }], ["status", { CallSid: CALL_SID }], ["recording", { CallSid: CALL_SID }]] as const) {
-    await refused(acceptHook(h.ctx, { kind, url: HOOK_URL, params, signature: sign(HOOK_URL, params) }), "validation.bad_input");
+    await refused(acceptHook(h.ctx, { kind, url: HOOK_URL, params, signature: await sign(HOOK_URL, params) }), "validation.bad_input");
   }
 });
 
@@ -223,7 +223,7 @@ test("a call is placed with the numbers, the Space's webhook addresses and the s
   const h = harness();
   h.on(`POST ${API}${REST}/Calls.json`, { status: 201, body: RECORDED.call });
   const input = { from: "+14155550123", to: "+14155550177", record: true };
-  assert.deepEqual(contractErrors("twilio.call.create", "in", input), []);
+  assert.deepEqual(contractErrors("twilio.call.create", "in", { ...input, idempotencyKey: "twl_call1" }), []);
   const out = await callCreate(h.ctx, input);
   assert.deepEqual(out, { sid: CALL_SID });
   assert.deepEqual(contractErrors("twilio.call.create", "out", out), []);
