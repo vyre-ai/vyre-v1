@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { metric } from "./adapters.mjs";
+await import("./ensure-deps.mjs");
 
 test("sqlite-wasm-cipher: opens, encrypts file pages with a key, has FTS5", async () => {
   const out = { loaded: false };

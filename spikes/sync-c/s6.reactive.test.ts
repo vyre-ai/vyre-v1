@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { Server, Client, direct } from "./sync.mjs";
 import { NodeDb, WaDb, codecFor, replicaKey, metric, pct } from "./adapters.mjs";
+await import("./ensure-deps.mjs");
 
 const MARK = "SECRET-TITLE-qq73";
 for (const kind of ["node:sqlite+aesgcm", "wa-sqlite+aesgcm"]) {
