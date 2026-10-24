@@ -15,12 +15,12 @@ import { smallRecipe, SMALL_TARGET } from "../small/recipe.ts";
 import { perfRecipe, PERF_TARGET } from "../perf/recipe.ts";
 
 /** The frozen shape: sha-256 of the recipe's events (type, entity, id, payload). Only the lead changes it, together with the recipe. */
-const CORE_SHAPE_HASH = "pending-first-run";
+const CORE_SHAPE_HASH = "bb3e660c5d92ab9ec2221b5612938df4b27659ceb0d7170291c45e22df073152";
 const shapeHash = (): string => crypto.createHash("sha256").update(canonical(coreEvents().map((e) => [e.type, e.entity, e.entity_id, e.payload]))).digest("hex");
 
 const scratch = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "core-seed-"));
 const can = (snap: ReturnType<typeof bootCore>["snapshot"], principal: string, perm: string | null, level: Req["action"]["level"], resource: Req["resource"]): string =>
-  authorize(snap, { principal, action: { perm, level }, resource }).effect;
+  authorize(snap, { principal, action: { perm, level }, resource, now: 1_790_000_000_000 }).effect;
 
 test("the frozen shape: 6 people with every role, 3 groups, 2 agents, one record type, one channel, one folder tree", () => {
   assert.equal(shapeHash(), CORE_SHAPE_HASH, "the core recipe changed: the lead re-freezes it");
@@ -50,9 +50,9 @@ test("core boots into a Space whose log verifies and whose access projection ans
     assert.equal(c.store.count(), coreEvents().length);
     assert.equal(can(c.snapshot, "usr_olivia", "records.read", "view", { type: "space", id: CORE_SPACE }), "allow", "the owner reads the Space");
     assert.equal(can(c.snapshot, "usr_tess", "grants.create", "manage", { type: "space", id: CORE_SPACE }), "deny", "a temp person cannot create grants");
-    assert.equal(can(c.snapshot, "usr_tess", "files.read", "view", { type: "folder", id: "fld_acme" }), "allow", "the one folder shared with her");
-    assert.equal(can(c.snapshot, "usr_tess", "files.read", "view", { type: "folder", id: "fld_clients" }), "deny", "and not the folder above it");
-    assert.equal(can(c.snapshot, "usr_noah", "files.write", "edit", { type: "folder", id: "fld_acme" }), "allow", "Staff edit the whole Shared tree, down to Acme");
+    assert.equal(can(c.snapshot, "usr_tess", null, "view", { type: "folder", id: "fld_acme" }), "allow", "the one folder shared with her");
+    assert.equal(can(c.snapshot, "usr_tess", null, "view", { type: "folder", id: "fld_clients" }), "deny", "and not the folder above it");
+    assert.equal(can(c.snapshot, "usr_noah", null, "edit", { type: "folder", id: "fld_acme" }), "allow", "Staff edit the whole Shared tree, down to Acme");
   } finally { c.close(); }
 });
 
