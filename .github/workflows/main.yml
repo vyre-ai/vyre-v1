@@ -66,6 +66,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+      - uses: ./.github/actions/deps
       - run: npm run golden
   perf:
     needs: select
@@ -74,6 +75,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+      - uses: ./.github/actions/deps
       - run: npm run perf
   contracts:
     runs-on: [self-hosted, linux, v1]
