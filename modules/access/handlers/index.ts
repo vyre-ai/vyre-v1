@@ -11,6 +11,8 @@ import {
   principalsList, rolesApply, rolesAssign, rolesCreate, rolesDelete, rolesGet, rolesList,
   rolesPreview, rolesUnassign, rolesUpdate,
 } from "./roles.ts";
+import { requestCreate, requestsApprove, requestsDecline, requestsList } from "./request.ts";
+import { reviewsClose, reviewsDecide, reviewsGet, reviewsList, reviewsStart } from "./review.ts";
 
 async function later(ctx: AccessCtx, _input: unknown): Promise<never> {
   raise(ctx.trace.traceId, "internal.not_implemented", "this capability is a later packet");
@@ -46,15 +48,15 @@ export const handlers = {
   "access.principals.list": principalsList,
   "access.projection_health": projectionHealth,
   "access.propose_change": later,
-  "access.request": later,
-  "access.requests.approve": later,
-  "access.requests.decline": later,
-  "access.requests.list": later,
-  "access.reviews.close": later,
-  "access.reviews.decide": later,
-  "access.reviews.get": later,
-  "access.reviews.list": later,
-  "access.reviews.start": later,
+  "access.request": requestCreate,
+  "access.requests.approve": requestsApprove,
+  "access.requests.decline": requestsDecline,
+  "access.requests.list": requestsList,
+  "access.reviews.close": reviewsClose,
+  "access.reviews.decide": reviewsDecide,
+  "access.reviews.get": reviewsGet,
+  "access.reviews.list": reviewsList,
+  "access.reviews.start": reviewsStart,
   "access.roles.apply": rolesApply,
   "access.roles.assign": rolesAssign,
   "access.roles.create": rolesCreate,
