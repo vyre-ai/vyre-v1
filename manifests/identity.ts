@@ -47,9 +47,9 @@ export default defineManifest({
 
   capabilities: [
     read('identity.sign_in_options', 'What the sign-in page offers for this Space: name, logo, key fingerprint, password, GitHub, SSO providers, second factor floor', {
-      ...V, caller: 'anonymous', in: {}, out: { name: t.str(), logoFileId: t.opt(id.file), fingerprint: t.str({ examples: ['ab12 cd34 ef56 7890'] }), password: t.bool(), github: t.bool(), sso: t.arr(t.obj({ key: t.str(), title: t.str() })), secondFactorRequired: t.bool() },
+      ...V, caller: 'anonymous', rate: { n: 30, perSeconds: 60, scope: 'space' }, in: {}, out: { name: t.str(), logoFileId: t.opt(id.file), fingerprint: t.str({ examples: ['ab12 cd34 ef56 7890'] }), password: t.bool(), github: t.bool(), sso: t.arr(t.obj({ key: t.str(), title: t.str() })), secondFactorRequired: t.bool() },
     }),
-    read('identity.username_available', 'Check a username is free (join page)', { ...V, caller: 'anonymous', in: { username: t.str({ pattern: '^[a-z0-9_.-]{2,32}$', examples: ['maya'] }) }, out: { available: t.bool() } }),
+    read('identity.username_available', 'Check a username is free (join page)', { ...V, caller: 'anonymous', rate: { n: 30, perSeconds: 60, scope: 'space' }, in: { username: t.str({ pattern: '^[a-z0-9_.-]{2,32}$', examples: ['maya'] }) }, out: { available: t.bool() } }),
     write('identity.sign_in', 'Sign in with Space, username and password; asks for the second factor when one is set', {
       ...V, caller: 'anonymous', in: { username: t.str(), password: t.str(), ...deviceIn, totp: t.opt(t.str({ pattern: '^[0-9]{6}$', examples: ['123456'] })) }, out: signInOut,
       emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.bad_credentials', 'auth.second_factor_required', 'auth.invalid_code'],
@@ -101,7 +101,7 @@ export default defineManifest({
       ...V, idem: 'key', in: { personId: id.user }, out: { resetCode: t.str(), expiresAt: t.ts() }, perm: 'access.manage', audit: 'always', risk: 'high', tool: 'engineer', team: true,
     }),
     write('identity.reset_complete', 'The person sets a new password from the reset link and makes fresh keys', {
-      ...V, caller: 'anonymous', in: { resetCode: t.str(), newPassword: t.str(), keys: keyBundle, ...deviceIn }, out: signInOut, emits: ['password.reset', 'keys.stored', 'signin.succeeded'], audit: 'always', offline: 'online', errors: ['auth.invalid_code', 'auth.expired'], team: true,
+      ...V, caller: 'anonymous', rate: { n: 30, perSeconds: 60, scope: 'space' }, in: { resetCode: t.str(), newPassword: t.str(), keys: keyBundle, ...deviceIn }, out: signInOut, emits: ['password.reset', 'keys.stored', 'signin.succeeded'], audit: 'always', offline: 'online', errors: ['auth.invalid_code', 'auth.expired'], team: true,
     }),
 
     // ---- second factor (the Space floor is in members)

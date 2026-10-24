@@ -2,7 +2,8 @@
 import type { EntityDef, FieldTypeDef, Owned, RecordTypeDef, Registry } from '../../../packages/contracts/src/index.ts';
 
 export const RT_RESERVED = ['id', 'owner', 'label', 'version', 'created_at', 'updated_at', 'deleted_at', 'holds'];
-export const ENTITY_RESERVED = ['id', 'version', 'updated_at', 'deleted_at'];
+export const ENTITY_RESERVED = ['id'];
+const ENTITY_BASE = ['version', 'updated_at', 'deleted_at'];   // fields with these names map onto the base columns
 
 const q = (s: string) => `"${s.replace(/"/g, '""')}"`;
 
@@ -13,7 +14,10 @@ function columns(fieldKey: string, ft: FieldTypeDef | undefined): Array<{ name: 
 
 export function entityTable(e: EntityDef, types: Map<string, FieldTypeDef>): string {
   const cols: string[] = ['  "id" TEXT PRIMARY KEY'];
-  for (const [k, f] of Object.entries(e.fields)) for (const c of columns(k, types.get(f.type))) cols.push(`  ${q(c.name)} ${c.sql}`);
+  for (const [k, f] of Object.entries(e.fields)) {
+    if (ENTITY_BASE.includes(k)) continue;
+    for (const c of columns(k, types.get(f.type))) cols.push(`  ${q(c.name)} ${c.sql}`);
+  }
   cols.push('  "version" INTEGER NOT NULL DEFAULT 0', '  "updated_at" INTEGER', '  "deleted_at" INTEGER');
   const lines = [`CREATE TABLE IF NOT EXISTS ${q(e.table)} (\n${cols.join(',\n')}\n);`, fmTable(e.table)];
   if (e.acl.ownerField && e.acl.ownerField in e.fields) lines.push(`CREATE INDEX IF NOT EXISTS ${q(`${e.table}__owner`)} ON ${q(e.table)} (${q(e.acl.ownerField)});`);
