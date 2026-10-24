@@ -43,3 +43,4 @@ self.addEventListener("fetch", (event) => {
     }
   })());
 });
+// Cache name is bumped when the precache list changes.
