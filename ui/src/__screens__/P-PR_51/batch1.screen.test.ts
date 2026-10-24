@@ -1,15 +1,27 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ComposerPlaceholder } from "../../Composer/Placeholder.tsx";
-import { ListSectionsPlaceholder } from "../../ListSections/Placeholder.tsx";
-import { MenuPlaceholder } from "../../Menu/Placeholder.tsx";
-import { RecipientsPlaceholder } from "../../Recipients/Placeholder.tsx";
-import { replyAll } from "../../Recipients/props.ts";
-import { RowPlaceholder } from "../../Row/Placeholder.tsx";
-import { PanePlaceholder, SidePanePlaceholder } from "../../SidePane/Placeholder.tsx";
-import { StatesPlaceholder } from "../../States/Placeholder.tsx";
-import { TabStripPlaceholder } from "../../TabStrip/Placeholder.tsx";
-import { VirtualListPlaceholder } from "../../VirtualList/Placeholder.tsx";
+import { readFileSync } from "node:fs";
+import { registerHooks } from "node:module";
+import { fileURLToPath } from "node:url";
+
+// Node runs .ts files by stripping types but has no loader for .tsx. The placeholders hold no JSX, so load them as TypeScript.
+registerHooks({
+  load(url, context, nextLoad) {
+    if (url.endsWith(".tsx")) return { format: "module-typescript", source: readFileSync(fileURLToPath(url)), shortCircuit: true };
+    return nextLoad(url, context);
+  },
+});
+
+const { ComposerPlaceholder } = await import("../../Composer/Placeholder.tsx");
+const { ListSectionsPlaceholder } = await import("../../ListSections/Placeholder.tsx");
+const { MenuPlaceholder } = await import("../../Menu/Placeholder.tsx");
+const { RecipientsPlaceholder } = await import("../../Recipients/Placeholder.tsx");
+const { replyAll } = await import("../../Recipients/props.ts");
+const { RowPlaceholder } = await import("../../Row/Placeholder.tsx");
+const { PanePlaceholder, SidePanePlaceholder } = await import("../../SidePane/Placeholder.tsx");
+const { StatesPlaceholder } = await import("../../States/Placeholder.tsx");
+const { TabStripPlaceholder } = await import("../../TabStrip/Placeholder.tsx");
+const { VirtualListPlaceholder } = await import("../../VirtualList/Placeholder.tsx");
 
 function labelOf(html: string): string {
   const m = /^<div data-placeholder="[^"]*" data-label="([^"]*)" aria-label="\1"/.exec(html);
