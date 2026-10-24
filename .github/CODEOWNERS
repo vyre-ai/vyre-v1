@@ -1,0 +1,21 @@
+# Frozen paths (ARCH 12.3): edits only by the lead. Lanes edit their own directories only (scripts/lanes.json).
+/kernel/ @irfad7
+/contracts/src/ @irfad7
+/manifest/ @irfad7
+/host/src/invoke.ts @irfad7
+/host/src/gateway.ts @irfad7
+/host/src/loader.ts @irfad7
+/host/src/ws.ts @irfad7
+/sync/src/protocol.ts @irfad7
+/testkit/src/api.ts @irfad7
+/ui/src/*/props.ts @irfad7
+/agent/src/driver.ts @irfad7
+# Repo rules and the pipeline
+/scripts/lanes.json @irfad7
+/scripts/allowlist.json @irfad7
+/scripts/boundaries.json @irfad7
+/.github/ @irfad7
+/package.json @irfad7
+/tsconfig.base.json @irfad7
+/LICENSE @irfad7
+/NOTICE @irfad7

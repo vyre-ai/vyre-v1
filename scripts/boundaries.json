@@ -1,0 +1,251 @@
+{
+  "_comment": "Layer rules ARCH 2.2 and boundary exceptions B1..B8. scripts/boundaries.ts parses every static and dynamic import.",
+  "layers": {
+    "0": [
+      "lib",
+      "manifest"
+    ],
+    "1": [
+      "contracts",
+      "kernel"
+    ],
+    "2": [
+      "host",
+      "sync",
+      "client"
+    ],
+    "3": [
+      "modules/*",
+      "agent",
+      "sandbox"
+    ],
+    "4": [
+      "ui"
+    ],
+    "5": [
+      "apps/*",
+      "kits/*",
+      "relay/*"
+    ]
+  },
+  "rule": "A package may import only from layers strictly below it, plus the named exceptions.",
+  "mayImport": {
+    "lib": [
+      "node:*",
+      "allowlist"
+    ],
+    "manifest": [
+      "lib",
+      "node:*",
+      "allowlist"
+    ],
+    "contracts": [
+      "lib",
+      "manifest"
+    ],
+    "kernel": [
+      "lib",
+      "manifest"
+    ],
+    "host": [
+      "lib",
+      "manifest",
+      "contracts",
+      "kernel"
+    ],
+    "sync": [
+      "lib",
+      "manifest",
+      "contracts",
+      "kernel"
+    ],
+    "client": [
+      "contracts",
+      "sync/client",
+      "lib"
+    ],
+    "modules/*": [
+      "lib",
+      "manifest",
+      "contracts",
+      "kernel",
+      "host",
+      "sync",
+      "client"
+    ],
+    "agent": [
+      "lib",
+      "manifest",
+      "contracts",
+      "kernel",
+      "host",
+      "sync",
+      "client"
+    ],
+    "sandbox": [
+      "lib",
+      "manifest",
+      "contracts",
+      "kernel",
+      "host",
+      "sync",
+      "client"
+    ],
+    "ui": [
+      "client",
+      "contracts",
+      "lib"
+    ],
+    "apps/*": [
+      "lib",
+      "manifest",
+      "contracts",
+      "sync",
+      "client",
+      "ui"
+    ],
+    "kits/*": [
+      "lib",
+      "contracts",
+      "client",
+      "ui"
+    ],
+    "relay/*": [
+      "lib",
+      "manifest",
+      "contracts",
+      "sync",
+      "client"
+    ]
+  },
+  "rules": {
+    "B1": {
+      "text": "modules are leaf nodes: modules/a never imports modules/b",
+      "check": "no-module-to-module"
+    },
+    "B2": {
+      "text": "only host constructs ctx; no node:sqlite import outside these",
+      "allowNodeSqlite": [
+        "kernel",
+        "sync",
+        "modules/search"
+      ]
+    },
+    "B3": {
+      "text": "only kernel and modules/vault import crypto primitives for key handling",
+      "allowCrypto": [
+        "kernel",
+        "modules/vault"
+      ],
+      "crypto": [
+        "node:crypto",
+        "@noble/curves",
+        "@noble/hashes",
+        "@noble/ciphers"
+      ]
+    },
+    "B4": {
+      "text": "no fetch in ui or apps outside client; ui gets data through client hooks",
+      "noFetchIn": [
+        "ui",
+        "apps"
+      ]
+    },
+    "B5": {
+      "text": "generated files **/generated/** never hand-edited; gen --check fails on drift",
+      "generatedGlob": "**/generated/**"
+    },
+    "B6": {
+      "text": "third-party imports must be in scripts/allowlist.json",
+      "allowlist": "scripts/allowlist.json"
+    },
+    "B7": {
+      "text": "a package's tests import only what the package may import plus @vyre/testkit",
+      "extra": [
+        "testkit"
+      ]
+    },
+    "B8": {
+      "text": "named exceptions to the layer rule"
+    }
+  },
+  "exceptions": [
+    {
+      "id": "B8",
+      "from": [
+        "modules/engine",
+        "modules/chat",
+        "modules/mcp",
+        "modules/memory",
+        "modules/agents"
+      ],
+      "to": [
+        "agent"
+      ]
+    },
+    {
+      "id": "B8",
+      "from": [
+        "modules/computers",
+        "modules/terminal",
+        "modules/engine"
+      ],
+      "to": [
+        "sandbox"
+      ]
+    },
+    {
+      "id": "B8",
+      "from": [
+        "modules/sites"
+      ],
+      "to": [
+        "host/src/caddy.ts"
+      ],
+      "via": "ctx.platform handle, not by path"
+    }
+  ],
+  "forbidden": [
+    {
+      "from": [
+        "agent",
+        "sandbox"
+      ],
+      "to": [
+        "modules/*"
+      ],
+      "reason": "reach capabilities only through the injected invoke function"
+    },
+    {
+      "from": [
+        "kernel"
+      ],
+      "to": [
+        "contracts/generated"
+      ],
+      "reason": "the kernel is generic; it receives the registry at boot"
+    },
+    {
+      "from": [
+        "client"
+      ],
+      "to": [
+        "kernel",
+        "host",
+        "modules/*"
+      ]
+    },
+    {
+      "from": [
+        "apps/*"
+      ],
+      "to": [
+        "kernel",
+        "host",
+        "modules/*",
+        "agent",
+        "sandbox"
+      ]
+    }
+  ]
+}

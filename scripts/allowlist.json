@@ -1,0 +1,193 @@
+{
+  "_comment": "Initial third-party allowlist, ARCH 2.2 B6. Licenses allowed: MIT, Apache-2.0, BSD, ISC, MPL-2.0 (file-level only). AGPL/GPL/SSPL blocked by license-check. New dependency = one entry with a reason.",
+  "allowedLicenses": [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "MPL-2.0"
+  ],
+  "deps": [
+    {
+      "name": "@sinclair/typebox",
+      "reason": "schemas",
+      "dev": false
+    },
+    {
+      "name": "ws",
+      "reason": "websocket server and client",
+      "dev": false
+    },
+    {
+      "name": "yjs",
+      "reason": "long text documents",
+      "dev": false
+    },
+    {
+      "name": "y-protocols",
+      "reason": "yjs sync protocol",
+      "dev": false
+    },
+    {
+      "name": "@noble/curves",
+      "reason": "signatures and key agreement",
+      "dev": false
+    },
+    {
+      "name": "@noble/hashes",
+      "reason": "hashing",
+      "dev": false
+    },
+    {
+      "name": "@noble/ciphers",
+      "reason": "authenticated encryption",
+      "dev": false
+    },
+    {
+      "name": "imapflow",
+      "reason": "mail ingest",
+      "dev": false
+    },
+    {
+      "name": "mailparser",
+      "reason": "mail parsing",
+      "dev": false
+    },
+    {
+      "name": "nodemailer",
+      "reason": "mail send",
+      "dev": false
+    },
+    {
+      "name": "mailauth",
+      "reason": "dkim spf dmarc",
+      "dev": false
+    },
+    {
+      "name": "docxtemplater",
+      "reason": "document templates",
+      "dev": false
+    },
+    {
+      "name": "pizzip",
+      "reason": "docx zip",
+      "dev": false
+    },
+    {
+      "name": "exceljs",
+      "reason": "xlsx import and export",
+      "dev": false
+    },
+    {
+      "name": "@ai-sdk/*",
+      "reason": "model provider adapters only",
+      "dev": false
+    },
+    {
+      "name": "expo",
+      "reason": "app runtime",
+      "dev": false
+    },
+    {
+      "name": "expo-sqlite",
+      "reason": "device replica",
+      "dev": false
+    },
+    {
+      "name": "expo-router",
+      "reason": "app routes",
+      "dev": false
+    },
+    {
+      "name": "react-native",
+      "reason": "app UI",
+      "dev": false
+    },
+    {
+      "name": "react-native-web",
+      "reason": "web build",
+      "dev": false
+    },
+    {
+      "name": "@tauri-apps/api",
+      "reason": "desktop shell",
+      "dev": false
+    },
+    {
+      "name": "@tauri-apps/cli",
+      "reason": "desktop shell build",
+      "dev": false
+    },
+    {
+      "name": "sigma",
+      "reason": "graph view",
+      "dev": false
+    },
+    {
+      "name": "graphology",
+      "reason": "graph data",
+      "dev": false
+    },
+    {
+      "name": "@dicebear/*",
+      "reason": "avatars",
+      "dev": false
+    },
+    {
+      "name": "boring-avatars",
+      "reason": "avatars",
+      "dev": false
+    },
+    {
+      "name": "minidenticons",
+      "reason": "avatars",
+      "dev": false
+    },
+    {
+      "name": "@twilio/voice-sdk",
+      "reason": "softphone",
+      "dev": false
+    },
+    {
+      "name": "tiptap",
+      "reason": "web rich editor",
+      "dev": false
+    },
+    {
+      "name": "playwright",
+      "reason": "dev: browser tests",
+      "dev": true
+    },
+    {
+      "name": "@xterm/xterm",
+      "reason": "terminal",
+      "dev": false
+    },
+    {
+      "name": "@xterm/addon-*",
+      "reason": "terminal addons",
+      "dev": false
+    },
+    {
+      "name": "wa-sqlite",
+      "reason": "web encrypted replica (or sqlite3mc wasm)",
+      "dev": false
+    },
+    {
+      "name": "sqlite3mc",
+      "reason": "web encrypted replica wasm (alternative to wa-sqlite)",
+      "dev": false
+    },
+    {
+      "name": "@huggingface/transformers",
+      "reason": "embeddings, WASM backend",
+      "dev": false
+    }
+  ],
+  "notes": [
+    "Docker is driven through the Engine API on the unix socket with fetch and the docker CLI via execFile; no docker SDK.",
+    "Git is the git binary.",
+    "Rust crates of the Tauri shell are MIT/Apache only, checked by cargo deny inside license-check."
+  ]
+}
