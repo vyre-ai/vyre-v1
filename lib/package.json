@@ -1,0 +1,8 @@
+{
+  "name": "@vyre/lib",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./index.ts", "./acme/*": "./acme/*.ts" },
+  "description": "Pure helpers: ids, canonical JSON, hlc, urn, markdown, diff, expression language, route()."
+}
