@@ -1,0 +1,69 @@
+# Spike S12 desktop proof on GitHub-hosted mac and windows (ruling 4).
+# Path mapping: the packet owns spikes/s12/**, but GitHub only reads workflows from .github/workflows,
+# so this one new file lives here. The scripts it runs are in spikes/s12/ci.
+name: spike-s12-desktop
+on:
+  workflow_dispatch:
+  push:
+    branches: [prep/P-PR_48]
+    paths: ["spikes/s12/**", ".github/workflows/spike-s12-desktop.yml"]
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+        working-directory: spikes/s12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Build the vyred sidecar and place it as the Tauri external binary
+        run: |
+          cargo build --release --manifest-path vyred-rs/Cargo.toml
+          TRIPLE=$(rustc -vV | sed -n 's/^host: //p')
+          EXT=""; [ "$RUNNER_OS" = "Windows" ] && EXT=".exe"
+          cp "vyred-rs/target/release/vyred$EXT" "src-tauri/binaries/vyred-$TRIPLE$EXT"
+      - name: Generate placeholder icons
+        run: |
+          python3 - <<'PY'
+          import struct, zlib
+          n = 512
+          row = b"\x00" + bytes([22, 22, 22, 255]) * n
+          raw = row * n
+          def chunk(t, d):
+              c = struct.pack(">I", len(d)) + t + d
+              return c + struct.pack(">I", zlib.crc32(t + d) & 0xffffffff)
+          png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", n, n, 8, 6, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+          open("icon-src.png", "wb").write(png)
+          PY
+          npx --yes @tauri-apps/cli@2 icon icon-src.png --output src-tauri/icons
+      - name: Build the Tauri shell (ad-hoc signed app on mac, release exe on windows)
+        working-directory: spikes/s12/src-tauri
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            npx --yes @tauri-apps/cli@2 build --bundles app
+          else
+            npx --yes @tauri-apps/cli@2 build --no-bundle
+          fi
+      - name: Verify the ad-hoc signature (mac)
+        if: runner.os == 'macOS'
+        run: codesign -dv --verbose=2 src-tauri/target/release/bundle/macos/Vyre.app 2>&1 | tee proof-codesign.txt
+      - name: Launch, write replica, restart, read it back, screenshot
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then APP="$PWD/src-tauri/target/release/bundle/macos/Vyre.app/Contents/MacOS/vyre-desktop"; else APP="$PWD/src-tauri/target/release/vyre-desktop.exe"; fi
+          ci/run-shell.sh "$APP" "$PWD/out"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: s12-${{ runner.os }}
+          path: |
+            spikes/s12/out
+            spikes/s12/proof-codesign.txt
+          if-no-files-found: warn

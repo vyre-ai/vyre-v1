@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Vyre</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #161616; color: #f4f1ea; }
+  body { font: 22px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  main { padding: 36px 42px; max-width: 760px; }
+  h1 { font-size: 44px; font-weight: 650; margin: 0 0 6px; letter-spacing: -0.02em; }
+  .sub { color: #b7b1a6; margin: 0 0 28px; }
+  .row { padding: 14px 0; border-top: 1px solid #2e2e2e; }
+  .ok { color: #8fd18a; }
+  .wait { color: #e6c27a; }
+  .bad { color: #e07a7a; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Vyre</h1>
+  <p class="sub">Desktop shell</p>
+  <div class="row wait" id="sidecar">sidecar: reaching vyred</div>
+  <div class="row wait" id="replica">replica: opening OPFS</div>
+  <div class="row" id="deeplink">deep link: vyre://</div>
+  <div class="row" id="shortcut">shortcut: CommandOrControl+Shift+V</div>
+</main>
+<script>
+(function () {
+  var DEMO = new Uint8Array(32);
+  for (var i = 0; i < 32; i++) DEMO[i] = (i * 17 + 3) & 255;
+
+  function healthUrl() {
+    var q = new URLSearchParams(location.search).get("sidecar");
+    if (q) return q;
+    if (window.__VYRE__ && window.__VYRE__.sidecar) return window.__VYRE__.sidecar;
+    var host = location.hostname;
+    if (host === "127.0.0.1" || host === "localhost") return "/health";
+    return "http://127.0.0.1:47211/health";
+  }
+
+  function setRow(id, text, kind) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    el.className = "row " + kind;
+  }
+
+  function keyPromise() {
+    return crypto.subtle.importKey("raw", DEMO, "AES-GCM", false, ["encrypt", "decrypt"]);
+  }
+
+  function concat(parts) {
+    var n = 0;
+    for (var i = 0; i < parts.length; i++) n += parts[i].length;
+    var out = new Uint8Array(n);
+    var at = 0;
+    for (var j = 0; j < parts.length; j++) { out.set(parts[j], at); at += parts[j].length; }
+    return out;
+  }
+
+  async function seal(key, plain) {
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var enc = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, plain));
+    var tag = enc.slice(enc.length - 16);
+    var ct = enc.slice(0, enc.length - 16);
+    return concat([iv, tag, ct]);
+  }
+
+  async function unseal(key, blob) {
+    if (blob.length < 28) throw new Error("short");
+    var iv = blob.slice(0, 12);
+    var tag = blob.slice(12, 28);
+    var ct = blob.slice(28);
+    var joined = concat([ct, tag]);
+    var plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, joined);
+    return new TextDecoder().decode(plain);
+  }
+
+  async function replica() {
+    if (!navigator.storage || !navigator.storage.getDirectory) {
+      setRow("replica", "replica: no OPFS in this webview", "bad");
+      return;
+    }
+    var root = await navigator.storage.getDirectory();
+    var handle = await root.getFileHandle("replica.bin", { create: true });
+    var key = await keyPromise();
+    var existing = new Uint8Array(await (await handle.getFile()).arrayBuffer());
+    if (existing.length) {
+      var opened = await unseal(key, existing);
+      setRow("replica", opened === "s12" ? "replica: persisted" : "replica: unreadable", opened === "s12" ? "ok" : "bad");
+      document.documentElement.dataset.replica = opened === "s12" ? "persisted" : "bad";
+      return;
+    }
+    var sealed = await seal(key, new TextEncoder().encode("s12"));
+    var writable = await handle.createWritable();
+    await writable.write(sealed);
+    await writable.close();
+    var again = await (await root.getFileHandle("replica.bin")).getFile();
+    var readBack = await unseal(key, new Uint8Array(await again.arrayBuffer()));
+    var wrote = readBack === "s12";
+    setRow("replica", wrote ? "replica: wrote" : "replica: unreadable", wrote ? "ok" : "bad");
+    document.documentElement.dataset.replica = wrote ? "wrote" : "bad";
+  }
+
+  async function sidecar() {
+    var ctrl = new AbortController();
+    var timer = setTimeout(function () { ctrl.abort(); }, 4000);
+    try {
+      var res = await fetch(healthUrl(), { signal: ctrl.signal });
+      var body = await res.json();
+      var ok = res.ok && body && body.ok === true && body.name === "vyred";
+      setRow("sidecar", ok ? ("sidecar: connected to " + body.name + " (pid " + body.pid + ")") : "sidecar: refused", ok ? "ok" : "bad");
+      document.documentElement.dataset.sidecar = ok ? "connected" : "refused";
+    } catch (e) {
+      setRow("sidecar", "sidecar: unreachable", "bad");
+      document.documentElement.dataset.sidecar = "unreachable";
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // After both checks finish, tell the sidecar what happened so a CI script can read it.
+  function report() {
+    var d = document.documentElement.dataset;
+    var base = healthUrl();
+    var url = base + (base.indexOf("?") < 0 ? "?" : "&") + "sidecar=" + (d.sidecar || "none") + "&replica=" + (d.replica || "none");
+    return fetch(url).catch(function () {});
+  }
+
+  Promise.all([
+    sidecar(),
+    replica().catch(function () {
+      setRow("replica", "replica: unavailable", "bad");
+      document.documentElement.dataset.replica = "unavailable";
+    })
+  ]).then(report);
+})();
+</script>
+</body>
+</html>
