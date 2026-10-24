@@ -1,7 +1,7 @@
 // Mount for P-L9_03: the shared Menu (open, ending in Report a problem), a main pane with its tab strip and far-left
 // toggle, and a side pane with the same strip and its own toggle. Every control works: click, right-click, keyboard, drag.
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Pressable, StyleSheet, Text, View, Dimensions } from "react-native";
 import type { ReactNode } from "react";
 import { menuTrigger, useMenu } from "../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../ui/src/Menu/index.tsx";
@@ -42,7 +42,8 @@ export default function Mount(): ReactNode {
   const [sideActive, setSideActive] = useState("history");
   const [side, setSide] = useState(true);
   const { element, show } = useMenu();
-  const narrow = useWindowDimensions().width < 700;
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => setNarrow(Dimensions.get("window").width < 700), []);
 
   useEffect(() => {
     show(contextItems("Launch checklist"), 150, 196, "context", { label: "Launch checklist" });
