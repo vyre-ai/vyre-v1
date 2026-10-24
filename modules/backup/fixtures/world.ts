@@ -151,6 +151,8 @@ export interface World {
   target: MemoryTarget;
   saved: Saved[];
   events: EmittedEvent[];
+  /** the events that capabilities called through ctx.call emitted (the pipeline keeps them apart from the caller's own); also in `events` */
+  nested: EmittedEvent[];
   scheduled: Scheduled[];
   calls: { cap: string; input: unknown }[];
   drivers: BackupDrivers;
@@ -167,6 +169,7 @@ export function world(o: { encrypt?: boolean; now?: number; principal?: string }
   const target = memoryTarget();
   const saved: Saved[] = [];
   const events: EmittedEvent[] = [];
+  const nested: EmittedEvent[] = [];
   const scheduled: Scheduled[] = [];
   const calls: { cap: string; input: unknown }[] = [];
   const answers = new Map<string, unknown>();
@@ -190,7 +193,10 @@ export function world(o: { encrypt?: boolean; now?: number; principal?: string }
     call: (async (cap: string, input: unknown) => {
       calls.push({ cap, input });
       // the safety backup before a restore goes through the capability, as the pipeline would route it
-      if (cap === "backup.run" && self) return handlers["backup.run"](self, input as Record<string, unknown>);
+      if (cap === "backup.run" && self) {
+        const child = { ...self, emit: ((name: string, subject: string, payload: unknown) => { const e = { name, subject, payload }; events.push(e); nested.push(e); return {} as never; }) as unknown as Ctx["emit"] } as BackupCtx;
+        return handlers["backup.run"](child, input as Record<string, unknown>);
+      }
       if (!answers.has(cap)) throw fail("internal.not_implemented", TRACE, { details: { cap } });
       return answers.get(cap);
     }) as unknown as Ctx["call"],
@@ -201,7 +207,7 @@ export function world(o: { encrypt?: boolean; now?: number; principal?: string }
   } as unknown as BackupCtx;
   self = ctx;
   return {
-    raw, ctx, space, target, saved, events, scheduled, calls, drivers,
+    raw, ctx, space, target, saved, events, nested, scheduled, calls, drivers,
     setNow(n) { clock = n; }, allowExport(v) { exportAllowed = v; }, answer(cap, a) { answers.set(cap, a); },
   };
 }

@@ -65,7 +65,7 @@ for (const cap of caps) {
       const w = await populated();
       const out = await run(cap.name, w.ctx, ex.input);
       assert.deepEqual(validate(cap.output, out, "", defs), [], `example ${ex.name} output`);
-      for (const e of w.events) {
+      for (const e of w.events.filter((x) => !w.nested.includes(x))) {
         assert.ok(cap.emits.includes(e.name), `${e.name} is declared in emits of ${cap.name}`);
         const schema = eventSchemas.get(e.name);
         assert.ok(schema, `${e.name} has a schema`);

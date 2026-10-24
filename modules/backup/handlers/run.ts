@@ -563,7 +563,7 @@ export async function runBackup(ctx: BackupCtx, kind: Kind): Promise<{ backupId:
     const item: Item = { backupId, at, state: "done", kind, seq: snap.toSeq, fromSeq: snap.fromSeq, sizeBytes: blob.length, verified: false, target: label, objectKey, headHash: snap.headHash, encrypted, tombstones: tombs.length };
     saveItem(ctx, item);
     await writeTombstones(ctx, target, tombs, encrypted);
-    await rotate(ctx, target, tombs, encrypted);
+    await rotate(ctx, target, tombs, encrypted, backupId);
     writeConfig(ctx, "last_ok_at", String(at));
     ctx.emit("backup.completed" as never, `entity/${backupId}`, { backupId, seq: snap.toSeq, sizeBytes: blob.length });
     return { backupId, ok: true };
@@ -575,11 +575,11 @@ export async function runBackup(ctx: BackupCtx, kind: Kind): Promise<{ backupId:
   }
 }
 
-/** Keep the newest KEEP backups and drop any that predate the newest tombstone (erase purges the next rotation); the backup just taken always stays. */
-async function rotate(ctx: BackupCtx, target: BackupTarget, tombs: readonly Tombstone[], encrypted: boolean): Promise<void> {
+/** Keep the newest KEEP backups and drop any that predate the newest tombstone (erase purges the next rotation); the backup just taken (keepId) always stays. */
+async function rotate(ctx: BackupCtx, target: BackupTarget, tombs: readonly Tombstone[], encrypted: boolean, keepId: string): Promise<void> {
   const items = doneItems(ctx);
   const newestErase = tombs.reduce((m, t) => Math.max(m, t.at), 0);
-  const drop = items.filter((it, i) => i > 0 && (i >= KEEP || it.at < newestErase));
+  const drop = items.filter((it, i) => it.backupId !== keepId && (i >= KEEP || it.at < newestErase));
   for (const it of drop) {
     await target.del(it.objectKey).catch(() => undefined);
     ctx.db.run("DELETE FROM backup_item WHERE backup_id = ?", it.backupId);
