@@ -1,7 +1,7 @@
 // identity (lane L7a): sign-in (Space + username + password, TOTP second factor, GitHub, SSO reserved), key wrapping storage,
 // pairing, password reset and recovery. Pre-auth calls carry no principal; the gateway treats them as public routes.
 // Pre-auth capabilities (sign_in_options, username_available, sign_in, verify_second_factor, github_sign_in, sso_sign_in, pair_redeem,
-// recovery_restore, reset_complete) declare caller 'anonymous': the gateway accepts them without a principal, applies the rate limit, and never
+// recovery_restore, reset_complete, and invites.accept_create_account from ruling 23) declare caller 'anonymous': the gateway accepts them without a principal, applies the rate limit, and never
 // exposes them to agents. The join and sign-in screens below declare the same caller kind.
 // DECISION: wrapped key bundles are opaque base64 strings; the server stores ciphertext only and never sees the password or personKey.
 // DECISION: the passkey factor is declared with since 1.1.0 because spec 3.13 says it ships later; the handler returns internal.not_implemented until then.
@@ -93,6 +93,12 @@ export default defineManifest({
     write('identity.recovery_restore', 'Set a new password with a recovery code (keys unwrapped by the code, re-wrapped by the password)', {
       ...V, caller: 'anonymous', in: { username: t.str(), recoveryProof: t.str(), newPassword: t.str(), keys: keyBundle, ...deviceIn }, out: signInOut,
       emits: ['password.reset', 'keys.stored', 'signin.succeeded'], audit: 'always', offline: 'online', rate: { n: 5, perSeconds: 300, scope: 'space' }, errors: ['auth.invalid_code'],
+    }),
+    // Ruling 23: the pre-auth half of joining by invite. The person does not exist yet, so the caller is anonymous (no principal), rate limited
+    // per Space and audited. It lives in this manifest because the invites module list is frozen; members.accept stays for a caller already holding a pending join session.
+    write('invites.accept_create_account', 'Join by invite with no account yet: creates the person, sets the password, stores the wrapped keys and joins the Space with the invite\'s role and groups', {
+      ...V, caller: 'anonymous', in: { code: t.str(), username: t.str({ pattern: '^[a-z0-9_.-]{2,32}$', examples: ['maya'] }), displayName: t.opt(t.str()), password: t.str(), ...deviceIn, keys: keyBundle }, out: signInOut,
+      emits: ['member.joined', 'principal.created', 'keys.stored', 'signin.succeeded'], audit: 'always', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.invalid_code', 'auth.expired', 'validation.duplicate'],
     }),
     read('identity.reset_preview', 'Admin: what a password reset would lose for this person (Mine items, private chats, personal memory) and whether a recovery code exists', {
       ...V, in: { personId: id.user }, out: { hasRecoveryCode: t.bool(), losses: t.arr(t.obj({ kind: t.enm('vault_mine', 'private_chats', 'personal_memory'), count: t.int({ minimum: 0 }) })) }, perm: 'access.manage', tool: 'engineer', team: true,

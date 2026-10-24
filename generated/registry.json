@@ -16072,6 +16072,51 @@
       ],
       "type": "object"
     },
+    "s_e7a42a8d9a": {
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "deviceClass": {
+          "enum": [
+            "desktop",
+            "phone",
+            "web",
+            "extension",
+            "daemon"
+          ],
+          "type": "string"
+        },
+        "deviceName": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "keys": {
+          "$ref": "#/$defs/s_50a19384f8"
+        },
+        "password": {
+          "type": "string"
+        },
+        "username": {
+          "examples": [
+            "maya"
+          ],
+          "pattern": "^[a-z0-9_.-]{2,32}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "username",
+        "password",
+        "deviceName",
+        "deviceClass",
+        "keys"
+      ],
+      "type": "object"
+    },
     "s_e7faf3c88c": {
       "items": {
         "properties": {
@@ -91653,6 +91698,101 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "caller": "anonymous",
+      "effects": "write",
+      "emits": [
+        "member.joined",
+        "principal.created",
+        "keys.stored",
+        "signin.succeeded"
+      ],
+      "errors": [
+        "auth.expired",
+        "auth.invalid_code",
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.duplicate"
+      ],
+      "examples": [
+        {
+          "input": {
+            "code": "example",
+            "deviceClass": "desktop",
+            "deviceName": "example",
+            "displayName": "example",
+            "keys": {
+              "personKeyByPassword": "d3JhcHBlZA==",
+              "personKeyByRecovery": "d3JhcHBlZA==",
+              "privateKeyWrapped": "d3JhcHBlZA==",
+              "publicKey": "cHVibGlj",
+              "spaceKeys": [
+                {
+                  "epoch": 1,
+                  "wrapped": "d3JhcHBlZA=="
+                }
+              ]
+            },
+            "password": "example",
+            "username": "maya"
+          },
+          "name": "example",
+          "output": {
+            "challengeId": "chl_a1b2c3",
+            "keys": {
+              "personKeyByPassword": "d3JhcHBlZA==",
+              "personKeyByRecovery": "d3JhcHBlZA==",
+              "privateKeyWrapped": "d3JhcHBlZA==",
+              "publicKey": "cHVibGlj",
+              "spaceKeys": [
+                {
+                  "epoch": 1,
+                  "wrapped": "d3JhcHBlZA=="
+                }
+              ]
+            },
+            "session": {
+              "deviceId": "dev_a1b2c3",
+              "epoch": 1,
+              "expiresAt": 1760000000000,
+              "sessionId": "ses_a1b2c3",
+              "token": "example"
+            },
+            "status": "ok"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_e7a42a8d9a"
+      },
+      "level": "view",
+      "module": "identity",
+      "name": "invites.accept_create_account",
+      "offline": "online",
+      "output": {
+        "$ref": "#/$defs/s_68ea0f6cb3"
+      },
+      "permission": null,
+      "rate": {
+        "n": 10,
+        "perSeconds": 60,
+        "scope": "space"
+      },
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Join by invite with no account yet: creates the person, sets the password, stores the wrapped keys and joins the Space with the invite's role and groups",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [
         "journey.stage_exited",
@@ -103309,49 +103449,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "deviceClass": {
-            "enum": [
-              "desktop",
-              "phone",
-              "web",
-              "extension",
-              "daemon"
-            ],
-            "type": "string"
-          },
-          "deviceName": {
-            "type": "string"
-          },
-          "displayName": {
-            "type": "string"
-          },
-          "keys": {
-            "$ref": "#/$defs/s_50a19384f8"
-          },
-          "password": {
-            "type": "string"
-          },
-          "username": {
-            "examples": [
-              "maya"
-            ],
-            "pattern": "^[a-z0-9_.-]{2,32}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "code",
-          "username",
-          "password",
-          "deviceName",
-          "deviceClass",
-          "keys"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_e7a42a8d9a"
       },
       "level": "view",
       "module": "members",
@@ -190986,7 +191084,10 @@
       "id": "identity",
       "kind": "module",
       "owner": "L7a",
-      "requires": [],
+      "requires": [
+        "access",
+        "members"
+      ],
       "status": "stub",
       "title": "Identity",
       "version": "0.1.0"
