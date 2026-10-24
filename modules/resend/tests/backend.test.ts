@@ -379,7 +379,7 @@ test("resend.inbound.get_email reads an inbound email without landing it", async
 
 test("the handler map covers exactly the capabilities of the manifest and runs through the host signature", async () => {
   const declared = registry.capabilities.filter((c) => c.module === "resend").map((c) => c.name).sort();
-  assert.equal(declared.length, 12);
+  assert.equal(declared.length, 11);
   assert.deepEqual(Object.keys(handlers).sort(), declared);
   const h: Harness = harness();
   h.on("GET /domains", { status: 200, body: RECORDED.domains });

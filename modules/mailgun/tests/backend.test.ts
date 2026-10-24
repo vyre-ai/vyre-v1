@@ -221,7 +221,7 @@ test("a long list of routes is read page by page", async () => {
 test("a route forwards inbound mail to this Space's hook, keeps a stored copy, and stops", async () => {
   const h = harness();
   h.on("POST /v3/routes", { status: 200, body: RECORDED.routeCreated });
-  const input = { expression: 'match_recipient("support@mail.vyre.test")', priority: 0, description: "Support" };
+  const input = { expression: 'match_recipient("support@mail.vyre.test")', priority: 0, description: "Support", idempotencyKey: "route-1" };
   assert.deepEqual(contractErrors("mailgun.routes.create", "in", input), []);
   const out = await routesCreate(h.ctx, input);
   assert.deepEqual(h.requests[0]!.form, [
