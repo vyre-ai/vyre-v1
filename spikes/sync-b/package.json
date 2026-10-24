@@ -1,0 +1,1 @@
+{ "name": "vyre-sync-spike-b", "private": true, "type": "module", "dependencies": { "yjs": "13.6.27" } }
