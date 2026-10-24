@@ -1,4 +1,5 @@
 // Replica profiles: phone never mirrors Restricted rows (ARCH 5.11).
+// Run with the other replica test file in one CI run so each shows its own ok line.
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
