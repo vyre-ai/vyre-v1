@@ -61,6 +61,5 @@ test("authorize sustains at least 500k decisions per second per core", () => {
   const best = Math.min(run(N), run(N), run(N));
   const perSec = N / (best / 1000);
   console.log(`authorize microbench: ${N} decisions in ${best.toFixed(0)} ms best of 3 = ${(perSec / 1000).toFixed(0)}k decisions/s per core (${(best * 1000 / N).toFixed(2)} us each), ${reqs.length} request shapes, ${allow} allow / ${deny} deny / ${hold} hold (sink ${sink})`);
-  if (process.env.CI) assert.fail(`TEMP-REPORT ${(perSec / 1000).toFixed(0)}k/s, ${(best * 1000 / N).toFixed(3)} us each`);
   assert.ok(perSec >= 500_000, `${(perSec / 1000).toFixed(0)}k/s is under the 500k/s budget`);
 });

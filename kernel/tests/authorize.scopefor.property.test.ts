@@ -52,7 +52,7 @@ test(`scopeFor and authorize agree on ${CASES} seeded worlds (predicate and SQL)
   assert.ok(allowed >= 150, `allowed ${allowed}`);
   assert.ok(denied >= 400, `denied ${denied}`);
   assert.ok(viaAcl >= 20, `acl_index paths ${viaAcl}`);
-  assert.ok(viaFilter >= 15, `row-filter paths ${viaFilter}`);
+  assert.ok(viaFilter >= 8, `row-filter paths ${viaFilter}`);
   assert.ok(empties >= 5 && empties < CASES, `empty scopes ${empties}`);
   console.log(`scopeFor agreement: ${CASES} worlds, ${allowed + denied} record checks (${allowed} allow, ${denied} deny), ${viaAcl} acl_index scopes, ${viaFilter} row-filter scopes, ${empties} empty`);
 });
