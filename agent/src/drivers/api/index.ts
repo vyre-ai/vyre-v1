@@ -6,7 +6,7 @@ export { anthropic } from "./anthropic.ts";
 export { google, geminiSchema } from "./google.ts";
 export { openai, openrouter, xai } from "./openai.ts";
 export { parseSse, createSseParser } from "./sse.ts";
-export { createPrefixTracker, orderSystem, prefixHash, sortTools } from "./prefix.ts";
+export { createPrefixTracker, fingerprint, orderSystem, prefixHash, sortTools } from "./prefix.ts";
 export type { PrefixStats, PrefixTracker } from "./prefix.ts";
 export { COMPACT_AT, compact, extractive, threadMessages } from "./messages.ts";
 export { classify, retryAfterMs, scrub } from "./errors.ts";
