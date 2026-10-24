@@ -112,7 +112,8 @@ async function get(ip: string, port: number, urlPath = "/"): Promise<string> {
 
 function ipOf(containerId: string): string {
   const out = docker(["inspect", "--format", `{{(index .NetworkSettings.Networks "${NETWORK}").IPAddress}}`, containerId]);
-  assert.ok(out && /^\d+\.\d+\.\d+\.\d+$/.test(out.trim()), `container has an address on ${NETWORK}`);
+  const why = (): string => `${docker(["inspect", "--format", "{{.Name}} {{.State.Status}} exit={{.State.ExitCode}}", containerId]) ?? "?"} ${(docker(["logs", "--tail", "15", containerId]) ?? "").slice(-600)}`;
+  assert.ok(out && /^\d+\.\d+\.\d+\.\d+$/.test(out.trim()), `container has an address on ${NETWORK}: ${why()}`);
   return out.trim();
 }
 
@@ -148,7 +149,9 @@ test("setup", { skip }, () => {
 
 test("@heavy node, static, python and own-Dockerfile samples build and serve over the vyre-sites-style network", { skip }, async (t) => {
   const kinds = Object.keys(SAMPLES);
-  const results = await Promise.all(kinds.map((k) => buildAndStart(k, "a")));
+  // One at a time: the legacy builder on a host without buildx fails to restore its cache image when several builds share a base image at once.
+  const results: Awaited<ReturnType<typeof buildAndStart>>[] = [];
+  for (const k of kinds) results.push(await buildAndStart(k, "a"));
   for (const [i, k] of kinds.entries()) {
     const sample = SAMPLES[k]!;
     const { built, started } = results[i]!;

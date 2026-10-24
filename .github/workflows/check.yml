@@ -127,7 +127,13 @@ jobs:
           if git diff --name-only --no-renames "$base"...HEAD -- images/vyred/ | grep -q .; then echo "vyred=true" >> "$GITHUB_OUTPUT"; else echo "vyred=false" >> "$GITHUB_OUTPUT"; fi
       - name: Docker is there
         if: steps.scope.outputs.changed == 'true'
-        run: docker version --format '{{.Server.Version}}' && df -h /var/lib/docker 2>/dev/null | tail -n 1 || true
+        run: |
+          docker version --format 'server {{.Server.Version}}'
+          docker compose version || echo 'no docker compose plugin'
+          docker-compose version || echo 'no docker-compose'
+          docker buildx version || echo 'no buildx'
+          docker info --format 'storage={{.Driver}} root={{.DockerRootDir}}' || true
+          df -h /var/lib/docker 2>/dev/null | tail -n 1 || true
       - name: Build the vyred image, boot it, wait for healthy
         if: steps.scope.outputs.vyred == 'true'
         env:
