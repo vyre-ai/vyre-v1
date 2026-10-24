@@ -1,7 +1,7 @@
 // Mount for P-L9_03: the shared Menu (open, ending in Report a problem), a main pane with its tab strip and far-left
 // toggle, and a side pane with the same strip and its own toggle. Every control works: click, right-click, keyboard, drag.
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { ReactNode } from "react";
 import { menuTrigger, useMenu } from "../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../ui/src/Menu/index.tsx";
@@ -42,6 +42,7 @@ export default function Mount(): ReactNode {
   const [sideActive, setSideActive] = useState("history");
   const [side, setSide] = useState(true);
   const { element, show } = useMenu();
+  const narrow = useWindowDimensions().width < 700;
 
   useEffect(() => {
     show(contextItems("Launch checklist"), 150, 196, "context", { label: "Launch checklist" });
@@ -60,7 +61,7 @@ export default function Mount(): ReactNode {
 
   return (
     <View style={styles.page}>
-      <View style={styles.main}>
+      <View style={narrow ? styles.gone : styles.main}>
         <Pane
           toggle={{ open: side, onPress: () => setSide(!side) }}
           title="Documents"
@@ -95,6 +96,7 @@ export default function Mount(): ReactNode {
 const styles = StyleSheet.create({
   page: { flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string },
   main: { flex: 1, minWidth: 0 },
+  gone: { width: 0, overflow: "hidden" },
   rows: { paddingTop: 8 },
   row: { height: 44, justifyContent: "center", paddingHorizontal: 16 },
   rowTitle: { color: "var(--ink)" as string, fontSize: 13, lineHeight: 18 },
