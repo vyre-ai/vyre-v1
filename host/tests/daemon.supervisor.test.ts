@@ -228,3 +228,4 @@ test("start() ticks on a timer and stop() waits for running jobs; duplicate name
   await new Promise((r) => setTimeout(r, 30));
   assert.equal(runs, after, "stopped means stopped");
 });
+

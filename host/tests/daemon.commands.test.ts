@@ -255,3 +255,4 @@ test("GET query values are typed by the capability schema", () => {
   assert.deepEqual(coerceQuery({ limit: "many", dry: "maybe", ids: "not json" }, props), { limit: "many", dry: "maybe", ids: "not json" }, "what does not parse is left for the validator to refuse");
   assert.deepEqual(coerceQuery({ a: "1" }, undefined), { a: "1" });
 });
+

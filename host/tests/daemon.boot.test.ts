@@ -285,3 +285,4 @@ test("a second daemon on the same data directory is refused, and a new Space nee
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
