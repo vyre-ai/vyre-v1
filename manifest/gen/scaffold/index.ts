@@ -79,7 +79,8 @@ test(${JSON.stringify(`${name}: one handler per capability, and every emitted ev
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const kit = await import("../../../testkit/src/api.ts").catch(() => null) as { createTestSpace?: (o: { seed: string }) => Promise<{ call(cap: string, input: unknown): Promise<unknown>; close(): Promise<void> }> } | null;
+const kitPath = "../../../testkit/src/api.ts";
+const kit = await import(kitPath).catch(() => null) as { createTestSpace?: (o: { seed: string }) => Promise<{ call(cap: string, input: unknown): Promise<unknown>; close(): Promise<void> }> } | null;
 
 test(${JSON.stringify(`${name}: create then get through createTestSpace`)}, { skip: !kit?.createTestSpace }, async () => {
   const space = await kit!.createTestSpace!({ seed: "small" });

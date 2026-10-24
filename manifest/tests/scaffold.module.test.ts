@@ -13,6 +13,7 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 /** A scratch repo root: the real lane table and module list, the real contracts package (linked), nothing else. */
 function scratch(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "scaffold-"));
+  fs.writeFileSync(path.join(root, "package.json"), '{"private":true,"type":"module"}');
   fs.mkdirSync(path.join(root, "scripts")); fs.mkdirSync(path.join(root, "host"));
   fs.copyFileSync(path.join(REPO, "scripts/lanes.json"), path.join(root, "scripts/lanes.json"));
   fs.copyFileSync(path.join(REPO, "host/modules.json"), path.join(root, "host/modules.json"));
