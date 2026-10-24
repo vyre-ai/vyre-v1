@@ -1,0 +1,162 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { manifestEdges, selectAffected } from "./ci-select.ts";
+import { imports } from "./lib/graph.mjs";
+import { localCache, mirroredCache, splitByCache, recordResult, isNoCache, type CacheEnv, type Marker } from "./cache/pass-cache.ts";
+
+const files: Record<string, string> = {
+  "manifests/vault.ts": "export const vault = {};",
+  "manifests/_common.ts": "export const c = 1;",
+  "generated/registry.ts": "export const registry = {};",
+  "generated/modules/vault/stub-impl.ts": "export const handlers = {};",
+  "generated/modules/files/stub-impl.ts": "export const handlers = {};",
+  "generated/tests/vault.contract.test.ts": "import '../registry.ts'; import '../modules/vault/stub-impl.ts';",
+  "generated/tests/files.contract.test.ts": "import '../registry.ts'; import '../modules/files/stub-impl.ts';",
+  "host/gateway.ts": "import '../generated/modules/vault/stub-impl.ts';",
+  "host/gateway.test.ts": "import './gateway.ts';",
+  "lib/x.ts": "export const x = 1;",
+  "lib/x.test.ts": "import './x.ts';",
+  "lib/y.ts": "export const y = 1;",
+  "lib/y.test.ts": "import './y.ts';",
+  "lib/z.ts": "export const z = 1;",
+  "lib/z.test.ts": "import './z.ts';",
+  "lib/orphan.ts": "export const o = 1;",
+  "lib/new.test.ts": "import './z.ts';",
+};
+const tracked = new Set(Object.keys(files));
+const read = (f: string) => { const s = files[f]; if (s === undefined) throw new Error(f); return s; };
+
+test("a manifest edit selects its generated contract test and the consumers of its generated outputs", () => {
+  const r = selectAffected({ changed: ["manifests/vault.ts"], tracked, read });
+  assert.equal(r.all, false);
+  assert.deepEqual(r.edges, ["generated/modules/vault/stub-impl.ts", "generated/tests/vault.contract.test.ts"]);
+  assert.deepEqual(r.files, ["generated/tests/vault.contract.test.ts", "host/gateway.test.ts"]);
+  assert.deepEqual(r.uncovered, []);
+});
+
+test("a manifest edit does not select another module's contract test", () => {
+  const r = selectAffected({ changed: ["manifests/vault.ts"], tracked, read });
+  assert.ok(!r.files.includes("generated/tests/files.contract.test.ts"));
+});
+
+test("a shared manifest maps to all generated code", () => {
+  const e = manifestEdges(["manifests/_common.ts"], tracked);
+  assert.ok(e.includes("generated/modules/vault/stub-impl.ts") && e.includes("generated/modules/files/stub-impl.ts") && e.includes("generated/registry.ts"));
+});
+
+test("a non-manifest change adds no edges", () => {
+  assert.deepEqual(manifestEdges(["lib/x.ts"], tracked), []);
+});
+
+test("every test file added or changed in the diff runs, plus tests that import changed code", () => {
+  const r = selectAffected({ changed: ["lib/new.test.ts", "lib/x.ts"], tracked, read });
+  assert.deepEqual(r.files, ["lib/new.test.ts", "lib/x.test.ts"]);
+  const only = selectAffected({ changed: ["lib/new.test.ts"], tracked, read });
+  assert.deepEqual(only.files, ["lib/new.test.ts"]);
+});
+
+test("six new test files in one diff all run (P-PR_14 regression: only 2 of 6 ran)", () => {
+  const f = { ...files }; const names: string[] = [];
+  for (let i = 1; i <= 6; i++) { const n = `lib/n${i}.test.ts`; f[n] = i % 2 ? "import './z.ts';" : "import './nothing.ts';"; names.push(n); }
+  const r = selectAffected({ changed: names, tracked: new Set(Object.keys(f)), read: (p) => f[p]! });
+  assert.deepEqual(r.files, [...names].sort());
+});
+
+test("an uncovered code file still fails; edge-only files never do", () => {
+  assert.deepEqual(selectAffected({ changed: ["lib/orphan.ts"], tracked, read }).uncovered, ["lib/orphan.ts"]);
+  assert.deepEqual(selectAffected({ changed: ["manifests/vault.ts"], tracked, read }).uncovered, []);
+});
+
+test("a change to the selector or the lockfile runs everything", () => {
+  assert.equal(selectAffected({ changed: ["scripts/ci-select.ts"], tracked: new Set([...tracked, "scripts/ci-select.ts"]), read }).all, true);
+  assert.equal(selectAffected({ changed: ["package-lock.json"], tracked, read }).all, true);
+});
+
+const env: CacheEnv = { node: "v24", runner: "1", tag: "t" };
+const memCache = () => { const m = new Map<string, Marker>(); return { m, get: async (k: string) => m.get(k) ?? null, put: async (x: Marker) => void m.set(x.key, x) }; };
+
+test("unchanged files hit the cache; a change in the import closure misses", async () => {
+  const cache = memCache();
+  const fwd = imports(tracked, read);
+  const first = await splitByCache(["lib/x.test.ts", "lib/y.test.ts"], fwd, read, env, cache);
+  assert.deepEqual(first.run, ["lib/x.test.ts", "lib/y.test.ts"]);
+  for (const f of first.run) assert.equal(await recordResult(cache, first.keys.get(f), { ok: true, ms: 50, tests: 2 }), true);
+  const same = await splitByCache(["lib/x.test.ts", "lib/y.test.ts"], fwd, read, env, cache);
+  assert.deepEqual(same.hit, ["lib/x.test.ts", "lib/y.test.ts"]);
+  assert.deepEqual(same.run, []);
+  const edited = (f: string) => read(f) + (f === "lib/x.ts" ? "\n// edit" : "");
+  const after = await splitByCache(["lib/x.test.ts", "lib/y.test.ts"], imports(tracked, edited), edited, env, cache);
+  assert.deepEqual(after.run, ["lib/x.test.ts"]);
+  assert.deepEqual(after.hit, ["lib/y.test.ts"]);
+});
+
+test("failures and @nocache files are never cached; env change misses", async () => {
+  const cache = memCache(), fwd = imports(tracked, read);
+  const s = await splitByCache(["lib/x.test.ts"], fwd, read, env, cache);
+  assert.equal(await recordResult(cache, s.keys.get("lib/x.test.ts"), { ok: false, ms: 5, tests: 1 }), false);
+  assert.equal(cache.m.size, 0);
+  assert.equal(isNoCache("// @nocache\nimport x"), true);
+  assert.equal(isNoCache("const a = '// @nocache';"), false);
+  await recordResult(cache, s.keys.get("lib/x.test.ts"), { ok: true, ms: 5, tests: 1 });
+  const other = await splitByCache(["lib/x.test.ts"], fwd, read, { ...env, node: "v25" }, cache);
+  assert.deepEqual(other.run, ["lib/x.test.ts"]);
+});
+
+test("local cache round trip, corrupt marker reads as a miss", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "passcache-"));
+  const c = localCache(dir), key = "a".repeat(64);
+  assert.equal(await c.get(key), null);
+  await c.put({ key, durationMs: 9, tests: 3 });
+  assert.deepEqual(await c.get(key), { key, durationMs: 9, tests: 3 });
+  fs.writeFileSync(path.join(dir, key), "not json");
+  assert.equal(await c.get(key), null);
+  assert.equal(await c.get("../etc/passwd"), null);
+  fs.rmSync(dir, { recursive: true });
+});
+
+test("fleet mirror: hit fills the local cache, errors are misses, puts are mirrored", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "passcache-")), key = "b".repeat(64);
+  const store = new Map<string, string>([[key, JSON.stringify({ key, durationMs: 4, tests: 1 })]]);
+  const calls: string[] = [];
+  const fake = async (url: string, init?: { method?: string; body?: string }) => {
+    calls.push(`${init?.method ?? "GET"} ${url}`);
+    const k = url.split("/").pop()!;
+    if (init?.method === "PUT") { store.set(k, init.body!); return { ok: true, status: 200, text: async () => "" }; }
+    const v = store.get(k);
+    return { ok: v !== undefined, status: v ? 200 : 404, text: async () => v ?? "" };
+  };
+  const local = localCache(dir), c = mirroredCache(local, { url: "http://cache/", fetch: fake });
+  assert.equal((await c.get(key))?.durationMs, 4);
+  assert.equal((await local.get(key))?.durationMs, 4);
+  const k2 = "c".repeat(64);
+  await c.put({ key: k2, durationMs: 1, tests: 1 });
+  assert.ok(store.has(k2));
+  const down = mirroredCache(localCache(fs.mkdtempSync(path.join(os.tmpdir(), "passcache-"))), { url: "http://x", fetch: async () => { throw new Error("down"); } });
+  assert.equal(await down.get(key), null);
+  await down.put({ key, durationMs: 1, tests: 1 });
+  fs.rmSync(dir, { recursive: true });
+});
+
+test("perf: select on a 2,000-file graph stays inside the 8 s worst-case row (ci_push_5m)", (t) => {
+  const f: Record<string, string> = {};
+  for (let i = 0; i < 1500; i++) f[`lib/m${i}.ts`] = i ? `import './m${i - 1 - (i % 7)}.ts'; export const v${i} = ${i};` : "export const v0 = 0;";
+  for (let i = 0; i < 500; i++) f[`lib/t${i}.test.ts`] = `import './m${(i * 3) % 1500}.ts';`;
+  const tr = new Set(Object.keys(f));
+  const t0 = performance.now();
+  const r = selectAffected({ changed: ["lib/m1400.ts"], tracked: tr, read: (p) => f[p]! });
+  const ms = performance.now() - t0;
+  t.diagnostic(`PERF select 2000 files: ${ms.toFixed(0)} ms (budget 8000 ms), selected ${r.files.length}`);
+  assert.ok(ms < 8000);
+});
+
+test("the CLI runs on the real repo and prints a selection", () => {
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+  const r = spawnSync(process.execPath, ["scripts/ci-select.ts", "HEAD", "--matrix"], { cwd: root, encoding: "utf8" });
+  assert.ok([0, 1].includes(r.status ?? -1), r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.ok(Array.isArray(out.files) && out.matrix && Array.isArray(out.matrix.include));
+});
