@@ -53,7 +53,7 @@ test('explicit gate none with a reason is accepted and the fixture generates', (
     assert.ok(files.has(p), `missing ${p}`);
   }
   const client = files.get('client.ts') as string;
-  assert.match(client, /alpha: \{\n {4}create: call\("alpha.create", 1\),\n {4}get: call\("alpha.get", 1\),/);
+  assert.match(client, /alpha: \{\n {6}create: call\("alpha.create", 1\),\n {6}get: call\("alpha.get", 1\),/);
   assert.match(files.get('types.ts') as string, /export type AlphaGetIn = \{\n {2}recordId: string;\n\};/);
   assert.match(files.get('routes.ts') as string, /"path": "\/v1\/alpha\/get"/);
   const tools = JSON.parse(files.get('mcp-tools.json') as string) as { tools: Array<{ name: string }> };
