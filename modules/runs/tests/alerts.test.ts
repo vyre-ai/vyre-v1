@@ -30,7 +30,9 @@ function world(alerts: unknown = base): World {
 }
 /** Start a Run (an Automation's by default, owned by Alice) and fail it. */
 async function failRun(h: Harness, over: Record<string, unknown> = {}, message = "The mailbox was not connected."): Promise<string> {
-  const id = (await h.call("runs.start", newRun({ subject: { type: "automation", id: AUT }, name: "Welcome email", ...over }), engine)).runId as string;
+  const input = { subject: { type: "automation", id: AUT }, name: "Welcome email", ...over };
+  for (const k of Object.keys(input)) if ((input as Record<string, unknown>)[k] === undefined) delete (input as Record<string, unknown>)[k];   // an absent subject is absent, not undefined
+  const id = (await h.call("runs.start", newRun(input), engine)).runId as string;
   await h.call("runs.finish", { runId: id, status: "failed", error: { code: "step.failed", message } }, engine);
   return id;
 }
