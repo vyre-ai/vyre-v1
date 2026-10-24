@@ -107,8 +107,8 @@ test('shared schemas move to $defs and every reference resolves', () => {
   const big = t.obj({ a: t.str({ description: 'first long field to make the schema large enough to share' }), b: t.str({ description: 'second long field to make the schema large enough to share' }), c: t.int({ description: 'third long field to make the schema large enough to share' }) });
   const l = fixture({ betaCaps: [read('beta.one', 'One', { in: { row: big }, out: { row: big } }), read('beta.two', 'Two', { in: { row: big }, out: { row: big } })] });
   const files = emitAll(buildRegistry(l));
-  const reg = JSON.parse(files.get('registry.json') as string) as { $defs: Record<string, unknown>; capabilities: Array<{ name: string; input: { properties: { row: { $ref?: string } } } }> };
-  const ref = reg.capabilities.find((c) => c.name === 'beta.one')?.input.properties.row.$ref;
-  assert.ok(ref?.startsWith('#/$defs/'), 'row schema is a reference');
-  assert.ok(ref && (ref.replace('#/$defs/', '') in reg.$defs));
+  const reg = JSON.parse(files.get('registry.json') as string) as { $defs: Record<string, unknown>; capabilities: Array<{ name: string; input: { $ref?: string } }> };
+  const refs = reg.capabilities.map((c) => c.input.$ref).filter((r): r is string => Boolean(r));
+  assert.ok(refs.length >= 2, 'identical inputs share one definition');
+  for (const r of refs) assert.ok(r.replace('#/$defs/', '') in reg.$defs, `${r} resolves`);
 });
