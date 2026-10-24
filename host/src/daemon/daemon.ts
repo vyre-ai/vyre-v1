@@ -34,6 +34,8 @@ import type { FetchFn, ProbeName, ProbeResult } from "../platform/probes.ts";
 import { Scheduler } from "../scheduler/index.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
+import { createGateHook } from "./gate-hook.ts";
+import { withGateNesting } from "./gate-nesting.ts";
 import { wireSeams } from "../seams/index.ts";
 import type { SeamDeps, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
 import { createLiveHub } from "../ws.ts";
@@ -240,6 +242,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       queue = scheduleQueue;
       const seal = createCtxSeal(o.sealKey ?? { key: sealKeyFile(path.join(paths.root, "seal.key")), keyId: "k1" });
 
+      // The Gate hook, only once the Gate module is live (a stub answers with examples, which must never decide a send). Its questions and parked calls run as the Space itself.
+      const gate = loaded.serving.get("gate") === "live"
+        ? withGateNesting(createGateHook({
+          call: async (cap, input) => {
+            const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: owner() }, origin: "gate" });
+            if (r.status === "held") throw fail("internal.unavailable", r.traceId, { message: "Approvals are not available right now." });
+            return r.output;
+          },
+          unseal: (s) => seal.unseal(s), now,
+        }))
+        : undefined;
+
       const invoke = createInvoke({
         caps: indexCapabilities(caps),
         validateInput: (cap, v, input) => (extraCaps.has(cap) ? [] : validateInput(cap, v, input)),
@@ -248,6 +262,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         handler: (cap, v) => o.extra?.handlers?.[cap] ?? loaded.handler(cap, v),
         services: hostServices({ base: loaded.services, seal, queue: scheduleQueue }),
         idem, rate: createRateLimiter(), now, log: sinkLog,
+        ...(gate ? { gate } : {}),
         commit: withEventIds(async (b) => {
           const trace = b.events[0]?.traceId ?? ZERO_TRACE;
           if (chainBroken) throw fail("internal.unavailable", trace, { message: "The event log failed verification, so this server is not accepting changes. Run vyre-server doctor." });

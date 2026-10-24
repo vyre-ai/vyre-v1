@@ -114,7 +114,7 @@
     {
       "id": "gate",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "git",

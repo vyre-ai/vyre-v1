@@ -9,7 +9,7 @@ import { mintId } from "../../lib/ids.ts";
 import { mintEventId } from "./ids.ts";
 import type { Decision as KernelDecision, Req as AuthReq, ResourceRef } from "../../kernel/src/authorize/index.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
-import type { Ctx, Decision, EmitOpts, Logger } from "../../packages/contracts/src/ctx.ts";
+import type { CallOpts, Ctx, Decision, EmitOpts, Logger } from "../../packages/contracts/src/ctx.ts";
 import type { CapabilityDef, CapName, EventName, TraceContext } from "../../packages/contracts/src/types.ts";
 import { BindingError, resolveResource } from "./routes/resource.ts";
 import { codeForReason, fail, HostError, toVyreError } from "./routes/errors.ts";
@@ -73,7 +73,7 @@ export interface SpanRecord {
 
 export interface GateHook {
   /** Does a Gate apply to this call (capability `gate` with its `when`)? Null lets the call through. */
-  applies(cap: CapabilityDef, input: unknown, seed: CtxSeed): { act: string } | null;
+  applies(cap: CapabilityDef, input: unknown, seed: CtxSeed): { act: string } | null | Promise<{ act: string } | null>;
   /** Park the call as an approval task (4.6) and return its ids. */
   park(a: { cap: CapabilityDef; input: unknown; seed: CtxSeed; act: string; decisionId: string; traceId: string }): Promise<{ taskId: string; runId?: string }>;
   /** Is the approval token valid for exactly this call? */
@@ -225,7 +225,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     // the capability's own Gate (spec 2.14): fail closed when a Gate is declared and nothing can park the call
     if (c.gate && c.gate.act !== "none" && !approved) {
       if (!deps.gate) throw fail("internal.unavailable", traceId, { message: "Approvals are not available right now.", details: { cap: c.name, act: c.gate.act } });
-      const g = deps.gate.applies(c, input, seed);
+      const g = await deps.gate.applies(c, input, seed);
       if (g) {
         return park(c, input, seed, traceId, did(), g.act, null);
       }
@@ -281,9 +281,15 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         buf.push(ev as EventEnvelope);
         return ev;
       },
-      async call<C extends CapName>(name: C, callInput: unknown): Promise<unknown> {
+      async call<C extends CapName>(name: C, callInput: unknown, opts?: CallOpts): Promise<unknown> {
         const cleared = c.gate && c.gate.act !== "none" ? [...(seed.clearedActs ?? []), c.gate.act] : seed.clearedActs;
-        const r = await invoke(name, callInput, { ...seed, depth: depth + 1, trace, approval: undefined, v: undefined, clearedActs: cleared });
+        // the Gate's resume path: only gate.release may re-invoke a parked call as its original caller, with the approval token the Gate hook then checks against the payload
+        const resume = c.name === "gate.release" && opts?.approval !== undefined ? opts : undefined;
+        const as = resume?.as;
+        const base: CtxSeed = as
+          ? { ...seed, principal: as.principal, actingFor: as.actingFor, run: as.run, thread: as.thread }
+          : seed;
+        const r = await invoke(name, callInput, { ...base, depth: depth + 1, trace, approval: resume?.approval, v: undefined, clearedActs: resume ? undefined : cleared });
         if (r.status === "held") throw fail("permission.needs_approval", trace.traceId, { details: { taskId: r.taskId, cap: name } });
         return r.output;
       },
