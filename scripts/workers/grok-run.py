@@ -8,6 +8,8 @@ the Mac and on a CI runner with fakes.
 """
 import shutil, argparse, concurrent.futures as cf, datetime, fnmatch, json, os, re, shlex, subprocess, sys, threading, time
 import urllib.request, urllib.error
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import evidence
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TRACKER_DIR = os.environ.get("VYRE_TRACKER_DIR", "/Users/irfad/Claude/Orgs/Vyre/tracker")
@@ -29,9 +31,101 @@ REPO_RULES = """REPO RULES (hard, from the owner):
 - Do not read anything under ~/Claude/simba/secrets. Do not use the network except git push and gh.
 - Work only inside the current directory (your worktree). Do not delete anything outside it.
 - Generated files change only through the generator's refresh command, never by hand.
+- READING BUDGET: the brief and spec excerpts below are everything you were given. Do not re-read them from disk. Read each repo file at most
+  once; use grep -n and ranged reads (sed -n 'a,bp') for files over 300 lines; never open generated/ or node_modules. At most 25 file reads in total,
+  then write code. Think briefly: plan once, then edit. Do not narrate.
+- The harness proves these items itself from CI: the setup read/gen check, the lanes-check/boundaries item, the manifest flip, the test-run proof and
+  every named test. You only write code, the test files at their exact paths, and report.json for the rest.
 - When done, commit, then write .harness/report.json: {"done":[<checklist numbers finished>],"evidence":{"<n>":"one line"},"summary":"..."}.
   (.harness/ is ignored by the harness diff check.) Then stop. Do not push; the harness pushes and runs CI.
 """
+
+# ---- ruling 13: spec context (same code as scripts/workers/sonnet-run.py in the v1 repo, P-PR_73)
+SPEC, ARCH, DECISIONS = "docs/spec/V1-SPEC.md", "docs/spec/ARCHITECTURE-V1.md", "docs/spec/ARCH-DECISIONS.md"
+NAMED = {"speed": "Speed and smoothness", "native": "Vyre is the agent's native", "notheme": "No theme flash", "uirows": "UI rows"}
+MAX_SECTION = 12000      # per spec or architecture section; was 40000. The brief is given once; the worker greps the repo for the rest
+MAX_CONTEXT = 48000      # whole context block, chars (about 12k tokens)
+
+
+def read_doc(path: str, repo: str = "", docs_root: str = "") -> str:
+    """Ruling 13: spec and architecture text come from main. docs_root (tests, offline) wins; else git show origin/main:path."""
+    if docs_root:
+        try: return open(os.path.join(docs_root, path), encoding="utf8").read()
+        except OSError: return ""
+    r = subprocess.run(["git", "-C", repo, "show", f"origin/main:{path}"], capture_output=True, text=True)
+    return r.stdout if r.returncode == 0 else ""
+
+
+def section(text: str, num: str = "", title: str = "") -> str:
+    """The heading line numbered `num` (or starting with `title`) and everything under it up to the next heading of the same or higher level."""
+    lines = text.split("\n"); start = None; level = 0; fence = False
+    pat = re.compile(r"^(#{2,4})\s+(?:Appendix\s+)?" + re.escape(num) + r"(?:[.\s]|$)") if num else None
+    out = []
+    for i, ln in enumerate(lines):
+        if ln.startswith("```"): fence = not fence
+        m = re.match(r"^(#{1,4})\s", ln) if not fence else None
+        if start is None:
+            if m and ((pat and pat.match(ln)) or (title and re.match(r"^#{2,4}\s+" + re.escape(title), ln))): start = i; level = len(m.group(1)); out = [ln]
+        elif m and len(m.group(1)) <= level: break
+        else: out.append(ln)
+    return "\n".join(out).strip()
+
+
+def row_in(sec: str, tag: str) -> str:
+    """The heading, table header and the row (or bullet) that starts with `tag` inside a section; the whole section when none matches."""
+    lines = sec.split("\n")
+    hit = [ln for ln in lines if re.match(r"^(\|\s*|-\s*\*{0,2})" + re.escape(tag) + r"\b", ln)]
+    if not hit: return sec
+    head = [ln for ln in lines[:4] if ln.startswith("#") or ln.startswith("| ID") or ln.startswith("| #") or ln.startswith("|---")]
+    return "\n".join(head + hit)
+
+
+def spec_text(ref: str, spec: str) -> str:
+    ref = ref.strip()
+    if ref in NAMED: return section(spec, title=NAMED[ref])
+    m = re.match(r"^(\d+(?:\.\d+)*)(?:\s+(\S+))?$", ref)
+    if not m: return ""
+    sec = section(spec, num=m.group(1))
+    if not m.group(2): return sec
+    tag = m.group(2)
+    if re.match(r"^b\d+$", tag): return row_in(sec, tag)
+    keep = [ln for ln in sec.split("\n") if tag.lower() in ln.lower()]   # a topic word such as "networking": the lines that carry it
+    return "\n".join([sec.split("\n")[0]] + keep) if keep else sec
+
+
+def arch_text(ref: str, arch: str, decisions: str) -> str:
+    ref = ref.strip()
+    m = re.match(r"^ARCH-DECISIONS\s+(\d+)$", ref)
+    if m:   # the decisions file is a numbered list, one item per line
+        hit = [ln for ln in decisions.split("\n") if ln.startswith(m.group(1) + ". ")]
+        return "\n".join(hit)
+    m = re.match(r"^ARCH\s+(\d+(?:\.\d+)*)(?:\s+([A-Z]\d+))?$", ref)
+    if m:
+        sec = section(arch, num=m.group(1))
+        return row_in(sec, m.group(2)) if m.group(2) else sec
+    m = re.match(r"^([A-Z]\d+)$", ref)       # bare F10: the row in the frozen-items table (ARCH 12.2)
+    if m: return row_in(section(arch, num="12.2"), m.group(1))
+    return ""
+
+
+def build_context(packet: dict, repo: str = "", docs_root: str = "") -> str:
+    """Ruling 13: lane brief plus the full text of every spec and architecture section the packet references, so a worker never has to find them."""
+    spec, arch, dec = (read_doc(p, repo, docs_root) for p in (SPEC, ARCH, DECISIONS))
+    parts = []
+    lane = packet.get("lane_id") or ""
+    lane_doc = read_doc(f"docs/lanes/{lane}.md", repo, docs_root) if lane else ""
+    parts.append(f"=== LANE BRIEF (docs/lanes/{lane}.md) ===\n{lane_doc.strip() or '(no lane brief on main for this lane)'}")
+    for ref in packet.get("spec_refs") or []:
+        t = spec_text(ref, spec)
+        parts.append(f"=== SPEC {ref} (docs/spec/V1-SPEC.md) ===\n{(t[:MAX_SECTION] if t else '(section not found on main: ask the lead before guessing)')}")
+    for ref in packet.get("arch_refs") or []:
+        t = arch_text(ref, arch, dec)
+        parts.append(f"=== {ref} (docs/spec/{'ARCH-DECISIONS' if ref.startswith('ARCH-DEC') else 'ARCHITECTURE-V1'}.md) ===\n{(t[:MAX_SECTION] if t else '(section not found on main: ask the lead before guessing)')}")
+    out = "\n\n".join(parts) + "\n"
+    if len(out) > MAX_CONTEXT:   # keep the lane brief whole, trim the tail sections evenly
+        out = out[:MAX_CONTEXT] + "\n(context trimmed to " + str(MAX_CONTEXT) + " chars; grep docs/spec for the rest, one targeted read, never the whole file)\n"
+    return out
+
 
 _RULES = json.load(open(os.path.join(HERE, "deny-rules.json")))
 DENY = _RULES["deny"]
@@ -130,7 +224,11 @@ def make_worktree(job):
 
 def write_prompt(job, extra=""):
     owned = "\n".join(f"  {g}" for g in job["owns"]) or "  (none declared)"
-    text = f"{'' if job.get('bare_prompt') else REPO_RULES}\nOWNED FILES (the only paths you may change):\n{owned}\n\n=== PACKET BRIEF ===\n{job['brief']}\n{extra}"
+    ctx = job.get("context") or ""
+    req = evidence.prompt_block(job.get("checklist") or [])
+    text = f"{'' if job.get('bare_prompt') else REPO_RULES}\nOWNED FILES (the only paths you may change):\n{owned}\n\n{req}\n=== PACKET BRIEF ===\n{job['brief']}\n{('\n' + ctx) if ctx else ''}\n{extra}"
+    if job.get("continue_prompt") and extra:   # a continued session already holds the brief; send only the new instruction
+        text = extra.strip() + "\n\n" + req
     p = os.path.join(job["wt"], ".harness", "prompt.md")
     open(p, "w").write(text)
     return p
@@ -159,6 +257,14 @@ def sandbox_profile(job, extra_read=()):
     return "\n".join(rules).replace('\\"', '"')
 
 
+SLOW_LANES = {"L1", "L4"}   # sync and files packets hit 2400 s in the dry run
+
+
+def grok_timeout(job, args):
+    if args.timeout: return args.timeout
+    return 3000 if (job.get("lane") in SLOW_LANES) else 2400
+
+
 def run_grok(job, prompt_path, args):
     prof = os.path.join(job["wt"], ".harness", "sandbox.sb")
     gb = getattr(args, "grok_bin", None)
@@ -166,33 +272,38 @@ def run_grok(job, prompt_path, args):
     if use_sandbox: open(prof, "w").write(sandbox_profile(job, [os.path.dirname(os.path.abspath(gb))] if gb else []))
     cmd = ([SANDBOX_EXEC, "-f", prof] if use_sandbox else []) + [getattr(args, "grok_bin", None) or GROK, "--prompt-file", prompt_path, "--cwd", job["wt"], "--permission-mode", "bypassPermissions",
            "--reasoning-effort", args.effort, "--output-format", "json", "--max-turns", str(args.max_turns)]
+    if job.get("continue_session"): cmd.insert(cmd.index("--prompt-file"), "--continue")   # CI-fix rounds keep the worker's session: no second read of the repo
     if args.model: cmd += ["--model", args.model]
     for d in DENY: cmd += ["--deny", d]
     out = os.path.join(LOG_DIR, f"{job['id']}.grok.out")
     t0 = time.time()
+    start = os.path.getsize(out) if os.path.exists(out) else 0   # the log is appended per attempt; usage must come from this attempt only
     env = dict(os.environ)
     for k in list(env):  # keep vault-sourced credentials out of the worker's environment
         if re.search(_RULES["env_strip"], k) and k not in _RULES["env_keep"]: env.pop(k)
     with open(out, "ab") as f:
         try:
-            r = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, timeout=args.timeout, env=env, cwd=job["wt"])
+            r = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, timeout=grok_timeout(job, args), env=env, cwd=job["wt"])
             rc = r.returncode
         except subprocess.TimeoutExpired:
             rc = -9
     dur = time.time() - t0
-    text = open(out, errors="replace").read()
+    with open(out, "rb") as f:
+        f.seek(start); text = f.read().decode("utf8", "replace")
     return rc, dur, text
 
 
 def parse_usage(text, prompt=""):
-    """Prefer grok's own usage block; else estimate from sizes (prompt tokens x ~8 context re-reads, output chars/4)."""
+    """(tokens_in incl. cache reads, tokens_out, detail). Prefer grok's own usage block; else estimate from sizes."""
     try:
-        u = json.loads(text[text.index("{"):]).get("usage") or {}
+        j, _ = json.JSONDecoder().raw_decode(text[text.index("{"):]); u = j.get("usage") or {}   # grok may append "Error: max turns reached" after the JSON
         tin = int(u.get("input_tokens", 0)) + int(u.get("cache_read_input_tokens", 0)) + int(u.get("cache_creation_input_tokens", 0))
         tout = int(u.get("output_tokens", 0))
-        if tin or tout: return tin, tout
+        if tin or tout:
+            return tin, tout, {"input_fresh": int(u.get("input_tokens", 0)), "cache_read": int(u.get("cache_read_input_tokens", 0)), "output": tout,
+                               "reasoning": int(u.get("reasoning_tokens", 0)), "turns": j.get("num_turns"), "cost_usd": j.get("total_cost_usd")}
     except Exception: pass
-    return (len(prompt) // 4) * 8, len(text) // 4
+    return (len(prompt) // 4) * 8, len(text) // 4, {"estimated": True}
 
 
 RATE_RE = re.compile(r"429|rate.?limit|too many requests|overloaded|quota|503|capacity", re.I)
@@ -240,28 +351,45 @@ def safe_push(job):
 DESKTOP_RE = re.compile(r"macos|windows|tauri|desktop", re.I)
 
 
+DESKTOP_PATH_RE = re.compile(r"(^|/)(desktop|src-tauri|tauri)(/|\.)|apps/desktop", re.I)
+
+
+def gh_json(args_, wt, default):
+    r = sh([GH] + args_, cwd=wt, check=False)
+    try: return json.loads(r.stdout or "")
+    except Exception: return default
+
+
 def ci_wait(job, args):
     """Wait until CI run(s) for the pushed sha EXIST and COMPLETE. Returns (ok, url, log_text, run_id).
-    Desktop (Tauri) jobs add GitHub-hosted macos-latest/windows-latest runs that start late and run long: for those the
-    dispatcher re-checks after a settle pause so a late-appearing run is not missed. Logs of all runs are joined."""
+    Desktop jobs: when the diff touches desktop paths (or the packet text says so) the dispatcher requires a run whose workflow name
+    contains 'desktop' to appear (re-checking up to 3 settle pauses), then waits for it to finish. If it never appears the note
+    'desktop run never appeared' goes into job['ci_notes'] and CI is judged on the runs that exist (desktop.yml is workflow_call only
+    today, so a push does not start it). Also records per-run job conclusions in job['ci_jobs'] for evidence.auto_evidence."""
     wt = job["wt"]; sha = sh(["git", "rev-parse", "HEAD"], cwd=wt).stdout.strip()
     deadline = time.time() + args.ci_timeout; seen = False; settled = 0
-    settle = getattr(args, "settle", 90) if job.get("desktop") else 0
+    want_desktop = bool(job.get("desktop")) or any(DESKTOP_PATH_RE.search(f) for f in changed_files(wt, job["base"]))
+    settle = getattr(args, "settle", 90) if want_desktop else 0
+    job.setdefault("ci_notes", [])
     while True:
-        r = sh([GH, "run", "list", "--commit", sha, "--json", "databaseId,headSha,status,conclusion,url", "--limit", "20"], cwd=wt, check=False)
-        try: runs = [x for x in json.loads(r.stdout or "[]") if x["headSha"] == sha]
-        except Exception: runs = []
+        runs = [x for x in gh_json(["run", "list", "--commit", sha, "--json", "databaseId,headSha,status,conclusion,url,workflowName", "--limit", "20"], wt, []) if x["headSha"] == sha]
         if runs: seen = True
         if runs and all(x["status"] == "completed" for x in runs):
-            if settle and settled < 2 and time.time() + settle < deadline:
-                settled += 1; log(job, f"all {len(runs)} runs done; settling {settle}s for late desktop runs"); time.sleep(settle); continue
-            urls = " ".join(x["url"] for x in runs)
+            have_desktop = any("desktop" in (x.get("workflowName") or "").lower() for x in runs)
+            if settle and not have_desktop and settled < 3 and time.time() + settle < deadline:
+                settled += 1; log(job, f"{len(runs)} runs done, no desktop run yet; settling {settle}s ({settled}/3)"); time.sleep(settle); continue
+            if settle and not have_desktop: job["ci_notes"].append("desktop run never appeared for " + sha[:8])
             job["ci_runs"] = [x["url"] for x in runs]
-            bad = [x for x in runs if x["conclusion"] != "success"]
-            if not bad:
-                lg = "\n".join(sh([GH, "run", "view", str(x["databaseId"]), "--log"], cwd=wt, check=False).stdout for x in runs)
-                return True, runs[0]["url"], lg, runs[0]["databaseId"]
+            jobs = []
+            for x in runs:
+                jobs += (gh_json(["run", "view", str(x["databaseId"]), "--json", "jobs"], wt, {}) or {}).get("jobs", [])
+            job["ci_jobs"] = [{"name": j.get("name", ""), "conclusion": j.get("conclusion")} for j in jobs]
+            # desktop/native runs are continue-on-error upstream and never block: a red desktop run does not fail the packet unless a test file failed in it
+            bad = [x for x in runs if x["conclusion"] != "success" and "desktop" not in (x.get("workflowName") or "").lower()]
+            lg_all = "\n".join(sh([GH, "run", "view", str(x["databaseId"]), "--log"], cwd=wt, check=False).stdout for x in runs)
+            if not bad: return True, runs[0]["url"], lg_all, runs[0]["databaseId"]
             lg = "\n".join(sh([GH, "run", "view", str(x["databaseId"]), "--log-failed"], cwd=wt, check=False).stdout for x in bad)
+            job["ci_log_full"] = lg_all
             return False, bad[0]["url"], lg[-6000:], bad[0]["databaseId"]
         if time.time() >= deadline: break
         log(job, f"ci pending ({'no run yet' if not runs else str(sum(x['status'] != 'completed' for x in runs)) + ' of ' + str(len(runs)) + ' running'}), sleeping {args.ci_poll}s")
@@ -269,21 +397,8 @@ def ci_wait(job, args):
     return False, "", ("CI run never appeared for " if not seen else "CI run did not finish for ") + sha[:8], None
 
 
-TEST_FILE_RE = re.compile(r"[\w./@-]+\.test\.(?:ts|tsx|mjs|js)")
-
-
-def verify_tests(packet, log_text):
-    """Every test file named in the checklist must show an 'ok' line in the runner output. Returns problems."""
-    files = []
-    for it in packet["checklist"]:
-        for f in TEST_FILE_RE.findall(it["text"]):
-            if f not in files: files.append(f)
-    probs = []
-    for f in files:
-        if re.search(r"(?m)\bok\s+" + re.escape(f) + r"\b", log_text): continue
-        fail = re.search(r"(?m)\bFAIL\s+" + re.escape(f), log_text)
-        probs.append(f"{f}: {'FAIL' if fail else 'no ok line in the run log'}")
-    return files, probs
+def failed_tests_in(text):
+    return sorted(set(f for st, f in evidence.RUN_LINE.findall(evidence.ANSI.sub("", text or "")) if st == "FAIL"))
 
 
 def is_proof_item(it):
@@ -291,25 +406,47 @@ def is_proof_item(it):
     return it.get("kind") == "proof" or t.startswith("post the test run output") or (it.get("proof_kind") == "test_run" and "post " in t[:6])
 
 
+def record_usage(job, res, trk, attempt, tin, tout, d):
+    """One row per attempt: tracker usage (real cost when Grok reports it) and harness/logs/usage.jsonl."""
+    row = {"id": job["id"], "attempt": attempt, "tokens_in": tin, "tokens_out": tout, **d, "at": now()}
+    res.setdefault("usage", []).append(row)
+    with open(os.path.join(LOG_DIR, "usage.jsonl"), "a") as f: f.write(json.dumps(row) + "\n")
+    cost = d.get("cost_usd") if d.get("cost_usd") is not None else round((tin * 0.2 + tout * 15) / 1e6, 4)
+    if trk and job.get("lane"):
+        try: trk.usage(job["lane"], "grok", tin, tout, cost)
+        except Exception as e: log(job, f"usage post failed: {e}")
+
+
 def run_job(job, args, trk=None):
     """Full lifecycle for one job. Returns a result dict (also used by rehearsal)."""
     res = {"id": job["id"], "ok": False, "stage": "start", "worker_s": 0, "total_s": 0, "retries": 0, "rate_limited": False, "tokens_out": 0}
     t0 = time.time()
+    state = evidence.CiState(); job["ci_state"] = state
+    last_pushed = None; have_session = False
     try:
         make_worktree(job)
+        if trk and job.get("pid") and not job.get("checklist"): job["checklist"] = trk.packet(job["pid"])["checklist"]
         extra = ""
         for attempt in range(args.retries + 1):
             res["stage"] = "grok"
+            job["continue_session"] = bool(have_session and extra and getattr(args, "continue_fix", True) and job.get("fix_round"))
+            job["continue_prompt"] = job["continue_session"]
             pp = write_prompt(job, extra)
-            log(job, f"grok attempt {attempt + 1} start")
+            log(job, f"grok attempt {attempt + 1} start" + (" (continuing session)" if job["continue_session"] else ""))
             rc, dur, text = run_grok(job, pp, args)
             res["worker_s"] += dur
-            tin, tout = parse_usage(text, open(pp).read()); res["tokens_out"] += tout; res["tokens_in"] = res.get("tokens_in", 0) + tin
-            if trk and job.get("lane"):
-                try: trk.usage(job["lane"], "grok", tin, tout, round((tin * 3 + tout * 15) / 1e6, 4))
-                except Exception as e: log(job, f"usage post failed: {e}")
+            tin, tout, ud = parse_usage(text, open(pp).read()); res["tokens_out"] += tout; res["tokens_in"] = res.get("tokens_in", 0) + tin
+            record_usage(job, res, trk, attempt + 1, tin, tout, ud)
+            have_session = have_session or ud.get("estimated") is None
             if RATE_RE.search(text[-3000:]) and rc != 0: res["rate_limited"] = True
-            log(job, f"grok exit {rc} in {dur:.0f}s")
+            log(job, f"grok exit {rc} in {dur:.0f}s; tokens in {tin} out {tout} {ud}")
+            if rc != 0 and "max turns reached" in text[-400:] and attempt < args.retries:
+                # out of turns, not out of ideas: keep the session, stop exploring, finish (a fresh restart re-reads the whole repo)
+                res["retries"] += 1; res["error"] = "max turns reached"; job["fix_round"] = True
+                extra = ("\n\nTURN LIMIT REACHED. Stop reading files. Write the remaining code and the required test files now from what you already know, "
+                         "commit, and write .harness/report.json. Do not start new exploration.\n")
+                continue
+            head = sh(["git", "rev-parse", "HEAD"], cwd=job["wt"]).stdout.strip()
             if rc != 0 and not changed_files(job["wt"], job["base"]):
                 extra = f"\n\nPREVIOUS ATTEMPT FAILED (exit {rc}). Output tail:\n{text[-1500:]}\n"
                 res["retries"] += 1; res["error"] = f"grok exit {rc}"
@@ -318,43 +455,68 @@ def run_job(job, args, trk=None):
             res["stage"] = "ownership"
             verify_clone(job)
             files = commit_leftovers(job)
+            head = sh(["git", "rev-parse", "HEAD"], cwd=job["wt"]).stdout.strip()
+            if last_pushed and head == last_pushed:   # dry-run issue 5: a fix attempt that crashed or changed nothing must not re-wait on the old CI run
+                res["error"] = f"fix attempt made no new commit (grok exit {rc})"; log(job, res["error"]); res["retries"] += 1
+                break
             viol = [f for f in files if job["owns"] and not glob_match(f, job["owns"])]
             if viol:
                 res["error"] = f"owns_files violation: {viol[:10]}"
                 log(job, res["error"])
                 extra = f"\n\nREJECTED: you edited files you do not own: {viol[:10]}. Revert them (git checkout {job['base']} -- <file>) and keep only owned paths.\n"
-                res["retries"] += 1
+                res["retries"] += 1; job["fix_round"] = True
                 continue
             bad = check_commits(job)
             if bad:
                 res["error"] = f"commit attribution rule broken: {bad[:3]}"
-                extra = "\n\nREJECTED: commit message or author breaks the credit rule (no Co-Authored-By, no 'Generated with', no 'claude'). Amend is forbidden; add nothing else, the harness will rewrite messages.\n"
                 sh(["git", "filter-branch", "-f", "--msg-filter", "grep -vi -e co-authored -e 'generated with'", f"{job['base']}..HEAD"], cwd=job["wt"], check=False)
-                if check_commits(job): res["retries"] += 1; continue
+                if check_commits(job):
+                    extra = "\n\nREJECTED: commit message or author breaks the credit rule (no Co-Authored-By, no 'Generated with', no 'claude').\n"
+                    res["retries"] += 1; job["fix_round"] = True; continue
             if not files and not args.allow_empty:
                 res["error"] = "worker produced no changes"; res["retries"] += 1
                 extra = "\n\nPREVIOUS ATTEMPT MADE NO CHANGES. Do the work.\n"; continue
+            pre = evidence.preflight(job["wt"], job.get("checklist") or [], files, job["owns"], lambda p, o: glob_match(p, o)) if job.get("checklist") else []
+            if pre and attempt < args.retries:   # cheap local round instead of a failed CI run
+                res["error"] = "preflight: " + "; ".join(pre)[:300]; log(job, res["error"]); res["retries"] += 1; job["fix_round"] = True
+                extra = "\n\nPRE-PUSH CHECK FAILED (nothing was pushed). Fix these, commit, update report.json:\n" + "\n".join(pre) + "\n"
+                continue
             res["files"] = sorted(files)
             res["stage"] = "push"
-            safe_push(job)
+            safe_push(job); last_pushed = head
             if args.no_ci:
                 res.update(ok=True, stage="pushed", ci="skipped"); break
             res["stage"] = "ci"
             ok, url, tail, run_id = ci_wait(job, args)
             res["ci"] = url; res["ci_runs"] = job.get("ci_runs", [])
+            full = job.pop("ci_log_full", None) or (tail if ok else "")
+            state.add_log(url or "ci:none", full)
+            foreign = []
+            if not ok and full:
+                # failures in test files the packet does not own (shared flake such as batch3.screen.test.tsx): rerun once, then pass with a note
+                fails = failed_tests_in(full)
+                foreign = [f for f in fails if job["owns"] and not glob_match(f, job["owns"])]
+                if fails and len(foreign) == len(fails) and run_id and not job.get("rerun_done"):
+                    job["rerun_done"] = True; log(job, f"only foreign test files failed {foreign[:3]}; rerunning failed jobs once")
+                    sh([GH, "run", "rerun", str(run_id), "--failed"], cwd=job["wt"], check=False); time.sleep(20)
+                    ok, url, tail, run_id = ci_wait(job, args); res["ci"] = url; res["ci_runs"] = job.get("ci_runs", [])
+                    full = job.pop("ci_log_full", None) or (tail if ok else ""); state.add_log(url or "ci:none", full)
+                    fails = failed_tests_in(full); foreign = [f for f in fails if job["owns"] and not glob_match(f, job["owns"])]
+                if not ok and fails and len(foreign) == len(fails):
+                    ok = True; job["ci_notes"].append("accepted with foreign failing test files (not owned, not changed): " + ", ".join(foreign[:4]))
             if ok and trk and job.get("pid"):
-                files, probs = verify_tests(trk.packet(job["pid"]), tail)
-                res["verified_tests"] = files
+                files_v, probs = evidence.verify_required(job.get("checklist") or [], state)
+                res["verified_tests"] = [] if probs else files_v
                 if probs:
                     ok = False; url = url or "ci:none"
-                    tail = "Tests named in the checklist did not pass in the CI log:\n" + "\n".join(probs) + "\n\nLog excerpt:\n" + \
-                        "\n".join(l for l in tail.splitlines() if re.search(r"\b(ok|FAIL)\b|files,", l))[-3000:]
+                    tail = "Tests named in the checklist did not pass in the CI logs of this branch:\n" + "\n".join(probs) + "\n\nLog excerpt:\n" + \
+                        "\n".join(l for l in full.splitlines() if re.search(r"\b(ok|FAIL)\b.*\.test\.|files,", l))[-2500:]
             if trk and job.get("pid"): trk.proof(job["pid"], "test_run", " ".join(job.get("ci_runs") or [url or "ci:none"]), "pass" if ok else "fail")
             if ok: res.update(ok=True, stage="ci-pass"); break
             res["error"] = "ci failed"
             if trk and job.get("pid"): trk.comment(job["pid"], f"CI/verify failed ({url}). Log tail:\n{tail[-1800:]}")
-            extra = f"\n\nCI FAILED. Fix it and commit. Failed log tail:\n{tail}\n"
-            res["retries"] += 1
+            extra = f"\n\nCI FAILED. Fix it and commit. Failed log tail:\n{tail[-3000:]}\n"
+            res["retries"] += 1; job["fix_round"] = True
         if res["ok"] and trk and job.get("pid"):
             res["stage"] = "submit"
             submit(job, trk, res)
@@ -367,6 +529,7 @@ def run_job(job, args, trk=None):
             try: trk.post(job["pid"], "block", {"reason": "harness crash: " + res["error"][:300]})
             except Exception: pass
     res["total_s"] = time.time() - t0
+    res["ci_notes"] = job.get("ci_notes", [])
     log(job, f"result ok={res['ok']} stage={res['stage']} err={res.get('error')}")
     return res
 
@@ -379,20 +542,33 @@ def submit(job, trk, res):
     done = set(map(str, rep.get("done", [])))
     ev = rep.get("evidence", {})
     verified = set(res.get("verified_tests", []))
+    wt = job["wt"]; state = job["ci_state"]
+    changed = sorted(changed_files(wt, job["base"]))
+    mdiff = sh(["git", "diff", f"{job['base']}...HEAD", "--", "manifests"], cwd=wt, check=False).stdout
+    foreign = evidence.foreign_imports(wt, changed)
+    facts = evidence.job_facts(job.get("ci_jobs"))
+    required = evidence.required_tests(p["checklist"])
+    ctx = {"state": state, "facts": facts, "run_url": res.get("ci") or "", "owns_ok": all(glob_match(f, job["owns"]) for f in changed) if job["owns"] else True,
+           "foreign": foreign, "changed": changed, "manifest_diff": mdiff, "tests_ok": bool(required) and set(f for _, f in required) <= verified,
+           "worker_done": lambda it: str(it["pos"]) in done}
     for it in p["checklist"]:
         if it["done"]: continue
-        named = set(TEST_FILE_RE.findall(it["text"]))
-        if is_proof_item(it):  # harness owns the proof item: CI passed and every named test file showed ok
-            trk.check(it["id"], f"CI runs {' '.join(res.get('ci_runs') or [res.get('ci')])}: all named test files ok ({', '.join(sorted(verified)) or 'none named'})")
+        named = {path for pos, path in required if pos == it["pos"]}
+        auto = evidence.auto_evidence(it, ctx)
+        if is_proof_item(it) and it.get("proof_kind") != "perf":  # harness owns the proof item: CI passed and every required test file showed ok
+            trk.check(it["id"], f"CI runs {' '.join(res.get('ci_runs') or [res.get('ci')])}: all required test files ok ({', '.join(sorted(verified)) or 'none named'})" + ("; " + "; ".join(job.get("ci_notes", [])) if job.get("ci_notes") else ""))
+        elif auto:
+            trk.check(it["id"], auto)
         elif named and named <= verified:
-            trk.check(it["id"], f"ok in CI run {res.get('ci')}")
+            trk.check(it["id"], f"ok in CI {state.files.get(sorted(named)[0], ('', res.get('ci')))[1]}")
         elif str(it["pos"]) in done:
             trk.check(it["id"], f"{ev.get(str(it['pos']), 'worker report')} (branch {job['branch']}, ci {res.get('ci')})")
     try:
-        trk.post(job["pid"], "submit", {"note": f"branch {job['branch']}; ci {res.get('ci')}; {rep.get('summary', '')[:300]}"})
+        trk.post(job["pid"], "submit", {"note": f"branch {job['branch']}; ci {res.get('ci')}; {rep.get('summary', '')[:300]}" + (f"; notes: {'; '.join(job.get('ci_notes', []))}" if job.get("ci_notes") else "")})
         log(job, "submitted for review")
-        t = threading.Thread(target=merge_after_approval, args=(job, trk, res), name=f"merge-{job['id']}")
-        t.start(); MERGERS.append(t)
+        if not os.environ.get("VYRE_NO_MERGE"):   # dry runs and retests never open or merge PRs
+            t = threading.Thread(target=merge_after_approval, args=(job, trk, res), name=f"merge-{job['id']}")
+            t.start(); MERGERS.append(t)
     except Exception as e:
         res["ok"] = False; res["error"] = f"submit refused: {e}"
         trk.comment(job["pid"], f"harness: submit refused, checklist incomplete. {e}")
@@ -443,9 +619,10 @@ def packet_job(trk, pid, args):
     brief = trk.brief(pid)
     if redo: brief = changes_block(trk, p) + "\n" + brief
     text = brief + " ".join(i["text"] for i in p["checklist"])
-    return {"id": pid, "pid": pid, "lane": p["lane_id"], "title": p["title"], "owns": p["owns_files"], "brief": brief,
-            "repo": args.repo, "base": args.base, "branch": f"packet/{pid}", "wt": os.path.join(args.wt_root, pid),
-            "redispatch": redo, "merge_poll": args.merge_poll, "pr_base": args.pr_base, "desktop": bool(DESKTOP_RE.search(text))}
+    subprocess.run(["git", "-C", args.repo, "fetch", "-q", "origin", "main"], capture_output=True)   # ruling 13: spec text comes from current main
+    return {"context": build_context(p, args.repo), "id": pid, "pid": pid, "lane": p["lane_id"], "title": p["title"], "owns": p["owns_files"], "brief": brief,
+            "repo": args.repo, "base": args.base, "branch": f"{os.environ.get('VYRE_BRANCH_PREFIX', 'packet')}/{pid}", "wt": os.path.join(args.wt_root, pid),
+            "redispatch": redo, "merge_poll": args.merge_poll, "pr_base": args.pr_base, "desktop": bool(DESKTOP_RE.search(text)), "checklist": p["checklist"]}
 
 
 def cmd_loop(args):
@@ -535,14 +712,15 @@ def main():
     ap.add_argument("--concurrency", type=int, default=4)
     ap.add_argument("--repo", default=DEFAULT_REPO); ap.add_argument("--base", default="origin/main")
     ap.add_argument("--wt-root", default=WT_ROOT); ap.add_argument("--actor", default="sonnet-harness")
-    ap.add_argument("--grok-bin"); ap.add_argument("--model"); ap.add_argument("--effort", default="high"); ap.add_argument("--max-turns", type=int, default=60)
-    ap.add_argument("--timeout", type=int, default=2400, help="seconds per grok run")
+    ap.add_argument("--grok-bin"); ap.add_argument("--model"); ap.add_argument("--effort", default="medium", help="grok reasoning effort; high kept ~430 KB of reasoning in context per packet"); ap.add_argument("--max-turns", type=int, default=70)
+    ap.add_argument("--timeout", type=int, default=0, help="seconds per grok run; 0 = by lane (3000 for L1 and L4, 2400 otherwise)")
+    ap.add_argument("--no-continue-fix", dest="continue_fix", action="store_false", help="CI-fix rounds start a fresh session instead of --continue")
     ap.add_argument("--retries", type=int, default=1); ap.add_argument("--poll", type=int, default=60)
     ap.add_argument("--ci-poll", type=int, default=120); ap.add_argument("--ci-timeout", type=int, default=1800)
     ap.add_argument("--settle", type=int, default=90, help="extra wait for late desktop runs"); ap.add_argument("--no-ci", action="store_true"); ap.add_argument("--allow-empty", action="store_true")
-    ap.add_argument("--once", action="store_true"); ap.add_argument("--keep", action="store_true")
     ap.add_argument("--no-sandbox", action="store_true", help="skip sandbox-exec (CI runners, tests with fakes)")
     ap.add_argument("--merge-poll", type=int, default=300); ap.add_argument("--pr-base", default="main")
+    ap.add_argument("--once", action="store_true"); ap.add_argument("--keep", action="store_true")
     a = ap.parse_args()
     os.makedirs(LOG_DIR, exist_ok=True)
     if a.mode == "help": ap.print_help(); return
