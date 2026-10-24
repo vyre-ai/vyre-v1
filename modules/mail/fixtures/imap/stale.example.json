@@ -1,0 +1,16 @@
+{
+  "login": true,
+  "uidValidity": 9,
+  "messages": [
+    {
+      "uid": 2,
+      "providerId": "INBOX:9:2",
+      "rfcMessageId": "<epoch-2@acme.test>",
+      "from": { "address": "lee@acme.test" },
+      "to": [{ "address": "sam@vyre.test" }],
+      "subject": "After the folder was rebuilt",
+      "text": "UIDs restarted.",
+      "receivedAt": 1760000300000
+    }
+  ]
+}

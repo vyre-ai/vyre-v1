@@ -1,0 +1,47 @@
+name: shots
+# Side-by-side screenshots of real screens (Expo web export) against the prototype, paper and graphite, plus the theme_flash probe (ruling 14, ruling 21).
+# Runs on any branch push that touches ui, apps/app or the tooling; targets live in scripts/shots/targets.json and scripts/shots/targets/*.json.
+# The artifact `shots` holds <target>/<skin>-<size>-side-by-side.png and index.md. Dispatch `lockfile` to produce package-lock.json (never npm on the Mac).
+on:
+  push:
+    branches-ignore: [main]
+    paths: ["scripts/shots/**", "ui/**", "apps/app/**", "budgets.json", ".github/workflows/shots.yml"]
+  workflow_dispatch:
+    inputs:
+      lockfile:
+        description: "Only generate package-lock.json and upload it as the artifact `lockfile`"
+        required: false
+        default: "false"
+concurrency:
+  group: shots-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  lockfile:
+    if: github.event_name == 'workflow_dispatch' && inputs.lockfile == 'true' || contains(github.event.head_commit.message, '[lockfile]')
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve the dependency tree into package-lock.json
+        run: node scripts/shots/lockfile.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lockfile
+          path: package-lock.json
+          retention-days: 7
+  shots:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export the web build and take side-by-side screenshots (export budget 120 s)
+        run: node scripts/shots/shots.mjs --target all --out shots-out
+      - name: theme_flash probe (zero wrong frames)
+        run: node scripts/shots/theme-flash.mjs --skip-export
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shots
+          path: shots-out
+          retention-days: 14
+          if-no-files-found: ignore

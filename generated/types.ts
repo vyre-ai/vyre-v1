@@ -12652,6 +12652,45 @@ export type InboxUnmatchedOut = {
   next?: string;
   total?: number;
 };
+export type InvitesAcceptCreateAccountIn = {
+  code: string;
+  username: string;
+  displayName?: string;
+  password: string;
+  deviceName: string;
+  deviceClass: "desktop" | "phone" | "web" | "extension" | "daemon";
+  keys: {
+    personKeyByPassword: string;
+    personKeyByRecovery?: string;
+    publicKey: string;
+    privateKeyWrapped: string;
+    spaceKeys: Array<{
+        epoch: number;
+        wrapped: string;
+      }>;
+  };
+};
+export type InvitesAcceptCreateAccountOut = {
+  status: "ok" | "second_factor_required";
+  challengeId?: string;
+  session?: {
+    sessionId: string;
+    deviceId: string;
+    token: string;
+    expiresAt: number;
+    epoch: number;
+  };
+  keys?: {
+    personKeyByPassword: string;
+    personKeyByRecovery?: string;
+    publicKey: string;
+    privateKeyWrapped: string;
+    spaceKeys: Array<{
+        epoch: number;
+        wrapped: string;
+      }>;
+  };
+};
 export type JourneysAdvanceIn = {
   recordId: string;
 };
@@ -26466,6 +26505,7 @@ export interface CapMap {
   "inbox.thread": { in: InboxThreadIn; out: InboxThreadOut };
   "inbox.unmatch": { in: InboxUnmatchIn; out: InboxUnmatchOut };
   "inbox.unmatched": { in: InboxUnmatchedIn; out: InboxUnmatchedOut };
+  "invites.accept_create_account": { in: InvitesAcceptCreateAccountIn; out: InvitesAcceptCreateAccountOut };
   "journeys.advance": { in: JourneysAdvanceIn; out: JourneysAdvanceOut };
   "journeys.check_limits": { in: JourneysCheckLimitsIn; out: JourneysCheckLimitsOut };
   "journeys.create": { in: JourneysCreateIn; out: JourneysCreateOut };
@@ -29224,11 +29264,12 @@ export type PullRequestOpenedPayload = {
 export type RecordCreatedPayload = {
   recordId: string;
   type: string;
-  fields: Array<string>;
+  fields: Record<string, unknown>;
 };
 export type RecordDeletedPayload = {
   recordId: string;
   type: string;
+  prev: Record<string, unknown>;
 };
 export type RecordGapsFoundPayload = {
   recordId: string;
@@ -29257,7 +29298,8 @@ export type RecordRestoredPayload = {
 export type RecordUpdatedPayload = {
   recordId: string;
   type: string;
-  fields: Array<string>;
+  fields: Record<string, unknown>;
+  prev: Record<string, unknown>;
   version: number;
 };
 export type RecordValueProposedPayload = {

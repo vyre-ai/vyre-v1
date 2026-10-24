@@ -1,0 +1,57 @@
+{
+  "history": [
+    {
+      "id": "1001",
+      "messages": [
+        {
+          "id": "m1",
+          "threadId": "t1"
+        }
+      ],
+      "messagesAdded": [
+        {
+          "message": {
+            "id": "m1",
+            "threadId": "t1",
+            "labelIds": [
+              "INBOX"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "1002",
+      "messages": [
+        {
+          "id": "m2",
+          "threadId": "t2"
+        }
+      ],
+      "messagesAdded": [
+        {
+          "message": {
+            "id": "m2",
+            "threadId": "t2",
+            "labelIds": [
+              "INBOX"
+            ]
+          }
+        }
+      ],
+      "labelsAdded": [
+        {
+          "message": {
+            "id": "m0",
+            "threadId": "t0"
+          },
+          "labelIds": [
+            "STARRED"
+          ]
+        }
+      ]
+    }
+  ],
+  "nextPageToken": "p2",
+  "historyId": "1002"
+}

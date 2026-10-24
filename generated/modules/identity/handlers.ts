@@ -30,4 +30,5 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "identity.username_available": Handler<"identity.username_available", X>;
   "identity.verify_second_factor": Handler<"identity.verify_second_factor", X>;
   "identity.whoami": Handler<"identity.whoami", X>;
+  "invites.accept_create_account": Handler<"invites.accept_create_account", X>;
 }

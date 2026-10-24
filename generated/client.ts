@@ -1057,6 +1057,9 @@ export function createClient(transport: Transport) {
       unmatch: call("inbox.unmatch", 1),
       unmatched: call("inbox.unmatched", 1),
     },
+    invites: {
+      accept_create_account: call("invites.accept_create_account", 1),
+    },
     journeys: {
       advance: call("journeys.advance", 1),
       check_limits: call("journeys.check_limits", 1),
