@@ -3,8 +3,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   checkDiskEncryption, installerMayContinue, mountFor, parseDiskutil, parseFdesetup, parseMounts, parseZfsEncryption, stackIsEncrypted, toProbeResult,
-} from "../src/diskcheck/index.ts";
-import type { Probe } from "../src/diskcheck/index.ts";
+} from "./index.ts";
+import type { Probe } from "./index.ts";
 
 // ---- recorded output
 

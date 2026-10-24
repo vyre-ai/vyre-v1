@@ -1,8 +1,8 @@
 // The router against an in-memory Caddy admin API: what is sent, in what order, what is replaced, what stays, and how Caddy's refusals surface.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CaddyAdmin, CaddyError, CaddyRouter, RouteError } from "../src/caddy/index.ts";
-import { FakeCaddy } from "../src/caddy/fake.ts";
+import { CaddyAdmin, CaddyError, CaddyRouter, RouteError } from "./index.ts";
+import { FakeCaddy } from "./fake.ts";
 
 const HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 const clock = { t: 1_760_000_000_000 };

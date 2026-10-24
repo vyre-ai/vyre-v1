@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   acmePolicy, baseConfig, BASIC_USER, hostOf, LE_STAGING, normalizeHost, normalizeUpstream, RouteError, routesOf, siteRoute, withServer,
-} from "../src/caddy/index.ts";
+} from "./index.ts";
 
 const HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 

@@ -1,9 +1,9 @@
 // Certificate state: what counts as an issued certificate, pending then failed, and the expiry the Console shows for renewal.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CaddyAdmin, CaddyRouter, judgeCert } from "../src/caddy/index.ts";
-import type { PeerCert, PeerFn } from "../src/caddy/index.ts";
-import { FakeCaddy } from "../src/caddy/fake.ts";
+import { CaddyAdmin, CaddyRouter, judgeCert } from "./index.ts";
+import type { PeerCert, PeerFn } from "./index.ts";
+import { FakeCaddy } from "./fake.ts";
 
 const NOW = Date.parse("2026-10-25T12:00:00Z");
 const good = (o: Partial<PeerCert> = {}): PeerCert => ({
