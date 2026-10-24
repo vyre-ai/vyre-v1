@@ -176,6 +176,12 @@ export default defineManifest({
       in: { scope: t.enm('all', 'one'), agentId: t.opt(id.agent) }, out: { applied: t.int(), suggestions: t.int(), taskId: t.opt(id.task) },
       perm: 'agents.manage', level: 'manage', emits: ['agent.template_applied'], tool: 'agents', audit: 'always', risk: 'medium',
     }),
+    read('agents.guide.get', 'The Vyre agent guide (.vyre/guide.md): version and text, rewritten by app updates, loaded into every chat before VYRE.md', {
+      out: { version: t.str({ examples: ['1.0.0'] }), path: t.lit('.vyre/guide.md'), body: t.str() }, perm: null, level: 'view', tool: 'agents',
+    }),
+    read('agents.builtin_skills.list', 'Skills every agent carries, led by "Working in Vyre": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces', {
+      out: { skills: t.arr(t.obj({ key: t.str({ examples: ['working_in_vyre'] }), title: t.str(), version: t.str({ examples: ['1.0.0'] }), summary: t.str() })) }, perm: null, level: 'view', tool: 'agents',
+    }),
   ],
   events: [
     ev('agent.created', 'An agent was created', { p: { agentId: id.agent, name: t.str(), ownerId: id.user, templateVersion: t.int() }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is created' } }),

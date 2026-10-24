@@ -249,6 +249,36 @@ export type AccessGroupsCreateOut = {
     builtIn: boolean;
   };
 };
+export type AccessGroupsDefaultsGetIn = Record<string, unknown>;
+export type AccessGroupsDefaultsGetOut = {
+  groupId: string;
+  grants: Array<{
+      resource: {
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        id: string;
+      };
+      level: "view" | "use" | "edit" | "manage";
+    }>;
+};
+export type AccessGroupsDefaultsSetIn = {
+  grants: Array<{
+      resource: {
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        id: string;
+      };
+      level: "view" | "use" | "edit" | "manage";
+    }>;
+};
+export type AccessGroupsDefaultsSetOut = {
+  groupId: string;
+  grants: Array<{
+      resource: {
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        id: string;
+      };
+      level: "view" | "use" | "edit" | "manage";
+    }>;
+};
 export type AccessGroupsDeleteIn = {
   groupId: string;
 };
@@ -958,6 +988,15 @@ export type AccessViewAsOut = {
   previewToken: string;
   expiresAt: number;
 };
+export type AgentsBuiltinSkillsListIn = Record<string, unknown>;
+export type AgentsBuiltinSkillsListOut = {
+  skills: Array<{
+      key: string;
+      title: string;
+      version: string;
+      summary: string;
+    }>;
+};
 export type AgentsConfigGetIn = {
   agentId: string;
 };
@@ -1081,6 +1120,12 @@ export type AgentsGetOut = {
     createdAt: number;
     lastActiveAt?: number;
   };
+};
+export type AgentsGuideGetIn = Record<string, unknown>;
+export type AgentsGuideGetOut = {
+  version: string;
+  path: ".vyre/guide.md";
+  body: string;
 };
 export type AgentsLimitsGetIn = {
   agentId: string;
@@ -4446,6 +4491,51 @@ export type ChannelsMembersRemoveOut = {
     createdAt: number;
   };
 };
+export type ChannelsStreamIn = {
+  channelId: string;
+  before?: number;
+  limit?: number;
+  show?: Array<"people" | "agents" | "runs">;
+  expand?: Array<string>;
+};
+export type ChannelsStreamOut = {
+  items: Array<{
+      kind: "message" | "run" | "run_group";
+      at: number;
+      messageId?: string;
+      authorKind?: "person" | "agent" | "actor";
+      runId?: string;
+      runKind?: string;
+      name?: string;
+      status?: "queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped";
+      result?: string;
+      durationMs?: number;
+      groupKey?: string;
+      count?: number;
+      anyFailed?: boolean;
+      runIds?: Array<string>;
+    }>;
+  counts: {
+    people: number;
+    agents: number;
+    runs: number;
+  };
+  hidden: Array<"people" | "agents" | "runs">;
+  hasMore: boolean;
+};
+export type ChannelsStreamPrefsGetIn = {
+  channelId: string;
+};
+export type ChannelsStreamPrefsGetOut = {
+  hide: Array<"people" | "agents" | "runs">;
+};
+export type ChannelsStreamPrefsSetIn = {
+  channelId: string;
+  hide: Array<"people" | "agents" | "runs">;
+};
+export type ChannelsStreamPrefsSetOut = {
+  hide: Array<"people" | "agents" | "runs">;
+};
 export type ChannelsUnarchiveIn = {
   channelId: string;
 };
@@ -7325,6 +7415,40 @@ export type EmailBuilderSendTestIn = {
 export type EmailBuilderSendTestOut = {
   sent: boolean;
 };
+export type EmailBuilderSnippetsDeleteIn = {
+  snippetId: string;
+};
+export type EmailBuilderSnippetsDeleteOut = {
+  deleted: boolean;
+};
+export type EmailBuilderSnippetsListIn = Record<string, unknown>;
+export type EmailBuilderSnippetsListOut = {
+  snippets: Array<{
+      snippetId: string;
+      name: string;
+      body: string;
+      shortcut?: string;
+      shared: boolean;
+      updatedAt: number;
+    }>;
+};
+export type EmailBuilderSnippetsSaveIn = {
+  snippetId?: string;
+  name: string;
+  body: string;
+  shortcut?: string;
+  shared?: boolean;
+};
+export type EmailBuilderSnippetsSaveOut = {
+  snippet: {
+    snippetId: string;
+    name: string;
+    body: string;
+    shortcut?: string;
+    shared: boolean;
+    updatedAt: number;
+  };
+};
 export type EmailBuilderVersionsIn = {
   emailId: string;
 };
@@ -9475,6 +9599,16 @@ export type FormsPublishIn = {
 export type FormsPublishOut = {
   url: string;
   embed: string;
+};
+export type FormsSavePartialIn = {
+  slug: string;
+  token: string;
+  answers: Record<string, unknown>;
+  step?: number;
+};
+export type FormsSavePartialOut = {
+  saved: boolean;
+  expiresAt?: number;
 };
 export type FormsSubmissionsIn = {
   formId: string;
@@ -17342,6 +17476,18 @@ export type RecordsChangesOut = {
     }>;
   next: number;
 };
+export type RecordsCompletenessIn = {
+  type: string;
+  recordId: string;
+};
+export type RecordsCompletenessOut = {
+  filled: number;
+  total: number;
+  missing: Array<{
+      field: string;
+      title: string;
+    }>;
+};
 export type RecordsCountsIn = {
   type: string;
   filter?: unknown;
@@ -17389,6 +17535,18 @@ export type RecordsExportIn = {
 };
 export type RecordsExportOut = {
   fileId: string;
+};
+export type RecordsGapCheckIn = {
+  type: string;
+  recordId?: string;
+};
+export type RecordsGapCheckOut = {
+  gaps: Array<{
+      recordId: string;
+      field: string;
+      reason: "missing" | "stale";
+      route: "ai_field" | "agent_lookup" | "task" | "form";
+    }>;
 };
 export type RecordsGetIn = {
   type: string;
@@ -17449,6 +17607,22 @@ export type RecordsMergeOut = {
   };
   undoUntil: number;
 };
+export type RecordsPagePrefsGetIn = {
+  type: string;
+};
+export type RecordsPagePrefsGetOut = {
+  folded: Array<string>;
+  keepVisible: Array<string>;
+};
+export type RecordsPagePrefsSetIn = {
+  type: string;
+  folded?: Array<string>;
+  keepVisible?: Array<string>;
+};
+export type RecordsPagePrefsSetOut = {
+  folded: Array<string>;
+  keepVisible: Array<string>;
+};
 export type RecordsQueryIn = {
   type: string;
   filter?: unknown;
@@ -17496,6 +17670,24 @@ export type RecordsRelateOut = {
     deletedAt?: number;
     holds: number;
   };
+};
+export type RecordsRelationsMapIn = {
+  type: string;
+  recordId: string;
+  hops?: number;
+};
+export type RecordsRelationsMapOut = {
+  nodes: Array<{
+      recordId: string;
+      type: string;
+      title: string;
+      hop: number;
+    }>;
+  edges: Array<{
+      from: string;
+      to: string;
+      field: string;
+    }>;
 };
 export type RecordsReleaseHoldIn = {
   type: string;
@@ -17587,6 +17779,62 @@ export type RecordsUpdateOut = {
     holds: number;
   };
 };
+export type RecordsValueSourceIn = {
+  type: string;
+  recordId: string;
+  field: string;
+};
+export type RecordsValueSourceOut = {
+  source: {
+    kind: "agent" | "person" | "form" | "automation" | "sync" | "import";
+    actor: string;
+    link?: string;
+    at: number;
+    state: "counted" | "needs_review" | "rejected";
+  };
+};
+export type RecordsValuesPendingIn = {
+  type: string;
+  cursor?: string;
+  limit?: number;
+};
+export type RecordsValuesPendingOut = {
+  values: Array<{
+      recordId: string;
+      type: string;
+      field: string;
+      value?: unknown;
+      source: {
+        kind: "agent" | "person" | "form" | "automation" | "sync" | "import";
+        actor: string;
+        link?: string;
+        at: number;
+        state: "counted" | "needs_review" | "rejected";
+      };
+    }>;
+  next?: string;
+  total?: number;
+};
+export type RecordsValuesReviewIn = {
+  type: string;
+  recordId: string;
+  field: string;
+  decision: "accept" | "reject";
+  note?: string;
+};
+export type RecordsValuesReviewOut = {
+  record: {
+    id: string;
+    type: string;
+    version: number;
+    label: number;
+    fields: Record<string, unknown>;
+    createdAt: number;
+    updatedAt: number;
+    deletedAt?: number;
+    holds: number;
+  };
+};
 export type RecordsVersionsIn = {
   type: string;
   recordId: string;
@@ -17624,6 +17872,13 @@ export type ReportsGetOut = {
       device: string;
     };
     screenshotFileId?: string;
+    errors?: Array<{
+        code: string;
+        message: string;
+        at: number;
+        traceId?: string;
+      }>;
+    clientLogFileId?: string;
     note?: string;
   };
   status: string;
@@ -17687,6 +17942,13 @@ export type ReportsPreviewOut = {
       device: string;
     };
     screenshotFileId?: string;
+    errors?: Array<{
+        code: string;
+        message: string;
+        at: number;
+        traceId?: string;
+      }>;
+    clientLogFileId?: string;
     note?: string;
   };
   redactions: number;
@@ -17726,6 +17988,13 @@ export type ReportsSubmitIn = {
       device: string;
     };
     screenshotFileId?: string;
+    errors?: Array<{
+        code: string;
+        message: string;
+        at: number;
+        traceId?: string;
+      }>;
+    clientLogFileId?: string;
     note?: string;
   };
   idempotencyKey: string;
@@ -18823,6 +19092,43 @@ export type SchemaFieldTypesOut = {
       sealed: boolean;
     }>;
 };
+export type SchemaGapRulesListIn = {
+  type: string;
+};
+export type SchemaGapRulesListOut = {
+  rules: Array<{
+      ruleId: string;
+      field: string;
+      when: "missing" | "stale";
+      staleAfterDays?: number;
+      route: "ai_field" | "agent_lookup" | "task" | "form";
+      agentId?: string;
+      enabled: boolean;
+    }>;
+};
+export type SchemaGapRulesSetIn = {
+  type: string;
+  rule: {
+    ruleId: string;
+    field: string;
+    when: "missing" | "stale";
+    staleAfterDays?: number;
+    route: "ai_field" | "agent_lookup" | "task" | "form";
+    agentId?: string;
+    enabled: boolean;
+  };
+};
+export type SchemaGapRulesSetOut = {
+  rule: {
+    ruleId: string;
+    field: string;
+    when: "missing" | "stale";
+    staleAfterDays?: number;
+    route: "ai_field" | "agent_lookup" | "task" | "form";
+    agentId?: string;
+    enabled: boolean;
+  };
+};
 export type SchemaInferIn = {
   text?: string;
   fileId?: string;
@@ -18847,6 +19153,34 @@ export type SchemaInferOut = {
     }>;
   rowCount: number;
 };
+export type SchemaLayoutGetIn = {
+  type: string;
+};
+export type SchemaLayoutGetOut = {
+  sections: Array<{
+      key: string;
+      title: string;
+      fields: Array<string>;
+      folded?: boolean;
+    }>;
+};
+export type SchemaLayoutSetIn = {
+  type: string;
+  sections: Array<{
+      key: string;
+      title: string;
+      fields: Array<string>;
+      folded?: boolean;
+    }>;
+};
+export type SchemaLayoutSetOut = {
+  sections: Array<{
+      key: string;
+      title: string;
+      fields: Array<string>;
+      folded?: boolean;
+    }>;
+};
 export type SchemaMapIn = {
   type?: string;
   hops?: number;
@@ -18870,6 +19204,18 @@ export type SchemaRestoreFieldIn = {
 };
 export type SchemaRestoreFieldOut = {
   ok: boolean;
+};
+export type SchemaSensitivityScanIn = {
+  type: string;
+};
+export type SchemaSensitivityScanOut = {
+  suggestions: Array<{
+      field: string;
+      kind: "id_number" | "card" | "bank" | "health" | "other";
+      matches: number;
+      suggestedLabel: "public" | "internal" | "confidential" | "restricted";
+      seal: boolean;
+    }>;
 };
 export type SchemaSetLabelIn = {
   type: string;
@@ -24831,6 +25177,25 @@ export type VaultShareIn = {
 export type VaultShareOut = {
   granted: boolean;
 };
+export type VaultSiteRulesListIn = Record<string, unknown>;
+export type VaultSiteRulesListOut = {
+  sites: Array<{
+      host: string;
+      neverFill: boolean;
+      neverSave: boolean;
+      at: number;
+    }>;
+};
+export type VaultSiteRulesSetIn = {
+  host: string;
+  neverFill: boolean;
+  neverSave: boolean;
+};
+export type VaultSiteRulesSetOut = {
+  host: string;
+  neverFill: boolean;
+  neverSave: boolean;
+};
 export type VaultUnshareIn = {
   resource: {
     type: "vault_item" | "vault_folder";
@@ -25360,6 +25725,8 @@ export interface CapMap {
   "access.grants.update": { in: AccessGrantsUpdateIn; out: AccessGrantsUpdateOut };
   "access.groups.add_member": { in: AccessGroupsAddMemberIn; out: AccessGroupsAddMemberOut };
   "access.groups.create": { in: AccessGroupsCreateIn; out: AccessGroupsCreateOut };
+  "access.groups.defaults_get": { in: AccessGroupsDefaultsGetIn; out: AccessGroupsDefaultsGetOut };
+  "access.groups.defaults_set": { in: AccessGroupsDefaultsSetIn; out: AccessGroupsDefaultsSetOut };
   "access.groups.delete": { in: AccessGroupsDeleteIn; out: AccessGroupsDeleteOut };
   "access.groups.get": { in: AccessGroupsGetIn; out: AccessGroupsGetOut };
   "access.groups.list": { in: AccessGroupsListIn; out: AccessGroupsListOut };
@@ -25398,11 +25765,13 @@ export interface CapMap {
   "access.shares_of": { in: AccessSharesOfIn; out: AccessSharesOfOut };
   "access.unshare": { in: AccessUnshareIn; out: AccessUnshareOut };
   "access.view_as": { in: AccessViewAsIn; out: AccessViewAsOut };
+  "agents.builtin_skills.list": { in: AgentsBuiltinSkillsListIn; out: AgentsBuiltinSkillsListOut };
   "agents.config.get": { in: AgentsConfigGetIn; out: AgentsConfigGetOut };
   "agents.config.validate": { in: AgentsConfigValidateIn; out: AgentsConfigValidateOut };
   "agents.create": { in: AgentsCreateIn; out: AgentsCreateOut };
   "agents.delete": { in: AgentsDeleteIn; out: AgentsDeleteOut };
   "agents.get": { in: AgentsGetIn; out: AgentsGetOut };
+  "agents.guide.get": { in: AgentsGuideGetIn; out: AgentsGuideGetOut };
   "agents.limits.get": { in: AgentsLimitsGetIn; out: AgentsLimitsGetOut };
   "agents.list": { in: AgentsListIn; out: AgentsListOut };
   "agents.pause": { in: AgentsPauseIn; out: AgentsPauseOut };
@@ -25542,6 +25911,9 @@ export interface CapMap {
   "channels.list": { in: ChannelsListIn; out: ChannelsListOut };
   "channels.members.add": { in: ChannelsMembersAddIn; out: ChannelsMembersAddOut };
   "channels.members.remove": { in: ChannelsMembersRemoveIn; out: ChannelsMembersRemoveOut };
+  "channels.stream": { in: ChannelsStreamIn; out: ChannelsStreamOut };
+  "channels.stream_prefs.get": { in: ChannelsStreamPrefsGetIn; out: ChannelsStreamPrefsGetOut };
+  "channels.stream_prefs.set": { in: ChannelsStreamPrefsSetIn; out: ChannelsStreamPrefsSetOut };
   "channels.unarchive": { in: ChannelsUnarchiveIn; out: ChannelsUnarchiveOut };
   "channels.update": { in: ChannelsUpdateIn; out: ChannelsUpdateOut };
   "chat.answer_block": { in: ChatAnswerBlockIn; out: ChatAnswerBlockOut };
@@ -25748,6 +26120,9 @@ export interface CapMap {
   "email_builder.restore_version": { in: EmailBuilderRestoreVersionIn; out: EmailBuilderRestoreVersionOut };
   "email_builder.save": { in: EmailBuilderSaveIn; out: EmailBuilderSaveOut };
   "email_builder.send_test": { in: EmailBuilderSendTestIn; out: EmailBuilderSendTestOut };
+  "email_builder.snippets.delete": { in: EmailBuilderSnippetsDeleteIn; out: EmailBuilderSnippetsDeleteOut };
+  "email_builder.snippets.list": { in: EmailBuilderSnippetsListIn; out: EmailBuilderSnippetsListOut };
+  "email_builder.snippets.save": { in: EmailBuilderSnippetsSaveIn; out: EmailBuilderSnippetsSaveOut };
   "email_builder.versions": { in: EmailBuilderVersionsIn; out: EmailBuilderVersionsOut };
   "engine.account.resolve": { in: EngineAccountResolveIn; out: EngineAccountResolveOut };
   "engine.accounts.list": { in: EngineAccountsListIn; out: EngineAccountsListOut };
@@ -25877,6 +26252,7 @@ export interface CapMap {
   "forms.link_revoke": { in: FormsLinkRevokeIn; out: FormsLinkRevokeOut };
   "forms.list": { in: FormsListIn; out: FormsListOut };
   "forms.publish": { in: FormsPublishIn; out: FormsPublishOut };
+  "forms.save_partial": { in: FormsSavePartialIn; out: FormsSavePartialOut };
   "forms.submissions": { in: FormsSubmissionsIn; out: FormsSubmissionsOut };
   "forms.submit": { in: FormsSubmitIn; out: FormsSubmitOut };
   "forms.survey_results": { in: FormsSurveyResultsIn; out: FormsSurveyResultsOut };
@@ -26387,22 +26763,30 @@ export interface CapMap {
   "records.as_of": { in: RecordsAsOfIn; out: RecordsAsOfOut };
   "records.bulk_upsert": { in: RecordsBulkUpsertIn; out: RecordsBulkUpsertOut };
   "records.changes": { in: RecordsChangesIn; out: RecordsChangesOut };
+  "records.completeness": { in: RecordsCompletenessIn; out: RecordsCompletenessOut };
   "records.counts": { in: RecordsCountsIn; out: RecordsCountsOut };
   "records.create": { in: RecordsCreateIn; out: RecordsCreateOut };
   "records.delete": { in: RecordsDeleteIn; out: RecordsDeleteOut };
   "records.export": { in: RecordsExportIn; out: RecordsExportOut };
+  "records.gap_check": { in: RecordsGapCheckIn; out: RecordsGapCheckOut };
   "records.get": { in: RecordsGetIn; out: RecordsGetOut };
   "records.history": { in: RecordsHistoryIn; out: RecordsHistoryOut };
   "records.hold": { in: RecordsHoldIn; out: RecordsHoldOut };
   "records.merge": { in: RecordsMergeIn; out: RecordsMergeOut };
+  "records.page_prefs.get": { in: RecordsPagePrefsGetIn; out: RecordsPagePrefsGetOut };
+  "records.page_prefs.set": { in: RecordsPagePrefsSetIn; out: RecordsPagePrefsSetOut };
   "records.query": { in: RecordsQueryIn; out: RecordsQueryOut };
   "records.relate": { in: RecordsRelateIn; out: RecordsRelateOut };
+  "records.relations_map": { in: RecordsRelationsMapIn; out: RecordsRelationsMapOut };
   "records.release_hold": { in: RecordsReleaseHoldIn; out: RecordsReleaseHoldOut };
   "records.restore": { in: RecordsRestoreIn; out: RecordsRestoreOut };
   "records.restore_version": { in: RecordsRestoreVersionIn; out: RecordsRestoreVersionOut };
   "records.reveal": { in: RecordsRevealIn; out: RecordsRevealOut };
   "records.search": { in: RecordsSearchIn; out: RecordsSearchOut };
   "records.update": { in: RecordsUpdateIn; out: RecordsUpdateOut };
+  "records.value_source": { in: RecordsValueSourceIn; out: RecordsValueSourceOut };
+  "records.values.pending": { in: RecordsValuesPendingIn; out: RecordsValuesPendingOut };
+  "records.values.review": { in: RecordsValuesReviewIn; out: RecordsValuesReviewOut };
   "records.versions": { in: RecordsVersionsIn; out: RecordsVersionsOut };
   "reports.get": { in: ReportsGetIn; out: ReportsGetOut };
   "reports.health": { in: ReportsHealthIn; out: ReportsHealthOut };
@@ -26471,9 +26855,14 @@ export interface CapMap {
   "schema.describe": { in: SchemaDescribeIn; out: SchemaDescribeOut };
   "schema.diff": { in: SchemaDiffIn; out: SchemaDiffOut };
   "schema.field_types": { in: SchemaFieldTypesIn; out: SchemaFieldTypesOut };
+  "schema.gap_rules.list": { in: SchemaGapRulesListIn; out: SchemaGapRulesListOut };
+  "schema.gap_rules.set": { in: SchemaGapRulesSetIn; out: SchemaGapRulesSetOut };
   "schema.infer": { in: SchemaInferIn; out: SchemaInferOut };
+  "schema.layout.get": { in: SchemaLayoutGetIn; out: SchemaLayoutGetOut };
+  "schema.layout.set": { in: SchemaLayoutSetIn; out: SchemaLayoutSetOut };
   "schema.map": { in: SchemaMapIn; out: SchemaMapOut };
   "schema.restore_field": { in: SchemaRestoreFieldIn; out: SchemaRestoreFieldOut };
+  "schema.sensitivity.scan": { in: SchemaSensitivityScanIn; out: SchemaSensitivityScanOut };
   "schema.set_label": { in: SchemaSetLabelIn; out: SchemaSetLabelOut };
   "schema.trash.list": { in: SchemaTrashListIn; out: SchemaTrashListOut };
   "schema.types.get": { in: SchemaTypesGetIn; out: SchemaTypesGetOut };
@@ -26775,6 +27164,8 @@ export interface CapMap {
   "vault.requests.list": { in: VaultRequestsListIn; out: VaultRequestsListOut };
   "vault.service_health": { in: VaultServiceHealthIn; out: VaultServiceHealthOut };
   "vault.share": { in: VaultShareIn; out: VaultShareOut };
+  "vault.site_rules.list": { in: VaultSiteRulesListIn; out: VaultSiteRulesListOut };
+  "vault.site_rules.set": { in: VaultSiteRulesSetIn; out: VaultSiteRulesSetOut };
   "vault.unshare": { in: VaultUnshareIn; out: VaultUnshareOut };
   "vault.use": { in: VaultUseIn; out: VaultUseOut };
   "views.delete": { in: ViewsDeleteIn; out: ViewsDeleteOut };
@@ -26824,6 +27215,10 @@ export type AccessDeclinedPayload = {
   };
   requester: string;
   note?: string;
+};
+export type AccessEveryoneDefaultsChangedPayload = {
+  grants: number;
+  by: string;
 };
 export type AccessGrantedPayload = {
   requestId: string;
@@ -28835,6 +29230,12 @@ export type RecordDeletedPayload = {
   recordId: string;
   type: string;
 };
+export type RecordGapsFoundPayload = {
+  recordId: string;
+  type: string;
+  fields: Array<string>;
+  ruleId: string;
+};
 export type RecordHeldPayload = {
   recordId: string;
   type: string;
@@ -28858,6 +29259,26 @@ export type RecordUpdatedPayload = {
   type: string;
   fields: Array<string>;
   version: number;
+};
+export type RecordValueProposedPayload = {
+  recordId: string;
+  type: string;
+  field: string;
+  source: {
+    kind: "agent" | "person" | "form" | "automation" | "sync" | "import";
+    actor: string;
+    link?: string;
+    at: number;
+    state: "counted" | "needs_review" | "rejected";
+  };
+  reviewRequired: boolean;
+};
+export type RecordValueReviewedPayload = {
+  recordId: string;
+  type: string;
+  field: string;
+  decision: "accepted" | "rejected";
+  by: string;
 };
 export type RecoverySavedPayload = {
   personId: string;
@@ -29889,10 +30310,20 @@ export type VaultRevealedPayload = {
   itemId: string;
   fields: Array<string>;
 };
+export type VaultRotationDuePayload = {
+  itemId: string;
+  dueSince: number;
+};
 export type VaultScrubMissPayload = {
   itemId: string;
   place: "terminal" | "http" | "browser" | "file" | "chat";
   traceId: string;
+};
+export type VaultSiteRuleChangedPayload = {
+  personId: string;
+  host: string;
+  neverFill: boolean;
+  neverSave: boolean;
 };
 export type VaultUsedPayload = {
   itemId: string;
@@ -30000,6 +30431,7 @@ export type ZoomEventReceivedPayload = {
 export interface EventMap {
   "access.changed": AccessChangedPayload;
   "access.declined": AccessDeclinedPayload;
+  "access.everyone_defaults_changed": AccessEveryoneDefaultsChangedPayload;
   "access.granted": AccessGrantedPayload;
   "access.requested": AccessRequestedPayload;
   "access_review.closed": AccessReviewClosedPayload;
@@ -30381,11 +30813,14 @@ export interface EventMap {
   "pull_request.opened": PullRequestOpenedPayload;
   "record.created": RecordCreatedPayload;
   "record.deleted": RecordDeletedPayload;
+  "record.gaps_found": RecordGapsFoundPayload;
   "record.held": RecordHeldPayload;
   "record.hold_released": RecordHoldReleasedPayload;
   "record.merged": RecordMergedPayload;
   "record.restored": RecordRestoredPayload;
   "record.updated": RecordUpdatedPayload;
+  "record.value_proposed": RecordValueProposedPayload;
+  "record.value_reviewed": RecordValueReviewedPayload;
   "recovery.saved": RecoverySavedPayload;
   "refund.created": RefundCreatedPayload;
   "registration.status_changed": RegistrationStatusChangedPayload;
@@ -30570,7 +31005,9 @@ export interface EventMap {
   "vault.request_fulfilled": VaultRequestFulfilledPayload;
   "vault.requested": VaultRequestedPayload;
   "vault.revealed": VaultRevealedPayload;
+  "vault.rotation_due": VaultRotationDuePayload;
   "vault.scrub_miss": VaultScrubMissPayload;
+  "vault.site_rule_changed": VaultSiteRuleChangedPayload;
   "vault.used": VaultUsedPayload;
   "view.deleted": ViewDeletedPayload;
   "view.published": ViewPublishedPayload;

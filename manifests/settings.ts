@@ -67,6 +67,11 @@ export default defineManifest({
   ],
 
   settings: [
+    setting('security.level', 'person', 'This computer', 'Security level', t.enm('relaxed', 'standard', 'strict'), 'standard', { floorable: true }),
+    setting('security.terminal_mode', 'person', 'This computer', 'Terminal prompts on this computer (Ask, Allow or Auto; one value per Space)', t.obj({ base: t.enm('ask', 'allow', 'auto'), spaces: t.rec(t.enm('ask', 'allow', 'auto')) }), { base: 'ask', spaces: {} }, { floorable: true }),
+    setting('security.chrome_mode', 'person', 'This computer', 'Chrome prompts on this computer (Ask, Allow or Auto; one value per Space)', t.obj({ base: t.enm('ask', 'allow', 'auto'), spaces: t.rec(t.enm('ask', 'allow', 'auto')) }), { base: 'ask', spaces: {} }, { floorable: true }),
+    setting('security.team_agents_on_my_computer', 'person', 'This computer', 'Let team agents use my terminal (per Space, locked to a work folder)', t.rec(t.bool()), {}),
+    setting('chrome.agents_use_my_browser', 'person', 'This computer', 'Let agents use my Chrome (per Space, only that Space agents, with a visible indicator)', t.rec(t.bool()), {}),
     setting('profile.display_name', 'person', 'profile', 'Name', t.str(), ''),
     setting('profile.handle', 'person', 'profile', 'Handle', t.str({ pattern: '^([a-z0-9_.-]{2,32})?$' }), ''),
     setting('profile.title', 'person', 'profile', 'Title', t.str(), ''),

@@ -339,9 +339,23 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.console.backups",
+      "place": "console",
+      "screen": "console.backups"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.console.connector-build",
       "place": "console",
       "screen": "console.connector-build"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.diagnostics",
+      "place": "console",
+      "screen": "console.diagnostics"
     },
     {
       "completeMs": 100,
@@ -353,9 +367,37 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.console.labels",
+      "place": "console",
+      "screen": "console.labels"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.logging",
+      "place": "console",
+      "screen": "console.logging"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.console.mcp-sessions",
       "place": "console",
       "screen": "console.mcp-sessions"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.network",
+      "place": "console",
+      "screen": "console.network"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.outside-actors",
+      "place": "console",
+      "screen": "console.outside-actors"
     },
     {
       "completeMs": 300,
@@ -374,6 +416,20 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.console.server-logs",
+      "place": "console",
+      "screen": "console.server-logs"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.server-updates",
+      "place": "console",
+      "screen": "console.server-updates"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.console.sources",
       "place": "console",
       "screen": "console.sources"
@@ -384,6 +440,13 @@
       "id": "screen.console.speed",
       "place": "console",
       "screen": "console.speed"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.support-bundle",
+      "place": "console",
+      "screen": "console.support-bundle"
     },
     {
       "completeMs": 100,
@@ -1014,6 +1077,20 @@
       "id": "screen.shell.conflicts-tab",
       "place": "shell",
       "screen": "shell.conflicts-tab"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.shell.new-tab",
+      "place": "shell",
+      "screen": "shell.new-tab"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.shell.report-problem",
+      "place": "shell",
+      "screen": "shell.report-problem"
     },
     {
       "completeMs": 100,

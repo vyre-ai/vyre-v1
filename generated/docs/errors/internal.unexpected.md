@@ -17,6 +17,8 @@ HTTP 500. Retryable: yes.
 - access.grants.update
 - access.groups.add_member
 - access.groups.create
+- access.groups.defaults_get
+- access.groups.defaults_set
 - access.groups.delete
 - access.groups.get
 - access.groups.list
@@ -29,5 +31,3 @@ HTTP 500. Retryable: yes.
 - access.policies.reset
 - access.policies.set
 - access.principals.effective
-- access.principals.get
-- access.principals.list

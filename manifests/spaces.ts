@@ -99,5 +99,6 @@ export default defineManifest({
   settings: [
     setting('space.allowed_ai_accounts', 'space', 'console.space', 'Allowed AI accounts', t.enm('any', 'company'), 'any', { floorable: true }),
     setting('space.skin_default', 'space', 'console.space', 'Default skin', t.str(), 'classic'),
+    setting('space.data_location', 'space', 'console.space', 'Data location', t.str({ examples: ['EU'] }), 'where the Space server runs'),
   ],
 });

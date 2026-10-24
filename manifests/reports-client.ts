@@ -1,5 +1,5 @@
 // reports-client (lane L7b): Report a problem, client half (spec 5 Report a problem, ARCH 7.14).
-import { create, defineManifest, ev, field, health, outward, read, rtype, setting, t, write } from '../packages/contracts/src/index.ts';
+import { create, defineManifest, ev, field, health, outward, read, rtype, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut } from './_common.ts';
 
 const reportRef = t.id('rpt');
@@ -9,6 +9,8 @@ const bundle = t.obj({
   events: t.arr(t.obj({ type: t.str(), at: t.ts(), traceId: t.opt(id.trace) })),
   versions: t.obj({ app: t.str(), server: t.str(), device: t.str() }),
   screenshotFileId: t.opt(id.file),
+  errors: t.opt(t.arr(t.obj({ code: t.str(), message: t.str(), at: t.ts(), traceId: t.opt(id.trace) }), { maxItems: 50 })),
+  clientLogFileId: t.opt(id.file),
   note: t.opt(t.str({ maxLength: 500 })),
 });
 const policy = t.enm('on', 'ask', 'off');
@@ -44,5 +46,11 @@ export default defineManifest({
     read('reports.health', 'Probe: reports.vyre.run reachable and the host key registered', { out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) } }),
   ],
   health: [health('reports.service', 'Problem report service reachable', 'reports.health', 'Check the network; reports queue locally until it returns.')],
+  screens: [
+    screen('shell.report-problem', 'shell', 'ui:ReportProblemSheet', {
+      slot: 'sheet', q: { preview: ['reports.preview', { context: '/state/context', note: '/draft/note' }, false] }, a: { send: ['reports.submit', { bundle: '/state/bundle' }] },
+      empty: 'Nothing was captured', primary: 'Send', keys: [{ combo: 'Cmd-Shift-/', action: 'open' }],
+    }),
+  ],
   settings: [setting('reports.vyre', 'space', 'ai', 'Send problem reports to the Vyre team', policy, 'on', { floorable: true })],
 });

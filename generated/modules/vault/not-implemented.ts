@@ -43,6 +43,8 @@ export const handlers: Handlers<HandlerCtx> = {
   "vault.report_scrub_miss": async (ctx) => { throw new VyreErr(notImplemented("vault.report_scrub_miss", ctx.trace)); },
   "vault.service_health": async (ctx) => { throw new VyreErr(notImplemented("vault.service_health", ctx.trace)); },
   "vault.share": async (ctx) => { throw new VyreErr(notImplemented("vault.share", ctx.trace)); },
+  "vault.site_rules.list": async (ctx) => { throw new VyreErr(notImplemented("vault.site_rules.list", ctx.trace)); },
+  "vault.site_rules.set": async (ctx) => { throw new VyreErr(notImplemented("vault.site_rules.set", ctx.trace)); },
   "vault.unshare": async (ctx) => { throw new VyreErr(notImplemented("vault.unshare", ctx.trace)); },
   "vault.use": async (ctx) => { throw new VyreErr(notImplemented("vault.use", ctx.trace)); },
 };

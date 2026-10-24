@@ -1,0 +1,12 @@
+name: golden
+# Golden flows on the seeded Space, run on demand and from release. Push and main run the same script inside check.yml and main.yml.
+on:
+  workflow_call:
+  workflow_dispatch:
+jobs:
+  golden:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm run golden

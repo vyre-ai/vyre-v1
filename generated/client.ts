@@ -28,6 +28,8 @@ export function createClient(transport: Transport) {
       groups: {
         add_member: call("access.groups.add_member", 1),
         create: call("access.groups.create", 1),
+        defaults_get: call("access.groups.defaults_get", 1),
+        defaults_set: call("access.groups.defaults_set", 1),
         delete: call("access.groups.delete", 1),
         get: call("access.groups.get", 1),
         list: call("access.groups.list", 1),
@@ -81,6 +83,9 @@ export function createClient(transport: Transport) {
       view_as: call("access.view_as", 1),
     },
     agents: {
+      builtin_skills: {
+        list: call("agents.builtin_skills.list", 1),
+      },
       config: {
         get: call("agents.config.get", 1),
         validate: call("agents.config.validate", 1),
@@ -88,6 +93,9 @@ export function createClient(transport: Transport) {
       create: call("agents.create", 1),
       delete: call("agents.delete", 1),
       get: call("agents.get", 1),
+      guide: {
+        get: call("agents.guide.get", 1),
+      },
       limits: {
         get: call("agents.limits.get", 1),
       },
@@ -284,6 +292,11 @@ export function createClient(transport: Transport) {
       members: {
         add: call("channels.members.add", 1),
         remove: call("channels.members.remove", 1),
+      },
+      stream: call("channels.stream", 1),
+      stream_prefs: {
+        get: call("channels.stream_prefs.get", 1),
+        set: call("channels.stream_prefs.set", 1),
       },
       unarchive: call("channels.unarchive", 1),
       update: call("channels.update", 1),
@@ -563,6 +576,11 @@ export function createClient(transport: Transport) {
       restore_version: call("email_builder.restore_version", 1),
       save: call("email_builder.save", 1),
       send_test: call("email_builder.send_test", 1),
+      snippets: {
+        delete: call("email_builder.snippets.delete", 1),
+        list: call("email_builder.snippets.list", 1),
+        save: call("email_builder.snippets.save", 1),
+      },
       versions: call("email_builder.versions", 1),
     },
     engine: {
@@ -758,6 +776,7 @@ export function createClient(transport: Transport) {
       link_revoke: call("forms.link_revoke", 1),
       list: call("forms.list", 1),
       publish: call("forms.publish", 1),
+      save_partial: call("forms.save_partial", 1),
       submissions: call("forms.submissions", 1),
       submit: call("forms.submit", 1),
       survey_results: call("forms.survey_results", 1),
@@ -1460,22 +1479,34 @@ export function createClient(transport: Transport) {
       as_of: call("records.as_of", 1),
       bulk_upsert: call("records.bulk_upsert", 1),
       changes: call("records.changes", 1),
+      completeness: call("records.completeness", 1),
       counts: call("records.counts", 1),
       create: call("records.create", 1),
       delete: call("records.delete", 1),
       export: call("records.export", 1),
+      gap_check: call("records.gap_check", 1),
       get: call("records.get", 1),
       history: call("records.history", 1),
       hold: call("records.hold", 1),
       merge: call("records.merge", 1),
+      page_prefs: {
+        get: call("records.page_prefs.get", 1),
+        set: call("records.page_prefs.set", 1),
+      },
       query: call("records.query", 1),
       relate: call("records.relate", 1),
+      relations_map: call("records.relations_map", 1),
       release_hold: call("records.release_hold", 1),
       restore: call("records.restore", 1),
       restore_version: call("records.restore_version", 1),
       reveal: call("records.reveal", 1),
       search: call("records.search", 1),
       update: call("records.update", 1),
+      value_source: call("records.value_source", 1),
+      values: {
+        pending: call("records.values.pending", 1),
+        review: call("records.values.review", 1),
+      },
       versions: call("records.versions", 1),
     },
     reports: {
@@ -1566,9 +1597,20 @@ export function createClient(transport: Transport) {
       describe: call("schema.describe", 1),
       diff: call("schema.diff", 1),
       field_types: call("schema.field_types", 1),
+      gap_rules: {
+        list: call("schema.gap_rules.list", 1),
+        set: call("schema.gap_rules.set", 1),
+      },
       infer: call("schema.infer", 1),
+      layout: {
+        get: call("schema.layout.get", 1),
+        set: call("schema.layout.set", 1),
+      },
       map: call("schema.map", 1),
       restore_field: call("schema.restore_field", 1),
+      sensitivity: {
+        scan: call("schema.sensitivity.scan", 1),
+      },
       set_label: call("schema.set_label", 1),
       trash: {
         list: call("schema.trash.list", 1),
@@ -2004,6 +2046,10 @@ export function createClient(transport: Transport) {
       },
       service_health: call("vault.service_health", 1),
       share: call("vault.share", 1),
+      site_rules: {
+        list: call("vault.site_rules.list", 1),
+        set: call("vault.site_rules.set", 1),
+      },
       unshare: call("vault.unshare", 1),
       use: call("vault.use", 1),
     },

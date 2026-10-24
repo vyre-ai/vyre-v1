@@ -28,6 +28,8 @@ export function stubs(ctx: CallCtx) {
       groups: {
         add_member: call("access.groups.add_member"),
         create: call("access.groups.create"),
+        defaults_get: call("access.groups.defaults_get"),
+        defaults_set: call("access.groups.defaults_set"),
         delete: call("access.groups.delete"),
         get: call("access.groups.get"),
         list: call("access.groups.list"),
@@ -81,6 +83,9 @@ export function stubs(ctx: CallCtx) {
       view_as: call("access.view_as"),
     },
     agents: {
+      builtin_skills: {
+        list: call("agents.builtin_skills.list"),
+      },
       config: {
         get: call("agents.config.get"),
         validate: call("agents.config.validate"),
@@ -88,6 +93,9 @@ export function stubs(ctx: CallCtx) {
       create: call("agents.create"),
       delete: call("agents.delete"),
       get: call("agents.get"),
+      guide: {
+        get: call("agents.guide.get"),
+      },
       limits: {
         get: call("agents.limits.get"),
       },
@@ -284,6 +292,11 @@ export function stubs(ctx: CallCtx) {
       members: {
         add: call("channels.members.add"),
         remove: call("channels.members.remove"),
+      },
+      stream: call("channels.stream"),
+      stream_prefs: {
+        get: call("channels.stream_prefs.get"),
+        set: call("channels.stream_prefs.set"),
       },
       unarchive: call("channels.unarchive"),
       update: call("channels.update"),
@@ -563,6 +576,11 @@ export function stubs(ctx: CallCtx) {
       restore_version: call("email_builder.restore_version"),
       save: call("email_builder.save"),
       send_test: call("email_builder.send_test"),
+      snippets: {
+        delete: call("email_builder.snippets.delete"),
+        list: call("email_builder.snippets.list"),
+        save: call("email_builder.snippets.save"),
+      },
       versions: call("email_builder.versions"),
     },
     engine: {
@@ -758,6 +776,7 @@ export function stubs(ctx: CallCtx) {
       link_revoke: call("forms.link_revoke"),
       list: call("forms.list"),
       publish: call("forms.publish"),
+      save_partial: call("forms.save_partial"),
       submissions: call("forms.submissions"),
       submit: call("forms.submit"),
       survey_results: call("forms.survey_results"),
@@ -1460,22 +1479,34 @@ export function stubs(ctx: CallCtx) {
       as_of: call("records.as_of"),
       bulk_upsert: call("records.bulk_upsert"),
       changes: call("records.changes"),
+      completeness: call("records.completeness"),
       counts: call("records.counts"),
       create: call("records.create"),
       delete: call("records.delete"),
       export: call("records.export"),
+      gap_check: call("records.gap_check"),
       get: call("records.get"),
       history: call("records.history"),
       hold: call("records.hold"),
       merge: call("records.merge"),
+      page_prefs: {
+        get: call("records.page_prefs.get"),
+        set: call("records.page_prefs.set"),
+      },
       query: call("records.query"),
       relate: call("records.relate"),
+      relations_map: call("records.relations_map"),
       release_hold: call("records.release_hold"),
       restore: call("records.restore"),
       restore_version: call("records.restore_version"),
       reveal: call("records.reveal"),
       search: call("records.search"),
       update: call("records.update"),
+      value_source: call("records.value_source"),
+      values: {
+        pending: call("records.values.pending"),
+        review: call("records.values.review"),
+      },
       versions: call("records.versions"),
     },
     reports: {
@@ -1566,9 +1597,20 @@ export function stubs(ctx: CallCtx) {
       describe: call("schema.describe"),
       diff: call("schema.diff"),
       field_types: call("schema.field_types"),
+      gap_rules: {
+        list: call("schema.gap_rules.list"),
+        set: call("schema.gap_rules.set"),
+      },
       infer: call("schema.infer"),
+      layout: {
+        get: call("schema.layout.get"),
+        set: call("schema.layout.set"),
+      },
       map: call("schema.map"),
       restore_field: call("schema.restore_field"),
+      sensitivity: {
+        scan: call("schema.sensitivity.scan"),
+      },
       set_label: call("schema.set_label"),
       trash: {
         list: call("schema.trash.list"),
@@ -2004,6 +2046,10 @@ export function stubs(ctx: CallCtx) {
       },
       service_health: call("vault.service_health"),
       share: call("vault.share"),
+      site_rules: {
+        list: call("vault.site_rules.list"),
+        set: call("vault.site_rules.set"),
+      },
       unshare: call("vault.unshare"),
       use: call("vault.use"),
     },

@@ -4,7 +4,7 @@ Lane L8. Kind module. Status stub. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (22)
+## Capabilities (23)
 
 - [bookings.availability](../capabilities/bookings.availability.md): Open slots in the visitor time zone from connected calendars; unavailable when the host is disconnected
 - [bookings.book](../capabilities/bookings.book.md): Public: make a booking; creates or updates a record and a meeting
@@ -21,6 +21,7 @@ Requires: nothing.
 - [forms.link_revoke](../capabilities/forms.link_revoke.md): Revoke a one-use link
 - [forms.list](../capabilities/forms.list.md): List forms by section and folder
 - [forms.publish](../capabilities/forms.publish.md): Publish a form as a public link or embed
+- [forms.save_partial](../capabilities/forms.save_partial.md): Public: keep the answers typed so far against a signed or one-use link so the person can come back; nothing reaches the record until submit
 - [forms.submissions](../capabilities/forms.submissions.md): List submissions of a form
 - [forms.submit](../capabilities/forms.submit.md): Public submit: writes through as principal svc_form_<id> with source link holder; consent, captcha and rate limits apply; attribution captured
 - [forms.survey_results](../capabilities/forms.survey_results.md): Aggregate results of a survey

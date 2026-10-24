@@ -15,5 +15,8 @@ export const handlers: Handlers<HandlerCtx> = {
   "email_builder.restore_version": async (ctx) => { throw new VyreErr(notImplemented("email_builder.restore_version", ctx.trace)); },
   "email_builder.save": async (ctx) => { throw new VyreErr(notImplemented("email_builder.save", ctx.trace)); },
   "email_builder.send_test": async (ctx) => { throw new VyreErr(notImplemented("email_builder.send_test", ctx.trace)); },
+  "email_builder.snippets.delete": async (ctx) => { throw new VyreErr(notImplemented("email_builder.snippets.delete", ctx.trace)); },
+  "email_builder.snippets.list": async (ctx) => { throw new VyreErr(notImplemented("email_builder.snippets.list", ctx.trace)); },
+  "email_builder.snippets.save": async (ctx) => { throw new VyreErr(notImplemented("email_builder.snippets.save", ctx.trace)); },
   "email_builder.versions": async (ctx) => { throw new VyreErr(notImplemented("email_builder.versions", ctx.trace)); },
 };

@@ -56,6 +56,13 @@ type Out = {
       device: string;
     };
     screenshotFileId?: string;
+    errors?: Array<{
+        code: string;
+        message: string;
+        at: number;
+        traceId?: string;
+      }>;
+    clientLogFileId?: string;
     note?: string;
   };
   redactions: number;
@@ -84,11 +91,20 @@ type Out = {
   },
   "output": {
     "bundle": {
+      "clientLogFileId": "fil_a1b2c3",
       "context": {
         "hash": "example",
         "itemId": "example",
         "place": "example"
       },
+      "errors": [
+        {
+          "at": 1760000000000,
+          "code": "example",
+          "message": "example",
+          "traceId": "0123456789abcdef0123456789abcdef"
+        }
+      ],
       "events": [
         {
           "at": 1760000000000,

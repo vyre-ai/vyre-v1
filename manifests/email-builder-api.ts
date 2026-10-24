@@ -6,6 +6,8 @@ const emailId = t.id('eml');
 const blockSchema = t.obj({ type: t.enm('text', 'image', 'button', 'columns', 'divider', 'merge', 'html'), props: t.rec() });
 const doc = t.obj({ emailId, name: t.str(), mode: t.enm('blocks', 'html', 'plain'), blocks: t.opt(t.arr(blockSchema)), html: t.opt(t.str()), plain: t.opt(t.str()), subject: t.opt(t.str()) });
 const target = { emailId };
+const snippetId = t.id('snp');
+const snippetRow = t.obj({ snippetId, name: t.str(), body: t.str(), shortcut: t.opt(t.str()), shared: t.bool(), updatedAt: t.ts() });
 
 export default defineManifest({
   id: 'email-builder-api',
@@ -27,5 +29,8 @@ export default defineManifest({
     read('email_builder.ask_diff', 'Ask Vyre edit: returns a per-change diff the author accepts change by change', { in: { emailId, instruction: t.str(), agentId: t.opt(id.agent) }, out: { changes: t.arr(t.obj({ path: t.str(), before: t.json(), after: t.json() })) }, tool: 'inbox' }),
     outward('email_builder.send_test', 'Send a test email to the author', { in: { emailId, to: t.str() }, out: { sent: t.bool() }, gate: { act: 'none', reason: 'sends only to the author own address; humans skip the Gate' }, emits: ['email_template.test_sent'], tool: 'inbox' }),
     read('email_builder.merge_fields', 'Merge fields available for a record type', { in: { type: id.recordType }, out: { fields: t.arr(t.obj({ key: t.str(), title: t.str() })) }, tool: 'inbox' }),
+    read('email_builder.snippets.list', 'List composer snippets: short reusable text for Inbox email and text replies, mine and shared with the Space', { out: { snippets: t.arr(snippetRow) }, tool: 'inbox' }),
+    write('email_builder.snippets.save', 'Create or change a composer snippet', { in: { snippetId: t.opt(snippetId), name: t.str(), body: t.str(), shortcut: t.opt(t.str()), shared: t.opt(t.bool()) }, out: { snippet: snippetRow }, tool: 'inbox', offline: 'queue' }),
+    write('email_builder.snippets.delete', 'Delete a composer snippet', { in: { snippetId }, out: { deleted: t.bool() }, tool: 'inbox' }),
   ],
 });

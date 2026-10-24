@@ -4,12 +4,12 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
-  "reports.get": async () => ({"bundle":{"context":{"hash":"example","itemId":"example","place":"example"},"events":[{"at":1760000000000,"traceId":"0123456789abcdef0123456789abcdef","type":"example"}],"note":"example","screenshotFileId":"fil_a1b2c3","traceIds":["0123456789abcdef0123456789abcdef"],"versions":{"app":"example","device":"example","server":"example"}},"issueNumber":1,"reportId":"rpt_a1b2c3","status":"example"} as unknown) as never,
+  "reports.get": async () => ({"bundle":{"clientLogFileId":"fil_a1b2c3","context":{"hash":"example","itemId":"example","place":"example"},"errors":[{"at":1760000000000,"code":"example","message":"example","traceId":"0123456789abcdef0123456789abcdef"}],"events":[{"at":1760000000000,"traceId":"0123456789abcdef0123456789abcdef","type":"example"}],"note":"example","screenshotFileId":"fil_a1b2c3","traceIds":["0123456789abcdef0123456789abcdef"],"versions":{"app":"example","device":"example","server":"example"}},"issueNumber":1,"reportId":"rpt_a1b2c3","status":"example"} as unknown) as never,
   "reports.health": async () => ({"detail":"example","latencyMs":1,"state":"healthy"} as unknown) as never,
   "reports.list": async () => ({"next":"example","reports":[{"at":1760000000000,"issueNumber":1,"reportId":"rpt_a1b2c3","status":"example","title":"example"}],"total":1} as unknown) as never,
   "reports.policy_get": async () => ({"policy":"on"} as unknown) as never,
   "reports.policy_set": async () => ({"ok":true} as unknown) as never,
-  "reports.preview": async () => ({"bundle":{"context":{"hash":"example","itemId":"example","place":"example"},"events":[{"at":1760000000000,"traceId":"0123456789abcdef0123456789abcdef","type":"example"}],"note":"example","screenshotFileId":"fil_a1b2c3","traceIds":["0123456789abcdef0123456789abcdef"],"versions":{"app":"example","device":"example","server":"example"}},"redactions":1} as unknown) as never,
+  "reports.preview": async () => ({"bundle":{"clientLogFileId":"fil_a1b2c3","context":{"hash":"example","itemId":"example","place":"example"},"errors":[{"at":1760000000000,"code":"example","message":"example","traceId":"0123456789abcdef0123456789abcdef"}],"events":[{"at":1760000000000,"traceId":"0123456789abcdef0123456789abcdef","type":"example"}],"note":"example","screenshotFileId":"fil_a1b2c3","traceIds":["0123456789abcdef0123456789abcdef"],"versions":{"app":"example","device":"example","server":"example"}},"redactions":1} as unknown) as never,
   "reports.resolved": async () => ({"ok":true} as unknown) as never,
   "reports.send_to_vyre": async () => ({"issueNumber":1,"stored":true} as unknown) as never,
   "reports.submit": async () => ({"reportId":"rpt_a1b2c3","sentToVyre":true,"taskId":"tsk_a1b2c3"} as unknown) as never,

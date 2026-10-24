@@ -63,6 +63,7 @@ export default defineManifest({
     notif('problem.report', 'badge', 'console', 'Problem report from {{from}}', { actions: [{ label: 'Review', cap: 'tasks.act' }] }),
     notif('member.joined', 'digest', 'home', '{{name}} joined {{space}}'),
     notif('limit.hit', 'badge', 'chats', '{{title}} hit its limit', { actions: [{ label: 'Raise once', cap: 'tasks.act' }, { label: 'Stop', cap: 'tasks.act' }] }),
+    notif('vault.rotation_due', 'badge', 'vault', 'Time to rotate {{title}}', { actions: [{ label: 'Mark rotated', cap: 'vault.item.mark_rotated' }] }),
   ],
   events: [
     ev('notification.delivered', 'A notification was delivered to a person at its level', {

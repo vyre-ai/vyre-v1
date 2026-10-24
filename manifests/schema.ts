@@ -56,6 +56,12 @@ const viewRow = t.obj({
 
 const section = t.opt(t.enm('personal', 'shared', 'space'));
 
+const layoutSection = t.obj({ key: t.str({ examples: ['contact_details'] }), title: t.str(), fields: t.arr(fieldKey), folded: t.opt(t.bool()) });
+const gapRule = t.obj({
+  ruleId: t.str({ examples: ['gap_missing_email'] }), field: fieldKey, when: t.enm('missing', 'stale'), staleAfterDays: t.opt(t.int({ minimum: 1 })),
+  route: t.enm('ai_field', 'agent_lookup', 'task', 'form'), agentId: t.opt(id.agent), enabled: t.bool(),
+});
+
 export default defineManifest({
   id: 'schema',
   title: 'Schema',
@@ -145,6 +151,24 @@ export default defineManifest({
     outward('views.share_external', 'Make a read-only link to a saved view for a client', {
       in: { viewId, expiresAt: t.opt(t.ts()) }, out: { url: t.str(), expiresAt: t.opt(t.ts()) },
       perm: 'records.share_external', level: 'manage', gate: { act: 'send', when: "actor.kind != 'person'" }, tool: 'records',
+    }),
+    read('schema.layout.get', 'Admin layout of the record page of a type: ordered sections with their fields and which start folded', {
+      in: { type: id.recordType }, out: { sections: t.arr(layoutSection) }, on: ['record_type', '/type'], tool: 'records',
+    }),
+    write('schema.layout.set', 'Set the record page layout of a type (sections, order, default folds); people fold and keep fields visible on top of it for themselves', {
+      in: { type: id.recordType, sections: t.arr(layoutSection) }, out: { sections: t.arr(layoutSection) }, on: ['record_type', '/type'], perm: 'schema.manage',
+      emits: ['schema.changed'], audit: 'always', tool: 'engineer',
+    }),
+    read('schema.gap_rules.list', 'Gap-check rules of a type: which fields count as missing or stale and how each gap is routed', {
+      in: { type: id.recordType }, out: { rules: t.arr(gapRule) }, on: ['record_type', '/type'], tool: 'records',
+    }),
+    write('schema.gap_rules.set', 'Create or replace a gap-check rule: a missing or stale field goes to an AI field, an agent lookup, a teammate task or a collection form', {
+      in: { type: id.recordType, rule: gapRule }, out: { rule: gapRule }, on: ['record_type', '/type'], perm: 'schema.manage', emits: ['schema.changed'], audit: 'always', tool: 'engineer',
+    }),
+    read('schema.sensitivity.scan', 'Detect sensitive data in the fields of a type (ID numbers, card and bank numbers, health terms) and suggest which fields to seal; changes nothing and returns no values', {
+      in: { type: id.recordType },
+      out: { suggestions: t.arr(t.obj({ field: fieldKey, kind: t.enm('id_number', 'card', 'bank', 'health', 'other'), matches: t.int({ minimum: 0 }), suggestedLabel: label, seal: t.bool() })) },
+      on: ['record_type', '/type'], perm: 'schema.manage', tool: 'engineer', label: 'filter',
     }),
   ],
   screens: [

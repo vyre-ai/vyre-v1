@@ -1,0 +1,13 @@
+name: deploy
+# Deploy server and web, update the update channel (called by release after live).
+on:
+  workflow_call:
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: deploy stage
+        run: echo "deploy stage placeholder, deploy lands with the release lane"

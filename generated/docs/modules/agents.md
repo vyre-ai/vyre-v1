@@ -4,13 +4,15 @@ Lane L2. Kind module. Status stub. Version 0.1.0.
 
 Requires: chat, engine, mcp, memory, runs, terminal.
 
-## Capabilities (28)
+## Capabilities (30)
 
+- [agents.builtin_skills.list](../capabilities/agents.builtin_skills.list.md): Skills every agent carries, led by "Working in Vyre": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces
 - [agents.config.get](../capabilities/agents.config.get.md): Parsed agent.toml and AGENT.md metadata as the next run will see them, with the last good version and any error
 - [agents.config.validate](../capabilities/agents.config.validate.md): Validate agent.toml text (app limits first, then precedence) without saving
 - [agents.create](../capabilities/agents.create.md): Create an agent (the create-agent skill ends in one Approve card): record, Agents/<name> folder with the decided file tree, template files
 - [agents.delete](../capabilities/agents.delete.md): Move an agent to Trash (its folder and memory follow the folder rules)
 - [agents.get](../capabilities/agents.get.md): Read one agent: record, status, limits and the effective configuration
+- [agents.guide.get](../capabilities/agents.guide.get.md): The Vyre agent guide (.vyre/guide.md): version and text, rewritten by app updates, loaded into every chat before VYRE.md
 - [agents.limits.get](../capabilities/agents.limits.get.md): Effective limits of an agent: agent.toml capped by Space caps
 - [agents.list](../capabilities/agents.list.md): List agents you are in or that are shared with you (admins may toggle All in the Space)
 - [agents.pause](../capabilities/agents.pause.md): Pause an agent with a reason; the status shows who paused it

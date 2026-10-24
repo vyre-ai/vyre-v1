@@ -23,6 +23,7 @@ Area: space. Risk: high. Applies to: space.
 - access.grants.list
 - access.groups.add_member
 - access.groups.create
+- access.groups.defaults_set
 - access.groups.delete
 - access.groups.remove_member
 - access.groups.update
