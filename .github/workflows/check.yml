@@ -43,8 +43,70 @@ jobs:
           SLOW: ${{ matrix.slow }}
         run: |
           if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else node scripts/test-run.mjs --files $FILES; fi
+  gates:
+    # P-CI_03: ownership, boundaries, lint and typecheck run on every push, so evidence that claims them is verified here.
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Lane from the branch name (build/P-L7_04 is L7a, build/P-L7b_05 is L7b, L9 is L9a, P-CI is L11, P-CC and P-PR are the lead's)
+        id: lane
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          lane=""
+          case "$BRANCH" in
+            build/P-CI_*|build/P-CI-*) lane=L11 ;;
+            build/P-CC_*|build/P-PR_*) lane=lead ;;
+            *) lane="$(echo "$BRANCH" | sed -nE 's#^build/P-(L[0-9]+[a-z]?)_[0-9]+[a-z]?(-.*)?$#\1#p')"
+              case "$lane" in L7) lane=L7a ;; L9) lane=L9a ;; esac ;;
+          esac
+          echo "lane=$lane" >> "$GITHUB_OUTPUT"
+          echo "branch $BRANCH -> lane '${lane:-none}'"
+      - name: Ownership (scripts/lanes-check.ts); generated/ edits made only by the regen bot are not the worker's
+        if: steps.lane.outputs.lane != ''
+        run: |
+          git fetch -q origin main
+          base="$(git merge-base origin/main HEAD)"
+          others="$(git log --format=%s "$base"..HEAD -- generated | grep -v '^chore(gen): regenerate' || true)"
+          if [ -z "$others" ] && [ -n "$(git diff --name-only "$base"...HEAD -- generated)" ]; then
+            git config user.name ci; git config user.email ci@example.invalid
+            git checkout -q "$base" -- generated
+            git commit -q -m "ci: drop bot-only generated/ from the ownership view"
+          fi
+          node scripts/lanes-check.ts "${{ steps.lane.outputs.lane }}" "$base"
+      - name: Layer boundaries B1 to B8 (scripts/boundaries.ts); main carries older violations, so only files this branch changed can fail it
+        run: |
+          git fetch -q origin main
+          git diff --name-only --no-renames "$(git merge-base origin/main HEAD)"...HEAD > changed.txt
+          node scripts/boundaries.ts > boundaries.out 2>&1 || true
+          tail -n 1 boundaries.out
+          if grep -Ff changed.txt boundaries.out | grep -E '^[A-Za-z0-9]+ [^ ]+' | grep -vE '^boundaries:' > mine.txt && [ -s mine.txt ]; then
+            echo "boundary violations in files this branch changed:"; cat mine.txt; exit 1
+          fi
+          echo "no boundary violations in changed files"
+      - name: Lints on the changed files (scripts/lint/run.ts)
+        run: |
+          git fetch -q origin main
+          node scripts/lint/run.ts --base "$(git merge-base origin/main HEAD)"
+      - name: Typecheck every package that has a tsconfig.json above a changed file
+        run: |
+          git fetch -q origin main
+          base="$(git merge-base origin/main HEAD)"
+          dirs=""
+          for f in $(git diff --name-only --no-renames "$base"...HEAD | grep -E '\.(ts|tsx)$' || true); do
+            d="$(dirname "$f")"
+            while [ "$d" != "." ] && [ ! -f "$d/tsconfig.json" ]; do d="$(dirname "$d")"; done
+            [ -f "$d/tsconfig.json" ] && dirs="$dirs $d"
+          done
+          dirs="$(echo $dirs | tr ' ' '\n' | sort -u)"
+          [ -z "$dirs" ] && { echo "no package with a tsconfig.json changed"; exit 0; }
+          tsc=tools/gen/node_modules/.bin/tsc
+          [ -x "$tsc" ] || bash tools/gen/check.sh
+          for d in $dirs; do echo "tsc -p $d"; "$tsc" -p "$d/tsconfig.json" --noEmit; done
   check:
-    needs: [select, shards]
+    needs: [select, shards, gates]
     if: always()
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
@@ -53,7 +115,9 @@ jobs:
         env:
           SELECT: ${{ needs.select.result }}
           SHARDS: ${{ needs.shards.result }}
+          GATES: ${{ needs.gates.result }}
         run: |
+          [ "$GATES" = "success" ] || { echo "gates (ownership, boundaries, lint, typecheck): $GATES"; exit 1; }
           [ "$SELECT" = "success" ] || { echo "select: $SELECT"; exit 1; }
           case "$SHARDS" in success|skipped) ;; *) echo "shards: $SHARDS"; exit 1;; esac
   golden:
