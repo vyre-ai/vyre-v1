@@ -19,7 +19,7 @@ Rename a file
 | HTTP | POST /v1/files/rename |
 | MCP tool | files_rename (files) |
 | CLI | none |
-| Emits | file.renamed |
+| Emits | file.renamed, changeset.opened, changeset.updated |
 
 ## Input
 
@@ -55,6 +55,7 @@ type Out = {
     thumb: boolean;
     holds: number;
   };
+  changesetId?: string;
 };
 ```
 
@@ -78,6 +79,7 @@ type Out = {
     "name": "example"
   },
   "output": {
+    "changesetId": "chg_a1b2c3",
     "file": {
       "createdAt": 1760000000000,
       "deletedAt": 1760000000000,
