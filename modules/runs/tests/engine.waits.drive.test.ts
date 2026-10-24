@@ -62,7 +62,7 @@ test("a resumed Wait keeps waiting: a wake before its time parks the Run again o
   await h.engineRun(engine, (ctx) => drive(ctx, id, plan, waitExec));
   const first = allSteps(h.db, id)[0]!.startedAt;
   h.advance(10 * 60_000);
-  await h.call("runs.resume", { runId: id }, engine);   // an early wake
+  await h.call("runs.resume", { runId: id, reason: "background" }, engine);   // an early wake
   const calls: StepCall[] = [];
   const spy: Executor = async (s, c) => { calls.push(c); return waitExec(s, c); };
   assert.deepEqual(await h.engineRun(engine, (ctx) => drive(ctx, id, plan, spy)), { status: "waiting" });
