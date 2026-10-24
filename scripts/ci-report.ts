@@ -24,15 +24,29 @@ export function report(jobs: Job[]): string {
   return lines.join("\n");
 }
 
+/** Queue versus execution for the whole run: queue is run start to the first job start, execution is first start to last end. */
+export function queueVsExec(runStartedAt: string, jobs: Job[]): string {
+  const starts = jobs.map((j) => j.started_at).filter((x): x is string => !!x).map(Date.parse);
+  const ends = jobs.map((j) => j.completed_at).filter((x): x is string => !!x).map(Date.parse);
+  if (!starts.length) return "queue vs execution: no job started";
+  const first = Math.min(...starts), last = Math.max(...ends, first);
+  const q = Math.max(0, (first - Date.parse(runStartedAt)) / 1000), e = (last - first) / 1000;
+  return `queue ${Math.round(q)} s, execution ${Math.round(e)} s${q > 120 ? " (ALERT: queue over 2 min)" : ""}`;
+}
+
 const self = fileURLToPath(import.meta.url);
 if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   const val = (n: string) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
   let jobs: Job[];
+  let runStart = val("--run-start");
   if (val("--jobs")) jobs = JSON.parse(fs.readFileSync(val("--jobs")!, "utf8"));
   else {
     const res = await fetch(`https://api.github.com/repos/${val("--repo")}/actions/runs/${val("--run-id")}/jobs?per_page=100`, { headers: { authorization: `Bearer ${process.env.GH_TOKEN ?? ""}`, accept: "application/vnd.github+json" } });
     if (!res.ok) { console.error(`github api ${res.status}`); process.exit(2); }
     jobs = ((await res.json()) as { jobs: Job[] }).jobs;
+    const rr = await fetch(`https://api.github.com/repos/${val("--repo")}/actions/runs/${val("--run-id")}`, { headers: { authorization: `Bearer ${process.env.GH_TOKEN ?? ""}`, accept: "application/vnd.github+json" } });
+    if (rr.ok) runStart = ((await rr.json()) as { run_started_at: string }).run_started_at;
   }
   console.log(report(jobs));
+  if (runStart) console.log(`\n${queueVsExec(runStart, jobs)}`);
 }
