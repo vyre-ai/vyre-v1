@@ -37,7 +37,7 @@ export function createCtxSeal(o: CtxSealOptions): Ctx["seal"] {
       if (cut < 1 || s.keyId.slice(0, cut) !== o.keyId) throw new SealError("this value was sealed under a different key");
       const scope = s.keyId.slice(cut + 1);
       const [ct, tag, extra] = typeof s.bytes === "string" ? s.bytes.split(".") : [];
-      if (!SCOPE.test(scope) || !ct || !tag || extra !== undefined || typeof s.nonce !== "string") throw new SealError("this sealed value is malformed");
+      if (!SCOPE.test(scope) || ct === undefined || !tag || extra !== undefined || typeof s.nonce !== "string") throw new SealError("this sealed value is malformed");
       try {
         return new Uint8Array(aesUnwrap(kek(scope), { iv: s.nonce, ct, tag }, s.keyId));
       } catch {
