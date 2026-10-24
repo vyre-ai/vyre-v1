@@ -38138,7 +38138,8 @@
           "name": "example",
           "output": {
             "actorId": "act_a1b2c3",
-            "expiresAt": 1760000000000
+            "expiresAt": 1760000000000,
+            "reviewUrl": "https://northwind.example.com/review/cs_example?token=otk_example"
           }
         }
       ],
@@ -38165,10 +38166,18 @@
             ],
             "minimum": 0,
             "type": "integer"
+          },
+          "reviewUrl": {
+            "examples": [
+              "https://northwind.example.com/review/cs_example?token=otk_example"
+            ],
+            "pattern": "^https?://",
+            "type": "string"
           }
         },
         "required": [
           "actorId",
+          "reviewUrl",
           "expiresAt"
         ],
         "type": "object"
@@ -38179,7 +38188,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token",
+      "summary": "Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token; returns a one-time review link (the token is in the link, shown once, never logged)",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -144711,6 +144720,7 @@
                 "v": 1
               }
             ],
+            "decisionId": "example",
             "dependsOn": [
               "tsk_a1b2c3"
             ],
@@ -144723,6 +144733,7 @@
             "idempotencyKey": "idem_1",
             "kind": "work",
             "parentTaskId": "tsk_a1b2c3",
+            "payloadHash": "example",
             "recordId": "rec_a1b2c3",
             "reviewer": {
               "id": "usr_a1b2c3",
@@ -144816,6 +144827,9 @@
           "blocks": {
             "$ref": "#/$defs/s_d2c64dc123"
           },
+          "decisionId": {
+            "type": "string"
+          },
           "dependsOn": {
             "items": {
               "examples": [
@@ -144879,6 +144893,9 @@
               "tsk_a1b2c3"
             ],
             "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "payloadHash": {
             "type": "string"
           },
           "recordId": {
