@@ -1,5 +1,6 @@
 // Approval, denial and timeout of a hold (spec 2.14, ARCH 4.6, golden 7): the sealed approval token, release exactly once, send-back and drop, timeout escalation then drop,
 // the email backstop, and the sweep. The neighbours (tasks, runs, scheduler, notifications) are fakes that record their calls.
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import type { TestContext } from "node:test";
 import assert from "node:assert/strict";
@@ -215,12 +216,13 @@ test("golden 7: a hold waits, one backstop email at 4 hours, escalation at the t
   const trace: string[] = [];
   const fired = new Set<string>();
   const p = await park(h, { runId: "run_1" });
-  trace.push(`${hours(h)}: agent send held -> hold ${p.holdId}, task ${p.taskId}, approver usr_alice, timers ${h.schedules.map((s) => `${s.cap}@${Math.round(((s.at as number) - t0) / HOUR)}h`).join(", ")}`);
+  trace.push(`${hours(h)}: agent send held -> <hold>, task <task>, approver usr_alice, timers ${h.schedules.map((s) => `${s.cap}@${Math.round(((s.at as number) - t0) / HOUR)}h`).join(", ")}`);
   assert.deepEqual(h.schedules.map((s) => [s.cap, Math.round(((s.at as number) - t0) / HOUR)]), [["gate.expire", 24], ["notifications.send", 4]]);
 
   h.advance(3 * HOUR);
   await fireDue(h, fired, trace);
   assert.equal(h.callsTo("notifications.send").length, 0, "nothing at 3 hours");
+  trace.push(`${hours(h)}: no timer is due`);
 
   h.advance(1 * HOUR);
   await fireDue(h, fired, trace);
@@ -229,6 +231,7 @@ test("golden 7: a hold waits, one backstop email at 4 hours, escalation at the t
   assert.deepEqual(mails[0]!.input, { to: alice.id, kind: "approval.backstop", subject: { type: "task", id: p.taskId }, title: "Send a message via mail.send to 1 recipient", collapseKey: `approval.backstop:${p.taskId}` });
   await fireDue(h, fired, trace);
   assert.equal(h.callsTo("notifications.send").length, 1, "and only one");
+  trace.push(`${hours(h)}: the email went out once, a second look finds nothing new`);
 
   await refused(h.call("gate.expire", { holdId: p.holdId }, svc), "validation.precondition_failed", "not_due");
 
@@ -242,6 +245,7 @@ test("golden 7: a hold waits, one backstop email at 4 hours, escalation at the t
   assert.deepEqual(h.events.map((e) => [e.name, e.payload.outcome, e.payload.escalatedTo]), [["gate.expired", "escalated", "usr_delegate"]]);
   assert.equal(h.schedules.at(-1)!.cap, "gate.expire");
   assert.equal(h.schedules.at(-1)!.at, t0 + 48 * HOUR, "a second timeout is set");
+  trace.push(`${hours(h)}: hold still held, approver usr_delegate, second timeout at t+48h`);
 
   h.advance(24 * HOUR);
   await fireDue(h, fired, trace);
@@ -254,6 +258,9 @@ test("golden 7: a hold waits, one backstop email at 4 hours, escalation at the t
 
   await refused(release(h, p), "validation.precondition_failed", "not_held");
   assert.equal(sent(h), 0, "an expired hold is never sent");
+  trace.push(`${hours(h)}: approving now is refused (not_held), nothing sent`);
+  // the trace is the proof of golden 7: it must equal the recorded one
+  assert.equal(`${trace.join("\n")}\n`, readFileSync(new URL("../fixtures/golden7.trace.txt", import.meta.url), "utf8"));
   t.diagnostic(`golden 7 trace\n${trace.join("\n")}`);
 });
 
