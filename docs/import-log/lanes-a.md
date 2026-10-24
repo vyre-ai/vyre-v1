@@ -12,7 +12,22 @@ Source paths come from the wt-train067 (0.6.9) file survey. This packet may edit
 | Row | Lane | Mark | 0.6 path |
 |---|---|---|---|
 | 24 | L1 | REWRITE | `core/stream` |
+| 32 | L3 | REWRITE | `core/work`, `core/projects`, `core/goals`, `core/waiting`, `core/team` |
+| 50 | L3 | imported | `core/import` to `modules/records` (12 files) |
 
 ## Log
 
 rewrite    row  24  REWRITE: `core/stream`
+rewrite    row  32  REWRITE small: `core/work`, `core/projects`, `core/goals`, `core/waiting`, `core/team
+imported   row  50  core/import/formats/codex.js -> modules/records/formats/codex.js [L3]
+imported   row  50  core/import/formats/formats.test.js -> modules/records/formats/formats.test.js [L3]
+imported   row  50  core/import/formats/gemini.js -> modules/records/formats/gemini.js [L3]
+imported   row  50  core/import/formats/import-agents.test.js -> modules/records/formats/import-agents.test.js [L3]
+imported   row  50  core/import/formats/index.js -> modules/records/formats/index.js [L3]
+imported   row  50  core/import/formats/shared.js -> modules/records/formats/shared.js [L3]
+imported   row  50  core/import/import.test.js -> modules/records/import.test.js [L3]
+imported   row  50  core/import/index.js -> modules/records/index.js [L3]
+headerless row  50  core/import/module.json -> modules/records/module.json [L3]
+imported   row  50  core/import/scan.js -> modules/records/scan.js [L3]
+imported   row  50  core/import/sessions-import.test.js -> modules/records/sessions-import.test.js [L3]
+imported   row  50  core/import/start.test.js -> modules/records/start.test.js [L3]
