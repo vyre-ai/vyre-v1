@@ -1,0 +1,9 @@
+{
+  "name": "@vyre/reports",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24 <25" },
+  "description": "reports.vyre.run: takes Space-signed problem reports, opens the GitHub issue, files the Vyre team's record, and tells the reporter Space when the issue closes.",
+  "scripts": { "start": "node src/main.ts" }
+}
