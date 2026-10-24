@@ -2,6 +2,7 @@
 // This file is the reference for the style of every other manifest.
 import { create, defineManifest, ev, ftype, read, t, vkind, write } from '../packages/contracts/src/index.ts';
 import type { FieldTypeDef } from '../packages/contracts/src/index.ts';
+import { block } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, viewSpec, versionRow } from './_common.ts';
 
 const recordRow = t.obj({
@@ -30,6 +31,10 @@ export default defineManifest({
     ev('record.held', 'A hold was placed on a record', { p: { recordId: id.record, type: id.recordType, reason: t.str() }, subject: ['record', '/recordId'], label: 'subject' }),
     ev('record.hold_released', 'A hold was released', { p: { recordId: id.record, type: id.recordType }, subject: ['record', '/recordId'], label: 'subject' }),
     ev('field.revealed', 'A sealed field was revealed to one actor (audited)', { p: { recordId: id.record, type: id.recordType, field: t.str() }, subject: ['record', '/recordId'], vis: 'participants', label: 'subject' }),
+  ],
+  blocks: [
+    block('record_card', { recordId: id.record, type: id.recordType, title: t.str(), summary: t.opt(t.str()), status: t.opt(t.str()), fields: t.arr(t.obj({ key: t.str(), title: t.str(), value: t.json() })) },
+      '{{title}} ({{type}})', { opens: { tab: 'record', input: { recordId: '/recordId' } } }),
   ],
   capabilities: [
     read('records.get', 'Read one record by id', { in: target, out: { record: recordRow }, on: ['record', '/recordId'], tool: 'records', label: 'check', cli: 'vyre records get' }),

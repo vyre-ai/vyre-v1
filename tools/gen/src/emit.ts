@@ -192,7 +192,9 @@ ${mc.map((c) => `  ${q(c.name)}: async () => (${JSON.stringify(c.examples[0]?.ou
       const planMode = typeof a === 'object' ? a.planMode : c.effects === 'read' ? 'allowed' : 'blocked';
       tools.push({ name, description: c.summary, inputSchema: c.input, toolset: c.surfaces.mcp?.toolset, deferred: c.surfaces.mcp?.deferred ?? false, cap: c.name, v: c.v, effects: c.effects, planMode, blocks: typeof a === 'object' ? a.blocks ?? [] : [] });
     }
+    const have = new Set(tools.map((x) => (x as { name: string }).name));
     for (const t of reg.agentTools) {
+      if (have.has(t.name)) continue;
       const backing = t.cap ? byCap.get(t.cap) : undefined;
       tools.push({ name: t.name, description: t.summary, inputSchema: t.input, toolset: backing?.surfaces.mcp?.toolset ?? 'meta', deferred: t.deferred ?? false, cap: t.cap ?? null, v: backing?.v ?? 1, effects: t.effects, planMode: t.planMode, blocks: t.blocks ?? [], local: t.local ?? 'none' });
     }

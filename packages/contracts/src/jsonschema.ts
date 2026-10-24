@@ -73,7 +73,8 @@ export function sample(s: JsonSchema, depth = 0): unknown {
     case 'string': {
       if (s.format === 'date-time') return '2026-01-01T00:00:00.000Z';
       const base = 'example';
-      return s.minLength && base.length < s.minLength ? base.padEnd(s.minLength, 'x') : base;
+      const padded = s.minLength && base.length < s.minLength ? base.padEnd(s.minLength, 'x') : base;
+      return s.maxLength !== undefined ? padded.slice(0, s.maxLength) : padded;
     }
     case 'integer': return Math.max(1, s.minimum ?? 1);
     case 'number': return Math.max(1, s.minimum ?? 1);
@@ -81,7 +82,7 @@ export function sample(s: JsonSchema, depth = 0): unknown {
     case 'null': return null;
     case 'array': {
       if (depth > 6 || !s.items) return [];
-      return [sample(s.items, depth + 1)];
+      return Array.from({ length: Math.max(1, s.minItems ?? 1) }, () => sample(s.items as JsonSchema, depth + 1));
     }
     case 'object': {
       const o: Record<string, unknown> = {};

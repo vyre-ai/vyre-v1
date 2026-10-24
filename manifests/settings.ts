@@ -68,7 +68,7 @@ export default defineManifest({
 
   settings: [
     setting('profile.display_name', 'person', 'profile', 'Name', t.str(), ''),
-    setting('profile.handle', 'person', 'profile', 'Handle', t.str({ pattern: '^[a-z0-9_.-]{2,32}$' }), ''),
+    setting('profile.handle', 'person', 'profile', 'Handle', t.str({ pattern: '^([a-z0-9_.-]{2,32})?$' }), ''),
     setting('profile.title', 'person', 'profile', 'Title', t.str(), ''),
     setting('profile.photo', 'person', 'profile', 'Photo', t.nullable(id.file), null),
     setting('profile.timezone', 'person', 'profile', 'Time zone', t.str({ examples: ['Asia/Karachi'] }), 'UTC'),

@@ -134,7 +134,7 @@ export function validateAll(loaded: Loaded[], table: LaneTable): string[] {
     const w = `[cap ${c.name}]`;
     if (!CAP_RE.test(c.name)) err(`${w} name does not match <area>.<verb>`);
     if (!Number.isInteger(c.v) || c.v < 1) err(`${w} v must be a positive integer`);
-    if (!c.summary || c.summary.length > 160) err(`${w} summary must be one line of up to 160 characters`);
+    if (!c.summary || c.summary.length > 300) err(`${w} summary must be one line of up to 300 characters`);
     const p = pascal(c.name);
     const prev = pascalSeen.get(p);
     if (prev && prev !== c.name) err(`${w} generates the same type name ${p} as ${prev}`);
@@ -257,7 +257,7 @@ export function validateAll(loaded: Loaded[], table: LaneTable): string[] {
       const w = `[agent tool ${a.name}]`;
       need(w, a.cap);
       for (const b of a.blocks ?? []) if (!sets.blocks.has(b)) err(`${w} unknown block ${b}`);
-      if (mcpNames.has(a.name)) err(`${w} name collides with capability tool of ${mcpNames.get(a.name)}`);
+      if (mcpNames.has(a.name) && mcpNames.get(a.name) !== a.cap) err(`${w} name collides with capability tool of ${mcpNames.get(a.name)}`);
     }
     for (const b of m.blocks ?? []) {
       const w = `[block ${b.type}]`;

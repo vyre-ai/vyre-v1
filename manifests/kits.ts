@@ -41,7 +41,7 @@ export default defineManifest({
     create('kits.builder_open', 'Open the Kit builder chat with an agent (preview before publish)', { in: { kitId: t.opt(id.kit), brief: t.opt(t.str()) }, out: { threadId: id.thread }, make: ['kit', '/brief'], perm: 'kits.publish', tool: 'sites' }),
   ],
   screens: [
-    screen('settings.kit', 'settings', 'ui:KitChoice', { q: { kits: ['kits.list'] }, a: { choose: ['kits.choose', { kitId: '/selected', scope: '/scope' }] } }),
+    screen('settings.kit-choice', 'settings', 'ui:KitChoice', { q: { kits: ['kits.list'] }, a: { choose: ['kits.choose', { kitId: '/selected', scope: '/scope' }] } }),
     screen('apps.kit-builder', 'apps', 'ui:KitBuilder', { q: { sheet: ['kits.install_sheet', { kitId: '/selected' }], health: ['kits.health', { kitId: '/selected' }] }, a: { publish: ['kits.publish', { kitId: '/selected' }, 'Publish this Kit?'], test: ['kits.test_run', { kitId: '/selected' }] }, needs: ['kits.publish'] }),
   ],
 });
