@@ -1,4 +1,4 @@
-// @ts-nocheck (adapted from vyre 0.6.9 kernel/audit/{audit,anchor,key}.test.js; the log is the v1 LogStore behind the AuditLog adapter)
+// ported from vyre 0.6.9 kernel tests
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";

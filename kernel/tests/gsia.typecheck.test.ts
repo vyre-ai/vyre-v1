@@ -17,7 +17,7 @@ function cacheDir(): string {
   throw new Error("no writable cache directory");
 }
 
-test("every file of the grants, seal, identity and audit packet typechecks, with no @ts-nocheck", { timeout: 120_000 }, () => {
+test("every file of the grants, seal, identity and audit packet typechecks, with the checker left on", { timeout: 120_000 }, () => {
   const cache = cacheDir();
   const tsc = path.join(cache, "node_modules/typescript/bin/tsc");
   if (!fs.existsSync(tsc)) {
@@ -28,10 +28,10 @@ test("every file of the grants, seal, identity and audit packet typechecks, with
   const files: string[] = [];
   const walk = (d: string): void => { for (const e of fs.readdirSync(path.join(REPO, d), { withFileTypes: true })) { const p = `${d}/${e.name}`; if (e.isDirectory()) walk(p); else if (/\.ts$/.test(e.name) && MINE.test(p)) files.push(p); } };
   walk("kernel/src"); walk("kernel/tests");
-  for (const f of files) assert.ok(!/@ts-(nocheck|ignore|expect-error)/.test(fs.readFileSync(path.join(REPO, f), "utf8")), `${f} must not switch the type checker off`);
+  for (const f of files) assert.ok(!new RegExp("@ts-" + "(nocheck|ignore|expect-error)").test(fs.readFileSync(path.join(REPO, f), "utf8")), `${f} must not switch the type checker off`);
   const cfg = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "tsc-")), "tsconfig.json");
   fs.writeFileSync(cfg, JSON.stringify({ extends: path.join(REPO, "tsconfig.base.json"), compilerOptions: { typeRoots: [path.join(cache, "node_modules/@types")], types: ["node"], noEmit: true }, files: files.map((f) => path.join(REPO, f)) }));
   const r = spawnSync(process.execPath, [tsc, "-p", cfg, "--pretty", "false"], { cwd: REPO, encoding: "utf8" });
   const mine = r.stdout.split("\n").filter((l) => /^[^\s].*\(\d+,\d+\): error/.test(l) && MINE.test(path.relative(REPO, path.resolve(REPO, l.split("(")[0] ?? ""))));
-  assert.deepEqual(mine.slice(0, 60), [], `${mine.length} type errors in this packet`);
+  assert.deepEqual(mine.slice(0, 400), [], `${mine.length} type errors in this packet`);
 });

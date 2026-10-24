@@ -1,9 +1,9 @@
 // The audit module reads and appends the log through this small shape (the 0.6 event log's): latestSeq, head, get, read by type, verify, append. `auditLogOf` adapts the v1 LogStore.
 // A checkpoint event is `checkpoint.signed` whose payload is `{ checkpoint }`, read back as `e.data.checkpoint`.
 import type { LogStore } from "../log/store.ts";
-import type { NewEvent, StoredEvent, VerifyResult } from "../log/types.ts";
+import type { NewEvent, StoredEvent } from "../log/types.ts";
 
-export interface AuditEvent { seq: number; hash: string; type: string; prev: string; data: any; [k: string]: unknown }
+export interface AuditEvent { seq: number; hash: string; type: string; prev: string; data: unknown; [k: string]: unknown }
 export interface AuditLog {
   latestSeq(): number;
   head(): string;
@@ -40,7 +40,7 @@ export function auditLogOf(store: LogStore, append?: (ev: NewEvent) => StoredEve
         after = page[page.length - 1]!.seq;
       }
     },
-    verify: (o) => store.verify(o) as VerifyResult & { why?: string },
+    verify: (o) => store.verify(o),
     append: (ev) => put({ type: ev.type, sv: ev.sv, trace_id: TRACE(), actor: "svc_audit", vis: "space", entity: "audit", entity_id: ev.subject, payload: ev.data }),
   };
 }

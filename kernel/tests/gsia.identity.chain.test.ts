@@ -1,4 +1,4 @@
-// @ts-nocheck (ported from vyre 0.6.9 kernel/identity/chain.test.js)
+// ported from vyre 0.6.9 kernel tests
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";

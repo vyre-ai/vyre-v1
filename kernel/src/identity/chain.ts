@@ -1,4 +1,3 @@
-// @ts-nocheck (ported from vyre 0.6.9 kernel/identity/chain.js, typed when contracts land)
 // The identity chain (team/0.3/DESIGN-wink.md section 2). An identity is a permanent id plus a signed, chained list of who can
 // speak for it. The id never changes; the list does, and every change is one op signed by something already on the list, so the
 // list is a chain nobody can forge, not the directory that stores it.
@@ -42,42 +41,64 @@ export const RELAY_TTL = 90 * 24 * 3_600_000;
 export const PERSON_KINDS = Object.freeze(["device", "code", "contact"]);
 export const PREFIX = Object.freeze({ person: "per_", space: "spc_" });
 
+/** One signer on a list. */
+export interface Entry {
+  eid: string; kind: "device" | "code" | "contact" | "owner"; pub?: string; subject?: string; label?: string; since: number; addedBy: string | null; founder?: boolean;
+  alg?: "webauthn-es256"; rp?: string; agree?: string; held?: "web" | "relay"; via?: "github"; confirmed?: boolean; fresh?: number; adds?: number[]; enclave?: string; attest?: string;
+}
+export interface State { id: string; kind: "person" | "space"; seq: number; head: string; ts: number; entries: Entry[] }
+/**
+ * `ownerOps(id)` gives a person's whole chain (the verifier checks it itself). `live` says every op here is being ACCEPTED now, so its device must be on the owner's
+ * current list; `liveFrom` is the same for ops from that sequence on. An entry's age never comes from a time its adder wrote: an op accepted live must be made now, and a verifier
+ * that learned an op later passes `seenAt(seq)`, the first time IT saw it.
+ */
+export interface Ctx { ownerOps?: (id: string) => Promise<Op[] | null>; live?: boolean; liveFrom?: number; seenAt?: (seq: number) => number | undefined; now?: number; skewMs?: number }
+/** An entry as it arrives on the wire, before its shape is checked. */
+export interface RawEntry { eid?: unknown; kind?: unknown; pub?: unknown; subject?: unknown; label?: unknown; alg?: unknown; rp?: unknown; held?: unknown; via?: unknown; enclave?: unknown; agree?: unknown; attest?: unknown }
+/** An op as it arrives: every field is untrusted until applyOp has checked it. */
+export interface Op {
+  v?: number; type?: string; id?: string; kind?: string; seq?: number; prev?: string | null; ts?: number; nonce?: string; entry?: RawEntry; code?: RawEntry; by?: string; via?: string; via_seq?: number; via_head?: string;
+  target?: string; replaces?: string; agree?: string; sig?: string; esig?: string; approvals?: { eid: string; sig: string }[];
+}
+export type SignFn = (m: Uint8Array) => Promise<Uint8Array> | Uint8Array;
+export interface ChainError extends Error { code: string }
+
 const enc = new TextEncoder();
 const EID = /^[a-z2-7]{26}$/;
 const ID = /^(per|spc)_[a-z2-7]{26}$/;
 
 /** @param {string} code @param {string} message */
-export const chainError = (code, message) => Object.assign(new Error(message), { code, name: "ChainError" });
+export const chainError = (code: string, message: string): ChainError => Object.assign(new Error(message), { code, name: "ChainError" });
 
-const hexOf = (/** @type {ArrayBuffer} */ b) => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
+const hexOf = (b: ArrayBuffer) => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
 /** @param {string|Uint8Array} s */
-export const sha256hex = async s => hexOf(await crypto.subtle.digest("SHA-256", typeof s === "string" ? enc.encode(s) : /** @type {BufferSource} */ (s)));
-export const b64u = (/** @type {Uint8Array} */ b) => { let s = ""; for (const x of b) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
-export const unb64 = (/** @type {unknown} */ s) => {
+export const sha256hex = async (s: string | Uint8Array): Promise<string> => hexOf(await crypto.subtle.digest("SHA-256", typeof s === "string" ? enc.encode(s) : (s as BufferSource)));
+export const b64u = (b: Uint8Array): string => { let s = ""; for (const x of b) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+export const unb64 = (s: unknown): Uint8Array | null => {
   if (typeof s !== "string" || !/^[A-Za-z0-9_-]*$/.test(s)) return null;
   try { return Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), c => c.charCodeAt(0)); } catch { return null; }
 };
 
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz234567";
 /** 26 base32 characters of the SHA-256 of bytes. @param {Uint8Array} bytes */
-export async function idOfBytes(bytes) {
-  const h = new Uint8Array(await crypto.subtle.digest("SHA-256", /** @type {BufferSource} */ (bytes)));
+export async function idOfBytes(bytes: Uint8Array): Promise<string> {
+  const h = new Uint8Array(await crypto.subtle.digest("SHA-256", (bytes as BufferSource)));
   let out = "", bits = 0, value = 0;
   for (const byte of h) { value = (value << 8) | byte; bits += 8; while (bits >= 5) { out += ALPHABET[(value >>> (bits - 5)) & 31]; bits -= 5; } }
   return out.slice(0, 26);
 }
 /** The entry id of a public key: the same 26 characters a route id uses. @param {Uint8Array|string} pub */
-export const eidOf = pub => idOfBytes(typeof pub === "string" ? /** @type {Uint8Array} */ (unb64(pub)) : pub);
+export const eidOf = (pub: Uint8Array | string): Promise<string> => idOfBytes(typeof pub === "string" ? (unb64(pub) as Uint8Array) : pub);
 
 /** Deterministic JSON: keys sorted, no undefined. @param {any} v @returns {string} */
-export function canonical(v) {
+export function canonical(v: unknown): string {
   if (v === null || typeof v !== "object") return JSON.stringify(v === undefined ? null : v);
   if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
   return `{${Object.keys(v).filter(k => v[k] !== undefined).sort().map(k => `${JSON.stringify(k)}:${canonical(v[k])}`).join(",")}}`;
 }
 
 /** The bytes a signer signs for an op: everything but the signature and the approvals. @param {any} op */
-export function messageOf(op) {
+export function messageOf(op: object): Uint8Array {
   const { sig: _s, esig: _e, approvals: _a, ...body } = op;
   return enc.encode(`${CHAIN_TAG}\n${canonical(body)}`);
 }
@@ -85,12 +106,12 @@ export function messageOf(op) {
  * The hash a next op names as `prev`. A WebAuthn assertion (a `sig` longer than an Ed25519 signature's 86 characters) is left out of it: an authenticator's ECDSA signature has a high-s twin that
  * anyone can make without the key, and an op hash that covered it would fork the head between whoever holds one form and whoever holds the other. The op body it signs is still covered (NE-1).
  */
-export const hashOf = op => { if (op && typeof op.sig === "string" && op.sig.length > 100) { const { sig: _s, ...rest } = op; return sha256hex(canonical({ ...rest, sig: null })); } return sha256hex(canonical(op)); };
+export const hashOf = (op: Op): Promise<string> => { if (op && typeof op.sig === "string" && op.sig.length > 100) { const { sig: _s, ...rest } = op; return sha256hex(canonical({ ...rest, sig: null })); } return sha256hex(canonical(op)); };
 
-async function verifySig(pubText, message, sigText) {
+async function verifySig(pubText: string, message: Uint8Array, sigText: string): Promise<boolean> {
   const pub = unb64(pubText), sig = unb64(sigText);
   if (!pub || !sig || pub.length !== 32 || sig.length !== 64) return false;
-  try { return await crypto.subtle.verify({ name: "Ed25519" }, await crypto.subtle.importKey("raw", /** @type {BufferSource} */ (pub), { name: "Ed25519" }, false, ["verify"]), /** @type {BufferSource} */ (sig), /** @type {BufferSource} */ (message)); } catch { return false; }
+  try { return await crypto.subtle.verify({ name: "Ed25519" }, await crypto.subtle.importKey("raw", (pub as BufferSource), { name: "Ed25519" }, false, ["verify"]), (sig as BufferSource), (message as BufferSource)); } catch { return false; }
 }
 
 /**
@@ -99,7 +120,7 @@ async function verifySig(pubText, message, sigText) {
  * this one op; the rp id the entry names must hash to the authenticator data's rpIdHash, the origin must be that rp's own https origin, and the user must have been present AND verified.
  * @param {string} pubText a raw uncompressed P-256 point (65 bytes), base64url @param {string} rp @param {Uint8Array} message @param {string} sigText
  */
-export async function verifyWebAuthn(pubText, rp, message, sigText) {
+export async function verifyWebAuthn(pubText: string, rp: string, message: Uint8Array, sigText: string): Promise<boolean> {
   try {
     const pub = unb64(pubText), env = unb64(sigText);
     if (!pub || pub.length !== 65 || pub[0] !== 4 || !env || typeof rp !== "string" || !rp) return false;
@@ -111,21 +132,21 @@ export async function verifyWebAuthn(pubText, rp, message, sigText) {
     if ((ad[32] & 0x05) !== 0x05) return false; // user present (0x01) and user verified (0x04), every op
     const client = JSON.parse(new TextDecoder().decode(cd));
     if (client.type !== "webauthn.get" || client.origin !== `https://${rp}` || client.crossOrigin === true) return false;
-    const want = b64u(new Uint8Array(await crypto.subtle.digest("SHA-256", /** @type {BufferSource} */ (message))));
+    const want = b64u(new Uint8Array(await crypto.subtle.digest("SHA-256", (message as BufferSource))));
     if (client.challenge !== want) return false;
     const raw = derToRaw(der);
     if (!raw) return false;
     const signed = new Uint8Array(ad.length + 32);
-    signed.set(ad, 0); signed.set(new Uint8Array(await crypto.subtle.digest("SHA-256", /** @type {BufferSource} */ (cd))), ad.length);
-    const key = await crypto.subtle.importKey("raw", /** @type {BufferSource} */ (pub), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
-    return await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, /** @type {BufferSource} */ (raw), /** @type {BufferSource} */ (signed));
+    signed.set(ad, 0); signed.set(new Uint8Array(await crypto.subtle.digest("SHA-256", (cd as BufferSource))), ad.length);
+    const key = await crypto.subtle.importKey("raw", (pub as BufferSource), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+    return await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, (raw as BufferSource), (signed as BufferSource));
   } catch { return false; }
 }
 const P256_N_HALF = 0x7fffffff800000007fffffffffffffffde737d56d38bcf4279dce5617e3192a8n;
 /** Is the s half (bytes 32 to 64) of a raw P-256 signature at most n/2? Rejects the high-s twin. @param {Uint8Array} raw */
-function lowS(raw) { let v = 0n; for (let i = 32; i < 64; i++) v = (v << 8n) | BigInt(raw[i]); return v > 0n && v <= P256_N_HALF; }
+function lowS(raw: Uint8Array): boolean { let v = 0n; for (let i = 32; i < 64; i++) v = (v << 8n) | BigInt(raw[i]); return v > 0n && v <= P256_N_HALF; }
 /** An ECDSA signature in DER as the 64 bytes WebCrypto takes, or null. @param {Uint8Array} d */
-function derToRaw(d) {
+function derToRaw(d: Uint8Array): Uint8Array | null {
   if (d.length < 8 || d[0] !== 0x30 || d[1] !== d.length - 2 || d[2] !== 0x02) return null;
   let p = 3;
   const part = () => {
@@ -147,7 +168,7 @@ function derToRaw(d) {
 /**
  * The second signature of NK-2: ECDSA P-256 (SHA-256) by the entry's Secure Enclave key over the same op message, 64 bytes r||s or DER, base64url. @param {Entry} e @param {Uint8Array} message @param {unknown} esig
  */
-async function verifyEsig(e, message, esig) {
+async function verifyEsig(e: Entry, message: Uint8Array, esig: unknown): Promise<boolean> {
   try {
     const pt = unb64(e.enclave), sg = unb64(esig);
     if (!pt || !sg) return false;
@@ -155,25 +176,16 @@ async function verifyEsig(e, message, esig) {
     // head between whoever holds one and whoever holds the other (reviewer-3 NE-1), so neither is accepted.
     if (sg.length !== 64 || !lowS(sg)) return false;
     const raw = sg;
-    const key = await crypto.subtle.importKey("raw", /** @type {BufferSource} */ (pt), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
-    return await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, /** @type {BufferSource} */ (raw), /** @type {BufferSource} */ (message));
+    const key = await crypto.subtle.importKey("raw", (pt as BufferSource), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+    return await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, (raw as BufferSource), (message as BufferSource));
   } catch { return false; }
 }
 /** Does `sig` over `message` check out for this entry's key, whatever kind of key it is? @param {Entry} e @param {Uint8Array} message @param {string} sig */
-const verifyEntry = (e, message, sig) => (e.alg === "webauthn-es256" ? verifyWebAuthn(/** @type {string} */ (e.pub), String(e.rp || ""), message, sig) : verifySig(/** @type {string} */ (e.pub), message, sig));
+const verifyEntry = (e: Entry, message: Uint8Array, sig: string): Promise<boolean> => (e.alg === "webauthn-es256" ? verifyWebAuthn((e.pub as string), String(e.rp || ""), message, sig) : verifySig((e.pub as string), message, sig));
 
-/**
- * @typedef {{ eid: string, kind: "device"|"code"|"contact"|"owner", pub?: string, subject?: string, label?: string, since: number, addedBy: string|null, founder?: boolean, alg?: "webauthn-es256", rp?: string, agree?: string, held?: "web"|"relay", via?: "github", confirmed?: boolean, fresh?: number, adds?: number[], enclave?: string, attest?: string }} Entry
- * @typedef {{ id: string, kind: "person"|"space", seq: number, head: string, ts: number, entries: Entry[] }} State
- * @typedef {{ ownerOps?: (id: string) => Promise<any[]|null>, live?: boolean, liveFrom?: number, seenAt?: (seq: number) => number|undefined, now?: number, skewMs?: number }} Ctx
- * `ownerOps(id)` gives a person's whole chain (the verifier checks it itself). `live` says every op here is being ACCEPTED now, so its device must be on the owner's
- * current list; `liveFrom` is the same for ops from that sequence on (a client that pinned a head treats what is newer than its pin as live).
- * An entry's age never comes from a time its adder wrote: an op accepted live must be made now (its time is within the skew of the acceptor's clock), and a
- * verifier that learned an op later passes `seenAt(seq)`, the first time IT saw it, and the age starts there if that is later than the op's own time.
- */
 
 /** Does one entry's own shape hold? @param {any} e @param {"person"|"space"} kind */
-async function shapeOfEntry(e, kind) {
+async function shapeOfEntry(e: RawEntry, kind: "person" | "space"): Promise<Omit<Entry, "since" | "addedBy">> {
   if (!e || typeof e !== "object" || Array.isArray(e)) throw chainError("bad_entry", "an entry is an object");
   if (kind === "space") {
     if (e.kind !== "owner" || !/^per_[a-z2-7]{26}$/.test(String(e.subject)) || e.eid !== e.subject) throw chainError("bad_entry", "a space's list holds owners: person identities");
@@ -190,7 +202,7 @@ async function shapeOfEntry(e, kind) {
   if (e.held === "relay" && e.kind !== "device") throw chainError("bad_entry", "only a device can be held by the relay");
   if (e.via !== undefined && (e.via !== "github" || e.kind !== "device" || e.held !== undefined || passkey)) throw chainError("bad_entry", "via says github on a plain device, or nothing");
   if (passkey ? (!pub || pub.length !== 65 || pub[0] !== 4 || typeof e.rp !== "string" || !/^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$/.test(e.rp) || e.held !== undefined || e.kind !== "device") : (!pub || pub.length !== 32 || e.rp !== undefined)) throw chainError("bad_entry", passkey ? "a passkey entry is a device with a P-256 key and the rp it was made for" : "an entry's key is not an Ed25519 key");
-  if (e.eid !== await idOfBytes(/** @type {Uint8Array} */ (pub))) throw chainError("bad_entry", "an entry's id is not its key's hash");
+  if (e.eid !== await idOfBytes((pub as Uint8Array))) throw chainError("bad_entry", "an entry's id is not its key's hash");
   // `enclave` (NK-2): the raw uncompressed P-256 point of a key the phone keeps in its Secure Enclave behind Face ID. It is part of the signed entry, so it is immutable once on the list. Any list
   // change this entry signs must also carry `esig` from that key. `attest` is the opaque App Attest assertion the verifier of enrolment checks (it is not read here: this file cannot see the OS's policy).
   if (e.enclave !== undefined) {
@@ -206,22 +218,22 @@ async function shapeOfEntry(e, kind) {
   if (e.attest !== undefined && (typeof e.attest !== "string" || e.attest.length > 8192)) throw chainError("bad_entry", "an attestation is a string");
   return { eid: e.eid, kind: e.kind, pub: e.pub, label: cleanLabel(e.label), ...(passkey ? { alg: "webauthn-es256", rp: e.rp } : {}), ...(e.held ? { held: e.held } : {}), ...(e.via ? { via: e.via } : {}), ...(e.enclave !== undefined ? { enclave: e.enclave } : {}), ...(e.agree !== undefined ? { agree: e.agree } : {}), ...(e.attest !== undefined ? { attest: e.attest } : {}) };
 }
-const cleanLabel = (/** @type {unknown} */ l) => (typeof l === "string" ? l.replace(/[\u0000-\u001f]/g, " ").slice(0, 60) : undefined) || undefined;
+const cleanLabel = (l: unknown) => (typeof l === "string" ? l.replace(/[\u0000-\u001f]/g, " ").slice(0, 60) : undefined) || undefined;
 
 /** The founder entries (a person's first device, and the recovery code made with it) are never newcomers: nothing older exists to protect from them. */
-export const youngAt = (/** @type {Entry} */ e, /** @type {number} */ ts) => !e.founder && ts - e.since < NEWCOMER_MS;
-const find = (/** @type {State} */ s, /** @type {string} */ eid) => s.entries.find(e => e.eid === eid);
+export const youngAt = (e: Entry, ts: number) => !e.founder && ts - e.since < NEWCOMER_MS;
+const find = (s: State, eid: string) => s.entries.find(e => e.eid === eid);
 
 /** The id a genesis body makes. @param {any} body */
-export const idOfGenesis = async body => `${PREFIX[body.kind]}${await idOfBytes(enc.encode(`${CHAIN_TAG}\n${canonical(strip(body))}`))}`;
-const strip = (/** @type {any} */ op) => { const { sig: _s, id: _i, approvals: _a, via: _v, ...rest } = op; return rest; };
+export const idOfGenesis = async (body: Op): Promise<string> => `${PREFIX[body.kind]}${await idOfBytes(enc.encode(`${CHAIN_TAG}\n${canonical(strip(body))}`))}`;
+const strip = (op: Op) => { const { sig: _s, id: _i, approvals: _a, via: _v, ...rest } = op; return rest; };
 
 /**
  * Check one op against the state before it and return the state after. `state` is null for a genesis.
  * @param {State|null} state @param {any} op @param {Ctx} ctx
  * @returns {Promise<State>}
  */
-export async function applyOp(state, op, ctx = {}) {
+export async function applyOp(state: State | null, op: Op, ctx: Ctx = {}): Promise<State> {
   const now = ctx.now ?? Date.now(), skew = ctx.skewMs ?? SKEW_MS;
   if (!op || typeof op !== "object" || op.v !== 1) throw chainError("bad_op", "not an op");
   if (!Number.isFinite(op.ts) || op.ts > now + skew) throw chainError("bad_time", "an op's time is ahead of the clock");
@@ -240,10 +252,9 @@ export async function applyOp(state, op, ctx = {}) {
     const entry = await shapeOfEntry(op.entry, op.kind);
     if (op.id !== await idOfGenesis(op)) throw chainError("bad_id", "the id is not the hash of the genesis");
     if (op.kind === "person") {
-      if (entry.kind !== "device" || op.by !== entry.eid || !await verifyEntry(/** @type {Entry} */ (entry), msg, op.sig)) throw chainError("bad_signature", "the first device signs its own genesis");
-    } else await verifyOwnerSig(op, entry.eid, /** @type {Entry} */ ({ ...entry, since: eff, addedBy: null }), msg, eff, ctx);
-    /** @type {Entry[]} */
-    const entries = [{ ...entry, since: eff, addedBy: null, founder: true }];
+      if (entry.kind !== "device" || op.by !== entry.eid || !await verifyEntry((entry as Entry), msg, op.sig)) throw chainError("bad_signature", "the first device signs its own genesis");
+    } else await verifyOwnerSig(op, entry.eid, ({ ...entry, since: eff, addedBy: null } as Entry), msg, eff, ctx);
+        const entries = [{ ...entry, since: eff, addedBy: null, founder: true }];
     if (op.code !== undefined) {
       const code = await shapeOfEntry(op.code, op.kind);
       if (op.kind !== "person" || code.kind !== "code") throw chainError("bad_entry", "a genesis may carry a recovery code entry for a person");
@@ -256,13 +267,11 @@ export async function applyOp(state, op, ctx = {}) {
   if (op.id !== state.id || op.seq !== state.seq + 1 || op.prev !== state.head) throw chainError("bad_chain", "the op does not follow the chain's head");
   if (op.ts < state.ts) throw chainError("bad_time", "an op's time runs backwards");
   const isSpace = state.kind === "space";
-  /** @type {Entry[]} */
-  let entries = state.entries.map(e => ({ ...e }));
+    let entries = state.entries.map(e => ({ ...e }));
   const next = { ...state, entries };
 
   // Who signs, and are they young?
-  /** @type {Entry|undefined} */
-  let signer;
+  let signer: Entry | undefined;
   let young = false;
   if (op.type === "recover") {
     if (isSpace) throw chainError("bad_op", "a space has no recovery contacts");
@@ -293,7 +302,7 @@ export async function applyOp(state, op, ctx = {}) {
     }
   }
 
-  const sensitive = (/** @type {Entry} */ e) => e.kind === "code" || e.kind === "contact";
+  const sensitive = (e: Entry) => e.kind === "code" || e.kind === "contact";
   switch (op.type) {
     case "add": {
       const e = await shapeOfEntry(op.entry, state.kind);
@@ -301,7 +310,7 @@ export async function applyOp(state, op, ctx = {}) {
       if (e.via === "github" && !(signer && signer.held === "relay")) throw chainError("not_allowed", "only the relay's key adds a device marked as signed in with GitHub");
       // The relay's own key is put on the list by a full device that is not new, never by the relay, a GitHub device or a recovery code.
       if (e.held === "relay" && (!signer || signer.kind !== "device" || signer.held || signer.via || young)) throw chainError("not_allowed", "a full device a day old or more puts the relay's key on the list");
-      if (isSpace ? young : (sensitive(/** @type {Entry} */ (e)) && young)) throw chainError("newcomer", "a sign-in under 24 hours old cannot change the owners, the recovery code or the contacts");
+      if (isSpace ? young : (sensitive((e as Entry)) && young)) throw chainError("newcomer", "a sign-in under 24 hours old cannot change the owners, the recovery code or the contacts");
       if (e.kind === "code" && state.entries.some(x => x.kind === "code")) throw chainError("has_code", "there is a recovery code already; replace it");
       entries.push({ ...e, since: eff, addedBy: signer ? signer.eid : null, ...(e.held === "relay" ? { fresh: eff, adds: [] } : {}) });
       if (signer && signer.held === "relay") entries = entries.map(x => (x.eid === signer.eid ? { ...x, adds: [...(x.adds || []).filter(t => eff - t < 24 * 3_600_000), eff] } : x));
@@ -320,7 +329,7 @@ export async function applyOp(state, op, ctx = {}) {
       if (!target) throw chainError("not_on_list", "that entry is not on the list");
       const self = signer && target.eid === signer.eid;
       if (young && !self) {
-        if (isSpace || sensitive(target) || target.since <= /** @type {Entry} */ (signer).since) throw chainError("newcomer", "a sign-in under 24 hours old can remove only newer sign-ins");
+        if (isSpace || sensitive(target) || target.since <= (signer as Entry).since) throw chainError("newcomer", "a sign-in under 24 hours old can remove only newer sign-ins");
       }
       entries = entries.filter(e => e.eid !== target.eid);
       if (isSpace ? !entries.length : !entries.some(e => (e.kind === "device" && e.held !== "relay" && !(e.via && !e.confirmed)) || e.kind === "code")) throw chainError("last_entry", "that would leave nobody who can sign");
@@ -334,7 +343,7 @@ export async function applyOp(state, op, ctx = {}) {
       if (find(state, e.eid)) throw chainError("exists", "that is the code it already has");
       const old = state.entries.find(x => x.kind === "code");
       entries = entries.filter(x => x.kind !== "code");
-      entries.push({ ...e, since: old ? old.since : eff, addedBy: /** @type {Entry} */ (signer).eid });
+      entries.push({ ...e, since: old ? old.since : eff, addedBy: (signer as Entry).eid });
       break;
     }
     case "recover": {
@@ -363,7 +372,7 @@ export async function applyOp(state, op, ctx = {}) {
       if (target.agree === undefined && op.replaces !== undefined) throw chainError("bad_op", "there is no agreement key to replace");
       const pt = unb64(op.agree);
       if (!pt || pt.length !== 65 || pt[0] !== 4) throw chainError("bad_entry", "an agreement key is a raw uncompressed P-256 point on a device entry");
-      entries = entries.map(e => (e.eid === target.eid ? { ...e, agree: /** @type {string} */ (op.agree) } : e));
+      entries = entries.map(e => (e.eid === target.eid ? { ...e, agree: (op.agree as string) } : e));
       break;
     }
     default: throw chainError("bad_op", "unknown op type");
@@ -380,17 +389,17 @@ export async function applyOp(state, op, ctx = {}) {
  * @param {Ctx} ctx @param {string} subject @param {unknown} seq @param {unknown} head
  * @returns {Promise<{ at: State, ops: any[] }>}
  */
-async function ownerAt(ctx, subject, seq, head) {
+async function ownerAt(ctx: Ctx, subject: string, seq: unknown, head: unknown): Promise<{ at: State; ops: Op[] }> {
   const ops = ctx.ownerOps ? await ctx.ownerOps(subject) : null;
   if (!ops) throw chainError("unknown_owner", "the owner's own identity cannot be found");
-  if (!Number.isInteger(seq) || /** @type {number} */ (seq) < 0 || /** @type {number} */ (seq) >= ops.length || typeof head !== "string") throw chainError("bad_via", "a space op names the position of the owner's list it relied on");
-  if (await hashOf(ops[/** @type {number} */ (seq)]) !== head) throw chainError("bad_via", "that is not the owner's list at that position");
+  if (!Number.isInteger(seq) || (seq as number) < 0 || (seq as number) >= ops.length || typeof head !== "string") throw chainError("bad_via", "a space op names the position of the owner's list it relied on");
+  if (await hashOf(ops[(seq as number)]) !== head) throw chainError("bad_via", "that is not the owner's list at that position");
   const now = (ctx.now ?? Date.now()) + (ctx.skewMs ?? SKEW_MS);
-  return { at: await verifyChain(ops.slice(0, /** @type {number} */ (seq) + 1), { now }), ops };
+  return { at: await verifyChain(ops.slice(0, (seq as number) + 1), { now }), ops };
 }
 
 /** The device must also be on the owner's CURRENT list (acceptance time): removing a device ends its signing at once. @param {Ctx} ctx @param {any[]} ops @param {Entry} dev */
-async function stillOnList(ctx, ops, dev) {
+async function stillOnList(ctx: Ctx, ops: Op[], dev: Entry): Promise<void> {
   const now = (ctx.now ?? Date.now()) + (ctx.skewMs ?? SKEW_MS);
   const head = await verifyChain(ops, { now });
   const cur = find(head, dev.eid);
@@ -402,7 +411,7 @@ async function stillOnList(ctx, ops, dev) {
  * op names, and, when the op is being accepted now (`ctx.live`, or `liveFrom`), on the owner's current list. Says whether the device was young.
  * @param {any} op @param {string} subject @param {Entry} owner @param {Uint8Array} msg @param {number} ts @param {Ctx} ctx @returns {Promise<boolean>}
  */
-async function verifyOwnerSig(op, subject, owner, msg, ts, ctx) {
+async function verifyOwnerSig(op: Op, subject: string, _owner: Entry, msg: Uint8Array, ts: number, ctx: Ctx): Promise<boolean> {
   if (op.by !== subject || typeof op.via !== "string" || !EID.test(op.via)) throw chainError("bad_signature", "a space op names its owner and the device that signed");
   const { at, ops } = await ownerAt(ctx, subject, op.via_seq, op.via_head);
   const dev = find(at, op.via);
@@ -422,7 +431,7 @@ async function verifyOwnerSig(op, subject, owner, msg, ts, ctx) {
  * @param {State} state @param {string} by @param {string|undefined} via @param {number} ts @param {Ctx} ctx @param {{ seq?: number, head?: string }} [pos]
  * @returns {Promise<{ pub: string, young: boolean, entry: Entry }>}
  */
-export async function signerKey(state, by, via, ts, ctx = {}, pos = {}) {
+export async function signerKey(state: State, by: string, via: string | undefined, ts: number, ctx: Ctx = {}, pos: { seq?: number; head?: string } = {}): Promise<{ pub: string; young: boolean; entry: Entry; signing: Entry }> {
   const e = find(state, String(by));
   if (!e) throw chainError("not_on_list", "the signer is not on the list");
   if (state.kind === "space") {
@@ -433,56 +442,55 @@ export async function signerKey(state, by, via, ts, ctx = {}, pos = {}) {
     if (!dev || dev.kind !== "device") throw chainError("not_on_list", "that device is not on the owner's list");
     if (dev.held === "relay" || (dev.via === "github" && !dev.confirmed)) throw chainError("limited", "a device added with GitHub cannot sign for a space until another device confirms it");
     if (ctx.live) await stillOnList(ctx, ops, dev);
-    return { pub: /** @type {string} */ (dev.pub), young: youngAt(dev, ts), entry: e, signing: dev };
+    return { pub: (dev.pub as string), young: youngAt(dev, ts), entry: e, signing: dev };
   }
   if (e.kind === "contact") throw chainError("not_allowed", "a recovery contact only approves a recovery");
-  return { pub: /** @type {string} */ (e.pub), young: e.kind === "code" || youngAt(e, ts), entry: e, signing: e };
+  return { pub: (e.pub as string), young: e.kind === "code" || youngAt(e, ts), entry: e, signing: e };
 }
 
 /** The position of a person's chain a space op relies on: its head. @param {any[]} ownerOps */
-export async function viaOf(ownerOps) { return { via_seq: ownerOps.length - 1, via_head: await hashOf(ownerOps[ownerOps.length - 1]) }; }
+export async function viaOf(ownerOps: Op[]): Promise<{ via_seq: number; via_head: string }> { return { via_seq: ownerOps.length - 1, via_head: await hashOf(ownerOps[ownerOps.length - 1]) }; }
 
 /** Does `sig` over `message` check out under the key `signerKey` names? Pass the entry that signed (`signing` in signerKey's answer) so a passkey's assertion is checked as one. @param {string} pub @param {Uint8Array} message @param {string} sig @param {Entry} [entry] */
-export const verifyWith = (pub, message, sig, entry) => (entry && entry.alg === "webauthn-es256" ? verifyWebAuthn(/** @type {string} */ (entry.pub), String(entry.rp || ""), message, sig) : verifySig(pub, message, sig));
+export const verifyWith = (pub: string, message: Uint8Array, sig: string, entry?: Entry): Promise<boolean> => (entry && entry.alg === "webauthn-es256" ? verifyWebAuthn((entry.pub as string), String(entry.rp || ""), message, sig) : verifySig(pub, message, sig));
 
 /** Verify a whole chain from its genesis and return its state. @param {any[]} ops @param {Ctx} [ctx] */
-export async function verifyChain(ops, ctx = {}) {
+export async function verifyChain(ops: Op[], ctx: Ctx = {}): Promise<State> {
   if (!Array.isArray(ops) || !ops.length) throw chainError("bad_chain", "an empty chain");
   if (ops.length > MAX_OPS) throw chainError("too_long", `a chain is at most ${MAX_OPS} ops`);
-  /** @type {State|null} */
-  let s = null;
+  let s: State | null = null;
   for (const op of ops) s = await applyOp(s, op, ctx);
-  return /** @type {State} */ (s);
+  return (s as State);
 }
 
 /** The state as it stood at a time: the ops with ts at or before it (a chain's ts never runs backwards). @param {any[]} ops @param {number} ts @param {Ctx} [ctx] */
-export async function stateAt(ops, ts, ctx = {}) {
+export async function stateAt(ops: Op[], ts: number, ctx: Ctx = {}): Promise<State | null> {
   const upto = ops.filter(o => o.ts <= ts);
   return upto.length ? verifyChain(upto, ctx) : null;
 }
 
 /** Build and sign the genesis. `sign(bytes)` is the first entry's key (a person), or an owner's device (a space, with `via`). @param {{ kind: "person"|"space", entry: any, code?: any, viaPos?: { via_seq: number, via_head: string }, nonce: string, ts: number, via?: string, sign: (m: Uint8Array) => Promise<Uint8Array>|Uint8Array }} o */
-export async function makeGenesis({ kind, entry, code, nonce, ts, via, viaPos, sign }) {
+export async function makeGenesis({ kind, entry, code, nonce, ts, via, viaPos, sign }: { kind: "person" | "space"; entry: RawEntry & { eid: string }; code?: RawEntry; viaPos?: { via_seq: number; via_head: string }; nonce: string; ts: number; via?: string; sign: SignFn }): Promise<Op> {
   const op = { v: 1, type: "genesis", kind, seq: 0, prev: null, ts, nonce, entry, ...(code ? { code } : {}), by: entry.eid, ...(via ? { via } : {}), ...(viaPos || {}) };
-  /** @type {any} */ (op).id = await idOfGenesis(op);
-  /** @type {any} */ (op).sig = b64u(await sign(messageOf(op)));
+  op.id = await idOfGenesis(op);
+  op.sig = b64u(await sign(messageOf(op)));
   return op;
 }
 
 /** Build and sign the next op on a state. `body` is {type, entry|target, ...}; contacts' approvals come in `approvals` already signed. @param {State} state @param {any} body @param {{ by?: string, via?: string, viaPos?: { via_seq: number, via_head: string }, ts: number, sign?: (m: Uint8Array) => Promise<Uint8Array>|Uint8Array }} o */
-export async function makeOp(state, body, { by, via, viaPos, ts, sign, esign }) {
+export async function makeOp(state: State, body: Partial<Op>, { by, via, viaPos, ts, sign, esign }: { by?: string; via?: string; viaPos?: { via_seq: number; via_head: string }; ts: number; sign?: SignFn; esign?: SignFn }): Promise<Op> {
   const op = { v: 1, id: state.id, seq: state.seq + 1, prev: state.head, ts, ...body, ...(by ? { by } : {}), ...(via ? { via } : {}), ...(viaPos || {}) };
-  if (sign) /** @type {any} */ (op).sig = b64u(await sign(messageOf(op)));
+  if (sign) op.sig = b64u(await sign(messageOf(op)));
   // the Secure Enclave key's own signature over the same message (NK-2): `esign` returns 64 bytes r||s or DER
-  if (esign) /** @type {any} */ (op).esig = b64u(await esign(messageOf(op)));
+  if (esign) op.esig = b64u(await esign(messageOf(op)));
   return op;
 }
 
 /** What a recovery contact signs to approve (the op without any signatures yet). @param {any} op */
-export const approvalMessage = op => messageOf(op);
+export const approvalMessage = (op: Op): Uint8Array => messageOf(op);
 
 /** Entries that need to alert the person's devices: adds, removes and recoveries after a sequence number. @param {any[]} ops @param {number} afterSeq */
-export function alertsSince(ops, afterSeq) {
+export function alertsSince(ops: Op[], afterSeq: number): { seq: number | undefined; ts: number | undefined; type: string | undefined; by: string | null; entry: { eid: unknown; kind: unknown; label: unknown } | null; target: string | null }[] {
   return ops.filter(o => o.seq > afterSeq && o.type !== "genesis" && (o.type !== "agree" || o.replaces !== undefined)).map(o => ({ seq: o.seq, ts: o.ts, type: o.type, by: o.by || null, entry: o.entry ? { eid: o.entry.eid, kind: o.entry.kind, label: o.entry.label || null } : null, target: o.target || null }));
 }
 
@@ -492,7 +500,7 @@ export function alertsSince(ops, afterSeq) {
  * @param {{ id: string, seq: number, head: string }|null|undefined} pin @param {any[]} ops
  * @returns {Promise<{ ok: true, fresh: boolean }|{ ok: false, code: "stale"|"fork"|"other_id", why: string }>}
  */
-export async function checkAnswer(pin, ops) {
+export async function checkAnswer(pin: { id: string; seq: number; head: string } | null | undefined, ops: Op[]): Promise<{ ok: true; fresh: boolean } | { ok: false; code: "stale" | "fork" | "other_id"; why: string }> {
   if (!pin) return { ok: true, fresh: true };
   if (!ops.length || ops[0].id !== pin.id) return { ok: false, code: "other_id", why: "the name now points at a different identity than the one you trusted" };
   if (ops.length - 1 < pin.seq) return { ok: false, code: "stale", why: "the directory answered with an older list than you have seen" };
@@ -501,6 +509,6 @@ export async function checkAnswer(pin, ops) {
 }
 
 /** The pin to keep after a verified chain. @param {State} s */
-export const pinOf = s => ({ id: s.id, seq: s.seq, head: s.head });
+export const pinOf = (s: State): { id: string; seq: number; head: string } => ({ id: s.id, seq: s.seq, head: s.head });
 
 export { ID as ID_RE, EID as EID_RE };

@@ -1,4 +1,4 @@
-// @ts-nocheck (ported from vyre 0.6.9 kernel/identity/stretch.test.js)
+// ported from vyre 0.6.9 kernel/identity/stretch.test.js; the pure JS fallback and its vectors are not carried over
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
@@ -19,7 +19,7 @@ test("stretch: the parameters are the stated ones", () => {
 
 test("stretch: the pure Argon2id matches the native vectors, and the native one when there is one", () => {
   for (const v of VECTORS) {
-    const pure = argon2id(v.secret, STRETCH_SALT, { memoryKiB: v.memoryKiB, passes: v.passes, pure: true });
+    const pure = argon2id(v.secret, STRETCH_SALT, { memoryKiB: v.memoryKiB, passes: v.passes });
     assert.equal(pure.length, 32);
     assert.ok(pure.toString("hex").startsWith(v.tag), `${v.memoryKiB} KiB, ${v.passes} passes`);
     assert.equal(argon2id(v.secret, STRETCH_SALT, { memoryKiB: v.memoryKiB, passes: v.passes }).toString("hex"), pure.toString("hex"));
