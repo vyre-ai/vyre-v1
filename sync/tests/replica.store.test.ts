@@ -234,6 +234,7 @@ test("open prepares statements, then one write invalidates and round-trips", asy
     assert.equal(perfHits, 5);
     const ordered = [...samples].sort((a, b) => a - b);
     const median = ordered[2];
+    console.log(`PERF edit.local median ${String(median)} ms of 5 (budget 10 ms): ${ordered.map((x) => x.toFixed(3)).join(",")}`);
     assert.ok(typeof median === "number" && median < 10, `edit.local median ${String(median)} ms samples ${ordered.join(",")}`);
 
     await store.close();
