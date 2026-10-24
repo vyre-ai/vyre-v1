@@ -1,0 +1,13 @@
+{
+  "value": [
+    {
+      "id": "g1",
+      "isDraft": false
+    },
+    {
+      "id": "g3",
+      "isDraft": false
+    }
+  ],
+  "@odata.deltaLink": "https://graph.microsoft.com/v1.0/users('mid')/mailFolders('inbox')/messages/delta?$deltatoken=D1"
+}

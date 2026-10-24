@@ -1,0 +1,11 @@
+{
+  "_comment": "Recorded from a GitHub `issues` webhook delivery with action closed, trimmed.",
+  "action": "closed",
+  "issue": {
+    "number": 1234,
+    "state": "closed",
+    "labels": [{ "name": "bug" }, { "name": "fixed-in-0.7.2" }]
+  },
+  "repository": { "full_name": "vyre-ai/vyre" },
+  "sender": { "login": "triage-agent" }
+}

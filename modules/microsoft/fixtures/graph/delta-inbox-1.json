@@ -1,0 +1,23 @@
+{
+  "value": [
+    {
+      "id": "g1",
+      "isDraft": false
+    },
+    {
+      "id": "g2",
+      "isDraft": false
+    },
+    {
+      "id": "gd",
+      "isDraft": true
+    },
+    {
+      "id": "gx",
+      "@removed": {
+        "reason": "deleted"
+      }
+    }
+  ],
+  "@odata.nextLink": "https://graph.microsoft.com/v1.0/users('mid')/mailFolders('inbox')/messages/delta?$skiptoken=S2"
+}
