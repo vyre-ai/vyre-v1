@@ -53,6 +53,7 @@ jobs:
       matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v5
+      - uses: ./.github/actions/deps
       - name: Run the shard (20 s file cap, pass cache by import hash)
         env:
           FILES: ${{ matrix.files }}
