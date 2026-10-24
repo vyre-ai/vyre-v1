@@ -150,7 +150,7 @@ jobs:
         run: node --test --test-timeout=900000 --test-reporter=spec modules/sites/tests/builders.heavy.test.ts
       - name: Standalone docker compose (the runner has no compose plugin), pinned and checksum-verified
         id: compose
-        if: steps.scope.outputs.changed == 'true'
+        if: always() && steps.scope.outputs.changed == 'true'
         run: |
           v=v2.40.3
           case "$(uname -m)" in x86_64) a=x86_64 ;; aarch64) a=aarch64 ;; *) echo "unsupported arch"; exit 1 ;; esac
