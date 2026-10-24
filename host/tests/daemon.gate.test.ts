@@ -27,6 +27,7 @@ const MAILBOX = "mbx_hello";
 const TASK = "tsk_a1b2c3";   // the id the (stub) tasks module answers with
 const AGENT = "agt_scout";
 const OLIVIA = "usr_olivia";
+const SANA = "usr_sana";   // a member
 
 const tmp = (p: string): string => fs.mkdtempSync(path.join(os.tmpdir(), p));
 let n = 0;
@@ -38,8 +39,8 @@ const ev = (type: string, entity: string, id: string, payload: unknown) => ({
 function seededDir(): string {
   const core = bootCore();
   const res = (id: string, type: string) => ev("resource.created", "resource", id, { id, type, parent_id: CORE_SPACE, label: 0, owner_id: OLIVIA, holds: 0 });
-  const grant = (id: string, type: string, rid: string) => ev("grant.created", "grant", id, { id, subject_kind: "actor", subject_id: AGENT, resource_type: type, resource_id: rid, level: "use", by: OLIVIA });
-  for (const r of core.store.appendBatch([res(MAILBOX, "mailbox"), res(TASK, "task"), grant("gr_scout_mbx", "mailbox", MAILBOX), grant("gr_scout_spc", "space", CORE_SPACE)])) {
+  const grant = (id: string, type: string, rid: string, who = AGENT) => ev("grant.created", "grant", id, { id, subject_kind: "actor", subject_id: who, resource_type: type, resource_id: rid, level: "use", by: OLIVIA });
+  for (const r of core.store.appendBatch([res(MAILBOX, "mailbox"), res(TASK, "task"), grant("gr_scout_mbx", "mailbox", MAILBOX), grant("gr_scout_spc", "space", CORE_SPACE), grant("gr_sana_mbx", "mailbox", MAILBOX, SANA), grant("gr_sana_spc", "space", CORE_SPACE, SANA)])) {
     assert.ok(r.ok, "seed event accepted");
   }
   const dir = tmp("vyre-daemon-gate-");
@@ -72,7 +73,10 @@ function resend() {
 }
 
 const SEND = (key: string) => ({ mailboxId: MAILBOX, to: [{ address: "pat@acme.test" }], subject: "Hello", text: "Hi Pat", idempotencyKey: key });
-const sendHandler = (async (ctx: { call(cap: string, input: unknown): Promise<unknown> }, input: { subject: string; text: string; idempotencyKey: string }) => {
+/** who the send body ran as, per call */
+const ranAs: { cap: string; principal: string; actingFor: string | undefined; run: string | undefined }[] = [];
+const sendHandler = (async (ctx: { principal: { id: string }; actingFor?: string; run?: string; call(cap: string, input: unknown): Promise<unknown> }, input: { subject: string; text: string; idempotencyKey: string }) => {
+  ranAs.push({ cap: "mail.send", principal: ctx.principal.id, actingFor: ctx.actingFor, run: ctx.run });
   const out = (await ctx.call("resend.send_email", { from: "maya@vyre.test", to: ["pat@acme.test"], subject: input.subject, text: input.text, idempotencyKey: `${input.idempotencyKey}:out` })) as { providerId: string };
   return { status: "sent", messageId: "eml_a1b2c3", providerId: out.providerId };
 }) as never;
@@ -89,7 +93,7 @@ async function boot(dir: string, net: ReturnType<typeof resend>): Promise<Daemon
       if (h["authorization"] !== `Bearer ${token}`) return null;
       const asAgent = h["x-test-as"] === "agent";
       return asAgent
-        ? { space: CORE_SPACE, principal: { kind: "agent", id: AGENT }, actingFor: OLIVIA, device: "test-device" }
+        ? { space: CORE_SPACE, principal: { kind: "agent", id: AGENT }, actingFor: h["x-test-for"] ?? OLIVIA, device: "test-device" }
         : { space: CORE_SPACE, principal: { kind: "person", id: OLIVIA }, device: "test-device" };
     },
     extra: { handlers: { "mail.send": sendHandler } },
@@ -98,8 +102,8 @@ async function boot(dir: string, net: ReturnType<typeof resend>): Promise<Daemon
   token = d.token;
   return d;
 }
-const call = (d: Daemon, p: string, body: unknown, as: "agent" | "person" = "person") => fetch(`${d.url}${p}`, {
-  method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}`, ...(as === "agent" ? { "x-test-as": "agent" } : {}) }, body: JSON.stringify(body),
+const call = (d: Daemon, p: string, body: unknown, as: "agent" | "person" = "person", forPerson?: string) => fetch(`${d.url}${p}`, {
+  method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}`, ...(as === "agent" ? { "x-test-as": "agent", ...(forPerson ? { "x-test-for": forPerson } : {}) } : {}) }, body: JSON.stringify(body),
 });
 const holds = (d: Daemon): { id: string; state: string; decision_id: string; payload_hash: string; cap_name: string; principal_id: string }[] =>
   d.db!.all("SELECT id, state, decision_id, payload_hash, cap_name, principal_id FROM gate_holds ORDER BY created_at") as never;
@@ -170,6 +174,35 @@ test("daemon.gate: an approval minted for another payload releases nothing", asy
   } finally { await d.stop(); }
 });
 
+test("daemon.gate: an agent acting for a member, approved by the owner, resumes as that agent for that member and never with the owner's rights", async () => {
+  const net = resend();
+  const d = await boot(seededDir(), net);
+  try {
+    ranAs.length = 0;
+    const first = await call(d, "/v1/mail/send", SEND("idem-agent-5"), "agent", SANA);
+    assert.equal(first.status, 202, JSON.stringify(await first.clone().json()));
+    const [hold] = holds(d);
+    assert.equal((d.db!.all("SELECT acting_for FROM gate_holds WHERE id = ?", hold!.id)[0] as { acting_for: string }).acting_for, SANA, "the row keeps whom the agent acted for");
+    const released = await call(d, "/v1/gate/release", { holdId: hold!.id, taskId: TASK, approvalToken: approvalFor(hold!) });   // Olivia, the owner, approves
+    assert.equal(released.status, 200, JSON.stringify(await released.clone().json()));
+    assert.deepEqual(ranAs, [{ cap: "mail.send", principal: AGENT, actingFor: SANA, run: undefined }], "the resumed send ran as the asker, not as the approver");
+    assert.equal(net.emails.length, 1);
+  } finally { await d.stop(); }
+});
+
+test("daemon.gate: a hold whose stored caller was changed after it was parked does not resume", async () => {
+  const net = resend();
+  const d = await boot(seededDir(), net);
+  try {
+    await call(d, "/v1/mail/send", SEND("idem-agent-6"), "agent", SANA);
+    const [hold] = holds(d);
+    d.db!.run("UPDATE gate_holds SET acting_for = ? WHERE id = ?", OLIVIA, hold!.id);   // an attempt to make the agent act for the owner
+    const r = await call(d, "/v1/gate/release", { holdId: hold!.id, taskId: TASK, approvalToken: approvalFor(hold!) });
+    assert.notEqual(r.status, 200);
+    assert.equal(net.emails.length, 0);
+  } finally { await d.stop(); }
+});
+
 // ---- the capability's `when`
 
 const AGT = { principal: { kind: "agent" as const, id: AGENT } };
@@ -189,7 +222,7 @@ test("daemon.gate when: the expression is read over the caller and the input, an
 
 test("daemon.gate when: the Gate is asked only when the capability's when holds for this call", async () => {
   const asked: unknown[] = [];
-  const hook = createGateHook({ call: async (cap, input) => { asked.push([cap, input]); return { hold: true }; }, unseal: () => new Uint8Array(), now: () => 0 });
+  const hook = createGateHook({ call: async (cap, input) => { asked.push([cap, input]); return { hold: true }; }, unseal: () => new Uint8Array(), now: () => 0, hold: () => null });
   const cap = (gate: CapabilityDef["gate"]) => ({ name: "example.act", v: 1, gate }) as unknown as CapabilityDef;
   const seed = (p: typeof AGT | typeof PER) => ({ space: CORE_SPACE, ...p });
   assert.equal(await hook.applies(cap({ act: "delete", when: "input.method != 'GET'" }), { method: "GET" }, seed(AGT)), null, "when is false: not asked, not held");
@@ -199,7 +232,7 @@ test("daemon.gate when: the Gate is asked only when the capability's when holds 
   assert.deepEqual(await hook.applies(cap({ act: "send" }), {}, seed(AGT)), { act: "send" }, "no when: the rule decides");
   assert.equal(await hook.applies(cap({ act: "none" }), {}, seed(AGT)), null, "act none never asks");
   assert.equal(await hook.applies(cap(undefined), {}, seed(AGT)), null);
-  const calm = createGateHook({ call: async () => ({ hold: false }), unseal: () => new Uint8Array(), now: () => 0 });
+  const calm = createGateHook({ call: async () => ({ hold: false }), unseal: () => new Uint8Array(), now: () => 0, hold: () => null });
   assert.equal(await calm.applies(cap({ act: "send" }), {}, seed(PER)), null, "the rule says no: not held");
 });
 

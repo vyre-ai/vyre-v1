@@ -251,6 +251,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             return r.output;
           },
           unseal: (s) => seal.unseal(s), now,
+          hold: (id) => {
+            const r = db?.all("SELECT state, principal_kind, principal_id, acting_for, run_id, thread_id, payload_hash FROM gate_holds WHERE id = ?", id)[0] as
+              { state: string; principal_kind: string; principal_id: string; acting_for: string | null; run_id: string | null; thread_id: string | null; payload_hash: string } | undefined;
+            return r ? { state: r.state, principalKind: r.principal_kind, principalId: r.principal_id, actingFor: r.acting_for ?? undefined, run: r.run_id ?? undefined, thread: r.thread_id ?? undefined, payloadHash: r.payload_hash } : null;
+          },
         }))
         : undefined;
 

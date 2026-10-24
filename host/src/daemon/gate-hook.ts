@@ -18,11 +18,13 @@ export interface GateHookDeps {
   /** ctx.seal.unseal: opens the approval token. */
   unseal(s: { keyId: string; nonce: string; bytes: string }): Uint8Array;
   now(): number;
+  /** The held row an approval names (the host owns modules.db): who asked, whom for, run and thread, the stored payload hash and its state. Null when there is none. */
+  hold(id: string): { state: string; principalKind: string; principalId: string; actingFor?: string | undefined; run?: string | undefined; thread?: string | undefined; payloadHash: string } | null;
 }
 
-/** What an approval is bound to: this capability and version, this input and the caller (who the caller acts for is not part of it: a resumed agent acts for the person who approved). gate.park stores it; the token carries it; verify recomputes it. */
-export function payloadHash(cap: Pick<CapabilityDef, "name" | "v">, input: unknown, seed: Pick<CtxSeed, "principal">): string {
-  return sha256b64(canonical({ cap: cap.name, v: cap.v, input, principal: { kind: seed.principal.kind, id: seed.principal.id } }));
+/** What an approval is bound to: this capability and version, this input and the caller and whom it acts for: a resumed call runs as exactly that ask-time pair, so an approval can never widen what the caller may do. gate.park stores it; the token carries it; verify recomputes it. */
+export function payloadHash(cap: Pick<CapabilityDef, "name" | "v">, input: unknown, seed: Pick<CtxSeed, "principal" | "actingFor">): string {
+  return sha256b64(canonical({ cap: cap.name, v: cap.v, input, principal: { kind: seed.principal.kind, id: seed.principal.id }, actingFor: seed.actingFor ?? null }));
 }
 
 const unb64url = (s: string): string => Buffer.from(s, "base64url").toString("utf8");
@@ -37,6 +39,14 @@ export function whenHolds(when: string | undefined, input: unknown, seed: Pick<C
     const v: unknown = evalExpr(parseExpr(when), { values: { actor: { kind: seed.principal.kind, id: seed.principal.id }, input: input ?? {} } });
     return v === null || v === undefined ? true : Boolean(v);
   } catch { return true; }
+}
+
+interface Claims { v?: unknown; hash?: unknown; exp?: unknown; hold?: unknown }
+function claimsOf(d: Pick<GateHookDeps, "unseal">, token: string): Claims | null {
+  if (!token.startsWith("apv_")) return null;
+  try {
+    return JSON.parse(new TextDecoder().decode(d.unseal(JSON.parse(unb64url(token.slice(4))) as { keyId: string; nonce: string; bytes: string }))) as Claims;
+  } catch { return null; }
 }
 
 export function createGateHook(d: GateHookDeps): GateHook {
@@ -60,13 +70,19 @@ export function createGateHook(d: GateHookDeps): GateHook {
       if (typeof r?.taskId !== "string") throw fail("internal.unavailable", a.traceId, { message: "Approvals are not available right now.", details: { cap: a.cap.name } });
       return typeof r.runId === "string" ? { taskId: r.taskId, runId: r.runId } : { taskId: r.taskId };
     },
+    async resume(a) {
+      const claims = claimsOf(d, a.token);
+      if (!claims || typeof claims.hold !== "string") return null;
+      const row = d.hold(claims.hold);
+      if (!row || row.state !== "held" || row.principalId !== a.onBehalfOf || !["person", "agent", "actor", "service"].includes(row.principalKind)) return null;
+      const principal = { kind: row.principalKind as "person" | "agent" | "actor" | "service", id: row.principalId };
+      // the stored call must still be the one that was approved: caller, actingFor and input all feed the hash the Gate stored at park
+      if (payloadHash(a.cap, a.input, { principal, actingFor: row.actingFor }) !== row.payloadHash) return null;
+      return { principal, actingFor: row.actingFor, run: row.run, thread: row.thread };
+    },
     verify(token, a) {
-      if (!token.startsWith("apv_")) return false;
-      try {
-        const sealed = JSON.parse(unb64url(token.slice(4))) as { keyId: string; nonce: string; bytes: string };
-        const claims = JSON.parse(new TextDecoder().decode(d.unseal(sealed))) as { v?: unknown; hash?: unknown; exp?: unknown };
-        return claims.v === 1 && typeof claims.exp === "number" && claims.exp >= d.now() && claims.hash === payloadHash(a.cap, a.input, a.seed);
-      } catch { return false; }
+      const claims = claimsOf(d, token);
+      return claims !== null && claims.v === 1 && typeof claims.exp === "number" && claims.exp >= d.now() && claims.hash === payloadHash(a.cap, a.input, a.seed);
     },
   };
 }

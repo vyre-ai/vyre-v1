@@ -76,6 +76,11 @@ export interface GateHook {
   applies(cap: CapabilityDef, input: unknown, seed: CtxSeed): { act: string } | null | Promise<{ act: string } | null>;
   /** Park the call as an approval task (4.6) and return its ids. */
   park(a: { cap: CapabilityDef; input: unknown; seed: CtxSeed; act: string; decisionId: string; traceId: string }): Promise<{ taskId: string; runId?: string }>;
+  /**
+   * Who a resumed call runs as: exactly the ask-time caller, whom it acted for, and its run and thread, read from the held row the token names. Never the approver's. Null refuses the resume.
+   * Without this method a call carrying onBehalfOf is refused.
+   */
+  resume?(a: { token: string; onBehalfOf: string; cap: CapabilityDef; input: unknown }): Promise<{ principal: PrincipalSeed; actingFor?: string | undefined; run?: string | undefined; thread?: string | undefined } | null>;
   /** Is the approval token valid for exactly this call? */
   verify(token: string, a: { cap: CapabilityDef; input: unknown; seed: CtxSeed }): boolean;
 }
@@ -128,13 +133,6 @@ export function createRateLimiter(): NonNullable<InvokeDeps["rate"]> {
       return true;
     },
   };
-}
-
-const PRINCIPAL_PREFIX: Record<string, Ctx["principal"]["kind"]> = { usr: "person", agt: "agent", svc: "service", act: "actor" };
-/** A principal from its id (usr_, agt_, svc_, act_), for the Gate's resume path; null when the id is none of those. */
-function principalFromId(id: string): PrincipalSeed | null {
-  const kind = PRINCIPAL_PREFIX[id.slice(0, 3)];
-  return kind && id[3] === "_" && id.length > 4 ? { kind, id } : null;
 }
 
 export type Invoke = (cap: string, input: unknown, seed: CtxSeed) => Promise<InvokeResult>;
@@ -290,14 +288,13 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       },
       async call<C extends CapName>(name: C, callInput: unknown, opts?: CallOpts): Promise<unknown> {
         const cleared = c.gate && c.gate.act !== "none" ? [...(seed.clearedActs ?? []), c.gate.act] : seed.clearedActs;
-        // the Gate's resume path (contract change 5): only gate.release may re-invoke a parked call as its original caller, with the approval token the Gate hook then checks against the
-        // payload. The caller is named by id; an agent resumes acting for the person who approved, whose own rights bound what it may do.
+        // the Gate's resume path (contract change 5): only gate.release may re-invoke a parked call, and the Gate hook says who it runs as: exactly the ask-time caller, never the approver
         const resume = c.name === "gate.release" && opts?.approvalToken !== undefined ? opts : undefined;
         let base: CtxSeed = seed;
-        if (resume?.onBehalfOf) {
-          const original = principalFromId(resume.onBehalfOf);
-          if (!original) throw fail("validation.bad_input", trace.traceId, { details: { errors: ["onBehalfOf: not a principal id"], cap: c.name } });
-          base = { ...seed, principal: original, actingFor: original.kind === "agent" && seed.principal.kind === "person" ? seed.principal.id : undefined, run: undefined, thread: undefined };
+        if (resume) {
+          const original = resume.onBehalfOf && deps.gate?.resume ? await deps.gate.resume({ token: resume.approvalToken!, onBehalfOf: resume.onBehalfOf, cap: deps.caps.get(name)!, input: callInput }) : null;
+          if (!original) throw fail("permission.no_grant", trace.traceId, { message: "That approval cannot resume this call.", details: { cap: name } });
+          base = { ...seed, principal: original.principal, actingFor: original.actingFor, run: original.run, thread: original.thread };
         }
         const r = await invoke(name, callInput, { ...base, depth: depth + 1, trace, approval: resume?.approvalToken, v: undefined, clearedActs: resume ? undefined : cleared });
         if (r.status === "held") throw fail("permission.needs_approval", trace.traceId, { details: { taskId: r.taskId, cap: name } });
