@@ -1,0 +1,104 @@
+# Chat (chat)
+
+Lane L2. Kind module. Status stub. Version 0.1.0.
+
+Requires: engine.
+
+## Capabilities (59)
+
+- [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
+- [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
+- [channels.agents.remove](../capabilities/channels.agents.remove.md): Remove an agent from a channel
+- [channels.archive](../capabilities/channels.archive.md): Archive a channel (project and Journey channels archive when the record completes)
+- [channels.connect_outside_agent](../capabilities/channels.connect_outside_agent.md): Connect an outside agent (Claude Code, Codex) to a channel: returns the MCP address, a one-time token (once, 10 minutes) and the run command
+- [channels.create](../capabilities/channels.create.md): Create a channel: public to the Team Space or invite-only, with any mix of people and agents
+- [channels.get](../capabilities/channels.get.md): Read one channel with members, agents and unread count
+- [channels.join](../capabilities/channels.join.md): Join a public channel
+- [channels.leave](../capabilities/channels.leave.md): Leave a channel
+- [channels.list](../capabilities/channels.list.md): List channels by section and folder (the items capability of the Channels list)
+- [channels.members.add](../capabilities/channels.members.add.md): Add people to a channel
+- [channels.members.remove](../capabilities/channels.members.remove.md): Remove a person from a channel
+- [channels.unarchive](../capabilities/channels.unarchive.md): Bring an archived channel back
+- [channels.update](../capabilities/channels.update.md): Rename a channel or change its topic or visibility
+- [chat.answer_block](../capabilities/chat.answer_block.md): Answer a question or plan block; the answer is queued as a wake so the parked turn continues
+- [chat.approve_plan](../capabilities/chat.approve_plan.md): Approve a plan, optionally with edits; clears plan mode for those steps and the agent executes
+- [chat.ask_suggest](../capabilities/chat.ask_suggest.md): Suggested agent for an Ask pane: the agent that booked the event, else the contact agent, else the person last used
+- [chat.asks_of](../capabilities/chat.asks_of.md): Ask panes opened on one object (the pane history of a record, file, event, page, site or automation)
+- [chat.composer.suggest](../capabilities/chat.composer.suggest.md): Composer symbol tables: @ people and agents, # folders, channels, records and files, / commands, skills and templates
+- [chat.delete_message](../capabilities/chat.delete_message.md): Delete a message you wrote (kept in the audit trail)
+- [chat.edit](../capabilities/chat.edit.md): Edit the text of a message you wrote
+- [chat.handoff](../capabilities/chat.handoff.md): Hand work to another agent: opens that agent thread linked from this one, counted against the hop limit
+- [chat.helper.start](../capabilities/chat.helper.start.md): Start a helper sub-task thread with its own model, provider and effort; helper chats are read-only
+- [chat.helpers.list](../capabilities/chat.helpers.list.md): Helpers running under a chat, with status
+- [chat.message.get](../capabilities/chat.message.get.md): Read one message with its blocks
+- [chat.messages.list](../capabilities/chat.messages.list.md): Messages of a thread by sequence window (last 50 first, older stream in)
+- [chat.open_as_chat](../capabilities/chat.open_as_chat.md): Open an Ask pane as a normal chat so it appears in Recent
+- [chat.open_tab](../capabilities/chat.open_tab.md): Open a side tab beside the chat for the person (a file, record, diff, terminal); respects the person tab setting and posts a line
+- [chat.pin](../capabilities/chat.pin.md): Mark a message as pinned (a content marker, not a Star)
+- [chat.pins.list](../capabilities/chat.pins.list.md): Pinned messages of a thread
+- [chat.plan.propose](../capabilities/chat.plan.propose.md): Propose a plan with steps as a plan block; used when plan mode is on
+- [chat.plan.reject](../capabilities/chat.plan.reject.md): Reject a plan with a note; the agent stays in plan mode
+- [chat.plan.step_done](../capabilities/chat.plan.step_done.md): Mark one plan step done so the plan block ticks it
+- [chat.post](../capabilities/chat.post.md): Post a message in a thread or channel; routes to the lead agent or @mentioned agents and records mentions
+- [chat.question.ask](../capabilities/chat.question.ask.md): Ask the person a structured question (single, multi or free text); the turn parks until it is answered
+- [chat.react](../capabilities/chat.react.md): Add or remove a reaction
+- [chat.recent](../capabilities/chat.recent.md): Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse
+- [chat.start](../capabilities/chat.start.md): Start a chat or an Ask pane with one or more agents, or a direct message with one person (a third person means a channel)
+- [chat.thread](../capabilities/chat.thread.md): Open or create the inline thread under a message; an @mentioned agent works inside it
+- [chat.transcript.append](../capabilities/chat.transcript.append.md): Append canonical transcript rows for a turn (every engine writes here, API drivers directly and CLI drivers through hooks)
+- [chat.transcript.get](../capabilities/chat.transcript.get.md): Read one turn of a transcript verbatim
+- [chat.transcript.read](../capabilities/chat.transcript.read.md): Read a window of a transcript as Markdown (the chats/<id>/transcript.md view)
+- [chat.transcript.search](../capabilities/chat.transcript.search.md): Search transcripts the asker may see: keyword, semantic or hybrid (default), snippets with links, never raw files
+- [chat.transcript.summarize](../capabilities/chat.transcript.summarize.md): Refresh the rolling summary on a cheap model in the background
+- [chat.transcript.summary](../capabilities/chat.transcript.summary.md): The rolling summary of a thread and the pointer to its transcript, used to hand off to another engine
+- [chat.unpin](../capabilities/chat.unpin.md): Remove the pinned marker from a message
+- [threads.add_agent](../capabilities/threads.add_agent.md): Add an agent to a thread as listening (or leading when it is the only agent)
+- [threads.close](../capabilities/threads.close.md): Close a thread (idle with nothing waiting, or done)
+- [threads.get](../capabilities/threads.get.md): Read one thread with its members, agents, modes, plan mode and (for helpers) the address bar path
+- [threads.list](../capabilities/threads.list.md): List threads by kind, folder, scope or record
+- [threads.make_channel](../capabilities/threads.make_channel.md): Make a private chat into a channel with another person; the new channel links back to the chat
+- [threads.mark_read](../capabilities/threads.mark_read.md): Mark a thread read up to a sequence number
+- [threads.members.add](../capabilities/threads.members.add.md): Add a person to a thread; a private chat never gains people, so this offers a channel instead
+- [threads.members.remove](../capabilities/threads.members.remove.md): Remove a person from a thread
+- [threads.remove_agent](../capabilities/threads.remove_agent.md): Remove an agent from a thread
+- [threads.reopen](../capabilities/threads.reopen.md): Reopen a closed thread
+- [threads.set_folder](../capabilities/threads.set_folder.md): Set the thread work folder (the folder chip above the composer)
+- [threads.set_plan_mode](../capabilities/threads.set_plan_mode.md): Switch plan mode for a thread: the agent may read and plan but changes nothing until a plan is approved
+- [threads.update](../capabilities/threads.update.md): Rename a thread
+
+## Events (34)
+
+- [agent.disengaged](../events/agent.disengaged.md): An agent left a thread
+- [agent.engaged](../events/agent.engaged.md): An agent joined a thread as lead or listener
+- [agent.handoff](../events/agent.handoff.md): An agent handed work to another agent, in a new linked thread
+- [block.answered](../events/block.answered.md): A waiting block was answered; the answer is queued as a wake
+- [block.waiting](../events/block.waiting.md): A question or plan block is waiting for an answer and the turn is parked
+- [channel.agent_added](../events/channel.agent_added.md): An agent was invited into a channel
+- [channel.agent_removed](../events/channel.agent_removed.md): An agent was removed from a channel
+- [channel.agent_watch_changed](../events/channel.agent_watch_changed.md): An agent started or stopped watching a channel
+- [channel.archived](../events/channel.archived.md): A channel was archived
+- [channel.created](../events/channel.created.md): A channel was created
+- [channel.member_added](../events/channel.member_added.md): A person joined a channel or thread
+- [channel.member_removed](../events/channel.member_removed.md): A person left or was removed from a channel or thread
+- [channel.unarchived](../events/channel.unarchived.md): A channel was brought back
+- [channel.updated](../events/channel.updated.md): A channel changed name, topic or visibility
+- [helper.started](../events/helper.started.md): A helper sub-task thread started under a chat
+- [message.deleted](../events/message.deleted.md): A message was deleted
+- [message.direct](../events/message.direct.md): A person received a direct message from another person
+- [message.edited](../events/message.edited.md): A message was edited
+- [message.mentioned](../events/message.mentioned.md): A person was @mentioned
+- [message.pinned](../events/message.pinned.md): A message pinned marker changed
+- [message.reacted](../events/message.reacted.md): A reaction was added or removed
+- [message.received](../events/message.received.md): A message was posted in a thread (ids and counts only, never the text)
+- [plan.approved](../events/plan.approved.md): A plan was approved (with or without edits)
+- [plan.proposed](../events/plan.proposed.md): An agent proposed a plan
+- [plan.rejected](../events/plan.rejected.md): A plan was rejected
+- [plan.step_done](../events/plan.step_done.md): A plan step finished
+- [tab.opened](../events/tab.opened.md): An agent opened a side tab for a person (delivered live to that person devices)
+- [thread.closed](../events/thread.closed.md): A thread was closed
+- [thread.plan_mode_changed](../events/thread.plan_mode_changed.md): Plan mode was switched for a thread
+- [thread.promoted](../events/thread.promoted.md): A private chat became a channel with another person
+- [thread.reopened](../events/thread.reopened.md): A thread was reopened
+- [thread.replied](../events/thread.replied.md): A reply landed in a thread someone follows
+- [thread.started](../events/thread.started.md): A thread, chat or channel main thread was started
+- [thread.updated](../events/thread.updated.md): A thread title, folder or listing changed

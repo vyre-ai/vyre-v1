@@ -1,0 +1,82 @@
+# records.get
+
+Read one record by id
+
+| | |
+|---|---|
+| Module | records |
+| Version | 1 (since 1.0.0) |
+| Effects | read |
+| Permission | grant only |
+| Grant level | view |
+| Risk | low |
+| Resource | record (/recordId) |
+| Gate | none |
+| Idempotency | natural |
+| Offline | online |
+| Audit | none |
+| Team Space only | no |
+| HTTP | POST /v1/records/get |
+| MCP tool | records_get (records) |
+| CLI | vyre records get |
+| Emits | none |
+
+## Input
+
+```ts
+type In = {
+  type: string;
+  recordId: string;
+};
+```
+
+## Output
+
+```ts
+type Out = {
+  record: {
+    id: string;
+    type: string;
+    version: number;
+    label: number;
+    fields: Record<string, unknown>;
+    createdAt: number;
+    updatedAt: number;
+    deletedAt?: number;
+    holds: number;
+  };
+};
+```
+
+## Errors
+
+- internal.unexpected
+- permission.above_clearance
+- permission.no_grant
+- validation.bad_input
+- validation.not_found
+
+## Example
+
+```json
+{
+  "name": "example",
+  "input": {
+    "recordId": "rec_a1b2c3",
+    "type": "contact"
+  },
+  "output": {
+    "record": {
+      "createdAt": 1760000000000,
+      "deletedAt": 1760000000000,
+      "fields": {},
+      "holds": 1,
+      "id": "rec_a1b2c3",
+      "label": 1,
+      "type": "contact",
+      "updatedAt": 1760000000000,
+      "version": 1
+    }
+  }
+}
+```
