@@ -28,7 +28,7 @@ function docker(args: string[]): string | null {
 
 const haveDocker = docker(["info", "--format", "{{.ServerVersion}}"]) !== null;
 const missingBases = haveDocker ? BASES.filter((b) => docker(["image", "inspect", b]) === null) : BASES;
-const skip = !haveDocker ? "no Docker daemon on this host" : missingBases.length > 0 ? `base images not on this host: ${missingBases.join(", ")}` : false;
+const skip = process.env["VYRE_HEAVY_DOCKER"] !== "1" ? "needs VYRE_HEAVY_DOCKER=1 (the 20 s shard never builds images)" : !haveDocker ? "no Docker daemon on this host" : missingBases.length > 0 ? `base images not on this host: ${missingBases.join(", ")}` : false;
 
 const run = `${process.pid}${Math.random().toString(36).slice(2, 8)}`;
 const NETWORK = `vyre-sites-test-${run}`;
