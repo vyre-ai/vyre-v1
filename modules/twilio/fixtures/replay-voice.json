@@ -1,0 +1,12 @@
+{
+  "authToken": "12345",
+  "url": "https://example.test/hooks/twilio/voice",
+  "signature": "GVMfAE/OrVOJHZA/woAtj68pFhc=",
+  "params": {
+    "CallSid": "CA1234567890ABCDE",
+    "CallStatus": "ringing",
+    "Caller": "+14158675309",
+    "From": "+14158675309",
+    "To": "+14155550100"
+  }
+}
