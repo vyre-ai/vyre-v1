@@ -10,13 +10,14 @@ import { fakeEnv, listDef, people } from "./fakes.tsx";
 import { Text } from "react-native";
 import type { KitScreenDef } from "../types.ts";
 
+const esc = (t: string) => t.replaceAll("&", "&amp;");
 const rows = (html: string) => html.match(/data-testid="kit-row-\d+"/g)?.length ?? 0;
 
 test("a Kit screen renders from KitScreenDef: rows, interpolated fields, button", () => {
   const html = renderToStaticMarkup(<KitScreen def={listDef} env={fakeEnv({ data: { people } })} />);
   for (const p of people) {
-    assert.ok(html.includes(p.name), p.name);
-    assert.ok(html.includes(p.company), p.company);
+    assert.ok(html.includes(esc(p.name)), p.name);
+    assert.ok(html.includes(esc(p.company)), p.company);
   }
   assert.equal(rows(html), 3);
   assert.equal(html.match(/>Open</g)?.length, 3, "one Open button per row");
@@ -35,7 +36,7 @@ test("empty, offline and error states carry the def's lines and actions", () => 
   assert.match(empty, /No people yet/);
   assert.match(empty, /Add a person/);
   const offDef: KitScreenDef = { ...listDef, queries: { people: { ...listDef.queries.people!, live: false } } };
-  const offline = renderToStaticMarkup(<KitScreen def={offDef} env={fakeEnv({ online: false, fetch: () => new Promise(() => {}) })} />);
+  const offline = renderToStaticMarkup(<KitScreen def={offDef} env={fakeEnv({ online: false, read: () => new Promise(() => {}) })} />);
   assert.match(offline, /data-testid="kit-state-offline"/);
   assert.match(offline, /Offline/);
   const failing = fakeEnv({ traceId: "tr_123", hooks: { query: () => { throw new Error("no such query"); } } });

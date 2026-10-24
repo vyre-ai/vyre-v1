@@ -52,7 +52,7 @@ export function KitScreen({ def, env, state = EMPTY_STATE, builtins = defaultBui
   if (probe.current === null) probe.current = startProbe(def);
 
   const stateKey = JSON.stringify(state);
-  const set = useMemo(() => createQuerySet(def, env, { ...state }), [def, env.hooks, env.fetch, env.online, stateKey, attempt]);
+  const set = useMemo(() => createQuerySet(def, env, { ...state }), [def, env.hooks, env.read, env.online, stateKey, attempt]);
   const snaps = useSyncExternalStore(set.subscribe, set.getSnapshot, set.getSnapshot);
   const status: ScreenStatus = deriveStatus(def, snaps, env.online);
   const scope: Scope = useMemo(() => ({ queries: queryData(snaps), state }), [snaps, state]);

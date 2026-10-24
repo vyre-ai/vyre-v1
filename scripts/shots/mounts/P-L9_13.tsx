@@ -5,6 +5,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import { screens } from "../../../generated/screens.ts";
 import { KitScreen, previewDef, type KitEnv } from "../../../ui/src/kit/runtime/index.ts";
 import type { ScreenHooks } from "../../../client/src/index.ts";
+import { isScreenPlace } from "../../../ui/src/kit/types.ts";
 
 export const title = "Kit runtime, 20 screens";
 
@@ -44,7 +45,7 @@ function delayedHooks(): ScreenHooks {
 }
 
 const env: KitEnv = { hooks: delayedHooks(), online: true, invoke: () => {} };
-const run = screens.slice(0, 20).map(previewDef);
+const run = screens.filter((s) => isScreenPlace(s.place)).slice(0, 20).map(previewDef);
 
 export default function Mount() {
   return (

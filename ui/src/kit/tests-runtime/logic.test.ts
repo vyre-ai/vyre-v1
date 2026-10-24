@@ -8,6 +8,7 @@ import { matchCombo, parseCombo } from "../runtime/keys.ts";
 import { createScreenRegistry } from "../runtime/registry.ts";
 import { previewDef } from "../runtime/preview.ts";
 import { screens } from "../../../../generated/screens.ts";
+import { isScreenPlace, type KitSlot, type ScreenPlace } from "../types.ts";
 import { fakeEnv, listDef, people } from "./fakes.tsx";
 
 const scope: Scope = { queries: { people, n: 0 }, state: { q: "ma", flag: true, kind: "lead" }, row: people[0], index: 0 };
@@ -78,10 +79,10 @@ test("status: error wins, offline needs a server read, empty is the first query 
   assert.equal(deriveStatus(remote, { people: { status: "error", error: "x" } }, false), "error");
 });
 
-test("a one-shot query reads through env.fetch only while online, and errors without it", async () => {
+test("a one-shot query reads through env.read only while online, and errors without it", async () => {
   const remote = { ...listDef, queries: { people: { ...listDef.queries.people!, live: false } } };
   const calls: unknown[] = [];
-  const env = fakeEnv({ fetch: async (cap, input) => { calls.push([cap, input]); return people; } });
+  const env = fakeEnv({ read: async (cap, input) => { calls.push([cap, input]); return people; } });
   const set = createQuerySet(remote, env, { q: "ma" });
   set.subscribe(() => {});
   await new Promise((r) => setTimeout(r, 5));
@@ -89,7 +90,7 @@ test("a one-shot query reads through env.fetch only while online, and errors wit
   assert.equal(set.getSnapshot().people?.status, "ready");
   const none = createQuerySet(remote, fakeEnv(), {});
   assert.equal(none.getSnapshot().people?.status, "error");
-  const offline = fakeEnv({ online: false, fetch: async () => { throw new Error("must not be called"); } });
+  const offline = fakeEnv({ online: false, read: async () => { throw new Error("must not be called"); } });
   createQuerySet(remote, offline, {}).subscribe(() => {});
 });
 
@@ -105,11 +106,16 @@ test("key combos: mod is Command on a Mac and Control elsewhere", () => {
 });
 
 test("the screens index holds every generated screen by id, place and slot", () => {
-  const registry = createScreenRegistry(screens.map(previewDef));
-  assert.equal(registry.all().length, screens.length);
-  assert.deepEqual(registry.diffAgainst(screens.map((s) => s.id)), { missing: [], extra: [] });
-  assert.deepEqual(registry.diffAgainst(["access.checker", "ghost.screen"]).extra.includes("access.grants"), true);
-  for (const s of screens) assert.ok(registry.forSlot(s.place as never, s.slot as never).some((d) => d.id === s.id), s.id);
-  assert.throws(() => registry.register(previewDef(screens[0]!)), /already registered/);
+  // The contract names a "join" place (join.accept, join.checklist, join.reset, join.sign-in) that ScreenPlace in
+  // ui/src/kit/types.ts does not list yet. Those four are the only ones left out here; a new gap fails this test.
+  const known = screens.filter((s) => isScreenPlace(s.place));
+  assert.deepEqual(screens.filter((s) => !isScreenPlace(s.place)).map((s) => s.id).sort(), ["join.accept", "join.checklist", "join.reset", "join.sign-in"]);
+  const registry = createScreenRegistry(known.map(previewDef));
+  assert.equal(registry.all().length, known.length);
+  assert.deepEqual(registry.diffAgainst(known.map((s) => s.id)), { missing: [], extra: [] });
+  assert.ok(registry.diffAgainst(["access.checker", "ghost.screen"]).extra.includes("access.grants"));
+  assert.deepEqual(registry.diffAgainst(["ghost.screen"]).missing, ["ghost.screen"]);
+  for (const s of known) assert.ok(registry.forSlot(s.place as ScreenPlace, s.slot as KitSlot).some((d) => d.id === s.id), s.id);
+  assert.throws(() => registry.register(previewDef(known[0]!)), /already registered/);
   assert.throws(() => registry.register({ id: "", place: "home", slot: "main" } as never), /not a Kit screen/);
 });

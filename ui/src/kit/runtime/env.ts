@@ -22,7 +22,7 @@ export interface KitEnv {
   hooks: ScreenHooks;
   online: boolean;
   /** One-shot server read for a query marked `live: false`. Missing means such a query errors, never hangs. */
-  fetch?(cap: string, input: Record<string, unknown>): Promise<unknown>;
+  read?(cap: string, input: Record<string, unknown>): Promise<unknown>;
   /** Runs an action's capability. The runtime has already resolved the input and asked for confirmation. */
   invoke(action: KitAction, input: Record<string, unknown>): Promise<unknown> | void;
   /** Resolves true when the person confirms. Missing means the action runs without asking. */

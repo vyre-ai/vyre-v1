@@ -1,5 +1,5 @@
 // Binds a screen's `queries` to the generated hooks. Live queries come from the replica (client ScreenHooks); a query marked
-// `live: false` is a one-shot server read through env.fetch. One store per screen: one subscription, one stable snapshot.
+// `live: false` is a one-shot server read through env.read. One store per screen: one subscription, one stable snapshot.
 import type { KitScreenDef } from "../types.ts";
 import type { KitEnv } from "./env.ts";
 import { resolveInputMap, isEmptyValue } from "./pointer.ts";
@@ -49,16 +49,16 @@ function liveParts(def: KitScreenDef, env: KitEnv, state: Record<string, unknown
       }
       continue;
     }
-    let snap: QuerySnapshot = env.fetch ? { status: "loading" } : { status: "error", error: "no server reads on this host" };
+    let snap: QuerySnapshot = env.read ? { status: "loading" } : { status: "error", error: "no server reads on this host" };
     let started = false;
     const listeners = new Set<() => void>();
     parts[name] = {
       subscribe(l) {
         listeners.add(l);
-        if (!started && env.fetch && env.online) {
+        if (!started && env.read && env.online) {
           started = true;
           const input = resolveInputMap(q.input, { queries: {}, state });
-          env.fetch(q.cap, input).then(
+          env.read(q.cap, input).then(
             (data) => { snap = { status: "ready", data }; listeners.forEach((f) => f()); },
             (e: unknown) => { snap = { status: "error", error: message(e) }; listeners.forEach((f) => f()); },
           );

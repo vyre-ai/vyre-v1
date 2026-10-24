@@ -28,7 +28,7 @@ test("20 screens: the root box is identical in loading, empty, offline, error an
       loading: renderToStaticMarkup(<KitScreen def={def} env={fakeEnv({ loading: first ? [first] : [] })} />),
       ready: renderToStaticMarkup(<KitScreen def={def} env={fakeEnv({ data: first ? { [first]: people } : {} })} />),
       empty: renderToStaticMarkup(<KitScreen def={def} env={fakeEnv({ data: first ? { [first]: [] } : {} })} />),
-      offline: renderToStaticMarkup(<KitScreen def={remote} env={fakeEnv({ online: false, fetch: () => new Promise(() => {}) })} />),
+      offline: renderToStaticMarkup(<KitScreen def={remote} env={fakeEnv({ online: false, read: () => new Promise(() => {}) })} />),
       error: renderToStaticMarkup(<KitScreen def={def} env={fakeEnv({ hooks: { query: () => { throw new Error("x"); } } })} />),
     };
     const base = rootClass(html.ready);
