@@ -58,10 +58,10 @@ function useShiftReport(): string {
     const lines: string[] = [];
     const po = new G.PerformanceObserver((l) => {
       for (const e of l.getEntries()) {
-        const src = e.sources.map((x) => `${x.node?.tagName}[${x.node?.getAttribute?.("data-testid") ?? x.node?.parentElement?.getAttribute?.("data-testid") ?? ""}] y${Math.round(x.previousRect.y)}->${Math.round(x.currentRect.y)} h${Math.round(x.previousRect.height)}->${Math.round(x.currentRect.height)}`).join(" | ");
+        const src = e.sources.map((x) => `${x.node?.tagName}[${x.node?.getAttribute?.("data-testid") ?? ""}|${(x.node as unknown as { className?: string }).className?.slice(0, 60)}|${((x.node as unknown as { textContent?: string }).textContent ?? "").slice(0, 25)}] y${Math.round(x.previousRect.y)}->${Math.round(x.currentRect.y)} h${Math.round(x.previousRect.height)}->${Math.round(x.currentRect.height)}`).join(" | ");
         lines.push(`${e.value.toFixed(3)} ${src}`);
       }
-      setText(lines.slice(0, 12).join("\n"));
+      setText(lines.slice(0, 4).join("\n"));
     });
     try { po.observe({ type: "layout-shift", buffered: true }); } catch { /* unsupported */ }
   }, []);
