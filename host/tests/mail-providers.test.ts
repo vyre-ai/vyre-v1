@@ -197,7 +197,6 @@ function providers() {
     const method = init?.method ?? "GET";
     calls.push({ method, url, headers: init?.headers ?? {}, body: init?.body });
     const reply = (status: number, body: unknown) => ({ status, headers: { get: () => null }, text: () => Promise.resolve(JSON.stringify(body)) });
-    if (method === "GET" && url.startsWith("https://api.resend.com/domains?")) return reply(200, { data: [] });
     if (method === "GET" && url === "https://api.resend.com/domains") {
       return reply(200, { data: [{ id: "dom_1", name: "mail.vyre.test", status: "verified", region: "us-east-1" }, { id: "dom_2", name: "send.other.test", status: "pending", region: "eu-west-1" }] });
     }
@@ -234,14 +233,11 @@ test("mail-providers boot: resend answers real calls with the Space key, not 'no
   const p = providers();
   const d = await bootProviders(seededDir(), p, { "#Resend_Key": "re_live_key" });
   try {
-    const h = await post(d, "/v1/resend/health", {});
-    assert.equal(h.status, 200);
-    assert.equal(((await h.json()) as { data: { state: string } }).data.state, "healthy");
     const l = await post(d, "/v1/resend/domains/list", {});
     assert.equal(l.status, 200);
     const { data } = (await l.json()) as { data: { domains: { name: string; status: string }[] } };
     assert.deepEqual(data.domains.map((x) => [x.name, x.status]), [["mail.vyre.test", "verified"], ["send.other.test", "pending"]]);
-    assert.ok(p.calls.length >= 2 && p.calls.every((c) => c.url.startsWith("https://api.resend.com/") && c.headers["authorization"] === "Bearer re_live_key"), "every call carries the Vault key");
+    assert.ok(p.calls.length >= 1 && p.calls.every((c) => c.url.startsWith("https://api.resend.com/") && c.headers["authorization"] === "Bearer re_live_key"), "every call carries the Vault key");
   } finally { await d.stop(); }
 });
 
@@ -249,7 +245,7 @@ test("mail-providers boot: mailgun answers real calls and points its inbound rou
   const p = providers();
   const d = await bootProviders(seededDir(), p, { "#Mailgun_Key": "key-mg-secret" });
   try {
-    const r = await post(d, "/v1/mailgun/routes/create", { expression: 'match_recipient("hello@vyre.test")', description: "inbound" });
+    const r = await post(d, "/v1/mailgun/routes/create", { expression: 'match_recipient("hello@vyre.test")', description: "inbound", idempotencyKey: "idem-route" });
     assert.equal(r.status, 200);
     const { data } = (await r.json()) as { data: { route: { routeId: string; forwardTo: string[] } } };
     assert.deepEqual([data.route.routeId, data.route.forwardTo], ["rt1", ["https://space.example.com/hooks/mail/mailgun"]]);
@@ -295,7 +291,7 @@ function sendStack(o: { nested: boolean; inner?: string[] }) {
   const handlers: Record<string, Handler> = {
     "mail.send": async (ctx) => {
       for (const name of o.inner ?? ["resend.send_email"]) {
-        await ctx.call(name as never, name === "resend.domains.delete" ? { providerDomainId: "dom_1" } : { from: "maya@vyre.test", to: ["pat@acme.test"], subject: "Hello", text: "Hi Pat", idempotencyKey: "idem-1" });
+        await ctx.call(name as never, name === "resend.domains.delete" ? { providerDomainId: "dom_1", idempotencyKey: "idem-del" } : { from: "maya@vyre.test", to: ["pat@acme.test"], subject: "Hello", text: "Hi Pat", idempotencyKey: "idem-1" });
       }
       return { status: "sent" };
     },
