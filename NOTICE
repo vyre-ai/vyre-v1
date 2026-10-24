@@ -1,0 +1,5 @@
+Vyre is licensed under the Apache License, Version 2.0 (LICENSE).
+
+Files copied from Vyre 0.6.9 carry a header comment "from vyre 0.6.9 <path>@<sha>" until the cleanup pass removes it.
+Third-party components are limited to the allowlist in scripts/allowlist.json (MIT, Apache-2.0, BSD, ISC, MPL-2.0 file-level only).
+Portions derived from Paseo, Copyright (c) 2025-present Mohamed Boudra, Apache License 2.0 (https://github.com/getpaseo/paseo). Files carrying a "Derived from Paseo" header were adapted from it and modified for Vyre.

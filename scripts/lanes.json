@@ -1,0 +1,426 @@
+{
+  "_comment": "Source: ARCHITECTURE-V1 2.5 and 12.3. Read by scripts/lanes-check.ts against git diff --name-only. A path belongs to the lane whose longest owns prefix matches; 'except' removes sub-paths. Lead-owned paths (frozen) are editable by the lead only.",
+  "lanes": [
+    {
+      "id": "L1",
+      "name": "Sync and search",
+      "owns": [
+        "sync/",
+        "client/src/store/",
+        "client/src/connection/",
+        "client/src/query/",
+        "modules/sync/",
+        "modules/conflicts/",
+        "modules/search/"
+      ],
+      "modules": [
+        "sync",
+        "conflicts",
+        "search"
+      ]
+    },
+    {
+      "id": "L2",
+      "name": "Agents",
+      "owns": [
+        "agent/",
+        "sandbox/",
+        "images/person-sandbox/",
+        "images/agent-computer/",
+        "modules/chat/",
+        "modules/agents/",
+        "modules/engine/",
+        "modules/memory/",
+        "modules/computers/",
+        "modules/terminal/",
+        "modules/mcp/"
+      ],
+      "modules": [
+        "chat",
+        "agents",
+        "engine",
+        "memory",
+        "computers",
+        "terminal",
+        "mcp"
+      ]
+    },
+    {
+      "id": "L3",
+      "name": "Data",
+      "owns": [
+        "connectors/hubspot/",
+        "modules/records/",
+        "modules/schema/",
+        "modules/sources/",
+        "modules/connectors/",
+        "modules/projects/",
+        "modules/import/"
+      ],
+      "modules": [
+        "records",
+        "schema",
+        "sources",
+        "connectors",
+        "projects",
+        "import"
+      ]
+    },
+    {
+      "id": "L4",
+      "name": "Files",
+      "owns": [
+        "modules/files/",
+        "modules/mounts/",
+        "modules/git/",
+        "modules/previews/",
+        "modules/documents/",
+        "modules/runbooks/"
+      ],
+      "modules": [
+        "files",
+        "mounts",
+        "git",
+        "previews",
+        "documents",
+        "runbooks"
+      ]
+    },
+    {
+      "id": "L5",
+      "name": "Comms",
+      "owns": [
+        "modules/inbox/",
+        "modules/mail/",
+        "modules/calendar/",
+        "modules/telephony/",
+        "modules/meetings/",
+        "modules/contacts-link/",
+        "modules/google/",
+        "modules/microsoft/",
+        "modules/resend/",
+        "modules/mailgun/",
+        "modules/twilio/",
+        "modules/zoom/",
+        "modules/github/",
+        "modules/stripe/"
+      ],
+      "modules": [
+        "inbox",
+        "mail",
+        "calendar",
+        "telephony",
+        "meetings",
+        "contacts-link",
+        "google",
+        "microsoft",
+        "resend",
+        "mailgun",
+        "twilio",
+        "zoom",
+        "github",
+        "stripe"
+      ]
+    },
+    {
+      "id": "L6",
+      "name": "Automate",
+      "owns": [
+        "modules/automations/",
+        "modules/journeys/",
+        "modules/steps-core/",
+        "modules/scheduler-api/",
+        "modules/tasks/",
+        "modules/runs/",
+        "modules/gate/",
+        "modules/notifications/",
+        "modules/home/",
+        "modules/events/"
+      ],
+      "modules": [
+        "automations",
+        "journeys",
+        "steps-core",
+        "scheduler-api",
+        "tasks",
+        "runs",
+        "gate",
+        "notifications",
+        "home",
+        "events"
+      ]
+    },
+    {
+      "id": "L7a",
+      "name": "Access, vault, join",
+      "owns": [
+        "modules/access/",
+        "modules/identity/",
+        "modules/members/",
+        "modules/devices/",
+        "modules/spaces/",
+        "modules/settings/",
+        "modules/vault/",
+        "modules/vault-requests/",
+        "modules/audit/",
+        "modules/governance/"
+      ],
+      "modules": [
+        "access",
+        "identity",
+        "members",
+        "devices",
+        "spaces",
+        "settings",
+        "vault",
+        "vault-requests",
+        "audit",
+        "governance"
+      ]
+    },
+    {
+      "id": "L7b",
+      "name": "Server and Console",
+      "owns": [
+        "apps/console/",
+        "host/src/",
+        "images/vyred/",
+        "modules/backup/",
+        "modules/updates/",
+        "modules/network/",
+        "modules/health/",
+        "modules/logs/",
+        "modules/reports-client/",
+        "modules/console-views/",
+        "modules/console-assistant/"
+      ],
+      "modules": [
+        "backup",
+        "updates",
+        "network",
+        "health",
+        "logs",
+        "reports-client",
+        "console-views",
+        "console-assistant"
+      ]
+    },
+    {
+      "id": "L8",
+      "name": "Apps",
+      "owns": [
+        "images/site-builders/",
+        "images/documenso/",
+        "kits/",
+        "apps/forms-embed/",
+        "relay/warmup/",
+        "modules/sites/",
+        "modules/forms/",
+        "modules/campaigns/",
+        "modules/templates/",
+        "modules/kits/",
+        "modules/esign/",
+        "modules/portal/",
+        "modules/email-builder-api/"
+      ],
+      "modules": [
+        "sites",
+        "forms",
+        "campaigns",
+        "templates",
+        "kits",
+        "esign",
+        "portal",
+        "email-builder-api"
+      ]
+    },
+    {
+      "id": "L9a",
+      "name": "UI and shell",
+      "owns": [
+        "ui/",
+        "apps/app/src/shell/",
+        "apps/app/src/mobile/",
+        "apps/app/app.json",
+        "apps/app/package.json",
+        "apps/app/app/"
+      ],
+      "modules": []
+    },
+    {
+      "id": "L9b",
+      "name": "Home and Chats",
+      "owns": [
+        "apps/app/src/places/home/",
+        "apps/app/src/places/chats/"
+      ],
+      "modules": []
+    },
+    {
+      "id": "L9c",
+      "name": "Inbox and Calendar",
+      "owns": [
+        "apps/app/src/places/inbox/"
+      ],
+      "modules": []
+    },
+    {
+      "id": "L9d",
+      "name": "Records",
+      "owns": [
+        "apps/app/src/places/records/"
+      ],
+      "modules": []
+    },
+    {
+      "id": "L9e",
+      "name": "Files and Apps",
+      "owns": [
+        "apps/app/src/places/files/",
+        "apps/app/src/places/apps/"
+      ],
+      "modules": []
+    },
+    {
+      "id": "L9f",
+      "name": "Automations, Vault, Settings, Join",
+      "owns": [
+        "apps/app/src/places/automations/",
+        "apps/app/src/places/vault/",
+        "apps/app/src/places/settings/",
+        "apps/app/src/join/"
+      ],
+      "modules": []
+    },
+    {
+      "id": "L10",
+      "name": "Edges",
+      "owns": [
+        "apps/chrome/",
+        "apps/desktop/",
+        "apps/reports/",
+        "relay/client/",
+        "relay/node/",
+        "relay/worker/",
+        "scripts/install/"
+      ],
+      "modules": []
+    },
+    {
+      "id": "L11",
+      "name": "Quality",
+      "owns": [
+        "perf/",
+        "golden/",
+        "fixtures/seed/",
+        "scripts/",
+        "testkit/",
+        "docs/",
+        ".github/workflows/"
+      ],
+      "modules": []
+    }
+  ],
+  "except": {
+    "L11": [
+      "scripts/install/"
+    ],
+    "L7b": [
+      "host/src/invoke.ts",
+      "host/src/gateway.ts",
+      "host/src/loader.ts",
+      "host/src/ws.ts"
+    ]
+  },
+  "frozen": [
+    "kernel/",
+    "contracts/src/",
+    "manifest/",
+    "host/src/invoke.ts",
+    "host/src/gateway.ts",
+    "host/src/loader.ts",
+    "host/src/ws.ts",
+    "sync/src/protocol.ts",
+    "testkit/src/api.ts",
+    "ui/src/*/props.ts",
+    "agent/src/driver.ts"
+  ],
+  "frozenOwner": "lead",
+  "sharedAppendOnly": [
+    "lib/"
+  ],
+  "moduleOwners": {
+    "access": "L7a",
+    "agents": "L2",
+    "audit": "L7a",
+    "automations": "L6",
+    "backup": "L7b",
+    "calendar": "L5",
+    "campaigns": "L8",
+    "chat": "L2",
+    "computers": "L2",
+    "conflicts": "L1",
+    "connectors": "L3",
+    "console-assistant": "L7b",
+    "console-views": "L7b",
+    "contacts-link": "L5",
+    "devices": "L7a",
+    "documents": "L4",
+    "email-builder-api": "L8",
+    "engine": "L2",
+    "esign": "L8",
+    "events": "L6",
+    "files": "L4",
+    "forms": "L8",
+    "gate": "L6",
+    "git": "L4",
+    "github": "L5",
+    "google": "L5",
+    "governance": "L7a",
+    "health": "L7b",
+    "home": "L6",
+    "identity": "L7a",
+    "import": "L3",
+    "inbox": "L5",
+    "journeys": "L6",
+    "kits": "L8",
+    "logs": "L7b",
+    "mail": "L5",
+    "mailgun": "L5",
+    "mcp": "L2",
+    "meetings": "L5",
+    "members": "L7a",
+    "memory": "L2",
+    "microsoft": "L5",
+    "mounts": "L4",
+    "network": "L7b",
+    "notifications": "L6",
+    "portal": "L8",
+    "previews": "L4",
+    "projects": "L3",
+    "records": "L3",
+    "reports-client": "L7b",
+    "resend": "L5",
+    "runbooks": "L4",
+    "runs": "L6",
+    "scheduler-api": "L6",
+    "schema": "L3",
+    "search": "L1",
+    "settings": "L7a",
+    "sites": "L8",
+    "sources": "L3",
+    "spaces": "L7a",
+    "steps-core": "L6",
+    "stripe": "L5",
+    "sync": "L1",
+    "tasks": "L6",
+    "telephony": "L5",
+    "templates": "L8",
+    "terminal": "L2",
+    "twilio": "L5",
+    "updates": "L7b",
+    "vault": "L7a",
+    "vault-requests": "L7a",
+    "zoom": "L5"
+  }
+}
