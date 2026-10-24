@@ -34,7 +34,7 @@ function afterFirstFactor(ctx: IdentityCtx, a: Account, dev: Device, method: "pa
 }
 
 /** Check a TOTP code and burn its step so it cannot be replayed. */
-function takeTotp(ctx: IdentityCtx, a: Account, code: string): boolean {
+async function takeTotp(ctx: IdentityCtx, a: Account, code: string): Promise<boolean> {
   if (!a.totp_secret) return false;
   const step = await matchTotp(a.totp_secret, code, ctx.now(), a.totp_last_step);
   if (step === null) return false;
@@ -60,7 +60,7 @@ export async function signIn(ctx: IdentityCtx, input: Device & { username: strin
     raise(ctx.trace.traceId, "auth.bad_credentials");
   }
   if (a.totp_secret && input.totp !== undefined) {
-    if (!takeTotp(ctx, a, input.totp)) {
+    if (!(await takeTotp(ctx, a, input.totp))) {
       noteFail(ctx, a, name, "bad_code");
       raise(ctx.trace.traceId, "auth.invalid_code");
     }
@@ -81,7 +81,7 @@ export async function verifySecondFactor(ctx: IdentityCtx, input: Device & { cha
     raise(ctx.trace.traceId, "auth.invalid_code");
   }
   ctx.db.run(`UPDATE identity_challenges SET tries = ? WHERE id = ?`, c.tries + 1, c.id);
-  if (!takeTotp(ctx, a, input.code)) {
+  if (!(await takeTotp(ctx, a, input.code))) {
     noteFail(ctx, a, a.username, "bad_code");
     raise(ctx.trace.traceId, "auth.invalid_code");
   }
