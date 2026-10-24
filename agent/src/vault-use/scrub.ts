@@ -13,6 +13,9 @@ export interface MissReport { itemId: string; handle: string }
 
 function b64Variants(raw: Uint8Array): string[] {
   const out: string[] = [];
+  // The value encoded on its own, whole: padded or not, standard or url-safe.
+  const whole = Buffer.from(raw).toString("base64");
+  for (const w of [whole, whole.replace(/=+$/, "")]) out.push(w, w.replace(/\+/g, "-").replace(/\//g, "_"));
   for (const k of [0, 1, 2]) {
     const padded = new Uint8Array(k + raw.length);
     padded.set(raw, k);
