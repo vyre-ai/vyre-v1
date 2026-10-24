@@ -99,3 +99,4 @@ test('the frozen doc lists exactly the default tools in the test', () => {
   const inDoc = new Set([...doc.matchAll(/^\| `([a-z0-9_]+)` \|/gm)].map((m) => m[1]));
   assert.deepEqual([...inDoc].sort(), [...defaults].sort());
 });
+
