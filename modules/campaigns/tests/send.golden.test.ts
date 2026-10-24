@@ -33,7 +33,7 @@ test("golden 5 campaign step: launch, send through mail.send, reply lands, stop 
   await pass(w, campaignId);
   deliver(w, "mail.received", { messageId: "eml_9001", mailboxId: "mbx_sales", from: "p1@client.example", subject: "Re: A note", contactId: "rec_c001", campaignId });
   step("reply landed", { contact: "rec_c001", message: "eml_9001" });
-  w.advance(3 * DAY);
+  w.advance(4 * DAY);
   await pass(w, campaignId);
   assert.deepEqual(w.mail.slice(2).map((m) => m.input.contactId), ["rec_c002"], "the contact who replied gets no nudge");
   assert.deepEqual(w.ofName("campaign.replied").map((e) => e.payload), [{ campaignId, recordId: "rec_c001", messageId: "msg_9001" }]);
