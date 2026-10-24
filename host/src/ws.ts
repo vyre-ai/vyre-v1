@@ -36,7 +36,8 @@ export class FrameReader {
   private parts: Buffer[] = [];
   private firstOpcode = 0;
   error: { code: number; why: string } | null = null;
-  constructor(private max: number = MAX_FRAME_BYTES) {}
+  private max: number;
+  constructor(max: number = MAX_FRAME_BYTES) { this.max = max; }
 
   push(chunk: Buffer): WsMessage[] {
     this.buf = this.buf.length ? Buffer.concat([this.buf, chunk]) : chunk;
