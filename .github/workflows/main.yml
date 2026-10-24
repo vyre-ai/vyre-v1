@@ -34,7 +34,7 @@ jobs:
         run: |
           base=""
           if [ "$EVENT" = "push" ]; then
-            base="$(gh run list -R "$REPO" --workflow main.yml --branch main --status success --limit 1 --json headSha -q '.[0].headSha' 2>/dev/null || true)"
+            base="$(node -e 'fetch("https://api.github.com/repos/"+process.env.REPO+"/actions/workflows/main.yml/runs?branch=main&status=success&per_page=1",{headers:{authorization:"Bearer "+process.env.GH_TOKEN,accept:"application/vnd.github+json"}}).then((r)=>r.json()).then((j)=>console.log(j.workflow_runs?.[0]?.head_sha??"")).catch(()=>console.log(""))')"
             git cat-file -e "${base:-x}^{commit}" 2>/dev/null || base=""
           fi
           if [ -n "$base" ]; then echo "select: affected since last green main $base"; echo "full=false" >> "$GITHUB_OUTPUT"
