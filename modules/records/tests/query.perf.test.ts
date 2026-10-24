@@ -54,7 +54,7 @@ test("table100k: opens a 100,000-row table under 100 ms and searches under 50 ms
   const search: number[] = [];
   for (let i = 0; i < 40; i++) {
     const t = performance.now();
-    const r = await q["records.search"](ctx, { type: "item", q: `${WORDS[i % 12]} ${WORDS[(i * 5) % 12]}`, limit: 50 });
+    const r = await q["records.search"](ctx, { type: "item", q: `${WORDS[i % 12]} ${WORDS[((i % 12) * 7) % 12]}`, limit: 50 });
     search.push(performance.now() - t);
     assert.ok(r.rows.length > 0);
   }
