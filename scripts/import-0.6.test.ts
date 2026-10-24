@@ -61,7 +61,7 @@ test("dry run on 5 rows writes nothing, logs every row", () => {
   const { src, out } = fixture();
   const r = run(plan(parseRows(TABLE)), { src, out, sha: "abc123def", apply: false, lanes: LANES });
   assert.deepEqual(fs.readdirSync(out), []);
-  assert.equal(r.log.filter((l) => l.kind === "imported").length, 6);
+  assert.equal(r.log.filter((l) => l.kind === "imported" || l.kind === "headerless").length, 6);
   assert.deepEqual(r.log.filter((l) => ["rewrite", "drop", "idea"].includes(l.kind)).map((l) => l.kind), ["rewrite", "drop", "idea"]);
 });
 
