@@ -1,6 +1,5 @@
 // Inline head script: marks app.start, applies the skin's CSS variables before first paint (same token data native uses),
 // and registers the service worker after load so it never competes with startup.
-// Rendered through expo-router/head: a custom +html file stops Expo from adding the bundle script tags (seen on SDK 58), so none is used.
 import { skins } from "@vyre/ui/tokens";
 
 export function bootScript(): string {

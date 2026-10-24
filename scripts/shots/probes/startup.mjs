@@ -42,16 +42,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       const reqs = [];
       page.on("request", (r) => reqs.push(r.url()));
       page.on("pageerror", (e) => console.log(`pageerror ${e.message}`));
-      page.on("console", (m) => { if (true) console.log(`console.error ${m.text().slice(0, 300)}`); });
       page.on("response", (r) => { if (r.status() >= 400) console.log(`http ${r.status()} ${r.url()}`); });
       for (const kind of ["cold", "warm"]) {
         await page.goto(server.origin + (args.route || "/home"), { waitUntil: "load" });
         await page.waitForFunction(() => performance.getEntriesByName("app.usable").length > 0, null, { timeout: 15000 }).catch(() => {});
         const marks = await marksOf(page);
         const ms = startupMs(marks);
-        if (ms === null) console.log(`marks seen: ${JSON.stringify(marks)} url ${page.url()} body ${JSON.stringify((await page.evaluate(() => document.body.innerText)).slice(0, 200))} requests ${JSON.stringify(reqs.map((u) => u.replace(server.origin, "")).slice(0, 12))}`);
-        if (ms === null && kind === "cold" && size === "desktop") { const html = await page.content(); console.log(`html-head ${JSON.stringify(html.slice(0, 1800))}`); console.log(`html-tail ${JSON.stringify(html.slice(-900))}`); console.log(`dist ${JSON.stringify(fs.readdirSync(dist))}`); const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name).replace(dist, "") + ":" + fs.statSync(path.join(d, e.name)).size]); console.log(`expo-files ${JSON.stringify(walk(path.join(dist, "_expo")).slice(0, 20))}`); const raw = fs.readFileSync(path.join(dist, "home.html"), "utf8"); for (const f of ["index.html", "m/P-L9_19.html"]) { const q = path.join(REPO, f.startsWith("m/") ? "scripts/shots/app/dist" : "apps/app/dist", f); if (fs.existsSync(q)) console.log(`scripts-in ${q.replace(REPO, "")} ${JSON.stringify(fs.readFileSync(q, "utf8").match(/<script[^>]*>/g))}`); }
-        console.log(`raw-scripts ${JSON.stringify(raw.match(/<script[^>]*>/g))} rawlen ${raw.length}`); }
         const offOrigin = reqs.filter((u) => !u.startsWith(server.origin) && !u.startsWith("data:"));
         results.push({ size, kind, ms, budget, offOrigin: offOrigin.length });
         console.log(`METRIC ${JSON.stringify({ name: "startup", size, kind, ms, budget_ms: budget, off_origin_requests: offOrigin.length })}`);
