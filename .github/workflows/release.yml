@@ -1,11 +1,13 @@
 name: release
 on:
   push:
-    tags: ["v*"]
+    tags:
+      - "v*"
 jobs:
-  placeholder:
+  release:
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - run: echo "release placeholder: full suite, builds, signing and deploy land later"
+      - name: Placeholder
+        run: echo "release placeholder - full suite, builds, signing and deploy land later"
