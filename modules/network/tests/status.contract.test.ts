@@ -48,7 +48,8 @@ function populated(): Harness {
   return h;
 }
 
-const spaces = (): Harness[] => [harness(), populated()];
+/** Renewing a certificate or switching to the relay needs a Space that has reported; elsewhere they are typed errors (status.test.ts). */
+const spacesFor = (cap: string): Harness[] => (cap === "network.certificate_renew" || cap === "network.relay_set" ? [populated()] : [harness(), populated()]);
 
 test("a real handler exists for exactly the capabilities the registry declares for network", () => {
   assert.equal(caps.length, 12);
@@ -62,7 +63,7 @@ for (const cap of caps) {
     assert.ok(cap.examples.length >= 1);
     for (const ex of cap.examples) {
       assert.deepEqual(validate(cap.input, ex.input, "", defs), [], `example ${ex.name} input is valid`);
-      for (const h of spaces()) {
+      for (const h of spacesFor(cap.name)) {
         const out = await run(cap.name, h.ctx, ex.input);
         assert.deepEqual(validate(cap.output, out, "", defs), [], `example ${ex.name} output`);
         for (const e of h.events) {
@@ -78,7 +79,7 @@ for (const cap of caps) {
   test(`${name}: real handler answers the schema sample with a valid output`, async () => {
     const input = sample(cap.input, 0, defs);
     assert.deepEqual(validate(cap.input, input, "", defs), []);
-    for (const h of spaces()) {
+    for (const h of spacesFor(cap.name)) {
       const out = await run(cap.name, h.ctx, input);
       assert.deepEqual(validate(cap.output, out, "", defs), []);
     }
