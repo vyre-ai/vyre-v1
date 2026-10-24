@@ -6,7 +6,7 @@
 import { defineManifest, entity, ev, health, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id, ok, pageIn, pageOut, resourceRef, runStarted } from './_common.ts';
 
-const runKind = t.enm('automation', 'automation_test', 'journey', 'journey_migrate', 'routine', 'campaign', 'deployment', 'runbook', 'wait', 'terminal', 'replay', 'other');
+const runKind = t.enm('automation', 'automation_test', 'journey', 'journey_migrate', 'routine', 'campaign', 'deployment', 'connector_sync', 'connector_build', 'runbook', 'wait', 'terminal', 'replay', 'other');
 const runStatus = t.enm('queued', 'running', 'waiting', 'succeeded', 'failed', 'stopped');
 const waitReason = t.enm('approval', 'background', 'key');
 const stepState = t.enm('pending', 'running', 'succeeded', 'failed', 'skipped', 'waiting', 'stopped');

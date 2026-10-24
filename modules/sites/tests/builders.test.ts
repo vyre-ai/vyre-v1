@@ -252,7 +252,7 @@ test("build: standard Dockerfile, lockfile hash as a build arg and cache source,
   assert.ok(args.includes("INSTALL_CMD=npm ci"));
   assert.ok(args.includes("START_CMD=npm start"));
   assert.deepEqual(argValues(b, "--cache-from"), [`vyre-site-cache/sit_abc123:${hash}`]);
-  assert.deepEqual(argValues(b, "--label"), ["vyre.site=sit_abc123", "vyre.deployment=dpl_def456"]);
+  assert.deepEqual(argValues(b, "--label"), ["vyre.site=sit_abc123", "vyre.deployment=dpl_def456", "vyre.port=3000"], "the port Dockerfile.node declares is kept as a label for start()");
   assert.deepEqual(docker.cacheTags, [hash]);
   assert.equal(src.cleaned(), 1, "the checkout is removed");
   assert.equal(fs.existsSync(src.dirs[0]!), false);
