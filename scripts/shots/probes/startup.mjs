@@ -42,14 +42,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       const reqs = [];
       page.on("request", (r) => reqs.push(r.url()));
       page.on("pageerror", (e) => console.log(`pageerror ${e.message}`));
-      page.on("console", (m) => { if (m.type() === "error") console.log(`console.error ${m.text().slice(0, 300)}`); });
+      page.on("console", (m) => { if (true) console.log(`console.error ${m.text().slice(0, 300)}`); });
       page.on("response", (r) => { if (r.status() >= 400) console.log(`http ${r.status()} ${r.url()}`); });
       for (const kind of ["cold", "warm"]) {
         await page.goto(server.origin + (args.route || "/home"), { waitUntil: "load" });
         await page.waitForFunction(() => performance.getEntriesByName("app.usable").length > 0, null, { timeout: 15000 }).catch(() => {});
         const marks = await marksOf(page);
         const ms = startupMs(marks);
-        if (ms === null) console.log(`marks seen: ${JSON.stringify(marks)} url ${page.url()}`);
+        if (ms === null) console.log(`marks seen: ${JSON.stringify(marks)} url ${page.url()} body ${JSON.stringify((await page.evaluate(() => document.body.innerText)).slice(0, 200))} requests ${JSON.stringify(reqs.map((u) => u.replace(server.origin, "")).slice(0, 12))}`);
         const offOrigin = reqs.filter((u) => !u.startsWith(server.origin) && !u.startsWith("data:"));
         results.push({ size, kind, ms, budget, offOrigin: offOrigin.length });
         console.log(`METRIC ${JSON.stringify({ name: "startup", size, kind, ms, budget_ms: budget, off_origin_requests: offOrigin.length })}`);
