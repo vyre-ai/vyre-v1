@@ -50,6 +50,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         const marks = await marksOf(page);
         const ms = startupMs(marks);
         if (ms === null) console.log(`marks seen: ${JSON.stringify(marks)} url ${page.url()} body ${JSON.stringify((await page.evaluate(() => document.body.innerText)).slice(0, 200))} requests ${JSON.stringify(reqs.map((u) => u.replace(server.origin, "")).slice(0, 12))}`);
+        if (ms === null && kind === "cold" && size === "desktop") { const html = await page.content(); console.log(`html-head ${JSON.stringify(html.slice(0, 1800))}`); console.log(`html-tail ${JSON.stringify(html.slice(-900))}`); console.log(`dist ${JSON.stringify(fs.readdirSync(dist))}`); }
         const offOrigin = reqs.filter((u) => !u.startsWith(server.origin) && !u.startsWith("data:"));
         results.push({ size, kind, ms, budget, offOrigin: offOrigin.length });
         console.log(`METRIC ${JSON.stringify({ name: "startup", size, kind, ms, budget_ms: budget, off_origin_requests: offOrigin.length })}`);
