@@ -91,6 +91,7 @@ function settle(list: Emission[]): { changes: Change[]; hide: Hide[] } {
     if (e.terminal ? i !== lt || ll > lt : i < lt) return;
     if (e.kind === "hide") hide.push(e.hide); else changes.push(e.change);
   });
+  changes.sort((a, b) => a.seq - b.seq);
   return { changes, hide };
 }
 
@@ -129,8 +130,9 @@ export function pullChanges(d: PullDeps, who: Who, req: PullReq): PullRes {
   };
 
   const out: Emission[] = [];
-  // A row sent whole in this response already shows its latest state, so later patches to it in the same response add nothing.
-  const whole = new Set<string>();
+  // A row sent whole in this response already shows its latest state, so later patches to it add nothing. The whole row then stands for the version of the last patch it absorbed:
+  // a client takes a change's seq as the version of every field it carries, and a lower number would make its next edit look concurrent with a change it has already seen.
+  const whole = new Map<string, Change>();
   let used = 0, last = cursor, stopped = false;
   db.exec("BEGIN IMMEDIATE");
   try {
@@ -147,15 +149,19 @@ export function pullChanges(d: PullDeps, who: Who, req: PullReq): PullRes {
           if (c.op === "delete" && was) {
             out.push({ kind: "change", row: key, terminal: true, change: { seq: c.seq, entity: c.entity, id: c.id, op: "delete", fields: {} } });
             seen.set(c.entity, c.id, false, c.seq); used++;
+            whole.delete(key);
           }
         } else {
           const sc = viewer.scope(cfg);
           const visible = viewer.visible(sc, row, cells) && window.holds(cfg, mode, row);
           if (visible && !was) {
-            out.push({ kind: "change", row: key, terminal: false, change: { seq: c.seq, entity: c.entity, id: c.id, op: "upsert", fields: wireFields(viewer.fields(sc, cells)) } });
+            const change: Change = { seq: c.seq, entity: c.entity, id: c.id, op: "upsert", fields: wireFields(viewer.fields(sc, cells)) };
+            out.push({ kind: "change", row: key, terminal: false, change });
             seen.set(c.entity, c.id, true, c.seq); used++;
-            whole.add(key);
-          } else if (visible && was && c.op !== "rescan" && !whole.has(key)) {
+            whole.set(key, change);
+          } else if (visible && was && c.op !== "rescan" && whole.has(key)) {
+            whole.get(key)!.seq = c.seq;
+          } else if (visible && was && c.op !== "rescan") {
             const f = wireFields(viewer.fields(sc, JSON.parse(c.fields) as Cells));
             if (Object.keys(f).length) { out.push({ kind: "change", row: key, terminal: false, change: { seq: c.seq, entity: c.entity, id: c.id, op: c.op, fields: f } }); used++; }
           } else if (!visible && was) {

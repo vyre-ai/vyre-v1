@@ -191,6 +191,7 @@ test("two devices of one person are separate: the second gets the full row, not 
   const laptop = await pull(r, ctx(ADA, "dev_laptop"), 0);
   assert.deepEqual(laptop.changes.map((c) => c.op), ["upsert"], "the laptop never held the row, and the whole row already carries the later patch");
   assert.equal(laptop.changes[0]!.fields["stage"]?.v, "won");
+  assert.ok(laptop.changes[0]!.seq > phone.next, "the whole row carries the version of the patch it absorbed, so the device's next edit is not concurrent with it");
   const phone2 = await pull(r, ctx(ADA, "dev_phone", "phone"), phone.next);
   assert.deepEqual(phone2.changes.map((c) => c.op), ["patch"]);
 });
