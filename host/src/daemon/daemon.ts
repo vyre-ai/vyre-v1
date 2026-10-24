@@ -269,7 +269,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (Object.keys(setters).length) {
         const none = (what: string) => () => Promise.reject(new Error(`${what} is not available on this server yet.`));
         seams = wireSeams(setters, {
-          vault: o.vault ?? refusingVault,
+          vault: o.vault ?? refusingVault, space: spaceId,
           files: o.seams?.files ?? { read: none("Space files") },
           blobs: o.seams?.blobs ?? { put: none("The blob store") },
           members: o.seams?.members ?? { emails: none("The member list") },

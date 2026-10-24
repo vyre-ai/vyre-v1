@@ -375,7 +375,7 @@ test("daemon.boot: the seams are wired from the Vault port at boot and taken out
   };
   const d = await bootWiring(dir, seams);
   try {
-    assert.deepEqual(d.seams?.state, { google: "wired", microsoft: "absent", imap: "wired" });
+    assert.deepEqual(d.seams?.state, { google: "wired", microsoft: "absent", imap: "wired", sources: "absent" });
     assert.ok(set["google"] && set["imap"]);
   } finally { await d.stop(); }
   assert.equal(set["google"], null);
@@ -391,7 +391,7 @@ test("daemon.boot: the device role has no schedule queue and no seams", async ()
 test("daemon.boot: a plain boot wires Google, Microsoft and IMAP from the hostSeams the module impls export", async () => {
   const dir = seededDir();
   const d = await bootWiring(dir);
-  try { assert.deepEqual(d.seams?.state, { google: "wired", microsoft: "wired", imap: "wired" }); } finally { await d.stop(); }
+  try { assert.deepEqual([d.seams?.state.google, d.seams?.state.microsoft, d.seams?.state.imap], ["wired", "wired", "wired"]); } finally { await d.stop(); }
 });
 
 // P-H_02 final run: each named test shows its own ok line in the run on the last commit.

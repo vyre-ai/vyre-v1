@@ -5,8 +5,8 @@ import { HostError } from "../routes/errors.ts";
 import { createGoogleHost, GOOGLE_TOKEN_URL } from "./google.ts";
 import { createImapSecretResolver } from "./imap.ts";
 import { createMsHost } from "./microsoft.ts";
-import { wireSeams } from "./index.ts";
-import type { GoogleHostSeam, ImapSecretResolver, MsHostSeam } from "./index.ts";
+import { createSourcesSecretResolver, wireSeams } from "./index.ts";
+import type { GoogleHostSeam, ImapSecretResolver, MsHostSeam, SourcesSecretResolver } from "./index.ts";
 import type { SeamCtx, SeamFetch, VaultPort } from "./ports.ts";
 
 const NOW = 1_760_000_000_000;
@@ -42,6 +42,7 @@ function world(o: { secret?: string; rows?: unknown[]; replies?: { status: numbe
     files: { read: async (_s: string, id: string) => ({ name: `${id}.txt`, mime: "text/plain", bytes: new TextEncoder().encode("file body") }) },
     blobs: { put: async (space: string, bytes: Uint8Array, mime: string) => { blobs.push({ space, size: bytes.byteLength, mime }); return `blb_${bytes.byteLength}`; } },
     members: { emails: async (space: string) => [{ userId: "usr_maya", email: `maya@${space}.test` }] },
+    space: "spc_1",
   };
   const ctx: SeamCtx = { space: "spc_1", trace: { traceId: TRACE }, now: () => NOW, db: { all: () => o.rows ?? [{ h: "#Google_DWD" }] } };
   return { ...n, asked, blobs, deps, ctx };
@@ -248,7 +249,7 @@ test("wireSeams registers what it is given and reports what is absent, then take
     setGoogleHost: (h) => { calls.push(h ? "google+" : "google-"); google = h; },
     setImapSecretResolver: (f) => { calls.push(f ? "imap+" : "imap-"); imap = f; },
   }, w.deps);
-  assert.deepEqual(wired.state, { google: "wired", microsoft: "absent", imap: "wired" });
+  assert.deepEqual(wired.state, { google: "wired", microsoft: "absent", imap: "wired", sources: "absent" });
   assert.equal(typeof (google as GoogleHostSeam | null)?.mintToken, "function");
   assert.equal(typeof imap, "function");
   wired.unwire();
@@ -263,7 +264,27 @@ test("wireSeams wires Microsoft when its setter exists", () => {
   const wired = wireSeams({ setMsHost: (h) => { ms = h; } }, w.deps);
   assert.equal(wired.state.microsoft, "wired");
   assert.equal(typeof (ms as MsHostSeam | null)?.mintToken, "function");
-  assert.deepEqual([wired.state.google, wired.state.imap], ["absent", "absent"]);
+  assert.deepEqual([wired.state.google, wired.state.imap, wired.state.sources], ["absent", "absent", "absent"]);
+});
+
+test("sources: wireSeams hands the sources module a resolver that reads the Space's Vault item by name, and takes it out again", async () => {
+  let resolve: SourcesSecretResolver | null = null;
+  const w = world({ secret: "whsec_live_123" });
+  const wired = wireSeams({ setSourcesSecretResolver: (f) => { resolve = f; } }, w.deps);
+  assert.equal(wired.state.sources, "wired");
+  assert.equal(await (resolve as SourcesSecretResolver | null)?.("Stripe_Webhook"), "whsec_live_123");
+  assert.equal(await (resolve as SourcesSecretResolver | null)?.("#Stripe_Webhook"), "whsec_live_123");
+  assert.deepEqual(w.asked, [{ handle: "#Stripe_Webhook", space: "spc_1" }, { handle: "#Stripe_Webhook", space: "spc_1" }]);
+  wired.unwire();
+  assert.equal(resolve, null);
+});
+
+test("sources: a name that is not a Vault handle, an empty value and a Vault failure all read as no secret", async () => {
+  const bad = createSourcesSecretResolver(world().deps.vault, "spc_1");
+  assert.equal(await bad("has spaces"), undefined);
+  assert.equal(await bad(""), undefined);
+  assert.equal(await createSourcesSecretResolver({ secret: async () => "" }, "spc_1")("Stripe_Webhook"), undefined);
+  assert.equal(await createSourcesSecretResolver({ secret: async () => { throw new Error("vault down"); } }, "spc_1")("Stripe_Webhook"), undefined);
 });
 
 // P-H_01 final run: each named test shows its own ok line in the run on the last commit.
