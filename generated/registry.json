@@ -190831,7 +190831,7 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "live",
+      "status": "stub",
       "title": "Email builder",
       "version": "0.1.0"
     },

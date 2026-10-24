@@ -13,7 +13,6 @@ export default defineManifest({
   id: 'email-builder-api',
   title: 'Email builder',
   owner: 'L8',
-  status: 'live',
   events: [
     ev('email_template.saved', 'An email design was saved as a version', { p: { emailId, version: t.int() }, subject: ['entity', '/emailId'] }),
     ev('email_template.test_sent', 'A test email was sent to the author', { p: { emailId }, subject: ['entity', '/emailId'], replay: 'stub' }),
