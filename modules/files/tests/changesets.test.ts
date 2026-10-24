@@ -545,7 +545,7 @@ test("approve applies a staged move ('<folderId>/<name>' in new_name) through fi
   const w = await handlers["files.write"](agent, { fileId: plan, content: { text: "staged" } });
   const cs = w.changesetId!;
   // turn the staged write into a move with a new name and nothing else staged (what agent-stage.ts stages for files.move)
-  run("UPDATE files_changeset_file SET status = ?, new_name = ?, content = NULL WHERE changeset_id = ?", "renamed", `${archive}/moved.txt`, cs);
+  run("UPDATE files_changeset_file SET status = ?, new_name = ?, content = ? WHERE changeset_id = ?", "renamed", `${archive}/moved.txt`, null, cs);
   const before = k.db.rows("files_file").find((r) => r["id"] === plan);
   assert.equal(before?.["folder_id"], docs, "staging does not move the file");
   const res = await handlers["changesets.approve"](ctx, { changesetId: cs });
@@ -557,7 +557,7 @@ test("approve applies a staged move ('<folderId>/<name>' in new_name) through fi
   // a second changeset: the folder it moves to is deleted before Approve
   const gone = (await handlers["files.folder.create"](ctx, { parentId: docs, name: "Gone" })).folder.folderId;
   const w2 = await handlers["files.write"](agent, { fileId: plan, content: { text: "again" } });
-  run("UPDATE files_changeset_file SET status = ?, new_name = ?, content = NULL WHERE changeset_id = ?", "renamed", `${gone}/other.txt`, w2.changesetId);
+  run("UPDATE files_changeset_file SET status = ?, new_name = ?, content = ? WHERE changeset_id = ?", "renamed", `${gone}/other.txt`, null, w2.changesetId);
   run("UPDATE files_folder SET deleted_at = ? WHERE id = ?", 1_760_000_500_000, gone);
   const bad = await handlers["changesets.approve"](ctx, { changesetId: w2.changesetId! });
   assert.equal(bad.approved, false);
