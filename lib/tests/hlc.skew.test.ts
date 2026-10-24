@@ -86,3 +86,4 @@ test("clock skew property: 200 seeded cases keep order, bound and idempotence", 
     assert.equal(ids.size, new Set(accepted.map((h) => JSON.stringify(h))).size, `seed ${seed}: distinct hlcs format distinctly`);
   }
 });
+// harness rehearsal
