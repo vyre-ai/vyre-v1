@@ -1,0 +1,22 @@
+// from vyre 0.6.9 relay/client/chainhello.js@ac3c665d5
+// @ts-check
+// The first hello of a device the person's identity chain lists (design B): the chain key signs "vyre-chain-hello-v1" over the server's box id, the identity, the entry, the time, a fresh nonce and this channel's own
+// id, so the hello means this device, to this server, now. The server side verifies the same message. `sign` is the device's chain key (its Secure Enclave, Keystore or passkey signer) and gives the signature bytes.
+import { base32, base64url, utf8 } from "./bytes.js";
+
+/**
+ * @param {{ sha256: (b: Uint8Array) => Promise<Uint8Array>, devicePub: Uint8Array, box: string, identity: string, entry: string, now?: number, sign: (m: Uint8Array) => Promise<Uint8Array> | Uint8Array, name?: string, presencePublicKey?: string }} o
+ * @returns {Promise<{ identity: string, entry: string, ts: number, nonce: string, channel: string, sig: string, name?: string, pk?: string }>}
+ */
+export async function chainHello(o) {
+  // the relay's id of a device key: the first 16 base32 characters of sha256 of it (core/relay/index.js deviceId)
+  const channel = base32(await o.sha256(o.devicePub)).slice(0, 16);
+  const nonce = base64url(globalThis.crypto.getRandomValues(new Uint8Array(18)));
+  const ts = o.now ?? Date.now();
+  // the presence key the hello will offer is bound by its hash: the entry key signs over it
+  const pk = o.presencePublicKey ? [...(await o.sha256(new TextEncoder().encode(o.presencePublicKey)))].map((x) => x.toString(16).padStart(2, "0")).join("") : "";
+  const h = { identity: o.identity, entry: o.entry, ts, nonce, channel, ...(pk ? { pk } : {}) };
+  const message = utf8(`vyre-chain-hello-v1\n${o.box}\n${h.identity}\n${h.entry}\n${h.ts}\n${h.nonce}\n${h.channel}\n${pk || "-"}`);
+  const sig = base64url(new Uint8Array(await o.sign(message)));
+  return { ...h, sig, ...(o.name ? { name: o.name } : {}) };
+}
