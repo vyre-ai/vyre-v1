@@ -1,6 +1,5 @@
 // Spaces projections: this Space's tile, stars and follows, the first-run checklist (spec 2.1, 2.23, 4.1; ARCH 7.0).
 // The server knows only its own Space. The client builds the switcher list from each Space session and shows a red dot for another Space whose tile has needsYou above zero.
-import { randomBytes } from "node:crypto";
 import { fail } from "../../host/src/routes/errors.ts";
 
 export interface Db {
@@ -43,7 +42,11 @@ type Code = Parameters<typeof fail>[0];
 export function raise(traceId: string, code: Code, message?: string): never {
   throw fail(code, traceId, message ? { message } : {});
 }
-export function nid(prefix: string): string { return `${prefix}_${randomBytes(9).toString("hex")}`; }
+/** Random ids from the platform WebCrypto; modules import no crypto themselves (B3). */
+export function nid(prefix: string): string {
+  const b = globalThis.crypto.getRandomValues(new Uint8Array(9));
+  return `${prefix}_${Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("")}`;
+}
 
 export function me(ctx: SpacesCtx): string {
   if (!ctx.principal || ctx.principal.kind !== "person") raise(ctx.trace.traceId, "auth.unauthenticated");
@@ -51,10 +54,10 @@ export function me(ctx: SpacesCtx): string {
 }
 
 export type Table = "spaces_star" | "spaces_follow";
-export interface Mark { id: string; person: string; resourceType: string; resourceId: string; createdAt: number; deleted_at: number | null }
+export interface Mark { id: string; person: string; resourceType: string; resourceId: string; createdAt: number; version: number; deleted_at: number | null }
 
 export function markOf(ctx: SpacesCtx, table: Table, person: string, r: ResourceRef): Mark | undefined {
-  return ctx.db.all(`SELECT id, person, resourceType, resourceId, createdAt, deleted_at FROM ${table} WHERE person = ? AND resourceType = ? AND resourceId = ?`, person, r.type, r.id)[0] as Mark | undefined;
+  return ctx.db.all(`SELECT id, person, resourceType, resourceId, createdAt, version, deleted_at FROM ${table} WHERE person = ? AND resourceType = ? AND resourceId = ?`, person, r.type, r.id)[0] as Mark | undefined;
 }
 /** Set a mark on or off. Returns true when the state changed. A removed mark keeps its row as a tombstone so devices converge, and comes back on re-add. */
 export function setMark(ctx: SpacesCtx, table: Table, person: string, r: ResourceRef, on: boolean): boolean {
@@ -63,11 +66,11 @@ export function setMark(ctx: SpacesCtx, table: Table, person: string, r: Resourc
   const live = !!row && row.deleted_at === null;
   if (on === live) return false;
   if (on) {
-    if (row) ctx.db.run(`UPDATE ${table} SET deleted_at = NULL, createdAt = ?, version = version + 1, updated_at = ? WHERE id = ?`, now, now, row.id);
+    if (row) ctx.db.run(`UPDATE ${table} SET deleted_at = NULL, createdAt = ?, version = ?, updated_at = ? WHERE id = ?`, now, row.version + 1, now, row.id);
     else ctx.db.run(`INSERT INTO ${table} (id, person, resourceType, resourceId, createdAt, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       nid(table === "spaces_star" ? "str" : "flw"), person, r.type, r.id, now, 0, now, null);
   } else {
-    ctx.db.run(`UPDATE ${table} SET deleted_at = ?, version = version + 1, updated_at = ? WHERE id = ?`, now, now, row!.id);
+    ctx.db.run(`UPDATE ${table} SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, now, row!.version + 1, now, row!.id);
   }
   return true;
 }
@@ -91,8 +94,8 @@ export function doneSteps(ctx: SpacesCtx, person: string): Set<string> {
 }
 /** Mark a step done once. Returns true when it was newly done. */
 export function completeStep(ctx: SpacesCtx, person: string, step: Step): boolean {
-  const got = ctx.db.run(`INSERT INTO spaces_onboarding (person, step, done_at) VALUES (?, ?, ?) ON CONFLICT(person, step) DO NOTHING`, person, step, ctx.now());
-  if (got.changes !== 1) return false;
+  if (doneSteps(ctx, person).has(step)) return false;
+  ctx.db.run(`INSERT INTO spaces_onboarding (person, step, done_at) VALUES (?, ?, ?)`, person, step, ctx.now());
   ctx.emit("onboarding.step_completed", person, { person, step });
   return true;
 }

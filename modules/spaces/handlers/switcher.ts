@@ -35,7 +35,8 @@ export async function onboardingComplete(ctx: SpacesCtx, input: { step: Step }) 
 
 export async function onboardingDismiss(ctx: SpacesCtx, _input: Record<string, never>) {
   const person = me(ctx);
-  const got = ctx.db.run(`INSERT INTO spaces_onboarding_state (person, dismissed_at) VALUES (?, ?) ON CONFLICT(person) DO NOTHING`, person, ctx.now());
-  if (got.changes === 1) ctx.emit("onboarding.dismissed", person, { person });
+  if (ctx.db.all(`SELECT dismissed_at FROM spaces_onboarding_state WHERE person = ?`, person).length > 0) return ok;
+  ctx.db.run(`INSERT INTO spaces_onboarding_state (person, dismissed_at) VALUES (?, ?)`, person, ctx.now());
+  ctx.emit("onboarding.dismissed", person, { person });
   return ok;
 }
