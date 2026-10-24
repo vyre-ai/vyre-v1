@@ -371,6 +371,7 @@ function saveIds(ctx: Ctx, fileId: string, sheet: string, version: number, set: 
   else ctx.db.run("INSERT INTO files_sheet_ids (file_id, sheet, version, next_id, ids) VALUES (?, ?, ?, ?, ?)", fileId, sheet, version, set.next, json);
 }
 
+/** A new row id: r_<n> from the sheet's own counter, which never goes back, so a deleted row's id is never given to another row. */
 const mint = (set: IdSet): string => {
   set.next += 1;
   return `r_${set.next}`;
