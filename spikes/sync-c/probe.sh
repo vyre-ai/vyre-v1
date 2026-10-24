@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
-# Probe: which browsers and drivers does the runner have?
-for b in chromium chromium-browser google-chrome google-chrome-stable chrome firefox; do command -v $b && $b --version 2>&1 | head -1; done
-ls ~/.cache/ms-playwright ~/.cache/puppeteer 2>&1 | head; node -v; npm -v; npm view playwright-core version 2>&1 | tail -1; df -h . | tail -1; id -un
+d=$(mktemp -d); cd $d; echo '{"type":"module"}' > package.json
+npm install --no-audit --no-fund --ignore-scripts sqlite-wasm-cipher@2.2.4 playwright-core 2>&1 | tail -2
+ls node_modules/sqlite-wasm-cipher node_modules/sqlite-wasm-cipher/dist | head -40
+grep -o "opfs[A-Za-z-]*" -r node_modules/sqlite-wasm-cipher/dist/*.mjs 2>/dev/null | sort | uniq -c | sort -rn | head -8
+cat node_modules/sqlite-wasm-cipher/package.json | head -40
+timeout 200 npx playwright-core install chromium-headless-shell 2>&1 | tail -4
+ls ~/.cache/ms-playwright 2>&1
