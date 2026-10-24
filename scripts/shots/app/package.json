@@ -1,0 +1,11 @@
+{
+  "name": "@vyre/shots-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "expo-router/entry",
+  "description": "Smallest Expo app that proves the web export and screenshot tooling (P-UI_00). Real apps pass --app apps/app.",
+  "dependencies": {
+    "@vyre/ui": "*"
+  }
+}

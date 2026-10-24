@@ -1057,6 +1057,9 @@ export function stubs(ctx: CallCtx) {
       unmatch: call("inbox.unmatch"),
       unmatched: call("inbox.unmatched"),
     },
+    invites: {
+      accept_create_account: call("invites.accept_create_account"),
+    },
     journeys: {
       advance: call("journeys.advance"),
       check_limits: call("journeys.check_limits"),

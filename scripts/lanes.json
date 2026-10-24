@@ -243,7 +243,15 @@
         "apps/app/src/mobile/",
         "apps/app/app.json",
         "apps/app/package.json",
-        "apps/app/app/"
+        "apps/app/app/",
+        "scripts/shots/targets/",
+        "scripts/shots/mounts/",
+        "scripts/shots/",
+        "apps/app/src/",
+        "apps/app/metro.config.js",
+        "apps/app/babel.config.js",
+        "scripts/allowlist.json",
+        "scripts/workflows.test.ts"
       ],
       "modules": []
     },
@@ -252,7 +260,9 @@
       "name": "Home and Chats",
       "owns": [
         "apps/app/src/places/home/",
-        "apps/app/src/places/chats/"
+        "apps/app/src/places/chats/",
+        "scripts/shots/targets/",
+        "scripts/shots/mounts/"
       ],
       "modules": []
     },
@@ -260,7 +270,9 @@
       "id": "L9c",
       "name": "Inbox and Calendar",
       "owns": [
-        "apps/app/src/places/inbox/"
+        "apps/app/src/places/inbox/",
+        "scripts/shots/targets/",
+        "scripts/shots/mounts/"
       ],
       "modules": []
     },
@@ -268,7 +280,9 @@
       "id": "L9d",
       "name": "Records",
       "owns": [
-        "apps/app/src/places/records/"
+        "apps/app/src/places/records/",
+        "scripts/shots/targets/",
+        "scripts/shots/mounts/"
       ],
       "modules": []
     },
@@ -277,7 +291,9 @@
       "name": "Files and Apps",
       "owns": [
         "apps/app/src/places/files/",
-        "apps/app/src/places/apps/"
+        "apps/app/src/places/apps/",
+        "scripts/shots/targets/",
+        "scripts/shots/mounts/"
       ],
       "modules": []
     },
@@ -288,7 +304,9 @@
         "apps/app/src/places/automations/",
         "apps/app/src/places/vault/",
         "apps/app/src/places/settings/",
-        "apps/app/src/join/"
+        "apps/app/src/join/",
+        "scripts/shots/targets/",
+        "scripts/shots/mounts/"
       ],
       "modules": []
     },
