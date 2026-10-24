@@ -40,7 +40,7 @@ export function compareRun(budget: Budget, samples: SampleResult[]): CompareResu
     budgetP95: budget.p95,
     ok: p95 <= budget.p95,
     samples: values,
-    waterfall: formatWaterfall(worst.spans),
+    waterfall: formatWaterfall(worst.spans, worst.traceId),
   };
 }
 

@@ -7,7 +7,7 @@ function byStart(a: Span, b: Span): number {
 }
 
 /** Indented start and duration, parents before children, siblings by start time. */
-export function formatWaterfall(spans: Span[]): string {
+export function formatWaterfall(spans: Span[], traceId?: string): string {
   const byId = new Map(spans.map((s) => [s.id, s]));
   const children = new Map<string, Span[]>();
   const roots: Span[] = [];
@@ -22,7 +22,7 @@ export function formatWaterfall(spans: Span[]): string {
     children.set(parent.id, list);
   }
   roots.sort(byStart);
-  const trace = spans[0]?.traceId ?? "none";
+  const trace = traceId ?? spans[0]?.traceId ?? "none";
   const lines = [`span waterfall ${trace}`];
   const walk = (s: Span, depth: number): void => {
     lines.push(`${"  ".repeat(depth)}${s.startMs.toFixed(2)} ms  ${s.durMs.toFixed(2)} ms  ${s.name}`);
