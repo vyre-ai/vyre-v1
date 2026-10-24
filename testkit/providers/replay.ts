@@ -82,7 +82,7 @@ interface Stored {
   body: string;
 }
 
-/** Reads one JSON tape, or every top-level .json file in a directory (the connectors/*/tests layout). */
+/** Reads one JSON tape, or every top-level .json file in a directory (the connectors tests layout). */
 export function loadReplay(source: string | URL): ReplayTape {
   const file = source instanceof URL ? fileURLToPath(source) : source;
   const st = fs.statSync(file);
