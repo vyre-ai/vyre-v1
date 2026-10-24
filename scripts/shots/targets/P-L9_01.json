@@ -1,0 +1,10 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_01-home-first-frame",
+      "route": "/",
+      "proto": "home,{skin}",
+      "note": "First frame of Home in each skin and size. The route is the shots app (scripts/shots/app) which applies the skin from the same token data before first paint; the Home place itself lands with P-L9_19 and P-L9_14. The theme_flash probe (zero wrong frames) runs in the same workflow."
+    }
+  ]
+}

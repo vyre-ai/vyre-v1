@@ -28,9 +28,9 @@ export default defineManifest({
   title: 'Records',
   owner: 'L3',
   events: [
-    ev('record.created', 'A record was created', { p: { recordId: id.record, type: id.recordType, fields: t.arr(t.str()) }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A record is created', fields: ['/type'] } }),
-    ev('record.updated', 'Fields of a record changed (values never included for sealed fields)', { p: { recordId: id.record, type: id.recordType, fields: t.arr(t.str()), version: t.int() }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A record changes', fields: ['/type', '/fields'] } }),
-    ev('record.deleted', 'A record moved to Trash', { p: { recordId: id.record, type: id.recordType }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A record is deleted' } }),
+    ev('record.created', 'A record was created; fields carries the initial values (sealed and Restricted values as ciphertext only)', { p: { recordId: id.record, type: id.recordType, fields: t.rec(t.json()) }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A record is created', fields: ['/type'] } }),
+    ev('record.updated', 'Fields of a record changed; fields carries the new values and prev the old ones (sealed and Restricted values as ciphertext only)', { p: { recordId: id.record, type: id.recordType, fields: t.rec(t.json()), prev: t.rec(t.json()), version: t.int() }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A record changes', fields: ['/type', '/fields'] } }),
+    ev('record.deleted', 'A record moved to Trash; prev carries the values it held (sealed and Restricted values as ciphertext only)', { p: { recordId: id.record, type: id.recordType, prev: t.rec(t.json()) }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A record is deleted' } }),
     ev('record.restored', 'A record came back from Trash', { p: { recordId: id.record, type: id.recordType }, subject: ['record', '/recordId'], label: 'subject' }),
     ev('record.merged', 'Two records were merged into a survivor', { p: { survivorId: id.record, mergedId: id.record, type: id.recordType }, subject: ['record', '/survivorId'], label: 'subject' }),
     ev('record.held', 'A hold was placed on a record', { p: { recordId: id.record, type: id.recordType, reason: t.str() }, subject: ['record', '/recordId'], label: 'subject' }),

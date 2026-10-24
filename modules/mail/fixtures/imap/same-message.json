@@ -1,0 +1,12 @@
+{
+  "rfcMessageId": "<same@acme.test>",
+  "from": { "address": "pat@acme.test", "name": "Pat Lee" },
+  "to": [{ "address": "maya@vyre.test" }, { "address": "sam@vyre.test" }],
+  "subject": "Both of you",
+  "text": "One message, addressed to two inboxes.",
+  "receivedAt": 1760000000000,
+  "copies": [
+    { "source": "google", "providerId": "gmail-19a1" },
+    { "source": "imap", "providerId": "INBOX:7:42" }
+  ]
+}

@@ -8853,6 +8853,56 @@ export type FilesHealthOut = {
   detail?: string;
   latencyMs?: number;
 };
+export type FilesKnowledgeIn = {
+  cursor?: string;
+  limit?: number;
+};
+export type FilesKnowledgeOut = {
+  files: Array<{
+      fileId: string;
+      folderId: string;
+      name: string;
+      kind: "text" | "markdown" | "document" | "spreadsheet" | "presentation" | "pdf" | "image" | "video" | "audio" | "code" | "archive" | "google_native" | "other";
+      mime: string;
+      size: number;
+      version: number;
+      label: number;
+      ownerId: string;
+      createdAt: number;
+      updatedAt: number;
+      updatedBy: string;
+      source?: {
+        mountId: string;
+        provider: string;
+      };
+      deletedAt?: number;
+      thumb: boolean;
+      holds: number;
+    }>;
+  folders: Array<{
+      folderId: string;
+      parentId?: string;
+      name: string;
+      path: string;
+      fileCount: number;
+      folderCount: number;
+      scope: "personal" | "space";
+      label: number;
+      source?: {
+        mountId: string;
+        provider: string;
+      };
+      git: boolean;
+      reviewChanges: boolean;
+    }>;
+  views: Array<{
+      key: "memory" | "graph";
+      title: string;
+      count: number;
+    }>;
+  next?: string;
+  total?: number;
+};
 export type FilesLintIn = {
   fileId: string;
   text?: string;
@@ -9186,6 +9236,52 @@ export type FilesShareExternalOut = {
   url: string;
   linkId: string;
   expiresAt?: number;
+};
+export type FilesSharedWithMeIn = {
+  kind?: "text" | "markdown" | "document" | "spreadsheet" | "presentation" | "pdf" | "image" | "video" | "audio" | "code" | "archive" | "google_native" | "other";
+  cursor?: string;
+  limit?: number;
+};
+export type FilesSharedWithMeOut = {
+  files: Array<{
+      fileId: string;
+      folderId: string;
+      name: string;
+      kind: "text" | "markdown" | "document" | "spreadsheet" | "presentation" | "pdf" | "image" | "video" | "audio" | "code" | "archive" | "google_native" | "other";
+      mime: string;
+      size: number;
+      version: number;
+      label: number;
+      ownerId: string;
+      createdAt: number;
+      updatedAt: number;
+      updatedBy: string;
+      source?: {
+        mountId: string;
+        provider: string;
+      };
+      deletedAt?: number;
+      thumb: boolean;
+      holds: number;
+    }>;
+  folders: Array<{
+      folderId: string;
+      parentId?: string;
+      name: string;
+      path: string;
+      fileCount: number;
+      folderCount: number;
+      scope: "personal" | "space";
+      label: number;
+      source?: {
+        mountId: string;
+        provider: string;
+      };
+      git: boolean;
+      reviewChanges: boolean;
+    }>;
+  next?: string;
+  total?: number;
 };
 export type FilesTrashEmptyIn = {
   olderThanDays?: number;
@@ -12651,6 +12747,45 @@ export type InboxUnmatchedOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type InvitesAcceptCreateAccountIn = {
+  code: string;
+  username: string;
+  displayName?: string;
+  password: string;
+  deviceName: string;
+  deviceClass: "desktop" | "phone" | "web" | "extension" | "daemon";
+  keys: {
+    personKeyByPassword: string;
+    personKeyByRecovery?: string;
+    publicKey: string;
+    privateKeyWrapped: string;
+    spaceKeys: Array<{
+        epoch: number;
+        wrapped: string;
+      }>;
+  };
+};
+export type InvitesAcceptCreateAccountOut = {
+  status: "ok" | "second_factor_required";
+  challengeId?: string;
+  session?: {
+    sessionId: string;
+    deviceId: string;
+    token: string;
+    expiresAt: number;
+    epoch: number;
+  };
+  keys?: {
+    personKeyByPassword: string;
+    personKeyByRecovery?: string;
+    publicKey: string;
+    privateKeyWrapped: string;
+    spaceKeys: Array<{
+        epoch: number;
+        wrapped: string;
+      }>;
+  };
 };
 export type JourneysAdvanceIn = {
   recordId: string;
@@ -21491,6 +21626,8 @@ export type TasksCreateIn = {
       label: string;
       note?: "required" | "optional";
     }>;
+  decisionId?: string;
+  payloadHash?: string;
   idempotencyKey: string;
 };
 export type TasksCreateOut = {
@@ -26209,6 +26346,7 @@ export interface CapMap {
   "files.folder.settings": { in: FilesFolderSettingsIn; out: FilesFolderSettingsOut };
   "files.get": { in: FilesGetIn; out: FilesGetOut };
   "files.health": { in: FilesHealthIn; out: FilesHealthOut };
+  "files.knowledge": { in: FilesKnowledgeIn; out: FilesKnowledgeOut };
   "files.lint": { in: FilesLintIn; out: FilesLintOut };
   "files.list": { in: FilesListIn; out: FilesListOut };
   "files.markup.get": { in: FilesMarkupGetIn; out: FilesMarkupGetOut };
@@ -26226,6 +26364,7 @@ export interface CapMap {
   "files.save": { in: FilesSaveIn; out: FilesSaveOut };
   "files.share": { in: FilesShareIn; out: FilesShareOut };
   "files.share_external": { in: FilesShareExternalIn; out: FilesShareExternalOut };
+  "files.shared_with_me": { in: FilesSharedWithMeIn; out: FilesSharedWithMeOut };
   "files.trash.empty": { in: FilesTrashEmptyIn; out: FilesTrashEmptyOut };
   "files.trash.list": { in: FilesTrashListIn; out: FilesTrashListOut };
   "files.tree": { in: FilesTreeIn; out: FilesTreeOut };
@@ -26466,6 +26605,7 @@ export interface CapMap {
   "inbox.thread": { in: InboxThreadIn; out: InboxThreadOut };
   "inbox.unmatch": { in: InboxUnmatchIn; out: InboxUnmatchOut };
   "inbox.unmatched": { in: InboxUnmatchedIn; out: InboxUnmatchedOut };
+  "invites.accept_create_account": { in: InvitesAcceptCreateAccountIn; out: InvitesAcceptCreateAccountOut };
   "journeys.advance": { in: JourneysAdvanceIn; out: JourneysAdvanceOut };
   "journeys.check_limits": { in: JourneysCheckLimitsIn; out: JourneysCheckLimitsOut };
   "journeys.create": { in: JourneysCreateIn; out: JourneysCreateOut };
@@ -29224,11 +29364,12 @@ export type PullRequestOpenedPayload = {
 export type RecordCreatedPayload = {
   recordId: string;
   type: string;
-  fields: Array<string>;
+  fields: Record<string, unknown>;
 };
 export type RecordDeletedPayload = {
   recordId: string;
   type: string;
+  prev: Record<string, unknown>;
 };
 export type RecordGapsFoundPayload = {
   recordId: string;
@@ -29257,7 +29398,8 @@ export type RecordRestoredPayload = {
 export type RecordUpdatedPayload = {
   recordId: string;
   type: string;
-  fields: Array<string>;
+  fields: Record<string, unknown>;
+  prev: Record<string, unknown>;
   version: number;
 };
 export type RecordValueProposedPayload = {

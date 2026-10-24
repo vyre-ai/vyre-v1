@@ -169,7 +169,7 @@ Events:
 
 ### identity
 
-Capabilities to implement: 25. Events to emit: 10. Contract tests that must go green: `generated/tests/identity/`.
+Capabilities to implement: 26. Events to emit: 10. Contract tests that must go green: `generated/tests/identity/`.
 
 Capabilities:
 - identity.change_password (write, grant only, level view)
@@ -197,6 +197,7 @@ Capabilities:
 - identity.username_available (read, grant only, level view)
 - identity.verify_second_factor (write, grant only, level view)
 - identity.whoami (read, grant only, level view)
+- invites.accept_create_account (write, grant only, level view)
 
 Events:
 - factor.enrolled

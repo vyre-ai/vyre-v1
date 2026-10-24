@@ -1,0 +1,24 @@
+{
+  "id": "d1",
+  "threadId": "t9",
+  "labelIds": [
+    "DRAFT"
+  ],
+  "internalDate": "1760000300000",
+  "payload": {
+    "mimeType": "text/plain",
+    "headers": [
+      {
+        "name": "From",
+        "value": "maya@vyre.test"
+      },
+      {
+        "name": "To",
+        "value": "x@y.test"
+      }
+    ],
+    "body": {
+      "data": "ZHJhZnQ"
+    }
+  }
+}

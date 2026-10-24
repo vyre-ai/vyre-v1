@@ -9345,6 +9345,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/files/knowledge",
+    "cap": "files.knowledge",
+    "v": 1,
+    "module": "files",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/files/lint",
     "cap": "files.lint",
     "v": 1,
@@ -9662,6 +9680,24 @@ export const routes: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "send"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/files/shared_with_me",
+    "cap": "files.shared_with_me",
+    "v": 1,
+    "module": "files",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
   },
   {
     "method": "POST",
@@ -14053,6 +14089,24 @@ export const routes: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/invites/accept_create_account",
+    "cap": "invites.accept_create_account",
+    "v": 1,
+    "module": "identity",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
     "teamOnly": false,
     "gate": null
   },

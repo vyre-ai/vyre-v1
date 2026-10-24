@@ -9,9 +9,10 @@ import crypto from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { TEST, imports, cacheKey } from "./lib/graph.mjs";
+import { ensureDeps } from "./shots/ensure-deps.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const RUNNER_VERSION = "1";
+const RUNNER_VERSION = "2";
 const MAX_SLOW = 15;
 const arg = (n) => process.argv.includes(n);
 const val = (n) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
@@ -48,6 +49,10 @@ const cacheDir = (() => {
 const useCache = !arg("--no-cache") && cacheDir;
 const fwd = imports(tracked, read);
 const env = { node: process.version, runner: RUNNER_VERSION, tag: process.env.VYRE_ENV_TAG || "ci" };
+// Ruling 21: .tsx tests (and .ts tests that opt in with `// @tsx`) run through the tsx loader, with react-native mapped to react-native-web.
+const needsTsx = (f) => f.endsWith(".tsx") || /^\s*\/\/\s*@tsx\b/m.test(read(f));
+const tsxArgs = ["--import", "tsx", "--import", path.join(REPO, "scripts/shots/rn-alias.mjs")];
+if (files.some(needsTsx)) await ensureDeps(REPO);
 const nocache = (f) => /^\s*\/\/\s*@nocache/m.test(read(f));
 
 const run = (f) => new Promise((resolve) => {
@@ -55,7 +60,7 @@ const run = (f) => new Promise((resolve) => {
   const key = useCache && !nocache(f) ? cacheKey(f, fwd, read, env) : null;
   const marker = key && path.join(cacheDir, key);
   if (marker && fs.existsSync(marker)) return resolve({ f, ok: true, cached: true, ms: 0 });
-  const p = spawn(process.execPath, ["--test", `--test-timeout=${cap}`, f], { cwd: REPO, stdio: ["ignore", "pipe", "pipe"] });
+  const p = spawn(process.execPath, [...(needsTsx(f) ? tsxArgs : []), "--test", `--test-timeout=${cap}`, f], { cwd: REPO, env: needsTsx(f) ? { ...process.env, TSX_TSCONFIG_PATH: path.join(REPO, "tsconfig.base.json") } : process.env, stdio: ["ignore", "pipe", "pipe"] });
   let out = "";
   p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (out += d));
   const dog = setTimeout(() => { out += `\nwatchdog: ${f} exceeded ${cap / 1000} s\n`; p.kill("SIGKILL"); }, cap + 2000);

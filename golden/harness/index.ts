@@ -1,5 +1,5 @@
 // Golden flow harness (ARCH 10.3, 12.4). A flow declares the modules it needs and the event names it must produce, in order.
-// While any needed module is a stub in generated/registry.json the flow is PENDING: it does not run and it does not fail.
+// While any needed module is a stub in host/modules.json the flow is PENDING: it does not run and it does not fail.
 // Step implementations live in golden/steps/<NN>-<name>.ts (owned by L11): default export `async () => Observed[]`.
 import fs from "node:fs";
 import path from "node:path";
@@ -17,10 +17,12 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 export const defineFlow = (f: Flow): Flow => f;
 export const flowId = (f: Flow): string => `${String(f.n).padStart(2, "0")}-${f.name}`;
 
-/** Module ids and statuses from generated/registry.json. */
+/** Module ids from generated/registry.json, statuses from host/modules.json (ruling 25: stub or live is runtime state, not contract). */
 export function loadRegistryModules(root = ROOT): ModuleStatus[] {
   const reg = JSON.parse(fs.readFileSync(path.join(root, "generated/registry.json"), "utf8"));
-  return reg.modules.map((m: { id: string; status: string }) => ({ id: m.id, status: m.status === "live" ? "live" : "stub" }));
+  const listed = JSON.parse(fs.readFileSync(path.join(root, "host/modules.json"), "utf8")) as { modules: { id: string; status: string }[] };
+  const live = new Set(listed.modules.filter((m) => m.status === "live").map((m) => m.id));
+  return reg.modules.map((m: { id: string }) => ({ id: m.id, status: live.has(m.id) ? "live" : "stub" }));
 }
 
 /** Event names from generated/registry.json, for checking that a flow only names real events. */
