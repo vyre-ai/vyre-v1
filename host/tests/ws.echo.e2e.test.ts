@@ -35,7 +35,7 @@ function rig(o: { hbMs?: number; deadMs?: number } = {}) {
   let hub: LiveHub | undefined;
   const invoke = createInvoke({
     caps: indexCapabilities([echoCap]), validateInput: () => [], authorize: (r) => authorize(snap, r), handler: (c) => (c === "example.echo" ? handler : undefined), idem, log: sink.invokeLogger(SPACE),
-    commit: async (b) => { const out = b.events.map((e, i) => ({ ...e, seq: stored.length + i + 1 })); stored.push(...out); return out; },
+    commit: async (b) => { sink.log({ space: SPACE, level: 20, msg: "commit", cap: b.cap, trace_id: b.events[0]?.traceId, attrs: { events: b.events.length } }); const out = b.events.map((e, i) => ({ ...e, seq: stored.length + i + 1 })); stored.push(...out); return out; },
     publish: (events) => hub?.publish(SPACE, events),
     onSpan: (s) => sink.span({ trace_id: s.traceId, span_id: s.spanId, parent: s.parent ?? null, name: s.name, at: s.startedAt, dur_us: s.ms * 1000, attrs: { cap: s.cap, status: s.status } }),
   });
@@ -90,9 +90,9 @@ test("example.echo over the socket: one trace id in the response, the numbered e
     assert.equal(ev["seq"], 1, "numbered by the event seq");
     assert.equal((ev["items"] as EventEnvelope[])[0]?.traceId, traceId, "and so does the event itself");
     const t = r.sink.trace(traceId);
-    assert.ok(t.logs.length >= 2, "ws.call and the invoke pipeline both logged");
+    assert.ok(t.logs.length >= 2, "ws.call and the commit both logged");
     assert.ok(t.logs.every((l) => l.trace_id === traceId), "every log row of the call has the one trace id");
-    assert.deepEqual([...new Set(t.logs.map((l) => l.msg))].sort(), ["invoke", "ws.call"]);
+    assert.deepEqual([...new Set(t.logs.map((l) => l.msg))].sort(), ["commit", "ws.call"]);
     assert.ok(t.spans.some((s) => s.name === "ws.call" && s.parent === "b2".repeat(8)), "our span is a child of the caller's span");
     assert.ok(t.spans.some((s) => s.name === "invoke"));
     assert.equal(r.sink.db.prepare("SELECT COUNT(*) AS n FROM logs WHERE trace_id IS NOT NULL AND trace_id != ?").get(traceId)?.["n"], 0, "no other trace leaked in");
