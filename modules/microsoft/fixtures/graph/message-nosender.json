@@ -1,0 +1,11 @@
+{
+  "id": "gn",
+  "subject": "No sender",
+  "isDraft": false,
+  "hasAttachments": false,
+  "body": {
+    "contentType": "text",
+    "content": "x"
+  },
+  "receivedDateTime": "2026-10-25T08:30:00Z"
+}

@@ -149,6 +149,19 @@ export default defineManifest({
       out: { files: t.arr(fileRow), folders: t.arr(folderRow), ...pageOut }, tool: 'files', label: 'filter', cli: 'vyre files ls',
     }),
     read('files.recent', 'Recently opened or changed files', { in: { limit: t.opt(t.int({ minimum: 1, maximum: 200 })) }, out: { files: t.arr(fileRow) }, tool: 'files', label: 'filter' }),
+    // DECISION (ruling 24): the sidebar's Shared with me and Knowledge sections get their own lists. Both are views over the same file and folder resources; nothing is stored twice.
+    read('files.shared_with_me', 'Files and folders other people shared with the caller, newest share first (the Shared with me section of the tree)', {
+      in: { kind: t.opt(fileKind), ...pageIn }, out: { files: t.arr(fileRow), folders: t.arr(folderRow), ...pageOut }, tool: 'files', label: 'filter',
+    }),
+    read('files.knowledge', 'The Knowledge section of the tree: the knowledge folders and files the caller may read, plus the Memory and Graph entries', {
+      in: { ...pageIn },
+      out: {
+        files: t.arr(fileRow), folders: t.arr(folderRow),
+        views: t.arr(t.obj({ key: t.enm('memory', 'graph'), title: t.str(), count: t.int({ minimum: 0 }) })),
+        ...pageOut,
+      },
+      tool: 'files', label: 'filter',
+    }),
     read('files.resolve', 'Turn a tree path such as Projects/Probate GTM/plan.md into an id', {
       in: { path: t.str() }, out: { kind: t.enm('file', 'folder'), fileId: t.opt(id.file), folderId: t.opt(id.folder) }, tool: 'files', label: 'check',
     }),

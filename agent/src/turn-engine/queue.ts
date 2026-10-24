@@ -14,8 +14,8 @@ export interface QueueStore {
   /** Queued steering rows for an agent, oldest first. */
   steerable(threadId: string, agentId: string): QueueItem[];
   setState(threadId: string, qseq: number, state: QueueItem["state"]): void;
-  /** Cancel every queued row (stop all). Returns the rows cancelled. */
-  cancelQueued(threadId: string): QueueItem[];
+  /** Cancel every queued row (stop all), or only one agent's rows. Returns the rows cancelled. */
+  cancelQueued(threadId: string, agentId?: string): QueueItem[];
   /** Rows left in `running` state (their worker died). */
   running(threadId: string): QueueItem[];
   list(threadId: string): QueueItem[];
@@ -52,8 +52,8 @@ export function createMemoryQueue(): QueueStore {
       const row = of(t).find((r) => r.qseq === qseq);
       if (row) row.state = state;
     },
-    cancelQueued(t) {
-      const out = queued(t);
+    cancelQueued(t, agentId) {
+      const out = queued(t).filter((r) => agentId === undefined || r.agentId === agentId);
       for (const r of out) r.state = "cancelled";
       return out;
     },

@@ -19,7 +19,7 @@ Run one health check or all of them now
 | HTTP | POST /v1/health/run |
 | MCP tool | health_run (engineer) |
 | CLI | none |
-| Emits | none |
+| Emits | health.changed, health.paused, health.resumed |
 
 ## Input
 
