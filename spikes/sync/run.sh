@@ -4,7 +4,7 @@ cd "$(dirname "$0")"
 node -v
 npm install --no-audit --no-fund --no-package-lock 2>&1 | tail -3
 fail=0
-for f in ${@:-s1.oplog s2.revocation s3.offline s4.yjs s5.e2e s6.devicestore}; do
+for f in ${@:-s1.oplog s2.revocation s3.offline s4.yjs s5.e2e s6.devicestore s6b.cipherwasm}; do
   echo "=== $f"
   node --test --test-timeout=900000 "$f.spike.mjs" 2>&1 | tee "/tmp/$f.log" | grep -v "^#\|^TAP" | head -150
   [ "${PIPESTATUS[0]}" = "0" ] || { echo "FILE FAILED: $f"; fail=1; }

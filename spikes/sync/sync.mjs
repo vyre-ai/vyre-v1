@@ -287,21 +287,34 @@ export class Client {
   async applyChanges(changes, seqOf = (c) => c.seq) {
     const touched = new Set();
     await this.tx(async () => {
+      const hiddenMap = new Map((await this.db.all("SELECT id, seq FROM hidden")).map((h) => [h.id, h.seq]));
+      let buf = [];
+      const flush = async () => { // multi-row upsert, same semantics as applyField
+        const W = 7, PER = 400;
+        for (let i = 0; i < buf.length; i += W * PER) {
+          const part = buf.slice(i, i + W * PER); const n = part.length / W;
+          await this.db.run("INSERT INTO rows(id,field,v,hlc,seq,pending,key,nonce) VALUES " + Array(n).fill("(?,?,?,?,?,0,?,?)").join(",") + " ON CONFLICT(id,field) DO UPDATE SET v=excluded.v, hlc=excluded.hlc, seq=excluded.seq, key=excluded.key, nonce=excluded.nonce WHERE rows.pending=0 OR rows.hlc<=excluded.hlc", part);
+        }
+        buf = [];
+      };
+      const ftsIds = new Set();
       for (const c of changes) {
-        const hid = await this.db.get("SELECT seq FROM hidden WHERE id=?", [c.id]);
+        const hid = hiddenMap.get(c.id);
         if (c.op === "hide") {
+          await flush();
           await this.db.run("DELETE FROM rows WHERE id=?", [c.id]); await this.db.run("DELETE FROM docs WHERE id=?", [c.id]);
-          if (this.useFts) await this.db.run("DELETE FROM fts WHERE id=?", [c.id]);
-          await this.db.run("INSERT OR REPLACE INTO hidden(id, seq) VALUES(?,?)", [c.id, seqOf(c)]);
+          if (this.useFts) { await this.db.run("DELETE FROM fts WHERE id=?", [c.id]); ftsIds.delete(c.id); }
+          await this.db.run("INSERT OR REPLACE INTO hidden(id, seq) VALUES(?,?)", [c.id, seqOf(c)]); hiddenMap.set(c.id, seqOf(c));
           touched.add(c.id); continue;
         }
-        if (hid && seqOf(c) <= hid.seq) continue; // stale replay of a pre-hide change: never resurrects a purged row
-        if (hid) await this.db.run("DELETE FROM hidden WHERE id=?", [c.id]);
+        if (hid !== undefined && seqOf(c) <= hid) continue; // stale replay of a pre-hide change: never resurrects a purged row
+        if (hid !== undefined) { await this.db.run("DELETE FROM hidden WHERE id=?", [c.id]); hiddenMap.delete(c.id); }
         if (c.op === "ydoc") { const n = (await this.db.get("SELECT COALESCE(MAX(n),0)+1 AS n FROM docs WHERE id=?", [c.id])).n; await this.db.run("INSERT INTO docs(id,n,u) VALUES(?,?,?)", [c.id, n, JSON.stringify(c.fields)]); touched.add(c.id); continue; }
-        for (const f of Object.keys(c.fields)) { const fv = { ...c.fields[f] }; if (fv.seq == null) fv.seq = seqOf(c); await this.applyField(c.id, f, fv); }
-        if (this.useFts) await this.ftsReindex(c.id);
-        touched.add(c.id);
+        for (const f of Object.keys(c.fields)) { const fv = c.fields[f]; buf.push(c.id, f, this.enc(JSON.stringify(fv.v)), fv.hlc, fv.seq ?? seqOf(c), fv.key || null, fv.nonce || null); }
+        ftsIds.add(c.id); touched.add(c.id);
       }
+      await flush();
+      if (this.useFts) for (const id of ftsIds) await this.ftsReindex(id);
     });
     this.notify([...touched]);
   }

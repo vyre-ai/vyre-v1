@@ -2,5 +2,5 @@
   "name": "vyre-sync-spike",
   "private": true,
   "type": "module",
-  "dependencies": { "yjs": "13.6.27", "wa-sqlite": "1.0.0" }
+  "dependencies": { "yjs": "13.6.27", "wa-sqlite": "1.0.0", "sqlite-wasm-cipher": "2.2.4" }
 }
