@@ -1,0 +1,3 @@
+# Docker images prewarmed on every CI host, one per line.
+alpine:3.20
+node:24-slim

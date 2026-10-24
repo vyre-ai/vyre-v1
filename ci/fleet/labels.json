@@ -1,0 +1,9 @@
+{
+  "repo": "vyre-ai/vyre-v1",
+  "common": ["v1", "fleet", "prewarm"],
+  "hosts": {
+    "vyre-ci-1": { "ip": "68.183.84.119", "label": "fleet-ci-1", "runners": ["v1-ci-1-7", "v1-ci-1-8", "v1-ci-1-9", "v1-ci-1-10", "v1-ci-1-11", "v1-ci-1-12"] },
+    "vyre-ci-2": { "ip": "168.144.209.75", "label": "fleet-ci-2", "runners": ["v1-ci-2-7", "v1-ci-2-8", "v1-ci-2-9", "v1-ci-2-10", "v1-ci-2-11", "v1-ci-2-12"] }
+  },
+  "note": "Each runner also gets a label equal to its own name, so a matrix job can target one runner."
+}

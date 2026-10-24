@@ -1,0 +1,12 @@
+[Unit]
+Description=Vyre CI fleet cache server
+After=network.target
+
+[Service]
+User=runner
+Environment=CACHE_DIR=/var/lib/ci-run/cache-server PORT=7791 HOST=127.0.0.1
+ExecStart=/opt/node24/bin/node /var/lib/ci-run/prewarm/fleet/cache-server.mjs
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
