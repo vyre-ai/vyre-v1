@@ -1,0 +1,1 @@
+{ "name": "vyre-sync-spike-web", "private": true, "type": "module", "dependencies": { "sqlite-wasm-cipher": "2.2.4", "playwright-core": "1.56.1" } }
