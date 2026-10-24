@@ -27,7 +27,7 @@ export function Row({ id, title, note, selected = false, hovered = false, onPres
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
       testID={id ? `row-${id}` : undefined}
-      style={[styles.row, { height: rowHeight(note) }, lit && styles.hover, selected && styles.selected]}
+      style={[styles.row, { height: rowHeight(note) }, lit && HOVER, selected && SELECTED]}
     >
       <View style={styles.text}>
         <Text numberOfLines={1} style={styles.title}>{title}</Text>
@@ -37,10 +37,12 @@ export function Row({ id, title, note, selected = false, hovered = false, onPres
   );
 }
 
+// Plain objects (not StyleSheet ids) so the painted token is visible in the element's inline style.
+const HOVER = { backgroundColor: "var(--hover)" };
+const SELECTED = { backgroundColor: "var(--sel)" };
+
 const styles = StyleSheet.create({
   row: { width: "100%", flexDirection: "row", alignItems: "center", paddingHorizontal: 8, borderRadius: 6 },
-  hover: { backgroundColor: "var(--hover)" as string },
-  selected: { backgroundColor: "var(--sel)" as string },
   text: { flex: 1, minWidth: 0, justifyContent: "center" },
   title: { color: "var(--ink)" as string, fontSize: 13, lineHeight: 18 },
   note: { color: "var(--ink-3)" as string, fontSize: 11.5, lineHeight: 16 },

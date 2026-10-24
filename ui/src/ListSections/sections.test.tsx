@@ -18,5 +18,5 @@ test("the selected row is the only one painted as selected", () => {
   const html = renderToStaticMarkup(
     <ListSections type="records" selectedId="p2" sections={[{ name: "Personal", rows: [{ id: "p1", title: "A" }, { id: "p2", title: "B" }] }]} />,
   );
-  assert.equal(html.match(/aria-selected="true"/g)?.length, 1);
+  assert.equal(html.match(/background-color:var\(--sel\)/g)?.length, 1);
 });

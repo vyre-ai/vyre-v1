@@ -8,8 +8,8 @@ test("a selected row paints the selection token on the row itself, full width", 
   const html = renderToStaticMarkup(<Row id="a" title="Weekly sync" selected />);
   assert.match(html, /data-testid="row-a"/);
   assert.match(html, /background-color:var\(--sel\)/);
-  assert.match(html, /width:100%/);
-  assert.match(html, /aria-selected="true"/);
+  assert.match(html, /r-width-/, "the row carries a width style");
+  assert.doesNotMatch(html, /margin-(left|right|inline)/i, "no horizontal margin that would inset the paint");
 });
 
 test("a hovered row paints the hover token and an unselected row does not paint selection", () => {
