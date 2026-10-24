@@ -41,13 +41,34 @@ class T(unittest.TestCase):
     def test_auto_evidence(self):
         st = ev.CiState(); st.add_log("r", "perf send median 120 ms under 150 ms\nok   agent/tests/turn-engine.queue.test.ts 5 ms\n")
         facts = ev.job_facts([{"name": "contracts", "conclusion": "success"}, {"name": "check", "conclusion": "success"}, {"name": "fast-1", "conclusion": "success"}])
-        ctx = {"state": st, "facts": facts, "run_url": "U", "owns_ok": True, "foreign": [], "changed": ["a"], "manifest_diff": "+  status: live\n", "tests_ok": True, "worker_done": lambda it: True}
+        ctx = {"state": st, "facts": facts, "run_url": "U", "owns_ok": True, "foreign": [], "changed": ["a"], "manifest_diff": "+  status: 'live',\n", "tests_ok": True, "worker_done": lambda it: True}
         self.assertIn("contracts job success", ev.auto_evidence(L2[2], ctx))
         self.assertIn("inside owns_files", ev.auto_evidence({"kind": "test", "text": "Run scripts/lanes-check.ts, boundaries"}, ctx))
         self.assertIn("status live", ev.auto_evidence({"kind": "proof", "text": "Flip status stub to live in the manifest of tasks"}, ctx))
         self.assertIn("perf asserted", ev.auto_evidence({"kind": "proof", "proof_kind": "perf", "pos": 6, "text": "perf send"}, ctx))
         ctx["facts"] = ev.job_facts([{"name": "contracts", "conclusion": "failure"}])
         self.assertIsNone(ev.auto_evidence(L2[2], ctx))
+
+    def test_flip(self):
+        cl = [{"pos": 5, "text": "Flip status stub to live in the manifest of tasks; its generated contract tests pass"}]
+        self.assertEqual(ev.flip_targets(cl), ["manifests/tasks.ts"])
+        self.assertTrue(ev.flip_ok("--- a\n+++ b\n@@\n+  status: 'live',\n"))
+        self.assertTrue(ev.flip_ok("-  status: 'stub',\n+  status: 'live',\n"))
+        self.assertFalse(ev.flip_ok("+  status: 'live',\n+  foo: 1,\n"))
+        self.assertFalse(ev.flip_ok(""))
+
+    def test_screens(self):
+        files = ["index.md"] + [f"P-L9b_01-home/{k}-{z}-side-by-side.png" for k in ("paper", "graphite") for z in ("desktop", "phone")]
+        ok, msg, tg = ev.screens_report(files, "P-L9b_01")
+        self.assertTrue(ok, msg); self.assertEqual(tg, ["P-L9b_01-home"])
+        self.assertFalse(ev.screens_report(files[:-1], "P-L9b_01")[0])
+        self.assertFalse(ev.screens_report(files, "P-L9c_01")[0])
+        self.assertFalse(ev.screens_report([f for f in files if f != "index.md"], "P-L9b_01")[0])
+        self.assertTrue(ev.is_ui_packet(["apps/app/src/**"], []) and not ev.is_ui_packet(["modules/x/**"], [{"text": "build"}]))
+        it = {"kind": "proof", "proof_kind": "screenshot", "text": "Screenshot of Home in both skins"}
+        ctx = {"state": ev.CiState(), "facts": ev.job_facts([]), "run_url": "U", "screens": (True, "ok", ["t"])}
+        self.assertIn("shots workflow", ev.auto_evidence(it, ctx))
+        ctx["screens"] = (False, "none", []); self.assertIsNone(ev.auto_evidence(it, ctx))
 
     def test_foreign_imports(self):
         with tempfile.TemporaryDirectory() as d:

@@ -10,6 +10,10 @@ import shutil, argparse, concurrent.futures as cf, datetime, fnmatch, json, os, 
 import urllib.request, urllib.error
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import evidence
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import evidence
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import evidence
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TRACKER_DIR = os.environ.get("VYRE_TRACKER_DIR", "/Users/irfad/Claude/Orgs/Vyre/tracker")
@@ -226,6 +230,9 @@ def write_prompt(job, extra=""):
     owned = "\n".join(f"  {g}" for g in job["owns"]) or "  (none declared)"
     ctx = job.get("context") or ""
     req = evidence.prompt_block(job.get("checklist") or [])
+    if job.get("flip_paths"):
+        req += ("MANIFEST FLIP (last packet of the module): you may also edit " + ", ".join(job["flip_paths"]) + " and ONLY to add the single line "
+                "`status: 'live',` inside defineManifest({...}) (or change 'stub' to 'live'), after the handlers and tests are done. Any other change in that file is rejected.\n")
     text = f"{'' if job.get('bare_prompt') else REPO_RULES}\nOWNED FILES (the only paths you may change):\n{owned}\n\n{req}\n=== PACKET BRIEF ===\n{job['brief']}\n{('\n' + ctx) if ctx else ''}\n{extra}"
     if job.get("continue_prompt") and extra:   # a continued session already holds the brief; send only the new instruction
         text = extra.strip() + "\n\n" + req
@@ -368,24 +375,27 @@ def ci_wait(job, args):
     today, so a push does not start it). Also records per-run job conclusions in job['ci_jobs'] for evidence.auto_evidence."""
     wt = job["wt"]; sha = sh(["git", "rev-parse", "HEAD"], cwd=wt).stdout.strip()
     deadline = time.time() + args.ci_timeout; seen = False; settled = 0
-    want_desktop = bool(job.get("desktop")) or any(DESKTOP_PATH_RE.search(f) for f in changed_files(wt, job["base"]))
-    settle = getattr(args, "settle", 90) if want_desktop else 0
+    want = []   # workflow names that must appear next to the check run
+    if job.get("desktop") or any(DESKTOP_PATH_RE.search(f) for f in changed_files(wt, job["base"])): want.append("desktop")
+    if job.get("ui"): want.append("shots")   # ruling 14: scripts/shots side-by-side screenshots run on pushes that touch ui/ or apps/app/
+    settle = getattr(args, "settle", 90) if want else 0
     job.setdefault("ci_notes", [])
     while True:
         runs = [x for x in gh_json(["run", "list", "--commit", sha, "--json", "databaseId,headSha,status,conclusion,url,workflowName", "--limit", "20"], wt, []) if x["headSha"] == sha]
         if runs: seen = True
         if runs and all(x["status"] == "completed" for x in runs):
-            have_desktop = any("desktop" in (x.get("workflowName") or "").lower() for x in runs)
-            if settle and not have_desktop and settled < 3 and time.time() + settle < deadline:
-                settled += 1; log(job, f"{len(runs)} runs done, no desktop run yet; settling {settle}s ({settled}/3)"); time.sleep(settle); continue
-            if settle and not have_desktop: job["ci_notes"].append("desktop run never appeared for " + sha[:8])
+            missing = [w for w in want if not any(w in (x.get("workflowName") or "").lower() for x in runs)]
+            if settle and missing and settled < 3 and time.time() + settle < deadline:
+                settled += 1; log(job, f"{len(runs)} runs done, no {'/'.join(missing)} run yet; settling {settle}s ({settled}/3)"); time.sleep(settle); continue
+            for w in missing: job["ci_notes"].append(f"{w} run never appeared for " + sha[:8])
             job["ci_runs"] = [x["url"] for x in runs]
             jobs = []
             for x in runs:
                 jobs += (gh_json(["run", "view", str(x["databaseId"]), "--json", "jobs"], wt, {}) or {}).get("jobs", [])
             job["ci_jobs"] = [{"name": j.get("name", ""), "conclusion": j.get("conclusion")} for j in jobs]
             # desktop/native runs are continue-on-error upstream and never block: a red desktop run does not fail the packet unless a test file failed in it
-            bad = [x for x in runs if x["conclusion"] != "success" and "desktop" not in (x.get("workflowName") or "").lower()]
+            job["shots_run"] = next((x for x in runs if "shots" in (x.get("workflowName") or "").lower()), None)
+            bad = [x for x in runs if x["conclusion"] != "success" and "desktop" not in (x.get("workflowName") or "").lower() and "native" not in (x.get("workflowName") or "").lower()]
             lg_all = "\n".join(sh([GH, "run", "view", str(x["databaseId"]), "--log"], cwd=wt, check=False).stdout for x in runs)
             if not bad: return True, runs[0]["url"], lg_all, runs[0]["databaseId"]
             lg = "\n".join(sh([GH, "run", "view", str(x["databaseId"]), "--log-failed"], cwd=wt, check=False).stdout for x in bad)
@@ -397,12 +407,31 @@ def ci_wait(job, args):
     return False, "", ("CI run never appeared for " if not seen else "CI run did not finish for ") + sha[:8], None
 
 
+def collect_screens(job, res, trk):
+    """Download the `shots` artifact of the pushed sha, judge it with evidence.screens_report, keep the PNGs next to the harness and post a screenshot proof."""
+    run = job.get("shots_run")
+    if not run: job["screens"] = (False, "no shots workflow run for this sha", []); return
+    out = os.path.join(job["wt"], ".harness", "shots"); shutil.rmtree(out, ignore_errors=True)
+    sh([GH, "run", "download", str(run["databaseId"]), "-n", "shots", "-D", out], cwd=job["wt"], check=False)
+    files = [os.path.relpath(os.path.join(r, f), out) for r, _, fs in os.walk(out) for f in fs] if os.path.isdir(out) else []
+    ok, summary, targets = evidence.screens_report(files, job.get("pid"))
+    keep = os.path.join(LOG_DIR, "shots-proof", job["id"])
+    if files:
+        shutil.rmtree(keep, ignore_errors=True); shutil.copytree(out, keep)
+    job["screens"] = (ok, summary, targets)
+    if trk and job.get("pid"):
+        try: trk.proof(job["pid"], "screenshot", f"{run['url']} {keep}", "pass" if ok else "fail")
+        except Exception as e: log(job, f"screenshot proof post failed: {e}")
+    log(job, f"screens: {summary}")
+
+
 def failed_tests_in(text):
     return sorted(set(f for st, f in evidence.RUN_LINE.findall(evidence.ANSI.sub("", text or "")) if st == "FAIL"))
 
 
 def is_proof_item(it):
     t = it["text"].lower()
+    if t.startswith("flip status") or "screenshot" in t: return False
     return it.get("kind") == "proof" or t.startswith("post the test run output") or (it.get("proof_kind") == "test_run" and "post " in t[:6])
 
 
@@ -466,6 +495,13 @@ def run_job(job, args, trk=None):
                 extra = f"\n\nREJECTED: you edited files you do not own: {viol[:10]}. Revert them (git checkout {job['base']} -- <file>) and keep only owned paths.\n"
                 res["retries"] += 1; job["fix_round"] = True
                 continue
+            bad_flip = None
+            for fp in job.get("flip_paths") or []:
+                if fp in files and not evidence.flip_ok(sh(["git", "diff", f"{job['base']}...HEAD", "--", fp], cwd=job["wt"], check=False).stdout): bad_flip = fp
+            if bad_flip:
+                res["error"] = f"manifest edit is not the allowed flip: {bad_flip}"; log(job, res["error"]); res["retries"] += 1; job["fix_round"] = True
+                extra = f"\n\nREJECTED: {bad_flip} may only gain the line `status: 'live',`. Revert every other change there (git checkout {job['base']} -- {bad_flip}, then add the one line).\n"
+                continue
             bad = check_commits(job)
             if bad:
                 res["error"] = f"commit attribution rule broken: {bad[:3]}"
@@ -511,8 +547,9 @@ def run_job(job, args, trk=None):
                     ok = False; url = url or "ci:none"
                     tail = "Tests named in the checklist did not pass in the CI logs of this branch:\n" + "\n".join(probs) + "\n\nLog excerpt:\n" + \
                         "\n".join(l for l in full.splitlines() if re.search(r"\b(ok|FAIL)\b.*\.test\.|files,", l))[-2500:]
+            if ok and job.get("ui"): collect_screens(job, res, trk)
             if trk and job.get("pid"): trk.proof(job["pid"], "test_run", " ".join(job.get("ci_runs") or [url or "ci:none"]), "pass" if ok else "fail")
-            if ok: res.update(ok=True, stage="ci-pass"); break
+            if ok: res.update(ok=True, stage="ci-pass"); res.pop("error", None); break
             res["error"] = "ci failed"
             if trk and job.get("pid"): trk.comment(job["pid"], f"CI/verify failed ({url}). Log tail:\n{tail[-1800:]}")
             extra = f"\n\nCI FAILED. Fix it and commit. Failed log tail:\n{tail[-3000:]}\n"
@@ -544,13 +581,13 @@ def submit(job, trk, res):
     verified = set(res.get("verified_tests", []))
     wt = job["wt"]; state = job["ci_state"]
     changed = sorted(changed_files(wt, job["base"]))
-    mdiff = sh(["git", "diff", f"{job['base']}...HEAD", "--", "manifests"], cwd=wt, check=False).stdout
+    mdiff = sh(["git", "diff", f"{job['base']}...HEAD", "--"] + (job.get("flip_paths") or ["manifests"]), cwd=wt, check=False).stdout
     foreign = evidence.foreign_imports(wt, changed)
     facts = evidence.job_facts(job.get("ci_jobs"))
     required = evidence.required_tests(p["checklist"])
     ctx = {"state": state, "facts": facts, "run_url": res.get("ci") or "", "owns_ok": all(glob_match(f, job["owns"]) for f in changed) if job["owns"] else True,
            "foreign": foreign, "changed": changed, "manifest_diff": mdiff, "tests_ok": bool(required) and set(f for _, f in required) <= verified,
-           "worker_done": lambda it: str(it["pos"]) in done}
+           "worker_done": lambda it: str(it["pos"]) in done, "screens": job.get("screens")}
     for it in p["checklist"]:
         if it["done"]: continue
         named = {path for pos, path in required if pos == it["pos"]}
@@ -620,9 +657,10 @@ def packet_job(trk, pid, args):
     if redo: brief = changes_block(trk, p) + "\n" + brief
     text = brief + " ".join(i["text"] for i in p["checklist"])
     subprocess.run(["git", "-C", args.repo, "fetch", "-q", "origin", "main"], capture_output=True)   # ruling 13: spec text comes from current main
-    return {"context": build_context(p, args.repo), "id": pid, "pid": pid, "lane": p["lane_id"], "title": p["title"], "owns": p["owns_files"], "brief": brief,
+    flips = evidence.flip_targets(p["checklist"])
+    return {"flip_paths": flips, "context": build_context(p, args.repo), "id": pid, "pid": pid, "lane": p["lane_id"], "title": p["title"], "owns": list(p["owns_files"]) + flips, "brief": brief,
             "repo": args.repo, "base": args.base, "branch": f"{os.environ.get('VYRE_BRANCH_PREFIX', 'packet')}/{pid}", "wt": os.path.join(args.wt_root, pid),
-            "redispatch": redo, "merge_poll": args.merge_poll, "pr_base": args.pr_base, "desktop": bool(DESKTOP_RE.search(text)), "checklist": p["checklist"]}
+            "redispatch": redo, "desktop": bool(DESKTOP_RE.search(text)), "checklist": p["checklist"], "ui": evidence.is_ui_packet(p["owns_files"], p["checklist"])}
 
 
 def cmd_loop(args):

@@ -114,9 +114,24 @@ def job_facts(jobs):
     return f
 
 
-def manifest_flipped(diff_text):
-    """True when the manifest diff adds a line that says live."""
-    return any(re.search(r"\blive\b", l) for l in diff_text.splitlines() if l.startswith("+") and not l.startswith("+++"))
+FLIP_RE = re.compile(r"flip\s+status.*?manifest\s+of\s+([\w-]+)", re.I)
+
+
+def flip_targets(checklist):
+    """Manifest paths the packet must flip ('Flip status stub to live in the manifest of tasks' -> manifests/tasks.ts). The packet's
+    owns_files never lists them (the manifest is frozen), so the harness adds exactly this path and checks the diff with flip_ok."""
+    return [f"manifests/{m}.ts" for it in checklist for m in FLIP_RE.findall(it["text"])]
+
+
+def flip_ok(diff_text):
+    """The only allowed manifest edit: one added line `status: 'live'` (the DSL default is 'stub'), or stub changed to live in place."""
+    add = [l[1:] for l in diff_text.splitlines() if l.startswith("+") and not l.startswith("+++")]
+    rem = [l[1:] for l in diff_text.splitlines() if l.startswith("-") and not l.startswith("---")]
+    if len(add) != 1 or not re.search(r"""status\s*:\s*['"]live['"]""", add[0]): return False
+    return all(re.search(r"status", r) and re.search(r"stub", r) for r in rem) and len(rem) <= 1
+
+
+manifest_flipped = flip_ok
 
 
 def auto_evidence(it, ctx):
@@ -137,9 +152,38 @@ def auto_evidence(it, ctx):
         if ctx.get("manifest_diff") and manifest_flipped(ctx["manifest_diff"]) and facts.get("contracts") == "success" and green:
             return f"manifest diff sets status live; contracts job and generated contract tests green in {url}"
         return None
+    if "screenshot" in t and (it.get("proof_kind") == "screenshot" or it.get("kind") == "proof" or "skin" in t):
+        sr = ctx.get("screens")
+        if sr and sr[0]: return f"shots workflow artifact: {sr[1]} ({url})"
+        return None
     if it.get("proof_kind") == "perf" or (it.get("kind") == "proof" and "perf" in t):
         if ctx.get("tests_ok") and ctx.get("worker_done") and ctx["worker_done"](it):
             line = state.lines[0].strip()[:160] if state.lines else ""
             return f"perf asserted by test files ok in CI ({url})" + (f"; log: {line}" if line else "")
         return None
     return None
+
+
+SKINS_REQUIRED = ("paper", "graphite")
+SIZES_REQUIRED = ("desktop", "phone")
+SHOT_RE = re.compile(r"(?:^|/)([\w.-]+)/(\w+)-(\w+)-side-by-side\.png$")
+
+
+def is_ui_packet(owns, checklist):
+    """Ruling 14: a UI place needs side-by-side screenshots in both skins. True when the checklist asks for a screenshot or owns apps/app or ui."""
+    return any("screenshot" in it["text"].lower() for it in checklist) or any(re.match(r"^(apps/app|ui)/", g) for g in owns or [])
+
+
+def screens_report(files, packet=None):
+    """files: relative paths from the downloaded `shots` artifact. Returns (ok, summary, targets). ok needs index.md and, for at least one
+    target (preferring ids that start with the packet id), every required skin at every required size."""
+    by = {}
+    for f in files:
+        m = SHOT_RE.search(f)
+        if m: by.setdefault(m.group(1), set()).add((m.group(2), m.group(3)))
+    have_index = any(f.endswith("index.md") for f in files)
+    want = {(k, z) for k in SKINS_REQUIRED for z in SIZES_REQUIRED}
+    cands = {t: v for t, v in by.items() if t != "sample" and (not packet or t.startswith(packet))}
+    full = sorted(t for t, v in cands.items() if want <= v)
+    if full and have_index: return True, f"{len(full)} target(s) with {len(want)} side-by-side images each: {', '.join(full[:3])}", full
+    return False, ("no target of " + (packet or "this packet") + " has all of " + ", ".join(f"{k}/{z}" for k, z in sorted(want)) + f" (found: {sorted(by) or 'none'})"), []
