@@ -428,7 +428,7 @@ export async function advance(ctx: Ctx, campaignId: string): Promise<PassResult>
 
   const due = membersOf(ctx, campaignId)
     .filter((m) => m.state === "active" && !isNull(m.due_at) && num(m.due_at) <= now)
-    .sort((a, b) => num(a.due_at) - num(b.due_at) || str(a.id).localeCompare(str(b.id)))
+    .sort((a, b) => num(a.due_at) - num(b.due_at) || str(a.record_id).localeCompare(str(b.record_id)))
     .slice(0, campaignConfig().batch ?? BATCH);
   for (const m of due) {
     const fresh = one(ctx, "SELECT * FROM campaigns_member WHERE id = ?", str(m.id));

@@ -172,7 +172,7 @@ test("steps: bad steps are refused with the field named", async () => {
 test("steps, variants and schedule can change only before launch or while paused", async () => {
   const w = harness();
   w.contact(1);
-  const { campaignId } = await build(w);
+  const { campaignId } = await build(w, { steps: [EMAIL_STEP, { key: "gap", type: "wait", config: { days: 1 } }, email("later")] });
   await run(w.ctx, "campaigns.launch", { campaignId });
   assert.equal(await code(run(w.ctx, "campaigns.steps_set", { campaignId, steps: [email("x")] })), "validation.precondition_failed");
   assert.equal(await code(run(w.ctx, "campaigns.variants_set", { campaignId, variants: [] })), "validation.precondition_failed");
