@@ -1017,7 +1017,7 @@
     {
       "deferred": false,
       "name": "changesets_review_externally",
-      "summary": "Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token",
+      "summary": "Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token; returns a one-time review link (the token is in the link, shown once, never logged)",
       "toolset": "files"
     },
     {
