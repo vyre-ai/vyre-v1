@@ -129,6 +129,42 @@ jobs:
         env:
           VYRE_HEAVY_DOCKER: "1"
         run: node --test --test-timeout=900000 images/vyred/smoke.heavy.test.ts
+  l2-heavy:
+    # P-L2_HEAVY (security sign-off, spec S8): real Docker, real bubblewrap and real tmux against the sandbox and the terminal module. The tests skip unless VYRE_HEAVY_DOCKER=1 and, with it on,
+    # fail instead of skipping when Docker, the image, bwrap or tmux is missing, so a green job means the proofs ran. Not part of the `check` gate below: it reports its own result on the run.
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Did the sandbox, the terminal module, the person-sandbox image or the heavy tests change on this branch?
+        id: scope
+        run: |
+          git fetch -q origin main
+          base="$(git merge-base origin/main HEAD)"
+          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|images/person-sandbox/|agent/tests/sandbox\.heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
+      - name: Install bubblewrap and tmux when the runner does not have them
+        if: steps.scope.outputs.changed == 'true'
+        run: |
+          missing=""
+          command -v bwrap >/dev/null || missing="$missing bubblewrap"
+          command -v tmux >/dev/null || missing="$missing tmux"
+          if [ -n "$missing" ]; then sudo -n apt-get update -q && sudo -n apt-get install -y -q $missing; fi
+          bwrap --version
+          tmux -V
+      - name: What this runner allows (printed so a failure below can be read against it)
+        if: steps.scope.outputs.changed == 'true'
+        run: |
+          id; uname -r
+          docker version --format 'docker server {{.Server.Version}}' || true
+          cat /proc/sys/kernel/unprivileged_userns_clone 2>/dev/null || true
+          sysctl kernel.apparmor_restrict_unprivileged_userns user.max_user_namespaces 2>/dev/null || true
+          if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --proc /proc --dev /dev true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
+      - name: Real Docker, real bwrap, real tmux
+        if: steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+        run: node --test --test-timeout=900000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts
   check:
     needs: [select, shards, gates]
     if: always()
