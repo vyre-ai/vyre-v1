@@ -387,4 +387,10 @@ test("daemon.boot: the device role has no schedule queue and no seams", async ()
   try { assert.equal(d.schedule, null); assert.equal(d.seams, null); } finally { await d.stop(); }
 });
 
+test("daemon.boot: a plain boot wires Google, Microsoft and IMAP from the hostSeams the module impls export", async () => {
+  const dir = seededDir();
+  const d = await bootWiring(dir);
+  try { assert.deepEqual(d.seams?.state, { google: "wired", microsoft: "wired", imap: "wired" }); } finally { await d.stop(); }
+});
+
 // P-H_02 final run: each named test shows its own ok line in the run on the last commit.

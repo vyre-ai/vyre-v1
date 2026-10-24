@@ -3,7 +3,8 @@
 // The host registers its half once at boot with setGoogleHost (token mint from the Vault key, member emails, blobs): see projections.ts.
 import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
-import { codecs, consumers, inline } from "./projections.ts";
+import type { SeamSetters } from "../../host/src/seams/index.ts";
+import { codecs, consumers, inline, setGoogleHost } from "./projections.ts";
 
 export { setGoogleHost } from "./projections.ts";
 export type { GoogleHost } from "./projections.ts";
@@ -72,3 +73,6 @@ export const handlers: Record<string, Handler> = {
 
 export const projections = { inline, consumers };
 export { codecs, inline, consumers };
+
+/** Where the host registers its Google seam at boot (ruling 31): the loader reads this export. */
+export const hostSeams: SeamSetters = { setGoogleHost };

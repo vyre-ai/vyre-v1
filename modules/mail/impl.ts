@@ -204,3 +204,6 @@ export function createLiveImapFactory(deps: LiveImapDeps = defaultDeps): ImapSes
 
 // Production binding. Tests override it per context with bindImapSession.
 setDefaultImapSession(createLiveImapFactory());
+
+/** Where the host registers the IMAP secret resolver at boot (ruling 31): the loader reads this export. */
+export const hostSeams: import("../../host/src/seams/index.ts").SeamSetters = { setImapSecretResolver };

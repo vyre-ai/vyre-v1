@@ -23,7 +23,7 @@ import { withEventIds } from "../ids.ts";
 import type { GatewayDeps, RouteRec } from "../gateway.ts";
 import { createInvoke, createRateLimiter, fail, indexCapabilities, makeError } from "../invoke.ts";
 import type { AuditRow, Handler } from "../invoke.ts";
-import { fileImporter, loadHost, readModuleList } from "../loader.ts";
+import { fileImporter, fileSeamImporter, loadHost, readModuleList } from "../loader.ts";
 import type { RegistryLike } from "../loader.ts";
 import { LogSink } from "../logsink/index.ts";
 import { nodePlatform } from "../platform/index.ts";
@@ -86,8 +86,8 @@ export interface DaemonOptions {
   extra?: { caps?: CapabilityDef[]; routes?: RouteRec[]; handlers?: Record<string, Handler>; events?: string[] };
   /** The Vault, as the connector seams use it. Without one the seams that need a secret refuse, which is right until the Vault module is live. */
   vault?: VaultPort;
-  /** Where the Google, Microsoft and IMAP seams register (the module files' setters) and the Space ports they read. Omitted: no seam is wired. */
-  seams?: { setters: SeamSetters } & Omit<SeamDeps, "vault">;
+  /** The Space ports the Google, Microsoft and IMAP seams read, and (for tests) setters that replace the ones the modules export as `hostSeams`. Omitted ports refuse. */
+  seams?: { setters?: SeamSetters } & Partial<Omit<SeamDeps, "vault">>;
   /** The key behind ctx.seal. Omitted: a random 32-byte key kept in <data dir>/seal.key (0600). */
   sealKey?: { key: Uint8Array | string; keyId: string };
   /** replace the default session (the local admin token) */
@@ -216,7 +216,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       headSeq = (await log.currentHead()).seq;
 
       const reg = registry as unknown as RegistryLike;
-      const loaded = await loadHost({ registry: reg, modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")), routes, importer: fileImporter(codeRoot), db });
+      const loaded = await loadHost({ registry: reg, modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")), routes, importer: fileImporter(codeRoot), seamImporter: fileSeamImporter(codeRoot), db });
       const caps = [...(registry.capabilities as unknown as CapabilityDef[]), ...(o.extra?.caps ?? [])];
       const extraCaps = new Set((o.extra?.caps ?? []).map((c) => c.name));
       const extraEvents = new Set([...(o.extra?.events ?? []), ...(o.extra?.caps ?? []).flatMap((c) => c.emits as string[])]);
@@ -265,9 +265,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       });
 
       runScheduled = invokeRunner(invoke);
-      if (o.seams) {
-        const { setters, ...ports } = o.seams;
-        seams = wireSeams(setters, { vault: o.vault ?? refusingVault, ...ports });
+      const setters = o.seams?.setters ?? loaded.hostSeams;
+      if (Object.keys(setters).length) {
+        const none = (what: string) => () => Promise.reject(new Error(`${what} is not available on this server yet.`));
+        seams = wireSeams(setters, {
+          vault: o.vault ?? refusingVault,
+          files: o.seams?.files ?? { read: none("Space files") },
+          blobs: o.seams?.blobs ?? { put: none("The blob store") },
+          members: o.seams?.members ?? { emails: none("The member list") },
+          ...(o.seams?.fetch ? { fetch: o.seams.fetch } : {}),
+        });
         closers.push(() => seams?.unwire());
       }
 
