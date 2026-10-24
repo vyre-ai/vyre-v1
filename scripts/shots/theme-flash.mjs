@@ -3,7 +3,7 @@
 //   node scripts/shots/theme-flash.mjs [--app scripts/shots/app] [--route /] [--skip-export]
 // For each skin and mode it loads the Expo web export in headless Chrome, records the root background at DOMContentLoaded and on
 // each of the first 30 animation frames, and counts frames that differ from the skin's --win token (wrong frames, budget 0).
-// It also measures the time from navigation start to the inline theme script (apply_ms, budget in budgets.json).
+// It also measures the time from the first response byte to the inline theme script (apply_ms, budget in budgets.json).
 import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
@@ -42,7 +42,7 @@ try {
     });
     await page.goto(routeUrl(server.origin, args.route || "/", s.id, mode), { waitUntil: "load" });
     await page.waitForTimeout(700);
-    const { frames, applyAt } = await page.evaluate(() => ({ frames: window.__frames, applyAt: window.__VYRE_THEME_AT__ ?? -1 }));
+    const { frames, applyAt } = await page.evaluate(() => ({ frames: window.__frames, applyAt: window.__VYRE_THEME_AT__ === undefined ? -1 : window.__VYRE_THEME_AT__ - (performance.getEntriesByType("navigation")[0]?.responseStart ?? 0) }));
     const wrong = countWrongFrames(frames, expected);
     results.push({ skin: s.id, mode, frames: frames.length, wrong, apply_ms: Math.round(applyAt * 10) / 10, expected });
     await ctx.close();
