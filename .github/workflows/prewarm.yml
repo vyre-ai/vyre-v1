@@ -1,0 +1,23 @@
+name: prewarm
+# Warm every runner's host caches (F15). Install this file as .github/workflows/prewarm.yml (lead action: that path is not owned by P-PR_60).
+# One job per runner, targeted by the runner-name label added by ci/fleet/apply-labels.sh. Nightly, and on demand.
+on:
+  schedule: [{ cron: "17 2 * * *" }]
+  workflow_dispatch:
+jobs:
+  prewarm:
+    name: prewarm ${{ matrix.runner }}
+    runs-on: [self-hosted, "${{ matrix.runner }}"]
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [v1-ci-1-7, v1-ci-1-8, v1-ci-1-9, v1-ci-1-10, v1-ci-1-11, v1-ci-1-12, v1-ci-2-7, v1-ci-2-8, v1-ci-2-9, v1-ci-2-10, v1-ci-2-11, v1-ci-2-12]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prewarm this host
+        env:
+          PREWARM_REPO: https://github.com/${{ github.repository }}.git
+          PREWARM_TOKEN: ${{ github.token }}
+          PREWARM_REF: ${{ github.sha }}
+        run: scripts/prewarm/prewarm.sh
