@@ -1,4 +1,4 @@
-// The generated catalog, tool_search and the shape of a tool call (ARCH 6.7).
+// The generated catalog, tool_search and the shape of a tool call (ARCH 6.7). The tool count follows generated/mcp-tools.json.
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
