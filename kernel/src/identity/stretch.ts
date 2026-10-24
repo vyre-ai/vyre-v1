@@ -17,3 +17,4 @@ export function argon2id(secret: Uint8Array | string, salt: Uint8Array | string 
   if (typeof crypto.argon2Sync !== "function") throw new Error("this Node has no Argon2id; Vyre needs Node 24.7 or later");
   return Buffer.from(crypto.argon2Sync("argon2id", { message: Buffer.from(secret), nonce: Buffer.from(salt), parallelism: 1, tagLength: P.tagLength, memory: P.memoryKiB, passes: P.passes }));
 }
+

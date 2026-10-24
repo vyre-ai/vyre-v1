@@ -39,3 +39,4 @@ export function publicCard(p: { name: string; id?: string | null; discoverable?:
   if (!p.discoverable) return { name, private: true as const };
   return { name, id: p.id || null, url: `https://vyre.run/u/${name}`, private: false as const, github: p.github && p.github.login ? p.github.login : null };
 }
+

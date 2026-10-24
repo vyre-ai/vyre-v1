@@ -523,3 +523,4 @@ export async function checkAnswer(pin: { id: string; seq: number; head: string }
 export const pinOf = (s: State): { id: string; seq: number; head: string } => ({ id: s.id, seq: s.seq, head: s.head });
 
 export { ID as ID_RE, EID as EID_RE };
+

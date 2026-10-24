@@ -17,3 +17,4 @@ export function base32(buf: Uint8Array): string {
 export function newRecoveryCode(random: (n: number) => Uint8Array = crypto.randomBytes): string {
   return base32(random(16)).slice(0, 26).replace(/(.{4})(?=.)/g, "$1-");
 }
+

@@ -185,3 +185,4 @@ export class GrantsStore {
     else { const g = this.grants.get(e.id); if (g && g.status !== "revoked") this.grants.set(e.id, Object.freeze({ ...g, status: "revoked" as const, revoked_at: e.at, reason: e.reason })); }
   }
 }
+
