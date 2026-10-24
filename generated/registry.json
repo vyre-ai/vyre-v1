@@ -85062,7 +85062,11 @@
     },
     {
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "health.changed",
+        "health.paused",
+        "health.resumed"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
