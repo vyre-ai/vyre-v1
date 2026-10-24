@@ -27,11 +27,13 @@ shot() {
 run() { # $1 = label, $2 = expected replica state
   : > "$STATE"
   "$APP" >"$OUT/app-$1.log" 2>&1 &
-  for _ in $(seq 1 60); do
+  for _ in $(seq 1 25); do
     grep -q "replica=" "$STATE" 2>/dev/null && break
     sleep 2
   done
   sleep 4
+  echo "diag health: $(curl -s -m 3 http://127.0.0.1:47211/health || echo none)"
+  ps aux 2>/dev/null | grep -i vyre | grep -v grep | head -5
   shot "$OUT/$RUNNER_OS-$1.png"
   echo "run $1 state: $(cat "$STATE")"
   grep -q "sidecar=connected replica=$2" "$STATE"

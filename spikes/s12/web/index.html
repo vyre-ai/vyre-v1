@@ -102,20 +102,34 @@
     document.documentElement.dataset.replica = wrote ? "wrote" : "bad";
   }
 
-  async function sidecar() {
+  async function sidecarOnce() {
     var ctrl = new AbortController();
-    var timer = setTimeout(function () { ctrl.abort(); }, 4000);
+    var timer = setTimeout(function () { ctrl.abort(); }, 2000);
     try {
       var res = await fetch(healthUrl(), { signal: ctrl.signal });
       var body = await res.json();
       var ok = res.ok && body && body.ok === true && body.name === "vyred";
-      setRow("sidecar", ok ? ("sidecar: connected to " + body.name + " (pid " + body.pid + ")") : "sidecar: refused", ok ? "ok" : "bad");
-      document.documentElement.dataset.sidecar = ok ? "connected" : "refused";
+      return ok ? body : null;
     } catch (e) {
-      setRow("sidecar", "sidecar: unreachable", "bad");
-      document.documentElement.dataset.sidecar = "unreachable";
+      return null;
     } finally {
       clearTimeout(timer);
+    }
+  }
+
+  // The shell starts vyred as the page loads, so the first tries can land before it listens.
+  async function sidecar() {
+    var body = null;
+    for (var i = 0; i < 10 && !body; i++) {
+      body = await sidecarOnce();
+      if (!body) await new Promise(function (r) { setTimeout(r, 800); });
+    }
+    if (body) {
+      setRow("sidecar", "sidecar: connected to " + body.name + " (pid " + body.pid + ")", "ok");
+      document.documentElement.dataset.sidecar = "connected";
+    } else {
+      setRow("sidecar", "sidecar: unreachable", "bad");
+      document.documentElement.dataset.sidecar = "unreachable";
     }
   }
 
