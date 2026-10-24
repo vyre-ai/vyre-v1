@@ -162,23 +162,33 @@ before(async () => {
   process.env[VAULT_ENV] = VAULT_VALUE;
   upstreamPort = await listen(answer("upstream-ok"), "127.0.0.1");
   hostPort = await listen(answer("host-service-reached"), "0.0.0.0");
-  if (!ON) return;
-  assert.equal(await api.ping(), true, "no Docker daemon answers on this runner");
-  await ensureImage();
-  A = await startDockerSandbox(danaSpec(idA), { api, roots: roots("dana", danaRoot), egress });
-  B = await startDockerSandbox({ ...danaSpec(idB), person: "usr_ravi", mounts: [{ host: raviRoot, mode: "ro" }], egressHosts: ["allowed.test"] }, { api, roots: roots("ravi", raviRoot), egress });
-  const env = A.env()["HTTP_PROXY"] ?? "";
-  proxyUrl = env;
-  gateway = new URL(env).hostname;
 });
 
+/** The two Docker sandboxes, started once by the first Docker test that needs them (so a Docker failure fails the Docker tests and leaves the bwrap ones to run). */
+let dockerStarted: Promise<void> | undefined;
+function dockerUp(): Promise<void> {
+  dockerStarted ??= (async () => {
+    const info = spawnSync("docker", ["version", "--format", "{{.Server.Version}} api {{.Server.APIVersion}} min {{.Server.MinAPIVersion}}"], { encoding: "utf8", timeout: 20_000 });
+    process.stderr.write(`docker server ${info.stdout.trim() || "unknown"}\n`);
+    assert.equal(await api.ping(), true, "no Docker daemon answers on this runner");
+    await ensureImage();
+    A = await startDockerSandbox(danaSpec(idA), { api, roots: roots("dana", danaRoot), egress });
+    B = await startDockerSandbox({ ...danaSpec(idB), person: "usr_ravi", mounts: [{ host: raviRoot, mode: "ro" }], egressHosts: ["allowed.test"] }, { api, roots: roots("ravi", raviRoot), egress });
+    proxyUrl = A.env()["HTTP_PROXY"] ?? "";
+    gateway = new URL(proxyUrl).hostname;
+  })();
+  return dockerStarted;
+}
+
 after(async () => {
-  if (ON) { await A?.stop().catch(() => undefined); await B?.stop().catch(() => undefined); }
+  if (dockerStarted) { await dockerStarted.catch(() => undefined); await A?.stop().catch(() => undefined); await B?.stop().catch(() => undefined); }
   for (const s of servers) s.close();
   fs.rmSync(base, { recursive: true, force: true });
 });
 
 test("docker: the confinement self-test passes against the real container", { skip }, async () => {
+  await dockerUp();
+  await dockerUp();
   const mounts = validateSpec(danaSpec(idA), roots("dana", danaRoot)).mounts.map((m) => ({ guest: m.guest, mode: m.mode }));
   const r = await confinementProbe(A, { outsidePaths: [OUTSIDE, RAVI_SECRET, "/etc/shadow"], mounts, deniedHost: "denied.test" });
   assert.deepEqual(r.failures, []);
@@ -186,6 +196,8 @@ test("docker: the confinement self-test passes against the real container", { sk
 });
 
 test("docker: the process runs as the sandbox user with no capabilities, no new privileges and a read-only root", { skip }, async () => {
+  await dockerUp();
+  await dockerUp();
   const id = await sh(A, "id -u; id -g");
   assert.equal(id.stdout.trim(), "10001\n10001");
   const st = await sh(A, "grep -E '^(CapEff|CapBnd|NoNewPrivs|Seccomp):' /proc/self/status");
@@ -201,6 +213,8 @@ test("docker: the process runs as the sandbox user with no capabilities, no new 
 });
 
 test("docker: the agent process cannot read outside its folders, however it asks", { skip }, async () => {
+  await dockerUp();
+  await dockerUp();
   const mounts = (await sh(A, "ls /work")).stdout.split("\n").filter(Boolean).sort();
   assert.deepEqual(mounts, ["reference", "site"], "only the two folders are there");
   for (const p of [OUTSIDE, RAVI_SECRET, "/etc/shadow", "/root/.bashrc", "/proc/1/root/etc/shadow"]) {
@@ -221,6 +235,8 @@ test("docker: the agent process cannot read outside its folders, however it asks
 });
 
 test("docker: the work folder is writable, the reference folder is not, and the host sees exactly what was written", { skip }, async () => {
+  await dockerUp();
+  await dockerUp();
   const w = await sh(A, "echo written-in-container > /work/site/new.txt && cat /work/site/hello.txt");
   assert.equal(w.exitCode, 0, ok(w));
   assert.equal(fs.readFileSync(path.join(site, "new.txt"), "utf8"), "written-in-container\n");
@@ -233,6 +249,8 @@ test("docker: the work folder is writable, the reference folder is not, and the 
 });
 
 test("docker: the process sees no Vault value and no host environment", { skip }, async () => {
+  await dockerUp();
+  await dockerUp();
   assert.equal(process.env[VAULT_ENV], VAULT_VALUE, "the test process holds the value, like the daemon would");
   const env = await sh(A, "env; cat /proc/1/environ /proc/self/environ 2>/dev/null | tr '\\0' '\\n'");
   assert.doesNotMatch(env.stdout, new RegExp(VAULT_VALUE));
@@ -243,6 +261,8 @@ test("docker: the process sees no Vault value and no host environment", { skip }
 });
 
 test("docker: credentials live in memory in the person's home, mode 0600, and a wipe removes them", { skip }, async () => {
+  await dockerUp();
+  await dockerUp();
   const secret = `oauth-${TOKEN}`;
   await A.putCredentials([{ path: ".claude/.credentials.json", data: new TextEncoder().encode(secret) }]);
   const read = await sh(A, "cat /home/agent/.claude/.credentials.json && stat -c '%a %u' /home/agent/.claude/.credentials.json && stat -f -c '%T' /home/agent");
@@ -260,6 +280,8 @@ test("docker: credentials live in memory in the person's home, mode 0600, and a 
 });
 
 test("docker: the process sees its own processes only, none of the host's", { skip }, async () => {
+  await dockerUp();
+  await dockerUp();
   const ps = await sh(A, "ps -eo pid,user,args");
   const lines = ps.stdout.split("\n").filter((l) => l.trim() !== "").slice(1);
   assert.ok(lines.length > 0 && lines.length < 12, `a handful of processes, not the machine's: ${ps.stdout}`);
@@ -273,6 +295,8 @@ test("docker: the process sees its own processes only, none of the host's", { sk
 });
 
 test("docker: the process cannot start more processes than its limit", { skip }, async () => {
+  await dockerUp();
+  await dockerUp();
   const small = await startDockerSandbox(danaSpec(`vyre-sbx-hv${suffix}c`, { limits: { cpus: 1, memoryMb: 256, pids: 32 } }), { api, roots: roots("dana", danaRoot), egress });
   try {
     const r = await sh(small, "for i in $(seq 1 100); do sleep 20 >/dev/null 2>&1 & done; sleep 1; echo started $(ps -eo args | grep -c '^sleep 20')", 30_000);
@@ -287,6 +311,8 @@ test("docker: the process cannot start more processes than its limit", { skip },
 const curl = (s: Sandbox, args: string, timeoutS = 6): Promise<ExecResult> => sh(s, `curl -sS -m ${timeoutS} ${args}`, (timeoutS + 5) * 1000);
 
 test("docker: the only way out is the egress proxy: an allowed name gets through, a name that is not listed, a private address and an address literal do not", { skip }, async () => {
+  await dockerUp();
+  await dockerUp();
   events.length = 0;
   const good = await curl(A, "http://allowed.test/");
   assert.equal(good.exitCode, 0, ok(good));
@@ -310,6 +336,8 @@ test("docker: the only way out is the egress proxy: an allowed name gets through
 });
 
 test("docker: without the proxy there is no route: no connection to the internet, to another sandbox, or to anything but the proxy's own address", { skip }, async () => {
+  await dockerUp();
+  await dockerUp();
   const noProxy = "env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy -u NO_PROXY -u no_proxy";
   for (const target of ["http://1.1.1.1/", "http://93.184.216.34/", "http://example.com/", "http://169.254.169.254/latest/meta-data/"]) {
     const r = await sh(A, `${noProxy} curl -sS -m 4 -o /dev/null ${target}; echo $?`, 15_000);
@@ -329,6 +357,7 @@ test("docker: without the proxy there is no route: no connection to the internet
 });
 
 test("docker: a service on the host that listens on every address is not reachable from the sandbox (gateway address)", { skip }, async (t) => {
+  await dockerUp();
   // The proxy has to listen on the host side of the sandbox's network, so the sandbox can reach the host's gateway address. Whether it can also reach OTHER host services bound to 0.0.0.0 is the question.
   const r = await sh(A, `env -u HTTP_PROXY -u http_proxy curl -sS -m 4 http://${gateway}:${hostPort}/; echo " exit=$?"`, 15_000);
   const reached = r.stdout.includes("host-service-reached");
@@ -337,6 +366,8 @@ test("docker: a service on the host that listens on every address is not reachab
 });
 
 test("docker: stopping removes the container, its network, its proxy and its credentials", { skip }, async () => {
+  await dockerUp();
+  await dockerUp();
   const id = `vyre-sbx-hv${suffix}d`;
   const s = await startDockerSandbox(danaSpec(id), { api, roots: roots("dana", danaRoot), egress });
   await s.putCredentials([{ path: ".codex/auth.json", data: new TextEncoder().encode("x-secret-value") }]);

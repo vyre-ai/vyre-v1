@@ -21,13 +21,26 @@ export interface DockerRequest { method: string; path: string; query?: Record<st
 export interface DockerResponse { status: number; body: Uint8Array }
 export type DockerHttp = (req: DockerRequest) => Promise<DockerResponse>;
 
-/** HTTP over the Engine's unix socket. The only place a socket path appears. */
-export function unixSocketHttp(socketPath = "/var/run/docker.sock", apiVersion = "v1.43"): DockerHttp {
-  return (req) => new Promise((resolve, reject) => {
+/** Compare two `1.43` style versions as numbers per part, so 1.9 < 1.44. */
+const versionCmp = (a: string, b: string): number => {
+  const pa = a.split(".").map(Number), pb = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) { const d = (pa[i] ?? 0) - (pb[i] ?? 0); if (d !== 0) return d; }
+  return 0;
+};
+/** The API version this code was written against. A daemon that no longer serves it (Docker 29 starts at 1.44) is asked for its oldest, one that does not reach it for its newest. */
+export const WANTED_API_VERSION = "1.43";
+
+/**
+ * HTTP over the Engine's unix socket. The only place a socket path appears.
+ * Without an `apiVersion` the daemon is asked once (an unversioned GET /version) what it serves, and the request path uses WANTED_API_VERSION clamped into that range:
+ * a pinned 1.43 is refused outright by Docker 29 ("client version 1.43 is too old", minimum 1.44), which a real daemon showed.
+ */
+export function unixSocketHttp(socketPath = "/var/run/docker.sock", apiVersion?: string): DockerHttp {
+  const call = (path: string, req: DockerRequest): Promise<DockerResponse> => new Promise((resolve, reject) => {
     const qs = req.query && Object.keys(req.query).length > 0 ? `?${new URLSearchParams(req.query).toString()}` : "";
     const payload = req.json !== undefined ? Buffer.from(JSON.stringify(req.json)) : req.body ? Buffer.from(req.body) : undefined;
     const r = http.request({
-      socketPath, method: req.method, path: `/${apiVersion}${req.path}${qs}`, timeout: req.timeoutMs ?? 60_000,
+      socketPath, method: req.method, path: `${path}${qs}`, timeout: req.timeoutMs ?? 60_000,
       headers: { ...(payload ? { "content-type": req.contentType ?? "application/json", "content-length": payload.length } : {}) },
     }, (res) => {
       const chunks: Buffer[] = [];
@@ -40,6 +53,24 @@ export function unixSocketHttp(socketPath = "/var/run/docker.sock", apiVersion =
     if (payload) r.write(payload);
     r.end();
   });
+  let negotiated: Promise<string> | undefined;
+  const version = (): Promise<string> => {
+    if (apiVersion !== undefined) return Promise.resolve(apiVersion.replace(/^v/, ""));
+    negotiated ??= call("/version", { method: "GET", path: "/version", timeoutMs: 10_000 }).then((res) => {
+      let max = WANTED_API_VERSION, min = "1.12";
+      try {
+        const v = JSON.parse(new TextDecoder().decode(res.body)) as { ApiVersion?: string; MinAPIVersion?: string };
+        if (typeof v.ApiVersion === "string") max = v.ApiVersion;
+        if (typeof v.MinAPIVersion === "string") min = v.MinAPIVersion;
+      } catch { /* an engine that does not answer /version: use the version this was written against */ }
+      let pick = WANTED_API_VERSION;
+      if (versionCmp(pick, min) < 0) pick = min;
+      if (versionCmp(pick, max) > 0) pick = max;
+      return pick;
+    });
+    return negotiated;
+  };
+  return async (req) => call(`/v${await version()}${req.path}`, req);
 }
 
 const dec = new TextDecoder();
