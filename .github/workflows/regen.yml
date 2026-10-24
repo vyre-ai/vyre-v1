@@ -1,0 +1,40 @@
+name: regen
+# Ruling 22: workers never regenerate locally. When manifests/ or host/modules.json change on a build/* branch,
+# this job runs the generator, commits generated/ back as Irfad Imtiaz ("chore(gen): regenerate") and reruns the checks.
+# A push made with GITHUB_TOKEN does not start other workflows, so the reruns happen inside scripts/regen-bot.sh
+# (contracts gate plus the affected tests) and are reported as the commit status "regen-checks" on the new head.
+on:
+  push:
+    branches: ['build/**']
+    paths:
+      - 'manifests/**'
+      - 'host/modules.json'
+      - 'tools/gen/**'
+      - '.github/workflows/regen.yml'
+      - 'scripts/regen-bot.sh'
+concurrency:
+  group: regen-${{ github.ref }}
+  cancel-in-progress: false
+permissions:
+  contents: write
+  statuses: write
+jobs:
+  regen:
+    # The bot's own commit never retriggers this (it only touches generated/), the guard is for a hand-made copy of that message.
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(gen): regenerate') }}
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Regenerate, commit generated/ back, rerun the checks
+        env:
+          BRANCH: ${{ github.ref_name }}
+          PUSHED_SHA: ${{ github.sha }}
+          BEFORE: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: bash scripts/regen-bot.sh
