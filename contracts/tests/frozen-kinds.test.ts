@@ -184,4 +184,3 @@ test('task kinds and retention classes are the closed sets their modules own', (
   ]);
   for (const r of retention) assert.equal(r.module, 'governance', r.key);
 });
-
