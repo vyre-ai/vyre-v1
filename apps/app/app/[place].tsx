@@ -8,7 +8,9 @@ import { webUiStateStore } from "../src/startup/persisted.ts";
 import { PLACES, isPlace, loaderFor } from "../src/startup/places.ts";
 
 export function generateStaticParams(): { place: string }[] {
-  return PLACES.map((place) => ({ place }));
+  const params: { place: string }[] = [];
+  for (const place of PLACES) params.push({ place });
+  return params;
 }
 
 /** Rendered next to the place inside Suspense, so its effect runs only after the place module has loaded and drawn. */
