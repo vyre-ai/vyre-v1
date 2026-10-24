@@ -164,7 +164,7 @@ const hue = (s: string): number => {
   return h;
 };
 
-function Tile({ name, kind, size = 28 }: { name: string; kind: ShareSubjectKind; size?: number }): ReactElement {
+function Tile({ name, kind, size = 22 }: { name: string; kind: ShareSubjectKind; size?: number }): ReactElement {
   const color = kind === "group" || kind === "role" || kind === "link" ? "var(--ink-3)" : `hsl(${hue(name)} 30% 50%)`;
   const radius = kind === "agent" ? size * 0.3 : size / 2;
   const glyph = kind === "link" ? "↗" : kind === "group" ? "··" : kind === "role" ? "R" : name.trim().charAt(0).toUpperCase() || "?";
@@ -243,7 +243,7 @@ export function ShareSheet(props: ShareSheetViewProps): ReactElement {
         id={`share-${row.subjectId}`}
         title={row.name}
         note={rowSub(row, props.folderName)}
-        leadWidth={38}
+        leadWidth={32}
         lead={<Tile name={row.name} kind={row.subjectKind} />}
         trail={trail}
         onMenu={(x, y) => rowMenu(row, x, y)}
@@ -286,7 +286,7 @@ export function ShareSheet(props: ShareSheetViewProps): ReactElement {
       </View>
       <View style={styles.body}>
         <View style={styles.label}>
-          <Text style={styles.labelText}>People, groups, roles and agents</Text>
+          <Text style={styles.labelText}>People with access</Text>
           <View style={styles.grow} />
           <Pressable accessibilityRole="button" accessibilityLabel="Add people, groups, roles or agents" onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number } }) => openAdd(e.nativeEvent?.pageX ?? 0, e.nativeEvent?.pageY ?? 0)} testID="share-add" style={({ hovered }: { hovered?: boolean }) => [styles.add, hovered === true && styles.addHover]}>
             <MenuIcon icon="plus" size={13} color="var(--accent)" />
@@ -297,7 +297,7 @@ export function ShareSheet(props: ShareSheetViewProps): ReactElement {
           id="share-owner"
           title={props.ownerName}
           note="Person"
-          leadWidth={38}
+          leadWidth={32}
           lead={<Tile name={props.ownerName} kind="person" />}
           trail={<Text style={styles.owner}>Owner</Text>}
         />
@@ -312,7 +312,7 @@ export function ShareSheet(props: ShareSheetViewProps): ReactElement {
               id="share-link"
               title={link ? "Anyone with the link" : "No link"}
               note={link ? "Can view. Outside the Space." : "Make a view-only link for someone outside the Space"}
-              leadWidth={38}
+              leadWidth={32}
               lead={<Tile name="Link" kind="link" />}
               trail={
                 <View style={styles.trail}>
@@ -362,7 +362,7 @@ const styles = StyleSheet.create({
   sub: { color: "var(--ink-3)" as string, fontSize: 12.5, lineHeight: 17 },
   body: { paddingTop: 8, paddingHorizontal: 12, paddingBottom: 14 },
   label: { flexDirection: "row", alignItems: "center", paddingHorizontal: 6, marginTop: 6, marginBottom: 4 },
-  labelText: { color: "var(--ink-3)" as string, fontSize: 11.5, fontWeight: "600", paddingHorizontal: 6 },
+  labelText: { color: "var(--ink-2)" as string, fontSize: 12.5, fontWeight: "600", paddingHorizontal: 6 },
   gap: { marginTop: 14, marginBottom: 4 },
   grow: { flex: 1 },
   add: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 6 },
@@ -385,7 +385,7 @@ const styles = StyleSheet.create({
   seeLevel: { width: 52, textAlign: "right", color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "500" },
   hint: { marginTop: 12, paddingHorizontal: 6, color: "var(--ink-3)" as string, fontSize: 12, lineHeight: 17 },
   foot: { flexDirection: "row", justifyContent: "flex-end", paddingVertical: 12, paddingHorizontal: 18, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
-  done: { height: 30, paddingHorizontal: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string },
-  doneHover: { opacity: 0.92 },
-  doneText: { color: "var(--accent-ink)" as string, fontSize: 13, fontWeight: "500" },
+  done: { height: 30, paddingHorizontal: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--ink)" as string },
+  doneHover: { opacity: 0.9 },
+  doneText: { color: "var(--win)" as string, fontSize: 13, fontWeight: "500" },
 });

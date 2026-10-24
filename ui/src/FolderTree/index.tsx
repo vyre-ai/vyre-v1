@@ -198,10 +198,20 @@ function Chevron({ open }: { open: boolean }): ReactElement {
 }
 
 const DEPTH_PX = 14;
-const CHEVRON_PX = 16;
+const CHEVRON_PX = 18;
+const ICON_PX = 16;
+/** Chevron, a gap, the folder icon, a gap: the title starts after this much. */
+const LEAD_PX = CHEVRON_PX + 5 + ICON_PX + 7;
+const FOLDER = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.500 4.500a1 1 0 011-1h3l1.500 1.500h4.500a1 1 0 011 1v6a1 1 0 01-1 1h-9a1 1 0 01-1-1z"/></svg>';
+
+function FolderIcon(): ReactElement {
+  if (Platform.OS !== "web") return <Text style={styles.nativeChevron}>{"\u25a4"}</Text>;
+  return createElement("span", { style: { display: "inline-flex", color: "var(--ink-3)" }, dangerouslySetInnerHTML: { __html: FOLDER } });
+}
 
 export function FolderTree(props: FolderTreeViewProps): ReactElement {
   const [openOverride, setOpenOverride] = useState<Record<string, boolean>>({});
+  const [shut, setShut] = useState<Record<string, boolean>>({});
   const [cursor, setCursor] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
   const menu = useMenu();
@@ -257,7 +267,8 @@ export function FolderTree(props: FolderTreeViewProps): ReactElement {
     const scope: FolderScope = section.id === "space" ? "space" : "personal";
     const mayCreate = section.id !== "shared";
     const rowNodes: ReactElement[] = [];
-    for (const r of section.rows) {
+    const closed = shut[section.id] === true;
+    for (const r of closed ? [] : section.rows) {
       const n = r.node;
       const lead = (
         <View style={{ flexDirection: "row", alignItems: "center", paddingLeft: r.depth * DEPTH_PX }}>
@@ -266,6 +277,7 @@ export function FolderTree(props: FolderTreeViewProps): ReactElement {
               <Chevron open={r.open} />
             </Pressable>
           ) : <View style={styles.chev} />}
+          <View style={styles.folderIcon}><FolderIcon /></View>
         </View>
       );
       const trail = <Text style={styles.count} testID={`folder-count-${n.id}`}>{n.count}</Text>;
@@ -277,7 +289,7 @@ export function FolderTree(props: FolderTreeViewProps): ReactElement {
           selected={n.id === props.selectedId}
           cursor={n.id === cursor}
           over={over === n.id}
-          leadWidth={r.depth * DEPTH_PX + CHEVRON_PX}
+          leadWidth={r.depth * DEPTH_PX + LEAD_PX}
           lead={lead}
           trail={trail}
           onPress={() => {
@@ -292,7 +304,18 @@ export function FolderTree(props: FolderTreeViewProps): ReactElement {
     parts.push(
       <View key={section.id} testID={`folders-${section.id}`} accessibilityRole="list" accessibilityLabel={section.label} {...webProps({ ...dropProps(null, scope, `sec:${section.id}`) })} style={[styles.section, over === `sec:${section.id}` && OVER]}>
         <View style={styles.head}>
-          <Text accessibilityRole="header" style={styles.headText}>{section.label}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${closed ? "Show" : "Hide"} ${section.label}`}
+            accessibilityState={{ expanded: !closed }}
+            onPress={() => setShut((o) => ({ ...o, [section.id]: !closed }))}
+            testID={`folders-head-${section.id}`}
+            style={({ hovered }: { hovered?: boolean }) => [styles.headButton, hovered === true && styles.addHover]}
+          >
+            <Chevron open={!closed} />
+            <Text accessibilityRole="header" style={styles.headText}>{section.label}</Text>
+            <Text style={styles.headCount}>{section.total}</Text>
+          </Pressable>
           <View style={styles.grow} />
           {mayCreate ? (
             <Pressable accessibilityRole="button" accessibilityLabel={`New folder in ${section.label}`} onPress={() => props.onNewFolder?.(scope, null)} testID={`folders-new-${section.id}`} {...webProps({ title: "New Folder" })} style={({ hovered }: { hovered?: boolean }) => [styles.add, hovered === true && styles.addHover]}>
@@ -301,7 +324,7 @@ export function FolderTree(props: FolderTreeViewProps): ReactElement {
           ) : null}
         </View>
         {rowNodes}
-        {rowNodes.length === 0 ? <Text style={styles.none}>{section.id === "shared" ? "Nothing shared with you yet" : "No folders yet"}</Text> : null}
+        {rowNodes.length === 0 && !closed ? <Text style={styles.none}>{section.id === "shared" ? "Nothing shared with you yet" : "No folders yet"}</Text> : null}
       </View>,
     );
   }
@@ -323,13 +346,16 @@ const styles = StyleSheet.create({
   root: { width: "100%", paddingHorizontal: 6, gap: 8 },
   rootCompact: { paddingHorizontal: 4 },
   section: { width: "100%", borderRadius: 8 },
-  head: { flexDirection: "row", alignItems: "center", height: 24, paddingHorizontal: 8 },
-  headText: { color: "var(--ink-3)" as string, fontSize: 11.5, fontWeight: "600", lineHeight: 24 },
+  head: { flexDirection: "row", alignItems: "center", height: 26, paddingHorizontal: 4 },
+  headButton: { flexDirection: "row", alignItems: "center", gap: 5, height: 22, paddingHorizontal: 4, borderRadius: 5 },
+  headText: { color: "var(--ink-3)" as string, fontSize: 12, fontWeight: "600", lineHeight: 22 },
+  headCount: { color: "var(--ink-4)" as string, fontSize: 12, lineHeight: 22 },
   grow: { flex: 1 },
   add: { width: 20, height: 20, borderRadius: 5, alignItems: "center", justifyContent: "center" },
   addHover: { backgroundColor: "var(--hover)" as string },
   addText: { color: "var(--ink-3)" as string, fontSize: 15, lineHeight: 17 },
   none: { color: "var(--ink-4)" as string, fontSize: 12, lineHeight: 28, paddingHorizontal: 8 },
+  folderIcon: { width: ICON_PX, marginLeft: 5, height: 22, alignItems: "center", justifyContent: "center" },
   chev: { width: CHEVRON_PX, height: 22, alignItems: "center", justifyContent: "center", borderRadius: 5 },
   chevHover: { backgroundColor: "var(--press)" as string },
   nativeChevron: { color: "var(--ink-4)" as string, fontSize: 10 },

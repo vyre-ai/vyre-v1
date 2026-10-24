@@ -57,7 +57,7 @@ export function NeedsTeamSpace({ what, density, onAction, testID }: NeedsTeamSpa
 }
 
 const styles = StyleSheet.create({
-  box: { width: "100%", maxWidth: 560, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10, backgroundColor: "var(--sunk)" as string },
+  box: { maxWidth: 560, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10, backgroundColor: "var(--sunk)" as string },
   boxCompact: { flexDirection: "column", alignItems: "flex-start", gap: 10 },
   text: { flex: 1, color: "var(--ink-2)" as string, fontSize: 13, lineHeight: 19 },
   textCompact: { flex: 0, width: "100%" },
