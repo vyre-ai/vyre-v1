@@ -22,8 +22,8 @@ const TAGGED = Object.freeze({
     { name: "name", kind: "text" },
     { name: "qty", kind: "number" },
     { name: "status", kind: "choice", options: ["open", "closed", "done"] },
-    { name: "tags", kind: "multichoice", many: true },
-    { name: "meta", kind: "json" },
+    { name: "tags", kind: "multi_choice" },
+    { name: "meta", kind: "address" },
   ],
 });
 
@@ -124,14 +124,14 @@ test("the server fallback answers a filter the SQL compiler cannot express, with
   const rec = openRecords({ space: "sp_fb" });
   await rec.store.define({ add_types: [TAGGED] });
   const a = mintUuid(), b = mintUuid(), c = mintUuid();
-  await rec.store.create("tagged", a, { name: "a", meta: { k: 1 } });
-  await rec.store.create("tagged", b, { name: "b", meta: { k: 2 } });
+  await rec.store.create("tagged", a, { name: "a", meta: { k: "1" } });
+  await rec.store.create("tagged", b, { name: "b", meta: { k: "2" } });
   await rec.store.create("tagged", c, { name: "c" });
   const q = createQueryHandlers({ tx: rec.host.tx });
-  const r = await q["records.query"](ctx, { type: "tagged", filter: { field: "meta", op: "eq", value: { k: 2 } }, sort: [{ field: "name", dir: "asc" }] });
+  const r = await q["records.query"](ctx, { type: "tagged", filter: { field: "meta", op: "eq", value: { k: "2" } }, sort: [{ field: "name", dir: "asc" }] });
   assert.deepEqual(r.rows.map((x) => x.id), [b]);
   assert.equal(r.total, 1);
-  assert.equal((await q["records.counts"](ctx, { type: "tagged", filter: { field: "meta", op: "in", value: [{ k: 1 }, { k: 2 }] } })).count, 2);
+  assert.equal((await q["records.counts"](ctx, { type: "tagged", filter: { field: "meta", op: "in", value: [{ k: "1" }, { k: "2" }] } })).count, 2);
 });
 
 test("contains on a many-valued field matches an element", async () => {
