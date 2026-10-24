@@ -70,13 +70,16 @@ jobs:
         run: |
           git fetch -q origin main
           base="$(git merge-base origin/main HEAD)"
+          orig="$(git rev-parse HEAD)"
           others="$(git log --format=%s "$base"..HEAD -- generated | grep -v '^chore(gen): regenerate' || true)"
           if [ -z "$others" ] && [ -n "$(git diff --name-only "$base"...HEAD -- generated)" ]; then
             git config user.name ci; git config user.email ci@example.invalid
             git checkout -q "$base" -- generated
             git commit -q -m "ci: drop bot-only generated/ from the ownership view"
           fi
-          node scripts/lanes-check.ts "${{ steps.lane.outputs.lane }}" "$base"
+          rc=0; node scripts/lanes-check.ts "${{ steps.lane.outputs.lane }}" "$base" || rc=$?
+          git reset -q --hard "$orig"   # the later steps (drift check, boundaries) must see the real tree, bot-generated files included
+          exit $rc
       - name: Layer boundaries B1 to B8 (scripts/boundaries.ts); main carries older violations, so only files this branch changed can fail it
         run: |
           git fetch -q origin main
