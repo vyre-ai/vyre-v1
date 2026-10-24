@@ -83,5 +83,6 @@ test("the command exits nonzero on an empty repo and zero on a complete one", ()
   const ran = spawnSync(process.execPath, [CHECK, "--root", r, "--packets-json", pj, "--skip-remote"], { encoding: "utf8" });
   assert.equal(ran.status, 1, "main-green cannot be proven with --skip-remote");
   assert.match(ran.stdout, /FAIL main-green/);
-  assert.doesNotMatch(ran.stdout, /FAIL F1:|FAIL F13:|FAIL packets/);
+  // F1 and F4 shell out to gen and lanes-check, which the fixture does not have; everything else must be green but the remote lines
+  assert.doesNotMatch(ran.stdout, /FAIL F13:|FAIL packets|FAIL contract-hash|FAIL dry-run/);
 });
