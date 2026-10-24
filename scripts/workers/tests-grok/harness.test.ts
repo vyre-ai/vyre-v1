@@ -86,7 +86,8 @@ esac`);
   child.stdout.on("data", (d) => (out += d)); child.stderr.on("data", (d) => (out += d));
   const code: number = await new Promise((r) => child.on("close", r));
   const branches = sh("git", ["branch", "--list", "-a"], origin, env);
-  const result = out.slice(out.indexOf("{"));
+  const start = out.indexOf("\n{\n") + 1, end = out.indexOf("\n}\n", start) + 2;
+  const result = start > 0 && end > start ? out.slice(start, end) : "";
   tracker.close();
   return { code, out, calls: tracker.calls, branches, result: (() => { try { return JSON.parse(result); } catch { return null; } })(), root };
 }
