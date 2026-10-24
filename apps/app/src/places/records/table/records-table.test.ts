@@ -1,17 +1,18 @@
 // Screen test for the Records table and sidebar.
 // table100k: open and scroll the perf space (100,000 rows) through a window of 200.
 // The total on screen is the cached count, not the page length.
-// Node runs this file. The browser probe is the CI perf job.
+// Node strips types in .ts files and rejects a .tsx entry, so this file is .ts.
+// The view modules hold no JSX. A load hook reads them as TypeScript.
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createFakeReplicaSet } from "../../../client/src/index.ts";
-import type { FakeReplica, Row } from "../../../client/src/index.ts";
-import { tokensOf } from "../../../ui/src/tokens/skins.ts";
-import { renderSidebar } from "../src/places/records/sidebar/Sidebar.tsx";
-import { isSiteScope, sidebarSections } from "../src/places/records/sidebar/model.ts";
-import { createTableSession, renderTable, TABLE_SHOTS } from "../src/places/records/table/TableView.tsx";
-import type { TableSession } from "../src/places/records/table/TableView.tsx";
+import { readFileSync } from "node:fs";
+import { registerHooks } from "node:module";
+import { fileURLToPath } from "node:url";
+import { createFakeReplicaSet } from "../../../../../../client/src/index.ts";
+import type { FakeReplica, Row } from "../../../../../../client/src/index.ts";
+import { tokensOf } from "../../../../../../ui/src/tokens/skins.ts";
+import { isSiteScope, sidebarSections } from "../sidebar/model.ts";
 import {
   COL_WIDTH_PX,
   ROW_HEIGHT_PX,
@@ -22,8 +23,20 @@ import {
   queryLimit,
   sortFromView,
   visibleRowCount,
-} from "../src/places/records/table/window.ts";
-import type { TableColumn } from "../src/places/records/table/window.ts";
+} from "./window.ts";
+import type { TableColumn } from "./window.ts";
+
+// Node runs .ts files by stripping types but has no loader for .tsx. These modules hold no JSX, so load them as TypeScript.
+registerHooks({
+  load(url, context, nextLoad) {
+    if (url.endsWith(".tsx")) return { format: "module-typescript", source: readFileSync(fileURLToPath(url)), shortCircuit: true };
+    return nextLoad(url, context);
+  },
+});
+
+const { renderSidebar } = await import("../sidebar/Sidebar.tsx");
+const { createTableSession, renderTable, TABLE_SHOTS } = await import("./TableView.tsx");
+type TableSession = ReturnType<typeof createTableSession>;
 
 /** Matches fixtures/seed/perf PERF_TARGET.records. The perf space is not imported (fixtures is outside the app layer). */
 const PERF_RECORDS = 100_000;
