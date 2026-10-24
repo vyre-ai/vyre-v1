@@ -176,6 +176,22 @@ const cookiesOf = (h: Headers): string => h.getSetCookie().map((c) => c.split(";
 
 // ---- the flow ------------------------------------------------------------------------------------------------------------
 
+test("probe: the v2 envelope API", { skip }, async () => {
+  const spec = (await (await fetch(`${state.base}/api/v2/openapi.json`)).json()) as { paths: Record<string, any>; components?: any };   // eslint-disable-line @typescript-eslint/no-explicit-any
+  const show = (label: string, v: unknown, n = 6000): void => say(label, JSON.stringify(v).slice(0, n));
+  const resolve = (o: any, depth = 0): any => {   // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (!o || typeof o !== "object" || depth > 6) return o;
+    if (o.$ref) return resolve(spec.components?.schemas?.[String(o.$ref).split("/").pop()!], depth + 1);
+    if (Array.isArray(o)) return o.map((x) => resolve(x, depth + 1));
+    return Object.fromEntries(Object.entries(o).filter(([k]) => !["description", "example", "title"].includes(k)).map(([k, v]) => [k, resolve(v, depth + 1)]));
+  };
+  for (const [p, m] of [["/envelope/create", "post"], ["/envelope/distribute", "post"], ["/envelope/{envelopeId}", "get"], ["/envelope/item/{envelopeItemId}/download", "get"]] as const) {
+    const op = spec.paths[p]?.[m];
+    show(`${m} ${p} request`, resolve(op?.requestBody ?? op?.parameters), 7000);
+    show(`${m} ${p} response`, resolve(op?.responses?.["200"]), 5000);
+  }
+});
+
 test("certificate: a self-signed signing certificate goes into the container", { skip }, async () => {
   const key = path.join(tmp, "key.pem");
   const crt = path.join(tmp, "crt.pem");
