@@ -2,7 +2,7 @@
 // Fixed height (28 with one line, 44 with a note) so a list can skip measuring. The note sits under the title.
 // Colours are skin tokens (CSS variables on web), so a skin switch repaints with no re-render.
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { RowProps } from "./props.ts";
 
@@ -15,7 +15,7 @@ export function rowHeight(note?: string): number {
   return note ? ROW_HEIGHT_WITH_NOTE : ROW_HEIGHT;
 }
 
-export function Row({ id, title, note, selected = false, hovered = false, onPress }: RowProps) {
+export const Row = memo(function Row({ id, title, note, selected = false, hovered = false, onPress }: RowProps) {
   const [over, setOver] = useState(false);
   const lit = hovered || over;
   return (
@@ -35,7 +35,7 @@ export function Row({ id, title, note, selected = false, hovered = false, onPres
       </View>
     </Pressable>
   );
-}
+});
 
 // Plain objects (not StyleSheet ids) so the painted token is visible in the element's inline style.
 const HOVER = { backgroundColor: "var(--hover)" };
