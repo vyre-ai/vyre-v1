@@ -5,8 +5,6 @@ import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
 import type { ErrorCode, EventName } from "../../packages/contracts/src/types.ts";
-import { createScrubber, variantsOf } from "../../agent/src/vault-use/scrub.ts";
-import type { Scrubber, Secret } from "../../agent/src/vault-use/scrub.ts";
 
 export interface Db {
   all(sql: string, ...args: unknown[]): unknown[];
@@ -205,11 +203,44 @@ export async function redeemTicket(db: Db, ticket: string, now: number): Promise
   return spent.changes === 1 ? { terminalId: s(r["terminal_id"]), personId: s(r["person_id"]) } : null;
 }
 
+// ---- Vault values in a command -------------------------------------------------------------------------------------------------------------------------
+
+// The fill-and-scrub machinery is agent/src/vault-use (ARCH 6.11). Boundary B8 does not let a module import `agent`, so the host binds it here as a kit; the types below are the shapes it takes,
+// written out so the real functions satisfy them as they are. With no kit or no value source bound nothing is ever filled, a #Handle stays literal text, and there is nothing to scrub.
+export interface Secret { handle: string; itemId: string; value: string }
+export type Where = "host" | "device" | "computer";
+export type Lookup =
+  | { kind: "value"; itemId: string; value: string; spaceOnly: boolean; injectIntoDeployments: boolean }
+  | { kind: "unknown" }
+  | { kind: "denied"; reason: "no_access" | "provider_label" | "other" };
+export interface ValueSource { lookup(handle: string, who: { agentId: string; asker: string; where: Where }): Promise<Lookup> }
+export interface VaultRunDeps { source: ValueSource; reportMiss(r: { itemId: string; place: "terminal" | "http" | "browser" | "file" | "chat"; traceId: string }): void | Promise<void> }
+export interface VaultCall { tool: string; args: unknown; traceId: string; agentId: string; asker: string; where: Where }
+export type VaultRun =
+  | { ok: true; display: unknown; output: string | AsyncIterable<string>; used: Array<{ handle: string; itemId: string }>; scrubMiss: boolean }
+  | { ok: false; display: unknown; used: Array<{ handle: string; itemId: string }>; error: { code: "permission.no_grant" | "permission.provider_label" | "validation.bad_input" | "provider.unavailable"; message: string; handle?: string } };
+export interface ScrubberLike { scrub(text: string): string }
+export interface VaultKit {
+  run(deps: VaultRunDeps, call: VaultCall, exec: (args: unknown) => Promise<string | AsyncIterable<string>>): Promise<VaultRun>;
+  createScrubber(secrets: readonly Secret[]): ScrubberLike;
+  /** Every spelling of a value that must not show (the value, base64, hex, url-encoded ...). */
+  spellings(value: string): string[];
+}
+
+let vaultKit: VaultKit | null = null;
+export function bindKit(k: VaultKit | null): void { vaultKit = k; }
+export const boundKit = (): VaultKit | null => vaultKit;
+
+/** Where a value comes from, in the process that runs the command (the host's Vault service, or the device's filler). */
+let valueSource: ValueSource | null = null;
+export function bindValues(v: ValueSource | null): void { valueSource = v; }
+export const boundValues = (): ValueSource | null => valueSource;
+
 // ---- secrets used in a session ----------------------------------------------------------------------------------------------------------------------
 
 /**
  * Values the host filled into a session (terminal.run with #Handle.field). Kept in memory only, per session, so everything that reads the screen back (read, attach replay, live frames,
- * status) goes through the same scrubber. A restart forgets them, which is why the screen is also cleared of them at the end of the run.
+ * status) goes through the same scrubber. A restart forgets them.
  */
 const secretsByTerminal = new Map<string, Secret[]>();
 
@@ -219,14 +250,15 @@ export function rememberSecrets(terminalId: string, secrets: readonly Secret[]):
   for (const x of secrets) if (!cur.some((c) => c.handle === x.handle && c.value === x.value)) cur.push(x);
   secretsByTerminal.set(terminalId, cur);
 }
-export function scrubberFor(terminalId: string): Scrubber | null {
+export function scrubberFor(terminalId: string): ScrubberLike | null {
   const list = secretsByTerminal.get(terminalId);
-  return list && list.length > 0 ? createScrubber(list) : null;
+  return list && list.length > 0 && vaultKit ? vaultKit.createScrubber(list) : null;
 }
-/** Every spelling of every value used in the session (the value, base64, hex, url-encoded ...): what a live frame must not show, even split across two frames. */
+/** Every spelling of every value used in the session: what a live frame must not show, even split across two frames. */
 export function spellingsFor(terminalId: string): string[] {
   const out = new Set<string>();
-  for (const x of secretsByTerminal.get(terminalId) ?? []) for (const v of variantsOf(x.value)) out.add(v);
+  const kit = vaultKit;
+  if (kit) for (const x of secretsByTerminal.get(terminalId) ?? []) for (const v of kit.spellings(x.value)) out.add(v);
   return [...out];
 }
 export const forgetSecrets = (terminalId: string): void => { secretsByTerminal.delete(terminalId); };
@@ -236,12 +268,3 @@ export function clean(terminalId: string, text: string): string {
   const sc = scrubberFor(terminalId);
   return sc ? sc.scrub(text) : text;
 }
-
-// ---- values for #Handle.field in a command ------------------------------------------------------------------------------------------------------------
-
-import type { ValueSource } from "../../agent/src/vault-use/run.ts";
-
-/** Where a value comes from, in the process that runs the command (the host's Vault service, or the device's filler). Unbound: handles stay literal text and nothing is filled. */
-let valueSource: ValueSource | null = null;
-export function bindValues(v: ValueSource | null): void { valueSource = v; }
-export const boundValues = (): ValueSource | null => valueSource;

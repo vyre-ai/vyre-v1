@@ -4,7 +4,7 @@
 // is read back with capture-pane. Live frames come from a tmux control-mode client (`%output` lines, decoded here).
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { bindHost, bindTeam, bindValues, boundHost, redeemTicket, scrubberFor, spellingsFor } from "./projections.ts";
+import { bindHost, bindKit, bindTeam, bindValues, boundHost, redeemTicket, scrubberFor, spellingsFor } from "./projections.ts";
 import type { Db, TermState, TerminalHost } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
@@ -202,5 +202,5 @@ export function partialSpellingAt(text: string, spellings: readonly string[]): n
   return 0;
 }
 
-export { bindHost, bindTeam, bindValues };
+export { bindHost, bindKit, bindTeam, bindValues };
 export { commandsOf, judge, redeemTicket, rulesOf } from "./projections.ts";

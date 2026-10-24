@@ -4,14 +4,11 @@
 //   run                                                            the terminal_run tool: one command, run in a session, output scrubbed of every Vault value filled into it
 //   rules.get / rules.set / health
 // The machine does the work through the TerminalHost port (projections.ts); this module keeps what Vyre knows about a session and enforces who may do what in it.
-import { runWithVault } from "../../../agent/src/vault-use/run.ts";
-import type { Lookup, ValueSource, Where } from "../../../agent/src/vault-use/run.ts";
-import type { Secret } from "../../../agent/src/vault-use/scrub.ts";
 import {
-  MAX_RULES, MAX_RULE_CHARS, TICKET_MS, actorOf, boundHost, boundValues, clean, commandsOf, ensure, forgetSecrets, hostOf, insertSession, isTeam, judge, mintId, raise, rememberSecrets,
+  MAX_RULES, MAX_RULE_CHARS, TICKET_MS, actorOf, boundHost, boundKit, boundValues, clean, commandsOf, ensure, forgetSecrets, hostOf, insertSession, isTeam, judge, mintId, raise, rememberSecrets,
   rulesOf, sessionBy, sessionOf, sha256, ticketSecret, touch,
 } from "../projections.ts";
-import type { HostKind, Rules, SessionRow, Target, TermCtx, TermState } from "../projections.ts";
+import type { HostKind, Lookup, Rules, Secret, SessionRow, Target, TermCtx, TermState, ValueSource, VaultRun, Where } from "../projections.ts";
 
 type Row = Record<string, unknown>;
 const DEFAULT_COLS = 120;
@@ -269,26 +266,36 @@ export async function run(ctx: TermCtx, a: RunInput) {
   let started: { at: number; rowId: number } | null = null;
   let result: { exitCode: number | null; truncated: boolean; durationMs: number } | null = null;
   let timedOut = false;
-  const out = await runWithVault(
-    { source, reportMiss: (m) => { ctx.log.warn("vault.scrub_miss", { itemId: m.itemId, place: m.place }); } },
-    { tool: "terminal_run", args: { command, ...(a.env ? { env: a.env } : {}) }, traceId: ctx.trace.traceId, agentId: ctx.principal.id, asker: owner, where: WHERE[s.host] },
-    async (filled) => {
-      const f = filled as { command: string; env?: Record<string, string> };
-      const at = ctx.now();
-      // The record keeps the command as the model wrote it (handles, not values).
-      ctx.db.run("INSERT INTO terminal_commands (terminal_id, command, exit_code, started_at, duration_ms, by_principal) VALUES (?, ?, NULL, ?, NULL, ?)", s.terminalId, command, at, ctx.principal.id);
-      started = { at, rowId: Number((ctx.db.all("SELECT MAX(seq) AS m FROM terminal_commands WHERE terminal_id = ?", s.terminalId) as Row[])[0]?.["m"]) };
-      ctx.db.run("UPDATE terminal_sessions SET state = 'running', last_active_at = ? WHERE terminal_id = ?", at, s.terminalId);
-      try {
-        const r = await host.run(s.terminalId, { command: f.command, ...(a.cwd === undefined ? {} : { cwd: a.cwd }), env: f.env ?? {}, timeoutMs });
-        result = { exitCode: r.exitCode, truncated: r.truncated, durationMs: r.durationMs };
-        return r.output;
-      } catch (e) {
-        if (e && typeof e === "object" && (e as { code?: unknown }).code === "timeout") timedOut = true;
-        throw e;
-      }
-    },
-  );
+  const exec = async (filled: unknown): Promise<string> => {
+    const f = filled as { command: string; env?: Record<string, string> };
+    const at = ctx.now();
+    // The record keeps the command as the model wrote it (handles, not values).
+    ctx.db.run("INSERT INTO terminal_commands (terminal_id, command, exit_code, started_at, duration_ms, by_principal) VALUES (?, ?, NULL, ?, NULL, ?)", s.terminalId, command, at, ctx.principal.id);
+    started = { at, rowId: Number((ctx.db.all("SELECT MAX(seq) AS m FROM terminal_commands WHERE terminal_id = ?", s.terminalId) as Row[])[0]?.["m"]) };
+    ctx.db.run("UPDATE terminal_sessions SET state = 'running', last_active_at = ? WHERE terminal_id = ?", at, s.terminalId);
+    try {
+      const r = await host.run(s.terminalId, { command: f.command, ...(a.cwd === undefined ? {} : { cwd: a.cwd }), env: f.env ?? {}, timeoutMs });
+      result = { exitCode: r.exitCode, truncated: r.truncated, durationMs: r.durationMs };
+      return r.output;
+    } catch (e) {
+      if (e && typeof e === "object" && (e as { code?: unknown }).code === "timeout") timedOut = true;
+      throw e;
+    }
+  };
+  const args = { command, ...(a.env ? { env: a.env } : {}) };
+  const kit = boundKit();
+  let out: VaultRun;
+  if (kit && base) {
+    out = await kit.run(
+      { source, reportMiss: (m) => { ctx.log.warn("vault.scrub_miss", { itemId: m.itemId, place: m.place }); } },
+      { tool: "terminal_run", args, traceId: ctx.trace.traceId, agentId: ctx.principal.id, asker: owner, where: WHERE[s.host] },
+      exec,
+    );
+  } else {
+    // Nothing can be filled here, so a #Handle stays the text it is and nothing needs scrubbing.
+    try { out = { ok: true, display: args, output: await exec(args), used: [], scrubMiss: false }; }
+    catch (e) { out = { ok: false, display: args, used: [], error: { code: "provider.unavailable", message: e instanceof Error ? e.message : "The terminal failed." } }; }
+  }
   rememberSecrets(s.terminalId, captured);
 
   const begun = started as { at: number; rowId: number } | null;

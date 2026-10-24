@@ -5,9 +5,8 @@ import { registry } from "../../../generated/registry.ts";
 import { scopedDb } from "../../../host/src/ctx/db.ts";
 import type { RawDb } from "../../../host/src/ctx/db.ts";
 import { validate } from "../../../packages/contracts/src/jsonschema.ts";
-import { bindHost, bindTeam, bindValues } from "../projections.ts";
-import type { TermCtx, TerminalHost, TermState } from "../projections.ts";
-import type { Lookup, ValueSource } from "../../../agent/src/vault-use/run.ts";
+import { bindHost, bindKit, bindTeam, bindValues } from "../projections.ts";
+import type { Lookup, Secret, TermCtx, TerminalHost, TermState, ValueSource, VaultKit, VaultRun } from "../projections.ts";
 
 export const NOW = 1_760_000_000_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
@@ -137,7 +136,54 @@ export function fakeValues(table: Record<string, string>, deny: ReadonlySet<stri
   };
 }
 
-export function reset(): void { bindHost(null); bindValues(null); bindTeam(null); }
+/**
+ * A stand-in for the Vault kit the host binds (agent/src/vault-use: runWithVault, createScrubber, variantsOf). A module cannot import `agent` (boundary B8), so these tests run the module
+ * against this: same shape, the same refusals (denied, too short), the same substitution of handles and scrubbing of what comes back. The real one has its own tests in agent/tests/vault-use.*.
+ */
+export function testKit(): VaultKit {
+  const HANDLE = /#[A-Za-z0-9_]+(?:\.[A-Za-z][A-Za-z0-9_]*)?/g;
+  const spellings = (v: string): string[] => [...new Set([v, btoa(v), btoa(v).replace(/=+$/, ""), Array.from(new TextEncoder().encode(v), (b) => b.toString(16).padStart(2, "0")).join(""), encodeURIComponent(v)])];
+  const createScrubber = (secrets: readonly Secret[]) => ({
+    scrub(text: string): string {
+      let out = text;
+      for (const x of [...secrets].sort((a, b) => b.value.length - a.value.length)) for (const sp of spellings(x.value).sort((a, b) => b.length - a.length)) out = out.split(sp).join(`[${x.handle}]`);
+      return out;
+    },
+  });
+  const walk = (v: unknown, f: (s: string) => string): unknown =>
+    typeof v === "string" ? f(v) : Array.isArray(v) ? v.map((x) => walk(x, f)) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x, f)])) : v;
+  return {
+    spellings,
+    createScrubber,
+    async run(deps, call, exec): Promise<VaultRun> {
+      const handles = new Set<string>();
+      walk(call.args, (s) => { for (const m of s.matchAll(HANDLE)) handles.add(m[0]); return s; });
+      const values = new Map<string, string>();
+      const secrets: Secret[] = [];
+      for (const hd of handles) {
+        const r = await deps.source.lookup(hd, { agentId: call.agentId, asker: call.asker, where: call.where });
+        if (r.kind === "unknown") continue;
+        if (r.kind === "denied") return { ok: false, display: call.args, used: [], error: { code: "permission.no_grant", handle: hd, message: `You cannot use ${hd} here.` } };
+        if (r.value.length < 4) return { ok: false, display: call.args, used: [], error: { code: "validation.bad_input", handle: hd, message: `${hd} is too short to fill safely.` } };
+        values.set(hd, r.value);
+        secrets.push({ handle: hd, itemId: r.itemId, value: r.value });
+      }
+      const used = secrets.map((x) => ({ handle: x.handle, itemId: x.itemId }));
+      const order = [...values.keys()].sort((a, b) => b.length - a.length);
+      const filled = walk(call.args, (s) => order.reduce((acc, hd) => acc.split(hd).join(values.get(hd) ?? hd), s));
+      try {
+        const raw = await exec(secrets.length === 0 ? call.args : filled);
+        const text = typeof raw === "string" ? raw : "";
+        return { ok: true, display: call.args, output: secrets.length === 0 ? text : createScrubber(secrets).scrub(text), used, scrubMiss: false };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "The tool failed.";
+        return { ok: false, display: call.args, used, error: { code: "provider.unavailable", message: secrets.length === 0 ? msg : createScrubber(secrets).scrub(msg) } };
+      }
+    },
+  };
+}
+
+export function reset(): void { bindHost(null); bindValues(null); bindTeam(null); bindKit(testKit()); }
 
 export function eventErrors(name: string, payload: unknown): string[] {
   const def = registry.events.find((e) => e.name === name);
