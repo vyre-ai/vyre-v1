@@ -335,7 +335,8 @@ test("daemon.boot: a scheduled call (a Gate timer) fires on the queue's tick as 
     assert.equal(d.schedule!.counts().pending, 0);
     const said = await d.log!.read({ type: "example.said" });
     assert.equal(said.length, 1);
-    assert.deepEqual(said[0]?.payload, { n: 9 });
+    const body = said[0]?.payload as unknown;
+    assert.deepEqual(body instanceof Uint8Array ? JSON.parse(new TextDecoder().decode(body)) : body, { n: 9 });
     assert.equal(said[0]?.actor, "usr_olivia", "ran as the principal that scheduled it");
     const all = await d.log!.read({ after: 0, limit: 5000 });
     assert.ok(all.length > 10);
