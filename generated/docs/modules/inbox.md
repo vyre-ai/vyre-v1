@@ -1,6 +1,6 @@
 # Inbox (inbox)
 
-Lane L5. Kind module. Status stub. Version 0.1.0.
+Lane L5. Kind module. Version 0.1.0.
 
 Requires: calendar, mail, telephony.
 

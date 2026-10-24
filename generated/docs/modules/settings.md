@@ -1,6 +1,6 @@
 # Settings (settings)
 
-Lane L7a. Kind module. Status stub. Version 0.1.0.
+Lane L7a. Kind module. Version 0.1.0.
 
 Requires: nothing.
 

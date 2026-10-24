@@ -1,6 +1,6 @@
 # MCP (mcp)
 
-Lane L2. Kind module. Status stub. Version 0.1.0.
+Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 

@@ -190985,7 +190985,6 @@
       "requires": [
         "files"
       ],
-      "status": "stub",
       "title": "Access",
       "version": "0.1.0"
     },
@@ -191001,7 +191000,6 @@
         "runs",
         "terminal"
       ],
-      "status": "stub",
       "title": "Agents",
       "version": "0.1.0"
     },
@@ -191010,7 +191008,6 @@
       "kind": "module",
       "owner": "L7a",
       "requires": [],
-      "status": "stub",
       "title": "Audit",
       "version": "0.1.0"
     },
@@ -191031,7 +191028,6 @@
         "runs",
         "telephony"
       ],
-      "status": "stub",
       "title": "Automations",
       "version": "0.1.0"
     },
@@ -191040,7 +191036,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Backups",
       "version": "0.1.0"
     },
@@ -191049,7 +191044,6 @@
       "kind": "module",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Calendar",
       "version": "0.1.0"
     },
@@ -191058,7 +191052,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Campaigns",
       "version": "0.1.0"
     },
@@ -191069,7 +191062,6 @@
       "requires": [
         "engine"
       ],
-      "status": "stub",
       "title": "Chat",
       "version": "0.1.0"
     },
@@ -191080,7 +191072,6 @@
       "requires": [
         "chat"
       ],
-      "status": "stub",
       "title": "Agent computers",
       "version": "0.1.0"
     },
@@ -191089,7 +191080,6 @@
       "kind": "module",
       "owner": "L1",
       "requires": [],
-      "status": "stub",
       "title": "Conflicts",
       "version": "0.1.0"
     },
@@ -191101,7 +191091,6 @@
         "records",
         "schema"
       ],
-      "status": "stub",
       "title": "Connectors and synced types",
       "version": "0.1.0"
     },
@@ -191110,7 +191099,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Console assistant",
       "version": "0.1.0"
     },
@@ -191128,7 +191116,6 @@
         "schema",
         "updates"
       ],
-      "status": "stub",
       "title": "Console views",
       "version": "0.1.0"
     },
@@ -191139,7 +191126,6 @@
       "requires": [
         "records"
       ],
-      "status": "stub",
       "title": "Contacts and consent",
       "version": "0.1.0"
     },
@@ -191148,7 +191134,6 @@
       "kind": "kit",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Default Kit",
       "version": "0.1.0"
     },
@@ -191157,7 +191142,6 @@
       "kind": "module",
       "owner": "L7a",
       "requires": [],
-      "status": "stub",
       "title": "Devices",
       "version": "0.1.0"
     },
@@ -191166,7 +191150,6 @@
       "kind": "connector",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Documenso",
       "version": "0.1.0"
     },
@@ -191177,7 +191160,6 @@
       "requires": [
         "files"
       ],
-      "status": "stub",
       "title": "Documents",
       "version": "0.1.0"
     },
@@ -191186,7 +191168,6 @@
       "kind": "connector",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "DocuSign",
       "version": "0.1.0"
     },
@@ -191195,7 +191176,6 @@
       "kind": "connector",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Dropbox Sign",
       "version": "0.1.0"
     },
@@ -191204,7 +191184,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Email builder",
       "version": "0.1.0"
     },
@@ -191213,7 +191192,6 @@
       "kind": "module",
       "owner": "L2",
       "requires": [],
-      "status": "stub",
       "title": "Engine",
       "version": "0.1.0"
     },
@@ -191222,7 +191200,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "E-signature",
       "version": "0.1.0"
     },
@@ -191231,7 +191208,6 @@
       "kind": "kit",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Estate planning",
       "version": "0.1.0"
     },
@@ -191240,7 +191216,6 @@
       "kind": "module",
       "owner": "L6",
       "requires": [],
-      "status": "stub",
       "title": "Events and webhooks",
       "version": "0.1.0"
     },
@@ -191251,7 +191226,6 @@
       "requires": [
         "mounts"
       ],
-      "status": "stub",
       "title": "Files",
       "version": "0.1.0"
     },
@@ -191260,7 +191234,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Forms and bookings",
       "version": "0.1.0"
     },
@@ -191269,7 +191242,6 @@
       "kind": "module",
       "owner": "L6",
       "requires": [],
-      "status": "stub",
       "title": "Gate",
       "version": "0.1.0"
     },
@@ -191280,7 +191252,6 @@
       "requires": [
         "files"
       ],
-      "status": "stub",
       "title": "Git",
       "version": "0.1.0"
     },
@@ -191289,7 +191260,6 @@
       "kind": "connector",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "GitHub",
       "version": "0.1.0"
     },
@@ -191300,7 +191270,6 @@
       "requires": [
         "mail"
       ],
-      "status": "stub",
       "title": "Google Workspace",
       "version": "0.1.0"
     },
@@ -191311,7 +191280,6 @@
       "requires": [
         "access"
       ],
-      "status": "stub",
       "title": "Governance",
       "version": "0.1.0"
     },
@@ -191320,7 +191288,6 @@
       "kind": "kit",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Harbor Studio",
       "version": "0.1.0"
     },
@@ -191329,7 +191296,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Health and diagnostics",
       "version": "0.1.0"
     },
@@ -191342,7 +191308,6 @@
         "runs",
         "tasks"
       ],
-      "status": "stub",
       "title": "Home",
       "version": "0.1.0"
     },
@@ -191351,7 +191316,6 @@
       "kind": "connector",
       "owner": "L3",
       "requires": [],
-      "status": "stub",
       "title": "HubSpot",
       "version": "0.1.0"
     },
@@ -191363,7 +191327,6 @@
         "access",
         "members"
       ],
-      "status": "stub",
       "title": "Identity",
       "version": "0.1.0"
     },
@@ -191374,7 +191337,6 @@
       "requires": [
         "schema"
       ],
-      "status": "stub",
       "title": "Import",
       "version": "0.1.0"
     },
@@ -191387,7 +191349,6 @@
         "mail",
         "telephony"
       ],
-      "status": "stub",
       "title": "Inbox",
       "version": "0.1.0"
     },
@@ -191396,7 +191357,6 @@
       "kind": "module",
       "owner": "L6",
       "requires": [],
-      "status": "stub",
       "title": "Journeys",
       "version": "0.1.0"
     },
@@ -191405,7 +191365,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Kits",
       "version": "0.1.0"
     },
@@ -191414,7 +191373,6 @@
       "kind": "kit",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Law firm intake",
       "version": "0.1.0"
     },
@@ -191423,7 +191381,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Logs and traces",
       "version": "0.1.0"
     },
@@ -191432,7 +191389,6 @@
       "kind": "module",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Mail",
       "version": "0.1.0"
     },
@@ -191441,7 +191397,6 @@
       "kind": "connector",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Mailgun",
       "version": "0.1.0"
     },
@@ -191450,7 +191405,6 @@
       "kind": "module",
       "owner": "L2",
       "requires": [],
-      "status": "stub",
       "title": "MCP",
       "version": "0.1.0"
     },
@@ -191459,7 +191413,6 @@
       "kind": "module",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Meetings",
       "version": "0.1.0"
     },
@@ -191471,7 +191424,6 @@
         "access",
         "home"
       ],
-      "status": "stub",
       "title": "Members",
       "version": "0.1.0"
     },
@@ -191480,7 +191432,6 @@
       "kind": "module",
       "owner": "L2",
       "requires": [],
-      "status": "stub",
       "title": "Memory",
       "version": "0.1.0"
     },
@@ -191491,7 +191442,6 @@
       "requires": [
         "mail"
       ],
-      "status": "stub",
       "title": "Microsoft 365",
       "version": "0.1.0"
     },
@@ -191502,7 +191452,6 @@
       "requires": [
         "files"
       ],
-      "status": "stub",
       "title": "Mounts",
       "version": "0.1.0"
     },
@@ -191511,7 +191460,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Network",
       "version": "0.1.0"
     },
@@ -191525,7 +191473,6 @@
         "tasks",
         "vault"
       ],
-      "status": "stub",
       "title": "Notifications",
       "version": "0.1.0"
     },
@@ -191534,7 +191481,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Site accounts",
       "version": "0.1.0"
     },
@@ -191543,7 +191489,6 @@
       "kind": "module",
       "owner": "L4",
       "requires": [],
-      "status": "stub",
       "title": "Previews",
       "version": "0.1.0"
     },
@@ -191555,7 +191500,6 @@
         "records",
         "tasks"
       ],
-      "status": "stub",
       "title": "Projects",
       "version": "0.1.0"
     },
@@ -191564,7 +191508,6 @@
       "kind": "module",
       "owner": "L3",
       "requires": [],
-      "status": "stub",
       "title": "Records",
       "version": "0.1.0"
     },
@@ -191573,7 +191516,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Report a problem",
       "version": "0.1.0"
     },
@@ -191582,7 +191524,6 @@
       "kind": "connector",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Resend",
       "version": "0.1.0"
     },
@@ -191591,7 +191532,6 @@
       "kind": "module",
       "owner": "L4",
       "requires": [],
-      "status": "stub",
       "title": "Runbooks",
       "version": "0.1.0"
     },
@@ -191600,7 +191540,6 @@
       "kind": "module",
       "owner": "L6",
       "requires": [],
-      "status": "stub",
       "title": "Runs",
       "version": "0.1.0"
     },
@@ -191609,7 +191548,6 @@
       "kind": "module",
       "owner": "L6",
       "requires": [],
-      "status": "stub",
       "title": "Scheduler",
       "version": "0.1.0"
     },
@@ -191618,7 +191556,6 @@
       "kind": "module",
       "owner": "L3",
       "requires": [],
-      "status": "stub",
       "title": "Schema",
       "version": "0.1.0"
     },
@@ -191627,7 +191564,6 @@
       "kind": "module",
       "owner": "L1",
       "requires": [],
-      "status": "stub",
       "title": "Search",
       "version": "0.1.0"
     },
@@ -191636,7 +191572,6 @@
       "kind": "module",
       "owner": "L7a",
       "requires": [],
-      "status": "stub",
       "title": "Settings",
       "version": "0.1.0"
     },
@@ -191645,7 +191580,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Sites",
       "version": "0.1.0"
     },
@@ -191654,7 +191588,6 @@
       "kind": "module",
       "owner": "L3",
       "requires": [],
-      "status": "stub",
       "title": "Sources",
       "version": "0.1.0"
     },
@@ -191666,7 +191599,6 @@
         "access",
         "members"
       ],
-      "status": "stub",
       "title": "Spaces",
       "version": "0.1.0"
     },
@@ -191684,7 +191616,6 @@
         "tasks",
         "telephony"
       ],
-      "status": "stub",
       "title": "Core steps and spreadsheets",
       "version": "0.1.0"
     },
@@ -191693,7 +191624,6 @@
       "kind": "connector",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Stripe",
       "version": "0.1.0"
     },
@@ -191702,7 +191632,6 @@
       "kind": "module",
       "owner": "L1",
       "requires": [],
-      "status": "stub",
       "title": "Sync",
       "version": "0.1.0"
     },
@@ -191711,7 +191640,6 @@
       "kind": "module",
       "owner": "L6",
       "requires": [],
-      "status": "stub",
       "title": "Tasks",
       "version": "0.1.0"
     },
@@ -191722,7 +191650,6 @@
       "requires": [
         "mail"
       ],
-      "status": "stub",
       "title": "Calls and texts",
       "version": "0.1.0"
     },
@@ -191731,7 +191658,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Templates",
       "version": "0.1.0"
     },
@@ -191740,7 +191666,6 @@
       "kind": "module",
       "owner": "L2",
       "requires": [],
-      "status": "stub",
       "title": "Terminal",
       "version": "0.1.0"
     },
@@ -191751,7 +191676,6 @@
       "requires": [
         "telephony"
       ],
-      "status": "stub",
       "title": "Twilio",
       "version": "0.1.0"
     },
@@ -191760,7 +191684,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Server updates",
       "version": "0.1.0"
     },
@@ -191771,7 +191694,6 @@
       "requires": [
         "access"
       ],
-      "status": "stub",
       "title": "Vault",
       "version": "0.1.0"
     },
@@ -191780,7 +191702,6 @@
       "kind": "module",
       "owner": "L7a",
       "requires": [],
-      "status": "stub",
       "title": "Vault requests",
       "version": "0.1.0"
     },
@@ -191789,7 +191710,6 @@
       "kind": "connector",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Zoom",
       "version": "0.1.0"
     }
