@@ -3,6 +3,7 @@
 // macOS signingIdentity in tauri.conf.json is "-" (ad-hoc). Windows target is NSIS.
 // Linux targets are deb and appimage (best effort).
 
+use tauri::Manager;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_shell::ShellExt;
 
@@ -21,7 +22,10 @@ pub fn run() {
 }
 
 fn boot(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    app.global_shortcut().register("CommandOrControl+Shift+V")?;
+    // A shortcut another process already holds must not stop the shell, so log it and go on.
+    if let Err(e) = app.global_shortcut().register("CommandOrControl+Shift+V") {
+        eprintln!("shortcut not registered: {e}");
+    }
 
     // macOS takes the scheme from the bundle (plugins.deep-link). Linux and Windows register at launch.
     #[cfg(any(target_os = "linux", windows))]
