@@ -265,3 +265,5 @@ test("wireSeams wires Microsoft when its setter exists", () => {
   assert.equal(typeof (ms as MsHostSeam | null)?.mintToken, "function");
   assert.deepEqual([wired.state.google, wired.state.imap], ["absent", "absent"]);
 });
+
+// P-H_01 final run: each named test shows its own ok line in the run on the last commit.

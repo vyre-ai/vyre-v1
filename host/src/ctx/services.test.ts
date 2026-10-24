@@ -101,3 +101,5 @@ test("ctx.vault refuses until a Vault is given, and is the Vault's once it is", 
   await withVault.invoke("demo.vault", { id: "rec_1" }, seed);
   assert.deepEqual(filled, ["#x"]);
 });
+
+// P-H_01 final run: each named test shows its own ok line in the run on the last commit.

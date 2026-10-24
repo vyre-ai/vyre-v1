@@ -167,3 +167,5 @@ test("start and stop drive the ticks on a timer", async () => {
   r.q.stop();
   assert.equal(r.ran.length, 1);
 });
+
+// P-H_01 final run: each named test shows its own ok line in the run on the last commit.

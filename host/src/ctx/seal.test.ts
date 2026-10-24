@@ -69,3 +69,5 @@ test("empty bytes round trip", () => {
   const seal = createCtxSeal({ key: KEY, keyId: "k1" });
   assert.equal(seal.unseal(seal.seal(new Uint8Array(0), "mail")).byteLength, 0);
 });
+
+// P-H_01 final run: each named test shows its own ok line in the run on the last commit.

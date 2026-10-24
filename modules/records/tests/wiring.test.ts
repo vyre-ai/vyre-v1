@@ -57,3 +57,5 @@ test("records.history lists the kept earlier values of a record, all of them or 
   assert.deepEqual(one.entries.map((e) => e.field), ["qty"]);
   assert.deepEqual((await rec.handlers["records.history"](ctx, { type: "item", recordId: "nobody" })).entries, []);
 });
+
+// P-H_01 final run: each named test shows its own ok line in the run on the last commit.

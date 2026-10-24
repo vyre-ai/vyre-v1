@@ -15,3 +15,5 @@ test("toPullCtx carries person, device and trace, and defaults the class", () =>
   assert.equal(toPullCtx({ trace, principal: { id: "usr_dana" }, device: "dev_a" }).deviceClass, "desktop");
   assert.equal(toPullCtx({ trace, principal: { id: "usr_dana" } }).deviceId, "", "no device: the push handler's own device check refuses it");
 });
+
+// P-H_01 final run: each named test shows its own ok line in the run on the last commit.

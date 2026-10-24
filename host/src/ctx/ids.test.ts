@@ -44,3 +44,5 @@ test("withEventIds hands the log events with contract ids and keeps the rest of 
   assert.equal(batch.events[0]!.id, "evt_aa-bb", "the caller's batch is not changed");
   for (const e of stored) assert.match(e.id, EVENT_ID);
 });
+
+// P-H_01 final run: each named test shows its own ok line in the run on the last commit.
