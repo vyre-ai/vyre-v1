@@ -1,5 +1,6 @@
 // A hand-built Ctx over MemoryDb with a scripted records, tasks and calendar surface and a fake captcha verifier.
 // The scripted calls record what they were asked, so a test can check what the module wrote and as which principal.
+// Calendar answers are scripted through `state`: busy blocks, hosts whose calendar is disconnected (`unknown`), the calendars a host owns, and failure switches.
 
 import type { Ctx, Decision, Principal, ResourceRef } from "../../../packages/contracts/src/ctx.ts";
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
