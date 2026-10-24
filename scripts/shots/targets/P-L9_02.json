@@ -1,0 +1,10 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_02-row-list",
+      "route": "/",
+      "proto": "files,{skin}",
+      "note": "Row list with hover and selection against the prototype Files list. The shots app route / has to mount ui/Row, VirtualList and ListSections for this to compare the real components; that gallery route is outside this packet's owned files (see the packet comment)."
+    }
+  ]
+}
