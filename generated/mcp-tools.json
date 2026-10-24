@@ -7816,7 +7816,7 @@
       "blocks": [],
       "cap": "changesets.review_externally",
       "deferred": false,
-      "description": "Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token",
+      "description": "Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token; returns a one-time review link (the token is in the link, shown once, never logged)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -36130,6 +36130,8 @@
                 "routine",
                 "campaign",
                 "deployment",
+                "connector_sync",
+                "connector_build",
                 "runbook",
                 "wait",
                 "terminal",

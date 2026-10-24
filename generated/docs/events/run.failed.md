@@ -19,7 +19,7 @@ A Run failed; it lands in the owner Needs you
 ```ts
 type Payload = {
   runId: string;
-  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "runbook" | "wait" | "terminal" | "replay" | "other";
+  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "runbook" | "wait" | "terminal" | "replay" | "other";
   step?: string;
   code: string;
   message: string;
