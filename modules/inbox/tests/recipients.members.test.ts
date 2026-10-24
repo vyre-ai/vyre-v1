@@ -201,7 +201,6 @@ test("the project record itself counts as linked, and a projects module that is 
 // ---- closing the Needs you task
 
 async function unsure(s: ReturnType<typeof setup>): Promise<{ conversationId: string; taskId: string }> {
-  s.h.contacts.set(DANA.id, { ...DANA, phones: [] });
   s.h.mail.set("eml_sam1", { id: "eml_sam1", threadId: "thr_sam", subject: "Quick question", from: "sam@fox.test", to: ["maya@vyre.test"] });
   const res = await linkMessage(s.ctx, link({ address: "sam@fox.test", id: "eml_sam1", at: NOW + 1000 }));
   assert.equal(res.linked, "unsure");
