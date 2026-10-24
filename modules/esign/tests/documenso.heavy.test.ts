@@ -125,19 +125,18 @@ test("setup: the pinned stack boots (Postgres sidecar, Documenso, a sink for mai
 });
 
 test("probe: what this Documenso answers", { skip }, async () => {
-  const get = async (p: string): Promise<string> => {
-    try {
-      const r = await fetch(`${state.base}${p}`, { signal: AbortSignal.timeout(10_000), redirect: "manual" });
-      const t = await r.text();
-      return `${p} -> ${r.status} ${r.headers.get("content-type") ?? ""} ${t.slice(0, 600).replace(/\s+/g, " ")}`;
-    } catch (e) {
-      return `${p} -> ${String(e)}`;
-    }
-  };
-  for (const p of ["/api/v1/openapi.json", "/api/openapi.json", "/api/v2/openapi.json", "/api/v1/me", "/signin", "/signup", "/api/trpc"]) say(await get(p));
+  const inApp = (cmd: string): string => dc(["exec", "-T", "documenso", "sh", "-c", cmd], { allowFail: true, timeout: 120_000 });
+  const lim = (t: string, n = 3500): string => t.slice(0, n);
+  say("app dir", lim(inApp("ls /app /app/apps 2>&1; ls /app/apps/remix 2>&1 | head -20")));
+  say("auth route files", lim(inApp("grep -rlE 'email-password' /app/apps/remix/build /app/packages 2>/dev/null | head -8")));
+  say("auth routes", lim(inApp("grep -rhoE \"['\\\"]/?(api/auth/)?(email-password|signup|authorize|verify-email)[a-zA-Z/-]{0,40}['\\\"]\" /app/apps/remix/build 2>/dev/null | sort -u | head -40")));
+  say("trpc names", lim(inApp("grep -rhoE 'apiToken[A-Za-z.]{0,40}' /app/apps/remix/build/server 2>/dev/null | sort -u | head -20")));
+  const v1 = await (await fetch(`${state.base}/api/v1/openapi.json`)).json() as { paths: Record<string, Record<string, unknown>> };
+  say("v1 paths", Object.entries(v1.paths).map(([p, m]) => `${Object.keys(m).join(",")} ${p}`).join("\n"));
+  const v2 = await (await fetch(`${state.base}/api/v2/openapi.json`)).json() as { paths: Record<string, Record<string, unknown>> };
+  say("v2 paths", Object.entries(v2.paths).map(([p, m]) => `${Object.keys(m).join(",")} ${p}`).join("\n").slice(0, 3500));
   const psql = (q: string): string => dc(["exec", "-T", "documenso-db", "psql", "-U", "documenso", "-d", "documenso", "-c", q], { allowFail: true });
-  say(psql("\\dt"));
-  for (const t of ["User", "ApiToken", "Team", "Organisation", "Webhook", "Document", "Envelope", "Recipient", "Field"]) say(psql(`\\d "${t}"`).slice(0, 2500));
+  say(lim(psql('select count(*) from "User"')));
 });
 
 test("cleanup", { skip }, () => {
