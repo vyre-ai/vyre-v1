@@ -45,7 +45,6 @@ test("a blank Space boots in under 80 ms (median of 5) and returns api, events, 
     await s.close();
   }
   console.log(`createTestSpace blank boot: ${ms.map((x) => x.toFixed(1)).join(", ")} ms, median ${median(ms).toFixed(1)} ms (budget 80)`);
-  if (process.env.CI) assert.fail(`TEMP-REPORT ${ms.map((x) => x.toFixed(1)).join(",")} median ${median(ms).toFixed(1)}`);
   assert.ok(median(ms) < 80, `median ${median(ms).toFixed(1)} ms is over the 80 ms budget`);
 });
 
