@@ -1,6 +1,6 @@
 // Access checker, policies, labels, outside actors. access.check is authorize with the plain-words trace on.
-import { authorize } from "../../kernel/src/authorize/index.ts";
-import type { Level, Req } from "../../kernel/src/authorize/index.ts";
+import { authorize } from "../../../kernel/src/authorize/index.ts";
+import type { Level, Req } from "../../../kernel/src/authorize/index.ts";
 import type { AccessCtx, ActorRec, Label, PKind, PolicyKind, PolicyRec, Ref, ResourceRef } from "../projections.ts";
 import { changed, kindFor, LABELS, nid, page, pkey, raise, storeOf } from "../projections.ts";
 import { putPrincipal, rolesAssign } from "./roles.ts";
