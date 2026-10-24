@@ -40291,7 +40291,7 @@
       "blocks": [],
       "cap": "spaces.get",
       "deferred": false,
-      "description": "The Space profile: name, legal name, logo, address, hosting, defaults, kind",
+      "description": "The Space profile (regen proof): name, legal name, logo, address, hosting, defaults, kind",
       "effects": "read",
       "inputSchema": {
         "properties": {},

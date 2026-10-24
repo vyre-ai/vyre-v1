@@ -6057,7 +6057,7 @@
     {
       "deferred": false,
       "name": "spaces_get",
-      "summary": "The Space profile: name, legal name, logo, address, hosting, defaults, kind",
+      "summary": "The Space profile (regen proof): name, legal name, logo, address, hosting, defaults, kind",
       "toolset": "meta"
     },
     {

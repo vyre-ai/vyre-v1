@@ -137727,7 +137727,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "The Space profile: name, legal name, logo, address, hosting, defaults, kind",
+      "summary": "The Space profile (regen proof): name, legal name, logo, address, hosting, defaults, kind",
       "surfaces": {
         "http": "auto",
         "mcp": {

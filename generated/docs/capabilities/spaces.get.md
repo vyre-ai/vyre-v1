@@ -1,6 +1,6 @@
 # spaces.get
 
-The Space profile: name, legal name, logo, address, hosting, defaults, kind
+The Space profile (regen proof): name, legal name, logo, address, hosting, defaults, kind
 
 | | |
 |---|---|
