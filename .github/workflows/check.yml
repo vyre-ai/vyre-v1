@@ -159,7 +159,7 @@ jobs:
           docker version --format 'docker server {{.Server.Version}}' || true
           cat /proc/sys/kernel/unprivileged_userns_clone 2>/dev/null || true
           sysctl kernel.apparmor_restrict_unprivileged_userns user.max_user_namespaces 2>/dev/null || true
-          if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --proc /proc --dev /dev true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
+          if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
       - name: Real Docker, real bwrap, real tmux
         if: steps.scope.outputs.changed == 'true'
         env:
