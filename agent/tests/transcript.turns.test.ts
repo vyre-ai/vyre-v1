@@ -97,7 +97,7 @@ test("a rolled session's first message is the seed and then the person's words: 
   assert.deepEqual(imp.turns.map((t) => t.parts[0]), [{ kind: "text", text: "Continue please" }]);
 });
 
-test("a session file of an unknown shape costs lines, never the import", () => {
+test("a session file of an unknown shape costs lines, never the whole read", () => {
   const imp = importClaudeSession(["", "{", "[]", JSON.stringify({ type: "mystery" }), JSON.stringify({ type: "assistant", message: { content: "not an array" } }), JSON.stringify({ type: "user" })], { threadId: T, personId: "p", agentId: "a" });
   assert.deepEqual([imp.turns.length, imp.bad], [0, 1]);
   assert.deepEqual(importClaudeSession("", { threadId: T, personId: "p", agentId: "a" }).turns, []);
