@@ -1,5 +1,6 @@
 // A hand-built Ctx over MemoryDb with a scripted records, contacts, mail, SMS, tasks and scheduler surface.
 // Every scripted call records what it was asked, so a test can check what the module sent and what it asked the neighbours to screen.
+// Scripted calls cover records, views, Do-not-contact, suppression, mailboxes, mail, SMS and tasks.
 // Clock: Thursday 2025-10-09 10:00:00 UTC, inside the default send window (09:00 to 17:00 UTC, Monday to Friday).
 
 import type { Ctx, Decision, Principal, ResourceRef } from "../../../packages/contracts/src/ctx.ts";
