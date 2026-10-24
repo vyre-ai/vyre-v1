@@ -4,7 +4,7 @@ Lane L4. Kind module. Status stub. Version 0.1.0.
 
 Requires: mounts.
 
-## Capabilities (61)
+## Capabilities (63)
 
 - [changesets.approve](../capabilities/changesets.approve.md): Approve and commit a changeset: 3-way merge on the recorded base, conflicts go to the reviewer; optionally push
 - [changesets.comments.add](../capabilities/changesets.comments.add.md): Add an inline comment to a changeset with @ people and agents (an @ agent answers in the thread)
@@ -35,6 +35,7 @@ Requires: mounts.
 - [files.folder.settings](../capabilities/files.folder.settings.md): Change Review changes, sensitivity label or the working-folder flags of a folder
 - [files.get](../capabilities/files.get.md): Read the metadata of one file
 - [files.health](../capabilities/files.health.md): Blob store and tree health: free space, orphaned blobs, index lag
+- [files.knowledge](../capabilities/files.knowledge.md): The Knowledge section of the tree: the knowledge folders and files the caller may read, plus the Memory and Graph entries
 - [files.lint](../capabilities/files.lint.md): Lint a guidance file: line counts against the limits, Inherits VYRE.md, Override lines, secret scan, agent.toml schema, routine prompt files, handoff names, repeated facts
 - [files.list](../capabilities/files.list.md): List files and folders in a folder or a section (Personal, Shared with me, Space)
 - [files.markup.get](../capabilities/files.markup.get.md): Read freehand markup (Draw) saved on an image or page
@@ -52,6 +53,7 @@ Requires: mounts.
 - [files.save](../capabilities/files.save.md): Save a guidance file (VYRE.md, AGENT.md, agent.toml, routine prompts): snapshot first, lint, then commit as a version
 - [files.share](../capabilities/files.share.md): Share a file with a person, group, role or agent at View, Use, Edit or Manage (folders use access.share)
 - [files.share_external](../capabilities/files.share_external.md): Make a view-only link to a file for someone outside the Space, with an expiry
+- [files.shared_with_me](../capabilities/files.shared_with_me.md): Files and folders other people shared with the caller, newest share first (the Shared with me section of the tree)
 - [files.trash.empty](../capabilities/files.trash.empty.md): Delete everything in Trash that the caller may delete
 - [files.trash.list](../capabilities/files.trash.list.md): Files and folders in Trash (30 days)
 - [files.tree](../capabilities/files.tree.md): The roots of the file tree: Agents, Projects, People, Channels, shared knowledge, Agent template, Deployments, GitHub, plus Recent, Shared with me, Trash and Knowledge
