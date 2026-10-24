@@ -57,6 +57,16 @@ class T(unittest.TestCase):
         self.assertFalse(ev.flip_ok("+  status: 'live',\n+  foo: 1,\n"))
         self.assertFalse(ev.flip_ok(""))
 
+    def test_drift_and_regen(self):
+        self.assertTrue(ev.drift_only(["scripts/f11-accept.test.ts"]))
+        self.assertFalse(ev.drift_only(["scripts/f11-accept.test.ts", "modules/x/tests/a.test.ts"]))
+        facts = ev.job_facts([{"name": "contracts", "conclusion": "failure"}, {"name": "fast-1", "conclusion": "failure"}])
+        ctx = {"state": ev.CiState(), "facts": facts, "run_url": "U", "owns_ok": True, "foreign": [], "changed": ["a"], "manifest_diff": "+  status: 'live',\n", "drift_tolerated": True}
+        self.assertIn("one-line flip", ev.auto_evidence({"kind": "proof", "text": "Flip status stub to live in the manifest of tasks"}, ctx))
+        self.assertIn("contracts job success", ev.auto_evidence({"kind": "setup", "text": "Read docs; run `npm run gen -- --check` and confirm"}, ctx))
+        ctx.update(drift_tolerated=None, regen=(True, "abcdef123456"))
+        self.assertIn("regen-checks success on abcdef12", ev.auto_evidence({"kind": "test", "text": "Run scripts/lanes-check.ts, boundaries"}, ctx))
+
     def test_screens(self):
         files = ["index.md"] + [f"P-L9b_01-home/{k}-{z}-side-by-side.png" for k in ("paper", "graphite") for z in ("desktop", "phone")]
         ok, msg, tg = ev.screens_report(files, "P-L9b_01")

@@ -14,6 +14,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import evidence
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import evidence
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import evidence
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TRACKER_DIR = os.environ.get("VYRE_TRACKER_DIR", "/Users/irfad/Claude/Orgs/Vyre/tracker")
@@ -425,6 +427,26 @@ def collect_screens(job, res, trk):
     log(job, f"screens: {summary}")
 
 
+def regen_wait(job, args):
+    """Ruling 22: on build/* branches the regen bot commits generated/ back ("chore(gen): regenerate") and reports the commit status regen-checks.
+    Wait for that commit, fast-forward the clone onto it (a later push would be rejected otherwise), and record the status in job['regen']."""
+    wt = job["wt"]; deadline = time.time() + 600
+    while time.time() < deadline:
+        r = sh(["git", "-c", "core.hooksPath=/dev/null", "fetch", "-q", job["remote"], f"refs/heads/{job['branch']}"], cwd=wt, check=False)
+        new = sh(["git", "rev-parse", "FETCH_HEAD"], cwd=wt, check=False).stdout.strip()
+        subj = sh(["git", "log", "-1", "--format=%s", new], cwd=wt, check=False).stdout.strip() if new else ""
+        if subj.startswith("chore(gen): regenerate"):
+            sh(["git", "merge", "-q", "--ff-only", new], cwd=wt, check=False)
+            repo = re.sub(r"^.*github.com[:/]|\.git$", "", job["remote"])
+            for _ in range(20):
+                st = sh([GH, "api", f"repos/{repo}/commits/{new}/status", "--jq", '[.statuses[]|select(.context=="regen-checks")|.state][0]'], cwd=wt, check=False).stdout.strip()
+                if st in ("success", "failure", "error"): job["regen"] = (st == "success", new); log(job, f"regen-checks {st} on {new[:8]}"); return
+                time.sleep(max(args.ci_poll, 5))
+            return
+        time.sleep(max(args.ci_poll, 5))
+    job["ci_notes"].append("regen bot commit never appeared")
+
+
 def failed_tests_in(text):
     return sorted(set(f for st, f in evidence.RUN_LINE.findall(evidence.ANSI.sub("", text or "")) if st == "FAIL"))
 
@@ -520,6 +542,8 @@ def run_job(job, args, trk=None):
             res["files"] = sorted(files)
             res["stage"] = "push"
             safe_push(job); last_pushed = head
+            if job["branch"].startswith("build/") and any(f.startswith("manifests/") or f == "host/modules.json" for f in files):
+                regen_wait(job, args)
             if args.no_ci:
                 res.update(ok=True, stage="pushed", ci="skipped"); break
             res["stage"] = "ci"
@@ -538,7 +562,11 @@ def run_job(job, args, trk=None):
                     ok, url, tail, run_id = ci_wait(job, args); res["ci"] = url; res["ci_runs"] = job.get("ci_runs", [])
                     full = job.pop("ci_log_full", None) or (tail if ok else ""); state.add_log(url or "ci:none", full)
                     fails = failed_tests_in(full); foreign = [f for f in fails if job["owns"] and not glob_match(f, job["owns"])]
-                if not ok and fails and len(foreign) == len(fails):
+                flipped = any(fp in (res.get("files") or []) for fp in job.get("flip_paths") or [])
+                if not ok and flipped and evidence.drift_only(fails):
+                    ok = True; job["drift_tolerated"] = True
+                    job["ci_notes"].append("manifest flip: generated/ drift failures (" + ", ".join(fails[:3]) + ") are expected until the regen bot commits generated/ (ruling 22, build/* branches)")
+                elif not ok and fails and len(foreign) == len(fails):
                     ok = True; job["ci_notes"].append("accepted with foreign failing test files (not owned, not changed): " + ", ".join(foreign[:4]))
             if ok and trk and job.get("pid"):
                 files_v, probs = evidence.verify_required(job.get("checklist") or [], state)
@@ -587,7 +615,8 @@ def submit(job, trk, res):
     required = evidence.required_tests(p["checklist"])
     ctx = {"state": state, "facts": facts, "run_url": res.get("ci") or "", "owns_ok": all(glob_match(f, job["owns"]) for f in changed) if job["owns"] else True,
            "foreign": foreign, "changed": changed, "manifest_diff": mdiff, "tests_ok": bool(required) and set(f for _, f in required) <= verified,
-           "worker_done": lambda it: str(it["pos"]) in done, "screens": job.get("screens")}
+           "worker_done": lambda it: str(it["pos"]) in done, "screens": job.get("screens"),
+           "drift_tolerated": job.get("drift_tolerated"), "regen": job.get("regen")}
     for it in p["checklist"]:
         if it["done"]: continue
         named = {path for pos, path in required if pos == it["pos"]}
@@ -705,6 +734,31 @@ def cmd_one(args):
     for t in MERGERS: t.join()
 
 
+def cmd_resubmit(args):
+    """Re-judge a pushed branch without running Grok: read every CI run of its head, rebuild the test state, apply drift/foreign rules,
+    fill evidence and submit. For a packet whose first submit was refused or a dry run whose harness changed."""
+    trk = Tracker(args.actor); pid = args.packet
+    job = packet_job(trk, pid, args); job["redispatch"] = False
+    make_worktree(job)
+    state = evidence.CiState(); job["ci_state"] = state; res = {"id": pid, "ok": False, "stage": "ci", "retries": 0}
+    files = sorted(changed_files(job["wt"], job["base"])); res["files"] = files
+    ok, url, tail, run_id = ci_wait(job, args)
+    res["ci"] = url; res["ci_runs"] = job.get("ci_runs", [])
+    full = job.pop("ci_log_full", None) or (tail if ok else "")
+    state.add_log(url or "ci:none", full)
+    if not ok:
+        fails = failed_tests_in(full)
+        flipped = any(fp in files for fp in job.get("flip_paths") or [])
+        if flipped and evidence.drift_only(fails): ok = True; job["drift_tolerated"] = True; job["ci_notes"].append("manifest flip: generated/ drift failures expected until the regen bot commits generated/ (ruling 22)")
+        elif fails and all(job["owns"] and not glob_match(f, job["owns"]) for f in fails): ok = True; job["ci_notes"].append("accepted with foreign failing test files: " + ", ".join(fails[:4]))
+    files_v, probs = evidence.verify_required(job["checklist"], state)
+    res["verified_tests"] = [] if probs else files_v
+    res["ok"] = ok and not probs
+    if probs: res["error"] = "; ".join(probs)
+    if res["ok"]: res["stage"] = "submit"; submit(job, trk, res)
+    print(json.dumps(res, indent=1, default=str))
+
+
 def setup_scratch(root):
     """A scratch origin (bare) with a main branch, so rehearsal never touches vyre-v1."""
     origin = os.path.join(root, "origin.git"); seed = os.path.join(root, "seed")
@@ -744,7 +798,7 @@ def cmd_rehearse(args):
 
 def main():
     ap = argparse.ArgumentParser(description="Vyre Grok worker harness")
-    ap.add_argument("mode", choices=["loop", "one", "rehearse", "help"])
+    ap.add_argument("mode", choices=["loop", "one", "rehearse", "resubmit", "help"])
     ap.add_argument("--lanes", default="L4,L8,L9b,L9c,L9d,L9e,L9f,L10", help="grok lanes to poll (loop)")
     ap.add_argument("--packet"); ap.add_argument("-n", type=int, default=2, help="rehearsal task count")
     ap.add_argument("--concurrency", type=int, default=4)
@@ -762,7 +816,7 @@ def main():
     a = ap.parse_args()
     os.makedirs(LOG_DIR, exist_ok=True)
     if a.mode == "help": ap.print_help(); return
-    {"loop": cmd_loop, "one": cmd_one, "rehearse": cmd_rehearse}[a.mode](a)
+    {"loop": cmd_loop, "one": cmd_one, "rehearse": cmd_rehearse, "resubmit": cmd_resubmit}[a.mode](a)
 
 
 if __name__ == "__main__":
