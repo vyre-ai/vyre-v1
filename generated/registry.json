@@ -38138,7 +38138,8 @@
           "name": "example",
           "output": {
             "actorId": "act_a1b2c3",
-            "expiresAt": 1760000000000
+            "expiresAt": 1760000000000,
+            "reviewUrl": "https://northwind.example.com/review/cs_example?token=otk_example"
           }
         }
       ],
@@ -38165,10 +38166,18 @@
             ],
             "minimum": 0,
             "type": "integer"
+          },
+          "reviewUrl": {
+            "examples": [
+              "https://northwind.example.com/review/cs_example?token=otk_example"
+            ],
+            "pattern": "^https?://",
+            "type": "string"
           }
         },
         "required": [
           "actorId",
+          "reviewUrl",
           "expiresAt"
         ],
         "type": "object"
@@ -38179,7 +38188,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token",
+      "summary": "Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token; returns a one-time review link (the token is in the link, shown once, never logged)",
       "surfaces": {
         "http": "auto",
         "mcp": {

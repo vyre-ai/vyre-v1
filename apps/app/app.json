@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Vyre",
+    "slug": "vyre",
+    "scheme": "vyre",
+    "version": "0.0.0",
+    "jsEngine": "hermes",
+    "web": { "bundler": "metro", "output": "static" },
+    "experiments": { "typedRoutes": false },
+    "plugins": ["expo-router"]
+  }
+}

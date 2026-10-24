@@ -12,7 +12,7 @@ const readOr = (f) => { try { return fs.readFileSync(f); } catch { return Buffer
 /** Key over every package.json and the lockfile, so a dependency change re-installs. */
 function depsKey(repo) {
   const h = crypto.createHash("sha256");
-  for (const f of ["package.json", "package-lock.json", "ui/package.json", "scripts/shots/app/package.json"]) h.update(f + "\0").update(readOr(path.join(repo, f)));
+  for (const f of ["package.json", "package-lock.json", "ui/package.json", "scripts/shots/app/package.json", "apps/app/package.json"]) h.update(f + "\0").update(readOr(path.join(repo, f)));
   return h.digest("hex").slice(0, 16);
 }
 
