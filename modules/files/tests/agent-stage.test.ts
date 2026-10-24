@@ -238,8 +238,20 @@ const ren = async (ctx: Ctx, fileId: string, name: string) => (await handlers["f
 const mov = async (ctx: Ctx, fileId: string, toFolderId: string, name?: string) =>
   (await handlers["files.move"](ctx, { fileId, toFolderId, ...(name ? { name } : {}) })) as Staged<{ file: { fileId: string; name: string; folderId: string; version: number } }>;
 const fileRow = (k: W["k"], id: string): Record<string, unknown> | undefined => k.db.rows("files_file").find((r) => r["id"] === id);
-/** Everything a direct write would move: the tree, the versions, the blobs, the trash. */
-const treeState = (k: W["k"]): string => JSON.stringify(["files_file", "files_file_version", "files_blob", "files_folder", "files_trash"].map((t) => k.db.rows(t)));
+/** Everything a direct write would move: the files, their versions, the blobs, the trash. */
+// files_folder is left out: the first call by a new principal makes that principal a Personal root (ensurePersonal), which is not a change to any file
+const TREE_TABLES = ["files_file", "files_file_version", "files_blob", "files_trash"];
+const treeState = (k: W["k"]): Record<string, string[]> => Object.fromEntries(TREE_TABLES.map((t) => [t, k.db.rows(t).map((r) => JSON.stringify(r))]));
+/** Fails with the table and the first row that differs, not with two long strings. */
+function sameTree(k: W["k"], before: Record<string, string[]>, why: string): void {
+  const now = treeState(k);
+  for (const t of TREE_TABLES) {
+    const a = before[t] ?? [];
+    const b = now[t] ?? [];
+    const at = a.findIndex((row, i) => row !== b[i]);
+    if (a.length !== b.length || at >= 0) assert.fail(`${why}: ${t} changed (${a.length} rows before, ${b.length} after)${at >= 0 ? `\n before ${a[at]}\n after  ${b[at]}` : ""}`);
+  }
+}
 const changesetFiles = async (ctx: Ctx, id: string) => (await handlers["changesets.get"](ctx, { changesetId: id })).files;
 const stateOf = async (ctx: Ctx, id: string) => (await handlers["changesets.get"](ctx, { changesetId: id })).changeset["state"];
 
@@ -249,7 +261,7 @@ test("an agent delete in a Review changes folder is staged: the file stays, Tras
   const out = await del(agent, plan);
   assert.equal(out.deleted, false, "not deleted yet");
   assert.match(out.changesetId ?? "", /^chg_/);
-  assert.equal(treeState(k), before, "nothing in the tree moved");
+  sameTree(k, before, "nothing in the tree moved");
   assert.equal(eventsOf(k.events, "file.deleted").length, 0);
   assert.equal(fileRow(k, plan)?.["deleted_at"] ?? null, null);
   assert.deepEqual(await changesetFiles(ctx, out.changesetId!), [{ path: "plan.txt", status: "deleted", added: 0, removed: 10, conflict: false }]);
@@ -261,7 +273,7 @@ test("an agent delete in a Review changes folder is staged: the file stays, Tras
   assert.equal(await textOf(ctx, plan), lines(10));
 
   assert.deepEqual(await handlers["changesets.discard"](ctx, { changesetId: out.changesetId! }), { discarded: true });
-  assert.equal(treeState(k), before);
+  sameTree(k, before, "the tree");
 
   const again = await del(agent, plan);
   const approved = await handlers["changesets.approve"](ctx, { changesetId: again.changesetId! });
@@ -298,7 +310,7 @@ test("an agent rename is staged and applied on Approve; renaming again edits the
   const r = await ren(agent, plan, "plan-v2.txt");
   assert.equal(r.file.name, "plan.txt", "the file still has its name");
   assert.match(r.changesetId ?? "", /^chg_/);
-  assert.equal(treeState(k), before);
+  sameTree(k, before, "the tree");
   assert.equal(eventsOf(k.events, "file.renamed").length, 0);
   assert.deepEqual(await changesetFiles(ctx, r.changesetId!), [{ path: "plan.txt", status: "renamed", added: 0, removed: 0, conflict: false }]);
 
@@ -311,7 +323,7 @@ test("an agent rename is staged and applied on Approve; renaming again edits the
   const back = await ren(agent, plan, "plan.txt");
   assert.equal(back.changesetId, r.changesetId);
   assert.equal(await stateOf(ctx, r.changesetId!), "discarded");
-  assert.equal(treeState(k), before);
+  sameTree(k, before, "the tree");
   const noop = await ren(agent, plan, "plan.txt");
   assert.equal(noop.changesetId, undefined, "already named so: no changeset");
   assert.equal(k.db.rows("files_changeset").length, 1);
@@ -336,7 +348,7 @@ test("rename: a bad name, a taken name (file or folder) and a file already delet
   await expectCode("validation.duplicate", () => ren(agent, plan, "notes.txt"));
   await expectCode("validation.duplicate", () => ren(agent, plan, "sub"));
   assert.equal(k.db.rows("files_changeset").length, rows, "a refused rename opens no changeset");
-  assert.equal(treeState(k), before);
+  sameTree(k, before, "the tree");
   const d = await del(agent, notes);
   await expectCode("validation.precondition_failed", () => ren(agent, notes, "gone.txt"));
   await expectCode("validation.precondition_failed", () => mov(agent, notes, docs, "gone.txt"));
@@ -367,7 +379,7 @@ test("an agent move is staged: the file keeps its folder, Approve moves it and g
   const m = await mov(agent, plan, sub);
   assert.equal(m.file.folderId, docs);
   assert.match(m.changesetId ?? "", /^chg_/);
-  assert.equal(treeState(k), before);
+  sameTree(k, before, "the tree");
   assert.equal(eventsOf(k.events, "file.moved").length, 0);
   assert.deepEqual(await changesetFiles(ctx, m.changesetId!), [{ path: "plan.txt", status: "renamed", added: 0, removed: 0, conflict: false }]);
   // a rename after a move keeps the destination
@@ -473,7 +485,7 @@ test("an agent save in a Review changes folder is staged after the lint passes: 
   assert.equal(out.versionId, k.db.rows("files_file_version").find((v) => v["file_id"] === plan && v["n"] === 1)?.["id"], "the version it would replace");
   assert.deepEqual(out.lint, OK_LINT);
   assert.equal(h.direct.length, 0, "the plain save never ran");
-  assert.equal(treeState(k), before);
+  sameTree(k, before, "the tree");
   assert.equal(await versionsOf(ctx, plan), 1);
   assert.deepEqual(eventsOf(k.events, "changeset.opened"), [{ changesetId: out.changesetId, folderId: docs, by: "agt_intake", fileCount: 1, threadId: "thr_1" }]);
   assert.deepEqual(await changesetFiles(ctx, out.changesetId!), [{ path: "plan.txt", status: "modified", added: 2, removed: 2, conflict: false }]);
@@ -502,7 +514,7 @@ test("save: a lint error, an unaccepted warning, a non-guidance file and a stale
     await expectCode(code, () => save(h, h.agent, { fileId: h.plan, text: "x", ...input }));
     assert.equal(h.k.db.rows("files_changeset").length, 0, "no changeset opened");
     assert.equal(h.k.db.rows("files_changeset_file").length, 0);
-    assert.equal(treeState(h.k), before);
+    sameTree(h.k, before, "the tree");
     assert.equal(h.direct.length, 0, "and never written directly");
   }
   const h = await saveSetup(warn)();
@@ -533,7 +545,7 @@ test("withAgentStaging wraps only what the map has", () => {
 
 // ---- the rule itself ----
 
-test("an agent changes no file, version, blob, folder or Trash row by any of write, create, save, delete, rename or move in a Review changes folder", async () => {
+test("an agent changes no file, version, blob or Trash row by any of write, create, save, delete, rename or move in a Review changes folder", async () => {
   const h = await saveSetup()();
   const { k, ctx, agent, docs, sub, plan, notes } = h;
   const before = treeState(k);
@@ -548,7 +560,7 @@ test("an agent changes no file, version, blob, folder or Trash row by any of wri
   ];
   for (const [name, run] of steps) {
     await run();
-    assert.equal(treeState(k), before, `${name} left the tree as it was`);
+    sameTree(k, before, `${name} left the tree as it was`);
   }
   assert.equal(h.direct.length, 0);
   assert.deepEqual(k.events.slice(eventsBefore).filter((e) => e.name.startsWith("file.")), [], "no file event: nothing happened to a file");
@@ -558,7 +570,7 @@ test("an agent changes no file, version, blob, folder or Trash row by any of wri
   const only = open.changesets[0]!["changesetId"] as string;
   assert.deepEqual((await changesetFiles(ctx, only)).map((f) => f.status).sort(), ["added", "deleted", "renamed"]);
   await handlers["changesets.discard"](ctx, { changesetId: only });
-  assert.equal(treeState(k), before);
+  sameTree(k, before, "the tree");
   assert.equal(k.db.rows("files_changeset_file").length, 0);
 });
 
