@@ -4146,6 +4146,7 @@ export type ChangesetsReviewExternallyIn = {
 };
 export type ChangesetsReviewExternallyOut = {
   actorId: string;
+  reviewUrl: string;
   expiresAt: number;
 };
 export type ChannelsAgentWatchSetIn = {
@@ -21626,6 +21627,8 @@ export type TasksCreateIn = {
       label: string;
       note?: "required" | "optional";
     }>;
+  decisionId?: string;
+  payloadHash?: string;
   idempotencyKey: string;
 };
 export type TasksCreateOut = {

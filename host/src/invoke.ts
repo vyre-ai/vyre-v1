@@ -130,6 +130,13 @@ export function createRateLimiter(): NonNullable<InvokeDeps["rate"]> {
   };
 }
 
+const PRINCIPAL_PREFIX: Record<string, Ctx["principal"]["kind"]> = { usr: "person", agt: "agent", svc: "service", act: "actor" };
+/** A principal from its id (usr_, agt_, svc_, act_), for the Gate's resume path; null when the id is none of those. */
+function principalFromId(id: string): PrincipalSeed | null {
+  const kind = PRINCIPAL_PREFIX[id.slice(0, 3)];
+  return kind && id[3] === "_" && id.length > 4 ? { kind, id } : null;
+}
+
 export type Invoke = (cap: string, input: unknown, seed: CtxSeed) => Promise<InvokeResult>;
 
 export function createInvoke(deps: InvokeDeps): Invoke {
@@ -283,13 +290,16 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       },
       async call<C extends CapName>(name: C, callInput: unknown, opts?: CallOpts): Promise<unknown> {
         const cleared = c.gate && c.gate.act !== "none" ? [...(seed.clearedActs ?? []), c.gate.act] : seed.clearedActs;
-        // the Gate's resume path: only gate.release may re-invoke a parked call as its original caller, with the approval token the Gate hook then checks against the payload
-        const resume = c.name === "gate.release" && opts?.approval !== undefined ? opts : undefined;
-        const as = resume?.as;
-        const base: CtxSeed = as
-          ? { ...seed, principal: as.principal, actingFor: as.actingFor, run: as.run, thread: as.thread }
-          : seed;
-        const r = await invoke(name, callInput, { ...base, depth: depth + 1, trace, approval: resume?.approval, v: undefined, clearedActs: resume ? undefined : cleared });
+        // the Gate's resume path (contract change 5): only gate.release may re-invoke a parked call as its original caller, with the approval token the Gate hook then checks against the
+        // payload. The caller is named by id; an agent resumes acting for the person who approved, whose own rights bound what it may do.
+        const resume = c.name === "gate.release" && opts?.approvalToken !== undefined ? opts : undefined;
+        let base: CtxSeed = seed;
+        if (resume?.onBehalfOf) {
+          const original = principalFromId(resume.onBehalfOf);
+          if (!original) throw fail("validation.bad_input", trace.traceId, { details: { errors: ["onBehalfOf: not a principal id"], cap: c.name } });
+          base = { ...seed, principal: original, actingFor: original.kind === "agent" && seed.principal.kind === "person" ? seed.principal.id : undefined, run: undefined, thread: undefined };
+        }
+        const r = await invoke(name, callInput, { ...base, depth: depth + 1, trace, approval: resume?.approvalToken, v: undefined, clearedActs: resume ? undefined : cleared });
         if (r.status === "held") throw fail("permission.needs_approval", trace.traceId, { details: { taskId: r.taskId, cap: name } });
         return r.output;
       },

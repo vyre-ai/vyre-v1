@@ -62,6 +62,8 @@ type In = {
       label: string;
       note?: "required" | "optional";
     }>;
+  decisionId?: string;
+  payloadHash?: string;
   idempotencyKey: string;
 };
 ```
@@ -159,6 +161,7 @@ type Out = {
         "v": 1
       }
     ],
+    "decisionId": "example",
     "dependsOn": [
       "tsk_a1b2c3"
     ],
@@ -171,6 +174,7 @@ type Out = {
     "idempotencyKey": "idem_1",
     "kind": "work",
     "parentTaskId": "tsk_a1b2c3",
+    "payloadHash": "example",
     "recordId": "rec_a1b2c3",
     "reviewer": {
       "id": "usr_a1b2c3",

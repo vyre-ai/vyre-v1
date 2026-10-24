@@ -8,15 +8,10 @@ export interface Decision { effect: 'allow' | 'deny' | 'hold'; reason: string; d
 export interface ScopedDb { all(sql: string, ...args: unknown[]): unknown[]; run(sql: string, ...args: unknown[]): { changes: number } }
 export interface EmitOpts { idempotencyKey?: string; vis?: EventEnvelope['vis']; cause?: string }
 /**
- * `approval` and `as` are the Gate's resume path (contract change 5): only gate.release may use them. The host re-invokes the parked call as its original caller (`as`) with the sealed approval
- * token, which the Gate hook accepts for exactly the payload it was minted for. From any other capability both are ignored.
+ * approvalToken: the Gate's token for a held act; the host lets the call through the hold it names, once (gate.release resume path).
+ * onBehalfOf: the principal id of the original caller; the host runs the call as that principal, only for a call carrying a valid approvalToken.
  */
-export interface CallOpts {
-  idempotencyKey?: string;
-  traceId?: string;
-  approval?: string;
-  as?: { principal: Principal; actingFor?: string | undefined; run?: string | undefined; thread?: string | undefined };
-}
+export interface CallOpts { idempotencyKey?: string; traceId?: string; approvalToken?: string; onBehalfOf?: string }
 export interface Logger { debug(msg: string, attrs?: Record<string, unknown>): void; info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void; error(msg: string, attrs?: Record<string, unknown>): void }
 export interface Sealed { keyId: string; nonce: string; bytes: string }
 

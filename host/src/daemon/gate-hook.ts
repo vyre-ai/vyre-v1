@@ -4,9 +4,10 @@
 //            is a human-too kind). An answer that cannot be had stops the call: a send never goes out because the Gate was unreachable.
 //   park     gate.park stores the exact call (with the payload hash below) and opens the Approve task; the hold's task id goes back to the caller.
 //   verify   the sealed approval token tasks.act minted must carry the hash of exactly this call, for this caller, and not be past its expiry. gate.release then re-invokes the parked
-//            call as its original caller with that token (CallOpts.approval and .as, honoured by the pipeline for gate.release alone).
+//            call as its original caller with that token (CallOpts.approvalToken and .onBehalfOf, honoured by the pipeline for gate.release alone).
 // The daemon wraps this hook with withGateNesting, so one approval covers one send and not its provider call.
-import { createHash } from "node:crypto";
+import { canonical, sha256b64 } from "../../../kernel/src/seal/index.ts";
+import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 import { fail } from "../routes/errors.ts";
 import type { CtxSeed, GateHook } from "../invoke.ts";
 import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
@@ -19,26 +20,31 @@ export interface GateHookDeps {
   now(): number;
 }
 
-/** JSON with the keys of every object in order, so the same call always hashes the same. */
-function canonical(v: unknown): string {
-  if (v === null || typeof v !== "object") return JSON.stringify(v) ?? "null";
-  if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
-  const o = v as Record<string, unknown>;
-  return `{${Object.keys(o).filter((k) => o[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${canonical(o[k])}`).join(",")}}`;
-}
-
-/** What an approval is bound to: this capability and version, this input, the caller and whom it acts for. gate.park stores it; the token carries it; verify recomputes it. */
-export function payloadHash(cap: Pick<CapabilityDef, "name" | "v">, input: unknown, seed: Pick<CtxSeed, "principal" | "actingFor">): string {
-  return createHash("sha256").update(canonical({ cap: cap.name, v: cap.v, input, principal: { kind: seed.principal.kind, id: seed.principal.id }, actingFor: seed.actingFor ?? null })).digest("hex");
+/** What an approval is bound to: this capability and version, this input and the caller (who the caller acts for is not part of it: a resumed agent acts for the person who approved). gate.park stores it; the token carries it; verify recomputes it. */
+export function payloadHash(cap: Pick<CapabilityDef, "name" | "v">, input: unknown, seed: Pick<CtxSeed, "principal">): string {
+  return sha256b64(canonical({ cap: cap.name, v: cap.v, input, principal: { kind: seed.principal.kind, id: seed.principal.id } }));
 }
 
 const unb64url = (s: string): string => Buffer.from(s, "base64url").toString("utf8");
 
+/**
+ * The capability's own `when` (spec 2.14): the Gate asks only when the expression holds for this call, over `actor` (who calls) and `input`. No `when` means always. An expression the
+ * evaluator cannot read or run counts as holding: a send is asked about, never let through because a condition was unreadable.
+ */
+export function whenHolds(when: string | undefined, input: unknown, seed: Pick<CtxSeed, "principal">): boolean {
+  if (when === undefined) return true;
+  try {
+    const v: unknown = evalExpr(parseExpr(when), { values: { actor: { kind: seed.principal.kind, id: seed.principal.id }, input: input ?? {} } });
+    return v === null || v === undefined ? true : Boolean(v);
+  } catch { return true; }
+}
+
 export function createGateHook(d: GateHookDeps): GateHook {
   return {
-    async applies(cap, _input, seed) {
+    async applies(cap, input, seed) {
       const act = cap.gate?.act;
       if (!act || act === "none") return null;
+      if (!whenHolds(cap.gate?.when, input, seed)) return null;
       const r = (await d.call("gate.effective_rule", { principal: { kind: seed.principal.kind, id: seed.principal.id }, act })) as { hold?: unknown } | null;
       return r?.hold === true ? { act } : null;
     },

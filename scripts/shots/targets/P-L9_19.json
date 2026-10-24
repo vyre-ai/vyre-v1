@@ -1,0 +1,10 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_19-place-route",
+      "route": "/m/P-L9_19",
+      "proto": "home,{skin}",
+      "note": "The app's place route before a place registers its screen. Real places replace it behind the same route."
+    }
+  ]
+}

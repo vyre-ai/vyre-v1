@@ -19517,8 +19517,10 @@ const b1156: string[] = []; lf(x1156, p, b1156, L0); if (b1156.length) e.push(..
 if (g1156 === "object") {
 if (g1156 === 'object') { const o1156 = x1156 as Record<string, unknown>;
 if (!("actorId" in o1156)) e.push(p + "/actorId" + ': required');
+if (!("reviewUrl" in o1156)) e.push(p + "/reviewUrl" + ': required');
 if (!("expiresAt" in o1156)) e.push(p + "/expiresAt" + ': required');
 if ("actorId" in o1156) lf(o1156["actorId"], p + "/actorId", e, L52);
+if ("reviewUrl" in o1156) lf(o1156["reviewUrl"], p + "/reviewUrl", e, L146);
 if ("expiresAt" in o1156) lf(o1156["expiresAt"], p + "/expiresAt", e, L16);
 }
 }
@@ -59705,6 +59707,8 @@ lf(a3827[i3827], p + "/dependsOn" + '/' + i3827, e, L20);
 }
 if ("expiresAt" in o3825) lf(o3825["expiresAt"], p + "/expiresAt", e, L16);
 if ("actions" in o3825) d_s_a8e0a730ee(o3825["actions"], p + "/actions", e);
+if ("decisionId" in o3825) lf(o3825["decisionId"], p + "/decisionId", e, L2);
+if ("payloadHash" in o3825) lf(o3825["payloadHash"], p + "/payloadHash", e, L2);
 if ("idempotencyKey" in o3825) lf(o3825["idempotencyKey"], p + "/idempotencyKey", e, L40);
 }
 }

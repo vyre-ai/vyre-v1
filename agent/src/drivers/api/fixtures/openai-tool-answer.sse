@@ -1,0 +1,10 @@
+data: {"id":"chatcmpl-9c","object":"chat.completion.chunk","created":1,"model":"gpt-5","choices":[{"index":0,"delta":{"role":"assistant","content":"Found "},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-9c","object":"chat.completion.chunk","created":1,"model":"gpt-5","choices":[{"index":0,"delta":{"content":"3 leads."},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-9c","object":"chat.completion.chunk","created":1,"model":"gpt-5","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":null}
+
+data: {"id":"chatcmpl-9c","object":"chat.completion.chunk","created":1,"model":"gpt-5","choices":[],"usage":{"prompt_tokens":1050,"completion_tokens":6,"total_tokens":1056,"prompt_tokens_details":{"cached_tokens":1000}}}
+
+data: [DONE]
+

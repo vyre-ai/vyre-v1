@@ -16,6 +16,8 @@ import { createCtxSeal } from "../src/ctx/seal.ts";
 import type { FetchLike } from "../src/ctx/http.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
+import { createGateHook, whenHolds } from "../src/daemon/gate-hook.ts";
+import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
@@ -166,6 +168,39 @@ test("daemon.gate: an approval minted for another payload releases nothing", asy
     assert.equal(net.emails.length, 0, "nothing was sent");
     assert.equal(holds(d)[0]!.state, "held");
   } finally { await d.stop(); }
+});
+
+// ---- the capability's `when`
+
+const AGT = { principal: { kind: "agent" as const, id: AGENT } };
+const PER = { principal: { kind: "person" as const, id: OLIVIA } };
+
+test("daemon.gate when: the expression is read over the caller and the input, and an unreadable one counts as holding", () => {
+  assert.equal(whenHolds(undefined, {}, AGT), true, "no when: always");
+  assert.equal(whenHolds("actor.kind != 'person'", {}, AGT), true);
+  assert.equal(whenHolds("actor.kind != 'person'", {}, PER), false);
+  assert.equal(whenHolds("input.method != 'GET'", { method: "GET" }, AGT), false);
+  assert.equal(whenHolds("input.method != 'GET'", { method: "POST" }, AGT), true);
+  assert.equal(whenHolds("input.push == true", { push: false }, AGT), false);
+  assert.equal(whenHolds("true", {}, PER), true);
+  assert.equal(whenHolds("git.is_protected(input.branch)", { branch: "main" }, AGT), true, "an expression the evaluator cannot run asks");
+  assert.equal(whenHolds("((", {}, AGT), true, "a broken expression asks");
+});
+
+test("daemon.gate when: the Gate is asked only when the capability's when holds for this call", async () => {
+  const asked: unknown[] = [];
+  const hook = createGateHook({ call: async (cap, input) => { asked.push([cap, input]); return { hold: true }; }, unseal: () => new Uint8Array(), now: () => 0 });
+  const cap = (gate: CapabilityDef["gate"]) => ({ name: "example.act", v: 1, gate }) as unknown as CapabilityDef;
+  const seed = (p: typeof AGT | typeof PER) => ({ space: CORE_SPACE, ...p });
+  assert.equal(await hook.applies(cap({ act: "delete", when: "input.method != 'GET'" }), { method: "GET" }, seed(AGT)), null, "when is false: not asked, not held");
+  assert.deepEqual(asked, []);
+  assert.deepEqual(await hook.applies(cap({ act: "delete", when: "input.method != 'GET'" }), { method: "POST" }, seed(AGT)), { act: "delete" });
+  assert.equal(asked.length, 1);
+  assert.deepEqual(await hook.applies(cap({ act: "send" }), {}, seed(AGT)), { act: "send" }, "no when: the rule decides");
+  assert.equal(await hook.applies(cap({ act: "none" }), {}, seed(AGT)), null, "act none never asks");
+  assert.equal(await hook.applies(cap(undefined), {}, seed(AGT)), null);
+  const calm = createGateHook({ call: async () => ({ hold: false }), unseal: () => new Uint8Array(), now: () => 0 });
+  assert.equal(await calm.applies(cap({ act: "send" }), {}, seed(PER)), null, "the rule says no: not held");
 });
 
 // P-H_04 final run: each named test above shows its own ok line in the run on the last commit.
