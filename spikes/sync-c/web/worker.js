@@ -9,6 +9,8 @@ try {
   // Which VFS can carry a key? Record every candidate, then use the first that works.
   out.capi_mc = Object.keys(sqlite3.capi).filter((k) => /mc|multiple|cipher/i.test(k)).slice(0, 20);
   await sqlite3.installOpfsSAHPoolVfs({ name: "vyre-spike", clearOnInit: true });
+  out.mc_create = {};
+  for (const n of ["opfs", "vyre-spike"]) { try { out.mc_create[n] = sqlite3.capi.sqlite3mc_vfs_create(n, 0); } catch (e) { out.mc_create[n] = String(e.message).slice(0, 80); } }
   out.vfs_found = {};
   for (const n of ["opfs", "vyre-spike", "multipleciphers-opfs", "multipleciphers-vyre-spike"]) out.vfs_found[n] = !!sqlite3.capi.sqlite3_vfs_find(n);
   const tryVfs = (vfs) => { try { const d = new sqlite3.oo1.DB({ filename: "file:/probe-" + vfs + ".db?vfs=" + vfs, flags: "c" }); d.exec("PRAGMA cipher='chacha20'; PRAGMA key='k'; CREATE TABLE t(a); INSERT INTO t VALUES(1)"); d.close(); return "key ok"; } catch (e) { return String(e.message).slice(0, 100); } };
