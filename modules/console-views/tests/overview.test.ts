@@ -2,7 +2,7 @@
 // contract tests for attention: attention items = failing checks + expired certs + failed runs + stuck updates.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handlers } from "../handlers/index.ts";
+import { handlers } from "../impl.ts";
 import { DAY, NOW, certOk, healthy, quiet, world } from "../fixtures/db.ts";
 
 const bad = {

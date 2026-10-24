@@ -5,7 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { handlers } from "../handlers/index.ts";
+import { handlers } from "../impl.ts";
 import { loadBudgets, percentile, rollUp, setBudgetsProvider } from "../projections.ts";
 import type { Budget } from "../projections.ts";
 import { NOW, world } from "../fixtures/db.ts";
