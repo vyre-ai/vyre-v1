@@ -1,4 +1,6 @@
 // Sink: structured rows, no sealed or Restricted values, retention, logs.db writes.
+// @reads /modules/logs/fixtures/lines.jsonl
+// @reads /modules/logs/migrations/0001_init.sql
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -107,6 +109,10 @@ test("structured JSON lines batch into logs.db and a fixture line keeps its fiel
   const book = createBook({ space: "spc_line", now: () => 1, batchMs: 0 });
   assert.equal(book.acceptLine(line), true);
   assert.equal(book.acceptLine("not-json"), false);
+  const sql = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../migrations/0001_init.sql"), "utf8");
+  for (const table of ["logs_row", "logs_span", "logs_event", "logs_tombstone", "logs_aggregate", "logs_hold"]) {
+    assert.equal(sql.includes("CREATE TABLE IF NOT EXISTS " + table), true, table);
+  }
   const row = book.rawRows()[0];
   if (!row) throw new Error("missing fixture row");
   assert.equal(row.traceId, TRACE);
