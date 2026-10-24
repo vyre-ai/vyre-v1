@@ -1,4 +1,4 @@
-// sites domains: the DNS check and the Caddy certificate state (spec 2.20, Site Settings > Domains).
+// sites domains: the DNS check, the Caddy certificate state and production routing of domains (spec 2.20, Site Settings > Domains).
 // @reads /modules/sites/migrations/0001_sites_core.sql
 
 import test from "node:test";
