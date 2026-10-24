@@ -14,6 +14,10 @@ const code = (c: string) => (e: unknown) => {
   assert.equal((e as { code?: string }).code, c);
   return true;
 };
+const vcode = (c: string) => (e: unknown) => {
+  assert.equal((e as { error?: { code?: string } }).error?.code, c);
+  return true;
+};
 const hlc = (ms: number, deviceId: string) => formatHlc({ ms, counter: 0, deviceId });
 const ctx = { trace: { traceId: "0123456789abcdef0123456789abcdef" }, emit: (_n: string, _s: string, _p: Record<string, unknown>) => {} };
 
@@ -83,7 +87,7 @@ test("API callers get version_conflict and a stale write changes nothing", async
   const updated = await rec.handlers["records.update"](ctx, { type: "item", recordId: id, patch: { qty: 2 }, baseVersion: 1 });
   assert.equal(updated.record.version, 2);
   assert.equal(updated.record.fields.qty, 2);
-  await assert.rejects(() => rec.handlers["records.update"](ctx, { type: "item", recordId: id, patch: { qty: 3 }, baseVersion: 1 }), code("version_conflict"));
+  await assert.rejects(() => rec.handlers["records.update"](ctx, { type: "item", recordId: id, patch: { qty: 3 }, baseVersion: 1 }), vcode("validation.version_conflict"));
   assert.equal((await rec.store.get("item", id))?.data.qty, 2);
   assert.equal((await rec.store.get("item", id))?.version, 2);
   const again = await rec.handlers["records.create"](ctx, { type: "item", fields: { name: "other" }, idempotencyKey: "k1" });
@@ -104,7 +108,7 @@ test("delete and restore bump the version; a protected type and a hold cannot be
 
   const ledger = await rec.store.create("ledger", mintUuid(), { name: "L" });
   await assert.rejects(() => rec.store.remove("ledger", ledger.id, 1), code("invalid"));
-  await assert.rejects(() => rec.handlers["records.delete"](ctx, { type: "ledger", recordId: ledger.id }), code("invalid"));
+  await assert.rejects(() => rec.handlers["records.delete"](ctx, { type: "ledger", recordId: ledger.id }), vcode("validation.field_locked"));
   assert.equal((await rec.store.get("ledger", ledger.id))?.data.name, "L");
   await assert.rejects(() => rec.store.define({ remove_types: ["ledger"] }), code("invalid"));
   assert.equal((await rec.store.types()).some((t) => t.name === "ledger"), true);
@@ -112,5 +116,6 @@ test("delete and restore bump the version; a protected type and a hold cannot be
   const held = await rec.store.create("item", mintUuid(), { name: "H" });
   rec.host.tx.run("UPDATE records_row_meta SET holds = 1 WHERE type = ? AND id = ?", "item", held.id);
   await assert.rejects(() => rec.store.remove("item", held.id, 1), code("invalid"));
+  await assert.rejects(() => rec.handlers["records.delete"](ctx, { type: "item", recordId: held.id }), vcode("permission.on_hold"));
   assert.equal((await rec.store.get("item", held.id))?.version, 1);
 });

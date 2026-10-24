@@ -9,7 +9,7 @@ import { isSealedRef } from "../../kernel/src/store/values.ts";
 import { StoreError } from "../../kernel/src/store/types.ts";
 import type { FieldDef, Store, StoredRecord, TypeDef } from "../../kernel/src/store/types.ts";
 import type { ProjectionHost } from "../../kernel/src/store/projection.ts";
-import { createRecordsHandlers } from "./handlers/index.ts";
+import { createRecordsHandlers, RecordsError } from "./handlers/index.ts";
 import type { WriteHandlers } from "./handlers/index.ts";
 import { fieldMetaTable, historyText, recordsFieldMeta } from "./projections.ts";
 
@@ -94,7 +94,7 @@ function assertWriteOnce(def: TypeDef, current: Record<string, unknown>, patch: 
     const f = def.fields.find((x) => x.name === key);
     if (f?.["write_once"] !== true) continue;
     const had = Object.prototype.hasOwnProperty.call(current, key) && current[key] !== undefined && current[key] !== null;
-    if (had && !same(current[key], value)) throw new StoreError("invalid", `${key} is write-once`);
+    if (had && !same(current[key], value)) throw new RecordsError("write_once", `${key} is write-once`);
   }
 }
 
@@ -125,7 +125,7 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
       const have = await allTypes();
       for (const name of diff.remove_types ?? []) {
         const t = have.find((x) => x.name === name);
-        if (t?.["protected"] === true) throw new StoreError("invalid", `type ${name} is protected and cannot be dropped`);
+        if (t?.["protected"] === true) throw new RecordsError("protected", `type ${name} is protected and cannot be dropped`);
       }
       try { return await inner.define(diff); } finally { typeCache = null; }
     },
@@ -142,9 +142,9 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
     },
     async remove(type, id, base) {
       const def = (await allTypes()).find((t) => t.name === type);
-      if (def?.["protected"] === true) throw new StoreError("invalid", `type ${type} is protected: its records cannot be deleted`);
+      if (def?.["protected"] === true) throw new RecordsError("protected", `type ${type} is protected: its records cannot be deleted`);
       const meta = host.tx.get<{ holds: number }>("SELECT holds FROM records_row_meta WHERE type = ? AND id = ?", type, id);
-      if ((meta?.holds ?? 0) > 0) throw new StoreError("invalid", `record ${id} is on hold`);
+      if ((meta?.holds ?? 0) > 0) throw new RecordsError("on_hold", `record ${id} is on hold`);
       return inner.remove(type, id, base);
     },
   };
@@ -249,3 +249,5 @@ export const handlers: WriteHandlers = {
   "records.delete": (ctx, input) => live().handlers["records.delete"](ctx, input),
   "records.restore": (ctx, input) => live().handlers["records.restore"](ctx, input),
 };
+
+export { RecordsError } from "./handlers/index.ts";

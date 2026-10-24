@@ -1,3 +1,3 @@
-// Write capabilities for this packet. Later records packets add their own handlers beside these.
-export { createWriteHandlers, toRow } from "./write.ts";
-export type { RecordRow, WriteCtx, WriteDeps, WriteHandlers } from "./write.ts";
+// Record write handlers. Later packets add the read, history, merge and hold handlers.
+export { createWriteHandlers as createRecordsHandlers, RecordsError, mapError } from "./write.ts";
+export type { RecordRow, WriteCtx, WriteDeps, WriteHandlers, RecordsReason } from "./write.ts";
