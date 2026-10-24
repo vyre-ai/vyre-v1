@@ -20,6 +20,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "forms.link_revoke": async (ctx) => { throw new VyreErr(notImplemented("forms.link_revoke", ctx.trace)); },
   "forms.list": async (ctx) => { throw new VyreErr(notImplemented("forms.list", ctx.trace)); },
   "forms.publish": async (ctx) => { throw new VyreErr(notImplemented("forms.publish", ctx.trace)); },
+  "forms.save_partial": async (ctx) => { throw new VyreErr(notImplemented("forms.save_partial", ctx.trace)); },
   "forms.submissions": async (ctx) => { throw new VyreErr(notImplemented("forms.submissions", ctx.trace)); },
   "forms.submit": async (ctx) => { throw new VyreErr(notImplemented("forms.submit", ctx.trace)); },
   "forms.survey_results": async (ctx) => { throw new VyreErr(notImplemented("forms.survey_results", ctx.trace)); },

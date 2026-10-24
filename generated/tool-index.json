@@ -62,6 +62,18 @@
     },
     {
       "deferred": false,
+      "name": "access_groups_defaults_get",
+      "summary": "Default grants of the built-in Everyone group (every member holds them; Kits ship the first set and invites add new people to the group)",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "access_groups_defaults_set",
+      "summary": "Replace the default grants of the Everyone group; the sheet shows who gains what, then applies",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "access_groups_delete",
       "summary": "Delete a group; grants given to it go with it",
       "toolset": "engineer"
@@ -284,6 +296,12 @@
     },
     {
       "deferred": false,
+      "name": "agents_builtin_skills_list",
+      "summary": "Skills every agent carries, led by \"Working in Vyre\": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "agents_config_get",
       "summary": "Parsed agent.toml and AGENT.md metadata as the next run will see them, with the last good version and any error",
       "toolset": "agents"
@@ -310,6 +328,12 @@
       "deferred": false,
       "name": "agents_get",
       "summary": "Read one agent: record, status, limits and the effective configuration",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "agents_guide_get",
+      "summary": "The Vyre agent guide (.vyre/guide.md): version and text, rewritten by app updates, loaded into every chat before VYRE.md",
       "toolset": "agents"
     },
     {
@@ -1066,6 +1090,24 @@
       "deferred": false,
       "name": "channels_members_remove",
       "summary": "Remove a person from a channel",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "channels_stream",
+      "summary": "The channel as a timeline: messages and Run items in order; repeated runs of one flow collapse into one row (\"ran 6 times today\"); counts feed the People, Agents and Runs menu",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "channels_stream_prefs_get",
+      "summary": "My People, Agents and Runs choice for one channel",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "channels_stream_prefs_set",
+      "summary": "Hide or show People, Agents or Runs in one channel for myself (Hide Runs in This Channel); the header says what is hidden",
       "toolset": "chats"
     },
     {
@@ -2008,6 +2050,24 @@
       "deferred": false,
       "name": "email_builder_send_test",
       "summary": "Send a test email to the author",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "email_builder_snippets_delete",
+      "summary": "Delete a composer snippet",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "email_builder_snippets_list",
+      "summary": "List composer snippets: short reusable text for Inbox email and text replies, mine and shared with the Space",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "email_builder_snippets_save",
+      "summary": "Create or change a composer snippet",
       "toolset": "inbox"
     },
     {
@@ -5090,6 +5150,12 @@
     },
     {
       "deferred": false,
+      "name": "records_completeness",
+      "summary": "Completeness of one record (for example 8 of 11) with the missing fields; Ask for these turns the list into a short-lived form",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "records_create",
       "summary": "Create a record",
       "toolset": "records"
@@ -5108,6 +5174,12 @@
     },
     {
       "deferred": false,
+      "name": "records_gap_check",
+      "summary": "Run the gap-check rules of a type over one record or all of them: finds missing or stale fields and names the fill route (AI field, agent lookup, teammate task or collection form)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "records_get",
       "summary": "Read one record by id",
       "toolset": "records"
@@ -5120,8 +5192,26 @@
     },
     {
       "deferred": false,
+      "name": "records_hold",
+      "summary": "Place a hold on a record",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "records_merge",
       "summary": "Merge records into a survivor with a value picked per field (undoable for 30 days)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_page_prefs_get",
+      "summary": "My choices on the record page of a type: sections I folded and fields I keep visible",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_page_prefs_set",
+      "summary": "Fold sections and keep fields visible for myself; a personal display choice, not a Star",
       "toolset": "records"
     },
     {
@@ -5134,6 +5224,18 @@
       "deferred": false,
       "name": "records_relate",
       "summary": "Link two records through a relation field",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_relations_map",
+      "summary": "Relationship map of a record: linked records out to two hops, each edge named by its relation field, limited to what the caller may see",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_release_hold",
+      "summary": "Release a hold on a record",
       "toolset": "records"
     },
     {
@@ -5158,6 +5260,24 @@
       "deferred": false,
       "name": "records_update",
       "summary": "Update fields of a record (per-field merge for sync, base version for API callers)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_value_source",
+      "summary": "Source popover of one value: who or what filled it, from where, when, and whether it counts yet",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_values_pending",
+      "summary": "Needs review: agent-filled values waiting for a reviewer, each with its source and time (counts into My work for the field reviewer role)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_values_review",
+      "summary": "Accept or reject an agent-filled value; an accepted value counts, a rejected one is dropped and stays in history",
       "toolset": "records"
     },
     {
@@ -5390,8 +5510,32 @@
     },
     {
       "deferred": false,
+      "name": "schema_gap_rules_list",
+      "summary": "Gap-check rules of a type: which fields count as missing or stale and how each gap is routed",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "schema_gap_rules_set",
+      "summary": "Create or replace a gap-check rule: a missing or stale field goes to an AI field, an agent lookup, a teammate task or a collection form",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "schema_infer",
       "summary": "Propose a record type from pasted CSV text or a CSV/XLSX file: field names, types, choices and a title field",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "schema_layout_get",
+      "summary": "Admin layout of the record page of a type: ordered sections with their fields and which start folded",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "schema_layout_set",
+      "summary": "Set the record page layout of a type (sections, order, default folds); people fold and keep fields visible on top of it for themselves",
       "toolset": "engineer"
     },
     {
@@ -5404,6 +5548,12 @@
       "deferred": false,
       "name": "schema_restore_field",
       "summary": "Bring a dropped field back from Trash with its values",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "schema_sensitivity_scan",
+      "summary": "Detect sensitive data in the fields of a type (ID numbers, card and bank numbers, health terms) and suggest which fields to seal; changes nothing and returns no values",
       "toolset": "engineer"
     },
     {
@@ -6976,6 +7126,18 @@
       "deferred": false,
       "name": "vault_share",
       "summary": "Share an item or folder with a person, group, agent or automation at Use, View, Edit or Manage; subscription sign-ins are never shareable",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_site_rules_list",
+      "summary": "Sites where I never fill and never get offered to save a login in this Space (Never Fill on This Site)",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_site_rules_set",
+      "summary": "Set or clear the never-fill and never-save rule for one site; personal, follows the extension in this Space",
       "toolset": "vault"
     },
     {

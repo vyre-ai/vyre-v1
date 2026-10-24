@@ -48,6 +48,10 @@ export default defineManifest({
     create('bookings.book', 'Public: make a booking; creates or updates a record and a meeting', { in: { slug, startsAt: t.ts(), answers: t.rec(), tz: t.str() }, out: { booking: bookingRow }, make: ['record', '/slug'], emits: ['booking.created'], http: { method: 'POST', path: '/book/create' }, team: true, rate: { n: 10, perSeconds: 60, scope: 'space' } }),
     write('bookings.cancel', 'Cancel a booking', { in: { bookingId: t.id('bkg') }, out: { booking: bookingRow }, emits: ['booking.cancelled'], tool: 'automations' }),
     read('bookings.list', 'List bookings of a page', { in: { formId: id.form, ...pageIn }, out: { bookings: t.arr(bookingRow), ...pageOut }, on: ['form', '/formId'], tool: 'automations' }),
+    write('forms.save_partial', 'Public: keep the answers typed so far against a signed or one-use link so the person can come back; nothing reaches the record until submit', {
+      in: { slug, token: t.str(), answers: t.rec(), step: t.opt(t.int({ minimum: 0 })) }, out: { saved: t.bool(), expiresAt: t.opt(t.ts()) },
+      http: { method: 'POST', path: '/f/partial' }, team: true, rate: { n: 60, perSeconds: 60, scope: 'space' },
+    }),
   ],
   screens: [
     screen('apps.forms', 'apps', 'ui:FormsList', { q: { forms: ['forms.list', { section: '/section', folderId: '/folder' }], submissions: ['forms.submissions', { formId: '/selected' }] }, a: { create: ['forms.create'], publish: ['forms.publish', { formId: '/selected' }] }, empty: 'No forms yet', primary: 'New form', needs: ['forms.publish'] }),

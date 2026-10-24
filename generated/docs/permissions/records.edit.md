@@ -30,9 +30,11 @@ Area: records. Risk: low. Applies to: record_type, record.
 - meetings.set_summary
 - meetings.summarize
 - meetings.unmerge
+- records.gap_check
 - records.relate
 - records.restore_version
 - records.update
+- records.values.review
 - sources.link.resolve
 - sync_types.resolve_conflict
 - sync_types.undo_push

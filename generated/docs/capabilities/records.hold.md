@@ -17,7 +17,7 @@ Place a hold on a record
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/records/hold |
-| MCP tool | none |
+| MCP tool | records_hold (records) |
 | CLI | none |
 | Emits | record.held |
 

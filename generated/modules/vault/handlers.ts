@@ -43,6 +43,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "vault.report_scrub_miss": Handler<"vault.report_scrub_miss", X>;
   "vault.service_health": Handler<"vault.service_health", X>;
   "vault.share": Handler<"vault.share", X>;
+  "vault.site_rules.list": Handler<"vault.site_rules.list", X>;
+  "vault.site_rules.set": Handler<"vault.site_rules.set", X>;
   "vault.unshare": Handler<"vault.unshare", X>;
   "vault.use": Handler<"vault.use", X>;
 }

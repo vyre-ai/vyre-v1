@@ -10,6 +10,11 @@ const recordRow = t.obj({
   fields: t.rec(), createdAt: t.ts(), updatedAt: t.ts(), deletedAt: t.opt(t.ts()), holds: t.int(),
 });
 const target = { type: id.recordType, recordId: id.record };
+const valueSource = t.obj({
+  kind: t.enm('agent', 'person', 'form', 'automation', 'sync', 'import'), actor: t.str(), link: t.opt(t.str({ description: 'Link to the exact chat, task, run or record the value came from' })),
+  at: t.ts(), state: t.enm('counted', 'needs_review', 'rejected'),
+});
+const pendingValue = t.obj({ recordId: id.record, type: id.recordType, field: t.str(), value: t.opt(t.json()), source: valueSource });
 
 const text = (key: string, title: string, o: Partial<FieldTypeDef> = {}) =>
   ftype(key, title, t.str(), { filterOps: ['eq', 'ne', 'contains', 'starts', 'in', 'empty', 'notempty'], ...o });
@@ -31,6 +36,9 @@ export default defineManifest({
     ev('record.held', 'A hold was placed on a record', { p: { recordId: id.record, type: id.recordType, reason: t.str() }, subject: ['record', '/recordId'], label: 'subject' }),
     ev('record.hold_released', 'A hold was released', { p: { recordId: id.record, type: id.recordType }, subject: ['record', '/recordId'], label: 'subject' }),
     ev('field.revealed', 'A sealed field was revealed to one actor (audited)', { p: { recordId: id.record, type: id.recordType, field: t.str() }, subject: ['record', '/recordId'], vis: 'participants', label: 'subject' }),
+    ev('record.value_proposed', 'An agent or automation filled a value; it waits for review or counts straight away, per field', { p: { recordId: id.record, type: id.recordType, field: t.str(), source: valueSource, reviewRequired: t.bool() }, subject: ['record', '/recordId'], label: 'subject' }),
+    ev('record.value_reviewed', 'A reviewer accepted or rejected an agent-filled value', { p: { recordId: id.record, type: id.recordType, field: t.str(), decision: t.enm('accepted', 'rejected'), by: t.str() }, subject: ['record', '/recordId'], label: 'subject' }),
+    ev('record.gaps_found', 'A gap-check rule found missing or stale fields on a record', { p: { recordId: id.record, type: id.recordType, fields: t.arr(t.str()), ruleId: t.str() }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A record has gaps', fields: ['/type'] } }),
   ],
   blocks: [
     block('record_card', { recordId: id.record, type: id.recordType, title: t.str(), summary: t.opt(t.str()), status: t.opt(t.str()), fields: t.arr(t.obj({ key: t.str(), title: t.str(), value: t.json() })) },
@@ -54,7 +62,7 @@ export default defineManifest({
     }),
     write('records.update', 'Update fields of a record (per-field merge for sync, base version for API callers)', {
       in: { ...target, patch: t.rec(), baseVersion: t.opt(t.int()) }, out: { record: recordRow }, on: ['record', '/recordId'], perm: 'records.edit',
-      emits: ['record.updated'], tool: 'records', offline: 'patch', errors: ['validation.field_locked', 'validation.version_conflict', 'validation.duplicate'], hook: true,
+      emits: ['record.updated', 'record.value_proposed'], tool: 'records', offline: 'patch', errors: ['validation.field_locked', 'validation.version_conflict', 'validation.duplicate'], hook: true,
     }),
     create('records.bulk_upsert', 'Create or update many records by match key, quietly (no automations unless asked)', {
       in: { type: id.recordType, rows: t.arr(t.rec()), match: t.arr(t.str()), runAutomations: t.opt(t.bool()) },
@@ -66,12 +74,42 @@ export default defineManifest({
       in: { type: id.recordType, survivorId: id.record, mergedIds: t.arr(id.record), picks: t.rec(t.str()) }, out: { record: recordRow, undoUntil: t.ts() },
       on: ['record', '/survivorId'], perm: 'records.delete', emits: ['record.merged'], audit: 'always', tool: 'records',
     }),
-    write('records.hold', 'Place a hold on a record', { in: { ...target, reason: t.str() }, out: { held: t.bool() }, on: ['record', '/recordId'], perm: 'records.hold', emits: ['record.held'], audit: 'always' }),
-    write('records.release_hold', 'Release a hold on a record', { in: target, out: { released: t.bool() }, on: ['record', '/recordId'], perm: 'records.hold', emits: ['record.hold_released'], audit: 'always' }),
+    write('records.hold', 'Place a hold on a record', { in: { ...target, reason: t.str() }, out: { held: t.bool() }, on: ['record', '/recordId'], perm: 'records.hold', emits: ['record.held'], audit: 'always', tool: 'records' }),
+    write('records.release_hold', 'Release a hold on a record', { in: target, out: { released: t.bool() }, on: ['record', '/recordId'], perm: 'records.hold', emits: ['record.hold_released'], audit: 'always', tool: 'records' }),
     read('records.reveal', 'Reveal a sealed field to the caller (asked once, logged per actor)', { in: { ...target, field: t.str() }, out: { value: t.json() }, on: ['record', '/recordId'], perm: 'records.reveal', level: 'view', risk: 'high', audit: 'always', label: 'check', errors: ['permission.provider_label'] }),
     read('records.export', 'Export rows as CSV or Excel (permissioned)', { in: { type: id.recordType, format: t.enm('csv', 'xlsx'), ...viewSpec }, out: { fileId: id.file }, on: ['record_type', '/type'], perm: 'records.export', risk: 'medium', audit: 'always', label: 'filter', tool: 'records' }),
     write('records.relate', 'Link two records through a relation field', { in: { ...target, field: t.str(), toId: id.record, unlink: t.opt(t.bool()) }, out: { record: recordRow }, on: ['record', '/recordId'], perm: 'records.edit', emits: ['record.updated'], tool: 'records', offline: 'patch' }),
     read('records.counts', 'Cached row count for a view', { in: { type: id.recordType, filter: t.opt(t.json()) }, out: { count: t.int() }, on: ['record_type', '/type'] }),
+    read('records.values.pending', 'Needs review: agent-filled values waiting for a reviewer, each with its source and time (counts into My work for the field reviewer role)', {
+      in: { type: id.recordType, ...pageIn }, out: { values: t.arr(pendingValue), ...pageOut }, on: ['record_type', '/type'], tool: 'records', label: 'filter',
+    }),
+    write('records.values.review', 'Accept or reject an agent-filled value; an accepted value counts, a rejected one is dropped and stays in history', {
+      in: { ...target, field: t.str(), decision: t.enm('accept', 'reject'), note: t.opt(t.str()) }, out: { record: recordRow }, on: ['record', '/recordId'], perm: 'records.edit',
+      emits: ['record.value_reviewed', 'record.updated'], tool: 'records', audit: 'sensitive',
+    }),
+    read('records.value_source', 'Source popover of one value: who or what filled it, from where, when, and whether it counts yet', {
+      in: { ...target, field: t.str() }, out: { source: valueSource }, on: ['record', '/recordId'], tool: 'records', label: 'check',
+    }),
+    read('records.completeness', 'Completeness of one record (for example 8 of 11) with the missing fields; Ask for these turns the list into a short-lived form', {
+      in: target, out: { filled: t.int({ minimum: 0 }), total: t.int({ minimum: 0 }), missing: t.arr(t.obj({ field: t.str(), title: t.str() })) }, on: ['record', '/recordId'], tool: 'records', label: 'check',
+    }),
+    write('records.gap_check', 'Run the gap-check rules of a type over one record or all of them: finds missing or stale fields and names the fill route (AI field, agent lookup, teammate task or collection form)', {
+      in: { type: id.recordType, recordId: t.opt(id.record) },
+      out: { gaps: t.arr(t.obj({ recordId: id.record, field: t.str(), reason: t.enm('missing', 'stale'), route: t.enm('ai_field', 'agent_lookup', 'task', 'form') })) },
+      on: ['record_type', '/type'], perm: 'records.edit', emits: ['record.gaps_found'], tool: 'records',
+    }),
+    read('records.page_prefs.get', 'My choices on the record page of a type: sections I folded and fields I keep visible', {
+      in: { type: id.recordType }, out: { folded: t.arr(t.str()), keepVisible: t.arr(t.str()) }, on: ['record_type', '/type'], tool: 'records',
+    }),
+    write('records.page_prefs.set', 'Fold sections and keep fields visible for myself; a personal display choice, not a Star', {
+      in: { type: id.recordType, folded: t.opt(t.arr(t.str())), keepVisible: t.opt(t.arr(t.str())) }, out: { folded: t.arr(t.str()), keepVisible: t.arr(t.str()) },
+      on: ['record_type', '/type'], tool: 'records', offline: 'patch',
+    }),
+    read('records.relations_map', 'Relationship map of a record: linked records out to two hops, each edge named by its relation field, limited to what the caller may see', {
+      in: { ...target, hops: t.opt(t.int({ minimum: 1, maximum: 2 })) },
+      out: { nodes: t.arr(t.obj({ recordId: id.record, type: id.recordType, title: t.str(), hop: t.int({ minimum: 0, maximum: 2 }) })), edges: t.arr(t.obj({ from: id.record, to: id.record, field: t.str() })) },
+      on: ['record', '/recordId'], tool: 'records', label: 'filter',
+    }),
   ],
   fieldTypes: [
     text('text', 'Text', { indexable: true }),

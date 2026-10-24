@@ -4,16 +4,21 @@ Lane L3. Kind module. Status stub. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (19)
+## Capabilities (24)
 
 - [schema.apply](../capabilities/schema.apply.md): Apply schema changes. Additions go straight through; destructive items (delete or retype a field, drop a type) must be listed in confirm
 - [schema.changes.list](../capabilities/schema.changes.list.md): History of schema changes with who and why
 - [schema.describe](../capabilities/schema.describe.md): Describe one record type or all of them: fields, field types, options, labels, relations
 - [schema.diff](../capabilities/schema.diff.md): Preview a set of schema changes as a diff: what is added, what is destructive, rows affected, and a preview token
 - [schema.field_types](../capabilities/schema.field_types.md): Catalogue of field types with their filter operators and options
+- [schema.gap_rules.list](../capabilities/schema.gap_rules.list.md): Gap-check rules of a type: which fields count as missing or stale and how each gap is routed
+- [schema.gap_rules.set](../capabilities/schema.gap_rules.set.md): Create or replace a gap-check rule: a missing or stale field goes to an AI field, an agent lookup, a teammate task or a collection form
 - [schema.infer](../capabilities/schema.infer.md): Propose a record type from pasted CSV text or a CSV/XLSX file: field names, types, choices and a title field
+- [schema.layout.get](../capabilities/schema.layout.get.md): Admin layout of the record page of a type: ordered sections with their fields and which start folded
+- [schema.layout.set](../capabilities/schema.layout.set.md): Set the record page layout of a type (sections, order, default folds); people fold and keep fields visible on top of it for themselves
 - [schema.map](../capabilities/schema.map.md): The Schema map: record types as nodes and relations as edges, two hops from a type if given
 - [schema.restore_field](../capabilities/schema.restore_field.md): Bring a dropped field back from Trash with its values
+- [schema.sensitivity.scan](../capabilities/schema.sensitivity.scan.md): Detect sensitive data in the fields of a type (ID numbers, card and bank numbers, health terms) and suggest which fields to seal; changes nothing and returns no values
 - [schema.set_label](../capabilities/schema.set_label.md): Set the sensitivity label of a record type or of one field
 - [schema.trash.list](../capabilities/schema.trash.list.md): Dropped fields and types still held in Trash (30 days)
 - [schema.types.get](../capabilities/schema.types.get.md): Read one record type with every field

@@ -4,7 +4,7 @@ Lane L8. Kind module. Status stub. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (11)
+## Capabilities (14)
 
 - [email_builder.ask_diff](../capabilities/email_builder.ask_diff.md): Ask Vyre edit: returns a per-change diff the author accepts change by change
 - [email_builder.create](../capabilities/email_builder.create.md): Create an email design
@@ -16,6 +16,9 @@ Requires: nothing.
 - [email_builder.restore_version](../capabilities/email_builder.restore_version.md): Restore a version
 - [email_builder.save](../capabilities/email_builder.save.md): Autosave a design; each save is a version
 - [email_builder.send_test](../capabilities/email_builder.send_test.md): Send a test email to the author
+- [email_builder.snippets.delete](../capabilities/email_builder.snippets.delete.md): Delete a composer snippet
+- [email_builder.snippets.list](../capabilities/email_builder.snippets.list.md): List composer snippets: short reusable text for Inbox email and text replies, mine and shared with the Space
+- [email_builder.snippets.save](../capabilities/email_builder.snippets.save.md): Create or change a composer snippet
 - [email_builder.versions](../capabilities/email_builder.versions.md): List saved versions
 
 ## Events (2)

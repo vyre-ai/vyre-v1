@@ -20,6 +20,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "forms.link_revoke": Handler<"forms.link_revoke", X>;
   "forms.list": Handler<"forms.list", X>;
   "forms.publish": Handler<"forms.publish", X>;
+  "forms.save_partial": Handler<"forms.save_partial", X>;
   "forms.submissions": Handler<"forms.submissions", X>;
   "forms.submit": Handler<"forms.submit", X>;
   "forms.survey_results": Handler<"forms.survey_results", X>;

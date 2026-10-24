@@ -8,27 +8,27 @@ The catalogue is the `events` array in `generated/registry.json`, emitted by too
 
 | Item | Value |
 |---|---|
-| Events | 592 |
-| Hash | `0a134a3959bc61ab20dcd9f3b9ba1b9ee78e549309dac8dc3f197ffdc2668f61` |
+| Events | 598 |
+| Hash | `d0c7b75af3aff3a8ee78798b60baa083a36ec51107d9bcafba1f5600d02c8b61` |
 | Hash input | SHA-256 of the canonical JSON of the events array (`lib/canonical.ts`: sorted keys, no whitespace) |
 | Schema version | 1 on every event |
-| Distinct names | 592 |
+| Distinct names | 598 |
 | Primitives | 139 |
-| Registry hash | `99c0aacd0adb6c6bca96edeace16ba29bfae02988d24f3ee94d340ed3fc5c465` (`generated/hash.txt`) |
+| Registry hash | `7c371eb2b5e3df97e07f92e72f5bb053763bca8ad9528880b65c99ce4857b065` (`generated/hash.txt`) |
 
 The registry hash covers the whole registry. The event hash covers the events array only.
 
 ## Checks
 
-Name. Every name is `<primitive>.<verb>`: `^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$`. One dot, both segments lowercase, digits and underscores allowed (`access_review.closed`, `calendar_event.created`). 592 names, all unique, 139 primitives.
+Name. Every name is `<primitive>.<verb>`: `^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$`. One dot, both segments lowercase, digits and underscores allowed (`access_review.closed`, `calendar_event.created`). 598 names, all unique, 139 primitives.
 
 Owner. Every event carries `module`, and that id is one of the registry modules. 74 modules own at least one event. Six modules declare none: `console-views`, `default`, `estate-planning`, `harbor-studio`, `law-firm-intake`, `steps-core`.
 
-Payload. Every payload dereferences through `$ref` into `$defs` to a JSON Schema with `type: object` and at least one property. The subject id is a JSON pointer into that schema. 268 subjects use type `entity`. The rest use a resource type from the architecture list (`record`, `file`, `thread`, `task`, and the others on `EventDef`).
+Payload. Every payload dereferences through `$ref` into `$defs` to a JSON Schema with `type: object` and at least one property. The subject id is a JSON pointer into that schema. 270 subjects use type `entity`. The rest use a resource type from the architecture list (`record`, `file`, `thread`, `task`, and the others on `EventDef`).
 
-vis. `space` 425, `participants` 126, `owner` 40, `private` 1 (`signin.failed`).
+vis. `space` 429, `participants` 127, `owner` 41, `private` 1 (`signin.failed`).
 
-label. 457 events omit `label`. 133 use `subject` (the event inherits the subject's label). 2 use `internal`: `console.change_applied` (console-assistant) and `schema.changed` (schema).
+label. 460 events omit `label`. 136 use `subject` (the event inherits the subject's label). 2 use `internal`: `console.change_applied` (console-assistant) and `schema.changed` (schema).
 
 redact. Three events name payload pointers that readers below clearance lose. Each pointer is a property of that event's payload:
 
@@ -40,13 +40,13 @@ redact. Three events name payload pointers that readers below clearance lose. Ea
 
 sv. Every event has integer schema version 1.
 
-`replay` is `pure` on 546 events and `stub` on 46. 78 events carry an automation trigger with a title. 41 name a notification kind, and each kind is in the registry. 109 name a retention key, and each key is in the registry. Summaries are present on all 592.
+`replay` is `pure` on 552 events and `stub` on 46. 79 events carry an automation trigger with a title. 42 name a notification kind, and each kind is in the registry. 110 name a retention key, and each key is in the registry. Summaries are present on all 598.
 
 ## Events per module
 
 | Module | Events |
 |---|---|
-| access | 17 |
+| access | 18 |
 | agents | 11 |
 | audit | 4 |
 | automations | 18 |
@@ -97,7 +97,7 @@ sv. Every event has integer schema version 1.
 | portal | 4 |
 | previews | 2 |
 | projects | 16 |
-| records | 8 |
+| records | 11 |
 | reports-client | 3 |
 | resend | 2 |
 | runbooks | 4 |
@@ -117,6 +117,6 @@ sv. Every event has integer schema version 1.
 | terminal | 5 |
 | twilio | 4 |
 | updates | 4 |
-| vault | 18 |
+| vault | 20 |
 | vault-requests | 4 |
 | zoom | 1 |

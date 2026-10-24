@@ -10,9 +10,14 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "schema.describe": Handler<"schema.describe", X>;
   "schema.diff": Handler<"schema.diff", X>;
   "schema.field_types": Handler<"schema.field_types", X>;
+  "schema.gap_rules.list": Handler<"schema.gap_rules.list", X>;
+  "schema.gap_rules.set": Handler<"schema.gap_rules.set", X>;
   "schema.infer": Handler<"schema.infer", X>;
+  "schema.layout.get": Handler<"schema.layout.get", X>;
+  "schema.layout.set": Handler<"schema.layout.set", X>;
   "schema.map": Handler<"schema.map", X>;
   "schema.restore_field": Handler<"schema.restore_field", X>;
+  "schema.sensitivity.scan": Handler<"schema.sensitivity.scan", X>;
   "schema.set_label": Handler<"schema.set_label", X>;
   "schema.trash.list": Handler<"schema.trash.list", X>;
   "schema.types.get": Handler<"schema.types.get", X>;

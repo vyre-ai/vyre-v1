@@ -4,7 +4,7 @@ Lane L2. Kind module. Status stub. Version 0.1.0.
 
 Requires: engine.
 
-## Capabilities (59)
+## Capabilities (62)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -18,6 +18,9 @@ Requires: engine.
 - [channels.list](../capabilities/channels.list.md): List channels by section and folder (the items capability of the Channels list)
 - [channels.members.add](../capabilities/channels.members.add.md): Add people to a channel
 - [channels.members.remove](../capabilities/channels.members.remove.md): Remove a person from a channel
+- [channels.stream](../capabilities/channels.stream.md): The channel as a timeline: messages and Run items in order; repeated runs of one flow collapse into one row ("ran 6 times today"); counts feed the People, Agents and Runs menu
+- [channels.stream_prefs.get](../capabilities/channels.stream_prefs.get.md): My People, Agents and Runs choice for one channel
+- [channels.stream_prefs.set](../capabilities/channels.stream_prefs.set.md): Hide or show People, Agents or Runs in one channel for myself (Hide Runs in This Channel); the header says what is hidden
 - [channels.unarchive](../capabilities/channels.unarchive.md): Bring an archived channel back
 - [channels.update](../capabilities/channels.update.md): Rename a channel or change its topic or visibility
 - [chat.answer_block](../capabilities/chat.answer_block.md): Answer a question or plan block; the answer is queued as a wake so the parked turn continues

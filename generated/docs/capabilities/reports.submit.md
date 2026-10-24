@@ -43,6 +43,13 @@ type In = {
       device: string;
     };
     screenshotFileId?: string;
+    errors?: Array<{
+        code: string;
+        message: string;
+        at: number;
+        traceId?: string;
+      }>;
+    clientLogFileId?: string;
     note?: string;
   };
   idempotencyKey: string;
@@ -73,11 +80,20 @@ type Out = {
   "name": "example",
   "input": {
     "bundle": {
+      "clientLogFileId": "fil_a1b2c3",
       "context": {
         "hash": "example",
         "itemId": "example",
         "place": "example"
       },
+      "errors": [
+        {
+          "at": 1760000000000,
+          "code": "example",
+          "message": "example",
+          "traceId": "0123456789abcdef0123456789abcdef"
+        }
+      ],
       "events": [
         {
           "at": 1760000000000,

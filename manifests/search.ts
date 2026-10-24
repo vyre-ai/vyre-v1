@@ -69,5 +69,11 @@ export default defineManifest({
       a: { opened: ['search.recent.record', { kind: '/hit/kind', itemId: '/hit/id' }] },
       empty: 'No results', primary: 'Clear search', perf: { firstPaintMs: 50, completeMs: 300 },
     }),
+    screen('shell.new-tab', 'shell', 'ui:NewTabSearch', {
+      slot: 'tab',
+      q: { hits: ['search.query', { q: '/query/q', types: '/query/types', mode: '/query/mode' }, false], recent: ['search.recent.list', {}, false], actions: ['search.actions.list', { q: '/query/q' }, false] },
+      a: { opened: ['search.recent.record', { kind: '/hit/kind', itemId: '/hit/id' }] },
+      empty: 'Open anything, or start something', primary: 'Start', keys: [{ combo: 'Cmd-T', action: 'open' }],
+    }),
   ],
 });

@@ -16,8 +16,11 @@ Area: records. Risk: high. Applies to: record_type.
 
 - schema.apply
 - schema.diff
+- schema.gap_rules.set
 - schema.infer
+- schema.layout.set
 - schema.restore_field
+- schema.sensitivity.scan
 - schema.set_label
 - schema.trash.list
 - sites.table_promote

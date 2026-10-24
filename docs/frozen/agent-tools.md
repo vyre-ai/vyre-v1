@@ -7,7 +7,7 @@ ARCH 3.7 output 6 and 6.7. Source of truth: `generated/tool-index.json` and `gen
 - A tool exists for every capability with `surfaces.mcp`, plus the 10 `agentTools` that wrap no single capability. Names are snake_case and unique. 14 toolsets: records, files, memory, vault, automations, chats, inbox, sites, terminal, computer, agents, tasks, meta, engineer.
 - Agent parity: every capability a principal screen query or action reaches is agent-visible or wrapped by an `agentTools` entry. The generator rejects a manifest that breaks this; the test re-checks it from the manifests (all principal screens, more than 500 references).
 - Pre-auth capabilities (anonymous and pending callers, 11 in all) are never agent-visible.
-- No capability sets `surfaces.agent: false` today, so there is no opt-out list and `contracts/agent-optout.json` is not needed. 256 principal capabilities have no MCP surface; none is reached by a screen.
+- No capability sets `surfaces.agent: false` today, so there is no opt-out list and `contracts/agent-optout.json` is not needed. 255 principal capabilities have no MCP surface; none is reached by a screen.
 - A tool with `deferred: true` is found with `tool_search` and called after its schema is returned. The default listed toolset is the 59 tools below (about 60, plus or minus 5). The `engineer` toolset is never in the default list; it needs `engineer.mcp`.
 
 ## Default listed toolset (59 tools)

@@ -14,5 +14,8 @@ export const handlers: Handlers<HandlerCtx> = {
   "email_builder.restore_version": async () => ({"email":{"blocks":[{"props":{},"type":"text"}],"emailId":"eml_a1b2c3","html":"example","mode":"blocks","name":"example","plain":"example","subject":"example"}} as unknown) as never,
   "email_builder.save": async () => ({"version":1} as unknown) as never,
   "email_builder.send_test": async () => ({"sent":true} as unknown) as never,
+  "email_builder.snippets.delete": async () => ({"deleted":true} as unknown) as never,
+  "email_builder.snippets.list": async () => ({"snippets":[{"body":"example","name":"example","shared":true,"shortcut":"example","snippetId":"snp_a1b2c3","updatedAt":1760000000000}]} as unknown) as never,
+  "email_builder.snippets.save": async () => ({"snippet":{"body":"example","name":"example","shared":true,"shortcut":"example","snippetId":"snp_a1b2c3","updatedAt":1760000000000}} as unknown) as never,
   "email_builder.versions": async () => ({"versions":[{"at":1760000000000,"by":"example","version":1}]} as unknown) as never,
 };

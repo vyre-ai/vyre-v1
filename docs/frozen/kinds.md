@@ -2,7 +2,7 @@
 
 Freeze review E (P-PR_38). This records the extension kind tables and one example of each kind.
 
-The source is the committed registry `generated/registry.json` (hash `99c0aacd0adb6c6bca96edeace16ba29bfae02988d24f3ee94d340ed3fc5c465`). `generated/kinds.ts` re-exports gate acts, task kinds, notification kinds, health checks, retention, settings, import sources, blocks and lists. Steps, triggers and connectors sit on the same registry (ARCH 3.4). The review reads those three from `generated/registry.ts`.
+The source is the committed registry `generated/registry.json` (hash `7c371eb2b5e3df97e07f92e72f5bb053763bca8ad9528880b65c99ce4857b065`). `generated/kinds.ts` re-exports gate acts, task kinds, notification kinds, health checks, retention, settings, import sources, blocks and lists. Steps, triggers and connectors sit on the same registry (ARCH 3.4). The review reads those three from `generated/registry.ts`.
 
 Spec 2.14 is the gate act table. Spec 2.24 is the three notification levels. Spec 4.18 is the health checks (each has a next step) and the logs retention window. Spec 5 names backups and report-a-problem, which show up here as the `backups` retention class and the `problem.report` notification. Spec b9 (one API, toolsets, and the replay sandbox) shows up as step samples, which a replay can show, and as each connector naming a health check. ARCH 3.5 covers blocks, health checks, gate acts, task kinds and notification kinds.
 
@@ -31,10 +31,10 @@ Spec 2.14 is the gate act table. Spec 2.24 is the three notification levels. Spe
 |---|---|---|---|
 | Gate acts | gateActs | 10 | gate |
 | Task kinds | taskKinds | 6 | tasks |
-| Notification kinds | notificationKinds | 22 | notifications |
+| Notification kinds | notificationKinds | 23 | notifications |
 | Health checks | healthChecks | 47 | one module each |
 | Retention classes | retention | 10 | governance |
-| Settings | settings | 83 | the module that owns the row |
+| Settings | settings | 89 | the module that owns the row |
 | Import sources | importSources | 9 | import, vault |
 | Blocks | blocks | 22 | the module that renders the block |
 | Lists | lists | 10 | the module that owns the list |
