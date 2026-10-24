@@ -46,7 +46,7 @@ function sheetsWorld() {
   return { rows, versions, calls };
 }
 const env = (w: ReturnType<typeof sheetsWorld>, run = { id: "run_a", label: "Welcome email" }): Harness => harness(w.calls, { run });
-const FILE = "fil_leads1";
+const FILE = "fil_leads1";   // the file every step works on
 const refused = (p: Promise<unknown>, code: string): Promise<void> => assert.rejects(p, (e) => { assert.equal(codeOf(e), code); return true; });
 
 test("two Runs adding rows to one sheet keep each other's rows, each write labelled with its Automation and Run", async () => {

@@ -1,5 +1,5 @@
 // Control steps and the step runner (spec 2.12, 3.7): the expression language, If, Paths, Parallel join, Loop, Stop, Wait with a cancel-on event, Approval, and the sandbox.
-// A plan is walked by MiniRun (a stand-in for the Run engine), the way the ported flows golden-replay walked flows.
+// A plan is walked by MiniRun (a stand-in for the Run engine), the way the ported flows golden-replay walked flows. (Run on its own so CI shows its result.)
 import test from "node:test";
 import assert from "node:assert/strict";
 import { harness, codeOf, MiniRun } from "../fixtures/db.ts";
