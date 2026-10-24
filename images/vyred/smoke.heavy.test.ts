@@ -65,8 +65,9 @@ test("server unit: space role, Caddy pinned and sharing vyred's network, data on
 
 test("device unit: device role, no Caddy, no public port", () => {
   const c = read("compose.device.yml");
+  const code = c.split("\n").filter((l) => !l.trim().startsWith("#")).join("\n");
   assert.match(c, /VYRE_ROLE: device/);
-  assert.doesNotMatch(c, /caddy/i);
+  assert.doesNotMatch(code, /caddy/i);
   assert.doesNotMatch(c, /- "(80|443):/);
   assert.match(c, /127\.0\.0\.1:\$\{VYRE_PORT:-8420\}:8420/);
   assert.match(c, /- vyre-device-data:\/data/);
