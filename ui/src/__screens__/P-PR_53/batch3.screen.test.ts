@@ -1,12 +1,22 @@
-// Screen test for frozen props batch 3. Loaded by scripts/test-run.mjs via node --test.
-
 import test from "node:test";
 import assert from "node:assert/strict";
-import { renderScreen, softphoneSample, terminalSample, emailSample, viewerSample, viewerScreen } from "./index.tsx";
-import { renderBlock, NATIVE_BLOCK_TYPES, blockRenderers, sampleNativeBlocks, unknownBlockSample } from "../blocks/registry.ts";
-import { EMAIL_BLOCK_KINDS, EMAIL_PREVIEWS } from "../EmailBuilder/props.ts";
-import { TerminalPlaceholder } from "../Terminal/Placeholder.tsx";
-import { isKitScreen } from "../kit/types.ts";
+import { readFileSync } from "node:fs";
+import { registerHooks } from "node:module";
+import { fileURLToPath } from "node:url";
+
+// Node runs .ts files by stripping types but has no loader for .tsx. The placeholders hold no JSX, so load them as TypeScript.
+registerHooks({
+  load(url, context, nextLoad) {
+    if (url.endsWith(".tsx")) return { format: "module-typescript", source: readFileSync(fileURLToPath(url)), shortCircuit: true };
+    return nextLoad(url, context);
+  },
+});
+
+const { renderScreen, softphoneSample, terminalSample, emailSample, viewerSample, viewerScreen } = await import("../index.tsx");
+const { renderBlock, NATIVE_BLOCK_TYPES, blockRenderers, sampleNativeBlocks, unknownBlockSample } = await import("../../blocks/registry.ts");
+const { EMAIL_BLOCK_KINDS, EMAIL_PREVIEWS } = await import("../../EmailBuilder/props.ts");
+const { TerminalPlaceholder } = await import("../../Terminal/Placeholder.tsx");
+const { isKitScreen } = await import("../../kit/types.ts");
 
 test("screen page renders every frozen component from its props", () => {
   const html = renderScreen();
