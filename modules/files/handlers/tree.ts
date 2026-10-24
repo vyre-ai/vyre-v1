@@ -1,6 +1,7 @@
 // files tree: folders, files, versions and the AES-GCM blob store (spec 2.16, 2.4, 3.5; ARCH 7.5).
 // Plaintext is sealed with ctx.seal (kernel AES-GCM under the Space key) and stored in files_blob.
 // Entity rows live in files_file and files_file_version. Folders, recent, uploads and trash live in migrations/0001_files_tree.sql.
+// @reads ../migrations/0001_files_tree.sql
 // Agent and UI writes both commit a version here. Changeset staging on Approve is a later packet.
 
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
