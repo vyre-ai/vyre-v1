@@ -7,10 +7,33 @@ export interface ErrorCodeDef {
   http: number;
   retryable: boolean;
   summary: string;
+  what: string;                  // what happened, plain words
+  why: string;                   // the usual cause
+  next: NextStep['kind'][];      // next steps offered with the error (never empty)
 }
+
+const WHY: Record<ErrorGroup, string> = {
+  auth: 'The session is missing, expired or revoked.',
+  rate_limit: 'Too many calls in a short time.',
+  validation: 'The input does not match what the capability accepts.',
+  provider: 'The AI provider or connected app answered with an error.',
+  timeout: 'The call took longer than its deadline.',
+  permission: 'The caller lacks a role permission, a grant or clearance for this thing.',
+  internal: 'The server hit a state it did not expect.',
+};
+const NEXT: Record<ErrorGroup, NextStep['kind'][]> = {
+  auth: ['open_settings', 'reconnect'],
+  rate_limit: ['wait', 'retry'],
+  validation: ['edit_input'],
+  provider: ['retry', 'switch_model', 'report'],
+  timeout: ['retry'],
+  permission: ['ask_access', 'contact_admin'],
+  internal: ['report'],
+};
 
 const e = (code: ErrorCode, http: number, retryable: boolean, summary: string): ErrorCodeDef => ({
   code, group: code.split('.')[0] as ErrorGroup, http, retryable, summary,
+  what: summary, why: WHY[code.split('.')[0] as ErrorGroup], next: NEXT[code.split('.')[0] as ErrorGroup],
 });
 
 export const ERROR_CODES: ErrorCodeDef[] = [

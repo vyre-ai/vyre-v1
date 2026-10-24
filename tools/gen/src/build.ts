@@ -52,6 +52,6 @@ export function buildRegistry(loaded: Loaded[]): Registry {
     settings: by(flat(ms, (m) => m.settings), (s) => s.key),
     retention: by(flat(ms, (m) => m.retention), (s) => s.key),
     lists: by(flat(ms, (m) => m.lists), (s) => s.type),
-    errors: ERROR_CODES.map((e) => ({ ...e })).sort((a, b) => (a.code < b.code ? -1 : 1)),
+    errors: ERROR_CODES.map((e) => ({ code: e.code, group: e.group, http: e.http, retryable: e.retryable, summary: e.summary })).sort((a, b) => (a.code < b.code ? -1 : 1)),
   };
 }
