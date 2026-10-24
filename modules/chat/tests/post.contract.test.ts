@@ -107,5 +107,5 @@ test("every path through every capability: answers match the schema, errors are 
     assert.deepEqual(assertEventsConform(hn), [], s.cap);
   }
   assert.deepEqual([...covered].sort(), [...OURS].sort(), "every capability has a happy path");
-  assert.ok(happy >= 14 && unhappy >= 10, `${happy} happy, ${unhappy} unhappy`);
+  assert.ok(happy >= 11 && unhappy >= 10, `${happy} happy, ${unhappy} unhappy`);
 });

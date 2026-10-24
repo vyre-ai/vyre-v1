@@ -93,7 +93,7 @@ test("resume: the last 50 messages of a long chat come off the index, oldest fir
   const rest = lastMessages(hn.db, t, 50, 21);
   assert.deepEqual(rest.map((m) => m.seq), Array.from({ length: 20 }, (_, i) => 1 + i));
 
-  const plan = hn.rows("EXPLAIN QUERY PLAN SELECT * FROM chat_message WHERE thread = ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT 50", t).map((r) => String(r["detail"])).join(" | ");
+  const plan = (hn.raw.all("EXPLAIN QUERY PLAN SELECT * FROM chat_message WHERE thread = ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT 50", t) as Array<Record<string, unknown>>).map((r) => String(r["detail"])).join(" | ");
   assert.match(plan, /chat_message__seq/, plan);
   assert.doesNotMatch(plan, /TEMP B-TREE/, `no sort: ${plan}`);
 });
