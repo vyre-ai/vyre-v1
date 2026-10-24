@@ -1,6 +1,6 @@
 // from vyre 0.6.9 core/transcripts/links.js@dbd2dfbab
 // What a turn touched, found without a model: a tool call's file, a commit's hash, a url. A link is a plain lookup key (kind, ref) hung on a turn, so
-// "every turn that touched auth.ts" and "the turn that made commit a1b2c3d" are an index read, not a search. Deliberately not a graph walk.
+// "every turn that touched auth.ts" and "the turn that made commit a1b2c3d" are an index read, not a search. Deliberately not a graph walk (memory design measured that a graph did not help retrieval of past content).
 import { redact } from "./sanitize.ts";
 import type { Link } from "./types.ts";
 

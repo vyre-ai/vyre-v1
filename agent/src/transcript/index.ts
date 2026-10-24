@@ -1,4 +1,4 @@
-// @vyre/agent transcript: the provider-neutral transcript, the handoff to another engine, and compaction (ARCH 6.9).
+// @vyre/agent transcript: the provider-neutral transcript, the hand-over to another engine, and compaction (ARCH 6.9).
 export type { EngineRef, Link, NewTurn, Part, Pointers, Summary, SwitchRow, Tokens, Turn } from "./types.ts";
 export { createTranscript } from "./store.ts";
 export type { Hit, Transcript } from "./store.ts";
