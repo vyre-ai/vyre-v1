@@ -6,6 +6,7 @@
 import { formatHlc, tickHlc } from "../../lib/hlc.ts";
 import type { Hlc } from "../../lib/hlc.ts";
 import { mintId } from "../../lib/ids.ts";
+import { mintEventId } from "./ids.ts";
 import type { Decision as KernelDecision, Req as AuthReq, ResourceRef } from "../../kernel/src/authorize/index.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
 import type { Ctx, Decision, EmitOpts, Logger } from "../../packages/contracts/src/ctx.ts";
@@ -266,7 +267,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         if (bad?.length) throw fail("internal.unexpected", trace.traceId, { message: "Something went wrong on our side.", details: { cap: c.name, event: name, errors: bad.slice(0, 5) } });
         const parts = subject.split("/").filter(Boolean);
         const ev: EventEnvelope<T> = {
-          seq: 0, id: mintId("evt", now()), type: name, sv: 1, hlc: nextHlc(), at: now(), traceId: trace.traceId, spanId: trace.spanId,
+          seq: 0, id: mintEventId(now()), type: name, sv: 1, hlc: nextHlc(), at: now(), traceId: trace.traceId, spanId: trace.spanId,
           actor: seed.principal.id, ...(seed.actingFor ? { onBehalf: seed.actingFor } : {}), ...(seed.device ? { device: seed.device } : {}),
           ...(seed.run ? { runId: seed.run } : {}), ...(opts?.cause ? { cause: opts.cause } : {}), origin: seed.origin ?? "user", depth,
           entity: parts.length > 1 ? parts[parts.length - 2]! : subject, ...(parts.length > 1 ? { entityId: parts[parts.length - 1]! } : {}),

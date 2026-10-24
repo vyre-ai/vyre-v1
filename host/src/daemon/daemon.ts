@@ -4,6 +4,8 @@
 //   device  the person's computer: supervisor, scheduler, the disk and clock probes, and the local HTTP face (/healthz) the desktop shell and the CLI reach. Local turns, the vault filler and
 //           the Chrome bridge register as supervised services (`options.services`) when their lanes land.
 // Nothing here knows a module's internals: module code only ever sees the ctx the loader builds.
+import crypto from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { authorize } from "../../../kernel/src/authorize/index.ts";
@@ -13,7 +15,12 @@ import { routes } from "../../../generated/routes.ts";
 import { validateEvent, validateInput } from "../../../generated/validators.ts";
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
 import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
+import { createCtxSeal } from "../ctx/seal.ts";
+import { ScheduleQueue } from "../ctx/schedule.ts";
+import type { ScheduledCall } from "../ctx/schedule.ts";
+import { hostServices, invokeRunner } from "../ctx/services.ts";
 import { createGateway, indexRoutes } from "../gateway.ts";
+import { withEventIds } from "../ids.ts";
 import type { GatewayDeps, RouteRec } from "../gateway.ts";
 import { createInvoke, createRateLimiter, fail, indexCapabilities, makeError } from "../invoke.ts";
 import type { AuditRow, Handler } from "../invoke.ts";
@@ -27,6 +34,8 @@ import type { FetchFn, ProbeName, ProbeResult } from "../platform/probes.ts";
 import { Scheduler } from "../scheduler/index.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
+import { wireSeams } from "../seams/index.ts";
+import type { SeamDeps, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
 import { createLiveHub } from "../ws.ts";
 import type { LiveHub } from "../ws.ts";
 import { createAccess } from "./access.ts";
@@ -48,6 +57,22 @@ export const CODE_ROOT = path.resolve(HERE, "../../..");
 const ZERO_TRACE = "0".repeat(32);
 const RING = 5000;
 
+const refusingVault: VaultPort = {
+  secret: () => Promise.reject(new Error("The Vault is not live on this server.")),
+  signRs256: () => Promise.reject(new Error("The Vault is not live on this server.")),
+};
+
+/** The seal key lives beside the event log, readable by this user only; it is created at the first start and never printed or logged. */
+function sealKeyFile(file: string): string {
+  try {
+    const t = fs.readFileSync(file, "utf8").trim();
+    if (t.length >= 32) return t;
+  } catch { /* first start */ }
+  const t = crypto.randomBytes(32).toString("hex");
+  fs.writeFileSync(file, `${t}\n`, { mode: 0o600 });
+  return t;
+}
+
 export interface DaemonOptions {
   config: DaemonConfig;
   codeRoot?: string;
@@ -60,6 +85,12 @@ export interface DaemonOptions {
   services?: ServiceSpec[];
   /** capabilities, routes, handlers and event names beyond the generated registry (tests register example.echo; later lanes register host-only calls) */
   extra?: { caps?: CapabilityDef[]; routes?: RouteRec[]; handlers?: Record<string, Handler>; events?: string[] };
+  /** The Vault, as the connector seams use it. Without one the seams that need a secret refuse, which is right until the Vault module is live. */
+  vault?: VaultPort;
+  /** Where the Google, Microsoft and IMAP seams register (the module files' setters) and the Space ports they read. Omitted: no seam is wired. */
+  seams?: { setters: SeamSetters } & Omit<SeamDeps, "vault">;
+  /** The key behind ctx.seal. Omitted: a random 32-byte key kept in <data dir>/seal.key (0600). */
+  sealKey?: { key: Uint8Array | string; keyId: string };
   /** replace the default session (the local admin token) */
   session?: GatewayDeps["session"];
   now?: () => number;
@@ -79,6 +110,10 @@ export interface Daemon {
   scheduler: Scheduler;
   /** modules.db, space role only */
   db: HostDb | null;
+  /** ctx.schedule jobs (Gate timeouts, escalations, retry-later), space role only; the daemon ticks it every second */
+  schedule: ScheduleQueue | null;
+  /** which connector seams were wired at boot, space role only */
+  seams: WiredSeams | null;
   sink: LogSink;
   log: LogClient | null;
   /** run probes now (all by default), write them, and return the results */
@@ -120,6 +155,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
   let space: string | null = cfg.space ?? (hasSpace ? readLogMeta(paths.events, "space") : null);
   let db: HostDb | null = null;
+  let queue: ScheduleQueue | null = null;
+  let seams: WiredSeams | null = null;
   let log: LogClient | null = null;
   const probeState = new Map<ProbeName, ProbeResult>();
   const recent: EventEnvelope[] = [];
@@ -192,15 +229,24 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         sink.log({ space: spaceId, level: 20, msg: "audit", trace_id: r.traceId, span_id: r.spanId, cap: r.cap, actor: r.principal, ...(r.actingFor ? { on_behalf: r.actingFor } : {}), result: r.class, attrs: { decisionId: r.decisionId, reason: r.reason } });
       };
 
+      // ctx.schedule: jobs live in modules.db, so a restart keeps them; each runs through the invoke pipeline as the principal that scheduled it (invokeRunner)
+      let runScheduled: (call: ScheduledCall) => Promise<void> = () => Promise.reject(new Error("the invoke pipeline is not ready"));
+      const scheduleQueue = new ScheduleQueue({
+        db, now, run: (c) => runScheduled(c),
+        onError: (c, e, final) => sinkLog.warn("schedule.failed", { cap: c.cap, id: c.id, tries: c.tries + 1, final, error: e instanceof Error ? e.message : String(e) }),
+      });
+      queue = scheduleQueue;
+      const seal = createCtxSeal(o.sealKey ?? { key: sealKeyFile(path.join(paths.root, "seal.key")), keyId: "k1" });
+
       const invoke = createInvoke({
         caps: indexCapabilities(caps),
         validateInput: (cap, v, input) => (extraCaps.has(cap) ? [] : validateInput(cap, v, input)),
         validateEvent: (name, payload) => (extraEvents.has(name) ? [] : validateEvent(name, payload)),
         authorize: (r) => authorize(access.snap, r),
         handler: (cap, v) => o.extra?.handlers?.[cap] ?? loaded.handler(cap, v),
-        services: loaded.services,
+        services: hostServices({ base: loaded.services, seal, queue: scheduleQueue }),
         idem, rate: createRateLimiter(), now, log: sinkLog,
-        commit: async (b) => {
+        commit: withEventIds(async (b) => {
           const trace = b.events[0]?.traceId ?? ZERO_TRACE;
           if (chainBroken) throw fail("internal.unavailable", trace, { message: "The event log failed verification, so this server is not accepting changes. Run vyre-server doctor." });
           const stored = await Promise.all(b.events.map((e) => log!.append(toNew(e))));
@@ -209,7 +255,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           headSeq = Math.max(headSeq, ...out.map((e) => e.seq));
           if (b.audit) recordAudit(b.audit);
           return out;
-        },
+        }),
         audit: (r) => recordAudit(r),
         publish: (events) => {
           recent.push(...events);
@@ -218,6 +264,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         onSpan: (s) => sink.span({ trace_id: s.traceId, span_id: s.spanId, parent: s.parent ?? null, name: s.name, at: s.startedAt, dur_us: s.ms * 1000, attrs: { cap: s.cap, status: s.status } }),
       });
+
+      runScheduled = invokeRunner(invoke);
+      if (o.seams) {
+        const { setters, ...ports } = o.seams;
+        seams = wireSeams(setters, { vault: o.vault ?? refusingVault, ...ports });
+        closers.push(() => seams?.unwire());
+      }
 
       const owner = (): string => cfg.owner ?? access.owner() ?? "usr_owner";
       const session: GatewayDeps["session"] = o.session ?? ((headers) => {
@@ -310,6 +363,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"])); } });
   if (hasSpace) {
     scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });
+    scheduler.add({ name: "schedule.tick", schedule: { everyMs: o.intervals?.tick ?? 1000 }, run: async () => { await queue?.tick(); } });
     scheduler.add({ name: "idempotency.purge", schedule: { daily: { hour: 4, minute: 0 } }, run: async () => { await log?.purgeIdempotency(); } });
   }
 
@@ -374,7 +428,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
   let stopped = false;
   return {
-    url: `http://${cfg.host}:${boundPort}`, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, sink, log,
+    url: `http://${cfg.host}:${boundPort}`, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, sink, log,
     runProbes, pollCommands: runCommands,
     async stop() {
       if (stopped) return;
