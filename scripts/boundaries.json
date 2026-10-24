@@ -71,7 +71,8 @@
       "kernel",
       "host",
       "sync",
-      "client"
+      "client",
+      "allowlist"
     ],
     "agent": [
       "lib",
