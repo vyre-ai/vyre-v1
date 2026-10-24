@@ -28,18 +28,18 @@ function repo(files: Record<string, string>): string {
 
 const pkg = (o: Record<string, unknown>) => JSON.stringify({ name: "x", ...o });
 
-function plan(files: Record<string, string>) {
+async function plan(files: Record<string, string>) {
   const dir = repo(files);
   try {
-    return detectPlan(dir);
+    return await detectPlan(dir);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }
 
-function planError(files: Record<string, string>): string {
+async function planError(files: Record<string, string>): Promise<string> {
   try {
-    plan(files);
+    await plan(files);
   } catch (e) {
     if (e instanceof BuildPlanError) return e.message;
     throw e;
@@ -115,67 +115,67 @@ test("images: the four standard Dockerfiles exist and take the build args the dr
   }
 });
 
-test("detect: the repo's own Dockerfile wins over everything", () => {
-  const p = plan({ Dockerfile: "FROM scratch\n", "package.json": pkg({ scripts: { start: "x" } }), "index.html": "<p>" });
+test("detect: the repo's own Dockerfile wins over everything", async () => {
+  const p = await plan({ Dockerfile: "FROM scratch\n", "package.json": pkg({ scripts: { start: "x" } }), "index.html": "<p>" });
   assert.equal(p.kind, "dockerfile");
   assert.match(p.dockerfile, /Dockerfile$/);
   assert.deepEqual(p.args, {});
   assert.ok(p.lockFiles.includes("Dockerfile"));
 });
 
-test("detect: node picks the install command from the lockfile and starts with npm start", () => {
+test("detect: node picks the install command from the lockfile and starts with npm start", async () => {
   const base = { "package.json": pkg({ scripts: { start: "node a.js", build: "tsc" } }) };
-  const npm = plan({ ...base, "package-lock.json": "{}" });
+  const npm = await plan({ ...base, "package-lock.json": "{}" });
   assert.equal(npm.kind, "node");
   assert.equal(npm.args.INSTALL_CMD, "npm ci");
   assert.equal(npm.args.BUILD_CMD, "npm run build");
   assert.equal(npm.args.START_CMD, "npm start");
-  assert.equal(plan({ ...base, "pnpm-lock.yaml": "x" }).args.INSTALL_CMD, "corepack enable && pnpm install --frozen-lockfile");
-  assert.equal(plan({ ...base, "yarn.lock": "x" }).args.INSTALL_CMD, "corepack enable && yarn install --frozen-lockfile");
-  assert.equal(plan(base).args.INSTALL_CMD, "npm install");
-  assert.equal(plan({ "package.json": pkg({ scripts: { start: "x" } }) }).args.BUILD_CMD, "");
+  assert.equal((await plan({ ...base, "pnpm-lock.yaml": "x" })).args.INSTALL_CMD, "corepack enable && pnpm install --frozen-lockfile");
+  assert.equal((await plan({ ...base, "yarn.lock": "x" })).args.INSTALL_CMD, "corepack enable && yarn install --frozen-lockfile");
+  assert.equal((await plan(base)).args.INSTALL_CMD, "npm install");
+  assert.equal((await plan({ "package.json": pkg({ scripts: { start: "x" } }) })).args.BUILD_CMD, "");
 });
 
-test("detect: node falls back to main, and a Procfile web line beats both", () => {
-  assert.equal(plan({ "package.json": pkg({ main: "srv.js" }), "srv.js": "x" }).args.START_CMD, "node srv.js");
-  assert.match(planError({ "package.json": pkg({ main: "gone.js" }) }), /no start script/, "a main file that is not there does not count");
-  const withProc = plan({ "package.json": pkg({ scripts: { start: "node a.js" } }), Procfile: "worker: node w.js\nweb: node web.js --x\n" });
+test("detect: node falls back to main, and a Procfile web line beats both", async () => {
+  assert.equal((await plan({ "package.json": pkg({ main: "srv.js" }), "srv.js": "x" })).args.START_CMD, "node srv.js");
+  assert.match(await planError({ "package.json": pkg({ main: "gone.js" }) }), /no start script/, "a main file that is not there does not count");
+  const withProc = await plan({ "package.json": pkg({ scripts: { start: "node a.js" } }), Procfile: "worker: node w.js\nweb: node web.js --x\n" });
   assert.equal(withProc.args.START_CMD, "node web.js --x");
 });
 
-test("detect: a build script with no start is a static site, and the output folder follows the generator", () => {
-  const vite = plan({ "package.json": pkg({ scripts: { build: "vite build" }, devDependencies: { vite: "^5" } }) });
+test("detect: a build script with no start is a static site, and the output folder follows the generator", async () => {
+  const vite = await plan({ "package.json": pkg({ scripts: { build: "vite build" }, devDependencies: { vite: "^5" } }) });
   assert.equal(vite.kind, "static-build");
   assert.equal(vite.args.STATIC_DIR, "dist");
-  assert.equal(plan({ "package.json": pkg({ scripts: { build: "x" }, dependencies: { "react-scripts": "5" } }) }).args.STATIC_DIR, "build");
-  assert.equal(plan({ "package.json": pkg({ scripts: { build: "x" }, devDependencies: { "@11ty/eleventy": "2" } }) }).args.STATIC_DIR, "_site");
-  assert.equal(plan({ "package.json": pkg({ scripts: { build: "x" }, dependencies: { next: "15" } }) }).args.STATIC_DIR, "out");
+  assert.equal((await plan({ "package.json": pkg({ scripts: { build: "x" }, dependencies: { "react-scripts": "5" } }) })).args.STATIC_DIR, "build");
+  assert.equal((await plan({ "package.json": pkg({ scripts: { build: "x" }, devDependencies: { "@11ty/eleventy": "2" } }) })).args.STATIC_DIR, "_site");
+  assert.equal((await plan({ "package.json": pkg({ scripts: { build: "x" }, dependencies: { next: "15" } }) })).args.STATIC_DIR, "out");
 });
 
-test("detect: a node project with nothing to run says what to add", () => {
-  assert.match(planError({ "package.json": pkg({ name: "x" }) }), /no start script.*Procfile/);
-  assert.match(planError({ "package.json": "{not json" }), /not valid JSON/);
+test("detect: a node project with nothing to run says what to add", async () => {
+  assert.match(await planError({ "package.json": pkg({ name: "x" }) }), /no start script.*Procfile/);
+  assert.match(await planError({ "package.json": "{not json" }), /not valid JSON/);
 });
 
-test("detect: python from requirements.txt or pyproject, with the entry file or Procfile as the start", () => {
-  const req = plan({ "requirements.txt": "flask\n", "app.py": "x" });
+test("detect: python from requirements.txt or pyproject, with the entry file or Procfile as the start", async () => {
+  const req = await plan({ "requirements.txt": "flask\n", "app.py": "x" });
   assert.equal(req.kind, "python");
   assert.equal(req.args.INSTALL_CMD, "pip install --no-cache-dir -r requirements.txt");
   assert.equal(req.args.START_CMD, "python app.py");
-  const proj = plan({ "pyproject.toml": "[project]\nname='x'\n", "main.py": "x" });
+  const proj = await plan({ "pyproject.toml": "[project]\nname='x'\n", "main.py": "x" });
   assert.equal(proj.args.INSTALL_CMD, "true");
   assert.equal(proj.args.BUILD_CMD, "pip install --no-cache-dir .");
-  assert.equal(plan({ "requirements.txt": "django\n", "manage.py": "x" }).args.START_CMD, "python manage.py runserver 0.0.0.0:$PORT");
-  assert.equal(plan({ "requirements.txt": "x\n", Procfile: "web: gunicorn app:app -b 0.0.0.0:$PORT" }).args.START_CMD, "gunicorn app:app -b 0.0.0.0:$PORT");
-  assert.match(planError({ "requirements.txt": "x\n" }), /Add app\.py or main\.py/);
+  assert.equal((await plan({ "requirements.txt": "django\n", "manage.py": "x" })).args.START_CMD, "python manage.py runserver 0.0.0.0:$PORT");
+  assert.equal((await plan({ "requirements.txt": "x\n", Procfile: "web: gunicorn app:app -b 0.0.0.0:$PORT" })).args.START_CMD, "gunicorn app:app -b 0.0.0.0:$PORT");
+  assert.match(await planError({ "requirements.txt": "x\n" }), /Add app\.py or main\.py/);
 });
 
-test("detect: static files from the root or the first folder that has an index.html", () => {
-  assert.equal(plan({ "index.html": "<p>" }).args.STATIC_DIR, ".");
-  assert.equal(plan({ "public/index.html": "<p>" }).args.STATIC_DIR, "public");
-  assert.equal(plan({ "dist/index.html": "<p>", "build/index.html": "<p>" }).args.STATIC_DIR, "dist");
-  assert.equal(plan({ "index.html": "<p>", "public/index.html": "<p>" }).args.STATIC_DIR, ".");
-  assert.match(planError({ "README.md": "hi" }), /Could not tell how to build/);
+test("detect: static files from the root or the first folder that has an index.html", async () => {
+  assert.equal((await plan({ "index.html": "<p>" })).args.STATIC_DIR, ".");
+  assert.equal((await plan({ "public/index.html": "<p>" })).args.STATIC_DIR, "public");
+  assert.equal((await plan({ "dist/index.html": "<p>", "build/index.html": "<p>" })).args.STATIC_DIR, "dist");
+  assert.equal((await plan({ "index.html": "<p>", "public/index.html": "<p>" })).args.STATIC_DIR, ".");
+  assert.match(await planError({ "README.md": "hi" }), /Could not tell how to build/);
 });
 
 test("procfile: only the web line counts", () => {
@@ -185,10 +185,10 @@ test("procfile: only the web line counts", () => {
   assert.equal(procfileWeb(os.tmpdir() + "/does-not-exist-vyre"), null);
 });
 
-test("cache key: the lockfile hash changes with a lockfile and ignores source edits", () => {
-  const a = plan({ ...NODE_SITE });
-  const sameLock = plan({ ...NODE_SITE, "server.js": "edited" });
-  const newLock = plan({ ...NODE_SITE, "package-lock.json": '{"lockfileVersion":3}' });
+test("cache key: the lockfile hash changes with a lockfile and ignores source edits", async () => {
+  const a = await plan({ ...NODE_SITE });
+  const sameLock = await plan({ ...NODE_SITE, "server.js": "edited" });
+  const newLock = await plan({ ...NODE_SITE, "package-lock.json": '{"lockfileVersion":3}' });
   assert.match(a.lockHash, /^[0-9a-f]{16}$/);
   assert.equal(sameLock.lockHash, a.lockHash);
   assert.notEqual(newLock.lockHash, a.lockHash);

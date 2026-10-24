@@ -6,7 +6,6 @@
 // Environment values never appear in argv or logs: `-e NAME` takes the value from the child process environment, and the value comes from EnvValue(ref).
 // Containers run with every capability dropped, no new privileges, a memory and process cap, on the Space-private vyre-sites network.
 
-import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -99,16 +98,17 @@ function readText(dir: string, name: string): string | null {
 
 const exists = (dir: string, name: string): boolean => fs.existsSync(path.join(dir, name));
 
-function lockHash(dir: string, extra: string[]): { hash: string; files: string[] } {
+/** SHA-256 through Web Crypto (no node:crypto outside kernel and vault, B3); the first 16 hex characters are the cache key. */
+async function lockHash(dir: string, extra: string[]): Promise<{ hash: string; files: string[] }> {
   const files = [...extra, ...LOCK_CANDIDATES.filter((f) => exists(dir, f))];
-  const h = createHash("sha256");
-  for (const f of files) {
-    h.update(f);
-    h.update("\0");
-    h.update(readText(dir, f) ?? "");
-    h.update("\0");
-  }
-  return { hash: h.digest("hex").slice(0, 16), files };
+  const enc = new TextEncoder();
+  const parts: Uint8Array[] = [];
+  for (const f of files) parts.push(enc.encode(`${f}\0`), enc.encode(readText(dir, f) ?? ""), enc.encode("\0"));
+  const all = new Uint8Array(parts.reduce((n, a) => n + a.length, 0));
+  let at = 0;
+  for (const a of parts) { all.set(a, at); at += a.length; }
+  const digest = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", all));
+  return { hash: Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16), files };
 }
 
 /** The `web:` line of a Procfile, if there is one. */
@@ -166,9 +166,9 @@ function template(name: string): string {
 }
 
 /** Decides how to build the source in `dir`. Throws BuildPlanError with a sentence a person can act on. */
-export function detectPlan(dir: string): BuildPlan {
+export async function detectPlan(dir: string): Promise<BuildPlan> {
   if (exists(dir, "Dockerfile")) {
-    const { hash, files } = lockHash(dir, ["Dockerfile"]);
+    const { hash, files } = await lockHash(dir, ["Dockerfile"]);
     return { kind: "dockerfile", dockerfile: path.join(dir, "Dockerfile"), args: {}, lockHash: hash, lockFiles: files, note: "Detected Dockerfile: building the repo's own Dockerfile." };
   }
   const procfile = procfileWeb(dir);
@@ -178,7 +178,7 @@ export function detectPlan(dir: string): BuildPlan {
     const hasStart = typeof scripts.start === "string";
     const hasBuild = typeof scripts.build === "string";
     const main = typeof pkg.main === "string" && exists(dir, pkg.main) ? pkg.main : null;
-    const { hash, files } = lockHash(dir, ["package.json"]);
+    const { hash, files } = await lockHash(dir, ["package.json"]);
     const install = nodeInstall(dir);
     if (!hasStart && procfile === null && main === null && hasBuild) {
       const out = staticOutput(pkg);
@@ -205,7 +205,7 @@ export function detectPlan(dir: string): BuildPlan {
     if (start === null) {
       throw new BuildPlanError("No way to start this Python project. Add app.py or main.py, or a Procfile with a web line.");
     }
-    const { hash, files } = lockHash(dir, []);
+    const { hash, files } = await lockHash(dir, []);
     return {
       kind: "python", dockerfile: template("Dockerfile.python"), lockHash: hash, lockFiles: files,
       args: fromRequirements
@@ -216,7 +216,7 @@ export function detectPlan(dir: string): BuildPlan {
   }
   const root = staticRoot(dir);
   if (root !== null) {
-    const { hash, files } = lockHash(dir, []);
+    const { hash, files } = await lockHash(dir, []);
     return { kind: "static", dockerfile: template("Dockerfile.static"), lockHash: hash, lockFiles: files, args: { STATIC_DIR: root }, note: `Detected static files in ${root === "." ? "the repo root" : `${root}/`}.` };
   }
   throw new BuildPlanError("Could not tell how to build this repo. Add a Dockerfile, a package.json with a start script, requirements.txt, or an index.html.");
@@ -365,7 +365,7 @@ export function dockerRuntime(o: DockerRuntimeOptions): SiteRuntime {
     try {
       const image = imageName(req.siteId, req.deploymentId);
       source = await o.fetchSource(req);
-      const plan = detectPlan(source.dir);
+      const plan = await detectPlan(source.dir);
       log.push(plan.note, `Lockfiles: ${plan.lockFiles.join(", ") || "none"} (cache key ${plan.lockHash}).`);
       ensureDockerignore(source.dir);
       const cache = cacheName(req.siteId, plan.lockHash);
