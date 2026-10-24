@@ -17,7 +17,7 @@ export function buildAccess(opts: { boFilter?: Expr | null; boHidden?: string[] 
   snap.addPrincipalRole({ holder: ADA, role: "owner" });
   snap.addPrincipalRole({ holder: BO, role: "member" });
   snap.addPrincipalRole({ holder: CY, role: "guest" });
-  for (const type of ["record", "thread", "space", "file"]) {
+  for (const type of ["record", "thread", "space", "file", "number"]) {
     snap.putGrant({ id: `gr_ada_${type}`, subject_kind: "actor", subject_id: ADA, resource_type: type, resource_id: null, level: "manage" });
     snap.putGrant({
       id: `gr_bo_${type}`, subject_kind: "actor", subject_id: BO, resource_type: type, resource_id: null, level: "view",

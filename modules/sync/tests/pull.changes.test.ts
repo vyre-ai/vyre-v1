@@ -189,7 +189,7 @@ test("two devices of one person are separate: the second gets the full row, not 
   assert.equal(phone.changes.length, 1);
   await r.s.store.update("contact", a.id, { stage: "won" }, a.version);
   const laptop = await pull(r, ctx(ADA, "dev_laptop"), 0);
-  assert.deepEqual(laptop.changes.map((c) => c.op), ["upsert"], "the laptop never held the row");
+  assert.deepEqual(laptop.changes.map((c) => c.op), ["upsert"], "the laptop never held the row, and the whole row already carries the later patch");
   assert.equal(laptop.changes[0]!.fields["stage"]?.v, "won");
   const phone2 = await pull(r, ctx(ADA, "dev_phone", "phone"), phone.next);
   assert.deepEqual(phone2.changes.map((c) => c.op), ["patch"]);
@@ -241,16 +241,19 @@ test("labels: a row above the person's clearance is not sent, Restricted goes no
   row(r, { entity: "client_plan", id: "cp_conf", op: "upsert", fields: { name: "Plan", taxId: "12-345", region: "eu" } }, { label: 2 });
   row(r, { entity: "client_plan", id: "cp_open", op: "upsert", fields: { name: "Open", taxId: "99-999", region: "eu" } }, { label: 0 });
   row(r, { entity: "client_plan", id: "cp_rest", op: "upsert", fields: { name: "Secret", region: "eu" } }, { label: 3 });
+  row(r, { entity: "call", id: "call1", op: "upsert", fields: { from: "+1555", transcript: "hello", region: "eu" } });
   const bo = await pull(r, ctx(BO), 0);
-  assert.deepEqual(ids(bo.changes), ["cp_open"], "bo has clearance 1 and sees no label 2 row");
-  assert.equal(bo.changes[0]!.fields["taxId"], undefined, "a confidential field is omitted for clearance 1");
-  assert.equal(bo.changes[0]!.fields["name"]?.v, "Open");
+  assert.deepEqual(ids(bo.changes).sort(), ["call1", "cp_open"], "bo has clearance 1 and sees no label 2 row");
+  assert.equal(bo.changes.find((c) => c.id === "call1")?.fields["transcript"], undefined, "a confidential field is omitted for clearance 1");
+  assert.equal(bo.changes.find((c) => c.id === "call1")?.fields["from"]?.v, "+1555");
   const ada = await pull(r, ctx(ADA), 0);
-  assert.deepEqual(ids(ada.changes).sort(), ["cp_conf", "cp_open"], "ada sees up to confidential on a desktop, never restricted");
-  assert.equal(ada.changes.find((c) => c.id === "cp_conf")?.fields["taxId"]?.v, "12-345");
+  assert.deepEqual(ids(ada.changes).sort(), ["call1", "cp_conf", "cp_open"], "ada sees up to confidential on a desktop, never restricted");
+  assert.equal(ada.changes.find((c) => c.id === "call1")?.fields["transcript"]?.v, "hello");
+  assert.ok(ada.changes.find((c) => c.id === "cp_conf")?.fields["name"]);
+  assert.equal(ada.changes.find((c) => c.id === "cp_conf")?.fields["taxId"], undefined, "a Restricted field goes to no device");
   const phone = await pull(r, ctx(ADA, "dev_phone", "phone"), 0);
-  assert.deepEqual(ids(phone.changes), ["cp_open"], "a phone ceiling of internal drops the confidential row");
-  assert.equal(phone.changes[0]!.fields["taxId"], undefined, "and the confidential field of a row it does get");
+  assert.deepEqual(ids(phone.changes).sort(), ["call1", "cp_open"], "a phone ceiling of internal drops the confidential row");
+  assert.equal(phone.changes.find((c) => c.id === "call1")?.fields["transcript"], undefined, "and the confidential field of a row it does get");
 });
 
 test("a private (enc 2) row goes only to its owner, as one sealed field with its key and nonce", async () => {

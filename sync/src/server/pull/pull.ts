@@ -129,6 +129,8 @@ export function pullChanges(d: PullDeps, who: Who, req: PullReq): PullRes {
   };
 
   const out: Emission[] = [];
+  // A row sent whole in this response already shows its latest state, so later patches to it in the same response add nothing.
+  const whole = new Set<string>();
   let used = 0, last = cursor, stopped = false;
   db.exec("BEGIN IMMEDIATE");
   try {
@@ -152,12 +154,14 @@ export function pullChanges(d: PullDeps, who: Who, req: PullReq): PullRes {
           if (visible && !was) {
             out.push({ kind: "change", row: key, terminal: false, change: { seq: c.seq, entity: c.entity, id: c.id, op: "upsert", fields: wireFields(viewer.fields(sc, cells)) } });
             seen.set(c.entity, c.id, true, c.seq); used++;
-          } else if (visible && was && c.op !== "rescan") {
+            whole.add(key);
+          } else if (visible && was && c.op !== "rescan" && !whole.has(key)) {
             const f = wireFields(viewer.fields(sc, JSON.parse(c.fields) as Cells));
             if (Object.keys(f).length) { out.push({ kind: "change", row: key, terminal: false, change: { seq: c.seq, entity: c.entity, id: c.id, op: c.op, fields: f } }); used++; }
           } else if (!visible && was) {
             out.push({ kind: "hide", row: key, terminal: true, hide: { entity: c.entity, id: c.id, seq: c.seq } });
             seen.set(c.entity, c.id, false, c.seq); used++;
+            whole.delete(key);
           }
         }
       }
