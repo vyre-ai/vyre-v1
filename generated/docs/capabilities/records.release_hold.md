@@ -17,7 +17,7 @@ Release a hold on a record
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/records/release_hold |
-| MCP tool | none |
+| MCP tool | records_release_hold (records) |
 | CLI | none |
 | Emits | record.hold_released |
 

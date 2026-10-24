@@ -5,11 +5,13 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "agents.builtin_skills.list": Handler<"agents.builtin_skills.list", X>;
   "agents.config.get": Handler<"agents.config.get", X>;
   "agents.config.validate": Handler<"agents.config.validate", X>;
   "agents.create": Handler<"agents.create", X>;
   "agents.delete": Handler<"agents.delete", X>;
   "agents.get": Handler<"agents.get", X>;
+  "agents.guide.get": Handler<"agents.guide.get", X>;
   "agents.limits.get": Handler<"agents.limits.get", X>;
   "agents.list": Handler<"agents.list", X>;
   "agents.pause": Handler<"agents.pause", X>;

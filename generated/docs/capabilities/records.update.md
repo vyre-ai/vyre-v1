@@ -19,7 +19,7 @@ Update fields of a record (per-field merge for sync, base version for API caller
 | HTTP | POST /v1/records/update |
 | MCP tool | records_update (records) |
 | CLI | none |
-| Emits | record.updated |
+| Emits | record.updated, record.value_proposed |
 
 ## Input
 

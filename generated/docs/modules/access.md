@@ -4,7 +4,7 @@ Lane L7a. Kind module. Status stub. Version 0.1.0.
 
 Requires: files.
 
-## Capabilities (56)
+## Capabilities (58)
 
 - [access.actors.create](../capabilities/access.actors.create.md): Register an outside actor and issue a one-time token (works once, within 10 minutes)
 - [access.actors.list](../capabilities/access.actors.list.md): List outside actors (registered external tools such as Claude Code or Codex)
@@ -17,6 +17,8 @@ Requires: files.
 - [access.grants.update](../capabilities/access.grants.update.md): Change the level, conditions or expiry of a grant
 - [access.groups.add_member](../capabilities/access.groups.add_member.md): Add a person or agent to a group (groups hold no groups)
 - [access.groups.create](../capabilities/access.groups.create.md): Create a group of people and agents
+- [access.groups.defaults_get](../capabilities/access.groups.defaults_get.md): Default grants of the built-in Everyone group (every member holds them; Kits ship the first set and invites add new people to the group)
+- [access.groups.defaults_set](../capabilities/access.groups.defaults_set.md): Replace the default grants of the Everyone group; the sheet shows who gains what, then applies
 - [access.groups.delete](../capabilities/access.groups.delete.md): Delete a group; grants given to it go with it
 - [access.groups.get](../capabilities/access.groups.get.md): Read one group with members, managers, roles and grants given to it
 - [access.groups.list](../capabilities/access.groups.list.md): List groups
@@ -63,10 +65,11 @@ Requires: files.
 - [folders.rename](../capabilities/folders.rename.md): Rename a folder
 - [folders.unplace](../capabilities/folders.unplace.md): Take an item out of its folder back to the top of its section
 
-## Events (17)
+## Events (18)
 
 - [access.changed](../events/access.changed.md): Roles, groups, labels or membership changed; bumps the authorize cache epoch
 - [access.declined](../events/access.declined.md): An access request was declined; the note goes back to the requester
+- [access.everyone_defaults_changed](../events/access.everyone_defaults_changed.md): The default grants of the Everyone group changed
 - [access.granted](../events/access.granted.md): An access request was approved
 - [access.requested](../events/access.requested.md): Someone asked for access to a resource
 - [access_review.closed](../events/access_review.closed.md): An access review closed

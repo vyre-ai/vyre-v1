@@ -4,7 +4,7 @@ Lane L7a. Kind module. Status stub. Version 0.1.0.
 
 Requires: access.
 
-## Capabilities (40)
+## Capabilities (42)
 
 - [providers.add](../capabilities/providers.add.md): Connect a provider with a pasted API key (stored once, used by handle) or a local model address
 - [providers.catalog](../capabilities/providers.catalog.md): The provider gallery from the definition files: name, logo, connection kinds, model list source, engine
@@ -44,10 +44,12 @@ Requires: access.
 - [vault.report_scrub_miss](../capabilities/vault.report_scrub_miss.md): System: the filler reports a value it could not scrub from an output stream
 - [vault.service_health](../capabilities/vault.service_health.md): Health probe: the vault service answers and its key handle is loaded
 - [vault.share](../capabilities/vault.share.md): Share an item or folder with a person, group, agent or automation at Use, View, Edit or Manage; subscription sign-ins are never shareable
+- [vault.site_rules.list](../capabilities/vault.site_rules.list.md): Sites where I never fill and never get offered to save a login in this Space (Never Fill on This Site)
+- [vault.site_rules.set](../capabilities/vault.site_rules.set.md): Set or clear the never-fill and never-save rule for one site; personal, follows the extension in this Space
 - [vault.unshare](../capabilities/vault.unshare.md): Stop sharing an item or folder with someone
 - [vault.use](../capabilities/vault.use.md): Ask for an item by name: returns a handle like #Dana_Lawmatics and the field names, never values
 
-## Events (18)
+## Events (20)
 
 - [provider.added](../events/provider.added.md): An AI provider was connected (subscription, key or local model)
 - [provider.removed](../events/provider.removed.md): An AI provider was removed
@@ -65,5 +67,7 @@ Requires: access.
 - [vault.item_rotated](../events/vault.item_rotated.md): An item was marked rotated
 - [vault.item_updated](../events/vault.item_updated.md): Fields or settings of an item changed (field keys only)
 - [vault.revealed](../events/vault.revealed.md): A value was shown to a person at View level (audited per actor)
+- [vault.rotation_due](../events/vault.rotation_due.md): An item reached its rotation reminder date (ids only); the owner gets a Badge notification
 - [vault.scrub_miss](../events/vault.scrub_miss.md): The output scrubber failed to remove a value from a stream (value not recorded)
+- [vault.site_rule_changed](../events/vault.site_rule_changed.md): A person set or cleared the never-fill or never-save rule for one site (host only)
 - [vault.used](../events/vault.used.md): An item was used by handle; the value was filled and scrubbed (no value in the event)

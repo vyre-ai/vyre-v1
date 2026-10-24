@@ -6,7 +6,7 @@ Generated from the manifests. The lead completes it by hand (spec sections, reus
 
 ### access
 
-Capabilities to implement: 56. Events to emit: 17. Contract tests that must go green: `generated/tests/access/`.
+Capabilities to implement: 58. Events to emit: 18. Contract tests that must go green: `generated/tests/access/`.
 
 Capabilities:
 - access.actors.create (write, access.manage, level view)
@@ -20,6 +20,8 @@ Capabilities:
 - access.grants.update (write, grant only, level view)
 - access.groups.add_member (write, access.manage, level view)
 - access.groups.create (write, access.manage, level view)
+- access.groups.defaults_get (read, grant only, level view)
+- access.groups.defaults_set (write, access.manage, level view)
 - access.groups.delete (write, access.manage, level view)
 - access.groups.get (read, grant only, level view)
 - access.groups.list (read, grant only, level view)
@@ -69,6 +71,7 @@ Capabilities:
 Events:
 - access.changed
 - access.declined
+- access.everyone_defaults_changed
 - access.granted
 - access.requested
 - access_review.closed
@@ -297,7 +300,7 @@ Events:
 
 ### vault
 
-Capabilities to implement: 40. Events to emit: 18. Contract tests that must go green: `generated/tests/vault/`.
+Capabilities to implement: 42. Events to emit: 20. Contract tests that must go green: `generated/tests/vault/`.
 
 Capabilities:
 - providers.add (write, grant only, level view)
@@ -338,6 +341,8 @@ Capabilities:
 - vault.report_scrub_miss (write, grant only, level view)
 - vault.service_health (read, grant only, level view)
 - vault.share (write, grant only, level view)
+- vault.site_rules.list (read, grant only, level view)
+- vault.site_rules.set (write, grant only, level view)
 - vault.unshare (write, grant only, level view)
 - vault.use (write, grant only, level use)
 
@@ -358,7 +363,9 @@ Events:
 - vault.item_rotated
 - vault.item_updated
 - vault.revealed
+- vault.rotation_due
 - vault.scrub_miss
+- vault.site_rule_changed
 - vault.used
 
 ### vault-requests

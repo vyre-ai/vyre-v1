@@ -642,6 +642,109 @@
     },
     {
       "blocks": [],
+      "cap": "access.groups.defaults_get",
+      "deferred": false,
+      "description": "Default grants of the built-in Everyone group (every member holds them; Kits ship the first set and invites add new people to the group)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "access_groups_defaults_get",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "access.groups.defaults_set",
+      "deferred": false,
+      "description": "Replace the default grants of the Everyone group; the sheet shows who gains what, then applies",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "grants": {
+            "items": {
+              "properties": {
+                "level": {
+                  "enum": [
+                    "view",
+                    "use",
+                    "edit",
+                    "manage"
+                  ],
+                  "type": "string"
+                },
+                "resource": {
+                  "properties": {
+                    "id": {
+                      "examples": [
+                        "rec_a1b2c3"
+                      ],
+                      "type": "string"
+                    },
+                    "type": {
+                      "enum": [
+                        "space",
+                        "record_type",
+                        "record",
+                        "project",
+                        "folder",
+                        "file",
+                        "channel",
+                        "thread",
+                        "inbox",
+                        "mailbox",
+                        "vault_folder",
+                        "vault_item",
+                        "automation_group",
+                        "automation",
+                        "agent",
+                        "connector",
+                        "connection",
+                        "site",
+                        "form",
+                        "campaign",
+                        "kit",
+                        "terminal",
+                        "computer",
+                        "task",
+                        "run",
+                        "number",
+                        "domain",
+                        "calendar"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "resource",
+                "level"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "grants"
+        ],
+        "type": "object"
+      },
+      "name": "access_groups_defaults_set",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "access.groups.delete",
       "deferred": false,
       "description": "Delete a group; grants given to it go with it",
@@ -2380,6 +2483,21 @@
     },
     {
       "blocks": [],
+      "cap": "agents.builtin_skills.list",
+      "deferred": false,
+      "description": "Skills every agent carries, led by \"Working in Vyre\": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "agents_builtin_skills_list",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.config.get",
       "deferred": false,
       "description": "Parsed agent.toml and AGENT.md metadata as the next run will see them, with the last good version and any error",
@@ -2581,6 +2699,21 @@
         "type": "object"
       },
       "name": "agents_get",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.guide.get",
+      "deferred": false,
+      "description": "The Vyre agent guide (.vyre/guide.md): version and text, rewritten by app updates, loaded into every chat before VYRE.md",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "agents_guide_get",
       "planMode": "allowed",
       "toolset": "agents",
       "v": 1
@@ -8193,6 +8326,121 @@
     },
     {
       "blocks": [],
+      "cap": "channels.stream",
+      "deferred": false,
+      "description": "The channel as a timeline: messages and Run items in order; repeated runs of one flow collapse into one row (\"ran 6 times today\"); counts feed the People, Agents and Runs menu",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "before": {
+            "type": "integer"
+          },
+          "channelId": {
+            "examples": [
+              "chn_a1b2c3"
+            ],
+            "pattern": "^chn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "expand": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "show": {
+            "items": {
+              "enum": [
+                "people",
+                "agents",
+                "runs"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "channelId"
+        ],
+        "type": "object"
+      },
+      "name": "channels_stream",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "channels.stream_prefs.get",
+      "deferred": false,
+      "description": "My People, Agents and Runs choice for one channel",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "channelId": {
+            "examples": [
+              "chn_a1b2c3"
+            ],
+            "pattern": "^chn_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelId"
+        ],
+        "type": "object"
+      },
+      "name": "channels_stream_prefs_get",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "channels.stream_prefs.set",
+      "deferred": false,
+      "description": "Hide or show People, Agents or Runs in one channel for myself (Hide Runs in This Channel); the header says what is hidden",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "channelId": {
+            "examples": [
+              "chn_a1b2c3"
+            ],
+            "pattern": "^chn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "hide": {
+            "items": {
+              "enum": [
+                "people",
+                "agents",
+                "runs"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "channelId",
+          "hide"
+        ],
+        "type": "object"
+      },
+      "name": "channels_stream_prefs_set",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "channels.unarchive",
       "deferred": false,
       "description": "Bring an archived channel back",
@@ -13770,6 +14018,86 @@
         "type": "object"
       },
       "name": "email_builder_send_test",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "email_builder.snippets.delete",
+      "deferred": false,
+      "description": "Delete a composer snippet",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "snippetId": {
+            "examples": [
+              "snp_a1b2c3"
+            ],
+            "pattern": "^snp_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snippetId"
+        ],
+        "type": "object"
+      },
+      "name": "email_builder_snippets_delete",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "email_builder.snippets.list",
+      "deferred": false,
+      "description": "List composer snippets: short reusable text for Inbox email and text replies, mine and shared with the Space",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "email_builder_snippets_list",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "email_builder.snippets.save",
+      "deferred": false,
+      "description": "Create or change a composer snippet",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "shared": {
+            "type": "boolean"
+          },
+          "shortcut": {
+            "type": "string"
+          },
+          "snippetId": {
+            "examples": [
+              "snp_a1b2c3"
+            ],
+            "pattern": "^snp_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "body"
+        ],
+        "type": "object"
+      },
+      "name": "email_builder_snippets_save",
       "planMode": "blocked",
       "toolset": "inbox",
       "v": 1
@@ -34120,6 +34448,40 @@
     },
     {
       "blocks": [],
+      "cap": "records.completeness",
+      "deferred": false,
+      "description": "Completeness of one record (for example 8 of 11) with the missing fields; Ask for these turns the list into a short-lived form",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "records_completeness",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "records.create",
       "deferred": false,
       "description": "Create a record",
@@ -34270,6 +34632,39 @@
     },
     {
       "blocks": [],
+      "cap": "records.gap_check",
+      "deferred": false,
+      "description": "Run the gap-check rules of a type over one record or all of them: finds missing or stale fields and names the fill route (AI field, agent lookup, teammate task or collection form)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "name": "records_gap_check",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "records.get",
       "deferred": false,
       "description": "Read one record by id",
@@ -34341,6 +34736,44 @@
     },
     {
       "blocks": [],
+      "cap": "records.hold",
+      "deferred": false,
+      "description": "Place a hold on a record",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "name": "records_hold",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "records.merge",
       "deferred": false,
       "description": "Merge records into a survivor with a value picked per field (undoable for 30 days)",
@@ -34387,6 +34820,70 @@
         "type": "object"
       },
       "name": "records_merge",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.page_prefs.get",
+      "deferred": false,
+      "description": "My choices on the record page of a type: sections I folded and fields I keep visible",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "name": "records_page_prefs_get",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.page_prefs.set",
+      "deferred": false,
+      "description": "Fold sections and keep fields visible for myself; a personal display choice, not a Star",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "folded": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "keepVisible": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "name": "records_page_prefs_set",
       "planMode": "blocked",
       "toolset": "records",
       "v": 1
@@ -34508,6 +35005,79 @@
         "type": "object"
       },
       "name": "records_relate",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.relations_map",
+      "deferred": false,
+      "description": "Relationship map of a record: linked records out to two hops, each edge named by its relation field, limited to what the caller may see",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "hops": {
+            "maximum": 2,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "records_relations_map",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.release_hold",
+      "deferred": false,
+      "description": "Release a hold on a record",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "records_release_hold",
       "planMode": "blocked",
       "toolset": "records",
       "v": 1
@@ -34664,6 +35234,127 @@
         "type": "object"
       },
       "name": "records_update",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.value_source",
+      "deferred": false,
+      "description": "Source popover of one value: who or what filled it, from where, when, and whether it counts yet",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId",
+          "field"
+        ],
+        "type": "object"
+      },
+      "name": "records_value_source",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.values.pending",
+      "deferred": false,
+      "description": "Needs review: agent-filled values waiting for a reviewer, each with its source and time (counts into My work for the field reviewer role)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "name": "records_values_pending",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.values.review",
+      "deferred": false,
+      "description": "Accept or reject an agent-filled value; an accepted value counts, a rejected one is dropped and stays in history",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "accept",
+              "reject"
+            ],
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId",
+          "field",
+          "decision"
+        ],
+        "type": "object"
+      },
+      "name": "records_values_review",
       "planMode": "blocked",
       "toolset": "records",
       "v": 1
@@ -34844,6 +35535,13 @@
         "properties": {
           "bundle": {
             "properties": {
+              "clientLogFileId": {
+                "examples": [
+                  "fil_a1b2c3"
+                ],
+                "pattern": "^fil_[a-z0-9]+$",
+                "type": "string"
+              },
               "context": {
                 "properties": {
                   "hash": {
@@ -34860,6 +35558,41 @@
                   "place"
                 ],
                 "type": "object"
+              },
+              "errors": {
+                "items": {
+                  "properties": {
+                    "at": {
+                      "description": "Milliseconds since the Unix epoch",
+                      "examples": [
+                        1760000000000
+                      ],
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "examples": [
+                        "0123456789abcdef0123456789abcdef"
+                      ],
+                      "pattern": "^[0-9a-f]{32}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "at"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 50,
+                "type": "array"
               },
               "events": {
                 "items": {
@@ -36302,6 +37035,114 @@
     },
     {
       "blocks": [],
+      "cap": "schema.gap_rules.list",
+      "deferred": false,
+      "description": "Gap-check rules of a type: which fields count as missing or stale and how each gap is routed",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "name": "schema_gap_rules_list",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "schema.gap_rules.set",
+      "deferred": false,
+      "description": "Create or replace a gap-check rule: a missing or stale field goes to an AI field, an agent lookup, a teammate task or a collection form",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "rule": {
+            "properties": {
+              "agentId": {
+                "examples": [
+                  "agt_a1b2c3"
+                ],
+                "pattern": "^agt_[a-z0-9]+$",
+                "type": "string"
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "field": {
+                "examples": [
+                  "phone"
+                ],
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "type": "string"
+              },
+              "route": {
+                "enum": [
+                  "ai_field",
+                  "agent_lookup",
+                  "task",
+                  "form"
+                ],
+                "type": "string"
+              },
+              "ruleId": {
+                "examples": [
+                  "gap_missing_email"
+                ],
+                "type": "string"
+              },
+              "staleAfterDays": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "when": {
+                "enum": [
+                  "missing",
+                  "stale"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "ruleId",
+              "field",
+              "when",
+              "route",
+              "enabled"
+            ],
+            "type": "object"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "rule"
+        ],
+        "type": "object"
+      },
+      "name": "schema_gap_rules_set",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "schema.infer",
       "deferred": false,
       "description": "Propose a record type from pasted CSV text or a CSV/XLSX file: field names, types, choices and a title field",
@@ -36329,6 +37170,94 @@
       },
       "name": "schema_infer",
       "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "schema.layout.get",
+      "deferred": false,
+      "description": "Admin layout of the record page of a type: ordered sections with their fields and which start folded",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "name": "schema_layout_get",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "schema.layout.set",
+      "deferred": false,
+      "description": "Set the record page layout of a type (sections, order, default folds); people fold and keep fields visible on top of it for themselves",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "sections": {
+            "items": {
+              "properties": {
+                "fields": {
+                  "items": {
+                    "examples": [
+                      "phone"
+                    ],
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "folded": {
+                  "type": "boolean"
+                },
+                "key": {
+                  "examples": [
+                    "contact_details"
+                  ],
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "title",
+                "fields"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "sections"
+        ],
+        "type": "object"
+      },
+      "name": "schema_layout_set",
+      "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
     },
@@ -36391,6 +37320,32 @@
       },
       "name": "schema_restore_field",
       "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "schema.sensitivity.scan",
+      "deferred": false,
+      "description": "Detect sensitive data in the fields of a type (ID numbers, card and bank numbers, health terms) and suggest which fields to seal; changes nothing and returns no values",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "name": "schema_sensitivity_scan",
+      "planMode": "allowed",
       "toolset": "engineer",
       "v": 1
     },
@@ -46469,6 +47424,54 @@
         "type": "object"
       },
       "name": "vault_share",
+      "planMode": "blocked",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "vault.site_rules.list",
+      "deferred": false,
+      "description": "Sites where I never fill and never get offered to save a login in this Space (Never Fill on This Site)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "vault_site_rules_list",
+      "planMode": "allowed",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "vault.site_rules.set",
+      "deferred": false,
+      "description": "Set or clear the never-fill and never-save rule for one site; personal, follows the extension in this Space",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "host": {
+            "examples": [
+              "bank.example.com"
+            ],
+            "type": "string"
+          },
+          "neverFill": {
+            "type": "boolean"
+          },
+          "neverSave": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "host",
+          "neverFill",
+          "neverSave"
+        ],
+        "type": "object"
+      },
+      "name": "vault_site_rules_set",
       "planMode": "blocked",
       "toolset": "vault",
       "v": 1

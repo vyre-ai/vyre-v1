@@ -17,6 +17,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "channels.list": Handler<"channels.list", X>;
   "channels.members.add": Handler<"channels.members.add", X>;
   "channels.members.remove": Handler<"channels.members.remove", X>;
+  "channels.stream": Handler<"channels.stream", X>;
+  "channels.stream_prefs.get": Handler<"channels.stream_prefs.get", X>;
+  "channels.stream_prefs.set": Handler<"channels.stream_prefs.set", X>;
   "channels.unarchive": Handler<"channels.unarchive", X>;
   "channels.update": Handler<"channels.update", X>;
   "chat.answer_block": Handler<"chat.answer_block", X>;

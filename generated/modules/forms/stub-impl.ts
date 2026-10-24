@@ -19,6 +19,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "forms.link_revoke": async () => ({"revoked":true} as unknown) as never,
   "forms.list": async () => ({"forms":[{"formId":"frm_a1b2c3","kind":"public","name":"example","recordType":"contact","slug":"intake","state":"draft","submissions":1}],"next":"example","total":1} as unknown) as never,
   "forms.publish": async () => ({"embed":"example","url":"example"} as unknown) as never,
+  "forms.save_partial": async () => ({"expiresAt":1760000000000,"saved":true} as unknown) as never,
   "forms.submissions": async () => ({"next":"example","rows":[{"at":1760000000000,"matched":true,"recordId":"rec_a1b2c3"}],"total":1} as unknown) as never,
   "forms.submit": async () => ({"recordId":"rec_a1b2c3","thankYou":"example"} as unknown) as never,
   "forms.survey_results": async () => ({"questions":[{"field":"example","summary":{}}],"responses":1} as unknown) as never,

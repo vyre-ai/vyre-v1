@@ -16,6 +16,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "access.grants.update": Handler<"access.grants.update", X>;
   "access.groups.add_member": Handler<"access.groups.add_member", X>;
   "access.groups.create": Handler<"access.groups.create", X>;
+  "access.groups.defaults_get": Handler<"access.groups.defaults_get", X>;
+  "access.groups.defaults_set": Handler<"access.groups.defaults_set", X>;
   "access.groups.delete": Handler<"access.groups.delete", X>;
   "access.groups.get": Handler<"access.groups.get", X>;
   "access.groups.list": Handler<"access.groups.list", X>;

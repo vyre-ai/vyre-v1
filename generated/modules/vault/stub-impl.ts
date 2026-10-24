@@ -42,6 +42,8 @@ export const handlers: Handlers<HandlerCtx> = {
   "vault.report_scrub_miss": async () => ({"ok":true} as unknown) as never,
   "vault.service_health": async () => ({"detail":"example","latencyMs":1,"state":"healthy"} as unknown) as never,
   "vault.share": async () => ({"granted":true} as unknown) as never,
+  "vault.site_rules.list": async () => ({"sites":[{"at":1760000000000,"host":"bank.example.com","neverFill":true,"neverSave":true}]} as unknown) as never,
+  "vault.site_rules.set": async () => ({"host":"example","neverFill":true,"neverSave":true} as unknown) as never,
   "vault.unshare": async () => ({"revoked":1} as unknown) as never,
   "vault.use": async () => ({"fields":["api_key"],"handle":"#Dana_Lawmatics","itemId":"vit_a1b2c3"} as unknown) as never,
 };

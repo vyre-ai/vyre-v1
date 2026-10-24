@@ -5,8 +5,8 @@
 | Modules | 64 |
 | Connector manifests | 12 |
 | Kit manifests | 4 |
-| Capabilities | 1460 |
-| Events | 592 |
+| Capabilities | 1486 |
+| Events | 598 |
 | Permissions | 57 |
 | Entities | 37 |
 | Record types | 15 |
@@ -17,13 +17,13 @@
 | Connectors | 13 |
 | Agent tools (not 1:1 with a capability) | 10 |
 | Block types | 22 |
-| Screens | 167 |
+| Screens | 178 |
 | Health checks | 47 |
 | Gate act kinds | 10 |
 | Task kinds | 6 |
-| Notification kinds | 22 |
+| Notification kinds | 23 |
 | Import sources | 9 |
-| Settings | 83 |
+| Settings | 89 |
 | Retention defaults | 10 |
 | Lists | 10 |
 | Error codes | 44 |

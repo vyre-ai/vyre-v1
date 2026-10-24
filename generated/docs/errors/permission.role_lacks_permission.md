@@ -15,6 +15,7 @@ HTTP 403. Retryable: no.
 - access.grants.list
 - access.groups.add_member
 - access.groups.create
+- access.groups.defaults_set
 - access.groups.delete
 - access.groups.remove_member
 - access.groups.update
@@ -30,4 +31,3 @@ HTTP 403. Retryable: no.
 - access.reviews.start
 - access.roles.apply
 - access.roles.assign
-- access.roles.create

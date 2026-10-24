@@ -49,6 +49,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/f/partial",
+    "cap": "forms.save_partial",
+    "v": 1,
+    "module": "forms",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": true,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/f/submit",
     "cap": "forms.submit",
     "v": 1,
@@ -422,6 +440,42 @@ export const routes: Route[] = [
       "type": "space"
     },
     "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/access/groups/defaults_get",
+    "cap": "access.groups.defaults_get",
+    "v": 1,
+    "module": "access",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/access/groups/defaults_set",
+    "cap": "access.groups.defaults_set",
+    "v": 1,
+    "module": "access",
+    "effects": "write",
+    "permission": "access.manage",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
@@ -1118,6 +1172,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/agents/builtin_skills/list",
+    "cap": "agents.builtin_skills.list",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/agents/config/get",
     "cap": "agents.config.get",
     "v": 1,
@@ -1203,6 +1275,24 @@ export const routes: Route[] = [
     "resource": {
       "type": "agent",
       "id": "/agentId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/agents/guide/get",
+    "cap": "agents.guide.get",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -3750,6 +3840,63 @@ export const routes: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/channels/stream",
+    "cap": "channels.stream",
+    "v": 1,
+    "module": "chat",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "channel",
+      "id": "/channelId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/channels/stream_prefs/get",
+    "cap": "channels.stream_prefs.get",
+    "v": 1,
+    "module": "chat",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "channel",
+      "id": "/channelId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/channels/stream_prefs/set",
+    "cap": "channels.stream_prefs.set",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "channel",
+      "id": "/channelId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "patch",
     "teamOnly": false,
     "gate": null
   },
@@ -7577,6 +7724,60 @@ export const routes: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "none"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/email_builder/snippets/delete",
+    "cap": "email_builder.snippets.delete",
+    "v": 1,
+    "module": "email-builder-api",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/email_builder/snippets/list",
+    "cap": "email_builder.snippets.list",
+    "v": 1,
+    "module": "email-builder-api",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/email_builder/snippets/save",
+    "cap": "email_builder.snippets.save",
+    "v": 1,
+    "module": "email-builder-api",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
   },
   {
     "method": "POST",
@@ -19317,6 +19518,25 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/records/completeness",
+    "cap": "records.completeness",
+    "v": 1,
+    "module": "records",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "record",
+      "id": "/recordId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/records/counts",
     "cap": "records.counts",
     "v": 1,
@@ -19382,6 +19602,25 @@ export const routes: Route[] = [
     "effects": "read",
     "permission": "records.export",
     "level": "view",
+    "resource": {
+      "type": "record_type",
+      "id": "/type"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/records/gap_check",
+    "cap": "records.gap_check",
+    "v": 1,
+    "module": "records",
+    "effects": "write",
+    "permission": "records.edit",
+    "level": "edit",
     "resource": {
       "type": "record_type",
       "id": "/type"
@@ -19470,6 +19709,44 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/records/page_prefs/get",
+    "cap": "records.page_prefs.get",
+    "v": 1,
+    "module": "records",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "record_type",
+      "id": "/type"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/records/page_prefs/set",
+    "cap": "records.page_prefs.set",
+    "v": 1,
+    "module": "records",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "record_type",
+      "id": "/type"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "patch",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/records/query",
     "cap": "records.query",
     "v": 1,
@@ -19503,6 +19780,25 @@ export const routes: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "patch",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/records/relations_map",
+    "cap": "records.relations_map",
+    "v": 1,
+    "module": "records",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "record",
+      "id": "/recordId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
     "teamOnly": false,
     "gate": null
   },
@@ -19617,6 +19913,63 @@ export const routes: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "patch",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/records/value_source",
+    "cap": "records.value_source",
+    "v": 1,
+    "module": "records",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "record",
+      "id": "/recordId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/records/values/pending",
+    "cap": "records.values.pending",
+    "v": 1,
+    "module": "records",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "record_type",
+      "id": "/type"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/records/values/review",
+    "cap": "records.values.review",
+    "v": 1,
+    "module": "records",
+    "effects": "write",
+    "permission": "records.edit",
+    "level": "edit",
+    "resource": {
+      "type": "record",
+      "id": "/recordId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
     "teamOnly": false,
     "gate": null
   },
@@ -20845,6 +21198,44 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/schema/gap_rules/list",
+    "cap": "schema.gap_rules.list",
+    "v": 1,
+    "module": "schema",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "record_type",
+      "id": "/type"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/schema/gap_rules/set",
+    "cap": "schema.gap_rules.set",
+    "v": 1,
+    "module": "schema",
+    "effects": "write",
+    "permission": "schema.manage",
+    "level": "edit",
+    "resource": {
+      "type": "record_type",
+      "id": "/type"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/schema/infer",
     "cap": "schema.infer",
     "v": 1,
@@ -20857,6 +21248,44 @@ export const routes: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/schema/layout/get",
+    "cap": "schema.layout.get",
+    "v": 1,
+    "module": "schema",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "record_type",
+      "id": "/type"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/schema/layout/set",
+    "cap": "schema.layout.set",
+    "v": 1,
+    "module": "schema",
+    "effects": "write",
+    "permission": "schema.manage",
+    "level": "edit",
+    "resource": {
+      "type": "record_type",
+      "id": "/type"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -20894,6 +21323,25 @@ export const routes: Route[] = [
     },
     "idempotency": "natural",
     "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/schema/sensitivity/scan",
+    "cap": "schema.sensitivity.scan",
+    "v": 1,
+    "module": "schema",
+    "effects": "read",
+    "permission": "schema.manage",
+    "level": "view",
+    "resource": {
+      "type": "record_type",
+      "id": "/type"
+    },
+    "idempotency": "natural",
+    "risk": "low",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -26343,6 +26791,42 @@ export const routes: Route[] = [
     "risk": "medium",
     "offline": "online",
     "teamOnly": true,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/vault/site_rules/list",
+    "cap": "vault.site_rules.list",
+    "v": 1,
+    "module": "vault",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/vault/site_rules/set",
+    "cap": "vault.site_rules.set",
+    "v": 1,
+    "module": "vault",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
     "gate": null
   },
   {

@@ -2442,6 +2442,66 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "console.backups",
+    "module": "console-views",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleBackups",
+    "caller": "principal",
+    "queries": {
+      "backups": {
+        "cap": "backup.list",
+        "input": {},
+        "live": true
+      },
+      "config": {
+        "cap": "backup.config_get",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "run": {
+        "cap": "backup.run",
+        "input": {}
+      },
+      "verify": {
+        "cap": "backup.verify",
+        "input": {
+          "backupId": "/state/backupId"
+        }
+      },
+      "preview": {
+        "cap": "backup.restore_preview",
+        "input": {
+          "backupId": "/state/backupId"
+        }
+      },
+      "config": {
+        "cap": "backup.config_set",
+        "input": {
+          "enabled": "/draft/enabled",
+          "schedule": "/draft/schedule",
+          "target": "/draft/target"
+        }
+      },
+      "remove": {
+        "cap": "backup.delete",
+        "input": {
+          "backupId": "/state/backupId"
+        },
+        "confirm": "Delete this backup?"
+      }
+    },
+    "needs": [
+      "server.backups"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "console.connector-build",
     "module": "connectors",
     "place": "console",
@@ -2514,6 +2574,60 @@ export const screens: ScreenIndexEntry[] = [
     },
     "needs": [
       "connectors.manage"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "console.diagnostics",
+    "module": "console-views",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleDiagnostics",
+    "caller": "principal",
+    "queries": {
+      "status": {
+        "cap": "health.status",
+        "input": {},
+        "live": true
+      },
+      "services": {
+        "cap": "health.services",
+        "input": {},
+        "live": true
+      },
+      "history": {
+        "cap": "health.history",
+        "input": {
+          "key": "/state/key",
+          "sinceMs": "/state/sinceMs"
+        },
+        "live": false
+      }
+    },
+    "actions": {
+      "run": {
+        "cap": "health.run",
+        "input": {
+          "key": "/state/key"
+        }
+      },
+      "restart": {
+        "cap": "health.service_restart",
+        "input": {
+          "service": "/state/service"
+        },
+        "confirm": "Restart this service?"
+      },
+      "doctor": {
+        "cap": "health.doctor",
+        "input": {}
+      }
+    },
+    "needs": [
+      "console.access"
     ],
     "perf": {
       "firstPaintMs": 50,
@@ -2599,6 +2713,75 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "console.labels",
+    "module": "console-views",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleLabels",
+    "caller": "principal",
+    "queries": {
+      "labels": {
+        "cap": "access.labels.list",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "set": {
+        "cap": "access.labels.set",
+        "input": {
+          "label": "/draft/label",
+          "resource": "/state/resource"
+        }
+      },
+      "scan": {
+        "cap": "schema.sensitivity.scan",
+        "input": {
+          "type": "/state/type"
+        }
+      }
+    },
+    "needs": [
+      "policy.manage"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "console.logging",
+    "module": "console-views",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleLogging",
+    "caller": "principal",
+    "queries": {
+      "settings": {
+        "cap": "logs.settings_get",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "set": {
+        "cap": "logs.settings_set",
+        "input": {
+          "level": "/draft/level",
+          "fullDays": "/draft/fullDays",
+          "aggregateDays": "/draft/aggregateDays"
+        }
+      }
+    },
+    "needs": [
+      "server.logs"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "console.mcp-sessions",
     "module": "mcp",
     "place": "console",
@@ -2625,6 +2808,140 @@ export const screens: ScreenIndexEntry[] = [
     },
     "needs": [
       "console.access"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "console.network",
+    "module": "console-views",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleNetwork",
+    "caller": "principal",
+    "queries": {
+      "status": {
+        "cap": "network.status",
+        "input": {},
+        "live": true
+      },
+      "servers": {
+        "cap": "network.servers",
+        "input": {},
+        "live": true
+      },
+      "hostnames": {
+        "cap": "network.public_hostnames",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "domain": {
+        "cap": "network.domain_set",
+        "input": {
+          "domain": "/draft/domain"
+        }
+      },
+      "relay": {
+        "cap": "network.relay_set",
+        "input": {
+          "mode": "/draft/mode"
+        }
+      },
+      "renew": {
+        "cap": "network.certificate_renew",
+        "input": {
+          "host": "/state/host"
+        }
+      },
+      "check": {
+        "cap": "network.ingress_check",
+        "input": {}
+      },
+      "join": {
+        "cap": "network.server_join_code",
+        "input": {}
+      },
+      "reconnect": {
+        "cap": "network.server_reconnect",
+        "input": {
+          "serverId": "/state/serverId"
+        }
+      },
+      "remove": {
+        "cap": "network.server_remove",
+        "input": {
+          "serverId": "/state/serverId"
+        },
+        "confirm": "Remove this server?"
+      }
+    },
+    "needs": [
+      "server.network"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "console.outside-actors",
+    "module": "console-views",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleOutsideActors",
+    "caller": "principal",
+    "queries": {
+      "actors": {
+        "cap": "access.actors.list",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "create": {
+        "cap": "access.actors.create",
+        "input": {
+          "name": "/draft/name",
+          "provider": "/draft/provider",
+          "roleIds": "/draft/roleIds"
+        }
+      },
+      "update": {
+        "cap": "access.actors.update",
+        "input": {
+          "actorId": "/state/actorId",
+          "provider": "/draft/provider",
+          "roleIds": "/draft/roleIds"
+        }
+      },
+      "engineer": {
+        "cap": "access.actors.set_engineer_mcp",
+        "input": {
+          "actorId": "/state/actorId",
+          "enabled": "/draft/enabled"
+        }
+      },
+      "scopes": {
+        "cap": "mcp.scopes.set",
+        "input": {
+          "actorId": "/state/actorId",
+          "scopes": "/draft/scopes"
+        }
+      },
+      "revoke": {
+        "cap": "access.actors.revoke",
+        "input": {
+          "actorId": "/state/actorId"
+        },
+        "confirm": "Revoke this token?"
+      }
+    },
+    "needs": [
+      "access.manage"
     ],
     "perf": {
       "firstPaintMs": 50,
@@ -2730,6 +3047,107 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "console.server-logs",
+    "module": "console-views",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleServerLogs",
+    "caller": "principal",
+    "queries": {
+      "tail": {
+        "cap": "logs.tail",
+        "input": {},
+        "live": true
+      },
+      "entries": {
+        "cap": "logs.query",
+        "input": {
+          "level": "/state/level",
+          "person": "/state/person",
+          "agent": "/state/agent",
+          "cap": "/state/cap",
+          "recordId": "/state/recordId",
+          "runId": "/state/runId",
+          "traceId": "/state/traceId",
+          "sinceMs": "/state/sinceMs"
+        },
+        "live": false
+      }
+    },
+    "actions": {
+      "trace": {
+        "cap": "logs.trace",
+        "input": {
+          "traceId": "/state/traceId"
+        }
+      },
+      "export": {
+        "cap": "logs.export",
+        "input": {}
+      }
+    },
+    "needs": [
+      "server.logs"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "console.server-updates",
+    "module": "console-views",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleServerUpdates",
+    "caller": "principal",
+    "queries": {
+      "status": {
+        "cap": "updates.status",
+        "input": {},
+        "live": true
+      },
+      "history": {
+        "cap": "updates.history",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "check": {
+        "cap": "updates.check",
+        "input": {}
+      },
+      "apply": {
+        "cap": "updates.apply",
+        "input": {
+          "to": "/state/to"
+        },
+        "confirm": "Back up, then update?"
+      },
+      "rollback": {
+        "cap": "updates.rollback",
+        "input": {
+          "to": "/state/to"
+        },
+        "confirm": "Roll back to this version?"
+      },
+      "channel": {
+        "cap": "updates.channel_set",
+        "input": {
+          "channel": "/draft/channel"
+        }
+      }
+    },
+    "needs": [
+      "server.update"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "console.sources",
     "module": "sources",
     "place": "console",
@@ -2804,6 +3222,36 @@ export const screens: ScreenIndexEntry[] = [
     "actions": {},
     "needs": [
       "console.access"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "console.support-bundle",
+    "module": "console-views",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleSupportBundle",
+    "caller": "principal",
+    "queries": {
+      "doctor": {
+        "cap": "health.doctor",
+        "input": {},
+        "live": false
+      }
+    },
+    "actions": {
+      "bundle": {
+        "cap": "health.support_bundle",
+        "input": {
+          "traceIds": "/state/traceIds"
+        }
+      }
+    },
+    "needs": [
+      "server.logs"
     ],
     "perf": {
       "firstPaintMs": 50,
@@ -6975,6 +7423,82 @@ export const screens: ScreenIndexEntry[] = [
         "cap": "conflicts.confirm",
         "input": {
           "conflictId": "/selected/conflictId"
+        }
+      }
+    },
+    "needs": [],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "shell.new-tab",
+    "module": "search",
+    "place": "shell",
+    "slot": "tab",
+    "builtin": "ui:NewTabSearch",
+    "caller": "principal",
+    "queries": {
+      "hits": {
+        "cap": "search.query",
+        "input": {
+          "q": "/query/q",
+          "types": "/query/types",
+          "mode": "/query/mode"
+        },
+        "live": false
+      },
+      "recent": {
+        "cap": "search.recent.list",
+        "input": {},
+        "live": false
+      },
+      "actions": {
+        "cap": "search.actions.list",
+        "input": {
+          "q": "/query/q"
+        },
+        "live": false
+      }
+    },
+    "actions": {
+      "opened": {
+        "cap": "search.recent.record",
+        "input": {
+          "kind": "/hit/kind",
+          "itemId": "/hit/id"
+        }
+      }
+    },
+    "needs": [],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "shell.report-problem",
+    "module": "reports-client",
+    "place": "shell",
+    "slot": "sheet",
+    "builtin": "ui:ReportProblemSheet",
+    "caller": "principal",
+    "queries": {
+      "preview": {
+        "cap": "reports.preview",
+        "input": {
+          "context": "/state/context",
+          "note": "/draft/note"
+        },
+        "live": false
+      }
+    },
+    "actions": {
+      "send": {
+        "cap": "reports.submit",
+        "input": {
+          "bundle": "/state/bundle"
         }
       }
     },

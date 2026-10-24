@@ -2,7 +2,7 @@
 
 Lane L6. Kind module. Status stub. Version 0.1.0.
 
-Requires: chat, runs, tasks.
+Requires: chat, runs, tasks, vault.
 
 ## Capabilities (19)
 

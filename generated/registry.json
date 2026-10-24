@@ -2130,6 +2130,25 @@
       },
       "type": "array"
     },
+    "s_1d3c56cce9": {
+      "properties": {
+        "grants": {
+          "$ref": "#/$defs/s_7fb65df750"
+        },
+        "groupId": {
+          "examples": [
+            "grp_a1b2c3"
+          ],
+          "pattern": "^grp_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "groupId",
+        "grants"
+      ],
+      "type": "object"
+    },
     "s_1e2d0bc7b7": {
       "properties": {
         "kit": {
@@ -4244,6 +4263,51 @@
       },
       "required": [
         "task"
+      ],
+      "type": "object"
+    },
+    "s_3b6dd3d565": {
+      "properties": {
+        "actor": {
+          "type": "string"
+        },
+        "at": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "agent",
+            "person",
+            "form",
+            "automation",
+            "sync",
+            "import"
+          ],
+          "type": "string"
+        },
+        "link": {
+          "description": "Link to the exact chat, task, run or record the value came from",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "counted",
+            "needs_review",
+            "rejected"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "actor",
+        "at",
+        "state"
       ],
       "type": "object"
     },
@@ -7234,6 +7298,29 @@
       },
       "type": "array"
     },
+    "s_627d7922b1": {
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "limit": {
+          "maximum": 500,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "type": {
+          "examples": [
+            "contact"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
     "s_62d0c5de12": {
       "items": {
         "properties": {
@@ -8194,105 +8281,6 @@
       ],
       "type": "object"
     },
-    "s_747a036b1e": {
-      "properties": {
-        "context": {
-          "properties": {
-            "hash": {
-              "type": "string"
-            },
-            "itemId": {
-              "type": "string"
-            },
-            "place": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "place"
-          ],
-          "type": "object"
-        },
-        "events": {
-          "items": {
-            "properties": {
-              "at": {
-                "description": "Milliseconds since the Unix epoch",
-                "examples": [
-                  1760000000000
-                ],
-                "minimum": 0,
-                "type": "integer"
-              },
-              "traceId": {
-                "examples": [
-                  "0123456789abcdef0123456789abcdef"
-                ],
-                "pattern": "^[0-9a-f]{32}$",
-                "type": "string"
-              },
-              "type": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "type",
-              "at"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "note": {
-          "maxLength": 500,
-          "type": "string"
-        },
-        "screenshotFileId": {
-          "examples": [
-            "fil_a1b2c3"
-          ],
-          "pattern": "^fil_[a-z0-9]+$",
-          "type": "string"
-        },
-        "traceIds": {
-          "items": {
-            "examples": [
-              "0123456789abcdef0123456789abcdef"
-            ],
-            "pattern": "^[0-9a-f]{32}$",
-            "type": "string"
-          },
-          "maxItems": 20,
-          "type": "array"
-        },
-        "versions": {
-          "properties": {
-            "app": {
-              "type": "string"
-            },
-            "device": {
-              "type": "string"
-            },
-            "server": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "app",
-            "server",
-            "device"
-          ],
-          "type": "object"
-        }
-      },
-      "required": [
-        "context",
-        "traceIds",
-        "events",
-        "versions"
-      ],
-      "type": "object"
-    },
     "s_74c1de17a9": {
       "properties": {
         "at": {
@@ -9128,6 +9116,30 @@
         "number"
       ],
       "type": "object"
+    },
+    "s_7fb65df750": {
+      "items": {
+        "properties": {
+          "level": {
+            "enum": [
+              "view",
+              "use",
+              "edit",
+              "manage"
+            ],
+            "type": "string"
+          },
+          "resource": {
+            "$ref": "#/$defs/s_f21ece25da"
+          }
+        },
+        "required": [
+          "resource",
+          "level"
+        ],
+        "type": "object"
+      },
+      "type": "array"
     },
     "s_7fd2715127": {
       "properties": {
@@ -11906,6 +11918,45 @@
       ],
       "type": "object"
     },
+    "s_b2a5d50757": {
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "shared": {
+          "type": "boolean"
+        },
+        "shortcut": {
+          "type": "string"
+        },
+        "snippetId": {
+          "examples": [
+            "snp_a1b2c3"
+          ],
+          "pattern": "^snp_[a-z0-9]+$",
+          "type": "string"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "snippetId",
+        "name",
+        "body",
+        "shared",
+        "updatedAt"
+      ],
+      "type": "object"
+    },
     "s_b3c84294bd": {
       "properties": {
         "costMicros": {
@@ -13423,6 +13474,17 @@
       ],
       "type": "object"
     },
+    "s_c0bb60860c": {
+      "properties": {
+        "sections": {
+          "$ref": "#/$defs/s_f54a1e0c66"
+        }
+      },
+      "required": [
+        "sections"
+      ],
+      "type": "object"
+    },
     "s_c0cc5e35fd": {
       "properties": {
         "address": {
@@ -14044,6 +14106,27 @@
       ],
       "type": "object"
     },
+    "s_cb5b2c7260": {
+      "properties": {
+        "folded": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "keepVisible": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "folded",
+        "keepVisible"
+      ],
+      "type": "object"
+    },
     "s_cb6eb7675e": {
       "properties": {
         "emailId": {
@@ -14419,6 +14502,34 @@
       "required": [
         "resolutionId",
         "state"
+      ],
+      "type": "object"
+    },
+    "s_d29b748c70": {
+      "properties": {
+        "base": {
+          "enum": [
+            "ask",
+            "allow",
+            "auto"
+          ],
+          "type": "string"
+        },
+        "spaces": {
+          "additionalProperties": {
+            "enum": [
+              "ask",
+              "allow",
+              "auto"
+            ],
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "base",
+        "spaces"
       ],
       "type": "object"
     },
@@ -15275,6 +15386,88 @@
       ],
       "type": "object"
     },
+    "s_de4eba3dc2": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "field": {
+          "examples": [
+            "phone"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        "route": {
+          "enum": [
+            "ai_field",
+            "agent_lookup",
+            "task",
+            "form"
+          ],
+          "type": "string"
+        },
+        "ruleId": {
+          "examples": [
+            "gap_missing_email"
+          ],
+          "type": "string"
+        },
+        "staleAfterDays": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "when": {
+          "enum": [
+            "missing",
+            "stale"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "ruleId",
+        "field",
+        "when",
+        "route",
+        "enabled"
+      ],
+      "type": "object"
+    },
+    "s_df3dd97f0d": {
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "recordId": {
+          "examples": [
+            "rec_a1b2c3"
+          ],
+          "pattern": "^rec_[a-z0-9]+$",
+          "type": "string"
+        },
+        "type": {
+          "examples": [
+            "contact"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "recordId",
+        "field"
+      ],
+      "type": "object"
+    },
     "s_e0ac4725e1": {
       "properties": {
         "addressId": {
@@ -15576,6 +15769,147 @@
       },
       "required": [
         "conversation"
+      ],
+      "type": "object"
+    },
+    "s_e3fd3efebd": {
+      "properties": {
+        "clientLogFileId": {
+          "examples": [
+            "fil_a1b2c3"
+          ],
+          "pattern": "^fil_[a-z0-9]+$",
+          "type": "string"
+        },
+        "context": {
+          "properties": {
+            "hash": {
+              "type": "string"
+            },
+            "itemId": {
+              "type": "string"
+            },
+            "place": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "place"
+          ],
+          "type": "object"
+        },
+        "errors": {
+          "items": {
+            "properties": {
+              "at": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "traceId": {
+                "examples": [
+                  "0123456789abcdef0123456789abcdef"
+                ],
+                "pattern": "^[0-9a-f]{32}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "at"
+            ],
+            "type": "object"
+          },
+          "maxItems": 50,
+          "type": "array"
+        },
+        "events": {
+          "items": {
+            "properties": {
+              "at": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              "traceId": {
+                "examples": [
+                  "0123456789abcdef0123456789abcdef"
+                ],
+                "pattern": "^[0-9a-f]{32}$",
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "at"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "note": {
+          "maxLength": 500,
+          "type": "string"
+        },
+        "screenshotFileId": {
+          "examples": [
+            "fil_a1b2c3"
+          ],
+          "pattern": "^fil_[a-z0-9]+$",
+          "type": "string"
+        },
+        "traceIds": {
+          "items": {
+            "examples": [
+              "0123456789abcdef0123456789abcdef"
+            ],
+            "pattern": "^[0-9a-f]{32}$",
+            "type": "string"
+          },
+          "maxItems": 20,
+          "type": "array"
+        },
+        "versions": {
+          "properties": {
+            "app": {
+              "type": "string"
+            },
+            "device": {
+              "type": "string"
+            },
+            "server": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "app",
+            "server",
+            "device"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "context",
+        "traceIds",
+        "events",
+        "versions"
       ],
       "type": "object"
     },
@@ -16647,6 +16981,41 @@
         "signers"
       ],
       "type": "object"
+    },
+    "s_f54a1e0c66": {
+      "items": {
+        "properties": {
+          "fields": {
+            "items": {
+              "examples": [
+                "phone"
+              ],
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "folded": {
+            "type": "boolean"
+          },
+          "key": {
+            "examples": [
+              "contact_details"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "fields"
+        ],
+        "type": "object"
+      },
+      "type": "array"
     },
     "s_f5812e1863": {
       "properties": {
@@ -20592,6 +20961,134 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "grants": [
+              {
+                "level": "view",
+                "resource": {
+                  "id": "rec_a1b2c3",
+                  "type": "space"
+                }
+              }
+            ],
+            "groupId": "grp_a1b2c3"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "access",
+      "name": "access.groups.defaults_get",
+      "output": {
+        "$ref": "#/$defs/s_1d3c56cce9"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Default grants of the built-in Everyone group (every member holds them; Kits ship the first set and invites add new people to the group)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "meta"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "access.everyone_defaults_changed",
+        "access.changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "grants": [
+              {
+                "level": "view",
+                "resource": {
+                  "id": "rec_a1b2c3",
+                  "type": "space"
+                }
+              }
+            ]
+          },
+          "name": "example",
+          "output": {
+            "grants": [
+              {
+                "level": "view",
+                "resource": {
+                  "id": "rec_a1b2c3",
+                  "type": "space"
+                }
+              }
+            ],
+            "groupId": "grp_a1b2c3"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "grants": {
+            "$ref": "#/$defs/s_7fb65df750"
+          }
+        },
+        "required": [
+          "grants"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "access",
+      "name": "access.groups.defaults_set",
+      "output": {
+        "$ref": "#/$defs/s_1d3c56cce9"
+      },
+      "permission": "access.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Replace the default grants of the Everyone group; the sheet shows who gains what, then applies",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "v": 1
+    },
+    {
       "audit": "always",
       "effects": "write",
       "emits": [
@@ -24127,6 +24624,94 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "skills": [
+              {
+                "key": "working_in_vyre",
+                "summary": "example",
+                "title": "example",
+                "version": "1.0.0"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "agents.builtin_skills.list",
+      "output": {
+        "properties": {
+          "skills": {
+            "items": {
+              "properties": {
+                "key": {
+                  "examples": [
+                    "working_in_vyre"
+                  ],
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "version": {
+                  "examples": [
+                    "1.0.0"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "title",
+                "version",
+                "summary"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "skills"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Skills every agent carries, led by \"Working in Vyre\": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
         "validation.bad_input",
         "validation.not_found"
       ],
@@ -24679,6 +25264,72 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "Read one agent: record, status, limits and the effective configuration",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "body": "example",
+            "path": ".vyre/guide.md",
+            "version": "1.0.0"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "agents.guide.get",
+      "output": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "path": {
+            "const": ".vyre/guide.md",
+            "type": "string"
+          },
+          "version": {
+            "examples": [
+              "1.0.0"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "path",
+          "body"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The Vyre agent guide (.vyre/guide.md): version and text, rewritten by app updates, loaded into every chat before VYRE.md",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -38696,6 +39347,439 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Remove a person from a channel",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "before": 1,
+            "channelId": "chn_a1b2c3",
+            "expand": [
+              "example"
+            ],
+            "limit": 1,
+            "show": [
+              "people"
+            ]
+          },
+          "name": "example",
+          "output": {
+            "counts": {
+              "agents": 1,
+              "people": 1,
+              "runs": 1
+            },
+            "hasMore": true,
+            "hidden": [
+              "people"
+            ],
+            "items": [
+              {
+                "anyFailed": true,
+                "at": 1760000000000,
+                "authorKind": "person",
+                "count": 2,
+                "durationMs": 1,
+                "groupKey": "example",
+                "kind": "message",
+                "messageId": "msg_a1b2c3",
+                "name": "example",
+                "result": "example",
+                "runId": "run_a1b2c3",
+                "runIds": [
+                  "run_a1b2c3"
+                ],
+                "runKind": "automation",
+                "status": "queued"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "before": {
+            "type": "integer"
+          },
+          "channelId": {
+            "examples": [
+              "chn_a1b2c3"
+            ],
+            "pattern": "^chn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "expand": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "show": {
+            "items": {
+              "enum": [
+                "people",
+                "agents",
+                "runs"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "channelId"
+        ],
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "chat",
+      "name": "channels.stream",
+      "output": {
+        "properties": {
+          "counts": {
+            "properties": {
+              "agents": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "people": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "runs": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "people",
+              "agents",
+              "runs"
+            ],
+            "type": "object"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "hidden": {
+            "items": {
+              "enum": [
+                "people",
+                "agents",
+                "runs"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "properties": {
+                "anyFailed": {
+                  "type": "boolean"
+                },
+                "at": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "authorKind": {
+                  "enum": [
+                    "person",
+                    "agent",
+                    "actor"
+                  ],
+                  "type": "string"
+                },
+                "count": {
+                  "minimum": 2,
+                  "type": "integer"
+                },
+                "durationMs": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "groupKey": {
+                  "description": "Same flow, runs next to each other",
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "message",
+                    "run",
+                    "run_group"
+                  ],
+                  "type": "string"
+                },
+                "messageId": {
+                  "examples": [
+                    "msg_a1b2c3"
+                  ],
+                  "pattern": "^msg_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "result": {
+                  "type": "string"
+                },
+                "runId": {
+                  "examples": [
+                    "run_a1b2c3"
+                  ],
+                  "pattern": "^run_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "runIds": {
+                  "items": {
+                    "examples": [
+                      "run_a1b2c3"
+                    ],
+                    "pattern": "^run_[a-z0-9]+$",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "runKind": {
+                  "examples": [
+                    "automation"
+                  ],
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "queued",
+                    "running",
+                    "waiting",
+                    "succeeded",
+                    "failed",
+                    "stopped"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items",
+          "counts",
+          "hidden",
+          "hasMore"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/channelId",
+        "type": "channel"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The channel as a timeline: messages and Run items in order; repeated runs of one flow collapse into one row (\"ran 6 times today\"); counts feed the People, Agents and Runs menu",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "channelId": "chn_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "hide": [
+              "people"
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "channelId": {
+            "examples": [
+              "chn_a1b2c3"
+            ],
+            "pattern": "^chn_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "chat",
+      "name": "channels.stream_prefs.get",
+      "output": {
+        "properties": {
+          "hide": {
+            "items": {
+              "enum": [
+                "people",
+                "agents",
+                "runs"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "hide"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/channelId",
+        "type": "channel"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "My People, Agents and Runs choice for one channel",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "channelId": "chn_a1b2c3",
+            "hide": [
+              "people"
+            ]
+          },
+          "name": "example",
+          "output": {
+            "hide": [
+              "people"
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "channelId": {
+            "examples": [
+              "chn_a1b2c3"
+            ],
+            "pattern": "^chn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "hide": {
+            "items": {
+              "enum": [
+                "people",
+                "agents",
+                "runs"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "channelId",
+          "hide"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "chat",
+      "name": "channels.stream_prefs.set",
+      "offline": "patch",
+      "output": {
+        "properties": {
+          "hide": {
+            "items": {
+              "enum": [
+                "people",
+                "agents",
+                "runs"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "hide"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/channelId",
+        "type": "channel"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Hide or show People, Agents or Runs in one channel for myself (Hide Runs in This Channel); the header says what is hidden",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -57735,6 +58819,225 @@
       "v": 1
     },
     {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "snippetId": "snp_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "deleted": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "snippetId": {
+            "examples": [
+              "snp_a1b2c3"
+            ],
+            "pattern": "^snp_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snippetId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "email-builder-api",
+      "name": "email_builder.snippets.delete",
+      "output": {
+        "properties": {
+          "deleted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "deleted"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Delete a composer snippet",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "inbox"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "snippets": [
+              {
+                "body": "example",
+                "name": "example",
+                "shared": true,
+                "shortcut": "example",
+                "snippetId": "snp_a1b2c3",
+                "updatedAt": 1760000000000
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "email-builder-api",
+      "name": "email_builder.snippets.list",
+      "output": {
+        "properties": {
+          "snippets": {
+            "items": {
+              "$ref": "#/$defs/s_b2a5d50757"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "snippets"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "List composer snippets: short reusable text for Inbox email and text replies, mine and shared with the Space",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "inbox"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "body": "example",
+            "name": "example",
+            "shared": true,
+            "shortcut": "example",
+            "snippetId": "snp_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "snippet": {
+              "body": "example",
+              "name": "example",
+              "shared": true,
+              "shortcut": "example",
+              "snippetId": "snp_a1b2c3",
+              "updatedAt": 1760000000000
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "shared": {
+            "type": "boolean"
+          },
+          "shortcut": {
+            "type": "string"
+          },
+          "snippetId": {
+            "examples": [
+              "snp_a1b2c3"
+            ],
+            "pattern": "^snp_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "body"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "email-builder-api",
+      "name": "email_builder.snippets.save",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "snippet": {
+            "$ref": "#/$defs/s_b2a5d50757"
+          }
+        },
+        "required": [
+          "snippet"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Create or change a composer snippet",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "inbox"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -69884,6 +71187,103 @@
         "http": "auto",
         "mcp": {
           "toolset": "automations"
+        }
+      },
+      "teamOnly": true,
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.needs_team",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "answers": {},
+            "slug": "intake",
+            "step": 1,
+            "token": "example"
+          },
+          "name": "example",
+          "output": {
+            "expiresAt": 1760000000000,
+            "saved": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "answers": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "slug": {
+            "examples": [
+              "intake"
+            ],
+            "pattern": "^[a-z0-9-]+$",
+            "type": "string"
+          },
+          "step": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "token",
+          "answers"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "forms",
+      "name": "forms.save_partial",
+      "output": {
+        "properties": {
+          "expiresAt": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "saved"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "rate": {
+        "n": 60,
+        "perSeconds": 60,
+        "scope": "space"
+      },
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Public: keep the answers typed so far against a signed or one-use link so the person can come back; nothing reaches the record until submit",
+      "surfaces": {
+        "http": {
+          "method": "POST",
+          "path": "/f/partial"
         }
       },
       "teamOnly": true,
@@ -119507,6 +120907,95 @@
       "examples": [
         {
           "input": {
+            "recordId": "rec_a1b2c3",
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "filled": 1,
+            "missing": [
+              {
+                "field": "example",
+                "title": "example"
+              }
+            ],
+            "total": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_9287e79a4f"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "records",
+      "name": "records.completeness",
+      "output": {
+        "properties": {
+          "filled": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "missing": {
+            "items": {
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "field",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "total": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "filled",
+          "total",
+          "missing"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/recordId",
+        "type": "record"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Completeness of one record (for example 8 of 11) with the missing fields; Ask for these turns the list into a short-lived form",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
             "filter": {},
             "type": "contact"
           },
@@ -119856,6 +121345,128 @@
       "v": 1
     },
     {
+      "effects": "write",
+      "emits": [
+        "record.gaps_found"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "recordId": "rec_a1b2c3",
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "gaps": [
+              {
+                "field": "example",
+                "reason": "missing",
+                "recordId": "rec_a1b2c3",
+                "route": "ai_field"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "records",
+      "name": "records.gap_check",
+      "output": {
+        "properties": {
+          "gaps": {
+            "items": {
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "reason": {
+                  "enum": [
+                    "missing",
+                    "stale"
+                  ],
+                  "type": "string"
+                },
+                "recordId": {
+                  "examples": [
+                    "rec_a1b2c3"
+                  ],
+                  "pattern": "^rec_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "route": {
+                  "enum": [
+                    "ai_field",
+                    "agent_lookup",
+                    "task",
+                    "form"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "recordId",
+                "field",
+                "reason",
+                "route"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "gaps"
+        ],
+        "type": "object"
+      },
+      "permission": "records.edit",
+      "resource": {
+        "id": "/type",
+        "type": "record_type"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Run the gap-check rules of a type over one record or all of them: finds missing or stale fields and names the fill route (AI field, agent lookup, teammate task or collection form)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -120107,7 +121718,10 @@
       "since": "1.0.0",
       "summary": "Place a hold on a record",
       "surfaces": {
-        "http": "auto"
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
       },
       "v": 1
     },
@@ -120225,6 +121839,153 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Merge records into a survivor with a value picked per field (undoable for 30 days)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "folded": [
+              "example"
+            ],
+            "keepVisible": [
+              "example"
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "records",
+      "name": "records.page_prefs.get",
+      "output": {
+        "$ref": "#/$defs/s_cb5b2c7260"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/type",
+        "type": "record_type"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "My choices on the record page of a type: sections I folded and fields I keep visible",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "folded": [
+              "example"
+            ],
+            "keepVisible": [
+              "example"
+            ],
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "folded": [
+              "example"
+            ],
+            "keepVisible": [
+              "example"
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "folded": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "keepVisible": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "records",
+      "name": "records.page_prefs.set",
+      "offline": "patch",
+      "output": {
+        "$ref": "#/$defs/s_cb5b2c7260"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/type",
+        "type": "record_type"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Fold sections and keep fields visible for myself; a personal display choice, not a Star",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -120469,6 +122230,167 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "hops": 1,
+            "recordId": "rec_a1b2c3",
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "edges": [
+              {
+                "field": "example",
+                "from": "rec_a1b2c3",
+                "to": "rec_a1b2c3"
+              }
+            ],
+            "nodes": [
+              {
+                "hop": 1,
+                "recordId": "rec_a1b2c3",
+                "title": "example",
+                "type": "contact"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "hops": {
+            "maximum": 2,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "records",
+      "name": "records.relations_map",
+      "output": {
+        "properties": {
+          "edges": {
+            "items": {
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "from": {
+                  "examples": [
+                    "rec_a1b2c3"
+                  ],
+                  "pattern": "^rec_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "to": {
+                  "examples": [
+                    "rec_a1b2c3"
+                  ],
+                  "pattern": "^rec_[a-z0-9]+$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "from",
+                "to",
+                "field"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "nodes": {
+            "items": {
+              "properties": {
+                "hop": {
+                  "maximum": 2,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "recordId": {
+                  "examples": [
+                    "rec_a1b2c3"
+                  ],
+                  "pattern": "^rec_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "type": {
+                  "examples": [
+                    "contact"
+                  ],
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "recordId",
+                "type",
+                "title",
+                "hop"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "nodes",
+          "edges"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/recordId",
+        "type": "record"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Relationship map of a record: linked records out to two hops, each edge named by its relation field, limited to what the caller may see",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
       "audit": "always",
       "effects": "write",
       "emits": [
@@ -120521,7 +122443,10 @@
       "since": "1.0.0",
       "summary": "Release a hold on a record",
       "surfaces": {
-        "http": "auto"
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
       },
       "v": 1
     },
@@ -120707,31 +122632,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "properties": {
-          "field": {
-            "type": "string"
-          },
-          "recordId": {
-            "examples": [
-              "rec_a1b2c3"
-            ],
-            "pattern": "^rec_[a-z0-9]+$",
-            "type": "string"
-          },
-          "type": {
-            "examples": [
-              "contact"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "recordId",
-          "field"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_df3dd97f0d"
       },
       "label": "check",
       "level": "view",
@@ -120853,7 +122754,8 @@
     {
       "effects": "write",
       "emits": [
-        "record.updated"
+        "record.updated",
+        "record.value_proposed"
       ],
       "errors": [
         "internal.unexpected",
@@ -120959,6 +122861,286 @@
       "examples": [
         {
           "input": {
+            "field": "example",
+            "recordId": "rec_a1b2c3",
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "source": {
+              "actor": "example",
+              "at": 1760000000000,
+              "kind": "agent",
+              "link": "example",
+              "state": "counted"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_df3dd97f0d"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "records",
+      "name": "records.value_source",
+      "output": {
+        "properties": {
+          "source": {
+            "$ref": "#/$defs/s_3b6dd3d565"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/recordId",
+        "type": "record"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Source popover of one value: who or what filled it, from where, when, and whether it counts yet",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "cursor": "example",
+            "limit": 1,
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "next": "example",
+            "total": 1,
+            "values": [
+              {
+                "field": "example",
+                "recordId": "rec_a1b2c3",
+                "source": {
+                  "actor": "example",
+                  "at": 1760000000000,
+                  "kind": "agent",
+                  "link": "example",
+                  "state": "counted"
+                },
+                "type": "contact",
+                "value": {}
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_627d7922b1"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "records",
+      "name": "records.values.pending",
+      "output": {
+        "properties": {
+          "next": {
+            "description": "Cursor for the next page; absent on the last page",
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "values": {
+            "items": {
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "recordId": {
+                  "examples": [
+                    "rec_a1b2c3"
+                  ],
+                  "pattern": "^rec_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "source": {
+                  "$ref": "#/$defs/s_3b6dd3d565"
+                },
+                "type": {
+                  "examples": [
+                    "contact"
+                  ],
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "type": "string"
+                },
+                "value": {
+                  "description": "Any JSON value"
+                }
+              },
+              "required": [
+                "recordId",
+                "type",
+                "field",
+                "source"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "values"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/type",
+        "type": "record_type"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Needs review: agent-filled values waiting for a reviewer, each with its source and time (counts into My work for the field reviewer role)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "sensitive",
+      "effects": "write",
+      "emits": [
+        "record.value_reviewed",
+        "record.updated"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "decision": "accept",
+            "field": "example",
+            "note": "example",
+            "recordId": "rec_a1b2c3",
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "record": {
+              "createdAt": 1760000000000,
+              "deletedAt": 1760000000000,
+              "fields": {},
+              "holds": 1,
+              "id": "rec_a1b2c3",
+              "label": 1,
+              "type": "contact",
+              "updatedAt": 1760000000000,
+              "version": 1
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "accept",
+              "reject"
+            ],
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId",
+          "field",
+          "decision"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "records",
+      "name": "records.values.review",
+      "output": {
+        "$ref": "#/$defs/s_73cbbf9330"
+      },
+      "permission": "records.edit",
+      "resource": {
+        "id": "/recordId",
+        "type": "record"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Accept or reject an agent-filled value; an accepted value counts, a rejected one is dropped and stays in history",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
             "recordId": "rec_a1b2c3",
             "type": "contact"
           },
@@ -121020,11 +123202,20 @@
           "name": "example",
           "output": {
             "bundle": {
+              "clientLogFileId": "fil_a1b2c3",
               "context": {
                 "hash": "example",
                 "itemId": "example",
                 "place": "example"
               },
+              "errors": [
+                {
+                  "at": 1760000000000,
+                  "code": "example",
+                  "message": "example",
+                  "traceId": "0123456789abcdef0123456789abcdef"
+                }
+              ],
               "events": [
                 {
                   "at": 1760000000000,
@@ -121071,7 +123262,7 @@
       "output": {
         "properties": {
           "bundle": {
-            "$ref": "#/$defs/s_747a036b1e"
+            "$ref": "#/$defs/s_e3fd3efebd"
           },
           "issueNumber": {
             "type": "integer"
@@ -121416,11 +123607,20 @@
           "name": "example",
           "output": {
             "bundle": {
+              "clientLogFileId": "fil_a1b2c3",
               "context": {
                 "hash": "example",
                 "itemId": "example",
                 "place": "example"
               },
+              "errors": [
+                {
+                  "at": 1760000000000,
+                  "code": "example",
+                  "message": "example",
+                  "traceId": "0123456789abcdef0123456789abcdef"
+                }
+              ],
               "events": [
                 {
                   "at": 1760000000000,
@@ -121479,7 +123679,7 @@
       "output": {
         "properties": {
           "bundle": {
-            "$ref": "#/$defs/s_747a036b1e"
+            "$ref": "#/$defs/s_e3fd3efebd"
           },
           "redactions": {
             "type": "integer"
@@ -121663,11 +123863,20 @@
         {
           "input": {
             "bundle": {
+              "clientLogFileId": "fil_a1b2c3",
               "context": {
                 "hash": "example",
                 "itemId": "example",
                 "place": "example"
               },
+              "errors": [
+                {
+                  "at": 1760000000000,
+                  "code": "example",
+                  "message": "example",
+                  "traceId": "0123456789abcdef0123456789abcdef"
+                }
+              ],
               "events": [
                 {
                   "at": 1760000000000,
@@ -121700,7 +123909,7 @@
       "input": {
         "properties": {
           "bundle": {
-            "$ref": "#/$defs/s_747a036b1e"
+            "$ref": "#/$defs/s_e3fd3efebd"
           },
           "idempotencyKey": {
             "examples": [
@@ -127423,6 +129632,178 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "rules": [
+              {
+                "agentId": "agt_a1b2c3",
+                "enabled": true,
+                "field": "phone",
+                "route": "ai_field",
+                "ruleId": "gap_missing_email",
+                "staleAfterDays": 1,
+                "when": "missing"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "schema",
+      "name": "schema.gap_rules.list",
+      "output": {
+        "properties": {
+          "rules": {
+            "items": {
+              "$ref": "#/$defs/s_de4eba3dc2"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "rules"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/type",
+        "type": "record_type"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Gap-check rules of a type: which fields count as missing or stale and how each gap is routed",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "schema.changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "rule": {
+              "agentId": "agt_a1b2c3",
+              "enabled": true,
+              "field": "phone",
+              "route": "ai_field",
+              "ruleId": "gap_missing_email",
+              "staleAfterDays": 1,
+              "when": "missing"
+            },
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "rule": {
+              "agentId": "agt_a1b2c3",
+              "enabled": true,
+              "field": "phone",
+              "route": "ai_field",
+              "ruleId": "gap_missing_email",
+              "staleAfterDays": 1,
+              "when": "missing"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "rule": {
+            "$ref": "#/$defs/s_de4eba3dc2"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "rule"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "schema",
+      "name": "schema.gap_rules.set",
+      "output": {
+        "properties": {
+          "rule": {
+            "$ref": "#/$defs/s_de4eba3dc2"
+          }
+        },
+        "required": [
+          "rule"
+        ],
+        "type": "object"
+      },
+      "permission": "schema.manage",
+      "resource": {
+        "id": "/type",
+        "type": "record_type"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Create or replace a gap-check rule: a missing or stale field goes to an AI field, an agent lookup, a teammate task or a collection form",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
         "permission.role_lacks_permission",
         "validation.bad_input"
       ],
@@ -127549,6 +129930,160 @@
       "summary": "Propose a record type from pasted CSV text or a CSV/XLSX file: field names, types, choices and a title field",
       "surfaces": {
         "cli": "vyre schema infer",
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "sections": [
+              {
+                "fields": [
+                  "phone"
+                ],
+                "folded": true,
+                "key": "contact_details",
+                "title": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "schema",
+      "name": "schema.layout.get",
+      "output": {
+        "$ref": "#/$defs/s_c0bb60860c"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/type",
+        "type": "record_type"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Admin layout of the record page of a type: ordered sections with their fields and which start folded",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "schema.changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "sections": [
+              {
+                "fields": [
+                  "phone"
+                ],
+                "folded": true,
+                "key": "contact_details",
+                "title": "example"
+              }
+            ],
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "sections": [
+              {
+                "fields": [
+                  "phone"
+                ],
+                "folded": true,
+                "key": "contact_details",
+                "title": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "sections": {
+            "$ref": "#/$defs/s_f54a1e0c66"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "sections"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "schema",
+      "name": "schema.layout.set",
+      "output": {
+        "$ref": "#/$defs/s_c0bb60860c"
+      },
+      "permission": "schema.manage",
+      "resource": {
+        "id": "/type",
+        "type": "record_type"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Set the record page layout of a type (sections, order, default folds); people fold and keep fields visible on top of it for themselves",
+      "surfaces": {
         "http": "auto",
         "mcp": {
           "toolset": "engineer"
@@ -127757,6 +130292,128 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Bring a dropped field back from Trash with its values",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "suggestions": [
+              {
+                "field": "phone",
+                "kind": "id_number",
+                "matches": 1,
+                "seal": true,
+                "suggestedLabel": "public"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "schema",
+      "name": "schema.sensitivity.scan",
+      "output": {
+        "properties": {
+          "suggestions": {
+            "items": {
+              "properties": {
+                "field": {
+                  "examples": [
+                    "phone"
+                  ],
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "id_number",
+                    "card",
+                    "bank",
+                    "health",
+                    "other"
+                  ],
+                  "type": "string"
+                },
+                "matches": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "seal": {
+                  "type": "boolean"
+                },
+                "suggestedLabel": {
+                  "enum": [
+                    "public",
+                    "internal",
+                    "confidential",
+                    "restricted"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "field",
+                "kind",
+                "matches",
+                "suggestedLabel",
+                "seal"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "suggestions"
+        ],
+        "type": "object"
+      },
+      "permission": "schema.manage",
+      "resource": {
+        "id": "/type",
+        "type": "record_type"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Detect sensitive data in the fields of a type (ID numbers, card and bank numbers, health terms) and suggest which fields to seal; changes nothing and returns no values",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -140226,27 +142883,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "properties": {
-          "cursor": {
-            "type": "string"
-          },
-          "limit": {
-            "maximum": 500,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "type": {
-            "examples": [
-              "contact"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_627d7922b1"
       },
       "level": "view",
       "module": "connectors",
@@ -157154,6 +159791,183 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "sites": [
+              {
+                "at": 1760000000000,
+                "host": "bank.example.com",
+                "neverFill": true,
+                "neverSave": true
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "vault",
+      "name": "vault.site_rules.list",
+      "output": {
+        "properties": {
+          "sites": {
+            "items": {
+              "properties": {
+                "at": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "host": {
+                  "examples": [
+                    "bank.example.com"
+                  ],
+                  "type": "string"
+                },
+                "neverFill": {
+                  "type": "boolean"
+                },
+                "neverSave": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "host",
+                "neverFill",
+                "neverSave",
+                "at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "sites"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Sites where I never fill and never get offered to save a login in this Space (Never Fill on This Site)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "vault"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "vault.site_rule_changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "host": "bank.example.com",
+            "neverFill": true,
+            "neverSave": true
+          },
+          "name": "example",
+          "output": {
+            "host": "example",
+            "neverFill": true,
+            "neverSave": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "host": {
+            "examples": [
+              "bank.example.com"
+            ],
+            "type": "string"
+          },
+          "neverFill": {
+            "type": "boolean"
+          },
+          "neverSave": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "host",
+          "neverFill",
+          "neverSave"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "vault",
+      "name": "vault.site_rules.set",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "host": {
+            "type": "string"
+          },
+          "neverFill": {
+            "type": "boolean"
+          },
+          "neverSave": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "host",
+          "neverFill",
+          "neverSave"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Set or clear the never-fill and never-save rule for one site; personal, follows the extension in this Space",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "vault"
+        }
+      },
+      "v": 1
+    },
+    {
       "audit": "always",
       "effects": "write",
       "emits": [
@@ -163605,6 +166419,35 @@
         "type": "entity"
       },
       "summary": "An access request was declined; the note goes back to the requester",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "access",
+      "name": "access.everyone_defaults_changed",
+      "payload": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "grants": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "grants",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/by",
+        "type": "entity"
+      },
+      "summary": "The default grants of the Everyone group changed",
       "sv": 1,
       "vis": "space"
     },
@@ -177252,6 +180095,59 @@
     {
       "label": "subject",
       "module": "records",
+      "name": "record.gaps_found",
+      "payload": {
+        "properties": {
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ruleId": {
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId",
+          "type",
+          "fields",
+          "ruleId"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/recordId",
+        "type": "record"
+      },
+      "summary": "A gap-check rule found missing or stale fields on a record",
+      "sv": 1,
+      "trigger": {
+        "fields": [
+          "/type"
+        ],
+        "title": "A record has gaps"
+      },
+      "vis": "space"
+    },
+    {
+      "label": "subject",
+      "module": "records",
       "name": "record.held",
       "payload": {
         "properties": {
@@ -177417,6 +180313,106 @@
         ],
         "title": "A record changes"
       },
+      "vis": "space"
+    },
+    {
+      "label": "subject",
+      "module": "records",
+      "name": "record.value_proposed",
+      "payload": {
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "reviewRequired": {
+            "type": "boolean"
+          },
+          "source": {
+            "$ref": "#/$defs/s_3b6dd3d565"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId",
+          "type",
+          "field",
+          "source",
+          "reviewRequired"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/recordId",
+        "type": "record"
+      },
+      "summary": "An agent or automation filled a value; it waits for review or counts straight away, per field",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "label": "subject",
+      "module": "records",
+      "name": "record.value_reviewed",
+      "payload": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "decision": {
+            "enum": [
+              "accepted",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId",
+          "type",
+          "field",
+          "decision",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/recordId",
+        "type": "record"
+      },
+      "summary": "A reviewer accepted or rejected an agent-filled value",
+      "sv": 1,
       "vis": "space"
     },
     {
@@ -184326,6 +187322,43 @@
     },
     {
       "module": "vault",
+      "name": "vault.rotation_due",
+      "notify": "vault.rotation_due",
+      "payload": {
+        "properties": {
+          "dueSince": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId",
+          "dueSince"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/itemId",
+        "type": "vault_item"
+      },
+      "summary": "An item reached its rotation reminder date (ids only); the owner gets a Badge notification",
+      "sv": 1,
+      "vis": "participants"
+    },
+    {
+      "module": "vault",
       "name": "vault.scrub_miss",
       "payload": {
         "$ref": "#/$defs/s_1ea9f5ebb0"
@@ -184339,6 +187372,45 @@
       "summary": "The output scrubber failed to remove a value from a stream (value not recorded)",
       "sv": 1,
       "vis": "participants"
+    },
+    {
+      "module": "vault",
+      "name": "vault.site_rule_changed",
+      "payload": {
+        "properties": {
+          "host": {
+            "type": "string"
+          },
+          "neverFill": {
+            "type": "boolean"
+          },
+          "neverSave": {
+            "type": "boolean"
+          },
+          "personId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "personId",
+          "host",
+          "neverFill",
+          "neverSave"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/personId",
+        "type": "entity"
+      },
+      "summary": "A person set or cleared the never-fill or never-save rule for one site (host only)",
+      "sv": 1,
+      "vis": "owner"
     },
     {
       "module": "vault",
@@ -187639,7 +190711,16 @@
       "id": "console-views",
       "kind": "module",
       "owner": "L7b",
-      "requires": [],
+      "requires": [
+        "access",
+        "backup",
+        "health",
+        "logs",
+        "mcp",
+        "network",
+        "schema",
+        "updates"
+      ],
       "status": "stub",
       "title": "Console views",
       "version": "0.1.0"
@@ -188031,7 +191112,8 @@
       "requires": [
         "chat",
         "runs",
-        "tasks"
+        "tasks",
+        "vault"
       ],
       "status": "stub",
       "title": "Notifications",
@@ -188593,6 +191675,21 @@
       "place": "home",
       "respectHours": true,
       "title": "{{from}} gave you a task: {{title}}"
+    },
+    {
+      "actions": [
+        {
+          "cap": "vault.item.mark_rotated",
+          "label": "Mark rotated"
+        }
+      ],
+      "collapseKey": "vault.rotation_due:{{subject}}",
+      "key": "vault.rotation_due",
+      "level": "badge",
+      "module": "notifications",
+      "place": "vault",
+      "respectHours": true,
+      "title": "Time to rotate {{title}}"
     }
   ],
   "permissions": [
@@ -194125,6 +197222,78 @@
     },
     {
       "actions": {
+        "config": {
+          "cap": "backup.config_set",
+          "input": {
+            "enabled": "/draft/enabled",
+            "schedule": "/draft/schedule",
+            "target": "/draft/target"
+          }
+        },
+        "preview": {
+          "cap": "backup.restore_preview",
+          "input": {
+            "backupId": "/state/backupId"
+          }
+        },
+        "remove": {
+          "cap": "backup.delete",
+          "confirm": "Delete this backup?",
+          "input": {
+            "backupId": "/state/backupId"
+          }
+        },
+        "run": {
+          "cap": "backup.run",
+          "input": {}
+        },
+        "verify": {
+          "cap": "backup.verify",
+          "input": {
+            "backupId": "/state/backupId"
+          }
+        }
+      },
+      "builtin": "ui:ConsoleBackups",
+      "id": "console.backups",
+      "module": "console-views",
+      "needs": [
+        "server.backups"
+      ],
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "console",
+      "queries": {
+        "backups": {
+          "cap": "backup.list",
+          "input": {},
+          "live": true
+        },
+        "config": {
+          "cap": "backup.config_get",
+          "input": {},
+          "live": true
+        }
+      },
+      "slot": "main",
+      "states": {
+        "empty": {
+          "line": "No backups yet",
+          "primary": "Back up now"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
+      "actions": {
         "build": {
           "cap": "connectors.build",
           "input": {
@@ -194203,6 +197372,72 @@
       "states": {
         "empty": {
           "line": "Nothing here yet"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
+      "actions": {
+        "doctor": {
+          "cap": "health.doctor",
+          "input": {}
+        },
+        "restart": {
+          "cap": "health.service_restart",
+          "confirm": "Restart this service?",
+          "input": {
+            "service": "/state/service"
+          }
+        },
+        "run": {
+          "cap": "health.run",
+          "input": {
+            "key": "/state/key"
+          }
+        }
+      },
+      "builtin": "ui:ConsoleDiagnostics",
+      "id": "console.diagnostics",
+      "module": "console-views",
+      "needs": [
+        "console.access"
+      ],
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "console",
+      "queries": {
+        "history": {
+          "cap": "health.history",
+          "input": {
+            "key": "/state/key",
+            "sinceMs": "/state/sinceMs"
+          },
+          "live": false
+        },
+        "services": {
+          "cap": "health.services",
+          "input": {},
+          "live": true
+        },
+        "status": {
+          "cap": "health.status",
+          "input": {},
+          "live": true
+        }
+      },
+      "slot": "main",
+      "states": {
+        "empty": {
+          "line": "Every check is healthy",
+          "primary": "Run checks"
         },
         "error": {
           "line": "Couldn't load this",
@@ -194305,6 +197540,97 @@
     },
     {
       "actions": {
+        "scan": {
+          "cap": "schema.sensitivity.scan",
+          "input": {
+            "type": "/state/type"
+          }
+        },
+        "set": {
+          "cap": "access.labels.set",
+          "input": {
+            "label": "/draft/label",
+            "resource": "/state/resource"
+          }
+        }
+      },
+      "builtin": "ui:ConsoleLabels",
+      "id": "console.labels",
+      "module": "console-views",
+      "needs": [
+        "policy.manage"
+      ],
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "console",
+      "queries": {
+        "labels": {
+          "cap": "access.labels.list",
+          "input": {},
+          "live": true
+        }
+      },
+      "slot": "main",
+      "states": {
+        "empty": {
+          "line": "No labels set"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
+      "actions": {
+        "set": {
+          "cap": "logs.settings_set",
+          "input": {
+            "aggregateDays": "/draft/aggregateDays",
+            "fullDays": "/draft/fullDays",
+            "level": "/draft/level"
+          }
+        }
+      },
+      "builtin": "ui:ConsoleLogging",
+      "id": "console.logging",
+      "module": "console-views",
+      "needs": [
+        "server.logs"
+      ],
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "console",
+      "queries": {
+        "settings": {
+          "cap": "logs.settings_get",
+          "input": {},
+          "live": true
+        }
+      },
+      "slot": "main",
+      "states": {
+        "empty": {
+          "line": "Logging is on its defaults"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
+      "actions": {
         "close": {
           "cap": "mcp.session.close",
           "confirm": "Close this session?",
@@ -194338,6 +197664,164 @@
         "empty": {
           "line": "No MCP sessions",
           "primary": "Close"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
+      "actions": {
+        "check": {
+          "cap": "network.ingress_check",
+          "input": {}
+        },
+        "domain": {
+          "cap": "network.domain_set",
+          "input": {
+            "domain": "/draft/domain"
+          }
+        },
+        "join": {
+          "cap": "network.server_join_code",
+          "input": {}
+        },
+        "reconnect": {
+          "cap": "network.server_reconnect",
+          "input": {
+            "serverId": "/state/serverId"
+          }
+        },
+        "relay": {
+          "cap": "network.relay_set",
+          "input": {
+            "mode": "/draft/mode"
+          }
+        },
+        "remove": {
+          "cap": "network.server_remove",
+          "confirm": "Remove this server?",
+          "input": {
+            "serverId": "/state/serverId"
+          }
+        },
+        "renew": {
+          "cap": "network.certificate_renew",
+          "input": {
+            "host": "/state/host"
+          }
+        }
+      },
+      "builtin": "ui:ConsoleNetwork",
+      "id": "console.network",
+      "module": "console-views",
+      "needs": [
+        "server.network"
+      ],
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "console",
+      "queries": {
+        "hostnames": {
+          "cap": "network.public_hostnames",
+          "input": {},
+          "live": true
+        },
+        "servers": {
+          "cap": "network.servers",
+          "input": {},
+          "live": true
+        },
+        "status": {
+          "cap": "network.status",
+          "input": {},
+          "live": true
+        }
+      },
+      "slot": "main",
+      "states": {
+        "empty": {
+          "line": "No servers yet",
+          "primary": "Add a server"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
+      "actions": {
+        "create": {
+          "cap": "access.actors.create",
+          "input": {
+            "name": "/draft/name",
+            "provider": "/draft/provider",
+            "roleIds": "/draft/roleIds"
+          }
+        },
+        "engineer": {
+          "cap": "access.actors.set_engineer_mcp",
+          "input": {
+            "actorId": "/state/actorId",
+            "enabled": "/draft/enabled"
+          }
+        },
+        "revoke": {
+          "cap": "access.actors.revoke",
+          "confirm": "Revoke this token?",
+          "input": {
+            "actorId": "/state/actorId"
+          }
+        },
+        "scopes": {
+          "cap": "mcp.scopes.set",
+          "input": {
+            "actorId": "/state/actorId",
+            "scopes": "/draft/scopes"
+          }
+        },
+        "update": {
+          "cap": "access.actors.update",
+          "input": {
+            "actorId": "/state/actorId",
+            "provider": "/draft/provider",
+            "roleIds": "/draft/roleIds"
+          }
+        }
+      },
+      "builtin": "ui:ConsoleOutsideActors",
+      "id": "console.outside-actors",
+      "module": "console-views",
+      "needs": [
+        "access.manage"
+      ],
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "console",
+      "queries": {
+        "actors": {
+          "cap": "access.actors.list",
+          "input": {},
+          "live": true
+        }
+      },
+      "slot": "main",
+      "states": {
+        "empty": {
+          "line": "No outside actors or API keys yet",
+          "primary": "Connect an outside tool"
         },
         "error": {
           "line": "Couldn't load this",
@@ -194471,6 +197955,130 @@
     },
     {
       "actions": {
+        "export": {
+          "cap": "logs.export",
+          "input": {}
+        },
+        "trace": {
+          "cap": "logs.trace",
+          "input": {
+            "traceId": "/state/traceId"
+          }
+        }
+      },
+      "builtin": "ui:ConsoleServerLogs",
+      "id": "console.server-logs",
+      "module": "console-views",
+      "needs": [
+        "server.logs"
+      ],
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "console",
+      "queries": {
+        "entries": {
+          "cap": "logs.query",
+          "input": {
+            "agent": "/state/agent",
+            "cap": "/state/cap",
+            "level": "/state/level",
+            "person": "/state/person",
+            "recordId": "/state/recordId",
+            "runId": "/state/runId",
+            "sinceMs": "/state/sinceMs",
+            "traceId": "/state/traceId"
+          },
+          "live": false
+        },
+        "tail": {
+          "cap": "logs.tail",
+          "input": {},
+          "live": true
+        }
+      },
+      "slot": "main",
+      "states": {
+        "empty": {
+          "line": "No log lines match"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
+      "actions": {
+        "apply": {
+          "cap": "updates.apply",
+          "confirm": "Back up, then update?",
+          "input": {
+            "to": "/state/to"
+          }
+        },
+        "channel": {
+          "cap": "updates.channel_set",
+          "input": {
+            "channel": "/draft/channel"
+          }
+        },
+        "check": {
+          "cap": "updates.check",
+          "input": {}
+        },
+        "rollback": {
+          "cap": "updates.rollback",
+          "confirm": "Roll back to this version?",
+          "input": {
+            "to": "/state/to"
+          }
+        }
+      },
+      "builtin": "ui:ConsoleServerUpdates",
+      "id": "console.server-updates",
+      "module": "console-views",
+      "needs": [
+        "server.update"
+      ],
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "console",
+      "queries": {
+        "history": {
+          "cap": "updates.history",
+          "input": {},
+          "live": true
+        },
+        "status": {
+          "cap": "updates.status",
+          "input": {},
+          "live": true
+        }
+      },
+      "slot": "main",
+      "states": {
+        "empty": {
+          "line": "No updates yet",
+          "primary": "Check for updates"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
+      "actions": {
         "create": {
           "cap": "sources.create",
           "input": {
@@ -194563,6 +198171,48 @@
       "states": {
         "empty": {
           "line": "No speed samples yet"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
+      "actions": {
+        "bundle": {
+          "cap": "health.support_bundle",
+          "input": {
+            "traceIds": "/state/traceIds"
+          }
+        }
+      },
+      "builtin": "ui:ConsoleSupportBundle",
+      "id": "console.support-bundle",
+      "module": "console-views",
+      "needs": [
+        "server.logs"
+      ],
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "console",
+      "queries": {
+        "doctor": {
+          "cap": "health.doctor",
+          "input": {},
+          "live": false
+        }
+      },
+      "slot": "main",
+      "states": {
+        "empty": {
+          "line": "No bundle yet",
+          "primary": "Make a support bundle"
         },
         "error": {
           "line": "Couldn't load this",
@@ -199738,6 +203388,116 @@
       }
     },
     {
+      "actions": {
+        "opened": {
+          "cap": "search.recent.record",
+          "input": {
+            "itemId": "/hit/id",
+            "kind": "/hit/kind"
+          }
+        }
+      },
+      "builtin": "ui:NewTabSearch",
+      "id": "shell.new-tab",
+      "keys": [
+        {
+          "action": "open",
+          "combo": "Cmd-T"
+        }
+      ],
+      "module": "search",
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "shell",
+      "queries": {
+        "actions": {
+          "cap": "search.actions.list",
+          "input": {
+            "q": "/query/q"
+          },
+          "live": false
+        },
+        "hits": {
+          "cap": "search.query",
+          "input": {
+            "mode": "/query/mode",
+            "q": "/query/q",
+            "types": "/query/types"
+          },
+          "live": false
+        },
+        "recent": {
+          "cap": "search.recent.list",
+          "input": {},
+          "live": false
+        }
+      },
+      "slot": "tab",
+      "states": {
+        "empty": {
+          "line": "Open anything, or start something",
+          "primary": "Start"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
+      "actions": {
+        "send": {
+          "cap": "reports.submit",
+          "input": {
+            "bundle": "/state/bundle"
+          }
+        }
+      },
+      "builtin": "ui:ReportProblemSheet",
+      "id": "shell.report-problem",
+      "keys": [
+        {
+          "action": "open",
+          "combo": "Cmd-Shift-/"
+        }
+      ],
+      "module": "reports-client",
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "shell",
+      "queries": {
+        "preview": {
+          "cap": "reports.preview",
+          "input": {
+            "context": "/state/context",
+            "note": "/draft/note"
+          },
+          "live": false
+        }
+      },
+      "slot": "sheet",
+      "states": {
+        "empty": {
+          "line": "Nothing was captured",
+          "primary": "Send"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
       "actions": {},
       "builtin": "ui:SyncStatus",
       "id": "shell.sync-status",
@@ -201185,6 +204945,20 @@
       "title": "Agent I last used in Ask panes"
     },
     {
+      "default": {},
+      "key": "chrome.agents_use_my_browser",
+      "module": "settings",
+      "page": "This computer",
+      "schema": {
+        "additionalProperties": {
+          "type": "boolean"
+        },
+        "type": "object"
+      },
+      "scope": "person",
+      "title": "Let agents use my Chrome (per Space, only that Space agents, with a visible indicator)"
+    },
+    {
       "default": 8,
       "key": "computers.default_tab_limit",
       "module": "computers",
@@ -202235,6 +206009,67 @@
       "title": "Run a missed schedule once if it was missed by less than this many minutes"
     },
     {
+      "default": {
+        "base": "ask",
+        "spaces": {}
+      },
+      "floorable": true,
+      "key": "security.chrome_mode",
+      "module": "settings",
+      "page": "This computer",
+      "schema": {
+        "$ref": "#/$defs/s_d29b748c70"
+      },
+      "scope": "person",
+      "title": "Chrome prompts on this computer (Ask, Allow or Auto; one value per Space)"
+    },
+    {
+      "default": "standard",
+      "floorable": true,
+      "key": "security.level",
+      "module": "settings",
+      "page": "This computer",
+      "schema": {
+        "enum": [
+          "relaxed",
+          "standard",
+          "strict"
+        ],
+        "type": "string"
+      },
+      "scope": "person",
+      "title": "Security level"
+    },
+    {
+      "default": {},
+      "key": "security.team_agents_on_my_computer",
+      "module": "settings",
+      "page": "This computer",
+      "schema": {
+        "additionalProperties": {
+          "type": "boolean"
+        },
+        "type": "object"
+      },
+      "scope": "person",
+      "title": "Let team agents use my terminal (per Space, locked to a work folder)"
+    },
+    {
+      "default": {
+        "base": "ask",
+        "spaces": {}
+      },
+      "floorable": true,
+      "key": "security.terminal_mode",
+      "module": "settings",
+      "page": "This computer",
+      "schema": {
+        "$ref": "#/$defs/s_d29b748c70"
+      },
+      "scope": "person",
+      "title": "Terminal prompts on this computer (Ask, Allow or Auto; one value per Space)"
+    },
+    {
       "default": "admins",
       "floorable": true,
       "key": "sharing.public_links",
@@ -202294,6 +206129,20 @@
       },
       "scope": "space",
       "title": "Allowed AI accounts"
+    },
+    {
+      "default": "where the Space server runs",
+      "key": "space.data_location",
+      "module": "spaces",
+      "page": "console.space",
+      "schema": {
+        "examples": [
+          "EU"
+        ],
+        "type": "string"
+      },
+      "scope": "space",
+      "title": "Data location"
     },
     {
       "default": "classic",
