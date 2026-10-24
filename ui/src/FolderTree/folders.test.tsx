@@ -57,7 +57,7 @@ test("the cursor: arrows move, Right opens, Left closes or goes to the parent, H
 
 test("the rendered tree has three sections, counts, nesting and the selected row painted on the whole row", () => {
   const html = renderToStaticMarkup(<FolderTree resourceType="site" nodes={nodes} selectedId="s1" density="regular" />);
-  const at = (s: string) => html.indexOf(s);
+  const at = (s: string) => html.indexOf(`>${s}<`);
   assert.ok(at("Personal") < at("Shared with me") && at("Shared with me") < at("Space"));
   assert.match(html, /data-testid="folder-count-s1"[^>]*>3</);
   assert.match(html, /Drafts/);
