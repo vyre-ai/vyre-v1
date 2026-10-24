@@ -29,13 +29,9 @@ export function loadRegistryEvents(root = ROOT): Set<string> {
   return new Set(reg.events.map((e: { name: string }) => e.name));
 }
 
-/** The flow files in golden/flows, in number order. */
-export async function loadFlows(root = ROOT): Promise<Flow[]> {
-  const dir = path.join(root, "golden/flows");
-  const files = fs.readdirSync(dir).filter((f) => /^\d\d-.+\.flow\.ts$/.test(f)).sort();
-  const flows: Flow[] = [];
-  for (const f of files) flows.push((await import(path.join(dir, f))).default as Flow);
-  return flows;
+/** The 15 flow definitions in number order (static barrel at golden/flows/index.ts). */
+export async function loadFlows(): Promise<Flow[]> {
+  return [...(await import("../flows/index.ts")).FLOWS].sort((a, b) => a.n - b.n);
 }
 
 /** Needed modules that are still stubs (or missing from the registry), sorted. */
