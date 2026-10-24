@@ -21,9 +21,9 @@ interface FieldDef {
   title: string;
 }
 
-/** `site_<12 hex of the site id>_<key>`: unique per site and a valid record type key. */
+/** `site_<hex of the site id>_<key>`: unique per site (the whole id, not a prefix: ids minted in the same millisecond share their first digits) and a valid record type key. */
 export function tableType(siteId: string, key: string): string {
-  return `site_${hexOf(siteId).slice(0, 12)}_${key}`;
+  return `site_${hexOf(siteId)}_${key}`;
 }
 
 function parseFields(text: unknown): FieldDef[] {

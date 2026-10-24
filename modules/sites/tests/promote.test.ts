@@ -188,11 +188,11 @@ test("promote: refuses a production row, a running or failed build, a removed pr
   const bad = await run<{ deploymentId: string }>(w.ctx, "sites.build", { siteId });
   assert.equal(await code(run(w.ctx, "sites.promote", { siteId, deploymentId: bad.deploymentId })), "validation.precondition_failed");
 
+  w.runtime.outcomes.delete("main");
   const spare = await stage(w, siteId);
   w.db.run("UPDATE sites_deployment SET state = ? WHERE id = ?", "building", spare);
   assert.equal(await code(run(w.ctx, "sites.promote", { siteId, deploymentId: spare })), "validation.precondition_failed");
 
-  w.runtime.outcomes.delete("main");
   w.runtime.outcomes.set("feature-x", { pullRequest: 7 });
   await run(w.ctx, "sites.preview_rebuild", { siteId, branch: "feature-x" });
   await run(w.ctx, "sites.preview_remove", { siteId, branch: "feature-x" });

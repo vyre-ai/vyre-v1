@@ -79,7 +79,7 @@ test("table_create: a site-scoped record type, a version row, one event, and no 
   w.asked.length = 0;
   const out = await run<{ type: string }>(w.ctx, "sites.table_create", { siteId, key: "todos", fields: FIELDS });
   assert.equal(out.type, tableType(siteId, "todos"));
-  assert.equal(out.type, `site_${hexOf(siteId).slice(0, 12)}_todos`);
+  assert.equal(out.type, `site_${hexOf(siteId)}_todos`);
   assert.match(out.type, /^[a-z][a-z0-9_]*$/);
 
   const row = w.db.rows("sites_table")[0];
