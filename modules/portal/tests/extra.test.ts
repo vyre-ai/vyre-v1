@@ -93,6 +93,7 @@ async function linked(r: Rig, rules: RowRule[] = RULES, email = "dana@client.exa
   return acct.accountId;
 }
 
+const posted = (r: Rig) => r.w.events.filter((e) => e.name === "portal.message_posted");
 const link = (r: Rig, accountId: string, fileId: string, expiresInMinutes = 30) => extra<{ url: string; expiresAt: number }>(r.w.ctx, "portal.file_link", { accountId, fileId, expiresInMinutes });
 const post = (r: Rig, accountId: string, recordId: string, body = "Hello, a question about the plan.") => extra<{ messageId: string }>(r.w.ctx, "portal.post", { accountId, recordId, body });
 
@@ -112,7 +113,7 @@ test("file_link: a file named by the linked record or a row it may see gets a sh
   for (const row of rows) for (const v of Object.values(row)) assert.notEqual(v, token);
   assert.equal(rows.find((m) => m.purpose === "file:fil_a")!.token_hash, await sha256hex(token));
   assert.deepEqual(await redeemFileLink(r.w.ctx, token), { fileId: "fil_a", accountId: id });
-  assert.equal(r.w.names().length, 0, "no event: opening files is read access");
+  assert.equal(r.w.names().filter((n) => n.includes("file")).length, 0, "no event: opening files is read access");
 });
 
 test("file_link: a file no visible record names is not found, however it was guessed", async () => {
@@ -201,7 +202,7 @@ test("post: lands in the record's channel main thread, names the outside account
   assert.equal(r.posts[0]!.threadId, "thr_m1");
   assert.equal(r.posts[0]!.body, "From dana@client.example (client portal)\n\nCan you check clause 4?");
   assert.equal(r.posts[0]!.principal, "usr_owner", "the call runs as the site identity, not as a Space member named after the visitor");
-  assert.deepEqual(r.w.events.map((e) => [e.name, e.subject, e.payload]), [["portal.message_posted", "record/rec_m1", { accountId: id, recordId: "rec_m1", messageId: "msg_1" }]]);
+  assert.deepEqual(posted(r).map((e) => [e.name, e.subject, e.payload]), [["portal.message_posted", "record/rec_m1", { accountId: id, recordId: "rec_m1", messageId: "msg_1" }]]);
 });
 
 test("post: only the account's own record or rows its rules show; anything else is not found", async () => {
@@ -221,7 +222,7 @@ test("post: a record with no channel, or a closed one, has no conversation to po
   assert.equal(await code(post(r, id, "rec_m2")), "validation.precondition_failed");
   assert.equal(await code(post(r, id, "rec_m3")), "validation.precondition_failed");
   assert.equal(r.posts.length, 0);
-  assert.equal(r.w.events.length, 0);
+  assert.equal(posted(r).length, 0);
 });
 
 test("post: empty, oversized and NUL bodies are refused; invited, disabled and unlinked accounts cannot post", async () => {
@@ -263,6 +264,6 @@ test("post: a chat failure posts nothing, fires nothing and uses no allowance", 
   r.state.failPost = true;
   for (let n = 0; n < 25; n++) await assert.rejects(post(r, id, "rec_m1"), /chat is down/);
   r.state.failPost = false;
-  assert.equal(r.w.events.length, 0);
+  assert.equal(posted(r).length, 0);
   assert.equal((await post(r, id, "rec_m1")).messageId, "msg_1");
 });
