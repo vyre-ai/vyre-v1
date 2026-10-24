@@ -1,6 +1,7 @@
 // The `vyre` and `vyre-server` commands (ARCH 7.10, 12.3). A thin client: nearly every command is a row of the generated table calling one capability on the running daemon, so the terminal, the
 // Console and an agent can never disagree about what a command does. Hand-written: `server` (run the daemon), `doctor` (works with the server down), `run --env` (Vault into one child process),
 // and `connector` (friendly words and following a build). `vyre help` lists them all.
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "./args.ts";
 import { callCap, NotRunning, notRunningHint, resolveTarget, showError } from "./client.ts";
 import { connectorBooleans, connectorCommand } from "./connector.ts";
@@ -92,4 +93,9 @@ function helpOne(io: CliIo, words: string[], flags: ReadonlyMap<string, string |
   }
   io.out(helpFor(found.row, capInfo(found.row.cap, found.row.v)));
   return EXIT.OK;
+}
+
+// run as a program (`node host/src/cli/index.ts ...`); the installer's `vyre` and `vyre-server` shims set VYRE_PROGRAM
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  process.exitCode = await main(process.argv.slice(2), processIo(), process.env["VYRE_PROGRAM"] === "vyre-server" ? "vyre-server" : "vyre");
 }
