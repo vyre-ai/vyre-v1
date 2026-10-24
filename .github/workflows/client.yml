@@ -10,4 +10,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: client stage
-        run: echo "client stage placeholder: web client build lands with the client lane"
+        run: echo "client stage placeholder, web client build lands with the client lane"

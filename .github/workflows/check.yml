@@ -27,6 +27,7 @@ jobs:
           node scripts/ci-select.ts "$BASE" --matrix > select.json
           node -e 'const r=JSON.parse(require("fs").readFileSync("select.json","utf8"));console.log("select: "+(r.all?"all":r.files.length+" files")+" "+r.why.join("; "));require("fs").appendFileSync(process.env.GITHUB_OUTPUT,"matrix="+JSON.stringify(r.matrix)+"\ncount="+r.matrix.include.length+"\n")'
   shards:
+    name: ${{ matrix.name }}
     needs: select
     if: needs.select.outputs.count != '0'
     runs-on: [self-hosted, linux, v1]

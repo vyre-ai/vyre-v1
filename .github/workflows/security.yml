@@ -10,4 +10,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: security stage
-        run: echo "security stage placeholder: security gates land with the security lane"
+        run: echo "security stage placeholder, security gates land with the security lane"

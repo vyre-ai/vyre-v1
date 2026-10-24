@@ -3,7 +3,6 @@
 // Input is the jobs array of `gh api repos/R/actions/runs/N/jobs`: { name, conclusion, started_at, completed_at }.
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 export type Job = { name: string; conclusion: string | null; started_at: string | null; completed_at: string | null };
@@ -31,9 +30,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   let jobs: Job[];
   if (val("--jobs")) jobs = JSON.parse(fs.readFileSync(val("--jobs")!, "utf8"));
   else {
-    const g = spawnSync("gh", ["api", `repos/${val("--repo")}/actions/runs/${val("--run-id")}/jobs?per_page=100`, "--jq", ".jobs"], { encoding: "utf8" });
-    if (g.status !== 0) { console.error(g.stderr); process.exit(2); }
-    jobs = JSON.parse(g.stdout);
+    const res = await fetch(`https://api.github.com/repos/${val("--repo")}/actions/runs/${val("--run-id")}/jobs?per_page=100`, { headers: { authorization: `Bearer ${process.env.GH_TOKEN ?? ""}`, accept: "application/vnd.github+json" } });
+    if (!res.ok) { console.error(`github api ${res.status}`); process.exit(2); }
+    jobs = ((await res.json()) as { jobs: Job[] }).jobs;
   }
   console.log(report(jobs));
 }

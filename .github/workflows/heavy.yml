@@ -10,4 +10,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: heavy stage
-        run: echo "heavy stage placeholder: heavy suites land with the slow list"
+        run: echo "heavy stage placeholder, heavy suites land with the slow list"

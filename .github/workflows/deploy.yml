@@ -10,4 +10,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: deploy stage
-        run: echo "deploy stage placeholder: deploy lands with the release lane"
+        run: echo "deploy stage placeholder, deploy lands with the release lane"

@@ -1,7 +1,6 @@
 // CI time budgets (ARCH-DECISIONS 13, binding): a push 5 minutes, a merge to main 10, a tag to live 25.
 //   node scripts/ci-budget.ts --kind push|main|tag (--run-id N --repo owner/name | --start ISO) [--now ISO]
 // Wall time is now minus the run's run_started_at. Exits 1 when the run is over its budget. The budget job runs with if: always().
-import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,9 +32,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   if (!(kind in LIMIT_MIN)) { console.error("usage: ci-budget.ts --kind push|main|tag (--run-id N --repo owner/name | --start ISO)"); process.exit(2); }
   let start = val("--start");
   if (!start) {
-    const r = spawnSync("gh", ["api", `repos/${val("--repo")}/actions/runs/${val("--run-id")}`, "--jq", ".run_started_at"], { encoding: "utf8" });
-    if (r.status !== 0) { console.error(r.stderr); process.exit(2); }
-    start = r.stdout.trim();
+    const res = await fetch(`https://api.github.com/repos/${val("--repo")}/actions/runs/${val("--run-id")}`, { headers: { authorization: `Bearer ${process.env.GH_TOKEN ?? ""}`, accept: "application/vnd.github+json" } });
+    if (!res.ok) { console.error(`github api ${res.status}`); process.exit(2); }
+    start = ((await res.json()) as { run_started_at: string }).run_started_at;
   }
   const v = checkBudget(kind, wallSec(start, val("--now") ?? new Date().toISOString()));
   console.log(v.line);

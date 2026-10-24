@@ -11,4 +11,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: desktop stage
-        run: echo "desktop stage placeholder: desktop shell builds land with the apps lane"
+        run: echo "desktop stage placeholder, desktop shell builds land with the apps lane"

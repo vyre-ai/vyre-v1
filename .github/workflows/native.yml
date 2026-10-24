@@ -11,4 +11,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: native stage
-        run: echo "native stage placeholder: mobile store builds land with the apps lane"
+        run: echo "native stage placeholder, mobile store builds land with the apps lane"
