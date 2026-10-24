@@ -13,6 +13,7 @@ import {
   levelName, levelNumber, placeHold, readSettings, releaseHold, runRetention, scrubAttrs, writeSettings,
 } from "../handlers/sink.ts";
 import { foldEvent, entityOf } from "../projections.ts";
+import { seed } from "../fixtures/seed.ts";
 
 const LINES = readFileSync(new URL("../fixtures/lines.jsonl", import.meta.url), "utf8").split("\n").filter((l) => l.length > 0);
 const SECRET = "sk_live_abcdef123456";
@@ -366,4 +367,16 @@ test("erasing a person leaves a tombstone and keeps the rows", () => {
   assert.equal(db.rows("logs_row").length, 1);
   assert.equal(db.rows("logs_row")[0]!["actor"], "usr_gone", "the id stays; reads blank it");
   assert.equal(db.rows("logs_tombstone").length, 1);
+});
+
+test("the seed rows fit the migration and read back through the search", () => {
+  const db = new FakeLogsDb();
+  for (const row of seed.rows) {
+    const names = Object.keys(row);
+    db.run(`INSERT INTO ${seed.table} (${names.join(", ")}) VALUES (${names.map(() => "?").join(", ")})`, ...names.map((n) => (row as Record<string, unknown>)[n]));
+  }
+  const stored = db.rows(seed.table);
+  assert.equal(stored.length, seed.rows.length);
+  assert.equal(stored[0]!["msg"], "record.updated");
+  assert.equal(JSON.parse(String(stored[0]!["attrs"])).count, 1);
 });

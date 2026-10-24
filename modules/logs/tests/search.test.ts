@@ -11,6 +11,7 @@ import { HostError } from "../../../host/src/routes/errors.ts";
 import { LogWriter, MAX_UPLOAD, eraseActor, readSettings, writeSettings, DAY_MS } from "../handlers/sink.ts";
 import { buildWhere, limitOf } from "../handlers/search.ts";
 import type { LogFilter, Page } from "../handlers/search.ts";
+import * as impl from "../impl.ts";
 import {
   clientUpload, exportLogs, filterOf, handlers, query, replayGet, replayStart, settingsGet, settingsSet, spans, tail, trace,
 } from "../handlers/index.ts";
@@ -347,4 +348,12 @@ test("every handler is registered under its capability name", () => {
     "logs.spans", "logs.tail", "logs.trace",
   ]);
   for (const fn of Object.values(handlers)) assert.equal(typeof fn, "function");
+});
+
+test("impl.ts exposes the handlers, the event consumer and no codecs", () => {
+  assert.equal(impl.handlers, handlers);
+  assert.deepEqual(Object.keys(impl.consumers), ["logs.events"]);
+  assert.deepEqual(impl.inline, {});
+  assert.deepEqual(impl.projections.map((p) => p.name), ["logs.events"]);
+  assert.deepEqual(impl.codecs, {});
 });
