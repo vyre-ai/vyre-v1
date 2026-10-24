@@ -11,6 +11,7 @@
 // Parallel runs: every change is one row-level operation. Changes to one file run one after another (a per-file queue), each reads the newest version, applies its row operation
 // and writes with baseVersion; a save from outside that lands in between makes the write fail with version_conflict and the operation is read and applied again (never a whole-file overwrite).
 // Every write is a version whose reason names the automation and run.
+// Google Sheets: edited through the Sheets API, rows addressed g<row number> (the API does not give stable row ids, so a row deleted above shifts them); the mount tells which spreadsheet a file is.
 
 import { createRequire } from "node:module";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";

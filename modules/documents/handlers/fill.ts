@@ -9,6 +9,7 @@
 // signing_day_ordinal, signing_month, signing_month_number and signing_year, unless the caller gave that value itself.
 // Records: when recordId is given the record's fields feed the tags (mapping names which record field feeds which tag; without a mapping a field feeds the tag of the same name).
 // The record type comes from values.recordType when present; otherwise records.get is asked with the id alone.
+// Names: a given name keeps its own spelling; the default is the template name and "(filled)"; a taken name gets " 2", " 3" and so on, an existing file is never replaced.
 // PDF: format "pdf" converts the filled Word file through the converter the host gave to configureDocuments; without one the request is refused and the Word file works anywhere.
 
 import { createRequire } from "node:module";
