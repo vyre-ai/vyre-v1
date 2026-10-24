@@ -1,7 +1,7 @@
 // @reads /modules/connectors/migrations/0001_connectors.sql
 // @reads /modules/sources/migrations/0001_sources.sql
 // Synced types and the sync engine's capabilities: bind, change, pause, review schema changes, detach, log, outbox, sync_now and the engine seam. The engine itself is tested in modules/sources;
-// here it is a recording fake behind the SyncEngine seam, over the real sy_* tables the engine writes.
+// here it is a recording fake behind the SyncEngine seam, over the real sy_* tables the engine writes (read from the sources migration, not imported: boundary B1).
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
