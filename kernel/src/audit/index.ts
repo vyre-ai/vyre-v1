@@ -191,7 +191,7 @@ export function createDeviceCheckpoints(cfg: { space: string; publicKey: PublicK
   const clock = cfg.clock ?? Date.now, maxAge = cfg.max_age_ms ?? 3 * EVERY_MS;
   const revoked = new Set<string>();
   const held = cfg.held ?? { get: () => mem, set: (c: Checkpoint) => { mem = c; } };
-  return Object.freeze({
+  const api: DeviceCheckpoints = {
     /** Take a checkpoint from the home. Newer and valid replaces the held one; older or invalid is refused. */
     accept(cp) {
       if (isCheckpoint(cp) && revoked.has(cp.key_id)) return { ok: false, why: "key_revoked" };
@@ -215,5 +215,6 @@ export function createDeviceCheckpoints(cfg: { space: string; publicKey: PublicK
       const e = eventAt(log, cp.seq);
       return e && e.hash === cp.hash ? { ok: true } : { ok: false, why: "history_differs" };
     },
-  });
+  };
+  return Object.freeze(api);
 }

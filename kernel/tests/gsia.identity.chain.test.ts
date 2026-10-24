@@ -8,25 +8,27 @@ const H = 3_600_000;
 const T0 = Date.UTC(2026, 9, 3, 12, 0, 0);
 
 /** A key: raw public key text, its eid and a sign function. */
-async function key(label) {
+async function key(label: string) {
   const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
   const pub = publicKey.export({ format: "der", type: "spki" }).subarray(-32);
   const pubText = Buffer.from(pub).toString("base64url");
   const eid = await C.eidOf(pub);
-  return { label, pub: pubText, eid, sign: m => crypto.sign(null, Buffer.from(m), privateKey), entry: kind => ({ eid, kind, pub: pubText }) };
+  return { label, pub: pubText, eid, sign: (m: Uint8Array) => crypto.sign(null, Buffer.from(m), privateKey), entry: (kind: string) => ({ eid, kind, pub: pubText }) };
 }
+type Key = Awaited<ReturnType<typeof key>>;
+interface World { ops: C.Op[]; state: C.State }
 
-async function person(first, ts = T0) {
+async function person(first: Key, ts = T0): Promise<World> {
   const g = await C.makeGenesis({ kind: "person", entry: first.entry("device"), nonce: "n-" + first.eid.slice(0, 8), ts, sign: first.sign });
   return { ops: [g], state: await C.verifyChain([g], { now: ts }) };
 }
 /** Append one op signed by `k` and return the new world. */
-async function step(w, body, k, ts, ctx = {}) {
+async function step(w: World, body: Partial<C.Op>, k: Key, ts: number, ctx: C.Ctx & { via?: string } = {}): Promise<World> {
   const op = await C.makeOp(w.state, body, { by: k.eid, ts, sign: k.sign, via: ctx.via });
   const state = await C.applyOp(w.state, op, { now: ts, ...ctx });
   return { ops: [...w.ops, op], state };
 }
-const refused = (p, code) => assert.rejects(p, e => e.code === code, `expected ${code}`);
+const refused = (p: Promise<unknown>, code: string) => assert.rejects(p, (e: unknown) => (e as { code?: string }).code === code, `expected ${code}`);
 
 test("chain: the id is the hash of the genesis, so it cannot be claimed by another", async () => {
   const a = await key("phone"), b = await key("other");

@@ -81,5 +81,6 @@ export function createKernelSeal(key: Uint8Array | string): KernelSeal {
   if (!key || key.length < 16) throw new Error("the kernel seal needs a key of at least 16 bytes");
   const ok = (p: string): string => { if (!PURPOSE.test(p)) throw new Error("bad purpose"); return p; };
   const macOf = (purpose: string, data: string): string => hmac(key, `${ok(purpose)}\n${data}`);
-  return Object.freeze({ mac: macOf, verify: (purpose, data, mac) => typeof mac === "string" && sameMac(macOf(purpose, data), mac) });
+  const seal: KernelSeal = { mac: macOf, verify: (purpose, data, mac) => typeof mac === "string" && sameMac(macOf(purpose, data), mac) };
+  return Object.freeze(seal);
 }
