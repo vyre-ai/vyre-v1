@@ -21,7 +21,7 @@ permissions:
 jobs:
   regen:
     # The bot's own commit never retriggers this (it only touches generated/), the guard is for a hand-made copy of that message.
-    if: ${{ !startsWith(github.event.head_commit.message, 'chore(gen): regenerate') }}
+    if: "${{ !startsWith(github.event.head_commit.message, 'chore(gen): regenerate') }}"
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 10
     steps:
