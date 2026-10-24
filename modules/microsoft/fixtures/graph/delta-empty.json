@@ -1,0 +1,4 @@
+{
+  "value": [],
+  "@odata.deltaLink": "https://graph.microsoft.com/v1.0/users('mid')/mailFolders('inbox')/messages/delta?$deltatoken=D2"
+}
