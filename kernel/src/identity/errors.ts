@@ -1,3 +1,4 @@
+// Errors every kernel module throws.
 // The one typed error every kernel call throws (0.6 kernel/core/errors.js; contracts common KernelError). Stable lowercase `code`; `hidden_reason` is kept in the log and never shown to the caller.
 export class KernelError extends Error {
   code: string;
