@@ -60,7 +60,7 @@ export interface World {
   /** file ids the caller may not open: ctx.authorize denies and files.get/read answer not found */
   denied: Set<string>;
   calls: { cap: string; input: Record<string, unknown> }[];
-  add(name: string, bytes: Buffer, folderId?: string): string;
+  add(name: string, bytes: Buffer, folderId?: string, fileId?: string): string;
   /** the marked templates, straight from the table */
   marks(): Row[];
 }
@@ -169,8 +169,8 @@ export function world(): World {
   };
   return {
     ctx, events, files, records, denied, calls,
-    add(name: string, bytes: Buffer, folderId = FOLDER): string {
-      const id = `fil_${++n}`;
+    add(name: string, bytes: Buffer, folderId = FOLDER, fileId?: string): string {
+      const id = fileId ?? `fil_${++n}`;
       files.set(id, { id, name, folderId, bytes, mime: "application/octet-stream", versions: 1 });
       return id;
     },

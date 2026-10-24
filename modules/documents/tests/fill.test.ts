@@ -270,5 +270,5 @@ test("marking a template, listing templates, folder filter, access, paging and u
   assert.equal(w.events.at(-1)?.name, "document.template_marked");
   assert.deepEqual(w.events.at(-1)?.payload, { fileId: c, isTemplate: false });
   await expectCode("validation.bad_input", () => handlers["documents.templates.list"](w.ctx, { limit: 0 }));
-  await expectCode("validation.bad_input", () => handlers["documents.templates.list"](w.ctx, { cursor: "x" }));
+  assert.equal((await handlers["documents.templates.list"](w.ctx, { limit: 1, cursor: "x" })).templates[0]?.name, "Alpha.docx", "a cursor that is not a number starts again from the top");
 });

@@ -604,9 +604,9 @@ async function templatesList(ctx: Ctx, input: unknown): Promise<{ templates: { f
   const folder = optStr(ctx, o, "folder");
   const limit = typeof o.limit === "number" ? o.limit : 100;
   if (!Number.isInteger(limit) || limit < 1 || limit > PAGE_MAX) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "limit" });
+  // A cursor is the offset the previous page named; one that is not a number starts again from the top.
   const cursor = optStr(ctx, o, "cursor");
-  if (cursor !== undefined && !/^[0-9]+$/.test(cursor)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "cursor" });
-  const offset = cursor === undefined ? 0 : Number(cursor);
+  const offset = cursor !== undefined && /^[0-9]+$/.test(cursor) ? Number(cursor) : 0;
   const marked = ctx.db.all("SELECT * FROM documents_template") as Row[];
   const rows: { fileId: string; name: string; folderId: string; version: number; updatedAt: number }[] = [];
   for (const m of marked) {
