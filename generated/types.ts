@@ -8616,6 +8616,7 @@ export type FilesDeleteIn = {
 };
 export type FilesDeleteOut = {
   deleted: boolean;
+  changesetId?: string;
 };
 export type FilesDiffIn = {
   fileId: string;
@@ -9029,6 +9030,7 @@ export type FilesMoveOut = {
     thumb: boolean;
     holds: number;
   };
+  changesetId?: string;
 };
 export type FilesNameVersionIn = {
   fileId: string;
@@ -9113,6 +9115,7 @@ export type FilesRenameOut = {
     thumb: boolean;
     holds: number;
   };
+  changesetId?: string;
 };
 export type FilesResolveIn = {
   path: string;
@@ -9216,6 +9219,7 @@ export type FilesSaveOut = {
   };
   added: number;
   removed: number;
+  changesetId?: string;
 };
 export type FilesShareIn = {
   fileId: string;
@@ -18453,7 +18457,7 @@ export type RunsFinishIn = {
 export type RunsFinishOut = {
   run: {
     id: string;
-    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "runbook" | "wait" | "terminal" | "replay" | "other";
+    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "runbook" | "wait" | "terminal" | "replay" | "other";
     name?: string;
     owner: string;
     startedBy: string;
@@ -18481,7 +18485,7 @@ export type RunsGetIn = {
 export type RunsGetOut = {
   run: {
     id: string;
-    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "runbook" | "wait" | "terminal" | "replay" | "other";
+    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "runbook" | "wait" | "terminal" | "replay" | "other";
     name?: string;
     owner: string;
     startedBy: string;
@@ -18510,7 +18514,7 @@ export type RunsListIn = {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
-  kinds?: Array<"automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "runbook" | "wait" | "terminal" | "replay" | "other">;
+  kinds?: Array<"automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "runbook" | "wait" | "terminal" | "replay" | "other">;
   statuses?: Array<"queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped">;
   since?: number;
   cursor?: string;
@@ -18519,7 +18523,7 @@ export type RunsListIn = {
 export type RunsListOut = {
   runs: Array<{
       id: string;
-      kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "runbook" | "wait" | "terminal" | "replay" | "other";
+      kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "runbook" | "wait" | "terminal" | "replay" | "other";
       name?: string;
       owner: string;
       startedBy: string;
@@ -18552,7 +18556,7 @@ export type RunsMarkWaitingIn = {
 export type RunsMarkWaitingOut = {
   run: {
     id: string;
-    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "runbook" | "wait" | "terminal" | "replay" | "other";
+    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "runbook" | "wait" | "terminal" | "replay" | "other";
     name?: string;
     owner: string;
     startedBy: string;
@@ -18599,7 +18603,7 @@ export type RunsRecordKeyIn = {
 export type RunsRecordKeyOut = {
   run: {
     id: string;
-    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "runbook" | "wait" | "terminal" | "replay" | "other";
+    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "runbook" | "wait" | "terminal" | "replay" | "other";
     name?: string;
     owner: string;
     startedBy: string;
@@ -18653,7 +18657,7 @@ export type RunsResumeIn = {
 export type RunsResumeOut = {
   run: {
     id: string;
-    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "runbook" | "wait" | "terminal" | "replay" | "other";
+    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "runbook" | "wait" | "terminal" | "replay" | "other";
     name?: string;
     owner: string;
     startedBy: string;
@@ -18683,7 +18687,7 @@ export type RunsRetryOut = {
   runId: string;
 };
 export type RunsStartIn = {
-  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "runbook" | "wait" | "terminal" | "replay" | "other";
+  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "runbook" | "wait" | "terminal" | "replay" | "other";
   name?: string;
   owner: string;
   subject?: {
@@ -18739,7 +18743,7 @@ export type RunsStopIn = {
 export type RunsStopOut = {
   run: {
     id: string;
-    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "runbook" | "wait" | "terminal" | "replay" | "other";
+    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "runbook" | "wait" | "terminal" | "replay" | "other";
     name?: string;
     owner: string;
     startedBy: string;
@@ -29492,7 +29496,7 @@ export type ReviewMarkedPayload = {
 };
 export type RunFailedPayload = {
   runId: string;
-  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "runbook" | "wait" | "terminal" | "replay" | "other";
+  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "runbook" | "wait" | "terminal" | "replay" | "other";
   step?: string;
   code: string;
   message: string;
@@ -29517,7 +29521,7 @@ export type RunRetriedPayload = {
 };
 export type RunStartedPayload = {
   runId: string;
-  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "runbook" | "wait" | "terminal" | "replay" | "other";
+  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "runbook" | "wait" | "terminal" | "replay" | "other";
   name?: string;
   owner: string;
   subject?: {
@@ -29534,7 +29538,7 @@ export type RunStoppedPayload = {
 };
 export type RunSucceededPayload = {
   runId: string;
-  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "runbook" | "wait" | "terminal" | "replay" | "other";
+  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "runbook" | "wait" | "terminal" | "replay" | "other";
   summary?: string;
   costMicros: number;
 };

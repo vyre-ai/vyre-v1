@@ -19,7 +19,7 @@ Save a guidance file (VYRE.md, AGENT.md, agent.toml, routine prompts): snapshot 
 | HTTP | POST /v1/files/save |
 | MCP tool | files_save (files) |
 | CLI | none |
-| Emits | file.version_added, changeset.opened |
+| Emits | file.version_added, changeset.opened, changeset.updated |
 
 ## Input
 
@@ -61,6 +61,7 @@ type Out = {
   };
   added: number;
   removed: number;
+  changesetId?: string;
 };
 ```
 
@@ -89,6 +90,7 @@ type Out = {
   },
   "output": {
     "added": 1,
+    "changesetId": "chg_a1b2c3",
     "lint": {
       "file": "vyre_md",
       "inherits": true,
