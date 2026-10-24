@@ -1,0 +1,14 @@
+name: native
+# Android and iOS builds in parallel. Never blocks server or web going live.
+on:
+  workflow_call:
+  workflow_dispatch:
+jobs:
+  native:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 25
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: native stage
+        run: echo "native stage placeholder: mobile store builds land with the apps lane"

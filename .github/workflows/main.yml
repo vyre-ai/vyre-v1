@@ -1,4 +1,5 @@
 name: main
+# Merge to main: whole fast suite + golden flows + perf, budget 10 minutes (ARCH-DECISIONS 13).
 on:
   push:
     branches: [main]
@@ -6,37 +7,70 @@ concurrency:
   group: main
   cancel-in-progress: true
 jobs:
-  fast:
+  select:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.sel.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shard the whole suite by measured time (up to 24 fast shards, slow list as parallel jobs)
+        id: sel
+        run: |
+          node scripts/ci-select.ts "" --matrix > select.json
+          node -e 'const r=JSON.parse(require("fs").readFileSync("select.json","utf8"));require("fs").appendFileSync(process.env.GITHUB_OUTPUT,"matrix="+JSON.stringify(r.matrix)+"\n")'
+  shards:
+    needs: select
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 10
     strategy:
       fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] # 10 shards + golden + perf = the 12 runners
+      matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
-      - run: node scripts/test-run.mjs --all --shard ${{ matrix.shard }}/10
-  slow:
+      - name: Run the shard (20 s file cap, pass cache by import hash)
+        env:
+          FILES: ${{ matrix.files }}
+          SLOW: ${{ matrix.slow }}
+        run: |
+          if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else node scripts/test-run.mjs --files $FILES; fi
+  golden-main:
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - run: node scripts/test-run.mjs --all --slow
-  golden:
-    runs-on: [self-hosted, linux, v1]
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - run: echo "golden-flow placeholder (golden/ lands with the seeded Space)"
+      - run: npm run golden
   perf:
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - run: echo "perf placeholder (perf/ budgets land with section 9)"
+      - run: npm run perf
   contracts:
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - run: tools/gen/check.sh
+  merge-ok:
+    needs: [shards, golden-main, perf, contracts]
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    steps:
+      - run: echo "merge ok"
+  budget-main:
+    needs: [shards, golden-main, perf, contracts, merge-ok]
+    if: always()
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wall time of this run against the 10 minute main budget
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci-budget.ts --kind main --run-id ${{ github.run_id }} --repo ${{ github.repository }}
+      - name: Job times
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci-report.ts --run-id ${{ github.run_id }} --repo ${{ github.repository }} >> "$GITHUB_STEP_SUMMARY"

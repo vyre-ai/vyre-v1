@@ -1,0 +1,26 @@
+name: nightly
+# Prewarm is the only place that may npm install, docker pull or curl. Everything else reads the warmed caches.
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+jobs:
+  prewarm:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Warm the npm cache
+        run: npm ci --prefer-offline
+      - name: Warm base images
+        run: docker pull node:24-bookworm-slim
+      - name: Fetch toolchain index
+        run: curl -fsSL -o /dev/null https://nodejs.org/dist/index.json
+  timings:
+    needs: prewarm
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refresh per-file timings
+        run: node scripts/test-run.ts --timings --files $(git ls-files '*.test.ts' '*.test.mjs' | tr '\n' ' ')

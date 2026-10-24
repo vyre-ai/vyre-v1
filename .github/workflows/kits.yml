@@ -1,0 +1,13 @@
+name: kits
+# Kit builds (called by release).
+on:
+  workflow_call:
+  workflow_dispatch:
+jobs:
+  kits:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: kits stage
+        run: echo "kits stage placeholder: kit builds land with the kits lane"

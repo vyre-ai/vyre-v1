@@ -1,13 +1,71 @@
 name: release
+# Tag to live under 25 minutes (ARCH-DECISIONS 13). Live needs the suite, client, kits, images and security; never native or desktop.
 on:
   push:
     tags:
       - "v*"
 jobs:
-  release:
+  select:
     runs-on: [self-hosted, linux, v1]
-    timeout-minutes: 25
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.sel.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
-      - name: Placeholder
-        run: echo "release placeholder - full suite, builds, signing and deploy land later"
+      - id: sel
+        run: |
+          node scripts/ci-select.ts "" --matrix > select.json
+          node -e 'const r=JSON.parse(require("fs").readFileSync("select.json","utf8"));require("fs").appendFileSync(process.env.GITHUB_OUTPUT,"matrix="+JSON.stringify(r.matrix)+"\n")'
+  suite:
+    needs: select
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          FILES: ${{ matrix.files }}
+          SLOW: ${{ matrix.slow }}
+        run: |
+          if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else node scripts/test-run.mjs --files $FILES; fi
+  client:
+    uses: ./.github/workflows/client.yml
+  kits:
+    uses: ./.github/workflows/kits.yml
+  images:
+    uses: ./.github/workflows/images.yml
+  heavy:
+    uses: ./.github/workflows/heavy.yml
+  security:
+    uses: ./.github/workflows/security.yml
+  native:
+    uses: ./.github/workflows/native.yml
+  desktop:
+    uses: ./.github/workflows/desktop.yml
+  live:
+    needs: [suite, client, kits, images, heavy, security]
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    steps:
+      - run: echo "live gate passed"
+  deploy:
+    needs: live
+    uses: ./.github/workflows/deploy.yml
+  budget-tag:
+    needs: [suite, client, kits, images, heavy, security, native, desktop, live, deploy]
+    if: always()
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wall time of this run against the 25 minute tag budget
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci-budget.ts --kind tag --run-id ${{ github.run_id }} --repo ${{ github.repository }}
+      - name: Job times
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci-report.ts --run-id ${{ github.run_id }} --repo ${{ github.repository }} >> "$GITHUB_STEP_SUMMARY"

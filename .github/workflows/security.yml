@@ -1,0 +1,13 @@
+name: security
+# Security gates: license check, secret scan, dependency audit from the prewarmed cache.
+on:
+  workflow_call:
+  workflow_dispatch:
+jobs:
+  security:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: security stage
+        run: echo "security stage placeholder: security gates land with the security lane"

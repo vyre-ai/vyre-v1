@@ -1,0 +1,13 @@
+name: images
+# Server image build (called by release; docker layers come from the prewarmed cache).
+on:
+  workflow_call:
+  workflow_dispatch:
+jobs:
+  images:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: images stage
+        run: echo "images stage placeholder: server image build lands with the server lane"

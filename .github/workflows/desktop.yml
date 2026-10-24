@@ -1,0 +1,14 @@
+name: desktop
+# Desktop shell builds. Never blocks server or web going live.
+on:
+  workflow_call:
+  workflow_dispatch:
+jobs:
+  desktop:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 25
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: desktop stage
+        run: echo "desktop stage placeholder: desktop shell builds land with the apps lane"

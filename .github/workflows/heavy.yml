@@ -1,0 +1,13 @@
+name: heavy
+# Heavy tests from the slow list marked heavy (called by release).
+on:
+  workflow_call:
+  workflow_dispatch:
+jobs:
+  heavy:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: heavy stage
+        run: echo "heavy stage placeholder: heavy suites land with the slow list"
