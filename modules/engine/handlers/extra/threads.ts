@@ -4,7 +4,7 @@
 import { LEASE_TTL_MS } from "../../../../agent/src/turn-engine/lease.ts";
 import { preview } from "../../../../agent/src/turn-engine/lead.ts";
 import type { RouteMention } from "../../../../lib/route.ts";
-import { actorOf, raise, sqlLeases, sqlQueue } from "../../projections.ts";
+import { actorOf, raise, sqlLeases } from "../../projections.ts";
 import type { EngineCtx } from "../../projections.ts";
 import { ensureExtra } from "./schema.ts";
 import { num, optStr, rows, str } from "./util.ts";

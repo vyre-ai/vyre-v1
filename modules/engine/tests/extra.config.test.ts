@@ -28,7 +28,8 @@ const routes = {
 test("policy is empty by default, saved per key, validated, and tells the settings page", async () => {
   const h = harness();
   const settingsSet: unknown[] = [];
-  const ctx = withRoutes(h, { "settings.get": (i) => ({ row: { value: { "engine.agent_hops": 6 }[(i as { key: string }).key] ?? null } }), "settings.set_space": (i) => { settingsSet.push(i); return {}; } });
+  const stored: Record<string, unknown> = { "engine.agent_hops": 6 };
+  const ctx = withRoutes(h, { "settings.get": (i) => ({ row: { value: stored[(i as { key: string }).key] ?? null } }), "settings.set_space": (i) => { settingsSet.push(i); return {}; } });
   const before = await H["engine.policy.get"](ctx, {});
   assert.deepEqual(before, { allowedAccounts: "any", allowedModels: [], allowedProviders: [], labelProviders: {}, hops: { agentHops: 6, reviewLoops: 2, ciFixLoops: 3 } });
   assert.deepEqual(contractErrors("engine.policy.get", "out", before), []);
@@ -68,8 +69,8 @@ test("models.list greys what the policy or the label forbids and what is not sig
   const open = await H["engine.models.list"](ctx, {});
   assert.deepEqual(contractErrors("engine.models.list", "out", open), []);
   assert.deepEqual(open.models.map((m) => [m.provider, m.model, m.allowed, m.reason]), [
-    ["anthropic", "claude-opus-5", true, undefined], ["anthropic", "claude-sonnet-5-5", true, undefined], ["openai", "gpt-5", true, undefined], ["anthropic", "Anthropic", false, "not_connected"],
-  ].map((r) => r) as never);
+    ["anthropic", "claude-opus-5", true, undefined], ["anthropic", "claude-sonnet-5-5", true, undefined], ["openai", "gpt-5", true, undefined], ["anthropic", "anthropic", false, "not_connected"],
+  ]);
 
   await H["engine.policy.set"](ctx, { allowedModels: ["claude-sonnet-5-5", "gpt-5"], labelProviders: { restricted: ["anthropic"] } });
   const limited = await H["engine.models.list"](ctx, { recordLabel: "restricted" });
