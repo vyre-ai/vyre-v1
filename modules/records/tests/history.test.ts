@@ -142,12 +142,12 @@ test("history lists replaced values with who and when, merge losers with their r
 
   const all = (await h["records.history"](ctx, { type: "item", recordId: id })).entries;
   const qty = all.filter((e) => e.field === "qty");
-  assert.deepEqual(qty.map((e) => [e.value, e.reason]).sort(), [[1, "replaced"], [2, "replaced"], [99, "lww_loser"]].sort());
+  assert.deepEqual(qty.map((e) => [e.value, e.reason]).sort(), [[1, "previous"], [2, "previous"], [99, "lww_loser"]].sort());
   assert.deepEqual(all.filter((e) => e.field === "name").map((e) => e.value), ["A"]);
   assert.ok(all.every((e) => e.actor.length > 0 && e.hlc.length > 0));
   const only = (await h["records.history"](ctx, { type: "item", recordId: id, field: "name" })).entries;
   assert.equal(only.length, 1);
-  assert.equal(only[0]!.reason, "replaced");
+  assert.equal(only[0]!.reason, "previous");
 });
 
 test("holds: a hold blocks delete, counts on the row, needs a reason, and release lifts every hold", async () => {

@@ -179,19 +179,9 @@ export function createHistoryHandlers(deps: HistoryDeps): HistoryHandlers {
     "records.history": (ctx, input) => guard(ctx, () => {
       const d = def(ctx, input.type);
       const seal = sealedFields(d);
-      const all = need(ctx, input.type, input.recordId);
+      need(ctx, input.type, input.recordId);
       const entries: HistoryEntry[] = [];
-      for (const s of all) {
-        if (s.kind !== "updated") continue;
-        const p = payloadOf<Payload>(s.event);
-        const before = p.before ?? {};
-        const after = p.data ?? {};
-        for (const k of new Set([...Object.keys(before), ...Object.keys(after)])) {
-          const a = before[k] ?? null, b = after[k] ?? null;
-          if (canonical(a) === canonical(b)) continue;
-          entries.push({ field: k, value: seal.has(k) ? masked(k) : a, hlc: s.event.hlc, actor: s.event.actor, reason: "replaced" });
-        }
-      }
+      // The records.field_meta projection writes a row for every replaced value ("previous") and for every merge loser ("lww_loser", "conflict"); a rebuild from the log restores them.
       const losers = tx.all<{ field: string; value: string | null; hlc: string; actor: string; reason: string }>(
         "SELECT field, value, hlc, actor, reason FROM records_field_history WHERE type = ? AND id = ? ORDER BY rowid", input.type, input.recordId,
       );
