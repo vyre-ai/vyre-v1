@@ -110,24 +110,46 @@ jobs:
           [ -x "$tsc" ] || bash tools/gen/check.sh
           for d in $dirs; do echo "tsc -p $d"; "$tsc" -p "$d/tsconfig.json" --noEmit; done
   images-docker:
-    # Ruling 31: when images/ changes, build the vyred image and boot it in Docker (VYRE_HEAVY_DOCKER=1 turns on the docker test in images/vyred/smoke.heavy.test.ts, which the 20 s shard cannot run).
-    # Not part of the `check` gate below: it reports its own result on the run.
+    # Ruling 31 and P-L8_HEAVY: when images/ or a heavy test changes, run the tests the 20 s shard cannot: the vyred image boots in Docker, the site builders
+    # build and serve samples on real Docker, and a pinned Documenso container takes an envelope from create to completed. VYRE_HEAVY_DOCKER=1 turns the
+    # Docker parts on (without it every one of these tests is skipped by name, and a skip is not a pass). Not part of the `check` gate below: it reports its own result on the run.
     runs-on: [self-hosted, linux, v1]
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - name: Did images/ change on this branch?
+      - name: Did images/ or a heavy test change on this branch?
         id: scope
         run: |
           git fetch -q origin main
           base="$(git merge-base origin/main HEAD)"
-          if git diff --name-only --no-renames "$base"...HEAD -- images/ | grep -q .; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "images/ did not change; nothing to build"; fi
-      - name: Build the image, boot it, wait for healthy
+          if git diff --name-only --no-renames "$base"...HEAD -- images/ modules/sites/ modules/esign/ | grep -q .; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "no image or heavy test change; nothing to build"; fi
+          if git diff --name-only --no-renames "$base"...HEAD -- images/vyred/ | grep -q .; then echo "vyred=true" >> "$GITHUB_OUTPUT"; else echo "vyred=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Docker is there
         if: steps.scope.outputs.changed == 'true'
+        run: docker version --format '{{.Server.Version}}' && df -h /var/lib/docker 2>/dev/null | tail -n 1 || true
+      - name: Build the vyred image, boot it, wait for healthy
+        if: steps.scope.outputs.vyred == 'true'
         env:
           VYRE_HEAVY_DOCKER: "1"
         run: node --test --test-timeout=900000 images/vyred/smoke.heavy.test.ts
+      - name: Pull the base images the site builders use (the test pulls nothing itself)
+        if: steps.scope.outputs.changed == 'true'
+        run: |
+          for img in node:24-alpine python:3.13-slim caddy:2-alpine; do docker pull -q "$img"; done
+      - name: Site builders on real Docker (modules/sites/tests/builders.heavy.test.ts)
+        if: steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+        run: node --test --test-timeout=900000 --test-reporter=spec modules/sites/tests/builders.heavy.test.ts
+      - name: Documenso e-sign against the pinned container (modules/esign/tests/documenso.heavy.test.ts)
+        if: steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+        run: node --test --test-timeout=1500000 --test-reporter=spec modules/esign/tests/documenso.heavy.test.ts
+      - name: Containers left behind
+        if: always() && steps.scope.outputs.changed == 'true'
+        run: docker ps -a --filter "name=vyre" --format '{{.Names}} {{.Status}}' || true
   check:
     needs: [select, shards, gates]
     if: always()
