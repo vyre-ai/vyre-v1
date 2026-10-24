@@ -1,0 +1,1 @@
+{"at":1760000000000,"level":"info","traceId":"0123456789abcdef0123456789abcdef","spanId":"abcdef0123456789","actor":"usr_owner","onBehalf":"usr_ana","cap":"records.update","entity":"record","entityId":"rec_seed","result":"ok","durMs":4,"costMicros":0,"label":1,"appVersion":"1.0.0","serverVersion":"1.0.0","msg":"record.updated","attrs":{"count":1}}
