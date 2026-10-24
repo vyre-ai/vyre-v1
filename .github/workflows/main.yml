@@ -34,3 +34,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: echo "perf placeholder (perf/ budgets land with section 9)"
+  contracts:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: tools/gen/check.sh

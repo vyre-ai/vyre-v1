@@ -1,0 +1,24 @@
+{
+  "lanes": {
+    "L1": ["sync", "conflicts", "search"],
+    "L2": ["chat", "agents", "engine", "memory", "computers", "terminal", "mcp"],
+    "L3": ["records", "schema", "sources", "connectors", "projects", "import"],
+    "L4": ["files", "mounts", "git", "previews", "documents", "runbooks"],
+    "L5": ["inbox", "mail", "calendar", "telephony", "meetings", "contacts-link", "google", "microsoft", "resend", "mailgun", "twilio", "zoom", "github", "stripe"],
+    "L6": ["automations", "journeys", "steps-core", "scheduler-api", "tasks", "runs", "gate", "notifications", "home", "events"],
+    "L7a": ["access", "identity", "members", "devices", "spaces", "settings", "vault", "vault-requests", "audit", "governance"],
+    "L7b": ["backup", "updates", "network", "health", "logs", "reports-client", "console-views", "console-assistant"],
+    "L8": ["sites", "forms", "campaigns", "templates", "kits", "esign", "portal", "email-builder-api"]
+  },
+  "extras": {
+    "hubspot": "L3",
+    "documenso": "L8",
+    "dropbox-sign": "L8",
+    "docusign": "L8",
+    "default": "L8",
+    "law-firm-intake": "L8",
+    "estate-planning": "L8",
+    "harbor-studio": "L8"
+  },
+  "frozenCount": 72
+}
