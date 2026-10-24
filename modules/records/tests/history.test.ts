@@ -153,11 +153,12 @@ test("history lists replaced values with who and when, merge losers with their r
 test("holds: a hold blocks delete, counts on the row, needs a reason, and release lifts every hold", async () => {
   const { rec, h, ctx, seen } = await setup();
   const id = (await rec.handlers["records.create"](ctx, { type: "item", fields: { name: "A" } })).record.id;
+  seen.length = 0;
   await assert.rejects(() => h["records.hold"](ctx, { type: "item", recordId: id, reason: "  " }), vcode("validation.bad_input"));
   await assert.rejects(() => h["records.hold"](ctx, { type: "item", recordId: "nope", reason: "x" }), vcode("validation.not_found"));
   assert.deepEqual(await h["records.hold"](ctx, { type: "item", recordId: id, reason: "litigation" }), { held: true });
   await h["records.hold"](ctx, { type: "item", recordId: id, reason: "audit" });
-  assert.deepEqual(seen.map((s) => s.name), ["record.created", "record.held", "record.held"].slice(1).length ? ["record.held", "record.held"] : []);
+  assert.deepEqual(seen.map((s) => s.name), ["record.held", "record.held"]);
   assert.equal(seen[0]!.payload["reason"], "litigation");
   await assert.rejects(() => rec.handlers["records.delete"](ctx, { type: "item", recordId: id }), vcode("permission.on_hold"));
   const asOf = (await h["records.as_of"](ctx, { type: "item", recordId: id, at: 9e12 })).record;
