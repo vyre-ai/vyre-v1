@@ -1,4 +1,5 @@
 // The generated catalog, tool_search and the shape of a tool call (ARCH 6.7).
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { HostError, makeError } from "../../host/src/routes/errors.ts";
@@ -8,7 +9,9 @@ import { ctx, loadGenerated, makeSession, thread } from "../src/tools/harness.ts
 
 test("catalog: every generated tool joins its capability; the frozen default list is 59 real tools", () => {
   const { catalog, defaults, caps } = loadGenerated();
-  assert.equal(catalog.all.length, 1220);
+  // Every generated tool joins the catalog, so the count follows the generated file instead of a literal that each contract change breaks.
+  const generated = JSON.parse(readFileSync(new URL("../../generated/mcp-tools.json", import.meta.url), "utf8")) as { tools: unknown[] };
+  assert.equal(catalog.all.length, generated.tools.length);
   assert.equal(defaults.size, 59);
   for (const n of defaults) assert.ok(catalog.byName(n), `default tool ${n} exists`);
   for (const t of catalog.all) assert.ok(caps.has(t.cap), t.name);
