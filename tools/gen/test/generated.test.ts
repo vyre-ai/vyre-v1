@@ -15,6 +15,12 @@ import * as kinds from '../../../generated/kinds.ts';
 import type { KnownErrorCode } from '../../../generated/errors.ts';
 import type { CapMap, EventMap } from '../../../generated/types.ts';
 import { registry, registryHash } from '../../../generated/registry.ts';
+import { blockRegistry, renderFallback } from '../../../generated/blocks.ts';
+import type { BlockDataMap } from '../../../generated/blocks.ts';
+import { screens } from '../../../generated/screens.ts';
+import { syncEntities } from '../../../generated/sync/entities.ts';
+import { validateInput, validateEvent } from '../../../generated/validators.ts';
+import { levelIncludes, ladderFor } from '../../../packages/contracts/src/index.ts';
 
 test('registry hash matches registry.json', () => {
   const text = readFileSync(new URL('../../../generated/registry.json', import.meta.url), 'utf8');
@@ -55,4 +61,46 @@ test('type maps exist', () => {
   const ev: keyof EventMap = 'record.updated';
   const code: KnownErrorCode = 'internal.not_implemented';
   assert.deepEqual([cap, ev, code], ['records.get', 'record.updated', 'internal.not_implemented']);
+});
+
+test('compiled validators reject bad input and accept the example', () => {
+  assert.ok(validateInput('records.get', 1, {}).length > 0);
+  const ex = registry.capabilities.find((c) => c.name === 'records.get');
+  assert.ok(ex);
+  assert.deepEqual(validateInput('records.get', 1, ex.examples[0]?.input), []);
+  assert.ok(validateEvent('record.created', { nope: 1 }).length > 0);
+});
+
+test('registry.json shares schemas instead of inlining them', () => {
+  assert.ok(registry.$defs && Object.keys(registry.$defs).length > 50);
+  assert.ok(readFileSync(new URL('../../../generated/registry.json', import.meta.url)).length < 5_000_000);
+});
+
+test('screen index and probes agree; every screen with perf has a probe', () => {
+  const probes = JSON.parse(readFileSync(new URL('../../../generated/probes.json', import.meta.url), 'utf8')) as { probes: Array<{ id: string }> };
+  const ids = new Set(probes.probes.map((p) => p.id));
+  for (const s of screens) if (s.perf) assert.ok(ids.has(`screen.${s.id}`), s.id);
+  assert.equal(screens.length, registry.screens.length);
+});
+
+test('block registry renders fallbacks and unknown types with the trace id', () => {
+  assert.equal(blockRegistry.length, registry.blocks.length);
+  const t: keyof BlockDataMap = 'record_card';
+  assert.ok(blockRegistry.some((b) => b.type === t));
+  assert.match(renderFallback('nope', {}, 'abc'), /trace abc/);
+  assert.equal(renderFallback('record_card', { title: 'Elena', type: 'contact' }, 'abc'), 'Elena (contact)');
+});
+
+test('sync config covers entities and record types', () => {
+  assert.equal(syncEntities.length, registry.entities.length + registry.recordTypes.length);
+  const mail = syncEntities.find((e) => e.key === 'mail_message');
+  assert.equal(mail?.acl.multi, true);
+  assert.deepEqual(syncEntities.find((e) => e.key === 'conversation')?.acl.fallback, { resource: 'mailbox', field: 'mailboxIds' });
+});
+
+test('vault levels follow their own ladder', () => {
+  assert.equal(levelIncludes('vault_item', 'view', 'use'), true);
+  assert.equal(levelIncludes('vault_item', 'use', 'view'), false);
+  assert.equal(levelIncludes('record', 'use', 'view'), true);
+  assert.deepEqual([...ladderFor('vault_folder')], ['use', 'view', 'edit', 'manage']);
 });

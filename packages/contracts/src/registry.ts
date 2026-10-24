@@ -21,6 +21,8 @@ export interface RegistryError { code: ErrorCode; group: string; http: number; r
 
 export interface Registry {
   registryVersion: 1;
+  $defs?: Record<string, import('./types.ts').JsonSchema>;   // shared schemas referenced by $ref
+  levelLadders: Record<string, string[]>;
   modules: RegistryModule[];
   capabilities: Owned<CapabilityDef>[];
   events: Owned<EventDef>[];

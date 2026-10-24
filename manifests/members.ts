@@ -1,5 +1,5 @@
 // members (lane L7a): invites, the join page accept, suspend and the removal wizard with transfer preview, SSO (OIDC) and second-factor config.
-// NOT EXPRESSIBLE: members.invites.preview and members.accept run before sign-in (no principal) and must stay off the agent surface, so the join accept screen is not declared.
+// members.invites.preview and members.accept run before the person is a member: caller 'pending', never exposed to agents. The join accept screen declares the same caller kind.
 // DECISION: members.accept creates the person and session, then stores the wrapped keys by calling identity.keys_put; it emits member.joined and principal.created itself.
 // DECISION: sign-in policy (second-factor floor, SSO required, allowed methods) is written as policies of kind sign_in through members.sign_in_policy.set, which emits policy.changed; the settings rows below mirror the values for Cmd-F search.
 import { defineManifest, ev, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
@@ -46,10 +46,10 @@ export default defineManifest({
     write('members.invites.extend', 'Give an open invite a new expiry', { ...V, in: { inviteId: id.invite, expiresInDays: t.int({ minimum: 1, maximum: 90 }) }, out: { invite: inviteRow }, perm: 'members.invite', tool: 'meta', team: true }),
     write('members.invites.revoke', 'Revoke an open invite', { ...V, in: { inviteId: id.invite }, out: ok, perm: 'members.invite', emits: ['member.invite_revoked'], audit: 'always', tool: 'meta', team: true }),
     read('members.invites.preview', 'Join page: the Space name and logo, who invited, expiry and key fingerprint for a code', {
-      ...V, in: { code: t.str() }, out: { spaceName: t.str(), logoFileId: t.opt(id.file), invitedBy: t.str(), role: t.str(), expiresAt: t.ts(), fingerprint: t.str({ examples: ['ab12 cd34 ef56 7890'] }) }, errors: ['auth.invalid_code', 'auth.expired'],
+      ...V, caller: 'pending', in: { code: t.str() }, out: { spaceName: t.str(), logoFileId: t.opt(id.file), invitedBy: t.str(), role: t.str(), expiresAt: t.ts(), fingerprint: t.str({ examples: ['ab12 cd34 ef56 7890'] }) }, errors: ['auth.invalid_code', 'auth.expired'],
     }),
     write('members.accept', 'Accept an invite: pick a username and password, the device makes its keys; the person becomes active', {
-      ...V, in: { code: t.str(), username: t.str({ pattern: '^[a-z0-9_.-]{2,32}$', examples: ['maya'] }), displayName: t.opt(t.str()), password: t.str(), deviceName: t.str(), deviceClass, keys: keyBundle },
+      ...V, caller: 'pending', in: { code: t.str(), username: t.str({ pattern: '^[a-z0-9_.-]{2,32}$', examples: ['maya'] }), displayName: t.opt(t.str()), password: t.str(), deviceName: t.str(), deviceClass, keys: keyBundle },
       out: { personId: id.user, sessionId: id.session, token: t.str({ description: 'Session credential, returned once' }), epoch: t.int({ minimum: 0 }) },
       emits: ['member.joined', 'principal.created'], audit: 'always', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.invalid_code', 'auth.expired', 'validation.duplicate'], team: true,
     }),
@@ -80,6 +80,12 @@ export default defineManifest({
   ],
 
   screens: [
+    screen('join.accept', 'join', 'ui:JoinAccept', {
+      caller: 'pending', q: { invite: ['members.invites.preview', { code: '/state/code' }, false] },
+      a: { accept: ['members.accept', { code: '/state/code', username: '/state/username', displayName: '/state/displayName', password: '/state/password', deviceName: '/state/deviceName' }] },
+      empty: 'This invite is not valid', primary: 'Continue',
+    }),
+    screen('join.checklist', 'join', 'ui:JoinChecklist', { q: { checklist: ['home.checklist', {}, true] }, a: { dismiss: ['home.dismiss_checklist', {}] }, empty: 'All set' }),
     screen('members.invite_sheet', 'console', 'ui:InviteSheet', { slot: 'sheet', needs: ['members.invite'], q: { invites: ['members.invites.list', { state: '/state/state' }] }, a: { create: ['members.invites.create', { role: '/state/role', email: '/state/email', groups: '/state/groups', agents: '/state/agents', projects: '/state/projects', channels: '/state/channels', expiresInDays: '/state/expiresInDays' }], revoke: ['members.invites.revoke', { inviteId: '/state/inviteId' }, 'Revoke this invite?'] }, empty: 'No open invites', primary: 'Invite a person' }),
     screen('members.remove_wizard', 'console', 'ui:RemoveWizard', { slot: 'sheet', needs: ['members.remove'], q: { preview: ['members.remove_preview', { personId: '/state/personId' }] }, a: { remove: ['members.remove', { personId: '/state/personId', plan: '/state/plan', reason: '/state/reason' }, 'Remove this person and apply the plan?'], suspend: ['members.suspend', { personId: '/state/personId' }] } }),
     screen('members.sign_in_policy', 'console', 'ui:ConsoleSignInPolicy', { needs: ['policy.manage'], q: { policy: ['members.sign_in_policy.get'], sso: ['members.sso.list'], report: ['members.second_factor.report'] }, a: { set: ['members.sign_in_policy.set', { policy: '/state/policy' }], save_sso: ['members.sso.set', { provider: '/state/provider' }], remove_sso: ['members.sso.remove', { key: '/state/key' }, 'Remove this provider?'], test_sso: ['members.sso.test', { key: '/state/key' }] } }),

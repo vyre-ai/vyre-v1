@@ -2,8 +2,8 @@
 // Pull requests and issues are synced record types; the connector contributes github.* capabilities. Repo mounts and
 // clones belong to `mounts` and `git`; this module only mints the installation token handle they use.
 // ARCHITECTURE 8 table and 8.5, spec 3.4 flow 5, 2.10.
-// NOT EXPRESSIBLE: ConnectorDef.auth has no GitHub App JWT -> installation token type. The oauth2 entry is the user
-// sign-in flow of the App; installation tokens are minted by github.installation_token inside the module.
+// The 'github' connector authenticates as a GitHub App (JWT, then 1 hour installation tokens); 'github_signin' is the
+// App's OAuth user flow used for Sign in with GitHub. Installation tokens are minted by github.installation_token.
 // DECISION: github.installation_token never returns the token. It returns a filler handle, expiry only; git injects the
 // token through the vault filler and it is never written to config.
 // DECISION: merging into a protected branch declares the Gate act 'push_protected'; other writes to GitHub use 'post'.
@@ -183,13 +183,19 @@ export default defineManifest({
   ],
   capabilities,
   connectors: [
-    conn('github', 'GitHub', {
-      mode: 'oauth_app', scope: 'space',
+    conn('github_signin', 'GitHub sign-in', {
+      mode: 'oauth_app', scope: 'person',
       auth: { type: 'oauth2', authUrl: 'https://github.com/login/oauth/authorize', tokenUrl: 'https://github.com/login/oauth/access_token', scopes: ['read:user', 'user:email'], pkce: true },
+      domains: ['api.github.com', 'github.com'], secrets: [{ name: 'GitHub_App_Client_Secret', description: 'GitHub App OAuth client secret (sign in)' }],
+      actions: [], rate: { rps: 2, burst: 5 }, health: 'github.app',
+    }),
+    conn('github', 'GitHub', {
+      mode: 'api', scope: 'space',
+      auth: { type: 'github_app', appIdSecret: 'GitHub_App_Id', privateKeySecret: 'GitHub_App_Key', permissions: { contents: 'write', pull_requests: 'write', issues: 'write', checks: 'read', metadata: 'read' }, installation: 'org' },
       domains: ['api.github.com', 'github.com'],
       secrets: [
         { name: 'GitHub_App_Key', description: 'GitHub App private key (PEM) used to mint installation tokens' },
-        { name: 'GitHub_App_Client_Secret', description: 'GitHub App OAuth client secret (sign in)' },
+        { name: 'GitHub_App_Id', description: 'GitHub App id' },
         { name: 'GitHub_App_Webhook_Secret', description: 'Secret that signs /hooks/github' },
       ],
       sources: [{ key: 'github', path: '/hooks/github', verify: 'hmac', event: 'github.event_received', dedupe: '/deliveryId' }],

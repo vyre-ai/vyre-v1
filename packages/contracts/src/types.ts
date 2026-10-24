@@ -24,6 +24,7 @@ export interface JsonSchema {
   default?: unknown;
   examples?: unknown[];
   title?: string;
+  $ref?: string;                                    // '#/$defs/<name>', only in the serialized registry
 }
 
 export type Schema = JsonSchema;                    // JSON Schema 2020-12 subset
@@ -36,11 +37,11 @@ export type CapName = `${string}.${string}`;        // 'records.update'
 export type EventName = `${string}.${string}`;      // 'record.updated'
 export type ComponentKey = string;                  // key in the @vyre/ui component registry, e.g. 'ui:RecordPage'
 export type RoleName = 'owner' | 'admin' | 'developer' | 'member' | 'guest' | (string & {});
-export type PlaceId = 'home' | 'chats' | 'inbox' | 'records' | 'files' | 'apps' | 'automations' | 'vault' | 'settings' | 'console';
+export type PlaceId = 'join' | 'home' | 'chats' | 'inbox' | 'records' | 'files' | 'apps' | 'automations' | 'vault' | 'settings' | 'console';
 export type ResourceType =
   | 'space' | 'record_type' | 'record' | 'project' | 'folder' | 'file' | 'channel' | 'thread' | 'inbox' | 'mailbox'
   | 'vault_folder' | 'vault_item' | 'automation_group' | 'automation' | 'agent' | 'connector' | 'connection'
-  | 'site' | 'form' | 'campaign' | 'kit' | 'terminal' | 'computer' | 'task' | 'run' | 'number' | 'domain';
+  | 'site' | 'form' | 'campaign' | 'kit' | 'terminal' | 'computer' | 'task' | 'run' | 'number' | 'domain' | 'calendar';
 
 export interface Manifest {
   manifest: 1;
@@ -119,16 +120,25 @@ export interface CapabilityDef {
   };
   examples: { name: string; input: unknown; output: unknown }[];            // >= 1; drives contract tests and docs
   forbids?: { name: string; as: RoleName | 'guest-no-grant'; input: unknown; error: ErrorCode }[];  // permission matrix tests
+  caller?: Caller;                     // who may call: default 'principal'. 'anonymous' (before sign-in) and 'pending' (invited, not yet a member) never reach agents
   teamOnly?: boolean;                  // refused with a `permission.needs_team` error in a Personal Space (spec 2.1 matrix)
   since: Semver;
 }
+/** Kind of caller a capability accepts. Pre-auth capabilities (sign-in, accept invite, pair, recovery, public forms) are not principal calls. */
+export type Caller = 'principal' | 'anonymous' | 'pending';
+
+/** A resource named in the call input; the gateway authorizes the type and id it names. */
+export interface ResourceRefValue { type: ResourceType; id: string }
+
 export type Toolset =
   | 'records' | 'files' | 'memory' | 'vault' | 'automations' | 'chats' | 'inbox' | 'sites' | 'terminal'
   | 'computer' | 'agents' | 'tasks' | 'meta' | 'engineer';
 
 export type ResourceBinding =
-  | { type: ResourceType; id: string /* JSON pointer into input, e.g. '/recordId' */; parent?: string }
+  | { type: ResourceType; id: string /* JSON pointer into input, e.g. '/recordId' */; parent?: string; resolve?: 'name' | 'handle' /* the pointer holds a Vault name or handle that the gateway resolves to the id before authorize */ }
   | { type: ResourceType; create: true; parent: string }       // creation checks the parent
+  | { type: 'entity'; entity: string; id: string /* JSON pointer to the row id; access comes from the EntityDef acl (parent, multi, fallback, owner) */ }
+  | { type: 'dynamic'; ref: string /* JSON pointer to a {type,id} ResourceRef input */; allowed?: ResourceType[]; parent?: string }
   | { type: 'space' };
 
 // The shared error shape, spec 4.18.
@@ -179,7 +189,11 @@ export interface EntityDef {           // a core synced table (messages, tasks m
   idPrefix: string;                    // 'msg_'
   fields: Record<string, EntityFieldDef>;
   parent?: { entity: string; field: string };          // ACL inherits from parent
-  acl: { resource: ResourceType; parentField?: string; ownerField?: string };
+  acl: {
+    resource: ResourceType; parentField?: string; ownerField?: string;
+    multi?: boolean;                   // parentField holds many parent ids (a mail message in several mailboxes); any parent that grants is enough
+    fallback?: { resource: ResourceType; field: string };   // used when parentField is empty (an unmatched conversation): access comes from this resource
+  };
   sync: {
     profile: { desktop: 'all' | 'window' | 'none'; phone: 'all' | 'window' | 'none'; web: 'all' | 'window' | 'none' };
     window?: { days?: number; starred?: boolean; recentCount?: number };
@@ -266,6 +280,7 @@ export interface TriggerDef {
   title: string;
   source:
     | { event: EventName; filter?: Schema }
+    | { events: EventName[]; filter?: Schema }                   // several events fire the same trigger (record created, updated, deleted)
     | { schedule: true; ifMissed: ('skip' | 'run_once')[] }
     | { webhook: true; path: string }
     | { manual: true } | { button: true };
@@ -285,7 +300,8 @@ export interface ConnectorDef {
     | { type: 'oauth2'; authUrl: string; tokenUrl: string; scopes: string[]; pkce: boolean }
     | { type: 'service_account_dwd'; scopes: string[] }
     | { type: 'client_credentials'; tokenUrl: string; scopes: string[] }
-    | { type: 'hmac_webhook'; header: string; algo: 'sha256' | 'sha1'; secret: string };
+    | { type: 'hmac_webhook'; header: string; algo: 'sha256' | 'sha1'; secret: string }
+    | { type: 'github_app'; appIdSecret: string; privateKeySecret: string; permissions: Record<string, 'read' | 'write'>; installation: 'org' | 'repo' };   // installation tokens minted per call, 1 hour
   domains: string[];                   // the only egress hosts (enforced by ctx.http)
   secrets: { name: string; description: string }[];    // names only, resolved from the Vault
   sources?: { key: string; path: string; verify: 'hmac' | 'signature' | 'none'; event: EventName; dedupe: string /* JSON pointer */ }[];
@@ -352,6 +368,7 @@ export interface KitScreenDef {
   id: string;                          // 'inbox.contact-tab'
   place: PlaceId | 'shell';
   slot: 'main' | 'side' | 'sidebar' | 'sheet' | 'tab' | 'popover';
+  caller?: Caller;                     // screens shown before sign-in ('anonymous') or before membership ('pending'); they may call capabilities of the same caller kind
   builtin?: ComponentKey;              // built-in screens bind to a registered component
   layout?: LayoutNode;                 // declarative screens (Kit-authored)
   queries: Record<string, { cap: CapName; input: Record<string, string>; live: boolean; local?: 'sql' }>;

@@ -65,7 +65,12 @@ export interface CapOpts {
   out?: SchemaLike;
   on?: readonly [ResourceType, string];            // resource type and JSON pointer to its id in the input
   parent?: string;                                 // with `on`: pointer to the parent id
+  resolve?: 'name' | 'handle';                     // with `on`: the input holds a name or handle, not an id
   make?: readonly [ResourceType, string];          // creation: resource type and pointer to the parent id
+  dyn?: string | { ref: string; allowed?: ResourceType[]; parent?: string };   // resource named in the input as a {type,id} ResourceRef (see resourceRef in _common.ts)
+  row?: readonly [string, string];                 // resource is an entity row: entity key and pointer to its id; access follows the EntityDef acl
+  space?: boolean;                                 // force the Space binding even when the input carries a resource ref
+  caller?: 'principal' | 'anonymous' | 'pending';  // pre-auth capabilities; never exposed to agents
   perm?: string | null;
   level?: Level;
   risk?: Risk;
@@ -107,8 +112,12 @@ function makeCap(kind: CapabilityDef['effects'], name: string, summary: string, 
   const risk: Risk = o.risk ?? (kind === 'read' ? 'low' : kind === 'write' ? 'medium' : 'high');
   const permission = o.perm === undefined ? null : o.perm;
   let resource: ResourceBinding = { type: 'space' };
-  if (o.on) resource = { type: o.on[0], id: o.on[1], ...(o.parent ? { parent: o.parent } : {}) };
+  if (o.on) resource = { type: o.on[0], id: o.on[1], ...(o.parent ? { parent: o.parent } : {}), ...(o.resolve ? { resolve: o.resolve } : {}) };
   if (o.make) resource = { type: o.make[0], create: true, parent: o.make[1] };
+  if (o.row) resource = { type: 'entity', entity: o.row[0], id: o.row[1] };
+  const refProp = input.properties?.resource;
+  if (!o.on && !o.make && !o.dyn && !o.row && !o.space && refProp && (input.required ?? []).includes('resource') && refProp.properties?.type?.enum && refProp.properties?.id) resource = { type: 'dynamic', ref: '/resource' };
+  if (o.dyn) resource = typeof o.dyn === 'string' ? { type: 'dynamic', ref: o.dyn } : { type: 'dynamic', ref: o.dyn.ref, ...(o.dyn.allowed ? { allowed: o.dyn.allowed } : {}), ...(o.dyn.parent ? { parent: o.dyn.parent } : {}) };
   const errs = new Set<ErrorCode>(['validation.bad_input', 'internal.unexpected', 'permission.no_grant', 'permission.above_clearance']);
   if (permission) errs.add('permission.role_lacks_permission');
   if (o.on) errs.add('validation.not_found');
@@ -144,6 +153,7 @@ function makeCap(kind: CapabilityDef['effects'], name: string, summary: string, 
     surfaces,
     examples: [{ name: 'example', input: o.ex?.input ?? sample(input), output: o.ex?.output ?? sample(output) }],
     ...(o.forbids ? { forbids: o.forbids } : {}),
+    ...(o.caller && o.caller !== 'principal' ? { caller: o.caller } : {}),
     ...(o.team ? { teamOnly: true } : {}),
     since: o.since ?? '1.0.0',
   };
@@ -239,6 +249,8 @@ export interface EntityOpts {
   parent?: EntityDef['parent'];
   parentField?: string;
   ownerField?: string;
+  multi?: boolean;
+  fallback?: { resource: ResourceType; field: string };
   sync?: Partial<EntityDef['sync']>;
   fts?: string[];
   retention?: string;
@@ -250,7 +262,7 @@ export function entity(key: string, table: string, idPrefix: string, fields: Rec
   return {
     key, table, idPrefix, fields: f,
     ...(o.parent ? { parent: o.parent } : {}),
-    acl: { resource, ...(o.parentField ? { parentField: o.parentField } : {}), ...(o.ownerField ? { ownerField: o.ownerField } : {}) },
+    acl: { resource, ...(o.parentField ? { parentField: o.parentField } : {}), ...(o.ownerField ? { ownerField: o.ownerField } : {}), ...(o.multi ? { multi: true } : {}), ...(o.fallback ? { fallback: o.fallback } : {}) },
     sync: { profile: { desktop: 'all', phone: 'window', web: 'all' }, ...(o.sync ?? {}) },
     ...(o.fts ? { fts: o.fts } : {}),
     ...(o.retention ? { retention: o.retention } : {}),
@@ -316,6 +328,7 @@ export interface ScreenOpts {
   menus?: KitScreenDef['menus'];
   keys?: KitScreenDef['keys'];
   ask?: KitScreenDef['ask'];
+  caller?: 'principal' | 'anonymous' | 'pending';
 }
 
 export function screen(id: string, place: PlaceId | 'shell', builtin: ComponentKey, o: ScreenOpts = {}): KitScreenDef {
@@ -325,6 +338,7 @@ export function screen(id: string, place: PlaceId | 'shell', builtin: ComponentK
   for (const [k, a] of Object.entries(o.a ?? {})) actions[k] = { cap: a[0] as CapName, input: a[1] ?? {}, ...(a[2] ? { confirm: a[2] } : {}) };
   return {
     id, place, slot: o.slot ?? 'main', builtin, queries, actions,
+    ...(o.caller && o.caller !== 'principal' ? { caller: o.caller } : {}),
     states: {
       empty: { line: o.empty ?? 'Nothing here yet', ...(o.primary ? { primary: o.primary } : {}) },
       offline: { line: 'Offline, showing your saved copy' },
@@ -384,4 +398,22 @@ export type ManifestInput = Omit<Manifest, 'manifest' | 'version' | 'status' | '
 
 export function defineManifest(m: ManifestInput): Manifest {
   return { manifest: 1, version: '0.1.0', status: 'stub', kind: 'module', ...m };
+}
+
+// ---------------------------------------------------------------- binding by input name
+
+export type BindRule = { on: ResourceType } | { row: string };
+
+/** For capabilities still bound to the Space, bind to the resource or entity row named by a required input property. First matching rule wins. */
+export function bindInputs(caps: CapabilityDef[], rules: Record<string, BindRule>): CapabilityDef[] {
+  return caps.map((c) => {
+    if (c.resource.type !== 'space') return c;
+    const req = c.input.required ?? [];
+    for (const [prop, r] of Object.entries(rules)) {
+      if (!req.includes(prop)) continue;
+      const resource: ResourceBinding = 'row' in r ? { type: 'entity', entity: r.row, id: `/${prop}` } : { type: r.on, id: `/${prop}` };
+      return { ...c, resource };
+    }
+    return c;
+  });
 }

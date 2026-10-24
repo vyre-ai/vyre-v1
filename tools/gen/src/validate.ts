@@ -1,8 +1,9 @@
 // Validation before emit (ARCHITECTURE-V1.md 3.7). Returns every problem found; the CLI fails if there is any.
 import type { CapabilityDef, EventDef } from '../../../packages/contracts/src/index.ts';
-import { ERROR_CODE_SET, pointerSchema, sample, validate } from '../../../packages/contracts/src/index.ts';
+import { ERROR_CODE_SET, RESOURCE_TYPE_LIST, pointerSchema, sample, validate } from '../../../packages/contracts/src/index.ts';
 import type { Loaded } from './load.ts';
 import { pascal } from './schema-ts.ts';
+import { ENTITY_RESERVED, RT_RESERVED } from './ddl.ts';
 
 export interface LaneTable {
   lanes: Record<string, string[]>;
@@ -145,8 +146,28 @@ export function validateAll(loaded: Loaded[], table: LaneTable): string[] {
     if (c.input.type !== 'object') err(`${w} input must be an object schema`);
     if (c.output.type !== 'object') err(`${w} output must be an object schema`);
     const r = c.resource;
-    if ('id' in r && !pointerSchema(c.input, r.id)) err(`${w} resource id pointer ${r.id} is not an input property`);
-    if ('parent' in r && r.parent && !pointerSchema(c.input, r.parent)) err(`${w} resource parent pointer ${r.parent} is not an input property`);
+    if (r.type === 'dynamic') {
+      const ps = pointerSchema(c.input, r.ref);
+      const typeEnum = ps?.properties?.type?.enum as string[] | undefined;
+      if (!ps || !typeEnum || !ps.properties?.id) err(`${w} dynamic resource ref ${r.ref} must be a {type,id} ResourceRef input`);
+      else {
+        for (const ty of typeEnum) if (!RESOURCE_TYPE_LIST.includes(ty as never)) err(`${w} ref type ${ty} is not a ResourceType`);
+        for (const ty of r.allowed ?? []) if (!typeEnum.includes(ty)) err(`${w} allowed type ${ty} is not in the ref enum`);
+      }
+      if (r.parent && !pointerSchema(c.input, r.parent)) err(`${w} resource parent pointer ${r.parent} is not an input property`);
+    } else if (r.type === 'entity') {
+      if (!sets.entities.has(r.entity)) err(`${w} unknown entity ${r.entity}`);
+      if (!pointerSchema(c.input, r.id)) err(`${w} entity id pointer ${r.id} is not an input property`);
+    } else {
+      if ('id' in r && !pointerSchema(c.input, r.id)) err(`${w} resource id pointer ${r.id} is not an input property`);
+      if ('parent' in r && r.parent && !pointerSchema(c.input, r.parent)) err(`${w} resource parent pointer ${r.parent} is not an input property`);
+    }
+    if (c.caller && c.caller !== 'principal') {
+      if (c.permission !== null) err(`${w} pre-auth capability cannot need a role permission`);
+      if (agentVisible(c) || c.surfaces.mcp) err(`${w} pre-auth capability must stay off the agent surface`);
+      if (r.type !== 'space') err(`${w} pre-auth capability binds the Space`);
+      if (c.caller === 'anonymous' && !c.rate) err(`${w} anonymous capability needs a rate limit`);
+    }
     if (c.effects === 'outward' && !c.gate) err(`${w} outward capability needs a gate act or gate: { act: 'none', reason }`);
     if (c.gate) {
       if (c.gate.act === 'none') { if (!c.gate.reason) err(`${w} gate act none needs a reason`); }
@@ -200,8 +221,11 @@ export function validateAll(loaded: Loaded[], table: LaneTable): string[] {
   for (const m of ms) {
     for (const e of m.entities ?? []) {
       const w = `[entity ${e.key}]`;
+      for (const k of Object.keys(e.fields)) if (ENTITY_RESERVED.includes(k.toLowerCase())) err(`${w} field ${k} is a reserved column name`);
       for (const [k, f] of Object.entries(e.fields)) if (!sets.fieldTypes.has(f.type)) err(`${w} field ${k} has unknown field type ${f.type}`);
       if (e.parent && !sets.entities.has(e.parent.entity)) err(`${w} unknown parent entity ${e.parent.entity}`);
+      if (e.acl.multi && !(e.acl.parentField && e.acl.parentField in e.fields)) err(`${w} multi acl needs parentField in fields`);
+      if (e.acl.fallback && !(e.acl.fallback.field in e.fields)) err(`${w} acl fallback field ${e.acl.fallback.field} is not a field`);
       if (e.parent && !(e.parent.field in e.fields)) err(`${w} parent field ${e.parent.field} is not a field`);
       for (const f of e.sync.text ?? []) if (!(f in e.fields)) err(`${w} sync.text field ${f} is not a field`);
       for (const f of e.sync.protectedFields ?? []) if (!(f in e.fields)) err(`${w} protected field ${f} is not a field`);
@@ -215,6 +239,7 @@ export function validateAll(loaded: Loaded[], table: LaneTable): string[] {
         if (keys.has(f.key)) err(`${w} duplicate field ${f.key}`);
         keys.add(f.key);
         if (!sets.fieldTypes.has(f.type)) err(`${w} field ${f.key} has unknown field type ${f.type}`);
+        if (RT_RESERVED.includes(f.key.toLowerCase()) && !(f.key === 'owner' && r.ownerField === 'owner')) err(`${w} field ${f.key} is a reserved column name`);
       }
       for (const k of [r.titleField, r.summaryField, r.statusField, r.ownerField]) if (k && !keys.has(k)) err(`${w} ${k} is not a field`);
       for (const v of r.views ?? []) if (!sets.viewKinds.has(v.kind)) err(`${w} view ${v.key} has unknown kind ${v.kind}`);
@@ -243,6 +268,10 @@ export function validateAll(loaded: Loaded[], table: LaneTable): string[] {
     }
     for (const tr of m.triggers ?? []) {
       if ('event' in tr.source && !events.has(tr.source.event)) err(`[trigger ${tr.key}] undeclared event ${tr.source.event}`);
+      if ('events' in tr.source) {
+        if (!tr.source.events.length) err(`[trigger ${tr.key}] events list is empty`);
+        for (const e of tr.source.events) if (!events.has(e)) err(`[trigger ${tr.key}] undeclared event ${e}`);
+      }
       if ('webhook' in tr.source && tr.personalOk) err(`[trigger ${tr.key}] webhook triggers need a Team Space (personalOk false)`);
     }
     for (const c of m.connectors ?? []) {
@@ -274,7 +303,10 @@ export function validateAll(loaded: Loaded[], table: LaneTable): string[] {
         const c = capByName.get(cap);
         if (!c) return;
         for (const k of Object.keys(input)) if (!(k in (c.input.properties ?? {}))) err(`${w} ${kind} ${name} maps ${k} which is not an input of ${cap}`);
-        if (!agentVisible(c) && !agentTools.has(cap)) err(`${w} ${kind} ${name} uses ${cap} which agents cannot call (agent parity)`);
+        const sc = s.caller ?? 'principal';
+        const cc = c.caller ?? 'principal';
+        if (sc !== cc) err(`${w} ${kind} ${name} uses ${cap} (caller ${cc}) from a ${sc} screen`);
+        else if (cc === 'principal' && !agentVisible(c) && !agentTools.has(cap)) err(`${w} ${kind} ${name} uses ${cap} which agents cannot call (agent parity)`);
       };
       for (const [k, q] of Object.entries(s.queries)) check('query', k, q.cap, q.input);
       for (const [k, a] of Object.entries(s.actions)) check('action', k, a.cap, a.input);

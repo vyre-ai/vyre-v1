@@ -1,12 +1,10 @@
 // calendar (lane L5): the Calendar view inside Inbox. Calendars from Google and Microsoft plus a private Personal one,
 // events, availability, Find a time, and the merge with meetings. Spec 3.3 flow 4, 2.18 (Calendar), 2.10 (calendar sync).
-// DECISION: event capabilities bind to the Space resource and rely on the calendar_event row ACL (the calendar's owner
-// and connection) because no 'calendar' ResourceType exists.
-// NOT EXPRESSIBLE: ResourceType has no 'calendar'; the entity ACL uses 'connection' and the handler adds the owner rule
-// for local Personal calendars that have no connection.
+// Calendars are the 'calendar' ResourceType (owner rule covers local Personal calendars with no connection); event
+// capabilities bind to the calendar_event row, whose ACL comes from its calendar.
 // DECISION: create, update, delete and respond are plain writes (the provider sends invitations when the outbox syncs).
 // For agents, automations and campaigns they are held by the Gate act 'send' when the event has attendees.
-import { defineManifest, entity, ev, health, read, screen, t, write } from '../packages/contracts/src/index.ts';
+import { bindInputs, defineManifest, entity, ev, health, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { email, id, pageIn, pageOut } from './_common.ts';
 
 const calId = t.id('cld');
@@ -29,19 +27,19 @@ const eventFields = {
 const sendGate = { act: 'send', when: "actor.kind != 'person' && input.attendees != null" };
 const healthOut = { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) };
 
-export default defineManifest({
+const manifest = defineManifest({
   id: 'calendar',
   title: 'Calendar',
   owner: 'L5',
   entities: [
-    entity('calendar', 'calendar_list', 'cld_', { title: 'text', color: 'text', provider: 'choice', connectionId: 'text', remoteId: 'text', ownerId: 'person', personal: 'checkbox', state: 'status' }, 'connection', {
+    entity('calendar', 'calendar_list', 'cld_', { title: 'text', color: 'text', provider: 'choice', connectionId: 'text', remoteId: 'text', ownerId: 'person', personal: 'checkbox', state: 'status' }, 'calendar', {
       parentField: 'connectionId', ownerField: 'ownerId',
     }),
     entity('calendar_event', 'calendar_event', 'cev_', {
       calendarId: 'text', title: 'text', startsAt: 'datetime', endsAt: 'datetime', allDay: 'checkbox', location: 'text', joinUrl: 'url', joinProvider: 'choice',
       description: 'longtext', agenda: 'longtext', attendees: 'text', organizer: 'email', recordIds: 'text', meetingId: 'text', providerId: 'text', status: 'status',
       bookedByAgentId: 'text', fromBookingPage: 'text', deletedAt: 'datetime',
-    }, 'connection', {
+    }, 'calendar', {
       parent: { entity: 'calendar', field: 'calendarId' }, parentField: 'calendarId', fts: ['title', 'location', 'description'],
       sync: { profile: { desktop: 'window', phone: 'window', web: 'window' }, window: { days: 120, recentCount: 500 }, protectedFields: ['status'] },
     }),
@@ -148,3 +146,5 @@ export default defineManifest({
     }),
   ],
 });
+
+export default { ...manifest, capabilities: bindInputs(manifest.capabilities ?? [], { eventId: { row: 'calendar_event' }, calendarId: { on: 'calendar' } }) };

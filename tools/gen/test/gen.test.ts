@@ -49,7 +49,7 @@ test('explicit gate none with a reason is accepted and the fixture generates', (
   const reg = buildRegistry(l);
   assert.deepEqual(reg.capabilities.map((c) => c.name), ['alpha.create', 'alpha.get', 'beta.notify']);
   const files = emitAll(reg);
-  for (const p of ['registry.json', 'hash.txt', 'routes.ts', 'client.ts', 'stubs.ts', 'types.ts', 'mcp-tools.json', 'tests/alpha/alpha.get.contract.test.ts', 'tests/alpha/events.contract.test.ts', 'modules/alpha/not-implemented.ts', 'docs/capabilities/alpha.get.md']) {
+  for (const p of ['registry.json', 'hash.txt', 'routes.ts', 'client.ts', 'stubs.ts', 'types.ts', 'mcp-tools.json', 'tests/alpha.contract.test.ts', 'validators.ts', 'blocks.ts', 'screens.ts', 'probes.json', 'sync/entities.ts', 'sync/replica.sql', 'seed/team.sql', 'modules/alpha/not-implemented.ts', 'docs/capabilities/alpha.get.md']) {
     assert.ok(files.has(p), `missing ${p}`);
   }
   const client = files.get('client.ts') as string;
@@ -78,4 +78,37 @@ test('requires is derived from references', () => {
   const l = fixture({ betaCaps: [write('beta.touch', 'Touch', { in: { recordId: ID }, out: { ok: t.bool() }, emits: ['alpha.created'] })] });
   const reg = buildRegistry(l);
   assert.deepEqual(reg.modules.find((m) => m.id === 'beta')?.requires, ['alpha']);
+});
+
+test('a dynamic resource must point at a {type,id} ref input', () => {
+  const l = fixture({ betaCaps: [read('beta.peek', 'Peek', { in: { thing: t.str() }, out: { x: t.bool() }, dyn: '/thing' })] });
+  const errs = validateAll(l, table);
+  assert.ok(errs.some((e) => e.includes('dynamic resource ref /thing must be a {type,id} ResourceRef input')), errs.join('\n'));
+});
+
+test('a required resource ref input binds dynamically', () => {
+  const ref = t.obj({ type: t.enm('space', 'record'), id: t.str() });
+  const l = fixture({ betaCaps: [read('beta.peek', 'Peek', { in: { resource: ref }, out: { x: t.bool() } })] });
+  assert.deepEqual(validateAll(l, table), []);
+  const cap = buildRegistry(l).capabilities.find((c) => c.name === 'beta.peek');
+  assert.deepEqual(cap?.resource, { type: 'dynamic', ref: '/resource' });
+});
+
+test('pre-auth capabilities need a rate limit and stay off the agent surface', () => {
+  const bad = fixture({ betaCaps: [read('beta.hello', 'Hello', { out: { x: t.bool() }, caller: 'anonymous', tool: 'meta' })] });
+  const errs = validateAll(bad, table);
+  assert.ok(errs.some((e) => e.includes('anonymous capability needs a rate limit')), errs.join('\n'));
+  assert.ok(errs.some((e) => e.includes('must stay off the agent surface')), errs.join('\n'));
+  const good = fixture({ betaCaps: [read('beta.hello', 'Hello', { out: { x: t.bool() }, caller: 'anonymous', rate: { n: 5, perSeconds: 60, scope: 'space' } })] });
+  assert.deepEqual(validateAll(good, table), []);
+});
+
+test('shared schemas move to $defs and every reference resolves', () => {
+  const big = t.obj({ a: t.str({ description: 'first long field to make the schema large enough to share' }), b: t.str({ description: 'second long field to make the schema large enough to share' }), c: t.int({ description: 'third long field to make the schema large enough to share' }) });
+  const l = fixture({ betaCaps: [read('beta.one', 'One', { in: { row: big }, out: { row: big } }), read('beta.two', 'Two', { in: { row: big }, out: { row: big } })] });
+  const files = emitAll(buildRegistry(l));
+  const reg = JSON.parse(files.get('registry.json') as string) as { $defs: Record<string, unknown>; capabilities: Array<{ name: string; input: { properties: { row: { $ref?: string } } } }> };
+  const ref = reg.capabilities.find((c) => c.name === 'beta.one')?.input.properties.row.$ref;
+  assert.ok(ref?.startsWith('#/$defs/'), 'row schema is a reference');
+  assert.ok(ref && (ref.replace('#/$defs/', '') in reg.$defs));
 });

@@ -1,6 +1,6 @@
 // Merge manifests into the registry.
 import type { Manifest, Owned, Registry, RegistryModule } from '../../../packages/contracts/src/index.ts';
-import { ERROR_CODES } from '../../../packages/contracts/src/index.ts';
+import { DEFAULT_LADDER, ERROR_CODES, LEVEL_LADDERS } from '../../../packages/contracts/src/index.ts';
 import type { Loaded } from './load.ts';
 import { refsOf } from './refs.ts';
 
@@ -29,6 +29,7 @@ export function buildRegistry(loaded: Loaded[]): Registry {
   });
   return {
     registryVersion: 1,
+    levelLadders: { default: [...DEFAULT_LADDER], ...Object.fromEntries(Object.entries(LEVEL_LADDERS).map(([k, v]) => [k, [...(v ?? [])]])) },
     modules: by(modules, (m) => m.id),
     capabilities: by(flat(ms, (m) => m.capabilities), (c) => `${c.name}@${String(c.v).padStart(4, '0')}`),
     events: by(flat(ms, (m) => m.events), (e) => e.name),

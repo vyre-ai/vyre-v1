@@ -5,9 +5,8 @@
 // DECISION: follow itself is `follows.toggle` in spaces. inbox adds the per-contact "Alert me on replies" option and
 // the reasons a contact reaches your Inbox (owner, project, follow, campaign, shared inbox).
 // DECISION: inbox.thread takes a conversationId or a contactId (the record Conversation tab); the handler requires one of them.
-// NOT EXPRESSIBLE: an unmatched conversation has no contact record to inherit access from; its ACL falls back to the
-// mailboxes and numbers it arrived in. EntityDef.acl names one parent field (`contactId`), so the handler adds that rule.
-import { defineManifest, entity, ev, read, screen, t, write } from '../packages/contracts/src/index.ts';
+// An unmatched conversation has no contact: its ACL falls back to the mailbox it arrived in (acl.fallback).
+import { bindInputs, defineManifest, entity, ev, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut } from './_common.ts';
 
 const cnvId = t.id('cnv');
@@ -27,7 +26,7 @@ const listFilter = {
   mailboxId: t.opt(id.mailbox), numberId: t.opt(id.number), channel: t.opt(channel), needsMatch: t.opt(t.bool()), query: t.opt(t.str()),
 };
 
-export default defineManifest({
+const manifest = defineManifest({
   id: 'inbox',
   title: 'Inbox',
   owner: 'L5',
@@ -36,7 +35,7 @@ export default defineManifest({
       contactId: 'text', address: 'text', displayName: 'text', lastMessageAt: 'datetime', lastChannel: 'choice', lastPreview: 'text', unreadCount: 'number',
       needsMatch: 'checkbox', ownerId: 'person', mailboxIds: 'text', numberIds: 'text', campaignId: 'text',
     }, 'record', {
-      parentField: 'contactId', ownerField: 'ownerId', fts: ['displayName', 'address', 'lastPreview'],
+      parentField: 'contactId', ownerField: 'ownerId', fallback: { resource: 'mailbox', field: 'mailboxIds' }, fts: ['displayName', 'address', 'lastPreview'],
       sync: { profile: { desktop: 'all', phone: 'window', web: 'window' }, window: { days: 90, recentCount: 300 }, protectedFields: ['needsMatch'] },
     }),
     entity('conversation_follow', 'inbox_follow', 'fol_', { contactId: 'text', principalId: 'text', alertOnReplies: 'checkbox' }, 'record', {
@@ -170,3 +169,5 @@ export default defineManifest({
     }),
   ],
 });
+
+export default { ...manifest, capabilities: bindInputs(manifest.capabilities ?? [], { conversationId: { row: 'conversation' } }) };

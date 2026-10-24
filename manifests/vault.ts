@@ -2,8 +2,8 @@
 // .env export behind the secret_export Gate act, and use by handle (use, fill, reveal). Key requests live in module vault-requests.
 // Vault values never appear in an output except vault.item.reveal (View level), the fresh value of vault.generate, and the optional fill result for a View-level caller.
 // Events and audit rows carry names, ids and field keys only, never values.
-// NOT EXPRESSIBLE: Vault Use (fill without seeing) and View (see the value) are separate tiers, but Level is a linear order (view < use < edit < manage); the vault handler authorizes Use and View as two flags on the grant and the ListDef offers all four.
-// NOT EXPRESSIBLE: vault.use, vault.fill and vault.inject_env accept a name or handle and the handler resolves it to the item before authorize; the manifest can only point at an id in the input.
+// Vault Use (fill without seeing) is below View (see the value) on the vault ladder use < view < edit < manage (contracts/src/levels.ts); capabilities name the level they need and authorize compares along the ladder of the resource type.
+// vault.use and vault.fill take a name or handle; the binding says resolve: 'name' or 'handle' and the gateway resolves it to the item before authorize.
 // DECISION: vault.item.reveal has no role permission in the manifest; the handler additionally requires vault.reveal for Shared items (Mine items need only View, held by the owner).
 // DECISION: vault.item.put creates; changes go through vault.item.update. Creating requires vault.shared_create (Members have it); the paste-understanding of the Add sheet runs on the client and sends fields.
 // DECISION: vault folders are vault_folder resources managed here because they carry the per-folder "Who can export" rule; folders.* in access skips the vault_item type. The ListDef keeps folders true and the tree is read from vault.folders.list.
@@ -116,12 +116,12 @@ export default defineManifest({
     // ---- use by handle
     write('vault.use', 'Ask for an item by name: returns a handle like #Dana_Lawmatics and the field names, never values', {
       in: { item: t.str({ description: 'Item name or id', examples: ['Dana_Lawmatics'] }), fields: t.opt(t.arr(fieldKey)), purpose: t.opt(t.str()) },
-      out: { handle: id.handle, itemId: id.vaultItem, fields: t.arr(fieldKey) }, on: ['vault_item', '/item'], level: 'use', emits: ['vault.used'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['permission.provider_label'],
+      out: { handle: id.handle, itemId: id.vaultItem, fields: t.arr(fieldKey) }, on: ['vault_item', '/item'], resolve: 'name', level: 'use', emits: ['vault.used'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['permission.provider_label'],
     }),
     write('vault.fill', 'Fill a handle into a process at the last moment (env, request header, browser field, terminal) and scrub it from the output; the value stays in the filler', {
       in: { handle: handleField, target: t.obj({ kind: t.enm('env', 'http_header', 'browser', 'terminal', 'file'), ref: t.str() }), returnValue: t.opt(t.bool()) },
       out: { filled: t.bool(), field: fieldKey, where: t.enm('device', 'host', 'computer'), value: t.opt(t.str({ description: 'Only for a caller at View level who set returnValue; never for agents' })) },
-      on: ['vault_item', '/handle'], level: 'use', emits: ['vault.used'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['permission.provider_label'],
+      on: ['vault_item', '/handle'], resolve: 'handle', level: 'use', emits: ['vault.used'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['permission.provider_label'],
     }),
     write('vault.inject_env', 'Inject a folder into one child process environment (vyre run --env folder -- command); returns key names only', {
       in: { folderId: id.vaultFolder, purpose: t.opt(t.str()) }, out: { handles: t.arr(id.handle), keys: t.arr(fieldKey) }, on: ['vault_folder', '/folderId'], level: 'use', emits: ['vault.used'], audit: 'sensitive', tool: 'vault', cli: 'vyre run --env', offline: 'online',

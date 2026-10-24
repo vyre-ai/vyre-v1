@@ -4,12 +4,10 @@
 // Spec 2.18 calls the inbound event `message.received`, but the chat module already declares `message.received`
 // (ARCHITECTURE 6.1), so email uses `mail.received` and SMS uses `sms.received` (telephony).
 // DECISION: telephony.send_sms emits the same message.sent/message.bounced events with channel 'sms'.
-// DECISION: message-level capabilities bind to the Space resource and rely on the mail_message row ACL (mailbox
-// access, filed-record access, private flag) because one message can sit in several inboxes.
-// NOT EXPRESSIBLE: the mail_message row ACL spans several mailboxes (inboxIds) plus the linked record; EntityDef.acl
-// names one parent field, so `mailboxId` is the primary mailbox and the extra visibility rules live in the handler.
+// Message-level capabilities bind to the mail_message row. Its ACL is multi: one message can sit in several inboxes
+// (inboxIds), any inbox that grants is enough, and the private flag removes it from the linked record.
 // DECISION: snippets and templates for the composer belong to the templates and email-builder-api modules.
-import { defineManifest, entity, ev, health, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
+import { bindInputs, defineManifest, entity, ev, health, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { email, id, pageIn, pageOut } from './_common.ts';
 
 const emlId = t.id('eml');
@@ -48,7 +46,7 @@ const composed = {
 };
 const healthOut = { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) };
 
-export default defineManifest({
+const manifest = defineManifest({
   id: 'mail',
   title: 'Mail',
   owner: 'L5',
@@ -63,7 +61,7 @@ export default defineManifest({
       body: { type: 'longtext', label: 'confidential' }, sentAt: 'datetime', contactId: 'text', isPrivate: 'checkbox', campaignId: 'text',
       attachments: 'files', draftedByAgent: 'text', traceId: 'text',
     }, 'mailbox', {
-      parent: { entity: 'mailbox', field: 'mailboxId' }, parentField: 'mailboxId', fts: ['subject', 'snippet', 'body'],
+      parent: { entity: 'mailbox', field: 'mailboxId' }, parentField: 'inboxIds', multi: true, fts: ['subject', 'snippet', 'body'],
       sync: { profile: { desktop: 'window', phone: 'window', web: 'window' }, window: { days: 90, recentCount: 500 }, maxLabel: 'confidential', protectedFields: ['isPrivate'] },
     }),
     entity('sending_domain', 'mail_domain', 'dom_', {
@@ -287,3 +285,5 @@ export default defineManifest({
     setting('mail.throttle', 'space', 'comms', 'Throttle per sending domain', t.obj({ perMinute: t.int({ minimum: 1 }) }), { perMinute: 60 }),
   ],
 });
+
+export default { ...manifest, capabilities: bindInputs(manifest.capabilities ?? [], { messageId: { row: 'mail_message' }, mailboxId: { on: 'mailbox' } }) };

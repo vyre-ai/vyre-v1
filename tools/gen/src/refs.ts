@@ -8,7 +8,10 @@ export function refsOf(m: Manifest): Refs {
   const caps: string[] = [];
   const events: string[] = [];
   for (const s of m.steps ?? []) { if (s.cap) caps.push(s.cap); if (s.compensate) caps.push(s.compensate); for (const e of s.waits?.cancelsOn ?? []) events.push(e); }
-  for (const tr of m.triggers ?? []) if ('event' in tr.source) events.push(tr.source.event);
+  for (const tr of m.triggers ?? []) {
+    if ('event' in tr.source) events.push(tr.source.event);
+    if ('events' in tr.source) events.push(...tr.source.events);
+  }
   for (const c of m.connectors ?? []) { for (const a of c.actions ?? []) caps.push(a); for (const so of c.sources ?? []) events.push(so.event); }
   for (const a of m.agentTools ?? []) if (a.cap) caps.push(a.cap);
   for (const b of m.blocks ?? []) for (const a of b.actions ?? []) caps.push(a.cap);

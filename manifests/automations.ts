@@ -3,10 +3,9 @@
 // DECISION: a new Automation always starts Personal (spec 2.4), so automations.create needs only automations.personal; automations.promote needs automations.space.
 // DECISION: Personal Automations run with only the owner's access; a Space Automation is a Service principal with access granted to the automation itself.
 // DECISION: automations.run (manual start) is named so that no capability name is a prefix of another; run history is runs.list with the automation as subject.
-// DECISION: record_change fires on record.updated; record.created and record.deleted start an Automation through the same trigger when filter.op names them
-// (the engine subscribes to the event that op needs). The same holds for spreadsheet_row with sheet.row_appended and sheet.row_updated (declared by files).
+// record_change lists record.created, record.updated and record.deleted; spreadsheet_row lists sheet.row_appended and sheet.row_updated; the filter narrows by op and field.
 // DECISION: webhook triggers post to /hooks/automation/<automationId>/<secret>; they are Team Space only (personalOk false), as are the caps that read or rotate the URL.
-// NOT EXPRESSIBLE: a TriggerDef source holds one event name, so triggers that cover several events (record_change, spreadsheet_row) name the main one and carry the rest in the filter.
+// Triggers that cover several events (record_change, spreadsheet_row, email_received) list them in TriggerDef.source.events.
 import { create, defineManifest, ev, list, read, screen, setting, t, trigger, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, runStarted, subjectRef, versionRow } from './_common.ts';
 
@@ -178,7 +177,7 @@ export default defineManifest({
     }),
   ],
   triggers: [
-    trigger('record_change', 'A record changes', { event: 'record.updated', filter: recordFilter },
+    trigger('record_change', 'A record changes', { events: ['record.created', 'record.updated', 'record.deleted'], filter: recordFilter },
       { record: t.rec(), recordId: id.record, type: id.recordType, op: t.enm('created', 'updated', 'deleted'), fields: t.arr(t.str()), changed: t.opt(t.rec()), version: t.opt(t.int()) }),
     trigger('schedule', 'On a schedule', { schedule: true, ifMissed: ['skip', 'run_once'] },
       { firedAt: t.ts(), scheduledFor: t.ts(), missed: t.bool(), cron: t.opt(t.str()) }),
@@ -186,11 +185,11 @@ export default defineManifest({
       { headers: t.rec(t.str()), query: t.rec(t.str()), body: anyJson, receivedAt: t.ts() }),
     trigger('form_submit', 'A form is submitted', { event: 'form.submitted' },
       { formId: id.form, recordId: id.record, type: id.recordType, matched: t.bool() }),
-    trigger('email_received', 'An email is received', { event: 'mail.received' },
+    trigger('email_received', 'An email is received', { events: ['mail.received', 'sms.received'] },
       { messageId: t.str(), mailboxId: id.mailbox, from: t.str(), subject: t.str(), contactId: t.opt(id.record), campaignId: t.opt(id.campaign) }),
     trigger('chat_message', 'A chat message is posted', { event: 'message.received' },
       { messageId: id.message, threadId: id.thread, threadSeq: t.int(), author: t.obj({ kind: t.str(), id: t.str() }), kind: t.str(), depth: t.int() }),
-    trigger('spreadsheet_row', 'A spreadsheet row is added or changed', { event: 'sheet.row_appended', filter: rowFilter },
+    trigger('spreadsheet_row', 'A spreadsheet row is added or changed', { events: ['sheet.row_appended', 'sheet.row_updated'], filter: rowFilter },
       { fileId: id.file, sheet: t.str(), rowId: t.str(), op: t.enm('added', 'changed'), columns: t.opt(t.arr(t.str())) }),
     trigger('ci_check', 'A CI check finishes', { event: 'github.check_completed' },
       { repo: t.str(), branch: t.str(), sha: t.str(), name: t.str(), conclusion: t.enm('success', 'failure', 'cancelled', 'neutral'), url: t.opt(t.str()) }),

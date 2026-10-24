@@ -1,7 +1,7 @@
 // access (lane L7a): roles, groups, grants, policies, labels, outside actors, access reviews, View as, the Access checker,
 // generic folders and sharing (4.12) and Ask for access (4.13). Imports and exports the permission catalogue.
-// NOT EXPRESSIBLE: access.share, access.unshare, access.request, folders.place and access.labels.set act on a resource whose type is chosen at call time; the manifest binds one fixed ResourceType, so these bind the Space and the handler authorizes Manage (or Edit for placing) on the named resource.
-// NOT EXPRESSIBLE: Vault Use and View are separate tiers (Use fills, View reveals) while the Level type is a linear order; vault lists the four share levels and the vault handler resolves them.
+// access.share, access.request, access.labels.set, folders.place and the star and follow toggles take a typed ResourceRef input; the binding is 'dynamic' and the gateway authorizes the type and id it names.
+// Vault Use and View follow the vault ladder in contracts/src/levels.ts (use < view < edit < manage); other types use view < use < edit < manage.
 // DECISION: capabilities that need only a Space member and a role permission bind level 'view' on the Space; the permission key is the real gate.
 // DECISION: folder.created, folder.renamed, folder.moved and folder.deleted are declared by module files; the generic folders.* capabilities emit those same events for the shared folder resource.
 // DECISION: the group entity is added to the six entities named by the brief because the people directory and role pages need group membership offline.
@@ -137,7 +137,7 @@ export default defineManifest({
 
     // ---- Access checker and View as
     read('access.check', 'Access checker: can principal P do action A on resource R, with each step in plain words', {
-      ...V, in: { principal: principalRef, actingFor: t.opt(principalRef), action: t.obj({ perm: t.opt(t.str()), level }), resource: resourceRef, fields: t.opt(t.arr(t.str())), provider: t.opt(t.str()) },
+      ...V, space: true, in: { principal: principalRef, actingFor: t.opt(principalRef), action: t.obj({ perm: t.opt(t.str()), level }), resource: resourceRef, fields: t.opt(t.arr(t.str())), provider: t.opt(t.str()) },
       out: { decision }, perm: 'access.manage', tool: 'engineer', team: true,
     }),
     read('access.view_as', 'Preview what a member sees: a read-only preview session for 10 minutes (audited)', {

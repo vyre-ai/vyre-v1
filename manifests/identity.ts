@@ -1,10 +1,11 @@
 // identity (lane L7a): sign-in (Space + username + password, TOTP second factor, GitHub, SSO reserved), key wrapping storage,
 // pairing, password reset and recovery. Pre-auth calls carry no principal; the gateway treats them as public routes.
-// NOT EXPRESSIBLE: pre-auth capabilities (sign_in, github_sign_in, sso_sign_in, pair_redeem, recovery_restore, reset_complete) have no calling principal, so the manifest cannot say who authorizes them; they bind the Space at level view and the gateway marks them public.
-// NOT EXPRESSIBLE: the join and sign-in screens are not declared: person-only pre-auth calls must stay out of agent reach, and a screen would force them onto the agent surface (they belong in agent-optout.json).
+// Pre-auth capabilities (sign_in_options, username_available, sign_in, verify_second_factor, github_sign_in, sso_sign_in, pair_redeem,
+// recovery_restore, reset_complete) declare caller 'anonymous': the gateway accepts them without a principal, applies the rate limit, and never
+// exposes them to agents. The join and sign-in screens below declare the same caller kind.
 // DECISION: wrapped key bundles are opaque base64 strings; the server stores ciphertext only and never sees the password or personKey.
 // DECISION: the passkey factor is declared with since 1.1.0 because spec 3.13 says it ships later; the handler returns internal.not_implemented until then.
-import { defineManifest, ev, read, t, write } from '../packages/contracts/src/index.ts';
+import { defineManifest, ev, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id, ok, principalRef } from './_common.ts';
 
 const V = { level: 'view' } as const;
@@ -46,23 +47,22 @@ export default defineManifest({
 
   capabilities: [
     read('identity.sign_in_options', 'What the sign-in page offers for this Space: name, logo, key fingerprint, password, GitHub, SSO providers, second factor floor', {
-      ...V, in: {}, out: { name: t.str(), logoFileId: t.opt(id.file), fingerprint: t.str({ examples: ['ab12 cd34 ef56 7890'] }), password: t.bool(), github: t.bool(), sso: t.arr(t.obj({ key: t.str(), title: t.str() })), secondFactorRequired: t.bool() },
-      tool: 'meta',
+      ...V, caller: 'anonymous', in: {}, out: { name: t.str(), logoFileId: t.opt(id.file), fingerprint: t.str({ examples: ['ab12 cd34 ef56 7890'] }), password: t.bool(), github: t.bool(), sso: t.arr(t.obj({ key: t.str(), title: t.str() })), secondFactorRequired: t.bool() },
     }),
-    read('identity.username_available', 'Check a username is free (join page)', { ...V, in: { username: t.str({ pattern: '^[a-z0-9_.-]{2,32}$', examples: ['maya'] }) }, out: { available: t.bool() } }),
+    read('identity.username_available', 'Check a username is free (join page)', { ...V, caller: 'anonymous', in: { username: t.str({ pattern: '^[a-z0-9_.-]{2,32}$', examples: ['maya'] }) }, out: { available: t.bool() } }),
     write('identity.sign_in', 'Sign in with Space, username and password; asks for the second factor when one is set', {
-      ...V, in: { username: t.str(), password: t.str(), ...deviceIn, totp: t.opt(t.str({ pattern: '^[0-9]{6}$', examples: ['123456'] })) }, out: signInOut,
+      ...V, caller: 'anonymous', in: { username: t.str(), password: t.str(), ...deviceIn, totp: t.opt(t.str({ pattern: '^[0-9]{6}$', examples: ['123456'] })) }, out: signInOut,
       emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.bad_credentials', 'auth.second_factor_required', 'auth.invalid_code'],
     }),
     write('identity.verify_second_factor', 'Finish a sign-in with the second factor code', {
-      ...V, in: { challengeId: t.id('chl'), code: t.str({ examples: ['123456'] }), ...deviceIn }, out: signInOut,
+      ...V, caller: 'anonymous', in: { challengeId: t.id('chl'), code: t.str({ examples: ['123456'] }), ...deviceIn }, out: signInOut,
       emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.invalid_code', 'auth.expired'],
     }),
     write('identity.github_sign_in', 'Sign in with GitHub once the Space is named', {
-      ...V, in: { code: t.str(), ...deviceIn }, out: signInOut, emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.bad_credentials', 'auth.invalid_code'],
+      ...V, caller: 'anonymous', in: { code: t.str(), ...deviceIn }, out: signInOut, emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.bad_credentials', 'auth.invalid_code'],
     }),
     write('identity.sso_sign_in', 'Finish an OIDC sign-in (Google, Microsoft, Okta) with the provider code; reserved until SSO config lands in members', {
-      ...V, in: { provider: t.str({ examples: ['google'] }), code: t.str(), state: t.str(), ...deviceIn }, out: signInOut, emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.bad_credentials', 'auth.invalid_code'],
+      ...V, caller: 'anonymous', in: { provider: t.str({ examples: ['google'] }), code: t.str(), state: t.str(), ...deviceIn }, out: signInOut, emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.bad_credentials', 'auth.invalid_code'],
     }),
     write('identity.sign_out', 'End this session; the device keeps nothing it should not', { ...V, in: { sessionId: t.opt(id.session) }, out: ok, offline: 'online', tool: 'meta' }),
     read('identity.whoami', 'Who the caller is here: person, roles, clearance, device, epoch', {
@@ -74,7 +74,7 @@ export default defineManifest({
       ...V, idem: 'key', in: { purpose: t.enm('app', 'extension', 'daemon') }, out: { code: t.str({ examples: ['K7P2-9QXA'] }), expiresAt: t.ts() }, offline: 'online', audit: 'sensitive',
     }),
     write('identity.pair_redeem', 'Trade a pair code or invite code for a session on a new device', {
-      ...V, in: { code: t.str(), ...deviceIn }, out: signInOut, emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.invalid_code', 'auth.expired'],
+      ...V, caller: 'anonymous', in: { code: t.str(), ...deviceIn }, out: signInOut, emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.invalid_code', 'auth.expired'],
     }),
 
     // ---- key wrapping storage
@@ -91,7 +91,7 @@ export default defineManifest({
       ...V, in: { personKeyByRecovery: wrapped }, out: ok, emits: ['recovery.saved', 'keys.stored'], audit: 'sensitive', offline: 'online',
     }),
     write('identity.recovery_restore', 'Set a new password with a recovery code (keys unwrapped by the code, re-wrapped by the password)', {
-      ...V, in: { username: t.str(), recoveryProof: t.str(), newPassword: t.str(), keys: keyBundle, ...deviceIn }, out: signInOut,
+      ...V, caller: 'anonymous', in: { username: t.str(), recoveryProof: t.str(), newPassword: t.str(), keys: keyBundle, ...deviceIn }, out: signInOut,
       emits: ['password.reset', 'keys.stored', 'signin.succeeded'], audit: 'always', offline: 'online', rate: { n: 5, perSeconds: 300, scope: 'space' }, errors: ['auth.invalid_code'],
     }),
     read('identity.reset_preview', 'Admin: what a password reset would lose for this person (Mine items, private chats, personal memory) and whether a recovery code exists', {
@@ -101,7 +101,7 @@ export default defineManifest({
       ...V, idem: 'key', in: { personId: id.user }, out: { resetCode: t.str(), expiresAt: t.ts() }, perm: 'access.manage', audit: 'always', risk: 'high', tool: 'engineer', team: true,
     }),
     write('identity.reset_complete', 'The person sets a new password from the reset link and makes fresh keys', {
-      ...V, in: { resetCode: t.str(), newPassword: t.str(), keys: keyBundle, ...deviceIn }, out: signInOut, emits: ['password.reset', 'keys.stored', 'signin.succeeded'], audit: 'always', offline: 'online', errors: ['auth.invalid_code', 'auth.expired'], team: true,
+      ...V, caller: 'anonymous', in: { resetCode: t.str(), newPassword: t.str(), keys: keyBundle, ...deviceIn }, out: signInOut, emits: ['password.reset', 'keys.stored', 'signin.succeeded'], audit: 'always', offline: 'online', errors: ['auth.invalid_code', 'auth.expired'], team: true,
     }),
 
     // ---- second factor (the Space floor is in members)
@@ -116,5 +116,23 @@ export default defineManifest({
     // ---- GitHub link
     write('identity.github_link', 'Link a GitHub account so it can sign in once the Space is named', { ...V, in: { code: t.str() }, out: { login: t.str() }, emits: ['github.linked'], offline: 'online', audit: 'sensitive', tool: 'meta' }),
     write('identity.github_unlink', 'Remove the GitHub link', { ...V, in: {}, out: ok, emits: ['github.unlinked'], offline: 'online', audit: 'sensitive', tool: 'meta' }),
+  ],
+  screens: [
+    screen('join.sign-in', 'join', 'ui:JoinSignIn', {
+      caller: 'anonymous', q: { options: ['identity.sign_in_options', {}, false] },
+      a: {
+        signIn: ['identity.sign_in', { username: '/state/username', password: '/state/password', totp: '/state/totp' }],
+        second: ['identity.verify_second_factor', { challengeId: '/state/challengeId', code: '/state/code' }],
+        github: ['identity.github_sign_in', { code: '/state/code' }],
+        sso: ['identity.sso_sign_in', { provider: '/state/provider', code: '/state/code', state: '/state/state' }],
+        pair: ['identity.pair_redeem', { code: '/state/code' }],
+      },
+      empty: 'Enter the Space address', primary: 'Continue',
+    }),
+    screen('join.reset', 'join', 'ui:JoinReset', {
+      caller: 'anonymous',
+      a: { recover: ['identity.recovery_restore', { username: '/state/username', recoveryProof: '/state/proof', newPassword: '/state/password' }], complete: ['identity.reset_complete', { resetCode: '/state/code', newPassword: '/state/password' }] },
+      empty: 'Enter your recovery code', primary: 'Set password',
+    }),
   ],
 });
