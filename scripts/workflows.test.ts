@@ -38,10 +38,8 @@ const files = fs.readdirSync(dir).filter((f) => /\.ya?ml$/.test(f)).sort();
 const all = files.map(parse);
 const wf = (n: string) => all.find((w) => w.file === `${n}.yml`)!;
 
-// Ruling 28: the cap was 15 and not enforced with 17 present. The real count is checked and the cap is 20.
-const WORKFLOW_CAP = 20;
 test("at most 20 workflow files, and the named stages exist", () => {
-  assert.ok(files.length >= 1 && files.length <= WORKFLOW_CAP, `${files.length} workflow files, cap ${WORKFLOW_CAP}`);
+  assert.ok(files.length <= 20, `${files.length} workflow files`);
   for (const n of ["check", "golden", "client", "kits", "images", "heavy", "native", "desktop", "security", "main", "release", "deploy", "nightly"]) assert.ok(wf(n), `${n}.yml`);
 });
 
