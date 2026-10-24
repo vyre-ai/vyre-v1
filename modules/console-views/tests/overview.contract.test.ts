@@ -1,4 +1,5 @@
 // The generated contract for console-views, run against the REAL handlers: the same example inputs the stub answered, outputs checked against the registry schemas.
+// Run on the final commit of this packet so the CI log lists this file as ok.
 // This is the evidence for flipping console-views to live (ARCH 12.4); the flip itself is P-L7b_LIVE (ruling 25).
 // @reads /generated/registry.json
 import test from "node:test";

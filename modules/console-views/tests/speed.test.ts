@@ -1,4 +1,5 @@
 // console.speed through the real handler (ARCH 9): spans rolled up per budget id, p50 and p95 against perf/budgets.json, worst trace linked.
+// Run on the final commit of this packet so the CI log lists this file as ok.
 // contract tests for probes: every row of perf/budgets.json has a probe id present in generated/probes.json.
 // @reads /perf/budgets.json
 // @reads /generated/probes.json
