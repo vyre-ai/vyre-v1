@@ -112,7 +112,7 @@ test("perf: console_speed rolls up every budget id with 1,000 spans each inside 
   // pages are built once, so the clock measures the roll-up and not the fake
   const pages = new Map<string, unknown>();
   for (const b of budgets) for (const from of [0, 500]) {
-    pages.set(`${b.id}:${from}`, { spans: Array.from({ length: 500 }, (_, k) => { ...span(b.id, 1 + ((from + k) % 90), from + k + 1), attrs: { value: 1 + ((from + k) % 90) } })), ...(from === 0 ? { next: "500" } : {}) });
+    pages.set(`${b.id}:${from}`, { spans: Array.from({ length: 500 }, (_, k) => ({ ...span(b.id, 1 + ((from + k) % 90), from + k + 1), attrs: { value: 1 + ((from + k) % 90) } })), ...(from === 0 ? { next: "500" } : {}) });
   }
   const w = world({ "logs.spans": (i: Record<string, unknown>) => pages.get(`${String(i["name"])}:${Number(i["cursor"] ?? 0)}`) });
   await handlers["console.speed"](w.ctx, {});
