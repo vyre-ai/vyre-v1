@@ -11,6 +11,20 @@ test("sqlite-wasm-cipher: opens, encrypts file pages with a key, has FTS5", asyn
   const sqlite3 = await init();
   out.version = sqlite3.version.libVersion;
   const MARK = "CIPHER-MARK-4471";
+  const MARK2 = "URI-MARK-9123";
+  const probe = (label, fn) => { try { out[label] = fn(); } catch (e) { out[label] = "ERR " + String(e.message).slice(0, 100); } };
+  probe("mc_version", () => { const d = new sqlite3.oo1.DB(":memory:"); const v = d.selectValue("SELECT sqlite3mc_version()"); d.close(); return v; });
+  probe("cipher_pragma", () => { const d = new sqlite3.oo1.DB(":memory:"); const v = d.selectValue("PRAGMA cipher"); d.close(); return v; });
+  probe("uri_key", () => {
+    const d = new sqlite3.oo1.DB("file:/uri.db?cipher=chacha20&key=sekret", "c");
+    d.exec("CREATE TABLE t(a); INSERT INTO t VALUES('" + MARK2 + "')"); const b = sqlite3.capi.sqlite3_js_db_export(d.pointer); d.close();
+    return { plaintext: Buffer.from(b).includes(MARK2), header_is_sqlite: Buffer.from(b.slice(0, 15)).toString() === "SQLite format 3" };
+  });
+  probe("pragma_key_file", () => {
+    const d = new sqlite3.oo1.DB("/k.db", "c"); d.exec("PRAGMA cipher='chacha20'"); d.exec("PRAGMA key='sekret'");
+    d.exec("CREATE TABLE t(a); INSERT INTO t VALUES('" + MARK2 + "')"); const b = sqlite3.capi.sqlite3_js_db_export(d.pointer); d.close();
+    return { plaintext: Buffer.from(b).includes(MARK2), header_is_sqlite: Buffer.from(b.slice(0, 15)).toString() === "SQLite format 3" };
+  });
   try {
     const db = new sqlite3.oo1.DB("/enc.db", "c");
     try { db.exec("PRAGMA key='correct horse'"); out.pragma_key = "ok"; } catch (e) { out.pragma_key = String(e.message).slice(0, 120); }
