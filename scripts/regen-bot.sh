@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regen bot (ruling 22), run by .github/workflows/regen.yml on a build/* branch after manifests/ or host/modules.json changed.
 #   1. node tools/gen/src/cli.ts writes generated/ in place.
-#   2. If generated/ differs, commit it as Irfad Imtiaz with "chore(gen): regenerate" and push to the same branch.
+#   2. npm install --package-lock-only refreshes package-lock.json. If generated/ or the lockfile differs, commit it as Irfad Imtiaz with "chore(gen): regenerate" and push to the same branch.
 #   3. Rerun the checks on the resulting head (contracts gate, then the affected tests) and publish the result as the
 #      commit status "regen-checks". Needed because a GITHUB_TOKEN push does not trigger the check workflow.
 # Env: BRANCH, PUSHED_SHA, BEFORE (optional), GH_TOKEN, REPO. Local dry run: DRY_RUN=1 skips push and statuses.
@@ -29,10 +29,14 @@ status() { # state description
 echo "== regenerate =="
 node tools/gen/src/cli.ts
 
-if [ -n "$(git status --porcelain -- generated)" ]; then
+echo "== lockfile =="
+# npm never runs on the workers' Macs, so the lockfile is refreshed here whenever a package.json changed.
+npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+if [ -n "$(git status --porcelain -- generated package-lock.json)" ]; then
   git config user.name "Irfad Imtiaz"
   git config user.email "130136633+irfad7@users.noreply.github.com"
-  git add -A -- generated
+  git add -A -- generated package-lock.json
   git commit -q -m "chore(gen): regenerate"
   if [ "$DRY_RUN" = "1" ]; then
     echo "dry run: committed locally, not pushing"
@@ -41,7 +45,7 @@ if [ -n "$(git status --porcelain -- generated)" ]; then
     echo "regen: push rejected (branch moved); the newer push triggers its own regen run"
     exit 0
   fi
-  echo "regen: committed generated/ ($(git rev-parse --short HEAD))"
+  echo "regen: committed generated/ and the lockfile ($(git rev-parse --short HEAD))"
 else
   echo "regen: generated/ already matches the manifests, nothing to commit"
 fi
