@@ -1,0 +1,42 @@
+{
+  "history": [
+    {
+      "id": "1003",
+      "messagesAdded": [
+        {
+          "message": {
+            "id": "m1",
+            "threadId": "t1"
+          }
+        },
+        {
+          "message": {
+            "id": "m3",
+            "threadId": "t1",
+            "labelIds": [
+              "SENT"
+            ]
+          }
+        },
+        {
+          "message": {
+            "id": "d1",
+            "threadId": "t9",
+            "labelIds": [
+              "DRAFT"
+            ]
+          }
+        }
+      ],
+      "messagesDeleted": [
+        {
+          "message": {
+            "id": "gone",
+            "threadId": "t8"
+          }
+        }
+      ]
+    }
+  ],
+  "historyId": "1003"
+}

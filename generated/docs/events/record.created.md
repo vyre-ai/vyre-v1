@@ -1,6 +1,6 @@
 # record.created
 
-A record was created
+A record was created; fields carries the initial values (sealed and Restricted values as ciphertext only)
 
 | | |
 |---|---|
@@ -20,6 +20,6 @@ A record was created
 type Payload = {
   recordId: string;
   type: string;
-  fields: Array<string>;
+  fields: Record<string, unknown>;
 };
 ```

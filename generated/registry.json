@@ -16072,6 +16072,51 @@
       ],
       "type": "object"
     },
+    "s_e7a42a8d9a": {
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "deviceClass": {
+          "enum": [
+            "desktop",
+            "phone",
+            "web",
+            "extension",
+            "daemon"
+          ],
+          "type": "string"
+        },
+        "deviceName": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "keys": {
+          "$ref": "#/$defs/s_50a19384f8"
+        },
+        "password": {
+          "type": "string"
+        },
+        "username": {
+          "examples": [
+            "maya"
+          ],
+          "pattern": "^[a-z0-9_.-]{2,32}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "username",
+        "password",
+        "deviceName",
+        "deviceClass",
+        "keys"
+      ],
+      "type": "object"
+    },
     "s_e7faf3c88c": {
       "items": {
         "properties": {
@@ -67228,6 +67273,159 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "cursor": "example",
+            "limit": 1
+          },
+          "name": "example",
+          "output": {
+            "files": [
+              {
+                "createdAt": 1760000000000,
+                "deletedAt": 1760000000000,
+                "fileId": "fil_a1b2c3",
+                "folderId": "fld_a1b2c3",
+                "holds": 1,
+                "kind": "text",
+                "label": 1,
+                "mime": "example",
+                "name": "example",
+                "ownerId": "example",
+                "size": 1,
+                "source": {
+                  "mountId": "mnt_a1b2c3",
+                  "provider": "example"
+                },
+                "thumb": true,
+                "updatedAt": 1760000000000,
+                "updatedBy": "example",
+                "version": 1
+              }
+            ],
+            "folders": [
+              {
+                "fileCount": 1,
+                "folderCount": 1,
+                "folderId": "fld_a1b2c3",
+                "git": true,
+                "label": 1,
+                "name": "example",
+                "parentId": "fld_a1b2c3",
+                "path": "Projects/Probate GTM",
+                "reviewChanges": true,
+                "scope": "personal",
+                "source": {
+                  "mountId": "mnt_a1b2c3",
+                  "provider": "example"
+                }
+              }
+            ],
+            "next": "example",
+            "total": 1,
+            "views": [
+              {
+                "count": 1,
+                "key": "memory",
+                "title": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "files",
+      "name": "files.knowledge",
+      "output": {
+        "properties": {
+          "files": {
+            "$ref": "#/$defs/s_a21144ff96"
+          },
+          "folders": {
+            "$ref": "#/$defs/s_67ef96a86f"
+          },
+          "next": {
+            "description": "Cursor for the next page; absent on the last page",
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "views": {
+            "items": {
+              "properties": {
+                "count": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "key": {
+                  "enum": [
+                    "memory",
+                    "graph"
+                  ],
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "title",
+                "count"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "files",
+          "folders",
+          "views"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The Knowledge section of the tree: the knowledge folders and files the caller may read, plus the Memory and Graph entries",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
         "validation.bad_input",
         "validation.not_found"
       ],
@@ -68918,6 +69116,124 @@
       "risk": "high",
       "since": "1.0.0",
       "summary": "Make a view-only link to a file for someone outside the Space, with an expiry",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "cursor": "example",
+            "kind": "text",
+            "limit": 1
+          },
+          "name": "example",
+          "output": {
+            "files": [
+              {
+                "createdAt": 1760000000000,
+                "deletedAt": 1760000000000,
+                "fileId": "fil_a1b2c3",
+                "folderId": "fld_a1b2c3",
+                "holds": 1,
+                "kind": "text",
+                "label": 1,
+                "mime": "example",
+                "name": "example",
+                "ownerId": "example",
+                "size": 1,
+                "source": {
+                  "mountId": "mnt_a1b2c3",
+                  "provider": "example"
+                },
+                "thumb": true,
+                "updatedAt": 1760000000000,
+                "updatedBy": "example",
+                "version": 1
+              }
+            ],
+            "folders": [
+              {
+                "fileCount": 1,
+                "folderCount": 1,
+                "folderId": "fld_a1b2c3",
+                "git": true,
+                "label": 1,
+                "name": "example",
+                "parentId": "fld_a1b2c3",
+                "path": "Projects/Probate GTM",
+                "reviewChanges": true,
+                "scope": "personal",
+                "source": {
+                  "mountId": "mnt_a1b2c3",
+                  "provider": "example"
+                }
+              }
+            ],
+            "next": "example",
+            "total": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "text",
+              "markdown",
+              "document",
+              "spreadsheet",
+              "presentation",
+              "pdf",
+              "image",
+              "video",
+              "audio",
+              "code",
+              "archive",
+              "google_native",
+              "other"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "files",
+      "name": "files.shared_with_me",
+      "output": {
+        "$ref": "#/$defs/s_01ba7de8d7"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Files and folders other people shared with the caller, newest share first (the Shared with me section of the tree)",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -84746,7 +85062,11 @@
     },
     {
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "health.changed",
+        "health.paused",
+        "health.resumed"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -91649,6 +91969,101 @@
         "mcp": {
           "toolset": "inbox"
         }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "caller": "anonymous",
+      "effects": "write",
+      "emits": [
+        "member.joined",
+        "principal.created",
+        "keys.stored",
+        "signin.succeeded"
+      ],
+      "errors": [
+        "auth.expired",
+        "auth.invalid_code",
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.duplicate"
+      ],
+      "examples": [
+        {
+          "input": {
+            "code": "example",
+            "deviceClass": "desktop",
+            "deviceName": "example",
+            "displayName": "example",
+            "keys": {
+              "personKeyByPassword": "d3JhcHBlZA==",
+              "personKeyByRecovery": "d3JhcHBlZA==",
+              "privateKeyWrapped": "d3JhcHBlZA==",
+              "publicKey": "cHVibGlj",
+              "spaceKeys": [
+                {
+                  "epoch": 1,
+                  "wrapped": "d3JhcHBlZA=="
+                }
+              ]
+            },
+            "password": "example",
+            "username": "maya"
+          },
+          "name": "example",
+          "output": {
+            "challengeId": "chl_a1b2c3",
+            "keys": {
+              "personKeyByPassword": "d3JhcHBlZA==",
+              "personKeyByRecovery": "d3JhcHBlZA==",
+              "privateKeyWrapped": "d3JhcHBlZA==",
+              "publicKey": "cHVibGlj",
+              "spaceKeys": [
+                {
+                  "epoch": 1,
+                  "wrapped": "d3JhcHBlZA=="
+                }
+              ]
+            },
+            "session": {
+              "deviceId": "dev_a1b2c3",
+              "epoch": 1,
+              "expiresAt": 1760000000000,
+              "sessionId": "ses_a1b2c3",
+              "token": "example"
+            },
+            "status": "ok"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_e7a42a8d9a"
+      },
+      "level": "view",
+      "module": "identity",
+      "name": "invites.accept_create_account",
+      "offline": "online",
+      "output": {
+        "$ref": "#/$defs/s_68ea0f6cb3"
+      },
+      "permission": null,
+      "rate": {
+        "n": 10,
+        "perSeconds": 60,
+        "scope": "space"
+      },
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Join by invite with no account yet: creates the person, sets the password, stores the wrapped keys and joins the Space with the invite's role and groups",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },
@@ -103309,49 +103724,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "deviceClass": {
-            "enum": [
-              "desktop",
-              "phone",
-              "web",
-              "extension",
-              "daemon"
-            ],
-            "type": "string"
-          },
-          "deviceName": {
-            "type": "string"
-          },
-          "displayName": {
-            "type": "string"
-          },
-          "keys": {
-            "$ref": "#/$defs/s_50a19384f8"
-          },
-          "password": {
-            "type": "string"
-          },
-          "username": {
-            "examples": [
-              "maya"
-            ],
-            "pattern": "^[a-z0-9_.-]{2,32}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "code",
-          "username",
-          "password",
-          "deviceName",
-          "deviceClass",
-          "keys"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_e7a42a8d9a"
       },
       "level": "view",
       "module": "members",
@@ -144338,6 +144711,7 @@
                 "v": 1
               }
             ],
+            "decisionId": "example",
             "dependsOn": [
               "tsk_a1b2c3"
             ],
@@ -144350,6 +144724,7 @@
             "idempotencyKey": "idem_1",
             "kind": "work",
             "parentTaskId": "tsk_a1b2c3",
+            "payloadHash": "example",
             "recordId": "rec_a1b2c3",
             "reviewer": {
               "id": "usr_a1b2c3",
@@ -144443,6 +144818,9 @@
           "blocks": {
             "$ref": "#/$defs/s_d2c64dc123"
           },
+          "decisionId": {
+            "type": "string"
+          },
           "dependsOn": {
             "items": {
               "examples": [
@@ -144506,6 +144884,9 @@
               "tsk_a1b2c3"
             ],
             "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "payloadHash": {
             "type": "string"
           },
           "recordId": {
@@ -180031,10 +180412,10 @@
       "payload": {
         "properties": {
           "fields": {
-            "items": {
-              "type": "string"
+            "additionalProperties": {
+              "description": "Any JSON value"
             },
-            "type": "array"
+            "type": "object"
           },
           "recordId": {
             "examples": [
@@ -180063,7 +180444,7 @@
         "id": "/recordId",
         "type": "record"
       },
-      "summary": "A record was created",
+      "summary": "A record was created; fields carries the initial values (sealed and Restricted values as ciphertext only)",
       "sv": 1,
       "trigger": {
         "fields": [
@@ -180078,14 +180459,41 @@
       "module": "records",
       "name": "record.deleted",
       "payload": {
-        "$ref": "#/$defs/s_d2cd59697f"
+        "properties": {
+          "prev": {
+            "additionalProperties": {
+              "description": "Any JSON value"
+            },
+            "type": "object"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId",
+          "type",
+          "prev"
+        ],
+        "type": "object"
       },
       "replay": "pure",
       "subject": {
         "id": "/recordId",
         "type": "record"
       },
-      "summary": "A record moved to Trash",
+      "summary": "A record moved to Trash; prev carries the values it held (sealed and Restricted values as ciphertext only)",
       "sv": 1,
       "trigger": {
         "title": "A record is deleted"
@@ -180268,10 +180676,16 @@
       "payload": {
         "properties": {
           "fields": {
-            "items": {
-              "type": "string"
+            "additionalProperties": {
+              "description": "Any JSON value"
             },
-            "type": "array"
+            "type": "object"
+          },
+          "prev": {
+            "additionalProperties": {
+              "description": "Any JSON value"
+            },
+            "type": "object"
           },
           "recordId": {
             "examples": [
@@ -180295,6 +180709,7 @@
           "recordId",
           "type",
           "fields",
+          "prev",
           "version"
         ],
         "type": "object"
@@ -180304,7 +180719,7 @@
         "id": "/recordId",
         "type": "record"
       },
-      "summary": "Fields of a record changed (values never included for sealed fields)",
+      "summary": "Fields of a record changed; fields carries the new values and prev the old ones (sealed and Restricted values as ciphertext only)",
       "sv": 1,
       "trigger": {
         "fields": [
@@ -190578,7 +190993,6 @@
       "requires": [
         "files"
       ],
-      "status": "stub",
       "title": "Access",
       "version": "0.1.0"
     },
@@ -190594,7 +191008,6 @@
         "runs",
         "terminal"
       ],
-      "status": "stub",
       "title": "Agents",
       "version": "0.1.0"
     },
@@ -190603,7 +191016,6 @@
       "kind": "module",
       "owner": "L7a",
       "requires": [],
-      "status": "stub",
       "title": "Audit",
       "version": "0.1.0"
     },
@@ -190624,7 +191036,6 @@
         "runs",
         "telephony"
       ],
-      "status": "stub",
       "title": "Automations",
       "version": "0.1.0"
     },
@@ -190633,7 +191044,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Backups",
       "version": "0.1.0"
     },
@@ -190642,7 +191052,6 @@
       "kind": "module",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Calendar",
       "version": "0.1.0"
     },
@@ -190651,7 +191060,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Campaigns",
       "version": "0.1.0"
     },
@@ -190662,7 +191070,6 @@
       "requires": [
         "engine"
       ],
-      "status": "stub",
       "title": "Chat",
       "version": "0.1.0"
     },
@@ -190673,7 +191080,6 @@
       "requires": [
         "chat"
       ],
-      "status": "stub",
       "title": "Agent computers",
       "version": "0.1.0"
     },
@@ -190682,7 +191088,6 @@
       "kind": "module",
       "owner": "L1",
       "requires": [],
-      "status": "stub",
       "title": "Conflicts",
       "version": "0.1.0"
     },
@@ -190694,7 +191099,6 @@
         "records",
         "schema"
       ],
-      "status": "stub",
       "title": "Connectors and synced types",
       "version": "0.1.0"
     },
@@ -190703,7 +191107,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Console assistant",
       "version": "0.1.0"
     },
@@ -190721,7 +191124,6 @@
         "schema",
         "updates"
       ],
-      "status": "stub",
       "title": "Console views",
       "version": "0.1.0"
     },
@@ -190732,7 +191134,6 @@
       "requires": [
         "records"
       ],
-      "status": "stub",
       "title": "Contacts and consent",
       "version": "0.1.0"
     },
@@ -190741,7 +191142,6 @@
       "kind": "kit",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Default Kit",
       "version": "0.1.0"
     },
@@ -190750,7 +191150,6 @@
       "kind": "module",
       "owner": "L7a",
       "requires": [],
-      "status": "stub",
       "title": "Devices",
       "version": "0.1.0"
     },
@@ -190759,7 +191158,6 @@
       "kind": "connector",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Documenso",
       "version": "0.1.0"
     },
@@ -190770,7 +191168,6 @@
       "requires": [
         "files"
       ],
-      "status": "stub",
       "title": "Documents",
       "version": "0.1.0"
     },
@@ -190779,7 +191176,6 @@
       "kind": "connector",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "DocuSign",
       "version": "0.1.0"
     },
@@ -190788,7 +191184,6 @@
       "kind": "connector",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Dropbox Sign",
       "version": "0.1.0"
     },
@@ -190797,7 +191192,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Email builder",
       "version": "0.1.0"
     },
@@ -190806,7 +191200,6 @@
       "kind": "module",
       "owner": "L2",
       "requires": [],
-      "status": "stub",
       "title": "Engine",
       "version": "0.1.0"
     },
@@ -190815,7 +191208,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "E-signature",
       "version": "0.1.0"
     },
@@ -190824,7 +191216,6 @@
       "kind": "kit",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Estate planning",
       "version": "0.1.0"
     },
@@ -190833,7 +191224,6 @@
       "kind": "module",
       "owner": "L6",
       "requires": [],
-      "status": "stub",
       "title": "Events and webhooks",
       "version": "0.1.0"
     },
@@ -190844,7 +191234,6 @@
       "requires": [
         "mounts"
       ],
-      "status": "stub",
       "title": "Files",
       "version": "0.1.0"
     },
@@ -190853,7 +191242,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Forms and bookings",
       "version": "0.1.0"
     },
@@ -190862,7 +191250,6 @@
       "kind": "module",
       "owner": "L6",
       "requires": [],
-      "status": "stub",
       "title": "Gate",
       "version": "0.1.0"
     },
@@ -190873,7 +191260,6 @@
       "requires": [
         "files"
       ],
-      "status": "stub",
       "title": "Git",
       "version": "0.1.0"
     },
@@ -190882,7 +191268,6 @@
       "kind": "connector",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "GitHub",
       "version": "0.1.0"
     },
@@ -190893,7 +191278,6 @@
       "requires": [
         "mail"
       ],
-      "status": "stub",
       "title": "Google Workspace",
       "version": "0.1.0"
     },
@@ -190904,7 +191288,6 @@
       "requires": [
         "access"
       ],
-      "status": "stub",
       "title": "Governance",
       "version": "0.1.0"
     },
@@ -190913,7 +191296,6 @@
       "kind": "kit",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Harbor Studio",
       "version": "0.1.0"
     },
@@ -190922,7 +191304,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Health and diagnostics",
       "version": "0.1.0"
     },
@@ -190935,7 +191316,6 @@
         "runs",
         "tasks"
       ],
-      "status": "stub",
       "title": "Home",
       "version": "0.1.0"
     },
@@ -190944,7 +191324,6 @@
       "kind": "connector",
       "owner": "L3",
       "requires": [],
-      "status": "stub",
       "title": "HubSpot",
       "version": "0.1.0"
     },
@@ -190952,8 +191331,10 @@
       "id": "identity",
       "kind": "module",
       "owner": "L7a",
-      "requires": [],
-      "status": "stub",
+      "requires": [
+        "access",
+        "members"
+      ],
       "title": "Identity",
       "version": "0.1.0"
     },
@@ -190964,7 +191345,6 @@
       "requires": [
         "schema"
       ],
-      "status": "stub",
       "title": "Import",
       "version": "0.1.0"
     },
@@ -190977,7 +191357,6 @@
         "mail",
         "telephony"
       ],
-      "status": "stub",
       "title": "Inbox",
       "version": "0.1.0"
     },
@@ -190986,7 +191365,6 @@
       "kind": "module",
       "owner": "L6",
       "requires": [],
-      "status": "stub",
       "title": "Journeys",
       "version": "0.1.0"
     },
@@ -190995,7 +191373,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Kits",
       "version": "0.1.0"
     },
@@ -191004,7 +191381,6 @@
       "kind": "kit",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Law firm intake",
       "version": "0.1.0"
     },
@@ -191013,7 +191389,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Logs and traces",
       "version": "0.1.0"
     },
@@ -191022,7 +191397,6 @@
       "kind": "module",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Mail",
       "version": "0.1.0"
     },
@@ -191031,7 +191405,6 @@
       "kind": "connector",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Mailgun",
       "version": "0.1.0"
     },
@@ -191040,7 +191413,6 @@
       "kind": "module",
       "owner": "L2",
       "requires": [],
-      "status": "stub",
       "title": "MCP",
       "version": "0.1.0"
     },
@@ -191049,7 +191421,6 @@
       "kind": "module",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Meetings",
       "version": "0.1.0"
     },
@@ -191061,7 +191432,6 @@
         "access",
         "home"
       ],
-      "status": "stub",
       "title": "Members",
       "version": "0.1.0"
     },
@@ -191070,7 +191440,6 @@
       "kind": "module",
       "owner": "L2",
       "requires": [],
-      "status": "stub",
       "title": "Memory",
       "version": "0.1.0"
     },
@@ -191081,7 +191450,6 @@
       "requires": [
         "mail"
       ],
-      "status": "stub",
       "title": "Microsoft 365",
       "version": "0.1.0"
     },
@@ -191092,7 +191460,6 @@
       "requires": [
         "files"
       ],
-      "status": "stub",
       "title": "Mounts",
       "version": "0.1.0"
     },
@@ -191101,7 +191468,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Network",
       "version": "0.1.0"
     },
@@ -191115,7 +191481,6 @@
         "tasks",
         "vault"
       ],
-      "status": "stub",
       "title": "Notifications",
       "version": "0.1.0"
     },
@@ -191124,7 +191489,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Site accounts",
       "version": "0.1.0"
     },
@@ -191133,7 +191497,6 @@
       "kind": "module",
       "owner": "L4",
       "requires": [],
-      "status": "stub",
       "title": "Previews",
       "version": "0.1.0"
     },
@@ -191145,7 +191508,6 @@
         "records",
         "tasks"
       ],
-      "status": "stub",
       "title": "Projects",
       "version": "0.1.0"
     },
@@ -191154,7 +191516,6 @@
       "kind": "module",
       "owner": "L3",
       "requires": [],
-      "status": "stub",
       "title": "Records",
       "version": "0.1.0"
     },
@@ -191163,7 +191524,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Report a problem",
       "version": "0.1.0"
     },
@@ -191172,7 +191532,6 @@
       "kind": "connector",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Resend",
       "version": "0.1.0"
     },
@@ -191181,7 +191540,6 @@
       "kind": "module",
       "owner": "L4",
       "requires": [],
-      "status": "stub",
       "title": "Runbooks",
       "version": "0.1.0"
     },
@@ -191190,7 +191548,6 @@
       "kind": "module",
       "owner": "L6",
       "requires": [],
-      "status": "stub",
       "title": "Runs",
       "version": "0.1.0"
     },
@@ -191199,7 +191556,6 @@
       "kind": "module",
       "owner": "L6",
       "requires": [],
-      "status": "stub",
       "title": "Scheduler",
       "version": "0.1.0"
     },
@@ -191208,7 +191564,6 @@
       "kind": "module",
       "owner": "L3",
       "requires": [],
-      "status": "stub",
       "title": "Schema",
       "version": "0.1.0"
     },
@@ -191217,7 +191572,6 @@
       "kind": "module",
       "owner": "L1",
       "requires": [],
-      "status": "stub",
       "title": "Search",
       "version": "0.1.0"
     },
@@ -191226,7 +191580,6 @@
       "kind": "module",
       "owner": "L7a",
       "requires": [],
-      "status": "stub",
       "title": "Settings",
       "version": "0.1.0"
     },
@@ -191235,7 +191588,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Sites",
       "version": "0.1.0"
     },
@@ -191244,7 +191596,6 @@
       "kind": "module",
       "owner": "L3",
       "requires": [],
-      "status": "stub",
       "title": "Sources",
       "version": "0.1.0"
     },
@@ -191256,7 +191607,6 @@
         "access",
         "members"
       ],
-      "status": "stub",
       "title": "Spaces",
       "version": "0.1.0"
     },
@@ -191274,7 +191624,6 @@
         "tasks",
         "telephony"
       ],
-      "status": "stub",
       "title": "Core steps and spreadsheets",
       "version": "0.1.0"
     },
@@ -191283,7 +191632,6 @@
       "kind": "connector",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Stripe",
       "version": "0.1.0"
     },
@@ -191292,7 +191640,6 @@
       "kind": "module",
       "owner": "L1",
       "requires": [],
-      "status": "stub",
       "title": "Sync",
       "version": "0.1.0"
     },
@@ -191301,7 +191648,6 @@
       "kind": "module",
       "owner": "L6",
       "requires": [],
-      "status": "stub",
       "title": "Tasks",
       "version": "0.1.0"
     },
@@ -191312,7 +191658,6 @@
       "requires": [
         "mail"
       ],
-      "status": "stub",
       "title": "Calls and texts",
       "version": "0.1.0"
     },
@@ -191321,7 +191666,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Templates",
       "version": "0.1.0"
     },
@@ -191330,7 +191674,6 @@
       "kind": "module",
       "owner": "L2",
       "requires": [],
-      "status": "stub",
       "title": "Terminal",
       "version": "0.1.0"
     },
@@ -191341,7 +191684,6 @@
       "requires": [
         "telephony"
       ],
-      "status": "stub",
       "title": "Twilio",
       "version": "0.1.0"
     },
@@ -191350,7 +191692,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Server updates",
       "version": "0.1.0"
     },
@@ -191361,7 +191702,6 @@
       "requires": [
         "access"
       ],
-      "status": "stub",
       "title": "Vault",
       "version": "0.1.0"
     },
@@ -191370,7 +191710,6 @@
       "kind": "module",
       "owner": "L7a",
       "requires": [],
-      "status": "stub",
       "title": "Vault requests",
       "version": "0.1.0"
     },
@@ -191379,7 +191718,6 @@
       "kind": "connector",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Zoom",
       "version": "0.1.0"
     }

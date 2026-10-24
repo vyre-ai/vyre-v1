@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "Vyre shots",
+    "slug": "vyre-shots",
+    "scheme": "vyreshots",
+    "version": "0.0.0",
+    "web": { "bundler": "metro", "output": "static" },
+    "plugins": ["expo-router"]
+  }
+}

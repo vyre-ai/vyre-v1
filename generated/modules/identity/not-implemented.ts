@@ -30,4 +30,5 @@ export const handlers: Handlers<HandlerCtx> = {
   "identity.username_available": async (ctx) => { throw new VyreErr(notImplemented("identity.username_available", ctx.trace)); },
   "identity.verify_second_factor": async (ctx) => { throw new VyreErr(notImplemented("identity.verify_second_factor", ctx.trace)); },
   "identity.whoami": async (ctx) => { throw new VyreErr(notImplemented("identity.whoami", ctx.trace)); },
+  "invites.accept_create_account": async (ctx) => { throw new VyreErr(notImplemented("invites.accept_create_account", ctx.trace)); },
 };

@@ -1,0 +1,16 @@
+data: {"id":"chatcmpl-9a","object":"chat.completion.chunk","created":1,"model":"gpt-5","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-9a","object":"chat.completion.chunk","created":1,"model":"gpt-5","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-9a","object":"chat.completion.chunk","created":1,"model":"gpt-5","choices":[{"index":0,"delta":{"content":" there, "},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-9a","object":"chat.completion.chunk","created":1,"model":"gpt-5","choices":[{"index":0,"delta":{"content":"Dana. "},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-9a","object":"chat.completion.chunk","created":1,"model":"gpt-5","choices":[{"index":0,"delta":{"content":"Café ready."},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-9a","object":"chat.completion.chunk","created":1,"model":"gpt-5","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":null}
+
+data: {"id":"chatcmpl-9a","object":"chat.completion.chunk","created":1,"model":"gpt-5","choices":[],"usage":{"prompt_tokens":2200,"completion_tokens":12,"total_tokens":2212,"prompt_tokens_details":{"cached_tokens":1000}}}
+
+data: [DONE]
+

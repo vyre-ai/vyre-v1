@@ -1,0 +1,54 @@
+{
+  "id": "g1",
+  "internetMessageId": "<AAA111@acme.test>",
+  "conversationId": "conv1",
+  "subject": "Can we talk?",
+  "from": {
+    "emailAddress": {
+      "name": "Pat Lee",
+      "address": "Pat@Acme.test"
+    }
+  },
+  "toRecipients": [
+    {
+      "emailAddress": {
+        "name": "Maya",
+        "address": "maya@vyre.test"
+      }
+    },
+    {
+      "emailAddress": {
+        "address": "sam@vyre.test"
+      }
+    }
+  ],
+  "ccRecipients": [
+    {
+      "emailAddress": {
+        "address": "kim@acme.test"
+      }
+    }
+  ],
+  "receivedDateTime": "2026-10-25T08:00:00Z",
+  "sentDateTime": "2026-10-25T07:59:50Z",
+  "isDraft": false,
+  "hasAttachments": true,
+  "body": {
+    "contentType": "html",
+    "content": "<p>Hello&nbsp;Maya,</p><br>Thanks &amp; regards"
+  },
+  "internetMessageHeaders": [
+    {
+      "name": "In-Reply-To",
+      "value": "<prev@vyre.test>"
+    },
+    {
+      "name": "References",
+      "value": "<first@vyre.test> <prev@vyre.test>"
+    },
+    {
+      "name": "X-Other",
+      "value": "ignored"
+    }
+  ]
+}

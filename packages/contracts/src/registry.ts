@@ -13,7 +13,6 @@ export interface RegistryModule {
   title: string;
   kind: Manifest['kind'];
   owner: string;
-  status: Manifest['status'];
   requires: string[];                    // derived from references plus any hand-written entries
 }
 

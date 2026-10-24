@@ -1,6 +1,6 @@
 # Default Kit (default)
 
-Lane L8. Kind kit. Status stub. Version 0.1.0.
+Lane L8. Kind kit. Version 0.1.0.
 
 Requires: nothing.
 

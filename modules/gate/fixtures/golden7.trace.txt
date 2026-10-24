@@ -1,0 +1,9 @@
+t+0h: agent send held -> <hold>, task <task>, approver usr_alice, timers gate.expire@24h, notifications.send@4h
+t+3h: no timer is due
+t+4h: timer sch_2 notifications.send approval.backstop
+t+4h: the email went out once, a second look finds nothing new
+t+24h: timer sch_1 gate.expire -> {"outcome":"escalated","escalatedTo":"usr_delegate"}
+t+24h: hold still held, approver usr_delegate, second timeout at t+48h
+t+48h: timer sch_3 gate.expire -> {"outcome":"dropped"}
+t+48h: hold expired, task withdrawn, the act was never sent
+t+48h: approving now is refused (not_held), nothing sent

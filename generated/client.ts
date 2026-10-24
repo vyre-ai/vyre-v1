@@ -723,6 +723,7 @@ export function createClient(transport: Transport) {
       },
       get: call("files.get", 1),
       health: call("files.health", 1),
+      knowledge: call("files.knowledge", 1),
       lint: call("files.lint", 1),
       list: call("files.list", 1),
       markup: {
@@ -742,6 +743,7 @@ export function createClient(transport: Transport) {
       save: call("files.save", 1),
       share: call("files.share", 1),
       share_external: call("files.share_external", 1),
+      shared_with_me: call("files.shared_with_me", 1),
       trash: {
         empty: call("files.trash.empty", 1),
         list: call("files.trash.list", 1),
@@ -1056,6 +1058,9 @@ export function createClient(transport: Transport) {
       thread: call("inbox.thread", 1),
       unmatch: call("inbox.unmatch", 1),
       unmatched: call("inbox.unmatched", 1),
+    },
+    invites: {
+      accept_create_account: call("invites.accept_create_account", 1),
     },
     journeys: {
       advance: call("journeys.advance", 1),
