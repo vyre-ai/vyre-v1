@@ -41,8 +41,6 @@ export function requestOut(r: RequestRow) {
 
 export const requestById = (ctx: AccessCtx, id: string): RequestRow | undefined => ctx.db.all(`SELECT * FROM access_requests WHERE id = ?`, id)[0] as RequestRow | undefined;
 
-const spaceRef = (ctx: AccessCtx): ResourceRef => ({ type: "space", id: ctx.space });
-
 function allows(ctx: AccessCtx, store: AccessStore, principal: string, perm: string | null, level: Level, resource: ResourceRef): boolean {
   return authorize(store.snapshot(), { principal, action: { perm, level }, resource, now: ctx.now() }).effect === "allow";
 }
@@ -51,9 +49,10 @@ function activePeople(store: AccessStore): string[] {
   return [...store.principals.values()].filter((p) => p.kind === "person" && p.status === "active").map((p) => p.id).sort();
 }
 
-/** The admins: people whose roles carry access.manage. They decide requests for a permission, and stand in when a resource has no Manage holder. */
-export function adminsOf(ctx: AccessCtx, store: AccessStore): string[] {
-  return activePeople(store).filter((id) => allows(ctx, store, id, "access.manage", "view", spaceRef(ctx)));
+/** The admins: people whose roles carry access.manage. They decide requests for the Space, and stand in when a resource has no Manage holder. A role carries the permission for the whole Space, so the roles decide this, not a grant on one resource. */
+export function adminsOf(_ctx: AccessCtx, store: AccessStore): string[] {
+  const snap = store.snapshot();
+  return activePeople(store).filter((id) => snap.info(id)?.perms.has("access.manage") === true);
 }
 
 /** Who may decide a request for this resource: its Manage holders, or the admins for the Space and when nobody holds Manage. The requester never decides their own. */
