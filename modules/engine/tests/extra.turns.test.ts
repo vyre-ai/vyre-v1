@@ -212,3 +212,4 @@ test("health is healthy with an empty queue, degraded when a turn waits a minute
   h2.ctx.db.run("UPDATE engine_thread_queue SET state = 'running'");
   assert.match(H["engine.health"](h2.ctx, {}).detail ?? "", /no worker/);
 });
+

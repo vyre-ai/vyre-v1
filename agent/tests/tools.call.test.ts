@@ -133,3 +133,4 @@ test("an unknown tool is a validation error and never reaches invoke", async () 
   assert.equal(out.kind === "error" && out.error.code, "validation.unknown_capability");
   assert.equal(calls.length, 0);
 });
+

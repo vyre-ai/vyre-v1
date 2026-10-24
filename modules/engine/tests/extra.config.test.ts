@@ -186,3 +186,4 @@ test("review: sampled turns wait for a person; fine closes them, flagged opens a
   assert.throws(() => H["engine.review.mark"](ctx, { turnId: "trn_nope", verdict: "ok" }), (e) => codeOf(e) === "validation.not_found");
   assert.deepEqual(assertEventsConform(h), []);
 });
+
