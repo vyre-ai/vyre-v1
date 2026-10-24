@@ -1,0 +1,8 @@
+{
+  "name": "@vyre/testkit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "description": "Test harness: createTestSpace copies a template events.db, boots the kernel and host in-process, fake clock (ARCH 10.1)."
+}
