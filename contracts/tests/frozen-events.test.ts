@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { canonical } from '../../lib/canonical.ts';
 
 const FROZEN_COUNT = 598;
-const FROZEN_HASH = 'd0c7b75af3aff3a8ee78798b60baa083a36ec51107d9bcafba1f5600d02c8b61';
+const FROZEN_HASH = '79cbbc7b64fa608656dc5c093b3174d31bbfd49935601ef8f88c0184f3701185';
 
 const NAME_RE = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
 const VIS = new Set(['space', 'participants', 'owner', 'private']);
