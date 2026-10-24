@@ -484,7 +484,7 @@ type Plan =
   | { entry: Row; kind: "write"; bytes: Uint8Array; fileId: string; version: number }
   | { entry: Row; kind: "create"; bytes: Uint8Array }
   | { entry: Row; kind: "delete"; fileId: string }
-  | { entry: Row; kind: "rename"; fileId: string; bytes: Uint8Array | undefined; version: number }
+  | { entry: Row; kind: "rename"; fileId: string; bytes: Uint8Array | undefined; version: number; name: string; toFolderId?: string }
   | { entry: Row; kind: "conflict"; reason: string };
 
 async function planOf(ctx: Ctx, e: Row): Promise<Plan> {
@@ -504,12 +504,18 @@ async function planOf(ctx: Ctx, e: Row): Promise<Plan> {
     return current === base ? { entry: e, kind: "delete", fileId } : { entry: e, kind: "conflict", reason: "The file changed after the changeset started." };
   }
   if (status === "renamed") {
-    const target = String(e.new_name ?? e.name);
-    if (many(ctx, "SELECT * FROM files_file WHERE folder_id = ? AND name = ?", String(file.folder_id), target).some((r) => live(r) && String(r.id) !== fileId)) {
+    // new_name is the new name; "<folderId>/<name>" (a name has no slash) is a move, which an agent stages with files.move (agent-stage.ts)
+    const raw = String(e.new_name ?? e.name);
+    const slash = raw.indexOf("/");
+    const toFolderId = slash > 0 ? raw.slice(0, slash) : undefined;
+    const target = slash > 0 ? raw.slice(slash + 1) : raw;
+    const intoFolder = toFolderId ?? String(file.folder_id);
+    if (toFolderId !== undefined && !live(one(ctx, "SELECT * FROM files_folder WHERE id = ?", toFolderId))) return { entry: e, kind: "conflict", reason: "The folder this file moves to was deleted." };
+    if (many(ctx, "SELECT * FROM files_file WHERE folder_id = ? AND name = ?", intoFolder, target).some((r) => live(r) && String(r.id) !== fileId)) {
       return { entry: e, kind: "conflict", reason: "The new name is taken." };
     }
     if (staged !== undefined && current !== base) return { entry: e, kind: "conflict", reason: "The file changed after the changeset started." };
-    return { entry: e, kind: "rename", fileId, bytes: staged, version: current };
+    return { entry: e, kind: "rename", fileId, bytes: staged, version: current, name: target, ...(toFolderId !== undefined ? { toFolderId } : {}) };
   }
   if (staged === undefined) return { entry: e, kind: "conflict", reason: "The changeset holds no content for this file." };
   if (current === base) return { entry: e, kind: "write", bytes: staged, fileId, version: current };
@@ -586,7 +592,8 @@ async function approve(ctx: Ctx, input: unknown): Promise<{ approved: boolean; v
     } else if (p.kind === "delete") {
       await treeHandlers["files.delete"](ctx, { fileId: p.fileId });
     } else if (p.kind === "rename") {
-      await treeHandlers["files.rename"](ctx, { fileId: p.fileId, name: String(p.entry.new_name ?? p.entry.name) });
+      if (p.toFolderId !== undefined) await treeHandlers["files.move"](ctx, { fileId: p.fileId, toFolderId: p.toFolderId, name: p.name });
+      else await treeHandlers["files.rename"](ctx, { fileId: p.fileId, name: p.name });
       if (p.bytes !== undefined) {
         const res = (await versionHandlers["files.write"](ctx, { fileId: p.fileId, content: contentOf(p.bytes), reason })) as { versionId?: string };
         if (res.versionId) versionIds.push(res.versionId);
@@ -781,3 +788,6 @@ export const changesetHandlers = {
   "changesets.comments.list": (ctx: Ctx, input: unknown) => commentsList(ctx, input),
   "changesets.comments.add": (ctx: Ctx, input: unknown) => commentsAdd(ctx, input),
 };
+
+// What agent-stage.ts builds on: the staging primitives of this file (it stages files.save, files.delete, files.rename and files.move the way files.write is staged above).
+export { fail, record, reqStr, optStr, one, many, live, num, flag, isNull, nid, reviewRoot, relPath, stages, changesetFor, reopen, seal, currentBytes, lineCounts, filesOf, touch, isOpen, stagedByProvisional, virtualFile };
