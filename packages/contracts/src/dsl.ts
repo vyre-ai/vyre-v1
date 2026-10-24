@@ -394,10 +394,10 @@ export function retention(key: string, title: string, def: string, o: Partial<Re
 
 // ---------------------------------------------------------------- manifest
 
-export type ManifestInput = Omit<Manifest, 'manifest' | 'version' | 'status' | 'kind'> & Partial<Pick<Manifest, 'version' | 'status' | 'kind'>>;
+export type ManifestInput = Omit<Manifest, 'manifest' | 'version' | 'kind'> & Partial<Pick<Manifest, 'version' | 'kind'>>;
 
 export function defineManifest(m: ManifestInput): Manifest {
-  return { manifest: 1, version: '0.1.0', status: 'stub', kind: 'module', ...m };
+  return { manifest: 1, version: '0.1.0', kind: 'module', ...m };
 }
 
 // ---------------------------------------------------------------- binding by input name

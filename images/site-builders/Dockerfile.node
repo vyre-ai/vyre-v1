@@ -1,0 +1,18 @@
+# Site builder: node (buildpacks-lite, spec 2.20, ARCH 7.6). Used when the repo has a package.json with a start script or a main file.
+# The Docker build driver (modules/sites/handlers/builders.ts) passes the build args; nothing here reads the network after the install layer.
+# Layer cache is keyed by the lockfile hash: LOCK_HASH sits in the install RUN, so the install layer is reused until a lockfile changes.
+ARG NODE_IMAGE=node:24-alpine
+FROM ${NODE_IMAGE}
+WORKDIR /app
+ARG LOCK_HASH=none
+ARG INSTALL_CMD="npm install"
+ARG BUILD_CMD=""
+ARG START_CMD="npm start"
+COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* .npmrc* ./
+RUN echo "lock ${LOCK_HASH}" > /dev/null && sh -c "$INSTALL_CMD"
+COPY --chown=node:node . .
+RUN if [ -n "$BUILD_CMD" ]; then sh -c "$BUILD_CMD"; fi
+ENV PORT=3000 NODE_ENV=production VYRE_START="$START_CMD"
+USER node
+EXPOSE 3000
+CMD ["sh", "-c", "exec $VYRE_START"]
