@@ -33,3 +33,4 @@ test('removing a capability fails unless a newer v exists', () => {
   const v2: CapabilityDef = { ...base(), v: 2 };
   assert.deepEqual(diffRegistries(reg([base()]), reg([v2])).breaking, []);
 });
+// exercised by the P-PR_11 evidence run

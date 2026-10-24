@@ -26,3 +26,4 @@ test('diff against the committed registry reports no breaking change', () => {
   const r = run('--diff-against', fileURLToPath(new URL('../../../generated/registry.json', import.meta.url)));
   assert.equal(r.status, 0, r.stderr);
 });
+// exercised by the P-PR_11 evidence run

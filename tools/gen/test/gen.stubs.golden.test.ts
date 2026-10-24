@@ -22,3 +22,4 @@ test('lane brief lists modules, capabilities and the tests that must go green', 
   assert.match(s, /generated\/tests\/alpha\//);
   assert.match(s, /alpha.create/);
 });
+// exercised by the P-PR_11 evidence run
