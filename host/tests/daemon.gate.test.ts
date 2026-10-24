@@ -41,8 +41,8 @@ const ev = (type: string, entity: string, id: string, payload: unknown) => ({
 function seededDir(): string {
   const core = bootCore();
   const res = (id: string, type: string) => ev("resource.created", "resource", id, { id, type, parent_id: CORE_SPACE, label: 0, owner_id: OLIVIA, holds: 0 });
-  const grant = (id: string, type: string, rid: string, who = AGENT) => ev("grant.created", "grant", id, { id, subject_kind: "actor", subject_id: who, resource_type: type, resource_id: rid, level: "use", by: OLIVIA });
-  for (const r of core.store.appendBatch([res(MAILBOX, "mailbox"), res(TASK, "task"), grant("gr_scout_mbx", "mailbox", MAILBOX), grant("gr_scout_spc", "space", CORE_SPACE), grant("gr_sana_mbx", "mailbox", MAILBOX, SANA), grant("gr_sana_spc", "space", CORE_SPACE, SANA)])) {
+  const grant = (id: string, type: string, rid: string, who = AGENT, level = "use") => ev("grant.created", "grant", id, { id, subject_kind: "actor", subject_id: who, resource_type: type, resource_id: rid, level, by: OLIVIA });
+  for (const r of core.store.appendBatch([res(MAILBOX, "mailbox"), res(TASK, "task"), grant("gr_scout_mbx", "mailbox", MAILBOX), grant("gr_scout_spc", "space", CORE_SPACE), grant("gr_sana_mbx", "mailbox", MAILBOX, SANA), grant("gr_sana_spc", "space", CORE_SPACE, SANA), grant("gr_olivia_spc", "space", CORE_SPACE, OLIVIA, "manage")])   // the seed has no role-expanded grants: the Space itself (the Gate) creates the Approve task as its owner) {
     assert.ok(r.ok, "seed event accepted");
   }
   const dir = tmp("vyre-daemon-gate-");
