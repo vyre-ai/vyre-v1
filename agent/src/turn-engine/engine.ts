@@ -2,21 +2,39 @@
 // A message is routed with lib/route.ts (the same function the composer uses), each responder is queued, and a worker holding the thread lease runs them one at a time.
 // A message that arrives while the same agent is working is steering: injected at the next step boundary, never a second concurrent turn.
 // An interrupt cancels the running turn now and runs first. runTurn catches everything: a failed thread accepts the next message as a fresh turn.
+// A tool call held at the Gate parks the turn (turn.waiting { task }, state waiting); resume() queues the wake that continues it once the task is answered.
+// Messages and waits sit behind MessageStore and WaitStore, so a second host that takes the thread over (recover) replays the same bodies.
 import { nextDepth, route } from "../../../lib/route.ts";
 import { createMemoryQueue } from "./queue.ts";
 import type { QueueStore } from "./queue.ts";
 import { HEARTBEAT_MS, createMemoryLeases } from "./lease.ts";
 import type { LeaseStore } from "./lease.ts";
+import { createMemoryMessages, createMemoryWaits } from "./stores.ts";
+import type { MessageStore, WaitStore } from "./stores.ts";
 import { PRIORITY_INTERRUPT } from "./queue.ts";
 import { preview, withMode } from "./lead.ts";
 import type {
-  AgentMode, DriverEvent, EngineEvent, EngineSession, IncomingMessage, OpenSession, OpenThread, Placement, PreviewResult,
+  AgentMode, DriverEvent, EngineAgent, EngineEvent, EngineSession, IncomingMessage, OpenSession, OpenThread, Placement, PreviewResult,
   QueueItem, ReceiveResult, SpendRow, StoredMessage, ToolResult, TurnRow,
 } from "./types.ts";
 import type { RoutePolicy, RouteMention } from "../../../lib/route.ts";
 
 export interface ToolContext { threadId: string; turnId: string; agentId: string; asker: string }
-export type ToolRunner = (call: { id: string; name: string; input: unknown }, ctx: ToolContext) => Promise<ToolResult>;
+/** A tool call parked at the Gate: the task that decides it, and the Run when the call belongs to one. */
+export interface HeldCall { taskId: string; runId?: string }
+export type ToolRunResult = ToolResult & { held?: HeldCall };
+export type ToolRunner = (call: { id: string; name: string; input: unknown }, ctx: ToolContext) => Promise<ToolRunResult>;
+
+export interface StopResult {
+  /** Turns that were running and were cancelled. */
+  stopped: Array<{ turnId: string; agentId: string }>;
+  /** Turns parked on a held tool call that were released. */
+  released: Array<{ turnId: string; agentId: string; taskId: string }>;
+  /** Queue rows that were waiting and were dropped. */
+  dropped: QueueItem[];
+}
+export interface InterruptResult { cancelled: Array<{ turnId: string; agentId: string }>; queued: boolean; qseqs: number[] }
+export type ResumeOutcome = { approved: boolean; result?: ToolResult };
 
 export interface EngineOptions {
   /** 'host:<space>' or 'device:<id>'. */
@@ -24,6 +42,10 @@ export interface EngineOptions {
   openSession: OpenSession;
   queue?: QueueStore;
   leases?: LeaseStore;
+  messages?: MessageStore;
+  waits?: WaitStore;
+  /** Ids for messages, turns and traces. The default counts per engine; two hosts on one store need unique ids (pass mintId). */
+  newId?: (prefix: string) => string;
   /** Wall clock for rows and lease expiry. */
   now?: () => number;
   /** Monotonic high-resolution clock for the first-token overhead measurement. */
@@ -41,7 +63,7 @@ export interface EngineOptions {
 }
 
 interface Running { turnId: string; agentId: string; qseq: number; session: EngineSession | null; cancelled: boolean; lostLease: boolean }
-interface ThreadState { thread: OpenThread; messages: StoredMessage[]; seq: number; running: Running | null; worker: Promise<void> | null; active: boolean }
+interface ThreadState { thread: OpenThread; messages: StoredMessage[]; running: Running | null; worker: Promise<void> | null; active: boolean }
 
 const defaultSchedule = (fn: () => void, ms: number): (() => void) => {
   const h = setInterval(fn, ms);
@@ -55,9 +77,21 @@ export interface TurnEngine {
   receive(msg: IncomingMessage, opts?: { interrupt?: boolean }): ReceiveResult;
   /** A background wait fired for an agent: queue a wake on the starter's account. */
   wake(threadId: string, agentId: string): number;
-  /** Stop button: cancel the running turn. `clearQueue` also drops everything waiting (stop all). */
-  stop(threadId: string, opts?: { clearQueue?: boolean }): Promise<void>;
+  /**
+   * Stop button: cancel the running turn. `agentId` limits it to one agent (its running turn, its queued rows, its parked turns).
+   * `clearQueue` stops everything in the thread: running, queued and parked (stop all).
+   */
+  stop(threadId: string, opts?: { agentId?: string; clearQueue?: boolean }): Promise<StopResult>;
+  /** "Stop and send" for a message that is already stored: cancel the running turn and queue the responders first. Without a message it only cancels. */
+  interrupt(threadId: string, messageId?: string): Promise<InterruptResult>;
+  /** A held tool call was answered (approved or denied): queue the wake that continues the parked turn. Null when the task is unknown or already answered. */
+  resume(taskId: string, outcome: ResumeOutcome): number | null;
+  /** Turns parked on a held tool call in this thread. */
+  waiting(threadId: string): Array<{ turnId: string; agentId: string; taskId: string }>;
   setMode(threadId: string, agentId: string, mode: AgentMode): void;
+  /** Change the model, engine or paying account an agent runs on in this thread, from its next turn. */
+  setAgent(threadId: string, agentId: string, patch: { model?: string; accountRef?: string }): void;
+  agents(threadId: string): EngineAgent[];
   /** The composer line "Intake will reply". */
   preview(threadId: string, draft: { author: IncomingMessage["author"]; mentions?: readonly RouteMention[]; depth?: number }): PreviewResult;
   /** After a crash or lease expiry: requeue what the dead holder was running and take the thread over. */
@@ -74,6 +108,8 @@ export interface TurnEngine {
 export function createTurnEngine(opts: EngineOptions): TurnEngine {
   const queue = opts.queue ?? createMemoryQueue();
   const leases = opts.leases ?? createMemoryLeases();
+  const messages = opts.messages ?? createMemoryMessages();
+  const waits = opts.waits ?? createMemoryWaits();
   const now = opts.now ?? Date.now;
   const hr = opts.hr ?? ((): number => performance.now());
   const schedule = opts.schedule ?? defaultSchedule;
@@ -88,7 +124,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   const spendRows: SpendRow[] = [];
   const enqueuedHr = new Map<string, number>();   // `${thread}:${qseq}` -> hr() at enqueue
   let counter = 0;
-  const nextId = (p: string): string => `${p}_${++counter}`;
+  const nextId = opts.newId ?? ((p: string): string => `${p}_${++counter}`);
 
   const emit = (e: EngineEvent): void => { journal.push(e); for (const l of listeners) l(e); };
   const need = (id: string): ThreadState => {
@@ -97,11 +133,16 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     return st;
   };
 
+  /** A message by id: the window in memory first, then the store (a trigger older than the window, or one another host wrote). */
+  const findMessage = (st: ThreadState, id: string | null): StoredMessage | null => {
+    if (id === null) return null;
+    return st.messages.find((m) => m.id === id) ?? messages.get(id);
+  };
+
   function store(st: ThreadState, m: IncomingMessage): StoredMessage {
-    const msg: StoredMessage = {
-      id: nextId("m"), threadId: st.thread.id, threadSeq: ++st.seq, author: m.author,
-      mentions: [...(m.mentions ?? [])], depth: m.depth ?? 0, body: m.body ?? "",
-    };
+    const msg = messages.append({
+      id: nextId("m"), threadId: st.thread.id, author: m.author, mentions: [...(m.mentions ?? [])], depth: m.depth ?? 0, body: m.body ?? "",
+    });
     st.messages.push(msg);
     emit({ type: "message.received", threadId: msg.threadId, messageId: msg.id, threadSeq: msg.threadSeq, authorId: msg.author.id });
     return msg;
@@ -116,7 +157,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   function ingest(st: ThreadState, m: IncomingMessage, interrupt: boolean): ReceiveResult {
-    const msg = store(st, m);
+    return dispatch(st, store(st, m), interrupt);
+  }
+
+  function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean): ReceiveResult {
     const r = route({ agents: st.thread.agents }, { author: msg.author, mentions: msg.mentions, depth: msg.depth }, opts.policy);
     let responders = r.responders;
     let routine = false;
@@ -175,7 +219,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   function payerOf(st: ThreadState, item: QueueItem): { asker: string; reason: "starter" | "steerer" } {
-    const personFrom = (item.kind === "message" || item.kind === "interrupt") && st.messages.find((m) => m.id === item.messageId)?.author.kind === "person";
+    const personFrom = (item.kind === "message" || item.kind === "interrupt") && findMessage(st, item.messageId)?.author.kind === "person";
     if (personFrom && item.from !== st.thread.starter) return { asker: item.from, reason: "steerer" };
     return { asker: st.thread.starter, reason: "starter" };
   }
@@ -183,7 +227,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   function steerBoundary(st: ThreadState, run: Running, turn: TurnRow): void {
     if (!run.session) return;
     for (const row of queue.steerable(st.thread.id, run.agentId)) {
-      const msg = st.messages.find((m) => m.id === row.messageId);
+      const msg = findMessage(st, row.messageId);
       if (!msg) continue;
       queue.setState(st.thread.id, row.qseq, "consumed");
       emit({ type: "queue.consumed", threadId: st.thread.id, qseq: row.qseq, messageId: row.messageId });
@@ -192,9 +236,17 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     }
   }
 
+  function recordSpend(turn: TurnRow): void {
+    if (turn.tokensIn + turn.tokensOut > 0) spendRows.push({ agentId: turn.agentId, turnId: turn.id, payer: turn.asker, tokensIn: turn.tokensIn, tokensOut: turn.tokensOut });
+  }
+
   async function runTurn(st: ThreadState, item: QueueItem): Promise<void> {
     const agent = st.thread.agents.find((a) => a.id === item.agentId);
-    const { asker, reason } = payerOf(st, item);
+    // A wake that continues a parked turn runs on the account that was paying, and answers the held call.
+    const wait = item.kind === "wake" ? waits.forWake(st.thread.id, item.qseq) : null;
+    const payer = payerOf(st, item);
+    const asker = wait?.asker ?? payer.asker;
+    const reason = wait ? ("starter" as const) : payer.reason;
     const turn: TurnRow = {
       id: nextId("t"), threadId: st.thread.id, agentId: item.agentId, asker, payerReason: reason, model: agent?.model ?? null, state: "running",
       traceId: nextId("tr"), qseq: item.qseq, kind: item.kind, routine: item.routine, startedAt: now(), endedAt: null,
@@ -209,7 +261,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       if (!leases.renew(st.thread.id, opts.holder, now())) { run.lostLease = true; void cancelRunning(st); }
     }, HEARTBEAT_MS);
 
-    const trigger = st.messages.find((m) => m.id === item.messageId) ?? null;
+    const trigger = findMessage(st, item.messageId);
+    let parked: { callId: string; name: string; held: HeldCall } | null = null;
     let reply = "";
     let mentions: readonly RouteMention[] = [];
     let blockIdx = 0;
@@ -230,7 +283,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         threadId: st.thread.id, turnId: turn.id, agent, trigger, asker,
         history: st.messages.slice(-historyWindow),
         listeners: st.thread.agents.filter((a) => a.mode === "listen" && a.id !== agent.id).map((a) => (a.role === undefined ? { id: a.id } : { id: a.id, role: a.role })),
+        ...(wait && wait.resolution ? { resumed: { taskId: wait.taskId, callId: wait.callId, toolName: wait.toolName, approved: wait.resolution.approved, result: wait.resolution.result } } : {}),
       };
+      if (wait) waits.remove(wait.taskId);
       const t0 = enqueuedHr.get(`${item.threadId}:${item.qseq}`) ?? hr();
       let ended = false;
       for await (const ev of session.send(input) as AsyncIterable<DriverEvent>) {
@@ -246,7 +301,13 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             flush("tool_call");
             const result = await runTool(opts.callTool, { id: ev.id, name: ev.name, input: ev.input }, { threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker });
             if (run.cancelled || run.lostLease) break;
-            session.sendToolResult(ev.id, result);
+            if (result.held) {
+              // Held at the Gate: no mode, Ask, Allow or Auto, turns this into a result. The turn parks on the task.
+              parked = { callId: ev.id, name: ev.name, held: result.held };
+              ended = true;
+              break;
+            }
+            session.sendToolResult(ev.id, { ok: result.ok, content: result.content });
             flush("tool_result");
             steerBoundary(st, run, turn);
             break;
@@ -281,16 +342,27 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       try { await run.session?.close(); } catch { /* a session that will not close is dropped */ }
     }
 
-    turn.endedAt = now();
     const mineStill = leases.renew(st.thread.id, opts.holder, now());
     leases.setTurn(st.thread.id, opts.holder, null);
     st.running = null;
-    if (!mineStill) { turn.state = "failed"; turn.error ??= { code: "lease_lost", message: "another host took this thread" }; return; }   // the new holder owns the row
+    if (!mineStill) { turn.endedAt = now(); turn.state = "failed"; turn.error ??= { code: "lease_lost", message: "another host took this thread" }; return; }   // the new holder owns the row
+    if (parked && !run.cancelled && !turn.error) {
+      turn.state = "waiting";
+      waits.put({
+        taskId: parked.held.taskId, threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, callId: parked.callId, toolName: parked.name, asker: turn.asker,
+        runId: parked.held.runId ?? null, at: now(), resolution: null, wakeQseq: null,
+      });
+      queue.setState(st.thread.id, item.qseq, "done");
+      recordSpend(turn);
+      emit({ type: "turn.waiting", threadId: st.thread.id, reason: "approval", turnId: turn.id, agentId: turn.agentId, taskId: parked.held.taskId, ...(parked.held.runId === undefined ? {} : { runId: parked.held.runId }) });
+      return;
+    }
+    turn.endedAt = now();
     if (run.cancelled) turn.state = "cancelled";
     else if (turn.error) turn.state = "failed";
     else turn.state = "completed";
     queue.setState(st.thread.id, item.qseq, turn.state === "cancelled" ? "cancelled" : "done");
-    if (turn.tokensIn + turn.tokensOut > 0) spendRows.push({ agentId: turn.agentId, turnId: turn.id, payer: turn.asker, tokensIn: turn.tokensIn, tokensOut: turn.tokensOut });
+    recordSpend(turn);
     if (turn.state === "completed") emit({ type: "turn.completed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId });
     else if (turn.state === "cancelled") emit({ type: "turn.cancelled", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId });
     else emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error" });
@@ -300,7 +372,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     }
   }
 
-  async function runTool(fn: ToolRunner | undefined, call: { id: string; name: string; input: unknown }, ctx: ToolContext): Promise<ToolResult> {
+  async function runTool(fn: ToolRunner | undefined, call: { id: string; name: string; input: unknown }, ctx: ToolContext): Promise<ToolRunResult> {
     if (!fn) return { ok: false, content: { code: "no_tools", message: "this engine has no tool runner" } };
     try { return await fn(call, ctx); } catch (e) { return { ok: false, content: { code: "tool_error", message: e instanceof Error ? e.message : "the tool failed" } }; }
   }
@@ -309,7 +381,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     openThread(thread) {
       if (threads.has(thread.id)) throw new RangeError(`thread ${thread.id} is already open`);
       if (thread.agents.filter((a) => a.mode === "lead").length > 1) throw new RangeError("a thread has at most one lead");
-      threads.set(thread.id, { thread: { ...thread, agents: thread.agents.map((a) => ({ ...a })) }, messages: [], seq: 0, running: null, worker: null, active: false });
+      threads.set(thread.id, { thread: { ...thread, agents: thread.agents.map((a) => ({ ...a })) }, messages: messages.recent(thread.id, historyWindow), running: null, worker: null, active: false });
     },
     receive: (msg, o) => ingest(need(msg.threadId), msg, o?.interrupt === true),
     wake(threadId, agentId) {
@@ -320,13 +392,62 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     },
     async stop(threadId, o) {
       const st = need(threadId);
-      if (o?.clearQueue) queue.cancelQueued(threadId);
-      await cancelRunning(st);
+      const only = o?.agentId;
+      const everything = o?.clearQueue === true;
+      const run = st.running;
+      const hit = run !== null && !run.cancelled && (only === undefined || run.agentId === only) ? run : null;
+      const dropped = everything ? queue.cancelQueued(threadId) : only !== undefined ? queue.cancelQueued(threadId, only) : [];
+      const stopped = hit ? [{ turnId: hit.turnId, agentId: hit.agentId }] : [];
+      const released: StopResult["released"] = [];
+      if (everything || only !== undefined) {
+        for (const w of waits.open(threadId)) {
+          if (only !== undefined && w.agentId !== only) continue;
+          waits.remove(w.taskId);
+          const row = turnRows.find((t) => t.id === w.turnId);
+          if (row && row.state === "waiting") { row.state = "cancelled"; row.endedAt = now(); }
+          released.push({ turnId: w.turnId, agentId: w.agentId, taskId: w.taskId });
+        }
+      }
+      if (hit) await cancelRunning(st);
+      return { stopped, released, dropped };
     },
+    async interrupt(threadId, messageId) {
+      const st = need(threadId);
+      const run = st.running !== null && !st.running.cancelled ? st.running : null;
+      const cancelled = run ? [{ turnId: run.turnId, agentId: run.agentId }] : [];
+      if (messageId === undefined) {
+        if (run) await cancelRunning(st);
+        return { cancelled, queued: false, qseqs: [] };
+      }
+      const msg = findMessage(st, messageId);
+      if (!msg || msg.threadId !== threadId) throw new RangeError(`no message ${messageId} in thread ${threadId}`);
+      const r = dispatch(st, msg, true);
+      return { cancelled, queued: r.qseqs.length > 0, qseqs: r.qseqs };
+    },
+    resume(taskId, outcome) {
+      const w = waits.get(taskId);
+      if (!w || w.resolution) return null;
+      const st = threads.get(w.threadId);
+      if (!st) return null;   // the thread is not open on this host; the host that holds it resumes
+      const result: ToolResult = outcome.result ?? (outcome.approved
+        ? { ok: true, content: { approved: true } }
+        : { ok: false, content: { code: "denied", message: "A person did not approve this." } });
+      const item = enqueue(st, { kind: "wake", agentId: w.agentId, from: w.asker, messageId: null, priority: 0, routine: false });
+      if (!waits.resolve(taskId, { approved: outcome.approved, result }, item.qseq)) { queue.setState(w.threadId, item.qseq, "cancelled"); return null; }
+      kick(st);
+      return item.qseq;
+    },
+    waiting: (threadId) => waits.open(threadId).filter((w) => w.resolution === null).map((w) => ({ turnId: w.turnId, agentId: w.agentId, taskId: w.taskId })),
     setMode(threadId, agentId, mode) {
       const st = need(threadId);
       st.thread.agents = withMode(st.thread.agents, agentId, mode);
     },
+    setAgent(threadId, agentId, patch) {
+      const st = need(threadId);
+      if (!st.thread.agents.some((a) => a.id === agentId)) throw new RangeError(`no agent ${agentId} in this thread`);
+      st.thread.agents = st.thread.agents.map((a) => (a.id === agentId ? { ...a, ...(patch.model === undefined ? {} : { model: patch.model }), ...(patch.accountRef === undefined ? {} : { accountRef: patch.accountRef }) } : a));
+    },
+    agents: (threadId) => need(threadId).thread.agents.map((a) => ({ ...a })),
     preview(threadId, draft) {
       const st = need(threadId);
       return preview(st.thread.agents, draft.author, draft.mentions ?? [], draft.depth, opts.policy);

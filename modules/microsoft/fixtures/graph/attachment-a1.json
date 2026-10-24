@@ -1,0 +1,7 @@
+{
+  "@odata.type": "#microsoft.graph.fileAttachment",
+  "id": "a1",
+  "name": "terms.pdf",
+  "contentType": "application/pdf",
+  "contentBytes": "aGVsbG8="
+}

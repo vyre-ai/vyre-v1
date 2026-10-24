@@ -71,7 +71,8 @@
       "kernel",
       "host",
       "sync",
-      "client"
+      "client",
+      "allowlist"
     ],
     "agent": [
       "lib",
@@ -128,6 +129,7 @@
       "allowNodeSqlite": [
         "kernel",
         "sync",
+        "host",
         "modules/search"
       ]
     },

@@ -1,0 +1,13 @@
+{
+  "_comment": "Recorded from POST /repos/vyre-ai/vyre/issues (201 Created), trimmed to the fields the service reads and a few it ignores.",
+  "url": "https://api.github.com/repos/vyre-ai/vyre/issues/1234",
+  "html_url": "https://github.com/vyre-ai/vyre/issues/1234",
+  "id": 2214512345,
+  "node_id": "I_kwDOAbCdEf5xyz",
+  "number": 1234,
+  "state": "open",
+  "title": "[report] Record page (rpt_aaaaaaaa1)",
+  "labels": [{ "id": 3260, "name": "bug", "color": "d73a4a", "default": true }],
+  "user": { "login": "vyre-reports-bot", "type": "Bot" },
+  "created_at": "2026-10-24T20:00:00Z"
+}
