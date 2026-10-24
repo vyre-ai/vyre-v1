@@ -1,0 +1,15 @@
+{
+  "rfcMessageId": "<lead-42@acme.test>",
+  "from": { "address": "pat@acme.test", "name": "Pat Lee" },
+  "to": [
+    { "address": "maya@vyre.test" },
+    { "address": "sam@vyre.test" }
+  ],
+  "subject": "Question about the lease",
+  "text": "Can we talk Thursday?",
+  "receivedAt": 1760000000000,
+  "copies": [
+    { "source": "google", "providerId": "gmailhist100" },
+    { "source": "imap", "providerId": "imapuid4" }
+  ]
+}
