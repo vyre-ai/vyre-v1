@@ -325,7 +325,9 @@ function render(buf: Buffer, values: Record<string, unknown>, mark: boolean): Re
   const doc = compile(zip, {
     parser: parserFor(mark ? marks : null),
     // Called for any placeholder whose value is undefined or null; the document is refused by fill, whatever this returns.
-    nullGetter: (part: { value?: unknown } | undefined) => {
+    // A section tag ({#x}, {^x}) is asked too (part.module is set): an absent section reads as false, and one that holds tags is checked below.
+    nullGetter: (part: { value?: unknown; module?: unknown } | undefined) => {
+      if (part?.module) return null;
       missing.add(String(part?.value ?? "?"));
       return "";
     },

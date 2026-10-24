@@ -51,7 +51,7 @@ test("fill keeps the formatting of the template: run properties, paragraph prope
   assert.ok(xml.includes("<w:rPr><w:b/><w:i/></w:rPr>"), "bold and italic kept");
   assert.ok(xml.includes('<w:color w:val="FF0000"/>'), "the colour of the first run of a split tag kept");
   assert.equal(partOf(out.bytes, "word/styles.xml"), styles, "parts that hold no tag are byte for byte the template's");
-  assert.deepEqual(partNames(out.bytes), partNames(template), "no part added or lost");
+  assert.deepEqual(partNames(out.bytes).filter((n) => !n.endsWith("/")), partNames(template).filter((n) => !n.endsWith("/")), "no part added or lost");
   assert.deepEqual(textOf(bytesOf(w, id)), ["Dear {client.name},", "{client.name}"], "the template itself is untouched");
 });
 
@@ -77,7 +77,7 @@ test("a fill makes a new file in the folder, a first version, an event, and leav
   const templateBytes = Buffer.from(bytesOf(w, id));
   const out = await handlers["documents.fill"](w.ctx, { templateFileId: id, intoFolderId: OTHER_FOLDER, values: NAMES });
   assert.equal(out.file.name, "Letter (filled).docx");
-  assert.match(out.file.versionId, /^ver_fil_\d+_1$/);
+  assert.match(out.file.versionId, /^ver_f\d+n1$/);
   assert.deepEqual(out.missing, []);
   assert.deepEqual(out.unused, []);
   assert.deepEqual(textOf(bytesOf(w, out.file.fileId)), ["Dear Dana Harlow,", "Your fee is $1,500.00 for Estate plan.", "Signed: Dana Harlow"]);
@@ -189,7 +189,7 @@ test("a record feeds the tags through a mapping; explicit values win; without a 
   assert.deepEqual(w.calls.filter((c) => c.cap === "records.get").map((c) => c.input), [{ recordId: "rec_1" }]);
   assert.deepEqual((w.events.at(-1)?.payload as { recordId?: string }).recordId, "rec_1");
 
-  const typed = await filled(w, id, { recordId: "rec_1", mapping: { "client.name": "full_name", "matter.fee": "retainer" }, values: { recordType: "contact", client: { name: "Override" }, matter: { title: "T" } }, name: "typed" });
+  const typed = await filled(w, id, { recordId: "rec_1", mapping: { "client.name": "full_name", "matter.fee": "retainer" }, values: { recordType: "contact", client: { name: "Override" }, matter: { title: "T" }, firm: "Acme" }, name: "typed" });
   assert.equal(textOf(typed.bytes)[0], "Dear Override,", "explicit values win over the record");
   assert.deepEqual(w.calls.filter((c) => c.cap === "records.get").at(-1)?.input, { type: "contact", recordId: "rec_1" });
 

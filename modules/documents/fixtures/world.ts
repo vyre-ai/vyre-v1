@@ -148,7 +148,7 @@ export function world(): World {
         }
         case "files.versions": {
           const f = need_(i.fileId);
-          return { versions: Array.from({ length: f.versions }, (_, k) => ({ versionId: `ver_${f.id}_${k + 1}`, n: k + 1 })) };
+          return { versions: Array.from({ length: f.versions }, (_, k) => ({ versionId: `ver_f${f.id.replace(/\D/g, "")}n${k + 1}`, n: k + 1 })) };
         }
         case "records.get": {
           const fields = records.get(String(i.recordId));
