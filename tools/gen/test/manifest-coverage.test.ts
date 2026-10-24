@@ -1,4 +1,5 @@
 // @reads /manifests/index.ts
+// Re-recorded together with docs/frozen/capabilities.md after the coverage additions.
 // Coverage fixes from team/v1/prep/MANIFEST-COVERAGE.md (P-PR_33b): every capability, event, setting, screen and notification kind added
 // to close a spec gap is declared exactly once, and the new Console and shell screens use only declared capabilities.
 import { test } from 'node:test';
