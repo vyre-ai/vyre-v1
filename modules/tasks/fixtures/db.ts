@@ -80,7 +80,10 @@ export function harness(o: HarnessOptions = {}) {
   }
 
   /** Call a capability the way the pipeline does: validate the input, run the handler, validate the output. Events of a failed call are dropped. */
-  async function call(cap: string, input: unknown, who: Caller): Promise<any> {   // eslint-disable-line @typescript-eslint/no-explicit-any
+  let keys = 0;
+  async function call(cap: string, raw0: unknown, who: Caller): Promise<any> {   // eslint-disable-line @typescript-eslint/no-explicit-any
+    // tasks.create requires an idempotency key; the tests do not care which
+    const input = cap === "tasks.create" && !(raw0 as { idempotencyKey?: unknown }).idempotencyKey ? { ...(raw0 as object), idempotencyKey: `key_${++keys}` } : raw0;
     const bad = validateInput(cap, 1, input);
     if (bad.length) throw new Error(`${cap} input is invalid: ${bad.join("; ")}`);
     const h = (handlers as Record<string, (ctx: TasksCtx, input: unknown) => Promise<unknown>>)[cap];
