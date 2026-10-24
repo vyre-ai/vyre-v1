@@ -268,12 +268,12 @@ test("choose: only an installed Kit, for the Space or for the person, through th
 test("builder_open: opens a chat with the builder agent about the Kit; no agent means a clear refusal", async () => {
   const h = harness();
   const kitId = await h.shipped();
-  const out = await h.call("kits.builder_open", { kitId, brief: "Add a retainer form" });
+  const out = await h.call("kits.builder_open", { kitId, brief: "Add a retainer form", idempotencyKey: "k1" });
   assert.deepEqual(out, { threadId: "thr_builder1" });
   assert.deepEqual(h.callsTo("chat.start")[0]!.input, { kind: "chat", agentIds: ["agt_builder"], title: "Kit builder: Law firm intake", scopeType: "kit", scopeId: kitId, first: "Add a retainer form" });
-  await h.call("kits.builder_open", {});
+  await h.call("kits.builder_open", { idempotencyKey: "k2" });
   assert.deepEqual(h.callsTo("chat.start")[1]!.input, { kind: "chat", agentIds: ["agt_builder"], title: "Kit builder" });
   const none = harness({ builder: null });
-  await refused(none.call("kits.builder_open", {}), "validation.precondition_failed");
+  await refused(none.call("kits.builder_open", { idempotencyKey: "k3" }), "validation.precondition_failed");
   configureKits(null);
 });

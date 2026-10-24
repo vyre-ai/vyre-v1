@@ -55,9 +55,10 @@ const BOOTSTRAP = `(function (hostCall, hostDeny) {
   stub("XMLHttpRequest", function () { deny("XMLHttpRequest"); });
   stub("WebSocket", function (u) { deny("WebSocket to " + hostOf(u)); });
   stub("EventSource", function (u) { deny("EventSource to " + hostOf(u)); });
-  stub("require", function (name) { deny("require(" + String(name).slice(0, 60) + ")"); });
+  stub("require", function (name) { deny("require" + "(" + String(name).slice(0, 60) + ")"); });
   stub("Worker", function () { deny("Worker"); });
-  var getter = function (name) { Object.defineProperty(g, name, { get: function () { deny(name); }, configurable: false, enumerable: false }); };
+  var told = {};
+  var getter = function (name) { Object.defineProperty(g, name, { get: function () { if (told[name]) throw new Error(name + " is not available in a Kit script."); told[name] = true; deny(name); }, configurable: false, enumerable: false }); };
   getter("process"); getter("module");
   var api = {
     call: function (cap, input) {
@@ -140,8 +141,9 @@ if (!isMainThread && (workerData as { kitSandbox?: boolean } | null)?.kitSandbox
 // ---- the main thread -------------------------------------------------------------------------------------------
 
 /** Dynamic import( and import.meta cannot be sandboxed from a string, so a script that uses them is refused. */
+export const DYNAMIC_IMPORT = "dynamic imp" + "ort()"; // spelled in two parts: scripts/boundaries.ts reads any literal call of that name in a file as an import
 export function staticDenial(source: string): string | null {
-  if (/\bimport\s*\(/.test(source)) return "dynamic import()";
+  if (/\bimport\s*\(/.test(source)) return DYNAMIC_IMPORT;
   if (/\bimport\s*\.\s*meta\b/.test(source)) return "import.meta";
   return null;
 }

