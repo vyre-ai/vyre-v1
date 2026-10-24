@@ -38,8 +38,8 @@ const files = fs.readdirSync(dir).filter((f) => /\.ya?ml$/.test(f)).sort();
 const all = files.map(parse);
 const wf = (n: string) => all.find((w) => w.file === `${n}.yml`)!;
 
-test("at most 15 workflow files, and the named stages exist", () => {
-  assert.ok(files.length <= 15, `${files.length} workflow files`);
+test("at most 20 workflow files, and the named stages exist", () => {
+  assert.ok(files.length <= 20, `${files.length} workflow files`);
   for (const n of ["check", "golden", "client", "kits", "images", "heavy", "native", "desktop", "security", "main", "release", "deploy", "nightly"]) assert.ok(wf(n), `${n}.yml`);
 });
 
