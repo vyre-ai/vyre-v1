@@ -84,7 +84,7 @@ export function emitAll(reg: Registry): Files {
   // ---- client.ts and stubs.ts
   {
     const t = tree(caps);
-    const versions = new Map(caps.map((c) => [c.name, c.v] as const));
+    const versions = new Map<string, number>(caps.map((c) => [c.name, c.v]));
     put('client.ts', `${HEADER}import type { CapMap } from './types.ts';
 
 export interface CallOptions { traceId?: string; idempotencyKey?: string; signal?: AbortSignal }
