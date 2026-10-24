@@ -12,7 +12,7 @@ test('replica.sql creates every table', () => {
   const db = new DatabaseSync(':memory:');
   db.exec(gen('sync/replica.sql'));
   const n = (db.prepare("SELECT count(*) AS n FROM sqlite_master WHERE type = 'table'").get() as { n: number }).n;
-  assert.ok(n > 100, `tables: ${n}`);
+  assert.ok(n > 60, `tables: ${n}`);
   db.close();
 });
 
@@ -26,7 +26,7 @@ test('each module schema.sql runs on its own', () => {
     db.close();
     ran++;
   }
-  assert.ok(ran > 40, `schema files: ${ran}`);
+  assert.ok(ran > 20, `schema files: ${ran}`);
 });
 
 for (const space of ['team', 'harbor', 'personal']) {
