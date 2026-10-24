@@ -10,7 +10,7 @@ Requires: access, members.
 - [follows.toggle](../capabilities/follows.toggle.md): Follow or unfollow something so its updates reach my Inbox
 - [spaces.delete](../capabilities/spaces.delete.md): Owner only: delete the Space after typing its legal name
 - [spaces.export](../capabilities/spaces.export.md): Owner one-click export: a zip of records, files, chats and settings; never secret values, never others' private chats or personal memory
-- [spaces.get](../capabilities/spaces.get.md): The Space profile (regen proof): name, legal name, logo, address, hosting, defaults, kind
+- [spaces.get](../capabilities/spaces.get.md): The Space profile: name, legal name, logo, address, hosting, defaults, kind
 - [spaces.leave](../capabilities/spaces.leave.md): Leave this Space; the local folder is wiped and the server stops serving this person (the owner must transfer first)
 - [spaces.matrix](../capabilities/spaces.matrix.md): Which features work in this Space and which need a Team Space (the Personal matrix)
 - [spaces.onboarding.complete](../capabilities/spaces.onboarding.complete.md): Mark a checklist step done (steps also complete themselves when the event happens)
