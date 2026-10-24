@@ -1,10 +1,10 @@
 # Sync spike A (S1, S2) report
 
-Numbers come from the CI run linked on P-PR_45 (self-hosted v1 runner, Node 24). Budgets are acceptance, not targets.
+Source: CI spike run https://github.com/vyre-ai/vyre-v1/actions/runs/40107940139 (self-hosted v1 runner, Node 24). Budgets are acceptance, not targets.
 
-| Metric | Result | Budget |
-|---|---|---|
-| Snapshot, 100,000 rows (400k fields) | see METRIC s1.snapshot_100k in the run log (5.8 s on the first run) | under 10 s |
-| Remote edit propagation, HTTP + SSE hint | see METRIC s1.edit_propagation_http (p50 8 ms, p99 13 ms first run) | under 500 ms |
-| Local write p99 | see METRIC s1.local_write (p99 1.0 ms first run) | under 10 ms |
-| Revocation property test | 8 seeds x 150 steps, replica equals fresh filtered snapshot | all equal |
+| Metric | Result | Budget | Pass |
+|---|---|---|---|
+| Snapshot, 100,000 rows (400k fields), server page + client apply | 5,384 ms | under 10,000 ms | yes |
+| Remote edit propagation, real HTTP + SSE hint, 20 edits | p50 6.56 ms, p99 12.28 ms | under 500 ms | yes |
+| Local write, 5,000 edits, WAL | p50 0.131 ms, p99 1.154 ms, max 40 ms | p99 under 10 ms | yes |
+| Revocation property test | 8 seeds x 150 random steps, replica equals fresh filtered snapshot every time | all equal | yes |
