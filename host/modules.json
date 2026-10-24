@@ -334,7 +334,7 @@
     {
       "id": "terminal",
       "owner": "L2",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "twilio",
