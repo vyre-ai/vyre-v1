@@ -22,7 +22,8 @@ export class WaDb {
     const { default: Factory } = await import(pathToFileURL(path.join(base, "dist/wa-sqlite.mjs")).href);
     const SQLite = await import(pathToFileURL(path.join(base, "src/sqlite-api.js")).href);
     const { MemoryVFS } = await import(pathToFileURL(path.join(base, "src/examples/MemoryVFS.js")).href);
-    const module = await Factory();
+    const fs = await import("node:fs");
+    const module = await Factory({ wasmBinary: fs.readFileSync(path.join(base, "dist/wa-sqlite.wasm")) });
     const sqlite3 = SQLite.Factory(module);
     const vfs = new MemoryVFS(); sqlite3.vfs_register(vfs, true);
     const h = await sqlite3.open_v2(name);

@@ -162,18 +162,16 @@ export class Server {
   snapshotBegin(person) { this.person(person); return { asOf: this.head(), epoch: this.epoch(person) }; }
   snapshotPage(person, { after = "", limit = 5000, dev = "d" } = {}) {
     const ids = this.p("SELECT a.id FROM acl a JOIN row_meta m ON m.id=a.id WHERE a.person=? AND a.id>? AND (m.enc=0 OR m.owner=?) ORDER BY a.id LIMIT ?").all(person, after, person, limit).map((r) => r.id);
-    const cl = this.person(person).clearance; const rows = [];
+    if (!ids.length) return { rows: [], last: null, done: true };
+    const last = ids[ids.length - 1]; const cl = this.person(person).clearance; const out = new Map(ids.map((id) => [id, { id, fields: {} }]));
     this.tx(() => {
-      for (const id of ids) {
-        this.p("INSERT OR IGNORE INTO seen(person,dev,id) VALUES(?,?,?)").run(person, dev, id);
-        const m = this.p("SELECT kind FROM row_meta WHERE id=?").get(id);
-        if (m.kind === "doc") { rows.push({ id, doc: this.docUpdates(id, this.head()).map((u) => JSON.parse(u.fields)) }); continue; }
-        const f = {};
-        for (const r of this.p("SELECT * FROM rows WHERE id=?").all(id)) if ((FIELD_LABEL[r.field] || 0) <= cl) f[r.field] = { v: JSON.parse(r.v), hlc: r.hlc, actor: r.actor, seq: r.seq, key: r.key, nonce: r.nonce };
-        rows.push({ id, fields: f });
+      this.p("INSERT OR IGNORE INTO seen(person,dev,id) SELECT ?,?,a.id FROM acl a JOIN row_meta m ON m.id=a.id WHERE a.person=? AND a.id>? AND a.id<=? AND (m.enc=0 OR m.owner=?)").run(person, dev, person, after, last, person);
+      for (const d of this.p("SELECT a.id FROM acl a JOIN row_meta m ON m.id=a.id WHERE a.person=? AND a.id>? AND a.id<=? AND m.kind='doc' AND (m.enc=0 OR m.owner=?)").all(person, after, last, person)) out.set(d.id, { id: d.id, doc: this.docUpdates(d.id, this.head()).map((u) => JSON.parse(u.fields)) });
+      for (const r of this.p("SELECT r.* FROM rows r JOIN acl a ON a.id=r.id AND a.person=? WHERE r.id>? AND r.id<=?").all(person, after, last)) {
+        const o = out.get(r.id); if (o && o.fields && (FIELD_LABEL[r.field] || 0) <= cl) o.fields[r.field] = { v: JSON.parse(r.v), hlc: r.hlc, actor: r.actor, seq: r.seq, key: r.key, nonce: r.nonce };
       }
     });
-    return { rows, last: ids.length ? ids[ids.length - 1] : null, done: ids.length < limit };
+    return { rows: ids.map((id) => out.get(id)), last, done: ids.length < limit };
   }
   // Bulk loader for benchmarks: ids visible to `person`, n rows with 4 fields each, no per-op overhead.
   bulkLoad(person, n, mk = (i) => ({ title: "row " + i, status: "open", amount: i, note: "note " + i })) {
@@ -323,11 +321,17 @@ export class Client {
     for (;;) {
       const page = await t.snapshotPage({ after, limit: 5000, dev: this.dev });
       await this.tx(async () => {
+        const flat = [];
         for (const r of page.rows) {
           if (r.doc) { let n = 0; for (const u of r.doc) await this.db.run("INSERT OR IGNORE INTO docs(id,n,u) VALUES(?,?,?)", [r.id, ++n, JSON.stringify(u)]); continue; }
-          for (const f of Object.keys(r.fields)) await this.applyField(r.id, f, r.fields[f]);
-          if (this.useFts) await this.ftsReindex(r.id);
+          for (const f of Object.keys(r.fields)) { const fv = r.fields[f]; flat.push(r.id, f, this.enc(JSON.stringify(fv.v)), fv.hlc, fv.seq ?? 0, fv.key || null, fv.nonce || null); }
         }
+        const W = 7, PER = 400; // multi-row upsert: fewer statements, same semantics as applyField
+        for (let i = 0; i < flat.length; i += W * PER) {
+          const part = flat.slice(i, i + W * PER); const rows = part.length / W;
+          await this.db.run("INSERT INTO rows(id,field,v,hlc,seq,pending,key,nonce) VALUES " + Array(rows).fill("(?,?,?,?,?,0,?,?)").join(",") + " ON CONFLICT(id,field) DO UPDATE SET v=excluded.v, hlc=excluded.hlc, seq=excluded.seq, key=excluded.key, nonce=excluded.nonce WHERE rows.pending=0 OR rows.hlc<=excluded.hlc", part);
+        }
+        if (this.useFts) for (const r of page.rows) if (r.fields) await this.ftsReindex(r.id);
       });
       if (page.done) break; after = page.last;
     }

@@ -42,7 +42,7 @@ for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
         }
       }
     }
-    metric("s2.property", { seed, steps: 150, comparisons: checks, hides });
+    metric("s2.property", { seed, steps: 150, comparisons: checks, revokes: s.p("SELECT COUNT(*) c FROM events WHERE kind='revoke'").get().c, epoch_purges: people.reduce((n, p) => n + s.epoch(p), 0) });
     assert.ok(checks > 20);
   });
 }
