@@ -101,7 +101,8 @@ export type TomlValue = string | number | boolean | TomlValue[] | { [key: string
 export interface TomlResult { value: { [key: string]: TomlValue }; error?: { line: number; message: string }; keyLines: Map<string, number> }
 
 class TomlError extends Error {
-  constructor(readonly line: number, message: string) { super(message); }
+  line: number;
+  constructor(line: number, message: string) { super(message); this.line = line; }
 }
 
 function stripComment(s: string): string {
