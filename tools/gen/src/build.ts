@@ -1,4 +1,4 @@
-// Merge manifests into the registry.
+// Merge manifests into the registry. Module status is runtime state in host/modules.json and never enters the registry (ruling 25).
 import type { Manifest, Owned, Registry, RegistryModule } from '../../../packages/contracts/src/index.ts';
 import { DEFAULT_LADDER, ERROR_CODES, LEVEL_LADDERS } from '../../../packages/contracts/src/index.ts';
 import type { Loaded } from './load.ts';
