@@ -3,7 +3,8 @@
 // The host registers its half once at boot with setMsHost (application token from the Vault app registration, member emails, blobs): see projections.ts.
 import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
-import { codecs, consumers, inline } from "./projections.ts";
+import type { SeamSetters } from "../../host/src/seams/index.ts";
+import { codecs, consumers, inline, setMsHost } from "./projections.ts";
 
 export { setMsHost } from "./projections.ts";
 export type { MsHost } from "./projections.ts";
@@ -61,3 +62,6 @@ export const handlers: Record<string, Handler> = {
 
 export const projections = { inline, consumers };
 export { codecs, inline, consumers };
+
+/** Where the host registers its Microsoft seam at boot (ruling 31): the loader reads this export. */
+export const hostSeams: SeamSetters = { setMsHost };

@@ -8,7 +8,11 @@ import type { ProjectionHost } from "../../kernel/src/store/projection.ts";
 import type { Store } from "../../kernel/src/store/types.ts";
 import { LABEL_RANKS, ScopeCache, loadCatalog } from "../../sync/src/server/pull/index.ts";
 import type { Catalog, PullDeps } from "../../sync/src/server/pull/index.ts";
-import { createPullHandlers } from "./handlers/index.ts";
+import { VyreErr } from "../../packages/contracts/src/errors.ts";
+import type { Ctx } from "../../packages/contracts/src/ctx.ts";
+import type { PushDeps } from "../../sync/src/server/push/index.ts";
+import type { DeviceClass, PullReq, PushReq } from "../../sync/src/protocol.ts";
+import { createPullHandlers, createPushHandlers, toPullCtx } from "./handlers/index.ts";
 import type { PullHandlers } from "./handlers/index.ts";
 import { syncChanges } from "./projections.ts";
 
@@ -61,3 +65,30 @@ export function openSync(o: SyncOpts): SyncHandle {
     setEpoch(person, epoch) { host.tx.run("INSERT INTO sync_epoch (person, epoch) VALUES (?, ?) ON CONFLICT(person) DO UPDATE SET epoch = excluded.epoch", person, epoch); },
   };
 }
+
+// ---- loader entry (P-H_02). The loader reads `handlers` once the manifest is live: capability name to handler, each taking the host Ctx as the device session.
+type SessionCtx = Pick<Ctx, "trace" | "principal"> & { device?: string };
+
+let shared: SyncHandle | null = null;
+let pushDeps: PushDeps | null = null;
+/** The host gives the module the server's own sync handle (its access snapshot and record store); null puts the default back. */
+export function useSync(h: SyncHandle | null): void { shared = h; }
+/** The host gives sync.push what only it can supply: invoke as the person, the epoch, the field clocks, history, conflicts, idempotency. */
+export function setPushDeps(d: PushDeps | null): void { pushDeps = d; }
+
+function live(): SyncHandle {
+  if (!shared) shared = openSync({ access: () => { throw new Error("sync has no access snapshot: the host calls useSync first"); } });
+  return shared;
+}
+
+export const handlers = {
+  "sync.pull": (ctx: SessionCtx, input: PullReq) => live().handlers["sync.pull"](toPullCtx(ctx), input),
+  "sync.snapshot.begin": (ctx: SessionCtx, input: { entities?: string[]; deviceClass: DeviceClass }) => live().handlers["sync.snapshot.begin"](toPullCtx(ctx, input.deviceClass), input),
+  "sync.snapshot.page": (ctx: SessionCtx, input: { entity: string; after?: string; asOf: number }) => live().handlers["sync.snapshot.page"](toPullCtx(ctx), input),
+  "sync.push": (ctx: SessionCtx, input: PushReq) => {
+    if (!pushDeps) {
+      throw new VyreErr({ code: "internal.unavailable", message: "This server is not taking pushes yet.", retryable: true, traceId: ctx.trace.traceId, next: [{ kind: "retry", label: "Try again in a moment" }] });
+    }
+    return createPushHandlers(pushDeps)["sync.push"](toPullCtx(ctx), input);
+  },
+};

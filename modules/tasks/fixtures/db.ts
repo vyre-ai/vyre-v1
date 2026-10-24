@@ -2,7 +2,7 @@
 // inputs, outputs and event payloads against the generated validators, and that a capability emits only events it declares.
 import { readFileSync } from "node:fs";
 import { scopedDb } from "../../../host/src/ctx/db.ts";
-import { mintId } from "../../../lib/ids.ts";
+import { mintUuid } from "../../../lib/ids.ts";
 import { registry } from "../../../generated/registry.ts";
 import { validateEvent, validateInput, validateOutput } from "../../../generated/validators.ts";
 import { handlers } from "../impl.ts";
@@ -59,7 +59,7 @@ export function harness(o: HarnessOptions = {}) {
         if (!allowed.has(name)) throw new Error(`${cap} emitted ${name}, which it does not declare`);
         const bad = validateEvent(name, payload);
         if (bad.length) throw new Error(`${name} payload is invalid: ${bad.join("; ")}`);
-        const ev: Ev = { name, subject, payload: payload as Record<string, unknown>, opts: opts as Record<string, unknown> | undefined, id: mintId("evt", clock) };
+        const ev: Ev = { name, subject, payload: payload as Record<string, unknown>, opts: opts as Record<string, unknown> | undefined, id: `evt_${mintUuid(clock).replaceAll("-", "")}` };
         events.push(ev);
         return { id: ev.id };
       },
