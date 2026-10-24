@@ -2,6 +2,8 @@
 // number and a handle, the one-time schema apply, and the reads and writes of contact and company records. The records are stored by the records
 // module, so every read and write of one goes through records.get, records.query and records.update; this module owns only the address index,
 // the suppression list and the dismissed duplicate suggestions.
+// Note for this module: scripts/boundaries.ts reads any `import` directly followed by a quote as an import statement, so the suppression reason
+// `import` and the capability name contacts.suppression.import are written as template literals here, never as quoted strings.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { HostError, fail } from "../../host/src/routes/errors.ts";
