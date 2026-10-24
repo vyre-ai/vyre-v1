@@ -342,3 +342,4 @@ test("ordinary human sends skip the Gate; the acts that always ask do not", asyn
   assert.equal((await rule(bot, "send")).hold, true);
   assert.equal((await rule(alice, "send")).hold, false, "but never a person's own send");
 });
+// ok
