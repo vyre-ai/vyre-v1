@@ -115,5 +115,4 @@ test("a stale expectedFrom is refused and changes nothing", async () => {
   const ok = await h.call("tasks.transition", { taskId: made.task.id, to: "doing", expectedFrom: "todo" }, { id: alice.id });
   assert.equal(ok.task.state, "doing");
 });
-
 // P-H_02 final run: this file shows its own ok line in the run on the last commit.

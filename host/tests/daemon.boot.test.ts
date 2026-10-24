@@ -395,5 +395,4 @@ test("daemon.boot: a plain boot wires Google, Microsoft and IMAP from the hostSe
 });
 
 // P-H_02 final run: each named test shows its own ok line in the run on the last commit.
-
 // P-H_02 final run: this file shows its own ok line in the run on the last commit.
