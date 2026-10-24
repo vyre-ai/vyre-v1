@@ -1,0 +1,365 @@
+{
+  "note": "Frozen at F4. status flips to live in the module's own manifest; owner must equal manifest.owner (checked by tools/gen/test/scaffold.test.ts).",
+  "modules": [
+    {
+      "id": "access",
+      "owner": "L7a",
+      "status": "stub"
+    },
+    {
+      "id": "agents",
+      "owner": "L2",
+      "status": "stub"
+    },
+    {
+      "id": "audit",
+      "owner": "L7a",
+      "status": "stub"
+    },
+    {
+      "id": "automations",
+      "owner": "L6",
+      "status": "stub"
+    },
+    {
+      "id": "backup",
+      "owner": "L7b",
+      "status": "stub"
+    },
+    {
+      "id": "calendar",
+      "owner": "L5",
+      "status": "stub"
+    },
+    {
+      "id": "campaigns",
+      "owner": "L8",
+      "status": "stub"
+    },
+    {
+      "id": "chat",
+      "owner": "L2",
+      "status": "stub"
+    },
+    {
+      "id": "computers",
+      "owner": "L2",
+      "status": "stub"
+    },
+    {
+      "id": "conflicts",
+      "owner": "L1",
+      "status": "stub"
+    },
+    {
+      "id": "connectors",
+      "owner": "L3",
+      "status": "stub"
+    },
+    {
+      "id": "console-assistant",
+      "owner": "L7b",
+      "status": "stub"
+    },
+    {
+      "id": "console-views",
+      "owner": "L7b",
+      "status": "stub"
+    },
+    {
+      "id": "contacts-link",
+      "owner": "L5",
+      "status": "stub"
+    },
+    {
+      "id": "devices",
+      "owner": "L7a",
+      "status": "stub"
+    },
+    {
+      "id": "documents",
+      "owner": "L4",
+      "status": "stub"
+    },
+    {
+      "id": "email-builder-api",
+      "owner": "L8",
+      "status": "stub"
+    },
+    {
+      "id": "engine",
+      "owner": "L2",
+      "status": "stub"
+    },
+    {
+      "id": "esign",
+      "owner": "L8",
+      "status": "stub"
+    },
+    {
+      "id": "events",
+      "owner": "L6",
+      "status": "stub"
+    },
+    {
+      "id": "files",
+      "owner": "L4",
+      "status": "stub"
+    },
+    {
+      "id": "forms",
+      "owner": "L8",
+      "status": "stub"
+    },
+    {
+      "id": "gate",
+      "owner": "L6",
+      "status": "stub"
+    },
+    {
+      "id": "git",
+      "owner": "L4",
+      "status": "stub"
+    },
+    {
+      "id": "github",
+      "owner": "L5",
+      "status": "stub"
+    },
+    {
+      "id": "google",
+      "owner": "L5",
+      "status": "stub"
+    },
+    {
+      "id": "governance",
+      "owner": "L7a",
+      "status": "stub"
+    },
+    {
+      "id": "health",
+      "owner": "L7b",
+      "status": "stub"
+    },
+    {
+      "id": "home",
+      "owner": "L6",
+      "status": "stub"
+    },
+    {
+      "id": "identity",
+      "owner": "L7a",
+      "status": "stub"
+    },
+    {
+      "id": "import",
+      "owner": "L3",
+      "status": "stub"
+    },
+    {
+      "id": "inbox",
+      "owner": "L5",
+      "status": "stub"
+    },
+    {
+      "id": "journeys",
+      "owner": "L6",
+      "status": "stub"
+    },
+    {
+      "id": "kits",
+      "owner": "L8",
+      "status": "stub"
+    },
+    {
+      "id": "logs",
+      "owner": "L7b",
+      "status": "stub"
+    },
+    {
+      "id": "mail",
+      "owner": "L5",
+      "status": "stub"
+    },
+    {
+      "id": "mailgun",
+      "owner": "L5",
+      "status": "stub"
+    },
+    {
+      "id": "mcp",
+      "owner": "L2",
+      "status": "stub"
+    },
+    {
+      "id": "meetings",
+      "owner": "L5",
+      "status": "stub"
+    },
+    {
+      "id": "members",
+      "owner": "L7a",
+      "status": "stub"
+    },
+    {
+      "id": "memory",
+      "owner": "L2",
+      "status": "stub"
+    },
+    {
+      "id": "microsoft",
+      "owner": "L5",
+      "status": "stub"
+    },
+    {
+      "id": "mounts",
+      "owner": "L4",
+      "status": "stub"
+    },
+    {
+      "id": "network",
+      "owner": "L7b",
+      "status": "stub"
+    },
+    {
+      "id": "notifications",
+      "owner": "L6",
+      "status": "stub"
+    },
+    {
+      "id": "portal",
+      "owner": "L8",
+      "status": "stub"
+    },
+    {
+      "id": "previews",
+      "owner": "L4",
+      "status": "stub"
+    },
+    {
+      "id": "projects",
+      "owner": "L3",
+      "status": "stub"
+    },
+    {
+      "id": "records",
+      "owner": "L3",
+      "status": "stub"
+    },
+    {
+      "id": "reports-client",
+      "owner": "L7b",
+      "status": "stub"
+    },
+    {
+      "id": "resend",
+      "owner": "L5",
+      "status": "stub"
+    },
+    {
+      "id": "runbooks",
+      "owner": "L4",
+      "status": "stub"
+    },
+    {
+      "id": "runs",
+      "owner": "L6",
+      "status": "stub"
+    },
+    {
+      "id": "scheduler-api",
+      "owner": "L6",
+      "status": "stub"
+    },
+    {
+      "id": "schema",
+      "owner": "L3",
+      "status": "stub"
+    },
+    {
+      "id": "search",
+      "owner": "L1",
+      "status": "stub"
+    },
+    {
+      "id": "settings",
+      "owner": "L7a",
+      "status": "stub"
+    },
+    {
+      "id": "sites",
+      "owner": "L8",
+      "status": "stub"
+    },
+    {
+      "id": "sources",
+      "owner": "L3",
+      "status": "stub"
+    },
+    {
+      "id": "spaces",
+      "owner": "L7a",
+      "status": "stub"
+    },
+    {
+      "id": "steps-core",
+      "owner": "L6",
+      "status": "stub"
+    },
+    {
+      "id": "stripe",
+      "owner": "L5",
+      "status": "stub"
+    },
+    {
+      "id": "sync",
+      "owner": "L1",
+      "status": "stub"
+    },
+    {
+      "id": "tasks",
+      "owner": "L6",
+      "status": "stub"
+    },
+    {
+      "id": "telephony",
+      "owner": "L5",
+      "status": "stub"
+    },
+    {
+      "id": "templates",
+      "owner": "L8",
+      "status": "stub"
+    },
+    {
+      "id": "terminal",
+      "owner": "L2",
+      "status": "stub"
+    },
+    {
+      "id": "twilio",
+      "owner": "L5",
+      "status": "stub"
+    },
+    {
+      "id": "updates",
+      "owner": "L7b",
+      "status": "stub"
+    },
+    {
+      "id": "vault",
+      "owner": "L7a",
+      "status": "stub"
+    },
+    {
+      "id": "vault-requests",
+      "owner": "L7a",
+      "status": "stub"
+    },
+    {
+      "id": "zoom",
+      "owner": "L5",
+      "status": "stub"
+    }
+  ]
+}

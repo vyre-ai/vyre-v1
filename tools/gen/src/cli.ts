@@ -5,6 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { buildRegistry } from './build.ts';
 import { emitAll, summary } from './emit.ts';
 import { loadManifests } from './load.ts';
+import { diffRegistries } from './diff.ts';
+import { dedupeRegistry } from './dedupe.ts';
+import type { Registry } from '../../../packages/contracts/src/index.ts';
 import { validateAll } from './validate.ts';
 import type { LaneTable } from './validate.ts';
 
@@ -12,6 +15,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../../..');
 const args = process.argv.slice(2);
 const check = args.includes('--check');
+const diffIdx = args.indexOf('--diff-against');
 const outIdx = args.indexOf('--out');
 const outDir = outIdx >= 0 ? resolve(String(args[outIdx + 1])) : join(root, 'generated');
 
@@ -26,6 +30,22 @@ function walk(dir: string, base = dir): string[] {
   return res;
 }
 
+if (args[0] === 'new' && args[1] === 'module') {
+  // vyre-gen new module <name> --lane <Lx>: writes manifests/<name>.ts and registers the module in host/modules.json and tools/gen/lanes.json
+  const { scaffoldModule } = await import('./scaffold.ts');
+  const name = String(args[2]);
+  const lane = String(args[args.indexOf('--lane') + 1]);
+  const { manifestSource, registryRow } = scaffoldModule(name, lane);
+  writeFileSync(join(root, 'manifests', `${name}.ts`), manifestSource);
+  const hostPath = join(root, 'host', 'modules.json');
+  const host = JSON.parse(readFileSync(hostPath, 'utf8')) as { modules: Array<{ id: string }> };
+  host.modules.push(registryRow);
+  host.modules.sort((a, b) => (a.id < b.id ? -1 : 1));
+  writeFileSync(hostPath, JSON.stringify(host, null, 2) + '\n');
+  console.log(`scaffolded manifests/${name}.ts; add it to manifests/index.ts and tools/gen/lanes.json (frozen list)`);
+  process.exit(0);
+}
+
 const lanes = JSON.parse(readFileSync(join(here, '..', 'lanes.json'), 'utf8')) as LaneTable;
 const loaded = await loadManifests(root);
 const problems = validateAll(loaded, lanes);
@@ -36,6 +56,16 @@ if (problems.length) {
   process.exit(1);
 }
 const registry = buildRegistry(loaded);
+if (diffIdx >= 0) {
+  // vyre-gen diff --against <registry.json>: a breaking change without a version bump fails (use `git show release/<tag>:generated/registry.json > old.json`)
+  const old = JSON.parse(readFileSync(resolve(String(args[diffIdx + 1])), 'utf8')) as Registry;
+  const d = diffRegistries(old, dedupeRegistry(registry));
+  for (const a of d.additive) console.log('additive  ' + a);
+  for (const b of d.breaking) console.error('BREAKING  ' + b);
+  if (d.breaking.length) { console.error(`${d.breaking.length} breaking change(s) without a version bump`); process.exit(1); }
+  console.log(`no breaking changes (${d.additive.length} additive)`);
+  process.exit(0);
+}
 const files = emitAll(registry);
 if (args.includes('--summary')) console.log(summary(registry));
 
