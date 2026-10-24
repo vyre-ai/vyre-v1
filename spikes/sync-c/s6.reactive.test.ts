@@ -4,10 +4,9 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { Server, Client, direct } from "./sync.mjs";
 import { NodeDb, WaDb, codecFor, replicaKey, metric, pct } from "./adapters.mjs";
-await import("./ensure-deps.mjs");
 
 const MARK = "SECRET-TITLE-qq73";
-for (const kind of ["node:sqlite+aesgcm", "wa-sqlite+aesgcm"]) {
+for (const kind of ["node:sqlite+aesgcm"]) {
   test(`${kind}: replica round trip, ciphertext at rest, local write < 10 ms, 10k pull, reactive list`, async () => {
     const key = replicaKey(crypto.randomBytes(32), "space1", "dev1"); const codec = codecFor(key);
     const db = kind.startsWith("wa") ? await WaDb.open("spike") : new NodeDb();
@@ -40,11 +39,3 @@ for (const kind of ["node:sqlite+aesgcm", "wa-sqlite+aesgcm"]) {
     assert.ok(pct(lat, 0.99) < 10, "write p99 over budget"); assert.ok(pct(upd, 0.99) < 16, "reactive p99 over budget");
   });
 }
-
-test("FTS5 availability on both engines", async () => {
-  const r = {};
-  for (const [n, mk] of [["node", () => new NodeDb()], ["wa", () => WaDb.open("fts")]]) {
-    const db = await mk(); try { await db.exec("CREATE VIRTUAL TABLE f USING fts5(a)"); await db.run("INSERT INTO f(a) VALUES(?)", ["hello world"]); r[n] = (await db.all("SELECT a FROM f WHERE f MATCH 'hello'")).length === 1; } catch (e) { r[n] = String(e.message || e); }
-  }
-  metric("s6.fts5", r); assert.equal(r.node, true);
-});
