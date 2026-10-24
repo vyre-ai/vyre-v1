@@ -9,8 +9,8 @@ import { isSealedRef } from "../../kernel/src/store/values.ts";
 import { StoreError } from "../../kernel/src/store/types.ts";
 import type { FieldDef, Store, StoredRecord, TypeDef } from "../../kernel/src/store/types.ts";
 import type { ProjectionHost } from "../../kernel/src/store/projection.ts";
-import { createRecordsHandlers, RecordsError } from "./handlers/index.ts";
-import type { WriteHandlers } from "./handlers/index.ts";
+import { createQueryHandlers, createRecordsHandlers, mapError, RecordsError, toRow } from "./handlers/index.ts";
+import type { QueryHandlers, RecordRow, WriteCtx, WriteHandlers } from "./handlers/index.ts";
 import { fieldMetaTable, historyText, recordsFieldMeta } from "./projections.ts";
 
 export interface FieldWrite {
@@ -40,10 +40,18 @@ export interface MergeLoss {
   reason: "lww_loser" | "conflict";
 }
 
+/** records.get and records.history, over the store and the field-history table this file owns. */
+export interface ReadHandlers {
+  "records.get"(ctx: Pick<WriteCtx, "trace">, input: { type: string; recordId: string }): Promise<{ record: RecordRow }>;
+  "records.history"(ctx: Pick<WriteCtx, "trace">, input: { type: string; recordId: string; field?: string }): Promise<{ entries: { field: string; value: unknown; hlc: string; actor: string; reason?: string }[] }>;
+}
+
+export type RecordsHandlers = WriteHandlers & QueryHandlers & ReadHandlers;
+
 export interface RecordsHandle {
   host: ProjectionHost;
   store: Store;
-  handlers: WriteHandlers;
+  handlers: RecordsHandlers;
   clocks(type: string, id: string): FieldClock[];
   history(type: string, id: string): HistoryRow[];
   mergeFields(type: string, id: string, fields: Record<string, FieldWrite>, actor: string): Promise<{ record: StoredRecord; applied: string[]; lost: MergeLoss[] }>;
@@ -232,7 +240,26 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
     return { record, applied, lost };
   }
 
-  const handlers = createRecordsHandlers({ store, meta: metaOf });
+  const writes = createRecordsHandlers({ store, meta: metaOf });
+  const queries = createQueryHandlers({ tx: host.tx, now: o.clock ?? Date.now });
+  const reads: ReadHandlers = {
+    async "records.get"(ctx, input) {
+      try {
+        const rec = await store.get(input.type, input.recordId);
+        if (!rec) throw new StoreError("not_found", `no ${input.type} ${input.recordId}`);
+        return { record: toRow(rec, metaOf(rec.type, rec.id)) };
+      } catch (e) { return mapError(ctx as WriteCtx, e); }
+    },
+    async "records.history"(ctx, input) {
+      try {
+        const entries = history(input.type, input.recordId)
+          .filter((r) => input.field === undefined || r.field === input.field)
+          .map((r) => ({ field: r.field, value: r.value, hlc: r.hlc, actor: r.actor, reason: r.reason }));
+        return { entries };
+      } catch (e) { return mapError(ctx as WriteCtx, e); }
+    },
+  };
+  const handlers: RecordsHandlers = { ...writes, ...queries, ...reads };
   return { host, store, handlers, clocks, history, mergeFields };
 }
 
@@ -242,12 +269,17 @@ function live(): RecordsHandle {
   return shared;
 }
 
-/** Loader entry. The module stays stub until a later packet, which is when the host reads this. */
-export const handlers: WriteHandlers = {
+/** Loader entry. The module stays stub until its manifest flips to live, which is when the host reads this. */
+export const handlers: RecordsHandlers = {
   "records.create": (ctx, input) => live().handlers["records.create"](ctx, input),
   "records.update": (ctx, input) => live().handlers["records.update"](ctx, input),
   "records.delete": (ctx, input) => live().handlers["records.delete"](ctx, input),
   "records.restore": (ctx, input) => live().handlers["records.restore"](ctx, input),
+  "records.query": (ctx, input) => live().handlers["records.query"](ctx, input),
+  "records.search": (ctx, input) => live().handlers["records.search"](ctx, input),
+  "records.counts": (ctx, input) => live().handlers["records.counts"](ctx, input),
+  "records.get": (ctx, input) => live().handlers["records.get"](ctx, input),
+  "records.history": (ctx, input) => live().handlers["records.history"](ctx, input),
 };
 
 export { RecordsError } from "./handlers/index.ts";
