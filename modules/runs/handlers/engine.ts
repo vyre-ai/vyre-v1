@@ -315,9 +315,16 @@ function matches(w: WaitRow, ev: { type: string; payload: unknown }): boolean {
   return true;
 }
 
+/** The Run is parked by a step of its plan (drive wrote that step as waiting), not by runs.mark_waiting. */
+function inStepWait(ctx: RunsCtx, run: Run): boolean {
+  const rows = allSteps(ctx.db, run.id);
+  return rows.length > 0 && rows[rows.length - 1]!.state === "waiting";
+}
+
 async function endWait(ctx: RunsCtx, run: Run, summary: string, timedOut: boolean): Promise<void> {
   if (run.kind === "wait") { await finishRun(ctx, run, "succeeded", { summary }); return; }
-  if (timedOut) { await finishRun(ctx, run, "failed", { summary, error: { code: "run.wait_timeout", message: summary } }); return; }
+  // a Wait step that times out is resumed; the step reads the clock and ends with resumedBy timeout, so the Run goes on
+  if (timedOut && !inStepWait(ctx, run)) { await finishRun(ctx, run, "failed", { summary, error: { code: "run.wait_timeout", message: summary } }); return; }
   resumeRun(ctx, run);
 }
 
@@ -380,7 +387,21 @@ export interface StepResult {
   /** the step to run next; null ends the Run; absent means the next step of the plan */
   next?: string | null;
   /** park the Run: the step continues when the Run is resumed */
-  wait?: { reason: WaitReason; taskId?: string; on?: string };
+  wait?: StepWait;
+}
+/** What a step asks the engine to park the Run on. `on` is the label; the rest is registered on the wait row so the event and clock consumers can end it. */
+export interface StepWait {
+  reason: WaitReason;
+  taskId?: string;
+  on?: string;
+  /** wake at this time */
+  at?: number;
+  /** wake on this event */
+  event?: { event: string; filter?: unknown };
+  /** give up at this time: the step is called again and ends with resumedBy timeout (the Run does not fail) */
+  timeoutAt?: number;
+  /** events that cancel the wait and stop the Run */
+  cancelOn?: string[];
 }
 export interface StepCall {
   attempt: number;
@@ -392,6 +413,8 @@ export interface StepCall {
   sandbox: boolean;
   /** the step is continuing after a wait or a crash */
   resumed: boolean;
+  /** when this step first started; kept across waits and crashes so a Wait can tell a time that came from a timeout */
+  startedAt: number;
 }
 export type Executor = (step: PlanStep, call: StepCall) => Promise<StepResult>;
 export interface DriveOptions {
@@ -487,9 +510,10 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
       } else { attempt = last.attempt; resumed = true; }
     }
     const key = idemKeyFor(runId, cur, attempt);
+    const startedAt = last?.startedAt !== undefined && resumed ? last.startedAt : ctx.now();
     const inputJson = JSON.stringify(step.input ?? null);
     saveStep(ctx.db, {
-      runId, step: cur, attempt, state: "running", inputRef: `in:${key}`, inputJson, idemKey: key, startedAt: last?.startedAt !== undefined && resumed ? last.startedAt : ctx.now(),
+      runId, step: cur, attempt, state: "running", inputRef: `in:${key}`, inputJson, idemKey: key, startedAt,
       traceSpan: resumed && last?.traceSpan ? last.traceSpan : newSpanId(),
       ...(step.branch !== undefined ? { branch: step.branch } : {}), ...(last ? { ord: last.ord } : {}),
     });
@@ -500,7 +524,7 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
     try {
       const stubbed = sandbox && (step.effects === "outward" || (replaying && step.effects === "write"));
       if (stubbed) result = { output: step.id in recorded ? recorded[step.id] : step.sample };
-      else result = await exec(step, { attempt, key, input: step.input, outputs: { ...outputs }, sandbox, resumed });
+      else result = await exec(step, { attempt, key, input: step.input, outputs: { ...outputs }, sandbox, resumed, startedAt });
     } catch (e) {
       const c = caught(e);
       const policy = step.retry ?? NO_RETRY;
@@ -529,7 +553,7 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
     run = findRun(ctx.db, runId)!;
     if (result.wait) {
       saveStep(ctx.db, { ...rowOf(ctx.db, runId, cur, attempt), state: "waiting" });
-      if (isActive(run.status) && run.status !== "waiting") await markWaiting(ctx, run, { reason: result.wait.reason, taskId: result.wait.taskId, on: result.wait.on });
+      if (isActive(run.status) && run.status !== "waiting") await markWaiting(ctx, run, { reason: result.wait.reason, taskId: result.wait.taskId, on: result.wait.on, wait: waitExtras(result.wait) });
       return { status: "waiting" };
     }
     const outputJson = result.output === undefined ? undefined : JSON.stringify(result.output);
@@ -548,6 +572,13 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
   return { status: "succeeded" };
 }
 
+/** The parts of a step's wait that the consumers read: what to wake on (`on`), when to give up (`untilAt`) and what cancels it. */
+function waitExtras(w: StepWait): Partial<WaitRow> {
+  const on = clean({ event: w.event?.event, filter: w.event?.filter, at: w.at });
+  return clean({
+    ...(Object.keys(on).length ? { on } : {}), untilAt: w.timeoutAt, cancelOn: w.cancelOn && w.cancelOn.length ? w.cancelOn : undefined,
+  }) as Partial<WaitRow>;
+}
 function rowOf(db: Db, runId: string, step: string, attempt: number): StepRow {
   const r = findStep(db, runId, step, attempt);
   if (!r) throw new Error(`step row ${runId}:${step}:${attempt} is missing`);
