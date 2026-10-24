@@ -341,7 +341,8 @@ test("Wait for a Journey stage parks on the stage event and ends with whether it
 function tasksWorld(h: ReturnType<typeof harness>) {
   const task = { id: "tsk_ap1", state: "awaiting_approval", expiresAt: undefined as number | undefined };
   const history: { type: string; by?: string; note?: string }[] = [];
-  h.callee("tasks.create", (i) => { task.expiresAt = i.expiresAt; return { task: { ...task } }; });
+  // like the real tasks.create, the same key finds the task it made: its deadline does not move
+  h.callee("tasks.create", (i) => { task.expiresAt ??= i.expiresAt; return { task: { ...task } }; });
   h.callee("tasks.get", () => ({ task: { ...task } }));
   h.callee("tasks.history", () => ({ entries: history }));
   h.callee("tasks.withdraw", () => ({ withdrawn: 1 }));
