@@ -43,7 +43,7 @@ export async function send(ctx: NotifCtx, input: SendIn): Promise<{ outcome: Out
   }
 
   let level = levelFor(ctx, def, person, input.data?.urgent === true);
-  const vars: Record<string, unknown> = { ...(input.data ?? {}), space: ctx.space, ...(input.title !== undefined ? { title: input.title } : {}) };
+  const vars: Record<string, unknown> = { space: ctx.space, ...(input.data ?? {}), ...(input.title !== undefined ? { title: input.title } : {}) };
   const title = render(def.title, vars) || def.title.replace(/\{\{\w+\}\}/g, "").trim() || def.key;
   const collapseKey = input.collapseKey ?? (input.subject ? `${def.key}:${input.subject.id}` : undefined);
   const agent = sources.find((s) => s.kind === "agent");
