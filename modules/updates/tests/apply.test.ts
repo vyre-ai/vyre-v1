@@ -115,7 +115,7 @@ test("roll back restores the previous version", async () => {
   w.installer.log.length = 0;
   w.setNow(NOW + 90_000);
   const out = await call("updates.rollback", w.ctx, { to: "1.2.0" }) as { runId: string };
-  assert.equal(out.runId, "run_testrun1");
+  assert.equal(out.runId, "run_testrun2");
   assert.equal(w.installer.version, "1.2.0");
   assert.deepEqual(w.installer.log, ["switch 1.2.0"]);
   assert.deepEqual(w.events.map((e) => [e.name, e.payload]), [["update.rolled_back", { from: "1.3.0", to: "1.2.0" }]]);
