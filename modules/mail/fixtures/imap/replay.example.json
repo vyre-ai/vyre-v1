@@ -1,0 +1,46 @@
+{
+  "login": true,
+  "noop": true,
+  "uidValidity": 7,
+  "messages": [
+    {
+      "uid": 10,
+      "providerId": "INBOX:7:10",
+      "rfcMessageId": "<idle-1@acme.test>",
+      "from": { "address": "pat@acme.test", "name": "Pat Lee" },
+      "to": [{ "address": "sam@vyre.test" }],
+      "subject": "First hello",
+      "text": "This was waiting when the mailbox was first read.",
+      "receivedAt": 1760000100000
+    },
+    {
+      "folder": "Sent",
+      "uid": 3,
+      "direction": "out",
+      "providerId": "Sent:7:3",
+      "rfcMessageId": "<sent-1@vyre.test>",
+      "from": { "address": "sam@vyre.test" },
+      "to": [{ "address": "pat@acme.test" }],
+      "subject": "Re: First hello",
+      "text": "Thanks Pat.",
+      "receivedAt": 1760000150000,
+      "headers": { "in-reply-to": "<idle-1@acme.test>" }
+    }
+  ],
+  "idle": [
+    {
+      "arrive": [
+        {
+          "uid": 11,
+          "providerId": "INBOX:7:11",
+          "rfcMessageId": "<idle-2@acme.test>",
+          "from": { "address": "kim@acme.test" },
+          "to": [{ "address": "sam@vyre.test" }],
+          "subject": "Second ping",
+          "text": "IDLE delivered this one.",
+          "receivedAt": 1760000200000
+        }
+      ]
+    }
+  ]
+}
