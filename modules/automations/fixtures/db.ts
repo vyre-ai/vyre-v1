@@ -14,7 +14,7 @@ import type { Caller } from "./seed.ts";
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 const migration = readFileSync(new URL("../migrations/0001_automations.sql", import.meta.url), "utf8");
 export const TRACE = "0123456789abcdef0123456789abcdef";
-const IDEM_KEYED = new Set(["automations.run", "automations.fire", "automations.groups.create"]);
+const IDEM_KEYED = new Set(["automations.create", "automations.make_personal_copy", "automations.run", "automations.fire", "automations.groups.create"]);
 
 export interface Ev { name: string; subject: string; payload: Record<string, unknown>; id: string }
 export interface CallLog { cap: string; input: any }   // eslint-disable-line @typescript-eslint/no-explicit-any
