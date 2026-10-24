@@ -204,22 +204,22 @@ export default defineManifest({
     }),
     write('files.save', 'Save a guidance file (VYRE.md, AGENT.md, agent.toml, routine prompts): snapshot first, lint, then commit as a version', {
       in: { fileId: id.file, text: t.str(), baseVersion: t.opt(t.int({ minimum: 1 })), reason: t.opt(t.str()), acceptWarnings: t.opt(t.bool()) },
-      out: { versionId: id.version, n: t.int(), lint: t.obj(lintOut), added: t.int(), removed: t.int() }, on: ['file', '/fileId'], perm: 'files.write',
-      emits: ['file.version_added', 'changeset.opened'], tool: 'files', errors: ['validation.version_conflict', 'validation.precondition_failed'],
+      out: { versionId: id.version, n: t.int(), lint: t.obj(lintOut), added: t.int(), removed: t.int(), changesetId: t.opt(id.changeset) }, on: ['file', '/fileId'], perm: 'files.write',
+      emits: ['file.version_added', 'changeset.opened', 'changeset.updated'], tool: 'files', errors: ['validation.version_conflict', 'validation.precondition_failed'],
     }),
     read('files.lint', 'Lint a guidance file: line counts against the limits, Inherits VYRE.md, Override lines, secret scan, agent.toml schema, routine prompt files, handoff names, repeated facts', {
       in: { fileId: id.file, text: t.opt(t.str()) }, out: lintOut, on: ['file', '/fileId'], tool: 'files', cli: 'vyre files lint',
     }),
-    write('files.rename', 'Rename a file', { in: { fileId: id.file, name: t.str() }, out: { file: fileRow }, on: ['file', '/fileId'], perm: 'files.write', emits: ['file.renamed'], tool: 'files', offline: 'queue', errors: ['validation.duplicate'] }),
+    write('files.rename', 'Rename a file', { in: { fileId: id.file, name: t.str() }, out: { file: fileRow, changesetId: t.opt(id.changeset) }, on: ['file', '/fileId'], perm: 'files.write', emits: ['file.renamed', 'changeset.opened', 'changeset.updated'], tool: 'files', offline: 'queue', errors: ['validation.duplicate'] }),
     write('files.move', 'Move a file to another folder (grants of the new folder apply, nothing is copied)', {
-      in: { fileId: id.file, toFolderId: id.folder, name: t.opt(t.str()) }, out: { file: fileRow }, on: ['file', '/fileId'], perm: 'files.write', emits: ['file.moved', 'file.renamed'], tool: 'files', offline: 'queue', errors: ['validation.duplicate'],
+      in: { fileId: id.file, toFolderId: id.folder, name: t.opt(t.str()) }, out: { file: fileRow, changesetId: t.opt(id.changeset) }, on: ['file', '/fileId'], perm: 'files.write', emits: ['file.moved', 'file.renamed', 'changeset.opened', 'changeset.updated'], tool: 'files', offline: 'queue', errors: ['validation.duplicate'],
     }),
     create('files.copy', 'Copy a file into a folder', {
       in: { fileId: id.file, toFolderId: id.folder, name: t.opt(t.str()) }, out: { file: fileRow }, make: ['folder', '/toFolderId'], perm: 'files.write', emits: ['file.created', 'file.version_added'], tool: 'files',
     }),
     write('files.delete', 'Move a file to Trash', {
-      in: { fileId: id.file }, out: { deleted: t.bool() }, on: ['file', '/fileId'], perm: 'files.delete', gate: { act: 'delete', when: "actor.kind != 'person'" },
-      emits: ['file.deleted'], tool: 'files', offline: 'queue', errors: ['permission.on_hold'],
+      in: { fileId: id.file }, out: { deleted: t.bool(), changesetId: t.opt(id.changeset) }, on: ['file', '/fileId'], perm: 'files.delete', gate: { act: 'delete', when: "actor.kind != 'person'" },
+      emits: ['file.deleted', 'changeset.opened', 'changeset.updated'], tool: 'files', offline: 'queue', errors: ['permission.on_hold'],
     }),
     write('files.restore', 'Bring a file back from Trash', {
       in: { fileId: id.file, toFolderId: t.opt(id.folder) }, out: { file: fileRow }, on: ['file', '/fileId'], perm: 'files.delete', emits: ['file.restored'], tool: 'files',
