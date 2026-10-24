@@ -10,7 +10,6 @@
 // The run is a Run of kind runbook: ctx.run is the run id when the host made one. The call returns when the run has ended; the run events (run_started, block_finished, run_finished)
 // stream while it goes, and requestStop(runId) makes it stop after the block in progress and interrupts that block.
 
-import { createHash } from "node:crypto";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
@@ -55,6 +54,16 @@ function optStr(ctx: Ctx, o: Record<string, unknown>, key: string): string | und
   return v;
 }
 
+/** Four hex digits that follow the code of a block (FNV-1a folded to 16 bits). An id, not a secret. */
+function codeHash(code: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < code.length; i++) {
+    h ^= code.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return (((h >>> 16) ^ h) & 0xffff).toString(16).padStart(4, "0");
+}
+
 export function mint(prefix: string): string {
   const bytes = globalThis.crypto.getRandomValues(new Uint8Array(9));
   let hex = "";
@@ -93,7 +102,7 @@ export function parseBlocks(text: string): { title?: string; blocks: Block[] } {
     const lang = fence.lang;
     if ((lang === "sh" || lang === "bash") && code.trim() !== "") {
       const index = blocks.length;
-      const hash = createHash("sha256").update(code).digest("hex").slice(0, 4);
+      const hash = codeHash(code);
       const block: Block = { blockId: `b${index}_${hash}`, index, lang, code, line: fence.line };
       const t = infoTitle(fence.rest) ?? fence.heading;
       if (t !== undefined) block.title = t;
