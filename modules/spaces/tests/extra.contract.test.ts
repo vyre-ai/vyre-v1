@@ -76,7 +76,9 @@ for (const cap of caps) {
 
   test(`${name}: every declared event is emitted by the handler that declares it`, async () => {
     const w = populated(cap.name);
-    await run(cap.name, w.ctx, cap.examples[0]!.input);
+    // the example asks for the relay the Space already uses, which changes nothing and so announces nothing; the event needs a real move
+    const input = cap.name === "spaces.switch_address" ? { mode: "own_domain", host: "team.example.com" } : cap.examples[0]!.input;
+    await run(cap.name, w.ctx, input);
     assert.deepEqual([...new Set(w.events.map((e) => e.name))].sort(), [...cap.emits].sort());
   });
 }
