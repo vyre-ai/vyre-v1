@@ -21,7 +21,7 @@ async function gateTask(h: Harness, over: Record<string, unknown> = {}): Promise
   await h.call("tasks.working_notes.set", { taskId: id, key: "payload_hash", value: "h_abc" }, svc);
   return id;
 }
-const state = async (h: Harness, id: string): Promise<string> => (await h.call("tasks.get", { taskId: id }, { id: owner.id })).task.state;
+const state = async (h: Harness, id: string): Promise<string> => findTask(h.db, id)!.state;
 const names = (h: Harness): string[] => h.events.map((e) => e.name);
 async function refused(p: Promise<unknown>, code: string, reason?: string): Promise<void> {
   await assert.rejects(p, (e) => { assert.equal(codeOf(e), code); if (reason) assert.equal(reasonOf(e), reason); return true; });
