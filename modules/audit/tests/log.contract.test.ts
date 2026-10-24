@@ -30,7 +30,7 @@ const run = (name: string, ctx: AuditCtx, input: unknown): Promise<unknown> => {
   return fn(ctx, input as never);
 };
 
-/** A Space with three audited acts (the first under the id the examples use), a signed checkpoint, and every host seam wired. */
+/** A Space with four audited acts (the first under the id the examples use), a signed checkpoint, and every host seam wired. */
 async function populated() {
   const h = harness(NOW - 10_000);
   const seams = {
@@ -45,7 +45,10 @@ async function populated() {
   h.advance(1000);
   appendRow(ctx, { actor: { kind: "agent", id: "agt_a1b2c3" }, action: "vault.revealed", class: "sensitive" });
   await handlers["audit.checkpoint"](ctx, {});
-  h.advance(7000);
+  // one row after the checkpoint, so the head is new and audit.checkpoint has something to sign
+  h.advance(1000);
+  appendRow(ctx, { actor: { kind: "person", id: "usr_a1b2c3" }, action: "policy.changed", class: "admin" });
+  h.advance(6000);
   h.events.length = 0;
   return { h, ctx };
 }

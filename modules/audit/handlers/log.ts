@@ -27,7 +27,7 @@ export async function list(ctx: AuditCtx, input: Filter & Page) {
 export async function get(ctx: AuditCtx, input: { auditId: string }) {
   const r = ctx.db.all(`SELECT * FROM audit_row WHERE id = ?`, input.auditId)[0] as RowRec | undefined;
   if (!r) raise(ctx, "validation.not_found", "no such audit row");
-  noteView(ctx, "audit.viewed", { type: "audit", id: r.id }, { seq: r.seq });
+  noteView(ctx, "audit.viewed", { type: "space", id: ctx.space }, { auditId: r.id, seq: r.seq });
   return { row: rowOut(r) };
 }
 
