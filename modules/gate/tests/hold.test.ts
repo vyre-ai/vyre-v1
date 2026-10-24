@@ -285,3 +285,4 @@ test("cara and bob are strangers to a hold they did not ask for or approve", asy
   const r = await park(h);
   for (const who of [bob, cara]) await refused(h.call("gate.holds.get", { holdId: r.holdId }, as(who)), "permission.not_found");
 });
+// ok
