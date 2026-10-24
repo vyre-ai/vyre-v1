@@ -128,10 +128,9 @@ test("probe: what this Documenso answers", { skip }, async () => {
   const inApp = (cmd: string): string => dc(["exec", "-T", "documenso", "sh", "-c", cmd], { allowFail: true, timeout: 120_000 });
   const lim = (t: string, n = 3500): string => t.slice(0, n);
   const T = "/app/apps/remix/build/server/hono/packages/trpc/server";
-  say("trpc dirs", lim(inApp(`ls ${T}; ls ${T}/field-router ${T}/recipient-router 2>&1`)));
-  say("client sign calls", lim(inApp(`grep -rhoE "(field|recipient|envelope|document)\\.[A-Za-z]*([Ss]ign|[Cc]omplete)[A-Za-z]*" /app/apps/remix/build/client/assets 2>/dev/null | sort -u | head -40`)));
-  say("sign schemas", lim(inApp(`for f in ${T}/field-router/*.types.js ${T}/recipient-router/*.types.js; do echo "== $f"; grep -E "Sign|Complete" -A14 "$f" | head -70; done 2>&1 | head -c 6000`), 6000));
-  say("trpc mount", lim(inApp(`grep -rhoE "(/api/trpc|trpc)[^\\"' ]{0,30}" /app/apps/remix/build/server/hono/*.js 2>/dev/null | sort -u | head`)));
+  say("schemas", lim(inApp(`grep -hE "ZSignFieldWithToken|ZCompleteDocumentWithToken|ZSignFieldRequest" -A14 ${T}/field-router/schema.js ${T}/recipient-router/schema.js | head -c 5000`), 5000));
+  say("router sign", lim(inApp(`grep -hE "signFieldWithToken|completeDocumentWithToken|sign:" -B2 -A10 ${T}/field-router/router.js ${T}/recipient-router/router.js | head -c 4500`), 4500));
+  say("transformer", lim(inApp(`grep -n "superjson\\|transformer" ${T}/trpc.js | head`)));
   const v1 = await (await fetch(`${state.base}/api/v1/openapi.json`)).json() as { paths: Record<string, Record<string, unknown>> };
   say("v1 paths", Object.entries(v1.paths).map(([p, m]) => `${Object.keys(m).join(",")} ${p}`).join("\n"));
   const v2 = await (await fetch(`${state.base}/api/v2/openapi.json`)).json() as { paths: Record<string, Record<string, unknown>> };
