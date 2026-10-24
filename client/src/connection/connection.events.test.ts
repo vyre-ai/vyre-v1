@@ -1,4 +1,4 @@
-// Events and heartbeat (ARCH 5.9): batches apply in order and are acked after they apply, a replay is not applied twice, a failed batch restarts from the cursor, silence fails over.
+// Events and heartbeat (ARCH 5.9): batches apply in order and are acked after they apply, a replay is not applied twice, a failed batch restarts from the cursor, silence fails over. Runs against the in-memory live hub.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { BACKOFF_BASE_MS, HEARTBEAT_DEAD_MS, HEARTBEAT_MS, createConnection, endpoint, manualScheduler } from "./index.ts";

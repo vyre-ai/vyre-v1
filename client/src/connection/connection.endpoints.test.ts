@@ -1,4 +1,4 @@
-// Endpoint choice (ARCH 5.9): rank, race the top two, stick to the winner, rest a failed endpoint, back off when none answer.
+// Endpoint choice (ARCH 5.9): rank, race the top two, stick to the winner, rest a failed endpoint, back off when none answer. Runs against the in-memory live hub.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { BACKOFF_BASE_MS, ENDPOINT_COOLDOWN_MS, HELLO_TIMEOUT_MS, createConnection, endpoint, manualScheduler, rank, usable } from "./index.ts";

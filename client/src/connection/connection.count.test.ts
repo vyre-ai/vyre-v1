@@ -1,4 +1,4 @@
-// Budget connection_count (ARCH 9): twenty screens open, the server sees exactly one socket per device.
+// Budget connection_count (ARCH 9): twenty screens open, the server sees exactly one socket per device. Runs against the in-memory live hub.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { IDLE_CLOSE_MS, connectionFor, createConnection, endpoint, forgetConnections, manualScheduler } from "./index.ts";
