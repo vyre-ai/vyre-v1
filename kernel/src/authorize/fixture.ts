@@ -74,14 +74,14 @@ export function buildWorld(seed: number, opts: { agentElevated?: boolean } = {})
   const byId = new Map(rows.map((x) => [x.id, x]));
   snap.rowSource = (id) => byId.get(id) as unknown as Record<string, unknown> | undefined;
 
-  const ng = r.int(9);
+  const ng = 2 + r.int(8);
   for (let i = 0; i < ng; i++) {
     const kind = r.pick(["actor", "role", "group"] as const);
     const subject_id = kind === "actor" ? r.pick([...PERSONS, AGENT, SVC]) : kind === "role" ? r.pick(["member", "guest", "none"]) : r.pick(["g1", "g2"]);
-    const where = r.int(4);
+    const w4 = r.int(10), where = w4 < 4 ? 0 : w4 < 6 ? 1 : w4 < 8 ? 2 : 3;
     const [resource_type, resource_id] = where === 0 ? ["deal", null] as const : where === 1 ? ["deal", `r${r.int(12)}`] as const : where === 2 ? ["folder", r.pick(["root", "f1", "f2"])] as const : ["record_type", "rt_deal"] as const;
     const c: Conditions = {};
-    if (r.chance(0.4)) c.rowFilter = expr(r, 2);
+    if (r.chance(0.55)) c.rowFilter = expr(r, 2);
     if (r.chance(0.15)) c.notBefore = r.pick([500, 1500]);
     if (r.chance(0.1)) c.notAfter = r.pick([500, 1500]);
     const g: GrantRow = { id: `gr${i}`, subject_kind: kind, subject_id, resource_type, resource_id, level: r.pick(LEVELS), conditions: c, expires_at: r.chance(0.15) ? r.pick([500, 1500]) : null };

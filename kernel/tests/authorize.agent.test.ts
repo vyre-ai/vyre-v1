@@ -26,16 +26,20 @@ test(`an agent never holds owner or admin, in ${CASES} worlds that try to give i
       assert.ok(d.reason === "role_lacks_permission" || d.reason === "suspended", `seed ${seed}: reason ${d.reason}`);
     }
     // never wider than the person it acts for
-    const person = r.pick(PERSONS), level = r.pick(LEVELS), row = r.pick(rows);
-    const req = { action: { perm: "records.read", level }, resource: { type: "deal", id: row.id }, row, now: NOW } as const;
-    const a = authorize(snap, { ...req, principal: AGENT, actingFor: person });
-    const p = authorize(snap, { ...req, principal: person });
-    if (a.effect === "allow") {
-      agentAllowed++;
-      assert.equal(p.effect, "allow", `seed ${seed}: agent allowed where ${person} is denied (${p.reason})`);
-      assert.ok(rankOf(a.scope!.level) <= rankOf(p.scope!.level), `seed ${seed}: agent level ${a.scope!.level} above person ${p.scope!.level}`);
-      assert.ok(a.scope!.labelCeiling <= p.scope!.labelCeiling, `seed ${seed}: agent label ceiling above person`);
+    const person = r.pick(PERSONS), level = r.pick(LEVELS);
+    for (const row of rows) {
+      const req = { action: { perm: "records.read", level }, resource: { type: "deal", id: row.id }, row, now: NOW } as const;
+      const a = authorize(snap, { ...req, principal: AGENT, actingFor: person });
+      const p = authorize(snap, { ...req, principal: person });
+      if (a.effect === "allow") {
+        agentAllowed++;
+        assert.equal(p.effect, "allow", `seed ${seed}: agent allowed where ${person} is denied (${p.reason})`);
+        assert.ok(rankOf(a.scope!.level) <= rankOf(p.scope!.level), `seed ${seed}: agent level ${a.scope!.level} above person ${p.scope!.level}`);
+        assert.ok(a.scope!.labelCeiling <= p.scope!.labelCeiling, `seed ${seed}: agent label ceiling above person`);
+      }
     }
+    const row = rows[0]!;
+    const req = { action: { perm: "records.read", level }, resource: { type: "deal", id: row.id }, row, now: NOW } as const;
     // no person, or a non-person, to act for: refused
     assert.equal(authorize(snap, { ...req, principal: AGENT }).reason, "agent_needs_actor");
     assert.equal(authorize(snap, { ...req, principal: AGENT, actingFor: AGENT }).reason, "agent_needs_actor");
@@ -49,7 +53,7 @@ test(`an agent never holds owner or admin, in ${CASES} worlds that try to give i
     }
   }
   assert.equal(elevatedTried, CASES);
-  assert.ok(agentAllowed >= 20, `agent allows exercised: ${agentAllowed}`);
+  assert.ok(agentAllowed >= 40, `agent allows exercised: ${agentAllowed}`);
   console.log(`agent rules: ${CASES} worlds with owner/admin forced onto the agent, ${agentAllowed} agent allows checked against the person`);
 });
 
