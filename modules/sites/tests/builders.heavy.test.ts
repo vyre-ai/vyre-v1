@@ -13,7 +13,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { BuildRequest } from "../handlers/deploy.ts";
-import { dockerRuntime, processExec } from "../handlers/builders.ts";
+import { dockerRuntime, dockerfilePort, exposedPort, processExec } from "../handlers/builders.ts";
 import type { FetchSource } from "../handlers/builders.ts";
 
 const BASES = ["node:24-alpine", "python:3.13-slim", "caddy:2-alpine"];
@@ -28,7 +28,7 @@ function docker(args: string[]): string | null {
 
 const haveDocker = docker(["info", "--format", "{{.ServerVersion}}"]) !== null;
 const missingBases = haveDocker ? BASES.filter((b) => docker(["image", "inspect", b]) === null) : BASES;
-const skip = !haveDocker ? "no Docker daemon on this host" : missingBases.length > 0 ? `base images not on this host: ${missingBases.join(", ")}` : false;
+const skip = process.env["VYRE_HEAVY_DOCKER"] !== "1" ? "needs VYRE_HEAVY_DOCKER=1 (the 20 s shard never builds images)" : !haveDocker ? "no Docker daemon on this host" : missingBases.length > 0 ? `base images not on this host: ${missingBases.join(", ")}` : false;
 
 const run = `${process.pid}${Math.random().toString(36).slice(2, 8)}`;
 const NETWORK = `vyre-sites-test-${run}`;
@@ -64,6 +64,10 @@ const SAMPLES: Record<string, { files: Record<string, string>; expect: RegExp; p
   node: { files: { "package.json": JSON.stringify({ name: "n", scripts: { start: "node server.js" } }), "server.js": NODE_SERVER }, expect: /node-sample 3000/, port: 3000 },
   static: { files: { "index.html": "<h1>static-sample</h1>" }, expect: /static-sample/, port: 3000 },
   python: { files: { "requirements.txt": "", "app.py": PY_SERVER }, expect: /python-sample 3000/, port: 3000 },
+  multistage: {
+    files: { Dockerfile: 'FROM caddy:2-alpine AS first\nEXPOSE 9999\nFROM caddy:2-alpine\nCOPY index.html /srv/index.html\nEXPOSE 8081/tcp\nCMD ["caddy","file-server","--root","/srv","--listen",":8081"]\n', "index.html": "<h1>multi-stage</h1>" },
+    expect: /multi-stage/, port: 8081,
+  },
   dockerfile: {
     files: { Dockerfile: 'FROM caddy:2-alpine\nCOPY index.html /srv/index.html\nEXPOSE 8080\nCMD ["caddy","file-server","--root","/srv","--listen",":8080"]\n', "index.html": "<h1>own-dockerfile</h1>" },
     expect: /own-dockerfile/, port: 8080,
@@ -108,7 +112,8 @@ async function get(ip: string, port: number, urlPath = "/"): Promise<string> {
 
 function ipOf(containerId: string): string {
   const out = docker(["inspect", "--format", `{{(index .NetworkSettings.Networks "${NETWORK}").IPAddress}}`, containerId]);
-  assert.ok(out && /^\d+\.\d+\.\d+\.\d+$/.test(out.trim()), `container has an address on ${NETWORK}`);
+  const why = (): string => `${docker(["inspect", "--format", "{{.Name}} {{.State.Status}} exit={{.State.ExitCode}}", containerId]) ?? "?"} ${(docker(["logs", "--tail", "15", containerId]) ?? "").slice(-600)}`;
+  assert.ok(out && /^\d+\.\d+\.\d+\.\d+$/.test(out.trim()), `container has an address on ${NETWORK}: ${why()}`);
   return out.trim();
 }
 
@@ -126,13 +131,27 @@ async function buildAndStart(k: string, dep: string, envRefs: { name: string; re
   return { built, started };
 }
 
+test("the port comes from the built Dockerfile, not from a base image's own EXPOSE lines", () => {
+  assert.equal(dockerfilePort("FROM caddy:2-alpine\nEXPOSE 3000\n"), 3000);
+  assert.equal(dockerfilePort("FROM a AS x\nEXPOSE 9999\nFROM caddy:2-alpine\nEXPOSE 8081/tcp 8082\n"), 8081, "the last stage decides");
+  assert.equal(dockerfilePort("FROM a\nEXPOSE 53/udp\n"), null);
+  assert.equal(dockerfilePort("FROM a\nEXPOSE $PORT\n"), null);
+  assert.equal(dockerfilePort("FROM a\nCMD x\n"), null);
+  assert.equal(exposedPort('{"ports":{"80/tcp":{},"443/tcp":{},"3000/tcp":{}},"label":"3000"}'), 3000, "the label beats the inherited 80");
+  assert.equal(exposedPort('{"ports":{"80/tcp":{},"443/tcp":{}},"label":""}'), 80, "no label: the lowest exposed port");
+  assert.equal(exposedPort('{"ports":null,"label":""}'), 3000);
+  assert.equal(exposedPort('{"8080/tcp":{},"80/tcp":{}}'), 80, "a plain ExposedPorts map still reads");
+});
+
 test("setup", { skip }, () => {
   for (const [k, s] of Object.entries(SAMPLES)) sampleDirs[siteId(k)] = repo(s.files);
 });
 
 test("@heavy node, static, python and own-Dockerfile samples build and serve over the vyre-sites-style network", { skip }, async (t) => {
   const kinds = Object.keys(SAMPLES);
-  const results = await Promise.all(kinds.map((k) => buildAndStart(k, "a")));
+  // One at a time: the legacy builder on a host without buildx fails to restore its cache image when several builds share a base image at once.
+  const results: Awaited<ReturnType<typeof buildAndStart>>[] = [];
+  for (const k of kinds) results.push(await buildAndStart(k, "a"));
   for (const [i, k] of kinds.entries()) {
     const sample = SAMPLES[k]!;
     const { built, started } = results[i]!;
@@ -147,8 +166,10 @@ test("@heavy node, static, python and own-Dockerfile samples build and serve ove
 test("@heavy a started container is hardened: capabilities dropped, no new privileges, memory and process caps, no published ports", { skip }, async () => {
   const id = containers[0];
   assert.ok(id, "a container from the previous test");
-  const info = JSON.parse(docker(["inspect", id]) ?? "[]")[0].HostConfig as { CapDrop: string[]; SecurityOpt: string[]; Memory: number; PidsLimit: number; PortBindings: Record<string, unknown>; Privileged: boolean };
+  const info = JSON.parse(docker(["inspect", id]) ?? "[]")[0].HostConfig as { CapDrop: string[]; CapAdd: string[] | null; SecurityOpt: string[]; Memory: number; PidsLimit: number; PortBindings: Record<string, unknown>; Privileged: boolean };
   assert.deepEqual(info.CapDrop, ["ALL"]);
+  // Caddy images carry a file capability for low ports; with every capability dropped such a binary cannot start (exit 255), so only that one comes back.
+  assert.deepEqual((info.CapAdd ?? []).map((c) => c.replace(/^CAP_/, "")), ["NET_BIND_SERVICE"]);
   assert.ok(info.SecurityOpt.includes("no-new-privileges"));
   assert.equal(info.Memory, 512 * 1024 * 1024);
   assert.equal(info.PidsLimit, 256);
