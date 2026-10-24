@@ -2,13 +2,14 @@
 // F11 acceptance (P-PR_33): 72 modules generate, requires point at existing manifests, every module has its contract test, committed output has no drift.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { all } from '../manifests/index.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const modules = all.filter((m) => m.kind === 'module' || m.kind === 'connector');
+const hostIds = new Set((JSON.parse(readFileSync(root + 'host/modules.json', 'utf8')) as { modules: Array<{ id: string }> }).modules.map((m) => m.id));
+const modules = all.filter((m) => hostIds.has(m.id));
 
 test('72 module manifests exist and every require names an existing manifest', () => {
   assert.equal(modules.length, 72);
