@@ -19,3 +19,10 @@ test('fails on an edit outside the lane or on a frozen path; passes inside', () 
   assert.ok(checkEdits('L1', ['kernel/log.ts'], table, mods).some((e) => e.includes('frozen')));
   assert.deepEqual(checkEdits('lead', ['kernel/log.ts'], table, mods), []);
 });
+
+test('a module registered to a lane is that lane\'s folder and manifest, even if lanes.json lists no prefix for it (a fresh scaffold)', () => {
+  const fresh: ModuleRow[] = [...mods, { id: 'widgets', owner: 'L1', status: 'stub' }];
+  assert.deepEqual(checkEdits('L1', ['modules/widgets/impl.ts', 'modules/widgets/tests/widgets.contract.test.ts', 'manifests/widgets.ts'], table, fresh), []);
+  assert.ok(checkEdits('L3', ['modules/widgets/impl.ts'], table, fresh).some((e) => e.includes('outside lane L3')));
+  assert.ok(checkEdits('L1', ['modules/widgets/impl.ts'], table, mods).some((e) => e.includes('outside lane L1')), 'unregistered, it is nobody\'s');
+});
