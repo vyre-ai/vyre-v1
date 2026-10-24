@@ -1,4 +1,4 @@
-// updates: channels, the signed manifest, check, status, compatibility, health (P-L7b_06; spec 3.10, b13): a bad signature is refused, apply backs up first.
+// updates: channels, the signed manifest, check, status, compatibility, health (P-L7b_06; spec 3.10, b13): a bad signature is refused, apply backs up first. Run in CI.
 // @reads ../migrations/0001_init.sql
 
 import test, { afterEach } from "node:test";
