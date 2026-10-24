@@ -6,8 +6,13 @@ try {
   const out = { crossOriginIsolated: self.crossOriginIsolated };
   const sqlite3 = await sqlite3InitModule();
   out.version = sqlite3.version.libVersion;
-  const pool = await sqlite3.installOpfsSAHPoolVfs({ name: "vyre-spike", clearOnInit: true });
-  out.vfs = "opfs-sahpool";
+  // The SAH-pool VFS refuses a key ("Encryption is not supported by the VFS"); record that, then use the async "opfs" VFS.
+  try {
+    const pool = await sqlite3.installOpfsSAHPoolVfs({ name: "vyre-spike", clearOnInit: true });
+    const d = new pool.OpfsSAHPoolDb("/probe.db"); try { d.exec("PRAGMA cipher='chacha20'; PRAGMA key='k'"); out.sahpool_key = "accepted"; } catch (e) { out.sahpool_key = String(e.message).slice(0, 120); } d.close();
+  } catch (e) { out.sahpool_key = "install failed: " + String(e.message).slice(0, 80); }
+  out.vfs = "opfs";
+  const pool = { OpfsSAHPoolDb: class extends sqlite3.oo1.OpfsDb { constructor(f) { super(f, "c"); } } };
   const N = 200000, KEY = "correct horse";
   let t = performance.now();
   let db = new pool.OpfsSAHPoolDb("/enc.db");
