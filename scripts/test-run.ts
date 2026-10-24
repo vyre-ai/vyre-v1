@@ -31,9 +31,11 @@ export function breakdown(out: string, top = 5): { name: string; ms: number }[] 
 
 /** Runs one test file in its own node process. Fails (overCap) if it runs past capMs, even when every test passed. */
 export function runFile(file: string, opts: { cwd?: string; capMs?: number } = {}): Promise<RunResult> {
+  // A runner started from inside `node --test` must not inherit its test context, or the child file runs as a subtest.
+  const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
   const capMs = opts.capMs ?? DEFAULT_CAP_MS, cwd = opts.cwd ?? process.cwd(), t0 = Date.now();
   return new Promise((resolve) => {
-    const p = spawn(process.execPath, ["--test", "--test-reporter=spec", `--test-timeout=${capMs}`, file], { cwd, stdio: ["ignore", "pipe", "pipe"] });
+    const p = spawn(process.execPath, ["--test", "--test-reporter=spec", `--test-timeout=${capMs}`, file], { cwd, stdio: ["ignore", "pipe", "pipe"], env });
     let out = "", overCap = false;
     p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (out += d));
     const dog = setTimeout(() => { overCap = true; p.kill("SIGKILL"); }, capMs);
