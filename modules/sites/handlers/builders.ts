@@ -412,7 +412,14 @@ export function dockerRuntime(o: DockerRuntimeOptions): SiteRuntime {
       }
       if (declared !== null) argv.push("--label", `vyre.port=${declared}`);
       argv.push(source.dir);
-      const built = await exec(argv, { timeoutMs: BUILD_TIMEOUT_MS });
+      let built = await exec(argv, { timeoutMs: BUILD_TIMEOUT_MS });
+      if (built.code !== 0 && /failed to restore cached image|failed to create cache image/i.test(`${built.stdout}\n${built.stderr}`)) {
+        // The classic builder (no buildx on the host) can fail to restore its --cache-from image. The local layer cache still applies, so build again without it.
+        log.push("The classic Docker builder could not restore the cache image; building again without --cache-from.");
+        const at = argv.indexOf("--cache-from");
+        const plain = at < 0 ? argv : [...argv.slice(0, at), ...argv.slice(at + 2)];
+        built = await exec(plain, { timeoutMs: BUILD_TIMEOUT_MS });
+      }
       log.push(...lines(built.stdout), ...lines(built.stderr));
       if (built.code !== 0) {
         log.push(built.code === 124 ? "The build ran out of time (10 minutes)." : "The build failed. The last lines above say why.");
@@ -444,7 +451,7 @@ export function dockerRuntime(o: DockerRuntimeOptions): SiteRuntime {
     const childEnv: Record<string, string> = {};
     const argv = [
       "docker", "run", "--detach", "--name", name, "--network", network, "--restart", "unless-stopped",
-      "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--memory", memory, "--pids-limit", String(pids),
+      "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE", "--security-opt", "no-new-privileges", "--memory", memory, "--pids-limit", String(pids),
       "--label", `vyre.site=${req.siteId}`, "--label", `vyre.deployment=${req.deploymentId}`, "--label", `vyre.env=${req.env}`,
       "--env", `PORT=${port}`, "--env", `VYRE_SITE_ID=${req.siteId}`, "--env", `VYRE_SERVICE_PRINCIPAL=${req.servicePrincipal}`,
     ];

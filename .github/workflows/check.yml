@@ -148,10 +148,23 @@ jobs:
         env:
           VYRE_HEAVY_DOCKER: "1"
         run: node --test --test-timeout=900000 --test-reporter=spec modules/sites/tests/builders.heavy.test.ts
+      - name: Standalone docker compose (the runner has no compose plugin), pinned and checksum-verified
+        id: compose
+        if: steps.scope.outputs.changed == 'true'
+        run: |
+          v=v2.40.3
+          case "$(uname -m)" in x86_64) a=x86_64 ;; aarch64) a=aarch64 ;; *) echo "unsupported arch"; exit 1 ;; esac
+          d="$RUNNER_TEMP/compose"; mkdir -p "$d"
+          curl -fsSL -o "$d/docker-compose" "https://github.com/docker/compose/releases/download/$v/docker-compose-linux-$a"
+          curl -fsSL -o "$d/sum" "https://github.com/docker/compose/releases/download/$v/docker-compose-linux-$a.sha256"
+          (cd "$d" && echo "$(cut -d' ' -f1 sum)  docker-compose" | sha256sum -c -)
+          chmod +x "$d/docker-compose"; "$d/docker-compose" version
+          echo "bin=$d/docker-compose" >> "$GITHUB_OUTPUT"
       - name: Documenso e-sign against the pinned container (modules/esign/tests/documenso.heavy.test.ts)
         if: always() && steps.scope.outputs.changed == 'true'
         env:
           VYRE_HEAVY_DOCKER: "1"
+          VYRE_COMPOSE_BIN: ${{ steps.compose.outputs.bin }}
         run: node --test --test-timeout=1500000 --test-reporter=spec modules/esign/tests/documenso.heavy.test.ts
       - name: Containers left behind
         if: always() && steps.scope.outputs.changed == 'true'

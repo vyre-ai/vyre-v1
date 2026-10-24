@@ -46,8 +46,11 @@ function freePort(): Promise<number> {
 
 const state: { port: number; sinkPort: number; base: string; compose: string[] } = { port: 0, sinkPort: 0, base: "", compose: [] };
 
+// The runner has no compose plugin: CI downloads the standalone binary and names it in VYRE_COMPOSE_BIN.
+const composeBin = process.env["VYRE_COMPOSE_BIN"];
+
 function dc(args: string[], o: { timeout?: number; input?: string; allowFail?: boolean } = {}): string {
-  return sh("docker", ["compose", ...state.compose, ...args], o);
+  return composeBin ? sh(composeBin, [...state.compose, ...args], o) : sh("docker", ["compose", ...state.compose, ...args], o);
 }
 
 const SINK = `const net = require("node:net");

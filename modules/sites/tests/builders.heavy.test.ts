@@ -166,8 +166,10 @@ test("@heavy node, static, python and own-Dockerfile samples build and serve ove
 test("@heavy a started container is hardened: capabilities dropped, no new privileges, memory and process caps, no published ports", { skip }, async () => {
   const id = containers[0];
   assert.ok(id, "a container from the previous test");
-  const info = JSON.parse(docker(["inspect", id]) ?? "[]")[0].HostConfig as { CapDrop: string[]; SecurityOpt: string[]; Memory: number; PidsLimit: number; PortBindings: Record<string, unknown>; Privileged: boolean };
+  const info = JSON.parse(docker(["inspect", id]) ?? "[]")[0].HostConfig as { CapDrop: string[]; CapAdd: string[] | null; SecurityOpt: string[]; Memory: number; PidsLimit: number; PortBindings: Record<string, unknown>; Privileged: boolean };
   assert.deepEqual(info.CapDrop, ["ALL"]);
+  // Caddy images carry a file capability for low ports; with every capability dropped such a binary cannot start (exit 255), so only that one comes back.
+  assert.deepEqual(info.CapAdd, ["NET_BIND_SERVICE"]);
   assert.ok(info.SecurityOpt.includes("no-new-privileges"));
   assert.equal(info.Memory, 512 * 1024 * 1024);
   assert.equal(info.PidsLimit, 256);
