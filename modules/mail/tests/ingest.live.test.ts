@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { createLiveImapFactory, handlers, projections, setImapSecretResolver, vaultSecret } from "../impl.ts";
 import type { FlowClient, FlowCtor, FlowFetched, LiveImapDeps, ParsedMail } from "../impl.ts";
 import { registry } from "../../../generated/registry.ts";
+import { extraHandlers } from "../handlers/extra/index.ts";
 import { codeOf, harness, IMAP, seedMailbox } from "../fixtures/harness.ts";
 
 interface Seen { options: Record<string, unknown>; locks: { path: string; readOnly: boolean | undefined; released: boolean }[]; ranges: string[]; listeners: Set<() => void>; loggedOut: boolean; closed: boolean }
@@ -154,7 +155,8 @@ test("logout closes the socket when the goodbye fails and is safe to repeat", as
 
 test("the handler map covers exactly the capabilities this module has built, each in the registry", () => {
   const names = Object.keys(handlers).sort();
-  assert.deepEqual(names, ["mail.connect", "mail.draft", "mail.drafts.discard", "mail.drafts.list", "mail.ingest", "mail.sync_now"]);
+  const core = ["mail.connect", "mail.draft", "mail.drafts.discard", "mail.drafts.list", "mail.ingest", "mail.sync_now"];
+  assert.deepEqual(names, [...core, ...Object.keys(extraHandlers)].sort());   // P-L5_01c adds the rest of the module's non-sending capabilities
   const known = new Set(registry.capabilities.filter((c) => c.module === "mail").map((c) => c.name));
   for (const n of names) assert.ok(known.has(n), `${n} is a mail capability`);
   assert.deepEqual(Object.keys(projections), ["inline", "consumers"]);

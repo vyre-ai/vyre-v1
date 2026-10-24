@@ -1,7 +1,7 @@
 // Test support for the P-L5_01c handlers (imported by tests/extra-*.test.ts only; the host never loads it).
 // It adds to the shared mail harness: scripted answers for the capabilities these handlers call (providers, Files, suppression),
 // a recorded DNS zone, row seeders, and a check that every emitted event conforms to its frozen payload schema.
-import { registry } from "../../../../generated/registry.ts";
+import { readFileSync } from "node:fs";
 import { validate } from "../../../../packages/contracts/src/jsonschema.ts";
 import { fail } from "../../../../host/src/routes/errors.ts";
 import { NOW } from "../../fixtures/harness.ts";
@@ -23,6 +23,12 @@ export function script(h: Harness, answers: Script): void {
 }
 
 export const hostError = (h: Harness, code: Parameters<typeof fail>[0]): Error => fail(code, h.ctx.trace.traceId);
+
+// The frozen registry is read as data (not imported) so this support file stays inside the layer rules.
+const registry = JSON.parse(readFileSync(new URL("../../../../generated/registry.json", import.meta.url), "utf8")) as {
+  $defs: Parameters<typeof validate>[3];
+  events: { name: string; payload: Parameters<typeof validate>[0] }[];
+};
 
 /** Errors for every emitted event whose payload does not match the frozen schema of its name. Empty means all conform. */
 export function eventErrors(h: Harness): string[] {
