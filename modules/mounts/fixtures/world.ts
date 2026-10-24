@@ -213,7 +213,10 @@ export class FakeGoogle {
   failWith: VyreErr | null = null;
   private seq = 0;
 
-  constructor(private readonly files: FakeFiles) {
+  private readonly files: FakeFiles;
+
+  constructor(files: FakeFiles) {
+    this.files = files;
     this.listings.set("root_drv", [recorded("drive/root-page1.json"), recorded("drive/root-page2.json")]);
     this.listings.set("d1", [recorded("drive/folder-d1.json")]);
     this.feed.set("tok1", recorded("drive/changes-tok1.json"));
@@ -299,7 +302,10 @@ export class FakeGraph {
   readonly deleted: string[] = [];
   failWith: VyreErr | null = null;
 
-  constructor(private readonly files: FakeFiles) {
+  private readonly files: FakeFiles;
+
+  constructor(files: FakeFiles) {
+    this.files = files;
     this.deltas.set("", recorded("graph/delta-initial.json"));
     this.deltas.set("dl1", recorded("graph/delta-dl1.json"));
     this.deltas.set("dl2", recorded("graph/delta-dl2.json"));
