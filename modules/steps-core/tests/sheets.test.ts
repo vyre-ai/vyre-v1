@@ -1,5 +1,5 @@
 // Spreadsheet steps (spec 2.16, 2.12): row-level writes that never overwrite. Two Runs on one sheet keep each other's rows; an update changes only the cells it names; every write is a
-// version labelled with the Automation and the Run; no step replaces a file or a sheet.
+// version labelled with the Automation and the Run; no step replaces a file or a sheet. (Run on its own so CI shows its result.)
 import test from "node:test";
 import assert from "node:assert/strict";
 import { harness, codeOf } from "../fixtures/db.ts";
