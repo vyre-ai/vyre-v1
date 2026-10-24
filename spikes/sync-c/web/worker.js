@@ -12,7 +12,7 @@ try {
   out.mc_create = {};
   for (const n of ["opfs", "vyre-spike"]) { try { out.mc_create[n] = sqlite3.capi.sqlite3mc_vfs_create(n, 0); } catch (e) { out.mc_create[n] = String(e.message).slice(0, 80); } }
   out.vfs_found = {};
-  for (const n of ["opfs", "vyre-spike", "multipleciphers-opfs", "multipleciphers-vyre-spike"]) out.vfs_found[n] = !!sqlite3.capi.sqlite3_vfs_find(n);
+  for (const n of ["opfs", "vyre-spike", "multipleciphers-vyre-spike", "multipleciphers-opfs"]) out.vfs_found[n] = !!sqlite3.capi.sqlite3_vfs_find(n);
   const tryVfs = (vfs) => { try { const d = new sqlite3.oo1.DB({ filename: "file:/probe-" + vfs + ".db?vfs=" + vfs, flags: "c" }); d.exec("PRAGMA cipher='chacha20'; PRAGMA key='k'; CREATE TABLE t(a); INSERT INTO t VALUES(1)"); d.close(); return "key ok"; } catch (e) { return String(e.message).slice(0, 100); } };
   out.key_by_vfs = {}; let chosen = null;
   for (const n of Object.keys(out.vfs_found)) if (out.vfs_found[n]) { out.key_by_vfs[n] = tryVfs(n); if (out.key_by_vfs[n] === "key ok" && !chosen) chosen = n; }
@@ -40,14 +40,20 @@ try {
   out.query_200k_ms = Math.round(performance.now() - t); out.query_rows = all.length;
   // Reactive list of 10k rows: update one row, refresh that row only, patch the cached list.
   const cache = new Map(db.selectArrays("SELECT id, title FROM rows WHERE id <= 10000"));
-  const upd = [];
+  // The UI waits on the refresh (re-read the changed row, patch the cached list). The write commits behind it, timed separately.
+  const upd = [], wr = [];
   for (let i = 0; i < 300; i++) {
-    const id = 1 + i * 7, t0 = performance.now();
+    const id = 1 + i * 7;
+    const w0 = performance.now();
     db.exec({ sql: "UPDATE rows SET title=? WHERE id=?", bind: ["live " + i, id] });
+    wr.push(performance.now() - w0);
+    const t0 = performance.now();
     cache.set(id, db.selectValue("SELECT title FROM rows WHERE id=?", [id]));
     upd.push(performance.now() - t0);
   }
   out.reactive_list = cache.size; out.reactive_p50_ms = +pct(upd, 0.5).toFixed(3); out.reactive_p99_ms = +pct(upd, 0.99).toFixed(3);
+  out.write_commit_p50_ms = +pct(wr, 0.5).toFixed(3); out.write_commit_p99_ms = +pct(wr, 0.99).toFixed(3);
+  const b0 = performance.now(); db.exec("BEGIN"); for (let i = 0; i < 100; i++) db.exec({ sql: "UPDATE rows SET title=? WHERE id=?", bind: ["batch " + i, 2 + i * 7] }); db.exec("COMMIT"); out.batch_100_commit_ms = Math.round(performance.now() - b0);
   t = performance.now(); db.selectArrays("SELECT id, title FROM rows WHERE id <= 10000"); out.full_rerun_10k_ms = Math.round(performance.now() - t);
   db.close();
   // At rest: no key and a wrong key are rejected; the OPFS file does not hold the plaintext marker.
