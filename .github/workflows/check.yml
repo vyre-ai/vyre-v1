@@ -138,12 +138,12 @@ jobs:
         run: |
           for img in node:24-alpine python:3.13-slim caddy:2-alpine; do docker pull -q "$img"; done
       - name: Site builders on real Docker (modules/sites/tests/builders.heavy.test.ts)
-        if: steps.scope.outputs.changed == 'true'
+        if: always() && steps.scope.outputs.changed == 'true'
         env:
           VYRE_HEAVY_DOCKER: "1"
         run: node --test --test-timeout=900000 --test-reporter=spec modules/sites/tests/builders.heavy.test.ts
       - name: Documenso e-sign against the pinned container (modules/esign/tests/documenso.heavy.test.ts)
-        if: steps.scope.outputs.changed == 'true'
+        if: always() && steps.scope.outputs.changed == 'true'
         env:
           VYRE_HEAVY_DOCKER: "1"
         run: node --test --test-timeout=1500000 --test-reporter=spec modules/esign/tests/documenso.heavy.test.ts
