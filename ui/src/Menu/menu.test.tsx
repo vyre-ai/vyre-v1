@@ -1,4 +1,4 @@
-// ui/Menu: Report a problem is always the last item, added here and never by a module; icons are all or none.
+// ui/Menu: Report a problem is always the last item, added here and never by a module; icons are all or none. Rows, keys and the report hook-up are covered here.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
