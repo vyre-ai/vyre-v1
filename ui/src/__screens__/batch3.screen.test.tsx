@@ -4,6 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderScreen, softphoneSample, terminalSample, emailSample, viewerSample, viewerScreen } from "./index.tsx";
 import { renderBlock, NATIVE_BLOCK_TYPES, blockRenderers, sampleNativeBlocks, unknownBlockSample } from "../blocks/registry.ts";
+import { EMAIL_BLOCK_KINDS, EMAIL_PREVIEWS } from "../EmailBuilder/props.ts";
 import { TerminalPlaceholder } from "../Terminal/Placeholder.tsx";
 import { isKitScreen } from "../kit/types.ts";
 
@@ -17,6 +18,13 @@ test("screen page renders every frozen component from its props", () => {
   assert.equal(html.includes(`data-label="${terminalSample.title}"`), true);
   assert.equal(html.includes('data-placeholder="EmailBuilder"'), true);
   assert.equal(html.includes(`data-label="${emailSample.subject}"`), true);
+  assert.equal(html.includes('data-keys="Cmd-Shift-F"'), true);
+  assert.equal(html.includes('data-preview="desktop"'), true);
+  assert.equal(html.includes('data-preview-record="rec_maya"'), true);
+  assert.equal(html.includes('data-kind="merge"'), true);
+  assert.equal(EMAIL_BLOCK_KINDS.includes("columns"), true);
+  assert.equal(EMAIL_BLOCK_KINDS.includes("merge"), true);
+  assert.deepEqual([...EMAIL_PREVIEWS], ["desktop", "mobile", "dark"]);
   assert.equal(html.includes('data-placeholder="Viewer"'), true);
   assert.equal(html.includes(`data-label="${viewerSample.title}"`), true);
   assert.equal(html.includes('data-screen="batch3"'), true);

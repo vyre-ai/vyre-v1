@@ -39,7 +39,12 @@ export const emailSample: EmailBuilderProps = {
   subject: "Welcome",
   mode: "visual",
   focus: false,
-  blocks: [{ id: "b1", kind: "text", text: "Hello" }],
+  blocks: [
+    { id: "b1", kind: "text", text: "Hello" },
+    { id: "b2", kind: "merge", field: "first_name" },
+  ],
+  preview: "desktop",
+  previewRecordId: "rec_maya",
   version: 1,
   density: "regular",
   diffs: [{ id: "d1", summary: "Shorter subject", accepted: false }],
