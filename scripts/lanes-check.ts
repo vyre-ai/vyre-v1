@@ -32,7 +32,7 @@ export function checkEdits(lane: string, changed: string[], laneTable: LaneTable
   if (lane === 'lead') return [];
   const row = laneTable.lanes.find((l) => l.id === lane);
   if (!row) return [`unknown lane ${lane}`];
-  const own = [...row.owns, ...modules.filter((m) => m.owner === lane).map((m) => `manifests/${m.id}.ts`)];
+  const own = [...row.owns, ...modules.filter((m) => m.owner === lane).flatMap((m) => [`manifests/${m.id}.ts`, `modules/${m.id}/`])];
   const errs: string[] = [];
   for (const f of changed) {
     if (under(f, laneTable.frozen)) { errs.push(`${f}: frozen path, only the lead edits it`); continue; }
