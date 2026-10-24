@@ -66,6 +66,8 @@ export function packageOf(file: string): string | null {
   if (!head) return null;
   // The contracts layer lives at packages/contracts (the old top-level contracts/ holds only tests).
   if (head === 'packages' && parts[1] === 'contracts') return 'contracts';
+  // generated/ is the generator's output of the contract (registry, types); it sits in the contracts layer.
+  if (head === 'generated') return 'contracts';
   if (MULTI.has(head)) {
     const name = parts[1];
     if (!name || name.includes('*')) return null;
