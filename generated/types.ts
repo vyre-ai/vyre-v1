@@ -21626,6 +21626,8 @@ export type TasksCreateIn = {
       label: string;
       note?: "required" | "optional";
     }>;
+  decisionId?: string;
+  payloadHash?: string;
   idempotencyKey: string;
 };
 export type TasksCreateOut = {
