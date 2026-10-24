@@ -113,14 +113,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - name: Did images/ change?
+      - name: Did images/ change on this branch?
         id: scope
-        env:
-          BEFORE: ${{ github.event.before }}
         run: |
           git fetch -q origin main
-          base="$BEFORE"
-          if [ -z "$base" ] || echo "$base" | grep -Eq '^0+$' || ! git rev-parse --verify -q "$base" >/dev/null; then base="$(git merge-base origin/main HEAD)"; fi
+          base="$(git merge-base origin/main HEAD)"
           if git diff --name-only --no-renames "$base"...HEAD -- images/ | grep -q .; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "images/ did not change; nothing to build"; fi
       - name: Build the image, boot it, wait for healthy
         if: steps.scope.outputs.changed == 'true'
