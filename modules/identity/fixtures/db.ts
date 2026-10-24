@@ -122,6 +122,7 @@ class Parser {
     }
     if (t.k === "num") return Number(t.v);
     if (t.k === "str") return t.v;
+    if (t.k === "id" && t.v.toUpperCase() === "NULL") return null;
     throw new Error(`expected a value, got ${t.v}`);
   }
 
