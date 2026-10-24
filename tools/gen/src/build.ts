@@ -25,7 +25,7 @@ export function buildRegistry(loaded: Loaded[]): Registry {
     const req = new Set(Object.keys(m.requires ?? {}));
     for (const c of refs.caps) { const o = capOwner.get(c); if (o && o !== m.id) req.add(o); }
     for (const e of refs.events) { const o = eventOwner.get(e); if (o && o !== m.id) req.add(o); }
-    return { id: m.id, version: m.version, title: m.title, kind: m.kind, owner: m.owner, status: m.status, requires: [...req].sort() };
+    return { id: m.id, version: m.version, title: m.title, kind: m.kind, owner: m.owner, requires: [...req].sort() };
   });
   return {
     registryVersion: 1,

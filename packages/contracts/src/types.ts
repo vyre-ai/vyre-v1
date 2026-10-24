@@ -50,7 +50,6 @@ export interface Manifest {
   title: string;
   kind: 'module' | 'connector' | 'kit';
   owner: string;                       // lane id, for review routing; checked against the lane table (12.3)
-  status: 'stub' | 'live';             // 'stub': the host serves generated example responses; the owning lane flips it to 'live'
   requires?: Record<string, Semver>;   // other manifest ids this one calls (capabilities) or extends
   permissions?: PermissionDef[];
   capabilities?: CapabilityDef[];

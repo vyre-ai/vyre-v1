@@ -28,13 +28,36 @@ export function checkOwnership(modules: ModuleRow[], laneTable: LaneTable, manif
   return errs;
 }
 
-export function checkEdits(lane: string, changed: string[], laneTable: LaneTable, modules: ModuleRow[]): string[] {
+/**
+ * host/modules.json lines are owned per module (ruling 25). A lane may change the `status` of its own module rows (stub to live and back);
+ * adding, removing or re-owning a row, or touching another lane's row, is the lead's.
+ */
+export function checkModulesJsonEdit(lane: string, base: ModuleRow[], head: ModuleRow[], laneTable: LaneTable): string[] {
+  const errs: string[] = [];
+  const row = laneTable.lanes.find((l) => l.id === lane);
+  const mine = (m: ModuleRow) => m.owner === lane || (row?.modules ?? []).includes(m.id);
+  const before = new Map(base.map((m) => [m.id, m]));
+  const after = new Map(head.map((m) => [m.id, m]));
+  for (const id of before.keys()) if (!after.has(id)) errs.push(`host/modules.json: row ${id} removed, only the lead edits the list`);
+  for (const [id, h] of after) {
+    const b = before.get(id);
+    if (!b) { errs.push(`host/modules.json: row ${id} added, only the lead edits the list`); continue; }
+    if (b.owner === h.owner && b.status === h.status) continue;
+    if (b.owner !== h.owner) errs.push(`host/modules.json: ${id} owner changed, only the lead edits it`);
+    else if (!mine(h)) errs.push(`host/modules.json: ${id} is not a ${lane} module, its status line is outside lane ${lane}`);
+    else if (h.status !== 'stub' && h.status !== 'live') errs.push(`host/modules.json: ${id} status ${h.status} is neither stub nor live`);
+  }
+  return errs;
+}
+
+export function checkEdits(lane: string, changed: string[], laneTable: LaneTable, modules: ModuleRow[], baseModules?: ModuleRow[]): string[] {
   if (lane === 'lead') return [];
   const row = laneTable.lanes.find((l) => l.id === lane);
   if (!row) return [`unknown lane ${lane}`];
   const own = [...row.owns, ...modules.filter((m) => m.owner === lane).flatMap((m) => [`manifests/${m.id}.ts`, `modules/${m.id}/`])];
   const errs: string[] = [];
   for (const f of changed) {
+    if (f === 'host/modules.json' && baseModules) { errs.push(...checkModulesJsonEdit(lane, baseModules, modules, laneTable)); continue; }
     if (under(f, laneTable.frozen)) { errs.push(`${f}: frozen path, only the lead edits it`); continue; }
     if (!under(f, own)) errs.push(`${f}: outside lane ${lane}`);
   }
@@ -48,7 +71,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const table = JSON.parse(readFileSync(new URL('./lanes.json', import.meta.url), 'utf8')) as LaneTable;
   const mods = (JSON.parse(readFileSync(new URL('../host/modules.json', import.meta.url), 'utf8')) as { modules: ModuleRow[] }).modules;
   const diff = spawnSync('git', ['diff', '--name-only', '--no-renames', `${base}...HEAD`], { cwd: root, encoding: 'utf8' });
-  const errs = [...checkOwnership(mods, table, {}), ...checkEdits(lane, diff.stdout.split('\n').filter(Boolean), table, mods)];
+  const mb = spawnSync('git', ['merge-base', base, 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
+  const shown = mb ? spawnSync('git', ['show', `${mb}:host/modules.json`], { cwd: root, encoding: 'utf8' }) : undefined;
+  const baseMods = shown && shown.status === 0 ? (JSON.parse(shown.stdout) as { modules: ModuleRow[] }).modules : undefined;
+  const errs = [...checkOwnership(mods, table, {}), ...checkEdits(lane, diff.stdout.split('\n').filter(Boolean), table, mods, baseMods)];
   for (const e of errs) console.error(e);
   process.exit(errs.length ? 1 : 0);
 }

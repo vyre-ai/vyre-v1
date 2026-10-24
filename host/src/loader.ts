@@ -1,6 +1,6 @@
 // (host/tests/loader.* import this file)
 // The module loader (ARCH 4.4, 12.4). At boot it reads the frozen module list (host/modules.json) and the merged registry, checks they agree, loads each module's handlers
-// (generated stub-impl while the module is `status:'stub'`, its own impl once `live`), indexes the route table, and builds the per-call services (ctx.db scoped to the module, ctx.http limited to its connector's domains).
+// (generated stub-impl while the module is `status:'stub'` in host/modules.json, its own impl once `live`), indexes the route table, and builds the per-call services (ctx.db scoped to the module, ctx.http limited to its connector's domains).
 // Only the host builds a ctx (boundary B2); modules never see the raw database or fetch.
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -17,7 +17,7 @@ export interface ModuleListEntry { id: string; owner: string; status: string }
 export interface ModuleList { modules: ModuleListEntry[] }
 type Owned = { module: string };
 export interface RegistryLike {
-  modules: { id: string; owner: string; status: "stub" | "live"; kind?: string }[];
+  modules: { id: string; owner: string; kind?: string }[];
   capabilities: (Owned & { name: string; v: number })[];
   connectors?: (Owned & { domains?: string[] })[];
 }
@@ -72,12 +72,12 @@ export async function loadHost(o: LoaderOptions): Promise<LoadedHost> {
   for (const r of o.routes) if (!caps.has(`${r.cap}@${r.v}`)) problems.push(`route ${r.method} ${r.path} names unknown capability ${r.cap}@${r.v}`);
   const match = indexRoutes(o.routes);
 
-  // 3 handlers, by manifest status
+  // 3 handlers, by the status in host/modules.json (ruling 25: runtime state, not contract)
   const handlers = new Map<string, Handler>();
   const serving = new Map<string, "stub" | "live">();
   for (const m of o.registry.modules) {
     if (!o.registry.capabilities.some((c) => c.module === m.id)) continue;   // a kit has no capabilities and nothing to load
-    const kind = m.status === "live" ? "live" : "stub";
+    const kind = listed.get(m.id)?.status === "live" ? "live" : "stub";   // a kit is not listed and has no capabilities, so it never gets here
     serving.set(m.id, kind);
     let map: HandlerMap;
     try { map = await o.importer(m.id, kind); } catch (e) { problems.push(`module ${m.id}: cannot load ${kind} handlers (${e instanceof Error ? e.message : String(e)})`); continue; }
