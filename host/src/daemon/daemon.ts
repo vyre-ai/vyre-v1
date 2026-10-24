@@ -4,7 +4,6 @@
 //   device  the person's computer: supervisor, scheduler, the disk and clock probes, and the local HTTP face (/healthz) the desktop shell and the CLI reach. Local turns, the vault filler and
 //           the Chrome bridge register as supervised services (`options.services`) when their lanes land.
 // Nothing here knows a module's internals: module code only ever sees the ctx the loader builds.
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -68,7 +67,7 @@ function sealKeyFile(file: string): string {
     const t = fs.readFileSync(file, "utf8").trim();
     if (t.length >= 32) return t;
   } catch { /* first start */ }
-  const t = crypto.randomBytes(32).toString("hex");
+  const t = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("");
   fs.writeFileSync(file, `${t}\n`, { mode: 0o600 });
   return t;
 }
