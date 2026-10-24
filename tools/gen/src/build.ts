@@ -55,3 +55,4 @@ export function buildRegistry(loaded: Loaded[]): Registry {
     errors: ERROR_CODES.map((e) => ({ code: e.code, group: e.group, http: e.http, retryable: e.retryable, summary: e.summary })).sort((a, b) => (a.code < b.code ? -1 : 1)),
   };
 }
+
