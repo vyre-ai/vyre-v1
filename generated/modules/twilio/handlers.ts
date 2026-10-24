@@ -4,7 +4,7 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
-export interface Handlers<X extends HandlerCtx = HandlerCtx> {
+export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "twilio.a2p.attach_number": Handler<"twilio.a2p.attach_number", X>;
   "twilio.a2p.create_brand": Handler<"twilio.a2p.create_brand", X>;
   "twilio.a2p.create_campaign": Handler<"twilio.a2p.create_campaign", X>;

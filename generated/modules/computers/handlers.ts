@@ -4,7 +4,7 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
-export interface Handlers<X extends HandlerCtx = HandlerCtx> {
+export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "computers.chrome.act": Handler<"computers.chrome.act", X>;
   "computers.chrome.api": Handler<"computers.chrome.api", X>;
   "computers.chrome.batch": Handler<"computers.chrome.batch", X>;

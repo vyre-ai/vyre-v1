@@ -4,7 +4,7 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
-export interface Handlers<X extends HandlerCtx = HandlerCtx> {
+export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "ms.calendar.create_event": Handler<"ms.calendar.create_event", X>;
   "ms.calendar.delete_event": Handler<"ms.calendar.delete_event", X>;
   "ms.calendar.delta": Handler<"ms.calendar.delta", X>;

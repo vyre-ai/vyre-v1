@@ -4,7 +4,7 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
-export interface Handlers<X extends HandlerCtx = HandlerCtx> {
+export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "documenso.cancel": Handler<"documenso.cancel", X>;
   "documenso.create": Handler<"documenso.create", X>;
   "documenso.fetch_signed": Handler<"documenso.fetch_signed", X>;

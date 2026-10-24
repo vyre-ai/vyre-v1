@@ -4,7 +4,7 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
-export interface Handlers<X extends HandlerCtx = HandlerCtx> {
+export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.account.resolve": Handler<"engine.account.resolve", X>;
   "engine.accounts.list": Handler<"engine.accounts.list", X>;
   "engine.defaults.get": Handler<"engine.defaults.get", X>;
