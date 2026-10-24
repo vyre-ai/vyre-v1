@@ -57,8 +57,8 @@ export function makeTx(db: DatabaseSync): Tx {
   const st = (sql: string): StatementSync => { let s = cache.get(sql); if (!s) { s = db.prepare(sql); cache.set(sql, s); } return s; };
   return {
     run: (sql, ...a) => { const r = st(sql).run(...a); return { changes: Number(r.changes), lastInsertRowid: Number(r.lastInsertRowid) }; },
-    get: <T,>(sql: string, ...a: any[]) => st(sql).get(...a) as T | undefined,
-    all: <T,>(sql: string, ...a: any[]) => st(sql).all(...a) as T[],
+    get: <T,>(sql: string, ...a: any[]) => { const r = st(sql).get(...a); return r === undefined ? undefined : ({ ...r } as T); },
+    all: <T,>(sql: string, ...a: any[]) => st(sql).all(...a).map((r) => ({ ...r }) as T),
     exec: (sql) => { db.exec(sql); },
   };
 }
