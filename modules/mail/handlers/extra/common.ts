@@ -1,5 +1,6 @@
 // Shared pieces of the mail handlers that P-L5_01c adds: the extra tables, paging, and the row shapes the manifest returns.
 // The extra tables are this packet's own (CREATE IF NOT EXISTS, applied once per database next to the core mail schema).
+// Known gap outside this packet's files: mail.route.set accepts localPart '*', but ingest.ts resolveMailbox looks up the exact local part only; the catch-all fallback belongs to the packet that owns ingest.ts.
 import { fail } from "../../../../host/src/routes/errors.ts";
 import { bad, ensure, first, num, readParties, readStrings, str, strOrNull, statements } from "../../projections.ts";
 import type { MailCtx, Party, Row } from "../../projections.ts";
