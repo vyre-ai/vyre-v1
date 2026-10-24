@@ -723,6 +723,7 @@ export function stubs(ctx: CallCtx) {
       },
       get: call("files.get"),
       health: call("files.health"),
+      knowledge: call("files.knowledge"),
       lint: call("files.lint"),
       list: call("files.list"),
       markup: {
@@ -742,6 +743,7 @@ export function stubs(ctx: CallCtx) {
       save: call("files.save"),
       share: call("files.share"),
       share_external: call("files.share_external"),
+      shared_with_me: call("files.shared_with_me"),
       trash: {
         empty: call("files.trash.empty"),
         list: call("files.trash.list"),
