@@ -1,0 +1,56 @@
+# Server role: vyred with the Space, and Caddy in front of it (spec 3.13, 5 b12). Written next to .env by the installer; run with
+#   docker compose -f compose.server.yml up -d
+# Caddy shares vyred's network namespace, so its admin API stays on loopback and the ports below are published once, on vyred.
+name: vyre-server
+
+services:
+  vyred:
+    image: ${VYRE_IMAGE:-ghcr.io/vyre-ai/vyred:latest}
+    restart: unless-stopped
+    environment:
+      VYRE_ROLE: space
+      VYRE_DATA_DIR: /data
+      VYRE_HOST: 0.0.0.0
+      VYRE_PORT: "8420"
+      VYRE_CADDY_ADMIN: http://127.0.0.1:2019
+      VYRE_HEALTH_REQUIRE_CADDY: "1"
+      VYRE_SPACE: ${VYRE_SPACE:-}
+      VYRE_ADDRESS: ${VYRE_ADDRESS:-}
+      VYRE_RELAY_URL: ${VYRE_RELAY_URL:-}
+    env_file:
+      - path: ./vyre.env
+        required: false
+    volumes:
+      - vyre-data:/data
+      - vyre-work:/work
+    ports:
+      - "80:80"
+      - "443:443"
+      - "127.0.0.1:${VYRE_PORT:-8420}:8420"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 20s
+
+  caddy:
+    image: caddy:2-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
+    restart: unless-stopped
+    network_mode: "service:vyred"
+    depends_on:
+      vyred:
+        condition: service_healthy
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  vyre-data:
+  vyre-work:
+  caddy-data:
+  caddy-config:

@@ -447,3 +447,4 @@ test("a Space can require a person to approve, and nobody approves their own wor
   await h2.call("tasks.transition", { taskId: w, to: "in_review" }, { id: alice.id });
   await refused(h2.call("tasks.transition", { taskId: w, to: "done" }, { id: alice.id }), "validation.precondition_failed", "wrong_actor");
 });
+// P-H_02 final run: this file shows its own ok line in the run on the last commit.

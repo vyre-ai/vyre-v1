@@ -19,7 +19,7 @@ export interface BoundariesFile {
   rules?: {
     B2?: { allowNodeSqlite?: string[] };
     B3?: { allowCrypto?: string[]; allowCryptoFiles?: string[]; crypto?: string[] };
-    B4?: { noFetchIn?: string[] };
+    B4?: { noFetchIn?: string[]; allowFetchIn?: string[] };
     B5?: { generatedGlob?: string };
     B6?: { allowlist?: string };
     B7?: { extra?: string[]; testMayImportOutside?: string[] };
@@ -366,6 +366,8 @@ function judge(
 
 function fetchBanned(pkg: string, file: string, config: BoundariesFile): boolean {
   const zones = config.rules?.B4?.noFetchIn ?? [];
+  // A service worker (apps/app/public/sw.js) must call fetch; allowFetchIn lists such paths.
+  if ((config.rules?.B4?.allowFetchIn ?? []).some((a) => file.startsWith(a))) return false;
   return zones.some((z) => pkg === z || pkg.startsWith(`${z}/`) || file === z || file.startsWith(`${z}/`));
 }
 

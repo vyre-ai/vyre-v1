@@ -1,0 +1,5 @@
+# Pinned images for the e-signature container (ARCH 8.4). Never a tag alone: the digest is what runs.
+# Documenso v2.21.1 (22 Oct 2026) and postgres 16-alpine, both as multi-arch index digests read from Docker Hub on 25 Oct 2026.
+# Documenso is never forked or patched. To upgrade, change the line, run the esign tests (they compare compose.yml with this file), and review the release notes.
+DOCUMENSO_IMAGE=documenso/documenso:v2.21.1@sha256:41a69062febc915d1508b87be8c5bbe72ecd3c49232ddcd983490f5f7832f053
+POSTGRES_IMAGE=postgres:16-alpine@sha256:f4610795587492cd4fb887c2dc3de301b813278bb6f616992061141b5f15ac36

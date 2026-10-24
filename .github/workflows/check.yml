@@ -109,6 +109,25 @@ jobs:
           tsc=tools/gen/node_modules/.bin/tsc
           [ -x "$tsc" ] || bash tools/gen/check.sh
           for d in $dirs; do echo "tsc -p $d"; "$tsc" -p "$d/tsconfig.json" --noEmit; done
+  images-docker:
+    # Ruling 31: when images/ changes, build the vyred image and boot it in Docker (VYRE_HEAVY_DOCKER=1 turns on the docker test in images/vyred/smoke.heavy.test.ts, which the 20 s shard cannot run).
+    # Not part of the `check` gate below: it reports its own result on the run.
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Did images/ change on this branch?
+        id: scope
+        run: |
+          git fetch -q origin main
+          base="$(git merge-base origin/main HEAD)"
+          if git diff --name-only --no-renames "$base"...HEAD -- images/ | grep -q .; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "images/ did not change; nothing to build"; fi
+      - name: Build the image, boot it, wait for healthy
+        if: steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+        run: node --test --test-timeout=900000 images/vyred/smoke.heavy.test.ts
   check:
     needs: [select, shards, gates]
     if: always()
