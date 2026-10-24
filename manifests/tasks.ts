@@ -27,6 +27,7 @@ const target = { taskId: id.task };
 const readyReason = t.enm('ready', 'due_today', 'overdue', 'blocking');
 
 export default defineManifest({
+  status: 'live',
   id: 'tasks',
   title: 'Tasks',
   owner: 'L6',
