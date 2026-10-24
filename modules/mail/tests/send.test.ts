@@ -60,7 +60,8 @@ test("a Space send goes out through the Resend domain with the trace header, a s
   const m = row(r, id)!;
   assert.deepEqual([m.status, m.direction, m.providerId, m.rfcMessageId, m.traceId, m.fromAddress, m.version], ["sent", "out", "resend_1", `<${id}@vyre.test>`, TRACE, "hello@vyre.test", 2]);
   assert.deepEqual([m.contactId, m.campaignId, m.threadId], ["rec_pat01", "cmp_spring", id]);
-  assert.deepEqual(JSON.parse(String(m.toAddresses)), [{ address: "pat@acme.test", name: "Pat Lee" }]);
+  assert.deepEqual(JSON.parse(String(m.toAddresses)), [{ address: "pat@acme.test", name: "Pat Lee", contactId: "rec_pat01" }]);
+  assert.equal(body.idempotencyKey, id);   // the provider capability's own key: one delivery per message
   assert.equal(r.h.rows(`SELECT * FROM mail_body WHERE "messageId" = ?`, id)[0]!.text, "Hi Pat");
   assert.equal(r.h.rows(`SELECT * FROM mail_rfc WHERE "messageId" = ?`, id).length, 1);
   assert.equal(r.h.rows(`SELECT * FROM mail_seen WHERE "messageId" = ?`, id)[0]!.source, "resend");
@@ -255,7 +256,7 @@ test("a person's own Gmail mailbox sends through Gmail as that person, with no w
   r.goto(SATURDAY_3AM);
   const out = await send(r.ctx, sendIn({ mailboxId: "mbx_maya", text: "Thanks!" }));
   assert.equal(out.status, "sent");
-  assert.deepEqual(r.calls("google.gmail.send_message")[0]!.input, { connectionId: "con_g1", as: "maya@vyre.test", to: ["pat@acme.test"], subject: "Hello", text: "Thanks!" });
+  assert.deepEqual(r.calls("google.gmail.send_message")[0]!.input, { connectionId: "con_g1", as: "maya@vyre.test", to: ["pat@acme.test"], subject: "Hello", text: "Thanks!", idempotencyKey: out.messageId });
   assert.equal(r.calls("resend.send_email").length, 0);
   const m = row(r, out.messageId ?? "")!;
   assert.deepEqual([m.status, m.providerId, m.rfcMessageId], ["sent", "gm_1", null]);
@@ -266,7 +267,9 @@ test("a Microsoft mailbox sends through Graph; Graph returns no id", async () =>
   const r = rig();
   const out = await send(r.ctx, sendIn({ mailboxId: "mbx_sam", cc: [{ address: "lee@acme.test" }] }));
   assert.equal(out.status, "sent");
-  assert.deepEqual(r.calls("ms.mail.send_message")[0]!.input, { connectionId: "con_m1", as: "sam@vyre.test", to: ["pat@acme.test"], subject: "Hello", cc: ["lee@acme.test"], text: "Hi Pat" });
+  assert.deepEqual(r.calls("ms.mail.send_message")[0]!.input, {
+    connectionId: "con_m1", as: "sam@vyre.test", to: ["pat@acme.test"], subject: "Hello", cc: ["lee@acme.test"], text: "Hi Pat", idempotencyKey: out.messageId,
+  });
   assert.equal(row(r, out.messageId ?? "")!.providerId, null);
 });
 
@@ -399,7 +402,9 @@ test("send_as sends through the member's Gmail and answers with the Gmail id", a
   const out = await sendAs(r.ctx, input);
   assert.equal(out.providerId, "gm_1");
   assert.deepEqual(contractErrors("mail.send_as", "out", out), []);
-  assert.deepEqual(r.calls("google.gmail.send_message")[0]!.input, { connectionId: "con_g1", as: "maya@vyre.test", to: ["pat@acme.test"], subject: "Re: Question", text: "Yes." });
+  assert.deepEqual(r.calls("google.gmail.send_message")[0]!.input, {
+    connectionId: "con_g1", as: "maya@vyre.test", to: ["pat@acme.test"], subject: "Re: Question", text: "Yes.", idempotencyKey: out.messageId,
+  });
   assert.equal(row(r, out.messageId)!.status, "sent");
   assert.deepEqual(r.h.named("message.sent").map((e) => e.payload.messageId), [out.messageId]);
   assert.deepEqual(await sendAs(r.ctx, input), out);   // the same key answers the same and sends once

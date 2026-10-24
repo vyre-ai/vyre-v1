@@ -577,7 +577,7 @@ async function deliver(ctx: SendCtx, p: Plan, c: Composed, parent: Row | null, p
   writeRow(ctx, p, final, parent, pending, id, "queued", now, rfcId);
   let providerId: string | null;
   try {
-    providerId = p.route === "space_domain" ? await viaSpaceDomain(ctx, p, final, parent, id, rfcId) : await viaMailbox(ctx, p.box, final);
+    providerId = p.route === "space_domain" ? await viaSpaceDomain(ctx, p, final, parent, id, rfcId) : await viaMailbox(ctx, p.box, final, id);
   } catch (e) {
     ctx.db.run(`UPDATE mail_message SET status = ?, version = ?, updated_at = ? WHERE id = ?`, "failed", nextVersion(ctx, id), ctx.now(), id);
     ctx.log.warn("mail.send failed", { messageId: id, route: p.route, traceId: ctx.trace.traceId });
@@ -664,6 +664,7 @@ async function viaSpaceDomain(ctx: SendCtx, p: Plan, c: Composed, parent: Row | 
   const title = str(p.box, "title");
   const body: Record<string, unknown> = {
     from, to: c.to.map((x) => x.address), subject: c.subject, headers: { ...outHeaders(ctx, parent, rfcId) },
+    idempotencyKey: id,   // the provider capabilities need a key; the message id is stable across the one delivery of this message
   };
   if (title && title !== own) body.fromName = title;
   if (c.cc.length) body.cc = c.cc.map((x) => x.address);
@@ -688,8 +689,10 @@ function acceptedId(ctx: SendCtx, result: unknown): string {
 }
 
 /** Send through the member's own Gmail or Graph mailbox, as the member. IMAP has no send path in v1. */
-async function viaMailbox(ctx: SendCtx, box: Row, c: Composed): Promise<string | null> {
-  const body: Record<string, unknown> = { connectionId: str(box, "connectionId"), as: str(box, "address"), to: c.to.map((x) => x.address), subject: c.subject };
+async function viaMailbox(ctx: SendCtx, box: Row, c: Composed, id: string): Promise<string | null> {
+  const body: Record<string, unknown> = {
+    connectionId: str(box, "connectionId"), as: str(box, "address"), to: c.to.map((x) => x.address), subject: c.subject, idempotencyKey: id,
+  };
   if (c.cc.length) body.cc = c.cc.map((x) => x.address);
   if (c.bcc.length) body.bcc = c.bcc.map((x) => x.address);
   if (c.text !== undefined) body.text = c.text;

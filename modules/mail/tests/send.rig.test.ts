@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fail } from "../../../host/src/routes/errors.ts";
-import { harness, NOW, seedMailbox } from "../fixtures/harness.ts";
+import { contractErrors, harness, NOW, seedMailbox } from "../fixtures/harness.ts";
 import type { Harness, HarnessOptions } from "../fixtures/harness.ts";
 import type { SendCtx, SendIn } from "../handlers/send.ts";
 
@@ -76,6 +76,9 @@ export function rig(o: RigOptions = {}) {
     const body = input as Record<string, unknown>;
     seen.push({ cap, input: body });
     const trace = ctx.trace.traceId;
+    // every capability the sender calls must take what it was given: the frozen input schema is the judge, as it is in the pipeline
+    const misfit = contractErrors(cap, "in", body);
+    if (misfit.length) throw new Error(`${cap} was called with input its contract refuses: ${misfit.join("; ")}`);
     switch (cap) {
       case "settings.get": {
         const key = String(body.key);
