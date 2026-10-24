@@ -17,13 +17,10 @@ export default function Root({ children }: PropsWithChildren) {
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-        <script dangerouslySetInnerHTML={{ __html: BOOT }} />
+        <script dangerouslySetInnerHTML={{ __html: BOOT + SW }} />
         <ScrollViewStyleReset />
       </head>
-      <body>
-        {children}
-        <script dangerouslySetInnerHTML={{ __html: SW }} />
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
