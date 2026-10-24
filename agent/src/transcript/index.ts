@@ -1,0 +1,22 @@
+// @vyre/agent transcript: the provider-neutral transcript, the handoff to another engine, and compaction (ARCH 6.9).
+export type { EngineRef, Link, NewTurn, Part, Pointers, Summary, SwitchRow, Tokens, Turn } from "./types.ts";
+export { createTranscript } from "./store.ts";
+export type { Hit, Transcript } from "./store.ts";
+export { OUTPUT_CAP, createTurnBuilder, outputText, personTurn } from "./turns.ts";
+export type { TurnBuilder, TurnBuilderOptions } from "./turns.ts";
+export { markdown, plain, render, toolLines } from "./render.ts";
+export { DEFAULT_INSTRUCTION, HANDOFF, buildHandoff, renderHandoff, transcriptPath } from "./handoff.ts";
+export type { HandoffContext, HandoffOptions, HandoffTurn, Seed, SeedKind } from "./handoff.ts";
+export { engineTitle, switchEngine } from "./switch.ts";
+export type { ModelSwitchBlock, SwitchDeps, SwitchRequest, SwitchResult } from "./switch.ts";
+export { SUMMARY_CHARS, SUMMARY_EVERY, extractiveSummary, fit, refreshSummary, rollSeed, rolloverCheck } from "./compact.ts";
+export type { RefreshOptions, RolloverCheck, SummarizeInput, Summarizer } from "./compact.ts";
+export { ROLL, contextOf, cutTo, decide, pointersOf, quote } from "./rollover.ts";
+export type { Context, RollDecision, RollLimits } from "./rollover.ts";
+export { importClaudeSession } from "./claude-code.ts";
+export type { ClaudeImport } from "./claude-code.ts";
+export { redact, scan } from "./sanitize.ts";
+export { SEED_OPEN, withoutSeed, withoutVyre } from "./seed.ts";
+export { CHARS_PER_TOKEN, tokens, tokensOfChars } from "./tokens.ts";
+export { DEFAULT_WINDOW, WINDOWS, windowFor } from "./windows.ts";
+export { commitLinks, textLinks, toolLinks } from "./links.ts";
