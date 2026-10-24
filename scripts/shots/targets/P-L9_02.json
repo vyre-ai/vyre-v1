@@ -2,9 +2,10 @@
   "targets": [
     {
       "id": "P-L9_02-row-list",
-      "route": "/",
+      "route": "/m/P-L9_02",
       "proto": "files,{skin}",
-      "note": "Row list with hover and selection against the prototype Files list. The shots app route / has to mount ui/Row, VirtualList and ListSections for this to compare the real components; that gallery route is outside this packet's owned files (see the packet comment)."
+      "scroll": { "selector": "[data-testid=\"virtual-list\"]" },
+      "note": "10,000 ui/Row items in ui/VirtualList with one selected and one hovered row, against the prototype Files list; the scroll probe takes the p95 frame interval over the full scroll."
     }
   ]
 }
