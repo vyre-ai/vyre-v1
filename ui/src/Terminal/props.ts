@@ -1,5 +1,7 @@
 // Frozen props for ui/Terminal (spec 2.7, ARCH 7.2).
-// One session, three hosts. The server host stays locked until server.services is granted.
+// One session, three hosts: the agent computer, the Space server, and this computer
+// (the device daemon; the prototype chip id for that host is mac).
+// The server host stays locked until server.services is granted.
 
 import type { Density } from "../kit/types.ts";
 
