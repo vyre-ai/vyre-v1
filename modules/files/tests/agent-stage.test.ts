@@ -605,3 +605,5 @@ test("the staging survives a host that refuses changeset events the capability d
   const broken = refuse(["changeset.opened", "changeset.updated"], "something else");
   await assert.rejects(ren(broken, third, "x.txt"), (e: unknown) => (e as { error?: { details?: { why?: string } } }).error?.details?.why === "something else");
 });
+
+// Run on the final commit together with changesets.test.ts (P-L4_04b).

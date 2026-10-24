@@ -565,3 +565,5 @@ test("approve applies a staged move ('<folderId>/<name>' in new_name) through fi
   const still = k.db.rows("files_file").find((r) => r["id"] === plan);
   assert.deepEqual([still?.["folder_id"], still?.["name"]], [archive, "moved.txt"], "a conflict commits nothing");
 });
+
+// Run on the final commit together with agent-stage.test.ts (P-L4_04b).
