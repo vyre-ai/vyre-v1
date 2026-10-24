@@ -38,13 +38,13 @@ Requires: nothing.
 ## Events (11)
 
 - [field.revealed](../events/field.revealed.md): A sealed field was revealed to one actor (audited)
-- [record.created](../events/record.created.md): A record was created
-- [record.deleted](../events/record.deleted.md): A record moved to Trash
+- [record.created](../events/record.created.md): A record was created; fields carries the initial values (sealed and Restricted values as ciphertext only)
+- [record.deleted](../events/record.deleted.md): A record moved to Trash; prev carries the values it held (sealed and Restricted values as ciphertext only)
 - [record.gaps_found](../events/record.gaps_found.md): A gap-check rule found missing or stale fields on a record
 - [record.held](../events/record.held.md): A hold was placed on a record
 - [record.hold_released](../events/record.hold_released.md): A hold was released
 - [record.merged](../events/record.merged.md): Two records were merged into a survivor
 - [record.restored](../events/record.restored.md): A record came back from Trash
-- [record.updated](../events/record.updated.md): Fields of a record changed (values never included for sealed fields)
+- [record.updated](../events/record.updated.md): Fields of a record changed; fields carries the new values and prev the old ones (sealed and Restricted values as ciphertext only)
 - [record.value_proposed](../events/record.value_proposed.md): An agent or automation filled a value; it waits for review or counts straight away, per field
 - [record.value_reviewed](../events/record.value_reviewed.md): A reviewer accepted or rejected an agent-filled value
