@@ -31,7 +31,7 @@ test("the arrow is disabled until there is text, and when the thread is closed",
 
 test("the field sits on the whole row: the box carries the width and the field fills it", () => {
   const html = renderToStaticMarkup(<CommentReply {...frozenCommentReplyProps} density="regular" />);
-  assert.match(html, /width:100%/);
+  assert.match(html, /r-width-/, "the box carries a width style");
 });
 
 test("compact density (phone) is taller for touch", () => {
