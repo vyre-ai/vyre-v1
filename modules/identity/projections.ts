@@ -23,9 +23,13 @@ export interface IdentityCtx {
   github?: Github;
   /** Roles and groups of a person, read through the access projection by the host. */
   directory?: { of(personId: string): { roles: string[]; groups: string[] } };
+  /** Invites, supplied by the members module through the host: peek never spends, accept marks the invite accepted and puts the person in the Space with its role and groups. */
+  invites?: { peek(code: string): Invite | "invalid" | "expired"; accept(inviteId: string, personId: string): void };
   /** Counts for the reset preview, supplied by the vault, chat and memory modules through the host. */
   losses?: { of(personId: string): { vault_mine: number; private_chats: number; personal_memory: number } };
 }
+
+export interface Invite { inviteId: string; role: string; groups: string[]; invitedBy: string }
 
 export interface Account {
   person_id: string;

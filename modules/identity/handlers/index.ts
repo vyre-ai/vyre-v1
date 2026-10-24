@@ -1,11 +1,12 @@
-// One handler per identity capability (25). Passkeys answer internal.not_implemented until 1.1.0; SSO answers validation.unsupported until a Space has an SSO config.
+// One handler per identity capability (26 including invites.accept_create_account). Passkeys answer internal.not_implemented until 1.1.0; SSO answers validation.unsupported until a Space has an SSO config.
 import {
   githubLink, githubSignIn, githubUnlink, pairCreate, pairRedeem, passkeyRegister, passkeyRemove, signIn, signInOptions, signOut, ssoSignIn, totpBegin, totpConfirm,
   totpRemove, usernameAvailable, verifySecondFactor, whoami,
 } from "./signin.ts";
-import { changePassword, keysGet, keysPut, recoveryRestore, recoverySave, resetComplete, resetPreview, resetStart } from "./keys.ts";
+import { acceptCreateAccount, changePassword, keysGet, keysPut, recoveryRestore, recoverySave, resetComplete, resetPreview, resetStart } from "./keys.ts";
 
 export const handlers = {
+  "invites.accept_create_account": acceptCreateAccount,
   "identity.change_password": changePassword,
   "identity.github_link": githubLink,
   "identity.github_sign_in": githubSignIn,

@@ -135,3 +135,36 @@ test("admin reset: preview, one-time link for 24 hours, fresh keys, other device
   h.advance(25 * 3_600_000);
   await assert.rejects(handlers["identity.reset_complete"](h.anon, { resetCode: late.resetCode, newPassword: NEW_PASSWORD, keys: fresh, ...DEVICE }), (e) => codeOf(e) === "auth.expired");
 });
+
+test("invites.accept_create_account (ruling 23): creates the person, stores keys, joins, opens a session; refusals leave nothing behind", async () => {
+  const h = harness();
+  const accepted: { inviteId: string; personId: string }[] = [];
+  const invites = {
+    peek: (code: string) => (code === "good" ? { inviteId: "inv_1", role: "member", groups: ["grp_a"], invitedBy: "usr_admin" } : code === "old" ? ("expired" as const) : ("invalid" as const)),
+    accept: (inviteId: string, personId: string) => { accepted.push({ inviteId, personId }); },
+  };
+  const ctx = { ...h.anon, invites };
+  const input = { code: "good", username: "Omar", displayName: "Omar K", password: "a long enough password", keys: KEYS, ...DEVICE };
+
+  await assert.rejects(handlers["invites.accept_create_account"](h.anon, input), (e) => codeOf(e) === "internal.not_implemented");
+  await assert.rejects(handlers["invites.accept_create_account"](ctx, { ...input, code: "nope" }), (e) => codeOf(e) === "auth.invalid_code");
+  await assert.rejects(handlers["invites.accept_create_account"](ctx, { ...input, code: "old" }), (e) => codeOf(e) === "auth.expired");
+  await assert.rejects(handlers["invites.accept_create_account"](ctx, { ...input, username: "x" }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(handlers["invites.accept_create_account"](ctx, { ...input, password: "short" }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(handlers["invites.accept_create_account"](ctx, { ...input, keys: { ...KEYS, publicKey: "not base64!" } }), (e) => codeOf(e) === "validation.bad_input");
+  assert.equal(h.db.all(`SELECT * FROM identity_accounts`).length, 0, "refusals create no account");
+  assert.equal(accepted.length, 0, "refusals do not spend the invite");
+
+  const out = await handlers["invites.accept_create_account"](ctx, input);
+  assert.equal(out.status, "ok");
+  assert.deepEqual(out.keys, KEYS);
+  assert.equal(accepted.length, 1);
+  assert.equal(accepted[0]!.inviteId, "inv_1");
+  const who = sessionOfToken(h.anon, out.session!.token);
+  assert.equal(who?.personId, accepted[0]!.personId);
+  const names = h.events.map((e) => e.name);
+  for (const n of ["principal.created", "member.joined", "keys.stored", "signin.succeeded"]) assert.ok(names.includes(n), n);
+  assert.ok(!JSON.stringify(h.events).includes("a long enough password"));
+  await assert.rejects(handlers["invites.accept_create_account"](ctx, { ...input, displayName: "Again" }), (e) => codeOf(e) === "validation.duplicate");
+  assert.equal((await handlers["identity.sign_in"](h.anon, { username: "omar", password: input.password, ...DEVICE })).status, "ok");
+});

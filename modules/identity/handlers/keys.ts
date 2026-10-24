@@ -2,7 +2,7 @@
 // it never receives a personKey and never returns a key to anyone but the signed-in person.
 import type { Device, IdentityCtx, KeyBundle, SignInOut } from "../projections.ts";
 import {
-  MIN_SECRET, RESET_TTL_MS, accountById, accountByName, bundleOf, burnVerify, checkVerifier, issueSession, lockedFor, makeVerifier, me, mustAccount, noteFail, raise,
+  MIN_SECRET, RESET_TTL_MS, USERNAME, nid, provisionAccount, validBundle, accountById, accountByName, bundleOf, burnVerify, checkVerifier, issueSession, lockedFor, makeVerifier, me, mustAccount, noteFail, raise,
   revokeSessions, setKeys, spendCode, putCode, clearFails,
 } from "../projections.ts";
 import { randomBytes } from "node:crypto";
@@ -114,4 +114,30 @@ export async function resetComplete(ctx: IdentityCtx, input: Device & { resetCod
   clearFails(ctx, a);
   ctx.emit("password.reset", a.person_id, { personId: a.person_id, by: "admin", recovered: false });
   return issueSession(ctx, mustAccount(ctx, a.person_id), input, "recovery");
+}
+
+/**
+ * Ruling 23, pre-auth: join by invite with no account yet. Everything that can be refused is checked before the person exists
+ * (code, username, password, key bundle), so a refused call leaves nothing behind and the invite stays open.
+ */
+export async function acceptCreateAccount(
+  ctx: IdentityCtx, input: Device & { code: string; username: string; displayName?: string; password: string; keys: KeyBundle },
+): Promise<SignInOut> {
+  const tid = ctx.trace.traceId;
+  if (!ctx.invites) raise(tid, "internal.not_implemented", "invites are not wired into this host");
+  const invite = ctx.invites.peek(input.code.trim());
+  if (invite === "invalid") { await burnVerify(input.password); raise(tid, "auth.invalid_code"); }
+  if (invite === "expired") raise(tid, "auth.expired");
+  const username = input.username.trim().toLowerCase();
+  if (!USERNAME.test(username)) raise(tid, "validation.bad_input", "username is 2 to 32 letters, digits, dot, dash or underscore");
+  if (accountByName(ctx, username)) raise(tid, "validation.duplicate", "that username is taken");
+  checkNewSecret(ctx, input.password);
+  if (!validBundle(input.keys)) raise(tid, "validation.bad_input", "keys must be base64 ciphertext");
+  const personId = nid("usr");
+  const account = await provisionAccount(ctx, { personId, username, name: input.displayName?.trim() || username, secret: input.password });
+  setKeys(ctx, personId, input.keys, "first_device");
+  ctx.invites.accept(invite.inviteId, personId);
+  ctx.emit("principal.created", personId, { principalId: personId, kind: "person" });
+  ctx.emit("member.joined", personId, { personId, inviteId: invite.inviteId, role: invite.role, invitedBy: invite.invitedBy });
+  return issueSession(ctx, account, input, "password");
 }
