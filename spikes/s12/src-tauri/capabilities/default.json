@@ -1,0 +1,21 @@
+{
+  "identifier": "default",
+  "description": "Spike S12 main window. The web build may observe the sidecar. Rust starts vyred.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "deep-link:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-is-registered",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "binaries/vyred",
+          "sidecar": true
+        }
+      ]
+    }
+  ]
+}
