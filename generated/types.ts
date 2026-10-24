@@ -29224,11 +29224,12 @@ export type PullRequestOpenedPayload = {
 export type RecordCreatedPayload = {
   recordId: string;
   type: string;
-  fields: Array<string>;
+  fields: Record<string, unknown>;
 };
 export type RecordDeletedPayload = {
   recordId: string;
   type: string;
+  prev: Record<string, unknown>;
 };
 export type RecordGapsFoundPayload = {
   recordId: string;
@@ -29257,7 +29258,8 @@ export type RecordRestoredPayload = {
 export type RecordUpdatedPayload = {
   recordId: string;
   type: string;
-  fields: Array<string>;
+  fields: Record<string, unknown>;
+  prev: Record<string, unknown>;
   version: number;
 };
 export type RecordValueProposedPayload = {
