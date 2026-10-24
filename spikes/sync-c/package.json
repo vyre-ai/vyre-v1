@@ -1,0 +1,1 @@
+{ "name": "vyre-sync-spike-c", "private": true, "type": "module", "dependencies": { "wa-sqlite": "1.0.0", "sqlite-wasm-cipher": "2.2.4" } }
