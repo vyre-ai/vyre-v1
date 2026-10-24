@@ -100,6 +100,20 @@ export function toRow(r: StoredRecord, meta: { label: number; holds: number }): 
   };
 }
 
+/** Values of the changed fields as stored (sealed fields are references, never plaintext), null for a removed field. */
+function changed(keys: string[], data: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of keys) out[k] = Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null;
+  return out;
+}
+
+/** Previous values of the same fields; a field that did not exist is left out. */
+function before(keys: string[], data: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of keys) if (Object.prototype.hasOwnProperty.call(data, k)) out[k] = data[k];
+  return out;
+}
+
 export function createWriteHandlers(deps: WriteDeps): WriteHandlers {
   const seen = new Map<string, { type: string; id: string }>();
   return {
@@ -113,7 +127,7 @@ export function createWriteHandlers(deps: WriteDeps): WriteHandlers {
       const id = mintUuid();
       const rec = await deps.store.create(input.type, id, input.fields);
       if (key !== undefined) seen.set(key, { type: input.type, id: rec.id });
-      ctx.emit("record.created", subject(rec.id), { recordId: rec.id, type: rec.type, fields: Object.keys(input.fields) });
+      ctx.emit("record.created", subject(rec.id), { recordId: rec.id, type: rec.type, fields: { ...rec.data } });
       return { record: toRow(rec, deps.meta(rec.type, rec.id)) };
     }),
     "records.update": (ctx, input) => guard(ctx, async () => {
@@ -123,15 +137,19 @@ export function createWriteHandlers(deps: WriteDeps): WriteHandlers {
         if (!cur) throw new StoreError("not_found", `no ${input.type} ${input.recordId}`);
         base = cur.version;
       }
+      const prior = await deps.store.get(input.type, input.recordId);
       const rec = await deps.store.update(input.type, input.recordId, input.patch, base);
-      ctx.emit("record.updated", subject(rec.id), { recordId: rec.id, type: rec.type, fields: Object.keys(input.patch), version: rec.version });
+      const keys = Object.keys(input.patch);
+      ctx.emit("record.updated", subject(rec.id), {
+        recordId: rec.id, type: rec.type, fields: changed(keys, rec.data), prev: before(keys, prior?.data ?? {}), version: rec.version,
+      });
       return { record: toRow(rec, deps.meta(rec.type, rec.id)) };
     }),
     "records.delete": (ctx, input) => guard(ctx, async () => {
       const cur = await deps.store.get(input.type, input.recordId);
       if (!cur) throw new StoreError("not_found", `no ${input.type} ${input.recordId}`);
       await deps.store.remove(input.type, input.recordId, cur.version);
-      ctx.emit("record.deleted", subject(input.recordId), { recordId: input.recordId, type: input.type });
+      ctx.emit("record.deleted", subject(input.recordId), { recordId: input.recordId, type: input.type, prev: { ...cur.data } });
       return { deleted: true };
     }),
     "records.restore": (ctx, input) => guard(ctx, async () => {
