@@ -17,7 +17,7 @@ What the sign-in page offers for this Space: name, logo, key fingerprint, passwo
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/identity/sign_in_options |
-| MCP tool | identity_sign_in_options (meta) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

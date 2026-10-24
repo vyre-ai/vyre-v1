@@ -14,10 +14,10 @@
 | View kinds | 9 |
 | Steps | 25 |
 | Triggers | 13 |
-| Connectors | 12 |
+| Connectors | 13 |
 | Agent tools (not 1:1 with a capability) | 10 |
 | Block types | 22 |
-| Screens | 163 |
+| Screens | 167 |
 | Health checks | 47 |
 | Gate act kinds | 10 |
 | Task kinds | 6 |

@@ -1,6 +1,6 @@
 # GitHub
 
-Key github, module github. Mode oauth_app, owned by a space. Auth oauth2.
+Key github, module github. Mode api, owned by a space. Auth github_app.
 
 ## Egress domains
 
@@ -10,7 +10,7 @@ Key github, module github. Mode oauth_app, owned by a space. Auth oauth2.
 ## Secrets (names only)
 
 - GitHub_App_Key: GitHub App private key (PEM) used to mint installation tokens
-- GitHub_App_Client_Secret: GitHub App OAuth client secret (sign in)
+- GitHub_App_Id: GitHub App id
 - GitHub_App_Webhook_Secret: Secret that signs /hooks/github
 
 ## Webhook sources

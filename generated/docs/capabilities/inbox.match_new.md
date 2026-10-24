@@ -10,7 +10,7 @@ Create a contact or company from an unmatched sender and match it
 | Permission | records.create |
 | Grant level | edit |
 | Risk | medium |
-| Resource | space |
+| Resource | entity (/conversationId) |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |

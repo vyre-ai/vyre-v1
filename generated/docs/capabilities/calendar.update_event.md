@@ -10,7 +10,7 @@ Change, move or resize an event
 | Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
-| Resource | space |
+| Resource | entity (/eventId) |
 | Gate | send when actor.kind != 'person' && input.attendees != null |
 | Idempotency | natural |
 | Offline | patch |

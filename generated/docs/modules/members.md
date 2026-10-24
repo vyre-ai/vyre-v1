@@ -2,7 +2,7 @@
 
 Lane L7a. Kind module. Status stub. Version 0.1.0.
 
-Requires: access.
+Requires: access, home.
 
 ## Capabilities (17)
 

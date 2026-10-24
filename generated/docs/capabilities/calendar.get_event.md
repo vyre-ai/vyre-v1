@@ -10,7 +10,7 @@ Read one event with attendees, agenda, linked records and meeting
 | Permission | grant only |
 | Grant level | view |
 | Risk | low |
-| Resource | space |
+| Resource | entity (/eventId) |
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |

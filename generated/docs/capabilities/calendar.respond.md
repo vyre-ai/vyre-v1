@@ -10,7 +10,7 @@ Accept, decline or answer maybe to an invitation
 | Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
-| Resource | space |
+| Resource | entity (/eventId) |
 | Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |

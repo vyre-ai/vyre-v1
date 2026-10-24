@@ -10,7 +10,7 @@ Create an event (drag in 15 minute steps); the provider invites attendees
 | Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
-| Resource | space |
+| Resource | calendar (/calendarId) |
 | Gate | send when actor.kind != 'person' && input.attendees != null |
 | Idempotency | key |
 | Offline | queue |

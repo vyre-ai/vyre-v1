@@ -10,7 +10,7 @@ Sync a calendar now
 | Permission | grant only |
 | Grant level | use |
 | Risk | medium |
-| Resource | space |
+| Resource | calendar (/calendarId) |
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |

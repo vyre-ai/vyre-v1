@@ -10,7 +10,7 @@ Duplicate an event
 | Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
-| Resource | space |
+| Resource | entity (/eventId) |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |

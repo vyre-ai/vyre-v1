@@ -10,7 +10,7 @@ Read one message with attachments, provider id, DNS check state and trace id
 | Permission | grant only |
 | Grant level | view |
 | Risk | low |
-| Resource | space |
+| Resource | entity (/messageId) |
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |

@@ -3458,12 +3458,6 @@
     },
     {
       "deferred": false,
-      "name": "identity_sign_in_options",
-      "summary": "What the sign-in page offers for this Space: name, logo, key fingerprint, password, GitHub, SSO providers, second factor floor",
-      "toolset": "meta"
-    },
-    {
-      "deferred": false,
       "name": "identity_sign_out",
       "summary": "End this session; the device keeps nothing it should not",
       "toolset": "meta"

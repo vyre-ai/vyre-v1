@@ -545,7 +545,8 @@ export const routes: Route[] = [
     "permission": "policy.manage",
     "level": "view",
     "resource": {
-      "type": "space"
+      "type": "dynamic",
+      "ref": "/resource"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -707,7 +708,8 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "space"
+      "type": "dynamic",
+      "ref": "/resource"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -725,7 +727,8 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "space"
+      "type": "dynamic",
+      "ref": "/resource"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -1049,7 +1052,8 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "space"
+      "type": "dynamic",
+      "ref": "/resource"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -1067,7 +1071,8 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "space"
+      "type": "dynamic",
+      "ref": "/resource"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -2703,7 +2708,8 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "space"
+      "type": "calendar",
+      "id": "/calendarId"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -2721,7 +2727,8 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "space"
+      "type": "calendar",
+      "id": "/calendarId"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -2739,7 +2746,9 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "space"
+      "type": "entity",
+      "entity": "calendar_event",
+      "id": "/eventId"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -2757,7 +2766,9 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "space"
+      "type": "entity",
+      "entity": "calendar_event",
+      "id": "/eventId"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -2793,7 +2804,9 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "space"
+      "type": "entity",
+      "entity": "calendar_event",
+      "id": "/eventId"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -2829,7 +2842,8 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "space"
+      "type": "calendar",
+      "id": "/calendarId"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -2847,7 +2861,9 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "space"
+      "type": "entity",
+      "entity": "calendar_event",
+      "id": "/eventId"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -2901,7 +2917,9 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "space"
+      "type": "entity",
+      "entity": "calendar_event",
+      "id": "/eventId"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -2919,7 +2937,9 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "space"
+      "type": "entity",
+      "entity": "calendar_event",
+      "id": "/eventId"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -2937,7 +2957,9 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "space"
+      "type": "entity",
+      "entity": "calendar_event",
+      "id": "/eventId"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -2955,7 +2977,8 @@ export const routes: Route[] = [
     "permission": null,
     "level": "use",
     "resource": {
-      "type": "space"
+      "type": "calendar",
+      "id": "/calendarId"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -2973,7 +2996,8 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "space"
+      "type": "calendar",
+      "id": "/calendarId"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -2991,7 +3015,9 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "space"
+      "type": "entity",
+      "entity": "calendar_event",
+      "id": "/eventId"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -9649,7 +9675,8 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "space"
+      "type": "dynamic",
+      "ref": "/resource"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -9686,7 +9713,8 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "space"
+      "type": "dynamic",
+      "ref": "/resource"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -9722,7 +9750,8 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "space"
+      "type": "dynamic",
+      "ref": "/resource"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -13646,7 +13675,9 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "space"
+      "type": "entity",
+      "entity": "conversation",
+      "id": "/conversationId"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -13664,7 +13695,9 @@ export const routes: Route[] = [
     "permission": "records.edit",
     "level": "edit",
     "resource": {
-      "type": "space"
+      "type": "entity",
+      "entity": "conversation",
+      "id": "/conversationId"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -13682,7 +13715,9 @@ export const routes: Route[] = [
     "permission": "records.create",
     "level": "edit",
     "resource": {
-      "type": "space"
+      "type": "entity",
+      "entity": "conversation",
+      "id": "/conversationId"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -13700,7 +13735,9 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "space"
+      "type": "entity",
+      "entity": "conversation",
+      "id": "/conversationId"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -13790,7 +13827,9 @@ export const routes: Route[] = [
     "permission": "records.edit",
     "level": "edit",
     "resource": {
-      "type": "space"
+      "type": "entity",
+      "entity": "conversation",
+      "id": "/conversationId"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -14565,7 +14604,9 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "space"
+      "type": "entity",
+      "entity": "mail_message",
+      "id": "/messageId"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -14972,7 +15013,9 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "space"
+      "type": "entity",
+      "entity": "mail_message",
+      "id": "/messageId"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -15026,7 +15069,9 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "space"
+      "type": "entity",
+      "entity": "mail_message",
+      "id": "/messageId"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -18162,7 +18207,8 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "space"
+      "type": "dynamic",
+      "ref": "/resource"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -22555,7 +22601,8 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "space"
+      "type": "dynamic",
+      "ref": "/resource"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -25699,7 +25746,8 @@ export const routes: Route[] = [
     "level": "use",
     "resource": {
       "type": "vault_item",
-      "id": "/handle"
+      "id": "/handle",
+      "resolve": "handle"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -26288,7 +26336,8 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "space"
+      "type": "dynamic",
+      "ref": "/resource"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -26306,7 +26355,8 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "space"
+      "type": "dynamic",
+      "ref": "/resource"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -26325,7 +26375,8 @@ export const routes: Route[] = [
     "level": "use",
     "resource": {
       "type": "vault_item",
-      "id": "/item"
+      "id": "/item",
+      "resolve": "name"
     },
     "idempotency": "natural",
     "risk": "medium",

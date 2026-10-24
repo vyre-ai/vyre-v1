@@ -10,7 +10,7 @@ Mark a conversation read or unread
 | Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
-| Resource | space |
+| Resource | entity (/conversationId) |
 | Gate | none |
 | Idempotency | natural |
 | Offline | queue |

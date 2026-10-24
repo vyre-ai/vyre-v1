@@ -10,7 +10,7 @@ Rename a calendar or change its colour
 | Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
-| Resource | space |
+| Resource | calendar (/calendarId) |
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |

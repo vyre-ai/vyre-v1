@@ -10,7 +10,7 @@ Land one provider event: upsert by provider id, then merge with a meeting on tim
 | Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
-| Resource | space |
+| Resource | calendar (/calendarId) |
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |

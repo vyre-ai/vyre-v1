@@ -10,7 +10,7 @@ Delete an event (Undo in the title bar restores it)
 | Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
-| Resource | space |
+| Resource | entity (/eventId) |
 | Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | queue |

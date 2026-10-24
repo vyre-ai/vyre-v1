@@ -287,7 +287,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }
@@ -363,7 +364,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }
@@ -892,7 +894,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }
@@ -976,7 +979,8 @@
               "task",
               "run",
               "number",
-              "domain"
+              "domain",
+              "calendar"
             ],
             "type": "string"
           }
@@ -1270,7 +1274,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }
@@ -1357,7 +1362,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }
@@ -1649,7 +1655,8 @@
                 "task",
                 "run",
                 "number",
-                "domain"
+                "domain",
+                "calendar"
               ],
               "type": "string"
             },
@@ -2120,7 +2127,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }
@@ -2220,7 +2228,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }
@@ -2293,7 +2302,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }
@@ -3489,7 +3499,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }
@@ -3643,7 +3654,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }
@@ -15294,7 +15306,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }
@@ -17125,7 +17138,8 @@
               "task",
               "run",
               "number",
-              "domain"
+              "domain",
+              "calendar"
             ],
             "type": "string"
           }
@@ -17211,7 +17225,8 @@
               "task",
               "run",
               "number",
-              "domain"
+              "domain",
+              "calendar"
             ],
             "type": "string"
           }
@@ -17318,7 +17333,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }
@@ -17415,7 +17431,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }
@@ -17473,7 +17490,8 @@
               "task",
               "run",
               "number",
-              "domain"
+              "domain",
+              "calendar"
             ],
             "type": "string"
           }
@@ -17532,7 +17550,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }
@@ -22969,21 +22988,6 @@
       "name": "identity_reset_start",
       "planMode": "blocked",
       "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "identity.sign_in_options",
-      "deferred": false,
-      "description": "What the sign-in page offers for this Space: name, logo, key fingerprint, password, GitHub, SSO providers, second factor floor",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {},
-        "type": "object"
-      },
-      "name": "identity_sign_in_options",
-      "planMode": "allowed",
-      "toolset": "meta",
       "v": 1
     },
     {
@@ -32263,7 +32267,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }
@@ -35411,7 +35416,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }
@@ -36003,7 +36009,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }
@@ -39589,7 +39596,8 @@
               "task",
               "run",
               "number",
-              "domain"
+              "domain",
+              "calendar"
             ],
             "type": "string"
           }
@@ -39651,7 +39659,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }
@@ -46898,7 +46907,8 @@
                   "task",
                   "run",
                   "number",
-                  "domain"
+                  "domain",
+                  "calendar"
                 ],
                 "type": "string"
               }

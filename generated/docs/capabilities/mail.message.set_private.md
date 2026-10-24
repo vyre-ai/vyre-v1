@@ -10,7 +10,7 @@ Mark a message private so it stays out of the record, or clear the mark (inbox o
 | Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
-| Resource | space |
+| Resource | entity (/messageId) |
 | Gate | none |
 | Idempotency | natural |
 | Offline | patch |

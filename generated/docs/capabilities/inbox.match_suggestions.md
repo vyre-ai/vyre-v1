@@ -10,7 +10,7 @@ Suggested records for one sender
 | Permission | grant only |
 | Grant level | view |
 | Risk | low |
-| Resource | space |
+| Resource | entity (/conversationId) |
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |

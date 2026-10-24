@@ -10,7 +10,7 @@ Undo a match; the sender goes back to Unmatched
 | Permission | records.edit |
 | Grant level | edit |
 | Risk | medium |
-| Resource | space |
+| Resource | entity (/conversationId) |
 | Gate | none |
 | Idempotency | natural |
 | Offline | queue |

@@ -10,7 +10,7 @@ Delete a local calendar (provider calendars are disconnected, not deleted)
 | Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
-| Resource | space |
+| Resource | calendar (/calendarId) |
 | Gate | delete when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |

@@ -10,7 +10,7 @@ Save an attachment into Files
 | Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
-| Resource | space |
+| Resource | entity (/messageId) |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |

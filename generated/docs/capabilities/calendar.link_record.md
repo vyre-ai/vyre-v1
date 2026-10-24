@@ -10,7 +10,7 @@ Link an event to records, or remove a link (Open Record, Open Conversation)
 | Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
-| Resource | space |
+| Resource | entity (/eventId) |
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |
