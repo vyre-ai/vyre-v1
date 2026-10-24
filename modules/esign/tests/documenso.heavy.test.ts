@@ -181,7 +181,7 @@ test("certificate: a self-signed signing certificate goes into the container and
   const crt = path.join(tmp, "crt.pem");
   const p12 = path.join(tmp, "cert.p12");
   sh("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", key, "-out", crt, "-days", "2", "-subj", "/CN=Vyre heavy test"]);
-  sh("openssl", ["pkcs12", "-export", "-out", p12, "-inkey", key, "-in", crt, "-passout", "pass:testpass"]);
+  sh("openssl", ["pkcs12", "-export", "-keypbe", "PBE-SHA1-3DES", "-certpbe", "PBE-SHA1-3DES", "-macalg", "sha1", "-out", p12, "-inkey", key, "-in", crt, "-passout", "pass:testpass"]);
   fs.chmodSync(p12, 0o644);
   const id = dc(["ps", "-q", "documenso"]).trim();
   sh("docker", ["cp", p12, `${id}:/opt/documenso/cert.p12`]);
@@ -192,12 +192,15 @@ test("certificate: a self-signed signing certificate goes into the container and
     await new Promise((r) => setTimeout(r, 3000));
   }
   say("health after certificate", health);
+  say("cert dir", dc(["exec", "-T", "documenso", "sh", "-c", "ls -ln /opt/documenso; id; env | grep -i SIGNING | sed s/PASSPHRASE=.*/PASSPHRASE=.../"], { allowFail: true }));
+  say("logs", dc(["logs", "--tail", "25", "documenso"], { allowFail: true }));
   assert.match(health, /"certificate":\{"status":"ok"/);
 });
 
 test("account: sign up, verify, sign in, make an API token and a webhook to the sink", { skip }, async () => {
-  const up = await call("/api/auth/email-password/signup", { method: "POST", body: OWNER });
+  const up = await call("/api/auth/email-password/signup", { method: "POST", headers: { origin: state.base }, body: OWNER });
   say("signup", up.status, up.text.slice(0, 300));
+  if (up.status >= 300) say("logs after signup", dc(["logs", "--tail", "30", "documenso"], { allowFail: true }), "env", dc(["exec", "-T", "documenso", "sh", "-c", "env | grep -i SIGNUP"], { allowFail: true }));
   assert.ok(up.status < 300, "signup");
   psql(`update "User" set "emailVerified" = now() where email = '${OWNER.email}'`);
   flow.userId = Number(psql(`select id from "User" where email = '${OWNER.email}'`));
