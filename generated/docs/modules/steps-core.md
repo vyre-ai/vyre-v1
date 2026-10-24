@@ -1,6 +1,6 @@
 # Core steps and spreadsheets (steps-core)
 
-Lane L6. Kind module. Status stub. Version 0.1.0.
+Lane L6. Kind module. Version 0.1.0.
 
 Requires: chat, esign, files, journeys, mail, records, tasks, telephony.
 

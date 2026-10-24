@@ -31,6 +31,7 @@ test('a scaffolded module has one capability, one event, one entity and passes v
   const table: LaneTable = { lanes: { L1: ['widgets'] }, extras: {}, frozenCount: 1, versioned: [] };
   assert.deepEqual(validateAll([{ file: 'manifests/widgets.ts', dir: '', manifest }], table), []);
   const reg = buildRegistry([{ file: 'manifests/widgets.ts', dir: '', manifest }]);
+  assert.equal('status' in reg.modules[0]!, false, 'the registry carries no module status (ruling 25)');
   assert.equal(reg.capabilities.length, 2);
   assert.equal(reg.entities.length, 1);
   assert.ok(fileURLToPath(import.meta.url).length > 0);

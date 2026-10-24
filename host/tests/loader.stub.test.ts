@@ -33,7 +33,7 @@ test("boot: the real registry, host/modules.json, route table and every stub-imp
 
 test("a stub module answers its example through the invoke pipeline, and the answer validates", async () => {
   const h = await loadHost({ registry: reg, modulesJson, routes, importer: fileImporter(root) });
-  const cap = caps.find((c) => (registry.modules.find((m) => m.id === (c as unknown as { module: string }).module)?.status === "stub") && c.resource.type === "space" && c.permission && c.examples.length && c.idempotency !== "key" && !c.gate && !c.caller)!;
+  const cap = caps.find((c) => (modulesJson.modules.find((m) => m.id === (c as unknown as { module: string }).module)?.status === "stub") && c.resource.type === "space" && c.permission && c.examples.length && c.idempotency !== "key" && !c.gate && !c.caller)!;
   assert.ok(cap, "a stub capability bound to the Space exists");
   const snap = new AccessSnapshot();
   snap.putRole({ id: "member", clearance: 3, perms: [cap.permission!], name: "Member" });
@@ -49,8 +49,8 @@ test("a stub module answers its example through the invoke pipeline, and the ans
 });
 
 const tiny = (status: "stub" | "live"): { reg: RegistryLike; list: { modules: { id: string; owner: string; status: string }[] } } => ({
-  reg: { modules: [{ id: "demo", owner: "L1", status }], capabilities: [{ name: "demo.hello", v: 1, module: "demo" }], connectors: [{ module: "demo", domains: ["api.demo.test"] }] },
-  list: { modules: [{ id: "demo", owner: "L1", status: "stub" }] },
+  reg: { modules: [{ id: "demo", owner: "L1" }], capabilities: [{ name: "demo.hello", v: 1, module: "demo" }], connectors: [{ module: "demo", domains: ["api.demo.test"] }] },
+  list: { modules: [{ id: "demo", owner: "L1", status }] },
 });
 
 test("status picks the handlers: stub serves stub-impl, live serves impl", async () => {
