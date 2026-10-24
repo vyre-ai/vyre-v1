@@ -6,10 +6,10 @@
 import crypto from "node:crypto";
 import { canonical } from "../seal/wire.ts";
 import { KernelError } from "../identity/errors.ts";
-import type { AuditEvent, AuditLog } from "./log.ts";
+import type { AuditEvent, AuditLog, AuditReader } from "./log.ts";
 
 export { auditLogOf } from "./log.ts";
-export type { AuditEvent, AuditLog } from "./log.ts";
+export type { AuditEvent, AuditLog, AuditReader } from "./log.ts";
 
 export const EVERY_EVENTS = 1000;
 export const EVERY_MS = 10 * 60 * 1000;
@@ -116,7 +116,7 @@ export interface LogProblem { seq?: number; why: string }
  * Recompute the chain and check every checkpoint in it (`vyre audit verify`): the hash chain, each signature, and that the event a checkpoint names is in the log with the hash it names.
  * Problems are listed, not thrown.
  */
-export function verifyLog(cfg: { space: string; log: AuditLog; publicKey: PublicKey }): { ok: boolean; events: number; checkpoints: number; problems: LogProblem[] } {
+export function verifyLog(cfg: { space: string; log: AuditReader; publicKey: PublicKey }): { ok: boolean; events: number; checkpoints: number; problems: LogProblem[] } {
   const chain = cfg.log.verify();
   const problems: LogProblem[] = [];
   if (!chain.ok) problems.push({ ...(chain.at !== undefined ? { seq: chain.at } : {}), why: chain.why || "the hash chain is broken" });
@@ -146,7 +146,7 @@ export function eventAt(log: Pick<AuditLog, "get">, seq: number): { hash: string
  * its position is the one it signed, and walk the chain from there to the head. A log shorter than the checkpoint, or with another event at its position, or a broken tail, is reported. With no
  * checkpoint it falls back to the whole chain (a young log).
  */
-export function verifyTail(cfg: { space: string; log: AuditLog; publicKey: PublicKey }): { ok: boolean; from: number; checked: number; why?: string } {
+export function verifyTail(cfg: { space: string; log: AuditReader; publicKey: PublicKey }): { ok: boolean; from: number; checked: number; why?: string } {
   let cp: Checkpoint | null = null;
   const list = cfg.log.read({ type: "checkpoint.signed" });
   for (let i = list.length - 1; i >= 0; i--) { const c = checkpointOf(list[i]!); if (isCheckpoint(c) && c.space === cfg.space && verifyCheckpoint(c, cfg.publicKey)) { cp = c; break; } }

@@ -13,6 +13,9 @@ export interface AuditLog {
   append(ev: { type: string; sv: number; subject: string; data: unknown }): unknown;
 }
 
+/** What the checks need to read a log (the device's copy, or a view of an older one). */
+export type AuditReader = Pick<AuditLog, "latestSeq" | "head" | "get" | "read" | "verify">;
+
 const TRACE = (): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
 const asAudit = (e: StoredEvent): AuditEvent => {
   let data: unknown = null;

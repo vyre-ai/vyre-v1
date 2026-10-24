@@ -17,14 +17,19 @@ async function key(label: string) {
 }
 type Key = Awaited<ReturnType<typeof key>>;
 interface World { ops: C.Op[]; state: C.State }
+/** Anything that signs ops: an Ed25519 key, a passkey or an enclave-backed phone. */
+interface Signer { eid: string; sign: C.SignFn }
+interface Holder extends Signer { entry: (kind: string) => C.RawEntry & { eid: string } }
+interface Coded { code?: string; message?: string }
+const coded = (code: string, more?: (e: Coded) => boolean) => (e: unknown): boolean => (e as Coded).code === code && (more ? more(e as Coded) : true);
 
-async function person(first: Key, ts = T0): Promise<World> {
+async function person(first: Holder, ts = T0): Promise<World> {
   const g = await C.makeGenesis({ kind: "person", entry: first.entry("device"), nonce: "n-" + first.eid.slice(0, 8), ts, sign: first.sign });
   return { ops: [g], state: await C.verifyChain([g], { now: ts }) };
 }
 /** Append one op signed by `k` and return the new world. */
-async function step(w: World, body: Partial<C.Op>, k: Key, ts: number, ctx: C.Ctx & { via?: string } = {}): Promise<World> {
-  const op = await C.makeOp(w.state, body, { by: k.eid, ts, sign: k.sign, via: ctx.via });
+async function step(w: World, body: Partial<C.Op>, k: Signer, ts: number, ctx: C.Ctx & { via?: string } = {}): Promise<World> {
+  const op = await C.makeOp(w.state, body, { by: k.eid, ts, sign: k.sign, ...(ctx.via !== undefined ? { via: ctx.via } : {}) });
   const state = await C.applyOp(w.state, op, { now: ts, ...ctx });
   return { ops: [...w.ops, op], state };
 }
@@ -50,7 +55,7 @@ test("chain: any entry adds and removes others, each change signed by something 
   w = await step(w, { type: "add", entry: tablet.entry("device") }, laptop, T0 + 2 * H);
   // a stranger cannot sign
   const stranger = await key("stranger");
-  await assert.rejects(step(w, { type: "add", entry: stranger.entry("device") }, stranger, T0 + 3 * H), e => e.code === "not_on_list");
+  await assert.rejects(step(w, { type: "add", entry: stranger.entry("device") }, stranger, T0 + 3 * H), coded("not_on_list"));
   // a signature that is not the signer's is refused
   const forged = await C.makeOp(w.state, { type: "remove", target: phone.eid }, { by: phone.eid, ts: T0 + 3 * H, sign: stranger.sign });
   await refused(C.applyOp(w.state, forged, { now: T0 + 3 * H }), "bad_signature");
@@ -117,9 +122,9 @@ test("chain: two recovery contacts bring an identity back with nothing else", as
   w = await step(w, { type: "add", entry: c2.entry("contact") }, phone, T0 + 25 * H + 1);
   w = await step(w, { type: "add", entry: c3.entry("contact") }, phone, T0 + 25 * H + 2);
   const t = T0 + 80 * H;
-  const build = async signers => {
+  const build = async (signers: Key[]) => {
     const op = await C.makeOp(w.state, { type: "recover", entry: newPhone.entry("device") }, { ts: t });
-    op.approvals = signers.map(k => ({ eid: k.eid, sig: C.b64u(k.sign(C.approvalMessage(op))) }));
+    op.approvals = signers.map((k) => ({ eid: k.eid, sig: C.b64u(k.sign(C.approvalMessage(op))) }));
     return op;
   };
   await refused(C.applyOp(w.state, await build([c1]), { now: t }), "no_quorum");
@@ -160,13 +165,13 @@ test("chain: a fork is detected, a stale answer is detected, an extension is fin
   const longer = await step(w, { type: "add", entry: thief.entry("device") }, mac, T0 + 2 * H);
   assert.deepEqual(await C.checkAnswer(pin, longer.ops), { ok: true, fresh: true });
   // stale: the directory replays the chain from before the pinned head
-  assert.equal((await C.checkAnswer(pin, w.ops.slice(0, 1))).code, "stale");
+  assert.equal(((await C.checkAnswer(pin, w.ops.slice(0, 1))) as Coded).code, "stale");
   // fork: a different second op at the same place
   const alt = await step(await person(phone, T0).then(p => p), { type: "add", entry: thief.entry("device") }, phone, T0 + H);
-  assert.equal((await C.checkAnswer(pin, alt.ops)).code, "fork");
+  assert.equal(((await C.checkAnswer(pin, alt.ops)) as Coded).code, "fork");
   // another identity entirely
   const other = await person(await key("other"));
-  assert.equal((await C.checkAnswer(pin, other.ops)).code, "other_id");
+  assert.equal(((await C.checkAnswer(pin, other.ops)) as Coded).code, "other_id");
 });
 
 test("chain: a space's list holds its owners, signed through the owner's own devices, with the newcomer rule applied through them", async () => {
@@ -175,13 +180,13 @@ test("chain: a space's list holds its owners, signed through the owner's own dev
   alex = await step(alex, { type: "add", entry: newDevice.entry("device") }, phone, T0 + 100 * H);
   const bob = await person(bobPhone, T0);
   const chains = new Map([[alex.state.id, alex.ops], [bob.state.id, bob.ops]]);
-  const ctx = { ownerOps: async id => chains.get(id) || null, now: T0 + 200 * H };
+  const ctx = { ownerOps: async (id: string) => chains.get(id) || null, now: T0 + 200 * H };
   const pos = async () => C.viaOf(alex.ops);
 
   const g = await C.makeGenesis({ kind: "space", entry: { eid: alex.state.id, kind: "owner", subject: alex.state.id, label: "Alex" }, nonce: "space-nonce-1", ts: T0 + 101 * H, via: phone.eid, viaPos: await pos(), sign: phone.sign });
   let space = { ops: [g], state: await C.verifyChain([g], ctx) };
   assert.match(space.state.id, /^spc_[a-z2-7]{26}$/);
-  const op = async (body, dev, ts) => C.makeOp(space.state, body, { by: alex.state.id, via: dev.eid, viaPos: await pos(), ts, sign: dev.sign });
+  const op = async (body: Partial<C.Op>, dev: Key, ts: number) => C.makeOp(space.state, body, { by: alex.state.id, via: dev.eid, viaPos: await pos(), ts, sign: dev.sign });
   // an owner adds another owner through an old device
   const addBob = await op({ type: "add", entry: { eid: bob.state.id, kind: "owner", subject: bob.state.id } }, phone, T0 + 102 * H);
   space = { ops: [...space.ops, addBob], state: await C.applyOp(space.state, addBob, ctx) };
@@ -235,7 +240,7 @@ test("chain (reviewer-2 probe 2): a device removed from its owner's list cannot 
   alex = await step(alex, { type: "add", entry: d2.entry("device") }, d1, T0 + 30 * H);
   const pos0 = await C.viaOf(alex.ops);           // the list while d1 is still on it
   const chains = new Map([[alex.state.id, alex.ops]]);
-  const ctxOf = (live, extra = {}) => ({ ownerOps: async id => chains.get(id) || null, now: T0 + 400 * H, live, ...extra });
+  const ctxOf = (live: boolean, extra: C.Ctx = {}): C.Ctx => ({ ownerOps: async (id: string) => chains.get(id) || null, now: T0 + 400 * H, live, ...extra });
   const g = await C.makeGenesis({ kind: "space", entry: { eid: alex.state.id, kind: "owner", subject: alex.state.id }, nonce: "backdate-nonce", ts: T0 + 40 * H, via: d1.eid, viaPos: pos0, sign: d1.sign });
   const space = { ops: [g], state: await C.verifyChain([g], ctxOf(false)) };
   // d1 is removed from alex's list at R (by d2, which is old enough by now)
@@ -290,26 +295,27 @@ test("chain (reviewer-2 W-1): a newcomer's age never comes from a time its adder
   await refused(C.applyOp(s1, await C.makeOp(s1, { type: "replace-code", entry: code2.entry("code") }, { by: thief.eid, ts: now + 1000, sign: thief.sign }), { now: now + 2000, live: true }), "newcomer");
   await refused(C.applyOp(s1, await C.makeOp(s1, { type: "remove", target: phone.eid }, { by: thief.eid, ts: now + 23 * H, sign: thief.sign }), { now: now + 23 * H, live: true }), "newcomer");
   // a verifier that learned the op later counts the age from when it first saw it, not from the op's time
-  const lateCtx = { now: now + 600 * H, seenAt: seq => (seq === 1 ? now + 599 * H : undefined) };
+  const lateCtx = { now: now + 600 * H, seenAt: (seq: number) => (seq === 1 ? now + 599 * H : undefined) };
   const learned = await C.verifyChain(w1.ops, lateCtx);
-  assert.equal(learned.entries.find(e => e.eid === thief.eid).since, now + 599 * H);
+  assert.equal(learned.entries.find(e => e.eid === thief.eid)?.since, now + 599 * H);
   const rmLate = await C.makeOp(learned, { type: "remove", target: phone.eid }, { by: thief.eid, ts: now + 599 * H + H, sign: thief.sign });
   await refused(C.applyOp(learned, rmLate, { now: now + 600 * H, seenAt: lateCtx.seenAt }), "newcomer");
   // while the same chain without a recorded first sight would count from the op's own time
   const plain = await C.verifyChain(w1.ops, { now: now + 600 * H });
-  assert.equal(plain.entries.find(e => e.eid === thief.eid).since, now);
+  assert.equal(plain.entries.find(e => e.eid === thief.eid)?.since, now);
 });
 
 // KP-1: a key a web origin can reach has no say over who speaks for the identity; a passkey signs each op with user verification.
-const webKey = async label => { const k = await key(label); return { ...k, entry: kind => ({ ...k.entry(kind), held: "web" }) }; };
+const webKey = async (label: string) => { const k = await key(label); return { ...k, entry: (kind: string) => ({ ...k.entry(kind), held: "web" }) }; };
 
 /** A software passkey: a P-256 key that signs assertions the way an authenticator does. `uv` and `rp`/`origin` can be bent for the refusals. */
-async function passkey(label, rp = "app.vyre.run") {
+interface Bend { rp?: string; flags?: number; challenge?: string; origin?: string }
+async function passkey(label: string, rp = "app.vyre.run") {
   const { publicKey, privateKey } = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
   const pub = publicKey.export({ format: "der", type: "spki" }).subarray(-65);
   const pubText = Buffer.from(pub).toString("base64url");
   const eid = await C.eidOf(pub);
-  const assert1 = (m, o = {}) => {
+  const assert1 = (m: Uint8Array, o: Bend = {}) => {
     const rpHash = crypto.createHash("sha256").update(o.rp ?? rp).digest();
     const ad = Buffer.concat([rpHash, Buffer.from([o.flags ?? 0x05]), Buffer.from([0, 0, 0, 1])]);
     const cd = Buffer.from(JSON.stringify({ type: "webauthn.get", challenge: o.challenge ?? crypto.createHash("sha256").update(Buffer.from(m)).digest().toString("base64url"), origin: o.origin ?? `https://${rp}`, crossOrigin: false }));
@@ -317,15 +323,15 @@ async function passkey(label, rp = "app.vyre.run") {
     const s = crypto.sign("sha256", signed, privateKey); // DER, as an authenticator gives it
     return Buffer.from(JSON.stringify({ ad: ad.toString("base64url"), cd: cd.toString("base64url"), s: s.toString("base64url") }));
   };
-  const sign = (m, o) => assert1(m, o);
-  return { label, pub: pubText, eid, sign, with: o => m => assert1(m, o), entry: () => ({ eid, kind: "device", pub: pubText, alg: "webauthn-es256", rp }) };
+  const sign = (m: Uint8Array, o?: Bend) => assert1(m, o);
+  return { label, pub: pubText, eid, sign, with: (o: Bend) => (m: Uint8Array) => assert1(m, o), entry: (_kind?: string) => ({ eid, kind: "device", pub: pubText, alg: "webauthn-es256", rp }) };
 }
 
 test("KP-1: a founder key held on the web signs nothing about the list (the probe: add, replace-code, remove), and the paper code still gets a way back", async () => {
   const web = await webKey("browser"), code = await key("paper"), attacker = await key("attacker"), phone = await key("phone");
   let w = await person(web);
   // the genesis is its own: a web key may make the identity
-  assert.equal(w.state.entries[0].held, "web");
+  assert.equal(w.state.entries[0]?.held, "web");
   const later = T0 + 48 * H; // past every newcomer window: the old rule would have allowed all of this
   await refused(step(w, { type: "add", entry: attacker.entry("device") }, web, later), "web_key");
   await refused(step(w, { type: "add", entry: code.entry("code") }, web, later), "web_key");
@@ -352,7 +358,7 @@ test("KP-1: a founder key held on the web signs nothing about the list (the prob
 test("KP-1: a passkey assertion must carry user verification, name this op, and come from its own rp and origin", async () => {
   const pk = await passkey("alex's passkey"), friend = await key("friend"), other = await key("other");
   const w = await person(pk);
-  const add = (k, o, ts = T0 + 25 * H) => step(w, { type: "add", entry: k.entry("device") }, { ...pk, sign: m => (o ? pk.sign(m, o) : pk.sign(m)) }, ts);
+  const add = (k: Holder, o?: Bend, ts = T0 + 25 * H) => step(w, { type: "add", entry: k.entry("device") }, { eid: pk.eid, sign: (m: Uint8Array) => (o ? pk.sign(m, o) : pk.sign(m)) }, ts);
   const ok = await add(friend);
   assert.ok(ok.state.entries.some(e => e.eid === friend.eid));
   await refused(add(friend, { flags: 0x01 }), "bad_signature"); // present, not verified
@@ -372,20 +378,20 @@ test("KP-1: a passkey assertion must carry user verification, name this op, and 
 async function enclaveKey() {
   const { publicKey, privateKey } = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
   const pub = Buffer.from(publicKey.export({ format: "der", type: "spki" }).subarray(-65)).toString("base64url");
-  const low = raw => { const n = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n; let s = 0n; for (let i = 32; i < 64; i++) s = (s << 8n) | BigInt(raw[i]); if (s > n / 2n) { s = n - s; for (let i = 63; i >= 32; i--) { raw[i] = Number(s & 255n); s >>= 8n; } } return raw; };
-  const high = raw => { const n = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n; let s = 0n; for (let i = 32; i < 64; i++) s = (s << 8n) | BigInt(raw[i]); if (s <= n / 2n) { s = n - s; for (let i = 63; i >= 32; i--) { raw[i] = Number(s & 255n); s >>= 8n; } } return raw; };
-  const rawSig = m => crypto.sign("sha256", Buffer.from(m), { key: privateKey, dsaEncoding: "ieee-p1363" });
-  return { pub, esign: m => low(Buffer.from(rawSig(m))), esignHigh: m => high(Buffer.from(rawSig(m))), esignDer: m => crypto.sign("sha256", Buffer.from(m), privateKey) };
+  const low = (raw: Buffer) => { const n = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n; let s = 0n; for (let i = 32; i < 64; i++) s = (s << 8n) | BigInt(raw[i] ?? 0); if (s > n / 2n) { s = n - s; for (let i = 63; i >= 32; i--) { raw[i] = Number(s & 255n); s >>= 8n; } } return raw; };
+  const high = (raw: Buffer) => { const n = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n; let s = 0n; for (let i = 32; i < 64; i++) s = (s << 8n) | BigInt(raw[i] ?? 0); if (s <= n / 2n) { s = n - s; for (let i = 63; i >= 32; i--) { raw[i] = Number(s & 255n); s >>= 8n; } } return raw; };
+  const rawSig = (m: Uint8Array) => crypto.sign("sha256", Buffer.from(m), { key: privateKey, dsaEncoding: "ieee-p1363" });
+  return { pub, esign: (m: Uint8Array) => low(Buffer.from(rawSig(m))), esignHigh: (m: Uint8Array) => high(Buffer.from(rawSig(m))), esignDer: (m: Uint8Array) => crypto.sign("sha256", Buffer.from(m), privateKey) };
 }
-const phoneEntry = (k, enc) => ({ ...k.entry("device"), enclave: enc.pub });
+const phoneEntry = (k: Key, enc: { pub: string }) => ({ ...k.entry("device"), enclave: enc.pub });
 
 test("NK-2: the phone's seed alone cannot add, remove or replace-code; the seed plus its enclave signature can; another key's or another op's esig is refused; a non-list use needs only the seed", async () => {
   const phone = await key("phone"), mac = await key("mac"), thief = await key("thief"), code = await key("paper"), enc = await enclaveKey(), other = await enclaveKey();
   const g = await C.makeGenesis({ kind: "person", entry: phoneEntry(phone, enc), nonce: "n-nk2-0001", ts: T0, sign: phone.sign });
   let w = { ops: [g], state: await C.verifyChain([g], { now: T0 }) };
   const later = T0 + 48 * H;
-  const run = (body, signer, extra = {}, ts = later) => step(w, body, { ...signer, sign: signer.sign }, ts, extra);
-  const withEsig = async (body, esign, ts = later) => { const op = await C.makeOp(w.state, body, { by: phone.eid, ts, sign: phone.sign, esign }); return C.applyOp(w.state, op, { now: ts }); };
+  const run = (body: Partial<C.Op>, signer: Signer, extra: C.Ctx = {}, ts = later) => step(w, body, signer, ts, extra);
+  const withEsig = async (body: Partial<C.Op>, esign: C.SignFn, ts = later) => { const op = await C.makeOp(w.state, body, { by: phone.eid, ts, sign: phone.sign, esign }); return C.applyOp(w.state, op, { now: ts }); };
   // the reviewer's probe: the seed alone
   await refused(run({ type: "add", entry: thief.entry("device") }, phone), "needs_enclave");
   await refused(run({ type: "add", entry: code.entry("code") }, phone), "needs_enclave");
@@ -394,13 +400,13 @@ test("NK-2: the phone's seed alone cannot add, remove or replace-code; the seed 
   const added = await withEsig({ type: "add", entry: code.entry("code") }, enc.esign);
   assert.ok(added.entries.some(e => e.eid === code.eid));
   // one op, one hash: the DER form and the high-s twin of the same signature are refused, not accepted as second valid ops
-  await assert.rejects(withEsig({ type: "add", entry: mac.entry("device") }, enc.esignDer), e => e.code === "needs_enclave");
-  await assert.rejects(withEsig({ type: "add", entry: mac.entry("device") }, enc.esignHigh), e => e.code === "needs_enclave");
+  await assert.rejects(withEsig({ type: "add", entry: mac.entry("device") }, enc.esignDer), coded("needs_enclave"));
+  await assert.rejects(withEsig({ type: "add", entry: mac.entry("device") }, enc.esignHigh), coded("needs_enclave"));
   // another key's esig, and an esig made for another op
-  await assert.rejects(withEsig({ type: "add", entry: thief.entry("device") }, other.esign), e => e.code === "needs_enclave");
+  await assert.rejects(withEsig({ type: "add", entry: thief.entry("device") }, other.esign), coded("needs_enclave"));
   const forOther = await C.makeOp(w.state, { type: "add", entry: mac.entry("device") }, { by: phone.eid, ts: later, sign: phone.sign, esign: enc.esign });
   const swapped = await C.makeOp(w.state, { type: "add", entry: thief.entry("device") }, { by: phone.eid, ts: later, sign: phone.sign });
-  await refused(C.applyOp(w.state, { ...swapped, esig: forOther.esig }, { now: later }), "needs_enclave");
+  await refused(C.applyOp(w.state, { ...swapped, ...(forOther.esig ? { esig: forOther.esig } : {}) }, { now: later }), "needs_enclave");
   // a Mac key with no enclave and no held keeps signing alone (the lead's ruling decides if that stays)
   w = { ...w, state: added };
   w.ops = [...w.ops];
@@ -423,14 +429,14 @@ test("NE-1: a passkey op's head does not depend on the assertion's signature byt
   const w = await person(pk);
   const op = await C.makeOp(w.state, { type: "add", entry: friend.entry("device") }, { by: pk.eid, ts: T0 + 25 * H, sign: pk.sign });
   // the high-s twin of the authenticator's signature: anyone can make it, and it verifies, so the head must not change with it
-  const env = JSON.parse(Buffer.from(op.sig, "base64url").toString());
+  const env = JSON.parse(Buffer.from(op.sig ?? "", "base64url").toString());
   const der = Buffer.from(env.s, "base64url");
-  const rLen = der[3], sOff = 4 + rLen + 2, sLen = der[4 + rLen + 1];
+  const rLen = der[3] ?? 0, sOff = 4 + rLen + 2, sLen = der[4 + rLen + 1] ?? 0;
   const n = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n;
   let s = 0n; for (const b of der.subarray(sOff, sOff + sLen)) s = (s << 8n) | BigInt(b);
   const twin = n - s;
   const hex = twin.toString(16).padStart(64, "0");
-  let sb = Buffer.from(hex, "hex"); if (sb[0] & 0x80) sb = Buffer.concat([Buffer.from([0]), sb]);
+  let sb = Buffer.from(hex, "hex"); if ((sb[0] ?? 0) & 0x80) sb = Buffer.concat([Buffer.from([0]), sb]);
   const r = der.subarray(4, 4 + rLen);
   const body = Buffer.concat([Buffer.from([2, r.length]), r, Buffer.from([2, sb.length]), sb]);
   const twinDer = Buffer.concat([Buffer.from([0x30, body.length]), body]);
@@ -460,14 +466,14 @@ test("NE-1 cares: a long garbage sig on an Ed25519 entry is refused (it can neve
 
 test("chain: a label on a device entry is refused where ops are accepted now, and an older chain that holds labels still verifies", async () => {
   const phone = await key("phone"), laptop = await key("laptop");
-  const labelled = k => ({ ...k.entry("device"), label: k.label });
+  const labelled = (k: Key) => ({ ...k.entry("device"), label: k.label });
   const g = await C.makeGenesis({ kind: "person", entry: labelled(phone), nonce: "label-nonce-1", ts: T0, sign: m => phone.sign(m) });
-  await assert.rejects(C.verifyChain([g], { now: T0 + 1, live: true }), e => e.code === "bad_entry" && /label/.test(e.message), "refused when accepted live");
+  await assert.rejects(C.verifyChain([g], { now: T0 + 1, live: true }), coded("bad_entry", (e) => /label/.test(e.message ?? "")), "refused when accepted live");
   const old = await C.verifyChain([g], { now: T0 + 1 });
   assert.deepEqual(old.entries.map(e => e.label), ["phone"], "history that holds labels still reads");
   const clean = await person(phone);
   const op = await C.makeOp(clean.state, { type: "add", entry: labelled(laptop) }, { by: phone.eid, ts: T0 + H, sign: m => phone.sign(m) });
-  await assert.rejects(C.applyOp(clean.state, op, { now: T0 + H, live: true }), e => e.code === "bad_entry");
+  await assert.rejects(C.applyOp(clean.state, op, { now: T0 + H, live: true }), coded("bad_entry"));
 });
 
 // `agree`: a device's P-256 key-agreement point (the key a chat key is wrapped to). Part of the signed entry, immutable, device entries only, carried by genesis (enrolment), add (recovery and join) alike.
@@ -478,13 +484,13 @@ test("agree: a device entry carries a P-256 agreement point through genesis and 
   const pt = agreePoint();
   const g = await C.makeGenesis({ kind: "person", entry: { ...dev.entry("device"), agree: pt }, nonce: "n-agree-001", ts: T0, sign: dev.sign });
   const state = await C.verifyChain([g], { now: T0 });
-  assert.equal(state.entries.find(e => e.eid === dev.eid).agree, pt, "enrolment: the point is in the verified entry");
+  assert.equal(state.entries.find(e => e.eid === dev.eid)?.agree, pt, "enrolment: the point is in the verified entry");
   // a recovery or a join is an add of a device entry: it carries its own point
   const later = T0 + 48 * H, pt2 = agreePoint();
   const add = await C.makeOp(state, { type: "add", entry: { ...other.entry("device"), agree: pt2 } }, { by: dev.eid, ts: later, sign: dev.sign });
   const s2 = await C.applyOp(state, add, { now: later });
-  assert.equal(s2.entries.find(e => e.eid === other.eid).agree, pt2, "an add keeps it");
-  assert.equal(s2.entries.find(e => e.eid === dev.eid).agree, pt, "and nothing changed the first device's");
+  assert.equal(s2.entries.find(e => e.eid === other.eid)?.agree, pt2, "an add keeps it");
+  assert.equal(s2.entries.find(e => e.eid === dev.eid)?.agree, pt, "and nothing changed the first device's");
   // shape
   for (const bad of ["", "AAAA", Buffer.alloc(65, 1).toString("base64url"), Buffer.alloc(64, 4).toString("base64url")]) {
     await refused(C.makeGenesis({ kind: "person", entry: { ...dev.entry("device"), agree: bad }, nonce: "n-agree-bad1", ts: T0, sign: dev.sign }).then(x => C.verifyChain([x], { now: T0 })), "bad_entry");
@@ -503,7 +509,7 @@ test("agree op: an older entry gains agree once; a second is refused; another en
   let w = { ops: [g], state: await C.verifyChain([g], { now: T0 }) };
   w = await step(w, { type: "add", entry: other.entry("device") }, dev, T0 + H);
   const before = w.state.entries.find(e => e.eid === dev.eid);
-  assert.equal(before.agree, undefined);
+  assert.equal(before?.agree, undefined);
   const pt = agreePoint();
   // another device (however old) cannot set it for the entry
   await refused(step(w, { type: "agree", target: dev.eid, agree: agreePoint() }, other, T0 + 2 * H), "not_allowed");
@@ -515,12 +521,12 @@ test("agree op: an older entry gains agree once; a second is refused; another en
   // the entry itself: accepted, once
   const done = await step(w, { type: "agree", target: dev.eid, agree: pt }, dev, T0 + 2 * H, { live: true });
   const after = done.state.entries.find(e => e.eid === dev.eid);
-  assert.equal(after.agree, pt);
+  assert.equal(after?.agree, pt);
   assert.deepEqual({ ...after, agree: undefined }, { ...before, agree: undefined }, "nothing else on the entry moved: eid, kind, key, since, founder");
-  assert.equal(done.state.entries.find(e => e.eid === other.eid).agree, undefined, "the other device is untouched");
+  assert.equal(done.state.entries.find(e => e.eid === other.eid)?.agree, undefined, "the other device is untouched");
   await refused(step(done, { type: "agree", target: dev.eid, agree: agreePoint() }, dev, T0 + 3 * H), "exists");
   // a verifier that replays the whole chain reaches the same state
-  assert.equal((await C.verifyChain(done.ops, { now: T0 + 2 * H })).entries.find(e => e.eid === dev.eid).agree, pt);
+  assert.equal((await C.verifyChain(done.ops, { now: T0 + 2 * H })).entries.find(e => e.eid === dev.eid)?.agree, pt);
   // a device that already carried agree from genesis cannot set another
   const g2 = await C.makeGenesis({ kind: "person", entry: { ...other.entry("device"), agree: agreePoint() }, nonce: "n-agree-op-2", ts: T0, sign: other.sign });
   const w2 = { ops: [g2], state: await C.verifyChain([g2], { now: T0 }) };
@@ -542,8 +548,8 @@ test("agree op: a device replaces its OWN lost chat key by naming the one it hol
   await refused(step(w, { type: "agree", target: dev.eid, agree: p1, replaces: p1 }, dev, T0 + 2 * H), "exists");
   await refused(step(w, { type: "agree", target: dev.eid, agree: p2, replaces: p1 }, other, T0 + 2 * H), "not_allowed");
   const done = await step(w, { type: "agree", target: dev.eid, agree: p2, replaces: p1 }, dev, T0 + 2 * H, { live: true });
-  assert.equal(done.state.entries.find(e => e.eid === dev.eid).agree, p2);
-  assert.equal((await C.verifyChain(done.ops, { now: T0 + 2 * H })).entries.find(e => e.eid === dev.eid).agree, p2, "a replay reaches the same state");
+  assert.equal(done.state.entries.find(e => e.eid === dev.eid)?.agree, p2);
+  assert.equal((await C.verifyChain(done.ops, { now: T0 + 2 * H })).entries.find(e => e.eid === dev.eid)?.agree, p2, "a replay reaches the same state");
   assert.deepEqual(C.alertsSince(done.ops, 1).map(a => a.type), ["agree"], "other devices are told a chat key was swapped");
   const bare = await C.makeGenesis({ kind: "person", entry: dev.entry("device"), nonce: "n-agree-rep2", ts: T0, sign: dev.sign });
   await refused(step({ ops: [bare], state: await C.verifyChain([bare], { now: T0 }) }, { type: "agree", target: dev.eid, agree: p2, replaces: p1 }, dev, T0 + H), "bad_op");
@@ -574,7 +580,7 @@ test("agree op vector: the signed bytes are vyre-chain-v1 and the canonical body
   const seed = Buffer.from(V.signing_seed_hex, "hex");
   const priv = crypto.createPrivateKey({ key: Buffer.concat([Buffer.from("302e020100300506032b657004220420", "hex"), seed]), format: "der", type: "pkcs8" });
   const eid = V.genesis.entry.eid;
-  const sign = m => crypto.sign(null, Buffer.from(m), priv);
+  const sign = (m: Uint8Array) => crypto.sign(null, Buffer.from(m), priv);
   await refused(C.applyOp(s1, await C.makeOp(s1, { type: "agree", target: eid, agree: V.agree_op.agree }, { by: eid, ts: now + 1000, sign }), { now: now + 1000 }), "exists");
   await refused(C.applyOp(s0, await C.makeOp(s0, { type: "agree", target: "a".repeat(26), agree: V.agree_op.agree }, { by: eid, ts: now, sign }), { now }), "not_allowed");
   await refused(C.applyOp(s0, await C.makeOp(s0, { type: "agree", target: eid, agree: Buffer.alloc(65, 1).toString("base64url") }, { by: eid, ts: now, sign }), { now }), "bad_entry");
