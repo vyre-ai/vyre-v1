@@ -16,8 +16,14 @@ case "$BRANCH" in build/*) ;; *) echo "regen: refusing to run on $BRANCH (build/
 status() { # state description
   [ "$DRY_RUN" = "1" ] && { echo "status $1: $2"; return 0; }
   local sha; sha="$(git rev-parse HEAD)"
-  gh api -X POST "repos/${REPO}/statuses/${sha}" -f state="$1" -f context="regen-checks" -f description="$2" \
-    -f target_url="${GITHUB_SERVER_URL:-https://github.com}/${REPO}/actions/runs/${GITHUB_RUN_ID:-0}" >/dev/null || echo "regen: could not post status"
+  STATE="$1" DESC="$2" SHA="$sha" TARGET="${GITHUB_SERVER_URL:-https://github.com}/${REPO}/actions/runs/${GITHUB_RUN_ID:-0}" node -e '
+    const e = process.env;
+    fetch(`https://api.github.com/repos/${e.REPO}/statuses/${e.SHA}`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${e.GH_TOKEN}`, accept: "application/vnd.github+json", "content-type": "application/json" },
+      body: JSON.stringify({ state: e.STATE, context: "regen-checks", description: e.DESC.slice(0, 140), target_url: e.TARGET }),
+    }).then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); }).catch((x) => console.log("regen: could not post status: " + x.message));
+  '
 }
 
 echo "== regenerate =="
