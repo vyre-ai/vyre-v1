@@ -1,1 +1,4 @@
-[]
+[
+  "images/vyred/smoke.heavy.test.ts",
+  "modules/sites/tests/builders.heavy.test.ts"
+]
