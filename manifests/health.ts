@@ -10,6 +10,7 @@ export default defineManifest({
   id: 'health',
   title: 'Health and diagnostics',
   owner: 'L7b',
+  status: 'live',
   events: [
     ev('health.changed', 'A health check changed state', { p: { key: t.str(), from: state, to: state, detail: t.opt(t.str()) }, subject: ['entity', '/key'], notify: 'health.degraded', trigger: { title: 'A health check changes state', fields: ['/key', '/to'] } }),
     ev('health.paused', 'An unhealthy dependency paused automations, sync, sends or campaigns', { p: { key: t.str(), paused: t.arr(t.enm('automations', 'sync', 'sends', 'campaigns')), reason: t.str() }, subject: ['entity', '/key'] }),
