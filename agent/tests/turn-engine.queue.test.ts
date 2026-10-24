@@ -146,6 +146,7 @@ test("stop cancels the running turn; clearQueue also drops what waits", async ()
   assert.deepEqual(engine.turns("T").map((t) => t.state), ["cancelled"]);
   assert.equal(engine.queue("T").filter((r) => r.state === "cancelled").length, 2);
   // the thread is not stuck: the next message runs fresh
+  hold.open();
   engine.receive({ threadId: "T", author: person("dana"), body: "again" });
   await engine.idle("T");
   assert.equal(engine.turns("T").at(-1)?.state, "completed");
