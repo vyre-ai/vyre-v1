@@ -205,7 +205,7 @@ test("account: sign up, verify, sign in, make an API token and a webhook to the 
   assert.ok(up.status < 300, "signup");
   psql(`update "User" set "emailVerified" = now() where email = '${OWNER.email}'`);
   flow.userId = Number(psql(`select id from "User" where email = '${OWNER.email}'`));
-  flow.teamId = Number(psql(`select id from "Team" order by id limit 1`));
+  flow.teamId = Number(psql(`select t.id from "Team" t join "Organisation" o on o.id = t."organisationId" where o."ownerUserId" = ${flow.userId} order by t.id limit 1`));
   say("ids", flow.userId, flow.teamId);
   const csrf = await call("/api/auth/csrf");
   say("csrf", csrf.status, csrf.text.slice(0, 200));
