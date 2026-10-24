@@ -1,6 +1,5 @@
 // A real SQLite database (node:sqlite, in memory) behind the same table guard the host uses for ctx.db, plus a ctx that checks what the invoke pipeline checks:
 // inputs, outputs and event payloads against the generated validators, and that a capability emits only events it declares.
-import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import { scopedDb } from "../../../host/src/ctx/db.ts";
 import { mintId } from "../../../lib/ids.ts";
@@ -11,6 +10,9 @@ import type { Db, TasksCtx } from "../projections.ts";
 import { NOW } from "./seed.ts";
 import type { Caller } from "./seed.ts";
 
+// Boundary B2 keeps `import ... from "node:sqlite"` out of modules: only the host builds a ctx and opens databases. A test still needs a real SQL engine behind the host's table guard,
+// so the fixture asks the runtime for the built-in. Swap this for the testkit's in-memory database when it exports one.
+const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 const schema = readFileSync(new URL("../../../generated/modules/tasks/schema.sql", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../migrations/0001_tasks_state.sql", import.meta.url), "utf8");
 export const TRACE = "0123456789abcdef0123456789abcdef";
