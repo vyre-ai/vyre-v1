@@ -231,6 +231,8 @@ async function setup(answers: Record<string, unknown> = {}) {
   return { k, ctx: k.ctx, agent: agentOf(k.ctx), personal, docs, sub, free, plan, notes, loose };
 }
 type W = Awaited<ReturnType<typeof setup>>;
+const textOf = async (ctx: Ctx, fileId: string): Promise<string> => (await handlers["files.read"](ctx, { fileId, as: "text" })).text ?? "";
+const versionsOf = async (ctx: Ctx, fileId: string): Promise<number> => (await handlers["files.versions"](ctx, { fileId })).versions.length;
 
 type Staged<T> = T & { changesetId?: string };
 const del = async (ctx: Ctx, fileId: string): Promise<Staged<{ deleted: boolean }>> => handlers["files.delete"](ctx, { fileId });
