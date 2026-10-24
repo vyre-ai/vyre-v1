@@ -4146,6 +4146,7 @@ export type ChangesetsReviewExternallyIn = {
 };
 export type ChangesetsReviewExternallyOut = {
   actorId: string;
+  reviewUrl: string;
   expiresAt: number;
 };
 export type ChannelsAgentWatchSetIn = {
