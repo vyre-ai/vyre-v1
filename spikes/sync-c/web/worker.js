@@ -6,13 +6,17 @@ try {
   const out = { crossOriginIsolated: self.crossOriginIsolated };
   const sqlite3 = await sqlite3InitModule();
   out.version = sqlite3.version.libVersion;
-  // The SAH-pool VFS refuses a key ("Encryption is not supported by the VFS"); record that, then use the async "opfs" VFS.
-  try {
-    const pool = await sqlite3.installOpfsSAHPoolVfs({ name: "vyre-spike", clearOnInit: true });
-    const d = new pool.OpfsSAHPoolDb("/probe.db"); try { d.exec("PRAGMA cipher='chacha20'; PRAGMA key='k'"); out.sahpool_key = "accepted"; } catch (e) { out.sahpool_key = String(e.message).slice(0, 120); } d.close();
-  } catch (e) { out.sahpool_key = "install failed: " + String(e.message).slice(0, 80); }
-  out.vfs = "opfs";
-  const pool = { OpfsSAHPoolDb: class extends sqlite3.oo1.OpfsDb { constructor(f) { super(f, "c"); } } };
+  // Which VFS can carry a key? Record every candidate, then use the first that works.
+  out.capi_mc = Object.keys(sqlite3.capi).filter((k) => /mc|multiple|cipher/i.test(k)).slice(0, 20);
+  await sqlite3.installOpfsSAHPoolVfs({ name: "vyre-spike", clearOnInit: true });
+  out.vfs_found = {};
+  for (const n of ["opfs", "vyre-spike", "multipleciphers-opfs", "multipleciphers-vyre-spike"]) out.vfs_found[n] = !!sqlite3.capi.sqlite3_vfs_find(n);
+  const tryVfs = (vfs) => { try { const d = new sqlite3.oo1.DB({ filename: "file:/probe-" + vfs + ".db?vfs=" + vfs, flags: "c" }); d.exec("PRAGMA cipher='chacha20'; PRAGMA key='k'; CREATE TABLE t(a); INSERT INTO t VALUES(1)"); d.close(); return "key ok"; } catch (e) { return String(e.message).slice(0, 100); } };
+  out.key_by_vfs = {}; let chosen = null;
+  for (const n of Object.keys(out.vfs_found)) if (out.vfs_found[n]) { out.key_by_vfs[n] = tryVfs(n); if (out.key_by_vfs[n] === "key ok" && !chosen) chosen = n; }
+  out.vfs = chosen;
+  if (!chosen) { post({ ok: false, error: "no OPFS VFS accepted a key: " + JSON.stringify(out) }); throw new Error("stop"); }
+  const pool = { OpfsSAHPoolDb: class extends sqlite3.oo1.DB { constructor(f) { super({ filename: "file:" + f + "?vfs=" + chosen, flags: "c" }); } } };
   const N = 200000, KEY = "correct horse";
   let t = performance.now();
   let db = new pool.OpfsSAHPoolDb("/enc.db");
@@ -53,4 +57,4 @@ try {
   await scan(root);
   out.plaintext_in_opfs = leaked;
   post({ ok: true, out });
-} catch (e) { post({ ok: false, error: String(e && e.stack || e).slice(0, 800) }); }
+} catch (e) { if (String(e.message) !== "stop") post({ ok: false, error: String(e && e.stack || e).slice(0, 800) }); }
