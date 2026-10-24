@@ -117,6 +117,9 @@ export async function create(ctx: JourneysCtx, input: In): Promise<unknown> {
   if (allJourneys(ctx.db).some((j) => j.name.toLowerCase() === name.toLowerCase())) raise(ctx, "validation.duplicate", "A Journey with that name exists.", { reason: "journey_name" });
   const stages: Stage[] = input.stages ?? defaultStages();
   checkStages(ctx, stages);
+  const rule = input.startRule as StartRule | undefined;
+  // a Start rule nothing can trigger on is refused before anything is created
+  if (rule && !compileStartRule({ id: "jrn_check", subjectType: input.subjectType }, rule)) raise(ctx, "validation.precondition_failed", `Nothing triggers on ${rule.event}.`, { reason: "bad_start_event", event: rule.event });
   const now = ctx.now();
   const id = newId("jrn", now);
   let recordType = `journey_${slug(name)}`;
@@ -260,7 +263,6 @@ export async function moveTo(ctx: JourneysCtx, j: Journey, rec: JRecord, to: Sta
   emitJ(ctx, "journey.stage_exited", `record/${rec.recordId}`, { journeyId: j.id, recordId: rec.recordId, stage: from, toStage: to.key });
   const evId = emitJ(ctx, "journey.stage_entered", `record/${rec.recordId}`, { journeyId: j.id, recordId: rec.recordId, stage: to.key, previousStage: from, version: next.version, manual: o.manual, reason: o.reason });
   await onEnter(ctx, j, next, to, from, o.manual, evId);
-  if (to.final) emitJ(ctx, "journey.completed", `record/${rec.recordId}`, { journeyId: j.id, recordId: rec.recordId, stage: to.key });
   return { record: next, completed: !!to.final };
 }
 
@@ -316,6 +318,7 @@ export async function moveStage(ctx: JourneysCtx, input: In): Promise<unknown> {
   const from = rec.stage;
   const moved = await moveTo(ctx, j, rec, to, { manual: true, reason, stages });
   emitJ(ctx, "journey.moved", `record/${rec.recordId}`, { journeyId: j.id, recordId: rec.recordId, fromStage: from, toStage: to.key, reason, by: me(ctx) });
+  if (moved.completed) emitJ(ctx, "journey.completed", `record/${rec.recordId}`, { journeyId: j.id, recordId: rec.recordId, stage: to.key });
   await handoff(ctx, moved.record, `Moved from ${from} to ${to.key}: ${reason}`);
   return { recordId: rec.recordId, stage: to.key };
 }
@@ -342,7 +345,8 @@ export async function advance(ctx: JourneysCtx, input: In): Promise<unknown> {
   if (here.exit.requireTasks && !(await tasksDone(ctx, rec))) return { advanced: false, stage: rec.stage };
   const to = stages.find((s) => s.order > here.order);
   if (!to) return { advanced: false, stage: rec.stage };
-  await moveTo(ctx, j, rec, to, { manual: false, stages });
+  const moved = await moveTo(ctx, j, rec, to, { manual: false, stages });
+  if (moved.completed) emitJ(ctx, "journey.completed", `record/${rec.recordId}`, { journeyId: j.id, recordId: rec.recordId, stage: to.key });
   return { advanced: true, stage: to.key };
 }
 function findRecordOrFail(ctx: JourneysCtx, recordId: string): JRecord {
