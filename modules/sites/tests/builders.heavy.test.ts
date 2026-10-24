@@ -13,7 +13,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { BuildRequest } from "../handlers/deploy.ts";
-import { dockerRuntime, processExec } from "../handlers/builders.ts";
+import { dockerRuntime, dockerfilePort, exposedPort, processExec } from "../handlers/builders.ts";
 import type { FetchSource } from "../handlers/builders.ts";
 
 const BASES = ["node:24-alpine", "python:3.13-slim", "caddy:2-alpine"];
@@ -64,6 +64,10 @@ const SAMPLES: Record<string, { files: Record<string, string>; expect: RegExp; p
   node: { files: { "package.json": JSON.stringify({ name: "n", scripts: { start: "node server.js" } }), "server.js": NODE_SERVER }, expect: /node-sample 3000/, port: 3000 },
   static: { files: { "index.html": "<h1>static-sample</h1>" }, expect: /static-sample/, port: 3000 },
   python: { files: { "requirements.txt": "", "app.py": PY_SERVER }, expect: /python-sample 3000/, port: 3000 },
+  multistage: {
+    files: { Dockerfile: 'FROM caddy:2-alpine AS first\nEXPOSE 9999\nFROM caddy:2-alpine\nCOPY index.html /srv/index.html\nEXPOSE 8081/tcp\nCMD ["caddy","file-server","--root","/srv","--listen",":8081"]\n', "index.html": "<h1>multi-stage</h1>" },
+    expect: /multi-stage/, port: 8081,
+  },
   dockerfile: {
     files: { Dockerfile: 'FROM caddy:2-alpine\nCOPY index.html /srv/index.html\nEXPOSE 8080\nCMD ["caddy","file-server","--root","/srv","--listen",":8080"]\n', "index.html": "<h1>own-dockerfile</h1>" },
     expect: /own-dockerfile/, port: 8080,
@@ -125,6 +129,18 @@ async function buildAndStart(k: string, dep: string, envRefs: { name: string; re
   containers.push(started.containerId);
   return { built, started };
 }
+
+test("the port comes from the built Dockerfile, not from a base image's own EXPOSE lines", () => {
+  assert.equal(dockerfilePort("FROM caddy:2-alpine\nEXPOSE 3000\n"), 3000);
+  assert.equal(dockerfilePort("FROM a AS x\nEXPOSE 9999\nFROM caddy:2-alpine\nEXPOSE 8081/tcp 8082\n"), 8081, "the last stage decides");
+  assert.equal(dockerfilePort("FROM a\nEXPOSE 53/udp\n"), null);
+  assert.equal(dockerfilePort("FROM a\nEXPOSE $PORT\n"), null);
+  assert.equal(dockerfilePort("FROM a\nCMD x\n"), null);
+  assert.equal(exposedPort('{"ports":{"80/tcp":{},"443/tcp":{},"3000/tcp":{}},"label":"3000"}'), 3000, "the label beats the inherited 80");
+  assert.equal(exposedPort('{"ports":{"80/tcp":{},"443/tcp":{}},"label":""}'), 80, "no label: the lowest exposed port");
+  assert.equal(exposedPort('{"ports":null,"label":""}'), 3000);
+  assert.equal(exposedPort('{"8080/tcp":{},"80/tcp":{}}'), 80, "a plain ExposedPorts map still reads");
+});
 
 test("setup", { skip }, () => {
   for (const [k, s] of Object.entries(SAMPLES)) sampleDirs[siteId(k)] = repo(s.files);
