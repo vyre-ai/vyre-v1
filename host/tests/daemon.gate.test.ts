@@ -208,7 +208,7 @@ test("daemon.gate: a hold whose stored caller was changed after it was parked do
 test("daemon.gate: the Space owner can create a task on a fresh booted daemon with no grant beyond what a Space has", async () => {
   const d = await boot(seededDir(), resend());
   try {
-    const r = await call(d, "/v1/tasks/create", { kind: "work", title: "Check the mailbox", idempotencyKey: "idem-task-1" });
+    const r = await call(d, "/v1/tasks/create", { kind: "work", title: "Check the mailbox", assigned: { kind: "person", id: OLIVIA }, idempotencyKey: "idem-task-1" });
     assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
   } finally { await d.stop(); }
 });
