@@ -1,4 +1,4 @@
-// updates.apply and updates.rollback (P-L7b_06; spec 3.10, b13): a failed update puts the old version back, and a roll back restores the previous version.
+// updates.apply and updates.rollback (P-L7b_06; spec 3.10, b13): a failed update puts the old version back, and a roll back restores the previous version. Final run.
 // @reads ../migrations/0001_init.sql
 
 import test, { afterEach } from "node:test";

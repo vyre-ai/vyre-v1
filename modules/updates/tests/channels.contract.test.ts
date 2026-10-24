@@ -1,4 +1,4 @@
-// The generated contract for updates, run against the REAL handlers: the same example inputs and outputs the stub answered with Run in CI.
+// The generated contract for updates, run against the REAL handlers: the same example inputs and outputs the stub answered with Final run.
 // (generated/modules/updates/stub-impl.ts), checked against the registry's schemas. This is the evidence for flipping updates to live (ARCH 12.4).
 // @reads /generated/registry.json
 // @reads ../migrations/0001_init.sql
