@@ -2,6 +2,8 @@
 // Dequeue picks the highest priority, then the earliest thread_seq, then qseq.
 // Interrupt uses priority 10 so it runs before steering and ordinary messages.
 // qseq is the per-thread append order. thread_seq is the message log order and wins inside one priority.
+// Steering is only a message that arrived while a turn was already running.
+// Rows already waiting stay queued and each becomes its own turn.
 
 import type { AccountChoice, QueueItem, QueueKind, QueueState } from "./types.ts";
 
@@ -14,6 +16,7 @@ export interface EnqueueInput {
   from: string;
   priority: number;
   routine: boolean;
+  steer: boolean;
   account: AccountChoice;
   enqueuedAt: number;
 }
@@ -45,6 +48,7 @@ export class ThreadQueue {
       state: "queued",
       enqueuedAt: input.enqueuedAt,
       routine: input.routine,
+      steer: input.steer,
       account: input.account,
     };
     this.rows.push(item);
@@ -61,9 +65,9 @@ export class ThreadQueue {
     return item;
   }
 
-  /** Steering rows still waiting: ordinary messages, not interrupt, wake or handoff. */
+  /** Messages that arrived during the running turn. Earlier queued rows are not steering. */
   peekSteering(threadId: string): QueueItem[] {
-    const ready = this.rows.filter((row) => row.threadId === threadId && row.state === "queued" && row.kind === "message");
+    const ready = this.rows.filter((row) => row.threadId === threadId && row.state === "queued" && row.kind === "message" && row.steer);
     ready.sort(byTurnOrder);
     return ready;
   }

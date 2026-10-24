@@ -494,6 +494,8 @@ export class TurnEngine {
   private enqueue(thread: StoredThread, message: StoredMessage | null, agentId: string, kind: QueueKind, priority: number, routine: boolean, steerCheck: boolean): QueueItem {
     const author = message?.author ?? { kind: "agent" as const, id: agentId };
     const account = this.bill(thread, author, message?.accountRef ?? null, kind, steerCheck);
+    // A message already waiting is the next turn. Only one that lands while a turn runs is steering.
+    const steer = kind === "message" && this.active.has(thread.id);
     const item = this.queue.enqueue({
       threadId: thread.id,
       threadSeq: message?.threadSeq ?? this.allocSeq(thread.id),
@@ -503,6 +505,7 @@ export class TurnEngine {
       from: author.id,
       priority,
       routine,
+      steer,
       account,
       enqueuedAt: this.clock.now(),
     });

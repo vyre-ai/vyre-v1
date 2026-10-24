@@ -92,6 +92,8 @@ export interface QueueItem {
   state: QueueState;
   enqueuedAt: number;
   routine: boolean;
+  /** True when the row arrived while a turn on this thread was already running. */
+  steer: boolean;
   account: AccountChoice;
 }
 
