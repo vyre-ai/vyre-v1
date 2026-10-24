@@ -471,7 +471,7 @@ export function runChecks(doc: EmailDoc, html: string, text: string): CheckResul
     text: empty.length ? `${empty.length} link${empty.length > 1 ? "s have" : " has"} no address` : insecure.length ? `${insecure.length} link${insecure.length > 1 ? "s use" : " uses"} http, not https` : hrefs.length ? `${hrefs.length} link${hrefs.length > 1 ? "s" : ""}, all secure` : "No links",
   });
   const imgs = [...html.matchAll(/<img\b[^>]*>/gi)].map((m) => m[0]);
-  const noAlt = imgs.filter((t) => !/\balt\s*=\s*"[^"]*\S[^"]*"/i.test(t));
+  const noAlt = imgs.filter((t) => { const m = /\balt\s*=\s*"([^"]*)"/i.exec(t); return !m || !(m[1] ?? "").trim(); });
   out.push({ id: "alt", name: "Alt text", level: noAlt.length ? "warn" : "ok", text: noAlt.length ? `${noAlt.length} of ${imgs.length} image${imgs.length > 1 ? "s" : ""} has no alt text` : imgs.length ? "Every image has alt text" : "No images" });
   const words = (htmlToText(html) + " " + (doc.subject ?? "")).toLowerCase();
   const hits = SPAM.filter((w) => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\%]/g, "\\$&")}`, "i").test(words));

@@ -13,7 +13,7 @@ export interface Emitted { name: string; subject: string; payload: unknown }
 
 export function harness(o: { principal?: string; now?: number } = {}) {
   const db = new MemoryDb();
-  configureEmailBuilder(null);
+  configureEmailBuilder({ ask: null });
   const events: Emitted[] = [];
   const calls: { cap: string; input: unknown }[] = [];
   let clock = o.now ?? NOW;
