@@ -388,6 +388,7 @@ export function composerMenu(actions: { attach: () => void; paste: () => void; c
 const svg = (d: string, extra = ""): string => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"${extra}>${d}</svg>`;
 export const ICON_UP = svg('<path d="M8 13V3M3.5 7.5L8 3l4.5 4.5"/>');
 export const ICON_STOP = '<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="2"/></svg>';
+export const ICON_PLUS = svg('<path d="M8 3.500v9M3.500 8h9"/>');
 export const ICON_CLIP = svg('<path d="M13 7.5L7.800 12.700a3 3 0 01-4.200-4.200l5.500-5.500a2 2 0 012.800 2.800L6.400 11.300a1 1 0 01-1.400-1.400l4.800-4.800"/>');
 export const ICON_FOLDER = svg('<path d="M2.500 4.500a1 1 0 011-1h3l1.500 1.500h4.500a1 1 0 011 1v6a1 1 0 01-1 1h-9a1 1 0 01-1-1z"/>');
 export const ICON_FILE = svg('<path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/>');
@@ -418,6 +419,8 @@ export interface ComposerProps extends ComposerShellProps {
   /** Recipients for a composer that sends outside. Mounted above the field. */
   recipients?: ReactNode;
   banner?: ReactNode;
+  /** Right end of the who-will-answer row: the place puts its model chip here ("Opus"). */
+  whoExtra?: ReactNode;
   /** Buttons after the symbol buttons: the place adds its model and where-it-runs controls here. */
   barExtra?: ReactNode;
   /** Enter writes a new line and Cmd/Ctrl+Enter sends (email). Default true: Enter sends. */
@@ -740,9 +743,12 @@ export function Composer(props: ComposerProps): ReactElement {
           },
         })}
       />
-      <Text numberOfLines={1} style={[styles.who, who.dim && styles.whoDim]} testID="composer-who" accessibilityRole="text" accessibilityLiveRegion="polite">{who.line}</Text>
+      <View style={styles.whoRow}>
+        <Text numberOfLines={1} style={[styles.who, who.dim && styles.whoDim]} testID="composer-who" accessibilityRole="text" accessibilityLiveRegion="polite">{who.line}</Text>
+        {props.whoExtra}
+      </View>
       <View style={styles.bar}>
-        <IconButton icon={<Glyph icon={ICON_CLIP} native="+" color="var(--ink-3)" />} label="Attach a file" onPress={attach} testID="composer-attach" />
+        <IconButton icon={<Glyph icon={ICON_PLUS} native="+" color="var(--ink-3)" />} label="Attach a file" onPress={attach} testID="composer-attach" />
         {symbolNodes}
         {props.barExtra}
         <View style={styles.spacer} />
@@ -806,7 +812,8 @@ const styles = StyleSheet.create({
   chipXText: { color: "var(--ink-3)" as string, fontSize: 14, lineHeight: 16 },
   engine: { color: "var(--ink-3)" as string, fontSize: 11.5, lineHeight: 16, paddingBottom: 4 },
   field: { width: "100%", color: "var(--ink)" as string, fontSize: 13, lineHeight: 19, padding: 0, margin: 0, borderWidth: 0 },
-  who: { color: "var(--ink-2)" as string, fontSize: 11.5, lineHeight: 16, paddingTop: 2, paddingBottom: 4 },
+  whoRow: { flexDirection: "row", alignItems: "center", paddingTop: 2, paddingBottom: 4, gap: 8 },
+  who: { flex: 1, color: "var(--ink-2)" as string, fontSize: 11.5, lineHeight: 16 },
   whoDim: { color: "var(--ink-4)" as string },
   bar: { flexDirection: "row", alignItems: "center", gap: 2 },
   tool: { width: 28, height: 28, borderRadius: 6, alignItems: "center", justifyContent: "center" },

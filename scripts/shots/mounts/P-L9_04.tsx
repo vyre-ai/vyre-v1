@@ -1,6 +1,6 @@
 // Mount for P-L9_04: ui/Composer at the bottom of a conversation column, idle, as in the Chats place.
 // The place adds the model and where-it-runs buttons through barExtra, as the prototype does.
-import { Pressable, View, useWindowDimensions } from "react-native";
+import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import { Composer, Glyph } from "../../../ui/src/Composer/index.tsx";
 
 export const title = "Composer";
@@ -33,6 +33,7 @@ export default function Mount() {
           label="Message"
           density={phone ? "compact" : "regular"}
           lists={{ agents: ["Intake", "Docs", "Billing"], people: ["Maya Chen", "Omar Haddad"] }}
+          whoExtra={<Text style={{ color: "var(--ink-3)", fontSize: 12 }}>{"Opus \u2304"}</Text>}
           barExtra={<><BarButton icon={MODEL} native="*" label="Model: Claude Opus" /><BarButton icon={LAPTOP} native="#" label="Runs on this computer" /></>}
         />
       </View>
