@@ -70,16 +70,18 @@ function useShiftReport(): string {
 
 export default function Mount() {
   const report = useShiftReport();
+  const [on, setOn] = useState(false);
+  useEffect(() => { setOn(true); }, []);
   return (
     <View style={{ flex: 1 }}>
       <Text testID="shift-report" style={{ position: "absolute", zIndex: 9, right: 0, top: 0, width: 600, backgroundColor: "#fff", color: "#000", fontSize: 10 }}>{report}</Text>
-    <ScrollView testID="kit-run" style={styles.run}>
+    {on ? <ScrollView testID="kit-run" style={styles.run}>
       {run.map((def) => (
         <View key={def.id} style={styles.slot}>
           <KitScreen def={def} env={env} />
         </View>
       ))}
-    </ScrollView>
+    </ScrollView> : null}
     </View>
   );
 }
