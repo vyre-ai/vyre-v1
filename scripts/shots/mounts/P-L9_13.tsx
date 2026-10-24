@@ -2,7 +2,7 @@
 // screen index, its queries answer from a delayed fake replica (loading, then rows), so the layout-shift probe sees every
 // loading-to-ready swap. The run scrolls (selector [data-testid="kit-run"]); the probe reports p95 frame time and layout shift.
 import { useEffect, useState } from "react";
-import { ScrollView, Text, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { screens } from "../../../generated/screens.ts";
 import { KitScreen, previewDef, type KitEnv } from "../../../ui/src/kit/runtime/index.ts";
 import type { ScreenHooks } from "../../../client/src/index.ts";
@@ -48,33 +48,12 @@ function delayedHooks(): ScreenHooks {
 const env: KitEnv = { hooks: delayedHooks(), online: true, invoke: () => {} };
 const run = screens.filter((s) => isScreenPlace(s.place)).slice(0, 20).map(previewDef);
 
-type Shift = { value: number; sources: { node?: { tagName?: string; getAttribute?(n: string): string | null; parentElement?: { getAttribute?(n: string): string | null } }; previousRect: { y: number; height: number }; currentRect: { y: number; height: number } }[] };
-
-function useShiftReport(): string {
-  const [text, setText] = useState("");
-  useEffect(() => {
-    const G = globalThis as unknown as { PerformanceObserver?: new (cb: (l: { getEntries(): Shift[] }) => void) => { observe(o: object): void } };
-    if (!G.PerformanceObserver) return;
-    const lines: string[] = [];
-    const po = new G.PerformanceObserver((l) => {
-      for (const e of l.getEntries()) {
-        const src = e.sources.map((x) => `${x.node?.tagName}[${x.node?.getAttribute?.("data-testid") ?? ""}|${(x.node as unknown as { className?: string }).className?.slice(0, 60)}|${((x.node as unknown as { textContent?: string }).textContent ?? "").slice(0, 25)}] y${Math.round(x.previousRect.y)}->${Math.round(x.currentRect.y)} h${Math.round(x.previousRect.height)}->${Math.round(x.currentRect.height)}`).join(" | ");
-        lines.push(`${e.value.toFixed(3)} ${src}`);
-      }
-      setText(lines.slice(0, 4).join("\n"));
-    });
-    try { po.observe({ type: "layout-shift", buffered: true }); } catch { /* unsupported */ }
-  }, []);
-  return text;
-}
-
 export default function Mount() {
-  const report = useShiftReport();
+  // The run mounts after the first commit, so the page frame exists before the slots do and no slot is measured at 0 height.
   const [on, setOn] = useState(false);
   useEffect(() => { setOn(true); }, []);
   return (
     <View style={{ flex: 1 }}>
-      <Text testID="shift-report" style={{ position: "absolute", zIndex: 9, right: 0, top: 0, width: 600, backgroundColor: "#fff", color: "#000", fontSize: 10 }}>{report}</Text>
     {on ? <ScrollView testID="kit-run" style={styles.run}>
       {run.map((def) => (
         <View key={def.id} style={styles.slot}>
