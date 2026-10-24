@@ -9,16 +9,16 @@ npm install --no-audit --no-fund --legacy-peer-deps >/dev/null 2>&1 && res npm_i
 npx --yes expo install expo-sqlite >/dev/null 2>&1 && res expo_install_sqlite ok || { npm install expo-sqlite --legacy-peer-deps >/dev/null 2>&1 && res expo_install_sqlite ok_via_npm || res expo_install_sqlite FAIL; }
 node -e '
 const fs=require("fs");const j=JSON.parse(fs.readFileSync("app.json","utf8"));
-j.expo.plugins=[...(j.expo.plugins||[]),["expo-sqlite",{useSQLCipher:true}]];
+j.expo.plugins=[...(j.expo.plugins||[]).filter(p=>(Array.isArray(p)?p[0]:p)!=="expo-sqlite"),["expo-sqlite",{useSQLCipher:true}]];
 j.expo.android={...(j.expo.android||{}),package:"run.vyre.spike"};j.expo.ios={...(j.expo.ios||{}),bundleIdentifier:"run.vyre.spike"};
 fs.writeFileSync("app.json",JSON.stringify(j,null,2));'
 echo "expo-sqlite $(node -p 'require("expo-sqlite/package.json").version') expo $(node -p 'require("expo/package.json").version') rn $(node -p 'require("react-native/package.json").version')"
 npx expo prebuild --platform all --no-install --clean 2>&1 | tail -5
 ls android ios >/dev/null 2>&1 && res prebuild ok || res prebuild FAIL
-echo "--- debug"; node -p 'JSON.stringify(require("./app.json").expo.plugins)'; ls node_modules/expo-sqlite/plugin* 2>&1 | head; cat android/gradle.properties | tail -15; cat ios/Podfile.properties.json 2>&1 | head -20; grep -rniE "cipher" node_modules/expo-sqlite/plugin/build/*.js node_modules/expo-sqlite/expo-module.config.json 2>/dev/null | head -12
+echo "--- debug"; node -p 'JSON.stringify(require("./app.json").expo.plugins)'; ls node_modules/expo-sqlite/plugin* 2>&1 | head; cat android/gradle.properties | tail -15; cat ios/Podfile.properties.json 2>&1 | head -20; grep -n "sqlite" android/gradle.properties ios/Podfile.properties.json
 echo "--- SQLCipher markers"; grep -rniE "sqlcipher" android/gradle.properties android/app/build.gradle ios/Podfile.properties.json ios/Podfile 2>/dev/null | head
-{ grep -rqiE "useSQLCipher=true|sqlcipher" android/gradle.properties android/app/build.gradle 2>/dev/null && res android_sqlcipher_flag present; } || res android_sqlcipher_flag MISSING
-{ grep -qiE "sqlcipher" ios/Podfile.properties.json ios/Podfile 2>/dev/null && res ios_sqlcipher_flag present; } || res ios_sqlcipher_flag MISSING
+{ grep -rqiE "sqlite.useSQLCipher=true" android/gradle.properties 2>/dev/null && res android_sqlcipher_flag present; } || res android_sqlcipher_flag MISSING
+{ grep -qiE "sqlite.useSQLCipher\": *\"?true" ios/Podfile.properties.json 2>/dev/null && res ios_sqlcipher_flag present; } || res ios_sqlcipher_flag MISSING
 echo "--- android sdk: ANDROID_HOME=$ANDROID_HOME ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT java=$(java -version 2>&1 | head -1)"
 if [ -n "$ANDROID_HOME$ANDROID_SDK_ROOT" ] && command -v java >/dev/null; then
   (cd android && timeout 1500 ./gradlew :app:assembleDebug --no-daemon -q 2>&1 | tail -15) && res gradle_assembleDebug done_see_log
