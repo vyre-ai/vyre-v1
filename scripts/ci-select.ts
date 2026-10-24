@@ -1,7 +1,7 @@
 // Test selection for CI (ARCH 10.2, 10.6). Wraps the import-graph walk in scripts/ci-select.mjs and adds the manifest edge:
 // a change under manifests/ selects the generated contract tests for that module and every consumer of its generated outputs.
 // Rules kept from the walk: a changed or added test file always runs; a changed code file reached by no test is "uncovered" and fails.
-//   node scripts/ci-select.ts <base-ref> [--matrix]   prints {"all","files","why","uncovered","edges"}; exit 1 when a code file is uncovered
+//   node scripts/ci-select.ts <base-ref> [--matrix [--max N]]   prints {"all","files","why","uncovered","edges"}; exit 1 when a code file is uncovered
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -27,6 +27,10 @@ export function manifestEdges(changed: string[], tracked: Set<string>): string[]
   return [...out].sort();
 }
 
+/** A change here always runs every frozen-* test (lead requirement), whatever the import walk says. */
+export const FROZEN_TRIGGER = /^(manifests\/|packages\/contracts\/|tools\/gen\/|generated\/|docs\/frozen\/)/;
+export const FROZEN_TEST = /(^|\/)frozen-[^/]*\.test\.[cm]?[jt]s$/;
+
 /** The walk plus the manifest edge. Test files in the diff are always selected, even when the walk returns early. */
 export function selectAffected({ changed, tracked, read }: Input): Selection {
   const edges = manifestEdges(changed, tracked);
@@ -35,7 +39,9 @@ export function selectAffected({ changed, tracked, read }: Input): Selection {
   const uncovered = r.uncovered.filter((f) => changed.includes(f) && !(f.startsWith("manifests/") && edges.length && r.files.length));
   const why = edges.length ? [...r.why, `manifest edge: ${edges.length} generated files`] : r.why;
   if (r.all) return { ...r, why, edges };
-  return { ...r, why, uncovered, files: [...new Set([...r.files, ...own])].sort(), edges };
+  const frozen = changed.some((f) => FROZEN_TRIGGER.test(f)) ? [...tracked].filter((f) => FROZEN_TEST.test(f)) : [];
+  if (frozen.length) why.push(`frozen trigger: ${frozen.length} frozen-* tests always run`);
+  return { ...r, why, uncovered, files: [...new Set([...r.files, ...own, ...frozen])].sort(), edges };
 }
 
 const self = fileURLToPath(import.meta.url);
@@ -45,19 +51,21 @@ if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   const base = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : "";
   let result: Selection;
   let tracked = new Set<string>();
+  try { tracked = new Set(git(["ls-files"]).split("\n").filter(Boolean)); } catch {}
   try {
     if (!base || /^0+$/.test(base)) throw new Error("no base");
-    tracked = new Set(git(["ls-files"]).split("\n").filter(Boolean));
     const changed = git(["diff", "--name-only", "--no-renames", `${base}...HEAD`]).split("\n").filter(Boolean);
     result = selectAffected({ changed, tracked, read: (f) => fs.readFileSync(path.join(repo, f), "utf8") });
   } catch (e: any) {
     result = { all: true, files: [], why: [`could not tell what changed (${String(e.message).split("\n")[0]}): running everything`], uncovered: [], edges: [] };
   }
   if (process.argv.includes("--matrix")) {
+    const mi = process.argv.indexOf("--max");
+    const maxArg = mi > 0 ? Number(process.argv[mi + 1]) : 0;
     const files = result.all ? [...tracked].filter((f) => TEST.test(f)) : result.files;
     const timings = JSON.parse(fs.readFileSync(path.join(repo, "test/timings.json"), "utf8"));
     const slow = JSON.parse(fs.readFileSync(path.join(repo, "test/slow.json"), "utf8"));
-    console.log(JSON.stringify({ ...result, matrix: toMatrix(shardFiles(files, timings, slow)) }));
+    console.log(JSON.stringify({ ...result, matrix: toMatrix(shardFiles(files, timings, slow, maxArg ? { max: maxArg } : {})) }));
   } else console.log(JSON.stringify(result));
   if (!result.all && result.uncovered.length) { for (const f of result.uncovered) console.error(`no test covers ${f}`); process.exit(1); }
 }

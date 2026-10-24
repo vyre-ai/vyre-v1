@@ -160,3 +160,17 @@ test("the CLI runs on the real repo and prints a selection", () => {
   const out = JSON.parse(r.stdout);
   assert.ok(Array.isArray(out.files) && out.matrix && Array.isArray(out.matrix.include));
 });
+
+test("a frozen trigger path always selects every frozen-* test", () => {
+  const tracked = new Set([...Object.keys(files), "packages/contracts/tests/frozen-kinds.test.ts", "docs/frozen/kinds.md"]);
+  const read = (f: string) => (f in files ? files[f]! : "");
+  const r = selectAffected({ changed: ["docs/frozen/kinds.md"], tracked, read });
+  assert.ok(r.all || r.files.includes("packages/contracts/tests/frozen-kinds.test.ts"));
+});
+
+test("--matrix with no base still lists every tracked test (never an empty matrix)", () => {
+  const r = spawnSync("node", [path.join(path.dirname(new URL(import.meta.url).pathname), "ci-select.ts"), "", "--matrix", "--max", "8"], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  const j = JSON.parse(r.stdout);
+  assert.ok(j.matrix.include.length > 0 && j.matrix.include.length <= 8);
+});
