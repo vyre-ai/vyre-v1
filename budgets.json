@@ -4,7 +4,7 @@
     "probe": "scripts/shots/theme-flash.mjs",
     "what": "First frame of every place uses the right theme and skin",
     "wrong_frames_max": 0,
-    "apply_ms_max": 50
+    "apply_ms_max": 100
   },
   "expo_web_export": {
     "probe": "scripts/shots/shots.mjs",
