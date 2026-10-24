@@ -111,7 +111,7 @@ class Loop:
         if p["status"] == "ready": self.api("POST", f"/api/packets/{p['id']}/assign", {"assignee": actor}, actor=actor)
         self.api("POST", f"/api/packets/{p['id']}/start", {"assignee": actor}, actor=actor)
         brief = self.api("GET", f"/api/brief/{p['id']}", text=True)
-        prompt = sonnet_run.build_prompt(p, brief, actor, slot, self.a.tracker_dir, self.a.repo, self.a.wt_root, self.a.stale_min)
+        prompt = sonnet_run.build_prompt(p, brief, actor, slot, self.a.tracker_dir, self.a.repo, self.a.wt_root, self.a.stale_min, self.a.docs_root)
         pf = os.path.join(self.a.outbox, f"{p['id']}.prompt.md"); open(pf, "w").write(prompt)
         t = {"packet": p["id"], "actor": actor, "slot": slot, "redo": p["status"] == "changes_requested", "prompt": pf, "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
         json.dump(t, open(os.path.join(self.a.outbox, f"{p['id']}.json"), "w"), indent=1)
@@ -152,6 +152,7 @@ def parse(argv=None):
     ap.add_argument("--heartbeat", type=int, default=600); ap.add_argument("--stale-min", type=int, default=30); ap.add_argument("--cooldown", type=int, default=600)
     ap.add_argument("--grok-cmd", default=DEFAULT_GROK_CMD, help="launch template with {here} {packet} {actor}")
     ap.add_argument("--tracker-dir", default="/Users/irfad/Claude/Orgs/Vyre/tracker"); ap.add_argument("--repo", default="/Users/irfad/Claude/Orgs/Vyre/v1"); ap.add_argument("--wt-root", default="/Users/irfad/Claude/Orgs/Vyre/v1-wt")
+    ap.add_argument("--docs-root", default="", help="read docs/spec and docs/lanes from this directory instead of git show origin/main (tests, offline)")
     ap.add_argument("--once", action="store_true", help="one cycle, wait for grok children, exit")
     a = ap.parse_args(argv); a.lanes = [x for x in a.lanes.split(",") if x]
     return a

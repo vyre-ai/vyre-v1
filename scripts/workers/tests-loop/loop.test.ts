@@ -13,7 +13,7 @@ const LOOP = path.resolve(here, "../loop.py");
 const SONNET = path.resolve(here, "../sonnet-run.py");
 const python = spawnSync("python3", ["--version"]).status === 0;
 
-type Pk = { id: string; lane_id: string; status: string; tier: number; body: string; assignee: string | null; title: string; owns_files: string[] };
+type Pk = { id: string; lane_id: string; status: string; tier: number; body: string; assignee: string | null; title: string; owns_files: string[]; spec_refs?: string[]; arch_refs?: string[] };
 const mk = (id: string, lane: string, tier: number, worker: string, status = "ready"): Pk => ({ id, lane_id: lane, status, tier, body: `Worker: ${worker}. Tier ${tier}.`, assignee: null, title: `packet ${id}`, owns_files: [`src/${id}/**`] });
 
 async function stub(packets: Pk[], stale: { id: string; assignee: string; touched_at: string }[] = []) {
@@ -148,5 +148,50 @@ test("a failed claim is skipped, the rest still dispatch", { skip: !python }, as
     assert.match(r.out, /cannot claim P-BAD/);
     assert.ok(dispatched(r.out).includes("P-OK:ready:sonnet"), r.out);
     assert.equal(orig.length, 2);
+  } finally { t.close(); }
+});
+
+const repoRoot = path.resolve(here, "../../..");
+const sample = (): Pk => ({ ...mk("P-CTX", "L1", 1, "sonnet"), spec_refs: ["2.1", "5 b14", "speed"], arch_refs: ["ARCH 10.7", "F10", "ARCH-DECISIONS 2"] });
+
+test("ruling 13: the sonnet prompt embeds the brief, the lane doc and the text of every referenced spec and arch section", { skip: !python }, async () => {
+  const docs = tmp();
+  fs.mkdirSync(path.join(docs, "docs/spec"), { recursive: true }); fs.mkdirSync(path.join(docs, "docs/lanes"), { recursive: true });
+  fs.writeFileSync(path.join(docs, "docs/lanes/L1.md"), "# Lane L1: Sync\nLANE-MARKER read me first\n");
+  fs.writeFileSync(path.join(docs, "docs/spec/V1-SPEC.md"), "# spec\n## 2. Primitives\n### 2.1 Space\nSPACE-MARKER isolation unit\n### 2.2 Principal\nPRINCIPAL-MARKER not asked for\n## 5. Platform\n- **b13 Releases**: nope\n- **b14 How we know**: B14-MARKER contract tests\n## Speed and smoothness (binding)\nSPEED-MARKER 100 ms\n");
+  fs.writeFileSync(path.join(docs, "docs/spec/ARCHITECTURE-V1.md"), "# arch\n## 10. Testing\n### 10.6 Other\nOTHER-MARKER\n### 10.7 Timing tables\nTIMING-MARKER stages\n## 12. Build\n### 12.2 Frozen\n| ID | Frozen item |\n|---|---|\n| F9 | NINE-MARKER |\n| F10 | CISKEL-MARKER skeleton |\n");
+  fs.writeFileSync(path.join(docs, "docs/spec/ARCH-DECISIONS.md"), "# d\n1. one DEC1-MARKER\n2. two DEC2-MARKER\n");
+  const t = await stub([sample()]);
+  const out = tmp();
+  try {
+    const r = await run(LOOP, t.url, ["--lanes", "L1", "--once", "--outbox", out, "--docs-root", docs]);
+    assert.equal(r.code, 0, r.out);
+    const p = fs.readFileSync(path.join(out, "P-CTX.prompt.md"), "utf8");
+    for (const m of ["PACKET P-CTX: brief text", "LANE-MARKER", "SPACE-MARKER", "B14-MARKER", "SPEED-MARKER", "TIMING-MARKER", "CISKEL-MARKER", "DEC2-MARKER"]) assert.ok(p.includes(m), `prompt lacks ${m}`);
+    for (const m of ["PRINCIPAL-MARKER", "OTHER-MARKER", "NINE-MARKER", "DEC1-MARKER"]) assert.ok(!p.includes(m), `prompt carries unrelated ${m}`);
+  } finally { t.close(); }
+});
+
+test("ruling 13: a missing section is named in the prompt instead of silently dropped", { skip: !python }, async () => {
+  const t = await stub([{ ...sample(), spec_refs: ["9.9"] }]);
+  const out = tmp(); const docs = tmp();
+  try {
+    await run(LOOP, t.url, ["--lanes", "L1", "--once", "--outbox", out, "--docs-root", docs]);
+    assert.match(fs.readFileSync(path.join(out, "P-CTX.prompt.md"), "utf8"), /SPEC 9\.9[^\n]*\n\(section not found on main/);
+  } finally { t.close(); }
+});
+
+test("ruling 13: against the real docs a lane-L1 packet gets its lane brief, spec 2.1 and the ARCH 10.7 timing table", { skip: !python || !fs.existsSync(path.join(repoRoot, "docs/spec/V1-SPEC.md")) }, async () => {
+  const t = await stub([sample()]);
+  const out = tmp();
+  try {
+    await run(LOOP, t.url, ["--lanes", "L1", "--once", "--outbox", out, "--docs-root", repoRoot]);
+    const p = fs.readFileSync(path.join(out, "P-CTX.prompt.md"), "utf8");
+    assert.match(p, /# Lane L1: Sync and search/);
+    assert.match(p, /### 2\.1 Space/);
+    assert.match(p, /### 10\.7 Timing tables/);
+    assert.match(p, /\| F10 \|/);
+    assert.match(p, /\*\*b14 How we know it works\*\*/);
+    assert.doesNotMatch(p, /section not found/);
   } finally { t.close(); }
 });
