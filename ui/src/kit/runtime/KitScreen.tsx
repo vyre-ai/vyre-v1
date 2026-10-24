@@ -10,8 +10,9 @@ import { Layout } from "./layout.tsx";
 import { evalExpr, resolveInputMap, type Scope } from "./pointer.ts";
 import { startProbe, type ScreenProbe } from "./probes.ts";
 import { createQuerySet, deriveStatus, queryData, type ScreenStatus } from "./queries.ts";
-import { parseCombo, matchCombo } from "./keys.ts";
-import { KitStateView, SkeletonRows } from "./states.tsx";
+import { compileKeys, matchCombo } from "./keys.ts";
+import { SkeletonRows } from "./skeleton.tsx";
+import { States } from "../../States/index.tsx";
 
 export interface KitScreenProps {
   def: KitScreenDef;
@@ -80,7 +81,7 @@ export function KitScreen({ def, env, state = EMPTY_STATE, builtins = defaultBui
     const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: never) => void): void; removeEventListener(t: string, f: (e: never) => void): void } }).document;
     if (!doc || !def.keys?.length) return undefined;
     const mac = isMac();
-    const combos = def.keys.map((k) => ({ ...k, combo: parseCombo(k.combo) }));
+    const combos = compileKeys(def.keys);
     const onKey = (e: { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean; preventDefault(): void }) => {
       for (const k of combos) {
         if (matchCombo(k.combo, e, mac) && evalExpr(k.when, scope)) { e.preventDefault(); run(k.action); return; }
@@ -95,11 +96,14 @@ export function KitScreen({ def, env, state = EMPTY_STATE, builtins = defaultBui
   const onPrimary = primary ? () => run(primary) : undefined;
   const Builtin = def.builtin ? builtins.resolve(def.builtin) : undefined;
 
+  const retry = () => { setAttempt((n) => n + 1); env.retry?.(def.id); };
+  const primaryAction = (label: string | undefined) => (label && onPrimary ? { action: { label, onPress: onPrimary } } : {});
+
   let body: ReactElement;
   if (status === "loading") body = <SkeletonRows />;
-  else if (status === "error") body = <KitStateView def={def} kind="error" env={env} onPrimary={() => { setAttempt((n) => n + 1); env.retry?.(def.id); }} />;
-  else if (status === "offline") body = <KitStateView def={def} kind="offline" env={env} onPrimary={onPrimary} />;
-  else if (status === "empty") body = <KitStateView def={def} kind="empty" env={env} onPrimary={onPrimary} />;
+  else if (status === "error") body = <States kind="error" message={def.states.error.line} retryable onRetry={retry} {...(env.traceId ? { traceId: env.traceId } : {})} />;
+  else if (status === "offline") body = <States kind="offline" title={def.states.offline.line} {...primaryAction(def.states.offline.primary)} />;
+  else if (status === "empty") body = <States kind="empty" title={def.states.empty.line} {...primaryAction(def.states.empty.primary)} />;
   else if (Builtin) body = <Builtin screen={ctx} />;
   else if (def.layout) body = <Layout node={def.layout} scope={scope} rt={{ screen: ctx, builtins }} />;
   else body = <Text style={styles.missing} testID="kit-missing-builtin">{`${def.builtin ?? def.id} is not available in this build`}</Text>;

@@ -56,7 +56,7 @@ export const listDef: KitScreenDef = {
 };
 
 export const people = [
-  { id: "p1", name: "Maya Chen", company: "Northwind" },
-  { id: "p2", name: "Omar Haddad", company: "Harbor Legal" },
-  { id: "p3", name: "Lena Voss", company: "Voss & Park" },
+  { id: "p1", name: "Maya Chen", company: "Northwind", title: "Maya Chen", note: "Northwind" },
+  { id: "p2", name: "Omar Haddad", company: "Harbor Legal", title: "Omar Haddad", note: "Harbor Legal" },
+  { id: "p3", name: "Lena Voss", company: "Voss & Park", title: "Lena Voss", note: "Voss & Park" },
 ];

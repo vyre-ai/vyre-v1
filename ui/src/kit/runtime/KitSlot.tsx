@@ -5,6 +5,7 @@ import { StyleSheet, View } from "react-native";
 import { KIT_SLOTS, type KitScreenDef, type KitSlot as Slot, type ScreenPlace } from "../types.ts";
 import type { BuiltinRegistry } from "./builtins.ts";
 import type { KitEnv } from "./env.ts";
+import { each } from "./each.ts";
 import { KitScreen } from "./KitScreen.tsx";
 import type { ScreenRegistry } from "./registry.ts";
 
@@ -33,7 +34,7 @@ export function KitSlot({ place, slot, registry, env, activeId, state, builtins 
   const shown = STACKING_SLOTS.includes(slot) ? defs : defs.filter((d) => d.id === (activeId ?? defs[0]?.id)).slice(0, 1);
   return (
     <View style={styles.slot} testID={`kit-slot-${place}-${slot}`}>
-      {shown.map((d) => <KitScreen key={d.id} def={d} env={env} {...(state ? { state } : {})} {...(builtins ? { builtins } : {})} />)}
+      {each(shown, (d) => <KitScreen key={d.id} def={d} env={env} {...(state ? { state } : {})} {...(builtins ? { builtins } : {})} />)}
     </View>
   );
 }

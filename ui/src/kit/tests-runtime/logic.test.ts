@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import { evalExpr, interpolate, resolveInputMap, resolvePointer, type Scope } from "../runtime/pointer.ts";
 import { createQuerySet, deriveStatus, queryData } from "../runtime/queries.ts";
 import { matchCombo, parseCombo } from "../runtime/keys.ts";
+import { presentRow } from "../runtime/present.ts";
+import { rowIndexOf } from "../runtime/layout.tsx";
 import { createScreenRegistry } from "../runtime/registry.ts";
 import { previewDef } from "../runtime/preview.ts";
 import { screens } from "../../../../generated/screens.ts";
@@ -118,4 +120,22 @@ test("the screens index holds every generated screen by id, place and slot", () 
   for (const s of known) assert.ok(registry.forSlot(s.place as ScreenPlace, s.slot as KitSlot).some((d) => d.id === s.id), s.id);
   assert.throws(() => registry.register(previewDef(known[0]!)), /already registered/);
   assert.throws(() => registry.register({ id: "", place: "home", slot: "main" } as never), /not a Kit screen/);
+});
+
+test("a list row shows its first text as title, the rest as note, and presses the first button's action", () => {
+  const list = listDef.layout as { children: { row: Parameters<typeof presentRow>[0] }[] };
+  const row = list.children[1]!.row;
+  const sc: Scope = { queries: {}, state: {}, row: people[1], index: 1 };
+  assert.deepEqual(presentRow(row, sc), { title: "Omar Haddad", note: "Harbor Legal", action: "open" });
+  assert.deepEqual(presentRow({ t: "text", value: "Only a title" }, sc), { title: "Only a title" });
+  assert.deepEqual(presentRow({ t: "when", expr: "/row/missing", then: { t: "text", value: "yes" }, else: { t: "text", value: "no" } }, sc), { title: "no" });
+});
+
+test("rowIndexOf reads the row index from the nearest Row test id", () => {
+  const el = (id: string | null) => ({ closest: () => (id === null ? null : { getAttribute: () => id }) });
+  assert.equal(rowIndexOf(el("row-7")), 7);
+  assert.equal(rowIndexOf(el("row-x")), -1);
+  assert.equal(rowIndexOf(el(null)), -1);
+  assert.equal(rowIndexOf({}), -1);
+  assert.equal(rowIndexOf(null), -1);
 });

@@ -11,16 +11,16 @@ import { Text } from "react-native";
 import type { KitScreenDef } from "../types.ts";
 
 const esc = (t: string) => t.replaceAll("&", "&amp;");
-const rows = (html: string) => html.match(/data-testid="kit-row-\d+"/g)?.length ?? 0;
+const rows = (html: string) => html.match(/data-testid="row-\d+"/g)?.length ?? 0;
 
-test("a Kit screen renders from KitScreenDef: rows, interpolated fields, button", () => {
+test("a Kit screen renders from KitScreenDef: one ui/Row per item with title and note", () => {
   const html = renderToStaticMarkup(<KitScreen def={listDef} env={fakeEnv({ data: { people } })} />);
   for (const p of people) {
     assert.ok(html.includes(esc(p.name)), p.name);
     assert.ok(html.includes(esc(p.company)), p.company);
   }
   assert.equal(rows(html), 3);
-  assert.equal(html.match(/>Open</g)?.length, 3, "one Open button per row");
+  assert.match(html, /aria-label="Omar Haddad"/, "the row's title is its accessible name");
   assert.match(html, /data-testid="kit-screen-demo\.list"/);
   assert.ok(!html.includes("{/row"), "no raw pointer text left");
 });
@@ -37,12 +37,12 @@ test("empty, offline and error states carry the def's lines and actions", () => 
   assert.match(empty, /Add a person/);
   const offDef: KitScreenDef = { ...listDef, queries: { people: { ...listDef.queries.people!, live: false } } };
   const offline = renderToStaticMarkup(<KitScreen def={offDef} env={fakeEnv({ online: false, read: () => new Promise(() => {}) })} />);
-  assert.match(offline, /data-testid="kit-state-offline"/);
+  assert.match(offline, /data-testid="state-offline"/);
   assert.match(offline, /Offline/);
   const failing = fakeEnv({ traceId: "tr_123", hooks: { query: () => { throw new Error("no such query"); } } });
   const error = renderToStaticMarkup(<KitScreen def={listDef} env={failing} />);
-  assert.match(error, /data-testid="kit-state-error"/);
-  for (const text of ["People did not load", "Try again", "Copy trace id", "Report a problem", "tr_123"]) assert.ok(error.includes(text), text);
+  assert.match(error, /data-testid="state-error"/);
+  for (const text of ["People did not load", "Retry", "Copy trace id", "Report a problem", "tr_123"]) assert.ok(error.includes(text), text);
 });
 
 test("a registered builtin renders in place of a layout; an unregistered one says so", () => {

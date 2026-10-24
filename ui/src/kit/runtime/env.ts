@@ -29,10 +29,15 @@ export interface KitEnv {
   confirm?(text: string): Promise<boolean>;
   /** Permission check for `needs`. Missing means everything is allowed (tests). */
   can?(permission: string): boolean;
+  /**
+   * Props to spread on a container so right-click, the menu key and Shift+F10 reach the host's menu. The shell passes the
+   * ui/Menu trigger here; the runtime never listens for the native event itself (lint no-raw-context-menu).
+   */
+  menuTrigger?(open: (x: number, y: number) => void): Record<string, unknown>;
+  /** Shows the menu for a row. The shell builds it with ui/Menu, which appends Report a problem. */
   openMenu?(request: MenuRequest): void;
-  /** Error card buttons. */
+  /** Screen-level retry after an error, beyond the runtime re-reading its queries. */
   retry?(screenId: string): void;
-  copyTraceId?(traceId: string): void;
-  reportProblem?(screenId: string, traceId?: string): void;
+  /** Id shown on the error state so the person can quote it. */
   traceId?: string;
 }

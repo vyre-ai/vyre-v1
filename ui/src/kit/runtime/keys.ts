@@ -42,3 +42,16 @@ export function matchCombo(combo: Combo, e: KeyLike, isMac: boolean): boolean {
   const wantCtrl = combo.ctrl || (combo.mod && !isMac);
   return e.metaKey === wantMeta && e.ctrlKey === wantCtrl && e.shiftKey === combo.shift && e.altKey === combo.alt;
 }
+
+export interface KeyBinding {
+  combo: Combo;
+  action: string;
+  when?: string;
+}
+
+/** Parses a screen's `keys` once. */
+export function compileKeys(keys: readonly { combo: string; action: string; when?: string }[]): KeyBinding[] {
+  const out: KeyBinding[] = [];
+  for (const k of keys) out.push({ combo: parseCombo(k.combo), action: k.action, ...(k.when ? { when: k.when } : {}) });
+  return out;
+}
