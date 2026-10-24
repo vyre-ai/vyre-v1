@@ -22,7 +22,7 @@ Source paths come from the wt-train067 (0.6.9) file survey. This packet may edit
 | 15 | L6 | imported | `core/approvals` to `modules/tasks` (5 files) |
 | 16 | L7a | imported | `core/roles`, `lib/roles`, `core/spaces`, `lib/spaces` to `modules/access` (70 files) |
 | 17 | L7a | imported | `core/vault` to `modules/vault` (237 files) |
-| 18 | L7a | imported | `lib/vault-kinds` to `modules/vault/kinds` (1 files) |
+| 18 | L7a | imported | `lib/vault-kinds` to `modules/vault/kinds` (1 file) |
 | 24 | L1 | REWRITE | `core/stream` |
 | 32 | L3 | REWRITE | `core/work`, `core/projects`, `core/goals`, `core/waiting`, `core/team` |
 | 41 | L7b | REWRITE | `core/relay`, `core/network`, `core/link`, `core/sync` |
