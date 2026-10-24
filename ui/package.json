@@ -1,0 +1,10 @@
+{
+  "name": "@vyre/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tokens": "./src/tokens/skins.ts"
+  },
+  "description": "Shared components, tokens and skins. A skin's light and dark sets are plain data, ready before first paint."
+}
