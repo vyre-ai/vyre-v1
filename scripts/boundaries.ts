@@ -64,6 +64,8 @@ export function packageOf(file: string): string | null {
   const parts = file.replace(/\\/g, '/').replace(/^\.\//, '').split('/').filter((p) => p.length > 0);
   const head = parts[0];
   if (!head) return null;
+  // The contracts layer lives at packages/contracts (the old top-level contracts/ holds only tests).
+  if (head === 'packages' && parts[1] === 'contracts') return 'contracts';
   if (MULTI.has(head)) {
     const name = parts[1];
     if (!name || name.includes('*')) return null;
