@@ -2,10 +2,9 @@
 // it never receives a personKey and never returns a key to anyone but the signed-in person.
 import type { Device, IdentityCtx, KeyBundle, SignInOut } from "../projections.ts";
 import {
-  MIN_SECRET, RESET_TTL_MS, USERNAME, nid, provisionAccount, validBundle, accountById, accountByName, bundleOf, burnVerify, checkVerifier, issueSession, lockedFor, makeVerifier, me, mustAccount, noteFail, raise,
+  MIN_SECRET, RESET_TTL_MS, USERNAME, nid, provisionAccount, randomBytes, validBundle, accountById, accountByName, bundleOf, burnVerify, checkVerifier, issueSession, lockedFor, makeVerifier, me, mustAccount, noteFail, raise,
   revokeSessions, setKeys, spendCode, putCode, clearFails,
 } from "../projections.ts";
-import { randomBytes } from "node:crypto";
 
 const ok = { ok: true } as const;
 type Reason = "first_device" | "password_change" | "reset" | "recovery" | "space_key_epoch" | "new_device";
@@ -134,10 +133,10 @@ export async function acceptCreateAccount(
   checkNewSecret(ctx, input.password);
   if (!validBundle(input.keys)) raise(tid, "validation.bad_input", "keys must be base64 ciphertext");
   const personId = nid("usr");
-  const account = await provisionAccount(ctx, { personId, username, name: input.displayName?.trim() || username, secret: input.password });
+  await provisionAccount(ctx, { personId, username, name: input.displayName?.trim() || username, secret: input.password });
   setKeys(ctx, personId, input.keys, "first_device");
   ctx.invites.accept(invite.inviteId, personId);
   ctx.emit("principal.created", personId, { principalId: personId, kind: "person" });
   ctx.emit("member.joined", personId, { personId, inviteId: invite.inviteId, role: invite.role, invitedBy: invite.invitedBy });
-  return issueSession(ctx, account, input, "password");
+  return issueSession(ctx, mustAccount(ctx, personId), input, "password");
 }

@@ -23,7 +23,7 @@ function secretOf(setupUri: string): string {
 const stepNow = (ms: number) => Math.floor(ms / 30_000);
 
 test("every identity capability has a handler and the migration tables exist", () => {
-  assert.equal(Object.keys(handlers).length, 25);
+  assert.equal(Object.keys(handlers).length, 26);
   const sql = readFileSync(new URL("../migrations/0001_identity.sql", import.meta.url), "utf8");
   for (const t of ["identity_space", "identity_accounts", "identity_sessions", "identity_challenges", "identity_codes", "identity_enrolments"]) {
     assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS "${t}"`));
@@ -57,7 +57,7 @@ test("password sign-in issues a session, stores only a token hash, and never ech
   assert.ok(!JSON.stringify(h.events).includes(P.secret));
   assert.ok(!JSON.stringify(out).includes(P.secret));
   const stored = (h.db.all(`SELECT verifier FROM identity_accounts`) as { verifier: string }[])[0]!.verifier;
-  assert.ok(stored.startsWith("scrypt$") && !stored.includes(P.secret));
+  assert.ok(stored.startsWith("argon2id$") && !stored.includes(P.secret));
 });
 
 test("wrong password and unknown user fail the same way; five misses lock the account", async () => {
@@ -82,7 +82,7 @@ test("TOTP: enrol, then sign-in asks for the second factor and a code cannot be 
   const begin = await handlers["identity.totp_begin"](ctx, {});
   const secret = secretOf(begin.setupUri);
   assert.ok(unbase32(secret).length === 20);
-  const code = totpAt(secret, stepNow(NOW));
+  const code = await totpAt(secret, stepNow(NOW));
   await assert.rejects(handlers["identity.totp_confirm"](ctx, { enrolmentId: begin.enrolmentId, code: "000000" }), (e) => codeOf(e) === "auth.invalid_code");
   await handlers["identity.totp_confirm"](ctx, { enrolmentId: begin.enrolmentId, code });
   assert.ok(h.events.some((e) => e.name === "factor.enrolled"));
@@ -95,7 +95,7 @@ test("TOTP: enrol, then sign-in asks for the second factor and a code cannot be 
 
   // the enrolment code's step is spent; the next step works
   h.advance(30_000);
-  const next = totpAt(secret, stepNow(NOW + 30_000));
+  const next = await totpAt(secret, stepNow(NOW + 30_000));
   await assert.rejects(handlers["identity.verify_second_factor"](h.anon, { challengeId: first.challengeId!, code: "000000", ...DEVICE }), (e) => codeOf(e) === "auth.invalid_code");
   const done = await handlers["identity.verify_second_factor"](h.anon, { challengeId: first.challengeId!, code: next, ...DEVICE });
   assert.equal(done.status, "ok");
@@ -109,7 +109,7 @@ test("TOTP: enrol, then sign-in asks for the second factor and a code cannot be 
 
   // code inline with the password
   h.advance(30_000);
-  const inline = await handlers["identity.sign_in"](h.anon, { username: "maya", password: P.secret, totp: totpAt(secret, stepNow(NOW + 60_000)), ...DEVICE });
+  const inline = await handlers["identity.sign_in"](h.anon, { username: "maya", password: P.secret, totp: await totpAt(secret, stepNow(NOW + 60_000)), ...DEVICE });
   assert.equal(inline.status, "ok");
   await assert.rejects(handlers["identity.sign_in"](h.anon, { username: "maya", password: P.secret, totp: "123456", ...DEVICE }), (e) => codeOf(e) === "auth.invalid_code");
 });
@@ -119,17 +119,17 @@ test("a second-factor challenge expires", async () => {
   const ctx = h.as(P.personId);
   const begin = await handlers["identity.totp_begin"](ctx, {});
   const secret = secretOf(begin.setupUri);
-  await handlers["identity.totp_confirm"](ctx, { enrolmentId: begin.enrolmentId, code: totpAt(secret, stepNow(NOW)) });
+  await handlers["identity.totp_confirm"](ctx, { enrolmentId: begin.enrolmentId, code: await totpAt(secret, stepNow(NOW)) });
   const first = await handlers["identity.sign_in"](h.anon, { username: "maya", password: P.secret, ...DEVICE });
   h.advance(6 * 60_000);
-  await assert.rejects(handlers["identity.verify_second_factor"](h.anon, { challengeId: first.challengeId!, code: totpAt(secret, stepNow(NOW + 6 * 60_000)), ...DEVICE }), (e) => codeOf(e) === "auth.expired");
+  await assert.rejects(handlers["identity.verify_second_factor"](h.anon, { challengeId: first.challengeId!, code: await totpAt(secret, stepNow(NOW + 6 * 60_000)), ...DEVICE }), (e) => codeOf(e) === "auth.expired");
 });
 
 test("TOTP can be removed with the password unless the Space requires it", async () => {
   const h = await world();
   const ctx = h.as(P.personId);
   const begin = await handlers["identity.totp_begin"](ctx, {});
-  await handlers["identity.totp_confirm"](ctx, { enrolmentId: begin.enrolmentId, code: totpAt(secretOf(begin.setupUri), stepNow(NOW)) });
+  await handlers["identity.totp_confirm"](ctx, { enrolmentId: begin.enrolmentId, code: await totpAt(secretOf(begin.setupUri), stepNow(NOW)) });
   await assert.rejects(handlers["identity.totp_remove"](ctx, { password: "nope nope nope" }), (e) => codeOf(e) === "auth.bad_credentials");
   h.db.run(`UPDATE identity_space SET second_factor_required = 1`);
   await assert.rejects(handlers["identity.totp_remove"](ctx, { password: P.secret }), (e) => codeOf(e) === "validation.precondition_failed");
@@ -158,7 +158,7 @@ test("GitHub: link, sign in once the Space is named, refuse a stranger, honour t
 
   // TOTP still applies after GitHub
   const begin = await handlers["identity.totp_begin"](ctx, {});
-  await handlers["identity.totp_confirm"](ctx, { enrolmentId: begin.enrolmentId, code: totpAt(secretOf(begin.setupUri), stepNow(NOW)) });
+  await handlers["identity.totp_confirm"](ctx, { enrolmentId: begin.enrolmentId, code: await totpAt(secretOf(begin.setupUri), stepNow(NOW)) });
   assert.equal((await handlers["identity.github_sign_in"](anon, { code: "good", ...DEVICE })).status, "second_factor_required");
 
   await handlers["identity.github_unlink"](ctx, {});

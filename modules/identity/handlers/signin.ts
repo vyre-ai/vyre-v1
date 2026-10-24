@@ -36,7 +36,7 @@ function afterFirstFactor(ctx: IdentityCtx, a: Account, dev: Device, method: "pa
 /** Check a TOTP code and burn its step so it cannot be replayed. */
 function takeTotp(ctx: IdentityCtx, a: Account, code: string): boolean {
   if (!a.totp_secret) return false;
-  const step = matchTotp(a.totp_secret, code, ctx.now(), a.totp_last_step);
+  const step = await matchTotp(a.totp_secret, code, ctx.now(), a.totp_last_step);
   if (step === null) return false;
   const got = ctx.db.run(`UPDATE identity_accounts SET totp_last_step = ? WHERE person_id = ? AND totp_last_step < ?`, step, a.person_id, step);
   return got.changes === 1;
@@ -80,7 +80,7 @@ export async function verifySecondFactor(ctx: IdentityCtx, input: Device & { cha
     noteFail(ctx, a, a.username, "locked");
     raise(ctx.trace.traceId, "auth.invalid_code");
   }
-  ctx.db.run(`UPDATE identity_challenges SET tries = tries + 1 WHERE id = ?`, c.id);
+  ctx.db.run(`UPDATE identity_challenges SET tries = ? WHERE id = ?`, c.tries + 1, c.id);
   if (!takeTotp(ctx, a, input.code)) {
     noteFail(ctx, a, a.username, "bad_code");
     raise(ctx.trace.traceId, "auth.invalid_code");
@@ -175,7 +175,7 @@ export async function totpConfirm(ctx: IdentityCtx, input: { enrolmentId: string
     { id: string; secret: string; expires_at: number; used_at: number | null } | undefined;
   if (!e || e.used_at !== null) raise(ctx.trace.traceId, "auth.invalid_code");
   if (e.expires_at <= ctx.now()) raise(ctx.trace.traceId, "auth.expired");
-  const step = matchTotp(e.secret, input.code, ctx.now(), 0);
+  const step = await matchTotp(e.secret, input.code, ctx.now(), 0);
   if (step === null) raise(ctx.trace.traceId, "auth.invalid_code");
   ctx.db.run(`UPDATE identity_enrolments SET used_at = ? WHERE id = ?`, ctx.now(), e.id);
   ctx.db.run(`UPDATE identity_accounts SET totp_secret = ?, totp_last_step = ? WHERE person_id = ?`, e.secret, step, a.person_id);

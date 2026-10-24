@@ -1,5 +1,5 @@
 -- Identity tables (P-L7_04). Every table is named identity_* (ctx.db guard, ARCH B2).
--- The server holds a salted scrypt verifier of the login secret, TOTP secrets, and wrapped key bundles (ciphertext only).
+-- The server holds a salted Argon2id verifier of the login secret, TOTP secrets, and wrapped key bundles (ciphertext only).
 
 CREATE TABLE IF NOT EXISTS "identity_space" (
   "id" TEXT PRIMARY KEY,

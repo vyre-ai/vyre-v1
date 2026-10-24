@@ -1,7 +1,9 @@
 // Identity projections (spec 3.13, 2.25, ARCH 7.13). Accounts, sessions, challenges, one-time codes and the wrapped key bundle.
-// The server keeps a salted scrypt verifier of the login secret, never the secret, and never an unwrapped key.
+// The server keeps a salted Argon2id verifier of the login secret, never the secret, and never an unwrapped key.
 // Durable tables: migrations/0001_identity.sql. Handlers reach them only through ctx.db.
-import { createHash, createHmac, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+// Crypto comes from the kernel (argon2id, sha-256, constant-time compare) and the platform WebCrypto (random bytes, HMAC-SHA1 for TOTP); modules import no crypto themselves (B3).
+import { argon2id } from "../../kernel/src/identity/stretch.ts";
+import { sameMac, sha256b64 } from "../../kernel/src/seal/wire.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 
 export interface Db {
@@ -71,7 +73,8 @@ export const ENROL_TTL_MS = 10 * 60_000;
 export const LOCK_AFTER = 5;
 export const MIN_SECRET = 8;
 export const USERNAME = /^[a-z0-9_.-]{2,32}$/;
-const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 32 } as const;
+/** Login verifier cost: Argon2id, 19 MiB, two passes (the OWASP floor, and the kernel's own stretch parameters). */
+const ARGON = { memoryKiB: 19456, passes: 2 } as const;
 const PAIR_ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
 const B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 const B64 = /^[A-Za-z0-9+/_-]+={0,2}$/;
@@ -82,8 +85,9 @@ export function raise(traceId: string, code: Code, message?: string): never {
 }
 
 // ---- small crypto helpers
+export function randomBytes(n: number): Buffer { return Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(n))); }
 export function nid(prefix: string): string { return `${prefix}_${randomBytes(9).toString("hex")}`; }
-export function sha(s: string): string { return createHash("sha256").update(s).digest("base64url"); }
+export function sha(s: string): string { return sha256b64(s); }
 export function newToken(): string { return `vst_${randomBytes(32).toString("base64url")}`; }
 export function pairCode(): string {
   const b = randomBytes(8);
@@ -93,24 +97,19 @@ export function pairCode(): string {
 }
 export function normCode(code: string): string { return code.trim().toUpperCase().replace(/\s+/g, ""); }
 
-function scryptAsync(secret: string, salt: Buffer, p: { N: number; r: number; p: number; keylen: number }): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    scrypt(secret.normalize("NFKC"), salt, p.keylen, { N: p.N, r: p.r, p: p.p, maxmem: 64 * 1024 * 1024 }, (err, key) => (err ? reject(err) : resolve(key)));
-  });
+function stretch(secret: string, salt: Buffer, memoryKiB: number, passes: number): string {
+  return argon2id(secret.normalize("NFKC"), salt, { memoryKiB, passes }).toString("base64url");
 }
 export async function makeVerifier(secret: string): Promise<string> {
   const salt = randomBytes(16);
-  const key = await scryptAsync(secret, salt, SCRYPT);
-  return `scrypt$${SCRYPT.N}$${SCRYPT.r}$${SCRYPT.p}$${salt.toString("base64url")}$${key.toString("base64url")}`;
+  return `argon2id$${ARGON.memoryKiB}$${ARGON.passes}$${salt.toString("base64url")}$${stretch(secret, salt, ARGON.memoryKiB, ARGON.passes)}`;
 }
 export async function checkVerifier(secret: string, verifier: string): Promise<boolean> {
   const parts = verifier.split("$");
-  if (parts.length !== 6 || parts[0] !== "scrypt") return false;
-  const [N, r, p] = [Number(parts[1]), Number(parts[2]), Number(parts[3])];
-  if (!Number.isInteger(N) || !Number.isInteger(r) || !Number.isInteger(p)) return false;
-  const want = Buffer.from(parts[5]!, "base64url");
-  const got = await scryptAsync(secret, Buffer.from(parts[4]!, "base64url"), { N, r, p, keylen: want.length });
-  return got.length === want.length && timingSafeEqual(got, want);
+  if (parts.length !== 5 || parts[0] !== "argon2id") return false;
+  const [m, t] = [Number(parts[1]), Number(parts[2])];
+  if (!Number.isInteger(m) || !Number.isInteger(t) || m < 8 || t < 1) return false;
+  return sameMac(stretch(secret, Buffer.from(parts[3]!, "base64url"), m, t), parts[4]!);
 }
 let dummy: Promise<string> | null = null;
 /** Burn the same time for an unknown name as for a known one. */
@@ -140,20 +139,24 @@ export function unbase32(s: string): Buffer {
   }
   return Buffer.from(out);
 }
-export function totpAt(secret: string, step: number): string {
+async function hmacSha1(key: Uint8Array, msg: Uint8Array): Promise<Buffer> {
+  const k = await globalThis.crypto.subtle.importKey("raw", key as BufferSource, { name: "HMAC", hash: "SHA-1" }, false, ["sign"]);
+  return Buffer.from(await globalThis.crypto.subtle.sign("HMAC", k, msg as BufferSource));
+}
+export async function totpAt(secret: string, step: number): Promise<string> {
   const msg = Buffer.alloc(8);
   msg.writeBigUInt64BE(BigInt(step));
-  const h = createHmac("sha1", unbase32(secret)).update(msg).digest();
+  const h = await hmacSha1(unbase32(secret), msg);
   const o = h[h.length - 1]! & 15;
   const n = ((h[o]! & 127) << 24) | (h[o + 1]! << 16) | (h[o + 2]! << 8) | h[o + 3]!;
   return String(n % 1_000_000).padStart(6, "0");
 }
 /** The step a code matches within one step either side of now and after `after`, or null. A step is never accepted twice. */
-export function matchTotp(secret: string, code: string, nowMs: number, after: number): number | null {
+export async function matchTotp(secret: string, code: string, nowMs: number, after: number): Promise<number | null> {
   if (!/^[0-9]{6}$/.test(code)) return null;
   const cur = Math.floor(nowMs / 30_000);
   for (const step of [cur, cur - 1, cur + 1]) {
-    if (step > after && totpAt(secret, step) === code) return step;
+    if (step > after && (await totpAt(secret, step)) === code) return step;
   }
   return null;
 }
