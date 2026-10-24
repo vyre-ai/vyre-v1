@@ -165,32 +165,16 @@ async function call(pathName: string, init: { method?: string; headers?: Record<
 
 const flow: {
   cookie: string; teamId: number; userId: number; apiToken: string; hookSecret: string; webhookOk: boolean;
-  envelopeId: string; docId: number; recipients: { recipientId: number; email: string; name: string; token: string; fieldIds: number[] }[]; gap: string[];
-} = { cookie: "", teamId: 0, userId: 0, apiToken: "", hookSecret: `whsec_${Math.random().toString(36).slice(2)}`, webhookOk: false, envelopeId: "", docId: 0, recipients: [], gap: [] };
+  envelopeId: string; ref: string; docId: number; recipients: { email: string; name: string; token: string; fieldIds: number[] }[];
+} = { cookie: "", teamId: 0, userId: 0, apiToken: "", hookSecret: `whsec_${Math.random().toString(36).slice(2)}`, webhookOk: false, envelopeId: "", ref: "", docId: 0, recipients: [] };
 
 const OWNER = { name: "Heavy Tester", email: "owner@vyre.test", password: "Heavy-Test-pass-1!" };
 const psql = (q: string): string => dc(["exec", "-T", "documenso-db", "psql", "-U", "documenso", "-d", "documenso", "-tA", "-c", q], { allowFail: true }).trim();
-const trpc = (name: string, input: unknown): Promise<Reply> => call(`/api/trpc/${name}`, { method: "POST", headers: flow.cookie ? { cookie: flow.cookie } : {}, body: { json: input } });
+const trpc = (name: string, input: unknown): Promise<Reply> => call(`/api/trpc/${name}`, { method: "POST", headers: { ...(flow.cookie ? { cookie: flow.cookie } : {}), ...(flow.teamId ? { "x-team-id": String(flow.teamId) } : {}) }, body: { json: input } });
 const dataOf = (r: Reply): any => r.json?.result?.data?.json;   // eslint-disable-line @typescript-eslint/no-explicit-any
 const cookiesOf = (h: Headers): string => h.getSetCookie().map((c) => c.split(";")[0]).join("; ");
 
 // ---- the flow ------------------------------------------------------------------------------------------------------------
-
-test("probe: the v2 envelope API", { skip }, async () => {
-  const spec = (await (await fetch(`${state.base}/api/v2/openapi.json`)).json()) as { paths: Record<string, any>; components?: any };   // eslint-disable-line @typescript-eslint/no-explicit-any
-  const show = (label: string, v: unknown, n = 6000): void => say(label, JSON.stringify(v).slice(0, n));
-  const resolve = (o: any, depth = 0): any => {   // eslint-disable-line @typescript-eslint/no-explicit-any
-    if (!o || typeof o !== "object" || depth > 6) return o;
-    if (o.$ref) return resolve(spec.components?.schemas?.[String(o.$ref).split("/").pop()!], depth + 1);
-    if (Array.isArray(o)) return o.map((x) => resolve(x, depth + 1));
-    return Object.fromEntries(Object.entries(o).filter(([k]) => !["description", "example", "title"].includes(k)).map(([k, v]) => [k, resolve(v, depth + 1)]));
-  };
-  for (const [p, m] of [["/envelope/create", "post"], ["/envelope/distribute", "post"], ["/envelope/{envelopeId}", "get"], ["/envelope/item/{envelopeItemId}/download", "get"]] as const) {
-    const op = spec.paths[p]?.[m];
-    show(`${m} ${p} request`, resolve(op?.requestBody ?? op?.parameters), 7000);
-    show(`${m} ${p} response`, resolve(op?.responses?.["200"]), 5000);
-  }
-});
 
 test("certificate: a self-signed signing certificate goes into the container", { skip }, async () => {
   const key = path.join(tmp, "key.pem");
@@ -241,56 +225,40 @@ test("account: sign up, verify, sign in, make an API token and a webhook to the 
   assert.ok(flow.webhookOk, "webhook created");
 });
 
-test("create and send: esign.send through the real provider makes the document, uploads the PDF and sends it to both signers", { skip }, async () => {
+test("create and send: esign.send through the real provider makes the envelope with a signature field per signer and sends it to both", { skip }, async () => {
   const pdf = makePdf();
-  // Documenso refuses to send a document whose signers have no signature field. The provider creates and sends in one go, so this shim adds a field per signer
-  // between the upload and the send, and records the signing tokens the create call returns. flow.gap says whether the shim was needed.
-  const raw = async (url: string, init: { method?: string; headers?: Record<string, string>; body?: string | Uint8Array } = {}) =>
-    fetch(url, { method: init.method ?? "GET", headers: init.headers ?? {}, ...(init.body !== undefined ? { body: init.body as BodyInit } : {}), signal: AbortSignal.timeout(120_000) });
   const http: HttpFn = async (url, init) => {
-    const u = new URL(url);
-    const m = u.pathname.match(/^\/api\/v1\/documents\/(\d+)\/send$/);
-    if (m && init?.method === "POST") {
-      for (const r of flow.recipients) {
-        const f = await raw(`${state.base}/api/v1/documents/${m[1]}/fields`, { method: "POST", headers: { Authorization: flow.apiToken, "Content-Type": "application/json" }, body: JSON.stringify({ recipientId: r.recipientId, type: "SIGNATURE", pageNumber: 1, pageX: 10, pageY: 10 + 12 * flow.recipients.indexOf(r), pageWidth: 30, pageHeight: 8, fieldMeta: { type: "signature", required: true } }) });
-        const body = await f.text();
-        say("add field", r.email, f.status, body.slice(0, 300));
-        let j: any = null;   // eslint-disable-line @typescript-eslint/no-explicit-any
-        try { j = JSON.parse(body); } catch { j = null; }
-        const fid = Number(j?.id ?? j?.fields?.[0]?.id ?? j?.field?.id);
-        if (Number.isFinite(fid)) r.fieldIds.push(fid);
-      }
-    }
-    const res = await raw(url, init);
-    if (init?.method === "POST" && u.pathname === "/api/v1/documents") {
-      const copy = await res.clone().text();
-      say("create response", res.status, copy.slice(0, 700));
-      let j: any = null;   // eslint-disable-line @typescript-eslint/no-explicit-any
-      try { j = JSON.parse(copy); } catch { j = null; }
-      flow.docId = Number(j?.documentId ?? 0);
-      flow.recipients = (j?.recipients ?? []).map((r: any) => ({ recipientId: Number(r.recipientId), email: String(r.email).toLowerCase(), name: String(r.name), token: String(r.token), fieldIds: [] as number[] }));   // eslint-disable-line @typescript-eslint/no-explicit-any
-    }
-    if (m && init?.method === "POST") say("send response", res.status, (await res.clone().text()).slice(0, 300));
+    const res = await fetch(url, { method: init?.method ?? "GET", headers: init?.headers ?? {}, ...(init?.body !== undefined ? { body: init.body as BodyInit } : {}), signal: AbortSignal.timeout(120_000) });
+    const path = new URL(url).pathname;
+    if (init?.method === "POST" && /\/envelope\/(create|distribute)$/.test(path)) say(path, res.status, (await res.clone().text()).slice(0, 600));
     return res as never;
   };
   const provider = documenso({ baseUrl: state.base, apiToken: flow.apiToken, http });
   assert.deepEqual(await provider.health!(), { ok: true });
   const h = harness({ providers: { documenso: provider } });
   h.callee("files.read", () => ({ base64: toBase64(pdf), mime: "application/pdf", size: pdf.length, version: 1, truncated: false }));
-  Object.assign(flow, { h });
+  Object.assign(flow, { h, provider });
   const SIGNERS = [{ name: "Dana Whitfield", email: "dana@client.example" }, { name: "Sam Ortiz", email: "sam@client.example" }];
   const sent = await h.call("esign.send", { fileId: "fil_contract1", recordId: "rec_dana", signers: SIGNERS, idempotencyKey: "heavy-1" }, { ...dana, thread: "thr_1" });
   flow.envelopeId = sent.envelopeId;
   say("esign.send", JSON.stringify(sent));
-  assert.ok(flow.docId > 0, "Documenso made a document");
-  assert.equal(flow.recipients.length, 2);
-  assert.ok(flow.recipients.every((r) => r.token.length > 0 && r.fieldIds.length === 1), "each signer has a token and one signature field");
   const row = h.rows("esign_envelope")[0]!;
-  assert.equal(row.provider_ref, String(flow.docId));
+  flow.ref = String(row.provider_ref);
+  assert.match(flow.ref, /^envelope_/);
   assert.equal((await h.call("esign.status", { envelopeId: flow.envelopeId })).status, "sent");
-  const status = await provider.status(String(flow.docId));
+  const status = await provider.status(flow.ref);
   assert.equal(status.state, "sent");
   assert.deepEqual(status.signers.map((x) => x.email).sort(), ["dana@client.example", "sam@client.example"]);
+  const fields = psql(`select r.email || ':' || f.id || ':' || f.type from "Field" f join "Recipient" r on r.id = f."recipientId" order by r.email`).split("\n").filter(Boolean);
+  say("fields", fields.join(" | "));
+  flow.recipients = psql(`select r.email || '|' || r.token || '|' || f.id || '|' || r.name from "Recipient" r join "Field" f on f."recipientId" = r.id order by r.email`).split("\n").filter(Boolean).map((l) => {
+    const [email, token, field, name] = l.split("|");
+    return { email: email!, token: token!, fieldIds: [Number(field)], name: name! };
+  });
+  flow.docId = Number(psql(`select regexp_replace("secondaryId", '[^0-9]', '', 'g') from "Envelope" where id = '${flow.ref}'`));
+  say("document", flow.docId, "recipients", flow.recipients.length);
+  assert.equal(flow.recipients.length, 2, "one signature field per signer");
+  assert.ok(flow.docId > 0);
 });
 
 test("sign: each signer signs through Documenso's own signing API, and Documenso posts its webhooks to the sink", { skip }, async () => {
