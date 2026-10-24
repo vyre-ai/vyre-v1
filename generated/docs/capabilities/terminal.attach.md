@@ -1,0 +1,64 @@
+# terminal.attach
+
+Attach to a session as a live stream; the same session an agent used, so Open terminal shows its commands
+
+| | |
+|---|---|
+| Module | terminal |
+| Version | 1 (since 1.0.0) |
+| Effects | read |
+| Permission | grant only |
+| Grant level | view |
+| Risk | low |
+| Resource | terminal (/terminalId) |
+| Gate | none |
+| Idempotency | natural |
+| Offline | online |
+| Audit | none |
+| Team Space only | no |
+| HTTP | POST /v1/terminal/attach |
+| MCP tool | terminal_attach (terminal) |
+| CLI | none |
+| Emits | none |
+
+## Input
+
+```ts
+type In = {
+  terminalId: string;
+};
+```
+
+## Output
+
+```ts
+type Out = {
+  ticket: string;
+  expiresAt: number;
+  replay: string;
+};
+```
+
+## Errors
+
+- internal.unexpected
+- permission.above_clearance
+- permission.no_grant
+- validation.bad_input
+- validation.not_found
+
+## Example
+
+```json
+{
+  "name": "example",
+  "input": {
+    "terminalId": "trm_a1b2c3"
+  },
+  "output": {
+    "expiresAt": 1760000000000,
+    "replay": "example",
+    "ticket": "example"
+  }
+}
+```

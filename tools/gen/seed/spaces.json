@@ -1,0 +1,42 @@
+{
+  "source": "prototype v1/seed.js (X4, X1): one seed for people and Spaces",
+  "spaces": {
+    "team": {
+      "name": "Northwind", "domain": "northwind.example", "kind": "team",
+      "people": [
+        { "id": "irfad", "name": "Irfad Imtiaz", "role": "owner", "email": "irfad@northwind.example" },
+        { "id": "maya", "name": "Maya Chen", "role": "admin", "email": "maya@northwind.example" },
+        { "id": "omar", "name": "Omar Haddad", "role": "member", "email": "omar@northwind.example" },
+        { "id": "lena", "name": "Lena Ortiz", "role": "member", "email": "lena@northwind.example" },
+        { "id": "sam", "name": "Sam Patel", "role": "member", "email": "sam@northwind.example" },
+        { "id": "dana", "name": "Dana Whitfield", "role": "member", "email": "dana@northwind.example" }
+      ],
+      "clients": [
+        { "id": "elena", "name": "Elena Rivera", "org": "Rivera Holdings", "email": "elena@riveraholdings.example", "phone": "+1 415 555 0161" },
+        { "id": "priya", "name": "Priya Nair", "org": "Nair Studio", "email": "priya@nairstudio.example", "phone": "+1 646 555 0119" },
+        { "id": "marcus", "name": "Marcus Pruitt", "org": "Pruitt & Co.", "email": "marcus@pruittco.example", "phone": "+1 212 555 0148" },
+        { "id": "webb", "name": "Marcus Webb", "org": "Webb Advisory", "email": "marcus@webbadvisory.example", "phone": "+1 312 555 0127" }
+      ],
+      "agents": ["Assistant", "Intake", "Billing", "Research", "Docs"]
+    },
+    "harbor": {
+      "name": "Harbor Studio", "domain": "harborstudio.example", "kind": "team",
+      "people": [
+        { "id": "ines", "name": "Ines Costa", "role": "owner", "email": "ines@harborstudio.example" },
+        { "id": "theo", "name": "Theo Lindqvist", "role": "admin", "email": "theo@harborstudio.example" },
+        { "id": "june", "name": "June Okafor", "role": "member", "email": "june@harborstudio.example" }
+      ],
+      "clients": [
+        { "id": "kai", "name": "Kai Moreno", "org": "Moreno Ceramics", "email": "kai@morenoceramics.example", "phone": "+1 503 555 0172" },
+        { "id": "ruth", "name": "Ruth Abel", "org": "Abel & Daughters", "email": "ruth@abeldaughters.example", "phone": "+1 971 555 0136" }
+      ],
+      "agents": ["Assistant", "Scheduler", "Proofer"]
+    },
+    "personal": {
+      "name": "Personal", "domain": "", "kind": "personal",
+      "people": [{ "id": "irfad", "name": "Irfad Imtiaz", "role": "owner", "email": "irfadimtiaz7@gmail.com" }],
+      "clients": [],
+      "agents": ["Assistant"]
+    }
+  }
+}

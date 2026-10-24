@@ -1,0 +1,62 @@
+# engine.stop
+
+Stop one agent working in a thread (per-agent Stop)
+
+| | |
+|---|---|
+| Module | engine |
+| Version | 1 (since 1.0.0) |
+| Effects | write |
+| Permission | grant only |
+| Grant level | use |
+| Risk | low |
+| Resource | thread (/threadId) |
+| Gate | none |
+| Idempotency | natural |
+| Offline | online |
+| Audit | none |
+| Team Space only | no |
+| HTTP | POST /v1/engine/stop |
+| MCP tool | engine_stop (chats) |
+| CLI | none |
+| Emits | turn.cancelled |
+
+## Input
+
+```ts
+type In = {
+  threadId: string;
+  agentId?: string;
+};
+```
+
+## Output
+
+```ts
+type Out = {
+  stopped: number;
+};
+```
+
+## Errors
+
+- internal.unexpected
+- permission.above_clearance
+- permission.no_grant
+- validation.bad_input
+- validation.not_found
+
+## Example
+
+```json
+{
+  "name": "example",
+  "input": {
+    "agentId": "agt_a1b2c3",
+    "threadId": "thr_a1b2c3"
+  },
+  "output": {
+    "stopped": 1
+  }
+}
+```

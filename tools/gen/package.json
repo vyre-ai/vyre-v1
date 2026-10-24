@@ -1,0 +1,17 @@
+{
+  "name": "@vyre/gen",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "vyre-gen: reads manifests/ and writes generated/ (registry, routes, typed client, MCP tools, catalogues, docs, contract tests).",
+  "scripts": {
+    "gen": "node src/cli.ts",
+    "check": "node src/cli.ts --check",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test --test-isolation=none \"test/*.test.ts\" \"../../generated/tests/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "24.0.0",
+    "typescript": "5.9.2"
+  }
+}

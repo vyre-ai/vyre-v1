@@ -1,0 +1,113 @@
+# reports.preview
+
+Build and preview exactly what would be sent: redacted by label, sealed and Restricted values removed
+
+| | |
+|---|---|
+| Module | reports-client |
+| Version | 1 (since 1.0.0) |
+| Effects | read |
+| Permission | grant only |
+| Grant level | view |
+| Risk | low |
+| Resource | space |
+| Gate | none |
+| Idempotency | natural |
+| Offline | online |
+| Audit | none |
+| Team Space only | no |
+| HTTP | POST /v1/reports/preview |
+| MCP tool | reports_preview (meta) |
+| CLI | none |
+| Emits | none |
+
+## Input
+
+```ts
+type In = {
+  context: {
+    place: string;
+    itemId?: string;
+    hash?: string;
+  };
+  note?: string;
+};
+```
+
+## Output
+
+```ts
+type Out = {
+  bundle: {
+    context: {
+      place: string;
+      itemId?: string;
+      hash?: string;
+    };
+    traceIds: Array<string>;
+    events: Array<{
+        type: string;
+        at: number;
+        traceId?: string;
+      }>;
+    versions: {
+      app: string;
+      server: string;
+      device: string;
+    };
+    screenshotFileId?: string;
+    note?: string;
+  };
+  redactions: number;
+};
+```
+
+## Errors
+
+- internal.unexpected
+- permission.above_clearance
+- permission.no_grant
+- validation.bad_input
+
+## Example
+
+```json
+{
+  "name": "example",
+  "input": {
+    "context": {
+      "hash": "example",
+      "itemId": "example",
+      "place": "example"
+    },
+    "note": "example"
+  },
+  "output": {
+    "bundle": {
+      "context": {
+        "hash": "example",
+        "itemId": "example",
+        "place": "example"
+      },
+      "events": [
+        {
+          "at": 1760000000000,
+          "traceId": "0123456789abcdef0123456789abcdef",
+          "type": "example"
+        }
+      ],
+      "note": "example",
+      "screenshotFileId": "fil_a1b2c3",
+      "traceIds": [
+        "0123456789abcdef0123456789abcdef"
+      ],
+      "versions": {
+        "app": "example",
+        "device": "example",
+        "server": "example"
+      }
+    },
+    "redactions": 1
+  }
+}
+```

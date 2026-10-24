@@ -1,0 +1,1173 @@
+{
+  "probes": [
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.access.checker",
+      "place": "console",
+      "screen": "access.checker"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.access.grants",
+      "place": "console",
+      "screen": "access.grants"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.access.groups",
+      "place": "console",
+      "screen": "access.groups"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.access.people",
+      "place": "console",
+      "screen": "access.people"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.access.policies",
+      "place": "console",
+      "screen": "access.policies"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.access.reviews",
+      "place": "console",
+      "screen": "access.reviews"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.access.roles",
+      "place": "console",
+      "screen": "access.roles"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.access.share_sheet",
+      "place": "shell",
+      "screen": "access.share_sheet"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.apps.campaign-builder",
+      "place": "apps",
+      "screen": "apps.campaign-builder"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.apps.campaigns",
+      "place": "apps",
+      "screen": "apps.campaigns"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.apps.form-settings",
+      "place": "apps",
+      "screen": "apps.form-settings"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.apps.forms",
+      "place": "apps",
+      "screen": "apps.forms"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.apps.kit-builder",
+      "place": "apps",
+      "screen": "apps.kit-builder"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.apps.sending-domains",
+      "place": "apps",
+      "screen": "apps.sending-domains"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.apps.site-editor",
+      "place": "apps",
+      "screen": "apps.site-editor"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.apps.site-settings",
+      "place": "apps",
+      "screen": "apps.site-settings"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.apps.sites",
+      "place": "apps",
+      "screen": "apps.sites"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.apps.templates",
+      "place": "apps",
+      "screen": "apps.templates"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.audit.entry",
+      "place": "console",
+      "screen": "audit.entry"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.audit.integrity",
+      "place": "console",
+      "screen": "audit.integrity"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.audit.log",
+      "place": "console",
+      "screen": "audit.log"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.automations.canvas",
+      "place": "automations",
+      "screen": "automations.canvas"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.automations.config",
+      "place": "automations",
+      "screen": "automations.config"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.automations.promote",
+      "place": "automations",
+      "screen": "automations.promote"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.automations.sidebar",
+      "place": "automations",
+      "screen": "automations.sidebar"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.calendar.event-card",
+      "place": "inbox",
+      "screen": "calendar.event-card"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.calendar.view",
+      "place": "inbox",
+      "screen": "calendar.view"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.chats.agent-computer",
+      "place": "chats",
+      "screen": "chats.agent-computer"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.chats.agent-memory",
+      "place": "chats",
+      "screen": "chats.agent-memory"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.chats.agent-page",
+      "place": "chats",
+      "screen": "chats.agent-page"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.chats.all-agents",
+      "place": "chats",
+      "screen": "chats.all-agents"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.chats.computer-popup",
+      "place": "chats",
+      "screen": "chats.computer-popup"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.chats.connect-outside-agent",
+      "place": "chats",
+      "screen": "chats.connect-outside-agent"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.chats.conversation",
+      "place": "chats",
+      "screen": "chats.conversation"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.chats.helper-chat",
+      "place": "chats",
+      "screen": "chats.helper-chat"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.chats.recording-sheet",
+      "place": "chats",
+      "screen": "chats.recording-sheet"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.chats.right-pane",
+      "place": "chats",
+      "screen": "chats.right-pane"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.chats.sidebar",
+      "place": "chats",
+      "screen": "chats.sidebar"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.chats.terminal-list",
+      "place": "chats",
+      "screen": "chats.terminal-list"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.chats.terminal-rules",
+      "place": "chats",
+      "screen": "chats.terminal-rules"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.chats.terminal-tab",
+      "place": "chats",
+      "screen": "chats.terminal-tab"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.agent-computers",
+      "place": "console",
+      "screen": "console.agent-computers"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.agent-template",
+      "place": "console",
+      "screen": "console.agent-template"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.agents-register",
+      "place": "console",
+      "screen": "console.agents-register"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.ai-incidents",
+      "place": "console",
+      "screen": "console.ai-incidents"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.ai-models",
+      "place": "console",
+      "screen": "console.ai-models"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.ai-review",
+      "place": "console",
+      "screen": "console.ai-review"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.ai-spend",
+      "place": "console",
+      "screen": "console.ai-spend"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.connector-build",
+      "place": "console",
+      "screen": "console.connector-build"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.integrations",
+      "place": "console",
+      "screen": "console.integrations"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.mcp-sessions",
+      "place": "console",
+      "screen": "console.mcp-sessions"
+    },
+    {
+      "completeMs": 300,
+      "firstPaintMs": 100,
+      "id": "screen.console.overview",
+      "place": "console",
+      "screen": "console.overview"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.schema",
+      "place": "console",
+      "screen": "console.schema"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.sources",
+      "place": "console",
+      "screen": "console.sources"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.speed",
+      "place": "console",
+      "screen": "console.speed"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.usage",
+      "place": "console",
+      "screen": "console.usage"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.contacts.duplicates",
+      "place": "records",
+      "screen": "contacts.duplicates"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.contacts.preferences",
+      "place": "records",
+      "screen": "contacts.preferences"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.contacts.suppression",
+      "place": "console",
+      "screen": "contacts.suppression"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.default.home-welcome",
+      "place": "home",
+      "screen": "default.home-welcome"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.devices.mine",
+      "place": "settings",
+      "screen": "devices.mine"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.devices.sessions",
+      "place": "console",
+      "screen": "devices.sessions"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.estate-planning.plans",
+      "place": "records",
+      "screen": "estate-planning.plans"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.events.deliveries",
+      "place": "console",
+      "screen": "events.deliveries"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.events.webhooks",
+      "place": "console",
+      "screen": "events.webhooks"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.files.changeset-header",
+      "place": "files",
+      "screen": "files.changeset-header"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.files.commit-diff",
+      "place": "files",
+      "screen": "files.commit-diff"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.files.diff",
+      "place": "files",
+      "screen": "files.diff"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.files.fill-sheet",
+      "place": "files",
+      "screen": "files.fill-sheet"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.files.git-row",
+      "place": "files",
+      "screen": "files.git-row"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.files.history",
+      "place": "files",
+      "screen": "files.history"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.files.lint-bar",
+      "place": "files",
+      "screen": "files.lint-bar"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.files.list",
+      "place": "files",
+      "screen": "files.list"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.files.memory-graph",
+      "place": "files",
+      "screen": "files.memory-graph"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.files.memory-proposed",
+      "place": "files",
+      "screen": "files.memory-proposed"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.files.mount-sheet",
+      "place": "files",
+      "screen": "files.mount-sheet"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.files.runbook-viewer",
+      "place": "files",
+      "screen": "files.runbook-viewer"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.files.sync-line",
+      "place": "files",
+      "screen": "files.sync-line"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.files.thumbnails",
+      "place": "files",
+      "screen": "files.thumbnails"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.files.trash",
+      "place": "files",
+      "screen": "files.trash"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.files.tree",
+      "place": "files",
+      "screen": "files.tree"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.files.viewer",
+      "place": "files",
+      "screen": "files.viewer"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.gate.rules",
+      "place": "console",
+      "screen": "gate.rules"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.github.issue",
+      "place": "records",
+      "screen": "github.issue"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.github.pull-request",
+      "place": "records",
+      "screen": "github.pull-request"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.github.setup",
+      "place": "console",
+      "screen": "github.setup"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.google.setup",
+      "place": "console",
+      "screen": "google.setup"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.governance.erase",
+      "place": "console",
+      "screen": "governance.erase"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.governance.holds",
+      "place": "console",
+      "screen": "governance.holds"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.governance.retention",
+      "place": "console",
+      "screen": "governance.retention"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.harbor-studio.board",
+      "place": "records",
+      "screen": "harbor-studio.board"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.home.away-digest",
+      "place": "home",
+      "screen": "home.away-digest"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.home.checklist",
+      "place": "home",
+      "screen": "home.checklist"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.home.needs-you-top3",
+      "place": "home",
+      "screen": "home.needs-you-top3"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.home.projects-at-risk",
+      "place": "home",
+      "screen": "home.projects-at-risk"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.home.routines-today",
+      "place": "home",
+      "screen": "home.routines-today"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.inbox.contact-list",
+      "place": "inbox",
+      "screen": "inbox.contact-list"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.inbox.contact-tab",
+      "place": "inbox",
+      "screen": "inbox.contact-tab"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.inbox.sidebar",
+      "place": "inbox",
+      "screen": "inbox.sidebar"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.inbox.unmatched",
+      "place": "inbox",
+      "screen": "inbox.unmatched"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.join.accept",
+      "place": "join",
+      "screen": "join.accept"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.join.checklist",
+      "place": "join",
+      "screen": "join.checklist"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.join.reset",
+      "place": "join",
+      "screen": "join.reset"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.join.sign-in",
+      "place": "join",
+      "screen": "join.sign-in"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.journeys.designer",
+      "place": "automations",
+      "screen": "journeys.designer"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.journeys.new",
+      "place": "automations",
+      "screen": "journeys.new"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.law-firm-intake.pipeline",
+      "place": "records",
+      "screen": "law-firm-intake.pipeline"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.mail.connections",
+      "place": "settings",
+      "screen": "mail.connections"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.mail.domains",
+      "place": "console",
+      "screen": "mail.domains"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.mail.message-detail",
+      "place": "inbox",
+      "screen": "mail.message-detail"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.mail.shared-inboxes",
+      "place": "console",
+      "screen": "mail.shared-inboxes"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.meetings.panel",
+      "place": "inbox",
+      "screen": "meetings.panel"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.meetings.schedule",
+      "place": "inbox",
+      "screen": "meetings.schedule"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.members.invite_sheet",
+      "place": "console",
+      "screen": "members.invite_sheet"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.members.remove_wizard",
+      "place": "console",
+      "screen": "members.remove_wizard"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.members.sign_in_policy",
+      "place": "console",
+      "screen": "members.sign_in_policy"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.microsoft.setup",
+      "place": "console",
+      "screen": "microsoft.setup"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.notifications.away",
+      "place": "shell",
+      "screen": "notifications.away"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.notifications.banner",
+      "place": "shell",
+      "screen": "notifications.banner"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.notifications.settings",
+      "place": "settings",
+      "screen": "notifications.settings"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.records.import",
+      "place": "records",
+      "screen": "records.import"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.records.project-overview",
+      "place": "records",
+      "screen": "records.project-overview"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.records.project-plan",
+      "place": "records",
+      "screen": "records.project-plan"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.records.projects",
+      "place": "records",
+      "screen": "records.projects"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.records.saved-views",
+      "place": "records",
+      "screen": "records.saved-views"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.records.schema-map",
+      "place": "records",
+      "screen": "records.schema-map"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.records.sources",
+      "place": "records",
+      "screen": "records.sources"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.records.sync-conflict",
+      "place": "records",
+      "screen": "records.sync-conflict"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.records.sync-log",
+      "place": "records",
+      "screen": "records.sync-log"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.records.sync-mapping",
+      "place": "records",
+      "screen": "records.sync-mapping"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.records.synced-header",
+      "place": "records",
+      "screen": "records.synced-header"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.records.types",
+      "place": "records",
+      "screen": "records.types"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.runs.chat",
+      "place": "automations",
+      "screen": "runs.chat"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.runs.failed",
+      "place": "automations",
+      "screen": "runs.failed"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.runs.history",
+      "place": "automations",
+      "screen": "runs.history"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.runs.my-runs",
+      "place": "home",
+      "screen": "runs.my-runs"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.settings.copy_profile",
+      "place": "settings",
+      "screen": "settings.copy_profile"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.settings.kit",
+      "place": "settings",
+      "screen": "settings.kit"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.settings.kit-choice",
+      "place": "settings",
+      "screen": "settings.kit-choice"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.settings.models-usage",
+      "place": "settings",
+      "screen": "settings.models-usage"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.settings.page",
+      "place": "settings",
+      "screen": "settings.page"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.settings.search",
+      "place": "settings",
+      "screen": "settings.search"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.shell.ask-pane",
+      "place": "shell",
+      "screen": "shell.ask-pane"
+    },
+    {
+      "completeMs": 300,
+      "firstPaintMs": 50,
+      "id": "screen.shell.cmdk",
+      "place": "shell",
+      "screen": "shell.cmdk"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.shell.conflicts-tab",
+      "place": "shell",
+      "screen": "shell.conflicts-tab"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.shell.sync-status",
+      "place": "shell",
+      "screen": "shell.sync-status"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.spaces.console",
+      "place": "console",
+      "screen": "spaces.console"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.spaces.needs_team",
+      "place": "shell",
+      "screen": "spaces.needs_team"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.spaces.onboarding",
+      "place": "home",
+      "screen": "spaces.onboarding"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.spaces.settings_index",
+      "place": "settings",
+      "screen": "spaces.settings_index"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.spaces.switcher",
+      "place": "shell",
+      "screen": "spaces.switcher"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.tasks.my-work",
+      "place": "home",
+      "screen": "tasks.my-work"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.tasks.needs-you",
+      "place": "chats",
+      "screen": "tasks.needs-you"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.tasks.page",
+      "place": "home",
+      "screen": "tasks.page"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.telephony.incoming",
+      "place": "inbox",
+      "screen": "telephony.incoming"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.telephony.numbers",
+      "place": "console",
+      "screen": "telephony.numbers"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.telephony.registration",
+      "place": "console",
+      "screen": "telephony.registration"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.telephony.softphone",
+      "place": "inbox",
+      "screen": "telephony.softphone"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.vault.add",
+      "place": "vault",
+      "screen": "vault.add"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.vault.export",
+      "place": "vault",
+      "screen": "vault.export"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.vault.health",
+      "place": "vault",
+      "screen": "vault.health"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.vault.import",
+      "place": "vault",
+      "screen": "vault.import"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.vault.item",
+      "place": "vault",
+      "screen": "vault.item"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.vault.layout",
+      "place": "vault",
+      "screen": "vault.layout"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.vault.policy",
+      "place": "console",
+      "screen": "vault.policy"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.vault.providers",
+      "place": "vault",
+      "screen": "vault.providers"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.vault_requests.list",
+      "place": "vault",
+      "screen": "vault_requests.list"
+    }
+  ]
+}

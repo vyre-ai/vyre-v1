@@ -1,0 +1,140 @@
+# files.viewer_data
+
+Everything the one viewer needs for any file type: text projection, pages, preview address, sheet info, export snapshot for Google-native files, and what the caller may do
+
+| | |
+|---|---|
+| Module | files |
+| Version | 1 (since 1.0.0) |
+| Effects | read |
+| Permission | grant only |
+| Grant level | view |
+| Risk | low |
+| Resource | file (/fileId) |
+| Gate | none |
+| Idempotency | natural |
+| Offline | online |
+| Audit | none |
+| Team Space only | no |
+| HTTP | POST /v1/files/viewer_data |
+| MCP tool | files_viewer_data (files) |
+| CLI | none |
+| Emits | none |
+
+## Input
+
+```ts
+type In = {
+  fileId: string;
+  versionId?: string;
+};
+```
+
+## Output
+
+```ts
+type Out = {
+  file: {
+    fileId: string;
+    folderId: string;
+    name: string;
+    kind: "text" | "markdown" | "document" | "spreadsheet" | "presentation" | "pdf" | "image" | "video" | "audio" | "code" | "archive" | "google_native" | "other";
+    mime: string;
+    size: number;
+    version: number;
+    label: number;
+    ownerId: string;
+    createdAt: number;
+    updatedAt: number;
+    updatedBy: string;
+    source?: {
+      mountId: string;
+      provider: string;
+    };
+    deletedAt?: number;
+    thumb: boolean;
+    holds: number;
+  };
+  text?: string;
+  pages?: number;
+  previewUrl?: string;
+  sheets?: Array<{
+      name: string;
+      rows: number;
+      columns: Array<string>;
+      keyColumn?: string;
+    }>;
+  snapshot?: {
+    exportedAt: number;
+    editVia: "provider_api" | "open_in_provider";
+  };
+  canEdit: boolean;
+  canMark: boolean;
+  canComment: boolean;
+  pins: number;
+};
+```
+
+## Errors
+
+- internal.unexpected
+- permission.above_clearance
+- permission.no_grant
+- validation.bad_input
+- validation.not_found
+
+## Example
+
+```json
+{
+  "name": "example",
+  "input": {
+    "fileId": "fil_a1b2c3",
+    "versionId": "ver_a1b2c3"
+  },
+  "output": {
+    "canComment": true,
+    "canEdit": true,
+    "canMark": true,
+    "file": {
+      "createdAt": 1760000000000,
+      "deletedAt": 1760000000000,
+      "fileId": "fil_a1b2c3",
+      "folderId": "fld_a1b2c3",
+      "holds": 1,
+      "kind": "text",
+      "label": 1,
+      "mime": "example",
+      "name": "example",
+      "ownerId": "example",
+      "size": 1,
+      "source": {
+        "mountId": "mnt_a1b2c3",
+        "provider": "example"
+      },
+      "thumb": true,
+      "updatedAt": 1760000000000,
+      "updatedBy": "example",
+      "version": 1
+    },
+    "pages": 1,
+    "pins": 1,
+    "previewUrl": "example",
+    "sheets": [
+      {
+        "columns": [
+          "example"
+        ],
+        "keyColumn": "example",
+        "name": "example",
+        "rows": 1
+      }
+    ],
+    "snapshot": {
+      "editVia": "provider_api",
+      "exportedAt": 1760000000000
+    },
+    "text": "example"
+  }
+}
+```

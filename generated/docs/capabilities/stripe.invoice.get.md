@@ -1,0 +1,75 @@
+# stripe.invoice.get
+
+Read an invoice
+
+| | |
+|---|---|
+| Module | stripe |
+| Version | 1 (since 1.0.0) |
+| Effects | read |
+| Permission | grant only |
+| Grant level | view |
+| Risk | low |
+| Resource | space |
+| Gate | none |
+| Idempotency | natural |
+| Offline | online |
+| Audit | none |
+| Team Space only | no |
+| HTTP | POST /v1/stripe/invoice/get |
+| MCP tool | stripe_invoice_get (sites, deferred) |
+| CLI | none |
+| Emits | none |
+
+## Input
+
+```ts
+type In = {
+  invoiceId: string;
+};
+```
+
+## Output
+
+```ts
+type Out = {
+  invoice: {
+    id: string;
+    amount: number;
+    currency: string;
+    status: string;
+    customerId?: string;
+    hostedUrl?: string;
+    dueDate?: number;
+  };
+};
+```
+
+## Errors
+
+- internal.unexpected
+- permission.above_clearance
+- permission.no_grant
+- validation.bad_input
+
+## Example
+
+```json
+{
+  "name": "example",
+  "input": {
+    "invoiceId": "example"
+  },
+  "output": {
+    "invoice": {
+      "amount": 1,
+      "currency": "USD",
+      "customerId": "example",
+      "dueDate": 1760000000000,
+      "hostedUrl": "example",
+      "id": "example",
+      "status": "example"
+    }
+  }
+}
+```
