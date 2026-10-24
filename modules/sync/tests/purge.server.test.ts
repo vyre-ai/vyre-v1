@@ -9,7 +9,7 @@ import { parseFrame } from "../../../sync/src/protocol.ts";
 import type { Frame } from "../../../sync/src/protocol.ts";
 import type { LiveWho } from "../../../sync/src/live/index.ts";
 import { payloadOf } from "../../../kernel/src/store/projection.ts";
-import { RESCAN_SUMMARY_ROWS } from "../../../sync/src/purge/index.ts";
+import { RESCAN_SUMMARY_ROWS, effectiveEpoch, spaceEpoch } from "../../../sync/src/purge/index.ts";
 import { createPurgeHandlers, purgeDepsOf } from "../handlers/purge.ts";
 import type { PullCtx } from "../handlers/index.ts";
 import { ADA, BO, CY } from "../fixtures/world.ts";
@@ -33,7 +33,7 @@ const hello = (device: string, over: Record<string, unknown> = {}) => ({ t: "hel
 const admin = (rig: LiveRig) => createPurgeHandlers(purgeDepsOf(rig.r.s, rig.hub));
 const errCode = (e: unknown): string | undefined => (e as { error?: { code?: string } }).error?.code;
 
-test("sync.epoch.bump: the epoch rises by one, live sockets of the person get a purge frame and close, others stay, and the person's seen marks are dropped", async () => {
+test("sync.epoch.bump for a person: the epoch rises by one, live sockets of the person get a purge frame and close, others stay, and the person's seen marks are dropped", async () => {
   const rig = liveRig();
   rig.row("c1");
   const bo1 = raw(rig, who(BO, "d1")), bo2 = raw(rig, who(BO, "d2")), ada = raw(rig, who(ADA, "d3"));
@@ -42,7 +42,7 @@ test("sync.epoch.bump: the epoch rises by one, live sockets of the person get a 
   const marks = (person: string): number => rig.r.s.host.tx.get<{ n: number }>("SELECT count(*) AS n FROM sync_seen_rows WHERE person = ?", person)?.n ?? 0;
   assert.ok(marks(BO) > 0, "bo holds a row, so the server marked it");
   const handlers = admin(rig);
-  const res = await handlers["sync.epoch.bump"](adminCtx, { personId: BO, reason: "device_revoked", deviceId: "d1" });
+  const res = await handlers["sync.epoch.bump"](adminCtx, { personId: BO, reason: "suspended" });
   assert.deepEqual(res, { epoch: 1 });
   await settle();
   assert.deepEqual(bo1.ofType("purge").map((p) => p.epoch), [1]);
@@ -57,11 +57,50 @@ test("sync.epoch.bump: the epoch rises by one, live sockets of the person get a 
   assert.deepEqual(await handlers["sync.epoch.bump"](adminCtx, { personId: BO, reason: "password_reset" }), { epoch: 2 });
   const events = rig.r.s.host.store.read({ type: "sync.epoch_bumped" });
   assert.deepEqual(events.map((e) => payloadOf<Record<string, unknown>>(e)), [
-    { personId: BO, epoch: 1, reason: "device_revoked", deviceId: "d1" },
+    { personId: BO, epoch: 1, reason: "suspended" },
     { personId: BO, epoch: 2, reason: "password_reset" },
   ]);
   assert.equal(events[0]!.actor, ADA);
   assert.equal(events[0]!.trace_id, TRACE);
+  rig.hub.close();
+});
+
+test("ruling 35, device scope: revoking one device raises only that device's epoch, purges only it, and leaves the person's other devices alone", async () => {
+  const rig = liveRig();
+  rig.row("c1");
+  const calls: string[] = [];
+  const h = createPurgeHandlers({ ...purgeDepsOf(rig.r.s, rig.hub), purgeDevice: (p, d, e) => { calls.push(`${p}/${d}/${e}`); return 1; } });
+  const db = rig.r.s.host.tx;
+  const res = await h["sync.epoch.bump"](adminCtx, { personId: BO, reason: "device_revoked", deviceId: "d1" });
+  assert.deepEqual(res, { epoch: 1 });
+  assert.deepEqual(calls, [`${BO}/d1/1`], "only that device is told");
+  assert.equal(effectiveEpoch(db, BO, "d1"), 1);
+  assert.equal(effectiveEpoch(db, BO, "d2"), 0, "the person's other device keeps its epoch");
+  assert.equal(effectiveEpoch(db, ADA, "d1"), 0, "and so does another person's device with the same name");
+  const other = await rig.r.s.handlers["sync.pull"](pullCtx(BO, "d2"), { cursor: 0, epoch: 0 });
+  assert.equal(other.reset, undefined, "d2 is not told to purge");
+  assert.equal(other.epoch, 0);
+  // A later person-wide bump is above the device's own.
+  assert.deepEqual(await h["sync.epoch.bump"](adminCtx, { personId: BO, reason: "removed" }), { epoch: 1 });
+  assert.equal(effectiveEpoch(db, BO, "d2"), 1);
+  assert.equal(effectiveEpoch(db, BO, "d1"), 1);
+  // A second revoke of the same device goes above both.
+  assert.deepEqual(await h["sync.epoch.bump"](adminCtx, { personId: BO, reason: "device_revoked", deviceId: "d1" }), { epoch: 2 });
+  await assert.rejects(h["sync.epoch.bump"](adminCtx, { personId: BO, reason: "device_revoked" }), (e: unknown) => errCode(e) === "validation.bad_input");
+  rig.hub.close();
+});
+
+test("ruling 35, Space scope: a key rotation raises the Space epoch and the leaver's own epoch; other members are untouched", async () => {
+  const rig = liveRig();
+  const db = rig.r.s.host.tx;
+  const h = admin(rig);
+  assert.equal(spaceEpoch(db), 0);
+  assert.deepEqual(await h["sync.epoch.bump"](adminCtx, { personId: CY, reason: "key_rotation" }), { epoch: 1 });
+  assert.equal(spaceEpoch(db), 1);
+  assert.equal(effectiveEpoch(db, CY, "any"), 1, "the leaver wipes");
+  assert.equal(effectiveEpoch(db, BO, "any"), 0, "members who stay do not");
+  await h["sync.epoch.bump"](adminCtx, { personId: BO, reason: "key_rotation" });
+  assert.equal(spaceEpoch(db), 2);
   rig.hub.close();
 });
 

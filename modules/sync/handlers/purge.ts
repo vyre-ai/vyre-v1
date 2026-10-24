@@ -1,6 +1,6 @@
 // sync.epoch.bump and sync.acl.reindex (ARCH 5.7). The logic is in sync/src/purge/server.ts; these bind it to the capability inputs and outputs.
 // Both are admin or system calls (the access and identity modules invoke them after a revoke, a removal or a label change), so the caller is the actor on the events, not a device.
-// WIRING (lead): handlers/index.ts and impl.ts are outside this packet's files. To expose these through the loader, re-export this file from handlers/index.ts, add both capability names to the
+// WIRING (P-L1_LIVE, ruling 35): handlers/index.ts and impl.ts are outside this packet's files. To expose these through the loader, re-export this file from handlers/index.ts, add both capability names to the
 // `handlers` map in impl.ts over `createPurgeHandlers(purgeDepsOf(live(), hub))`, and add them to the key list in tests/wiring.test.ts.
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { LiveHub } from "../../../sync/src/live/index.ts";
@@ -25,12 +25,13 @@ export function toPurgeCtx(ctx: { trace: { traceId: string }; principal: { id: s
 }
 
 /** The server's own sync handle and live hub as the ports purge needs. */
-export function purgeDepsOf(s: SyncHandle, hub: Pick<LiveHub, "purge">): PurgeServerDeps {
+export function purgeDepsOf(s: SyncHandle, hub: Pick<LiveHub, "purge"> & { purgeDevice?: (person: string, device: string, epoch: number) => number }): PurgeServerDeps {
   return {
     db: s.host.tx,
     catalog: s.catalog,
     append: (ev) => s.host.append(ev),
     purgeLive: (person, epoch) => hub.purge(person, epoch),
+    ...(hub.purgeDevice ? { purgeDevice: (person: string, device: string, epoch: number) => hub.purgeDevice!(person, device, epoch) } : {}),
   };
 }
 
@@ -45,6 +46,7 @@ export function createPurgeHandlers(deps: PurgeServerDeps): PurgeHandlers {
       if (!input || typeof input.personId !== "string" || input.personId.length === 0) throw bad(ctx, "Name the person whose devices must sign in again.");
       if (!REASONS.has(input.reason)) throw bad(ctx, "Say why: device revoked, suspended, removed, password reset, clearance lowered or key rotation.");
       if (input.deviceId !== undefined && typeof input.deviceId !== "string") throw bad(ctx, "The device must be named by its id.");
+      if (input.reason === "device_revoked" && (typeof input.deviceId !== "string" || input.deviceId.length === 0)) throw bad(ctx, "Name the device that was revoked.");
       const { epoch } = bumpEpoch(deps, input, ctx.trace.traceId, ctx.principal);
       return { epoch };
     },

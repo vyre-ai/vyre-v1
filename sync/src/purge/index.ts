@@ -7,5 +7,5 @@ export { docPrefix } from "./ports.ts";
 export type { FolderPort, KeychainPort, OpenDocs, PurgeReason, PurgeStatus } from "./ports.ts";
 export { PurgeError, purgeReplica, replicaTables } from "./purge.ts";
 export type { PurgeOpts, PurgeReport } from "./purge.ts";
-export { bumpEpoch, reindexScope, RESCAN_SUMMARY_ROWS } from "./server.ts";
-export type { BumpInput, BumpReason, BumpResult, PurgeServerDeps, ReindexInput, ReindexResult } from "./server.ts";
+export { bumpEpoch, effectiveEpoch, reindexScope, scopeOf, spaceEpoch, RESCAN_SUMMARY_ROWS } from "./server.ts";
+export type { BumpInput, BumpReason, BumpResult, BumpScope, PurgeServerDeps, ReindexInput, ReindexResult } from "./server.ts";
