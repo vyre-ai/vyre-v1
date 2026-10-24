@@ -31,17 +31,65 @@ export function manifestEdges(changed: string[], tracked: Set<string>): string[]
 export const FROZEN_TRIGGER = /^(manifests\/|packages\/contracts\/|tools\/gen\/|generated\/|docs\/frozen\/)/;
 export const FROZEN_TEST = /(^|\/)frozen-[^/]*\.test\.[cm]?[jt]s$/;
 
-/** The walk plus the manifest edge. Test files in the diff are always selected, even when the walk returns early. */
+/** The unit a path belongs to: modules/<m>/, packages/<p>/, or a whole top-level host, kernel, sync or agent tree. Null for anything else. */
+export function unitOf(f: string): string | null {
+  const m = /^(modules|packages)\/([^/]+)\//.exec(f);
+  if (m) return `${m[1]}/${m[2]}/`;
+  const t = /^(host|kernel|sync|agent)\//.exec(f);
+  return t ? `${t[1]}/` : null;
+}
+
+/** Every test file in the unit of each changed path (deleted paths included), so a same-module test never rests stale. */
+export function unitTests(changed: string[], tracked: Set<string>): string[] {
+  const units = new Set<string>();
+  for (const f of changed) { const u = unitOf(f); if (u && !/\.md$/.test(f)) units.add(u); }
+  if (!units.size) return [];
+  return [...tracked].filter((f) => TEST.test(f) && [...units].some((u) => f.startsWith(u))).sort();
+}
+
+/** Directory a non-literal dynamic import (template or concatenation) can load from, repo-relative, or null. */
+const DYNAMIC = [/\bimport\(\s*`([^`$]*)\$\{/g, /\bimport\(\s*(?:'([^']*)'|"([^"]*)")\s*\+/g];
+export function dynamicDirs(from: string, src: string): string[] {
+  const out = new Set<string>();
+  for (const re of DYNAMIC) for (const m of src.matchAll(re)) {
+    const prefix = m[1] ?? m[2] ?? m[3] ?? "";
+    if (!prefix.startsWith(".")) continue;
+    const dir = prefix.endsWith("/") ? prefix : prefix.slice(0, prefix.lastIndexOf("/") + 1);
+    out.add(path.posix.normalize(path.posix.join(path.posix.dirname(from), dir || ".")).replace(/\/$/, ""));
+  }
+  return [...out];
+}
+
+/** The walk plus the manifest edge, the unit rule, deleted files and dynamic imports. Test files in the diff are always selected, even when the walk returns early. */
 export function selectAffected({ changed, tracked, read }: Input): Selection {
   const edges = manifestEdges(changed, tracked);
-  const r = walk({ changed: [...new Set([...changed, ...edges])], tracked, read }) as Omit<Selection, "edges">;
+  // A deleted code file stays a node in the graph so the files that still import it are selected as its dependents.
+  const deleted = changed.filter((f) => !tracked.has(f) && CODE.test(f));
+  const nodes = deleted.length ? new Set([...tracked, ...deleted]) : tracked;
+  // A non-literal dynamic import depends on every file in the directory it loads from (an @reads line per file).
+  const cache = new Map<string, string>();
+  const readDyn = (f: string): string => {
+    const hit = cache.get(f);
+    if (hit !== undefined) return hit;
+    const src = read(f);
+    let extra = "";
+    if (CODE.test(f) && /\bimport\(\s*[`'"]/.test(src)) {
+      for (const dir of dynamicDirs(f, src)) for (const g of nodes) if (g !== f && CODE.test(g) && path.posix.dirname(g) === dir) extra += `\n// @reads /${g}`;
+    }
+    cache.set(f, src + extra);
+    return src + extra;
+  };
+  const raw = walk({ changed: [...new Set([...changed, ...edges])], tracked: nodes, read: readDyn }) as Omit<Selection, "edges">;
+  const r = { ...raw, files: raw.files.filter((f) => tracked.has(f)), uncovered: raw.uncovered.filter((f) => tracked.has(f)) };
   const own = changed.filter((f) => tracked.has(f) && TEST.test(f));
   const uncovered = r.uncovered.filter((f) => changed.includes(f) && !(f.startsWith("manifests/") && edges.length && r.files.length));
   const why = edges.length ? [...r.why, `manifest edge: ${edges.length} generated files`] : r.why;
   if (r.all) return { ...r, why, edges };
   const frozen = changed.some((f) => FROZEN_TRIGGER.test(f)) ? [...tracked].filter((f) => FROZEN_TEST.test(f)) : [];
   if (frozen.length) why.push(`frozen trigger: ${frozen.length} frozen-* tests always run`);
-  return { ...r, why, uncovered, files: [...new Set([...r.files, ...own, ...frozen])].sort(), edges };
+  const unit = unitTests(changed, tracked);
+  if (unit.length) why.push(`unit rule: ${unit.length} tests in the changed module or package`);
+  return { ...r, why, uncovered, files: [...new Set([...r.files, ...own, ...frozen, ...unit])].sort(), edges };
 }
 
 const self = fileURLToPath(import.meta.url);
