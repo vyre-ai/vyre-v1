@@ -23,7 +23,7 @@ export const DEFAULT_TOOLS: Record<string, string[]> = {
   files: ['files_list', 'files_read', 'files_write', 'mounts_add', 'git_status', 'git_diff', 'git_commit', 'changesets_get', 'changesets_diff'],
   memory: ['memory_search', 'read_note', 'facts_as_of', 'memory_propose'],
   vault: ['vault_use', 'vault_request'],
-  automations: ['automations_list', 'automations_create', 'automations_run', 'journeys_start'],
+  automations: ['automations_list', 'automations_create', 'automations_run', 'journeys_start', 'wait_for'],
   chats: ['chat_post', 'chat_thread', 'handoff', 'ask_question', 'plan_propose', 'open_tab'],
   inbox: ['mail_message_search', 'mail_draft', 'mail_send', 'calendar_list_events', 'calendar_create_event'],
   sites: ['sites_build', 'sites_tables', 'sites_deploy', 'sites_previews', 'sites_promote'],
@@ -31,7 +31,7 @@ export const DEFAULT_TOOLS: Record<string, string[]> = {
   computer: ['screen_screenshot', 'screen_click', 'chrome_snapshot', 'chrome_act'],
   agents: ['agents_list', 'agents_get'],
   tasks: ['tasks_create', 'tasks_list', 'tasks_update', 'tasks_transition'],
-  meta: ['tool_search', 'wait_for', 'switch_model'],
+  meta: ['tool_search', 'switch_model'],
 };
 const defaults = Object.values(DEFAULT_TOOLS).flat();
 

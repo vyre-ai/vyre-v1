@@ -71,8 +71,10 @@ ARCH 3.7 output 6 and 6.7. Source of truth: `generated/tool-index.json` and `gen
 | `tasks_update` | tasks | Edit the title, summary, why, due, effort or content blocks of a task (status goes through tasks.transition) |
 | `tasks_transition` | tasks | Move a task to a new status (the only writer of status); checks the 4.7 state table and the reviewer/approver rules |
 | `tool_search` | meta | Find tools by what you want to do; returns names, summaries and schemas, then the tools are callable |
-| `wait_for` | meta | Wait in the background for an event, another Run or a time; ends the turn and wakes the thread on a match (default timeout 30 days) |
+| `wait_for` | automations | Wait in the background for an event, another Run or a time; ends the turn and wakes the thread on a match (default timeout 30 days) |
 | `switch_model` | meta | Switch engine mid-chat: the new engine starts from the rolling summary, the last turns and a pointer to the transcript |
+
+Note: ARCH 6.7 lists `wait_for` under meta; the manifests put it in the automations toolset, and the table follows the manifests.
 
 ## Open finding for the lead
 
