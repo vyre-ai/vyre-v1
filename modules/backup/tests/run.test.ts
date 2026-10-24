@@ -14,6 +14,7 @@ import {
   DAY_MS, KEEP, dirTarget, exportBlocked, mergeTombstones, nextRun, pack, parseCron, pathProblem, readConfig, readIndex, s3Target, sha256Hex, signV4, signingKey, unpack, unwrap, wrap, zip,
 } from "../handlers/run.ts";
 import type { BackupCtx } from "../handlers/run.ts";
+import * as impl from "../impl.ts";
 
 type Fn = (ctx: BackupCtx, input: never) => Promise<unknown>;
 const call = (name: string, ctx: BackupCtx, input: unknown): Promise<unknown> => {
@@ -438,4 +439,16 @@ test("zip stores entries with correct sizes, names and a central directory", () 
 test("the export path deny list", () => {
   for (const p of ["vault/item.json", "a/secrets/x", "keys/main", "private/chat.json", "memory/personal/me.md", "chats/private/1.json", ".env", "x/.env.local", "tls/server.pem", "id_rsa"]) assert.equal(exportBlocked(p), true, p);
   for (const p of ["records/evt_1.json", "files/letter.docx", "chats/channels/general.json", "memory/space/facts.md", "keysmith.txt"]) assert.equal(exportBlocked(p), false, p);
+});
+
+test("impl.ts exposes every backup handler, the host wiring and no projections", () => {
+  assert.equal(impl.handlers, handlers);
+  assert.equal(impl.configureBackup, configureBackup);
+  assert.deepEqual(impl.projections, []);
+  assert.deepEqual(impl.inline, {});
+  assert.deepEqual(impl.consumers, {});
+  assert.deepEqual(impl.codecs, {});
+  assert.deepEqual(Object.keys(impl.handlers).sort(), [
+    "backup.config_get", "backup.config_set", "backup.delete", "backup.export_start", "backup.health", "backup.list", "backup.restore", "backup.restore_preview", "backup.run", "backup.verify",
+  ]);
 });
