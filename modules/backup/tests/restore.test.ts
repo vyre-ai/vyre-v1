@@ -1,4 +1,4 @@
-// backup.restore, restore_preview, verify and the owner export (P-L7b_05; spec 5 Backups and export, 2.26; golden flow 11 restore side):
+// backup.restore, restore_preview, verify and the owner export (P-L7b_05; spec 5 Backups and export, 2.26; golden flow 11 restore side): Run in CI.
 // a restore replays tombstones so erased data never comes back, and the export zip carries no secret.
 // @reads ../migrations/0001_init.sql
 
