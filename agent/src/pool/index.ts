@@ -1,3 +1,4 @@
+// The warm engine pool (ARCH 6.6) and the adapter that puts it behind the turn engine.
 export { keyString } from "./key.ts";
 export type { PoolKey } from "./key.ts";
 export { POOL_DEFAULTS, createPool } from "./pool.ts";
