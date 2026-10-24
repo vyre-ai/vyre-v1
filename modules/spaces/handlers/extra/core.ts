@@ -19,21 +19,21 @@ export type ExtraCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" |
 // ---- tables
 
 export const SCHEMA: readonly string[] = [
-  `CREATE TABLE IF NOT EXISTS "spaces_profile" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT NOT NULL,
-  "logo_file_id" TEXT,
-  "kind" TEXT NOT NULL
+  `CREATE TABLE IF NOT EXISTS spaces_profile (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  logo_file_id TEXT,
+  kind TEXT NOT NULL
 )`,
   // legal_name is shown to outsiders; defaults_json holds the Space defaults; address_mode is relay, own_domain or device; deleted_at is set when the owner deletes the Space
-  `CREATE TABLE IF NOT EXISTS "spaces_profile_extra" (
-  "id" TEXT PRIMARY KEY,
-  "legal_name" TEXT,
-  "defaults_json" TEXT NOT NULL,
-  "address_mode" TEXT NOT NULL,
-  "address_host" TEXT,
-  "created_at" INTEGER NOT NULL,
-  "deleted_at" INTEGER
+  `CREATE TABLE IF NOT EXISTS spaces_profile_extra (
+  id TEXT PRIMARY KEY,
+  legal_name TEXT,
+  defaults_json TEXT NOT NULL,
+  address_mode TEXT NOT NULL,
+  address_host TEXT,
+  created_at INTEGER NOT NULL,
+  deleted_at INTEGER
 )`,
 ];
 
