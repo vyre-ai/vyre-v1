@@ -47,6 +47,13 @@ const option = t.obj({ key: t.str(), label: t.str(), detail: t.opt(t.str()) });
 const transcriptHit = t.obj({ turnId: id.turn, threadId: id.thread, idx: t.int(), role: t.enm('user', 'assistant', 'tool', 'system'), snippet: t.str(), at: t.ts(), link: t.str() });
 const threadT = { threadId: id.thread };
 const channelT = { channelId: id.channel };
+const streamKind = t.enm('people', 'agents', 'runs');
+const streamItem = t.obj({
+  kind: t.enm('message', 'run', 'run_group'), at: t.ts(), messageId: t.opt(id.message), authorKind: t.opt(t.enm('person', 'agent', 'actor')),
+  runId: t.opt(id.run), runKind: t.opt(t.str({ examples: ['automation'] })), name: t.opt(t.str()),
+  status: t.opt(t.enm('queued', 'running', 'waiting', 'succeeded', 'failed', 'stopped')), result: t.opt(t.str()), durationMs: t.opt(t.int({ minimum: 0 })),
+  groupKey: t.opt(t.str({ description: 'Same flow, runs next to each other' })), count: t.opt(t.int({ minimum: 2 })), anyFailed: t.opt(t.bool()), runIds: t.opt(t.arr(id.run)),
+});
 const listIn = { section: t.opt(t.enm('personal', 'shared', 'space')), folderId: t.opt(id.folder), ...pageIn };
 
 export default defineManifest({
@@ -303,6 +310,15 @@ export default defineManifest({
       out: { mcpUrl: t.str({ pattern: '^https?://', examples: ['https://northwind.example.com/mcp'] }), oneTimeToken: t.str(), expiresAt: t.ts(), runCommand: t.str() },
       on: ['channel', '/channelId'], level: 'manage', perm: 'channels.agents', audit: 'always', risk: 'high', tool: 'chats', idem: 'key',
       ex: { output: { mcpUrl: 'https://northwind.example.com/mcp', oneTimeToken: 'otk_example', expiresAt: 1760000600000, runCommand: 'claude mcp add vyre https://northwind.example.com/mcp --token otk_example' } },
+    }),
+    read('channels.stream', 'The channel as a timeline: messages and Run items in order; repeated runs of one flow collapse into one row ("ran 6 times today"); counts feed the People, Agents and Runs menu', {
+      in: { ...channelT, before: t.opt(t.int()), limit: t.opt(t.int({ minimum: 1, maximum: 200 })), show: t.opt(t.arr(streamKind)), expand: t.opt(t.arr(t.str())) },
+      out: { items: t.arr(streamItem), counts: t.obj({ people: t.int({ minimum: 0 }), agents: t.int({ minimum: 0 }), runs: t.int({ minimum: 0 }) }), hidden: t.arr(streamKind), hasMore: t.bool() },
+      on: ['channel', '/channelId'], tool: 'chats', label: 'filter',
+    }),
+    read('channels.stream_prefs.get', 'My People, Agents and Runs choice for one channel', { in: channelT, out: { hide: t.arr(streamKind) }, on: ['channel', '/channelId'], tool: 'chats' }),
+    write('channels.stream_prefs.set', 'Hide or show People, Agents or Runs in one channel for myself (Hide Runs in This Channel); the header says what is hidden', {
+      in: { ...channelT, hide: t.arr(streamKind) }, out: { hide: t.arr(streamKind) }, on: ['channel', '/channelId'], tool: 'chats', offline: 'patch',
     }),
   ],
   events: [

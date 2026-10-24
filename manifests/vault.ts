@@ -68,6 +68,8 @@ export default defineManifest({
     ev('provider.added', 'An AI provider was connected (subscription, key or local model)', { p: { providerId: t.id('prv'), providerKey: t.str(), connection: t.enm('subscription', 'api_key', 'local_model'), scope: t.enm('mine', 'shared') }, subject: ['entity', '/providerId'], vis: 'participants' }),
     ev('provider.updated', 'A provider changed (Space may use it, sign-in state)', { p: { providerId: t.id('prv'), spaceMayUse: t.opt(t.bool()), state: t.opt(t.enm('ok', 'needs_sign_in', 'failing')) }, subject: ['entity', '/providerId'], vis: 'participants' }),
     ev('provider.removed', 'An AI provider was removed', { p: { providerId: t.id('prv') }, subject: ['entity', '/providerId'], vis: 'participants' }),
+    ev('vault.site_rule_changed', 'A person set or cleared the never-fill or never-save rule for one site (host only)', { p: { personId: id.user, host: t.str(), neverFill: t.bool(), neverSave: t.bool() }, subject: ['entity', '/personId'], vis: 'owner' }),
+    ev('vault.rotation_due', 'An item reached its rotation reminder date (ids only); the owner gets a Badge notification', { p: { itemId: id.vaultItem, dueSince: t.ts() }, subject: ['vault_item', '/itemId'], vis: 'participants', notify: 'vault.rotation_due' }),
   ],
 
   capabilities: [
@@ -193,6 +195,14 @@ export default defineManifest({
 
     // ---- health probe
     read('vault.service_health', 'Health probe: the vault service answers and its key handle is loaded', { ...V, in: {}, out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int({ minimum: 0 })) } }),
+    // ---- site rules (Vyre for Chrome: Never Fill on This Site, Never for this site)
+    read('vault.site_rules.list', 'Sites where I never fill and never get offered to save a login in this Space (Never Fill on This Site)', {
+      ...V, out: { sites: t.arr(t.obj({ host: t.str({ examples: ['bank.example.com'] }), neverFill: t.bool(), neverSave: t.bool(), at: t.ts() })) }, tool: 'vault',
+    }),
+    write('vault.site_rules.set', 'Set or clear the never-fill and never-save rule for one site; personal, follows the extension in this Space', {
+      ...V, in: { host: t.str({ examples: ['bank.example.com'] }), neverFill: t.bool(), neverSave: t.bool() }, out: { host: t.str(), neverFill: t.bool(), neverSave: t.bool() },
+      emits: ['vault.site_rule_changed'], tool: 'vault', offline: 'online', idem: 'natural',
+    }),
   ],
 
   entities: [
