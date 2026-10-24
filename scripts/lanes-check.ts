@@ -52,3 +52,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   for (const e of errs) console.error(e);
   process.exit(errs.length ? 1 : 0);
 }
+

@@ -127,3 +127,4 @@ export function writeScaffold(root: string, name: string, lane: string): WriteRe
   fs.writeFileSync(modulesPath, updated);
   return { written: files.map((f) => f.path), row };
 }
+
