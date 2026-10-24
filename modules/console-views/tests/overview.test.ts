@@ -1,5 +1,5 @@
 // Overview aggregates through the real handlers (spec 3.10, ARCH 7.10).
-// Run on the final commit of this packet so the CI log lists this file as ok.
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
 // contract tests for attention: attention items = failing checks + expired certs + failed runs + stuck updates.
 import test from "node:test";
 import assert from "node:assert/strict";
