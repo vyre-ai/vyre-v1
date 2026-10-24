@@ -93,6 +93,10 @@ function json<T>(v: unknown, fallback: T): T {
 const js = (v: unknown): string => JSON.stringify(v);
 
 export function newRunId(): string { return makeId("run", globalThis.crypto.getRandomValues(new Uint8Array(14))); }
+/** A span id: 8 random bytes in hex (ARCH 4.9). */
+export function newSpanId(): string {
+  return Array.from(globalThis.crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, "0")).join("");
+}
 export function newThreadId(): string { return makeId("thr", globalThis.crypto.getRandomValues(new Uint8Array(14))); }
 
 // ---- the Run row ----

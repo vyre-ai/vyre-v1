@@ -8,7 +8,7 @@
 // DECISION: step cap lives in the engine (opts.maxSteps, default 500); runs.record_step has no cap field and only refuses a runaway log (HARD_STEP_ROWS).
 import {
   DEFAULT_WAIT_MS, HARD_STEP_ROWS, allSteps, allWaits, clean, clearWait, countRuns, countStepRows, emitRun, engineHealth, findRun, findStep, idemKeyFor, isActive,
-  isTerminalStep, latestSteps, listRuns, manageRun, newRunId, newThreadId, page, patchExtra, raise, readExtra, runOut, saveRun, saveStep, saveWait, seeRun, stepOut, touch,
+  isTerminalStep, latestSteps, listRuns, manageRun, newRunId, newSpanId, newThreadId, page, patchExtra, raise, readExtra, runOut, saveRun, saveStep, saveWait, seeRun, stepOut, touch,
 } from "../projections.ts";
 import type { Db, ResourceRef, Run, RunKind, RunStatus, RunsCtx, StepRow, StepState, WaitReason, WaitRow } from "../projections.ts";
 
@@ -490,6 +490,7 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
     const inputJson = JSON.stringify(step.input ?? null);
     saveStep(ctx.db, {
       runId, step: cur, attempt, state: "running", inputRef: `in:${key}`, inputJson, idemKey: key, startedAt: last?.startedAt !== undefined && resumed ? last.startedAt : ctx.now(),
+      traceSpan: resumed && last?.traceSpan ? last.traceSpan : newSpanId(),
       ...(step.branch !== undefined ? { branch: step.branch } : {}), ...(last ? { ord: last.ord } : {}),
     });
     touch(ctx, run);

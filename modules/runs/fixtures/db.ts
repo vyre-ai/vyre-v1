@@ -17,7 +17,7 @@ const schema = readFileSync(new URL("../../../generated/modules/runs/schema.sql"
 const migration = readFileSync(new URL("../migrations/0001_runs_engine.sql", import.meta.url), "utf8");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
-export interface Ev { name: string; subject: string; payload: Record<string, unknown>; opts?: Record<string, unknown> | undefined; id: string }
+export interface Ev { name: string; subject: string; payload: Record<string, unknown>; opts?: Record<string, unknown> | undefined; id: string; traceId: string }
 export interface CallLog { cap: string; input: unknown }
 type Authorize = (who: { id: string }, action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => boolean;
 type Callee = (input: any, who: { id: string }) => unknown;   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -62,7 +62,7 @@ export function harness(o: HarnessOptions = {}) {
         if (!allowed.has(name)) throw new Error(`${cap ?? "the engine"} emitted ${name}, which it does not declare`);
         const bad = validateEvent(name, payload);
         if (bad.length) throw new Error(`${name} payload is invalid: ${bad.join("; ")}`);
-        const ev: Ev = { name, subject, payload: payload as Record<string, unknown>, opts: opts as Record<string, unknown> | undefined, id: mintId("evt", clock) };
+        const ev: Ev = { name, subject, payload: payload as Record<string, unknown>, opts: opts as Record<string, unknown> | undefined, id: mintId("evt", clock), traceId: TRACE };
         events.push(ev);
         return { id: ev.id };
       },
