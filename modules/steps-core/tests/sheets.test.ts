@@ -52,7 +52,7 @@ const refused = (p: Promise<unknown>, code: string): Promise<void> => assert.rej
 test("two Runs adding rows to one sheet keep each other's rows, each write labelled with its Automation and Run", async () => {
   const w = sheetsWorld();
   const a = env(w, { id: "run_a", label: "Welcome email" });
-  const b = env(w, { id: "run_b", label: "Nightly import" });
+  const b = env(w, { id: "run_b", label: "Nightly sync" });
   const [ra, rb] = await Promise.all([
     runStep(a.env, node("s", "sheet.add_rows", { fileId: FILE, rows: [{ name: "Ann" }, { name: "Ben" }] }), callOf({ key: "run_a:s:1" })),
     runStep(b.env, node("s", "sheet.add_rows", { fileId: FILE, rows: [{ name: "Cy" }] }), callOf({ key: "run_b:s:1" })),
@@ -60,7 +60,7 @@ test("two Runs adding rows to one sheet keep each other's rows, each write label
   assert.deepEqual((ra.output as { appended: number }).appended, 2);
   assert.deepEqual((rb.output as { appended: number }).appended, 1);
   assert.deepEqual(w.rows.map((r) => r.values.name).sort(), ["Ann", "Ben", "Cy"]);
-  assert.deepEqual(w.versions.map((v) => v.label).sort(), ["Nightly import (run run_b)", "Welcome email (run run_a)"]);
+  assert.deepEqual(w.versions.map((v) => v.label).sort(), ["Nightly sync (run run_b)", "Welcome email (run run_a)"]);
   assert.equal(a.only("sheets.append_rows")[0]!.input.idempotencyKey, "run_a:s:1");
   assert.deepEqual((ra.output as { rowIds: string[] }).rowIds.length, 2);
 });

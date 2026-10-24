@@ -6,6 +6,8 @@ import { harness, codeOf, MiniRun } from "../fixtures/db.ts";
 import { callOf, node, DAY, HOUR, MINUTE } from "../fixtures/seed.ts";
 import { evalExpr, render, renderText } from "../projections.ts";
 import { runStep, stepsTest } from "../handlers/control.ts";
+import { handlers } from "../impl.ts";
+import { registry } from "../../../generated/registry.ts";
 import type { Scope } from "../projections.ts";
 
 const scope: Scope = {
@@ -458,4 +460,19 @@ test("a step that is not in the catalogue is an error, and the engine can read t
     assert.deepEqual([er.code, er.retryable], ["validation.bad_input", false]);
     return true;
   });
+});
+
+test("the module answers every capability its manifest declares, and nothing else", () => {
+  const declared = registry.capabilities.filter((c) => c.module === "steps-core").map((c) => c.name).sort();
+  assert.deepEqual(Object.keys(handlers).sort(), declared);
+});
+
+test("every step the manifest declares can be run by runStep: control, capability, wait, AI and code steps all have a runner", () => {
+  const mine = registry.steps.filter((s) => s.module === "steps-core");
+  assert.ok(mine.length >= 25);
+  const control = new Set(["if", "paths", "parallel", "loop", "stop", "wait", "wait_stage", "approval"]);
+  for (const s of mine) {
+    const known = control.has(s.key) || s.kind === "ai" || s.kind === "code" || s.key.startsWith("sheet.") || s.kind === "capability";
+    assert.ok(known, `${s.key} has no runner`);
+  }
 });
