@@ -144711,6 +144711,7 @@
                 "v": 1
               }
             ],
+            "decisionId": "example",
             "dependsOn": [
               "tsk_a1b2c3"
             ],
@@ -144723,6 +144724,7 @@
             "idempotencyKey": "idem_1",
             "kind": "work",
             "parentTaskId": "tsk_a1b2c3",
+            "payloadHash": "example",
             "recordId": "rec_a1b2c3",
             "reviewer": {
               "id": "usr_a1b2c3",
@@ -144816,6 +144818,9 @@
           "blocks": {
             "$ref": "#/$defs/s_d2c64dc123"
           },
+          "decisionId": {
+            "type": "string"
+          },
           "dependsOn": {
             "items": {
               "examples": [
@@ -144879,6 +144884,9 @@
               "tsk_a1b2c3"
             ],
             "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "payloadHash": {
             "type": "string"
           },
           "recordId": {

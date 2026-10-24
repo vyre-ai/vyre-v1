@@ -42493,6 +42493,9 @@
             },
             "type": "array"
           },
+          "decisionId": {
+            "type": "string"
+          },
           "dependsOn": {
             "items": {
               "examples": [
@@ -42556,6 +42559,9 @@
               "tsk_a1b2c3"
             ],
             "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "payloadHash": {
             "type": "string"
           },
           "recordId": {

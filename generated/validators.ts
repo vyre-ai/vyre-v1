@@ -59705,6 +59705,8 @@ lf(a3827[i3827], p + "/dependsOn" + '/' + i3827, e, L20);
 }
 if ("expiresAt" in o3825) lf(o3825["expiresAt"], p + "/expiresAt", e, L16);
 if ("actions" in o3825) d_s_a8e0a730ee(o3825["actions"], p + "/actions", e);
+if ("decisionId" in o3825) lf(o3825["decisionId"], p + "/decisionId", e, L2);
+if ("payloadHash" in o3825) lf(o3825["payloadHash"], p + "/payloadHash", e, L2);
 if ("idempotencyKey" in o3825) lf(o3825["idempotencyKey"], p + "/idempotencyKey", e, L40);
 }
 }
