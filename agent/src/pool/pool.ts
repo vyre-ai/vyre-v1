@@ -134,16 +134,18 @@ export function createPool(o: PoolOptions): EnginePool {
    * Room for one more session of this driver and person: close the least recently used idle ones until under the driver's cap (on the host, this person's) and the total.
    * Returns false when only busy sessions stand in the way; the new session is then kept only until its turn ends.
    */
-  async function makeRoom(driver: string, person: string): Promise<boolean> {
+  async function makeRoom(driver: string, person: string, self: Pending): Promise<boolean> {
     const mine = (d: string, p: string): boolean => d === driver && (o.placement === "device" || p === person);
     const cap = o.placement === "device" ? maxPerDriver : maxPerPerson;
-    const driverCount = (): number => [...entries.values()].filter((e) => mine(e.parts.driver, e.person)).length + [...pending].filter((p) => mine(p.driver, p.person)).length;
+    // The open that is asking for room is not one of the sessions it is making room for.
+    const others = (): Pending[] => [...pending].filter((x) => x !== self);
+    const driverCount = (): number => [...entries.values()].filter((e) => mine(e.parts.driver, e.person)).length + others().filter((x) => mine(x.driver, x.person)).length;
     while (driverCount() >= cap) {
       const victim = [...entries.values()].filter((e) => e.state === "idle" && mine(e.parts.driver, e.person)).sort(lru)[0];
       if (!victim) return false;
       await drop(victim, "evict");
     }
-    while (entries.size + pending.size >= maxTotal) {
+    while (entries.size + others().length >= maxTotal) {
       const victim = [...entries.values()].filter((e) => e.state === "idle").sort(lru)[0];
       if (!victim) return false;
       await drop(victim, "evict");
@@ -151,9 +153,9 @@ export function createPool(o: PoolOptions): EnginePool {
     return true;
   }
 
-  async function open(spec: PoolSpec): Promise<Entry | null> {
+  async function open(spec: PoolSpec, self: Pending): Promise<Entry | null> {
     const d = driverOf(spec.key.driver);
-    const room = await makeRoom(spec.key.driver, spec.person);
+    const room = await makeRoom(spec.key.driver, spec.person, self);
     const session = await d.open(spec.session);
     if (closed) {
       try { await session.close(); } catch { /* closing anyway */ }
@@ -163,14 +165,15 @@ export function createPool(o: PoolOptions): EnginePool {
       id: ++next, key: keyString(spec.key), parts: spec.key, kind: d.kind, person: spec.person, thread: threadOf(d.kind, spec), session, state: "idle", lastUsed: now(), overflow: !room,
     };
     entries.set(e.id, e);
+    pending.delete(self);   // from here the session counts as a session, not as an open under way
     return e;
   }
 
   /** Start opening a session and count it against the caps from this moment, so a second acquire or hint for the same key waits for it instead of opening another. */
   function startOpen(spec: PoolSpec, thread: string | null): Pending {
     const p: Pending = { key: keyString(spec.key), thread, person: spec.person, driver: spec.key.driver, promise: Promise.resolve(null) };
-    p.promise = open(spec).finally(() => { pending.delete(p); });
     pending.add(p);
+    p.promise = open(spec, p).finally(() => { pending.delete(p); });
     return p;
   }
 
