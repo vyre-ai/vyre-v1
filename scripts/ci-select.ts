@@ -32,7 +32,7 @@ export function selectAffected({ changed, tracked, read }: Input): Selection {
   const edges = manifestEdges(changed, tracked);
   const r = walk({ changed: [...new Set([...changed, ...edges])], tracked, read }) as Omit<Selection, "edges">;
   const own = changed.filter((f) => tracked.has(f) && TEST.test(f));
-  const uncovered = r.uncovered.filter((f) => changed.includes(f));
+  const uncovered = r.uncovered.filter((f) => changed.includes(f) && !(f.startsWith("manifests/") && edges.length && r.files.length));
   const why = edges.length ? [...r.why, `manifest edge: ${edges.length} generated files`] : r.why;
   if (r.all) return { ...r, why, edges };
   return { ...r, why, uncovered, files: [...new Set([...r.files, ...own])].sort(), edges };
