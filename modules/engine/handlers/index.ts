@@ -1,9 +1,13 @@
 // Handler table of the engine module for the capabilities this module implements so far. The rest of engine.* is served by the generated stubs
-// until the packets that own them land (accounts and models P-L2_03, the turn worker's engine.turn.*, the pool P-L2_04, policy and review).
+// until the packets that own them land (the turn worker's engine.turn.*, the pool P-L2_04, models, policy and review).
+import { accountProbe, accountResolve, accountsList } from "./accounts.ts";
 import { incidentAssign, incidentGet, incidentNote, incidentOpen, incidentResolve, incidentsList, interrupt, setMode, setModel, stop, stopAll, switchEngine } from "./control.ts";
 import { capsSet, pauseAll, raiseLimit, recordUsage, resumeAll, spendGet, usageQuery } from "./spend.ts";
 
 export const handlers = {
+  "engine.accounts.list": accountsList,
+  "engine.account.resolve": accountResolve,
+  "engine.probe_account": accountProbe,
   "engine.interrupt": interrupt,
   "engine.stop": stop,
   "engine.stop_all": stopAll,

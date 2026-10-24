@@ -292,8 +292,8 @@ test("switch with nobody leading needs an agent; a paused Space refuses the swit
   assert.equal(codeOf(paused), "permission.limit");
 });
 
-test("the handler table covers the control capabilities", () => {
-  for (const name of ["engine.interrupt", "engine.stop", "engine.stop_all", "engine.set_mode", "engine.set_model", "engine.switch"]) {
+test("the handler table covers the control and account capabilities", () => {
+  for (const name of ["engine.interrupt", "engine.stop", "engine.stop_all", "engine.set_mode", "engine.set_model", "engine.switch", "engine.probe_account", "engine.accounts.list", "engine.account.resolve"]) {
     assert.equal(typeof handlers[name], "function", name);
   }
 });
