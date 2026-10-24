@@ -1,4 +1,4 @@
-// ui/TabStrip: one strip for main tabs and side panes. Select, close, reorder, menu and keyboard behaviour.
+// ui/TabStrip: one strip for main tabs and side panes. Select, close, reorder, menu and keyboard behaviour. Roving tab order, reorder and the tab menu are covered here.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";

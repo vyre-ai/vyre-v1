@@ -1,4 +1,4 @@
-// ui/Pane and ui/SidePane: one toggle at the far left of every pane header; the side pane's width is remembered.
+// ui/Pane and ui/SidePane: one toggle at the far left of every pane header; the side pane's width is remembered. Width memory, keys and header order are covered here.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
