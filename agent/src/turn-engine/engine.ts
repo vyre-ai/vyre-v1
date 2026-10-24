@@ -41,7 +41,7 @@ export interface EngineOptions {
 }
 
 interface Running { turnId: string; agentId: string; qseq: number; session: EngineSession | null; cancelled: boolean; lostLease: boolean }
-interface ThreadState { thread: OpenThread; messages: StoredMessage[]; seq: number; running: Running | null; worker: Promise<void> | null }
+interface ThreadState { thread: OpenThread; messages: StoredMessage[]; seq: number; running: Running | null; worker: Promise<void> | null; active: boolean }
 
 const defaultSchedule = (fn: () => void, ms: number): (() => void) => {
   const h = setInterval(fn, ms);
@@ -141,21 +141,31 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   function kick(st: ThreadState): void {
-    if (st.worker) return;
+    if (st.active) return;
+    st.active = true;   // cleared synchronously by work() at every exit, so a message can never fall between "queue empty" and "worker gone"
     st.worker = work(st);
   }
 
   async function work(st: ThreadState): Promise<void> {
     const id = st.thread.id;
+    try {
+      await loop(st, id);
+    } catch (e) {
+      st.active = false;   // a bug below must not leave the thread permanently "busy"
+      throw e;
+    }
+  }
+
+  async function loop(st: ThreadState, id: string): Promise<void> {
     for (;;) {
-      if (!leases.acquire(id, opts.holder, now())) { st.worker = null; return; }   // another holder runs this thread
+      if (!leases.acquire(id, opts.holder, now())) { st.active = false; return; }   // another holder runs this thread
       const next = queue.peek(id);
-      if (!next) { leases.release(id, opts.holder); st.worker = null; return; }
+      if (!next) { leases.release(id, opts.holder); st.active = false; return; }
       const where = opts.place ? opts.place(st.thread, next) : mine;
       if (where !== mine) {
         leases.release(id, opts.holder);
         emit({ type: "agent.handoff", threadId: id, to: where });
-        st.worker = null;
+        st.active = false;
         return;
       }
       const item = queue.dequeue(id);
@@ -299,7 +309,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     openThread(thread) {
       if (threads.has(thread.id)) throw new RangeError(`thread ${thread.id} is already open`);
       if (thread.agents.filter((a) => a.mode === "lead").length > 1) throw new RangeError("a thread has at most one lead");
-      threads.set(thread.id, { thread: { ...thread, agents: thread.agents.map((a) => ({ ...a })) }, messages: [], seq: 0, running: null, worker: null });
+      threads.set(thread.id, { thread: { ...thread, agents: thread.agents.map((a) => ({ ...a })) }, messages: [], seq: 0, running: null, worker: null, active: false });
     },
     receive: (msg, o) => ingest(need(msg.threadId), msg, o?.interrupt === true),
     wake(threadId, agentId) {
@@ -334,7 +344,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     },
     async idle(threadId) {
       const st = need(threadId);
-      while (st.worker) await st.worker;
+      while (st.active && st.worker) await st.worker;
     },
     events: (threadId) => (threadId === undefined ? journal.slice() : journal.filter((e) => e.threadId === threadId)),
     subscribe(fn) { listeners.add(fn); return () => { listeners.delete(fn); }; },
