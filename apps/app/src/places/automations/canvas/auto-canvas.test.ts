@@ -1,10 +1,24 @@
 // Screen test for the Automations sidebar and canvas (spec 3.7, 2.12).
 // Builds a three-path automation and checks validation errors inline,
 // the lane a run lights, History via ui/HistoryTab, and both Space skins.
+// Node strips types in .ts files and rejects a .tsx entry, so this file is .ts.
+// Placeholders hold no JSX. Load them as TypeScript before the canvas imports.
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
+import { readFileSync } from "node:fs";
+import { registerHooks } from "node:module";
+import { fileURLToPath } from "node:url";
+import type { Editor, PathBuild } from "./index.ts";
+
+registerHooks({
+  load(url, context, nextLoad) {
+    if (url.endsWith(".tsx")) return { format: "module-typescript", source: readFileSync(fileURLToPath(url)), shortCircuit: true };
+    return nextLoad(url, context);
+  },
+});
+
+const {
   addNode,
   addPaths,
   addTrigger,
@@ -15,17 +29,16 @@ import {
   validateDefinition,
   withCanvasTab,
   withRun,
-} from "../src/places/automations/canvas/index.ts";
-import type { Editor, PathBuild } from "../src/places/automations/canvas/index.ts";
-import {
+} = await import("./index.ts");
+const {
   createGroup,
   emptySidebar,
   renderSidebar,
   sampleSidebar,
   withGroup,
   withTab,
-} from "../src/places/automations/sidebar/index.ts";
-import { nativeTokens, skinById } from "../../../ui/src/tokens/skins.ts";
+} = await import("../sidebar/index.ts");
+const { nativeTokens, skinById } = await import("../../../../../../ui/src/tokens/skins.ts");
 
 const PATHS: readonly PathBuild[] = [
   { name: "Won", when: "trigger.op == 'updated'", to: { id: "step_won", key: "stop", title: "Stop won", input: { outcome: "succeeded" } } },
