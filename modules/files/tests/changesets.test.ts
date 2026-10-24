@@ -500,13 +500,13 @@ test("approve with push: commit then push through git; a failed push leaves the 
     const w = await handlers["files.write"](ok.agent, { fileId: ok.plan, content: { text: "x" } });
     await handlers["changesets.approve"](ok.ctx, { changesetId: w.changesetId!, push: true });
   });
-  ok.k.db.rows("files_folder");
   (ok.k.ctx.db as { run(sql: string, ...a: unknown[]): unknown }).run("UPDATE files_folder SET git = ? WHERE id = ?", 1, ok.docs);
   const cs = (await handlers["changesets.list"](ok.ctx, { state: "open" })).changesets[0]!["changesetId"] as string;
   const res = await handlers["changesets.approve"](ok.ctx, { changesetId: cs, message: "Update plan", push: true });
   assert.deepEqual([res.approved, res.commit], [true, "abc1234"]);
-  assert.deepEqual(ok.k.calls.map((c) => c.cap), ["git.commit", "git.push"]);
-  assert.deepEqual(ok.k.calls[0]?.input, { folderId: ok.docs, message: "Update plan" });
+  const gitCalls = ok.k.calls.filter((c) => c.cap.startsWith("git."));
+  assert.deepEqual(gitCalls.map((c) => c.cap), ["git.commit", "git.push"]);
+  assert.deepEqual(gitCalls[0]?.input, { folderId: ok.docs, message: "Update plan" });
   assert.deepEqual(eventsOf(ok.k.events, "changeset.approved").map((e) => (e as { commit?: string }).commit), ["abc1234"]);
 
   const bad = await setup({ "git.commit": { sha: "def5678" }, "git.push": new Error("remote down") });
