@@ -1,3 +1,4 @@
+// (all four authorize test files import this module)
 // authorize (ARCH 4.5): one synchronous function for the gateway, the sync filter, search, the MCP server and the Console Access checker.
 // Order: subjects (principal, and the person an agent acts for / the owner a service is capped by) -> per subject: status, role permission, grants or ownership, clearance, holds ->
 // intersect the scopes -> policies (provider label, spend, Gate). A deny or hold is a Decision, never a throw.
