@@ -44,7 +44,7 @@ export function Face({ name, kind, size = 18, pulse = false, online = false }: {
   const tint = `hsla(${hue}, 65%, 52%, 0.22)`;
   const ink = `hsl(${hue}, 55%, 46%)`;
   return (
-    <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flex: 0 }}>
+    <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0, flexGrow: 0 }}>
       <View style={{ width: size, height: size, borderRadius: kind === "person" ? size : Math.round(size * 0.3), backgroundColor: tint as string, alignItems: "center", justifyContent: "center" }}>
         <Text style={{ color: ink as string, fontSize: Math.max(9, Math.round(size * 0.5)), fontWeight: "600" }}>{(name.trim()[0] ?? "?").toUpperCase()}</Text>
       </View>
