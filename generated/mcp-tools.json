@@ -16547,6 +16547,28 @@
           },
           "reviewChanges": {
             "type": "boolean"
+          },
+          "subject": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "agt_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "agent",
+                  "project"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
           }
         },
         "required": [
@@ -17528,6 +17550,36 @@
       },
       "name": "files_shared_with_me",
       "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "files.star",
+      "deferred": false,
+      "description": "Star a file or take the star off; a star is mine alone",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "starred": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fileId",
+          "starred"
+        ],
+        "type": "object"
+      },
+      "name": "files_star",
+      "planMode": "blocked",
       "toolset": "files",
       "v": 1
     },

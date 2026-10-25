@@ -104,28 +104,6 @@
       },
       "type": "array"
     },
-    "s_01ba7de8d7": {
-      "properties": {
-        "files": {
-          "$ref": "#/$defs/s_a21144ff96"
-        },
-        "folders": {
-          "$ref": "#/$defs/s_67ef96a86f"
-        },
-        "next": {
-          "description": "Cursor for the next page; absent on the last page",
-          "type": "string"
-        },
-        "total": {
-          "type": "integer"
-        }
-      },
-      "required": [
-        "files",
-        "folders"
-      ],
-      "type": "object"
-    },
     "s_027fb3219c": {
       "properties": {
         "default": {
@@ -260,6 +238,24 @@
       },
       "required": [
         "threadId"
+      ],
+      "type": "object"
+    },
+    "s_04aaa4e969": {
+      "properties": {
+        "changesetId": {
+          "examples": [
+            "chg_a1b2c3"
+          ],
+          "pattern": "^chg_[a-z0-9]+$",
+          "type": "string"
+        },
+        "file": {
+          "$ref": "#/$defs/s_ac13e8babf"
+        }
+      },
+      "required": [
+        "file"
       ],
       "type": "object"
     },
@@ -1472,74 +1468,6 @@
         "type": "object"
       },
       "type": "array"
-    },
-    "s_13ccf833f9": {
-      "properties": {
-        "fileCount": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "folderCount": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "git": {
-          "type": "boolean"
-        },
-        "label": {
-          "maximum": 3,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "name": {
-          "type": "string"
-        },
-        "parentId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "path": {
-          "examples": [
-            "Projects/Probate GTM"
-          ],
-          "type": "string"
-        },
-        "reviewChanges": {
-          "type": "boolean"
-        },
-        "scope": {
-          "enum": [
-            "personal",
-            "space"
-          ],
-          "type": "string"
-        },
-        "source": {
-          "$ref": "#/$defs/s_79be53286e"
-        }
-      },
-      "required": [
-        "folderId",
-        "name",
-        "path",
-        "fileCount",
-        "folderCount",
-        "scope",
-        "label",
-        "git",
-        "reviewChanges"
-      ],
-      "type": "object"
     },
     "s_13ee309840": {
       "items": {
@@ -3707,6 +3635,12 @@
       },
       "type": "array"
     },
+    "s_333ebd7463": {
+      "items": {
+        "$ref": "#/$defs/s_ac13e8babf"
+      },
+      "type": "array"
+    },
     "s_3550bb561b": {
       "items": {
         "properties": {
@@ -5125,118 +5059,6 @@
       ],
       "type": "object"
     },
-    "s_486e12678d": {
-      "properties": {
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "deletedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "fileId": {
-          "examples": [
-            "fil_a1b2c3"
-          ],
-          "pattern": "^fil_[a-z0-9]+$",
-          "type": "string"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "holds": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "kind": {
-          "enum": [
-            "text",
-            "markdown",
-            "document",
-            "spreadsheet",
-            "presentation",
-            "pdf",
-            "image",
-            "video",
-            "audio",
-            "code",
-            "archive",
-            "google_native",
-            "other"
-          ],
-          "type": "string"
-        },
-        "label": {
-          "maximum": 3,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "mime": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "ownerId": {
-          "type": "string"
-        },
-        "size": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "source": {
-          "$ref": "#/$defs/s_79be53286e"
-        },
-        "thumb": {
-          "type": "boolean"
-        },
-        "updatedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "updatedBy": {
-          "type": "string"
-        },
-        "version": {
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "fileId",
-        "folderId",
-        "name",
-        "kind",
-        "mime",
-        "size",
-        "version",
-        "label",
-        "ownerId",
-        "createdAt",
-        "updatedAt",
-        "updatedBy",
-        "thumb",
-        "holds"
-      ],
-      "type": "object"
-    },
     "s_489f2891b9": {
       "properties": {
         "as": {
@@ -5287,6 +5109,77 @@
       "required": [
         "deliveryId",
         "idempotencyKey"
+      ],
+      "type": "object"
+    },
+    "s_4a1e404cdd": {
+      "properties": {
+        "fileCount": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "folderCount": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "git": {
+          "type": "boolean"
+        },
+        "label": {
+          "maximum": 3,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "parentId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "path": {
+          "examples": [
+            "Projects/Probate GTM"
+          ],
+          "type": "string"
+        },
+        "reviewChanges": {
+          "type": "boolean"
+        },
+        "scope": {
+          "enum": [
+            "personal",
+            "space"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/s_79be53286e"
+        },
+        "subject": {
+          "$ref": "#/$defs/s_b5775f40f8"
+        }
+      },
+      "required": [
+        "folderId",
+        "name",
+        "path",
+        "fileCount",
+        "folderCount",
+        "scope",
+        "label",
+        "git",
+        "reviewChanges"
       ],
       "type": "object"
     },
@@ -7752,6 +7645,28 @@
       ],
       "type": "object"
     },
+    "s_63dc3a7fc4": {
+      "properties": {
+        "files": {
+          "$ref": "#/$defs/s_333ebd7463"
+        },
+        "folders": {
+          "$ref": "#/$defs/s_76462aa6ce"
+        },
+        "next": {
+          "description": "Cursor for the next page; absent on the last page",
+          "type": "string"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "files",
+        "folders"
+      ],
+      "type": "object"
+    },
     "s_63dee7bf35": {
       "properties": {
         "fixedIn": {
@@ -8090,12 +8005,6 @@
         "name"
       ],
       "type": "object"
-    },
-    "s_67ef96a86f": {
-      "items": {
-        "$ref": "#/$defs/s_13ccf833f9"
-      },
-      "type": "array"
     },
     "s_685b085375": {
       "properties": {
@@ -8637,24 +8546,6 @@
       ],
       "type": "object"
     },
-    "s_74c6a2fb9f": {
-      "properties": {
-        "changesetId": {
-          "examples": [
-            "chg_a1b2c3"
-          ],
-          "pattern": "^chg_[a-z0-9]+$",
-          "type": "string"
-        },
-        "file": {
-          "$ref": "#/$defs/s_486e12678d"
-        }
-      },
-      "required": [
-        "file"
-      ],
-      "type": "object"
-    },
     "s_753c0a822e": {
       "properties": {
         "request": {
@@ -8804,6 +8695,12 @@
         "blocks"
       ],
       "type": "object"
+    },
+    "s_76462aa6ce": {
+      "items": {
+        "$ref": "#/$defs/s_4a1e404cdd"
+      },
+      "type": "array"
     },
     "s_76a1c562f7": {
       "properties": {
@@ -10521,17 +10418,6 @@
       ],
       "type": "object"
     },
-    "s_8fffaf9035": {
-      "properties": {
-        "folder": {
-          "$ref": "#/$defs/s_13ccf833f9"
-        }
-      },
-      "required": [
-        "folder"
-      ],
-      "type": "object"
-    },
     "s_90ff7d13ee": {
       "properties": {
         "branches": {
@@ -11459,12 +11345,6 @@
       ],
       "type": "object"
     },
-    "s_a21144ff96": {
-      "items": {
-        "$ref": "#/$defs/s_486e12678d"
-      },
-      "type": "array"
-    },
     "s_a2d37875a7": {
       "properties": {
         "schedule": {
@@ -12250,6 +12130,124 @@
       ],
       "type": "object"
     },
+    "s_ac13e8babf": {
+      "properties": {
+        "conflict": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "deletedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fileId": {
+          "examples": [
+            "fil_a1b2c3"
+          ],
+          "pattern": "^fil_[a-z0-9]+$",
+          "type": "string"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "holds": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "text",
+            "markdown",
+            "document",
+            "spreadsheet",
+            "presentation",
+            "pdf",
+            "image",
+            "video",
+            "audio",
+            "code",
+            "archive",
+            "google_native",
+            "other"
+          ],
+          "type": "string"
+        },
+        "label": {
+          "maximum": 3,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        },
+        "size": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/s_79be53286e"
+        },
+        "starred": {
+          "type": "boolean"
+        },
+        "thumb": {
+          "type": "boolean"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "updatedBy": {
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "fileId",
+        "folderId",
+        "name",
+        "kind",
+        "mime",
+        "size",
+        "version",
+        "label",
+        "ownerId",
+        "createdAt",
+        "updatedAt",
+        "updatedBy",
+        "thumb",
+        "holds"
+      ],
+      "type": "object"
+    },
     "s_aed3f8b568": {
       "items": {
         "$ref": "#/$defs/s_a62f360c59"
@@ -12831,6 +12829,39 @@
       },
       "required": [
         "scope"
+      ],
+      "type": "object"
+    },
+    "s_b5775f40f8": {
+      "properties": {
+        "id": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "agent",
+            "project",
+            "space"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "s_b59a284a11": {
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/s_ac13e8babf"
+        }
+      },
+      "required": [
+        "file"
       ],
       "type": "object"
     },
@@ -17363,17 +17394,6 @@
       ],
       "type": "object"
     },
-    "s_f9e90fdca6": {
-      "properties": {
-        "file": {
-          "$ref": "#/$defs/s_486e12678d"
-        }
-      },
-      "required": [
-        "file"
-      ],
-      "type": "object"
-    },
     "s_f9ea51f9e2": {
       "properties": {
         "message": {
@@ -17636,6 +17656,17 @@
         "contactId",
         "kind",
         "addressId"
+      ],
+      "type": "object"
+    },
+    "s_fc475b05bc": {
+      "properties": {
+        "folder": {
+          "$ref": "#/$defs/s_4a1e404cdd"
+        }
+      },
+      "required": [
+        "folder"
       ],
       "type": "object"
     },
@@ -66783,6 +66814,7 @@
           "name": "example",
           "output": {
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -66798,6 +66830,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -66845,7 +66878,7 @@
       "module": "files",
       "name": "files.copy",
       "output": {
-        "$ref": "#/$defs/s_f9e90fdca6"
+        "$ref": "#/$defs/s_b59a284a11"
       },
       "permission": "files.write",
       "resource": {
@@ -66898,6 +66931,7 @@
           "output": {
             "changesetId": "chg_a1b2c3",
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -66913,6 +66947,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -66978,7 +67013,7 @@
       "name": "files.create",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_74c6a2fb9f"
+        "$ref": "#/$defs/s_04aaa4e969"
       },
       "permission": "files.write",
       "resource": {
@@ -67333,7 +67368,11 @@
             "idempotencyKey": "idem_1",
             "name": "example",
             "parentId": "fld_a1b2c3",
-            "reviewChanges": true
+            "reviewChanges": true,
+            "subject": {
+              "id": "agt_a1b2c3",
+              "kind": "agent"
+            }
           },
           "name": "example",
           "output": {
@@ -67351,6 +67390,10 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
+              },
+              "subject": {
+                "id": "agt_a1b2c3",
+                "kind": "agent"
               }
             }
           }
@@ -67378,6 +67421,28 @@
           },
           "reviewChanges": {
             "type": "boolean"
+          },
+          "subject": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "agt_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "agent",
+                  "project"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
           }
         },
         "required": [
@@ -67392,7 +67457,7 @@
       "name": "files.folder.create",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_8fffaf9035"
+        "$ref": "#/$defs/s_fc475b05bc"
       },
       "permission": "files.write",
       "resource": {
@@ -67517,6 +67582,10 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
+              },
+              "subject": {
+                "id": "agt_a1b2c3",
+                "kind": "agent"
               }
             }
           }
@@ -67543,7 +67612,7 @@
       "module": "files",
       "name": "files.folder.get",
       "output": {
-        "$ref": "#/$defs/s_8fffaf9035"
+        "$ref": "#/$defs/s_fc475b05bc"
       },
       "permission": null,
       "resource": {
@@ -67597,6 +67666,10 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
+              },
+              "subject": {
+                "id": "agt_a1b2c3",
+                "kind": "agent"
               }
             }
           }
@@ -67630,7 +67703,7 @@
       "module": "files",
       "name": "files.folder.move",
       "output": {
-        "$ref": "#/$defs/s_8fffaf9035"
+        "$ref": "#/$defs/s_fc475b05bc"
       },
       "permission": "files.write",
       "resource": {
@@ -67684,6 +67757,10 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
+              },
+              "subject": {
+                "id": "agt_a1b2c3",
+                "kind": "agent"
               }
             }
           }
@@ -67697,7 +67774,7 @@
       "module": "files",
       "name": "files.folder.rename",
       "output": {
-        "$ref": "#/$defs/s_8fffaf9035"
+        "$ref": "#/$defs/s_fc475b05bc"
       },
       "permission": "files.write",
       "resource": {
@@ -67749,6 +67826,10 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
+              },
+              "subject": {
+                "id": "agt_a1b2c3",
+                "kind": "agent"
               }
             }
           }
@@ -67774,7 +67855,7 @@
       "module": "files",
       "name": "files.folder.restore",
       "output": {
-        "$ref": "#/$defs/s_8fffaf9035"
+        "$ref": "#/$defs/s_fc475b05bc"
       },
       "permission": "files.delete",
       "resource": {
@@ -67825,6 +67906,10 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
+                },
+                "subject": {
+                  "id": "agt_a1b2c3",
+                  "kind": "agent"
                 }
               }
             ]
@@ -67863,7 +67948,7 @@
       "output": {
         "properties": {
           "folders": {
-            "$ref": "#/$defs/s_67ef96a86f"
+            "$ref": "#/$defs/s_76462aa6ce"
           }
         },
         "required": [
@@ -67923,6 +68008,10 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
+              },
+              "subject": {
+                "id": "agt_a1b2c3",
+                "kind": "agent"
               }
             }
           }
@@ -67960,7 +68049,7 @@
       "module": "files",
       "name": "files.folder.settings",
       "output": {
-        "$ref": "#/$defs/s_8fffaf9035"
+        "$ref": "#/$defs/s_fc475b05bc"
       },
       "permission": "files.write",
       "resource": {
@@ -67996,6 +68085,7 @@
           "name": "example",
           "output": {
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -68011,6 +68101,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -68040,7 +68131,7 @@
       "module": "files",
       "name": "files.get",
       "output": {
-        "$ref": "#/$defs/s_f9e90fdca6"
+        "$ref": "#/$defs/s_b59a284a11"
       },
       "permission": null,
       "resource": {
@@ -68120,6 +68211,7 @@
           "output": {
             "files": [
               {
+                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -68135,6 +68227,7 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
+                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -68156,6 +68249,10 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
+                },
+                "subject": {
+                  "id": "agt_a1b2c3",
+                  "kind": "agent"
                 }
               }
             ],
@@ -68192,10 +68289,10 @@
       "output": {
         "properties": {
           "files": {
-            "$ref": "#/$defs/s_a21144ff96"
+            "$ref": "#/$defs/s_333ebd7463"
           },
           "folders": {
-            "$ref": "#/$defs/s_67ef96a86f"
+            "$ref": "#/$defs/s_76462aa6ce"
           },
           "next": {
             "description": "Cursor for the next page; absent on the last page",
@@ -68365,6 +68462,7 @@
           "output": {
             "files": [
               {
+                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -68380,6 +68478,7 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
+                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -68401,6 +68500,10 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
+                },
+                "subject": {
+                  "id": "agt_a1b2c3",
+                  "kind": "agent"
                 }
               }
             ],
@@ -68477,7 +68580,7 @@
       "module": "files",
       "name": "files.list",
       "output": {
-        "$ref": "#/$defs/s_01ba7de8d7"
+        "$ref": "#/$defs/s_63dc3a7fc4"
       },
       "permission": null,
       "resource": {
@@ -68749,6 +68852,7 @@
           "output": {
             "changesetId": "chg_a1b2c3",
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -68764,6 +68868,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -68804,7 +68909,7 @@
       "name": "files.move",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_74c6a2fb9f"
+        "$ref": "#/$defs/s_04aaa4e969"
       },
       "permission": "files.write",
       "resource": {
@@ -69125,6 +69230,7 @@
           "output": {
             "files": [
               {
+                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -69140,6 +69246,7 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
+                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -69167,7 +69274,7 @@
       "output": {
         "properties": {
           "files": {
-            "$ref": "#/$defs/s_a21144ff96"
+            "$ref": "#/$defs/s_333ebd7463"
           }
         },
         "required": [
@@ -69216,6 +69323,7 @@
           "output": {
             "changesetId": "chg_a1b2c3",
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -69231,6 +69339,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -69264,7 +69373,7 @@
       "name": "files.rename",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_74c6a2fb9f"
+        "$ref": "#/$defs/s_04aaa4e969"
       },
       "permission": "files.write",
       "resource": {
@@ -69386,6 +69495,7 @@
           "name": "example",
           "output": {
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -69401,6 +69511,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -69436,7 +69547,7 @@
       "module": "files",
       "name": "files.restore",
       "output": {
-        "$ref": "#/$defs/s_f9e90fdca6"
+        "$ref": "#/$defs/s_b59a284a11"
       },
       "permission": "files.delete",
       "resource": {
@@ -69476,6 +69587,7 @@
           "name": "example",
           "output": {
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -69491,6 +69603,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -69530,7 +69643,7 @@
       "output": {
         "properties": {
           "file": {
-            "$ref": "#/$defs/s_486e12678d"
+            "$ref": "#/$defs/s_ac13e8babf"
           },
           "versionId": {
             "examples": [
@@ -69994,6 +70107,7 @@
           "output": {
             "files": [
               {
+                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -70009,6 +70123,7 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
+                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -70030,6 +70145,10 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
+                },
+                "subject": {
+                  "id": "agt_a1b2c3",
+                  "kind": "agent"
                 }
               }
             ],
@@ -70075,7 +70194,7 @@
       "module": "files",
       "name": "files.shared_with_me",
       "output": {
-        "$ref": "#/$defs/s_01ba7de8d7"
+        "$ref": "#/$defs/s_63dc3a7fc4"
       },
       "permission": null,
       "resource": {
@@ -70084,6 +70203,95 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "Files and folders other people shared with the caller, newest share first (the Shared with me section of the tree)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "file.starred"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "fileId": "fil_a1b2c3",
+            "starred": true
+          },
+          "name": "example",
+          "output": {
+            "file": {
+              "conflict": true,
+              "createdAt": 1760000000000,
+              "deletedAt": 1760000000000,
+              "fileId": "fil_a1b2c3",
+              "folderId": "fld_a1b2c3",
+              "holds": 1,
+              "kind": "text",
+              "label": 1,
+              "mime": "example",
+              "name": "example",
+              "ownerId": "example",
+              "size": 1,
+              "source": {
+                "mountId": "mnt_a1b2c3",
+                "provider": "example"
+              },
+              "starred": true,
+              "thumb": true,
+              "updatedAt": 1760000000000,
+              "updatedBy": "example",
+              "version": 1
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "starred": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fileId",
+          "starred"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "files",
+      "name": "files.star",
+      "offline": "queue",
+      "output": {
+        "$ref": "#/$defs/s_b59a284a11"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/fileId",
+        "type": "file"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Star a file or take the star off; a star is mine alone",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -70178,6 +70386,7 @@
           "output": {
             "files": [
               {
+                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -70193,6 +70402,7 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
+                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -70214,6 +70424,10 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
+                },
+                "subject": {
+                  "id": "agt_a1b2c3",
+                  "kind": "agent"
                 }
               }
             ],
@@ -70241,7 +70455,7 @@
       "module": "files",
       "name": "files.trash.list",
       "output": {
-        "$ref": "#/$defs/s_01ba7de8d7"
+        "$ref": "#/$defs/s_63dc3a7fc4"
       },
       "permission": null,
       "resource": {
@@ -70278,6 +70492,10 @@
                 "folderId": "fld_a1b2c3",
                 "key": "example",
                 "kind": "folder",
+                "subject": {
+                  "id": "agt_a1b2c3",
+                  "kind": "agent"
+                },
                 "title": "example"
               }
             ]
@@ -70318,6 +70536,9 @@
                     "virtual"
                   ],
                   "type": "string"
+                },
+                "subject": {
+                  "$ref": "#/$defs/s_b5775f40f8"
                 },
                 "title": {
                   "type": "string"
@@ -70532,6 +70753,7 @@
             "canEdit": true,
             "canMark": true,
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -70547,6 +70769,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -70593,7 +70816,7 @@
             "type": "boolean"
           },
           "file": {
-            "$ref": "#/$defs/s_486e12678d"
+            "$ref": "#/$defs/s_ac13e8babf"
           },
           "pages": {
             "type": "integer"
@@ -70696,6 +70919,7 @@
           "output": {
             "changesetId": "chg_a1b2c3",
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -70711,6 +70935,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -70761,7 +70986,7 @@
             "type": "string"
           },
           "file": {
-            "$ref": "#/$defs/s_486e12678d"
+            "$ref": "#/$defs/s_ac13e8babf"
           },
           "versionId": {
             "examples": [
@@ -135254,6 +135479,7 @@
           "name": "example",
           "output": {
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -135269,6 +135495,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -135328,7 +135555,7 @@
       "module": "files",
       "name": "sheets.create",
       "output": {
-        "$ref": "#/$defs/s_f9e90fdca6"
+        "$ref": "#/$defs/s_b59a284a11"
       },
       "permission": "files.write",
       "resource": {
@@ -174817,6 +175044,41 @@
       "summary": "A link outside the Space was made for a file",
       "sv": 1,
       "vis": "space"
+    },
+    {
+      "module": "files",
+      "name": "file.starred",
+      "payload": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "starred": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fileId",
+          "by",
+          "starred"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/fileId",
+        "type": "file"
+      },
+      "summary": "A person starred a file or took the star off",
+      "sv": 1,
+      "vis": "owner"
     },
     {
       "label": "subject",
