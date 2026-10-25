@@ -49,6 +49,7 @@ import { createLiveHub } from "../ws.ts";
 import type { LiveHub } from "../ws.ts";
 import { createAccess } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken } from "./session.ts";
+import { preAuthSession } from "./preauth.ts";
 import { createResourceRegistrar } from "../gateway/resources.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
@@ -478,7 +479,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const session: GatewayDeps["session"] = o.session ?? ((headers) => identify(bearer(headers["authorization"])));
       gateway = createGateway({ invoke, caps: indexCapabilities(caps), routes: [...routes, ...(o.extra?.routes ?? [])], session,
         // callers before sign-in (sign_in, join, username_available) and invited-not-yet-members: a service principal that is no one, so a handler that needs a person (me()) refuses and the rest rate-limits on it
-        preAuth: (caller) => ({ space: spaceId, principal: { kind: "service", id: caller } }) });
+        preAuth: (caller, headers) => preAuthSession(spaceId, caller, headers) });
       // GET /spaces/<space>/blobs/<id> (ruling 50): a blob is served to a caller who may read the resource its module stored it for
       blobRoute = createBlobRoute({
         space: spaceId, store: blobs,
