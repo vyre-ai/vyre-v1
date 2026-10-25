@@ -1,6 +1,6 @@
 # kits.install_sheet
 
-The install sheet: tools, record types, network domains, vault names
+The install sheet: tools, record types, network domains, vault names, scripts, and the steps the sheet check found broken
 
 | | |
 |---|---|
@@ -39,6 +39,13 @@ type Out = {
     networkDomains: Array<string>;
     vaultNames: Array<string>;
     scripts: number;
+    problems: Array<{
+        item: string;
+        step: "apply" | "undo";
+        cap: string;
+        input: Record<string, unknown>;
+        message: string;
+      }>;
   };
 };
 ```
@@ -63,6 +70,15 @@ type Out = {
     "sheet": {
       "networkDomains": [
         "example"
+      ],
+      "problems": [
+        {
+          "cap": "example",
+          "input": {},
+          "item": "example",
+          "message": "example",
+          "step": "apply"
+        }
       ],
       "recordTypes": [
         "example"

@@ -19,8 +19,10 @@ export interface BlobMeta { id: string; contentType: string; size: number; sha25
  * ctx.blobs: binary storage scoped to the calling module (ARCH 4.1). A module sees only blobs it put itself; asking for another module's id is refused
  * (permission.no_grant), an id nobody stored is absent (get and stat return null, delete returns false). put refuses a blob over the size limit or a module over its quota (validation.too_large).
  */
+/** What a blob belongs to. The store records it with the owning module at write time; the blob route checks the caller's read access on it (ruling 50). A blob put without one is served to nobody. */
+export interface BlobResource { type: string; id: string }
 export interface Blobs {
-  put(bytes: Uint8Array, contentType: string): Promise<BlobMeta>;
+  put(bytes: Uint8Array, contentType: string, opts?: { resource?: BlobResource }): Promise<BlobMeta>;
   get(id: string): Promise<{ meta: BlobMeta; bytes: Uint8Array } | null>;
   stat(id: string): Promise<BlobMeta | null>;
   delete(id: string): Promise<boolean>;
