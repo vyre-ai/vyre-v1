@@ -1,6 +1,7 @@
 // The Chats sidebar (spec 3.2, 2.23, ARCH 7.2): the Space and search at the top, then Needs you (only when something waits), Starred agent faces (Cmd-1..9), Chats grouped
 // Starred, Today, Yesterday and Earlier with a pulse where an agent works, then Channels with Projects beneath. One flat list in ui/VirtualList, every row a ui/Row with
 // leading and trailing slots (ruling 36). Everything reads from the local copy; a new chat shows as a row at once and the server answers behind it.
+import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -267,7 +268,7 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
     <View testID="chats-sidebar" accessibilityRole="list" accessibilityLabel="Chats" style={st.root} {...{ tabIndex: 0, onKeyDown }}>
       <View style={st.top}>
         <Pressable accessibilityRole="button" accessibilityLabel={`${data.space.name}, switch Space`} onPress={() => data.nav.openSpaceSwitcher()} testID="space-switcher" style={st.space}>
-          <Face name={data.space.name} kind="agent" size={20} />
+          <Avatar name={data.space.name} kind="space" size={20} />
           <Text numberOfLines={1} style={st.spaceName}>{data.space.name}</Text>
           {data.space.otherNeedsYou ? <View testID="other-space-dot" accessibilityLabel="Another Space needs you" style={st.red} /> : null}
           <Glyph name="chev" size={12} color="var(--ink-4)" />

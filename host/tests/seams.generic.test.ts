@@ -67,8 +67,8 @@ test("seams.generic: a driver that throws is reported as missing with its reason
   assert.match(w.missing[0]!.reason, /no key/);
 });
 
-test("seams.generic: the built-in registry covers the four connector seams, and a push port without a transport refuses to send", async () => {
-  assert.deepEqual(Object.keys(BUILTIN_DRIVERS).sort(), ["setGoogleHost", "setImapSecretResolver", "setMsHost", "setSourcesSecretResolver"]);
+test("seams.generic: the built-in registry covers the connector and mail-driver seams, and a push port without a transport refuses to send", async () => {
+  assert.deepEqual(Object.keys(BUILTIN_DRIVERS).sort(), ["setGoogleHost", "setImapSecretResolver", "setMailgunHost", "setMsHost", "setResendHost", "setSourcesSecretResolver"]);
   const port = createPushPort();
   await assert.rejects(() => port.send({ device: "d", platform: "ios", token: "t", title: "x", deepLink: "vyre://x", tag: "t" }), /No push transport/);
   const sent: string[] = [];

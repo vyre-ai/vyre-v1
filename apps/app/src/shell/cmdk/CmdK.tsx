@@ -4,6 +4,8 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { AppIcon } from "../../../../../ui/src/AppIcon/index.tsx";
+import { Avatar } from "../../../../../ui/src/Avatar/index.tsx";
 import { Menu, MenuIcon, menuTrigger } from "../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
@@ -32,21 +34,13 @@ const KIND_ICON: Partial<Record<Hit["kind"], string>> = {
   chat: SVG('<path d="M3 4.500a1.500 1.500 0 011.500-1.500h7A1.500 1.500 0 0113 4.500v5a1.500 1.500 0 01-1.500 1.500H7l-3 2.500V11a1.500 1.500 0 01-1-1.400z"/>'),
 };
 
-function initials(name: string): string {
-  const parts = name.replace(/[^\p{L}\p{N} ]/gu, "").split(/\s+/).filter(Boolean);
-  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "")).toUpperCase();
-}
-
-/** The 20 px tile before a result: initials for people and agents, a line icon for everything else. */
+/** The 20 px tile before a result: the shared face for people and agents, a line icon for everything else. */
 function Tile({ hit }: { hit: Hit }): ReactElement {
   const named = hit.kind === "person" || hit.kind === "agent";
-  const round = hit.kind === "person";
   const icon = KIND_ICON[hit.kind];
   return (
-    <View style={[styles.tile, named ? { backgroundColor: hit.kind === "agent" ? "var(--accent-wash)" : "var(--sunk)", borderRadius: round ? 10 : 5 } : null]}>
-      {named || !icon ? (
-        <Text style={[styles.tileText, { color: hit.kind === "agent" ? "var(--accent)" : "var(--ink-2)" }]}>{initials(hit.title)}</Text>
-      ) : <MenuIcon icon={icon} color="var(--ink-3)" size={16} />}
+    <View style={styles.tile}>
+      {named ? <Avatar name={hit.title} kind={hit.kind === "person" ? "person" : "agent"} size={20} /> : icon ? <MenuIcon icon={icon} color="var(--ink-3)" size={16} /> : <AppIcon brand={hit.title} name={hit.title} size={20} />}
     </View>
   );
 }
@@ -274,7 +268,6 @@ const styles = StyleSheet.create({
   gh: { paddingTop: 8, paddingBottom: 4, paddingHorizontal: 10, fontSize: 11, fontWeight: "600", color: "var(--ink-3)" },
   none: { padding: 14, fontSize: 13, color: "var(--ink-3)" },
   tile: { width: 20, height: 20, marginRight: 10, alignItems: "center", justifyContent: "center" },
-  tileText: { fontSize: 9.5, fontWeight: "600" },
   dot: { width: 12, height: 12, borderRadius: 6 },
   keys: { fontSize: 11.5, color: "var(--ink-3)" },
   foot: { flexDirection: "row", gap: 14, paddingVertical: 8, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: "var(--line)" },

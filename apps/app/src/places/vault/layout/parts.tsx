@@ -1,9 +1,9 @@
-// Vault shared pieces: stroke icons, the letter tile that stands in for a logo, small buttons and the quiet line with Undo. Sizes and colours follow the prototype's Vault;
+// Vault shared pieces: stroke icons, the item logo (the shared AppIcon), small buttons and the quiet line with Undo. Sizes and colours follow the prototype's Vault;
 // every colour is a skin token, so a skin switch repaints with no re-render.
 import { createElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { hueOf, letterOf } from "./model.ts";
+import { AppIcon, brandForName } from "../../../../../../ui/src/AppIcon/index.tsx";
 
 /** 16 px viewBox stroke icons. */
 export const ICON = {
@@ -48,14 +48,9 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)" }: { name: IconN
   );
 }
 
-/** The mark of an item. Real logos are fetched by the Space's server (spec 2.17); until one is cached the tile is a letter on a wash of the name's colour. */
+/** The mark of an item: the shared AppIcon, the brand's own mark when the name is one we know and a clean letter otherwise. */
 export function LogoTile({ name, size = 32 }: { name: string; size?: number }): ReactElement {
-  const hue = hueOf(name);
-  return (
-    <View aria-hidden testID={`logo-${name}`} style={{ width: size, height: size, borderRadius: Math.round(size * 0.28), backgroundColor: `hsla(${hue}, 60%, 50%, 0.18)` as string, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ color: `hsl(${hue}, 55%, 46%)` as string, fontSize: Math.round(size * 0.46), fontWeight: "600" }}>{letterOf(name)}</Text>
-    </View>
-  );
+  return <AppIcon brand={brandForName(name) ?? "letter"} name={name} size={size} testID={`logo-${name}`} />;
 }
 
 /** A small round-cornered button: quiet by default, accent when `primary`. */
