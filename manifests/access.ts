@@ -76,7 +76,8 @@ export default defineManifest({
     ev('principal.reactivated', 'A suspended principal was reactivated', { p: { principalId: pid }, subject: ['entity', '/principalId'], retention: 'audit' }),
     ev('token.revoked', 'An outside actor token was revoked', { p: { actorId: id.actor, by: t.str() }, subject: ['entity', '/actorId'], retention: 'audit' }),
     ev('folder.shared', 'A folder was shared or unshared; everything in it follows', { p: { folderId: id.folder, subject: subjectRef, level: t.opt(level), removed: t.bool() }, subject: ['folder', '/folderId'], retention: 'audit' }),
-    ev('item.moved', 'An item moved into or out of a folder', { p: { resource: resourceRef, fromFolderId: t.opt(id.folder), toFolderId: t.opt(id.folder) }, subject: ['entity', '/resource/id'] }),
+    // a folder is a Files folder (fld_) or a Vault folder (vfd_): both kinds move items on this one event
+    ev('item.moved', 'An item moved into or out of a folder', { p: { resource: resourceRef, fromFolderId: t.opt(t.union(id.folder, id.vaultFolder)), toFolderId: t.opt(t.union(id.folder, id.vaultFolder)) }, subject: ['entity', '/resource/id'] }),
     ev('access.requested', 'Someone asked for access to a resource', { p: { requestId: t.id('arq'), resource: resourceRef, level, requester: id.user, taskId: id.task }, subject: ['entity', '/requestId'], notify: 'access.requested', trigger: { title: 'Someone asks for access' } }),
     ev('access.granted', 'An access request was approved', { p: { requestId: t.id('arq'), resource: resourceRef, level, requester: id.user, grantId: id.grant }, subject: ['entity', '/requestId'], notify: 'access.decided', retention: 'audit' }),
     ev('access.declined', 'An access request was declined; the note goes back to the requester', { p: { requestId: t.id('arq'), resource: resourceRef, requester: id.user, note: t.opt(t.str()) }, subject: ['entity', '/requestId'], notify: 'access.decided' }),

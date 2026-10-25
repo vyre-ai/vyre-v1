@@ -4,8 +4,8 @@ Review of the merged capability registry at the F11 freeze. `packages/contracts/
 
 ## Frozen values
 
-Registry hash: 3ddac5178ff4561b5292d878c962f14e9f65c7bc0fec779a4627de8f4bd4ba0f
-Capabilities: 1500
+Registry hash: 3a57e168d137440969bb1b2361646a00bf45f158b6295b7967a56ff09041723a
+Capabilities: 1499
 Events: 602
 Registry modules: 80
 Host modules: 72
@@ -27,18 +27,19 @@ Selection rule: capabilities of the lane (owner of the module) sorted by name, n
 | Lane | Capabilities | Sampled |
 |---|---|---|
 | L1 | 37 | 4 |
-| L2 | 264 | 27 |
+| L2 | 263 | 27 |
 | L3 | 152 | 16 |
 | L4 | 108 | 11 |
 | L5 | 344 | 35 |
 | L6 | 163 | 17 |
 | L7a | 218 | 22 |
 | L7b | 79 | 8 |
-| L8 | 135 | 14 |
+| L8 | 120 | 12 |
+| L10 | 15 | 2 |
 
 L1: conflicts.assist, conflicts.resolve, search.recent.list, sync.endpoints
 
-L2: agents.builtin_skills.list, agents.pause, agents.snapshot.take, agents.update, channels.join, channels.update, chat.helpers.list, chat.post, chat.transcript.summarize, computers.chrome.inspect, computers.chrome.state, computers.files.read, computers.recording.get, computers.screen.type, computers.timeline, engine.incident.note, engine.policy.get, engine.runtime.opt_in, engine.subscription_share.set, engine.turn.start, mcp.session.open, memory.counts, memory.graph, memory.notes.list, memory.versions, terminal.read, threads.list
+L2: agents.builtin_skills.list, agents.pause, agents.snapshot.take, agents.update, channels.get, channels.update, chat.helpers.list, chat.post, chat.transcript.search, computers.chrome.fill, computers.chrome.state, computers.files.read, computers.recording.delete, computers.screen.scroll, computers.timeline, engine.incident.note, engine.placement.decide, engine.route.preview, engine.stop_all, engine.turn.start, mcp.session.mint, memory.capture, memory.find_by_subject, memory.pointer, memory.versions, terminal.read, threads.list
 
 L3: connections.complete_auth, connections.update, connectors.outbox.retry, hubspot.health, import.parse_excel, projects.file_chat, projects.pin_file, records.as_of, records.history, records.restore, schema.apply, schema.layout.set, sources.delete, sources.list, sync_types.get, sync_types.review_schema
 
@@ -52,7 +53,9 @@ L7a: access.actors.create, access.groups.add_member, access.labels.set, access.r
 
 L7b: backup.config_get, backup.verify, console.nav, health.history, health.time_skew, logs.trace, network.server_remove, reports.send_to_vyre
 
-L8: bookings.availability, campaigns.launch, campaigns.stop, docusign.cancel, email_builder.ask_diff, email_builder.saved_blocks.save, esign.hook, forms.fields_set, forms.unpublish, kits.list, portal.accounts, sites.deployments, sites.preview_remove, source_rules.list
+L8: bookings.availability, campaigns.link_build, campaigns.unsubscribe, docusign.fetch_signed, email_builder.get, email_builder.snippets.delete, esign.providers, forms.link_revoke, portal.account_disable, sites.deploy, sites.preview_remove, source_rules.list
+
+L10: kits.builder_open, kits.list
 
 ## Findings from reading the sample
 

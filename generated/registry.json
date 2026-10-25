@@ -95603,6 +95603,15 @@
               "networkDomains": [
                 "example"
               ],
+              "problems": [
+                {
+                  "cap": "example",
+                  "input": {},
+                  "item": "example",
+                  "message": "example",
+                  "step": "apply"
+                }
+              ],
               "recordTypes": [
                 "example"
               ],
@@ -95646,6 +95655,41 @@
                 },
                 "type": "array"
               },
+              "problems": {
+                "items": {
+                  "properties": {
+                    "cap": {
+                      "type": "string"
+                    },
+                    "input": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "item": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "step": {
+                      "enum": [
+                        "apply",
+                        "undo"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "item",
+                    "step",
+                    "cap",
+                    "input",
+                    "message"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
               "recordTypes": {
                 "items": {
                   "type": "string"
@@ -95673,7 +95717,8 @@
               "recordTypes",
               "networkDomains",
               "vaultNames",
-              "scripts"
+              "scripts",
+              "problems"
             ],
             "type": "object"
           }
@@ -95690,7 +95735,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "The install sheet: tools, record types, network domains, vault names",
+      "summary": "The install sheet: tools, record types, network domains, vault names, scripts, and the steps the sheet check found broken",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -177107,21 +177152,43 @@
       "payload": {
         "properties": {
           "fromFolderId": {
-            "examples": [
-              "fld_a1b2c3"
-            ],
-            "pattern": "^fld_[a-z0-9]+$",
-            "type": "string"
+            "anyOf": [
+              {
+                "examples": [
+                  "fld_a1b2c3"
+                ],
+                "pattern": "^fld_[a-z0-9]+$",
+                "type": "string"
+              },
+              {
+                "examples": [
+                  "vfd_a1b2c3"
+                ],
+                "pattern": "^vfd_[a-z0-9]+$",
+                "type": "string"
+              }
+            ]
           },
           "resource": {
             "$ref": "#/$defs/s_f21ece25da"
           },
           "toFolderId": {
-            "examples": [
-              "fld_a1b2c3"
-            ],
-            "pattern": "^fld_[a-z0-9]+$",
-            "type": "string"
+            "anyOf": [
+              {
+                "examples": [
+                  "fld_a1b2c3"
+                ],
+                "pattern": "^fld_[a-z0-9]+$",
+                "type": "string"
+              },
+              {
+                "examples": [
+                  "vfd_a1b2c3"
+                ],
+                "pattern": "^vfd_[a-z0-9]+$",
+                "type": "string"
+              }
+            ]
           }
         },
         "required": [
@@ -193347,7 +193414,7 @@
     {
       "id": "kits",
       "kind": "module",
-      "owner": "L8",
+      "owner": "L10",
       "requires": [],
       "title": "Kits",
       "version": "0.1.0"
@@ -195206,6 +195273,34 @@
         },
         {
           "key": "stage",
+          "options": {
+            "stages": [
+              {
+                "key": "intake",
+                "title": "Intake"
+              },
+              {
+                "key": "drafting",
+                "title": "Drafting"
+              },
+              {
+                "key": "review",
+                "title": "Review"
+              },
+              {
+                "key": "signing",
+                "title": "Signing"
+              },
+              {
+                "key": "funding",
+                "title": "Funding"
+              },
+              {
+                "key": "complete",
+                "title": "Complete"
+              }
+            ]
+          },
           "title": "Stage",
           "type": "status"
         },
@@ -195251,6 +195346,26 @@
         },
         {
           "key": "status",
+          "options": {
+            "stages": [
+              {
+                "key": "brief",
+                "title": "Brief"
+              },
+              {
+                "key": "concept",
+                "title": "Concept"
+              },
+              {
+                "key": "review",
+                "title": "In review"
+              },
+              {
+                "key": "delivered",
+                "title": "Delivered"
+              }
+            ]
+          },
           "title": "Status",
           "type": "status"
         },

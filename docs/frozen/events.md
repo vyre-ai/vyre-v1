@@ -9,12 +9,12 @@ The catalogue is the `events` array in `generated/registry.json`, emitted by too
 | Item | Value |
 |---|---|
 | Events | 602 |
-| Hash | `6dfba8aaf915a7413840d3a24f244695fd88eff04a1a1ff8b7c414d48d02eb94` |
+| Hash | `a16a112d8719c64318a4e7aa14f7a0b4ab0bc462d1929a047f78cc5ae48e0f08` |
 | Hash input | SHA-256 of the canonical JSON of the events array (`lib/canonical.ts`: sorted keys, no whitespace) |
 | Schema version | 1 on every event |
 | Distinct names | 602 |
 | Primitives | 139 |
-| Registry hash | `3ddac5178ff4561b5292d878c962f14e9f65c7bc0fec779a4627de8f4bd4ba0f` (`generated/hash.txt`) |
+| Registry hash | `3a57e168d137440969bb1b2361646a00bf45f158b6295b7967a56ff09041723a` (`generated/hash.txt`) |
 
 The registry hash covers the whole registry. The event hash covers the events array only.
 

@@ -176,7 +176,8 @@ function open(answers: Record<string, unknown> = {}): { ctx: Ctx; events: { name
       };
     },
     call: async (cap: string, input: unknown) => {
-      calls.push({ cap, input });
+      // files.tree reads access for the Shared with me count; those reads are not what these tests are about
+      if (cap !== "access.lists" && cap !== "access.shares_of") calls.push({ cap, input });
       const answer = answers[cap];
       if (answer === undefined) throw new Error(`no answer for ${cap}`);
       if (answer instanceof Error) throw answer;

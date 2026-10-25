@@ -13641,6 +13641,13 @@ export type KitsInstallSheetOut = {
     networkDomains: Array<string>;
     vaultNames: Array<string>;
     scripts: number;
+    problems: Array<{
+        item: string;
+        step: "apply" | "undo";
+        cap: string;
+        input: Record<string, unknown>;
+        message: string;
+      }>;
   };
 };
 export type KitsListIn = {
@@ -29024,8 +29031,8 @@ export type ItemMovedPayload = {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
-  fromFolderId?: string;
-  toFolderId?: string;
+  fromFolderId?: string | string;
+  toFolderId?: string | string;
 };
 export type JourneyCompletedPayload = {
   journeyId: string;

@@ -25969,7 +25969,7 @@
       "blocks": [],
       "cap": "kits.install_sheet",
       "deferred": false,
-      "description": "The install sheet: tools, record types, network domains, vault names",
+      "description": "The install sheet: tools, record types, network domains, vault names, scripts, and the steps the sheet check found broken",
       "effects": "read",
       "inputSchema": {
         "properties": {
