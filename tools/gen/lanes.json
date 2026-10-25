@@ -8,7 +8,8 @@
     "L6": ["automations", "journeys", "steps-core", "scheduler-api", "tasks", "runs", "gate", "notifications", "home", "events"],
     "L7a": ["access", "identity", "members", "devices", "spaces", "settings", "vault", "vault-requests", "audit", "governance"],
     "L7b": ["backup", "updates", "network", "health", "logs", "reports-client", "console-views", "console-assistant"],
-    "L8": ["sites", "forms", "campaigns", "templates", "kits", "esign", "portal", "email-builder-api"]
+    "L8": ["sites", "forms", "campaigns", "templates", "esign", "portal", "email-builder-api"],
+    "L10": ["kits"]
   },
   "extras": {
     "hubspot": "L3",
