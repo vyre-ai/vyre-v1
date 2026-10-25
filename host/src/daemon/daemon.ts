@@ -41,6 +41,7 @@ import { withGateNesting } from "./gate-nesting.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
+import { createKeyring } from "../seams/keyring.ts";
 import { createPeopleExtras, githubOAuthFromEnv } from "../seams/people.ts";
 import type { GithubOAuth } from "../seams/people.ts";
 import { createProviderProbe, createVaultService, resolveVaultItem } from "../seams/vault.ts";
@@ -275,6 +276,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // the Vault the connector seams read from: the vault module's own port once it is live and configured, else a refusal
       let vaultImpl: (VaultPort & { pullExport?(exportId: string, token: string): string }) | null = null;
       const vaultPort: VaultPort = { secret: (h, sp) => (vaultImpl ?? refusingVault).secret(h, sp), signRs256: (h, sp, d) => (vaultImpl ?? refusingVault).signRs256(h, sp, d) };
+      // Ruling 62: the person's own key lives here, in memory, only on a node that is theirs: a device-role daemon (their computer), or the Space's owner on their own server
+      const keyring = createKeyring({ allowed: (p) => cfg.roles.includes("device") || p === (cfg.owner ?? access.owner()), now });
+      closers.push(() => keyring.clearAll());
       let peopleExtras: ReturnType<typeof createPeopleExtras> | null = null;   // set once the hook runner exists
       let invokeRef: Invoke = () => Promise.reject(new Error("the invoke pipeline is not ready"));
       const hookRunner = createHookRunner({
@@ -402,7 +406,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       await hookRunner.start();
       // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
       const spaceLog = log;
-      peopleExtras = createPeopleExtras({ access: () => access.snap, db: db!, call: (n, i, as) => hookRunner.call(n, i, as), github: o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env) });
+      peopleExtras = createPeopleExtras({ access: () => access.snap, db: db!, call: (n, i, as) => hookRunner.call(n, i, as), keyring, github: o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env) });
       const system = (cap: string, input: unknown): Promise<unknown> =>
         invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
       // the Space record store the L3 data modules share (P-H_08): one file in the data directory, opened by the first module that needs it, closed at shutdown
@@ -439,6 +443,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           post: { allow: o.seams?.webhookAllow ?? (() => []), now, ...(o.seams?.postFetch ? { fetch: o.seams.postFetch } : {}) },
         }),
         ...spaceStoreDrivers(spaceStore),
+        setVaultKeyPort: () => ({ personKey: async (personId: string) => keyring.get(personId) }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
         configureVault: () => ({ sinks: o.seams?.vaultSinks ?? {}, db: db!, probe: createProviderProbe(), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)

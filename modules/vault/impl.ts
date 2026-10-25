@@ -4,7 +4,8 @@ import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
 import * as u from "./handlers/use.ts";
 import * as pr from "./handlers/providers.ts";
-import { Filler, setFiller } from "./handlers/crypto.ts";
+import { Filler, setFiller, setKeyPort } from "./handlers/crypto.ts";
+import type { KeyPort } from "./handlers/crypto.ts";
 import { deferredHandlers } from "../../host/src/routes/deferred.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
@@ -57,6 +58,7 @@ export const projections = { inline: {}, consumers: {} };
 
 /** What the host gives the module at boot (ruling 31/32): the filler's key (32 bytes, kept in the data directory) and the places a value may be filled into. */
 export const hostSeams: SeamSetters = {
+  setVaultKeyPort: (port: KeyPort | null) => setKeyPort(port),
   setVaultFillerKey: (key: Uint8Array | null) => setFiller(key ? new Filler(key) : null),
   configureVault: u.configureVault,
 };

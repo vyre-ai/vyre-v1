@@ -239,3 +239,86 @@ test("l7 live: whoami names the device of the call, and GitHub sign-in says it i
   assert.notEqual(some.body.error?.message, "GitHub sign-in isn't set up on this server", "with an OAuth app the code goes to GitHub");
   assert.deepEqual(seen, ["https://github.com/login/oauth/access_token", "https://api.github.com/user"]);
 });
+
+// Ruling 62: the signed-in person\'s key, opened with their password at sign-in, held in memory on this node only. Their Mine provider opens for their own turn; nobody else\'s turn can use it; signing out
+// locks it, so does a restart; and nothing key-like reaches the data directory.
+import crypto from "node:crypto";
+import { aesWrap, argon2id, hkdf32 } from "../../kernel/src/seal/index.ts";
+
+function walk(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]));
+}
+
+test("l7 live ruling 62: sign-in unlocks the person's Mine provider for their own turn, another person cannot open it, sign-out and a restart lock it, and the key never reaches disk", async () => {
+  const dir = seededDir();
+  const PASSWORD = "correct horse battery staple 9";
+  const SECRET = "sk-ant-mine-NEVER-ON-DISK";
+  const boot = () => startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0", "--role", "space,device"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux", hostname: "l7-key", free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
+  });
+  let d = await boot();
+  const post = async (token: string | null, p: string, body: unknown): Promise<{ status: number; body: any }> => {
+    const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
+    return { status: r.status, body: await r.json() };
+  };
+  const personKey = crypto.randomBytes(32);
+  try {
+    const made = await post(d.token, "/v1/members/invites/create", { role: "member", idempotencyKey: "l7-key-invite" });
+    assert.equal(made.status, 200, JSON.stringify(made.body));
+    const code = decodeURIComponent((made.body.data.link as string).split("/").pop() ?? "");
+    // the device wraps the person key under the password (Argon2id with the person as salt, then HKDF), exactly as identity unwraps it; the person id is minted by the server, so the join says who they are first
+    const probe = await post(null, "/v1/invites/accept_create_account", { code, username: "keyed", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop", keys: { personKeyByPassword: "AAAA", publicKey: "cHVibGlj", privateKeyWrapped: "cHJpdmF0ZQ==", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2U=" }] } });
+    assert.equal(probe.status, 200, JSON.stringify(probe.body));
+    const person = (probe.body.data.session?.sessionId, (await post(probe.body.data.session.token, "/v1/identity/whoami", {})).body.data.principal.id) as string;
+    const wrapKey = hkdf32(argon2id(PASSWORD, `vyre-person-key:${person}`), "vyre:personkey:v1", "wrap");
+    const bundle = Buffer.from(JSON.stringify(aesWrap(wrapKey, personKey, `vyre:personkey:${person}`))).toString("base64");
+    const put = await post(probe.body.data.session.token, "/v1/identity/keys_put", { reason: "password_change", keys: { personKeyByPassword: bundle, publicKey: "cHVibGlj", privateKeyWrapped: "cHJpdmF0ZQ==", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2U=" }] } });
+    assert.equal(put.status, 200, JSON.stringify(put.body));
+
+    const signIn = async (): Promise<string> => {
+      const r = await post(null, "/v1/identity/sign_in", { username: "keyed", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop" });
+      assert.equal(r.status, 200, JSON.stringify(r.body));
+      return r.body.data.session.token as string;
+    };
+    const t1 = await signIn();
+    const added = await post(t1, "/v1/providers/add", { providerKey: "anthropic", connection: "api_key", scope: "mine", apiKey: SECRET, idempotencyKey: "l7-key-provider" });
+    assert.equal(added.status, 200, "signed in, the person saves a Mine key: " + JSON.stringify(added.body));
+    const fillOwn = (token: string) => post(token, "/v1/vault/fill", { handle: "#Anthropic.api_key", target: { kind: "env", ref: "x" }, returnValue: true });
+    const own = await fillOwn(t1);
+    assert.equal(own.status, 200, JSON.stringify(own.body));
+    assert.equal(own.body.data.value, SECRET, "their own turn opens their Mine key");
+
+    const other = await fillOwn(d.token);
+    assert.notEqual(other.status, 200, "the owner of the Space is another person here: their turn cannot open it");
+    assert.ok(!JSON.stringify(other.body).includes(SECRET));
+
+    const t2 = await signIn();
+    assert.equal((await fillOwn(t2)).status, 200);
+    const out = await post(t1, "/v1/identity/sign_out", {});
+    assert.equal(out.status, 200, JSON.stringify(out.body));
+    const locked = await fillOwn(t2);
+    assert.equal(locked.body.error?.code, "auth.unauthenticated", "after sign-out the key is gone from memory: " + JSON.stringify(locked.body));
+
+    const t3 = await signIn();
+    assert.equal((await fillOwn(t3)).status, 200, "signing in again unlocks it");
+    await d.stop();
+    d = await boot();
+    const after = await fillOwn(t3);
+    assert.equal(after.body.error?.code, "auth.unauthenticated", "a restart forgets the key: the session survives, the unlock does not");
+    // nothing key-like on disk: not the raw person key, nor its hex or base64, and not the Mine value
+    for (const f of walk(dir)) {
+      const bytes = fs.readFileSync(f);
+      for (const needle of [personKey, Buffer.from(personKey.toString("hex")), Buffer.from(personKey.toString("base64")), Buffer.from(SECRET)]) assert.ok(!bytes.includes(needle), `${path.basename(f)} holds nothing key-like`);
+    }
+  } finally { await d.stop(); }
+});

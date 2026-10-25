@@ -2,6 +2,7 @@
 // The server keeps a salted Argon2id verifier of the login secret, never the secret, and never an unwrapped key.
 // Durable tables: migrations/0001_identity.sql. Handlers reach them only through ctx.db.
 // Crypto comes from the kernel (argon2id, sha-256, constant-time compare) and the platform WebCrypto (random bytes, HMAC-SHA1 for TOTP); modules import no crypto themselves (B3).
+import { unwrapPersonKey } from "./handlers/personkey.ts";
 import { argon2id } from "../../kernel/src/identity/stretch.ts";
 import { sameMac, sha256b64 } from "../../kernel/src/seal/wire.ts";
 import { fail } from "../../host/src/routes/errors.ts";
@@ -28,11 +29,20 @@ export interface IdentityCtx {
   /** GitHub OAuth code exchange, built by the host from ctx.http (egress github.com). */
   github?: Github;
   /** Roles and groups of a person, read through the access projection by the host. */
+  /** The person keys held in daemon memory on this node (ruling 62): hold at sign-in with the password, stage while a second factor is owed, clear at sign-out. Absent: nothing is unlocked. */
+  keyring?: Keyring;
   directory?: { of(personId: string): { roles: string[]; groups: string[] } };
   /** Invites, supplied by the members module through the host: peek never spends, accept marks the invite accepted and puts the person in the Space with its role and groups. */
   invites?: { peek(code: string): Invite | "invalid" | "expired" | Promise<Invite | "invalid" | "expired">; accept(inviteId: string, personId: string): void | Promise<void> };
   /** Counts for the reset preview, supplied by the vault, chat and memory modules through the host. */
   losses?: { of(personId: string): { vault_mine: number; private_chats: number; personal_memory: number } };
+}
+
+export interface Keyring {
+  hold(personId: string, key: Uint8Array): void;
+  clear(personId: string): void;
+  stage(challengeId: string, personId: string, key: Uint8Array): void;
+  release(challengeId: string): void;
 }
 
 export interface Invite { inviteId: string; role: string; groups: string[]; invitedBy: string }
@@ -255,8 +265,9 @@ export function endSessionRow(ctx: IdentityCtx, personId: string, sessionId: str
   const got = ctx.db.run(`UPDATE identity_sessions SET revoked_at = ? WHERE id = ? AND person_id = ? AND revoked_at IS NULL`, ctx.now(), sessionId, personId);
   if (got.changes > 0) sessionTokens?.end(sessionId);
 }
-/** Revoke every live session of a person, except one when given, here and at the gateway. */
+/** Revoke every live session of a person, except one when given, here and at the gateway. A password change or reset also takes their key out of memory. */
 export function revokeSessions(ctx: IdentityCtx, personId: string, except?: string): void {
+  ctx.keyring?.clear(personId);
   const live = ctx.db.all(`SELECT id FROM identity_sessions WHERE person_id = ? AND revoked_at IS NULL AND id != ?`, personId, except ?? "") as { id: string }[];
   ctx.db.run(`UPDATE identity_sessions SET revoked_at = ? WHERE person_id = ? AND revoked_at IS NULL AND id != ?`, ctx.now(), personId, except ?? "");
   for (const r of live) sessionTokens?.end(r.id);
@@ -305,4 +316,10 @@ export async function provisionAccount(ctx: IdentityCtx, p: { personId: string; 
     `INSERT INTO identity_accounts (person_id, username, name, verifier, totp_secret, totp_last_step, github_id, github_login, keys_json, recovery_hash, fails, locked_until, epoch, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     p.personId, p.username, p.name, verifier, null, 0, null, null, null, null, 0, 0, 0, ctx.now());
   return mustAccount(ctx, p.personId);
+}
+
+/** The person key the password opens from their stored bundle, or null. */
+export function personKeyOf(a: Account, password: string): Uint8Array | null {
+  const keys = bundleOf(a);
+  return keys ? unwrapPersonKey(password, a.person_id, keys.personKeyByPassword) : null;
 }
