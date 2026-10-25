@@ -95,7 +95,7 @@ export function Tool({ icon, label, onPress, active = false, testID }: { icon: I
 /** The on/off switch of a routine. */
 export function Switch({ on, label, onPress, testID }: { on: boolean; label: string; onPress: () => void; testID?: string }): ReactElement {
   return (
-    <Pressable accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: on }} onPress={onPress} testID={testID} style={[s.switchTrack, on && s.switchOn]}>
+    <Pressable role="switch" aria-label={label} aria-checked={on} onPress={onPress} testID={testID} style={[s.switchTrack, on && s.switchOn]}>
       <View style={[s.switchKnob, on && s.switchKnobOn]} />
     </Pressable>
   );

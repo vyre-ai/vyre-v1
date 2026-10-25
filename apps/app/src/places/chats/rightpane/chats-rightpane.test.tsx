@@ -80,7 +80,8 @@ test("Computer, working: the live caption, steps in order, and the sites it is s
   assert.ok(has(out, "Working: Filling the county records form"));
   assert.ok(has(out, 'data-testid="computer-screen"') && has(out, 'data-testid="computer-take"') && has(out, 'data-testid="computer-terminal"') && has(out, 'data-testid="computer-pop"'));
   assert.ok(has(out, ">Session<") && has(out, ">5 steps<"));
-  inOrder(out, ["Opened the county records site", "Searched for Rivera, Elena", "Saved the 2019 deed to Files", "Checked the filing date", "Filling the county records form"]);
+  const session = out.slice(at(out, ">Session<"));
+  inOrder(session, ["Opened the county records site", "Searched for Rivera, Elena", "Saved the 2019 deed to Files", "Checked the filing date", "Filling the county records form"]);
   assert.ok(has(out, "Chrome · now") && has(out, "Chrome · 9 min ago"));
   inOrder(out, ["Signed in on its computer", "Google Workspace", "Web form inbox", "Calendar"]);
   assert.ok(has(out, "intake@northwind.example · since 2 Oct"));
@@ -106,14 +107,15 @@ test("Threads: the threads it worked in, its helpers (running first), and its ow
   const out = html(createSample(), "threads");
   inOrder(out, ["Threads it worked in", "#intake · Elena Rivera referral", "#billing · Retainer question", ">Helpers<", "County mirrors", "Firms 1–3", "Its chats", "Rivera intake", "Weekly lead report", "Lead follow-ups"]);
   assert.ok(has(out, "Working now") && has(out, "Started 32 min ago") && has(out, "Started Yesterday"));
-  assert.ok(has(tagOf(out, "row-chat-c1"), 'aria-selected="true"'), "the open chat reads as selected");
+  assert.ok(has(tagOf(out, "row-chat-c1"), "background-color:var(--sel)"), "the open chat reads as selected");
+  assert.ok(!has(tagOf(out, "row-thread-th_a"), "background-color:var(--sel)"), "a thread is not selected");
   for (const id of ["thread-th_a", "helper-h4", "chat-c1"]) assert.ok(has(out, `data-testid="row-${id}"`), id);
 });
 
 test("Files: the agent's folder, folders first, then files; the footer says who writes what", () => {
   const out = html(createSample(), "files");
   assert.ok(has(out, "Intake's folder") && has(out, "Mounted as ~/Vyre"));
-  inOrder(out, ["downloads", "inbox", "knowledge", "logs", "memory", "routines", "skills", "work", "AGENT.md", "agent.toml"]);
+  inOrder(out, [">downloads<", ">inbox<", ">knowledge<", ">logs<", ">memory<", ">routines<", ">skills<", ">work<", ">AGENT.md<", ">agent.toml<"]);
   assert.ok(has(out, "1 file, 2 folders") && has(out, "2 KB · updated 22 Oct") && has(out, "940 B"));
   assert.ok(has(out, "People write AGENT.md. Only the owner changes agent.toml. Vyre owns logs and chats."));
 });
@@ -156,7 +158,9 @@ test("Routines: on first by next run, paused last; the on count, switches, and t
   const out = html(createSample(), "routines");
   inOrder(out, ["Morning lead sweep", "Weekly lead report", "Chase missing intake forms", "New routine"]);
   assert.ok(has(out, ">2 on<") && has(out, "Weekdays at 08:00 · next Mon 08:00") && has(out, "Every Friday at 09:00 · next 31 Oct") && has(out, "Paused · Every day at 17:00"));
-  assert.ok(has(out, 'data-testid="routine-switch-r3"') && has(out, 'aria-checked="true"') && has(out, 'aria-checked="false"'));
+  assert.ok(has(out, 'data-testid="routine-switch-r3"'), "a switch on every routine");
+  assert.ok(has(tagOf(out, "routine-switch-r3"), 'aria-checked="true"'), "Morning lead sweep is on");
+  assert.ok(has(tagOf(out, "routine-switch-r5"), 'aria-checked="false"'), "Chase missing intake forms is paused");
   for (const x of ["Every morning at 8, …", "When someone mentions …", "Every Friday, summarise …"]) assert.ok(has(out, x), x);
   assert.ok(has(out, "Routines are made by asking Intake. Pick a start and finish the sentence in the chat."));
 });
