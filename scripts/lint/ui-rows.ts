@@ -20,9 +20,8 @@ export function checkUiRows(file: string, source: string): Finding[] {
   }
   starts.sort((a, b) => a - b);
   for (const start of starts) {
-    const arrow = source.indexOf("=>", start);
-    if (arrow < 0 || arrow - start > 500) continue;
-    const tag = firstJsxTag(source, arrow + 2, 800);
+    // only a callback that returns JSX is list rendering; a data transform (.map(x => x.id), a callback that returns a string or an object) is not
+    const tag = returnedJsx(source, start);
     if (!tag) continue;
     if (!isRowTag(tag.tag)) {
       out.push(finding(RULE, file, source, tag.index, "every list item is a ui/Row"));
@@ -42,6 +41,72 @@ export function checkUiRows(file: string, source: string): Finding[] {
     }
   }
   return out;
+}
+
+/**
+ * The JSX element a callback hands back, or null when it returns anything else. `start` is the `.map(` or `renderItem:` that opens the callback. The callback is an arrow function or a
+ * `function`; its result is JSX when the arrow's body, or a top-level `return` of a block body, begins with `<Tag` (parentheses around it are fine). Returns inside nested functions are
+ * not this callback's; a nested `.map(` is looked at on its own.
+ */
+function returnedJsx(source: string, start: number): { tag: string; index: number } | null {
+  const head = source.slice(start, start + 500);
+  const arrowAt = head.indexOf("=>");
+  const fnAt = head.search(/\bfunction\b/);
+  // the callback must be this call's own argument: its parameters close before the call's own parenthesis does
+  const stop = arrowAt >= 0 ? (fnAt >= 0 ? Math.min(arrowAt, fnAt) : arrowAt) : fnAt;
+  if (stop < 0) return null;
+  const floor = source[start] === "." ? 1 : 0;
+  let depth = 0;
+  for (let k = 0; k < stop; k++) {
+    const c = head[k];
+    if (c === "(") depth++;
+    else if (c === ")") { depth--; if (depth < floor) return null; }
+    else if (c === ";") return null;
+  }
+  let bodyAt: number;
+  if (arrowAt >= 0 && (fnAt < 0 || arrowAt < fnAt)) bodyAt = start + arrowAt + 2;
+  else if (fnAt >= 0) {
+    const brace = source.indexOf("{", start + fnAt);
+    if (brace < 0 || brace - start > 500) return null;
+    bodyAt = brace;
+  } else return null;
+  let i = bodyAt;
+  while (i < source.length && /[\s(]/.test(source[i] as string)) i++;
+  if (source[i] === "{") return jsxReturnIn(source, i);
+  return jsxAt(source, i);
+}
+
+/** `<Tag` at `i` as the start of an expression. */
+function jsxAt(source: string, i: number): { tag: string; index: number } | null {
+  if (source[i] !== "<") return null;
+  const m = /^<([A-Za-z][\w.]*)/.exec(source.slice(i, i + 200));
+  return m ? { tag: m[1] as string, index: i } : null;
+}
+
+/** The first top-level `return <Tag` of the block that opens at `open`. */
+function jsxReturnIn(source: string, open: number): { tag: string; index: number } | null {
+  let depth = 0;
+  let quote = "";
+  for (let i = open; i < source.length; i++) {
+    const c = source[i] as string;
+    if (quote) {
+      if (c === "\\") i++;
+      else if (c === quote) quote = "";
+      continue;
+    }
+    if (c === "'" || c === "\"" || c === "`") { quote = c; continue; }
+    if (c === "/" && source[i + 1] === "/") { i = source.indexOf("\n", i); if (i < 0) return null; continue; }
+    if (c === "/" && source[i + 1] === "*") { i = source.indexOf("*/", i + 2); if (i < 0) return null; i++; continue; }
+    if (c === "{") depth++;
+    else if (c === "}") { depth--; if (depth === 0) return null; }
+    else if (depth === 1 && source.startsWith("return", i) && !/[\w$]/.test(source[i - 1] ?? "") && !/[\w$]/.test(source[i + 6] ?? "")) {
+      let j = i + 6;
+      while (j < source.length && /[\s(]/.test(source[j] as string)) j++;
+      const hit = jsxAt(source, j);
+      if (hit) return hit;
+    }
+  }
+  return null;
 }
 
 function isRowTag(tag: string): boolean {
@@ -68,34 +133,6 @@ function hasPartialWidth(text: string): boolean {
     if (v !== '"stretch"' && v !== "'stretch'" && v !== "`stretch`") return true;
   }
   return false;
-}
-
-/** First JSX tag after `from`. Skips comparisons and TypeScript generics. */
-function firstJsxTag(source: string, from: number, limit: number): { tag: string; index: number } | null {
-  const end = Math.min(source.length, from + limit);
-  let quote = "";
-  for (let i = from; i < end; i++) {
-    const c = source[i];
-    if (quote) {
-      if (c === "\\") {
-        i++;
-        continue;
-      }
-      if (c === quote) quote = "";
-      continue;
-    }
-    if (c === "'" || c === "\"" || c === "`") {
-      quote = c;
-      continue;
-    }
-    if (c !== "<" || !/[A-Za-z]/.test(source[i + 1] || "")) continue;
-    const prev = source.slice(Math.max(0, i - 24), i).replace(/\s+$/, "");
-    const token = prev.match(/([\w.]+)$/)?.[1] ?? "";
-    if (token && token !== "return") continue;
-    const m = /^<([A-Za-z][\w.]*)/.exec(source.slice(i));
-    if (m) return { tag: m[1], index: i };
-  }
-  return null;
 }
 
 function openingTagEnd(source: string, start: number): number {

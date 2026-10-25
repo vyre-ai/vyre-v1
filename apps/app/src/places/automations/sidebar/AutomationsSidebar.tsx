@@ -23,6 +23,8 @@ export type SidebarTab = "automations" | "journeys";
 
 export interface SidebarProps {
   selectedId?: string | null;
+  /** The Journey open beside the sidebar; its row is the quiet selected row. */
+  selectedJourneyId?: string | null;
   initialTab?: SidebarTab;
   /** Automations other people own that were shared with this person. */
   shared?: ReadonlySet<string>;
@@ -33,7 +35,7 @@ export interface SidebarProps {
 
 const EMPTY: readonly string[] = [];
 
-export function AutomationsSidebar({ selectedId = null, initialTab = "automations", shared, reasons, initialOpen = EMPTY }: SidebarProps): ReactElement {
+export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null, initialTab = "automations", shared, reasons, initialOpen = EMPTY }: SidebarProps): ReactElement {
   const data = useAutomationsData();
   const [tab, setTab] = useState<SidebarTab>(initialTab);
   const [q, setQ] = useState("");
@@ -183,7 +185,7 @@ export function AutomationsSidebar({ selectedId = null, initialTab = "automation
   const journeyRows: ReactElement[] = [];
   for (const j of journeys) {
     if (q && !j.name.toLowerCase().includes(q.trim().toLowerCase())) continue;
-    journeyRows.push(<Row key={j.id} id={`journey-${j.id}`} title={j.name} note={journeyNote(j)} leading={<View style={sb.lead}><Glyph name="journey" size={15} color="var(--ink-3)" /></View>} onPress={() => data.nav.openJourney(j.id)} />);
+    journeyRows.push(<Row key={j.id} id={`journey-${j.id}`} title={j.name} note={journeyNote(j)} selected={selectedJourneyId === j.id} leading={<View style={sb.lead}><Glyph name="journey" size={15} color="var(--ink-3)" /></View>} onPress={() => data.nav.openJourney(j.id)} />);
   }
 
   const tabs = [{ key: "automations", label: "Automations", note: String(autos.length) }, { key: "journeys", label: "Journeys", note: String(journeys.length) }];

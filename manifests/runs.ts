@@ -11,11 +11,13 @@ const runStatus = t.enm('queued', 'running', 'waiting', 'succeeded', 'failed', '
 const waitReason = t.enm('approval', 'background', 'key');
 const stepState = t.enm('pending', 'running', 'succeeded', 'failed', 'skipped', 'waiting', 'stopped');
 
+// What woke a Run that an event started: the message, its thread and the channel (a watcher routine), so the agent answers that message.
+const runTrigger = t.obj({ messageId: id.message, threadId: id.thread, channelId: t.opt(id.channel) });
 const runRow = t.obj({
   id: id.run, kind: runKind, name: t.opt(t.str()), owner: t.str({ examples: ['usr_a1b2c3'] }), startedBy: t.str(), subject: t.opt(resourceRef),
   status: runStatus, waitReason: t.opt(waitReason), definitionVersion: t.opt(t.int()), keyUsed: t.opt(t.str()), modelUsed: t.opt(t.str()),
   costMicros: t.int({ minimum: 0 }), startedAt: t.ts(), endedAt: t.opt(t.ts()), parentRun: t.opt(id.run), threadId: t.opt(id.thread),
-  traceId: id.trace, summary: t.opt(t.str({ description: 'One-line result' })),
+  traceId: id.trace, summary: t.opt(t.str({ description: 'One-line result' })), trigger: t.opt(runTrigger),
 });
 const stepRow = t.obj({
   step: t.str({ examples: ['step_1'] }), attempt: t.int({ minimum: 1 }), state: stepState, branch: t.opt(t.str()),
@@ -91,7 +93,7 @@ export default defineManifest({
     write('runs.start', 'Create a Run record (engine, Gate and other modules call this for any long-lived work)', {
       in: {
         kind: runKind, name: t.opt(t.str()), owner: t.str(), subject: t.opt(resourceRef), definitionVersion: t.opt(t.int()), parentRun: t.opt(id.run),
-        threadId: t.opt(id.thread), keyUsed: t.opt(t.str()), modelUsed: t.opt(t.str()),
+        threadId: t.opt(id.thread), keyUsed: t.opt(t.str()), modelUsed: t.opt(t.str()), trigger: t.opt(runTrigger),
       },
       out: runStarted, emits: ['run.started'], idem: 'key',
     }),

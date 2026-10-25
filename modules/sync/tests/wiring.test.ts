@@ -18,7 +18,7 @@ test("toPullCtx carries person, device and trace, and defaults the class", () =>
 });
 
 test("P-H_02: the impl exposes a handlers map the loader can read, and sync.push refuses until the host gives it its dependencies", async () => {
-  assert.deepEqual(Object.keys(handlers).sort(), ["sync.pull", "sync.push", "sync.snapshot.begin", "sync.snapshot.page"]);
+  assert.deepEqual(Object.keys(handlers).sort(), ["sync.acl.reindex", "sync.epoch.bump", "sync.pull", "sync.push", "sync.snapshot.begin", "sync.snapshot.page"]);
   const trace = { traceId: "0123456789abcdef0123456789abcdef", spanId: "0123456789abcdef" };
   setPushDeps(null);
   await assert.rejects(async () => handlers["sync.push"]({ trace, principal: { kind: "person", id: "usr_dana" }, device: "dev_a" }, {} as never), (e: { error?: { code?: string } }) => e.error?.code === "internal.unavailable");
