@@ -1,3 +1,4 @@
+// @reads /scripts/shots/mounts/P-L9c_02.tsx
 // Inbox > contact tab (spec 3.3, 2.18, 2.14): the whole history in reading order with the quoted text folded, text bubbles, calls with the player and transcript, campaign steps as quiet lines, record chips,
 // the composer that switches Email and Text and picks the sending inbox, and an agent's draft with its Gate line. Sends go through mail.send and telephony.send_sms; the sample replica shows the result.
 import test from "node:test";
