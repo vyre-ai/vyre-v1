@@ -37,13 +37,26 @@ const KIND_ICON: Readonly<Record<HomeItemKind, string>> = {
   agent: "", assistant: "", person: "",
 };
 
-function Lead({ item }: { item: HomeSidebarItem }): ReactElement {
-  if (item.kind === "agent" || item.kind === "assistant" || item.kind === "person") return <Avatar name={item.kind === "assistant" ? "Assistant" : item.title} kind={item.kind === "person" ? "person" : item.kind === "assistant" ? "assistant" : "agent"} size={16} />;
-  return <MenuIcon icon={KIND_ICON[item.kind]} color="var(--ink-3)" />;
+const DOTS = ["#2F9E6B", "#C77A2B", "#D64545", "#3B82C4", "#8B5CF6"];
+function dotColor(title: string): string {
+  let h = 7;
+  for (const c of title) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return DOTS[h % DOTS.length] as string;
 }
 
-function Count({ n }: { n: number }): ReactElement {
-  return <Text style={s.count}>{String(n)}</Text>;
+/** The gap between a leading icon and the title (the Row's slot has none of its own). */
+function Gap({ children }: { children: ReactNode }): ReactElement {
+  return <View style={s.lead}>{children}</View>;
+}
+
+function Lead({ item }: { item: HomeSidebarItem }): ReactElement {
+  if (item.kind === "project" || item.kind === "record") return <Gap><View style={[s.dot, { backgroundColor: dotColor(item.title) }]} /></Gap>;
+  if (item.kind === "agent" || item.kind === "assistant" || item.kind === "person") return <Gap><Avatar name={item.kind === "assistant" ? "Assistant" : item.title} kind={item.kind === "person" ? "person" : item.kind === "assistant" ? "assistant" : "agent"} size={16} /></Gap>;
+  return <Gap><MenuIcon icon={KIND_ICON[item.kind]} color="var(--ink-3)" /></Gap>;
+}
+
+function Count({ n, hot = false }: { n: number; hot?: boolean }): ReactElement {
+  return hot ? <View style={s.badge}><Text style={s.badgeText}>{String(n)}</Text></View> : <Text style={s.count}>{String(n)}</Text>;
 }
 
 export function HomeSidebarItems({ query, slot }: { query: string; slot?: SidebarSlotApi }): ReactElement {
@@ -58,8 +71,8 @@ export function HomeSidebarItems({ query, slot }: { query: string; slot?: Sideba
       {each(fixed, (r) => (
         <View key={r.id} style={r.child === true ? s.child : undefined}>
           <Row id={`hs-${r.id}`} title={r.title} selected={(host.selected ?? "home") === r.id} onPress={() => open(r.target)}
-            leading={r.id === "home" ? <MenuIcon icon={iconMarkup("home")} color="var(--ink-3)" /> : r.id === "work" ? <MenuIcon icon={WORK} color="var(--ink-3)" /> : <MenuIcon icon={r.id === "assigned" ? ASSIGNED : RUNS} color="var(--ink-3)" />}
-            trailing={r.count !== undefined ? <Count n={r.count} /> : undefined} emphasis={r.id === "work"} />
+            leading={<Gap><MenuIcon icon={r.id === "home" ? iconMarkup("home") : r.id === "work" ? WORK : r.id === "assigned" ? ASSIGNED : RUNS} color="var(--ink-3)" /></Gap>}
+            trailing={r.count !== undefined ? <Count n={r.count} hot={r.id === "work"} /> : undefined} />
         </View>
       ))}
       {each(folders, (f) => (
@@ -93,6 +106,10 @@ const s = StyleSheet.create({
   scroll: { flex: 1 },
   body: { paddingHorizontal: 8, paddingBottom: 16 },
   child: { paddingLeft: 14 },
+  lead: { marginRight: 8, minWidth: 16, alignItems: "center", justifyContent: "center" },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  badge: { minWidth: 18, height: 18, paddingHorizontal: 5, borderRadius: 9, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
+  badgeText: { color: "#FFFFFF", fontSize: 11, fontWeight: "600" },
   count: { color: "var(--ink-4)" as string, fontSize: 11.5 },
   folder: { flexDirection: "row", alignItems: "center", gap: 4, height: 28, marginTop: 10, paddingHorizontal: 8, borderRadius: 6 },
   folderTitle: { color: "var(--ink-3)" as string, fontSize: 12, fontWeight: "600" },
