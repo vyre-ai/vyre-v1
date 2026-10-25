@@ -1,4 +1,4 @@
-// P-L9_16 notifications UI: Interrupt banners with inline actions, collapse by key, three at most, place marks, the offline queue line.
+// P-L9_16 notifications UI: Interrupt banners with inline actions, collapse by key, three at most, place marks, the offline queue line. (runs with the packet)
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
