@@ -31,13 +31,20 @@ export interface CliProcess {
 export interface Launcher { spawn(spec: LaunchSpec): Promise<CliProcess> }
 
 /** Where the CLI reaches Vyre: the loopback MCP server's address and this session's token. */
-export interface McpEndpoint { url: string; token: string }
+export interface McpEndpoint {
+  url: string;
+  token: string;
+  /** Inside a sandbox the loopback port is out of reach: the engine runs `node <shim> <path>` as its MCP server and the shim talks to this unix socket (agent/src/mcp/socket.ts). `url` is then unused. */
+  socket?: { path: string; shim: string };
+}
 
 export interface CommandOptions {
   model: string | null;
   /** The engine's own session id to continue, from a checkpoint. */
   resume: string | null;
   mcpUrl: string;
+  /** Set when the engine reaches Vyre through the sandbox's socket and stdio shim instead of the URL. */
+  mcpSocket?: { path: string; shim: string };
   planMode: boolean;
   /** A granted work folder: the CLI's own file tools come on and it works there. Null on a chat that runs Vyre tools only. */
   workFolder: string | null;
