@@ -38,6 +38,7 @@ type Out = {
     id: string;
     e164: string;
     title: string;
+    displayName?: string;
     capabilities: Array<"voice" | "sms" | "mms">;
     assigneeKind: "person" | "agent" | "inbox";
     assigneeId?: string;
@@ -92,6 +93,7 @@ type Out = {
       "capabilities": [
         "voice"
       ],
+      "displayName": "Intake line",
       "e164": "+14155550123",
       "hours": {
         "outsideHours": "voicemail",
