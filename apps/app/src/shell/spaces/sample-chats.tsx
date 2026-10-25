@@ -6,7 +6,7 @@ import { ChatsPlace } from "../../places/chats/ChatsPlace.tsx";
 import { createSample as createConversationSample } from "../../places/chats/conversation/sample.ts";
 import { createSample as createPaneSample } from "../../places/chats/rightpane/sample.ts";
 import { createSampleSidebar, harbor, northwind } from "../../places/chats/sidebar/sample.ts";
-import { homePlace } from "./sample-home.tsx";
+import { samplePlace } from "./sample.tsx";
 import type { PlaceContext } from "./Shell.tsx";
 
 function ChatsBody({ spaceId }: { spaceId: string }): ReactElement {
@@ -17,8 +17,8 @@ function ChatsBody({ spaceId }: { spaceId: string }): ReactElement {
   return <ChatsPlace sidebar={parts.sidebar} conversation={parts.conversation} pane={parts.pane} window={{ start: 0, end: 500 }} />;
 }
 
-/** renderPlace for the shell: Home and Chats are the real pages, every other place the sample rows. */
+/** renderPlace for the shell: Chats is the real page, every other place the sample rows. */
 export function chatsPlace(ctx: PlaceContext): ReactNode {
   if (ctx.place === "chats") return <ChatsBody key={ctx.spaceId} spaceId={ctx.spaceId} />;
-  return homePlace(ctx);
+  return samplePlace(ctx);
 }
