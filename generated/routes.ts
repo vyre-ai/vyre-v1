@@ -16999,7 +16999,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "file",
+      "type": "note",
       "id": "/noteId"
     },
     "idempotency": "natural",
@@ -17018,7 +17018,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "manage",
     "resource": {
-      "type": "file",
+      "type": "note",
       "id": "/noteId"
     },
     "idempotency": "natural",
@@ -17055,7 +17055,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "file",
+      "type": "note",
       "id": "/noteId"
     },
     "idempotency": "natural",
