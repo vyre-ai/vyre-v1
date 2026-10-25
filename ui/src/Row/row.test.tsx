@@ -30,3 +30,18 @@ test("the note renders after the title in the same text column", () => {
   const html = renderToStaticMarkup(<Row title="Launch checklist" note="Updated yesterday" />);
   assert.ok(html.indexOf("Launch checklist") < html.indexOf("Updated yesterday"));
 });
+
+test("leading and trailing slots sit inside the painted row, around the text, with no overlay", () => {
+  const html = renderToStaticMarkup(<Row id="s" title="Clients" selected leading={<i>L</i>} trailing={<b>T</b>} />);
+  assert.match(html, /background-color:var\(--sel\)/);
+  assert.ok(html.indexOf("<i>L</i>") < html.indexOf("Clients") && html.indexOf("Clients") < html.indexOf("<b>T</b>"));
+  assert.match(html, /data-testid="row-s-leading"/);
+  assert.match(html, /data-testid="row-s-trailing"/);
+  assert.doesNotMatch(html, /position:absolute/);
+  assert.match(html, /height:28px/);
+});
+
+test("a row without slots renders no slot wrappers", () => {
+  const html = renderToStaticMarkup(<Row id="n" title="Inbox" />);
+  assert.doesNotMatch(html, /row-n-leading|row-n-trailing/);
+});
