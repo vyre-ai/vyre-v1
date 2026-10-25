@@ -174,7 +174,7 @@ test("HTTP over a unix socket: the API version prefix, the query string, the JSO
   });
   await new Promise<void>((r) => server.listen(sock, r));
   try {
-    const call = unixSocketHttp(sock);
+    const call = unixSocketHttp(sock, "v1.43");   // pinned: no /version round trip (the negotiation has its own test, sandbox.apiversion.test.ts)
     const a = await call({ method: "POST", path: "/containers/create", query: { name: "vyre-sbx-dana" }, json: { Image: "x" } });
     assert.equal(a.status, 201);
     assert.deepEqual(JSON.parse(new TextDecoder().decode(a.body)), { Id: "abc" });
@@ -185,7 +185,7 @@ test("HTTP over a unix socket: the API version prefix, the query string, the JSO
     assert.equal(seen[1]!.body, "\u0001\u0002\u0003");
     assert.equal(seen[1]!.url, "/v1.43/containers/abc/archive?path=%2Fhome%2Fagent");
     await assert.rejects(() => call({ method: "GET", path: "/slow", timeoutMs: 150 }), /did not answer/);
-    await assert.rejects(() => unixSocketHttp(path.join(dir, "missing.sock"))({ method: "GET", path: "/_ping" }));
+    await assert.rejects(() => unixSocketHttp(path.join(dir, "missing.sock"), "v1.43")({ method: "GET", path: "/_ping" }));
   } finally { server.closeAllConnections?.(); await new Promise<void>((r) => server.close(() => r())); fs.rmSync(dir, { recursive: true, force: true }); }
 });
 

@@ -10,6 +10,7 @@ import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from
 import type { ViewStyle } from "react-native";
 import { isHead, isItem, isReportItem, isSeparator, resolveMenuItems } from "./props.ts";
 import type { MenuEntry, MenuItem, MenuProps, MenuSource } from "./props.ts";
+import { MenuPortal } from "./portal.tsx";
 
 export type { MenuEntry, MenuHead, MenuItem, MenuProps, MenuSeparator, MenuSource } from "./props.ts";
 export { REPORT_A_PROBLEM, appendReportProblem, resolveMenuItems } from "./props.ts";
@@ -314,6 +315,7 @@ export function Menu(props: MenuViewProps): ReactElement | null {
   }
 
   return (
+    <MenuPortal>
     <View style={styles.layer} testID="menu-layer" pointerEvents="box-none">
       <Pressable
         accessibilityLabel="Close menu"
@@ -335,6 +337,7 @@ export function Menu(props: MenuViewProps): ReactElement | null {
         {rows}
       </View>
     </View>
+    </MenuPortal>
   );
 }
 
@@ -351,8 +354,9 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
   nodeRef: (node: unknown) => void;
 }): ReactElement {
   const report = isReportItem(entry);
-  const ink = lit ? (entry.danger === true ? "#fff" : "var(--accent-ink, #fff)") : (entry.danger === true ? "var(--danger)" : "var(--ink)");
-  const wash = lit ? { backgroundColor: entry.danger === true ? "var(--danger)" : "var(--accent)" } : null;
+  // the quiet prototype highlight: the hover wash, the same ink; never a filled accent box
+  const ink = entry.danger === true ? "var(--danger)" : "var(--ink)";
+  const wash = lit ? { backgroundColor: "var(--hover)" } : null;
   return (
     <Pressable
       ref={nodeRef}
@@ -368,7 +372,8 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
     >
       {entry.icon !== undefined && entry.icon.length > 0 ? <MenuIcon icon={entry.icon} color={ink} /> : null}
       <Text numberOfLines={1} style={[styles.label, { color: ink }]}>{entry.label}</Text>
-      {entry.checked === true ? <Text style={[styles.check, { color: ink }]}>{"✓"}</Text> : null}
+      {entry.count !== undefined ? <Text style={styles.count} testID={`menu-count-${entry.label}`}>{entry.count}</Text> : null}
+      {entry.checked === true ? <Text style={[styles.check, entry.count !== undefined && styles.checkAfterCount, { color: ink }]}>{"✓"}</Text> : null}
     </Pressable>
   );
 }
@@ -453,9 +458,12 @@ const styles = StyleSheet.create({
     backgroundColor: "var(--raised)" as string,
     boxShadow: "var(--sh-pop)" as string,
   },
-  item: { flexDirection: "row", alignItems: "center", height: 28, paddingHorizontal: 9, borderRadius: 6, gap: 9, width: "100%" },
+  // the lit row is the wash; the browser focus ring would draw a black box around it
+  item: { flexDirection: "row", alignItems: "center", height: 28, paddingHorizontal: 9, borderRadius: 6, gap: 9, width: "100%", ...({ outlineStyle: "none" } as ViewStyle) },
   label: { flexShrink: 1, fontSize: 13, lineHeight: 18 },
   check: { marginLeft: "auto", fontSize: 12 },
+  checkAfterCount: { marginLeft: 0 },
+  count: { marginLeft: "auto", minWidth: 24, textAlign: "right", fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   iconSlot: { width: ICON_SIZE, height: ICON_SIZE, alignItems: "center", justifyContent: "center" },
   head: { paddingTop: 6, paddingBottom: 4, paddingHorizontal: 9, fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   sep: { height: 1, backgroundColor: "var(--line)" as string, marginVertical: 4, marginHorizontal: 6 },

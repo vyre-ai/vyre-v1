@@ -19,7 +19,7 @@ Create a channel: public to the Team Space or invite-only, with any mix of peopl
 | HTTP | POST /v1/channels/create |
 | MCP tool | channels_create (chats) |
 | CLI | vyre channels create |
-| Emits | channel.created, thread.started |
+| Emits | channel.created, thread.started, channel.agent_added, channel.member_added |
 
 ## Input
 

@@ -5103,6 +5103,59 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "home.today-starred-ask",
+    "module": "home",
+    "place": "home",
+    "slot": "main",
+    "builtin": "ui:TodayStarredAsk",
+    "caller": "principal",
+    "queries": {
+      "events": {
+        "cap": "calendar.list_events",
+        "input": {
+          "from": "/state/from",
+          "to": "/state/to"
+        },
+        "live": true
+      },
+      "stars": {
+        "cap": "stars.list",
+        "input": {},
+        "live": true
+      },
+      "terminals": {
+        "cap": "terminal.status",
+        "input": {
+          "terminalIds": "/state/terminalIds"
+        },
+        "live": true
+      }
+    },
+    "actions": {
+      "unstar": {
+        "cap": "stars.toggle",
+        "input": {
+          "resource": "/state/resource",
+          "on": "/state/on"
+        }
+      },
+      "ask": {
+        "cap": "chat.start",
+        "input": {
+          "kind": "/state/kind",
+          "agentIds": "/state/agentIds",
+          "first": "/state/first",
+          "idempotencyKey": "/state/idempotencyKey"
+        }
+      }
+    },
+    "needs": [],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "inbox.contact-list",
     "module": "inbox",
     "place": "inbox",

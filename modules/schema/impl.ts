@@ -6,6 +6,8 @@ import { readFileSync } from "node:fs";
 import { openRecordStore } from "../../kernel/src/store/records.ts";
 import type { ProjectionHost, Tx } from "../../kernel/src/store/projection.ts";
 import type { Store } from "../../kernel/src/store/types.ts";
+import type { SeamSetters } from "../../host/src/seams/index.ts";
+import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
 import { createSchemaHandlers, applyOps, planOps } from "./handlers/index.ts";
 import type { SchemaHandlers, SchemaOp } from "./handlers/index.ts";
 import { allDefs, ensureTables, refuse, seedManifestTypes } from "./projections.ts";
@@ -85,7 +87,17 @@ export async function applyScoped(deps: SchemaDeps, ctx: SchemaCtx, siteId: stri
 
 type HostCtx = { trace: { traceId: string }; emit(name: string, subject: string, payload: Record<string, unknown>): unknown; principal?: { id: string } };
 let shared: SchemaHandle | null = null;
-const live = (): SchemaHandle => (shared ??= openSchema());
+let spaceSeam: SpaceStoreSeam | null = null;
+/** The host hands the Space store (P-H_08, ruling 31): schema, records, sources and connectors then share one persisted store. */
+export function setSchemaSpaceStore(seam: SpaceStoreSeam | null): void { spaceSeam = seam; shared = null; }
+export const hostSeams: SeamSetters = { setSchemaSpaceStore };
+const live = (): SchemaHandle => {
+  if (!shared) {
+    const s = spaceSeam?.open();
+    shared = openSchema(s ? { store: s.store, tx: s.tx } : {});
+  }
+  return shared;
+};
 
 function adapt(name: keyof SchemaHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {

@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-UI_03-menu-counts",
+      "route": "/m/P-UI_03",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid='menu']",
+      "note": "The shared Menu: group heads, counts in a right-aligned quiet column with the checkmark after them, and the first row lit with the quiet hover wash instead of a filled accent box. The prototype side is its Inbox page; compare the row wash and the quiet type of its filter menu."
+    }
+  ]
+}

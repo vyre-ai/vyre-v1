@@ -187,25 +187,27 @@ async function dockerSandbox() {
   return { d, sbx };
 }
 
-test("Docker: credentials go into the container's home tmpfs through the archive endpoint, owned by the sandbox user, mode 0600; nothing is written on the host", async () => {
+test("Docker: credentials are written inside the container's home tmpfs by a short exec as the sandbox user (the archive endpoint refuses a read-only root), 0600 with 0700 folders; nothing is written on the host", async () => {
   const { d, sbx } = await dockerSandbox();
   await sbx.putCredentials(FILES);
-  assert.equal(d.archives.length, 1);
-  const a = d.archives[0]!;
-  assert.equal(a.dir, "/home/agent");
-  const entries = untar(a.tar);
-  assert.deepEqual(entries.map((e) => [e.path, e.type, e.mode.toString(8), e.uid, e.gid]), [
-    [".claude", "dir", "700", 10001, 10001],
-    [".claude/.credentials.json", "file", "600", 10001, 10001],
-    [".codex", "dir", "700", 10001, 10001],
-    [".codex/auth.json", "file", "600", 10001, 10001],
-  ]);
-  assert.equal(new TextDecoder().decode(entries[1]!.data), '{"token":"sk-ant-oat01-SECRET"}');
+  assert.equal(d.archives.length, 0, "no archive upload: a read-only root refuses it");
+  assert.equal(d.execs.length, 2);
+  for (const e of d.execs) {
+    assert.deepEqual(e.cmd.slice(0, 2), ["sh", "-c"]);
+    assert.match(e.cmd[2]!, /^umask 077; mkdir -p .* base64 -d > .* chmod 600/);
+    assert.equal(e.cmd.join(" ").includes("SECRET"), false, "the bytes are not in the arguments");
+  }
+  const sent = d.execs.map((e) => Object.fromEntries(e.env.map((kv) => [kv.slice(0, kv.indexOf("=")), kv.slice(kv.indexOf("=") + 1)])));
+  assert.deepEqual(sent.map((s) => s["VYRE_CRED_PATH"]), ["/home/agent/.claude/.credentials.json", "/home/agent/.codex/auth.json"]);
+  assert.equal(Buffer.from(sent[0]!["VYRE_CRED_DATA"] as string, "base64").toString(), '{"token":"sk-ant-oat01-SECRET"}');
+  assert.equal(JSON.stringify(d.execs).includes("SECRET"), false, "and not in the clear anywhere else");
   const cfg = [...d.containers.values()][0]!.config;
   assert.ok(cfg.HostConfig.Tmpfs["/home/agent"], "the home is a tmpfs, so the files are in RAM");
   assert.ok(cfg.HostConfig.ReadonlyRootfs, "and nowhere else could they be written");
   assert.ok(!cfg.HostConfig.Binds.some((b) => /\.claude|\.codex|creds/.test(b)), "no bind carries them");
   assert.equal(JSON.stringify(d.calls).includes("SECRET"), false);
+  d.script = () => ({ exitCode: 1, stderr: "disk full" });
+  await assert.rejects(() => sbx.putCredentials(FILES), /credential upload failed: disk full/);
 });
 
 test("Docker: a credential path may not climb, be absolute, or carry a character that could mean something to a shell", async () => {
@@ -213,7 +215,7 @@ test("Docker: a credential path may not climb, be absolute, or carry a character
   for (const bad of ["../x", "/etc/x", "a//b", "a/./b", "", ".claude/../../x", "a b", "a;b", "a$(b)", "a'b", "a\nb"]) {
     await assert.rejects(() => sbx.putCredentials([{ path: bad, data: bytes("x") }]), (e: unknown) => e instanceof SandboxError, JSON.stringify(bad));
   }
-  assert.equal(d.archives.length, 0);
+  assert.equal(d.execs.length, 0);
 });
 
 test("Docker: wipe shreds each file by its full path in the container, once; stop wipes before it removes the container, and again is a no-op", async () => {
@@ -222,12 +224,13 @@ test("Docker: wipe shreds each file by its full path in the container, once; sto
   assert.equal(d.execs.length, 0, "nothing to wipe, nothing run");
   await sbx.putCredentials(FILES);
   await sbx.wipeCredentials();
-  const wipe = d.execs[0]!;
+  assert.equal(d.execs.length, 3, "two writes and one wipe");
+  const wipe = d.execs[2]!;
   assert.deepEqual(wipe.cmd.slice(0, 2), ["sh", "-c"]);
   assert.deepEqual(wipe.cmd.slice(4), ["/home/agent/.claude/.credentials.json", "/home/agent/.codex/auth.json"]);
   assert.match(String(wipe.cmd[2]), /shred -n 1 -z -u/);
   await sbx.wipeCredentials();
-  assert.equal(d.execs.length, 1, "wiped once");
+  assert.equal(d.execs.length, 3, "wiped once");
 
   await sbx.putCredentials([{ path: ".claude/.credentials.json", data: bytes("again") }]);
   const before = d.calls.length;
