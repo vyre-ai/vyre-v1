@@ -173,7 +173,6 @@ export function buildEntries(i: SidebarInput): Entry[] {
       const d = digits.get(a.agentId);
       out.push({ key: `f:${a.agentId}`, type: "face", agent: a, ...(d !== undefined ? { digit: d } : {}), working: i.workingAgents.has(a.agentId), waiting: i.waitingAgents?.has(a.agentId) === true });
     }
-    out.push({ key: "f:all", type: "more", label: "All agents", to: "agents" });
   }
   const { plain, projects } = splitChannels(i.channels);
   if (plain.length || projects.length) {

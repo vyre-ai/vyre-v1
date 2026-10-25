@@ -42,7 +42,7 @@ test("Needs you lists every request that waits, with the count (ruling 45: the p
 
 test("Starred agent faces come first, each a row with its face; the working one is ringed", () => {
   const out = html(createSampleSidebar());
-  for (const n of ["Assistant", "Intake", "Docs", "Billing", "Research"]) assert.ok(out.includes(`data-testid="face-${n}"`), n);
+  for (const n of ["Intake", "Billing", "Research", "Docs"]) assert.ok(out.includes(`data-testid="face-${n}"`), n);
   assert.ok(out.includes('data-testid="pulse"'), "Intake is working");
 });
 

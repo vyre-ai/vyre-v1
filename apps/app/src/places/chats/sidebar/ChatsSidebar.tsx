@@ -210,6 +210,7 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
           <SectionHead id={e.section} label={e.label} count={e.section === "needs" ? e.count : undefined} open={e.open} onToggle={() => toggle(e.section)} keep={recentHead && filter !== "all"}>
             {recentHead ? <Tool icon="filter" label="Filter chats" active={filter !== "all"} onPress={filterMenu} testID="filter-chats" /> : null}
             {recentHead ? <Tool icon="plus" label="New chat" onPress={() => void api.newChat()} testID="new-chat-section" /> : null}
+            {e.section === "faces" ? <Tool icon="arrow" label="All agents" onPress={() => data.nav.openAllAgents()} testID="all-agents" /> : null}
             {e.section === "channels" ? <Tool icon="plus" label="New channel" onPress={() => data.nav.openNewChannel()} testID="new-channel" /> : null}
           </SectionHead>
         );

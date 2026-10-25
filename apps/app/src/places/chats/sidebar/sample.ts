@@ -45,11 +45,8 @@ const t = (threadId: string, title: string, agents: string[], lastAt: number, o:
 
 export const northwind: SampleSpace = {
   id: "northwind", name: "Northwind", assistant: { agentId: "agt_assistant", name: "Assistant" }, otherNeedsYou: true,
-  agents: [
-    { agentId: "agt_assistant", name: "Assistant", starred: true }, { agentId: "agt_intake", name: "Intake", starred: true, working: true },
-    { agentId: "agt_docs", name: "Docs", starred: true }, { agentId: "agt_billing", name: "Billing", starred: true },
-    { agentId: "agt_research", name: "Research", starred: true }, { agentId: "agt_scout", name: "Scout", starred: false },
-  ],
+  // the faces are the pinned agents in the order the seed lists them (the assistant is the Vyre mark beside New chat, not a face)
+  agents: fixtureFor("northwind").agents.map((a) => ({ agentId: a.id, name: a.name, starred: a.pinned, ...(a.id === "agt_intake" ? { working: true } : {}) })),
   threads: [
     t("c1", "Rivera intake", ["agt_intake"], at(10, 24, 9, 31), { working: true }),
     t("c3", "October invoices", ["agt_billing"], at(10, 24, 9, 12), { unread: 2 }),
@@ -87,7 +84,7 @@ function harborSpace(): SampleSpace {
   const agentId = (id: string): boolean => id.startsWith("agt_");
   return {
     id: "harbor", name: f.space.name, assistant: { agentId: "agt_assistant", name: "Assistant" }, otherNeedsYou: false,
-    agents: [...f.agents].sort((a, b) => Number(b.pinned) - Number(a.pinned)).map((a) => ({ agentId: a.id, name: a.name, starred: a.pinned || a.id === "agt_assistant" })),
+    agents: f.agents.map((a) => ({ agentId: a.id, name: a.name, starred: a.pinned })),
     threads: f.chats.map((c) => t(c.id, c.title, agentId(c.with) ? [c.with] : [], stampOf(c.at), { ...(c.unread === true ? { unread: 1 } : {}), ...(c.starred === true ? { starred: true } : {}) })),
     channels: channelsOf(f.channels, FOLLOWED_PROJECTS),
     needs: f.needs.map((n) => ({ taskId: `tsk_${n.id}`, title: n.title, kind: n.kind === "Approve" ? ("approve" as const) : n.kind === "Review" ? ("review" as const) : ("unblock" as const), by: n.agent })),
@@ -145,7 +142,8 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
   const item = (x: SampleThread): RecentItem => ({ threadId: x.threadId, kind: "chat", title: x.title, agents: x.agents, unread: x.unread, working: x.working, starred: x.starred, lastAt: x.lastAt });
 
   replica.resolve("chat.recent", () => {
-    const all = threads().sort((a, b) => b.lastAt - a.lastAt);
+    // the order the Space lists its chats in (the prototype shows them as seeded), not re-sorted
+    const all = threads();
     const today = dayOf(SAMPLE_NOW);
     const out: RecentOut = { starred: [], today: [], yesterday: [], earlier: [], nextUnread: null };
     for (const x of all) {
