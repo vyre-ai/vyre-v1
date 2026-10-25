@@ -39,8 +39,12 @@ export async function requireView(ctx: ChatCtx, scopeType: string, scopeId: stri
   const type = RESOURCE_OF[scopeType];
   if (type === undefined) return;
   const resource: ResourceRefValue = { type, id: scopeId };
-  const out = (await callOf(ctx)("access.check", { principal: { kind: "person", id: askerOf(ctx) }, action: { level: "view" }, resource })) as { decision?: { effect?: string } } | null | undefined;
-  if (out?.decision?.effect !== "allow") {
+  // The host's own authorize first (the caller's access, no capability call needed: a member may not call access.check). A hand-built test context without it asks access.check.
+  const host = ctx as ChatCtx & { authorize?: (action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => { effect?: string } };
+  let effect: string | undefined;
+  if (typeof host.authorize === "function") effect = host.authorize({ perm: null, level: "view" }, { type, id: scopeId }).effect;
+  else effect = ((await callOf(ctx)("access.check", { principal: { kind: "person", id: askerOf(ctx) }, action: { level: "view" }, resource })) as { decision?: { effect?: string } } | null | undefined)?.decision?.effect;
+  if (effect !== "allow") {
     throw fail("permission.no_grant", ctx.trace.traceId, { message: "You cannot see this yet, so there is nothing to ask about.", details: { reason: "no_view", scopeType, scopeId }, next: askAccessNext(resource) });
   }
 }

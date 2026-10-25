@@ -14,7 +14,7 @@ const A = askHandlers as unknown as Record<string, Fn>;
 
 async function spaceWithChat() {
   const raw = openRaw();
-  const withDb = (f: Fn): Fn => (ctx, input) => f({ ...ctx, db: scopedDb("chat", raw, ctx.trace.traceId) }, input);
+  const withDb = (f: Fn): Fn => (ctx, input) => f({ ...ctx, db: scopedDb("chat", raw, ctx.trace.traceId), authorize: (_a: unknown, r: { id: string | null }) => ({ effect: r.id === "rec_secret" ? "deny" : "allow", reason: "test", decisionId: "dec_1" }) }, input);
   const space = await createTestSpace({
     seed: "small",
     handlers: {
@@ -23,8 +23,7 @@ async function spaceWithChat() {
       "chat.ask_suggest": withDb(A["chat.ask_suggest"]!),
       "chat.asks_of": withDb(A["chat.asks_of"]!),
       "chat.open_as_chat": withDb(A["chat.open_as_chat"]!),
-      // What the handlers read through the capability API: who may see which object, and the person's last Ask agent.
-      "access.check": (_ctx: unknown, input: { resource: { id: string } }) => ({ decision: { effect: input.resource.id === "rec_secret" ? "deny" : "allow", reason: "test", steps: [{ ok: true, text: "test" }], decisionId: "dec_1" } }),
+      // What the handlers read through the capability API: the person's last Ask agent. Who may see which object comes from the context's authorize, stubbed above.
       "settings.get": () => ({ row: { key: "chat.ask_agent", scope: "person", page: "models", title: "Agent I last used in Ask panes", value: "agt_last", source: "person" } }),
     },
   });
