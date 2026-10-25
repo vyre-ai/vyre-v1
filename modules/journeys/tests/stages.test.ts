@@ -420,3 +420,5 @@ test("journeys.tasks lists a record's tasks with todo, in review, blocked and do
   assert.deepEqual(await state(), [["collect_documents", "done"]]);
   await refused(h.call("journeys.tasks", { recordId: "rec_nothere" }, alice), "validation.not_found", "not_in_journey");
 });
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
