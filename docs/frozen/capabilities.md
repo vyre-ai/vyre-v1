@@ -4,8 +4,8 @@ Review of the merged capability registry at the F11 freeze. `packages/contracts/
 
 ## Frozen values
 
-Registry hash: a28873c20d61309b57ef0c98295b084dfe9ebdec780f0e555f357590df569abe
-Capabilities: 1499
+Registry hash: 6d0bb719307b2374721dea07d9b7677f5c98ca5569f4056f210a834210a9de24
+Capabilities: 1500
 Events: 602
 Registry modules: 80
 Host modules: 72
@@ -27,7 +27,7 @@ Selection rule: capabilities of the lane (owner of the module) sorted by name, n
 | Lane | Capabilities | Sampled |
 |---|---|---|
 | L1 | 37 | 4 |
-| L2 | 263 | 27 |
+| L2 | 264 | 27 |
 | L3 | 152 | 16 |
 | L4 | 108 | 11 |
 | L5 | 344 | 35 |
@@ -39,7 +39,7 @@ Selection rule: capabilities of the lane (owner of the module) sorted by name, n
 
 L1: conflicts.assist, conflicts.resolve, search.recent.list, sync.endpoints
 
-L2: agents.builtin_skills.list, agents.pause, agents.snapshot.take, agents.update, channels.get, channels.update, chat.helpers.list, chat.post, chat.transcript.search, computers.chrome.fill, computers.chrome.state, computers.files.read, computers.recording.delete, computers.screen.scroll, computers.timeline, engine.incident.note, engine.placement.decide, engine.route.preview, engine.stop_all, engine.turn.start, mcp.session.mint, memory.capture, memory.find_by_subject, memory.pointer, memory.versions, terminal.read, threads.list
+L2: agents.builtin_skills.list, agents.pause, agents.snapshot.take, agents.update, channels.join, channels.update, chat.helpers.list, chat.post, chat.transcript.summarize, computers.chrome.inspect, computers.chrome.state, computers.files.read, computers.recording.get, computers.screen.type, computers.timeline, engine.incident.note, engine.policy.get, engine.runtime.opt_in, engine.subscription_share.set, engine.turn.start, mcp.session.open, memory.counts, memory.graph, memory.notes.list, memory.versions, terminal.read, threads.list
 
 L3: connections.complete_auth, connections.update, connectors.outbox.retry, hubspot.health, import.parse_excel, projects.file_chat, projects.pin_file, records.as_of, records.history, records.restore, schema.apply, schema.layout.set, sources.delete, sources.list, sync_types.get, sync_types.review_schema
 

@@ -32,7 +32,7 @@ jobs:
     name: ${{ matrix.name }}
     needs: select
     if: needs.select.outputs.count != '0'
-    runs-on: ${{ matrix.runner == 'hosted' && 'ubuntu-latest' || fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
+    runs-on: ${{ fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -65,7 +65,7 @@ jobs:
         run: |
           lane=""
           case "$BRANCH" in
-            build/P-CI_02|build/P-CI_08|build/P-CI_27|build/P-CI_31|build/P-CI_34|build/P-CI_37|build/P-CI_38|build/P-CI_36) lane=lead ;;   # contract steward: changes the contract types and the frozen hashes (ruling 25, 27)
+            build/P-CI_02|build/P-CI_08|build/P-CI_27|build/P-CI_31|build/P-CI_34|build/P-CI_37|build/P-CI_38|build/P-CI_35|build/P-CI_39|build/P-CI_36) lane=lead ;;   # contract steward: changes the contract types and the frozen hashes (ruling 25, 27)
             build/P-CI_*|build/P-CI-*) lane=L11 ;;
             build/P-CC_*|build/P-PR_*) lane=lead ;;
             *) lane="$(echo "$BRANCH" | sed -nE 's#^build/P-(L[0-9]+[a-z]?)_[0-9]+[a-z]?(-.*)?$#\1#p')"
@@ -267,7 +267,7 @@ jobs:
   chrome-real:
     # P-L10_06b: the Chrome extension's agent tools against a real Chromium page. VYRE_REQUIRE_CHROME=1 turns a missing Chromium into a failure (a skip is not a pass), so a green job means the
     # three real-page tests ran. Chromium comes from playwright-core the way scripts/shots does (cached by playwright after the first run); CHROME_BIN points the test at it. Gates `check`.
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, v1]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
