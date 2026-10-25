@@ -1,0 +1,33 @@
+{
+  "module": "runs",
+  "capabilities": {
+    "runs.count@1": "39fa4eb2bc9b1fc204623bd4811d87e49e7797db402f9750423e5973e10120c7",
+    "runs.finish@1": "9b08285c6823a48018343b0f4742ef3e212bbc8f5c98a5d6f6279ddef8220283",
+    "runs.get@1": "8c9be829d9fbe2bf7fa6fb09dc1afaafd584b5ea8337c29ae858495f7472d93f",
+    "runs.list@1": "0989c4a2af7d2d392c93e6fe6ae458023944f4a2472c457bcd555803185546f2",
+    "runs.mark_waiting@1": "ee0786ceb4a322e9d2d3be0906eeba02263aba64254906ed50ed4e808ad4cbbd",
+    "runs.preview_undo@1": "a3a996524c663a6116c1896eb95ac8b4674471c0f11aad13edddd2294e0e77bd",
+    "runs.record_key@1": "8262cd464a1d989064ea48a48c91a76851367258775cd96f461e4f3932af85d7",
+    "runs.record_step@1": "ee2166d1ab6b2f888e81b7462e03d47fb538da36ed300eee56a64151f48fade7",
+    "runs.replay@1": "5cdb78573d199677ac3815e89b607a7fb9b38e510b60c5335048d17fc982bf69",
+    "runs.resume@1": "5f43527d973c6bb3c97936b78db26b5d52d19f1fb5f34acb0fd230dd95728775",
+    "runs.retry@1": "e9f3b9e4a8a82be42a0f4fd3dd03b053e6bdfbad4c25fde8978e5fe8650ce074",
+    "runs.start@1": "d2d534916da4ce463a0ac3a06a026a1e1e4e8d75e2504872c17aba51d6ca1a6f",
+    "runs.status@1": "1c9fa532aaac355fc178b945ffb818f0e963da0280ae555a6c682cb6ef5dac92",
+    "runs.steps@1": "96cf7cd97c5a879a83e3ecc3d736e7f6c9cc2fc20ec67555d24c9de167aa21de",
+    "runs.stop@1": "1a21e800be8ed49b2a77647a6e0ec2007598dd41f3b4cfc07fd930e021a2ddc8",
+    "runs.undo@1": "e9c052aad606e95f8afaf49bea8449902e77cfce08c1fa363e98fb88ab88849b",
+    "runs.wait_for@1": "424ab56ad41b07983295ee792154e98e922b4de2a0fd28cc1e0d81eaa6f7b4df"
+  },
+  "events": {
+    "run.failed": "84d6841f29bb11982b422e3f7a56e0812dcf063b9e716cdadf9c1694f87f2848",
+    "run.key_fallback": "43445014bcefcd2e1cbb494dcac7b6150cccb0d4e64214965f31d4192e9bda72",
+    "run.resumed": "aa7d199340b8e6f263bb65e981f855a9c3b4a514207ea6d2102e09bb4f89e179",
+    "run.retried": "85ff82fa74fca8f40d5ee7146d846d7dd23dfbe2d917f1094de32ce64f718abf",
+    "run.started": "114c7242ba319a9fb227568d0da4b942e5e492c76dd2f38780732f616f336bc5",
+    "run.stopped": "ea42520412b2fad4ae46796af7d4efd23e4a930a522a9149fdebb9d13d8c0ad1",
+    "run.succeeded": "e3b3b56d0ab42fdc37bf601ff18efa2b5ff32d70c33afe19b003ae008d7cc023",
+    "run.undone": "f526a5be1342563dddc0437a8cd1770e2b895623b236b7a831815e1cd5b0478e",
+    "run.waiting": "78aa3a84421cfc577348a055da0a6d9ef5165752f8acd6ca188ef93aa395811c"
+  }
+}

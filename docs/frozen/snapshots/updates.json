@@ -1,0 +1,19 @@
+{
+  "module": "updates",
+  "capabilities": {
+    "updates.app_compat@1": "036b47ba2320d5fd89346d32906666ce5a1a8f80f5fb555bd418a32d9ed49029",
+    "updates.apply@1": "946cdcfe2ecb8aa8044008d4f7746f19e89ceee385f226f5c06faee0469de28f",
+    "updates.channel_set@1": "7fc551a57574174696f87c68430883368c3dbf65f6590ad8c2d18b2ca3e89075",
+    "updates.check@1": "0b2e368b5f082a7435a985cd1707bb2d648b19b88fc647c0c2c7f18b2e6573f2",
+    "updates.health@1": "1654646a46bccb25888a1c0f074fb4f82e4ebe891269971e9625451ec123f256",
+    "updates.history@1": "db6af5ca0a709fbb515571aa2a3c212f785ec85070216beff88b83c2ba02d24f",
+    "updates.rollback@1": "5cc0cf6165af5ab45712d435276359db1d9fd1c4f41011b16206b97279dbf015",
+    "updates.status@1": "cec60504333f177989568e530dd3792f80ca417bd51728130b18b04a6e22bfb1"
+  },
+  "events": {
+    "update.completed": "669c1bdc203cdc7dd73c3045654191e4c307b53b165ea60151f4b29f311ddf16",
+    "update.failed": "43ceb3f2393c9698743a57ddacd39a881a1fbbe5c405715bbf0daeac5e82658c",
+    "update.rolled_back": "f5adf8063e176f5ef7af098dcdd089895c3d3ba79152a9be27ff1891e00c2cb5",
+    "update.started": "2875e743b1070b4c2f6ea5bfc65d906f0b78afbc6c7a2c274f36ca555ce04bcc"
+  }
+}
