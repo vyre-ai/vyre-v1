@@ -1,13 +1,14 @@
 // CI time budgets (ARCH-DECISIONS 13, binding): a push 5 minutes, a merge to main 10, a tag to live 25.
-//   node scripts/ci-budget.ts --kind push|main|tag (--run-id N --repo owner/name | --start ISO) [--now ISO]
+//   node scripts/ci-budget.ts --kind push|main|tag|perf (--run-id N --repo owner/name | --start ISO) [--now ISO]
 // Ruling 12: the budget measures execution only, from the first job start to now (the budget job runs last, with if: always()).
 // Runner queue wait (run_started_at to the first job start) is reported separately and alerts above 2 minutes, but never fails the budget.
 // With --start ISO the old wall-clock behaviour is kept for callers that have no job list.
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export type Kind = "push" | "main" | "tag";
-export const LIMIT_MIN: Record<Kind, number> = { push: 5, main: 10, tag: 25 };
+export type Kind = "push" | "main" | "tag" | "perf";
+// perf: the hourly full perf run (ruling 55) has its own budget and is not on main's 10 minute path; one pinned perf host runs the files one after another.
+export const LIMIT_MIN: Record<Kind, number> = { push: 5, main: 10, tag: 25, perf: 30 };
 
 export type Verdict = { kind: Kind; wallSec: number; limitSec: number; ok: boolean; line: string };
 

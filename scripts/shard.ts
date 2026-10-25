@@ -9,6 +9,8 @@ import type { SlowEntry } from "./slow-check.ts";
 
 export const MAX_SHARDS = 24;
 export const TARGET_SEC = 25;
+// P-CI_39: shards scale with the number of selected files, not a fixed 24: GitHub caps free hosted runners at 20 concurrent jobs and the self-hosted fleet is 25, so a small change must not fan out 24 jobs.
+export const FILES_PER_SHARD = 8;
 export const FALLBACK_SEC = 3;
 // Ruling 52 (P-CI_31): 30 s, was 20 s. Cold pass caches on the new hosts and hosted runners made real 20-22 s UI files hit the old cap; CI hygiene only, speed budgets stay on v1-perf (ruling 46).
 export const FAST_CAP_SEC = 30;
@@ -19,7 +21,7 @@ export type Shards = {
   totalSec: number;
   makespanSec: number;
   fast: { files: string[]; sec: number }[];
-  slow: { file: string; capSec: number; perf?: boolean }[];
+  slow: { file: string; capSec: number; perf?: boolean; heavy?: boolean }[];
 };
 
 /** Number of fast shards for a total of affected seconds; at least one when there is any work. */
@@ -42,12 +44,12 @@ function medianSec(files: string[], timings: Timings): number {
 export function shardFiles(files: string[], timings: Timings, slow: SlowEntry[], opts: { max?: number; target?: number } = {}): Shards {
   const slowBy = new Map(slow.map((s) => [s.file, s]));
   const uniq = [...new Set(files)].sort();
-  const slowJobs = uniq.filter((f) => slowBy.has(f)).map((file) => ({ file, capSec: slowBy.get(file)!.capSec, perf: slowBy.get(file)!.perf === true }));
+  const slowJobs = uniq.filter((f) => slowBy.has(f)).map((file) => ({ file, capSec: slowBy.get(file)!.capSec, perf: slowBy.get(file)!.perf === true, heavy: slowBy.get(file)!.heavy === true }));
   const fastFiles = uniq.filter((f) => !slowBy.has(f));
   const median = medianSec(fastFiles, timings);
   const rows = fastFiles.map((f) => ({ f, sec: expectedSec(f, timings, median) })).sort((a, b) => b.sec - a.sec || (a.f < b.f ? -1 : 1));
   const totalSec = rows.reduce((n, r) => n + r.sec, 0);
-  const count = shardCount(totalSec, opts.max ?? MAX_SHARDS, opts.target ?? TARGET_SEC);
+  const count = fastFiles.length === 0 ? 0 : Math.min(opts.max ?? MAX_SHARDS, Math.max(1, Math.ceil(fastFiles.length / FILES_PER_SHARD)));
   const bins = Array.from({ length: count }, () => ({ files: [] as string[], sec: 0 }));
   for (const r of rows) {
     let best = bins[0]!;
