@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Raised from 15 to 20: hosted runners and cold pass caches exposed real 20-22 s files (ruling 52).
+// Raised from 15 to 20 (P-CI_31): GitHub-hosted runners exposed real files of 20-22 s that the self-hosted pass cache had been hiding.
 export const MAX_ENTRIES = 20;
 export const MAX_CAP_SEC = 120;
 export const TEST_FILE = /\.test\.(?:m?js|cjs|tsx?)$/;
