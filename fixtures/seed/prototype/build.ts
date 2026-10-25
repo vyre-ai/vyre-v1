@@ -1,5 +1,5 @@
 // Prototype seed (ARCH 10.3). Each Space is built by calling the real capability pipeline (validate, authorize, idempotency, rate limit, handler, commit),
-// then exported as a template database keyed by the recipe sources plus generated/hash.txt. A boot copies that file and reads the log.
+// then exported as a template database keyed by the recipe sources plus the hash of generated/registry.json. A boot copies that file and reads the log.
 // The founding owner is one genesis event: no capability creates a Space. Everyone else, every agent and every client is a capability call.
 // Personal does not call members.* (those capabilities are teamOnly, spec 2.1).
 import crypto from "node:crypto";
@@ -38,7 +38,8 @@ const KEYS = {
 
 /** The files whose content defines the template. */
 export const PROTO_SOURCES: readonly string[] = [path.join(HERE, "seed.ts"), path.join(HERE, "build.ts")];
-export const registryHash = (): string => fs.readFileSync(path.join(REPO, "generated/hash.txt"), "utf8").trim();
+let memo: string | undefined;
+export const registryHash = (): string => (memo ??= crypto.createHash("sha256").update(fs.readFileSync(path.join(REPO, "generated/registry.json"))).digest("hex"));
 
 export interface BootOptions { cache?: string; scratch?: string; sources?: readonly string[]; registry?: string }
 export interface PrototypeSpace extends SeedIds {
