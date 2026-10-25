@@ -17,6 +17,7 @@ const CONTACT = {
 
 /** Why this flow is a todo today (ruling 53). */
 export const GAPS: Gap[] = [
+  { packet: "P-L11_04", lane: "L11", what: "no authorization resource exists for the built-in contact record type, so records.create answers 404 permission.not_found even for the owner (the seed has rt_contact, the module uses contact)" },
   { packet: "P-L7b_LIVE", lane: "L7b", what: "backup.* answer 503: configureBackup is never called by the host, so there is no Space source, export sink or S3 driver" },
   { packet: "P-L7_LIVE", lane: "L7", what: "governance migrations create gov_* tables; a live module may only use governance_*, so erase and tombstones answer 403" },
 ];
