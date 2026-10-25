@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { PLACES, indexMd, rowFor } from "./real-app.mjs";
+import { PHONE_TAB, PLACES, indexMd, rowFor } from "./real-app.mjs";
 import { todoFor } from "../../apps/app/tests/real-app-harness.ts";
 
-test("real-app shots: Home, Chats, Records and Files are shot, each with the steps whose modules it needs", () => {
-  assert.deepEqual(PLACES.map((p) => p.id), ["home", "chats", "records", "files"]);
+test("real-app shots: every place the shell has is shot, each with the steps whose modules it needs", () => {
+  assert.deepEqual(PLACES.map((p) => p.id), ["home", "chats", "records", "files", "inbox", "apps", "automations", "vault", "settings"]);
+  assert.deepEqual(Object.keys(PHONE_TAB), ["home", "chats", "inbox", "records", "files"]);
   for (const p of PLACES) for (const step of p.needs) assert.equal(typeof todoFor(step, new Set()), "string", `${p.id}: ${step} is a known step`);
 });
 

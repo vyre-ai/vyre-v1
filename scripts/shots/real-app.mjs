@@ -15,7 +15,15 @@ export const PLACES = [
   { id: "chats", rail: "rail-chats", drew: "[data-testid='chats-place']", needs: ["sign in", "chats"] },
   { id: "records", rail: "rail-records", drew: "[data-testid='records-place']", needs: ["sign in", "records"] },
   { id: "files", rail: "rail-files", drew: "[data-testid='files-place']", needs: ["sign in", "files"] },
+  { id: "inbox", rail: "rail-inbox", drew: "[data-testid='inbox-place']", needs: ["sign in", "inbox"] },
+  { id: "apps", rail: "rail-apps", drew: "[data-testid='place-sites']", needs: ["sign in", "apps"] },
+  { id: "automations", rail: "rail-automations", drew: "[data-testid='automations-place']", needs: ["sign in", "automations"] },
+  { id: "vault", rail: "rail-vault", drew: "[data-testid='vault-place']", needs: ["sign in", "vault"] },
+  { id: "settings", rail: "rail-settings", drew: "[data-testid='settings-place']", needs: ["sign in", "settings"] },
 ];
+
+/** The phone has five tabs: Chats, Inbox, Records, Files and You (Home is reached through You). Places without a tab are not shot at phone width. */
+export const PHONE_TAB = { home: "you", chats: "chats", inbox: "inbox", records: "records", files: "files" };
 
 /** One index.md row: what was shot, whether the place drew, and which stub modules it is still waiting on. */
 export function rowFor({ place, skin, sizeName, vp, file, drew, gaps }) {
@@ -56,8 +64,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       await page.goto(`${web.origin}/home?skin=${skin}`, { waitUntil: "load", timeout: 60000 });
       await page.getByTestId("shell").or(page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30000 }).catch(() => {});
       for (const p of PLACES) {
+        if (sizeName === "phone" && !PHONE_TAB[p.id]) continue;
         if (sizeName === "phone") {
-          await page.getByTestId(`tab-${p.id === "home" ? "you" : p.id}`).click({ timeout: 5000 }).catch(() => {});
+          await page.getByTestId(`tab-${PHONE_TAB[p.id]}`).click({ timeout: 5000 }).catch(() => {});
         } else {
           await page.getByTestId(p.rail).or(page.getByTestId(`${p.rail}-selected`)).first().click({ timeout: 5000 }).catch(() => {});
         }
