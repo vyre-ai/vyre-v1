@@ -191435,9 +191435,13 @@
       "kind": "module",
       "owner": "L6",
       "requires": [
+        "calendar",
+        "chat",
         "notifications",
         "runs",
-        "tasks"
+        "spaces",
+        "tasks",
+        "terminal"
       ],
       "title": "Home",
       "version": "0.1.0"
@@ -200957,6 +200961,69 @@
       "states": {
         "empty": {
           "line": "No routines today"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
+      "actions": {
+        "ask": {
+          "cap": "chat.start",
+          "input": {
+            "agentIds": "/state/agentIds",
+            "first": "/state/first",
+            "idempotencyKey": "/state/idempotencyKey",
+            "kind": "/state/kind"
+          }
+        },
+        "unstar": {
+          "cap": "stars.toggle",
+          "input": {
+            "on": "/state/on",
+            "resource": "/state/resource"
+          }
+        }
+      },
+      "builtin": "ui:TodayStarredAsk",
+      "id": "home.today-starred-ask",
+      "module": "home",
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "home",
+      "queries": {
+        "events": {
+          "cap": "calendar.list_events",
+          "input": {
+            "from": "/state/from",
+            "to": "/state/to"
+          },
+          "live": true
+        },
+        "stars": {
+          "cap": "stars.list",
+          "input": {},
+          "live": true
+        },
+        "terminals": {
+          "cap": "terminal.status",
+          "input": {
+            "terminalIds": "/state/terminalIds"
+          },
+          "live": true
+        }
+      },
+      "slot": "main",
+      "states": {
+        "empty": {
+          "line": "Nothing on today"
         },
         "error": {
           "line": "Couldn't load this",
