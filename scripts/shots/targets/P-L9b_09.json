@@ -9,6 +9,14 @@
       "protoSettleMs": 1500
     },
     {
+      "id": "P-L9b_09-routine-detail",
+      "route": "/m/P-L9b_09?tab=routines&routine=r3",
+      "proto": "chat,at:demo-agent-routine,{skin}",
+      "waitFor": "[data-testid='routine-top']",
+      "note": "One routine open: Run Now beside Change by Asking, then what it does, when, the details with who set it. The prototype side is the same page (hash demo-agent-routine, added to the prototype copy for this packet).",
+      "protoSettleMs": 1500
+    },
+    {
       "id": "P-L9b_09-popup-in-control",
       "route": "/m/P-L9b_09?popup=takeover",
       "proto": "chat,at:demo-popup-take,{skin}",
