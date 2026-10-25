@@ -169,7 +169,7 @@ const s = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFillObject },
   panel: style({
     width: "100%", maxWidth: 520, maxHeight: "92%", marginHorizontal: 16, padding: 18, gap: 8, borderRadius: 16, backgroundColor: "var(--raised)",
-    boxShadow: "var(--sh-pop), 0 40px 80px -20px rgba(0,0,0,.5)", overflow: "hidden",
+    boxShadow: "var(--sh-pop), 0 40px 80px -20px rgba(0,0,0,.5)", overflow: "hidden", outlineStyle: "none",
   }),
   head: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: -4, marginTop: -4, marginBottom: 2 },
   headTitle: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 },

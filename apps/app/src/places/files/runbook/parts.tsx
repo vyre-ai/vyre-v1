@@ -51,6 +51,6 @@ export function OutputPre({ text, follow = false, small = false, testID }: { tex
 const st = StyleSheet.create({
   pre: { maxHeight: 260 },
   preSmall: { maxHeight: 160 },
-  preText: { fontFamily: "var(--mono)" as string, fontSize: 12, lineHeight: 19, color: "var(--ink-2)" as string, paddingTop: 4, paddingBottom: 14, paddingLeft: 18, paddingRight: 16 },
+  preText: { fontFamily: "ui-monospace, Menlo, \"JetBrains Mono\", monospace" as string, fontSize: 12, lineHeight: 19, color: "var(--ink-2)" as string, paddingTop: 4, paddingBottom: 14, paddingLeft: 18, paddingRight: 16 },
   preTextSmall: { paddingLeft: 0, paddingTop: 6, paddingBottom: 2 },
 });

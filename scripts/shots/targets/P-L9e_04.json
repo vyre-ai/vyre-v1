@@ -5,49 +5,56 @@
       "route": "/m/P-L9e_04?part=mount",
       "proto": "files,mount-sheet,{skin}",
       "waitFor": "[data-testid='mount-sources']",
-      "note": "Step 1 of the mount sheet: Google Drive, Microsoft 365, This computer, GitHub with the connected account under each. The prototype side is its Mount a folder dialog over the Files place in the same skin; the Files tree and list behind the dim are P-L9e_01 and are not drawn on the real side."
+      "note": "Step 1 of the mount sheet: Google Drive, Microsoft 365, This computer, GitHub with the connected account under each. The prototype side is its Mount a folder dialog over the Files place in the same skin; the Files tree and list behind the dim are P-L9e_01 and are not drawn on the real side.",
+      "protoSettleMs": 5000
     },
     {
       "id": "P-L9e_04-mount-drive",
       "route": "/m/P-L9e_04?part=mount&step=2&src=google_drive",
       "proto": "files,mount-sheet2,{skin}",
       "waitFor": "[data-testid='row-browse:google_drive:gd:Marketing']",
-      "note": "Step 2 for Google Drive: the shared drives and My Drive with their marks, Marketing already mounted (dimmed, reads Mounted), Next off until a pick. The prototype side is the same step for Google Drive."
+      "note": "Step 2 for Google Drive: the shared drives and My Drive with their marks, Marketing already mounted (dimmed, reads Mounted), Next off until a pick. The prototype side is the same step for Google Drive.",
+      "protoSettleMs": 5000
     },
     {
       "id": "P-L9e_04-mount-options",
       "route": "/m/P-L9e_04?part=mount&step=3&src=local&pick=~/Projects/vyre-site",
       "proto": "files,mount-sheet3,{skin}",
       "waitFor": "[data-testid='mount-options']",
-      "note": "Step 3 for a folder on this computer: Name, Who can see it, Copy (Synced copy or Live only), Into, then Back and Mount. The prototype shows Into only for GitHub; the spec (3.5) puts the Into picker in the options of every mount, so the real sheet has one more row."
+      "note": "Step 3 for a folder on this computer: Name, Who can see it, Copy (Synced copy or Live only), Into, then Back and Mount. The prototype shows Into only for GitHub; the spec (3.5) puts the Into picker in the options of every mount, so the real sheet has one more row.",
+      "protoSettleMs": 5000
     },
     {
       "id": "P-L9e_04-mount-github",
       "route": "/m/P-L9e_04?part=mount&step=2&src=github&q=northwind&pick=northwind/billing-scripts",
       "proto": "files,mount-sheet4,{skin}",
       "waitFor": "[data-testid='row-browse:github:northwind/billing-scripts']",
-      "note": "Step 2 for GitHub: the repository search filled with northwind, three repositories with their details, billing-scripts picked, Next on. The prototype side is the same search and pick."
+      "note": "Step 2 for GitHub: the repository search filled with northwind, three repositories with their details, billing-scripts picked, Next on. The prototype side is the same search and pick.",
+      "protoSettleMs": 5000
     },
     {
       "id": "P-L9e_04-runbook-fresh",
       "route": "/m/P-L9e_04?part=runbook&v=fresh",
       "proto": "files,runbook,{skin}",
       "waitFor": "[data-testid='runbook-run-all']",
-      "note": "Deploy website.md before anything has run: the Runs on bar (Space server, Run all) and four shell blocks with a quiet Run button. The prototype side is the note open in its viewer; the file header and tabs around the note are P-L9e_02 and are not drawn on the real side."
+      "note": "Deploy website.md before anything has run: the Runs on bar (Space server, Run all) and four shell blocks with a quiet Run button. The prototype side is the note open in its viewer; the file header and tabs around the note are P-L9e_02 and are not drawn on the real side.",
+      "protoSettleMs": 5000
     },
     {
       "id": "P-L9e_04-runbook-ran",
       "route": "/m/P-L9e_04?part=runbook&v=ran",
       "proto": "files,runbook-ran,{skin}",
       "waitFor": "[data-testid='runbook-runs']",
-      "note": "After two runs: output under every block with Exit 0, duration, who, where and when, and the Runs list (Docs on the server, Intake's computer stopped at block 2). The prototype shows the same list in the note's History column; the real viewer draws it under the note."
+      "note": "After two runs: output under every block with Exit 0, duration, who, where and when, and the Runs list (Docs on the server, Intake's computer stopped at block 2). The prototype shows the same list in the note's History column; the real viewer draws it under the note.",
+      "protoSettleMs": 5000
     },
     {
       "id": "P-L9e_04-runbook-fail",
       "route": "/m/P-L9e_04?part=runbook&v=fail",
       "proto": "files,runbook-fail,{skin}",
       "waitFor": "[data-testid='runbook-summary']",
-      "note": "Run all on Intake's computer: block 1 passes, block 2 exits 127 (npm not installed), blocks 3 and 4 did not run, and the line says where it stopped. The prototype side is the same Run all, settled."
+      "note": "Run all on Intake's computer: block 1 passes, block 2 exits 127 (npm not installed), blocks 3 and 4 did not run, and the line says where it stopped. The prototype side is the same Run all, settled.",
+      "protoSettleMs": 5000
     }
   ]
 }

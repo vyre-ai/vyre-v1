@@ -87,7 +87,7 @@ const s = StyleSheet.create({
   p: { fontSize: 14.5, lineHeight: 22, color: "var(--ink)" as string },
   para: { marginVertical: 5 },
   bold: { fontWeight: "600" },
-  code: { fontFamily: "var(--mono)" as string, fontSize: 13, color: "var(--ink)" as string, backgroundColor: "var(--hover)" as string },
+  code: { fontFamily: "ui-monospace, Menlo, \"JetBrains Mono\", monospace" as string, fontSize: 13, color: "var(--ink)" as string, backgroundColor: "var(--hover)" as string },
   ul: { marginVertical: 5, gap: 2 },
   li: { flexDirection: "row", gap: 8, paddingLeft: 4 },
   dot: { fontSize: 14.5, lineHeight: 22, color: "var(--ink-3)" as string },
