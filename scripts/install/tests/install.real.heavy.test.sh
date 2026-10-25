@@ -126,6 +126,8 @@ t_uninstall_keeps_data() {
   [ -d "$W/srv/data" ] || [ -d "$W/srv" ]
 }
 t_purge_leaves_nothing() {
+  # The container writes the data as its own user. A real install runs as root and removes it; this test runs as an ordinary user, so hand the files back first.
+  [ "$(id -u)" = 0 ] || sudo -n chown -R "$(id -u):$(id -g)" "$W/srv" 2>/dev/null || true
   install_enc --uninstall --purge --yes >/dev/null
   [ ! -e "$W/srv" ]
   [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT")" ]
