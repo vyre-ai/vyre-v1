@@ -455,7 +455,8 @@ const styles = StyleSheet.create({
     backgroundColor: "var(--raised)" as string,
     boxShadow: "var(--sh-pop)" as string,
   },
-  item: { flexDirection: "row", alignItems: "center", height: 28, paddingHorizontal: 9, borderRadius: 6, gap: 9, width: "100%" },
+  // the lit row is the wash; the browser focus ring would draw a black box around it
+  item: { flexDirection: "row", alignItems: "center", height: 28, paddingHorizontal: 9, borderRadius: 6, gap: 9, width: "100%", ...({ outlineStyle: "none" } as ViewStyle) },
   label: { flexShrink: 1, fontSize: 13, lineHeight: 18 },
   check: { marginLeft: "auto", fontSize: 12 },
   checkAfterCount: { marginLeft: 0 },
