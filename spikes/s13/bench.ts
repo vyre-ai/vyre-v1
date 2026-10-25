@@ -78,13 +78,41 @@ async function embedder(): Promise<void> {
   const host = await createEmbedder({ runtime: "node" });
   say(`onnxruntime-node loaded the model in ${(performance.now() - t0).toFixed(0)} ms`);
   const hostV = await host(fixed);
+  // parity (ruling 58): every non-empty text at least 0.99 cosine; blank chunks are skipped by the guard (zero vectors on both sides)
   let worst = 1;
-  fixed.forEach((t, i) => { const cos = dot(hostV[i]!, webV[i]!); say(`  parity text ${i} (${JSON.stringify(t.slice(0, 40))}, ${t.length} chars): cosine ${cos.toFixed(6)}`); if (cos < worst) worst = cos; });
-  say(`${worst > 0.999 ? "PASS" : "FAIL"} host vectors match web vectors within 1e-3 cosine on the fixed set: worst cosine ${worst.toFixed(6)} over ${fixed.length} texts`);
-  if (!(worst > 0.999)) failed = true;
-  const rates = await rate(host);
-  say(`onnxruntime-node, ${Math.max(1, os.availableParallelism() - 1)} threads, batch 32: chunks per second ${rates.map((x) => x.toFixed(1)).join(", ")}`);
-  budget("host embedder chunks per second, median of 3 (200 chunks of about 380 characters)", median(rates), 100, false);
+  fixed.forEach((t, i) => {
+    const cos = dot(hostV[i]!, webV[i]!);
+    if (t.trim() === "") { say(`  parity text ${i} (blank): skipped before the embedder, zero vectors ${hostV[i]!.every((x) => x === 0) && webV[i]!.every((x) => x === 0) ? "on both sides" : "MISMATCH"}`); if (!(hostV[i]!.every((x) => x === 0) && webV[i]!.every((x) => x === 0))) failed = true; return; }
+    say(`  parity text ${i} (${JSON.stringify(t.slice(0, 40))}, ${t.length} chars): cosine ${cos.toFixed(6)}`);
+    if (cos < worst) worst = cos;
+  });
+  say(`${worst >= 0.99 ? "PASS" : "FAIL"} every non-empty text has host vs web cosine at least 0.99: worst ${worst.toFixed(6)}`);
+  if (!(worst >= 0.99)) failed = true;
+  // retrieval overlap: the top 10 of a 60-sentence corpus for five fixed queries, host against web, at least 9 of 10 shared
+  const topics = ["lease", "invoice", "meeting", "contract", "renewal", "payment", "report", "budget", "hiring", "audit", "shipping", "insurance"];
+  const corpus = Array.from({ length: 60 }, (_, i) => `Note ${i}: the ${topics[i % topics.length]} for the ${["harbor", "northwind", "studio", "clinic", "workshop"][i % 5]} project needs a decision by ${["Monday", "Tuesday", "Friday", "the end of the month"][i % 4]}, owner ${["Ana", "Omar", "Lena", "Sam"][i % 3]}.`);
+  const queries = ["when is the lease decision due", "who owns the invoice for the harbor project", "budget meeting for the clinic", "insurance renewal deadline", "hiring plan at the workshop"];
+  const [wc, hc, wq, hq] = [await web(corpus), await host(corpus), await web(queries), await host(queries)];
+  const top10 = (qv: Float32Array, cv: Float32Array[]): number[] => cv.map((v, i) => ({ i, s: dot(qv, v) })).sort((a, b) => b.s - a.s).slice(0, 10).map((x) => x.i);
+  let minOverlap = 10;
+  queries.forEach((q, i) => { const w = new Set(top10(wq[i]!, wc)); const o = top10(hq[i]!, hc).filter((x) => w.has(x)).length; say(`  retrieval overlap ${JSON.stringify(q)}: ${o} of 10`); if (o < minOverlap) minOverlap = o; });
+  say(`${minOverlap >= 9 ? "PASS" : "FAIL"} top-10 retrieval overlap host vs web at least 9 of 10: worst ${minOverlap}`);
+  if (minOverlap < 9) failed = true;
+  // throughput by per-thread scaling (ruling 58): 1, 2 and 3 threads; rate x 7 at least 100 and at least 0.85 linear
+  const cores = os.availableParallelism();
+  const per: { t: number; r: number }[] = [];
+  for (const t of [1, 2, Math.max(3, cores - 1)].filter((x, i, a) => a.indexOf(x) === i && x <= Math.max(3, cores - 1))) {
+    const e = await createEmbedder({ runtime: "node", threads: t });
+    const r = median(await rate(e));
+    per.push({ t, r });
+    say(`onnxruntime-node, ${t} thread${t > 1 ? "s" : ""}, batch 32: ${r.toFixed(1)} chunks per second`);
+  }
+  const one = per[0]!.r;
+  const last = per[per.length - 1]!;
+  const linear = last.r / (last.t * one);
+  say(`per thread ${(one).toFixed(1)}; ${last.t} threads reach ${linear.toFixed(2)} of linear`);
+  budget("per-thread rate x 7 threads (the 8-core host), chunks per second", one * 7, 100, false);
+  budget("scaling at the highest thread count, fraction of linear (0.85)", linear * 100, 85, false);
 }
 
 if (which === "kernel" || which === "all") await kernels();

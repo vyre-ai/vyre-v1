@@ -18,6 +18,19 @@ interface Ort {
 /** `node`: onnxruntime-node, the native runtime the host uses (ruling 54). `web`: onnxruntime-web on WASM, what clients use. Same model, same files, same pooling. */
 export type Runtime = "node" | "web";
 
+/** A chunk with nothing to embed (empty or only whitespace) is skipped before the model: it gets a zero vector, which scores 0 against everything, and no runtime is asked (ruling 58). */
+export const isBlank = (t: string): boolean => t.trim().length === 0;
+
+/** Run `embed` on the non-blank texts only and put the vectors back in the order asked; blank ones are zero vectors. */
+export async function embedSkippingBlanks(texts: readonly string[], embed: (t: readonly string[]) => Promise<Float32Array[]>): Promise<Float32Array[]> {
+  const idx: number[] = [];
+  texts.forEach((t, i) => { if (!isBlank(t)) idx.push(i); });
+  const done = idx.length > 0 ? await embed(idx.map((i) => texts[i]!)) : [];
+  const out = texts.map(() => new Float32Array(DIM));
+  idx.forEach((i, k) => { out[i] = done[k]!; });
+  return out;
+}
+
 export interface Embedder { (texts: readonly string[]): Promise<Float32Array[]>; readonly maxTokens: number }
 
 export async function createEmbedder(o: { dir?: string; fetch?: Fetch; batch?: number; maxTokens?: number; threads?: number; runtime?: Runtime } = {}): Promise<Embedder> {
@@ -60,18 +73,17 @@ export async function createEmbedder(o: { dir?: string; fetch?: Fetch; batch?: n
     });
   }
 
-  const embed = (async (texts: readonly string[]) => {
-    const all: Float32Array[] = [];
+  const embed = ((texts: readonly string[]) => embedSkippingBlanks(texts, async (live) => {
     // batch by length so a short text is not padded to a long one, then put the vectors back in the order asked
-    const order = texts.map((t, i) => ({ i, n: t.length })).sort((a, b) => a.n - b.n);
-    const out = new Array<Float32Array>(texts.length);
+    const order = live.map((t, i) => ({ i, n: t.length })).sort((a, b) => a.n - b.n);
+    const out = new Array<Float32Array>(live.length);
     for (let s = 0; s < order.length; s += batch) {
       const part = order.slice(s, s + batch);
-      const vs = await run(part.map((x) => texts[x.i]!));
+      const vs = await run(part.map((x) => live[x.i]!));
       part.forEach((x, j) => { out[x.i] = vs[j]!; });
     }
     return out;
-  }) as Embedder;
+  })) as Embedder;
   (embed as { maxTokens: number }).maxTokens = maxTokens;
   return embed;
 }

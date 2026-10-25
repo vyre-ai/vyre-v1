@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { MODEL_FILES, MODEL_REVISION, ModelError, fetchModelFile, sha256Hex, urlOf } from "./model.ts";
 import type { Fetch, ModelFile } from "./model.ts";
+import { embedSkippingBlanks, isBlank, DIM } from "./embedder.ts";
 import { basicWords, encode, vocabOf, wordpiece } from "./tokenizer.ts";
 
 const tmp = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "vyre-s13-"));
@@ -61,4 +62,18 @@ test("WordPiece: lowercase, accents off, punctuation apart, longest piece first,
   const long = encode("harbor ".repeat(500), VOCAB, 16);
   assert.equal(long.length, 16);
   assert.equal(long[15], VOCAB.sep, "the cut text still ends in [SEP]");
+});
+
+test("blank chunks are skipped before the embedder: zero vectors, the runtime never sees them, order is kept", async () => {
+  assert.ok(isBlank("") && isBlank("  \n\t") && !isBlank(" a "));
+  const seen: string[][] = [];
+  const fake = async (t: readonly string[]): Promise<Float32Array[]> => { seen.push([...t]); return t.map((x) => new Float32Array(DIM).fill(x.length)); };
+  const out = await embedSkippingBlanks(["abc", "", "de", "   ", "f"], fake);
+  assert.deepEqual(seen, [["abc", "de", "f"]], "only the real texts reached the model");
+  assert.deepEqual(out.map((v) => v[0]), [3, 0, 2, 0, 1]);
+  assert.ok(out.every((v) => v.length === DIM));
+  seen.length = 0;
+  const none = await embedSkippingBlanks(["", " "], fake);
+  assert.deepEqual(seen, [], "all blank: the runtime is not called at all");
+  assert.ok(none.every((v) => v.every((x) => x === 0)));
 });
