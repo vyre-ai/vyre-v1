@@ -178,6 +178,14 @@ const CELL_STARS = { fontSize: 12, color: "var(--warn)", letterSpacing: 1, white
 const CELL_PERSON = { display: "flex", alignItems: "center", gap: 7, minWidth: 0 } as const;
 const GHOST = { height: 9, width: "55%", borderRadius: 5, backgroundColor: "var(--hover)" } as const;
 
+const FLAT = { boxSizing: "border-box", flex: "none", padding: "0 10px", fontSize: 13, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
+const FLAT_NUM = { ...FLAT, fontVariantNumeric: "tabular-nums", textAlign: "right" } as const;
+const FLAT_SEALED = { ...FLAT, color: "var(--ink-3)", letterSpacing: 1 } as const;
+/** The field types webCell draws as plain text (everything but chips, ticks, faces and stars). */
+function isPlainText(f: FieldDef): boolean {
+  return f.type !== "choice" && f.type !== "status" && f.type !== "checkbox" && f.type !== "person" && f.type !== "rating";
+}
+
 const dots = new Map<string, Record<string, string | number>>();
 /** A person's face in a cell: a plain disc in the colours of the shared marble (marbleSpec), one cached style per name. The shared Avatar draws a blurred svg, too dear for thirteen cells a row. */
 function dot(name: string): ReactElement {
@@ -211,6 +219,12 @@ const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: num
   const cells: ReactElement[] = [];
   for (let i = from; i < to; i++) {
     const c = cols[i]!;
+    // a plain text cell is one element, not a box with a span in it: the scroll trace (run 40232405129) had the whole cost in the cells, 33.4 ms p95 with them and 16.8 ms without
+    if (row && isPlainText(c.field)) {
+      const v = row.fields[c.field.key];
+      cells.push(createElement("div", { key: c.field.key, style: { ...(isNumeric(c.field) ? FLAT_NUM : c.field.type === "sealed" ? FLAT_SEALED : FLAT), width: c.width } }, v === undefined || v === null || v === "" ? null : cellText(c.field, v, names)));
+      continue;
+    }
     cells.push(createElement("div", { key: c.field.key, style: isNumeric(c.field) ? { ...CELL_BOX, width: c.width, justifyContent: "flex-end" } : { ...CELL_BOX, width: c.width } }, row ? webCell(c.field, row, names) : createElement("div", { style: GHOST })));
   }
   return createElement(
