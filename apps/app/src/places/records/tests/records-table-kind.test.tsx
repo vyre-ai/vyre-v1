@@ -8,7 +8,7 @@ import { RecordsDataProvider, RecordsStateProvider } from "../sidebar/index.ts";
 import { KIND_LABEL, KIND_ORDER, RecordViews, kindEntries } from "../views-a/index.ts";
 import type { ViewCtx } from "../views-a/index.ts";
 import { createViewsSample } from "../views-a/sample.ts";
-import { TableView } from "../table/index.ts";
+import { NO_PICK, TableView, isPickedRow, pickCount, toggleHeader, togglePick } from "../table/index.ts";
 
 const render = (child: ReactElement, type = "projects"): string => {
   const s = createViewsSample();
@@ -66,4 +66,19 @@ test("a person's face in a cell is a plain disc in the shared marble's colours",
   const out = render(<TableView type="clients" />, "clients");
   assert.ok(has(out, 'data-testid="face-'), "faces are there");
   assert.ok(!has(out, "feGaussianBlur"), "no blurred svg per cell");
+});
+
+test("picking rows: Cmd-click adds and removes, the header checkbox takes the loaded rows or clears, Select all N is every row", () => {
+  const one = togglePick(NO_PICK, "a");
+  const two = togglePick(one, "b");
+  assert.deepEqual([...two.ids], ["a", "b"]);
+  assert.deepEqual([...togglePick(two, "a").ids], ["b"]);
+  const head = toggleHeader(NO_PICK, ["a", "b", "c"]);
+  assert.deepEqual([...head.ids], ["a", "b", "c"]);
+  assert.equal(toggleHeader(head, ["a", "b", "c"]), NO_PICK, "ticking again clears");
+  const every = { ids: new Set<string>(), every: true };
+  assert.ok(isPickedRow(every, "zzz") && !isPickedRow(NO_PICK, "zzz"));
+  assert.equal(pickCount(every, 100014), 100014);
+  assert.equal(pickCount(two, 100014), 2);
+  assert.deepEqual([...togglePick(every, "x").ids], ["x"], "picking one by one after all starts again");
 });

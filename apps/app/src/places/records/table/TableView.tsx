@@ -18,10 +18,11 @@ import { useRecordsState } from "../sidebar/state.tsx";
 import { Scroller } from "./Scroller.tsx";
 import type { ScrollHandle } from "./Scroller.tsx";
 import {
-  FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, SCROLL_BLOCK, chosen, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, fromSaved, groupItems, groupable, hasOptions,
+  FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, SCROLL_BLOCK, chosen, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, groupable, hasOptions,
   hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, setSort, sortable, toSaved, toggleHidden, toggleOption, totalWidth,
 } from "./model.ts";
-import type { Column, FieldDef, RecordRow, TableViewState, TypeDef } from "./model.ts";
+import { NO_PICK, isPickedRow, pickCount, toggleHeader, togglePick } from "./model.ts";
+import type { Column, FieldDef, Pick, RecordRow, TableViewState, TypeDef } from "./model.ts";
 
 type TypesOut = CapMap["schema.types.list"]["out"];
 type ViewsOut = CapMap["views.list"]["out"];
@@ -122,9 +123,10 @@ interface PieceProps {
   hot: boolean;
   tint: string | null;
   names: (id: string) => string;
-  onTap: (id: string) => void;
+  onTap: (id: string, meta?: boolean) => void;
   onOpen: (id: string) => void;
   onHot: (id: string | null) => void;
+  onMenu: (row: RecordRow, x: number, y: number) => void;
 }
 
 const bgOf = (p: { selected: boolean; hot: boolean; tint: string | null }): string => (p.selected ? "var(--sel)" : p.hot ? "var(--hover)" : p.tint ?? "var(--win)");
@@ -142,9 +144,9 @@ function samePiece<T extends PieceProps>(a: T, b: T): boolean {
 }
 
 const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): ReactElement {
-  const { row, n, y, selected, hot, primary, names, onTap, onOpen, onHot } = p;
+  const { row, n, y, selected, hot, primary, names, onTap, onOpen, onHot, onMenu } = p;
   const bg = bgOf(p);
-  const handlers = { onClick: () => { if (row) onTap(row.id); }, onMouseEnter: () => onHot(row ? row.id : null), onMouseLeave: () => onHot(null) };
+  const handlers = { onClick: (e: { metaKey?: boolean; ctrlKey?: boolean }) => { if (row) onTap(row.id, e.metaKey === true || e.ctrlKey === true); }, onContextMenu: (e: { preventDefault(): void; clientX: number; clientY: number }) => { if (row) { e.preventDefault(); onMenu(row, e.clientX, e.clientY); } }, onMouseEnter: () => onHot(row ? row.id : null), onMouseLeave: () => onHot(null) };
   return (
     <View
       accessibilityRole="button"
@@ -207,7 +209,7 @@ function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string)
 }
 
 const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: number; cols: readonly Column[]; from: number; to: number; pad: number }): ReactElement {
-  const { row, n, y, left, width, cols, from, to, pad, names, onTap, onHot } = p;
+  const { row, n, y, left, width, cols, from, to, pad, names, onTap, onHot, onMenu } = p;
   const bg = bgOf(p);
   const cells: ReactElement[] = [];
   for (let i = from; i < to; i++) {
@@ -218,7 +220,8 @@ const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: num
     "div",
     {
       "data-testid": row ? `recb-${row.id}` : `recb-pending-${n}`,
-      onClick: () => { if (row) onTap(row.id); }, onMouseEnter: () => onHot(row ? row.id : null), onMouseLeave: () => onHot(null),
+      onClick: (e: { metaKey?: boolean; ctrlKey?: boolean }) => { if (row) onTap(row.id, e.metaKey === true || e.ctrlKey === true); }, onContextMenu: (e: { preventDefault(): void; clientX: number; clientY: number }) => { if (row) { e.preventDefault(); onMenu(row, e.clientX, e.clientY); } },
+      onMouseEnter: () => onHot(row ? row.id : null), onMouseLeave: () => onHot(null),
       style: { position: "absolute", boxSizing: "border-box", display: "flex", alignItems: "center", top: y, left, width, height: ROW_H, borderBottom: "1px solid var(--line)", backgroundColor: bg, contain: "layout style paint" },
     },
     pad > 0 ? createElement("div", { key: "pad", style: { width: pad, flex: "none" } }) : null,
@@ -348,16 +351,40 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
       if (id) data.nav.openRecord(id);
     });
   };
+  const nPicked = pickCount(sel, count ?? 0);
+  /** What the right-click menu and the selection bar both offer. `ids` are the picked rows; `every` means the whole table. */
+  const actionEntries = (ids: readonly string[], every: boolean): MenuEntry[] => {
+    const word = every ? `All ${(count ?? 0).toLocaleString("en-US")}` : String(ids.length);
+    const out: MenuEntry[] = [];
+    if (!every && ids.length === 1) out.push({ label: "Open", onSelect: () => data.nav.openRecord(ids[0] as string) });
+    out.push({
+      label: every ? `Export ${word} as CSV` : `Export the view as CSV`,
+      onSelect: () => { void data.call("records.export", { type, format: "csv", ...(filterOf(v, def.titleField) === undefined ? {} : { filter: filterOf(v, def.titleField) }), ...(v.sort.length ? { sort: v.sort.map((x) => ({ ...x })) } : {}) }); },
+    });
+    out.push({ separator: true });
+    out.push(every
+      ? { label: "Delete needs fewer rows selected" }
+      : { label: ids.length === 1 ? "Delete" : `Delete ${word} records`, danger: true, onSelect: () => { for (const id of ids) void data.call("records.delete", { type, recordId: id }); clearPick(); setSelected(null); } });
+    return out;
+  };
   const rowMenu = (r: RecordRow, x: number, y: number): void => {
-    setSelected(r.id);
-    menu.show([{ label: "Open", onSelect: () => data.nav.openRecord(r.id) }], x, y);
+    const inPick = isPicked(r.id) && nPicked > 1;
+    if (!inPick) { setSelected(r.id); clearPick(); }
+    menu.show(actionEntries(inPick ? (sel.every ? [r.id] : [...sel.ids]) : [r.id], inPick && sel.every), x, y, "context", { label: inPick ? `${nPicked.toLocaleString("en-US")} selected` : "Record" });
   };
 
+  const menuRef = useRef(rowMenu);
+  menuRef.current = rowMenu;
+  /** Stable, so a memoised row never re-renders because the menu closure changed. */
+  const onRowMenu = useCallback((r: RecordRow, x: number, y: number): void => menuRef.current(r, x, y), []);
   const rowAt = (i: number): RecordRow | null => (loaded ? loaded.rows[i - loaded.offset] ?? null : null);
   const orderIds = useMemo(() => (items ? items.flatMap((it) => (it.g ? [] : [it.row.id])) : loaded ? loaded.rows.map((r) => r.id) : []), [items, loaded]);
   const scroller = useRef<ScrollHandle | null>(null);
-  /** none, the rows loaded (the header checkbox), or every row of the table (Select all N). */
-  const [picked, setPicked] = useState<"none" | "page" | "every">("none");
+  /** The picked rows: the ids ticked by Cmd-click or the header checkbox, or every row of the table (Select all N). */
+  const [sel, setSel] = useState<Pick>(NO_PICK);
+  const picked: "none" | "page" | "every" = sel.every ? "every" : sel.ids.size > 1 ? "page" : "none";
+  const isPicked = (id: string): boolean => isPickedRow(sel, id);
+  const clearPick = (): void => setSel(NO_PICK);
   const [jump, setJump] = useState<string | null>(null);
   const goTo = (row: number): void => {
     const i = Math.max(0, Math.min(Math.max(0, total - 1), row));
@@ -373,14 +400,16 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
     if (cmd && ev.key === "ArrowUp") { ev.preventDefault?.(); goTo(0); const first = orderIds[0]; if (first && win.first === 0) setSelected(first); }
     else if (cmd && ev.key === "ArrowDown") { ev.preventDefault?.(); goTo(total - 1); }
     else if (cmd && (ev.key === "g" || ev.key === "G")) { ev.preventDefault?.(); setJump(""); }
-    else if (ev.key === "Escape" && picked !== "none") setPicked("none");
+    else if (ev.key === "Escape" && picked !== "none") clearPick();
     else if (ev.key === "ArrowDown") { ev.preventDefault?.(); move(1); }
     else if (ev.key === "ArrowUp") { ev.preventDefault?.(); move(-1); }
     else if ((ev.key === "Enter" || ev.key === " ") && selected) { ev.preventDefault?.(); data.nav.openRecord(selected); }
   };
 
-  const onTap = useCallback((id: string): void => {
+  const onTap = useCallback((id: string, meta?: boolean): void => {
     setSelected(id);
+    if (meta === true) { setSel((cur) => togglePick(cur, id)); return; }
+    setSel((cur) => (cur.every || cur.ids.size > 0 ? NO_PICK : cur));
     const now = Date.now();
     if (tapped.current.id === id && now - tapped.current.at < 450) { tapped.current = { id: "", at: 0 }; data.nav.openRecord(id); } else tapped.current = { id, at: now };
   }, [data]);
@@ -418,20 +447,20 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
       }
       const tint = colourOf(colourField, it.row);
       if (web && primary) {
-        const piece = { row: it.row, n: it.n, y, selected: selected === it.row.id, hot: hot === it.row.id, tint, names: data.nameOf, onTap, onOpen, onHot: setHot };
+        const piece = { row: it.row, n: it.n, y, selected: selected === it.row.id || isPicked(it.row.id), hot: hot === it.row.id, tint, names: data.nameOf, onTap, onOpen, onHot: setHot };
         frozen.push(<RowFrozen key={it.row.id} {...piece} primary={primary} />);
         rows.push(<RowBody key={it.row.id} {...piece} left={fw} width={width - fw} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} />);
-      } else rows.push(<TableRow key={it.row.id} row={it.row} n={it.n} y={y} width={width} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} selected={selected === it.row.id} tint={tint} names={data.nameOf} onSelect={setSelected} onOpen={data.nav.openRecord} />);
+      } else rows.push(<TableRow key={it.row.id} row={it.row} n={it.n} y={y} width={width} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} selected={selected === it.row.id || isPicked(it.row.id)} tint={tint} names={data.nameOf} onSelect={setSelected} onOpen={data.nav.openRecord} />);
       continue;
     }
     const r = rowAt(i);
     if (web && primary) {
-      const piece = { row: r, n: i + 1, y, selected: r !== null && selected === r.id, hot: r !== null && hot === r.id, tint: r ? colourOf(colourField, r) : null, names: data.nameOf, onTap, onOpen, onHot: setHot };
+      const piece = { row: r, n: i + 1, y, selected: r !== null && (selected === r.id || isPicked(r.id)), hot: r !== null && hot === r.id, tint: r ? colourOf(colourField, r) : null, names: data.nameOf, onTap, onOpen, onHot: setHot };
       frozen.push(<RowFrozen key={r ? r.id : `p${i}`} {...piece} primary={primary} />);
       rows.push(<RowBody key={r ? r.id : `p${i}`} {...piece} left={fw} width={width - fw} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} />);
       continue;
     }
-    rows.push(<TableRow key={r ? r.id : `p${i}`} row={r} n={i + 1} y={y} width={width} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} selected={r !== null && selected === r.id} tint={r ? colourOf(colourField, r) : null} names={data.nameOf} onSelect={setSelected} onOpen={data.nav.openRecord} />);
+    rows.push(<TableRow key={r ? r.id : `p${i}`} row={r} n={i + 1} y={y} width={width} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} selected={r !== null && (selected === r.id || isPicked(r.id))} tint={r ? colourOf(colourField, r) : null} names={data.nameOf} onSelect={setSelected} onOpen={data.nav.openRecord} />);
   }
 
   const sortKey = v.sort[0];
@@ -486,15 +515,25 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
         <HeadButton icon="plus" label="New" bare={slim} testID="records-new" onPress={newRecord} />
       </View>
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="records-offline">Offline, showing your saved copy</Text>}
-      {picked !== "none" ? (
+      {picked !== "none" || sel.ids.size > 0 ? (
         <View style={styles.pickBar} accessibilityRole="toolbar" testID="records-pick-bar">
           <Text style={styles.pickBarText} testID="records-pick-text">
-            {picked === "every" ? `All ${(count ?? 0).toLocaleString("en-US")} ${def.plural.toLowerCase()} are selected.` : `${orderIds.length.toLocaleString("en-US")} ${def.plural.toLowerCase()} selected.`}
+            {sel.every ? `All ${(count ?? 0).toLocaleString("en-US")} ${def.plural.toLowerCase()} are selected.` : `${sel.ids.size.toLocaleString("en-US")} ${sel.ids.size === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()} selected.`}
           </Text>
-          {picked === "page" && count !== null && count > orderIds.length ? (
-            <Pressable accessibilityRole="button" testID="records-select-every" onPress={() => setPicked("every")} style={styles.pickLink}><Text style={styles.pickLinkText}>{`Select all ${count.toLocaleString("en-US")}`}</Text></Pressable>
+          {!sel.every && count !== null && count > sel.ids.size ? (
+            <Pressable accessibilityRole="button" testID="records-select-every" onPress={() => setSel({ ids: new Set(), every: true })} style={styles.pickLink}><Text style={styles.pickLinkText}>{`Select all ${count.toLocaleString("en-US")}`}</Text></Pressable>
           ) : null}
-          <Pressable accessibilityRole="button" testID="records-pick-clear" onPress={() => setPicked("none")} style={styles.pickLink}><Text style={styles.pickLinkText}>Clear</Text></Pressable>
+          <View style={styles.grow} />
+          {actionEntries(sel.every ? [] : [...sel.ids], sel.every).filter((e) => "label" in e).map((e) => {
+            const it = e as { label: string; onSelect?: () => void; danger?: boolean };
+            const off = it.onSelect === undefined;
+            return (
+              <Pressable key={it.label} accessibilityRole="button" accessibilityState={{ disabled: off }} disabled={off} testID={`records-pick-${it.label.split(" ")[0]!.toLowerCase()}`} onPress={() => it.onSelect?.()} style={({ hovered }: { hovered?: boolean }) => [styles.pickLink, hovered === true && styles.pickLinkOver]}>
+                <Text style={[styles.pickLinkText, it.danger === true && styles.pickDanger, off && styles.pickOff]}>{it.label}</Text>
+              </Pressable>
+            );
+          })}
+          <Pressable accessibilityRole="button" testID="records-pick-clear" onPress={clearPick} style={styles.pickLink}><Text style={styles.pickLinkText}>Clear</Text></Pressable>
         </View>
       ) : null}
       <View style={styles.sheet} onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })} {...({ onKeyDown } as object)}>
@@ -505,7 +544,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
             handle={scroller} width={width} height={total * ROW_H} onScroll={onScroll}
             header={(
               <View style={[styles.thr, { width }]}>
-                <View style={[styles.rn, STICKY(0), styles.headBg]}><Pressable accessibilityRole="checkbox" accessibilityLabel="Select all" accessibilityState={{ checked: picked !== "none" }} testID="records-select-all" onPress={() => setPicked((p) => (p === "none" ? "page" : "none"))} style={[styles.cb, picked !== "none" && styles.cbOn]} /></View>
+                <View style={[styles.rn, STICKY(0), styles.headBg]}><Pressable accessibilityRole="checkbox" accessibilityLabel="Select all" accessibilityState={{ checked: picked !== "none" || sel.ids.size > 0 }} testID="records-select-all" onPress={() => setSel((cur) => toggleHeader(cur, orderIds))} style={[styles.cb, (picked !== "none" || sel.ids.size > 0) && styles.cbOn]} /></View>
                 {primary ? <HeadCell col={primary} dir={sortKey?.field === primary.field.key ? sortKey.dir : null} first onSort={() => set(cycleSort(v, primary.field.key))} onMenu={(x, y) => colMenu(primary.field, x, y)} /> : null}
                 {colWin.pad > 0 ? <View style={{ width: colWin.pad }} /> : null}
                 {headCells}
@@ -624,6 +663,9 @@ const styles = StyleSheet.create({
   pickBar: { height: 34, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 18, backgroundColor: "var(--accent-wash)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   pickBarText: { fontSize: 12.5, color: "var(--ink)" as string },
   pickLink: { height: 24, justifyContent: "center", paddingHorizontal: 4 },
+  pickLinkOver: { backgroundColor: "var(--hover)" as string },
+  pickDanger: { color: "var(--danger)" as string },
+  pickOff: { color: "var(--ink-4)" as string },
   pickLinkText: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
   cb: { width: 14, height: 14, borderRadius: 4, borderWidth: 1.4, borderColor: "var(--ink-4)" as string },
   frozenLayer: { position: "sticky", left: 0, width: 0, height: 0, zIndex: 3, overflow: "visible" } as unknown as ViewStyle,
