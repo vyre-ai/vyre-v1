@@ -34,7 +34,7 @@ Spec 2.14 is the gate act table. Spec 2.24 is the three notification levels. Spe
 | Notification kinds | notificationKinds | 23 | notifications |
 | Health checks | healthChecks | 47 | one module each |
 | Retention classes | retention | 10 | governance |
-| Settings | settings | 92 | the module that owns the row |
+| Settings | settings | 96 | the module that owns the row |
 | Import sources | importSources | 9 | import, vault |
 | Blocks | blocks | 22 | the module that renders the block |
 | Lists | lists | 10 | the module that owns the list |
@@ -418,8 +418,12 @@ Example: `mail.send_window`.
 | memory.weekly_nudge | memory | person | Memory and privacy | true |
 | microsoft.auto_connect | microsoft | space | integrations | true |
 | microsoft.excluded_members | microsoft | space | integrations | [] |
+| notifications.alert_replies | notifications | person | Notifications | false |
 | notifications.email_backstop | notifications | person | Notifications | true |
+| notifications.hand_needs_you_to | notifications | person | Notifications | null |
 | notifications.push_idle_minutes | notifications | space | Notifications | 5 |
+| notifications.quiet_hours | notifications | person | Notifications | {"from":"22:00","needs":true,"on":false,"to":"07:00"} |
+| notifications.routines_all | notifications | person | Notifications | false |
 | notifications.working_hours | notifications | person | Notifications | {"days":[1,2,3,4,5],"from":"09:00","to":"18:00","tz":"UTC"} |
 | profile.contact | settings | person | profile | {} |
 | profile.display_name | settings | person | profile | "" |
