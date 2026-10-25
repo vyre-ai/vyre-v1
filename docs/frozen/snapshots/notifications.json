@@ -1,0 +1,37 @@
+{
+  "module": "notifications",
+  "capabilities": {
+    "notifications.away.clear@1": "f10fab735b9858a0c03cbae0a5397efbe71626832cbe0b92df0f286b71b12b48",
+    "notifications.away.get@1": "95bede3592c9ffc8dbf4cec8984564382a7ad0aa588f99473b34809fd4f626ff",
+    "notifications.away.set@1": "dc5e62f92f9766f67e757c3937afe7bbe8de7a1cffdf8dd102e90e67c16dee36",
+    "notifications.counts@1": "2d7560bb69e5be98a645fbd90e7fddd00f8e51b6aeee345023c45f50b9c1d423",
+    "notifications.delegate.get@1": "75875596657feaf2a1095c80efe94d1cc5e71bfd68d2bd2910821caf302530ee",
+    "notifications.delegate.resolve@1": "0842a9608ceb35ca87d2650dec6b9b2ef3a5300ad080f1d7a2324526bcf2064a",
+    "notifications.delegate.set@1": "fb2148ab0e325c7f7d00fcbdfcc506234374a6cd6be6c221252e75cc2772ff32",
+    "notifications.digest.collect@1": "468280cb4baa7f7292ba5602a717d6386263f01ec0db2fb0046ef111f59dd1b6",
+    "notifications.kind.set_level@1": "dff5ba8399f88f7ebe1240ea458ebd29741efb85b5ea635d3cd13f3eb70ed034",
+    "notifications.kinds.list@1": "3fc1dbc7bd8302f42947d3337f0b723859ce5347c5484f458a901d5dcaf3013a",
+    "notifications.list@1": "1fdacf888da6d16126a68f0e96e51581dbe6fa367d5213d061cbdbd4efbbce89",
+    "notifications.mark_seen@1": "b6b7037f7afc160d1c5d38fe009372bb31059024b20db65adad535dfeaad3b48",
+    "notifications.mute.clear@1": "6ed726446e4ab384e03db461ee460d1bb7665903e413e86a6996d20280b50745",
+    "notifications.mute.list@1": "7d654ea86f950422c19118595564ebd9680f71403bf8ecd16464e4b3d7e2cc7f",
+    "notifications.mute.set@1": "25e732463fbd1c1441e05fbac2ed8158b12491e578c8934c200c79050f246f21",
+    "notifications.push.register@1": "9a9c36d1e881f53b97a1a9dabe6dfd5752e325928e13b4ab230ff0db454ad00c",
+    "notifications.push.unregister@1": "55685a4bad4058bf5f6c083d8996b6224d7bde548394717800175d360f487687",
+    "notifications.rules.get@1": "3af9eb8984f142eb338704e9c6af4200500ffe34ae649d8bc627aa2ae1c9ccaf",
+    "notifications.rules.set@1": "372f8990120869c86fbf8927e5acdf4e96e49128f7fbec8c833ef1cd9729ecb2",
+    "notifications.send@1": "634466e596dc44d2b29ead5155308eaa10af0eb9e7f17146e28af2cc3e9f7da6"
+  },
+  "events": {
+    "away.cleared": "2c8a54b62d271ece06c8e7d043774b967ba76d48ce07458b0e4f5e9788a9e291",
+    "away.set": "a5735fc370645541f8074c8c463449771b26f5da403a39882b73a2b035f1e270",
+    "notification.capped": "5e5d9dc1a9d8232cc2d9946bf9edab6c77bda22261f677038b149aab1a585ed4",
+    "notification.delegate_changed": "5b43fd31a77d27d471365699a075b3141601181bbc6eec68c32bf72aef8afce8",
+    "notification.delivered": "c67a34c140d232ee567ace498bf7f50407c4480305caad9141b84a6e0be71661",
+    "notification.muted": "c8e7aa3a90fcfdbdf969d5e3b552efaf5c6674faddd8e26d01534bdeea5817f8",
+    "notification.push_registered": "f1e94ea4615a2b2dc8bf11dabefba3739cf38917b8cd8435182c63ef0008c25f",
+    "notification.rules_changed": "f7d41f572601aff8020f7ee1744abf9dd0ce08d5cb07842cf4908f5391e2cafa",
+    "notification.seen": "46bb415de05b03d0bb6aca64eb0b30e6edcaa92c5ae57aec47d232b9796b454a",
+    "notification.unmuted": "373b3b83c2ea7f06e929cc2c6e18bd4c73db3306e89f21eb37294a1b471bfd20"
+  }
+}

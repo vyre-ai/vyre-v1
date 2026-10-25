@@ -136,13 +136,13 @@ function addressOut(row: Row): AddressOut {
 }
 
 function loadAddress(ctx: ContactsCtx, id: string): Row | null {
-  return first(ctx.db.all(`SELECT * FROM contacts_address WHERE id = ? AND deleted_at IS NULL`, id));
+  return first(ctx.db.all(`SELECT * FROM contacts_link_address WHERE id = ? AND deleted_at IS NULL`, id));
 }
 
 export async function addressList(ctx: ContactsCtx, input: { contactId: string }): Promise<{ addresses: AddressOut[] }> {
   ensure(ctx);
   if (!isId("rec", input.contactId)) bad(ctx, "Contact id is not valid.");
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM contacts_address WHERE "contactId" = ? AND deleted_at IS NULL`, input.contactId));
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM contacts_link_address WHERE "contactId" = ? AND deleted_at IS NULL`, input.contactId));
   rows.sort((a, b) => num(b, "primary") - num(a, "primary") || num(b, "updated_at") - num(a, "updated_at") || str(a, "id").localeCompare(str(b, "id")));
   return { addresses: rows.map(addressOut) };
 }
@@ -162,13 +162,13 @@ export async function addressAdd(
   // The address belongs to one record. The same record asking again gets its row back; another record holding it is a duplicate.
   const holders = await holdersOf(ctx, input.kind, normalized);
   if (holders.some((id) => id !== rec.id)) throw fail("validation.duplicate", ctx.trace.traceId, { message: "Another contact or company already holds that address." });
-  const have = first(ctx.db.all(`SELECT * FROM contacts_address WHERE "contactId" = ? AND kind = ? AND normalized = ? AND deleted_at IS NULL`, rec.id, input.kind, normalized));
+  const have = first(ctx.db.all(`SELECT * FROM contacts_link_address WHERE "contactId" = ? AND kind = ? AND normalized = ? AND deleted_at IS NULL`, rec.id, input.kind, normalized));
   let row = have;
   if (!row) {
     const now = ctx.now();
     const id = newId("adr", now);
     ctx.db.run(
-      `INSERT INTO contacts_address (id, "contactId", kind, value, normalized, "primary", verified, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO contacts_link_address (id, "contactId", kind, value, normalized, "primary", verified, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id, rec.id, input.kind, input.value.trim(), normalized, 0, 0, 1, now, null,
     );
     ctx.emit("contact.address_added", `record/${rec.id}`, { contactId: rec.id, kind: input.kind, addressId: id });
@@ -186,7 +186,7 @@ export async function addressRemove(ctx: ContactsCtx, input: { contactId: string
   const row = loadAddress(ctx, input.addressId);
   if (!row || str(row, "contactId") !== input.contactId) return { removed: false };
   const now = ctx.now();
-  ctx.db.run(`UPDATE contacts_address SET deleted_at = ?, "primary" = ?, version = ?, updated_at = ? WHERE id = ?`, now, 0, num(row, "version") + 1, now, input.addressId);
+  ctx.db.run(`UPDATE contacts_link_address SET deleted_at = ?, "primary" = ?, version = ?, updated_at = ? WHERE id = ?`, now, 0, num(row, "version") + 1, now, input.addressId);
   ctx.emit("contact.address_removed", `record/${input.contactId}`, { contactId: input.contactId, kind: str(row, "kind"), addressId: input.addressId });
   return { removed: true };
 }
@@ -215,21 +215,21 @@ async function makePrimary(ctx: ContactsCtx, rec: RecordLite, row: Row): Promise
   const old = text(rec.fields[field]);
   const oldNorm = old ? normalize(kind, old) : "";
   if (oldNorm && oldNorm !== str(row, "normalized")) {
-    const kept = first(ctx.db.all(`SELECT id FROM contacts_address WHERE "contactId" = ? AND kind = ? AND normalized = ? AND deleted_at IS NULL`, rec.id, kind, oldNorm));
+    const kept = first(ctx.db.all(`SELECT id FROM contacts_link_address WHERE "contactId" = ? AND kind = ? AND normalized = ? AND deleted_at IS NULL`, rec.id, kind, oldNorm));
     if (!kept) {
       const id = newId("adr", now);
       ctx.db.run(
-        `INSERT INTO contacts_address (id, "contactId", kind, value, normalized, "primary", verified, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO contacts_link_address (id, "contactId", kind, value, normalized, "primary", verified, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         id, rec.id, kind, old, oldNorm, 0, 0, 1, now, null,
       );
       ctx.emit("contact.address_added", `record/${rec.id}`, { contactId: rec.id, kind, addressId: id });
     }
   }
   await ctx.call("records.update", { type: rec.type, recordId: rec.id, patch: { [field]: str(row, "value") } });
-  for (const other of rowsOf(ctx.db.all(`SELECT * FROM contacts_address WHERE "contactId" = ? AND kind = ? AND deleted_at IS NULL`, rec.id, kind))) {
+  for (const other of rowsOf(ctx.db.all(`SELECT * FROM contacts_link_address WHERE "contactId" = ? AND kind = ? AND deleted_at IS NULL`, rec.id, kind))) {
     const flag = str(other, "id") === str(row, "id") ? 1 : 0;
     if (num(other, "primary") === flag) continue;
-    ctx.db.run(`UPDATE contacts_address SET "primary" = ?, version = ?, updated_at = ? WHERE id = ?`, flag, num(other, "version") + 1, now, str(other, "id"));
+    ctx.db.run(`UPDATE contacts_link_address SET "primary" = ?, version = ?, updated_at = ? WHERE id = ?`, flag, num(other, "version") + 1, now, str(other, "id"));
   }
   return loadAddress(ctx, str(row, "id")) ?? row;
 }
@@ -283,7 +283,7 @@ export async function duplicatesList(
         put(withCompany ? `name+co:${words2}|${withCompany}` : `name:${words2}`, r.id, withCompany ? "same name and company" : "same name", withCompany ? 0.8 : 0.6);
       }
     }
-    for (const a of rowsOf(ctx.db.all(`SELECT * FROM contacts_address WHERE deleted_at IS NULL`))) {
+    for (const a of rowsOf(ctx.db.all(`SELECT * FROM contacts_link_address WHERE deleted_at IS NULL`))) {
       const id = str(a, "contactId");
       if (!present.has(id)) continue;
       const kind = str(a, "kind");

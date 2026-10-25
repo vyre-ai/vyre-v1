@@ -229,7 +229,7 @@ export async function holders(ctx: ContactsCtx, q: { emails?: string[]; phones?:
   const handles = [...new Set((q.handles ?? []).map(normHandle).filter(Boolean))];
   for (const [kind, values] of [["email", emails], ["phone", phones], ["handle", handles]] as const) {
     for (const value of values) {
-      for (const r of rowsOf(ctx.db.all(`SELECT "contactId" FROM contacts_address WHERE kind = ? AND normalized = ? AND deleted_at IS NULL`, kind, value))) {
+      for (const r of rowsOf(ctx.db.all(`SELECT "contactId" FROM contacts_link_address WHERE kind = ? AND normalized = ? AND deleted_at IS NULL`, kind, value))) {
         add(found, `${kind}:${value}`, str(r, "contactId"));
       }
     }
