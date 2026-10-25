@@ -22,6 +22,10 @@ function rig(...kits: ReturnType<typeof kit>[]): Harness {
   return h;
 }
 
+let keySeq = 0;
+/** templates.save is a create, so every call carries its own idempotency key. */
+const save = (h: Harness, input: Record<string, unknown>, who = admin, check = true) => h.call("templates.save", { idempotencyKey: `save-${++keySeq}`, ...input }, who, check);
+
 const K = (h: Harness, key: string) => h.kits.find((k) => k.key === key)!;
 
 const templatesRows = (h: Harness) => h.rows("templates_template");
@@ -192,7 +196,7 @@ const AUTOMATION = { id: "aut_abc1", name: "Welcome new client", description: "S
 test("save: a record type becomes a one-item template in Kit format; it lists, previews its record type and installs through schema.apply with the stored definition", async () => {
   const h = rig(MATTER);
   h.callee("schema.types.get", () => ({ type: CONTACT_TYPE }));
-  const saved = await h.call("templates.save", { kind: "record_type", ref: "client", title: "Client record" });
+  const saved = await save(h, { kind: "record_type", ref: "client", title: "Client record" });
   assert.deepEqual({ ...saved.template, templateId: "x" }, { templateId: "x", title: "Client record", kind: "record_type", summary: "Adds Client record.", version: "1.0.0", adds: ["Client record"] });
   assert.deepEqual(h.events.map((e) => [e.name, e.payload]), [["template.saved", { templateId: saved.template.templateId, kind: "record_type" }]]);
   const row = h.rows("templates_template").find((r) => r.id === saved.template.templateId)!;
@@ -224,7 +228,7 @@ test("save: a record type becomes a one-item template in Kit format; it lists, p
 test("save: an Automation is saved with its definition and installs through automations.create, into a folder when one is given", async () => {
   const h = rig();
   h.callee("automations.get", () => ({ automation: AUTOMATION }));
-  const saved = await h.call("templates.save", { kind: "automation", ref: "aut_abc1", title: "Welcome" });
+  const saved = await save(h, { kind: "automation", ref: "aut_abc1", title: "Welcome" });
   h.calls.length = 0;
   const done = await h.call("templates.install", { templateId: saved.template.templateId, into: "fld_automations" });
   assert.deepEqual(done, { installed: [{ kind: "automation", id: "aut_new1" }] });
@@ -238,7 +242,7 @@ test("save: an Automation is saved with its definition and installs through auto
   assert.equal(h.callsTo("automations.create")[1]!.input.folderId, undefined);
   // a record type has no folder
   h.callee("schema.types.get", () => ({ type: CONTACT_TYPE }));
-  const rt = await h.call("templates.save", { kind: "record_type", ref: "client", title: "Client" });
+  const rt = await save(h, { kind: "record_type", ref: "client", title: "Client" });
   await refused(h.call("templates.install", { templateId: rt.template.templateId, into: "fld_x" }), "validation.bad_input");
 });
 
@@ -246,15 +250,15 @@ test("save: a system or synced record type, a missing item, kinds that cannot be
   const h = rig();
   h.callee("schema.types.get", (i: { type: string }) => (i.type === "task" ? { type: { ...CONTACT_TYPE, key: "task", system: true } } : i.type === "hubspot_deal" ? { type: { ...CONTACT_TYPE, key: "hubspot_deal", syncedFrom: "hubspot" } } : i.type === "site_tbl" ? { type: { ...CONTACT_TYPE, scope: "sit_abc" } } : {}));
   h.callee("automations.get", () => ({}));
-  await refused(h.call("templates.save", { kind: "record_type", ref: "task", title: "Task" }), "validation.precondition_failed");
-  await refused(h.call("templates.save", { kind: "record_type", ref: "hubspot_deal", title: "Deal" }), "validation.precondition_failed");
-  await refused(h.call("templates.save", { kind: "record_type", ref: "site_tbl", title: "Leads" }), "validation.precondition_failed");
-  await refused(h.call("templates.save", { kind: "record_type", ref: "nothing", title: "Nothing" }), "validation.not_found");
-  await refused(h.call("templates.save", { kind: "automation", ref: "aut_none", title: "None" }), "validation.not_found");
-  for (const kind of ["agent", "journey", "runbook", "project"]) await refused(h.call("templates.save", { kind, ref: "x1", title: "X" }), "validation.precondition_failed");
-  await refused(h.call("templates.save", { kind: "record_type", ref: "client", title: "   " }, admin, false), "validation.bad_input");
-  await refused(h.call("templates.save", { kind: "record_type", ref: "client", title: "x".repeat(121) }, admin, false), "validation.bad_input");
-  await refused(h.call("templates.save", { kind: "spreadsheet", ref: "x", title: "X" }, admin, false), "validation.bad_input");
+  await refused(save(h, { kind: "record_type", ref: "task", title: "Task" }), "validation.precondition_failed");
+  await refused(save(h, { kind: "record_type", ref: "hubspot_deal", title: "Deal" }), "validation.precondition_failed");
+  await refused(save(h, { kind: "record_type", ref: "site_tbl", title: "Leads" }), "validation.precondition_failed");
+  await refused(save(h, { kind: "record_type", ref: "nothing", title: "Nothing" }), "validation.not_found");
+  await refused(save(h, { kind: "automation", ref: "aut_none", title: "None" }), "validation.not_found");
+  for (const kind of ["agent", "journey", "runbook", "project"]) await refused(save(h, { kind, ref: "x1", title: "X" }), "validation.precondition_failed");
+  await refused(save(h, { kind: "record_type", ref: "client", title: "   " }, admin, false), "validation.bad_input");
+  await refused(save(h, { kind: "record_type", ref: "client", title: "x".repeat(121) }, admin, false), "validation.bad_input");
+  await refused(save(h, { kind: "spreadsheet", ref: "x", title: "X" }, admin, false), "validation.bad_input");
   assert.equal(h.rows("templates_template").length, 0);
   assert.equal(h.events.length, 0);
 });
@@ -262,7 +266,7 @@ test("save: a system or synced record type, a missing item, kinds that cannot be
 test("install: a saved template whose step fails says so, names the item and emits nothing", async () => {
   const h = rig();
   h.callee("schema.types.get", () => ({ type: CONTACT_TYPE }));
-  const saved = await h.call("templates.save", { kind: "record_type", ref: "client", title: "Client" });
+  const saved = await save(h, { kind: "record_type", ref: "client", title: "Client" });
   h.callee("schema.apply", () => { throw Object.assign(new Error("exists"), { error: { code: "validation.bad_input", message: "The type client already exists." } }); });
   await refused(h.call("templates.install", { templateId: saved.template.templateId }), "validation.precondition_failed");
   assert.equal(h.events.length, 0);
