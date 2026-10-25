@@ -1,6 +1,6 @@
-// S13: the kernel is assembled from the readable WAT on this machine and tested as the bytes that run: same scores as jsKernel on random data, the zero-copy and staged paths agree,
-// and a VectorIndex given the kernel finds the same neighbours. The 60 ms over 200,000 vectors is measured on the v1-perf runners (bench.ts, spike-s13-vectors workflow, ruling 46);
-// the time asserted here is only a loose guard against a kernel that is accidentally the slow path.
+// S13: the kernel is assembled from the readable WAT on this machine and tested as the bytes that run. The store keeps int8 vectors with a per-vector scale, scans them with the SIMD
+// kernel, keeps 200 candidates and reranks them exactly: tested for recall@20 against the exact JS scan (200,000 vectors), identical top 20 on fixed queries, removal, replacement and
+// growth. The 60 ms budget is measured on the v1-perf runners (bench.ts, spike-s13-vectors workflow, ruling 46); nothing asserted here is a speed claim.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -15,76 +15,79 @@ function unit(seed: number, into = new Float32Array(DIM)): Float32Array {
   return normalise(into);
 }
 
+/** The exact top k of a plain array by the reference kernel. */
+function exactTop(all: Float32Array, n: number, q: Float32Array, k: number): number[] {
+  const out = new Float32Array(n);
+  jsKernel.score(all, 0, n, q, out);
+  return Array.from({ length: n }, (_, i) => i).sort((a, b) => out[b]! - out[a]!).slice(0, k);
+}
+
 test("the WAT assembles to a module that validates, and the source is the WAT file, not bytes in code", async () => {
   const bytes = await assembleKernel();
   assert.deepEqual([...bytes.slice(0, 4)], [0x00, 0x61, 0x73, 0x6d], "a wasm module");
   assert.ok(WebAssembly.validate(bytes), "the runtime accepts it (simd on)");
   const wat = fs.readFileSync(fileURLToPath(new URL("./kernel.wat", import.meta.url)), "utf8");
-  assert.match(wat, /f32x4\.mul/);
-  assert.match(wat, /export "scan"/);
+  assert.match(wat, /i32x4\.dot_i16x8_s/);
+  assert.match(wat, /export "dot8"/);
 });
 
-test("the assembled kernel scores exactly as jsKernel does, on its own memory and on an ordinary array", async () => {
+test("the int8 store returns the exact top 20 on fixed queries over 6,000 vectors, and its scores are the exact float32 cosines", async () => {
   const k = (await loadWasmKernel())!;
   assert.ok(k, "the runtime has SIMD");
-  const N = 5_000;
-  const own = k.alloc(N * DIM);
-  const plain = new Float32Array(N * DIM);
-  for (let i = 0; i < N; i++) { const v = unit(i + 1); own.set(v, i * DIM); plain.set(v, i * DIM); }
-  const q = unit(424242);
-  const want = new Float32Array(N);
-  jsKernel.score(plain, 0, N, q, want);
-  const a = new Float32Array(N), b = new Float32Array(N);
-  k.score(own, 0, N, q, a);
-  k.score(plain, 0, N, q, b);
-  for (let i = 0; i < N; i++) {
-    assert.ok(Math.abs(a[i]! - want[i]!) < 1e-4, `own memory, vector ${i}: ${a[i]} against ${want[i]}`);
-    assert.ok(Math.abs(b[i]! - want[i]!) < 1e-4, `staged, vector ${i}: ${b[i]} against ${want[i]}`);
-  }
-  // a window inside the array, not from the start
-  const w = new Float32Array(100);
-  k.score(own, 700 * DIM, 100, q, w);
-  for (let i = 0; i < 100; i++) assert.ok(Math.abs(w[i]! - want[700 + i]!) < 1e-4);
-  const s = new Float32Array(10);
-  k.score(plain, 2_000 * DIM, 10, q, s);
-  for (let i = 0; i < 10; i++) assert.ok(Math.abs(s[i]! - want[2_000 + i]!) < 1e-4);
-  // a self query scores 1, an orthogonal pair 0
-  const self = new Float32Array(1);
-  k.score(own, 0, 1, unit(1), self);
-  assert.ok(Math.abs(self[0]! - 1) < 1e-4);
-  const e0 = new Float32Array(DIM); e0[0] = 1;
-  const e1 = new Float32Array(DIM); e1[1] = 1;
-  const zero = new Float32Array(1);
-  const one = k.alloc(DIM); one.set(e0);
-  k.score(one, 0, 1, e1, zero);
-  assert.equal(zero[0], 0);
-});
-
-test("a VectorIndex given the kernel returns the same neighbours as the plain one", async () => {
-  const k = (await loadWasmKernel())!;
+  const N = 6_000;
+  const all = new Float32Array(N * DIM);
   const fast = new VectorIndex(64, k);
-  const slow = new VectorIndex(64);
-  assert.equal(fast.kernel, "wasm-simd");
-  assert.ok(k.owns(fast.vectors()), "the index keeps its vectors in the kernel's memory");
-  assert.ok(!k.owns(slow.vectors()));
-  for (let i = 0; i < 6_000; i++) { const v = unit(i + 1); fast.set(i + 1, v); slow.set(i + 1, v); }
-  for (const s of [7, 99, 31337]) {
-    const q = unit(s);
-    assert.deepEqual(fast.top(q, 10).map((x) => x.n), slow.top(q, 10).map((x) => x.n));
+  assert.equal(fast.kernel, "wasm-int8");
+  assert.ok(fast.kernelStored, "the index keeps its vectors in the kernel's store");
+  for (let i = 0; i < N; i++) { const v = unit(i + 1); all.set(v, i * DIM); fast.set(i + 1, v); } // grows past its first capacity six times
+  for (const seed of [7, 99, 31337, 987_654]) {
+    const q = unit(seed);
+    const want = exactTop(all, N, q, 20);
+    const got = fast.top(q, 20);
+    assert.deepEqual(got.map((x) => x.n), want.map((i) => i + 1), `query ${seed}: the same 20, in the same order`);
+    const ref = new Float32Array(1);
+    for (const g of got) { jsKernel.score(all, (g.n - 1) * DIM, 1, q, ref); assert.ok(Math.abs(g.score - ref[0]!) < 1e-5, `score of ${g.n} is the exact float32 cosine`); }
   }
+  // a self query scores 1
+  assert.ok(Math.abs(fast.top(unit(123), 1)[0]!.score - 1) < 1e-5);
+  assert.equal(fast.top(unit(123), 1)[0]!.n, 123);
 });
 
-test("the kernel is not the slow path: 20,000 vectors score in well under a second", async () => {
+test("replace, remove and the accept filter on the store", async () => {
   const k = (await loadWasmKernel())!;
-  const N = 20_000;
-  const own = k.alloc(N * DIM);
+  const index = new VectorIndex(2, k);
+  const a = unit(1), b = unit(2), c = unit(3);
+  index.set(10, a); index.set(20, b); index.set(30, c);
+  index.set(20, c); // replace
+  assert.equal(index.size, 3);
+  assert.equal(index.top(c, 1, (n) => n === 20)[0]?.n, 20, "the replaced vector answers for its new value");
+  index.remove(10);
+  assert.deepEqual([index.size, index.has(10), index.has(30)], [2, false, true]);
+  assert.equal(index.top(a, 5).some((x) => x.n === 10), false, "a removed vector is not returned");
+  assert.deepEqual(index.top(c, 5).map((x) => x.n).sort(), [20, 30]);
+  index.remove(999);
+  assert.equal(index.size, 2);
+  assert.deepEqual(new VectorIndex(4, k).top(a, 5), [], "an empty index answers nothing");
+  const zero = new VectorIndex(4, k);
+  zero.set(1, new Float32Array(DIM));
+  zero.set(2, unit(2));
+  assert.equal(zero.top(unit(2), 1)[0]!.n, 2, "a zero vector does not break the scale");
+});
+
+test("recall@20 against the exact scan is at least 0.99 over 200,000 vectors", async () => {
+  const k = (await loadWasmKernel())!;
+  const N = 200_000;
+  const all = new Float32Array(N * DIM);
   const v = new Float32Array(DIM);
-  for (let i = 0; i < N; i++) own.set(unit(i + 1, v), i * DIM);
-  const out = new Float32Array(N);
-  const q = unit(5);
-  k.score(own, 0, N, q, out);
-  const t0 = performance.now();
-  for (let r = 0; r < 5; r++) k.score(own, 0, N, q, out);
-  const ms = (performance.now() - t0) / 5;
-  assert.ok(ms < 250, `20,000 vectors took ${ms.toFixed(1)} ms`);
+  const fast = new VectorIndex(N, k);
+  for (let i = 0; i < N; i++) { unit(i + 1, v); all.set(v, i * DIM); fast.set(i + 1, v); }
+  let hit = 0, total = 0;
+  const queries = [11, 222, 3_333, 44_444, 987_654];
+  for (const seed of queries) {
+    const q = unit(seed);
+    const want = new Set(exactTop(all, N, q, 20).map((i) => i + 1));
+    for (const g of fast.top(q, 20)) { total++; if (want.has(g.n)) hit++; }
+  }
+  const recall = hit / total;
+  assert.ok(recall >= 0.99, `recall@20 ${recall.toFixed(3)} over ${queries.length} queries and ${N} vectors`);
 });

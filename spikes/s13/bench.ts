@@ -28,26 +28,30 @@ async function kernels(): Promise<void> {
   const plain = new VectorIndex(N, jsKernel);
   const v = new Float32Array(DIM);
   say(`node ${process.version}, ${N} vectors x ${DIM}`);
+  const rss0 = process.memoryUsage();
   for (let i = 0; i < N; i++) { unit(i + 1, v); index.set(i + 1, v); plain.set(i + 1, v); }
-  const q = unit(987_654, new Float32Array(DIM));
-  const time = (ix: VectorIndex): number[] => { ix.top(q, 20); const t: number[] = []; for (let i = 0; i < 5; i++) { const t0 = performance.now(); ix.top(q, 20); t.push(performance.now() - t0); } return t; };
+  const mb = (n: number): string => (n / 1048576).toFixed(0);
+  const rss1 = process.memoryUsage();
+  say(`memory after loading both indexes: rss ${mb(rss1.rss - rss0.rss)} MB, arrayBuffers ${mb(rss1.arrayBuffers - rss0.arrayBuffers)} MB (the plain float32 index is ${mb(N * DIM * 4)} MB of that; the int8 store holds ${mb(N * DIM)} MB int8 + ${mb(N * 4)} MB scales + ${mb(N * DIM * 4)} MB float32 for the rerank = ${mb(N * DIM * 5 + N * 4)} MB)`);
+  const queries = [987_654, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].map((s) => unit(s, new Float32Array(DIM)));
+  const time = (ix: VectorIndex): number[] => { ix.top(queries[0]!, 20); const t: number[] = []; for (let i = 0; i < 5; i++) { const t0 = performance.now(); ix.top(queries[0]!, 20); t.push(performance.now() - t0); } return t; };
   const w = time(index), j = time(plain);
-  say(`wasm-simd runs ${w.map((x) => x.toFixed(1)).join(", ")} ms; js runs ${j.map((x) => x.toFixed(1)).join(", ")} ms`);
-  const same = index.top(q, 20).map((x) => x.n).join() === plain.top(q, 20).map((x) => x.n).join();
-  say(`${same ? "PASS" : "FAIL"} the two kernels return the same 20 neighbours`);
-  if (!same) failed = true;
+  say(`wasm-int8 VectorIndex.top runs ${w.map((x) => x.toFixed(1)).join(", ")} ms; js runs ${j.map((x) => x.toFixed(1)).join(", ")} ms`);
   say(`worst wasm run ${Math.max(...w).toFixed(1)} ms; js median ${median(j).toFixed(1)} ms`);
-  // VectorIndex stores its vectors in the kernel's memory (VectorKernel.alloc), so the VectorIndex.top time above is the production path
-  const own = wasm.alloc(N * DIM);
-  for (let i = 0; i < N; i++) own.set(unit(i + 1, v), i * DIM);
-  const out = new Float32Array(N);
-  wasm.score(own, 0, N, q, out);
-  const z: number[] = [];
-  for (let i = 0; i < 5; i++) { const t0 = performance.now(); wasm.score(own, 0, N, q, out); z.push(performance.now() - t0); }
-  say(`wasm-simd, vectors in the kernel's own memory (zero copy), scoring only: ${z.map((x) => x.toFixed(1)).join(", ")} ms`);
-  budget("cosine over 200k vectors, median of 5, vectors in the kernel's memory", median(z), 60, true);
+  let hit = 0, total = 0, identical = 0;
+  for (const q of queries) {
+    const a = index.top(q, 20).map((x) => x.n), b = plain.top(q, 20).map((x) => x.n);
+    const set = new Set(b);
+    for (const n of a) { total++; if (set.has(n)) hit++; }
+    if (a.join() === b.join()) identical++;
+  }
+  const recall = hit / total;
+  say(`recall@20 over ${queries.length} queries: ${recall.toFixed(4)}; identical top 20 in order: ${identical} of ${queries.length}`);
+  if (recall < 0.99) { say("FAIL recall@20 under 0.99"); failed = true; } else say("PASS recall@20 at least 0.99");
+  if (a0same(index, plain, queries[0]!)) say("PASS the fixed query (987654) returns the identical top 20"); else { say("FAIL the fixed query returns a different top 20"); failed = true; }
   budget("cosine over 200k vectors through VectorIndex.top (the production path), median of 5", median(w), 60, true);
 }
+const a0same = (a: VectorIndex, b: VectorIndex, q: Float32Array): boolean => a.top(q, 20).map((x) => x.n).join() === b.top(q, 20).map((x) => x.n).join();
 
 async function embedder(): Promise<void> {
   const t0 = performance.now();
