@@ -29,8 +29,8 @@ export async function runRestore(live: readonly string[]): Promise<{ events: Obs
     const target = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-golden-backup-"));
     await trail.step("the contact type exists", async () => {
       // the records module ships a built-in contact type; make it only when this Space has none
-      if ((await s.call("schema.types.get", admin, { type: "contact" })).status === 200) return;
-      expectStatus(await s.call("schema.apply", admin, { idempotencyKey: "golden-11-type", ops: [CONTACT] }), 200, "schema.apply");
+      const r = await s.call("schema.apply", admin, { idempotencyKey: "golden-11-type", ops: [CONTACT] });
+      if (r.status !== 422 || r.body?.error?.code !== "validation.duplicate") expectStatus(r, 200, "schema.apply");
     });
     const rec = await trail.step("a contact is created", async () =>
       expectStatus(await s.call("records.create", admin, { idempotencyKey: "golden-11-rec", type: "contact", fields: { name: "Ann Example", email: "ann@example.com" } }), 200, "records.create").record.id as string,
