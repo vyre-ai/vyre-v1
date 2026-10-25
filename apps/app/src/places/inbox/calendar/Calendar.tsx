@@ -42,8 +42,8 @@ export interface CalendarProps {
 const GRID = HH * 24;
 const FALLBACK = "#5B5BD6";
 const colorOf = (cals: readonly CalendarRow[], id: string): string => cals.find((c) => c.id === id)?.color ?? FALLBACK;
-// mixed with transparent, as the busy stripes are: the grid shows through and the fill renders in both skins
-const tint = (color: string, pct: number): string => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
+// react-native-web drops a color-mix() backgroundColor, so a fill is a one-colour gradient in backgroundImage (as the busy stripes are): the grid shows through in both skins
+const tint = (color: string, pct: number): string => { const c = `color-mix(in srgb, ${color} ${pct}%, transparent)`; return `linear-gradient(${c}, ${c})`; };
 
 /** Pointer position helpers for the web; a DOM event is not an RN event, so read what is there. */
 interface PointerLike { clientX: number; clientY: number; button?: number; preventDefault?(): void; stopPropagation?(): void; currentTarget?: { getBoundingClientRect?: () => { left: number; top: number; width: number; height: number } } }
@@ -237,7 +237,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
     const b = blockOf(l, day);
     const col = colorOf(calendars, e.calendarId);
     return (
-      <View key={e.id} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.cev, { top: b.top, height: b.height, left: b.left as unknown as number, width: b.width as unknown as number, backgroundColor: tint(col, isPast(e, clockNow.now) ? 9 : 15), borderLeftColor: col }, cal.selected === e.id && s.cevSel]} testID={`event:${e.id}`}>
+      <View key={e.id} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.cev, { top: b.top, height: b.height, left: b.left as unknown as number, width: b.width as unknown as number, backgroundImage: tint(col, isPast(e, clockNow.now) ? 9 : 15), borderLeftColor: col }, cal.selected === e.id && s.cevSel]} testID={`event:${e.id}`}>
         <Pressable
           accessibilityRole="button" accessibilityLabel={`${e.title}, ${eventLine(e, off)}`} accessibilityState={{ selected: cal.selected === e.id }} testID={`event-body:${e.id}`}
           onPress={() => dispatch({ type: "select", id: e.id })} {...({ onPointerDown: startEvent(e, "move"), onDoubleClick: () => p.onOpenEvent?.(e.id) } as object)} style={s.cevIn}
@@ -361,7 +361,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
               <Text style={[s.dhWk, d === today && s.dhToday]}>{weekdayShort(d, off)}</Text>
               <View style={[s.dhNum, d === today && s.dhNumToday]}><Text style={[s.dhNumText, d === today && s.dhNumTodayText]}>{dateOf(d, off)}</Text></View>
             </Pressable>
-            {each(allDays[i] ?? [], (e) => <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={e.title} testID={`allday:${e.id}`} onPress={() => dispatch({ type: "select", id: e.id })} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.cevAll, { backgroundColor: tint(colorOf(calendars, e.calendarId), 15), borderLeftColor: colorOf(calendars, e.calendarId) }]}><Text numberOfLines={1} style={s.cevTitle}>{e.title}</Text></Pressable>)}
+            {each(allDays[i] ?? [], (e) => <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={e.title} testID={`allday:${e.id}`} onPress={() => dispatch({ type: "select", id: e.id })} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.cevAll, { backgroundImage: tint(colorOf(calendars, e.calendarId), 15), borderLeftColor: colorOf(calendars, e.calendarId) }]}><Text numberOfLines={1} style={s.cevTitle}>{e.title}</Text></Pressable>)}
           </View>
         ))}
       </View>
@@ -464,7 +464,7 @@ const s = StyleSheet.create({
   hours: { width: 52, height: GRID },
   hour: { position: "absolute", right: 8, fontSize: 10.5, color: ink("--ink-3"), fontVariant: ["tabular-nums"], transform: [{ translateY: -7 }] },
   ccol: { flex: 1, minWidth: 0, height: GRID, borderLeftWidth: 1, borderLeftColor: ink("--line"), backgroundImage: "repeating-linear-gradient(to bottom, transparent 0, transparent 51px, var(--line) 51px, var(--line) 52px)" as unknown as undefined },
-  ccolToday: { backgroundColor: "color-mix(in srgb, var(--accent) 3.5%, transparent)" as unknown as string },
+  ccolToday: { backgroundImage: "linear-gradient(color-mix(in srgb, var(--accent) 3.5%, transparent), color-mix(in srgb, var(--accent) 3.5%, transparent))" as unknown as undefined },
   cev: { position: "absolute", borderRadius: 5, overflow: "hidden", borderLeftWidth: 3, zIndex: 2 },
   cevSel: { zIndex: 4, boxShadow: "0 0 0 2px var(--accent)" as unknown as undefined },
   cevIn: { flex: 1, paddingTop: 3, paddingBottom: 2, paddingLeft: 5, paddingRight: 6 },
