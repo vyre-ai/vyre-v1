@@ -304,33 +304,6 @@
       },
       "type": "array"
     },
-    "s_06e2de2d97": {
-      "enum": [
-        "approval.requested",
-        "approval.backstop",
-        "dm",
-        "mention",
-        "call.incoming",
-        "agent.blocked",
-        "incident.owned",
-        "task.assigned",
-        "reply.followed",
-        "agent.task_finished",
-        "campaign.reply",
-        "digest.away",
-        "mention.thread",
-        "run.failed",
-        "conflict.needs_you",
-        "access.requested",
-        "access.decided",
-        "sync.attention",
-        "health.degraded",
-        "problem.report",
-        "member.joined",
-        "limit.hit"
-      ],
-      "type": "string"
-    },
     "s_07340211b5": {
       "anyOf": [
         {
@@ -366,6 +339,34 @@
           "$ref": "#/$defs/s_0506fc3ab2"
         }
       ]
+    },
+    "s_0766030a72": {
+      "enum": [
+        "approval.requested",
+        "approval.backstop",
+        "dm",
+        "mention",
+        "call.incoming",
+        "agent.blocked",
+        "incident.owned",
+        "task.assigned",
+        "reply.followed",
+        "agent.task_finished",
+        "campaign.reply",
+        "digest.away",
+        "mention.thread",
+        "run.failed",
+        "conflict.needs_you",
+        "access.requested",
+        "access.decided",
+        "sync.attention",
+        "health.degraded",
+        "problem.report",
+        "member.joined",
+        "limit.hit",
+        "vault.rotation_due"
+      ],
+      "type": "string"
     },
     "s_08106672f4": {
       "properties": {
@@ -78675,6 +78676,82 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "as": "maya@example.com",
+            "connectionId": "con_a1b2c3",
+            "driveId": "example"
+          },
+          "name": "example",
+          "output": {
+            "startPageToken": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "google",
+      "name": "google.drive.changes_start_token",
+      "output": {
+        "properties": {
+          "startPageToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "startPageToken"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The Drive changes start page token, so a mount syncs incrementally from now instead of rescanning",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "audit": "always",
       "effects": "outward",
       "emits": [],
@@ -115452,7 +115529,7 @@
                   "type": "integer"
                 },
                 "kind": {
-                  "$ref": "#/$defs/s_06e2de2d97"
+                  "$ref": "#/$defs/s_0766030a72"
                 },
                 "subject": {
                   "$ref": "#/$defs/s_f21ece25da"
@@ -115529,7 +115606,7 @@
             "items": {
               "properties": {
                 "key": {
-                  "$ref": "#/$defs/s_06e2de2d97"
+                  "$ref": "#/$defs/s_0766030a72"
                 },
                 "level": {
                   "enum": [
@@ -115736,7 +115813,7 @@
                   "type": "string"
                 },
                 "kind": {
-                  "$ref": "#/$defs/s_06e2de2d97"
+                  "$ref": "#/$defs/s_0766030a72"
                 },
                 "level": {
                   "enum": [
@@ -116519,7 +116596,7 @@
             "type": "object"
           },
           "kind": {
-            "$ref": "#/$defs/s_06e2de2d97"
+            "$ref": "#/$defs/s_0766030a72"
           },
           "runId": {
             "examples": [
@@ -163855,6 +163932,7 @@
         "google.drive.copy_file",
         "google.drive.share_file",
         "google.drive.trash_file",
+        "google.drive.changes_start_token",
         "google.drive.list_changes",
         "google.drive.watch_changes",
         "google.drive.stop_watch",
@@ -178652,7 +178730,7 @@
             "type": "string"
           },
           "kind": {
-            "$ref": "#/$defs/s_06e2de2d97"
+            "$ref": "#/$defs/s_0766030a72"
           },
           "perHour": {
             "type": "integer"
@@ -178721,7 +178799,7 @@
             "type": "string"
           },
           "kind": {
-            "$ref": "#/$defs/s_06e2de2d97"
+            "$ref": "#/$defs/s_0766030a72"
           },
           "level": {
             "enum": [

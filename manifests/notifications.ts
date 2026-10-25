@@ -12,7 +12,7 @@ const place = t.enm('home', 'chats', 'inbox', 'records', 'files', 'apps', 'autom
 const kindKey = t.enm(
   'approval.requested', 'approval.backstop', 'dm', 'mention', 'call.incoming', 'agent.blocked', 'incident.owned', 'task.assigned', 'reply.followed',
   'agent.task_finished', 'campaign.reply', 'digest.away', 'mention.thread', 'run.failed', 'conflict.needs_you', 'access.requested', 'access.decided',
-  'sync.attention', 'health.degraded', 'problem.report', 'member.joined', 'limit.hit',
+  'sync.attention', 'health.degraded', 'problem.report', 'member.joined', 'limit.hit', 'vault.rotation_due',
 );
 const notificationRow = t.obj({
   id: id.notification, kind: kindKey, level, place, title: t.str(), body: t.opt(t.str()), subject: t.opt(resourceRef), count: t.int({ minimum: 1 }),

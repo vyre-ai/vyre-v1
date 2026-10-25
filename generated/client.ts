@@ -883,6 +883,7 @@ export function createClient(transport: Transport) {
         get_document: call("google.docs.get_document", 1),
       },
       drive: {
+        changes_start_token: call("google.drive.changes_start_token", 1),
         copy_file: call("google.drive.copy_file", 1),
         create_folder: call("google.drive.create_folder", 1),
         download_file: call("google.drive.download_file", 1),
