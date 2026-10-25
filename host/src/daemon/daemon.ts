@@ -46,6 +46,7 @@ import { createLocalKeyRoute } from "../routes/local-key.ts";
 import { createKeyring } from "../seams/keyring.ts";
 import { createPeopleExtras, githubOAuthFromEnv } from "../seams/people.ts";
 import type { GithubOAuth } from "../seams/people.ts";
+import { createSpaceAdmin } from "../seams/spaceadmin.ts";
 import { createProviderProbe, createVaultService, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, wireSeams } from "../seams/index.ts";
@@ -450,6 +451,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           post: { allow: o.seams?.webhookAllow ?? (() => []), now, ...(o.seams?.postFetch ? { fetch: o.seams.postFetch } : {}) },
         }),
         ...spaceStoreDrivers(spaceStore),
+        configureSpaceAdmin: () => createSpaceAdmin({ access: () => access.snap, owner: () => cfg.owner ?? access.owner() ?? "usr_owner", space: spaceId, db: db!, system, headSeq: () => headSeq }),
         setVaultKeyPort: () => ({ personKey: async (personId: string) => keyring.get(personId) }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
         configureVault: () => ({ sinks: o.seams?.vaultSinks ?? {}, db: db!, probe: createProviderProbe(), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
@@ -483,6 +485,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         } else db!.run("DELETE FROM health_probe WHERE name = ?", "module_drivers");
       }
 
+      // the Space\'s profile row, once: its name from the event that made the Space, and where people reach it
+      if (loaded.serving.get("spaces") === "live") {
+        const made = (await spaceLog.read({ after: 0, limit: 200 })).find((e) => e.type === "space.created");
+        const name = made ? ((JSON.parse(new TextDecoder().decode(made.payload)) as { name?: string }).name ?? spaceId) : spaceId;
+        await hookRunner.call("spaces.ensure_profile", { name, kind: "team", address: cfg.address }).catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "spaces.profile_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+      }
       await projectionRunner.start();   // after the seams: the events module needs its dispatcher and host ports before the first event reaches webhooks_out
 
       const owner = (): string => cfg.owner ?? access.owner() ?? "usr_owner";

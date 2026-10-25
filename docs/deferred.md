@@ -8,3 +8,5 @@ A capability listed here has a registered handler that refuses with `internal.un
 | vault | vault.folders.update, vault.folders.delete, vault.items.export_mine, vault.items.match, vault.policy.get, vault.policy.set, vault.site_rules.list, vault.site_rules.set | no packet yet (listed on P-L7_LIVE) |
 
 The providers capabilities (list, add, remove, test, sign-in) are real, not deferred: the engine needs them for every turn.
+
+Not a deferred packet but not built either: `access.propose_change` still answers "this capability is a later packet" (modules/access/handlers/index.ts); it is listed here so nothing is surprised by it.
