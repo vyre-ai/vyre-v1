@@ -524,6 +524,18 @@ uninstall() {
     run systemctl disable --now vyre-server.service || true
   fi
   if [ -x "$DIR/current/bin/vyre-server" ]; then run "$DIR/current/bin/vyre-server" stop || true; fi
+  # Remove the containers while the release's compose file still exists (once the releases are gone nothing can name them); --purge also drops the volumes.
+  if [ -f "$DIR/current/compose.server.yml" ] && [ -f "$DIR/compose.env" ] && command -v docker >/dev/null 2>&1; then
+    down_flags="--remove-orphans"; [ "$PURGE" != 1 ] || down_flags="-v --remove-orphans"
+    # shellcheck disable=SC2086
+    run docker compose --project-directory "$DIR/current" --env-file "$DIR/compose.env" -f "$DIR/current/compose.server.yml" -f "$DIR/compose.override.yml" down $down_flags || true
+  fi
+  # A purge after an earlier plain uninstall has no compose file left: find what is left by the compose project label.
+  if [ "$PURGE" = 1 ] && [ "$DRY" != 1 ] && command -v docker >/dev/null 2>&1; then
+    proj=${COMPOSE_PROJECT_NAME:-vyre-server}
+    for c in $(docker ps -aq --filter "label=com.docker.compose.project=$proj" 2>/dev/null); do docker rm -f "$c" >/dev/null 2>&1 || true; done
+    for v in $(docker volume ls -q --filter "label=com.docker.compose.project=$proj" 2>/dev/null); do docker volume rm -f "$v" >/dev/null 2>&1 || true; done
+  fi
   for u in vyre-server.service vyre-server-update.service vyre-server-update.timer; do
     if [ -f "$UNIT_DIR/$u" ] && grep -q "$MARK" "$UNIT_DIR/$u"; then run rm -f "$UNIT_DIR/$u"; fi
   done
