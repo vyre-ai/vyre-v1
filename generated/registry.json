@@ -56699,7 +56699,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "System: create the device and session rows at sign-in",
+      "summary": "Host only (svc_host): create the device and session rows at sign-in; every person, admin, agent and other service is refused",
       "surfaces": {
         "http": "auto"
       },
