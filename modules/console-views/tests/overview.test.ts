@@ -157,4 +157,4 @@ test("a caller who may not read the probe or the backup log still gets the Overv
   assert.equal("machine" in none || "lastBackup" in none, false);
 });
 
-// Run on the final commit of this packet, after merging main, so the CI log lists the file as ok.
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.

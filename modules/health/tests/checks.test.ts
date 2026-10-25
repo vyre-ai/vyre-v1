@@ -348,4 +348,4 @@ test("health.machine answers the numbers the host reported for CPU, memory and d
   assert.deepEqual(readMachine(h.ctx), { state: "degraded", detail: "The host has not reported for 6 minutes." });
 });
 
-// Run on the final commit of this packet, after merging main, so the CI log lists the file as ok.
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
