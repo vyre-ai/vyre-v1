@@ -436,6 +436,19 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             },
           },
         }),
+        // the files module's root folders are folders in the access projection (ruling 65): one resource.created each, with an id made from the folder's own, so a reboot repeats the same event
+        setFilesHost: () => ({
+          resources: {
+            ensure: async (f: { id: string; type: "folder"; parentId: string | null; ownerId?: string }) => {
+              const r = await spaceLog.appendResult({
+                id: `evt_res_${f.id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: f.id,
+                payload: { id: f.id, type: f.type, parent_id: f.parentId ?? spaceId, label: 0, owner_id: f.ownerId ?? cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 },
+              });
+              if (!r.ok) throw new Error(`could not register the folder: ${r.message}`);
+              if (!r.duplicate) { access.fold(r.event); headSeq = Math.max(headSeq, r.event.seq); }
+            },
+          },
+        }),
         setEventsDispatch: () => system,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
         setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
