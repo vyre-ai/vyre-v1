@@ -64,7 +64,7 @@ export function withProviders(base: SampleVault, o: { importItems?: readonly Par
     "providers.test": (i: { providerId: string }) => {
       const p = providers().find((x) => x.id === i.providerId);
       if (!p) throw new Error("No such provider");
-      return p.state === "failing" ? { ok: false, models: [], latencyMs: 0, detail: "The key was refused." } : { ok: true, models: p.connection === "local_model" ? ["llama3.1", "qwen2.5"] : ["model-large", "model-small", "model-fast"], latencyMs: 240 };
+      return p.state === "failing" ? { ok: false, models: [], latencyMs: 0, detail: "The key was refused." } : { ok: true, models: p.connection === "local_model" ? ["llama3.1", "qwen2.5"] : p.providerKey === "claude-code" ? ["Opus", "Sonnet", "Haiku"] : ["model-large", "model-small", "model-fast"], latencyMs: 240 };
     },
     "providers.add": (i: CapMap["providers.add"]["in"]) => {
       if (i.connection === "api_key" && !i.apiKey?.trim()) throw new Error("Paste the key first.");

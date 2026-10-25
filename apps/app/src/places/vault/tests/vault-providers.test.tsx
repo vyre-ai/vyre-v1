@@ -34,7 +34,7 @@ test("providers: the words for how a provider connects, whose it is, what it cos
   const claude = provider(s, "prv_claude");
   const anthropic = provider(s, "prv_anthropic");
   assert.equal(howConnected(claude), "Subscription, yours");
-  assert.equal(howConnected(anthropic), "API key #Northwind_Anthropic");
+  assert.equal(howConnected(anthropic), "API key #Northwind_OpenAI");
   assert.equal(scopeWords(claude), "Mine");
   assert.equal(scopeWords(anthropic), "Shared");
   assert.equal(canShare(claude), false, "a subscription sign-in is never shareable");
@@ -50,14 +50,14 @@ test("providers: the words for how a provider connects, whose it is, what it cos
   assert.equal(countWords(3, "model"), "3 models");
 });
 
-test("providers: the section opens on its first provider with the panel above the card, and a subscription says it stays yours", () => {
+test("providers: a subscription opens on the prototype's own page, with the sign-in box, models, Used by and no .env card", () => {
   const out = clean(renderToStaticMarkup(<Vault data={sample().data} initial={{ kind: "providers" }} />));
-  assert.ok(has(out, 'data-testid="provider-panel"'), "the panel");
-  assert.ok(at(out, 'data-testid="provider-panel"') < at(out, 'data-testid="item-env"'), "above the .env card");
-  assert.ok(has(out, ">Subscription, yours<") && has(out, ">Mine<") && has(out, "4.2M tokens this month"));
-  assert.ok(has(out, "Used by 2 agents and Automations") && has(out, ">Intake<") && has(out, ">Research<"), "the agents using it");
-  assert.ok(has(out, 'data-testid="provider-private"') && !has(out, 'data-testid="provider-share"') && !has(out, 'data-testid="provider-space"'), "no Share and no Space switch on a subscription");
-  assert.ok(has(out, 'data-testid="provider-test"') && has(out, 'data-testid="provider-remove"'));
+  assert.ok(has(out, 'data-testid="provider-page"') && !has(out, 'data-testid="item-env"') && !has(out, 'data-testid="provider-panel"'), "its own page, no card, no strip");
+  assert.ok(has(out, "Signed in with Claude Max") && has(out, "Sign in again") && has(out, ">Models<") && has(out, "Only you can use it"));
+  assert.ok(has(out, ">Used by<") && has(out, ">Intake<") && has(out, ">Research<") && has(out, ">Recent use<"));
+  assert.ok(has(out, "This month:") && has(out, "4.2M tokens"), "the month's total line");
+  assert.ok(has(out, 'data-testid="provider-ask"') && !has(out, 'data-testid="provider-share"'), "Ask in the header, nothing to share");
+  assert.deepEqual(["Claude", "OpenCode Go key", "OpenAI key"].map((n) => has(out, n)), [true, true, true], "the prototype's three providers");
 });
 
 test("providers: an API key can be shared and lets the Space use it", () => {
@@ -213,6 +213,6 @@ test("no value reaches any of these screens, and no copy uses an em dash", () =>
     within(s, <AddProvider onClose={() => undefined} onAdded={() => undefined} />),
     clean(renderToStaticMarkup(<Vault data={s.data} sheet={{ importFrom: "lastpass" }} />)),
   ].join("\n");
-  for (const secret of ["sk-ant-oat01-fake", "sk-ant-api03-fake", "oc-fake-fake"]) assert.ok(!has(all, secret), "no secret in the markup");
+  for (const secret of ["sk-ant-oat01-fake", "sk-proj-fake", "oc-fake-fake"]) assert.ok(!has(all, secret), "no secret in the markup");
   assert.ok(!has(all, String.fromCharCode(0x2014)), "no em dash");
 });

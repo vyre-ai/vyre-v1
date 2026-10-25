@@ -4,8 +4,8 @@
       "id": "P-L9f_05-providers",
       "route": "/m/P-L9f_05?view=providers",
       "proto": "vault,at:providers,{skin}",
-      "waitFor": "[data-testid='provider-panel']",
-      "note": "The AI providers section: logo, how each signs in, Mine or Shared and last used, the first provider open with how it connects, how it is doing, this month's use and the agents and Automations using it. The prototype side is its AI providers section."
+      "waitFor": "[data-testid='provider-page']",
+      "note": "The AI providers section: Claude open on its own page (name, handle, Signed in box, Models, Used by with turns and the month's total, Recent use). The prototype side is its AI providers section."
     },
     {
       "id": "P-L9f_05-health",
@@ -13,13 +13,6 @@
       "proto": "vault,at:health,{skin}",
       "waitFor": "[data-testid='vault-health']",
       "note": "The Health section: one summary line, then one row per flagged item with what is wrong. The prototype side is its Health section."
-    },
-    {
-      "id": "P-L9f_05-add-key",
-      "route": "/m/P-L9f_05?view=addkey",
-      "proto": "vault,at:form:openai,{skin}",
-      "waitFor": "[data-testid='provider-key']",
-      "note": "Add an AI provider with OpenAI picked: paste the key once, choose whose it is. The prototype side is its OpenAI form."
     }
   ]
 }

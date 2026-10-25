@@ -18,7 +18,7 @@ import { Sidebar } from "./Sidebar.tsx";
 import { HealthView } from "../health/index.ts";
 import { ImportSheet } from "../import/index.ts";
 import type { Source } from "../import/index.ts";
-import { AddProvider, ProviderPanel } from "../providers/index.ts";
+import { AddProvider, ProviderPage, ProviderPanel } from "../providers/index.ts";
 import type { ConnectionKind } from "../providers/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 
@@ -213,8 +213,9 @@ function Page({ initial, sheet, view }: { initial?: Selection | undefined; sheet
   const providerHere = effectiveId ? providerOf.get(effectiveId) : undefined;
   const detail = effectiveId ? (
     <View style={{ flex: 1, minHeight: 0 }}>
-      {providerHere ? <ProviderPanel key={providerHere.id} provider={providerHere} onNote={showNote} onRemoved={() => { setSelectedId(null); setDetailOpen(false); }} /> : null}
-      <ItemEnv key={effectiveId} itemId={effectiveId} askDelete={askDelete} initialMode={view} onEdit={() => { setAddField(false); setEditing(effectiveId); }} onAddField={() => { setAddField(true); setEditing(effectiveId); }} onGone={() => { setSelectedId(null); setDetailOpen(false); }} onNote={showNote} onBack={twoPane ? undefined : () => setDetailOpen(false)} />
+      {providerHere?.connection === "subscription" ? <ProviderPage key={providerHere.id} provider={providerHere} handle={all.find((i) => i.id === providerHere.itemId)?.handle ?? ""} onNote={showNote} /> : null}
+      {providerHere && providerHere.connection !== "subscription" ? <ProviderPanel key={providerHere.id} provider={providerHere} onNote={showNote} onRemoved={() => { setSelectedId(null); setDetailOpen(false); }} /> : null}
+      {providerHere?.connection === "subscription" ? null : <ItemEnv key={effectiveId} itemId={effectiveId} askDelete={askDelete} initialMode={view} onEdit={() => { setAddField(false); setEditing(effectiveId); }} onAddField={() => { setAddField(true); setEditing(effectiveId); }} onGone={() => { setSelectedId(null); setDetailOpen(false); }} onNote={showNote} onBack={twoPane ? undefined : () => setDetailOpen(false)} />}
     </View>
   ) : <NoItem text={loading ? "" : visible.length === 0 ? "" : "Select an item to see its fields"} />;
 
