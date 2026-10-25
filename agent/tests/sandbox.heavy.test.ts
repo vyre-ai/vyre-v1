@@ -183,6 +183,9 @@ function dockerUp(): Promise<void> {
 after(async () => {
   if (dockerStarted) { await dockerStarted.catch(() => undefined); await A?.stop().catch(() => undefined); await B?.stop().catch(() => undefined); }
   for (const s of servers) s.close();
+  // Whatever a failed test left running: this test's names only.
+  for (const n of spawnSync("docker", ["ps", "-aq", "--filter", `name=vyre-sbx-hv${suffix}`], { encoding: "utf8" }).stdout.split("\n").filter(Boolean)) spawnSync("docker", ["rm", "-f", n]);
+  for (const n of spawnSync("docker", ["network", "ls", "-q", "--filter", `name=vyre-sbx-hv${suffix}`], { encoding: "utf8" }).stdout.split("\n").filter(Boolean)) spawnSync("docker", ["network", "rm", n]);
   fs.rmSync(base, { recursive: true, force: true });
 });
 

@@ -160,6 +160,12 @@ jobs:
           cat /proc/sys/kernel/unprivileged_userns_clone 2>/dev/null || true
           sysctl kernel.apparmor_restrict_unprivileged_userns user.max_user_namespaces 2>/dev/null || true
           if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
+      - name: Remove sandboxes and networks that earlier heavy runs left behind (the Docker address pools are finite)
+        if: steps.scope.outputs.changed == 'true'
+        run: |
+          docker ps -aq --filter name=vyre-sbx-hv | xargs -r docker rm -f
+          docker network ls -q --filter name=vyre-sbx-hv | xargs -r docker network rm
+          true
       - name: Real Docker, real bwrap, real tmux
         if: steps.scope.outputs.changed == 'true'
         env:

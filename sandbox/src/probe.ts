@@ -27,8 +27,8 @@ export async function confinementProbe(sbx: Sandbox, o: ProbeOptions): Promise<P
   if (who.exitCode !== 0 || who.stdout.trim() === "0" || !/^\d+$/.test(who.stdout.trim())) failures.push("the process would run as root, or its user could not be read");
   await mustFail("write to the root filesystem", "touch /vyre-probe");
   await mustFail("reach the Docker socket", "test -e /var/run/docker.sock -o -e /run/docker.sock");
-  // Not "can pid 1 be read": in a container pid 1 is the sandbox's own init. What must be absent is the machine's own processes: its daemons and its CI runner.
-  await mustFail("see the host's processes", "cat /proc/[0-9]*/cmdline 2>/dev/null | tr '\\0' '\\n' | grep -qE '(dockerd|containerd|systemd|sshd|Runner\\.Listener|runsvc)'");
+  // Not "can pid 1 be read": in a container pid 1 is the sandbox's own init. What must be absent is the machine's own processes: its daemons and its CI runner (the brackets keep the check from matching its own command line).
+  await mustFail("see the host's processes", "cat /proc/[0-9]*/cmdline 2>/dev/null | tr '\\0' '\\n' | grep -qE '([d]ockerd|[c]ontainerd|[s]ystemd|[s]shd|Runner\\.[L]istener|[r]unsvc)'");
   for (const p of o.outsidePaths) await mustFail(`read ${p}`, `cat ${JSON.stringify(p)} >/dev/null 2>&1`);
   for (const m of o.mounts) {
     if (m.mode === "rw") await mustWork(`write in ${m.guest}`, `touch ${JSON.stringify(`${m.guest}/.vyre-probe`)} && rm ${JSON.stringify(`${m.guest}/.vyre-probe`)}`);
