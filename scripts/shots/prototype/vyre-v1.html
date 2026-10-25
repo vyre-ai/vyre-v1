@@ -30306,7 +30306,7 @@ body.vp-dragging, body.vp-dragging * { user-select: none !important; cursor: gra
     if (host.dataset.agent) { mountAgentPlan(host); return; }
     if (host.dataset.tbl) {
       const tid = host.dataset.tbl, M = planModel(tid), V = viewOf(tid);
-      ui.planI = VyreUI.plan(host, { key: "tbl:" + tid + ":" + V.mode, stages: M.stages, tasks: M.items, people, today: TODAY, view: V.mode === "board" ? "board" : "timeline", face: (w, z) =&gt; ptile(w &amp;&amp; w.name, z || 20),
+      ui.planI = VyreUI.plan(host, { key: "tbl:" + tid + ":" + V.mode, stages: M.stages, tasks: M.items, people, today: TODAY, view: ui.planForce || (V.mode === "board" ? "board" : "timeline"), face: (w, z) =&gt; ptile(w &amp;&amp; w.name, z || 20),
         onOpenTask: (t) =&gt; go({ k: "record", id: t.id }), onAddTask: (sid) =&gt; { const T2 = TY[tid], rid = T2.pre + (9300 + (ui.nid = (ui.nid || 0) + 1)), r = { id: rid, srcs: {}, pend: {}, idDoc: [], rec: [], tags: [], [T2.primary]: "New " + T2.one.toLowerCase() }; T2.fields.forEach((f) =&gt; { if (f.t === "relation" &amp;&amp; !f.rev) r[f.id] = []; if (f.t === "status") r[f.id] = f.o[0][0]; }); if (M.pF) r[M.pF.id] = "Maya Chen"; r[M.sf.id] = sid || M.stages[0].id; if (M.eF) r[M.eF.id] = addDays(TODAY, 3); if (M.sF &amp;&amp; M.sF !== M.eF) r[M.sF.id] = TODAY; if (tid === "projects") r.client = []; T2.rows.unshift(r); BYID[rid] = [tid, r]; relDirty(); touch(); logAct(rid, { k: "s", who: "You", text: "created this record" }); return { id: rid, stage: r[M.sf.id], kind: "task", title: r[T2.primary], start: TODAY, end: addDays(TODAY, 3), assigned: M.pF ? whoOf("Maya Chen") : null, status: "todo" }; },
         onChange: (list, why) =&gt; { let n = 0; list.forEach((t) =&gt; { const r = rowOf(t.id); if (!r) return; if (t.title &amp;&amp; r[M.T.primary] !== t.title &amp;&amp; M.T.fields.find((f) =&gt; f.id === M.T.primary).t === "text") { r[M.T.primary] = t.title; n++; } if (t.stage &amp;&amp; r[M.sf.id] !== t.stage) { r[M.sf.id] = t.stage; n++; } if (t.end &amp;&amp; dpart(r[M.eF.id]) !== t.end) { r[M.eF.id] = t.end + (String(r[M.eF.id] || "").includes("T") ? "T" + r[M.eF.id].split("T")[1] : ""); n++; } if (M.sF !== M.eF &amp;&amp; t.start &amp;&amp; dpart(r[M.sF.id]) !== t.start) { r[M.sF.id] = t.start; n++; } if (M.pF &amp;&amp; t.assigned &amp;&amp; r[M.pF.id] !== t.assigned.name) { r[M.pF.id] = t.assigned.name; n++; } }); if (n) { touch(); quiet(esc(why ? String(why) : "Plan changed") + " · " + plural(n, "field") + " updated", () =&gt; { }); } } });
       return;
@@ -32528,12 +32528,14 @@ function fitHead() {
       if (T.has("empty")) { const T0 = TY.projects, r = { id: "p9999", title: "Untitled project", stage: "Intake", client: [], lead: null, start: TODAY, due: addDays(TODAY, 30), budget: null, tags: [], srcs: {}, pend: {}, idDoc: [], rec: [] }; T0.rows.unshift(r); BYID[r.id] = ["projects", r]; relDirty(); ui.sel = { k: "record", id: "p9999" }; }
       if (T.has("dense")) { rmInit("c0", "p:Maya Chen"); ui.rm.base = "c0"; ui.rm.hops = 1; }
       if (T.has("recent")) ui.rm.recent = "30"; }
+    if (T.has("recordtypes")) ui.sel = { k: "types" };
     if (T.has("schema") || T.has("schemadiff") || T.has("newtype")) { ui.sel = { k: "schema" }; if (T.has("select")) { ui.sch.sel = "projects"; addPTq("sch:projects"); ui.pane = true; } if (T.has("expand")) ui.sch.exp.clients = true; if (T.has("link")) ui.sch.pend = { src: "hires", dst: "projects", name: "Project" }; }
     if (T.has("schemadiff") || T.has("newtype")) { ui.sch.newOpen = true; if (T.has("schemadiff")) ui.sch.proposal = proposeCsv(); }
     if (T.has("enrich")) ui.sel = { k: "enrich" };
     if (T.has("formbuilder") || T.has("formphone") || T.has("formpreview") || T.has("formdesign") || T.has("formgen")) { ui.sel = { k: "form", id: T.has("formgen") ? "gap" : "intake" }; ui.pane = true; ui.fb.sel = T.has("formgen") ? "0:0" : "0:4"; if (T.has("formphone")) { ui.fb.mode = "preview"; ui.fb.dev = "ph"; ui.fb.sel = null; ui.fb.vals.intake = { source: "Referral", name: "Elena Rivera" }; } if (T.has("formpreview")) { ui.fb.mode = "preview"; ui.fb.sel = null; ui.fb.vals.intake = { source: "Referral" }; } if (T.has("formdesign")) ui.fb.ptab = "design"; }
     if (T.has("clientform") || T.has("clientdone") || T.has("clientphone")) { ui.sel = { k: "client", id: "gap" }; if (T.has("clientphone")) ui.cf.dev = "ph"; if (T.has("clientdone")) later.push(() =&gt; { const F0 = formOf("gap"); fstate(F0).dob = "1988-03-14"; fstate(F0).idDoc = "elena-id-front.jpg"; cfSubmit(F0); }); else if (!T.has("clientempty")) { const F0 = formOf("gap"); fstate(F0).idDoc = "elena-id-front.jpg"; } }
     if (T.has("board")) tableOf("projects", "stage");
+    if (T.has("recordlist")) { ui.planForce = "list"; tableOf("projects", "stage"); }
     if (T.has("pipeline")) tableOf("clients", "pipe");
     if (T.has("calendar")) tableOf("meetings", "cal");
     if (T.has("gallery")) { tableOf("clients", "all"); viewOf("clients").mode = "gallery"; }
@@ -83534,7 +83536,7 @@ NOTES.inbox = { title: "Inbox", shape: ["One Inbox for every outside conversatio
   { const st = tok.find((x) => x.startsWith("space:")); const si = st ? SID.indexOf(st.slice(6)) : -1; if (si >= 0) { S.space = si; window.__vyreSpace = SID[si]; S.counts = { chat: [7, 2, 0][si] }; S.dots = [{ inbox: 1, records: 1 }, { inbox: 1 }, {}][si]; if (tokSkin) { skinBy[si] = tokSkin; skinBy[0] = SKDEF[0] === tokSkin ? tokSkin : skinBy[0]; } renderRail(); showSkin(curSkin()); renderSkinBtn(); } }
   const startPlace = PLACES.find((p) => p !== "-" && tok.includes(p.k));
   const sub = tok.find((x) => x.startsWith("at:"));
-  if (tok.includes("needs")) go("chat", "needs"); else go(startPlace ? startPlace.k : "home", sub ? sub.slice(3) : null);
+  if (tok.includes("needs")) go("chat", "needs"); else go(startPlace ? startPlace.k : "home", sub ? sub.slice(3) : (startPlace && /^(files|records)$/.test(startPlace.k) ? (tok.filter((x) => x !== startPlace.k && !SK.find(x) && !/^(space:|at:)/.test(x) && !/^(light|dark|notes|skins|needs|harbor)$/.test(x)).join(",") || null) : null));
   if (tok.includes("notes")) setNotes(true);
   if (tok.includes("e2eagent")) { go("chat", "demo-newagent"); setTimeout(() => go(tok.includes("e2efiles") ? "files" : tok.includes("e2evault") ? "vault" : "records", tok.includes("e2efiles") ? "Agents/Bookings" : tok.includes("e2evault") ? null : "agents"), 5000); }
   if (tok.includes("allopen")) { S.ntab = "all"; setNotes(true); }
