@@ -3879,7 +3879,7 @@
     {
       "deferred": false,
       "name": "kits_install_sheet",
-      "summary": "The install sheet: tools, record types, network domains, vault names",
+      "summary": "The install sheet: tools, record types, network domains, vault names, scripts, and the steps the sheet check found broken",
       "toolset": "sites"
     },
     {

@@ -95479,6 +95479,15 @@
               "networkDomains": [
                 "example"
               ],
+              "problems": [
+                {
+                  "cap": "example",
+                  "input": {},
+                  "item": "example",
+                  "message": "example",
+                  "step": "apply"
+                }
+              ],
               "recordTypes": [
                 "example"
               ],
@@ -95522,6 +95531,41 @@
                 },
                 "type": "array"
               },
+              "problems": {
+                "items": {
+                  "properties": {
+                    "cap": {
+                      "type": "string"
+                    },
+                    "input": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "item": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "step": {
+                      "enum": [
+                        "apply",
+                        "undo"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "item",
+                    "step",
+                    "cap",
+                    "input",
+                    "message"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
               "recordTypes": {
                 "items": {
                   "type": "string"
@@ -95549,7 +95593,8 @@
               "recordTypes",
               "networkDomains",
               "vaultNames",
-              "scripts"
+              "scripts",
+              "problems"
             ],
             "type": "object"
           }
@@ -95566,7 +95611,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "The install sheet: tools, record types, network domains, vault names",
+      "summary": "The install sheet: tools, record types, network domains, vault names, scripts, and the steps the sheet check found broken",
       "surfaces": {
         "http": "auto",
         "mcp": {

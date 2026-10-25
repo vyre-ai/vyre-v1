@@ -12,7 +12,7 @@ Requires: nothing.
 - [kits.get](../capabilities/kits.get.md): Read one Kit
 - [kits.health](../capabilities/kits.health.md): Kit health and debug panel: denials, failing tests, last run
 - [kits.install](../capabilities/kits.install.md): Install a Kit after the sheet is confirmed
-- [kits.install_sheet](../capabilities/kits.install_sheet.md): The install sheet: tools, record types, network domains, vault names
+- [kits.install_sheet](../capabilities/kits.install_sheet.md): The install sheet: tools, record types, network domains, vault names, scripts, and the steps the sheet check found broken
 - [kits.list](../capabilities/kits.list.md): List Kits with channel and install state
 - [kits.preview](../capabilities/kits.preview.md): Preview a Kit before applying it
 - [kits.publish](../capabilities/kits.publish.md): Publish a Kit version; blocked on test failure, last good stays live
