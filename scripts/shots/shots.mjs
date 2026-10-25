@@ -24,6 +24,8 @@ const want = args.target || "all";
 
 // A packet id (P-L9b_02) selects that packet's targets, whose ids start with it; "all" runs everything.
 const targets = loadTargets(HERE).filter((t) => want === "all" || t.id === want || (want.startsWith("P-") && t.id.startsWith(want + "-")));
+// A packet branch with no screenshot targets of its own (a backend packet that merged main) has nothing to shoot.
+if (!targets.length && want.startsWith("P-")) { console.log(`no targets for ${want}: nothing to shoot`); process.exit(0); }
 if (!targets.length) { console.error(`no target ${want}`); process.exit(1); }
 
 await ensureDeps(REPO);
