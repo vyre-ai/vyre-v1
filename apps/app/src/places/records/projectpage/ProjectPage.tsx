@@ -109,7 +109,7 @@ function Section({ title, count, children, id }: { title: string; count?: number
   );
 }
 
-function OverviewTab({ o, now }: { o: Overview; now: number }): ReactElement {
+export function OverviewTab({ o, now }: { o: Overview; now: number }): ReactElement {
   const d = useProjectPageData();
   const rows = (list: Overview["milestones"], prefix: string): ReactElement[] => {
     const out: ReactElement[] = [];
@@ -150,7 +150,7 @@ function PinnedFiles({ ids }: { ids: readonly string[] }): ReactElement {
   return <Section title="Pinned files" count={ids.length} id="project-pinned">{rows}</Section>;
 }
 
-function FilesTab({ o }: { o: Overview }): ReactElement {
+export function FilesTab({ o }: { o: Overview }): ReactElement {
   const d = useProjectPageData();
   return (
     <ScrollView style={s.scroll} contentContainerStyle={s.scrollIn} testID="project-files">
@@ -161,7 +161,7 @@ function FilesTab({ o }: { o: Overview }): ReactElement {
   );
 }
 
-function ChatTab({ o, channelName, now }: { o: Overview; channelName: string; now: number }): ReactElement {
+export function ChatTab({ o, channelName, now }: { o: Overview; channelName: string; now: number }): ReactElement {
   const d = useProjectPageData();
   const rows: ReactElement[] = [];
   for (const t of o.recentThreads) {
