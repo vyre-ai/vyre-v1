@@ -111,7 +111,11 @@ export function LockedState(props: LockedStateViewProps): ReactElement {
     });
   };
 
-  const levels = (): MenuEntry[] => LOCKED_LEVELS.map((l) => ({ label: l.label, checked: l.id === level, onSelect: () => setLevel(l.id) }));
+  const levels = (): MenuEntry[] => {
+    const out: MenuEntry[] = [];
+    for (const l of LOCKED_LEVELS) out.push({ label: l.label, checked: l.id === level, onSelect: () => setLevel(l.id) });
+    return out;
+  };
   const pickLevel = (x: number, y: number): void => menu.show(levels(), x, y, "context", { label: "Access level" });
   const canPick = status === "none" || status === "declined";
 
