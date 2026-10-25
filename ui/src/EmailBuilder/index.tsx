@@ -104,7 +104,7 @@ export function compileEmail(blocks: readonly EmailBlock[], opts: { mode?: "send
   const dark = opts.dark === true;
   const st = resolveStyle(opts.style, dark);
   const values = opts.mode === "preview" ? opts.values : undefined;
-  const body = blocks.map((b) => blockHtml(b, values, st, dark)).join("");
+  const body = each(blocks, (b) => blockHtml(b, values, st, dark)).join("");
   return `<!doctype html><html><body style="margin:0;background:${st.colors.page}"><div style="max-width:${st.width}px;margin:0 auto;padding:28px ${st.padding}px;background:${st.colors.email};border-radius:${st.radius}px">${body}${hasUnsub(blocks) ? "" : `<p style="font:12px ${st.font},Arial,sans-serif;color:${st.colors.muted}"><a href="#unsubscribe" style="color:${st.colors.links}">Unsubscribe</a></p>`}</div></body></html>`;
 }
 

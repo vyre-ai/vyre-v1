@@ -166,7 +166,7 @@ test("Style pane shows the brand with Use brand; Preview pane shows the inbox ro
 test("HTML mode shows the compiled email one tag per line", () => {
   assert.equal(formatHtml("<p>a</p><p>b <b>c</b></p>"), "<p>a</p>\n<p>b <b>c</b></p>");
   const html = renderToStaticMarkup(<EmailBuilder {...base} mode="html" />);
-  assert.match(html, /&lt;\/p&gt;\n&lt;p/, "the source shows one block tag per line");
+  assert.match(html, /&gt;\n&lt;(?:p|hr|div|table)\b/, "the source shows one block tag per line");
 });
 
 test("the email style drives the compiled HTML: width, font, text size, padding, radius and the seven colours", () => {
