@@ -304,7 +304,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const [sort, setSort] = useState<{ col: number; dir: 1 | -1 } | null>(null);
   const [cell, setCell] = useState<{ r: number; c: number } | null>(props.initialCell ?? null);
   const [editId, setEditId] = useState<string | null>(null);
-  const [pick, setPick] = useState<{ id: string; quote: string } | null>(null);
+  const [quoted, setQuoted] = useState<{ id: string; quote: string } | null>(null);
   const [draft, setDraft] = useState("");
   const [replying, setReplying] = useState<Record<string, string>>({});
   const [detailsOpen, setDetailsOpen] = useState(props.detailsOpen === true);
@@ -448,12 +448,12 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const isCode = blocks.length > 0 && blocks.every((b) => b.tag === "code");
   const docBody = (
     <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
-      {pick !== null && (props.kind === "document" || props.kind === "plan") ? (
+      {quoted !== null && (props.kind === "document" || props.kind === "plan") ? (
         <View style={s.pickBar} testID="vw-pick">
-          <Text style={s.pickQuote} numberOfLines={1}>{`“${pick.quote}”`}</Text>
+          <Text style={s.pickQuote} numberOfLines={1}>{`“${quoted.quote}”`}</Text>
           <TextInput accessibilityLabel="Comment on the selection" testID="vw-pick-input" value={draft} onChangeText={setDraft} placeholder="Comment on this" placeholderTextColor="var(--ink-4)" style={s.pickInput}
-            onSubmitEditing={() => { if (draft.trim() !== "") { props.onComment?.(pick.quote, draft.trim()); setDraft(""); setPick(null); } }} />
-          <Pressable accessibilityRole="button" accessibilityLabel="Post comment" testID="vw-pick-post" onPress={() => { if (draft.trim() !== "") { props.onComment?.(pick.quote, draft.trim()); setDraft(""); setPick(null); } }}><Text style={s.link}>Comment</Text></Pressable>
+            onSubmitEditing={() => { if (draft.trim() !== "") { props.onComment?.(quoted.quote, draft.trim()); setDraft(""); setQuoted(null); } }} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Post comment" testID="vw-pick-post" onPress={() => { if (draft.trim() !== "") { props.onComment?.(quoted.quote, draft.trim()); setDraft(""); setQuoted(null); } }}><Text style={s.link}>Comment</Text></Pressable>
         </View>
       ) : null}
       <View style={[s.doc, isCode && s.codeDoc]}>
@@ -469,7 +469,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           }
           if ((editing || (props.kind === "plan" && editId === b.id)) && find === "") {
             return <TextInput key={b.id} multiline autoFocus={props.kind === "plan"} onBlur={() => setEditId((e) => (e === b.id ? null : e))} value={b.text} accessibilityLabel={`${b.tag} block`} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]}
-              onSelectionChange={(e) => { const { start, end } = e.nativeEvent.selection; setPick(end > start ? { id: b.id, quote: b.text.slice(start, end) } : null); }}
+              onSelectionChange={(e) => { const { start, end } = e.nativeEvent.selection; setQuoted(end > start ? { id: b.id, quote: b.text.slice(start, end) } : null); }}
               onChangeText={(t) => changeBlocks(each(blocks, (x) => (x.id === b.id ? { ...x, text: t } : x)))} />;
           }
           const lead = b.tag === "li" ? "•  " : "";
