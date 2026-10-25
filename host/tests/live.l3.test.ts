@@ -79,7 +79,7 @@ test("l3 live: a booted daemon has a driver for every L3 module, and the live on
 const OWNER_TOKEN = "tok-usr_olivia";
 const MEMBER_TOKEN = "tok-usr_noah";
 const COMPANY = {
-  op: "type.create", type: "l3_company",
+  op: "type.create", type: "rt_contact",
   def: { title: "Company", plural: "Companies", icon: "building", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "industry", type: "text", title: "Industry" }] },
 };
 
@@ -116,7 +116,7 @@ test("l3 live: through the gateway a record survives a daemon restart, and a mem
     assert.equal(((await refused.json()) as { error?: { code?: string } }).error?.code, "permission.role_lacks_permission");
     const applied = await post(d, OWNER_TOKEN, "/v1/schema/apply", { idempotencyKey: "l3-live-type", ops: [COMPANY] });
     assert.equal(applied.status, 200, `the owner applies the type: ${await applied.clone().text()}`);
-    const made = await post(d, OWNER_TOKEN, "/v1/records/create", { idempotencyKey: "l3-live-rec", type: "l3_company", fields: { name: "Acme", industry: "Law" } });
+    const made = await post(d, OWNER_TOKEN, "/v1/records/create", { idempotencyKey: "l3-live-rec", type: "rt_contact", fields: { name: "Acme", industry: "Law" } });
     assert.equal(made.status, 200, `records.create answers through the live handler: ${await made.clone().text()}`);
     id = ((await made.json()) as { data: { record: Row } }).data.record.id;
     assert.ok(id, "the record has an id");
@@ -126,13 +126,13 @@ test("l3 live: through the gateway a record survives a daemon restart, and a mem
   d = await boot();
   try {
     assert.deepEqual((d.seams?.missing ?? []).filter((m) => m.module !== undefined && L3.includes(m.module)), [], "still no L3 module missing a driver after the restart");
-    const got = await post(d, OWNER_TOKEN, "/v1/records/get", { type: "l3_company", recordId: id });
+    const got = await post(d, OWNER_TOKEN, "/v1/records/get", { type: "rt_contact", recordId: id });
     assert.equal(got.status, 200, `records.get answers after the restart: ${await got.clone().text()}`);
     const rec = ((await got.json()) as { data: { record: Row } }).data.record;
     assert.equal(rec.id, id);
     assert.equal(rec.fields["name"], "Acme");
     assert.equal(rec.fields["industry"], "Law");
-    const listed = await post(d, OWNER_TOKEN, "/v1/records/query", { type: "l3_company" });
+    const listed = await post(d, OWNER_TOKEN, "/v1/records/query", { type: "rt_contact" });
     assert.equal(listed.status, 200, `records.query answers: ${await listed.clone().text()}`);
     assert.ok(((await listed.json()) as { data: { rows: Row[] } }).data.rows.some((r) => r.id === id), "the record is in the query");
     const again = await post(d, MEMBER_TOKEN, "/v1/schema/apply", { idempotencyKey: "l3-live-noah2", ops: [COMPANY] });
