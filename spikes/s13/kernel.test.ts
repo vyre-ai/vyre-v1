@@ -91,3 +91,15 @@ test("recall@20 against the exact scan is at least 0.99 over 200,000 vectors", a
   const recall = hit / total;
   assert.ok(recall >= 0.99, `recall@20 ${recall.toFixed(3)} over ${queries.length} queries and ${N} vectors`);
 });
+
+test("the bench's retrieval and scaling arithmetic: top 10 by cosine, shared ids, fraction of linear", async () => {
+  const { top10, overlap, linearFraction } = await import("./bench.ts");
+  const e = (i: number): Float32Array => { const v = new Float32Array(DIM); v[i] = 1; return v; };
+  const corpus = Array.from({ length: 20 }, (_, i) => e(i));
+  const q = new Float32Array(DIM); q[3] = 1; q[4] = 0.5;
+  assert.deepEqual(top10(q, corpus).slice(0, 2), [3, 4]);
+  assert.equal(top10(q, corpus).length, 10);
+  assert.equal(overlap([1, 2, 3, 4], [3, 4, 5]), 2);
+  assert.equal(linearFraction(40, 2, 80), 1);
+  assert.equal(linearFraction(40, 2, 68), 0.85);
+});
