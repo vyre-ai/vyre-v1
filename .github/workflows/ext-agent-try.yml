@@ -20,6 +20,7 @@ jobs:
           CHROME_BIN: /usr/bin/google-chrome
           VYRE_SHOT_DIR: ${{ github.workspace }}/ext-shots
         run: |
+          set -o pipefail
           mkdir -p ext-shots
           mkdir -p node_modules && ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" node_modules/playwright-core
           node --test --test-reporter=spec apps/chrome/tests/ext-core.test.ts apps/chrome/tests/ext-core.fill.test.ts apps/chrome/tests/ext-agent.test.ts apps/chrome/tests/ext-agent.real.test.ts 2>&1 | tee ext-shots/ext-agent.log
