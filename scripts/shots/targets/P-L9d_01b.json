@@ -1,0 +1,42 @@
+{
+  "targets": [
+    {
+      "id": "P-L9d_01b-table-header",
+      "route": "/m/P-L9d_01b?type=projects",
+      "proto": "records,projtable,{skin}",
+      "waitFor": "[data-testid='records-kind']",
+      "note": "The Projects table with the view-kind switch in its header, before New, as the Board, Gallery and List have it. The prototype side is its Projects table in the same skin; its header has the same mode button at the right."
+    },
+    {
+      "id": "P-L9d_01b-kind-menu",
+      "route": "/m/P-L9d_01b?type=projects&menu=kind",
+      "proto": "records,projtable,{skin}",
+      "waitFor": "[data-testid='menu']",
+      "note": "The View as menu open under its button: Table (checked), Board, Gallery, List. The prototype draws the same choice from its mode button."
+    },
+    {
+      "id": "P-L9d_01b-shifts",
+      "route": "/m/P-L9d_01b?type=clients&ls=1",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='records-count']",
+      "note": "Diagnostic: the layout shifts the table has when it opens, listed in the corner with the element and where it moved from and to."
+    },
+    {
+      "id": "P-L9d_01b-shifts-100k",
+      "route": "/m/P-L9d_01b?type=clients&rows=100000&ls=1",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='rec-cl_20']",
+      "note": "Diagnostic: the same list over the 100,014 client Space."
+    },
+    {
+      "id": "P-L9d_01b-records-100k",
+      "route": "/m/P-L9d_01b?type=clients&rows=100000",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='rec-cl_20']",
+      "scroll": {
+        "selector": "[data-testid=\"records-scroll\"]:has([data-testid=\"rec-cl_20\"])"
+      },
+      "note": "100,014 clients: the scroll probe (budget scroll, 16.7 ms) and its layout shift, which must be under 0.05."
+    }
+  ]
+}

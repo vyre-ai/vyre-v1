@@ -2,7 +2,7 @@
 // a time and draws only the rows and the columns that meet the screen, with the title column and the row numbers held at the left. The count in the foot is the cached count(*).
 // Filter, Sort, Group, Fields and Colour are quiet buttons in the header; each opens a menu with checkmarks and counts. Click a header to sort; Enter or Space opens the record.
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -179,9 +179,11 @@ export interface TableViewProps {
   type?: string;
   /** A starting view on top of the saved one (a deep link to a filtered table). */
   view?: Partial<TableViewState>;
+  /** What the Records place adds to the header, before New: the switch between the table and the other kinds of view. */
+  headerExtra?: ReactNode;
 }
 
-function Grid({ type, def, views, base, saved }: { type: string; def: TypeDef; views: readonly SavedView[]; base: TableViewState; saved: SavedView | undefined }): ReactElement {
+function Grid({ type, def, views, base, saved, headerExtra }: { type: string; def: TypeDef; views: readonly SavedView[]; base: TableViewState; saved: SavedView | undefined; headerExtra: ReactNode }): ReactElement {
   const data = useRecordsData();
   const { state, dispatch } = useRecordsState();
   const menu = useMenu();
@@ -413,6 +415,7 @@ function Grid({ type, def, views, base, saved }: { type: string; def: TypeDef; v
         <HeadButton icon="group" label="Group" detail={groupField?.title} on={lit(groupField !== undefined)} bare={slim} testID="records-group" onPress={(x, y) => menu.show(groupEntries(), x, y)} />
         <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={slim} testID="records-fields" onPress={keep("fields")} />
         <HeadButton icon="colour" label="Colour" detail={colourField?.title} on={lit(colourField !== undefined)} bare={slim} testID="records-colour" onPress={keep("colour")} />
+        {headerExtra}
         <HeadButton icon="plus" label="New" bare={slim} testID="records-new" onPress={newRecord} />
       </View>
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="records-offline">Offline, showing your saved copy</Text>}
@@ -475,7 +478,7 @@ export function TableLoading(): ReactElement {
   );
 }
 
-function TypeTable({ type, view }: { type: string; view: Partial<TableViewState> | undefined }): ReactElement {
+function TypeTable({ type, view, headerExtra }: { type: string; view: Partial<TableViewState> | undefined; headerExtra: ReactNode }): ReactElement {
   const { state } = useRecordsState();
   const describe = useLive("schema.describe", { type });
   const views = useScreenQuery<ViewsOut>(SCREENS.views, "views", { type });
@@ -484,27 +487,27 @@ function TypeTable({ type, view }: { type: string; view: Partial<TableViewState>
   const def = describe.status === "ready" ? describe.data.types.find((t) => t.key === type) : undefined;
   if (!def) return <TableLoading />;
   const base: TableViewState = { ...fromSaved(saved), ...view };
-  return <Grid key={`${type}:${saved?.viewId ?? ""}`} type={type} def={def} views={list} base={base} saved={saved} />;
+  return <Grid key={`${type}:${saved?.viewId ?? ""}`} type={type} def={def} views={list} base={base} saved={saved} headerExtra={headerExtra} />;
 }
 
-export function TableView({ type, view }: TableViewProps): ReactElement {
+export function TableView({ type, view, headerExtra }: TableViewProps): ReactElement {
   const data = useOptionalRecordsData();
   if (!data) return <TableLoading />;
-  return <Open type={type} view={view} />;
+  return <Open type={type} view={view} headerExtra={headerExtra} />;
 }
 
-function Open({ type, view }: TableViewProps): ReactElement {
+function Open({ type, view, headerExtra }: TableViewProps): ReactElement {
   const { state } = useRecordsState();
   const types = useScreenQuery<TypesOut>(SCREENS.types, "types");
   if (types.status !== "ready") return <TableLoading />;
   const open = type ?? effectiveType(state, typeGroups(types.data.types));
   if (!open) return <States kind="empty" title="No record types yet." icon="records" />;
-  return <TypeTable type={open} view={view} />;
+  return <TypeTable type={open} view={view} headerExtra={headerExtra} />;
 }
 
 const styles = StyleSheet.create({
   main: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
-  head: { height: 48, flexDirection: "row", alignItems: "center", gap: 2, paddingLeft: 18, paddingRight: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  head: { height: 48, flexDirection: "row", alignItems: "center", gap: 2, paddingLeft: 18, paddingRight: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, zIndex: 10 },
   crumb: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0, flexShrink: 1 },
   h1: { margin: 0, fontSize: 14, fontWeight: "600", letterSpacing: -0.07, color: "var(--ink)" as string },
   slash: { fontSize: 14, color: "var(--ink-4)" as string },

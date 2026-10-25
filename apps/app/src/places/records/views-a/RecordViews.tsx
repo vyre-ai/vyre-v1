@@ -15,6 +15,7 @@ import { GalleryView } from "./GalleryView.tsx";
 import { ListView } from "./ListView.tsx";
 import { each, KIND_LABEL, KIND_ORDER, kindOf } from "./model.ts";
 import type { TableViewState } from "./model.ts";
+import { KindSwitch } from "./view.tsx";
 import type { KindDef, ViewCtx } from "./view.tsx";
 
 type TypesOut = CapMap["schema.types.list"]["out"];
@@ -49,7 +50,7 @@ function TypeViews({ type, kind, view, extraKinds }: RecordViewsProps & { type: 
   const active = picked && picked.key === key ? picked.kind : savedKind ?? (kind && known.includes(kind) ? kind : "table");
   const base: TableViewState = { ...fromSaved(saved), ...view };
   const ctx: ViewCtx = { type, def, views: list, saved, base, kind: active, kinds, onKind: (k) => setPicked({ key, kind: k }) };
-  if (active === "table") return <TableView key={key} type={type} {...(view ? { view } : {})} />;
+  if (active === "table") return <TableView key={key} type={type} {...(view ? { view } : {})} headerExtra={<KindSwitch ctx={ctx} />} />;
   const extra = (extraKinds ?? []).find((k) => k.kind === active);
   if (extra) return <Fragment key={`${key}:${active}`}>{extra.render(ctx)}</Fragment>;
   return active === "board" ? <BoardView key={key} ctx={ctx} /> : active === "gallery" ? <GalleryView key={key} ctx={ctx} /> : <ListView key={key} ctx={ctx} />;
