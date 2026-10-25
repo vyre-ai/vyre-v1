@@ -43,7 +43,7 @@ export const Row = memo(function Row({ id, title, titleSuffix, titleMarks, noteL
         ) : <Text numberOfLines={1} style={[styles.title, emphasis && BOLD]}>{title}</Text>}
         {note ? (
           <Text numberOfLines={tall ? 2 : 1} style={styles.note}>
-            {noteLead ? <Text testID={id ? `row-${id}-notelead` : undefined} style={styles.noteLead}>{`${noteLead} `}</Text> : null}
+            {noteLead ? <Text testID={id ? `row-${id}-notelead` : undefined} style={NOTE_LEAD}>{`${noteLead} `}</Text> : null}
             {note}
           </Text>
         ) : null}
@@ -55,6 +55,7 @@ export const Row = memo(function Row({ id, title, titleSuffix, titleMarks, noteL
 
 // Plain objects (not StyleSheet ids) so the painted token is visible in the element's inline style.
 const HOVER = { backgroundColor: "var(--hover)" };
+const NOTE_LEAD = { color: "var(--accent)", fontWeight: "500" as const };
 const BOLD = { fontWeight: "600" as const };
 const SELECTED = { backgroundColor: "var(--sel)" };
 
@@ -68,6 +69,5 @@ const styles = StyleSheet.create({
   titleMain: { flexShrink: 0, maxWidth: "70%" },
   suffix: { flexShrink: 1, color: "var(--ink-3)" as string, fontSize: 12, lineHeight: 18 },
   marks: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 4 },
-  noteLead: { color: "var(--accent)" as string, fontWeight: "500" },
   note: { color: "var(--ink-3)" as string, fontSize: 11.5, lineHeight: 16 },
 });
