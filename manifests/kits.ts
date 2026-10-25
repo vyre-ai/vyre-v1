@@ -4,13 +4,15 @@ import { id, pageIn, pageOut } from './_common.ts';
 
 const channel = t.enm('stable', 'beta');
 const kitRow = t.obj({ kitId: id.kit, key: t.str(), title: t.str(), version: t.str(), channel, installed: t.bool(), contents: t.arr(t.enm('ui', 'structure', 'steps', 'tools')) });
-const sheet = t.obj({ tools: t.arr(t.str()), recordTypes: t.arr(t.str()), networkDomains: t.arr(t.str()), vaultNames: t.arr(t.str()), scripts: t.int() });
+// A step of a Kit the sheet check found broken before Install: which item and step, the capability it calls, the input it would send, and why it would fail.
+const problem = t.obj({ item: t.str(), step: t.enm('apply', 'undo'), cap: t.str(), input: t.rec(), message: t.str() });
+const sheet = t.obj({ tools: t.arr(t.str()), recordTypes: t.arr(t.str()), networkDomains: t.arr(t.str()), vaultNames: t.arr(t.str()), scripts: t.int(), problems: t.arr(problem) });
 const target = { kitId: id.kit };
 
 export default defineManifest({
   id: 'kits',
   title: 'Kits',
-  owner: 'L8',
+  owner: 'L10',
   events: [
     ev('kit.installed', 'A Kit was installed', { p: { kitId: id.kit, version: t.str() }, subject: ['kit', '/kitId'] }),
     ev('kit.updated', 'A Kit was updated', { p: { kitId: id.kit, from: t.str(), to: t.str() }, subject: ['kit', '/kitId'] }),
@@ -26,7 +28,7 @@ export default defineManifest({
   capabilities: [
     read('kits.list', 'List Kits with channel and install state', { in: pageIn, out: { kits: t.arr(kitRow), ...pageOut }, tool: 'sites' }),
     read('kits.get', 'Read one Kit', { in: target, out: { kit: kitRow }, on: ['kit', '/kitId'], tool: 'sites' }),
-    read('kits.install_sheet', 'The install sheet: tools, record types, network domains, vault names', { in: target, out: { sheet }, on: ['kit', '/kitId'], tool: 'sites' }),
+    read('kits.install_sheet', 'The install sheet: tools, record types, network domains, vault names, scripts, and the steps the sheet check found broken', { in: target, out: { sheet }, on: ['kit', '/kitId'], tool: 'sites' }),
     read('kits.preview', 'Preview a Kit before applying it', { in: target, out: { changes: t.arr(t.obj({ kind: t.str(), title: t.str() })) }, on: ['kit', '/kitId'], tool: 'sites' }),
     write('kits.install', 'Install a Kit after the sheet is confirmed', { in: { kitId: id.kit, accepted: t.lit(true) }, out: { kit: kitRow }, on: ['kit', '/kitId'], perm: 'kits.install', level: 'manage', risk: 'high', audit: 'always', emits: ['kit.installed'], tool: 'sites' }),
     write('kits.update', 'Update a Kit to a newer version of its channel', { in: { kitId: id.kit, version: t.opt(t.str()) }, out: { kit: kitRow }, on: ['kit', '/kitId'], perm: 'kits.install', level: 'manage', risk: 'high', audit: 'always', emits: ['kit.updated'], tool: 'sites' }),

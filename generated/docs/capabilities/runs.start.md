@@ -37,6 +37,11 @@ type In = {
   threadId?: string;
   keyUsed?: string;
   modelUsed?: string;
+  trigger?: {
+    messageId: string;
+    threadId: string;
+    channelId?: string;
+  };
   idempotencyKey: string;
 };
 ```
@@ -74,7 +79,12 @@ type Out = {
       "id": "rec_a1b2c3",
       "type": "space"
     },
-    "threadId": "thr_a1b2c3"
+    "threadId": "thr_a1b2c3",
+    "trigger": {
+      "channelId": "chn_a1b2c3",
+      "messageId": "msg_a1b2c3",
+      "threadId": "thr_a1b2c3"
+    }
   },
   "output": {
     "runId": "run_a1b2c3"
