@@ -53,9 +53,16 @@ function slice(text, textareaId, startMarker, endMarker) {
 }
 
 function run(body, expose, space) {
-  const code = `(function () {\n"use strict";\n${body}\nreturn (${expose});\n})()`;
-  const ctx = vm.createContext(stubs(space));
-  ctx.ui = { member: false };
+  const base = stubs(space);
+  base.ui = { member: false };
+  // every name the page code uses that is not declared in the cut resolves here: the stubs, then the host's builtins, then a do-nothing stand-in
+  const scope = new Proxy({}, {
+    has: () => true,
+    get: (_t, k) => (typeof k === "symbol" ? undefined : k in base ? base[k] : k in globalThis ? globalThis[k] : loose()),
+    set: (_t, k, v) => { base[k] = v; return true; },
+  });
+  const code = `with (__scope) { (function () {\n"use strict";\n${body}\nreturn (${expose});\n})() }`;
+  const ctx = vm.createContext({ __scope: scope });
   const out = vm.runInContext(code, ctx, { filename: "prototype-seed", timeout: 60000 });
   return JSON.parse(JSON.stringify(out));
 }
