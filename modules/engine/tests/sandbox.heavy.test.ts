@@ -91,7 +91,7 @@ test("MCP behind the wall (ruling 61): the CLI calls one tool over the socket sh
     const wrong = await run("", { VYRE_MCP_TOKEN: "wrong" }, "thr_1", [bridge.stdio.command, ...bridge.stdio.args], call);
     assert.doesNotMatch(wrong.out, /pong-from-vyre/);
     assert.equal(seen.length, 1, "a wrong token reaches nothing");
-    const direct = await run(`node -e 'require("net").connect(${port},"127.0.0.1").on("connect",()=>{console.log("REACHED");process.exit(0)}).on("error",(e)=>{console.log("blocked "+e.code);process.exit(0)})' 2>&1 || true`, {}, "thr_1");
+    const direct = await run(`node -e 'require("n"+"et").connect(${port},"127.0.0.1").on("connect",()=>{console.log("REACHED");process.exit(0)}).on("error",(e)=>{console.log("blocked "+e.code);process.exit(0)})' 2>&1 || true`, {}, "thr_1");
     assert.doesNotMatch(direct.out, /REACHED/, "the daemon's loopback is not reachable from inside");
   } finally {
     await bridge.close();
