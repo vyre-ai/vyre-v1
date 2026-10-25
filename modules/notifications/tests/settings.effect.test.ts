@@ -63,6 +63,7 @@ test("quiet hours hold an interrupt in the digest, let Needs you and calls throu
 
 test("quiet hours across midnight and when off", async () => {
   const late = harness({ now: Date.UTC(2025, 9, 9, 23, 0, 0) });
+  await late.call("notifications.rules.set", { workingHours: null }, as(alice));   // with working hours on, 23:00 is already a badge before quiet hours are asked
   await setting(late, alice.id, "notifications.quiet_hours", { on: true, from: "22:00", to: "07:00", needs: true });
   await send(late, { kind: "dm" });
   assert.equal(late.schedules.find((s) => s.cap === "notifications.send")!.at, Date.UTC(2025, 9, 10, 7, 0, 0), "ends the next morning");
