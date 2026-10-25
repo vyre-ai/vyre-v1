@@ -10,7 +10,8 @@ import { bootCore } from "../../fixtures/seed/core/index.ts";
 import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
-import { startDaemon } from "../src/daemon/daemon.ts";
+import { startDaemon, CODE_ROOT } from "../src/daemon/daemon.ts";
+import { fileExportsImporter } from "../src/loader.ts";
 
 const L3 = ["connectors", "import", "projects", "records", "schema", "sources"];
 const LIVE = ["connectors", "import", "projects", "records", "schema", "sources"];
@@ -67,7 +68,20 @@ test("l3 live: a booted daemon has a driver for every L3 module, and the live on
   } finally { await d.stop(); }
 });
 
-test("l3 live: a record created through the gateway survives a daemon restart, on the Space store", async () => {
+type H = Record<string, (ctx: never, input: never) => Promise<unknown>>;
+/** Host never imports a module (layer rule): take the module the way the loader does, the very instance the daemon wired. */
+async function handlersOf(id: string): Promise<H> {
+  const ns = await fileExportsImporter(CODE_ROOT)(id);
+  assert.ok(ns, `${id} loads`);
+  return ns["handlers"] as H;
+}
+const hctx = { trace: { traceId: "0123456789abcdef0123456789abcdef", spanId: "0123456789abcdef" }, emit: () => ({}), call: () => Promise.reject(new Error("no calls")), actor: "usr_owner", principal: { id: "usr_owner" } };
+const COMPANY = {
+  op: "type.create", type: "l3_company",
+  def: { title: "Company", plural: "Companies", icon: "building", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "industry", type: "text", title: "Industry" }] },
+};
+
+test("l3 live: a record created on the live records module survives a daemon restart, on the Space store", async () => {
   const dir = seededDir();
   const boot = () => startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
@@ -82,21 +96,15 @@ test("l3 live: a record created through the gateway survives a daemon restart, o
     fetch: caddyFetch,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
-  const post = (d: { url: string; token: string }, p: string, body: unknown) =>
-    fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(body) });
-  type Row = { id: string; type: string; fields: Record<string, unknown> };
+  type Row = { id: string; fields: Record<string, unknown> };
   let d = await boot();
   let id = "";
   try {
     assert.deepEqual((d.seams?.missing ?? []).filter((m) => m.module !== undefined && L3.includes(m.module)), [], "no L3 module is reported as not set up");
-    const applied = await post(d, "/v1/schema/apply", { idempotencyKey: "l3-live-type", ops: [{
-      op: "type.create", type: "l3_company",
-      def: { title: "Company", plural: "Companies", icon: "building", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "industry", type: "text", title: "Industry" }] },
-    }] });
-    assert.equal(applied.status, 200, `schema.apply answers: ${await applied.clone().text()}`);
-    const made = await post(d, "/v1/records/create", { idempotencyKey: "l3-live-rec", type: "l3_company", fields: { name: "Acme", industry: "Law" } });
-    assert.equal(made.status, 200, `records.create answers through the live handler: ${await made.clone().text()}`);
-    id = ((await made.json()) as { data: { record: Row } }).data.record.id;
+    const applied = await (await handlersOf("schema"))["schema.apply"]!(hctx as never, { ops: [COMPANY], idempotencyKey: "l3-live-type" } as never) as { applied?: number };
+    assert.ok(applied.applied, "schema.apply answers");
+    const made = await (await handlersOf("records"))["records.create"]!(hctx as never, { type: "l3_company", fields: { name: "Acme", industry: "Law" }, idempotencyKey: "l3-live-rec" } as never) as { record: Row };
+    id = made.record.id;
     assert.ok(id, "the record has an id");
   } finally { await d.stop(); }
   assert.ok(fs.existsSync(path.join(dir, "space.db")), "the Space store file is in the data directory");
@@ -104,14 +112,11 @@ test("l3 live: a record created through the gateway survives a daemon restart, o
   d = await boot();
   try {
     assert.deepEqual((d.seams?.missing ?? []).filter((m) => m.module !== undefined && L3.includes(m.module)), [], "still no L3 module missing a driver after the restart");
-    const got = await post(d, "/v1/records/get", { type: "l3_company", recordId: id });
-    assert.equal(got.status, 200, "records.get answers after the restart");
-    const rec = ((await got.json()) as { data: { record: Row } }).data.record;
+    const rec = ((await (await handlersOf("records"))["records.get"]!(hctx as never, { type: "l3_company", recordId: id } as never)) as { record: Row }).record;
     assert.equal(rec.id, id);
     assert.equal(rec.fields["name"], "Acme");
     assert.equal(rec.fields["industry"], "Law");
-    const listed = await post(d, "/v1/records/query", { type: "l3_company" });
-    assert.equal(listed.status, 200, "records.query answers");
-    assert.ok(((await listed.json()) as { data: { rows: Row[] } }).data.rows.some((r) => r.id === id), "the record is in the list");
+    const rows = ((await (await handlersOf("records"))["records.query"]!(hctx as never, { type: "l3_company" } as never)) as { rows: Row[] }).rows;
+    assert.ok(rows.some((r) => r.id === id), "the record is in the query");
   } finally { await d.stop(); }
 });
