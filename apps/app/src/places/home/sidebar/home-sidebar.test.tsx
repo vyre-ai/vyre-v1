@@ -25,6 +25,7 @@ test("it draws every fixed row with its count, three folders with their rows, an
   const html = draw("", "work");
   for (const id of ["row-hs-home", "row-hs-work", "row-hs-assigned", "row-hs-runs", "hs-folder-starred", "hs-folder-following", "hs-folder-recent", "row-hs-starred-s1", "row-hs-recent-r5"]) assert.ok(html.includes(`data-testid="${id}"`), id);
   assert.match(html, /Running · compiled \/intake in 412/);
-  assert.match(html.match(/<[^>]*data-testid="row-hs-work"[^>]*>/)?.[0] ?? "", /aria-selected="true"|selected/);
+  assert.match(html.match(/<[^>]*data-testid="row-hs-work"[^>]*>/)?.[0] ?? "", /var\(--sel\)/, "the open row wears the selection colour");
+  assert.doesNotMatch(html.match(/<[^>]*data-testid="row-hs-runs"[^>]*>/)?.[0] ?? "", /var\(--sel\)/, "the others do not");
   assert.ok(draw("zzz").includes("Nothing matches that."));
 });
