@@ -26,6 +26,8 @@ export interface EngineHostSeam {
   session?: EngineSessionPorts;
   /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan, structural here). Absent: a CLI turn fails with sandbox.unavailable and never runs unwrapped. */
   sandbox?: unknown;
+  /** The Space data directory: work folders and the default sandbox are made under it. */
+  dataDir?: string;
 }
 
 export interface EngineHostDeps {
@@ -35,8 +37,9 @@ export interface EngineHostDeps {
   now?: () => number;
   /** Without the Vault there is no key to fill, so no real session opener: the engine stays unbound. */
   vault?: VaultPort;
-  /** Handed to the module as is; the host does not look inside it. */
+  /** Handed to the module as is; the host does not look inside it. Omitted: the module builds the default sandbox for the platform. */
   sandbox?: unknown;
+  dataDir?: string;
 }
 
 const SYSTEM = { kind: "service", id: "svc_host" } as const;
@@ -54,5 +57,5 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
   const call: EngineInvoke = (cap, input, as) => run(cap, input, as ? { kind: "person", id: as } : { ...SYSTEM });
   const postAs: EngineHostSeam["postAs"] = (agentId, post) => run("chat.post", post, { kind: "agent", id: agentId });
   const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space }) : undefined;
-  return { holder: `host:${d.space}`, call, postAs, ...(d.now ? { now: d.now } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}) };
+  return { holder: `host:${d.space}`, call, postAs, ...(d.now ? { now: d.now } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}) };
 }

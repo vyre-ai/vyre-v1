@@ -21,6 +21,9 @@ export interface OpenerHost {
   call(cap: string, input: unknown, as?: string): Promise<unknown>;
   /** Where and how a CLI engine is sandboxed (the host decides). Without it a CLI turn fails with sandbox.unavailable: the engine never runs unwrapped. */
   sandbox?: SandboxPlan;
+  /** The Space data directory (work folders live under it) and a builder for the default plan, used when the host gave none. Both come from the daemon. */
+  dataDir?: string;
+  defaultSandbox?: () => Promise<SandboxPlan>;
   now?: () => number;
 }
 
@@ -35,16 +38,22 @@ export function buildOpener(h: OpenerHost): SessionOpener {
       return `You are ${spec.agent.id}, an agent in Vyre.`;
     }
   };
+  // The plan is the host's, or the default for this platform built on the first CLI turn (it starts the network wall). No plan and no default: CLI turns refuse, never run unwrapped.
+  let planned: Promise<SandboxPlan> | undefined;
+  const plan = (): Promise<SandboxPlan> => {
+    if (h.sandbox) return Promise.resolve(h.sandbox);
+    if (!h.defaultSandbox) return Promise.reject(new SandboxError("sandbox.unavailable", "no sandbox is set up for CLI engines on this computer"));
+    return (planned ??= h.defaultSandbox().catch((e: unknown) => { planned = undefined; throw e; }));
+  };
+  const dataDir = h.sandbox?.dataDir ?? h.dataDir;
   return createSessionOpener({
     source: h.session.source,
     reportMiss: h.session.reportMiss,
     mcp: h.session.mcp,
-    launcher: h.sandbox
-      ? createLocalLauncher({ wrap: sandboxWrap(h.sandbox) })
-      : { spawn: () => Promise.reject(new SandboxError("sandbox.unavailable", "no sandbox is set up for CLI engines on this computer")) },
+    launcher: { spawn: async (spec) => createLocalLauncher({ wrap: sandboxWrap(await plan()) }).spawn(spec) },
     // Behind the wall the engine cannot reach the daemon's loopback: its MCP config starts a stdio shim that talks to a unix socket in the person's scratch folder (ruling 61).
-    ...(h.sandbox ? { mcpBridge: (m: { url: string; token: string }, spec: { asker: string }) => openMcpBridge(m, { scratch: scratchFolder(h.sandbox!.dataDir, spec.asker) }) } : {}),
-    ...(h.sandbox ? { cli: { workFolder: (spec) => workFolder(h.sandbox!.dataDir, spec.asker, spec.threadId) } } : {}),
+    ...(dataDir ? { mcpBridge: (m: { url: string; token: string }, spec: { asker: string }) => openMcpBridge(m, { scratch: scratchFolder(dataDir, spec.asker) }) } : {}),
+    ...(dataDir ? { cli: { workFolder: (spec) => workFolder(dataDir, spec.asker, spec.threadId) } } : {}),
     apiContext: async (spec) => ({ system: [{ text: await role(spec), stable: true }], tools: [] }),
   });
 }

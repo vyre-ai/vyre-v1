@@ -68,3 +68,15 @@ test("with no sandbox plan a CLI engine never starts: the launcher refuses", asy
   assert.ok(!/createLocalLauncher\(\{\}\)|createLocalLauncher\(h\.launcher/.test(src));
   assert.match(src, /sandbox\.unavailable/);
 });
+
+test("the default sandbox: Linux without bwrap and an unknown platform say so and refuse, they never run the engine unwrapped", async () => {
+  const { defaultSandbox } = await import("../sandbox-default.ts");
+  const noBwrap = await defaultSandbox({ dataDir: data, platform: "linux", bwrapPaths: ["/nonexistent/bwrap"] });
+  assert.equal(noBwrap.plan.sandbox.kind, "server");
+  assert.throws(() => sandboxWrap(noBwrap.plan)(["claude"], { env, cwd: workFolder(data, "usr_dana", "thr_1") }), (e: Error & { code?: string }) => e.code === "sandbox.unavailable");
+  const win = await defaultSandbox({ dataDir: data, platform: "win32" });
+  assert.equal(win.plan.sandbox.kind, "server");
+  assert.match((win.plan.sandbox as { reason?: string }).reason ?? "", /win32/);
+  await noBwrap.close();
+  await win.close();
+});

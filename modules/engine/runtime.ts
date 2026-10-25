@@ -7,6 +7,8 @@ import type { AccountQuery, OpenSession, ResolvedAccount, TurnRow } from "../../
 import { open } from "./handlers/control.ts";
 import { bindBridge, createBridge } from "./handlers/bridge.ts";
 import { buildOpener } from "./session.ts";
+import { defaultSandbox } from "./sandbox-default.ts";
+import type { DefaultSandbox } from "./sandbox-default.ts";
 import type { SandboxPlan } from "./sandbox.ts";
 import type { EngineSessionPorts } from "./session.ts";
 import type { PostAs } from "./handlers/bridge.ts";
@@ -24,6 +26,8 @@ export interface EngineHostSeam {
   session?: EngineSessionPorts;
   /** Where CLI engines run sandboxed (work folders, the wall). Absent: CLI turns fail closed. */
   sandbox?: SandboxPlan;
+  /** The Space data directory. With it and no `sandbox`, the module builds the default sandbox for this platform on the first CLI turn (sandbox-default.ts). */
+  dataDir?: string;
   now?: () => number;
   /** Run chat.post as an agent (the host builds the call with the agent as principal). With it the chat bridge is attached: the engine's replies become chat posts. */
   postAs?: PostAs;
@@ -77,6 +81,12 @@ async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: Resolv
   await h.call("engine.turn.record_usage", { turnId: turn.id, tokensIn: turn.tokensIn, tokensOut: turn.tokensOut, costMicros: 0, ...(account?.itemId ? { itemId: account.itemId } : {}) }, turn.asker);
 }
 
+let defaultBuilt: DefaultSandbox | null = null;
+/** The default sandbox plan for this platform, built once per runtime. */
+const defaultPlan = (dataDir: string) => async (): Promise<SandboxPlan> => (defaultBuilt ??= await defaultSandbox({ dataDir })).plan;
+/** Stop the default sandbox's wall (daemon shutdown, tests). */
+export async function closeDefaultSandbox(): Promise<void> { const d = defaultBuilt; defaultBuilt = null; await d?.close(); }
+
 /**
  * Build and bind the runtime, once, on this module's database; then recover threads a dead host left with work queued or running. Returns null when no host half is configured
  * (a daemon without the engine seam, or a unit test), in which case the control handlers keep raising internal.unavailable.
@@ -84,7 +94,7 @@ async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: Resolv
 export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | null> {
   if (!host || (!host.openSession && !host.session)) return Promise.resolve(null);   // no way to open a session: the control handlers keep answering internal.unavailable
   const h = host;
-  const opener = host.openSession ? null : buildOpener({ session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}) });
+  const opener = host.openSession ? null : buildOpener({ session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir) } : {}) });
   const openSession = host.openSession ?? (opener as NonNullable<typeof opener>).openSession;
   closeOpener = opener ? () => opener.close() : null;
   building ??= (async () => {
