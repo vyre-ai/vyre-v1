@@ -144,11 +144,13 @@ t_purge_leaves_nothing() {
   # The container writes the data as its own user. A real install runs as root and removes it; this test runs as an ordinary user, so hand the files back first.
   [ "$(id -u)" = 0 ] || sudo -n chown -R "$(id -u):$(id -g)" "$W/srv" 2>/dev/null || true
   install_enc --uninstall --purge --yes >/dev/null
-  [ ! -e "$W/srv" ]
-  [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT")" ]
-  [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$PROJECT")" ]
-  [ -z "$(ls "$W/units")" ]
-  ! curl -fsS "http://127.0.0.1:$PORT/healthz" >/dev/null 2>&1
+  left=""
+  [ ! -e "$W/srv" ] || left="$left srv-folder($(ls -A "$W/srv" 2>&1 | tr '\n' ',' | cut -c1-200))"
+  [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT")" ] || left="$left containers"
+  [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$PROJECT")" ] || left="$left volumes"
+  [ -z "$(ls "$W/units")" ] || left="$left units"
+  ! curl -fsS "http://127.0.0.1:$PORT/healthz" >/dev/null 2>&1 || left="$left still-listening"
+  [ -z "$left" ] || { echo "left behind:$left"; return 1; }
 }
 
 check "the installer gives the daemon a Space id, so a plain install boots" t_installer_names_a_space
