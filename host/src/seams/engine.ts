@@ -1,6 +1,9 @@
 // The engine module's host seam (rulings 31 and 32): the module exports `hostSeams = { setEngineHost }` and the daemon hands it this half. The host never imports the module or the agent
 // package, so everything here is structural: a way to run a capability for a person, the lease holder name, and the ports the session opener needs. The module builds the turn engine on
 // its own database from these (modules/engine/runtime.ts); nothing in the host touches a turn.
+import type { Invoke } from "../invoke.ts";
+import { createEngineSessionHost } from "./engine-session.ts";
+import type { EngineSessionHost } from "./engine-session.ts";
 import type { VaultPort } from "./ports.ts";
 
 /** Run one capability through the invoke pipeline. `as` is the person it runs for; omitted, the host's own service principal (used for the pipeline's own bookkeeping). */
@@ -10,11 +13,7 @@ export type EngineInvoke = (cap: string, input: unknown, as?: string) => Promise
 export interface EngineAgentPost { threadId: string; body: string; blocks: Array<{ type: string; v: number; data: unknown }>; mentions: unknown[]; clientId: string; via?: { routineOwner: string } }
 
 /** Plain ports for the session opener (agent/src/drivers/open): a Vault lookup that returns a secret for a handle, a loopback MCP token, and the scrub-miss report. */
-export interface EngineSessionPorts {
-  source: unknown;
-  mcp: unknown;
-  reportMiss: unknown;
-}
+export type EngineSessionPorts = EngineSessionHost;
 
 export interface EngineHostSeam {
   /** 'host:<space>' */
@@ -29,16 +28,27 @@ export interface EngineHostSeam {
 
 export interface EngineHostDeps {
   space: string;
-  invoke: (cap: string, input: unknown, as: { kind: "person" | "agent"; id: string } | null) => Promise<unknown>;
+  /** The daemon's invoke pipeline. */
+  invoke: Invoke;
   now?: () => number;
+  /** Without the Vault there is no key to fill, so no real session opener: the engine stays unbound. */
   vault?: VaultPort;
-  /** Builds the opener's ports from the invoke and the Vault; w2q's createEngineSessionHost (host/src/seams/engine-session.ts) fits here. */
-  sessionHost?: (d: { invoke: EngineInvoke; vault: VaultPort; space: string }) => EngineSessionPorts;
 }
 
+const SYSTEM = { kind: "service", id: "svc_host" } as const;
+
+/**
+ * The host half of the engine: capabilities run for a person through the real pipeline (authorized as that person, so the asker's own access limits what a turn can read), the agent
+ * speaks into chat as itself, and the session opener's ports come from the Vault.
+ */
 export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
-  const call: EngineInvoke = (cap, input, as) => d.invoke(cap, input, as ? { kind: "person", id: as } : null);
-  const session = d.vault && d.sessionHost ? d.sessionHost({ invoke: call, vault: d.vault, space: d.space }) : undefined;
-  const postAs: EngineHostSeam["postAs"] = (agentId, post) => d.invoke("chat.post", post, { kind: "agent", id: agentId });
+  const run = async (cap: string, input: unknown, principal: { kind: "person" | "agent" | "service"; id: string }): Promise<unknown> => {
+    const r = await d.invoke(cap, input, { space: d.space, principal, origin: "engine", ...(principal.kind === "service" ? { preAuth: true } : {}) });
+    if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
+    return r.output;
+  };
+  const call: EngineInvoke = (cap, input, as) => run(cap, input, as ? { kind: "person", id: as } : { ...SYSTEM });
+  const postAs: EngineHostSeam["postAs"] = (agentId, post) => run("chat.post", post, { kind: "agent", id: agentId });
+  const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space }) : undefined;
   return { holder: `host:${d.space}`, call, postAs, ...(d.now ? { now: d.now } : {}), ...(session ? { session } : {}) };
 }

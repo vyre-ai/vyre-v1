@@ -6,6 +6,8 @@ import type { TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { AccountQuery, OpenSession, ResolvedAccount, TurnRow } from "../../agent/src/turn-engine/types.ts";
 import { open } from "./handlers/control.ts";
 import { bindBridge, createBridge } from "./handlers/bridge.ts";
+import { buildOpener } from "./session.ts";
+import type { EngineSessionPorts } from "./session.ts";
 import type { PostAs } from "./handlers/bridge.ts";
 import { bindEngine, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
 import type { Db, EngineCtx } from "./projections.ts";
@@ -17,6 +19,8 @@ export interface EngineHostSeam {
   call(cap: string, input: unknown, as?: string): Promise<unknown>;
   /** The real session opener. A daemon passes the host's `session` ports instead and the module builds it; a test passes a scripted one here. */
   openSession?: OpenSession;
+  /** The host's ports for the real opener (Vault lookup, loopback MCP, scrub-miss report). With these and no `openSession`, the module builds the opener itself. */
+  session?: EngineSessionPorts;
   now?: () => number;
   /** Run chat.post as an agent (the host builds the call with the agent as principal). With it the chat bridge is attached: the engine's replies become chat posts. */
   postAs?: PostAs;
@@ -33,9 +37,12 @@ export const providerOfDriver = (driver: string): string => PROVIDER_OF_DRIVER[d
 
 let host: EngineHostSeam | null = null;
 let building: Promise<TurnEngine | null> | null = null;
+let closeOpener: (() => Promise<void>) | null = null;
 
 /** The module's seam: the daemon calls this at boot with the host half (null at shutdown). */
 export function setEngineHost(h: EngineHostSeam | null): void {
+  if (h === null && closeOpener) void closeOpener().catch(() => undefined);   // processes end and MCP tokens are revoked at shutdown
+  closeOpener = null;
   host = h;
   building = null;
   if (h === null) { bindEngine(null); bindBridge(null); }
@@ -72,9 +79,11 @@ async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: Resolv
  * (a daemon without the engine seam, or a unit test), in which case the control handlers keep raising internal.unavailable.
  */
 export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | null> {
-  if (!host || !host.openSession) return Promise.resolve(null);   // no session opener yet: the control handlers keep answering internal.unavailable
+  if (!host || (!host.openSession && !host.session)) return Promise.resolve(null);   // no way to open a session: the control handlers keep answering internal.unavailable
   const h = host;
-  const openSession = host.openSession;
+  const opener = host.openSession ? null : buildOpener({ session: host.session as EngineSessionPorts, call: h.call });
+  const openSession = host.openSession ?? (opener as NonNullable<typeof opener>).openSession;
+  closeOpener = opener ? () => opener.close() : null;
   building ??= (async () => {
     const now = h.now ?? Date.now;
     const bridge = h.postAs ? createBridge({ postAs: h.postAs, now }) : null;
