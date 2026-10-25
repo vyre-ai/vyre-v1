@@ -4,12 +4,13 @@
 //   device  the person's computer: supervisor, scheduler, the disk and clock probes, and the local HTTP face (/healthz) the desktop shell and the CLI reach. Local turns, the vault filler and
 //           the Chrome bridge register as supervised services (`options.services`) when their lanes land.
 // Nothing here knows a module's internals: module code only ever sees the ctx the loader builds.
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import { LogClient } from "../../../kernel/src/log/index.ts";
-import { registry, registryHash } from "../../../generated/registry.ts";
+import { registry } from "../../../generated/registry.ts";
 import { routes } from "../../../generated/routes.ts";
 import { validateEvent, validateInput } from "../../../generated/validators.ts";
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
@@ -74,6 +75,8 @@ import type { HostDb } from "./sqlite.ts";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The repo (or install) root that holds generated/, modules/ and host/modules.json. */
 export const CODE_ROOT = path.resolve(HERE, "../../..");
+/** What a device compares its registry with at hello (sync): the hash of registry.json, which the generated module no longer exports (ci: no global hash). */
+const registryHash = crypto.createHash("sha256").update(fs.readFileSync(new URL("../../../generated/registry.json", import.meta.url))).digest("hex");
 const ZERO_TRACE = "0".repeat(32);
 const RING = 5000;
 
