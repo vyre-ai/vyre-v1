@@ -23,7 +23,8 @@ export function AskBox(): ReactElement {
 
   // the agent that answers is picked in the pill beside the box (the shared AskButton), the Space assistant until another is picked
   const agents = useMemo<AskAgent[]>(() => {
-    const list = people.list.filter((x) => x.kind === "agent").map((x): AskAgent => ({ id: x.id, name: x.name, ...(x.id === assistant.id ? { assistant: true } : {}) }));
+    const list: AskAgent[] = [];
+    for (const x of people.list) if (x.kind === "agent") list.push({ id: x.id, name: x.name, ...(x.id === assistant.id ? { assistant: true } : {}) });
     return list.some((x) => x.id === assistant.id) ? list : [{ id: assistant.id, name: assistant.name, assistant: true }, ...list];
   }, [people.list, assistant.id, assistant.name]);
   const [pickedId, setPickedId] = useState(assistant.id);
