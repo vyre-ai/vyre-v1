@@ -13,7 +13,7 @@
       "route": "/m/P-L9b_06c?v=harbor",
       "proto": "chat,needs,space:harbor,{skin}",
       "waitFor": "[data-testid='needs-you']",
-      "note": "Needs you over Harbor Studio: its two requests (Confirm 3 studio visits, Abel homepage copy).",
+      "note": "Needs you over Harbor Studio: its two requests (Send the Moreno gallery, Saturday call sheet) from the shared fixtures.",
       "protoSettleMs": 1500
     }
   ]

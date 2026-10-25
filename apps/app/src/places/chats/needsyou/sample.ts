@@ -4,6 +4,7 @@
 import { createFakeReplica, createScreenHooks } from "../../../../../../client/src/index.ts";
 import type { FakeReplica, Row } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
+import { fixtureFor, nameOf, namesFor } from "../../../fixtures/index.ts";
 import type { Connection, NeedsNav, NeedsYouData } from "./data.tsx";
 import type { Item, Reason, Task } from "./model.ts";
 
@@ -11,15 +12,11 @@ import type { Item, Reason, Task } from "./model.ts";
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const at = (m: number, d: number, h: number, min = 0): number => Date.UTC(2025, m - 1, d, h, min, 0);
 
-export type Variant = "northwind" | "harbor" | "quiet";
+export type Variant = "northwind" | "harbor";
 
 export const ME = "usr_irfad";
-export const NAMES: Record<string, string> = {
-  usr_irfad: "You", usr_omar: "Omar Haddad", usr_maya: "Maya Chen",
-  agt_billing: "Billing", agt_docs: "Docs", agt_scout: "Scout", agt_intake: "Intake", agt_research: "Research", agt_assistant: "Assistant", agt_scheduler: "Scheduler", agt_proofer: "Proofer",
-  role_finance: "Finance", usr_lena: "Lena Ortiz",
-};
-const SOURCES: Record<string, string> = { "chat:c3": "October invoices", "chat:c4": "Rivera engagement letter", "chat:c6": "County records search", "chat:c1": "Rivera intake", "chat:c2": "Competitor pricing", "chat:c7": "Plan the Q4 offsite", "chat:hc-sched": "Studio visits", "chat:hc-proof": "Abel homepage copy", "chat:c4w": "Pruitt fee letter" };
+export const NAMES: Record<string, string> = { ...namesFor("harbor"), ...namesFor("northwind", { usr_irfad: "You", role_finance: "Finance" }) };
+const SOURCES: Record<string, string> = { "chat:c3": "October invoices", "chat:c4": "Rivera engagement letter", "chat:c6": "County records search", "chat:c1": "Rivera intake", "chat:c2": "Competitor pricing", "chat:c7": "Plan the Q4 offsite", "chat:h1": "Moreno shoot Saturday", "chat:h2": "Moreno gallery" };
 
 const approve = [{ key: "approve", label: "Approve" }, { key: "send_back", label: "Send back", note: "required" as const }];
 const review = [{ key: "review", label: "Looks good" }, { key: "send_back", label: "Send back", note: "required" as const }];
@@ -56,11 +53,13 @@ export function northwindTasks(): { task: Task; reason: Reason; handledBy?: stri
   ];
 }
 
-/** Harbor Studio's two requests, from the prototype: the Scheduler wants three studio visits confirmed, the Proofer wants a copy review. */
+/** Harbor Studio's two Needs you, as the prototype's Harbor has them (read through the shared fixtures for the ids and titles). */
 export function harborTasks(): { task: Task; reason: Reason; handledBy?: string }[] {
+  const needs = fixtureFor("harbor").needs;
+  const n1 = needs.find((n) => n.id === "n1")!, n2 = needs.find((n) => n.id === "n2")!;
   return [
-    { reason: "ready", task: task("h1", "approve", "agt_scheduler", "Confirm 3 studio visits", "Thursday 10:00, 11:30, 14:00", "Each visitor has a free slot and a booking form on file. Confirming sends them the address and parking note.", "hc-sched", at(10, 24, 9, 20)) },
-    { reason: "ready", task: task("h2", "review", "agt_proofer", "Abel homepage copy", "Four lines marked", "The copy matches the brand sheet except four long lines. Take or leave each change.", "hc-proof", at(10, 24, 8, 40)) },
+    { reason: "ready", task: task("n1", "approve", n1.agent, n1.title, n1.sub, "The client picked 84 favourites. This sends the gallery link from the studio address.", n1.chat, at(10, 24, 9, 5)) },
+    { reason: "ready", task: task("n2", "review", n2.agent, n2.title, n2.sub, "Times, addresses and the shot list from the brief. Check the second shooter's start time.", n2.chat, at(10, 24, 8, 41)) },
   ];
 }
 
@@ -76,14 +75,14 @@ export interface Sample {
   failNext(cap: string): void;
 }
 
-export function createSample(variant: Variant = "northwind", o: { online?: boolean } = {}): Sample {
+export function createSample(variant: Variant = "northwind", o: { online?: boolean; empty?: boolean } = {}): Sample {
   const replica = createFakeReplica(variant);
   const calls: { cap: string; input: unknown }[] = [];
   const opened: string[] = [];
   const failing = new Set<string>();
   const listeners = new Set<() => void>();
   let online = o.online ?? true;
-  const seed = variant === "northwind" ? northwindTasks() : variant === "harbor" ? harborTasks() : [];
+  const seed = o.empty === true ? [] : variant === "northwind" ? northwindTasks() : harborTasks();
   replica.put("needs", seed.map((x) => ({ id: x.task.id, ...x })));
 
   const rows = (): (Item & Row)[] => replica.rows("needs") as unknown as (Item & Row)[];
@@ -138,7 +137,7 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     connection,
     me: ME,
     space: { name: variant === "northwind" ? "Northwind" : "Harbor Studio" },
-    nameOf: (id) => NAMES[id] ?? id,
+    nameOf: (id) => NAMES[id] ?? nameOf("northwind", id),
     sourceTitle: (kind, id) => SOURCES[`${kind}:${id}`],
     nav,
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),

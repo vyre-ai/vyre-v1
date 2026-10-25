@@ -90,7 +90,7 @@ test("every row is a ui/Row with a face, a second line and a time; a quick actio
 });
 
 test("nothing waiting says so, with the Space's name", () => {
-  const out = html(createSample("quiet"));
+  const out = html(createSample("harbor", { empty: true }));
   assert.ok(has(out, 'data-testid="needs-empty"') && has(out, "All caught up. Nothing in Harbor Studio is waiting on you."));
   assert.ok(has(out, 'data-testid="needs-nothing"') && has(out, "Nothing selected"));
 });
@@ -261,7 +261,14 @@ test("content blocks: a table, key/values and an excerpt get their own look; any
   assert.deepEqual(blockView({ type: "record_card", v: 1, data: null }), { type: "line", text: "record card" });
 });
 
+test("Harbor Studio has the prototype's two: Send the Moreno gallery (Proofer) and Saturday call sheet (Scheduler)", () => {
+  const out = html(createSample("harbor"));
+  assert.ok(has(out, "Send the Moreno gallery") && has(out, "Saturday call sheet"));
+  assert.ok(has(out, "Proofer") && has(out, "Scheduler"));
+  assert.ok(!has(out, 'data-testid="needs-empty"'));
+});
+
 test("variants exist for the screenshots", () => {
-  const variants: Variant[] = ["northwind", "harbor", "quiet"];
+  const variants: Variant[] = ["northwind", "harbor"];
   for (const v of variants) assert.ok(createSample(v).data.space.name.length > 0, v);
 });

@@ -10,8 +10,8 @@ import { createSample } from "../needsyou/sample.ts";
 import type { Sample, Variant } from "../needsyou/sample.ts";
 
 const ALL = { start: 0, end: 500 };
-const html = (v: Variant, sel?: string): string =>
-  renderToStaticMarkup(<NeedsYou data={createSample(v).data} window={ALL} {...(sel ? { initialSelected: sel } : {})} />).replaceAll("<!-- -->", "").replaceAll("&amp;", "&");
+const html = (v: Variant, sel?: string, empty = false): string =>
+  renderToStaticMarkup(<NeedsYou data={createSample(v, { empty }).data} window={ALL} {...(sel ? { initialSelected: sel } : {})} />).replaceAll("<!-- -->", "").replaceAll("&amp;", "&");
 const has = (s: string, needle: string): boolean => s.includes(needle);
 const items = (s: Sample): Item[] => s.replica.rows("needs") as unknown as Item[];
 
@@ -65,7 +65,7 @@ test("Approve is the black button with its A key hint, Send back follows with B"
 
 test("Harbor Studio shows its two requests", () => {
   const out = html("harbor");
-  assert.ok(has(out, "Confirm 3 studio visits") && has(out, "Abel homepage copy") && has(out, ">2<"));
+  assert.ok(has(out, "Send the Moreno gallery") && has(out, "Saturday call sheet") && has(out, ">2<"), "the shared Harbor fixture's two requests");
   assert.ok(!has(out, 'data-testid="needs-empty"'));
-  assert.ok(has(html("quiet"), 'data-testid="needs-empty"'), "a Space with nothing waiting still says so");
+  assert.ok(has(html("harbor", undefined, true), 'data-testid="needs-empty"'), "a Space with nothing waiting still says so");
 });
