@@ -1,0 +1,40 @@
+// Handler table of the memory module: all 30 capabilities of manifests/memory.ts. The module's `status` in host/modules.json is flipped by the lane's live packet (ruling 25),
+// after the generated contract tests pass against these handlers.
+import {
+  capture, counts, erase, factAccept, factCorrect, factGet, factReject, factsAsOf, factsList, factsRemove, findBySubject, layersList, maintain, notesList, pointer, promote,
+  promotionApprove, promotionReject, promotionUndo, proposeFact, readNote, restoreVersion, search, versions,
+} from "./facts.ts";
+import { graph, graphEverything, graphExport, indexGraph, layoutGet, layoutSave } from "./graph.ts";
+
+export const handlers = {
+  "memory.search": search,
+  "memory.read_note": readNote,
+  "memory.facts_as_of": factsAsOf,
+  "memory.facts.list": factsList,
+  "memory.fact.get": factGet,
+  "memory.notes.list": notesList,
+  "memory.layers.list": layersList,
+  "memory.counts": counts,
+  "memory.pointer": pointer,
+  "memory.propose_fact": proposeFact,
+  "memory.fact.accept": factAccept,
+  "memory.fact.reject": factReject,
+  "memory.fact.correct": factCorrect,
+  "memory.facts.remove": factsRemove,
+  "memory.erase": erase,
+  "memory.promote": promote,
+  "memory.promotion.approve": promotionApprove,
+  "memory.promotion.reject": promotionReject,
+  "memory.promotion.undo": promotionUndo,
+  "memory.capture": capture,
+  "memory.maintain": maintain,
+  "memory.index_graph": indexGraph,
+  "memory.graph": graph,
+  "memory.graph_everything": graphEverything,
+  "memory.graph_export": graphExport,
+  "memory.layout.get": layoutGet,
+  "memory.layout.save": layoutSave,
+  "memory.versions": versions,
+  "memory.restore_version": restoreVersion,
+  "memory.find_by_subject": findBySubject,
+};

@@ -19,7 +19,7 @@ Move a file to Trash
 | HTTP | POST /v1/files/delete |
 | MCP tool | files_delete (files) |
 | CLI | none |
-| Emits | file.deleted |
+| Emits | file.deleted, changeset.opened, changeset.updated |
 
 ## Input
 
@@ -34,6 +34,7 @@ type In = {
 ```ts
 type Out = {
   deleted: boolean;
+  changesetId?: string;
 };
 ```
 
@@ -56,6 +57,7 @@ type Out = {
     "fileId": "fil_a1b2c3"
   },
   "output": {
+    "changesetId": "chg_a1b2c3",
     "deleted": true
   }
 }

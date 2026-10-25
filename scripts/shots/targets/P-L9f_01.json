@@ -1,0 +1,25 @@
+{
+  "targets": [
+    {
+      "id": "P-L9f_01-canvas-northwind",
+      "route": "/m/P-L9f_01?view=canvas&space=northwind",
+      "proto": "automations,at:paths,{skin}",
+      "waitFor": "[data-testid='card-mobile']",
+      "note": "The Automations place on Northwind: sidebar (Needs you, Personal, Shared with me, Space, Running), and the canvas of New lead follow-up with two triggers, an AI step, a Paths step selected, its Text and Otherwise lanes, a Wait and the second Paths step. The prototype side is the same automation with the same card selected."
+    },
+    {
+      "id": "P-L9f_01-canvas-harbor",
+      "route": "/m/P-L9f_01?view=canvas&space=harbor",
+      "proto": "automations,space:harbor,{skin}",
+      "waitFor": "[data-testid='card-post']",
+      "note": "The same place over Harbor Studio: one Space group open and a single-step Automation."
+    },
+    {
+      "id": "P-L9f_01-journeys",
+      "route": "/m/P-L9f_01?view=journeys&space=northwind",
+      "proto": "automations,at:journeys,{skin}",
+      "waitFor": "[data-testid='row-journey-jrn_onboard']",
+      "note": "The Journeys tab of the sidebar: Client onboarding and Matter intake with their stage counts."
+    }
+  ]
+}

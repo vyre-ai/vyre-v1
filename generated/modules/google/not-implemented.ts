@@ -18,6 +18,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "google.docs.batch_update": async (ctx) => { throw new VyreErr(notImplemented("google.docs.batch_update", ctx.trace)); },
   "google.docs.create_document": async (ctx) => { throw new VyreErr(notImplemented("google.docs.create_document", ctx.trace)); },
   "google.docs.get_document": async (ctx) => { throw new VyreErr(notImplemented("google.docs.get_document", ctx.trace)); },
+  "google.drive.changes_start_token": async (ctx) => { throw new VyreErr(notImplemented("google.drive.changes_start_token", ctx.trace)); },
   "google.drive.copy_file": async (ctx) => { throw new VyreErr(notImplemented("google.drive.copy_file", ctx.trace)); },
   "google.drive.create_folder": async (ctx) => { throw new VyreErr(notImplemented("google.drive.create_folder", ctx.trace)); },
   "google.drive.download_file": async (ctx) => { throw new VyreErr(notImplemented("google.drive.download_file", ctx.trace)); },

@@ -1,6 +1,6 @@
 # changesets.review_externally
 
-Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token
+Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token; returns a one-time review link (the token is in the link, shown once, never logged)
 
 | | |
 |---|---|
@@ -35,6 +35,7 @@ type In = {
 ```ts
 type Out = {
   actorId: string;
+  reviewUrl: string;
   expiresAt: number;
 };
 ```
@@ -57,7 +58,8 @@ type Out = {
   },
   "output": {
     "actorId": "act_a1b2c3",
-    "expiresAt": 1760000000000
+    "expiresAt": 1760000000000,
+    "reviewUrl": "https://northwind.example.com/review/cs_example?token=otk_example"
   }
 }
 ```

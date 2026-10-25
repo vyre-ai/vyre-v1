@@ -1,0 +1,7 @@
+# Site builder: static (buildpacks-lite, spec 2.20, ARCH 7.6). Serves a folder of ready files with Caddy on port 3000.
+# STATIC_DIR is the folder holding index.html (the context root by default).
+FROM caddy:2-alpine
+ARG STATIC_DIR=.
+COPY ${STATIC_DIR} /srv
+EXPOSE 3000
+CMD ["caddy", "file-server", "--root", "/srv", "--listen", ":3000"]

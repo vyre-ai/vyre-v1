@@ -1,0 +1,7 @@
+{
+  "name": "@vyre/app-join",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The join screens are ES modules, like ui/: tests load them through the tsx loader with react-native mapped to react-native-web."
+}

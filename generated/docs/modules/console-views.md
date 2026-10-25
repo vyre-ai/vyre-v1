@@ -1,6 +1,6 @@
 # Console views (console-views)
 
-Lane L7b. Kind module. Status stub. Version 0.1.0.
+Lane L7b. Kind module. Version 0.1.0.
 
 Requires: access, backup, health, logs, mcp, network, schema, updates.
 

@@ -1,10 +1,10 @@
 # Records (records)
 
-Lane L3. Kind module. Status stub. Version 0.1.0.
+Lane L3. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (28)
+## Capabilities (29)
 
 - [records.as_of](../capabilities/records.as_of.md): Read a record as it was at a time
 - [records.bulk_upsert](../capabilities/records.bulk_upsert.md): Create or update many records by match key, quietly (no automations unless asked)
@@ -34,6 +34,7 @@ Requires: nothing.
 - [records.values.pending](../capabilities/records.values.pending.md): Needs review: agent-filled values waiting for a reviewer, each with its source and time (counts into My work for the field reviewer role)
 - [records.values.review](../capabilities/records.values.review.md): Accept or reject an agent-filled value; an accepted value counts, a rejected one is dropped and stays in history
 - [records.versions](../capabilities/records.versions.md): List versions of a record (One History)
+- [records.view](../capabilities/records.view.md): Read a saved view of a record type resolved for the table: the view definition and its rows with the saved filter, sort and group applied, a page at a time
 
 ## Events (11)
 

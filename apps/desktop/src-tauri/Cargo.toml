@@ -1,0 +1,33 @@
+[package]
+name = "vyre-desktop"
+version = "0.0.0"
+description = "Vyre desktop shell: Tauri 2 around the web build, with the vyred device daemon as a sidecar"
+edition = "2021"
+license = "MIT"
+rust-version = "1.77"
+
+[lib]
+name = "vyre_desktop"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+# Every crate here is MIT or Apache-2.0 (checked by cargo deny in license-check, deny.toml).
+# No OS credential-store crate on purpose: the replica key is wrapped in IndexedDB, as on web (ARCH 5.10).
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-shell = "2"
+tauri-plugin-deep-link = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+strip = true

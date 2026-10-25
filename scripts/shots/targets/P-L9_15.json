@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_15-cmdk",
+      "route": "/m/P-L9_15",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='cmdk-list'] [data-testid^='row-']",
+      "note": "Cmd-K with the query referral: local hits first, then the server hits merged in (shared files, records, a channel), quiet group headings, the highlighted row in the quiet wash, the hint footer. The prototype cannot open its palette from a hash (its search hash needs the team Space and a first token the outer router does not route), so the prototype image is the Files place with its Search field and results look; the palette itself is the 600 px card, 52 px field, 11 px group heads and 11.5 px footer of the prototype palette CSS. Paper and graphite, 1280 and 390 wide."
+    }
+  ]
+}

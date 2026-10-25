@@ -339,9 +339,6 @@ export function emitTask(ctx: TasksCtx, db: Db, name: string, t: Pick<Task, "id"
   return ev.id;
 }
 
-/** evt_<alphanumerics> as the contract's id format wants it (the host mints dashed ids). */
-export const eventIdOut = (raw: string): string => `evt_${raw.replace(/^evt_/, "").replace(/[^a-z0-9]/g, "")}`;
-
 // ---- queries ----
 
 export function page<T>(all: readonly T[], cursor?: string, limit?: number): { rows: T[]; next?: string; total: number } {
@@ -437,5 +434,5 @@ export function myWork(ctx: TasksCtx, section: Section): { tasks: Task[]; counts
 
 export function historyOf(db: Db, taskId: string): { at: number; type: string; by: string; note?: string; eventId: string }[] {
   const rows = db.all("SELECT at, type, actor, note, event_id FROM tasks_history WHERE task_id = ? ORDER BY at DESC, rowid DESC", taskId) as Raw[];
-  return rows.map((r) => clean({ at: r.at as number, type: r.type as string, by: r.actor as string, note: str(r.note), eventId: eventIdOut(r.event_id as string) }));
+  return rows.map((r) => clean({ at: r.at as number, type: r.type as string, by: r.actor as string, note: str(r.note), eventId: r.event_id as string }));
 }

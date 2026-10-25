@@ -57,12 +57,14 @@
       "lib",
       "manifest",
       "contracts",
-      "kernel"
+      "kernel",
+      "allowlist"
     ],
     "client": [
       "contracts",
       "sync/client",
-      "lib"
+      "lib",
+      "allowlist"
     ],
     "modules/*": [
       "lib",
@@ -95,7 +97,8 @@
     "ui": [
       "client",
       "contracts",
-      "lib"
+      "lib",
+      "allowlist"
     ],
     "apps/*": [
       "lib",
@@ -103,7 +106,8 @@
       "contracts",
       "sync",
       "client",
-      "ui"
+      "ui",
+      "allowlist"
     ],
     "kits/*": [
       "lib",
@@ -117,6 +121,16 @@
       "contracts",
       "sync",
       "client"
+    ],
+    "testkit": [
+      "lib",
+      "manifest",
+      "contracts",
+      "kernel",
+      "host",
+      "sync",
+      "client",
+      "allowlist"
     ]
   },
   "rules": {
@@ -125,16 +139,17 @@
       "check": "no-module-to-module"
     },
     "B2": {
-      "text": "only host constructs ctx; no node:sqlite import outside these",
+      "text": "only host constructs ctx; no node:sqlite import outside these (tests and the testkit harness build kernel logs and are exempt)",
       "allowNodeSqlite": [
         "kernel",
         "sync",
         "host",
-        "modules/search"
+        "modules/search",
+        "testkit"
       ]
     },
     "B3": {
-      "text": "only kernel and modules/vault import crypto primitives for key handling",
+      "text": "only kernel and modules/vault import crypto primitives for key handling; allowCryptoFiles names the sanctioned others (websocket accept hash, envelope payload hash, ACME account and CSR keys); tests may hash; the relay checks route signatures and the WebSocket handshake (relay/node, relay/worker tests)",
       "allowCrypto": [
         "kernel",
         "modules/vault"
@@ -144,13 +159,25 @@
         "@noble/curves",
         "@noble/hashes",
         "@noble/ciphers"
+      ],
+      "allowCryptoFiles": [
+        "host/src/ws.ts",
+        "packages/contracts/src/envelope.ts",
+        "lib/acme/",
+        "relay/node/server.js",
+        "relay/node/wire.js",
+        "relay/node/ws.js",
+        "relay/worker/tests/wire.js"
       ]
     },
     "B4": {
-      "text": "no fetch in ui or apps outside client; ui gets data through client hooks",
+      "text": "no fetch in ui or apps outside client; ui gets data through client hooks (tests may mock it)",
       "noFetchIn": [
         "ui",
         "apps"
+      ],
+      "allowFetchIn": [
+        "apps/app/public/"
       ]
     },
     "B5": {
@@ -165,11 +192,25 @@
       "text": "a package's tests import only what the package may import plus @vyre/testkit",
       "extra": [
         "testkit"
+      ],
+      "testMayImportOutside": [
+        "manifests/",
+        "tools/gen/",
+        "fixtures/"
       ]
     },
     "B8": {
       "text": "named exceptions to the layer rule"
-    }
+    },
+    "dynamicOk": [
+      "ui/src/theme/theme.firstframe.test.ts",
+      "host/src/loader.ts",
+      "agent/tests/sandbox.heavy.test.ts",
+      "agent/tests/sandbox.net.heavy.test.ts"
+    ],
+    "ignoreImports": [
+      "manifest/gen/scaffold/index.ts"
+    ]
   },
   "exceptions": [
     {

@@ -124,16 +124,16 @@ async function docxParagraphs(zip: Uint8Array): Promise<string[] | undefined> {
 
 // ---- the diff ----
 
-type Op = { op: "ctx" | "add" | "del"; text: string; oldPos: number; newPos: number };
-type Mark = { from: number; to: number };
-type Line = { op: "ctx" | "add" | "del"; text: string; marks?: Mark[] };
-type Hunk = { hunkId: string; oldStart: number; oldLines: number; newStart: number; newLines: number; lines: Line[] };
+export type Op = { op: "ctx" | "add" | "del"; text: string; oldPos: number; newPos: number };
+export type Mark = { from: number; to: number };
+export type Line = { op: "ctx" | "add" | "del"; text: string; marks?: Mark[] };
+export type Hunk = { hunkId: string; oldStart: number; oldLines: number; newStart: number; newLines: number; lines: Line[] };
 
 const CONTEXT = 3;
 const DP_CAP = 6_000_000;
 
 /** Longest common subsequence as a list of [oldIndex, newIndex] pairs, after trimming the shared head and tail. */
-function lcsPairs(a: readonly string[], b: readonly string[]): [number, number][] {
+export function lcsPairs(a: readonly string[], b: readonly string[]): [number, number][] {
   let head = 0;
   while (head < a.length && head < b.length && a[head] === b[head]) head++;
   let tail = 0;
@@ -162,7 +162,7 @@ function lcsPairs(a: readonly string[], b: readonly string[]): [number, number][
   return pairs;
 }
 
-function lineOps(a: readonly string[], b: readonly string[]): Op[] {
+export function lineOps(a: readonly string[], b: readonly string[]): Op[] {
   const ops: Op[] = [];
   let i = 0;
   let j = 0;
@@ -203,7 +203,7 @@ function wordMarks(left: string, right: string): { left: Mark[]; right: Mark[] }
   return { left: ranges(a, keepA), right: ranges(b, keepB) };
 }
 
-function addMarks(ops: Op[]): Map<Op, Mark[]> {
+export function addMarks(ops: Op[]): Map<Op, Mark[]> {
   const marks = new Map<Op, Mark[]>();
   for (let s = 0; s < ops.length; s++) {
     if (ops[s]?.op === "ctx") continue;
@@ -224,7 +224,7 @@ function addMarks(ops: Op[]): Map<Op, Mark[]> {
   return marks;
 }
 
-function hunksOf(ops: Op[], marks: Map<Op, Mark[]> | undefined): Hunk[] {
+export function hunksOf(ops: Op[], marks: Map<Op, Mark[]> | undefined): Hunk[] {
   const changed: number[] = [];
   ops.forEach((o, idx) => { if (o.op !== "ctx") changed.push(idx); });
   const groups: [number, number][] = [];
@@ -254,14 +254,14 @@ function hunksOf(ops: Op[], marks: Map<Op, Mark[]> | undefined): Hunk[] {
   });
 }
 
-function splitLines(text: string): string[] {
+export function splitLines(text: string): string[] {
   if (text.length === 0) return [];
   const lines = text.replace(/\r\n/g, "\n").split("\n");
   if (lines[lines.length - 1] === "") lines.pop();
   return lines;
 }
 
-function splitParagraphs(text: string): string[] {
+export function splitParagraphs(text: string): string[] {
   return text.replace(/\r\n/g, "\n").split(/\n{2,}/).map((p) => p.trim()).filter((p) => p.length > 0);
 }
 
