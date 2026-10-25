@@ -48,7 +48,10 @@
       "proto": "records,record,{skin}",
       "waitFor": "[data-testid='navigate-probe']",
       "protoSettleMs": 3000,
-      "note": "The navigate probe in the browser (ruling 43): the record page opened seven times, the first thrown away, the median of five against the 50 ms budget with the worst printed in the corner."
+      "note": "The navigate probe, in-app: performance marks nav-start when a row is opened and nav-end when the record page content first paints; browser.mjs reads the measure on the perf runner (budget 50 ms, median of 5 after a warm-up).",
+      "probes": {
+        "navigate": {}
+      }
     }
   ]
 }

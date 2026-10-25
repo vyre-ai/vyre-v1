@@ -13,39 +13,40 @@ export const title = "Records: the record page";
 const BUDGET_MS = 50;
 
 /**
- * The navigate probe (ruling 43), in the browser: the record page is opened seven times, each time a fresh mount of the page from the moment it is asked for to the frame after it is on screen
- * (two animation frames). The first is thrown away as the warm-up; the median of the other five is the number against the 50 ms budget, and the worst is printed. The result is drawn on the
- * page, so the screenshot carries it, and written to the console as a METRIC line.
+ * The navigate probe (ruling 43), in-app navigation and not page load: the page is mounted and settled with a list showing, then performance.mark("nav-start") is put when a row is opened, the
+ * record page is rendered, and performance.mark("nav-end") when its content has first painted (two animation frames after the commit). The measure between them is window.__probes.navigate,
+ * which scripts/shots/probes/browser.mjs reads on the v1-perf runner for each fresh mount (the first is the warm-up). It is drawn in the corner too, so a screenshot carries it.
  */
 function Navigate({ type, id }: { type: string; id: string }): ReactNode {
-  const [run, setRun] = useState(0);
-  const [times, setTimes] = useState<number[]>([]);
-  const t0 = useMemo(() => ({ at: 0 }), []);
-  useMemo(() => { t0.at = performance.now(); }, [run, t0]);
+  const [open, setOpen] = useState(false);
+  const [ms, setMs] = useState<number | null>(null);
+  const sample = useMemo(() => createSamplePage(northwind), []);
   useEffect(() => {
+    // settle first: the shell is up and idle, as it is when a person clicks a row
+    let a = 0, b = 0, c = 0;
+    a = requestAnimationFrame(() => { b = requestAnimationFrame(() => { c = window.setTimeout(() => { performance.mark("nav-start"); setOpen(true); }, 400); }); });
+    return () => { cancelAnimationFrame(a); cancelAnimationFrame(b); clearTimeout(c); };
+  }, []);
+  useEffect(() => {
+    if (!open) return;
     let a = 0, b = 0;
     a = requestAnimationFrame(() => { b = requestAnimationFrame(() => {
-      const ms = performance.now() - t0.at;
-      setTimes((cur) => [...cur, ms]);
-      if (run < 6) setRun((n) => n + 1);
+      performance.mark("nav-end");
+      const m = performance.measure("navigate", "nav-start", "nav-end");
+      const v = Math.round(m.duration * 10) / 10;
+      (globalThis as { __probes?: Record<string, unknown> }).__probes = { navigate: v, ready: true };
+      console.log(`METRIC ${JSON.stringify({ name: "navigate", screen: "records.page", where: "in-app", ms: v, budget_ms: BUDGET_MS, ok: v < BUDGET_MS })}`);
+      setMs(v);
     }); });
     return () => { cancelAnimationFrame(a); cancelAnimationFrame(b); };
-  }, [run, t0]);
-  const sample = useMemo(() => createSamplePage(northwind), []);
-  const done = times.length >= 7;
-  const rest = times.slice(1).sort((x, y) => x - y);
-  const median = rest[Math.floor(rest.length / 2)] ?? 0;
-  const worst = rest[rest.length - 1] ?? 0;
-  useEffect(() => {
-    if (done) console.log(`METRIC ${JSON.stringify({ name: "navigate", screen: "records.page", where: "browser", warmup_ms: +times[0]!.toFixed(1), median_ms: +median.toFixed(1), worst_ms: +worst.toFixed(1), budget_ms: BUDGET_MS, ok: median < BUDGET_MS })}`);
-  }, [done, median, worst, times]);
+  }, [open]);
   return (
     <RecordPageDataProvider value={sample.data}>
       <View style={{ flex: 1, minHeight: 0 }}>
-        <RecordPage key={run} type={type} recordId={id} />
-        {done ? (
+        {open ? <RecordPage type={type} recordId={id} /> : <View testID="navigate-list" style={{ padding: 24 }}><Text style={{ fontSize: 14, color: "#555" }}>Clients</Text></View>}
+        {ms !== null ? (
           <View testID="navigate-probe" style={{ position: "absolute", left: 12, bottom: 12, padding: 8, backgroundColor: "rgba(255,255,255,0.94)" as string, zIndex: 99999 }}>
-            <Text style={{ fontSize: 12, color: "#000" }}>{`navigate: median ${median.toFixed(1)} ms of 5 (warm-up ${times[0]!.toFixed(1)} ms discarded), worst ${worst.toFixed(1)} ms, budget ${BUDGET_MS} ms, ${median < BUDGET_MS ? "inside" : "OVER"}`}</Text>
+            <Text style={{ fontSize: 12, color: "#000" }}>{`navigate (in-app): ${ms.toFixed(1)} ms, budget ${BUDGET_MS} ms, ${ms < BUDGET_MS ? "inside" : "OVER"}`}</Text>
           </View>
         ) : null}
       </View>
