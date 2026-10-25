@@ -249,7 +249,7 @@ export function createDocClient(o: DocClientOpts): DocClient {
         if (f.t === "ydoc.sync1") {
           // The server's state vector: send what it lacks.
           if (enc === 0 && typeof data["sv"] === "string") {
-            const diff = Y.encodeStateAsUpdate(ydoc, unionSv(Y.decodeStateVector(fromB64(data["sv"])), Y.decodeStateVector(Y.encodeStateVector(mirror))));
+            const diff = Y.encodeStateAsUpdate(ydoc, Y.encodeStateVector(unionSv(Y.decodeStateVector(fromB64(data["sv"])), Y.decodeStateVector(Y.encodeStateVector(mirror)))));
             if (!isEmptyUpdate(diff)) ship("ydoc.sync2", diff);
             dirty = false;
             saveSoon();
