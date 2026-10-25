@@ -24,7 +24,7 @@
     {
       "id": "backup",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "calendar",
@@ -59,12 +59,12 @@
     {
       "id": "console-assistant",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "console-views",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "contacts-link",
@@ -139,7 +139,7 @@
     {
       "id": "health",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "home",
@@ -174,7 +174,7 @@
     {
       "id": "logs",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "mail",
@@ -219,7 +219,7 @@
     {
       "id": "network",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "notifications",
@@ -249,7 +249,7 @@
     {
       "id": "reports-client",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "resend",
@@ -344,7 +344,7 @@
     {
       "id": "updates",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "vault",

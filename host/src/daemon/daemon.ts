@@ -39,6 +39,7 @@ import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts"
 import { createGateHook } from "./gate-hook.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
+import { applyPendingRestore, createBackupHost } from "../seams/backup.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, wireSeams } from "../seams/index.ts";
@@ -181,6 +182,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const paths = pathsFor(cfg.dataDir);
   ensureDirs(paths);
 
+  applyPendingRestore(paths.root);   // a restore staged by backup.restore is moved into place before any database is opened
   const existing = readInfo(paths);
   if (existing && existing.pid !== process.pid && alive(existing.pid)) throw new Error(`vyred is already running for ${paths.root} (pid ${existing.pid})`);
 
@@ -406,6 +408,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               if (!r.duplicate) { access.fold(r.event); headSeq = Math.max(headSeq, r.event.seq); }
             },
           },
+        }),
+        // backups: the Space's own files, the owner from the access layer (P-SEC_07: without owner() every export refuses), exports into the blob store, S3 over the seam fetch with keys from the Vault
+        setBackupHost: (d) => createBackupHost({
+          root: paths.root, space: spaceId, log: spaceLog, owner: () => cfg.owner ?? access.owner() ?? "usr_owner", system, vault: d.vault, fetch: d.fetch,
+          blobs: { put: async (bytes, type) => (await blobs.forModule("backup").put(bytes, type)).id }, secrets: () => [token],
         }),
         setEventsDispatch: () => system,
         // the import module reads an Airtable or Notion key from the Vault by handle, for one call
