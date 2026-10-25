@@ -294,23 +294,23 @@ export function colourOf(f: FieldDef | undefined, r: RecordRow): string | null {
 // ---------------------------------------------------------------- picking rows
 
 /** The rows picked in the table: the ids ticked one by one, or every row of the table. */
-export interface Pick { ids: ReadonlySet<string>; every: boolean }
-export const NO_PICK: Pick = { ids: new Set(), every: false };
+export interface RowPick { ids: ReadonlySet<string>; every: boolean }
+export const NO_PICK: RowPick = { ids: new Set(), every: false };
 
 /** Cmd-click: that row joins or leaves the pick. Picking one by one after "all" starts again from that row. */
-export function togglePick(p: Pick, id: string): Pick {
+export function togglePick(p: RowPick, id: string): RowPick {
   const ids = new Set(p.every ? [] : p.ids);
   if (ids.has(id)) ids.delete(id); else ids.add(id);
   return { ids, every: false };
 }
 
 /** The header checkbox: anything picked clears it; nothing picked takes the rows that are loaded. */
-export function toggleHeader(p: Pick, loaded: readonly string[]): Pick {
+export function toggleHeader(p: RowPick, loaded: readonly string[]): RowPick {
   return p.every || p.ids.size > 0 ? NO_PICK : { ids: new Set(loaded), every: false };
 }
 
 /** A row is picked when it is in the set or the pick is every row. */
-export const isPickedRow = (p: Pick, id: string): boolean => p.every || p.ids.has(id);
+export const isPickedRow = (p: RowPick, id: string): boolean => p.every || p.ids.has(id);
 
 /** How many the pick holds, given the table's count. */
-export const pickCount = (p: Pick, total: number): number => (p.every ? total : p.ids.size);
+export const pickCount = (p: RowPick, total: number): number => (p.every ? total : p.ids.size);

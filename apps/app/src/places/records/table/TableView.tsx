@@ -23,7 +23,7 @@ import {
 } from "./model.ts";
 import { allIds, eachId, recordsWord } from "./bulk.ts";
 import { NO_PICK, isPickedRow, pickCount, toggleHeader, togglePick } from "./model.ts";
-import type { Column, FieldDef, Pick, RecordRow, TableViewState, TypeDef } from "./model.ts";
+import type { Column, FieldDef, RowPick, RecordRow, TableViewState, TypeDef } from "./model.ts";
 
 type TypesOut = CapMap["schema.types.list"]["out"];
 type ViewsOut = CapMap["views.list"]["out"];
@@ -252,6 +252,11 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const [folded, setFolded] = useState<readonly string[]>([]);
   const [finding, setFinding] = useState(base.find !== "");
   const [selected, setSelected] = useState<string | null>(null);
+  /** The picked rows: the ids ticked by Cmd-click or the header checkbox, or every row of the table (Select all N). */
+  const [sel, setSel] = useState<RowPick>(NO_PICK);
+  const picked: "none" | "page" | "every" = sel.every ? "every" : sel.ids.size > 1 ? "page" : "none";
+  const isPicked = (id: string): boolean => isPickedRow(sel, id);
+  const clearPick = (): void => setSel(NO_PICK);
   const [hot, setHot] = useState<string | null>(null);
   const tapped = useRef({ id: "", at: 0 });
   const [scroll, setScroll] = useState({ top: 0, left: 0 });
@@ -400,11 +405,6 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const rowAt = (i: number): RecordRow | null => (loaded ? loaded.rows[i - loaded.offset] ?? null : null);
   const orderIds = useMemo(() => (items ? items.flatMap((it) => (it.g ? [] : [it.row.id])) : loaded ? loaded.rows.map((r) => r.id) : []), [items, loaded]);
   const scroller = useRef<ScrollHandle | null>(null);
-  /** The picked rows: the ids ticked by Cmd-click or the header checkbox, or every row of the table (Select all N). */
-  const [sel, setSel] = useState<Pick>(NO_PICK);
-  const picked: "none" | "page" | "every" = sel.every ? "every" : sel.ids.size > 1 ? "page" : "none";
-  const isPicked = (id: string): boolean => isPickedRow(sel, id);
-  const clearPick = (): void => setSel(NO_PICK);
   const [jump, setJump] = useState<string | null>(null);
   const goTo = (row: number): void => {
     const i = Math.max(0, Math.min(Math.max(0, total - 1), row));
