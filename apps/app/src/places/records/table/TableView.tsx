@@ -5,6 +5,7 @@ import { createElement, memo, useCallback, useEffect, useMemo, useRef, useState 
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
+import { marbleSpec } from "../../../../../../ui/src/Avatar/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
@@ -15,6 +16,7 @@ import type { ViewRow as SavedView } from "../sidebar/model.ts";
 import { Face, Glyph, HeadButton, pointOf, typeIcon } from "../sidebar/parts.tsx";
 import { useRecordsState } from "../sidebar/state.tsx";
 import { Scroller } from "./Scroller.tsx";
+import type { ScrollHandle } from "./Scroller.tsx";
 import {
   FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, SCROLL_BLOCK, chosen, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, fromSaved, groupItems, groupable, hasOptions,
   hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, setSort, sortable, toSaved, toggleHidden, toggleOption, totalWidth,
@@ -177,6 +179,18 @@ const CELL_STARS = { fontSize: 12, color: "var(--warn)", letterSpacing: 1, white
 const CELL_PERSON = { display: "flex", alignItems: "center", gap: 7, minWidth: 0 } as const;
 const GHOST = { height: 9, width: "55%", borderRadius: 5, backgroundColor: "var(--hover)" } as const;
 
+const dots = new Map<string, Record<string, string | number>>();
+/** A person's face in a cell: a plain disc in the colours of the shared marble (marbleSpec), one cached style per name. The shared Avatar draws a blurred svg, too dear for thirteen cells a row. */
+function dot(name: string): ReactElement {
+  let st = dots.get(name);
+  if (!st) {
+    const m = marbleSpec(name);
+    st = { width: 18, height: 18, flex: "none", borderRadius: 9, background: `radial-gradient(circle at 30% 25%, ${m.c1}, transparent 60%), radial-gradient(circle at 75% 80%, ${m.c2}, transparent 55%), ${m.base}` };
+    dots.set(name, st);
+  }
+  return createElement("span", { "aria-hidden": true, "data-testid": `face-${name}`, style: st });
+}
+
 function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string): ReactElement | null {
   const v = row.fields[field.key];
   if (v === undefined || v === null || v === "") return null;
@@ -187,7 +201,7 @@ function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string)
       createElement("span", { style: { fontSize: 12, fontWeight: 500, color: `hsl(${hue}, 55%, 40%)`, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, opt?.title ?? v));
   }
   if (field.type === "checkbox") return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;
-  if (field.type === "person") return createElement("span", { style: CELL_PERSON }, <Face name={names(String(v))} size={18} />, createElement("span", { style: CELL_TEXT }, names(String(v))));
+  if (field.type === "person") return createElement("span", { style: CELL_PERSON }, dot(names(String(v))), createElement("span", { style: CELL_TEXT }, names(String(v))));
   if (field.type === "rating" && typeof v === "number") return createElement("span", { style: CELL_STARS, "aria-label": `${v} of 5` }, "\u2605".repeat(Math.max(0, Math.min(5, v))));
   return createElement("span", { style: field.type === "sealed" ? CELL_SEALED : isNumeric(field) ? CELL_NUM : CELL_TEXT }, cellText(field, v, names));
 }
@@ -341,13 +355,26 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
 
   const rowAt = (i: number): RecordRow | null => (loaded ? loaded.rows[i - loaded.offset] ?? null : null);
   const orderIds = useMemo(() => (items ? items.flatMap((it) => (it.g ? [] : [it.row.id])) : loaded ? loaded.rows.map((r) => r.id) : []), [items, loaded]);
+  const scroller = useRef<ScrollHandle | null>(null);
+  /** none, the rows loaded (the header checkbox), or every row of the table (Select all N). */
+  const [picked, setPicked] = useState<"none" | "page" | "every">("none");
+  const [jump, setJump] = useState<string | null>(null);
+  const goTo = (row: number): void => {
+    const i = Math.max(0, Math.min(Math.max(0, total - 1), row));
+    scroller.current?.to(Math.max(0, i * ROW_H - ROW_H * 2));
+  };
   const move = (dir: 1 | -1): void => {
     const at = selected ? orderIds.indexOf(selected) : -1;
     const next = orderIds[Math.max(0, Math.min(orderIds.length - 1, at + dir))];
     if (next) setSelected(next);
   };
-  const onKeyDown = (ev: { key?: string; preventDefault?: () => void }): void => {
-    if (ev.key === "ArrowDown") { ev.preventDefault?.(); move(1); }
+  const onKeyDown = (ev: { key?: string; metaKey?: boolean; ctrlKey?: boolean; preventDefault?: () => void }): void => {
+    const cmd = ev.metaKey === true || ev.ctrlKey === true;
+    if (cmd && ev.key === "ArrowUp") { ev.preventDefault?.(); goTo(0); const first = orderIds[0]; if (first && win.first === 0) setSelected(first); }
+    else if (cmd && ev.key === "ArrowDown") { ev.preventDefault?.(); goTo(total - 1); }
+    else if (cmd && (ev.key === "g" || ev.key === "G")) { ev.preventDefault?.(); setJump(""); }
+    else if (ev.key === "Escape" && picked !== "none") setPicked("none");
+    else if (ev.key === "ArrowDown") { ev.preventDefault?.(); move(1); }
     else if (ev.key === "ArrowUp") { ev.preventDefault?.(); move(-1); }
     else if ((ev.key === "Enter" || ev.key === " ") && selected) { ev.preventDefault?.(); data.nav.openRecord(selected); }
   };
@@ -459,15 +486,26 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
         <HeadButton icon="plus" label="New" bare={slim} testID="records-new" onPress={newRecord} />
       </View>
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="records-offline">Offline, showing your saved copy</Text>}
+      {picked !== "none" ? (
+        <View style={styles.pickBar} accessibilityRole="toolbar" testID="records-pick-bar">
+          <Text style={styles.pickBarText} testID="records-pick-text">
+            {picked === "every" ? `All ${(count ?? 0).toLocaleString("en-US")} ${def.plural.toLowerCase()} are selected.` : `${orderIds.length.toLocaleString("en-US")} ${def.plural.toLowerCase()} selected.`}
+          </Text>
+          {picked === "page" && count !== null && count > orderIds.length ? (
+            <Pressable accessibilityRole="button" testID="records-select-every" onPress={() => setPicked("every")} style={styles.pickLink}><Text style={styles.pickLinkText}>{`Select all ${count.toLocaleString("en-US")}`}</Text></Pressable>
+          ) : null}
+          <Pressable accessibilityRole="button" testID="records-pick-clear" onPress={() => setPicked("none")} style={styles.pickLink}><Text style={styles.pickLinkText}>Clear</Text></Pressable>
+        </View>
+      ) : null}
       <View style={styles.sheet} onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })} {...({ onKeyDown } as object)}>
         {count === 0 && !items?.length ? (
           <States kind="empty" title={v.clauses.length > 0 || v.find ? "Nothing matches these filters." : `No ${def.plural.toLowerCase()} yet.`} icon="records" {...(v.clauses.length > 0 || v.find ? { action: { label: "Clear filters", onPress: () => set(clearClauses(v)) } } : { action: { label: `New ${def.title.toLowerCase()}`, onPress: newRecord } })} />
         ) : (
           <Scroller
-            width={width} height={total * ROW_H} onScroll={onScroll}
+            handle={scroller} width={width} height={total * ROW_H} onScroll={onScroll}
             header={(
               <View style={[styles.thr, { width }]}>
-                <View style={[styles.rn, STICKY(0), styles.headBg]}><Pressable accessibilityRole="button" accessibilityLabel="Select all" style={styles.cb} /></View>
+                <View style={[styles.rn, STICKY(0), styles.headBg]}><Pressable accessibilityRole="checkbox" accessibilityLabel="Select all" accessibilityState={{ checked: picked !== "none" }} testID="records-select-all" onPress={() => setPicked((p) => (p === "none" ? "page" : "none"))} style={[styles.cb, picked !== "none" && styles.cbOn]} /></View>
                 {primary ? <HeadCell col={primary} dir={sortKey?.field === primary.field.key ? sortKey.dir : null} first onSort={() => set(cycleSort(v, primary.field.key))} onMenu={(x, y) => colMenu(primary.field, x, y)} /> : null}
                 {colWin.pad > 0 ? <View style={{ width: colWin.pad }} /> : null}
                 {headCells}
@@ -478,6 +516,15 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
                 <View style={[styles.rn, STICKY(0), styles.headBg]} />
                 <View style={[styles.td, STICKY(GUTTER), styles.headBg, { width: primary?.width ?? 280 }]}>
                   <Text style={styles.footText} testID="records-count">{count === null ? "" : `${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()}`}</Text>
+                  {jump === null ? (
+                    <Pressable accessibilityRole="button" accessibilityLabel="Go to row" testID="records-goto" onPress={() => setJump("")} style={styles.goto}><Text style={styles.footText}>Go to row</Text></Pressable>
+                  ) : (
+                    <TextInput
+                      value={jump} onChangeText={(t) => setJump(t.replace(/\D/g, ""))} placeholder="Row number" placeholderTextColor="var(--ink-3)" accessibilityLabel="Go to row" testID="records-goto-input" autoFocus keyboardType="number-pad"
+                      onSubmitEditing={() => { if (jump) goTo(Number(jump) - 1); setJump(null); }} onBlur={() => setJump(null)}
+                      onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setJump(null); if (e.nativeEvent.key === "Enter" && jump) { goTo(Number(jump) - 1); setJump(null); } }} style={styles.gotoInput}
+                    />
+                  )}
                 </View>
               </View>
             )}
@@ -571,6 +618,13 @@ const styles = StyleSheet.create({
   thOver: { backgroundColor: "var(--hover)" as string },
   thText: { flexShrink: 1, fontSize: 12, fontWeight: "500", color: "var(--ink-3)" as string },
   thMore: { marginLeft: "auto", width: 20, height: 20, alignItems: "center", justifyContent: "center", borderRadius: 5 },
+  cbOn: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
+  goto: { marginLeft: 14, paddingHorizontal: 6, height: 22, justifyContent: "center", borderRadius: 5 },
+  gotoInput: { marginLeft: 14, width: 96, height: 22, paddingHorizontal: 6, fontSize: 12, color: "var(--ink)" as string, borderRadius: 5, borderWidth: 1, borderColor: "var(--line)" as string },
+  pickBar: { height: 34, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 18, backgroundColor: "var(--accent-wash)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  pickBarText: { fontSize: 12.5, color: "var(--ink)" as string },
+  pickLink: { height: 24, justifyContent: "center", paddingHorizontal: 4 },
+  pickLinkText: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
   cb: { width: 14, height: 14, borderRadius: 4, borderWidth: 1.4, borderColor: "var(--ink-4)" as string },
   frozenLayer: { position: "sticky", left: 0, width: 0, height: 0, zIndex: 3, overflow: "visible" } as unknown as ViewStyle,
   tr: { position: "absolute", left: 0, height: ROW_H, flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },

@@ -53,3 +53,17 @@ test("the scrolling cells of a row are plain elements with the same test ids and
   assert.ok(has(out, 'data-testid="rec-'), "and its frozen part");
   assert.ok(has(out, "Active") || has(out, "Lead"), "a choice cell shows its option's words");
 });
+
+test("one continuous list: the footer keeps its count, the header checkbox is a real checkbox, and Go to row is there (ruling 51)", () => {
+  const out = render(<TableView type="clients" />, "clients");
+  assert.ok(has(out, 'data-testid="records-count"') && has(out, 'data-testid="records-select-all"') && has(out, 'role="checkbox"') && has(out, 'aria-checked="false"'));
+  assert.ok(has(out, 'data-testid="records-goto"') && has(out, 'aria-label="Go to row"'));
+  assert.ok(!has(out, 'data-testid="records-pick-bar"'), "no selection bar until the checkbox is ticked");
+  assert.ok(!has(out, "Page 1") && !has(out, "Next page"), "no pagination");
+});
+
+test("a person's face in a cell is a plain disc in the shared marble's colours", () => {
+  const out = render(<TableView type="clients" />, "clients");
+  assert.ok(has(out, 'data-testid="face-'), "faces are there");
+  assert.ok(!has(out, "feGaussianBlur"), "no blurred svg per cell");
+});
