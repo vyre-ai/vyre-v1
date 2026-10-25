@@ -123,7 +123,8 @@ test("syncengine: the adapter runs preview, push, undo, an asked conflict and co
   assert.equal((await store.get("contact", bo.id))!.data["name"], "Robert");
 
   // a removal travels with delete_contact; undoing it creates the app record again from the snapshot taken before the delete
-  const annNow = await localByEmail("ann@new.io");
+  const annNow = (await store.query("contact", { page: { limit: 50 } })).rows.find((r) => r.data["name"] === "Ann")!;
+  assert.ok(annNow, "Ann is still a local record");
   await store.remove("contact", annNow.id, annNow.version);
   await core.runSync(deps(), binding, { mode: "both" });
   assert.ok(calls.includes("delete_contact"), "the removal went out as delete_contact");
