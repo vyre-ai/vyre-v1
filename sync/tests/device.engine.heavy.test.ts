@@ -12,7 +12,7 @@ import type { McModule } from "../src/device/index.ts";
 const SPIKE = path.join(fileURLToPath(new URL("../../spikes/sync-c/", import.meta.url)));
 await import(pathToFileURL(path.join(SPIKE, "ensure-deps.mjs")).href);
 
-interface Cipher { default: () => Promise<RealSqlite3> }
+interface Cipher { default: (opts?: { wasmBinary: Uint8Array }) => Promise<RealSqlite3> }
 interface RealSqlite3 extends McModule { capi: McModule["capi"] & { sqlite3_js_db_export(ptr: unknown): Uint8Array }; }
 
 async function loadEngine(): Promise<RealSqlite3> {
@@ -22,7 +22,17 @@ async function loadEngine(): Promise<RealSqlite3> {
   const pick = (v: unknown): string | undefined => (typeof v === "string" ? v : v && typeof v === "object" ? pick((v as Record<string, unknown>)["import"] ?? (v as Record<string, unknown>)["default"]) : undefined);
   const entry = pick(root) ?? pkg.module ?? pkg.main ?? "index.mjs";
   const mod = (await import(pathToFileURL(path.join(dir, entry)).href)) as Cipher;
-  return mod.default();
+  // Node has no fetch for file URLs: hand the module its wasm bytes.
+  const find = (d: string): string | null => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const f = path.join(d, e.name);
+      if (e.isDirectory()) { const r = find(f); if (r) return r; } else if (/^sqlite3\.wasm$/.test(e.name)) return f;
+    }
+    return null;
+  };
+  const wasm = find(dir);
+  if (!wasm) throw new Error("sqlite3.wasm not found in the installed package");
+  return mod.default({ wasmBinary: new Uint8Array(fs.readFileSync(wasm)) });
 }
 
 const key = (n: number): Uint8Array => new Uint8Array(32).fill(n);
