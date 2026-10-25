@@ -108,7 +108,7 @@ export function SettingsRow({ id, label, sub, lead, control, first = false, onPr
 export function Switch({ on, onChange, label, disabled = false, testID }: { on: boolean; onChange(next: boolean): void; label: string; disabled?: boolean; testID?: string }): ReactElement {
   return (
     <Pressable
-      accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: on, disabled }} testID={testID} disabled={disabled}
+      accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: on, disabled }} aria-checked={on} testID={testID} disabled={disabled}
       onPress={() => onChange(!on)} {...webOnly({ onKeyDown: (e: KeyEventLike) => { if (e.key === " " || e.key === "Enter") { e.preventDefault?.(); onChange(!on); } } })}
       style={[s.sw, { backgroundColor: (on ? "var(--accent)" : "var(--press)") as string }, disabled && { opacity: 0.5 }, pointer]}
     >

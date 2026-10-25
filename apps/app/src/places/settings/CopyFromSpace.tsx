@@ -60,7 +60,7 @@ export function CopyFromSpace({ onClose }: { onClose(): void }): ReactElement {
     const on = !off.has(it.field);
     rows.push(
       <Pressable
-        key={it.field} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={`${it.label}: ${it.value}`} testID={`copy-${it.field}`}
+        key={it.field} accessibilityRole="checkbox" accessibilityState={{ checked: on }} aria-checked={on} accessibilityLabel={`${it.label}: ${it.value}`} testID={`copy-${it.field}`}
         onPress={() => setOff((cur) => { const n = new Set(cur); if (n.has(it.field)) n.delete(it.field); else n.add(it.field); return n; })}
         style={[c.row, pointer]}
       >

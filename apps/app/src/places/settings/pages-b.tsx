@@ -98,7 +98,7 @@ export function AppearancePage({ rows, found }: PageProps): ReactElement {
       const on = current === sk.id;
       out.push(
         <Pressable
-          key={sk.id} accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={`${sk.name}. ${sk.note}`} testID={`skin-${sk.id}`}
+          key={sk.id} accessibilityRole="radio" accessibilityState={{ checked: on }} aria-checked={on} accessibilityLabel={`${sk.name}. ${sk.note}`} testID={`skin-${sk.id}`}
           onPress={() => { if (skinRow) void change(skinRow, sk.id); }} onHoverIn={() => data.nav.previewSkin?.(sk.id)} onHoverOut={() => data.nav.previewSkin?.(null)}
           style={[a.tile, on && a.tileOn, pointer]}
         >

@@ -65,8 +65,8 @@ test("the page list has ten pages in two groups, the first named after the open 
   for (const p of PAGES) assert.ok(has(out, `data-testid="row-page-${p.key}"`), p.key);
   const at = (t: string): number => { const i = out.indexOf(`>${t}<`); assert.ok(i >= 0, t); return i; };
   assert.ok(at("Northwind") < at("Profile") && at("Memory and privacy") < at("Everywhere") && at("Everywhere") < at("Sign-in and devices"));
-  assert.match(tag(out, "row-page-profile"), /aria-selected="true"/);
-  assert.match(tag(out, "row-page-keyboard"), /aria-selected="false"/);
+  assert.match(tag(out, "row-page-profile"), /var\(--sel\)/);
+  assert.doesNotMatch(tag(out, "row-page-keyboard"), /var\(--sel\)/);
   assert.ok(has(out, 'aria-label="Search settings"') && has(out, "Cmd F"));
   assert.ok(has(out, 'aria-label="Another Space needs you"'), "a dot when another Space needs you");
   assert.ok(has(html(createSampleSettings(harbor)), 'aria-label="Another Space needs you"'), "Harbor's other Space has one waiting");
