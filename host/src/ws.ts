@@ -5,6 +5,7 @@
 //   ev         server to client, numbered by event seq, with the event's trace id; the client acks cumulatively (`ack`) and the hub keeps what is not acked
 //   call/res   one capability call over the socket (the low-latency `op` path), through invoke with the frame's trace
 //   pull_hint  the head moved
+//   purge      a revoke or an epoch bump (ARCH 5.7): `{t:"purge", epoch}` then the socket closes (4003 for one device, 4004 for a person). sync's setLiveHub takes this hub: purge(person, epoch), purgeDevice(person, device, epoch)
 // A second connection from the same device replaces the first (close code 4000): one socket per device.
 import http from "node:http";
 import crypto from "node:crypto";
@@ -96,6 +97,10 @@ export interface LiveHub {
   /** Number the events, send them to every connected device of the Space and keep them until acked. */
   publish(space: string, events: EventEnvelope[]): void;
   connections(space?: string): { device: string; acked: number; pending: number }[];
+  /** A person's epoch moved: every socket of theirs is told to purge and closed. Returns how many. (The sync module's LiveHub port.) */
+  purge(person: string, epoch: number): number;
+  /** One device was revoked: only its socket is told to purge and closed. Returns how many. */
+  purgeDevice(person: string, device: string, epoch: number): number;
   close(): Promise<void>;
 }
 
@@ -116,6 +121,16 @@ export function createLiveHub(o: LiveOptions): LiveHub {
     try { c.socket.write(encodeFrame(0x8, body)); c.socket.end(); } catch { /* already gone */ }
     if (conns.get(key(c.session)) === c) conns.delete(key(c.session));
     o.sink?.log({ space: c.session.space, level: 20, msg: "live.closed", device: c.session.device, actor: c.session.principal.id, result: String(code) });
+  };
+  const purgeWhere = (match: (c: Conn) => boolean, epoch: number, code: number, why: string): number => {
+    let n = 0;
+    for (const c of [...conns.values()]) {
+      if (c.closed || !match(c)) continue;
+      send(c, { t: "purge", epoch });
+      close(c, code, why);
+      n++;
+    }
+    return n;
   };
   const eventFrame = (e: EventEnvelope) => ({ t: "ev", seq: e.seq, items: [e], tr: e.traceId });
 
@@ -212,6 +227,8 @@ export function createLiveHub(o: LiveOptions): LiveHub {
       }
     },
     connections: (space) => [...conns.values()].filter((c) => !space || c.session.space === space).map((c) => ({ device: c.session.device, acked: c.acked, pending: c.pending.length })),
+    purge: (person, epoch) => purgeWhere((c) => c.session.principal.id === person, epoch, 4004, "purged"),
+    purgeDevice: (person, device, epoch) => purgeWhere((c) => c.session.principal.id === person && c.session.device === device, epoch, 4003, "auth.device_revoked"),
     close: () => new Promise((resolve) => {
       clearInterval(timer);
       for (const c of [...conns.values()]) close(c, 1001, "server stopping");
