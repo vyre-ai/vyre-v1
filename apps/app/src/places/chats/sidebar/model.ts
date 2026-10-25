@@ -127,7 +127,7 @@ export function needsKind(item: NeedsItem): { label: string; tone: "accent" | "w
 export type Entry =
   | { key: string; type: "head"; section: SectionKey; label: string; count?: number; open: boolean }
   | { key: string; type: "need"; item: NeedsItem }
-  | { key: string; type: "face"; agent: Agent; digit?: number; working: boolean }
+  | { key: string; type: "face"; agent: Agent; digit?: number; working: boolean; waiting: boolean }
   | { key: string; type: "more"; label: string; to: "agents" | "unread" }
   | { key: string; type: "group"; label: string }
   | { key: string; type: "chat"; row: ChatRow }
@@ -140,6 +140,8 @@ export interface SidebarInput {
   needsTotal: number;
   faces: readonly Agent[];
   workingAgents: ReadonlySet<string>;
+  /** agents with something waiting on the person (any open Needs you item they raised, not only the top three); the face says "Waiting on you" */
+  waitingAgents?: ReadonlySet<string>;
   groups: readonly Group[];
   channels: readonly Channel[];
   filter: Filter;
@@ -169,7 +171,7 @@ export function buildEntries(i: SidebarInput): Entry[] {
     const digits = faceDigits(i.faces);
     for (const a of i.faces) {
       const d = digits.get(a.agentId);
-      out.push({ key: `f:${a.agentId}`, type: "face", agent: a, ...(d !== undefined ? { digit: d } : {}), working: i.workingAgents.has(a.agentId) });
+      out.push({ key: `f:${a.agentId}`, type: "face", agent: a, ...(d !== undefined ? { digit: d } : {}), working: i.workingAgents.has(a.agentId), waiting: i.waitingAgents?.has(a.agentId) === true });
     }
     out.push({ key: "f:all", type: "more", label: "All agents", to: "agents" });
   }
@@ -220,4 +222,9 @@ export function newLocalRow(who: string, kind: "person" | "agent", now: number):
 /** One idempotency key per local row, so a retry after a dropped answer starts the same chat. */
 export function startKey(row: ChatRow): string {
   return `chat.start:${row.threadId}`;
+}
+
+/** The agents behind open Needs you items: each one's face says "Waiting on you" (prototype Agents section). */
+export function waitingAgents(all: readonly NeedsItem[]): Set<string> {
+  return new Set(all.map((n) => n.task.createdBy));
 }

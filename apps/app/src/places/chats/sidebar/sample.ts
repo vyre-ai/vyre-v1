@@ -56,6 +56,10 @@ export const northwind: SampleSpace = {
     { taskId: "tsk_n1", title: "Send 12 invoices", kind: "approve", by: "agt_billing" },
     { taskId: "tsk_n2", title: "Rivera engagement letter", kind: "review", by: "agt_docs" },
     { taskId: "tsk_n3", title: "County records search", kind: "unblock", by: "agt_scout" },
+    { taskId: "tsk_n4", title: "Pruitt intake summary", kind: "review", by: "agt_intake" },
+    { taskId: "tsk_n5", title: "Send the ATP reminder to Harlow & Price", kind: "approve", by: "agt_research" },
+    { taskId: "tsk_n6", title: "Problem report from Omar", kind: "review", by: "agt_assistant" },
+    { taskId: "tsk_n7", title: "Month-end export is waiting on a sign-in", kind: "unblock", by: "agt_billing" },
   ],
   needsTotal: 7,
 };

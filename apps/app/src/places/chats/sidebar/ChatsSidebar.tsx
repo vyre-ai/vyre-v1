@@ -15,7 +15,7 @@ import type { SidebarApi } from "./actions.ts";
 import { ChatsSidebarDataProvider, useOnline, useOptionalSidebarData, useScreenQuery, useSidebarData } from "./data.tsx";
 import type { ChatsSidebarData } from "./data.tsx";
 import {
-  FILTERS, NEW_CHAT_MS, buildEntries, faceForDigit, filterCounts, groupRecent, matchesFilter, needsKind, selectable, stepKey, whenLabel,
+  FILTERS, NEW_CHAT_MS, buildEntries, faceForDigit, filterCounts, groupRecent, matchesFilter, needsKind, selectable, stepKey, waitingAgents, whenLabel,
 } from "./model.ts";
 import type { Agent, ChatRow, Entry, Filter, Group, NeedsItem, RecentOut, SectionKey } from "./model.ts";
 import { Badge, EmptyLine, Face, GroupLabel, Glyph, LeadGlyph, SectionHead, Tool, UnreadDot } from "./parts.tsx";
@@ -78,6 +78,8 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
   const facesQ = useScreenQuery<AgentsOut>(AGENTS_SCREEN, "agents", { section: "starred" });
   const agentsQ = useScreenQuery<AgentsOut>(AGENTS_SCREEN, "agents", {});
   const needsQ = useScreenQuery<NeedsOut>(NEEDS_SCREEN, "items", { limit: 3 });
+  const allNeedsQ = useScreenQuery<NeedsOut>(NEEDS_SCREEN, "items", {});
+  const waiting = useMemo(() => waitingAgents(allNeedsQ.status === "ready" ? allNeedsQ.data.items : []), [allNeedsQ]);
 
   const agents: Agent[] = agentsQ.status === "ready" ? agentsQ.data.agents : [];
   const names = useMemo(() => new Map(agents.map((a) => [a.agentId, a.name])), [agents]);
@@ -100,8 +102,8 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
   }, [groups, agents]);
 
   const entries = useMemo(
-    () => buildEntries({ needs, needsTotal: needsQ.status === "ready" ? needsQ.data.total : 0, faces, workingAgents: working, groups, channels, filter, closed }),
-    [needs, needsQ, faces, working, groups, channels, filter, closed],
+    () => buildEntries({ needs, needsTotal: needsQ.status === "ready" ? needsQ.data.total : 0, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, closed }),
+    [needs, needsQ, faces, working, waiting, groups, channels, filter, closed],
   );
   const order = useMemo(() => selectable(entries), [entries]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
@@ -183,6 +185,25 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
     };
     switch (e.type) {
       case "head": {
+        if (e.section === "needs") {
+          // The prototype's Needs you is one row with the inbox glyph and the count; its requests sit under it as child rows. The chevron folds them.
+          return (
+            <View testID="head-needs" style={{ height: ROW_H }}>
+              <Row
+                id="needs-parent" title="Needs you" onPress={() => data.nav.openNeedsYou()}
+                leading={<LeadGlyph name="inbox" />}
+                trailing={
+                  <View style={st.tools}>
+                    <Pressable accessibilityRole="button" accessibilityLabel={`Needs you, ${e.count ?? 0}`} accessibilityState={{ expanded: e.open }} onPress={() => toggle("needs")} testID="toggle-needs" style={{ transform: [{ rotate: e.open ? "0deg" : "-90deg" }] }}>
+                      <Glyph name="chev" size={11} color="var(--ink-4)" />
+                    </Pressable>
+                    {e.count ? <Badge n={e.count} testID="count-needs" /> : null}
+                  </View>
+                }
+              />
+            </View>
+          );
+        }
         const recentHead = e.section === "recent";
         return (
           <SectionHead id={e.section} label={e.label} count={e.section === "needs" ? e.count : undefined} open={e.open} onToggle={() => toggle(e.section)} keep={recentHead && filter !== "all"}>
@@ -223,7 +244,7 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
               leading={<Face name={e.agent.name} kind="agent" size={18} pulse={e.working} />}
               trailing={over
                 ? <View style={st.tools}>{e.digit !== undefined ? <Text style={st.digit}>{`⌘${e.digit}`}</Text> : null}<Tool icon="plus" label={`New chat with ${e.agent.name}`} onPress={() => void api.newChat({ agentId: e.agent.agentId, name: e.agent.name })} testID={`face-new-${e.agent.agentId}`} /></View>
-                : e.working ? <Text style={st.quiet}>Working</Text> : null}
+                : e.waiting ? <Text style={st.waiting}>Waiting on you</Text> : e.working ? <Text style={st.quiet}>Working</Text> : null}
             />
           )}
         </Hot>,
@@ -253,12 +274,15 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
       }
       case "channel": {
         const c = e.channel;
+        // A channel with nothing new sits dim; one with unread stands out at full strength with its count (prototype .unread / .dim).
         return wrap(
-          <Row
-            id={e.key} title={c.name} selected={sel} onPress={() => open(e)}
-            leading={<LeadGlyph name={e.project ? "project" : c.visibility === "invite" ? "lock" : "hash"} />}
-            trailing={c.unread > 0 ? <Badge n={c.unread} testID={`unread-${c.channelId}`} /> : null}
-          />,
+          <View style={{ height: ROW_H, opacity: c.unread > 0 ? 1 : 0.72 }} testID={c.unread > 0 ? `channel-unread-${c.channelId}` : `channel-read-${c.channelId}`}>
+            <Row
+              id={e.key} title={c.name} selected={sel} onPress={() => open(e)}
+              leading={<LeadGlyph name={e.project ? "project" : c.visibility === "invite" ? "lock" : "hash"} />}
+              trailing={c.unread > 0 ? <Badge n={c.unread} testID={`unread-${c.channelId}`} /> : null}
+            />
+          </View>,
         );
       }
     }
@@ -311,6 +335,7 @@ const st = StyleSheet.create({
   tools: { flexDirection: "row", alignItems: "center", gap: 6 },
   time: { fontSize: 11, color: "var(--ink-3)" as string },
   digit: { fontSize: 11, color: "var(--ink-4)" as string },
+  waiting: { fontSize: 11.5, color: "var(--accent)" as string },
   quiet: { fontSize: 11.5, color: "var(--ink-3)" as string },
   kind: { fontSize: 11.5, color: "var(--accent)" as string, fontWeight: "500" },
   kindWarn: { color: "var(--warn)" as string },
