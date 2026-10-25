@@ -143,7 +143,7 @@ test("esign live: callbacks from both providers go through esign.hook over the g
       payload: { event: { event_time: time, event_type: type, event_hash: hmacSha256Hex(key, time + type), event_metadata: {} }, signature_request: { signature_request_id: "sr_not_ours", signatures: [] } },
     });
     const forged = await post(d, OWNER, "esign.hook", dropbox("signature_request_all_signed", "1761390000", "someone else's key"));
-    assert.equal(forged.status, 400, JSON.stringify(forged.body));
+    assert.equal(forged.status, 422, JSON.stringify(forged.body));
     assert.equal(forged.body.error?.code, "validation.bad_input");
 
     const genuine = await post(d, OWNER, "esign.hook", dropbox("signature_request_all_signed", "1761390000", API_KEY));
@@ -158,7 +158,7 @@ test("esign live: callbacks from both providers go through esign.hook over the g
     assert.deepEqual(connect.body.data, { ok: true });
 
     const junk = await post(d, OWNER, "esign.hook", { provider: "docusign", payload: { hello: "world" } });
-    assert.equal(junk.status, 400, JSON.stringify(junk.body));
+    assert.equal(junk.status, 422, JSON.stringify(junk.body));
 
     const noToken = await post(d, null, "esign.hook", dropbox("signature_request_all_signed", "1761390000", API_KEY));
     assert.equal(noToken.status, 401, "an unauthenticated POST never reaches the hook");
