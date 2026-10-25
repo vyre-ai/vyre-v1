@@ -284,7 +284,7 @@ function Segmented(p: { value: EmailMode; onPick: (m: EmailMode) => void }): Rea
   return (
     <View accessibilityRole="tablist" style={s.seg}>
       {each(EMAIL_MODES, (m) => (
-        <Pressable key={m} accessibilityRole="tab" accessibilityState={{ selected: p.value === m }} testID={`em-mode-${m}`} onPress={() => p.onPick(m)} style={[s.segBtn, p.value === m && s.segOn]}>
+        <Pressable key={m} accessibilityRole="tab" aria-selected={p.value === m} accessibilityState={{ selected: p.value === m }} testID={`em-mode-${m}`} onPress={() => p.onPick(m)} style={[s.segBtn, p.value === m && s.segOn]}>
           <Text style={[s.segText, p.value === m && s.segTextOn]}>{modeLabel(m)}</Text>
         </Pressable>
       ))}
@@ -464,7 +464,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
       {mode === "visual" ? (
         <ScrollView style={s.scroll} contentContainerStyle={s.page}>
           <View style={[s.card, focus && s.cardFocus]} testID="em-card">
-            {blocks.length === 0 ? <Text style={s.empty}>Add a block from the left, or press Ask.</Text> : blocks.map((b) => blockView(b, 0))}
+            {blocks.length === 0 ? <Text style={s.empty}>Add a block from the left, or press Ask.</Text> : each(blocks, (b) => blockView(b, 0))}
           </View>
         </ScrollView>
       ) : null}
@@ -474,7 +474,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
             <View style={s.srcHead}><Text style={s.srcName}>email.html</Text><View style={s.srcActs}><Text style={s.stat}>{`${compiled.split("\n").length} lines`}</Text><Btn label="Tidy" onPress={tidy} testID="em-tidy" strong /></View></View>
             <ScrollView style={s.scroll}>
               <View style={s.srcRow}>
-                <Text style={s.gutter} selectable={false} testID="em-gutter">{compiled.split("\n").map((_, i) => i + 1).join("\n")}</Text>
+                <Text style={s.gutter} selectable={false} testID="em-gutter">{each(compiled.split("\n"), (_, i) => i + 1).join("\n")}</Text>
                 <TextInput multiline scrollEnabled={false} accessibilityLabel="HTML" testID="em-html" value={html !== "" ? html : compiled} spellCheck={false} autoCapitalize="none" style={s.code}
                   onChangeText={(t) => { setHtml(t); commit({ ...snap, html: t }, "Edited the HTML"); }} />
               </View>
@@ -508,7 +508,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
 
   const pane = (
     <View style={[s.pane, narrow && s.paneNarrow]} testID="em-pane">
-      <TabStrip tabs={PANE_TABS.map((k) => ({ key: k, title: TAB_TITLE[k] }))} active={tab} onSelect={(k) => setTab(k as PaneTab)} />
+      <TabStrip tabs={each(PANE_TABS, (k) => ({ key: k, title: TAB_TITLE[k] }))} active={tab} onSelect={(k) => setTab(k as PaneTab)} />
       <ScrollView style={s.paneBody} contentContainerStyle={s.paneContent}>
         {tab === "style" ? (
           <View testID="em-style">
@@ -524,7 +524,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
             <View style={s.ctl} testID="em-width">
               <Text style={s.ctlLabel}>Width</Text>
               <View style={s.seg}>{each(EMAIL_WIDTHS, (w) => (
-                <Pressable key={w} accessibilityRole="tab" accessibilityState={{ selected: style.width === w }} testID={`em-width-${w}`} onPress={() => changeStyle({ width: w }, `Set the width to ${w}`)} style={[s.segBtn, style.width === w && s.segOn]}>
+                <Pressable key={w} accessibilityRole="tab" aria-selected={style.width === w} accessibilityState={{ selected: style.width === w }} testID={`em-width-${w}`} onPress={() => changeStyle({ width: w }, `Set the width to ${w}`)} style={[s.segBtn, style.width === w && s.segOn]}>
                   <Text style={[s.segText, style.width === w && s.segTextOn]}>{String(w)}</Text>
                 </Pressable>))}</View>
             </View>
@@ -590,7 +590,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
           <View testID="em-previewpane">
             <View style={s.seg}>
               {each(EMAIL_PREVIEWS, (p) => (
-                <Pressable key={p} accessibilityRole="tab" accessibilityState={{ selected: preview === p }} testID={`em-pv-${p}`} onPress={() => pickPreview(p)} style={[s.segBtn, preview === p && s.segOn]}>
+                <Pressable key={p} accessibilityRole="tab" aria-selected={preview === p} accessibilityState={{ selected: preview === p }} testID={`em-pv-${p}`} onPress={() => pickPreview(p)} style={[s.segBtn, preview === p && s.segOn]}>
                   <Text style={[s.segText, preview === p && s.segTextOn]}>{p === "desktop" ? "Desktop" : p === "mobile" ? "Mobile" : "Dark"}</Text>
                 </Pressable>
               ))}
