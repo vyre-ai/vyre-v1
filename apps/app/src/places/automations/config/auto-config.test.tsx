@@ -315,6 +315,7 @@ test("Harbor Studio draws the same designer over its own Journey", () => {
   const out = designer(h, "jrn_h");
   assert.ok(has(out, "Client project") && has(out, "2 records") && has(out, "Plan the shoot") && !has(out, "Client onboarding"));
   assert.ok(!has(out, ">Scheduler<") && has(out, 'data-avatar="agent"'), "an agent is drawn as a face (the shared Avatar), not written out as text");
+  assert.ok(has(out, 'aria-label="Scheduler"'), "the shared Avatar (P-UI_05) still names the agent for assistive technology");
   assert.ok(has(designer(h, "jrn_none"), "This Journey is not available"));
 });
 

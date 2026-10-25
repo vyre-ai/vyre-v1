@@ -40,9 +40,10 @@ export interface Db {
 }
 export interface CallOpts {
   idempotencyKey?: string;
-  /** Re-invoke as the original caller with an approval token bound to the payload (the host's Gate resume path). */
-  approval?: string;
-  as?: { principal: PrincipalRef; actingFor?: string | undefined; run?: string | undefined; thread?: string | undefined };
+  /** Re-invoke the parked call with the approval token bound to its payload (the host's Gate resume path). */
+  approvalToken?: string;
+  /** The principal id of the original caller; the host runs the call as that principal. */
+  onBehalfOf?: string;
 }
 export interface GateCtx {
   space: string;
