@@ -72,35 +72,41 @@ test("a phone says it searches only its replica", () => {
   assert.equal(createSearchIndex(plainFts(), { deviceClass: "desktop" }).search("x").scope, "full");
 });
 
-test("incremental updates follow the replica's own writes, edits, hides and removals", () => {
+test("incremental updates follow the replica's own writes, edits, hides and removals", async () => {
   const driver = createNodeDriver();
   const replica = openReplica({ driver, deviceClass: "desktop", registryHash: "h", clock: () => 1_700_000_000_000 });
   const idx = createSearchIndex(driver);
   assert.equal(idx.rebuild(), 0);
-  const write = (id: string, title: string, n: number): void => {
+  // The replica commits a write on flush; the index follows the committed row.
+  const write = async (id: string, title: string, n: number): Promise<void> => {
     replica.write({ entity: "calendar_event", id, fields: { title }, hlc: hlc(10 + n), actor: "usr_ada", origin: "mirror" });
+    await replica.flush();
     idx.update("calendar_event", id);
   };
-  write("cev_1", "Quarterly review with Elena", 1);
+  await write("cev_1", "Quarterly review with Elena", 1);
   assert.deepEqual(idx.search("quart").hits.map((h) => h.id), ["cev_1"]);
-  write("cev_1", "Annual planning", 2);
+  await write("cev_1", "Annual planning", 2);
   assert.deepEqual(idx.search("quart").hits, [], "the old title is gone");
   assert.deepEqual(idx.search("annu").hits.map((h) => h.kind), ["event"]);
   replica.hide("calendar_event", "cev_1", 5);
+  await replica.flush();
   idx.update("calendar_event", "cev_1");
   assert.deepEqual(idx.search("annu").hits, [], "a purged row leaves the index");
-  write("cev_2", "Standup", 3);
+  await write("cev_2", "Standup", 3);
   idx.remove("calendar_event", "cev_2");
   assert.equal(idx.count(), 0);
 });
 
 test("perf search.local: p95 under 50 ms with 100k rows and 10k messages; prefix and type filter stay correct", () => {
   const d = plainFts();
-  const words = ["harlow", "estate", "trust", "probate", "meeting", "invoice", "contract", "elena", "marsh", "lease", "closing", "deed", "review", "draft", "notice", "filing"];
-  const w = (i: number, k: number): string => `${words[(i * 7 + k) % words.length]} ${words[(i * 3 + k * 5) % words.length]}${i % 97}`;
+  // 3,375 distinct words (three syllables of fifteen), picked by a fixed hash so the corpus is the same every run and no word is on a large share of rows
+  const sy = ["ba", "ke", "lo", "mi", "ra", "su", "te", "vo", "na", "pi", "do", "ga", "fe", "zu", "ho"];
+  const word = (n: number): string => `${sy[n % 15]}${sy[Math.floor(n / 15) % 15]}${sy[Math.floor(n / 225) % 15]}`;
+  const pick = (i: number, k: number): string => word((Math.imul(i * 31 + k, 2654435761) >>> 0) % 3375);
+  const w = (i: number, k: number): string => `${pick(i, k)} ${pick(i, k + 17)}`;
   const insert = d.prepare("INSERT INTO fts (entity, id, title, body) VALUES (?, ?, ?, ?)");
   d.transaction(() => {
-    for (let i = 0; i < 100_000; i++) insert.run(["client_plan", `rec_${i}`, w(i, 1), w(i, 2)]);
+    for (let i = 0; i < 100_000; i++) insert.run(["client_plan", `rec_${i}`, w(i, 1), `${w(i, 2)} ${w(i, 3)}`]);
     for (let i = 0; i < 10_000; i++) insert.run(["message", `msg_${i}`, "", `${w(i, 3)} ${w(i, 4)} please`]);
     insert.run(["principal", "usr_unique", "Zelda Quillfeather", "Partner"]);
     insert.run(["file", "fil_unique", "Quillfeather deed.pdf", ""]);
@@ -109,7 +115,7 @@ test("perf search.local: p95 under 50 ms with 100k rows and 10k messages; prefix
   const built = idx.rebuild();
   assert.equal(built, 110_002);
 
-  const queries = ["harl", "estate tr", "#prob", "@marsh", "/deed", "lease clo", "invo 12", "contr", "elena marsh", "zelda", "quill", "#review dra", "notice 4", "fili", "mee"];
+  const queries = ["bake", "balo mi", "#kera", "@suvo", "/tena", "pidog", "gafe zu", "hobal", "zelda", "quill", "#mira dos", "vona", "kelo", "ragas", "tepid"];
   const samples: number[] = [];
   let hits = 0;
   for (let round = 0; round < 6; round++) {
@@ -126,6 +132,6 @@ test("perf search.local: p95 under 50 ms with 100k rows and 10k messages; prefix
   assert.deepEqual(idx.search("zelda").hits.map((h) => h.id), ["usr_unique"]);
   assert.deepEqual(idx.search("@quill").hits.map((h) => h.id), ["usr_unique"], "@ narrows to people");
   assert.deepEqual(idx.search("/quill").hits.map((h) => h.id), ["fil_unique"], "/ narrows to files");
-  assert.equal(idx.search("#harl").hits.every((h) => h.kind === "chat" || h.kind === "record"), true);
+  assert.equal(idx.search("#bake").hits.every((h) => h.kind === "chat" || h.kind === "record"), true);
   assert.ok(p95 < 50, `search.local p95 ${p95.toFixed(1)} ms is over 50 ms`);
 });
