@@ -10,7 +10,7 @@ export interface TaskTemplate {
 }
 export interface TimeLimit { hours: number; escalateTo?: { kind: string; id: string } }
 export interface Stage {
-  key: string; title: string; order: number; exit: { requireTasks: boolean; manualOnly?: boolean }; timeLimit?: TimeLimit; tasks: TaskTemplate[]; automations: string[]; final?: boolean;
+  key: string; title: string; order: number; exit: { requireTasks: boolean; manualOnly?: boolean }; timeLimit?: TimeLimit; tasks: TaskTemplate[]; automations: string[]; final?: boolean; onLeaving?: string[];
 }
 export interface StartRule { event: string; filter?: unknown; enabled: boolean }
 export interface Journey {
@@ -175,6 +175,14 @@ export function saveTaskLink(db: Db, recordId: string, t: TaskLink): void {
 export function taskLinks(db: Db, recordId: string, stage: string, enteredAt: number): TaskLink[] {
   return (db.all("SELECT * FROM journeys_tasks WHERE record_id = ? AND stage = ? AND entered_at = ? ORDER BY task_key", recordId, stage, enteredAt) as Raw[])
     .map((r) => ({ stage: r.stage as string, taskKey: r.task_key as string, enteredAt: num(r.entered_at) ?? 0, taskId: r.task_id as string, required: num(r.required) === 1 }));
+}
+/** Every task made for a record, the latest entry of each stage's template key only (a record that left a stage and came back has a newer copy). */
+export function allTaskLinks(db: Db, recordId: string, stage?: string): TaskLink[] {
+  const rows = (db.all(`SELECT * FROM journeys_tasks WHERE record_id = ?${stage ? " AND stage = ?" : ""} ORDER BY entered_at, stage, task_key`, ...(stage ? [recordId, stage] : [recordId])) as Raw[])
+    .map((r) => ({ stage: r.stage as string, taskKey: r.task_key as string, enteredAt: num(r.entered_at) ?? 0, taskId: r.task_id as string, required: num(r.required) === 1 }));
+  const latest = new Map<string, TaskLink>();
+  for (const l of rows) latest.set(`${l.stage}\u0000${l.taskKey}`, l);
+  return [...latest.values()];
 }
 export function breachOf(db: Db, recordId: string, stage: string, enteredAt: number): { escalated: boolean } | undefined {
   const r = (db.all("SELECT escalated FROM journeys_breaches WHERE record_id = ? AND stage = ? AND entered_at = ?", recordId, stage, enteredAt) as Raw[])[0];
