@@ -153,7 +153,13 @@ function refOf(tree: string, what: string) {
   return /\[ref=(e\d+)\]/.exec(line!)![1]!;
 }
 
-test("the chrome_* tools drive a real page: read, press, type, hold, send, mask", { skip: !found && "no Chromium on this machine" }, async () => {
+// With VYRE_REQUIRE_CHROME=1 (the CI job that proves the real-Chrome path) a missing Chromium fails here instead of skipping the three tests below, so a green run means they ran.
+const mustRun = process.env["VYRE_REQUIRE_CHROME"] === "1";
+test("Chromium is available when this run must drive a real Chrome", { skip: !mustRun && "VYRE_REQUIRE_CHROME is not 1" }, () => {
+  assert.ok(found, "VYRE_REQUIRE_CHROME=1 but no Chromium was found (set CHROME_BIN or install playwright's chromium)");
+});
+
+test("the chrome_* tools drive a real page: read, press, type, hold, send, mask", { skip: !found && !mustRun && "no Chromium on this machine" }, async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const srv = await serve();
   const browser = await found!.chromium.launch({ executablePath: found!.exe, args: ["--no-sandbox", "--disable-gpu"] });
@@ -264,7 +270,7 @@ test("the chrome_* tools drive a real page: read, press, type, hold, send, mask"
   } finally { await r.close(); await browser.close(); await srv.close(); }
 });
 
-test("the frame, the bar and the named cursor, in a light and a dark page, then Stop, Esc and idle", { skip: !found && "no Chromium on this machine" }, async () => {
+test("the frame, the bar and the named cursor, in a light and a dark page, then Stop, Esc and idle", { skip: !found && !mustRun && "no Chromium on this machine" }, async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const srv = await serve();
   const browser = await found!.chromium.launch({ executablePath: found!.exe, args: ["--no-sandbox", "--disable-gpu"] });
@@ -318,7 +324,7 @@ test("the frame, the bar and the named cursor, in a light and a dark page, then 
   } finally { await browser.close(); await srv.close(); }
 });
 
-test("one chrome_* tool call goes from the daemon bridge through the native host and the extension's own transport into a real Chrome page, and the page's answer comes back", { skip: !found && "no Chromium on this machine" }, async () => {
+test("one chrome_* tool call goes from the daemon bridge through the native host and the extension's own transport into a real Chrome page, and the page's answer comes back", { skip: !found && !mustRun && "no Chromium on this machine" }, async () => {
   const srv = await serve();
   const browser = await found!.chromium.launch({ executablePath: found!.exe, args: ["--no-sandbox", "--disable-gpu"] });
   const r = await rig(browser, "light");
