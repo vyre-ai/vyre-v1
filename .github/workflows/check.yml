@@ -171,10 +171,15 @@ jobs:
         if: always() && steps.scope.outputs.changed == 'true'
         run: docker ps -a --filter "name=vyre" --format '{{.Names}} {{.Status}}' || true
   installer-docker:
-    # P-L10_09b: the Linux installer proven on a fresh Docker host. GitHub-hosted on purpose: the VM is new for every run, so nothing is left over and port 8420, 80 and 443 are free.
+    # P-L10_09b: the Linux installer proven on a Docker host. It runs on our self-hosted runners (Docker 29, the runner user is in the docker group) because GitHub-hosted runners are blocked
+    # by the account spending limit (ruling 29, 25 Oct); the lead approved this edit for P-H_12 and P-L10_09b. Runners are shared, so: one such job at a time (the compose unit publishes 80, 443 and
+    # 8420 on the host), and the last step removes every container, volume, image and temp directory the job made, even when it failed.
     # Part 1 is scripts/install/linux/install.heavy.test.sh (signed channel, refusals, install, update, rollback, uninstall). Part 2 builds the real vyred image and drives the same installer
     # with the real compose unit: first boot, doctor green, the sign-in endpoint, restart, uninstall, purge. Every check must print "ok"; a skip is not a pass. Not part of the `check` gate.
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, v1]
+    concurrency:
+      group: installer-docker-host-ports
+      cancel-in-progress: false
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -209,12 +214,18 @@ jobs:
           grep -q '^# pass 8 fail 0$' installer-real.out
           ! grep -qi 'skipped' installer-real.out
           [ "$(grep -c '^ok ' installer-real.out)" = 8 ]
-      - name: Nothing left behind
+      - name: Remove what this job made (containers, volumes, images, temp directories; shared runner)
         if: always() && steps.scope.outputs.changed == 'true'
         run: |
-          docker ps -a --format '{{.Names}} {{.Status}}'
-          docker volume ls --format '{{.Name}}'
-          ls /tmp | grep -E 'vyre-install' || echo "no temp directories left"
+          docker ps -a --format '{{.ID}} {{.Names}}' | awk '$2 ~ /^(vyreinst|vyrereal)/ {print $1}' | xargs -r docker rm -f >/dev/null 2>&1 || true
+          docker volume ls -q --filter "name=vyreinst" | xargs -r docker volume rm -f >/dev/null 2>&1 || true
+          docker volume ls -q --filter "name=vyrereal" | xargs -r docker volume rm -f >/dev/null 2>&1 || true
+          docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' | grep -E '^(localhost:[0-9]+/vyred|vyreinst|vyrereal)' | awk '{print $2}' | sort -u | xargs -r docker rmi -f >/dev/null 2>&1 || true
+          docker image prune -f >/dev/null 2>&1 || true
+          rm -rf /tmp/vyre-install-* 2>/dev/null || sudo -n rm -rf /tmp/vyre-install-* 2>/dev/null || true
+          echo "left on this runner:"; docker ps -a --format '{{.Names}} {{.Status}}' | grep -E 'vyreinst|vyrereal' || echo "no containers"
+          docker volume ls --format '{{.Name}}' | grep -E 'vyreinst|vyrereal' || echo "no volumes"
+          ls /tmp | grep -E 'vyre-install' || echo "no temp directories"
       - uses: actions/upload-artifact@v4
         if: always() && steps.scope.outputs.changed == 'true'
         with:
