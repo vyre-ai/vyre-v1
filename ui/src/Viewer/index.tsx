@@ -54,6 +54,44 @@ export function linksOf(graph: ViewerGraph, nodeId: string): { to: readonly Link
   return { to: pick("to"), from: pick("from") };
 }
 
+/** A comment on a passage of a document or plan (files.comments.list): the quoted text, who and when, the words, replies, and whether it is resolved. */
+export interface DocComment { id: string; quote: string; by: string; at: string; text: string; replies?: readonly { by: string; text: string }[]; resolved?: boolean }
+
+/** The comments whose quote is on screen, open ones only, in document order. A comment whose quote is gone from the text stays listed but marks nothing. */
+export function openComments(comments: readonly DocComment[]): DocComment[] {
+  const out: DocComment[] = [];
+  for (const c of comments) if (c.resolved !== true) out.push(c);
+  return out;
+}
+
+/** Splits one block's text into plain runs and the runs a comment quotes, so the quoted words can be highlighted. */
+export function commentRuns(text: string, comments: readonly DocComment[]): readonly { text: string; comment?: string }[] {
+  const hits: { at: number; len: number; id: string }[] = [];
+  for (const c of comments) {
+    if (c.quote === "") continue;
+    const at = text.indexOf(c.quote);
+    if (at >= 0) hits.push({ at, len: c.quote.length, id: c.id });
+  }
+  hits.sort((a, b) => a.at - b.at);
+  const out: { text: string; comment?: string }[] = [];
+  let pos = 0;
+  for (const h of hits) {
+    if (h.at < pos) continue;
+    if (h.at > pos) out.push({ text: text.slice(pos, h.at) });
+    out.push({ text: text.slice(h.at, h.at + h.len), comment: h.id });
+    pos = h.at + h.len;
+  }
+  if (pos < text.length) out.push({ text: text.slice(pos) });
+  return out.length === 0 ? [{ text }] : out;
+}
+
+/** Line numbers for a code file: one per block (a block is a line). */
+export function lineNumbers(count: number): string {
+  let out = "";
+  for (let i = 1; i <= count; i++) out += (i > 1 ? "\n" : "") + i;
+  return out;
+}
+
 export interface Sheet { cols: readonly string[]; rows: readonly (readonly string[])[] }
 
 /** The text a person sees: **bold** and [[link]] markers removed. Find reads this, so a match is always something on screen. */
@@ -189,6 +227,11 @@ export interface ViewerViewProps extends ViewerProps {
   /** The Details panel (the info button): path, kind, size and the file's links. */
   details?: ViewerDetails;
   detailsOpen?: boolean;
+  /** Comments on passages of a document or plan, and what to do with them. */
+  comments?: readonly DocComment[];
+  onComment?: (quote: string, text: string) => void;
+  onReply?: (id: string, text: string) => void;
+  onResolve?: (id: string) => void;
   /** The selected cell when the sheet opens. */
   initialCell?: { r: number; c: number };
   /** The file's tile letters ("PNG", "CSV"), and the line under its name (path and when it changed). */
@@ -260,6 +303,10 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const [note, setNote] = useState<string | null>(null);
   const [sort, setSort] = useState<{ col: number; dir: 1 | -1 } | null>(null);
   const [cell, setCell] = useState<{ r: number; c: number } | null>(props.initialCell ?? null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [pick, setPick] = useState<{ id: string; quote: string } | null>(null);
+  const [draft, setDraft] = useState("");
+  const [replying, setReplying] = useState<Record<string, string>>({});
   const [detailsOpen, setDetailsOpen] = useState(props.detailsOpen === true);
   const stage = useRef<{ w: number; h: number }>({ w: IMAGE_W, h: IMAGE_H });
 
@@ -268,7 +315,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const at = hits.length === 0 ? 0 : cur % hits.length;
   const pins: readonly ViewerPin[] = props.pins ?? each(boxes, (b, i) => ({ id: b.id, n: i + 1, text: b.text }));
   const links = useMemo(() => (props.graph !== undefined && props.nodeId !== undefined ? linksOf(props.graph, props.nodeId) : { to: [] as readonly LinkRow[], from: [] as readonly LinkRow[] }), [props.graph, props.nodeId]);
-  const editing = props.editing === true || ((props.kind === "document" || props.kind === "plan") && editMode);
+  const editing = props.editing === true || (props.kind === "document" && editMode);
 
   const setZ = (z: number): void => { setZoom(z); props.onZoom?.(z); };
   const changeBoxes = (next: readonly MarkupBox[]): void => { setBoxes(next); props.onBoxes?.(next); };
@@ -309,7 +356,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           <Pressable accessibilityRole="button" accessibilityLabel="Zoom in" testID="vw-zoom-in" onPress={() => setZ(stepZoom(zoom, 1))}><Text style={s.zoomText}>{"+"}</Text></Pressable>
         </View>
       ) : null}
-      {props.kind === "csv" || props.kind === "plan" || (props.kind === "document" && blocks.some((b) => b.tag !== "code")) ? (
+      {props.kind === "csv" || (props.kind === "document" && blocks.some((b) => b.tag !== "code")) ? (
         <View style={s.modeRow} testID="vw-mode">
           {props.saved !== undefined ? <Text style={s.saved} testID="vw-saved">{`✓ v${props.saved}`}</Text> : null}
           <View style={s.seg} accessibilityRole="tablist">
@@ -397,9 +444,21 @@ export function Viewer(props: ViewerViewProps): ReactElement {
     </View>
   ) : null;
 
+  const shownComments = openComments(props.comments ?? []);
+  const isCode = blocks.length > 0 && blocks.every((b) => b.tag === "code");
   const docBody = (
     <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
-      <View style={s.doc}>
+      {pick !== null && (props.kind === "document" || props.kind === "plan") ? (
+        <View style={s.pickBar} testID="vw-pick">
+          <Text style={s.pickQuote} numberOfLines={1}>{`“${pick.quote}”`}</Text>
+          <TextInput accessibilityLabel="Comment on the selection" testID="vw-pick-input" value={draft} onChangeText={setDraft} placeholder="Comment on this" placeholderTextColor="var(--ink-4)" style={s.pickInput}
+            onSubmitEditing={() => { if (draft.trim() !== "") { props.onComment?.(pick.quote, draft.trim()); setDraft(""); setPick(null); } }} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Post comment" testID="vw-pick-post" onPress={() => { if (draft.trim() !== "") { props.onComment?.(pick.quote, draft.trim()); setDraft(""); setPick(null); } }}><Text style={s.link}>Comment</Text></Pressable>
+        </View>
+      ) : null}
+      <View style={[s.doc, isCode && s.codeDoc]}>
+        {isCode ? <Text style={s.lineNums} selectable={false} testID="vw-lines">{lineNumbers(blocks.length)}</Text> : null}
+        <View style={isCode ? s.codeCol : undefined}>
         {each(blocks, (b, bi) => {
           if (b.tag === "meta") {
             return (
@@ -408,11 +467,13 @@ export function Viewer(props: ViewerViewProps): ReactElement {
               </View>
             );
           }
-          if (editing && find === "") {
-            return <TextInput key={b.id} multiline value={b.text} accessibilityLabel={`${b.tag} block`} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]}
+          if ((editing || (props.kind === "plan" && editId === b.id)) && find === "") {
+            return <TextInput key={b.id} multiline autoFocus={props.kind === "plan"} onBlur={() => setEditId((e) => (e === b.id ? null : e))} value={b.text} accessibilityLabel={`${b.tag} block`} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]}
+              onSelectionChange={(e) => { const { start, end } = e.nativeEvent.selection; setPick(end > start ? { id: b.id, quote: b.text.slice(start, end) } : null); }}
               onChangeText={(t) => changeBlocks(each(blocks, (x) => (x.id === b.id ? { ...x, text: t } : x)))} />;
           }
           const lead = b.tag === "li" ? "•  " : "";
+          const marks = commentRuns(b.text, shownComments);
           if (find !== "") {
             const runs = markRuns(stripInline(b.text), hits, bi, at, hits);
             return (
@@ -423,12 +484,15 @@ export function Viewer(props: ViewerViewProps): ReactElement {
             );
           }
           return (
-            <Text key={b.id} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]} {...web({ "data-tag": b.tag })}>
+            <Text key={b.id} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]} onPress={props.kind === "plan" ? () => setEditId(b.id) : undefined} {...web({ "data-tag": b.tag })}>
               {lead}
-              {each(inlineRuns(b.text), (r, i) => (r.bold === true ? <Text key={i} style={s.bold}>{r.text}</Text> : r.link === true ? <Text key={i} style={s.link} {...web({ "data-link": "true" })}>{r.text}</Text> : r.text))}
+              {shownComments.length > 0 && marks.some((m) => m.comment !== undefined)
+                ? each(marks, (m, i) => (m.comment !== undefined ? <Text key={i} style={s.commented} {...web({ "data-comment": m.comment })}>{m.text}</Text> : m.text))
+                : each(inlineRuns(b.text), (r, i) => (r.bold === true ? <Text key={i} style={s.bold}>{r.text}</Text> : r.link === true ? <Text key={i} style={s.link} {...web({ "data-link": "true" })}>{r.text}</Text> : r.text))}
             </Text>
           );
         })}
+        </View>
         {blocks.length === 0 ? <Text style={s.empty}>This file is empty.</Text> : null}
         {links.from.length > 0 ? (
           <View style={s.linked} testID="vw-linkedfrom">
@@ -492,6 +556,25 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       {markBar}
       <View style={s.main}>
         <View style={s.fill}>{body}</View>
+        {(props.kind === "document" || props.kind === "plan") && shownComments.length > 0 ? (
+          <View style={s.commentsPane} testID="vw-comments">
+            <Text style={s.detailSec}>{`Comments · ${shownComments.length}`}</Text>
+            {each(shownComments, (c) => (
+              <View key={c.id} style={s.commentCard} testID={`vw-comment-${c.id}`}>
+                <Text style={s.commentQuote} numberOfLines={2}>{`“${c.quote}”`}</Text>
+                <Text style={s.commentBy}>{`${c.by}  ${c.at}`}</Text>
+                <Text style={s.commentText}>{c.text}</Text>
+                {each(c.replies ?? [], (r, i) => <Text key={i} style={s.commentText}>{`${r.by}: ${r.text}`}</Text>)}
+                <View style={s.commentActs}>
+                  <TextInput accessibilityLabel="Reply" testID={`vw-reply-${c.id}`} value={replying[c.id] ?? ""} placeholder="Reply..." placeholderTextColor="var(--ink-4)" style={s.replyInput}
+                    onChangeText={(v) => setReplying((r) => ({ ...r, [c.id]: v }))}
+                    onSubmitEditing={() => { const v = (replying[c.id] ?? "").trim(); if (v !== "") { props.onReply?.(c.id, v); setReplying((r) => ({ ...r, [c.id]: "" })); } }} />
+                  <Pressable accessibilityRole="button" accessibilityLabel="Resolve" testID={`vw-resolve-${c.id}`} onPress={() => props.onResolve?.(c.id)}><Text style={s.link}>Resolve</Text></Pressable>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
         {detailsOpen && (props.details !== undefined || links.to.length + links.from.length > 0) ? (
           <View style={s.details} testID="vw-details">
             <View style={s.detailsHead}>
@@ -583,6 +666,20 @@ const s = StyleSheet.create({
   bold: { fontWeight: "700" },
   link: { color: "var(--accent)" as string },
   handle: { position: "absolute", right: -7, top: -7, width: 14, height: 14, borderRadius: 7, backgroundColor: "#E5483A", borderWidth: 2, borderColor: "#FFFFFF" },
+  commented: { backgroundColor: "rgba(229,165,92,0.45)" },
+  commentsPane: { width: 240, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, padding: 12, gap: 10 },
+  commentCard: { borderWidth: 1, borderColor: "var(--warn)" as string, borderRadius: 10, padding: 10, gap: 4 },
+  commentQuote: { color: "var(--ink-3)" as string, fontSize: 12, fontStyle: "italic" },
+  commentBy: { color: "var(--ink-3)" as string, fontSize: 11.5, fontWeight: "600" },
+  commentText: { color: "var(--ink)" as string, fontSize: 12.5, lineHeight: 18 },
+  commentActs: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 4 },
+  replyInput: { flex: 1, minWidth: 0, height: 26, color: "var(--ink)" as string, fontSize: 12.5, paddingHorizontal: 6, borderRadius: 6, backgroundColor: "var(--sunk)" as string },
+  pickBar: { flexDirection: "row", alignItems: "center", gap: 10, width: "100%", maxWidth: 720, paddingVertical: 8 },
+  pickQuote: { color: "var(--ink-3)" as string, fontSize: 12, maxWidth: 200 },
+  pickInput: { flex: 1, minWidth: 0, height: 28, color: "var(--ink)" as string, fontSize: 13, paddingHorizontal: 8, borderRadius: 6, backgroundColor: "var(--sunk)" as string },
+  codeDoc: { flexDirection: "row", maxWidth: 900, gap: 0 },
+  lineNums: { width: 36, textAlign: "right", paddingRight: 12, color: "var(--ink-4)" as string, fontFamily: MONO_VAR, fontSize: 12.5, lineHeight: 19 },
+  codeCol: { flex: 1, minWidth: 0 },
   linked: { marginTop: 22, paddingTop: 6, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   doc: { width: "100%", maxWidth: 720, gap: 10 },
   block: { color: "var(--ink)" as string, fontSize: 15, lineHeight: 23, padding: 0 },

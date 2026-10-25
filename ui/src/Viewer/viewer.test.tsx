@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Viewer, linksOf, stripInline, inlineRuns, ZOOM_MAX, ZOOM_MIN, boxFrom, clampZoom, findMatches, markRuns, pinAt, sheetFoot, sortRows, stepZoom, toUnit, VIEWER_KINDS, MARKUP_TOOLS } from "./index.tsx";
+import { Viewer, linksOf, commentRuns, openComments, lineNumbers, stripInline, inlineRuns, ZOOM_MAX, ZOOM_MIN, boxFrom, clampZoom, findMatches, markRuns, pinAt, sheetFoot, sortRows, stepZoom, toUnit, VIEWER_KINDS, MARKUP_TOOLS } from "./index.tsx";
 import type { DocBlock, MarkupBox, ViewerViewProps } from "./index.tsx";
 
 const BOXES: readonly MarkupBox[] = [{ id: "b1", x: 0.08, y: 0.32, w: 0.44, h: 0.32, text: "Is this offer still live?" }, { id: "b2", x: 0.6, y: 0.2, w: 0.2, h: 0.2, text: "Crop here" }];
@@ -179,4 +179,37 @@ test("Links to and Linked from come from the graph's link edges, once each, only
   assert.ok(html.includes('data-testid="vw-linkedfrom"') && html.includes("Linked from · 1") && html.includes('data-testid="row-lf-b"'));
   for (const id of ["vw-detail-section-Links to", "vw-detail-section-Linked from"]) assert.ok(html.includes(`data-testid="${id}"`), id);
   assert.ok(!renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" blocks={blocks} />).includes("vw-linkedfrom"), "no graph, no section");
+});
+
+test("comments: the quoted words are marked in the text, resolved ones drop out, and the panel lists open ones with Reply and Resolve", () => {
+  const comments = [
+    { id: "k1", quote: "standard $250 consult fee", by: "You", at: "9:42", text: "Should we waive this for referrals?", replies: [{ by: "Maya", text: "Yes, for partner firms." }] },
+    { id: "k2", quote: "gone words", by: "Lena", at: "9:50", text: "old", resolved: true },
+  ];
+  assert.deepEqual(openComments(comments).map((c) => c.id), ["k1"]);
+  const runs = commentRuns("Docs prepares the letter at the standard $250 consult fee.", comments);
+  assert.deepEqual(runs.map((r) => r.text).join(""), "Docs prepares the letter at the standard $250 consult fee.");
+  assert.deepEqual(runs.filter((r) => r.comment !== undefined).map((r) => [r.text, r.comment]), [["standard $250 consult fee", "k1"]]);
+  assert.deepEqual(commentRuns("no match here", comments), [{ text: "no match here" }]);
+  const blocks: DocBlock[] = [{ id: "a", tag: "p", text: "Docs prepares the letter at the standard $250 consult fee." }];
+  const html = renderToStaticMarkup(<Viewer fileId="p" title="plan" kind="plan" blocks={blocks} comments={comments} />);
+  for (const id of ["vw-comments", "vw-comment-k1", "vw-reply-k1", "vw-resolve-k1"]) assert.ok(html.includes(`data-testid="${id}"`), id);
+  assert.ok(!html.includes("vw-comment-k2") && html.includes("Comments · 1") && html.includes('data-comment="k1"') && html.includes("Yes, for partner firms."));
+  assert.ok(!renderToStaticMarkup(<Viewer fileId="p" title="plan" kind="plan" blocks={blocks} />).includes("vw-comments"), "no comments, no panel");
+});
+
+test("a code file shows a line number for each line", () => {
+  assert.equal(lineNumbers(3), "1\n2\n3");
+  assert.equal(lineNumbers(0), "");
+  const code: DocBlock[] = [{ id: "c1", tag: "code", text: "a = 1" }, { id: "c2", tag: "code", text: "b = 2" }];
+  assert.ok(renderToStaticMarkup(<Viewer fileId="c" title="x.py" kind="document" blocks={code} />).includes('data-testid="vw-lines"'));
+  assert.ok(!renderToStaticMarkup(<Viewer fileId="c" title="x.md" kind="document" blocks={[{ id: "p", tag: "p", text: "hi" }]} />).includes("vw-lines"));
+});
+
+test("a plan has no View and Edit switch: its blocks edit in place (editing prop opens them all), and a plan shows its comments beside it", () => {
+  const blocks: DocBlock[] = [{ id: "a", tag: "p", text: "One" }, { id: "b", tag: "p", text: "Two" }];
+  const plan = renderToStaticMarkup(<Viewer fileId="p" title="plan" kind="plan" blocks={blocks} />);
+  assert.ok(!plan.includes('data-testid="vw-mode"'), "a plan has no View and Edit switch");
+  assert.ok(!plan.includes("<textarea"), "blocks read as text until one is pressed");
+  assert.equal(renderToStaticMarkup(<Viewer fileId="p" title="plan" kind="plan" editing blocks={blocks} />).match(/<textarea/g)?.length, 2);
 });
