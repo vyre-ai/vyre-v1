@@ -9,6 +9,8 @@
   },
   "description": "Shared components, tokens and skins. A skin's light and dark sets are plain data, ready before first paint.",
   "dependencies": {
+    "@dicebear/core": "9.2.2",
+    "@dicebear/notionists": "9.2.2",
     "@shopify/flash-list": "2.3.2",
     "@tiptap/core": "2.11.5",
     "@tiptap/extension-collaboration": "2.11.5",

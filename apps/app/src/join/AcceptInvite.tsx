@@ -5,13 +5,14 @@
 import { createElement } from "react";
 import { Platform, Pressable, Text, TextInput, View } from "react-native";
 import type { Dispatch, ReactNode } from "react";
+import { Avatar } from "../../../../ui/src/Avatar/index.tsx";
 import { ConnectAI } from "./ConnectAI.tsx";
 import {
-  AppIcon, Bar, Button, Caption, Check, ErrorLine, FieldRow, Foot, Group, LetterTile, Meter, Panel, Progress, Row, Sheet, Step, Switch, TextButton, Title, CheckBox,
+  AppIcon, Bar, Button, Caption, Check, ErrorLine, FieldRow, Foot, Group, AgentFace, Meter, Panel, Progress, Row, Sheet, Step, Switch, TextButton, Title, CheckBox,
   baseText, useJoin,
 } from "./kit.tsx";
 import { MONO } from "./palette.ts";
-import { RUN_STEPS, initials, meter, strength, suggestions, usernameOk, valid, cleanUsername } from "./logic.ts";
+import { RUN_STEPS, meter, strength, suggestions, usernameOk, valid, cleanUsername } from "./logic.ts";
 import type { Action, FlowState, JoinInvite, Rules } from "./logic.ts";
 
 export interface AcceptInviteProps {
@@ -75,9 +76,7 @@ function Photo({ state, onPick }: { state: FlowState; onPick?: () => void }) {
   return (
     <View style={{ alignItems: "center", marginTop: 24 }}>
       <Pressable accessibilityRole="button" accessibilityLabel="Change photo" testID="photo" onPress={onPick} style={{ width: 72, height: 72, borderRadius: 36 }}>
-        <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: "#8E8E95", alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ color: "#fff", fontSize: 26, fontWeight: "600", letterSpacing: 0.3 }}>{initials(state)}</Text>
-        </View>
+        <Avatar name={`${state.first} ${state.last}`.trim() || "You"} kind="person" size={72} />
         <View style={{ position: "absolute", right: -4, bottom: -4, width: 26, height: 26, borderRadius: 13, backgroundColor: p.cam, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: p.panel }}>
           {Platform.OS === "web"
             ? createElement("svg", { viewBox: "0 0 16 16", width: 14, height: 14, "aria-hidden": true, "data-icon": "camera", fill: "none", stroke: p.tx, strokeWidth: 1.4, strokeLinecap: "round", strokeLinejoin: "round" },
@@ -120,7 +119,7 @@ function Starting({ label, names, agents, divider }: { label: string; names: str
   const { p } = useJoin();
   const stack: ReactNode[] = [];
   for (const [i, n] of names.slice(0, 4).entries()) {
-    stack.push(<View key={n} style={{ marginLeft: i === 0 ? 0 : -4 }}>{agents ? <LetterTile name={n} size={24} /> : <FolderTile />}</View>);
+    stack.push(<View key={n} style={{ marginLeft: i === 0 ? 0 : -4 }}>{agents ? <AgentFace name={n} size={24} /> : <FolderTile />}</View>);
   }
   return (
     <Row label={label} small divider={divider} testID={`starting-${label.toLowerCase()}`}>
@@ -264,7 +263,7 @@ export function AcceptInvite(props: AcceptInviteProps) {
   const cont = last
     ? (done ? <Button testID="open-space" label={`Open ${invite.space}`} onPress={props.onOpen} /> : <View />)
     : <Button testID="next" label="Continue" disabled={!ok} onPress={() => dispatch({ t: "next" })} />;
-  const bar = <Bar hideBack={last || state.step === 0} onBack={() => dispatch({ t: "back" })} step={last ? STEPS : state.step} steps={STEPS} cont={cont} />;
+  const bar = <Bar hideBack={last || state.step === 0} onBack={() => dispatch({ t: "back" })} step={last ? STEPS : state.step} steps={STEPS} cont={cont} centre={done} />;
 
   let body;
   if (last) body = <RunStep invite={invite} state={state} />;
