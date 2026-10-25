@@ -36497,7 +36497,7 @@
             "replies": [
               {
                 "at": 1760000000000,
-                "messageId": "msg_a1b2c3",
+                "messageId": "eml_a1b2c3",
                 "recordId": "rec_a1b2c3"
               }
             ],
@@ -36551,9 +36551,9 @@
                 },
                 "messageId": {
                   "examples": [
-                    "msg_a1b2c3"
+                    "eml_a1b2c3"
                   ],
-                  "pattern": "^msg_[a-z0-9]+$",
+                  "pattern": "^eml_[a-z0-9]+$",
                   "type": "string"
                 },
                 "recordId": {
@@ -38723,7 +38723,9 @@
       "effects": "write",
       "emits": [
         "channel.created",
-        "thread.started"
+        "thread.started",
+        "channel.agent_added",
+        "channel.member_added"
       ],
       "errors": [
         "internal.unexpected",
@@ -40147,7 +40149,8 @@
       "effects": "write",
       "emits": [
         "plan.approved",
-        "block.answered"
+        "block.answered",
+        "thread.plan_mode_changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -42660,7 +42663,8 @@
       "emits": [
         "thread.started",
         "agent.engaged",
-        "message.received"
+        "message.received",
+        "message.direct"
       ],
       "errors": [
         "internal.unexpected",
@@ -107979,7 +107983,7 @@
       "permission": null,
       "resource": {
         "id": "/noteId",
-        "type": "file"
+        "type": "note"
       },
       "risk": "low",
       "since": "1.0.0",
@@ -108068,7 +108072,7 @@
       "permission": null,
       "resource": {
         "id": "/noteId",
-        "type": "file"
+        "type": "note"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -108335,7 +108339,7 @@
       "permission": null,
       "resource": {
         "id": "/noteId",
-        "type": "file"
+        "type": "note"
       },
       "risk": "low",
       "since": "1.0.0",
@@ -153532,7 +153536,9 @@
       "effects": "write",
       "emits": [
         "channel.created",
-        "thread.promoted"
+        "thread.promoted",
+        "channel.agent_added",
+        "channel.member_added"
       ],
       "errors": [
         "internal.unexpected",

@@ -84,7 +84,7 @@ export default defineManifest({
         kind: t.enm('chat', 'ask'), agentIds: t.arr(id.agent), personId: t.opt(id.user), title: t.opt(t.str()), scopeType: t.opt(t.str()), scopeId: t.opt(t.str()),
         folderId: t.opt(id.folder), recordId: t.opt(id.record), model: t.opt(t.str()), provider: t.opt(t.str()), effort: t.opt(effort), first: t.opt(t.str({ description: 'First message body' })),
       },
-      out: { thread: threadRow }, perm: 'chats.private', emits: ['thread.started', 'agent.engaged', 'message.received'], tool: 'chats', offline: 'queue', cli: 'vyre chat start',
+      out: { thread: threadRow }, perm: 'chats.private', emits: ['thread.started', 'agent.engaged', 'message.received', 'message.direct'], tool: 'chats', offline: 'queue', cli: 'vyre chat start',
     }),
     write('chat.thread', 'Open or create the inline thread under a message; an @mentioned agent works inside it', {
       in: { threadId: id.thread, messageId: id.message }, out: { thread: threadRow }, on: ['thread', '/threadId'], level: 'use',
@@ -131,7 +131,7 @@ export default defineManifest({
     }),
     create('threads.make_channel', 'Make a private chat into a channel with another person; the new channel links back to the chat', {
       in: { ...threadT, personId: id.user, name: t.opt(t.str()) }, out: { channel: channelRow }, make: ['thread', '/threadId'],
-      perm: 'channels.create', emits: ['channel.created', 'thread.promoted'], tool: 'chats',
+      perm: 'channels.create', emits: ['channel.created', 'thread.promoted', 'channel.agent_added', 'channel.member_added'], tool: 'chats',
     }),
     // ---- Ask panes
     read('chat.asks_of', 'Ask panes opened on one object (the pane history of a record, file, event, page, site or automation)', {
@@ -206,7 +206,7 @@ export default defineManifest({
     }),
     write('chat.approve_plan', 'Approve a plan, optionally with edits; clears plan mode for those steps and the agent executes', {
       in: { ...threadT, planId: id.plan, edits: t.opt(t.arr(t.obj({ stepId: t.id('stp'), text: t.opt(t.str()), remove: t.opt(t.bool()) }))) },
-      out: { plan: t.obj({ planId: id.plan, state: t.str(), steps: t.arr(planStep) }) }, on: ['thread', '/threadId'], level: 'use', emits: ['plan.approved', 'block.answered'],
+      out: { plan: t.obj({ planId: id.plan, state: t.str(), steps: t.arr(planStep) }) }, on: ['thread', '/threadId'], level: 'use', emits: ['plan.approved', 'block.answered', 'thread.plan_mode_changed'],
       tool: 'chats', offline: 'queue', errors: ['validation.precondition_failed'],
     }),
     write('chat.plan.reject', 'Reject a plan with a note; the agent stays in plan mode', {
@@ -262,7 +262,7 @@ export default defineManifest({
     // ---- channels
     create('channels.create', 'Create a channel: public to the Team Space or invite-only, with any mix of people and agents', {
       in: { name: t.str({ examples: ['intake'] }), visibility: t.enm('public', 'invite'), topic: t.opt(t.str()), memberIds: t.opt(t.arr(id.user)), agentIds: t.opt(t.arr(id.agent)), folderId: t.opt(id.folder), recordId: t.opt(id.record) },
-      out: { channel: channelRow }, perm: 'channels.create', emits: ['channel.created', 'thread.started'], tool: 'chats', offline: 'queue', cli: 'vyre channels create',
+      out: { channel: channelRow }, perm: 'channels.create', emits: ['channel.created', 'thread.started', 'channel.agent_added', 'channel.member_added'], tool: 'chats', offline: 'queue', cli: 'vyre channels create',
     }),
     read('channels.list', 'List channels by section and folder (the items capability of the Channels list)', {
       in: listIn, out: { channels: t.arr(channelRow), ...pageOut }, tool: 'chats', label: 'filter',

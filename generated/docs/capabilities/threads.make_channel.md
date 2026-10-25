@@ -19,7 +19,7 @@ Make a private chat into a channel with another person; the new channel links ba
 | HTTP | POST /v1/threads/make_channel |
 | MCP tool | threads_make_channel (chats) |
 | CLI | none |
-| Emits | channel.created, thread.promoted |
+| Emits | channel.created, thread.promoted, channel.agent_added, channel.member_added |
 
 ## Input
 
