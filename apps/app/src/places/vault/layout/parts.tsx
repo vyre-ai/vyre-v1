@@ -4,8 +4,6 @@ import { createElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { hueOf, letterOf } from "./model.ts";
-import { brandOfName } from "../itemenv/brands.ts";
-import type { Brand } from "../itemenv/brands.ts";
 
 /** 16 px viewBox stroke icons. */
 export const ICON = {
@@ -35,10 +33,6 @@ export const ICON = {
   file: ["M4 2.5h5l3 3v8H4z", "M9 2.5v3h3"],
   wand: ["M3 13l7-7M9 3l.5 1.5L11 5l-1.5.5L9 7l-.5-1.5L7 5l1.5-.5zM12.5 8l.4 1 1 .4-1 .4-.4 1-.4-1-1-.4 1-.4z"],
   back: ["M10 3.5L5.5 8l4.5 4.5"],
-  chevd: ["M3.5 6l4.5 4.5L12.5 6"],
-  braces: ["M6 3C4.6 3 4 3.7 4 5v1.5C4 7.4 3.5 8 2.5 8c1 0 1.5.6 1.5 1.5V11c0 1.3.6 2 2 2", "M10 3c1.4 0 2 .7 2 2v1.5c0 .9.5 1.5 1.5 1.5-1 0-1.5.6-1.5 1.5V11c0 1.3-.6 2-2 2"],
-  globe: ["M13.5 8a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z", "M2.8 8h10.4M8 2.6c1.5 1.5 2.2 3.3 2.2 5.4S9.5 11.9 8 13.4C6.5 11.9 5.8 10.1 5.8 8S6.5 4.1 8 2.6z"],
-  card: ["M3 4.5h10a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5a1 1 0 011-1z", "M2 7h12"],
 } as const;
 export type IconName = keyof typeof ICON;
 
@@ -54,20 +48,8 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)" }: { name: IconN
   );
 }
 
-/** A brand mark on the one neutral tile every app shares (the prototype's .lg): the mark in its own colour, ink when the brand is black. Web only; elsewhere the tile is empty until an icon set lands. */
-export function BrandTile({ brand, name, size = 32 }: { brand: Brand; name: string; size?: number }): ReactElement {
-  const mark = Math.round(size * (size < 24 ? 0.7 : 0.56));
-  return (
-    <View aria-hidden testID={`logo-${name}`} style={{ width: size, height: size, borderRadius: Math.round(size * 0.3), backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center", ...({ boxShadow: "inset 0 0 0 1px var(--line)" } as object) }}>
-      {Platform.OS === "web" ? createElement("svg", { viewBox: "0 0 24 24", width: mark, height: mark, fill: "currentColor", "aria-hidden": true, style: { display: "block", color: brand.color ?? "var(--ink)" }, dangerouslySetInnerHTML: { __html: brand.svg } }) : null}
-    </View>
-  );
-}
-
-/** The mark of an item: its brand when the name points at one, else a letter on a wash of the name's colour (spec 2.17: real logos are fetched by the Space's server). */
+/** The mark of an item. Real logos are fetched by the Space's server (spec 2.17); until one is cached the tile is a letter on a wash of the name's colour. */
 export function LogoTile({ name, size = 32 }: { name: string; size?: number }): ReactElement {
-  const brand = brandOfName(name);
-  if (brand) return <BrandTile brand={brand} name={name} size={size} />;
   const hue = hueOf(name);
   return (
     <View aria-hidden testID={`logo-${name}`} style={{ width: size, height: size, borderRadius: Math.round(size * 0.28), backgroundColor: `hsla(${hue}, 60%, 50%, 0.18)` as string, alignItems: "center", justifyContent: "center" }}>

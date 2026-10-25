@@ -6,12 +6,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { copyText, useOnline, usePrincipals, useScreenQuery, useVaultData } from "../layout/data.tsx";
-import { agoLabel, KIND_LABEL, rotation, whoLine } from "../layout/model.ts";
-import type { Folder, Item, Share } from "../layout/model.ts";
+import { accessLine, agoLabel, KIND_LABEL, rotation } from "../layout/model.ts";
+import type { Folder, Item } from "../layout/model.ts";
 import { Btn, Glyph, IconBtn, LogoTile, Mono } from "../layout/parts.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { MASK, formatEnv, keysOf } from "./env.ts";
-import { WhoCanUse } from "./WhoCanUse.tsx";
+import { MASK, keysOf } from "./env.ts";
 import { createRevealStore } from "./reveal.ts";
 import type { RevealStore } from "./reveal.ts";
 
@@ -66,20 +65,6 @@ export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, ini
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
-  const [shares, setShares] = useState<Share[] | null>(null);
-  const [sharesAt, setSharesAt] = useState(0);
-  useEffect(() => {
-    let live = true;
-    void (async () => {
-      try {
-        const out = (await data.call("access.shares_of", { resource: { type: "vault_item", id: itemId } })) as { shares: { grant: { subject: Share["subject"]; level: Share["level"] }; through: Share["through"] }[] };
-        const list: Share[] = [];
-        for (const x of out.shares) list.push({ subject: x.grant.subject, level: x.grant.level, through: x.through });
-        if (live) setShares(list);
-      } catch { if (live) setShares([]); }
-    })();
-    return () => { live = false; };
-  }, [data, itemId, sharesAt]);
   useEffect(() => { if (askDelete) setConfirmDelete(true); }, [askDelete]);
 
   if (got.status !== "ready") return <DetailSkeleton />;
@@ -111,27 +96,6 @@ export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, ini
     try {
       await data.call("vault.item.update", { itemId, spaceOnly: to });
       onNote(to ? `${item.name} now fills on the Space only` : `${item.name} can fill on your computer again`, async () => { await data.call("vault.item.update", { itemId, spaceOnly: !to }); });
-    } catch (e) { fail(e); }
-  };
-
-  const copyEnv = async (): Promise<void> => {
-    try {
-      const out = (await data.call("vault.item.reveal", { itemId })) as { fields: { key: string; value: string }[] };
-      const values = new Map<string, string>();
-      for (const f of out.fields) values.set(f.key, f.value);
-      await copyText(data, formatEnv(fields, values));
-      onNote(`Copied ${item.name} as .env`, () => undefined);
-    } catch (e) { fail(e); }
-  };
-  const subjectName = (sub: Share["subject"]): string => names.name(sub.id);
-  const setLevel = async (sh: Share, level: Share["level"]): Promise<void> => {
-    try { await data.call("vault.share", { resource: { type: "vault_item", id: itemId }, subject: sh.subject, level }); setSharesAt((n) => n + 1); } catch (e) { fail(e); }
-  };
-  const stopSharing = async (sh: Share): Promise<void> => {
-    try {
-      await data.call("vault.unshare", { resource: { type: "vault_item", id: itemId }, subject: sh.subject });
-      setSharesAt((n) => n + 1);
-      onNote(`Stopped sharing ${item.name} with ${subjectName(sh.subject)}`, async () => { await data.call("vault.share", { resource: { type: "vault_item", id: itemId }, subject: sh.subject, level: sh.level }); setSharesAt((n) => n + 1); });
     } catch (e) { fail(e); }
   };
 
@@ -186,7 +150,7 @@ export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, ini
               </View>
             </View>
           </View>
-          <Text style={s.access} testID="item-access">{whoLine(item as Item, folder, shares ?? [], data.me.id, subjectName)}</Text>
+          <Text style={s.access} testID="item-access">{accessLine(item as Item, folder)}</Text>
 
           <View style={s.card} testID="env-card">
             <View style={s.cardTop}>
@@ -195,7 +159,6 @@ export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, ini
                 <SegBtn label=".env" on={view === "env"} onPress={() => setMode("env")} testID="env-mode-env" />
               </View>
               <View style={{ flex: 1 }} />
-              {fields.length > 0 && canSee ? <Btn label="Copy as .env" icon="copy" disabled={!online} onPress={() => { void copyEnv(); }} testID="env-copy-all" /> : null}
               {fields.length > 0 && canSee ? (
                 <Btn label={rv.shown.size > 0 ? "Hide values" : "Reveal all"} icon={rv.shown.size > 0 ? "eyeOff" : "eye"} disabled={!online || rv.busy} testID="env-reveal-all"
                   onPress={() => { if (rv.shown.size > 0) store.hide(); else void store.reveal(keysOf(fields)); }} />
@@ -232,12 +195,6 @@ export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, ini
             </View>
           ) : null}
           {failure ? <Text style={s.error} accessibilityRole="alert" testID="item-error">{failure}</Text> : null}
-
-          <WhoCanUse
-            shares={shares ?? []} nameOf={subjectName} meId={data.me.id} canManage={item.yourLevel === "manage"}
-            onLevel={(sh, l) => { void setLevel(sh, l); }} onRemove={(sh) => { void stopSharing(sh); }} onShare={() => data.nav.openShare(itemId)}
-            onMenu={(entries, x, y) => menu.show(entries, x, y, "other")}
-          />
 
           <View style={s.sectionHead}><Text style={s.h2}>Recent use</Text></View>
           {hist.status !== "ready" ? <Text style={s.note}>Loading</Text> : entries.length === 0 ? <Text style={s.note} testID="history-empty">Nothing has used this item yet.</Text> : (

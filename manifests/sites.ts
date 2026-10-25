@@ -19,7 +19,7 @@ export default defineManifest({
     ev('site.rolled_back', 'Production was rolled back to an earlier build', { p: { siteId: id.site, toDeploymentId: t.id('dpl') }, subject: ['site', '/siteId'], replay: 'stub' }),
     ev('site.preview_created', 'A preview was built for a branch or pull request', { p: { siteId: id.site, branch: t.str(), url: t.str() }, subject: ['site', '/siteId'] }),
     ev('site.preview_removed', 'A preview was removed after the branch merged', { p: { siteId: id.site, branch: t.str() }, subject: ['site', '/siteId'] }),
-    ev('site.table_created', 'A site table (site-scoped record type) was created', { p: { siteId: id.site, type: t.str() }, subject: ['site', '/siteId'] }),
+    ev('site.table_created', 'A site table (site-scoped record type) was created; fields carries its columns so the record type can be made from the event alone', { p: { siteId: id.site, type: t.str(), fields: t.opt(t.arr(t.obj({ key: t.str(), type: t.str(), title: t.str() }))) }, subject: ['site', '/siteId'] }),
     ev('site.table_promoted', 'A site table became a Space record type', { p: { siteId: id.site, type: t.str() }, subject: ['site', '/siteId'] }),
     ev('site.domain_changed', 'A site domain was set or removed', { p: { siteId: id.site, domain: t.str() }, subject: ['site', '/siteId'] }),
   ],

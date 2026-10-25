@@ -50,6 +50,13 @@ type Out = {
     syncedTypes: Array<string>;
     actions: Array<string>;
     sources: Array<string>;
+    objects?: Record<string, {
+        list?: string;
+        listAfter?: string;
+        create?: string;
+        update?: string;
+        delete?: string;
+      }>;
   };
 };
 ```
@@ -82,6 +89,7 @@ type Out = {
       ],
       "key": "hubspot",
       "mode": "api",
+      "objects": {},
       "scope": "person",
       "secrets": [
         {

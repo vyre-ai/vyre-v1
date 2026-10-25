@@ -141,43 +141,6 @@ export function accessLine(it: Item, folder: Folder | undefined): string {
   return `${it.scope === "mine" ? "Only you can use it" : `You can ${levelWords(it.yourLevel)}`} · ${where}${lock}`;
 }
 
-/** One grant on an item, as `access.shares_of` returns it: who, at what level, and through what (a direct grant, a group, the folder, the owner). */
-export interface Share { subject: { kind: "person" | "group" | "role" | "agent" | "actor" | "service" | "link"; id: string }; level: "view" | "use" | "edit" | "manage"; through: "direct" | "group" | "role" | "folder" | "owner" }
-
-/** "Intake", "Intake and Research", "Intake, Research and 1 more". */
-export function fmtList(names: readonly string[]): string {
-  if (names.length <= 2) return names.join(" and ");
-  return `${names[0]}, ${names[1]} and ${names.length - 2} more`;
-}
-
-/** A person is named by their first name, anything else by its name. */
-export function shortName(kind: Share["subject"]["kind"], name: string): string {
-  return kind === "person" ? (name.trim().split(/\s+/)[0] ?? name) : name;
-}
-
-/**
- * The sentence under the name, from the real grants: "Intake, Research and 1 more can use it · Omar can see it · Maya can change it · Shared › Marketing". You and the owner are left
- * out (you know your own access); with no one else it is the plain line from accessLine.
- */
-export function whoLine(it: Item, folder: Folder | undefined, shares: readonly Share[], meId: string, nameOf: (s: Share["subject"]) => string): string {
-  const pick = (levels: readonly Share["level"][]): string[] => {
-    const out: string[] = [];
-    for (const sh of shares) {
-      if (sh.through === "owner" || (sh.subject.kind === "person" && sh.subject.id === meId) || !levels.includes(sh.level)) continue;
-      out.push(shortName(sh.subject.kind, nameOf(sh.subject)));
-    }
-    return out;
-  };
-  const parts: string[] = [];
-  const use = pick(["use"]), see = pick(["view"]), change = pick(["edit", "manage"]);
-  if (use.length) parts.push(`${fmtList(use)} can use it`);
-  if (see.length) parts.push(`${fmtList(see)} can see it`);
-  if (change.length) parts.push(`${fmtList(change)} can change it`);
-  if (parts.length === 0) return accessLine(it, folder);
-  parts.push(it.scope === "mine" ? "Mine" : `Shared${folder ? ` › ${folder.name}` : ""}`);
-  return parts.join(" · ");
-}
-
 /** A handle for an item: "#Northwind_GoHighLevel". Words are joined with underscores, anything else is dropped. */
 export function handleFor(space: string, name: string): string {
   const w = (s: string): string => s.replace(/[^A-Za-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean).join("_");

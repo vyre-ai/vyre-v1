@@ -54,7 +54,7 @@ function Page({ initial, sheet, view }: { initial?: Selection | undefined; sheet
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [adding, setAdding] = useState<{ paste?: string; app?: string } | null>(sheet?.add ?? null);
+  const [adding, setAdding] = useState<{ paste?: string } | null>(sheet?.add ?? null);
   const [editing, setEditing] = useState<string | null>(sheet?.edit ?? null);
   const [lastFolder, setLastFolder] = useState<string | undefined>(undefined);
   const [askDelete, setAskDelete] = useState(0);
@@ -211,7 +211,7 @@ function Page({ initial, sheet, view }: { initial?: Selection | undefined; sheet
       {showDetail ? <View style={s.detail}>{detail}</View> : null}
       {adding ? (
         <AddAnything
-          lastFolderId={lastFolder} initialPaste={adding.paste} initialApp={adding.app} onClose={() => setAdding(null)}
+          lastFolderId={lastFolder} initialPaste={adding.paste} onClose={() => setAdding(null)}
           onAdded={(id, name, folderId) => {
             setAdding(null); setLastFolder(folderId); setSelectedId(id); setDetailOpen(true);
             setQuery("");
@@ -255,7 +255,7 @@ export function VaultLoading(): ReactElement {
   );
 }
 
-export interface InitialSheet { add?: { paste?: string; app?: string }; edit?: string }
+export interface InitialSheet { add?: { paste?: string }; edit?: string }
 
 export interface VaultProps {
   /** Overrides what the shell provided (the screenshot mounts and tests pass their own). */

@@ -14,15 +14,16 @@ Dimensions.set({ window: { width: 1280, height: 800, scale: 1, fontScale: 1 }, s
 const html = (v: SampleVault, props: Record<string, unknown>): string => renderToStaticMarkup(<Vault data={v.data} {...props} />).replaceAll("<!-- -->", "");
 const has = (s: string, n: string): boolean => s.includes(n);
 
-test("Add: a search and a reel of app icons with Custom first, one hint line, folder footer", () => {
+test("Add: a search and a reel of apps with Custom first, a name, handle line, fields, folder footer", () => {
   const out = html(createSampleVault(), { sheet: { add: {} } });
   assert.ok(has(out, 'data-testid="add-sheet"') && has(out, 'aria-label="Add to the Vault"'));
   const order = TEMPLATES.map((t) => out.indexOf(`data-testid="add-app-${t.id}"`));
   assert.ok(order.every((i) => i >= 0), "every app is in the reel");
   assert.deepEqual([...order].sort((a, b) => a - b), order, "Custom first, then the apps in order");
   assert.equal(TEMPLATES[0]!.id, "custom");
-  assert.ok(has(out, 'data-testid="add-hint"') && has(out, "Paste a key or .env, or pick an app"), "one hint line, no paste box");
-  assert.ok(!has(out, 'data-testid="add-paste"') && !has(out, 'data-testid="add-name"') && !has(out, 'data-testid="add-field"'), "no name or fields until an app or a paste");
+  assert.ok(has(out, 'data-testid="add-paste"') && has(out, "Paste a key, a .env, a link or JSON"));
+  assert.ok(has(out, "Agents ask for an item by its handle and never see the values."), "the handle line before a name");
+  assert.ok(has(out, 'data-testid="add-empty"'), "no fields until an app or a paste");
   assert.ok(has(out, 'aria-label="Adding to Mine"') , "the footer names where it will go: your Mine folder by default");
   assert.ok(has(out, 'data-testid="add-save"') && has(out, 'aria-disabled="true"'), "Add stays off until there is a name and a value");
 });
