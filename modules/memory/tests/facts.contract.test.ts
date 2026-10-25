@@ -67,3 +67,5 @@ test("every error a handler raises is one its capability declares", async () => 
     });
   }
 });
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
