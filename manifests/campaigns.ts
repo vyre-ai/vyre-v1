@@ -14,7 +14,7 @@ export default defineManifest({
   owner: 'L8',
   events: [
     ev('campaign.launched', 'A campaign was launched after approval', { p: { campaignId: id.campaign, audienceCount: t.int() }, subject: ['campaign', '/campaignId'], trigger: { title: 'A campaign is launched' }, replay: 'stub' }),
-    ev('campaign.replied', 'A contact replied to a campaign', { p: { campaignId: id.campaign, recordId: id.record, messageId: id.message }, subject: ['campaign', '/campaignId'], trigger: { title: 'A campaign gets a reply', fields: ['/campaignId'] }, notify: 'campaign.reply' }),
+    ev('campaign.replied', 'A contact replied to a campaign', { p: { campaignId: id.campaign, recordId: id.record, messageId: t.id('eml') }, subject: ['campaign', '/campaignId'], trigger: { title: 'A campaign gets a reply', fields: ['/campaignId'] }, notify: 'campaign.reply' }),
     ev('campaign.unsubscribed', 'A contact unsubscribed', { p: { campaignId: id.campaign, recordId: id.record }, subject: ['campaign', '/campaignId'] }),
     ev('campaign.paused', 'A campaign paused', { p: { campaignId: id.campaign, reason: t.str() }, subject: ['campaign', '/campaignId'] }),
     ev('campaign.completed', 'A campaign finished', { p: { campaignId: id.campaign }, subject: ['campaign', '/campaignId'] }),
@@ -37,7 +37,7 @@ export default defineManifest({
     write('campaigns.resume', 'Resume a paused campaign', { in: target, out: { campaign: row }, on: ['campaign', '/campaignId'], perm: 'campaigns.launch', tool: 'automations', team: true }),
     write('campaigns.stop', 'Stop a campaign for good', { in: target, out: { campaign: row }, on: ['campaign', '/campaignId'], perm: 'campaigns.launch', level: 'manage', tool: 'automations' }),
     read('campaigns.stats', 'Sent, delivered, bounced, complained, replied, unsubscribed', { in: target, out: { sent: t.int(), delivered: t.int(), bounced: t.int(), complained: t.int(), replied: t.int(), unsubscribed: t.int() }, on: ['campaign', '/campaignId'], tool: 'automations' }),
-    read('campaigns.replies', 'Replies that landed in owners Inboxes, marked with the campaign', { in: { campaignId: id.campaign, ...pageIn }, out: { replies: t.arr(t.obj({ recordId: id.record, messageId: id.message, at: t.ts() })), ...pageOut }, on: ['campaign', '/campaignId'], tool: 'automations' }),
+    read('campaigns.replies', 'Replies that landed in owners Inboxes, marked with the campaign', { in: { campaignId: id.campaign, ...pageIn }, out: { replies: t.arr(t.obj({ recordId: id.record, messageId: t.id('eml'), at: t.ts() })), ...pageOut }, on: ['campaign', '/campaignId'], tool: 'automations' }),
     write('campaigns.unsubscribe', 'Inbound: handle an unsubscribe link; writes the Suppression list', { in: { token: t.str() }, out: { ok: t.bool() }, emits: ['campaign.unsubscribed'], http: { method: 'POST', path: '/hooks/unsubscribe' }, team: true }),
     read('campaigns.link_build', 'Campaign link builder: UTM and click-id parameters for a destination', { in: { url: t.str(), source: t.str(), medium: t.str(), campaign: t.str() }, out: { url: t.str() }, tool: 'automations' }),
     read('warmup.status', 'Warmup state and health per mailbox: bounce, spam placement, reply', { out: { mailboxes: t.arr(t.obj({ mailboxId: id.mailbox, stage: t.enm('new', 'warming', 'ready', 'slowed'), dailyCap: t.int(), bounceRate: t.num(), replyRate: t.num() })) }, perm: 'comms.domains', tool: 'inbox' }),

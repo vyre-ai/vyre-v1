@@ -1,0 +1,237 @@
+// The step panel: opens beside the canvas when a card is selected. A name, the step's own fields (one text field per input, in words), the AI step's key and backup, what happens
+// when the step fails, and the problems the check found for this step. Every change goes through `onChange` as a new definition, so Undo and Save see it like any other edit.
+import { useState } from "react";
+import type { ReactElement } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
+import { Glyph } from "./icons.tsx";
+import { ERROR_MODES, keyChoices, kindOfKey, setBranch, setTriggerConfig, titleOfKey, updateStep, triggerMeta } from "./model.ts";
+import type { DefNode, DefTrigger, Definition, Issue, KeyChoice } from "./model.ts";
+import { IconButton, pointer, s as ps, webOnly } from "./parts.tsx";
+
+const humanize = (k: string): string => k.replace(/([A-Z])/g, " $1").replace(/[_.]+/g, " ").replace(/^./, (x) => x.toUpperCase());
+type Ai = NonNullable<DefNode["ai"]>;
+function withKey(ai: DefNode["ai"], field: "keyId" | "backupKeyId", id: string | undefined): Ai {
+  const next: Ai = { ...(ai ?? {}) };
+  if (id) next[field] = id; else delete next[field];
+  return next;
+}
+const show = (v: unknown): string => (typeof v === "string" ? v : v === undefined || v === null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
+
+export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onChange, onClose, onDelete, testID = "inspector" }: {
+  def: Definition;
+  node: DefNode | null;
+  trigger: DefTrigger | null;
+  triggerIndex: number | null;
+  issues: readonly Issue[];
+  keys: readonly KeyChoice[];
+  onChange(next: Definition): void;
+  onClose(): void;
+  onDelete(): void;
+  testID?: string;
+}): ReactElement {
+  const { element, show: openMenu } = useMenu();
+  const errorEntries = (): MenuEntry[] => {
+    const out: MenuEntry[] = [];
+    if (!node) return out;
+    for (const m of ERROR_MODES) {
+      out.push({
+        label: m.label, checked: (node.onError?.mode ?? "fail") === m.mode,
+        onSelect: () => onChange(updateStep(def, node.id, { onError: { mode: m.mode, ...(m.mode === "retry" ? { max: node.onError?.max ?? 3 } : {}), ...(m.mode === "route" && node.onError?.route ? { route: node.onError.route } : {}) } })),
+      });
+    }
+    return out;
+  };
+  const routeEntries = (): MenuEntry[] => {
+    const out: MenuEntry[] = [];
+    if (!node) return out;
+    for (const n of def.nodes) if (n.id !== node.id) out.push({ label: n.title ?? titleOfKey(n.key), onSelect: () => onChange(updateStep(def, node.id, { onError: { mode: "route", route: n.id } })) });
+    return out;
+  };
+  const mine = issues.filter((i) => (node ? i.nodeId === node.id : i.nodeId === "trigger"));
+  const keyName = (id: string | undefined): string => (id ? (keys.find((k) => k.id === id)?.name ?? id) : "Choose a key");
+  const pick = (x: number, y: number, set: (id: string | undefined) => void, none: string): void => {
+    const items: MenuEntry[] = [];
+    for (const k of keyChoices(keys, none, set)) {
+      items.push({ label: k.label, onSelect: k.run });
+      if (items.length === 1) items.push({ separator: true });
+    }
+    openMenu(items, x, y, "other");
+  };
+  if (!node) {
+    const meta = trigger ? triggerMeta(trigger.key, trigger.config) : null;
+    const configFields: ReactElement[] = [];
+    if (trigger && triggerIndex !== null) {
+      for (const [k, v] of Object.entries(trigger.config ?? {})) {
+        if (k === "label") continue;
+        configFields.push(<Field key={k} label={humanize(k)} value={show(v)} onCommit={(t) => onChange(setTriggerConfig(def, triggerIndex, k, t))} />);
+      }
+    }
+    return (
+      <View style={i.pane} testID={testID} accessibilityLabel="Trigger settings">
+        <Head title={meta?.title ?? "Trigger"} sub="Trigger" onClose={onClose} />
+        <ScrollView contentContainerStyle={i.body}>
+          {trigger ? <Text style={i.hint}>{`This is trigger ${(triggerIndex ?? 0) + 1} of ${def.triggers.length}. Any one of them starts a run.`}</Text> : <Text style={i.hint}>Every trigger is listed on the card. Any one starts a run.</Text>}
+          {configFields}
+          <Problems list={mine} />
+        </ScrollView>
+        {element}
+      </View>
+    );
+  }
+  const kind = kindOfKey(node.key);
+  const inputKeys = Object.keys(node.input ?? {});
+  const fields: ReactElement[] = [];
+  const branches = node.branches ?? [];
+  for (let n = 0; n < branches.length; n++) {
+    const b = branches[n]!;
+    if (kind === "paths") {
+      fields.push(
+        <Field
+          key={`${node.id}-p${n}`} label={b.when === undefined ? "Otherwise" : `Path ${n + 1}, if`} value={b.when ?? ""} mono readOnly={b.when === undefined} placeholder="lead.phone is not empty" testID={`field-path-${n}`}
+          onCommit={(t) => onChange(updateStep(def, node.id, { branches: setBranch(node, n, { when: t }) }))}
+        />,
+      );
+    } else if (kind === "parallel") {
+      fields.push(<Field key={`${node.id}-l${n}`} label={`Lane ${n + 1} name`} value={b.label} testID={`field-lane-${n}`} onCommit={(t) => onChange(updateStep(def, node.id, { branches: setBranch(node, n, { label: t }) }))} />);
+    }
+  }
+  for (const k of inputKeys) {
+    fields.push(<Field key={`${node.id}-${k}`} label={humanize(k)} value={show(node.input[k])} testID={`field-${k}`} onCommit={(t) => onChange(updateStep(def, node.id, { input: { ...node.input, [k]: t } }))} />);
+  }
+  return (
+    <View style={i.pane} testID={testID} accessibilityLabel={`${node.title ?? titleOfKey(node.key)} settings`}>
+      <Head title={node.title ?? titleOfKey(node.key)} sub={titleOfKey(node.key)} onClose={onClose} />
+      <ScrollView contentContainerStyle={i.body} keyboardShouldPersistTaps="handled">
+        <Field label="Name" value={node.title ?? ""} placeholder={titleOfKey(node.key)} testID="field-title" onCommit={(t) => onChange(updateStep(def, node.id, { title: t }))} />
+        {fields}
+        {inputKeys.length === 0 && kind === "plain" ? <Text style={i.hint}>Nothing is set on this step yet. Add what it needs in the fields the check names below.</Text> : null}
+        {kind === "ai" ? (
+          <View style={i.group}>
+            <Text style={i.groupHead}>Key</Text>
+            <Choice label="Runs on" value={keyName(node.ai?.keyId)} testID="choose-key" onOpen={(x, y) => pick(x, y, (id) => onChange(updateStep(def, node.id, { ai: withKey(node.ai, "keyId", id) })), "No key")} />
+            <Choice label="Backup" value={keyName(node.ai?.backupKeyId).replace("Choose a key", "No backup")} testID="choose-backup" onOpen={(x, y) => pick(x, y, (id) => onChange(updateStep(def, node.id, { ai: withKey(node.ai, "backupKeyId", id) })), "No backup")} />
+            <Text style={i.hint}>A lost key falls back to the backup, then the run waits in your Needs you. It never fails silently.</Text>
+          </View>
+        ) : null}
+        <View style={i.group}>
+          <Text style={i.groupHead}>If this step fails</Text>
+          <Choice
+            label="Then"
+            value={ERROR_MODES.find((m) => m.mode === (node.onError?.mode ?? "fail"))!.label}
+            testID="choose-error"
+            onOpen={(x, y) => openMenu(errorEntries(), x, y, "other")}
+          />
+          {node.onError?.mode === "retry" ? <Field label="Tries" value={String(node.onError.max ?? 3)} testID="field-retries" onCommit={(t) => onChange(updateStep(def, node.id, { onError: { mode: "retry", max: Math.max(1, Math.min(10, Number.parseInt(t, 10) || 3)) } }))} /> : null}
+          {node.onError?.mode === "route" ? (
+            <Choice
+              label="Go to" value={def.nodes.find((n) => n.id === node.onError?.route)?.title ?? (node.onError.route ? titleOfKey(def.nodes.find((n) => n.id === node.onError?.route)?.key ?? "") : "Choose a step")} testID="choose-route"
+              onOpen={(x, y) => openMenu(routeEntries(), x, y, "other")}
+            />
+          ) : null}
+        </View>
+        <Problems list={mine} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Delete this step" testID="delete-step" onPress={onDelete} style={[i.del, pointer]}>
+          <Glyph name="x" size={13} color="var(--danger)" />
+          <Text style={i.delText}>Delete this step</Text>
+        </Pressable>
+      </ScrollView>
+      {element}
+    </View>
+  );
+}
+
+function Head({ title, sub, onClose }: { title: string; sub: string; onClose(): void }): ReactElement {
+  return (
+    <View style={i.head}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text accessibilityRole="header" numberOfLines={1} style={i.title}>{title}</Text>
+        <Text numberOfLines={1} style={i.sub}>{sub}</Text>
+      </View>
+      <IconButton icon="x" label="Close the step panel" onPress={onClose} testID="close-inspector" />
+    </View>
+  );
+}
+
+function Problems({ list }: { list: readonly Issue[] }): ReactElement | null {
+  if (list.length === 0) return null;
+  const rows: ReactElement[] = [];
+  list.forEach((p, n) => rows.push(
+    <View key={`${p.message}-${n}`} style={i.problem}>
+      <Glyph name="warn" size={13} color={p.severity === "error" ? "var(--danger)" : "var(--warn)"} />
+      <Text style={i.problemText}>{p.message}</Text>
+    </View>,
+  ));
+  return (
+    <View style={i.group} testID="step-problems" accessibilityRole="alert">
+      <Text style={i.groupHead}>{list.some((x) => x.severity === "error") ? "To fix" : "To check"}</Text>
+      {rows}
+    </View>
+  );
+}
+
+/** A labelled text field. The value commits on blur and on Enter; Escape puts the old value back. */
+function Field({ label, value, onCommit, placeholder, mono = false, readOnly = false, testID }: { label: string; value: string; onCommit(v: string): void; placeholder?: string; mono?: boolean; readOnly?: boolean; testID?: string }): ReactElement {
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft ?? value;
+  const done = (): void => { if (draft !== null && draft !== value) onCommit(draft); setDraft(null); };
+  return (
+    <View style={i.field}>
+      <Text style={i.label}>{label}</Text>
+      <TextInput
+        accessibilityLabel={label}
+        testID={testID}
+        value={shown}
+        editable={!readOnly}
+        placeholder={placeholder}
+        placeholderTextColor="var(--ink-4)"
+        onChangeText={setDraft}
+        onBlur={done}
+        onSubmitEditing={done}
+        {...webOnly({ onKeyDown: (e: { key?: string }) => { if (e.key === "Escape") setDraft(null); } })}
+        style={[i.input, mono && { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }, readOnly && { opacity: 0.6 }]}
+      />
+    </View>
+  );
+}
+
+function Choice({ label, value, onOpen, testID }: { label: string; value: string; onOpen(x: number, y: number): void; testID?: string }): ReactElement {
+  const [over, setOver] = useState(false);
+  return (
+    <View style={i.field}>
+      <Text style={i.label}>{label}</Text>
+      <Pressable
+        accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} testID={testID}
+        onPress={(e) => { const ev = e as unknown as { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }; const r = ev.currentTarget?.getBoundingClientRect?.(); onOpen(r?.left ?? ev.nativeEvent?.pageX ?? 0, (r?.bottom ?? ev.nativeEvent?.pageY ?? 0) + 4); }}
+        onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
+        style={[i.choice, over && { backgroundColor: "var(--hover)" as string }, pointer]}
+      >
+        <Text numberOfLines={1} style={i.choiceText}>{value}</Text>
+        <Glyph name="chevD" size={12} color="var(--ink-3)" />
+      </Pressable>
+    </View>
+  );
+}
+
+void ps;
+
+const i = StyleSheet.create({
+  pane: { width: 300, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
+  head: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, height: 52, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  title: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
+  sub: { fontSize: 11.5, color: "var(--ink-3)" as string },
+  body: { padding: 14, gap: 12 },
+  hint: { fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
+  field: { gap: 4 },
+  label: { fontSize: 11.5, color: "var(--ink-3)" as string },
+  input: { height: 30, borderRadius: 7, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--sunk)" as string, paddingHorizontal: 9, fontSize: 13, color: "var(--ink)" as string },
+  group: { gap: 8, paddingTop: 6 },
+  groupHead: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-2)" as string },
+  choice: { height: 30, borderRadius: 7, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--sunk)" as string, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 6 },
+  choiceText: { flex: 1, fontSize: 13, color: "var(--ink)" as string },
+  problem: { flexDirection: "row", alignItems: "flex-start", gap: 7 },
+  problemText: { flex: 1, fontSize: 12, lineHeight: 17, color: "var(--ink-2)" as string },
+  del: { flexDirection: "row", alignItems: "center", gap: 7, height: 30, paddingHorizontal: 9, borderRadius: 7, marginTop: 6 },
+  delText: { fontSize: 13, color: "var(--danger)" as string },
+});

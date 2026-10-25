@@ -537,3 +537,33 @@ test("review with an outside agent: an actor with Use on the folder, never Edit"
   assert.equal(k.db.rows("files_changeset_review").length, 0);
   await expectCode("validation.precondition_failed", () => handlers["changesets.review_externally"](ctx, { changesetId: w.changesetId! }));
 });
+
+test("approve applies a staged move ('<folderId>/<name>' in new_name) through files.move; a deleted target folder is a conflict", async () => {
+  const { k, ctx, agent, docs, plan } = await setup();
+  const run = (sql: string, ...a: unknown[]): unknown => (k.db as unknown as { run(sql: string, ...a: unknown[]): unknown }).run(sql, ...a);
+  const archive = (await handlers["files.folder.create"](ctx, { parentId: docs, name: "Archive" })).folder.folderId;
+  const w = await handlers["files.write"](agent, { fileId: plan, content: { text: "staged" } });
+  const cs = w.changesetId!;
+  // turn the staged write into a move with a new name and nothing else staged (what agent-stage.ts stages for files.move)
+  run("UPDATE files_changeset_file SET status = ?, new_name = ?, content = ? WHERE changeset_id = ?", "renamed", `${archive}/moved.txt`, null, cs);
+  const before = k.db.rows("files_file").find((r) => r["id"] === plan);
+  assert.equal(before?.["folder_id"], docs, "staging does not move the file");
+  const res = await handlers["changesets.approve"](ctx, { changesetId: cs });
+  assert.deepEqual([res.approved, res.conflicts], [true, []]);
+  const after = k.db.rows("files_file").find((r) => r["id"] === plan);
+  assert.deepEqual([after?.["folder_id"], after?.["name"]], [archive, "moved.txt"]);
+  assert.equal(await textOf(ctx, plan), lines(10), "a move alone leaves the content as it was");
+
+  // a second changeset: the folder it moves to is deleted before Approve
+  const gone = (await handlers["files.folder.create"](ctx, { parentId: docs, name: "Gone" })).folder.folderId;
+  const w2 = await handlers["files.write"](agent, { fileId: plan, content: { text: "again" } });
+  run("UPDATE files_changeset_file SET status = ?, new_name = ?, content = ? WHERE changeset_id = ?", "renamed", `${gone}/other.txt`, null, w2.changesetId);
+  run("UPDATE files_folder SET deleted_at = ? WHERE id = ?", 1_760_000_500_000, gone);
+  const bad = await handlers["changesets.approve"](ctx, { changesetId: w2.changesetId! });
+  assert.equal(bad.approved, false);
+  assert.equal(bad.conflicts.length, 1);
+  const still = k.db.rows("files_file").find((r) => r["id"] === plan);
+  assert.deepEqual([still?.["folder_id"], still?.["name"]], [archive, "moved.txt"], "a conflict commits nothing");
+});
+
+// Run on the final commit together with agent-stage.test.ts (P-L4_04b).

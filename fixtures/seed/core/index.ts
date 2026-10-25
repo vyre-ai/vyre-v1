@@ -17,7 +17,7 @@ export { cacheDir, ensureTemplate, templateKey } from "./cache.ts";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, "../../..");
 /** The files whose content defines the seed. */
-export const CORE_SOURCES: readonly string[] = [path.join(HERE, "recipe.ts"), path.join(HERE, "access.ts"), path.join(REPO, "kernel/src/grants/roles.ts")];
+export const CORE_SOURCES: readonly string[] = [path.join(HERE, "recipe.ts"), path.join(HERE, "access.ts"), path.join(REPO, "kernel/src/grants/roles.ts"), path.join(REPO, "kernel/src/authorize/roles.ts"), path.join(REPO, "manifests/permissions.ts")];
 export const registryHash = (): string => fs.readFileSync(path.join(REPO, "generated/hash.txt"), "utf8").trim();
 
 /** The wall time the template is built at, so the same recipe makes the same envelopes. */

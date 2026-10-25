@@ -1,0 +1,12 @@
+{
+  "identifier": "default",
+  "description": "The main window. The page asks the shell for the sidecar address and deep links through our own commands; the plugins listed here are the only native powers it has.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "deep-link:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-is-registered"
+  ]
+}

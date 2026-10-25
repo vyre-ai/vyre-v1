@@ -1017,7 +1017,7 @@
     {
       "deferred": false,
       "name": "changesets_review_externally",
-      "summary": "Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token",
+      "summary": "Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token; returns a one-time review link (the token is in the link, shown once, never logged)",
       "toolset": "files"
     },
     {
@@ -5296,6 +5296,12 @@
       "deferred": false,
       "name": "records_versions",
       "summary": "List versions of a record (One History)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_view",
+      "summary": "Read a saved view of a record type resolved for the table: the view definition and its rows with the saved filter, sort and group applied, a page at a time",
       "toolset": "records"
     },
     {

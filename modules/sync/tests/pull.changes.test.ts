@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { mintUuid } from "../../../lib/ids.ts";
+import { mintRecordId } from "../../../lib/ids.ts";
 import { parsePullRes } from "../../../sync/src/protocol.ts";
 import type { Change, DeviceClass, PullRes } from "../../../sync/src/protocol.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/snapshot.ts";
@@ -31,7 +31,7 @@ async function pull(r: Rig, c: PullCtx, cursor: number, extra: { limit?: number;
 }
 
 async function contact(r: Rig, fields: Record<string, unknown>): Promise<{ id: string; version: number }> {
-  const id = mintUuid();
+  const id = mintRecordId();
   const rec = await r.s.store.create("contact", id, { name: "N", email: "n@example.com", phone: "+1", region: "eu", stage: "lead", owner: ADA, ...fields });
   return { id, version: rec.version };
 }
@@ -318,7 +318,7 @@ test("the change feed is rebuilt from the log: a reopen of the same file and a p
     const access = buildAccess();
     const first = openSync({ access: () => access, clock: () => NOW, path: file });
     await first.store.define({ add_types: [CONTACT_TYPE] });
-    await first.store.create("contact", mintUuid(), { name: "Kept", region: "eu", owner: ADA });
+    await first.store.create("contact", mintRecordId(), { name: "Kept", region: "eu", owner: ADA });
     const before = await first.handlers["sync.pull"](ctx(ADA), { cursor: 0, epoch: 0 });
     first.host.close();
     const second = openSync({ access: () => access, clock: () => NOW, path: file });

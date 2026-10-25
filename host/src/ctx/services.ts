@@ -2,12 +2,15 @@
 // `hostServices` wraps the loader's services function, so InvokeDeps.services = hostServices({ base: loaded.services, ... }) is the whole story.
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { CtxSeed, Invoke, InvokeDeps } from "../invoke.ts";
+import type { BlobStore } from "./blobs.ts";
 import type { ScheduledCall, ScheduleQueue } from "./schedule.ts";
 
 export interface HostServicesOptions {
   base?: InvokeDeps["services"];
   seal: Ctx["seal"];
   queue: ScheduleQueue;
+  /** The blob store behind ctx.blobs; each call gets the handle for the module that owns the capability. Omitted: ctx.blobs is absent. */
+  blobs?: BlobStore;
   /** The Vault's filler for one call (spec 2.20). Omitted: ctx.vault keeps refusing, which is right until the Vault module is live. */
   vault?: (seed: CtxSeed, cap: Parameters<NonNullable<InvokeDeps["services"]>>[1]) => Ctx["vault"];
 }
@@ -17,6 +20,7 @@ export function hostServices(o: HostServicesOptions): NonNullable<InvokeDeps["se
     ...(o.base?.(seed, cap) ?? {}),
     seal: o.seal,
     schedule: o.queue.forCtx(seed),
+    ...(o.blobs ? { blobs: o.blobs.forModule((cap as { module?: string }).module ?? cap.name.split(".")[0]!, seed.trace?.traceId) } : {}),
     ...(o.vault ? { vault: o.vault(seed, cap) } : {}),
   });
 }

@@ -312,12 +312,14 @@ const BODY = (row: string): string => `COALESCE((SELECT group_concat(value, ' ')
 function ensureSearch(tx: Tx, type: string): boolean {
   const fts = `qx_${type}_fts`;
   const trig = `${fts}_ai`;
-  const haveTable = tx.get("SELECT 1 AS x FROM sqlite_master WHERE name = ?", fts) !== undefined;
+  // The prefix index ('1 2 3 4') answers "wor"* from the index instead of walking every term; tables made before it are rebuilt.
+  const haveTable = tx.get("SELECT 1 AS x FROM sqlite_master WHERE name = ? AND sql LIKE '%prefix%'", fts) !== undefined;
+  const staleTable = !haveTable && tx.get("SELECT 1 AS x FROM sqlite_master WHERE name = ?", fts) !== undefined;
   const haveTrig = tx.get("SELECT 1 AS x FROM sqlite_master WHERE type = 'trigger' AND name = ?", trig) !== undefined;
   if (haveTable && haveTrig) return true;
   try {
-    if (haveTable) tx.exec(`DROP TABLE IF EXISTS "${fts}"`);
-    tx.exec(`CREATE VIRTUAL TABLE "${fts}" USING fts5(body)`);
+    if (staleTable || haveTable) tx.exec(`DROP TABLE IF EXISTS "${fts}"`);
+    tx.exec(`CREATE VIRTUAL TABLE "${fts}" USING fts5(body, prefix='1 2 3 4')`);
   } catch { return false; }
   tx.exec(`DROP TRIGGER IF EXISTS "${trig}"`);
   tx.exec(`DROP TRIGGER IF EXISTS "${fts}_au"`);
@@ -351,7 +353,7 @@ export function runSearch(tx: Tx, type: string, q: string, o: { cursor?: string;
     const match = words.map((w) => `"${w}"*`).join(" ");
     rows = tx.all<Raw>(
       `${SELECT} FROM "qx_${type}_fts" JOIN rt_${type} r ON r.rowid = "qx_${type}_fts".rowid LEFT JOIN records_row_meta m ON m.type = ? AND m.id = r.id
-       WHERE "qx_${type}_fts" MATCH ? AND r.deleted_at IS NULL ORDER BY rank, r.id LIMIT ${limit + 1} OFFSET ${skip}`,
+       WHERE "qx_${type}_fts" MATCH ? AND r.deleted_at IS NULL ORDER BY "qx_${type}_fts".rowid LIMIT ${limit + 1} OFFSET ${skip}`,
       type, match,
     );
   } else {

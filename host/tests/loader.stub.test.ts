@@ -165,3 +165,19 @@ test("ctx.http: https to the connector's domains only, redirects included", asyn
   assert.ok(!seen.includes("https://evil.example/x"), "the redirect target was never fetched");
   await assert.rejects(guardedFetch([], TRACE, fakeFetch)("https://api.demo.test/ok"), "a module with no connector has no egress");
 });
+
+test("loader collects each module impl's hostSeams, and refuses two modules offering the same setter", async () => {
+  const t = tiny("stub");
+  const setGoogleHost = (): void => {};
+  const importer = async () => ({ "demo.hello": async () => ({}) });
+  const h = await loadHost({ registry: t.reg, modulesJson: t.list, routes: [], importer, seamImporter: async (id) => (id === "demo" ? { setGoogleHost } : undefined) });
+  assert.equal(h.hostSeams.setGoogleHost, setGoogleHost);
+  const none = await loadHost({ registry: t.reg, modulesJson: t.list, routes: [], importer });
+  assert.deepEqual(none.hostSeams, {});
+  const two: RegistryLike = { modules: [...t.reg.modules, { id: "demo2", owner: "L1", status: "stub" }], capabilities: [...t.reg.capabilities, { name: "demo2.hello", v: 1, module: "demo2" }] };
+  await assert.rejects(
+    () => loadHost({ registry: two, modulesJson: { modules: [...t.list.modules, { id: "demo2", owner: "L1", status: "stub" }] }, routes: [], importer: async (id) => ({ [`${id}.hello`]: async () => ({}) }), seamImporter: async () => ({ setGoogleHost }) }),
+    /offers setGoogleHost, which another module already offers/,
+  );
+});
+// P-H_02 final run: this file shows its own ok line in the run on the last commit.

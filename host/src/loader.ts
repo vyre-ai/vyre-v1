@@ -12,6 +12,7 @@ import type { RawDb } from "./ctx/db.ts";
 import { guardedFetch } from "./ctx/http.ts";
 import type { FetchLike } from "./ctx/http.ts";
 import type { Handler, InvokeDeps } from "./invoke.ts";
+import type { SeamSetters } from "./seams/index.ts";
 
 export interface ModuleListEntry { id: string; owner: string; status: string }
 export interface ModuleList { modules: ModuleListEntry[] }
@@ -23,12 +24,20 @@ export interface RegistryLike {
 }
 export type HandlerMap = Record<string, Handler>;
 export type Importer = (moduleId: string, kind: "stub" | "live") => Promise<HandlerMap>;
+/** What a module's impl.ts exports as `hostSeams`: the setters through which the host hands it a connector seam (Google, Microsoft, IMAP). Undefined when the module has none or no impl. */
+export type SeamImporter = (moduleId: string) => Promise<SeamSetters | undefined>;
+/** Everything a module's impl.ts exports (its consumers and periodic hooks are read from it). Undefined when the module has no impl. */
+export type ExportsImporter = (moduleId: string) => Promise<Record<string, unknown> | undefined>;
 
 export interface LoaderOptions {
   registry: RegistryLike;
   modulesJson: ModuleList;
   routes: readonly RouteRec[];
   importer: Importer;
+  /** collects each module impl's `hostSeams` (ruling 31); omitted: none */
+  seamImporter?: SeamImporter;
+  /** reads the exports of every live module (consumers, periodic hooks); omitted: none */
+  exportsImporter?: ExportsImporter;
   /** the module database; omit and ctx.db refuses every call */
   db?: RawDb;
   fetch?: FetchLike;
@@ -41,6 +50,12 @@ export interface LoadedHost {
   /** module id to what the host serves for it */
   serving: ReadonlyMap<string, "stub" | "live">;
   stubModules(): string[];
+  /** every setter the modules exported as hostSeams, merged; the daemon wires the seams through them */
+  hostSeams: SeamSetters;
+  /** setter name to the module that exported it */
+  seamOwners: ReadonlyMap<string, string>;
+  /** the exports of each live module's impl.ts, by module id */
+  moduleExports: ReadonlyMap<string, Record<string, unknown>>;
 }
 
 /** Where 0.6-style files live: generated/modules/<id>/stub-impl.ts for a stub, modules/<id>/impl.ts once live. */
@@ -50,6 +65,23 @@ export function fileImporter(root: string): Importer {
     const m = (await import(pathToFileURL(`${root.replace(/\/$/, "")}/${rel}`).href)) as { handlers?: HandlerMap };
     if (!m.handlers) throw new Error(`${rel} exports no handlers`);
     return m.handlers;
+  };
+}
+
+/** modules/<id>/impl.ts `hostSeams`. A module with no impl file, or no such export, has no seam; a file that fails to load is skipped here (a live module's failure is already reported by the handlers import). */
+export function fileSeamImporter(root: string): SeamImporter {
+  return async (id) => {
+    try {
+      const m = (await import(pathToFileURL(`${root.replace(/\/$/, "")}/modules/${id}/impl.ts`).href)) as { hostSeams?: SeamSetters };
+      return m.hostSeams;
+    } catch { return undefined; }
+  };
+}
+
+/** modules/<id>/impl.ts as a whole. The same file the handlers import, so a setter called on it reaches the instance the handlers run. */
+export function fileExportsImporter(root: string): ExportsImporter {
+  return async (id) => {
+    try { return (await import(pathToFileURL(`${root.replace(/\/$/, "")}/modules/${id}/impl.ts`).href)) as Record<string, unknown>; } catch { return undefined; }
   };
 }
 
@@ -88,6 +120,30 @@ export async function loadHost(o: LoaderOptions): Promise<LoadedHost> {
       else problems.push(`module ${m.id} (${kind}) has no handler for ${c.name}`);
     }
   }
+  // 3b host seams: each module impl's exported setters, merged (two modules offering the same setter is a boot error)
+  const hostSeams: SeamSetters = {};
+  const seamOwners = new Map<string, string>();
+  if (o.seamImporter) {
+    for (const m of o.registry.modules) {
+      if (!o.registry.capabilities.some((c) => c.module === m.id)) continue;
+      const s = await o.seamImporter(m.id);
+      for (const [k, fn] of Object.entries(s ?? {})) {
+        if (typeof fn !== "function") continue;
+        if ((hostSeams as Record<string, unknown>)[k]) problems.push(`module ${m.id} offers ${k}, which another module already offers`);
+        (hostSeams as Record<string, unknown>)[k] = fn;
+        seamOwners.set(k, m.id);
+      }
+    }
+  }
+  // 3c the exports of the live modules: where the host finds their consumers and periodic hooks
+  const moduleExports = new Map<string, Record<string, unknown>>();
+  if (o.exportsImporter) {
+    for (const [id, kind] of serving) {
+      if (kind !== "live") continue;
+      const ns = await o.exportsImporter(id);
+      if (ns) moduleExports.set(id, ns);
+    }
+  }
   if (problems.length) throw new Error(`host boot refused:\n- ${problems.join("\n- ")}`);
 
   // 4 per-module egress lists
@@ -108,6 +164,7 @@ export async function loadHost(o: LoaderOptions): Promise<LoadedHost> {
     },
     match,
     serving,
+    hostSeams, seamOwners, moduleExports,
     stubModules: () => [...serving].filter(([, k]) => k === "stub").map(([id]) => id),
   };
 }
