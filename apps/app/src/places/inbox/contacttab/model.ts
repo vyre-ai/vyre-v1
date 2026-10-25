@@ -75,6 +75,12 @@ export function headerRef(i: ThreadItem): HeaderChip | null {
   if (r["header"] !== true) return null;
   return { title: i.title ?? "Record", ...(i.recordId ? { recordId: i.recordId } : {}), ...(str(r["company"]) ? { company: str(r["company"]) as string } : {}) };
 }
+/** The To chips: the contact's own address shows as their name, other addresses as they are. */
+export function namedTo(to: readonly string[], address: string, name: string | null): (string | { email: string; name: string })[] {
+  const out: (string | { email: string; name: string })[] = [];
+  for (const a of to) out.push(name !== null && a === address ? { email: a, name } : a);
+  return out;
+}
 export const headerOf = (items: readonly ThreadItem[]): HeaderChip | null => { for (const i of items) { const h = headerRef(i); if (h) return h; } return null; };
 
 export function smsRef(i: ThreadItem): SmsRef {

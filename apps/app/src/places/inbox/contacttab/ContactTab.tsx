@@ -19,7 +19,7 @@ import { Icon } from "./icons.tsx";
 import type { IconName } from "./icons.tsx";
 import { followMenuEntries, fromMenuEntries, quickEntries, templateEntries } from "./menus.ts";
 import {
-  buildFeed, canSend, cannedLists, choicesFor, draftCards, headerOf, initialDraft, pickInbox, sendBlocker, startChannel, textTarget,
+  buildFeed, canSend, cannedLists, choicesFor, draftCards, headerOf, initialDraft, namedTo, pickInbox, sendBlocker, startChannel, textTarget,
 } from "./model.ts";
 import type { Chan, ComposerDraft, DraftCard, DraftRow, InboxChoice, SendOptions, ThreadOut } from "./model.ts";
 import { Bubbles, CallLine, DaySep, DraftBlock, EmailItem, QuietLine } from "./parts.tsx";
@@ -281,7 +281,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             {...(mail ? {
               recipients: (
                 <View>
-                  <Recipients to={draft.to.map((a) => (a === conv.address && !unmatched ? { email: a, name: conv.displayName } : a))} cc={draft.cc} bcc={draft.bcc} me={inbox?.address ?? ""} onChange={(r) => patch({ to: r.to, cc: r.cc, bcc: r.bcc })} testID="contact-recipients" />
+                  <Recipients to={namedTo(draft.to, conv.address, unmatched ? null : conv.displayName)} cc={draft.cc} bcc={draft.bcc} me={inbox?.address ?? ""} onChange={(r) => patch({ to: r.to, cc: r.cc, bcc: r.bcc })} testID="contact-recipients" />
                   <TextInput
                     accessibilityLabel="Subject" placeholder="Subject" placeholderTextColor="var(--ink-3)" value={draft.subject} onChangeText={(t) => patch({ subject: t })} testID="contact-subject"
                     style={s.subject}
