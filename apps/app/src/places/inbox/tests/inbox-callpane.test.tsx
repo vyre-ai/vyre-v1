@@ -19,6 +19,7 @@ test("a call belongs to a conversation by the record, else by the number", () =>
   const conv = { id: "elena", contactId: "ct_elena", address: "+1 415 555 0161" };
   assert.ok(callIsWith(conv, "+1 415 555 0161", "ct_elena"));
   assert.ok(!callIsWith(conv, "+1 415 555 0161", "ct_other"), "the record wins when both know it");
+  assert.ok(callIsWith({ id: "marcus", address: "marcus@pruittco.example" }, "+1 415 555 0188", undefined, ["+1 415 555 0188"]), "a person keyed by email, matched by the phone on their thread");
   assert.ok(callIsWith({ id: "u", address: "+1 628 555 0194" }, "(628) 555-0194", undefined), "an unmatched number by its digits");
   assert.ok(!callIsWith(conv, "", undefined));
   assert.deepEqual(["idle", "calling", "incoming", "live", "held", "ended"].map(showsCall), [false, false, false, true, true, true]);

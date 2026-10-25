@@ -7,10 +7,17 @@ import { sameNumber } from "../softphone/model.ts";
 import type { ConversationKey } from "../softphone/phone.tsx";
 
 /** Is this call with this conversation's person? By the record when both know it, else by the number. */
-export function callIsWith(conv: ConversationKey, peer: string, callerRecordId: string | undefined): boolean {
+export function callIsWith(conv: ConversationKey, peer: string, callerRecordId: string | undefined, numbers: readonly string[] = []): boolean {
   if (peer === "") return false;
   if (callerRecordId !== undefined && conv.contactId !== undefined) return callerRecordId === conv.contactId;
-  return sameNumber(conv.address, peer);
+  return sameNumber(conv.address, peer) || numbers.some((n) => sameNumber(n, peer));
+}
+
+/** The numbers this person has texted or called from, read off their thread (a person's conversation is keyed by their email, their phones are on what they sent). */
+export function numbersOfThread(items: readonly ThreadItem[]): string[] {
+  const out = new Set<string>();
+  for (const i of items) { const a = (i as { ref?: { address?: unknown } }).ref?.address; if (typeof a === "string" && !a.includes("@")) out.add(a); }
+  return [...out];
 }
 
 const KIND: Partial<Record<ThreadItem["kind"], "mail" | "sms" | "call" | "vm">> = { email: "mail", sms: "sms", call: "call", meeting: "call" };

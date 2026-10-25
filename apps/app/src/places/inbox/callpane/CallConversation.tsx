@@ -10,7 +10,7 @@ import { ContactTab } from "../contacttab/index.ts";
 import type { ContactTabProps, ThreadOut } from "../contacttab/index.ts";
 import { useInboxData, useScreenQuery } from "../sidebar/data.tsx";
 import { usePhone } from "../softphone/phone.tsx";
-import { callIsWith, cardOf, showsCall } from "./model.ts";
+import { callIsWith, cardOf, numbersOfThread, showsCall } from "./model.ts";
 import type { OpenTask } from "./model.ts";
 
 export interface CallConversationProps extends ContactTabProps {
@@ -35,30 +35,33 @@ export function CallConversation({ tasks = [], ...tab }: CallConversationProps):
 
   const state = phone?.state();
   const view = phone?.view();
-  const mine = !!(key && state && view && showsCall(state.phase) && callIsWith(key, state.peer, view.caller?.recordId));
+  const numbers = thread.status === "ready" ? numbersOfThread(thread.data.items) : [];
+  const mine = !!(key && state && view && showsCall(state.phase) && callIsWith(key, state.peer, view.caller?.recordId, numbers));
+  // the bar names the person whose conversation this is, even when the dock only knew a number
+  const shown = mine && view && conv ? { ...view, caller: { number: view.caller?.number ?? state?.peer ?? "", ...view.caller, name: view.caller?.name ?? conv.displayName, ...(conv.contactId ? { recordId: conv.contactId } : {}) } } : view;
   const clock = data.clock();
   const card = thread.status === "ready" ? cardOf(thread.data.items, tasks, clock.now, clock.offsetMin) : { last: [], tasks };
 
   return (
     <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }} testID="call-conversation">
       <View style={{ flex: 1, minWidth: 0 }}>
-        {mine && view ? (
+        {mine && shown ? (
           <View testID="call-header" style={{ borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, backgroundColor: "var(--side)" as string }}>
-            {view.mode === "ended" ? <Softphone {...view} placement="inline" /> : <CallBar {...view} />}
+            {shown.mode === "ended" ? <Softphone {...shown} placement="inline" /> : <CallBar {...shown} />}
           </View>
         ) : null}
         <ContactTab {...tab} />
       </View>
-      {mine && view ? (
+      {mine && shown ? (
         <SidePane paneKey="inbox-call" toggle={{ open: paneOpen, onPress: () => setPaneOpen((o) => !o) }} tabs={TAB} activeTab="call" title="Call">
           <CallPane
-            caller={view.caller}
+            caller={shown.caller}
             notes={phone?.notes() ?? ""}
-            recording={view.recording}
-            consent={view.consent}
+            recording={shown.recording}
+            consent={shown.consent}
             card={card}
             onNotes={(t) => phone?.setNotes(t)}
-            {...(view.onOpenRecord ? { onOpenRecord: view.onOpenRecord } : {})}
+            {...(shown.onOpenRecord ? { onOpenRecord: shown.onOpenRecord } : {})}
           />
         </SidePane>
       ) : null}
