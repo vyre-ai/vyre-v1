@@ -1,6 +1,7 @@
 // @reads /modules/previews/handlers/render.ts
 // @reads /modules/previews/projections.ts
 // @reads /modules/previews/migrations/0001_previews_core.sql
+// @reads /modules/previews/migrations/0002_blob_images.sql
 // Previews: the readers (pictures, zip, Office, PDF) on files built in the test, then the capabilities over a fake files module and fake converters: png, jpeg, pdf, docx, xlsx, pptx, text, failures, versions.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -12,7 +13,7 @@ import {
   MAX_TEXT, classify, decodePng, encodePng, officeExtract, pdfPageCount, pdfTextPure, probeImage, readZip, scaleRaster,
 } from "../handlers/render.ts";
 import { bmpHeader, docx, gifHeader, gradient, jpegHeader, odt, pdf, png, pptx, rawPng, solid, webp, xlsx, zip } from "../fixtures/make.ts";
-import { dimsOf, harness } from "../fixtures/world.ts";
+import { blobOf, dimsOf, harness } from "../fixtures/world.ts";
 import type { World } from "../fixtures/world.ts";
 
 type Row = Record<string, unknown>;
@@ -30,7 +31,6 @@ async function expectCode(code: string, run: () => Promise<unknown>): Promise<vo
 
 const call = (w: World, cap: keyof typeof handlers, input: Row, ctx?: Ctx): Promise<Row> => (handlers[cap] as (c: Ctx, i: unknown) => Promise<Row>)(ctx ?? w.ctx, input);
 const enc = (s: string): Uint8Array => new TextEncoder().encode(s);
-const dataOf = (bytes: Uint8Array): string => `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`;
 
 async function with_(run: (w: World) => Promise<void>): Promise<void> {
   const w = harness();
@@ -190,7 +190,7 @@ test("a png: thumbnails at every size are scaled here and never enlarged; the se
   const m = await call(w, "previews.get", { fileId: f.fileId });
   const readsAfterFirst = w.files.reads.length;
   assert.deepEqual([m["ready"], m["width"], m["height"]], [true, 256, 128]);
-  assert.deepEqual(dimsOf(String(m["url"])), { width: 256, height: 128 });
+  assert.deepEqual(dimsOf(w, String(m["url"])), { width: 256, height: 128 });
   assert.equal(m["pages"], undefined);
   const dims = async (size: string): Promise<[number, number]> => { const r = await call(w, "previews.get", { fileId: f.fileId, size }); return [Number(r["width"]), Number(r["height"])]; };
   assert.deepEqual([await dims("s"), await dims("l"), await dims("xl")], [[96, 48], [640, 320], [1000, 500]]);
@@ -202,7 +202,7 @@ test("a png: thumbnails at every size are scaled here and never enlarged; the se
   const small = png(50, 40, [1, 2, 3, 255]);
   const s = w.files.add("icon.png", "image/png", small);
   const xl = await call(w, "previews.get", { fileId: s.fileId, size: "xl" });
-  assert.equal(xl["url"], dataOf(small));
+  assert.deepEqual(blobOf(w, String(xl["url"])).bytes, small, "the picture is kept as it is, in a blob");
   assert.deepEqual([xl["width"], xl["height"]], [50, 40]);
 }));
 
@@ -213,7 +213,7 @@ test("thumbnails for a grid: ready ones with their size, the rest not ready, an 
   const r = await call(w, "previews.thumbnails", { fileIds: [a.fileId, "fil_missing", t.fileId, b.fileId], size: "s" });
   const items = r["items"] as Row[];
   assert.deepEqual(items.map((i) => [i["fileId"], i["ready"], i["width"], i["height"]]), [[a.fileId, true, 96, 72], ["fil_missing", false, undefined, undefined], [t.fileId, false, undefined, undefined], [b.fileId, true, 10, 10]]);
-  assert.match(String(items[0]?.["url"]), /^data:image\/png;base64,/);
+  assert.match(String(items[0]?.["url"]), /^\/spaces\/spc_test\/blobs\/blb_[0-9a-f]{32}$/);
   await expectCode("validation.bad_input", () => call(w, "previews.thumbnails", { fileIds: [] }));
   await expectCode("validation.bad_input", () => call(w, "previews.thumbnails", { fileIds: Array.from({ length: 201 }, (_v, i) => `fil_${i}`) }));
   await expectCode("validation.bad_input", () => call(w, "previews.thumbnails", { fileIds: [a.fileId], size: "huge" }));

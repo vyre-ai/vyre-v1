@@ -3,6 +3,7 @@
 import { createFakeReplica, createScreenHooks } from "../../../../../../client/src/index.ts";
 import type { FakeReplica, Row } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
+import { namesFor, nameOf } from "../../../fixtures/index.ts";
 import type { Connection, HelperChatData, HelperNav } from "./data.tsx";
 import type { Message, Thread } from "./model.ts";
 
@@ -12,7 +13,7 @@ const at = (h: number, min: number, sec = 0): number => Date.UTC(2025, 9, 24, h,
 
 export type Variant = "done" | "running";
 
-export const NAMES: Record<string, string> = { agt_research: "Research", agt_scout: "Scout", usr_irfad: "You" };
+export const NAMES: Record<string, string> = namesFor("northwind", { usr_irfad: "You" });
 
 function build(variant: Variant): { thread: Thread; messages: Message[] } {
   const done = variant === "done";
@@ -93,7 +94,7 @@ export function createSample(variant: Variant = "done", o: { online?: boolean } 
     },
     connection,
     threadId: thread.threadId,
-    nameOf: (id) => NAMES[id] ?? id,
+    nameOf: (id) => NAMES[id] ?? nameOf("northwind", id),
     nav,
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
   };

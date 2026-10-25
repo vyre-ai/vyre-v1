@@ -5,6 +5,9 @@
 import { createFakeReplica, createScreenHooks, liveQuery } from "../../../../../../client/src/index.ts";
 import type { FakeReplica, LiveQuery, Row, Tables } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
+import { PROTO_CHN, PROTO_SPACE_TYPES } from "../../../fixtures/prototype-data.ts";
+import { PROTO_CLIENT_COUNT, protoClients } from "../../../fixtures/prototype-clients.ts";
+import { nameOf, namesFor, peopleFor } from "../../../fixtures/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { Connection, LiveCap, RecordsData, RecordsNav } from "../sidebar/data.tsx";
 import type { TypeRow, ViewRow } from "../sidebar/model.ts";
@@ -39,7 +42,11 @@ const CLIENT_FIELDS: FieldDef[] = [
   f("notes", "longtext", "Notes"),
 ];
 
-export interface SampleSpace { id: Variant; name: string; types: TypeDef[]; counts: Record<string, number>; views: ViewRow[]; people: Record<string, string>; me: string }
+export interface SampleSpace {
+  id: Variant; name: string; types: TypeDef[]; counts: Record<string, number>; views: ViewRow[]; people: Record<string, string>; me: string;
+  /** Rows to use as they are, by type key, in place of the generated ones (the prototype Spaces). */
+  rows?: Record<string, Row[]>;
+}
 
 const FIRST = ["Elena", "Marcus", "Priya", "Dana", "Tomas", "Hannah", "Wei", "Grace", "Jonas", "Sofia", "Nina", "Ben", "Kai", "Abel", "June", "Ines", "Theo", "Omar", "Lena", "Sam"] as const;
 const LAST = ["Rivera", "Pruitt", "Nair", "Whitfield", "Berg", "Cole", "Zhang", "Mbeki", "Keller", "Alvarez", "Petrova", "Okafor", "Moreno", "Daughters", "Costa", "Lindqvist", "Haddad", "Ortiz", "Patel", "Chen"] as const;
@@ -50,12 +57,12 @@ const OWNERS = ["usr_irfad", "usr_maya", "usr_omar", "usr_lena", "usr_sam"] as c
 const SOURCE = ["web", "referral", "event", "ad"] as const;
 
 /** One sample client; `i` makes it unique and keeps the pattern stable between runs. */
-export function client(i: number): RecordRow {
+export function client(i: number, owners: readonly string[] = OWNERS): RecordRow {
   const first = FIRST[i % FIRST.length]!, last = LAST[(i * 7 + (i >> 4)) % LAST.length]!;
   return {
     id: `cl_${i}`, type: "clients", version: 1, label: 1, createdAt: SAMPLE_NOW - (i + 1) * 3_600_000, updatedAt: SAMPLE_NOW - i * 60_000, holds: 0,
     fields: {
-      name: `${first} ${last}${i >= LAST.length * 2 ? ` ${i}` : ""}`, status: STATUS[i % STATUS.length], owner: OWNERS[i % OWNERS.length], value: { amount: 1000 + ((i * 7919) % 90000), currency: "USD" },
+      name: `${first} ${last}${i >= LAST.length * 2 ? ` ${i}` : ""}`, status: STATUS[i % STATUS.length], owner: owners[i % owners.length], value: { amount: 1000 + ((i * 7919) % 90000), currency: "USD" },
       stage: STAGE[i % STAGE.length], due: SAMPLE_NOW + ((i % 30) - 6) * DAY, company: COMPANY[i % COMPANY.length], email: `${first.toLowerCase()}.${last.toLowerCase()}@example.test`,
       phone: `+1 415 555 ${String(100 + (i % 900)).padStart(4, "0")}`, rating: 1 + (i % 5), active: i % 3 === 0, source: SOURCE[i % SOURCE.length], notes: "",
     },
@@ -76,19 +83,92 @@ export const northwind: SampleSpace = {
     { viewId: "vw_active", type: "clients", kind: "table", title: "Active clients", shared: true, ownerId: "usr_maya", filter: { field: "status", op: "eq", value: "active" }, sort: [{ field: "value", dir: "desc" }], hidden: ["notes"], updatedAt: SAMPLE_NOW },
     { viewId: "vw_mine", type: "clients", kind: "table", title: "My clients", shared: false, ownerId: "usr_irfad", filter: { field: "owner", op: "eq", value: "usr_irfad" }, updatedAt: SAMPLE_NOW },
   ],
-  people: { usr_irfad: "Irfad Imtiaz", usr_maya: "Maya Chen", usr_omar: "Omar Haddad", usr_lena: "Lena Ortiz", usr_sam: "Sam Patel" },
+  people: peopleFor("northwind", OWNERS),
 };
 
 export const harbor: SampleSpace = {
-  id: "harbor", name: "Harbor Studio", me: "usr_irfad",
+  id: "harbor", name: "Harbor Studio", me: "usr_june",
   types: [
     def("clients", "Client", "Clients", "people", "name", CLIENT_FIELDS.slice(0, 6)),
     def("projects", "Project", "Projects", "project", "name", [f("name", "text", "Name"), f("status", "status", "Status", stages(["planning", "Planning"], ["active", "Active"], ["done", "Done"])), f("due", "date", "Due")], { system: true, template: "project", group: "Projects" }),
   ],
   counts: { clients: 6, projects: 3 },
   views: [],
-  people: { usr_irfad: "Irfad Imtiaz", usr_ines: "Ines Costa", usr_theo: "Theo Lindqvist" },
+  people: peopleFor("harbor", ["usr_june", "usr_ines", "usr_theo"]),
 };
+
+// ---------------------------------------------------------------- the prototype Spaces
+// Northwind Clients and the Harbor Studio types, read from the prototype through fixtures/prototype-data.ts and fixtures/prototype-clients.ts. `northwind` and `harbor` above stay the
+// small sets the table's own tests count; the screenshot mounts use these.
+
+const slug = (t: string): string => t.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+const hueChoices = (list: readonly (readonly [string, number | null])[]): Record<string, unknown> => choices(...list.map(([t, h]): [string, string, string?] => (h === null ? [slug(t), t] : [slug(t), t, String(h)])));
+const dayMs = (iso: string): number => Date.parse(`${iso}T00:00:00Z`);
+
+const STATUS_OPTIONS: readonly (readonly [string, number | null])[] = [["Lead", 220], ["Consult booked", 270], ["Active", 145], ["On hold", 35], ["Closed", null]];
+const SOURCE_OPTIONS: readonly (readonly [string, number | null])[] = [["Referral", 160], ["Website", 205], ["Event", 330], ["Partner", 35]];
+
+const PROTO_CLIENT_FIELDS: FieldDef[] = [
+  f("name", "text", "Name"),
+  f("status", "choice", "Status", hueChoices(STATUS_OPTIONS)),
+  f("owner", "person", "Owner"),
+  f("fit", "rating", "Fit"),
+  f("since", "date", "Client since"),
+  f("fch", "choice", "First channel", hueChoices(PROTO_CHN as readonly (readonly [string, number | null])[])),
+  f("lch", "choice", "Latest channel", hueChoices(PROTO_CHN as readonly (readonly [string, number | null])[])),
+  f("source", "choice", "How did you hear about us", hueChoices(SOURCE_OPTIONS)),
+];
+
+function protoNorthwind(): SampleSpace {
+  const idOf = Object.fromEntries(Object.entries(namesFor("northwind")).map(([id, name]) => [name, id]));
+  const rows = protoClients().map((c) => ({
+    id: `cl_${c.id}`, type: "clients", version: 1, label: 1, createdAt: dayMs(c.since), updatedAt: dayMs(c.since), holds: 0,
+    fields: { name: c.name, status: slug(c.status), owner: idOf[c.owner] ?? c.owner, ...(c.fit === null ? {} : { fit: c.fit }), since: dayMs(c.since), fch: slug(c.fch), lch: slug(c.lch), source: slug(c.source) },
+  })) as unknown as Row[];
+  const base = northwind;
+  return {
+    ...base,
+    types: [def("clients", "Client", "Clients", "people", "name", PROTO_CLIENT_FIELDS), ...base.types.filter((t) => t.key !== "clients")],
+    counts: { ...base.counts, clients: PROTO_CLIENT_COUNT },
+    views: [
+      { viewId: "vw_active", type: "clients", kind: "table", title: "Active clients", shared: true, ownerId: "usr_maya", filter: { field: "status", op: "eq", value: "active" }, sort: [{ field: "since", dir: "desc" }], updatedAt: SAMPLE_NOW },
+      { viewId: "vw_mine", type: "clients", kind: "table", title: "My clients", shared: false, ownerId: "usr_irfad", filter: { field: "owner", op: "eq", value: "usr_maya" }, updatedAt: SAMPLE_NOW },
+    ],
+    rows: { clients: rows },
+  };
+}
+
+/** Harbor Studio's Records: the prototype's Clients and Jobs types with their three rows each. Owners are Noor Hashmi and Ravi Menon, as the prototype has them. */
+function protoHarbor(): SampleSpace {
+  const owners: Record<string, string> = { "Noor Hashmi": "usr_noor", "Ravi Menon": "usr_ravi" };
+  const hc = PROTO_SPACE_TYPES["hclients"]!, hj = PROTO_SPACE_TYPES["hjobs"]!;
+  const fieldOf = (d: (typeof hc)["fields"][number]): FieldDef => {
+    const opts = d.options ? hueChoices(d.options) : undefined;
+    if (d.type === "status") return f(d.id, "choice", d.name, opts);
+    if (d.type === "relation") return f(d.id, "text", d.name);
+    return f(d.id, d.type, d.name, opts);
+  };
+  const clientNames = hc.rows.map((r) => String(r["name"]));
+  const toRows = (type: string, d: typeof hc, map: (r: Record<string, unknown>) => Record<string, unknown>): Row[] => d.rows.map((r, i) => ({
+    id: `${type}_${i}`, type, version: 1, label: 1, createdAt: SAMPLE_NOW - i * DAY, updatedAt: SAMPLE_NOW - i * DAY, holds: 0, fields: map(r),
+  })) as unknown as Row[];
+  const clientRows = toRows("clients", hc, (r) => ({ name: r["name"], status: slug(String(r["status"])), owner: owners[String(r["owner"])] ?? r["owner"], email: r["email"] }));
+  const jobRows = toRows("jobs", hj, (r) => ({ title: r["title"], client: clientNames[Number(String((r["client"] as string[])[0]).replace(/\D/g, ""))] ?? "", stage: slug(String(r["stage"])), due: dayMs(String(r["due"])) }));
+  return {
+    id: "harbor", name: "Harbor Studio", me: "usr_june",
+    types: [
+      def("clients", hc.meta.one, hc.meta.title, "people", hc.meta.primary, hc.fields.map(fieldOf)),
+      def("jobs", hj.meta.one, hj.meta.title, "project", hj.meta.primary, hj.fields.map(fieldOf)),
+    ],
+    counts: { clients: clientRows.length, jobs: jobRows.length },
+    views: [],
+    people: namesFor("harbor", { usr_noor: "Noor Hashmi", usr_ravi: "Ravi Menon" }),
+    rows: { clients: clientRows, jobs: jobRows },
+  };
+}
+
+export const protoNorthwindSpace: SampleSpace = protoNorthwind();
+export const protoHarborSpace: SampleSpace = protoHarbor();
 
 // ---------------------------------------------------------------- the replica
 
@@ -136,18 +216,22 @@ export function createSampleRecords(space: SampleSpace = northwind, o: { online?
   const bulk = o.bulk ?? 0;
 
   // the rows: a handful of named clients and the bulk after them
+  // owners come from the Space's own people, so a Harbor row never names a Northwind teammate
+  const owners = Object.keys(space.people).filter((id) => id.startsWith("usr_"));
   const seeded = Math.min(space.counts["clients"] ?? 0, 14);
   const clients: Row[] = [];
-  for (let i = 0; i < seeded; i++) clients.push(client(i) as unknown as Row);
-  for (let i = seeded; i < seeded + bulk; i++) clients.push(client(i) as unknown as Row);
-  replica.put("records:clients", clients);
+  for (let i = 0; i < seeded; i++) clients.push(client(i, owners) as unknown as Row);
+  for (let i = seeded; i < seeded + bulk; i++) clients.push(client(i, owners) as unknown as Row);
+  const given = space.rows?.["clients"];
+  replica.put("records:clients", given ? [...given, ...Array.from({ length: bulk }, (_, k) => ({ ...(given[k % given.length] as Row), id: `cl_x${k}` }))] : clients);
   for (const t of space.types) {
     if (t.key === "clients") continue;
+    if (space.rows?.[t.key]) { replica.put(`records:${t.key}`, space.rows[t.key] as Row[]); continue; }
     const n = space.counts[t.key] ?? 0;
     const rows: Row[] = [];
     for (let i = 0; i < n; i++) {
       const fields: Record<string, unknown> = {};
-      for (const fd of t.fields) fields[fd.key] = fd.type === "text" ? `${t.title} ${i + 1}` : fd.type === "person" ? "usr_maya" : fd.type === "money" ? { amount: 100 * (i + 1), currency: "USD" } : fd.type === "date" || fd.type === "datetime" ? SAMPLE_NOW + i * DAY : fd.type === "number" ? 5 + i : fd.type === "status" || fd.type === "choice" ? (optionKeys(fd)[i % Math.max(1, optionKeys(fd).length)] ?? "") : "";
+      for (const fd of t.fields) fields[fd.key] = fd.type === "text" ? `${t.title} ${i + 1}` : fd.type === "person" ? (owners[1] ?? space.me) : fd.type === "money" ? { amount: 100 * (i + 1), currency: "USD" } : fd.type === "date" || fd.type === "datetime" ? SAMPLE_NOW + i * DAY : fd.type === "number" ? 5 + i : fd.type === "status" || fd.type === "choice" ? (optionKeys(fd)[i % Math.max(1, optionKeys(fd).length)] ?? "") : "";
       rows.push({ id: `${t.key}_${i}`, type: t.key, version: 1, label: 1, createdAt: SAMPLE_NOW, updatedAt: SAMPLE_NOW, holds: 0, fields } as unknown as Row);
     }
     replica.put(`records:${t.key}`, rows);
@@ -212,7 +296,7 @@ export function createSampleRecords(space: SampleSpace = northwind, o: { online?
       return w(input as never);
     },
     connection, nav,
-    nameOf: (id) => space.people[id] ?? id,
+    nameOf: (id) => space.people[id] ?? nameOf(space.id, id),
   };
   return { data, replica, calls, opened, setOnline(v) { online = v; for (const l of [...listeners]) l(); } };
 }
