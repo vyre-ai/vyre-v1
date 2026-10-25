@@ -91,7 +91,7 @@ test("the Journey types tree: a Journey types head with its count and a plus, ea
   assert.ok(has(out, 'data-testid="journey-count-jrn_onboard"') && has(out, "Client onboarding") && has(out, "Matter intake"));
   assert.ok(has(out, 'data-testid="journeys-note"') && has(out, "cloned from the Projects template"));
   assert.ok(!has(out, "New lead follow-up"), "the Automations are not on this tab");
-  assert.match(tag(out, "row-journey-jrn_onboard"), /aria-selected="true"/);
+  assert.match(tag(out, "row-journey-jrn_onboard"), /background-color:var\(--sel\)/, "the open Journey takes the quiet selected highlight");
 });
 
 test("the Fields tab: the template's fields with their types, then the Journey's own", () => {
