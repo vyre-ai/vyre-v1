@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { mintUuid } from "../../../lib/ids.ts";
+import { mintRecordId } from "../../../lib/ids.ts";
 import { applyScoped, handlers as loaderHandlers, openSchema } from "../impl.ts";
 import { convertValue, parseCsv } from "../handlers/apply.ts";
 import { COMPANY, PERSON } from "../fixtures/seed.ts";
@@ -30,7 +30,7 @@ async function base(k: Kit): Promise<void> {
   await k.h["schema.apply"](k.ctx, { ops: [COMPANY, PERSON] });
 }
 const person = (k: Kit, data: Record<string, unknown>) => {
-  const id = mintUuid();
+  const id = mintRecordId();
   return k.s.store.create("acme_person", id, { name: "N", ...data }).then(() => id);
 };
 
@@ -180,9 +180,9 @@ test("relations are made and dropped as pairs; dropping a type needs its relatio
   assert.deepEqual(person0.options, { target: "acme_company", inverse: "staff" });
   assert.deepEqual((await k.h["schema.types.get"](k.ctx, { type: "acme_company" })).type.fields.find((f) => f.key === "staff")!.options, { target: "acme_person", inverse: "employer" });
 
-  const co = mintUuid();
+  const co = mintRecordId();
   await k.s.store.create("acme_company", co, { name: "Acme" });
-  const p = mintUuid();
+  const p = mintRecordId();
   await k.s.store.create("acme_person", p, { name: "Ann", employer: [{ urn: `vyre://sp_schema/acme_company/${co}` }] });
 
   const blocked = await k.h["schema.diff"](k.ctx, { ops: [{ op: "type.drop", type: "acme_company" }] });
@@ -298,8 +298,8 @@ test("field rules: types, options, formulas, lookups, rollups, uniqueness and de
   assert.match(await one({ op: "field.rename", type: "line", field: "qty", newKey: "count" }), /used by line\.total/);
   assert.match(await one({ op: "field.drop", type: "line", field: "name" }), /title, summary, status or owner/);
 
-  await k.s.store.create("line", mintUuid(), { name: "a", price: 1 });
-  await k.s.store.create("line", mintUuid(), { name: "b", price: 1 });
+  await k.s.store.create("line", mintRecordId(), { name: "a", price: 1 });
+  await k.s.store.create("line", mintRecordId(), { name: "b", price: 1 });
   assert.match(await one({ op: "field.update", type: "line", field: "price", def: { unique: true } }), /duplicate values/);
   assert.equal(await one({ op: "field.update", type: "line", field: "qty", def: { unique: true } }), "");
   assert.match(await one({ op: "field.update", type: "line", field: "qty", def: { type: "text" } }), /cannot be changed with field\.update/);
@@ -437,7 +437,7 @@ test("infer: columns become typed fields, a title field is picked, the ops apply
   const plan = await k.h["schema.diff"](k.ctx, { ops: out.ops });
   assert.deepEqual(plan.problems, []);
   await k.h["schema.apply"](k.ctx, { ops: out.ops, previewToken: plan.previewToken });
-  const id = mintUuid();
+  const id = mintRecordId();
   await k.s.store.create("members", id, { full_name: "Ann Lee", email: "ann@x.com", age: 31, joined: "2024-01-05", active: true, plan: "gold", phone: "+1 555 123 4567", bio: "x" });
   assert.equal((await k.s.store.get("members", id))?.data.plan, "gold");
 

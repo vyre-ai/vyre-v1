@@ -4,8 +4,8 @@ Review of the merged capability registry at the F11 freeze. `packages/contracts/
 
 ## Frozen values
 
-Registry hash: 1c3af69e0b6a3efb5cb4e417996c28265cdf4d11461fe0b1a91f6ad9f59c7493
-Capabilities: 1490
+Registry hash: 89f94d19c39422d2b0021e783b5d167f1c921ed5df46dcf96ce690e628b965f1
+Capabilities: 1491
 Events: 598
 Registry modules: 80
 Host modules: 72
@@ -28,7 +28,7 @@ Selection rule: capabilities of the lane (owner of the module) sorted by name, n
 |---|---|---|
 | L1 | 37 | 4 |
 | L2 | 261 | 27 |
-| L3 | 151 | 16 |
+| L3 | 152 | 16 |
 | L4 | 107 | 11 |
 | L5 | 344 | 35 |
 | L6 | 161 | 17 |
@@ -40,7 +40,7 @@ L1: conflicts.assist, conflicts.resolve, search.recent.list, sync.endpoints
 
 L2: agents.builtin_skills.list, agents.pause, agents.suggestion.accept, agents.visibility.set, channels.leave, chat.approve_plan, chat.messages.list, chat.question.ask, chat.transcript.summary, computers.chrome.net, computers.chrome.status, computers.files.write, computers.recording.process, computers.screen.type, computers.timeline_step, engine.incident.open, engine.policy.get, engine.runtime.opt_in, engine.subscription_share.set, engine.turn.start, mcp.session.open, memory.counts, memory.find_by_subject, memory.pointer, terminal.attach, terminal.read, threads.list
 
-L3: connections.complete_auth, connections.update, connectors.outbox.list, hubspot.health, import.parse_csv, projects.file_chat, projects.overview, records.as_of, records.get, records.release_hold, schema.apply, schema.layout.set, sources.delete, sources.list, sync_types.get, sync_types.review_schema
+L3: connections.complete_auth, connections.update, connectors.outbox.retry, hubspot.health, import.parse_excel, projects.file_chat, projects.pin_file, records.as_of, records.history, records.restore, schema.apply, schema.layout.set, sources.delete, sources.list, sync_types.get, sync_types.review_schema
 
 L4: changesets.approve, changesets.review_externally, files.copy, files.folder.restore, files.markup.save, files.revoke_external, files.viewer_data, git.pull, mounts.get, previews.health, runbooks.set_target
 

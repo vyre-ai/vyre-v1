@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Marks the Chats sidebar as ES modules so its .tsx tests load react-native through the react-native-web alias (apps/app has no type field until P-UI_02 merges)."
+}

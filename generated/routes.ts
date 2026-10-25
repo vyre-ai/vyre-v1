@@ -20067,6 +20067,25 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/records/view",
+    "cap": "records.view",
+    "v": 1,
+    "module": "records",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "record_type",
+      "id": "/type"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/reports/get",
     "cap": "reports.get",
     "v": 1,
