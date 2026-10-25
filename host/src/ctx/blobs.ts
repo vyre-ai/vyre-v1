@@ -1,6 +1,8 @@
 // ctx.blobs (ARCH 4.1): the host blob store behind a module's binary storage. Bytes live in `<data>/blobs/ctx/<id>.bin` as iv|tag|ciphertext (AES-256-GCM, one key per module
 // derived from the host's seal key with HKDF, the blob id in the AAD) beside `<id>.json`, the metadata and the owning module. A module opens only its own blobs: another module's id is
 // refused, an id nobody stored is absent. Each blob and each module's total is capped.
+// A blob may name the resource it belongs to (a preview's file): `put(bytes, type, { resource })`. The store keeps the owning module and that resource beside the bytes, and `ownerOf(id)` gives them
+// to the host's blob route, which serves a blob only to callers who may read its resource (ruling 50). A blob stored with no resource is served to no one outside its module.
 import fs from "node:fs";
 import path from "node:path";
 import { mintUuid } from "../../../lib/ids.ts";
@@ -26,14 +28,23 @@ export interface BlobStoreOptions {
   maxModuleBytes?: number;
 }
 
+export interface BlobResource { type: string; id: string }
+export interface PutOptions { /** the resource this blob belongs to; read access to it decides who may fetch the blob over HTTP */ resource?: BlobResource }
+/** What the module's handle offers: the contract's Blobs, with put taking the resource it belongs to. */
+export interface ModuleBlobs extends Blobs { put(bytes: Uint8Array, contentType: string, opts?: PutOptions): Promise<BlobMeta> }
+
 export interface BlobStore {
   /** The blobs handle for one module. traceId names errors raised for the call. */
-  forModule(moduleId: string, traceId?: string): Blobs;
+  forModule(moduleId: string, traceId?: string): ModuleBlobs;
+  /** The module that stored a blob and the resource it belongs to (null when it named none); null when nobody stored the id. */
+  ownerOf(id: string): { module: string; resource: BlobResource | null } | null;
   /** Total plain bytes a module has stored. */
   usage(moduleId: string): number;
 }
 
-interface Stored extends BlobMeta { module: string }
+interface Stored extends BlobMeta { module: string; resource?: BlobResource }
+
+const RESOURCE_TYPE = /^[a-z][a-z0-9_]{0,31}$/;
 
 export function createBlobStore(o: BlobStoreOptions): BlobStore {
   if (!o.key || o.key.length < 16) throw new Error("the blob key needs at least 16 bytes");
@@ -60,10 +71,15 @@ export function createBlobStore(o: BlobStoreOptions): BlobStore {
     }
   }
   const keyFor = (moduleId: string): Uint8Array => hkdf32(o.key, SALT, `module:${moduleId}`);
-  const strip = ({ module: _m, ...meta }: Stored): BlobMeta => meta;
+  const strip = ({ module: _m, resource: _r, ...meta }: Stored): BlobMeta => meta;
 
   return {
     usage(moduleId) { scan(); return used.get(moduleId) ?? 0; },
+    ownerOf(id) {
+      if (typeof id !== "string" || !ID.test(id)) return null;
+      const m = readMeta(id);
+      return m ? { module: m.module, resource: m.resource ?? null } : null;
+    },
     forModule(moduleId, traceId = ZERO_TRACE) {
       if (!MODULE.test(moduleId)) throw new Error("a blob store scope is a module id");
       /** The stored record when this module owns the id; null when absent; a refusal when another module owns it. */
@@ -75,17 +91,21 @@ export function createBlobStore(o: BlobStoreOptions): BlobStore {
         return m;
       };
       return {
-        async put(bytes, contentType) {
+        async put(bytes, contentType, opts) {
           if (!(bytes instanceof Uint8Array)) throw fail("validation.bad_input", traceId, { message: "A blob is bytes." });
           if (typeof contentType !== "string" || !contentType || contentType.length > 255) throw fail("validation.bad_input", traceId, { message: "A blob needs a content type." });
           if (bytes.byteLength > maxBlob) throw fail("validation.too_large", traceId, { message: "That blob is too large.", details: { bytes: bytes.byteLength, cap: maxBlob } });
+          const r = opts?.resource;
+          if (r !== undefined && (typeof r !== "object" || r === null || typeof r.type !== "string" || !RESOURCE_TYPE.test(r.type) || typeof r.id !== "string" || r.id.length === 0 || r.id.length > 200)) {
+            throw fail("validation.bad_input", traceId, { message: "A blob's resource is { type, id }." });
+          }
           scan();
           const total = used.get(moduleId) ?? 0;
           if (total + bytes.byteLength > maxModule) throw fail("validation.too_large", traceId, { message: "This module has used all its blob storage.", details: { used: total, cap: maxModule } });
           const id = `blb_${mintUuid(now()).replaceAll("-", "")}`;
           const box = aesWrap(keyFor(moduleId), bytes, id);
           const sealed = Buffer.concat([Buffer.from(box.iv, "base64url"), Buffer.from(box.tag, "base64url"), Buffer.from(box.ct, "base64url")]);
-          const meta: Stored = { id, module: moduleId, contentType, size: bytes.byteLength, sha256: Buffer.from(sha256b64(bytes), "base64url").toString("hex"), createdAt: now() };
+          const meta: Stored = { id, module: moduleId, contentType, size: bytes.byteLength, sha256: Buffer.from(sha256b64(bytes), "base64url").toString("hex"), createdAt: now(), ...(r ? { resource: { type: r.type, id: r.id } } : {}) };
           fs.mkdirSync(o.dir, { recursive: true, mode: 0o700 });
           fs.writeFileSync(bin(id), sealed, { mode: 0o600 });
           fs.writeFileSync(metaFile(id), JSON.stringify(meta), { mode: 0o600 });   // the metadata lands last: a blob without it does not exist

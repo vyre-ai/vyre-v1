@@ -1290,6 +1290,9 @@ export function stubs(ctx: CallCtx) {
         save: call("memory.layout.save"),
       },
       maintain: call("memory.maintain"),
+      map: {
+        get: call("memory.map.get"),
+      },
       notes: {
         list: call("memory.notes.list"),
       },
