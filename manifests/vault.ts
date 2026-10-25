@@ -121,7 +121,7 @@ export default defineManifest({
       out: { handle: id.handle, itemId: id.vaultItem, fields: t.arr(fieldKey) }, on: ['vault_item', '/item'], resolve: 'name', level: 'use', emits: ['vault.used'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['permission.provider_label'],
     }),
     write('vault.fill', 'Fill a handle into a process at the last moment (env, request header, browser field, terminal) and scrub it from the output; the value stays in the filler', {
-      in: { handle: handleField, target: t.obj({ kind: t.enm('env', 'http_header', 'browser', 'terminal', 'file'), ref: t.str() }), returnValue: t.opt(t.bool()) },
+      in: { handle: handleField, target: t.obj({ kind: t.enm('env', 'http_header', 'browser', 'terminal', 'file', 'git_credential', 'container_env', 'route_auth'), ref: t.str() }), returnValue: t.opt(t.bool()) },
       out: { filled: t.bool(), field: fieldKey, where: t.enm('device', 'host', 'computer'), value: t.opt(t.str({ description: 'Only for a caller at View level who set returnValue; never for agents' })) },
       on: ['vault_item', '/handle'], resolve: 'handle', level: 'use', emits: ['vault.used'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['permission.provider_label'],
     }),

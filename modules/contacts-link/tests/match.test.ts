@@ -160,7 +160,7 @@ test("an address is added to a contact with an event, and the list shows it", as
   const out = await addressAdd(h.ctx, input);
   assert.deepEqual(contractErrors("contacts.address.add", "out", out), []);
   assert.deepEqual([out.address.contactId, out.address.kind, out.address.value, out.address.primary, out.address.verified], ["rec_sam01", "email", "Sam@Work.test", false, false]);
-  const row = h.rows(`SELECT * FROM contacts_address WHERE id = ?`, out.address.id)[0]!;
+  const row = h.rows(`SELECT * FROM contacts_link_address WHERE id = ?`, out.address.id)[0]!;
   assert.deepEqual([row.normalized, row.version, row.updated_at], ["sam@work.test", 1, NOW]);
   assert.deepEqual(h.named("contact.address_added").map((e) => [e.subject, e.payload]), [["record/rec_sam01", { contactId: "rec_sam01", kind: "email", addressId: out.address.id }]]);
   assert.deepEqual((await addressList(h.ctx, { contactId: "rec_sam01" })).addresses, [out.address]);
@@ -173,7 +173,7 @@ test("adding the same address to the same contact again returns its row and rais
   const b = await addressAdd(h.ctx, { contactId: "rec_sam01", kind: "email", value: "SAM@work.test", idempotencyKey: key() });
   assert.deepEqual(b, a);
   assert.equal(h.named("contact.address_added").length, 1);
-  assert.equal(h.rows(`SELECT * FROM contacts_address`).length, 1);
+  assert.equal(h.rows(`SELECT * FROM contacts_link_address`).length, 1);
 });
 
 test("an address another record holds, in the index or in its own email field, is a duplicate", async () => {
@@ -182,7 +182,7 @@ test("an address another record holds, in the index or in its own email field, i
   await addressAdd(h.ctx, { contactId: "rec_sam01", kind: "email", value: "sam@work.test", idempotencyKey: key() });
   await refused(addressAdd(h.ctx, { contactId: "rec_pat01", kind: "email", value: "SAM@work.test", idempotencyKey: key() }), "validation.duplicate");
   await refused(addressAdd(h.ctx, { contactId: "rec_pat01", kind: "phone", value: "+14155550123", idempotencyKey: key() }), "validation.duplicate");
-  assert.equal(h.rows(`SELECT * FROM contacts_address`).length, 1);
+  assert.equal(h.rows(`SELECT * FROM contacts_link_address`).length, 1);
 });
 
 test("an address that is not one, a kind that does not exist or a record that is not there is refused", async () => {
@@ -193,7 +193,7 @@ test("an address that is not one, a kind that does not exist or a record that is
   await refused(addressAdd(h.ctx, { contactId: "rec_sam01", kind: "fax" as unknown as "email", value: "1", idempotencyKey: key() }), "validation.bad_input");
   await refused(addressAdd(h.ctx, { contactId: "contact-1", kind: "email", value: "a@b.test", idempotencyKey: key() }), "validation.bad_input");
   await refused(addressAdd(h.ctx, { contactId: "rec_nobody", kind: "email", value: "a@b.test", idempotencyKey: key() }), "validation.not_found");
-  assert.equal(h.rows(`SELECT * FROM contacts_address`).length, 0);
+  assert.equal(h.rows(`SELECT * FROM contacts_link_address`).length, 0);
 });
 
 test("a company can hold addresses too", async () => {
