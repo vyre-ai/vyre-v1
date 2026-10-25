@@ -2,7 +2,7 @@
 // a normal Space type with its rows; both replay safely. The store is the real records store.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mintUuid } from "../../../lib/ids.ts";
+import { mintRecordId } from "../../../lib/ids.ts";
 import { openRecords } from "../impl.ts";
 import { consoleCreatable, createSiteTableHandlers, isSiteTable, kindOf, listGroup, siteOf, siteTablesOf, SITES_GROUP } from "../handlers/site-tables.ts";
 
@@ -22,7 +22,7 @@ test("site.table_created makes a record type scoped to the site, with its fields
   assert.equal(d["site_id"], SITE);
   assert.equal(d.label, "Leads");
   assert.deepEqual(d.fields.map((f) => [f.name, f.kind, f.label]), [["name", "text", "Name"], ["email", "text", "Email"], ["seats", "number", "seats"]]);
-  const id = mintUuid();
+  const id = mintRecordId();
   await store.create(TYPE, id, { name: "Ada", email: "ada@example.com", seats: 3 });
   assert.equal((await store.get(TYPE, id))?.data["name"], "Ada");
 });
@@ -43,7 +43,7 @@ test("a site table is hidden from the Console's create list and listed under Sit
 test("the same event twice changes nothing, and the rows stay", async () => {
   const { store, h } = make();
   await h.created({ siteId: SITE, type: TYPE, fields: FIELDS });
-  const id = mintUuid();
+  const id = mintRecordId();
   await store.create(TYPE, id, { name: "Ada" });
   const before = JSON.stringify((await store.types()));
   assert.deepEqual(await h.created({ siteId: SITE, type: TYPE, fields: FIELDS }), { applied: false, type: TYPE });
@@ -78,7 +78,7 @@ test("a table made without fields is a valid empty type", async () => {
 test("site.table_promoted makes it a normal Space record type: listed with the others, the key and the rows unchanged", async () => {
   const { store, h } = make();
   await h.created({ siteId: SITE, type: TYPE, fields: FIELDS });
-  const id = mintUuid();
+  const id = mintRecordId();
   await store.create(TYPE, id, { name: "Ada", email: "ada@example.com" });
   assert.deepEqual(await h.promoted({ siteId: SITE, type: TYPE }), { applied: true, type: TYPE });
   const d = (await def(store))!;
@@ -118,7 +118,7 @@ test("record field types are stored as the kinds the store keeps; a kind the sto
     ["text", "rich_text", "number", "boolean", "datetime", "multi_choice", "stage", "text", "url", "text", "boolean", "rich_text"]);
   const { store, h } = make();
   await h.created({ siteId: SITE, type: TYPE, fields: [{ key: "done", type: "checkbox" }, { key: "notes", type: "longtext" }, { key: "when", type: "datetime" }] });
-  const id = mintUuid();
+  const id = mintRecordId();
   await store.create(TYPE, id, { done: true, notes: "long", when: "2026-01-05T10:00:00Z" });
   assert.equal((await store.get(TYPE, id))?.data["done"], true);
 });
