@@ -1,6 +1,6 @@
 # Files (files)
 
-Lane L4. Kind module. Status stub. Version 0.1.0.
+Lane L4. Kind module. Version 0.1.0.
 
 Requires: mounts.
 
@@ -15,7 +15,7 @@ Requires: mounts.
 - [changesets.list](../capabilities/changesets.list.md): List changesets, for example the ones waiting for me
 - [changesets.request_changes](../capabilities/changesets.request_changes.md): Send the reviewer comments back to the agent thread and keep the changeset open
 - [changesets.revert_change](../capabilities/changesets.revert_change.md): Revert a single change (one hunk or one file) inside a changeset
-- [changesets.review_externally](../capabilities/changesets.review_externally.md): Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token
+- [changesets.review_externally](../capabilities/changesets.review_externally.md): Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token; returns a one-time review link (the token is in the link, shown once, never logged)
 - [files.comments.add](../capabilities/files.comments.add.md): Comment on a file, a range, a cell, a page or an area (area comments are numbered pins); @ people and agents
 - [files.comments.delete](../capabilities/files.comments.delete.md): Delete a comment
 - [files.comments.list](../capabilities/files.comments.list.md): List comments and numbered pins on a file; agents read pins to see what a person marked

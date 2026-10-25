@@ -255,7 +255,7 @@ function stored(ctx: HealthCtx): Map<string, { state: State; since: number; titl
   return out;
 }
 
-function reasonFor(def: HealthDef, o: Outcome): string {
+export function reasonFor(def: HealthDef, o: Outcome): string {
   const why = o.detail ? `: ${o.detail.replace(/\.+$/, "")}.` : ".";
   return `${def.title} is ${o.state === "down" ? "down" : "degraded"}${why} ${def.next}`;
 }

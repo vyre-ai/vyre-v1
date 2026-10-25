@@ -2,7 +2,7 @@
 
 Freeze review E (P-PR_38). This records the extension kind tables and one example of each kind.
 
-The source is the committed registry `generated/registry.json` (hash `534047a6b0c8e97c6c60c119d61f2be0eec945796e814112da32b54421e62651`). `generated/kinds.ts` re-exports gate acts, task kinds, notification kinds, health checks, retention, settings, import sources, blocks and lists. Steps, triggers and connectors sit on the same registry (ARCH 3.4). The review reads those three from `generated/registry.ts`.
+The source is the committed registry `generated/registry.json` (hash `fceb6a2fe263cb74df83b87763dad739920eea4c8ca4b6594649f91f33d73f59`). `generated/kinds.ts` re-exports gate acts, task kinds, notification kinds, health checks, retention, settings, import sources, blocks and lists. Steps, triggers and connectors sit on the same registry (ARCH 3.4). The review reads those three from `generated/registry.ts`.
 
 Spec 2.14 is the gate act table. Spec 2.24 is the three notification levels. Spec 4.18 is the health checks (each has a next step) and the logs retention window. Spec 5 names backups and report-a-problem, which show up here as the `backups` retention class and the `problem.report` notification. Spec b9 (one API, toolsets, and the replay sandbox) shows up as step samples, which a replay can show, and as each connector naming a health check. ARCH 3.5 covers blocks, health checks, gate acts, task kinds and notification kinds.
 

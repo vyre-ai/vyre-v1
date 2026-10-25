@@ -1,6 +1,6 @@
 # HubSpot (hubspot)
 
-Lane L3. Kind connector. Status stub. Version 0.1.0.
+Lane L3. Kind connector. Version 0.1.0.
 
 Requires: nothing.
 

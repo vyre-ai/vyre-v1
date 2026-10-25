@@ -1,0 +1,30 @@
+# Device role: vyred alone, for a computer that joins a Space (spec 3.13). No Caddy, no public ports; the daemon listens on loopback and the app and CLI reach it there.
+#   docker compose -f compose.device.yml up -d
+name: vyre-device
+
+services:
+  vyred:
+    image: ${VYRE_IMAGE:-ghcr.io/vyre-ai/vyred:latest}
+    restart: unless-stopped
+    environment:
+      VYRE_ROLE: device
+      VYRE_DATA_DIR: /data
+      VYRE_HOST: 0.0.0.0
+      VYRE_PORT: "8420"
+      VYRE_RELAY_URL: ${VYRE_RELAY_URL:-}
+    env_file:
+      - path: ./vyre.env
+        required: false
+    volumes:
+      - vyre-device-data:/data
+      - ${VYRE_WORK_DIR:-vyre-device-work}:/work
+    ports:
+      - "127.0.0.1:${VYRE_PORT:-8420}:8420"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 20s
+
+volumes:
+  vyre-device-data:
+  vyre-device-work:

@@ -103,9 +103,18 @@ for (const cap of caps) {
   });
 
   test(`${name}: every declared event is emitted by the handler that declares it`, async () => {
-    setDefsProvider(() => [exampleDef]);
     const h = await populated();
-    await run(cap.name, h.ctx, sample(cap.input, 0, defs));
+    if (cap.name === "health.run") {
+      // one run that changes a state, pauses a new failure and resumes a recovered check: all three events
+      const second: HealthDef = { ...exampleDef, key: "example2", title: "Second example", cap: "example2.probe", pauses: ["sync"] };
+      setDefsProvider(() => [exampleDef, second]);
+      h.answer(exampleDef.cap, { state: "healthy" });
+      h.answer(second.cap, { state: "down", detail: "second failure" });
+      await run(cap.name, h.ctx, {});
+    } else {
+      setDefsProvider(() => [exampleDef]);
+      await run(cap.name, h.ctx, sample(cap.input, 0, defs));
+    }
     assert.deepEqual([...new Set(h.events.map((e) => e.name))].sort(), [...cap.emits].sort());
     setDefsProvider(null);
   });

@@ -1,6 +1,6 @@
 # Dropbox Sign (dropbox-sign)
 
-Lane L8. Kind connector. Status stub. Version 0.1.0.
+Lane L8. Kind connector. Version 0.1.0.
 
 Requires: nothing.
 

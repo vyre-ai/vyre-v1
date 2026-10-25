@@ -304,33 +304,6 @@
       },
       "type": "array"
     },
-    "s_06e2de2d97": {
-      "enum": [
-        "approval.requested",
-        "approval.backstop",
-        "dm",
-        "mention",
-        "call.incoming",
-        "agent.blocked",
-        "incident.owned",
-        "task.assigned",
-        "reply.followed",
-        "agent.task_finished",
-        "campaign.reply",
-        "digest.away",
-        "mention.thread",
-        "run.failed",
-        "conflict.needs_you",
-        "access.requested",
-        "access.decided",
-        "sync.attention",
-        "health.degraded",
-        "problem.report",
-        "member.joined",
-        "limit.hit"
-      ],
-      "type": "string"
-    },
     "s_07340211b5": {
       "anyOf": [
         {
@@ -366,6 +339,34 @@
           "$ref": "#/$defs/s_0506fc3ab2"
         }
       ]
+    },
+    "s_0766030a72": {
+      "enum": [
+        "approval.requested",
+        "approval.backstop",
+        "dm",
+        "mention",
+        "call.incoming",
+        "agent.blocked",
+        "incident.owned",
+        "task.assigned",
+        "reply.followed",
+        "agent.task_finished",
+        "campaign.reply",
+        "digest.away",
+        "mention.thread",
+        "run.failed",
+        "conflict.needs_you",
+        "access.requested",
+        "access.decided",
+        "sync.attention",
+        "health.degraded",
+        "problem.report",
+        "member.joined",
+        "limit.hit",
+        "vault.rotation_due"
+      ],
+      "type": "string"
     },
     "s_08106672f4": {
       "properties": {
@@ -562,6 +563,25 @@
         "updatedAt"
       ],
       "type": "object"
+    },
+    "s_090864d7b1": {
+      "enum": [
+        "automation",
+        "automation_test",
+        "journey",
+        "journey_migrate",
+        "routine",
+        "campaign",
+        "deployment",
+        "connector_sync",
+        "connector_build",
+        "runbook",
+        "wait",
+        "terminal",
+        "replay",
+        "other"
+      ],
+      "type": "string"
     },
     "s_090e0c0321": {
       "properties": {
@@ -3323,6 +3343,17 @@
           "type": "string"
         }
       },
+      "type": "object"
+    },
+    "s_2bdcf3a294": {
+      "properties": {
+        "run": {
+          "$ref": "#/$defs/s_80b9270a87"
+        }
+      },
+      "required": [
+        "run"
+      ],
       "type": "object"
     },
     "s_2ce06e1cc7": {
@@ -8336,6 +8367,24 @@
       ],
       "type": "object"
     },
+    "s_74c6a2fb9f": {
+      "properties": {
+        "changesetId": {
+          "examples": [
+            "chg_a1b2c3"
+          ],
+          "pattern": "^chg_[a-z0-9]+$",
+          "type": "string"
+        },
+        "file": {
+          "$ref": "#/$defs/s_486e12678d"
+        }
+      },
+      "required": [
+        "file"
+      ],
+      "type": "object"
+    },
     "s_753c0a822e": {
       "properties": {
         "request": {
@@ -9250,6 +9299,119 @@
       "required": [
         "kind",
         "id"
+      ],
+      "type": "object"
+    },
+    "s_80b9270a87": {
+      "properties": {
+        "costMicros": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "definitionVersion": {
+          "type": "integer"
+        },
+        "endedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "keyUsed": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/s_090864d7b1"
+        },
+        "modelUsed": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "owner": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "type": "string"
+        },
+        "parentRun": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "startedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "startedBy": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "waiting",
+            "succeeded",
+            "failed",
+            "stopped"
+          ],
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/s_f21ece25da"
+        },
+        "summary": {
+          "description": "One-line result",
+          "type": "string"
+        },
+        "threadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "traceId": {
+          "examples": [
+            "0123456789abcdef0123456789abcdef"
+          ],
+          "pattern": "^[0-9a-f]{32}$",
+          "type": "string"
+        },
+        "waitReason": {
+          "enum": [
+            "approval",
+            "background",
+            "key"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "owner",
+        "startedBy",
+        "status",
+        "costMicros",
+        "startedAt",
+        "traceId"
       ],
       "type": "object"
     },
@@ -11954,119 +12116,6 @@
         "body",
         "shared",
         "updatedAt"
-      ],
-      "type": "object"
-    },
-    "s_b3c84294bd": {
-      "properties": {
-        "costMicros": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "definitionVersion": {
-          "type": "integer"
-        },
-        "endedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "keyUsed": {
-          "type": "string"
-        },
-        "kind": {
-          "$ref": "#/$defs/s_e10b3d8480"
-        },
-        "modelUsed": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "owner": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "type": "string"
-        },
-        "parentRun": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "startedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "startedBy": {
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "queued",
-            "running",
-            "waiting",
-            "succeeded",
-            "failed",
-            "stopped"
-          ],
-          "type": "string"
-        },
-        "subject": {
-          "$ref": "#/$defs/s_f21ece25da"
-        },
-        "summary": {
-          "description": "One-line result",
-          "type": "string"
-        },
-        "threadId": {
-          "examples": [
-            "thr_a1b2c3"
-          ],
-          "pattern": "^thr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "traceId": {
-          "examples": [
-            "0123456789abcdef0123456789abcdef"
-          ],
-          "pattern": "^[0-9a-f]{32}$",
-          "type": "string"
-        },
-        "waitReason": {
-          "enum": [
-            "approval",
-            "background",
-            "key"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "kind",
-        "owner",
-        "startedBy",
-        "status",
-        "costMicros",
-        "startedAt",
-        "traceId"
       ],
       "type": "object"
     },
@@ -15491,23 +15540,6 @@
       ],
       "type": "object"
     },
-    "s_e10b3d8480": {
-      "enum": [
-        "automation",
-        "automation_test",
-        "journey",
-        "journey_migrate",
-        "routine",
-        "campaign",
-        "deployment",
-        "runbook",
-        "wait",
-        "terminal",
-        "replay",
-        "other"
-      ],
-      "type": "string"
-    },
     "s_e1c2ea017d": {
       "properties": {
         "accountId": {
@@ -16479,17 +16511,6 @@
       "required": [
         "subject",
         "roleId"
-      ],
-      "type": "object"
-    },
-    "s_eeb669830b": {
-      "properties": {
-        "run": {
-          "$ref": "#/$defs/s_b3c84294bd"
-        }
-      },
-      "required": [
-        "run"
       ],
       "type": "object"
     },
@@ -38138,7 +38159,8 @@
           "name": "example",
           "output": {
             "actorId": "act_a1b2c3",
-            "expiresAt": 1760000000000
+            "expiresAt": 1760000000000,
+            "reviewUrl": "https://northwind.example.com/review/cs_example?token=otk_example"
           }
         }
       ],
@@ -38165,10 +38187,18 @@
             ],
             "minimum": 0,
             "type": "integer"
+          },
+          "reviewUrl": {
+            "examples": [
+              "https://northwind.example.com/review/cs_example?token=otk_example"
+            ],
+            "pattern": "^https?://",
+            "type": "string"
           }
         },
         "required": [
           "actorId",
+          "reviewUrl",
           "expiresAt"
         ],
         "type": "object"
@@ -38179,7 +38209,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token",
+      "summary": "Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token; returns a one-time review link (the token is in the link, shown once, never logged)",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -66138,22 +66168,7 @@
       "name": "files.create",
       "offline": "queue",
       "output": {
-        "properties": {
-          "changesetId": {
-            "examples": [
-              "chg_a1b2c3"
-            ],
-            "pattern": "^chg_[a-z0-9]+$",
-            "type": "string"
-          },
-          "file": {
-            "$ref": "#/$defs/s_486e12678d"
-          }
-        },
-        "required": [
-          "file"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_74c6a2fb9f"
       },
       "permission": "files.write",
       "resource": {
@@ -66176,7 +66191,9 @@
     {
       "effects": "write",
       "emits": [
-        "file.deleted"
+        "file.deleted",
+        "changeset.opened",
+        "changeset.updated"
       ],
       "errors": [
         "internal.unexpected",
@@ -66194,6 +66211,7 @@
           },
           "name": "example",
           "output": {
+            "changesetId": "chg_a1b2c3",
             "deleted": true
           }
         }
@@ -66224,6 +66242,13 @@
       "offline": "queue",
       "output": {
         "properties": {
+          "changesetId": {
+            "examples": [
+              "chg_a1b2c3"
+            ],
+            "pattern": "^chg_[a-z0-9]+$",
+            "type": "string"
+          },
           "deleted": {
             "type": "boolean"
           }
@@ -67890,7 +67915,9 @@
       "effects": "write",
       "emits": [
         "file.moved",
-        "file.renamed"
+        "file.renamed",
+        "changeset.opened",
+        "changeset.updated"
       ],
       "errors": [
         "internal.unexpected",
@@ -67910,6 +67937,7 @@
           },
           "name": "example",
           "output": {
+            "changesetId": "chg_a1b2c3",
             "file": {
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
@@ -67966,7 +67994,7 @@
       "name": "files.move",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_f9e90fdca6"
+        "$ref": "#/$defs/s_74c6a2fb9f"
       },
       "permission": "files.write",
       "resource": {
@@ -68355,7 +68383,9 @@
     {
       "effects": "write",
       "emits": [
-        "file.renamed"
+        "file.renamed",
+        "changeset.opened",
+        "changeset.updated"
       ],
       "errors": [
         "internal.unexpected",
@@ -68374,6 +68404,7 @@
           },
           "name": "example",
           "output": {
+            "changesetId": "chg_a1b2c3",
             "file": {
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
@@ -68423,7 +68454,7 @@
       "name": "files.rename",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_f9e90fdca6"
+        "$ref": "#/$defs/s_74c6a2fb9f"
       },
       "permission": "files.write",
       "resource": {
@@ -68788,7 +68819,8 @@
       "effects": "write",
       "emits": [
         "file.version_added",
-        "changeset.opened"
+        "changeset.opened",
+        "changeset.updated"
       ],
       "errors": [
         "internal.unexpected",
@@ -68812,6 +68844,7 @@
           "name": "example",
           "output": {
             "added": 1,
+            "changesetId": "chg_a1b2c3",
             "lint": {
               "file": "vyre_md",
               "inherits": true,
@@ -68881,6 +68914,13 @@
         "properties": {
           "added": {
             "type": "integer"
+          },
+          "changesetId": {
+            "examples": [
+              "chg_a1b2c3"
+            ],
+            "pattern": "^chg_[a-z0-9]+$",
+            "type": "string"
           },
           "lint": {
             "$ref": "#/$defs/s_507affc09e"
@@ -78636,6 +78676,82 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "as": "maya@example.com",
+            "connectionId": "con_a1b2c3",
+            "driveId": "example"
+          },
+          "name": "example",
+          "output": {
+            "startPageToken": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "google",
+      "name": "google.drive.changes_start_token",
+      "output": {
+        "properties": {
+          "startPageToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "startPageToken"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The Drive changes start page token, so a mount syncs incrementally from now instead of rescanning",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "audit": "always",
       "effects": "outward",
       "emits": [],
@@ -85062,7 +85178,11 @@
     },
     {
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "health.changed",
+        "health.paused",
+        "health.resumed"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -115409,7 +115529,7 @@
                   "type": "integer"
                 },
                 "kind": {
-                  "$ref": "#/$defs/s_06e2de2d97"
+                  "$ref": "#/$defs/s_0766030a72"
                 },
                 "subject": {
                   "$ref": "#/$defs/s_f21ece25da"
@@ -115486,7 +115606,7 @@
             "items": {
               "properties": {
                 "key": {
-                  "$ref": "#/$defs/s_06e2de2d97"
+                  "$ref": "#/$defs/s_0766030a72"
                 },
                 "level": {
                   "enum": [
@@ -115693,7 +115813,7 @@
                   "type": "string"
                 },
                 "kind": {
-                  "$ref": "#/$defs/s_06e2de2d97"
+                  "$ref": "#/$defs/s_0766030a72"
                 },
                 "level": {
                   "enum": [
@@ -116476,7 +116596,7 @@
             "type": "object"
           },
           "kind": {
-            "$ref": "#/$defs/s_06e2de2d97"
+            "$ref": "#/$defs/s_0766030a72"
           },
           "runId": {
             "examples": [
@@ -126252,7 +126372,7 @@
       "module": "runs",
       "name": "runs.finish",
       "output": {
-        "$ref": "#/$defs/s_eeb669830b"
+        "$ref": "#/$defs/s_2bdcf3a294"
       },
       "permission": null,
       "resource": {
@@ -126331,7 +126451,7 @@
       "module": "runs",
       "name": "runs.get",
       "output": {
-        "$ref": "#/$defs/s_eeb669830b"
+        "$ref": "#/$defs/s_2bdcf3a294"
       },
       "permission": null,
       "resource": {
@@ -126418,7 +126538,7 @@
           },
           "kinds": {
             "items": {
-              "$ref": "#/$defs/s_e10b3d8480"
+              "$ref": "#/$defs/s_090864d7b1"
             },
             "type": "array"
           },
@@ -126482,7 +126602,7 @@
           },
           "runs": {
             "items": {
-              "$ref": "#/$defs/s_b3c84294bd"
+              "$ref": "#/$defs/s_80b9270a87"
             },
             "type": "array"
           },
@@ -126567,7 +126687,7 @@
       "module": "runs",
       "name": "runs.mark_waiting",
       "output": {
-        "$ref": "#/$defs/s_eeb669830b"
+        "$ref": "#/$defs/s_2bdcf3a294"
       },
       "permission": null,
       "resource": {
@@ -126739,7 +126859,7 @@
       "module": "runs",
       "name": "runs.record_key",
       "output": {
-        "$ref": "#/$defs/s_eeb669830b"
+        "$ref": "#/$defs/s_2bdcf3a294"
       },
       "permission": null,
       "resource": {
@@ -127026,7 +127146,7 @@
       "module": "runs",
       "name": "runs.resume",
       "output": {
-        "$ref": "#/$defs/s_eeb669830b"
+        "$ref": "#/$defs/s_2bdcf3a294"
       },
       "permission": null,
       "resource": {
@@ -127176,7 +127296,7 @@
             "type": "string"
           },
           "kind": {
-            "$ref": "#/$defs/s_e10b3d8480"
+            "$ref": "#/$defs/s_090864d7b1"
           },
           "modelUsed": {
             "type": "string"
@@ -127546,7 +127666,7 @@
       "name": "runs.stop",
       "offline": "online",
       "output": {
-        "$ref": "#/$defs/s_eeb669830b"
+        "$ref": "#/$defs/s_2bdcf3a294"
       },
       "permission": null,
       "resource": {
@@ -144707,6 +144827,7 @@
                 "v": 1
               }
             ],
+            "decisionId": "example",
             "dependsOn": [
               "tsk_a1b2c3"
             ],
@@ -144719,6 +144840,7 @@
             "idempotencyKey": "idem_1",
             "kind": "work",
             "parentTaskId": "tsk_a1b2c3",
+            "payloadHash": "example",
             "recordId": "rec_a1b2c3",
             "reviewer": {
               "id": "usr_a1b2c3",
@@ -144812,6 +144934,9 @@
           "blocks": {
             "$ref": "#/$defs/s_d2c64dc123"
           },
+          "decisionId": {
+            "type": "string"
+          },
           "dependsOn": {
             "items": {
               "examples": [
@@ -144875,6 +145000,9 @@
               "tsk_a1b2c3"
             ],
             "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "payloadHash": {
             "type": "string"
           },
           "recordId": {
@@ -163804,6 +163932,7 @@
         "google.drive.copy_file",
         "google.drive.share_file",
         "google.drive.trash_file",
+        "google.drive.changes_start_token",
         "google.drive.list_changes",
         "google.drive.watch_changes",
         "google.drive.stop_watch",
@@ -178601,7 +178730,7 @@
             "type": "string"
           },
           "kind": {
-            "$ref": "#/$defs/s_06e2de2d97"
+            "$ref": "#/$defs/s_0766030a72"
           },
           "perHour": {
             "type": "integer"
@@ -178670,7 +178799,7 @@
             "type": "string"
           },
           "kind": {
-            "$ref": "#/$defs/s_06e2de2d97"
+            "$ref": "#/$defs/s_0766030a72"
           },
           "level": {
             "enum": [
@@ -181297,7 +181426,7 @@
             "type": "integer"
           },
           "kind": {
-            "$ref": "#/$defs/s_e10b3d8480"
+            "$ref": "#/$defs/s_090864d7b1"
           },
           "message": {
             "type": "string"
@@ -181447,7 +181576,7 @@
             "type": "integer"
           },
           "kind": {
-            "$ref": "#/$defs/s_e10b3d8480"
+            "$ref": "#/$defs/s_090864d7b1"
           },
           "name": {
             "type": "string"
@@ -181534,7 +181663,7 @@
             "type": "integer"
           },
           "kind": {
-            "$ref": "#/$defs/s_e10b3d8480"
+            "$ref": "#/$defs/s_090864d7b1"
           },
           "runId": {
             "examples": [
@@ -190981,7 +191110,6 @@
       "requires": [
         "files"
       ],
-      "status": "stub",
       "title": "Access",
       "version": "0.1.0"
     },
@@ -190997,7 +191125,6 @@
         "runs",
         "terminal"
       ],
-      "status": "stub",
       "title": "Agents",
       "version": "0.1.0"
     },
@@ -191006,7 +191133,6 @@
       "kind": "module",
       "owner": "L7a",
       "requires": [],
-      "status": "stub",
       "title": "Audit",
       "version": "0.1.0"
     },
@@ -191027,7 +191153,6 @@
         "runs",
         "telephony"
       ],
-      "status": "stub",
       "title": "Automations",
       "version": "0.1.0"
     },
@@ -191036,7 +191161,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Backups",
       "version": "0.1.0"
     },
@@ -191045,7 +191169,6 @@
       "kind": "module",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Calendar",
       "version": "0.1.0"
     },
@@ -191054,7 +191177,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Campaigns",
       "version": "0.1.0"
     },
@@ -191065,7 +191187,6 @@
       "requires": [
         "engine"
       ],
-      "status": "stub",
       "title": "Chat",
       "version": "0.1.0"
     },
@@ -191076,7 +191197,6 @@
       "requires": [
         "chat"
       ],
-      "status": "stub",
       "title": "Agent computers",
       "version": "0.1.0"
     },
@@ -191085,7 +191205,6 @@
       "kind": "module",
       "owner": "L1",
       "requires": [],
-      "status": "stub",
       "title": "Conflicts",
       "version": "0.1.0"
     },
@@ -191097,7 +191216,6 @@
         "records",
         "schema"
       ],
-      "status": "stub",
       "title": "Connectors and synced types",
       "version": "0.1.0"
     },
@@ -191106,7 +191224,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Console assistant",
       "version": "0.1.0"
     },
@@ -191124,7 +191241,6 @@
         "schema",
         "updates"
       ],
-      "status": "stub",
       "title": "Console views",
       "version": "0.1.0"
     },
@@ -191135,7 +191251,6 @@
       "requires": [
         "records"
       ],
-      "status": "stub",
       "title": "Contacts and consent",
       "version": "0.1.0"
     },
@@ -191144,7 +191259,6 @@
       "kind": "kit",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Default Kit",
       "version": "0.1.0"
     },
@@ -191153,7 +191267,6 @@
       "kind": "module",
       "owner": "L7a",
       "requires": [],
-      "status": "stub",
       "title": "Devices",
       "version": "0.1.0"
     },
@@ -191162,7 +191275,6 @@
       "kind": "connector",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Documenso",
       "version": "0.1.0"
     },
@@ -191173,7 +191285,6 @@
       "requires": [
         "files"
       ],
-      "status": "stub",
       "title": "Documents",
       "version": "0.1.0"
     },
@@ -191182,7 +191293,6 @@
       "kind": "connector",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "DocuSign",
       "version": "0.1.0"
     },
@@ -191191,7 +191301,6 @@
       "kind": "connector",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Dropbox Sign",
       "version": "0.1.0"
     },
@@ -191200,7 +191309,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Email builder",
       "version": "0.1.0"
     },
@@ -191209,7 +191317,6 @@
       "kind": "module",
       "owner": "L2",
       "requires": [],
-      "status": "stub",
       "title": "Engine",
       "version": "0.1.0"
     },
@@ -191218,7 +191325,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "E-signature",
       "version": "0.1.0"
     },
@@ -191227,7 +191333,6 @@
       "kind": "kit",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Estate planning",
       "version": "0.1.0"
     },
@@ -191236,7 +191341,6 @@
       "kind": "module",
       "owner": "L6",
       "requires": [],
-      "status": "stub",
       "title": "Events and webhooks",
       "version": "0.1.0"
     },
@@ -191247,7 +191351,6 @@
       "requires": [
         "mounts"
       ],
-      "status": "stub",
       "title": "Files",
       "version": "0.1.0"
     },
@@ -191256,7 +191359,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Forms and bookings",
       "version": "0.1.0"
     },
@@ -191265,7 +191367,6 @@
       "kind": "module",
       "owner": "L6",
       "requires": [],
-      "status": "stub",
       "title": "Gate",
       "version": "0.1.0"
     },
@@ -191276,7 +191377,6 @@
       "requires": [
         "files"
       ],
-      "status": "stub",
       "title": "Git",
       "version": "0.1.0"
     },
@@ -191285,7 +191385,6 @@
       "kind": "connector",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "GitHub",
       "version": "0.1.0"
     },
@@ -191296,7 +191395,6 @@
       "requires": [
         "mail"
       ],
-      "status": "stub",
       "title": "Google Workspace",
       "version": "0.1.0"
     },
@@ -191307,7 +191405,6 @@
       "requires": [
         "access"
       ],
-      "status": "stub",
       "title": "Governance",
       "version": "0.1.0"
     },
@@ -191316,7 +191413,6 @@
       "kind": "kit",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Harbor Studio",
       "version": "0.1.0"
     },
@@ -191325,7 +191421,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Health and diagnostics",
       "version": "0.1.0"
     },
@@ -191338,7 +191433,6 @@
         "runs",
         "tasks"
       ],
-      "status": "stub",
       "title": "Home",
       "version": "0.1.0"
     },
@@ -191347,7 +191441,6 @@
       "kind": "connector",
       "owner": "L3",
       "requires": [],
-      "status": "stub",
       "title": "HubSpot",
       "version": "0.1.0"
     },
@@ -191359,7 +191452,6 @@
         "access",
         "members"
       ],
-      "status": "stub",
       "title": "Identity",
       "version": "0.1.0"
     },
@@ -191370,7 +191462,6 @@
       "requires": [
         "schema"
       ],
-      "status": "stub",
       "title": "Import",
       "version": "0.1.0"
     },
@@ -191383,7 +191474,6 @@
         "mail",
         "telephony"
       ],
-      "status": "stub",
       "title": "Inbox",
       "version": "0.1.0"
     },
@@ -191392,7 +191482,6 @@
       "kind": "module",
       "owner": "L6",
       "requires": [],
-      "status": "stub",
       "title": "Journeys",
       "version": "0.1.0"
     },
@@ -191401,7 +191490,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Kits",
       "version": "0.1.0"
     },
@@ -191410,7 +191498,6 @@
       "kind": "kit",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Law firm intake",
       "version": "0.1.0"
     },
@@ -191419,7 +191506,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Logs and traces",
       "version": "0.1.0"
     },
@@ -191428,7 +191514,6 @@
       "kind": "module",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Mail",
       "version": "0.1.0"
     },
@@ -191437,7 +191522,6 @@
       "kind": "connector",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Mailgun",
       "version": "0.1.0"
     },
@@ -191446,7 +191530,6 @@
       "kind": "module",
       "owner": "L2",
       "requires": [],
-      "status": "stub",
       "title": "MCP",
       "version": "0.1.0"
     },
@@ -191455,7 +191538,6 @@
       "kind": "module",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Meetings",
       "version": "0.1.0"
     },
@@ -191467,7 +191549,6 @@
         "access",
         "home"
       ],
-      "status": "stub",
       "title": "Members",
       "version": "0.1.0"
     },
@@ -191476,7 +191557,6 @@
       "kind": "module",
       "owner": "L2",
       "requires": [],
-      "status": "stub",
       "title": "Memory",
       "version": "0.1.0"
     },
@@ -191487,7 +191567,6 @@
       "requires": [
         "mail"
       ],
-      "status": "stub",
       "title": "Microsoft 365",
       "version": "0.1.0"
     },
@@ -191498,7 +191577,6 @@
       "requires": [
         "files"
       ],
-      "status": "stub",
       "title": "Mounts",
       "version": "0.1.0"
     },
@@ -191507,7 +191585,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Network",
       "version": "0.1.0"
     },
@@ -191521,7 +191598,6 @@
         "tasks",
         "vault"
       ],
-      "status": "stub",
       "title": "Notifications",
       "version": "0.1.0"
     },
@@ -191530,7 +191606,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Site accounts",
       "version": "0.1.0"
     },
@@ -191539,7 +191614,6 @@
       "kind": "module",
       "owner": "L4",
       "requires": [],
-      "status": "stub",
       "title": "Previews",
       "version": "0.1.0"
     },
@@ -191551,7 +191625,6 @@
         "records",
         "tasks"
       ],
-      "status": "stub",
       "title": "Projects",
       "version": "0.1.0"
     },
@@ -191560,7 +191633,6 @@
       "kind": "module",
       "owner": "L3",
       "requires": [],
-      "status": "stub",
       "title": "Records",
       "version": "0.1.0"
     },
@@ -191569,7 +191641,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Report a problem",
       "version": "0.1.0"
     },
@@ -191578,7 +191649,6 @@
       "kind": "connector",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Resend",
       "version": "0.1.0"
     },
@@ -191587,7 +191657,6 @@
       "kind": "module",
       "owner": "L4",
       "requires": [],
-      "status": "stub",
       "title": "Runbooks",
       "version": "0.1.0"
     },
@@ -191596,7 +191665,6 @@
       "kind": "module",
       "owner": "L6",
       "requires": [],
-      "status": "stub",
       "title": "Runs",
       "version": "0.1.0"
     },
@@ -191605,7 +191673,6 @@
       "kind": "module",
       "owner": "L6",
       "requires": [],
-      "status": "stub",
       "title": "Scheduler",
       "version": "0.1.0"
     },
@@ -191614,7 +191681,6 @@
       "kind": "module",
       "owner": "L3",
       "requires": [],
-      "status": "stub",
       "title": "Schema",
       "version": "0.1.0"
     },
@@ -191623,7 +191689,6 @@
       "kind": "module",
       "owner": "L1",
       "requires": [],
-      "status": "stub",
       "title": "Search",
       "version": "0.1.0"
     },
@@ -191632,7 +191697,6 @@
       "kind": "module",
       "owner": "L7a",
       "requires": [],
-      "status": "stub",
       "title": "Settings",
       "version": "0.1.0"
     },
@@ -191641,7 +191705,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Sites",
       "version": "0.1.0"
     },
@@ -191650,7 +191713,6 @@
       "kind": "module",
       "owner": "L3",
       "requires": [],
-      "status": "stub",
       "title": "Sources",
       "version": "0.1.0"
     },
@@ -191662,7 +191724,6 @@
         "access",
         "members"
       ],
-      "status": "stub",
       "title": "Spaces",
       "version": "0.1.0"
     },
@@ -191680,7 +191741,6 @@
         "tasks",
         "telephony"
       ],
-      "status": "stub",
       "title": "Core steps and spreadsheets",
       "version": "0.1.0"
     },
@@ -191689,7 +191749,6 @@
       "kind": "connector",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Stripe",
       "version": "0.1.0"
     },
@@ -191698,7 +191757,6 @@
       "kind": "module",
       "owner": "L1",
       "requires": [],
-      "status": "stub",
       "title": "Sync",
       "version": "0.1.0"
     },
@@ -191707,7 +191765,6 @@
       "kind": "module",
       "owner": "L6",
       "requires": [],
-      "status": "stub",
       "title": "Tasks",
       "version": "0.1.0"
     },
@@ -191718,7 +191775,6 @@
       "requires": [
         "mail"
       ],
-      "status": "stub",
       "title": "Calls and texts",
       "version": "0.1.0"
     },
@@ -191727,7 +191783,6 @@
       "kind": "module",
       "owner": "L8",
       "requires": [],
-      "status": "stub",
       "title": "Templates",
       "version": "0.1.0"
     },
@@ -191736,7 +191791,6 @@
       "kind": "module",
       "owner": "L2",
       "requires": [],
-      "status": "stub",
       "title": "Terminal",
       "version": "0.1.0"
     },
@@ -191747,7 +191801,6 @@
       "requires": [
         "telephony"
       ],
-      "status": "stub",
       "title": "Twilio",
       "version": "0.1.0"
     },
@@ -191756,7 +191809,6 @@
       "kind": "module",
       "owner": "L7b",
       "requires": [],
-      "status": "stub",
       "title": "Server updates",
       "version": "0.1.0"
     },
@@ -191767,7 +191819,6 @@
       "requires": [
         "access"
       ],
-      "status": "stub",
       "title": "Vault",
       "version": "0.1.0"
     },
@@ -191776,7 +191827,6 @@
       "kind": "module",
       "owner": "L7a",
       "requires": [],
-      "status": "stub",
       "title": "Vault requests",
       "version": "0.1.0"
     },
@@ -191785,7 +191835,6 @@
       "kind": "connector",
       "owner": "L5",
       "requires": [],
-      "status": "stub",
       "title": "Zoom",
       "version": "0.1.0"
     }
