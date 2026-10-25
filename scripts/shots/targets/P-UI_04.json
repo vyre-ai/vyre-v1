@@ -1,0 +1,19 @@
+{
+  "targets": [
+    {
+      "id": "P-UI_04-ask-closed",
+      "route": "/m/P-UI_04?part=closed",
+      "proto": "vault,{skin}",
+      "waitFor": "[data-testid='ask-main']",
+      "note": "The shared AskButton at rest in an item page header: the face of the suggested agent (Intake), the word Ask and the chevron, with Edit and More beside it. The prototype image is its Vault item page header."
+    },
+    {
+      "id": "P-UI_04-ask-picker",
+      "route": "/m/P-UI_04?part=picker",
+      "proto": "vault,askpicker,{skin}",
+      "protoSettleMs": 5500,
+      "waitFor": "[data-testid='ask-picker']",
+      "note": "The agent picker open under the control: Find an agent, Suggested (Intake with the check), Assistant, then every other agent. The prototype hash token askpicker (added to scripts/shots/prototype for this packet) opens the same picker in the Vault item page."
+    }
+  ]
+}

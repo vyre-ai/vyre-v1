@@ -7,6 +7,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
+import { Avatar } from "../Avatar/index.tsx";
 import { menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 import { Row } from "../Row/index.tsx";
@@ -248,20 +249,9 @@ const FIELD_STYLE = { outlineStyle: "none", outlineWidth: 0, backgroundColor: "t
 const POP_SHADOW = { boxShadow: "var(--sh-pop)" } as unknown as ViewStyle;
 const HOVER = { backgroundColor: "var(--hover)" };
 
-const hue = (s: string): number => {
-  let h = 0;
-  for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360;
-  return h;
-};
-
-function Avatar({ token, size = 18 }: { token: Token; size?: number }): ReactElement {
-  const letter = (token.name || token.email).trim().charAt(0).toUpperCase() || "?";
-  const color = token.kind === "group" ? "var(--ink-3)" : `hsl(${hue(token.name || token.email)} 30% 50%)`;
-  return (
-    <View style={[styles.avatar, { width: size, height: size, borderRadius: token.kind === "agent" ? 5 : size / 2, backgroundColor: color as string }]}>
-      <Text style={[styles.avatarText, { fontSize: size * 0.53 }]}>{token.kind === "group" ? "··" : letter}</Text>
-    </View>
-  );
+/** A recipient's face: a marble for a person, a pixel face for an agent, the group glyph for a group (the shared Avatar). */
+function TokenFace({ token, size = 18 }: { token: Token; size?: number }): ReactElement {
+  return <Avatar name={token.name || token.email} kind={token.kind === "group" ? "group" : token.kind === "agent" ? "agent" : "person"} size={size} />;
 }
 
 export function Recipients(props: RecipientsViewProps): ReactElement {
@@ -434,7 +424,7 @@ export function Recipients(props: RecipientsViewProps): ReactElement {
           {...webProps({ title: t.kind === "group" ? `${t.name}\n${t.sub ?? ""}` : `${t.email}\n${t.sub ?? "Typed address"}`, dataSet: { bad: bad ? "true" : "false" } })}
           style={({ hovered }: { hovered?: boolean }) => [styles.token, hovered === true && TOKEN_HOVER, selected && styles.tokenSel]}
         >
-          <Avatar token={t} />
+          <TokenFace token={t} />
           <Text numberOfLines={1} style={[styles.tokenText, selected && styles.tokenTextSel, bad && styles.tokenBad]}>
             {t.kind === "group" ? `${t.name} \u00b7 ${t.group?.members.length ?? 0}` : t.name || t.email}
           </Text>
@@ -533,8 +523,6 @@ const styles = StyleSheet.create({
   tokenTextSel: { color: "var(--accent-ink)" as string },
   tokenBad: { color: "var(--danger)" as string, textDecorationLine: "underline" },
   ext: { width: 4, height: 4, borderRadius: 2, backgroundColor: "var(--ink-4)" as string },
-  avatar: { alignItems: "center", justifyContent: "center" },
-  avatarText: { color: "#fff", fontWeight: "600" },
   input: { flexGrow: 1, flexShrink: 1, flexBasis: 90, minWidth: 90, height: 24, padding: 0, margin: 0, borderWidth: 0, color: "var(--ink)" as string, fontSize: 13 },
   summary: { flex: 1, height: 24, justifyContent: "center" },
   summaryText: { color: "var(--ink-2)" as string, fontSize: 13 },
