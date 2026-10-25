@@ -5,15 +5,15 @@
 | Modules | 64 |
 | Connector manifests | 12 |
 | Kit manifests | 4 |
-| Capabilities | 1495 |
-| Events | 601 |
+| Capabilities | 1499 |
+| Events | 602 |
 | Permissions | 57 |
 | Entities | 37 |
 | Record types | 15 |
 | Field types | 30 |
 | View kinds | 9 |
 | Steps | 25 |
-| Triggers | 13 |
+| Triggers | 14 |
 | Connectors | 13 |
 | Agent tools (not 1:1 with a capability) | 10 |
 | Block types | 22 |

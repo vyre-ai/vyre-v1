@@ -46,7 +46,7 @@ jobs:
     name: ${{ matrix.name }}
     needs: select
     if: needs.select.outputs.has_tests == 'true'
-    runs-on: [self-hosted, linux, v1]
+    runs-on: ${{ fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
     timeout-minutes: 10
     strategy:
       fail-fast: false
