@@ -11,7 +11,7 @@ import { fail } from "../../../host/src/routes/errors.ts";
 import { harness, NOW, TRACE } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import {
-  DAY_MS, PROBES, historyOf, loadDefs, orderDefs, parseDefs, pausedOf, readProbe, reportProbe, ruleHolds, runChecks, setDefsProvider, statusOf, worst,
+  DAY_MS, PROBES, historyOf, loadDefs, orderDefs, parseDefs, pausedOf, readMachine, readProbe, reportProbe, ruleHolds, runChecks, setDefsProvider, statusOf, worst,
 } from "../handlers/checks.ts";
 import type { HealthDef } from "../handlers/checks.ts";
 import { doctorRun, handlers, history, pausedReasons, run, status } from "../handlers/index.ts";
@@ -336,3 +336,16 @@ test("a check's capability can be a host probe, end to end", async () => {
   reportProbe(h.ctx, "caddy", { state: "healthy" });
   assert.equal((await run(h.ctx, {})).checks[0]!.state, "healthy");
 });
+
+test("health.machine answers the numbers the host reported for CPU, memory and disk, and none when stale or broken", () => {
+  const h = harness();
+  assert.deepEqual(readMachine(h.ctx), { state: "degraded", detail: "The host has not reported this yet." });
+  reportProbe(h.ctx, "machine", { state: "healthy", values: { cpuPercent: 37.5, memoryUsedBytes: 6_000_000_000.7, memoryTotalBytes: 16_000_000_000, diskFreeBytes: 120_000_000_000, diskTotalBytes: 500_000_000_000, bogus: 1 } });
+  assert.deepEqual(readMachine(h.ctx), { state: "healthy", machine: { cpuPercent: 37.5, memoryUsedBytes: 6_000_000_000, memoryTotalBytes: 16_000_000_000, diskFreeBytes: 120_000_000_000, diskTotalBytes: 500_000_000_000 } });
+  reportProbe(h.ctx, "machine", { state: "healthy", values: { cpuPercent: 250 } });
+  assert.deepEqual(readMachine(h.ctx).machine, { cpuPercent: 100 }, "a load above 100 is capped");
+  h.setNow(NOW + 6 * 60_000);
+  assert.deepEqual(readMachine(h.ctx), { state: "degraded", detail: "The host has not reported for 6 minutes." });
+});
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.

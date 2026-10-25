@@ -12635,7 +12635,7 @@
       "blocks": [],
       "cap": "console.overview",
       "deferred": false,
-      "description": "Overview: health, attention items, recent admin activity, usage",
+      "description": "Overview: health, attention items, recent admin activity, usage, server CPU, memory and disk, and the last backup",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -23014,6 +23014,21 @@
     },
     {
       "blocks": [],
+      "cap": "health.machine",
+      "deferred": false,
+      "description": "Probe: CPU load, memory and disk of the server as the host last reported them (Console Overview tiles)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "health_machine",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "health.run",
       "deferred": false,
       "description": "Run one health check or all of them now",
@@ -24658,6 +24673,17 @@
                   "pattern": "^[a-z][a-z0-9_]*$",
                   "type": "string"
                 },
+                "onLeaving": {
+                  "description": "Automations that run when a record leaves the stage",
+                  "items": {
+                    "examples": [
+                      "aut_a1b2c3"
+                    ],
+                    "pattern": "^aut_[a-z0-9]+$",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
                 "order": {
                   "minimum": 0,
                   "type": "integer"
@@ -24968,6 +24994,17 @@
                   ],
                   "pattern": "^[a-z][a-z0-9_]*$",
                   "type": "string"
+                },
+                "onLeaving": {
+                  "description": "Automations that run when a record leaves the stage",
+                  "items": {
+                    "examples": [
+                      "aut_a1b2c3"
+                    ],
+                    "pattern": "^aut_[a-z0-9]+$",
+                    "type": "string"
+                  },
+                  "type": "array"
                 },
                 "order": {
                   "minimum": 0,
@@ -25568,6 +25605,39 @@
       },
       "name": "journeys_start",
       "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "journeys.tasks",
+      "deferred": false,
+      "description": "The tasks of one Journey record by stage, each with its state (todo, in review, blocked, done)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "stage": {
+            "examples": [
+              "intake"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "journeys_tasks",
+      "planMode": "allowed",
       "toolset": "automations",
       "v": 1
     },
