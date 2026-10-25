@@ -29,11 +29,15 @@ export interface FillSink { (f: { value: string; ref: string; handle: string; fi
 export interface SecretPort {
   secret(handle: string, space: string): Promise<string>;
   signRs256(handle: string, space: string, data: string): Promise<string>;
+  /** The .env text of an export link, once (the route at /exports/<id>?token= calls this; the link is the credential). Throws for every refusal. */
+  pullExport(exportId: string, token: string): string;
 }
 export interface VaultHost {
   sinks: Readonly<Record<string, FillSink>>;
   /** The Space's module database, so the port below can read the vault tables outside a call. */
   db?: VaultDb;
+  /** The address people reach this server at, for the pull link of an export (read at call time). */
+  origin?(): string;
   /** The module hands the host its SecretPort. */
   provide?(port: SecretPort): void;
 }
@@ -60,7 +64,13 @@ export function secretPort(db: VaultDb): SecretPort {
     if (!hit) throw new Error(`Name a field after ${handle}.`);
     return hit.value;
   };
+  const edge = (): VaultCtx => ({
+    space: "", principal: { kind: "service", id: "svc_host" }, trace: { traceId: "0".repeat(32) }, now: Date.now, db,
+    emit: () => null, call: () => Promise.reject(new Error("the export route makes no calls")), authorize: () => ({ effect: "deny", reason: "edge", decisionId: "edge" }),
+    log: { info: () => undefined, warn: () => undefined },
+  });
   return {
+    pullExport: (exportId, token) => exportPull(edge(), { exportId, token }),
     secret: async (handle) => read(handle),
     signRs256: async (handle, _space, data) => {
       const raw = read(handle);
@@ -222,19 +232,20 @@ export async function exportEnv(ctx: VaultCtx, input: { folderId: string; expire
   );
   for (const r of items) record(ctx, str(r, "id"), "exported", { detail: `pull link ${input.expiresIn}` });
   ctx.emit("vault.exported", `vault_folder/${str(f, "id")}`, { exportId: id, folderId: str(f, "id"), itemCount: items.length, expiresAt }, { vis: "participants" });
-  return { exportId: id, pullUrl: `https://vault.invalid/exports/${id}?token=${token}`, expiresAt };
+  return { exportId: id, pullUrl: `${(host?.origin?.() ?? "https://vault.invalid").replace(/\/$/, "")}/exports/${id}?token=${token}`, expiresAt };
 }
 
-/** The pull route calls this with the id and token from the link: the .env text once, or a refusal. The link is not single-use for its life, but the first pull is recorded. */
+/** The pull route calls this with the id and token from the link: the .env text once, then never again (lead decision: a link is single use, durably). pulledAt is written in the same step as the read. */
 export function exportPull(ctx: VaultCtx, input: { exportId: string; token: string }): string {
   ensureExports(ctx);
   const gone = (): never => { throw fail("validation.not_found", ctx.trace.traceId, { message: "This link is closed or has expired." }); };
   const r = first(ctx.db.all(`SELECT * FROM vault_export WHERE "id" = ?`, String(input.exportId)));
-  if (!r || r["revokedAt"] !== null || num(r, "expiresAt") <= ctx.now()) return gone();
+  if (!r || r["revokedAt"] !== null || r["pulledAt"] !== null || num(r, "expiresAt") <= ctx.now()) return gone();
   const a = Buffer.from(sha(String(input.token))), b = Buffer.from(str(r, "tokenHash"));
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return gone();
   const fields = filler(ctx).open(str(r, "id"), { enc: 1, keyId: str(r, "keyId"), box: parseJson(r["box"], { iv: "", ct: "", tag: "" }), rev: 1 });
-  if (r["pulledAt"] === null) ctx.db.run(`UPDATE vault_export SET "pulledAt" = ? WHERE "id" = ?`, ctx.now(), str(r, "id"));
+  // claim the link first: the UPDATE only matches an unpulled row, so two pulls at once cannot both read it
+  if (ctx.db.run(`UPDATE vault_export SET "pulledAt" = ? WHERE "id" = ? AND "pulledAt" IS NULL`, ctx.now(), str(r, "id")).changes !== 1) return gone();
   return fields[0]?.value ?? "";
 }
 

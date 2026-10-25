@@ -40,6 +40,7 @@ import { createGateHook } from "./gate-hook.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
 import { createKitsHost } from "../seams/kits.ts";
+import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { createVaultService, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, wireSeams } from "../seams/index.ts";
@@ -212,6 +213,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let boundPort = cfg.port;
   let gateway: ReturnType<typeof createGateway> | null = null;
   let blobRoute: ReturnType<typeof createBlobRoute> | null = null;
+  // GET /exports/<id>?token= (P-L7_16): the vault module checks the token; until it is configured every pull is refused
+  let pullVaultExport: (exportId: string, token: string) => string = () => { throw new Error("the Vault is not live on this server"); };
+  const exportRoute = createVaultExportRoute({ pull: (id, t) => pullVaultExport(id, t) });
   let headSeq = 0;
   const access = createAccess();
 
@@ -265,7 +269,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const registryCaps = registry.capabilities as unknown as CapabilityDef[];
       // consumers and periodic jobs the live modules export (ruling 32): each runs through the invoke pipeline as a host-only capability that may emit what its module's capabilities emit
       // the Vault the connector seams read from: the vault module's own port once it is live and configured, else a refusal
-      let vaultImpl: VaultPort | null = null;
+      let vaultImpl: (VaultPort & { pullExport?(exportId: string, token: string): string }) | null = null;
       const vaultPort: VaultPort = { secret: (h, sp) => (vaultImpl ?? refusingVault).secret(h, sp), signRs256: (h, sp, d) => (vaultImpl ?? refusingVault).signRs256(h, sp, d) };
       let invokeRef: Invoke = () => Promise.reject(new Error("the invoke pipeline is not ready"));
       const hookRunner = createHookRunner({
@@ -423,7 +427,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }),
         ...spaceStoreDrivers(spaceStore),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
-        configureVault: () => ({ sinks: o.seams?.vaultSinks ?? {}, db: db!, provide: (p: VaultPort) => { vaultImpl = p; } }),
+        configureVault: () => ({ sinks: o.seams?.vaultSinks ?? {}, db: db!, origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
         setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open() }, now }),
         ...(o.seams?.drivers ?? {}),
@@ -588,7 +592,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
     });
-    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res)) return; listener(req, res); });
+    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || exportRoute.handle(req, res)) return; listener(req, res); });
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error): void => reject(err);
       server.once("error", onError);
