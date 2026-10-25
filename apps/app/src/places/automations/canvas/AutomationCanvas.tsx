@@ -106,6 +106,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const [hover, setHover] = useState<string | null>(null);
   const [zoom, setZoom] = useState(initialZoom);
   const [view, setView] = useState({ w: 0, h: 0 });
+  const [graphView, setGraphView] = useState({ w: 0, h: 0 });
   const [note, setNote] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -313,6 +314,18 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
     }
   }
   const inspect = panel && sel !== null && (selected !== null || trigSel);
+  // Runs tab: the step graph sits beside the run list, read only, at the size that fits its column, lit by the run being shown
+  const still: CardHandlers = { onSelect: () => undefined, onOpen: () => undefined, onMenu: () => undefined, onAdd: () => undefined, onKey: () => undefined };
+  const runGraph = tab === "runs" && tabBodies.runs ? (
+    <View style={s.graphCol} testID="run-graph" accessibilityLabel="Steps of the run" onLayout={(e: LayoutChangeEvent) => setGraphView({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+      <View pointerEvents="none" style={{ flex: 1 }}>
+        <Surface lay={lay} zoom={graphView.w > 0 ? fitScale(lay, graphView.w, graphView.h) : 0.4} view={graphView}>
+          <TriggerCard card={lay.cards[0]!} triggers={def.triggers} selected={false} hovered={false} onHover={() => undefined} handlers={still} selectedIndex={null} onSelectTrigger={() => undefined} onOpenTrigger={() => undefined} onAddTrigger={() => undefined} onTriggerMenu={() => undefined} describe={describe} />
+          {lay.cards.filter((c) => c.type === "step").map((card) => <StepCard key={card.id} card={card} selected={false} hovered={false} handlers={still} agent={agentOf(card)} onHover={() => undefined} />)}
+        </Surface>
+      </View>
+    </View>
+  ) : null;
 
   return (
     <View testID="canvas-frame" style={s.frame}>
@@ -393,7 +406,11 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
           </View>
         </>
       ) : null}
-      {tab === "runs" ? <View style={s.pageBody}>{tabBodies.runs ?? <RunsList automationId={a.id} onLight={(r) => { setLitRun(r); setTab("steps"); }} />}</View> : null}
+      {tab === "runs" ? (
+        tabBodies.runs ? (
+          <View style={s.runsBody}><View style={{ flex: 1, minWidth: 0 }}>{tabBodies.runs}</View>{runGraph}</View>
+        ) : <View style={s.pageBody}><RunsList automationId={a.id} onLight={(r) => { setLitRun(r); setTab("steps"); }} /></View>
+      ) : null}
       {tab === "versions" ? <View style={s.pageBody}>{tabBodies.versions ?? <VersionsList versions={versions} current={a.version} onRestore={(id) => void data.call("automations.restore_version", { automationId: a.id, versionId: id }).then(() => flash("Restored as a new version")).catch((x: unknown) => flash(x instanceof Error ? x.message : "That did not restore"))} />}</View> : null}
       {tab === "settings" ? <View style={s.pageBody}>{tabBodies.settings ?? <Text style={s.dim}>Settings, Alerts and Runs open here.</Text>}</View> : null}
       {element}
@@ -508,5 +525,7 @@ const s = StyleSheet.create({
   chipText: { fontSize: 11.5, color: "var(--ink-2)" as string },
   mono: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11 },
   pageBody: { flex: 1, padding: 20 },
+  runsBody: { flex: 1, flexDirection: "row", minHeight: 0 },
+  graphCol: { width: 250, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--win)" as string, ...({ backgroundImage: "radial-gradient(var(--line) 1px, transparent 1px)", backgroundSize: "22px 22px" } as object) },
   dim: { fontSize: 13, color: "var(--ink-3)" as string },
 });
