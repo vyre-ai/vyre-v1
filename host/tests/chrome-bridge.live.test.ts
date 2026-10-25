@@ -119,8 +119,10 @@ test("chrome bridge: an agent tool call reaches a connected extension on the eve
 
     const second = d.chromeBridge.callTool({ tool: "chrome_act", agent: { id: "agt_scout", name: "Scout" }, space: "spc_core" });
     await stream.until(3);
+    // the rejection is awaited from the moment the call is made, so it never settles unobserved
+    const refused = assert.rejects(second, (e: unknown) => e instanceof ChromeToolError && e.code === "paused");
     await rpc(d, { id: "r5", type: "bridge", op: "agent.result", input: { callId: (stream.lines[2] as { id: string }).id, ok: false, error: { code: "paused", message: "The person stopped the agent." } } });
-    await assert.rejects(second, (e: unknown) => e instanceof ChromeToolError && e.code === "paused");
+    await refused;
   } finally {
     stream.close();
     await d.stop();
