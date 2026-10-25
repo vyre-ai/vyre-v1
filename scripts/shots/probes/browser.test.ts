@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { parseProbes, summarize, runTarget, budgetTable, metricLine, verdictLine } from "./browser.mjs";
 
 const table = budgetTable({ budgets: [
-  { id: "navigate", p95: 100, unit: "ms" }, { id: "prefetch", p95: 90, unit: "percent" }, { id: "layout_shift", p95: 0, unit: "cls" }, { id: "chat_open", p95: 100, unit: "ms" },
+  { id: "navigate", p50: 50, p95: 100, unit: "ms" }, { id: "prefetch", p95: 90, unit: "percent" }, { id: "layout_shift", p95: 0, unit: "cls" }, { id: "chat_open", p95: 100, unit: "ms" },
 ] });
 const target = (probes: unknown) => ({ id: "P-X_01-nav", route: "/m/P-X_01", waitFor: "[data-testid=x]", probes });
 
@@ -35,8 +35,8 @@ test("a missing value is a breach", () => {
 });
 
 test("a declared budget may tighten but never loosen", () => {
-  assert.equal(parseProbes(target({ navigate: { budget: 80 } }), table)[0].limit, 80);
-  assert.throws(() => parseProbes(target({ navigate: { budget: 150 } }), table), /loosens/);
+  assert.equal(parseProbes(target({ navigate: { budget: 40 } }), table)[0].limit, 40);
+  assert.throws(() => parseProbes(target({ navigate: { budget: 60 } }), table), /loosens/);
   assert.throws(() => parseProbes(target({ prefetch: { budget: 50 } }), table), /loosens/);
   assert.throws(() => parseProbes(target({ nope: {} }), table), /unknown probe kind/);
   assert.throws(() => parseProbes(target({ navigate: { runs: 2 } }), table), /runs/);
@@ -47,10 +47,20 @@ test("a declared budget may tighten but never loosen", () => {
 test("runTarget mounts fresh runs times and judges every declared kind from window.__probes", async () => {
   let calls = 0;
   const rs = await runTarget(target({ navigate: {}, prefetch: {}, chat_open: {} }), table, {
-    measure: async () => { calls += 1; return { navigate: calls === 1 ? 500 : 60, prefetch: 95, chat_open: 130, ready: true }; },
+    measure: async () => { calls += 1; return { navigate: calls === 1 ? 500 : 40, prefetch: 95, chat_open: 130, ready: true }; },
   });
   assert.equal(calls, 6);
   assert.deepEqual(rs.map((r: { kind: string; ok: boolean }) => [r.kind, r.ok]), [["navigate", true], ["prefetch", true], ["chat_open", false]]);
   assert.match(metricLine(rs[2]), /"name":"probe_chat_open"/);
   assert.match(verdictLine(rs[2]), /OVER BUDGET/);
+});
+
+test("ruling 43: a median of 60 ms fails a 50/100 budget, and a worst run over p95 fails too", () => {
+  const b = { limit: 50, worstLimit: 100, sense: "max" as const };
+  assert.equal(summarize([0, 60, 60, 60, 60, 60], b).ok, false);
+  assert.equal(summarize([0, 40, 40, 40, 40, 40], b).ok, true);
+  assert.equal(summarize([0, 40, 40, 40, 40, 120], b).ok, false, "median 40 passes p50 but the worst 120 is over p95 100");
+  const nav = parseProbes(target({ navigate: {} }), table)[0];
+  assert.equal(nav.limit, 50);
+  assert.equal(nav.worstLimit, 100);
 });

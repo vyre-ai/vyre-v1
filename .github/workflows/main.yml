@@ -25,9 +25,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with: { node-version: 24 }
-          fetch-depth: 0
       - name: Pick the base (last green main run on a push, none for a full run), shard by measured time (up to 8 fast shards, slow list as parallel jobs)
         id: sel
         env:
@@ -48,7 +48,7 @@ jobs:
     name: ${{ matrix.name }}
     needs: select
     if: needs.select.outputs.has_tests == 'true'
-    runs-on: ${{ (matrix.runner == 'v1-perf' || matrix.slow == true) && fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.runner == 'hosted' && 'ubuntu-latest' || fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
     timeout-minutes: 10
     strategy:
       fail-fast: false
