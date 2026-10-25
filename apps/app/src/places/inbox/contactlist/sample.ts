@@ -5,7 +5,7 @@ import { createFakeReplica, createScreenHooks } from "../../../../../../client/s
 import type { FakeReplica, Row } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import type { Connection, InboxData, InboxNav } from "../sidebar/data.tsx";
+import type { Connection, InboxData, InboxNav, NumberInfo, RowExtras } from "../sidebar/data.tsx";
 import type { CalendarRow, CallRow, ContactRow, Mailbox, ThreadRow } from "../sidebar/model.ts";
 
 /** Friday 24 October 2025, 10:40 in the person's day (UTC for the samples, so every machine prints the same times). */
@@ -14,7 +14,7 @@ const MIN = 60_000;
 const ago = (minutes: number): number => SAMPLE_NOW - minutes * MIN;
 
 export type Variant = "northwind" | "harbor";
-export interface SampleSpace { id: Variant; name: string; mailboxes: Mailbox[]; numbers: string[]; contacts: ContactRow[]; threads: ThreadRow[]; calls: CallRow[]; calendars: CalendarRow[] }
+export interface SampleSpace { id: Variant; name: string; extras?: Record<string, RowExtras>; numberInfo?: Record<string, NumberInfo>; mailboxes: Mailbox[]; numbers: string[]; contacts: ContactRow[]; threads: ThreadRow[]; calls: CallRow[]; calendars: CalendarRow[] }
 
 const box = (id: string, kind: Mailbox["kind"], title: string, address: string, privacy: Mailbox["privacy"], extra: Partial<Mailbox> = {}): Mailbox =>
   ({ id, kind, address, title, provider: "google", privacy, state: "syncing", ...extra });
@@ -38,9 +38,23 @@ export const northwind: SampleSpace = {
     box("mbx_pers", "personal", "Personal", "irfad.imtiaz@mail.example", "private"),
     box("mbx_hello", "shared", "hello@", "hello@northwind.example", "space"),
     box("mbx_support", "shared", "support@", "support@northwind.example", "space"),
+    box("mbx_portal", "shared", "Client portal", "/hooks/portal", "space"),
     box("mbx_intake", "agent", "intake@", "intake@northwind.example", "space", { agentId: "agt_intake" }),
   ],
   numbers: [NW_NUM, NW_BILL],
+  numberInfo: { [NW_BILL]: { label: "Billing's number", group: "agent" } },
+  // organisations, do-not-disturb, a bounced email and the agents' drafts, as the prototype's Inbox shows them
+  extras: {
+    elena: { org: "Northwind Property" },
+    marcus: { org: "Pruitt & Co.", draftReady: true },
+    dana: { org: "Whitfield Group" },
+    priya: { org: "Nair Studio", draftReady: true },
+    tomas: { org: "Berg Labs" },
+    wei: { org: "Zhang Imports", dnd: "asked not to be emailed" },
+    ben: { org: "Okafor Studio?", orgUnsure: true, bounced: "ben@okafor.example" },
+    hannah: { org: "Cole Design", dnd: "texts after 6 pm" },
+    sofia: { org: "Alvarez Legal" },
+  },
   contacts: [
     contact("elena", "Elena Rivera", 25, "email", "Lease documents for Thursday · Attached is draft 3 of the lease. Marcus at the property company asked for a reply by Friday", { mailboxIds: ["mbx_work"], unreadCount: 1, followed: true }),
     contact("marcus", "Marcus Pruitt", 18, "sms", "Can you resend invoice 1041? I can't find it.", { mailboxIds: [NW_BILL], unreadCount: 1, starred: true }),
@@ -210,6 +224,8 @@ export function createSampleInbox(space: SampleSpace = northwind, o: { online?: 
       return w(input as never);
     },
     connection, nav,
+    extras: (key) => space.extras?.[key],
+    numbers: () => new Map(Object.entries(space.numberInfo ?? {})),
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
   };
   return { data, replica, calls, opened, setOnline(v) { online = v; for (const l of [...listeners]) l(); } };

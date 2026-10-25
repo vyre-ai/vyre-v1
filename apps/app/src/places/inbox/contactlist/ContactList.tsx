@@ -11,6 +11,7 @@ import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import type { RowExtras } from "../sidebar/data.tsx";
 import { useInboxData, useOnline, useOptionalInboxData, useScreenQuery } from "../sidebar/data.tsx";
 import {
   CHANNELS, CHANNEL_LABEL, SCREENS, VIEW_LABEL, callEntry, callsState, contactEntry, isFiltering, listState, listTime, narrow, pinned, scopeTitle, showingNames, threadEntry, unreadMeta,
@@ -62,7 +63,13 @@ export function lineMenuEntries(e: Entry, h: { open(): void; read(read: boolean)
   return out;
 }
 
-function Meta({ e, now, offsetMin, narrow: slim }: { e: Entry; now: number; offsetMin: number; narrow: boolean }): ReactElement {
+/** A small tag after the name (DND, Bounced, Unmatched): quiet, with the warning colour only for a bounce. */
+function Tag({ label, tip, warn = false, id }: { label: string; tip: string; warn?: boolean; id: string }): ReactElement {
+  return <Text testID={id} accessibilityLabel={tip} {...({ title: tip } as object)} style={[styles.tag, warn && styles.tagWarn]}>{label}</Text>;
+}
+
+/** The trailing slot of a line: the marks (bell, star, tags), the time or, on hover and selection, the More button, and the inbox it came in on. */
+function Meta({ e, x, now, offsetMin, narrow: slim, lit, onMore }: { e: Entry; x: RowExtras | undefined; now: number; offsetMin: number; narrow: boolean; lit: boolean; onMore: (px: number, py: number) => void }): ReactElement {
   const data = useInboxData();
   return (
     <View style={styles.meta}>
@@ -72,16 +79,48 @@ function Meta({ e, now, offsetMin, narrow: slim }: { e: Entry; now: number; offs
         </Pressable>
       ) : null}
       <View style={styles.timeLine}>
-        {e.starred ? <View testID={`star-${e.key}`} accessibilityLabel="Starred"><Glyph name="star" size={12} fill /></View> : null}
-        {e.unread > 0 ? <View testID={`unread-${e.key}`} accessibilityLabel="Unread" style={styles.udot} /> : null}
-        <Text style={[styles.time, e.unread > 0 && styles.timeUnread]}>{listTime(e.at, now, offsetMin)}</Text>
+        {e.kind === "contact" && pinned(e) ? <Tag id={`unmatched-${e.key}`} label="Unmatched" tip="No record has this number yet" /> : null}
+        {x?.dnd ? <Tag id={`dnd-${e.key}`} label="DND" tip={`Do not disturb: ${x.dnd}`} /> : null}
+        {x?.bounced ? <Tag id={`bounced-${e.key}`} label="Bounced" tip={`An email to ${x.bounced} bounced`} warn /> : null}
+        {e.followed ? <View testID={`bell-${e.key}`} accessibilityLabel="Following"><Glyph name="bell" size={12} /></View> : null}
+        {e.starred ? <View testID={`star-${e.key}`} accessibilityLabel="Starred"><Glyph name="star" size={12} fill color="var(--warn)" /></View> : null}
+        {lit ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="More" testID={`more-${e.key}`} onPress={(ev) => { const p = pointOf(ev); onMore(p.x, p.y); }} style={({ hovered }: { hovered?: boolean }) => [styles.more, hovered === true && styles.moreOver]}>
+            <Glyph name="more" size={14} />
+          </Pressable>
+        ) : (
+          <>
+            {e.unread > 0 ? <View testID={`unread-${e.key}`} accessibilityLabel="Unread" style={styles.udot} /> : null}
+            <Text style={[styles.time, e.unread > 0 && styles.timeUnread]}>{listTime(e.at, now, offsetMin)}</Text>
+          </>
+        )}
       </View>
       {slim || !e.via ? null : (
         <View style={styles.via}>
-          <Glyph name={CHANNEL_ICON[e.channel]} size={11} />
+          <Glyph name={e.missed ? "call" : CHANNEL_ICON[e.channel]} size={13} />
           <Text numberOfLines={1} style={styles.viaText}>{e.via}</Text>
         </View>
       )}
+    </View>
+  );
+}
+
+/** One line: the shared Row, with hover and selection tracked here so the trailing slot can swap the time for the More button. */
+function Line({ e, x, selected, slim, now, offsetMin, onPress, onMore }: { e: Entry; x: RowExtras | undefined; selected: boolean; slim: boolean; now: number; offsetMin: number; onPress: () => void; onMore: (px: number, py: number) => void }): ReactElement {
+  const [over, setOver] = useState(false);
+  const title = x?.org ? `${e.name}  ${x.org}` : e.name;
+  const draft = x?.draftReady === true && e.kind === "contact";
+  return (
+    <View {...menuTrigger(onMore)} {...({ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) } as object)}>
+      <Row
+        id={`line:${e.key}`}
+        title={title}
+        note={`${draft ? "Draft ready \u00b7 " : ""}${e.snippet || "No preview"}`}
+        selected={selected}
+        leading={<View style={styles.face}>{pinned(e) ? <Ghost size={36} /> : <Face name={e.name} size={36} />}</View>}
+        trailing={<Meta e={e} x={x} now={now} offsetMin={offsetMin} narrow={slim} lit={over || selected} onMore={onMore} />}
+        onPress={onPress}
+      />
     </View>
   );
 }
@@ -154,23 +193,17 @@ function List(): ReactElement {
   };
 
   const renderLine = (e: Entry): ReactElement => (
-    <View {...menuTrigger((x, y) => lineMenu(e, x, y))}>
-      <Row
-        id={`line:${e.key}`}
-        title={e.name}
-        note={e.snippet || "No preview"}
-        selected={state.selected === e.key}
-        leading={<View style={styles.face}>{pinned(e) ? <Ghost size={32} /> : <Face name={e.name} size={32} />}</View>}
-        trailing={<Meta e={e} now={c.now} offsetMin={c.offsetMin} narrow={slim} />}
-        onPress={() => {
-          const now = Date.now();
-          const dbl = sel.current.key === e.key && now - sel.current.at < DOUBLE_MS;
-          sel.current = { key: e.key, at: now };
-          dispatch({ type: "select", key: e.key });
-          if (dbl) openEntry(e);
-        }}
-      />
-    </View>
+    <Line
+      e={e} x={data.extras?.(e.key)} selected={state.selected === e.key} slim={slim} now={c.now} offsetMin={c.offsetMin}
+      onMore={(x, y) => lineMenu(e, x, y)}
+      onPress={() => {
+        const now = Date.now();
+        const dbl = sel.current.key === e.key && now - sel.current.at < DOUBLE_MS;
+        sel.current = { key: e.key, at: now };
+        dispatch({ type: "select", key: e.key });
+        if (dbl) openEntry(e);
+      }}
+    />
   );
 
   const showFilter = (x: number, y: number, s: InboxState): void => {
@@ -268,11 +301,15 @@ const styles = StyleSheet.create({
   link: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
   offline: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingHorizontal: 18, paddingVertical: 6 },
   listBox: { flex: 1, paddingHorizontal: 6, paddingTop: 4 },
-  face: { marginRight: 10 },
+  face: { marginRight: 12 },
   meta: { alignItems: "flex-end", justifyContent: "center", minWidth: 96 },
   timeLine: { flexDirection: "row", alignItems: "center", gap: 6 },
   time: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
-  timeUnread: { color: "var(--ink-2)" as string, fontWeight: "500" },
+  timeUnread: { color: "var(--accent)" as string, fontWeight: "500" },
+  tag: { fontSize: 10.5, fontWeight: "600", letterSpacing: 0.2, paddingVertical: 1, paddingHorizontal: 5, borderRadius: 5, color: "var(--ink-3)" as string, backgroundColor: "var(--sunk)" as string, boxShadow: "inset 0 0 0 1px var(--line)" as string },
+  tagWarn: { color: "var(--warn)" as string },
+  more: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sel-strong)" as string },
+  moreOver: { backgroundColor: "var(--press)" as string },
   udot: { width: 7, height: 7, borderRadius: 7, backgroundColor: "var(--accent)" as string },
   via: { flexDirection: "row", alignItems: "center", gap: 4, maxWidth: 150 },
   viaText: { fontSize: 11.5, color: "var(--ink-3)" as string, flexShrink: 1 },

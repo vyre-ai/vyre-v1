@@ -131,7 +131,7 @@ test("the sidebar counts unread conversations per inbox, once each", () => {
   assert.equal(data.needsMatch, 2);
   const groups = navGroups(northwind.mailboxes, data);
   assert.deepEqual(groups.map((g) => [g.label, g.items.map((i) => i.label)]), [
-    ["Mine", ["Work Gmail", "Personal", "+1 415 555 0132", "+1 415 555 0177"]], ["Shared", ["hello@", "support@"]], ["Agents", ["intake@"]],
+    ["Mine", ["Work Gmail", "Personal", "+1 415 555 0132", "+1 415 555 0177"]], ["Shared", ["hello@", "support@", "Client portal"]], ["Agents", ["intake@"]],
   ]);
   assert.ok(groups[0]!.items[1]!.lock, "a private mailbox shows its lock");
 });

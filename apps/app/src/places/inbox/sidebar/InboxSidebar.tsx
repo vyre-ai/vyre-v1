@@ -69,7 +69,7 @@ function Sidebar(): ReactElement {
   const mailboxes = boxes.status === "ready" ? boxes.data.mailboxes : [];
   const calendars = cals.status === "ready" ? cals.data.calendars : [];
   const all: readonly ContactRow[] = rows.status === "ready" ? rows.data.rows : [];
-  const groups = navGroups(mailboxes, counts.status === "ready" ? counts.data : null);
+  const groups = navGroups(mailboxes, counts.status === "ready" ? counts.data : null, data.numbers?.());
   const unreadOf = (f: (r: ContactRow) => boolean): number => all.reduce((n, r) => n + (f(r) && r.unreadCount > 0 ? 1 : 0), 0);
   const total = counts.status === "ready" ? counts.data.total : 0;
 
