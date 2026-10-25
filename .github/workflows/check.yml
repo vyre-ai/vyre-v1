@@ -190,10 +190,20 @@ jobs:
           git fetch -q origin main
           base="$(git merge-base origin/main HEAD)"
           if [ "${{ github.ref_name }}" = main ] || git diff --name-only --no-renames "$base"...HEAD -- scripts/install/ images/vyred/ .github/workflows/check.yml | grep -q .; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the installer proofs cover changed"; fi
+      - name: Docker Compose (the self-hosted runners have no compose plugin; a pinned standalone binary, checksum-checked, in this job's temp directory)
+        if: steps.scope.outputs.changed == 'true'
+        run: |
+          v=v2.29.7; arch="$(uname -m)"; f="docker-compose-linux-$arch"
+          curl -fsSL -o "$RUNNER_TEMP/$f" "https://github.com/docker/compose/releases/download/$v/$f"
+          curl -fsSL -o "$RUNNER_TEMP/$f.sha256" "https://github.com/docker/compose/releases/download/$v/$f.sha256"
+          (cd "$RUNNER_TEMP" && sha256sum -c "$f.sha256")
+          chmod +x "$RUNNER_TEMP/$f"
+          echo "VYRE_COMPOSE_BIN=$RUNNER_TEMP/$f" >> "$GITHUB_ENV"
       - name: The host
         if: steps.scope.outputs.changed == 'true'
         run: |
-          docker version --format 'docker {{.Server.Version}}'; docker compose version; openssl version; df -h / | tail -n 1
+          docker version --format 'docker {{.Server.Version}}'; "$VYRE_COMPOSE_BIN" version; openssl version; df -h / | tail -n 1
+          ss -ltn | grep -E ':(80|443|8420) ' && { echo "a port the compose unit publishes is already in use on this runner"; exit 1; } || echo "ports 80, 443 and 8420 are free"
       - name: Installer on a fresh host, stand-in server (install.heavy.test.sh)
         if: steps.scope.outputs.changed == 'true'
         env:
