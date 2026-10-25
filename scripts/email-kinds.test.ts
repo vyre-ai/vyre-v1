@@ -2,8 +2,8 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { EMAIL_BLOCK_KINDS, emailBlockHtml } from "./props.ts";
-import type { EmailBlock } from "./props.ts";
+import { EMAIL_BLOCK_KINDS, emailBlockHtml } from "../ui/src/EmailBuilder/props.ts";
+import type { EmailBlock } from "../ui/src/EmailBuilder/props.ts";
 
 test("heading and footer are frozen block kinds", () => {
   assert.equal(EMAIL_BLOCK_KINDS.includes("heading"), true);
