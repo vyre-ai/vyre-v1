@@ -181,5 +181,8 @@ test("arrow keys cross sections and stop at the ends", () => {
   assert.equal(nextKey(order, "gone", 1), "need:1");
   assert.equal(nextKey([], "x", 1), null);
 });
+<<<<<<< HEAD
 
 // rerun for evidence on the final commit (lead request)
+=======
+>>>>>>> origin/build/P-L9b_02
