@@ -395,7 +395,7 @@ test("sorting routines and describing one", () => {
   const c = { now: SAMPLE_NOW, offsetMin: 0 };
   const mk = (id: string, enabled: boolean, next?: number): Routine => ({ routineId: id, agentId: "a", title: id, cron: "0 8 * * *", prompt: "p", enabled, ownerId: "u", ...(next ? { nextRunAt: next } : {}) });
   assert.deepEqual(sortRoutines([mk("p", false), mk("b", true, 20), mk("a", true, 10), mk("n", true)]).map((r) => r.routineId), ["a", "b", "n", "p"]);
-  assert.equal(routineNote(mk("z", true), c), "Every day at 08:00");
+  assert.equal(routineNote(mk("z", true), c), "every day 8:00");
   assert.equal(routineNote(mk("z", false), c), "Paused · Every day at 08:00");
 });
 
