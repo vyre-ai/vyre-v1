@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { mintUuid } from "../../../lib/ids.ts";
+import { mintRecordId } from "../../../lib/ids.ts";
 import { fakeCall } from "../fixtures/records.ts";
 import { openSources } from "../impl.ts";
 import { hmacSha256Hex, normalise, parseBody, pointerGet, verifyDelivery } from "../projections.ts";
@@ -291,7 +291,7 @@ test("linking: a sure match is linked, no match creates, and the log says which"
 test("linking: unsure matches wait in Needs you until a person settles them", async () => {
   const k = await kit();
   const src = await k.personSource();
-  const mk = (data: Record<string, unknown>) => k.s.store!.create("person", mintUuid(), data).then((r) => r.id);
+  const mk = (data: Record<string, unknown>) => k.s.store!.create("person", mintRecordId(), data).then((r) => r.id);
   const a = await mk({ email: "dup@x.com", name: "A" });
   const b = await mk({ email: "dup@x.com", name: "B" });
   const out = await k.ingest("people-feed", { id: "e1", email: "dup@x.com", name: "Dup" });
@@ -331,7 +331,7 @@ test("linking: unsure matches wait in Needs you until a person settles them", as
 test("linking: partial agreement is unsure; create new and ignore", async () => {
   const k = await kit();
   const src = await k.personSource({ ...PERSON_MAP, link: ["email", "phone"] });
-  await k.s.store!.create("person", "00000000-0000-4000-8000-000000000001", { email: "p@x.com", phone: "111" });
+  await k.s.store!.create("person", "rec_00000000000040008000000000000001", { email: "p@x.com", phone: "111" });
   const out = await k.ingest("people-feed", { id: "e1", email: "p@x.com", phone: "222", name: "P" });
   assert.equal(out.recordIds.length, 0);
   const m = (await k.h["sources.link.list_pending"](k.ctx, {})).pending[0]!;
@@ -350,8 +350,8 @@ test("linking: partial agreement is unsure; create new and ignore", async () => 
 
 test("link.match: sure, unsure and none, with default fields", async () => {
   const k = await kit();
-  const a = await k.s.store!.create("person", "00000000-0000-4000-8000-0000000000a1", { email: "a@x.com", phone: "1", name: "A" });
-  await k.s.store!.create("person", "00000000-0000-4000-8000-0000000000a2", { email: "b@x.com", phone: "1", name: "B" });
+  const a = await k.s.store!.create("person", "rec_000000000000400080000000000000a1", { email: "a@x.com", phone: "1", name: "A" });
+  await k.s.store!.create("person", "rec_000000000000400080000000000000a2", { email: "b@x.com", phone: "1", name: "B" });
   const m = (row: Record<string, unknown>, by?: string[]) => k.h["sources.link.match"](k.ctx, { type: "person", row, ...(by ? { by } : {}) });
   assert.deepEqual(await m({ email: "a@x.com" }), { sure: a.id, unsure: [] });
   assert.deepEqual(await m({ email: "zzz@x.com" }), { unsure: [] });
@@ -361,7 +361,7 @@ test("link.match: sure, unsure and none, with default fields", async () => {
   assert.equal(two.unsure.length, 2);
   const mixed = await m({ email: "a@x.com", phone: "1" }, ["email", "phone"]);
   assert.equal(mixed.sure, undefined, "a is full, b agrees on phone only: not sure");
-  assert.deepEqual(mixed.unsure.map((c) => [c.recordId, c.score]), [[a.id, 1], ["00000000-0000-4000-8000-0000000000a2", 0.5]]);
+  assert.deepEqual(mixed.unsure.map((c) => [c.recordId, c.score]), [[a.id, 1], ["rec_000000000000400080000000000000a2", 0.5]]);
 });
 
 test("preview_mapping: the row, the action, the link outcome and what is wrong", async () => {
@@ -385,9 +385,9 @@ test("preview_mapping: the row, the action, the link outcome and what is wrong",
   assert.match(bad.problems[0]!, /JSON pointer/);
 
   const people = await k.personSource();
-  await k.s.store!.create("person", "00000000-0000-4000-8000-0000000000b1", { email: "q@x.com" });
+  await k.s.store!.create("person", "rec_000000000000400080000000000000b1", { email: "q@x.com" });
   const linked = await pv({ sourceId: people.sourceId, payload: { id: "z", email: "q@x.com", name: "Q" } });
-  assert.equal(linked.link.sure, "00000000-0000-4000-8000-0000000000b1");
+  assert.equal(linked.link.sure, "rec_000000000000400080000000000000b1");
   assert.equal(linked.action, "update");
   await assert.rejects(pv({ payload: {} }), code("validation.bad_input"));
   await assert.rejects(pv({ mapping: LEAD_MAP, payload: {} }), code("validation.bad_input"));
