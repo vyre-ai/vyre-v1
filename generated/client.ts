@@ -2047,6 +2047,7 @@ export function createClient(transport: Transport) {
         restore: call("vault.item.restore", 1),
         reveal: call("vault.item.reveal", 1),
         update: call("vault.item.update", 1),
+        usage: call("vault.item.usage", 1),
       },
       items: {
         export_mine: call("vault.items.export_mine", 1),

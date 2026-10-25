@@ -26799,6 +26799,25 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/vault/item/usage",
+    "cap": "vault.item.usage",
+    "v": 1,
+    "module": "vault",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "vault_item",
+      "id": "/itemId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/vault/items/export_mine",
     "cap": "vault.items.export_mine",
     "v": 1,

@@ -15539,6 +15539,13 @@
             "minimum": 0,
             "type": "integer"
           },
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
+          },
           "personId": {
             "examples": [
               "usr_a1b2c3"
@@ -47480,6 +47487,40 @@
       },
       "name": "vault_item_update",
       "planMode": "blocked",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "vault.item.usage",
+      "deferred": false,
+      "description": "Who used a key or sign-in and how much: turns and tokens per agent and per person, and the total, from the turns the engine metered on the item; a person sees their own turns, a manager of AI spend all of them",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
+          },
+          "since": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "name": "vault_item_usage",
+      "planMode": "allowed",
       "toolset": "vault",
       "v": 1
     },
