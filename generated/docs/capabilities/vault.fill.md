@@ -27,7 +27,7 @@ Fill a handle into a process at the last moment (env, request header, browser fi
 type In = {
   handle: string;
   target: {
-    kind: "env" | "http_header" | "browser" | "terminal" | "file";
+    kind: "env" | "http_header" | "browser" | "terminal" | "file" | "git_credential" | "container_env" | "route_auth";
     ref: string;
   };
   returnValue?: boolean;

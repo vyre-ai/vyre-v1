@@ -45,7 +45,7 @@ function saveState(ctx: EngineCtx, threadId: string, agentId: string, patch: Par
 }
 
 /** Open the thread in the engine if this host has not yet, from threads.get plus what this module saved for its agents. */
-async function open(ctx: EngineCtx, threadId: string): Promise<TurnEngine> {
+export async function open(ctx: EngineCtx, threadId: string): Promise<TurnEngine> {
   ensure(ctx.db);
   const engine = boundEngine(ctx);
   try {
