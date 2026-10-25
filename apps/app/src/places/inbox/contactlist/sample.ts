@@ -72,9 +72,9 @@ export const northwind: SampleSpace = {
     { id: "cal_out", numberId: NW_NUM, direction: "out", from: NW_NUM, to: "+1 646 555 0119", contactId: "ct_priya", state: "completed", startedAt: ago(7300), durationSec: 95, hasTranscript: false, consentLogged: false },
   ],
   calendars: [
-    { id: "cal_work", title: "Work Google", color: "hsl(250 56% 46%)", provider: "google", ownerId: "usr_irfad", personal: false, state: "syncing" },
-    { id: "cal_ms", title: "Microsoft", color: "hsl(188 56% 46%)", provider: "microsoft", ownerId: "usr_irfad", personal: false, state: "syncing" },
-    { id: "cal_pers", title: "Personal", color: "hsl(32 56% 46%)", provider: "google", ownerId: "usr_irfad", personal: true, state: "syncing" },
+    { id: "cal_work", title: "Work Google", color: "#5B5BD6", provider: "google", ownerId: "usr_irfad", personal: false, state: "syncing" },
+    { id: "cal_ms", title: "Microsoft", color: "#1F9DB4", provider: "microsoft", ownerId: "usr_irfad", personal: false, state: "syncing" },
+    { id: "cal_pers", title: "Personal", color: "#C07A22", provider: "google", ownerId: "usr_irfad", personal: true, state: "syncing" },
   ],
 };
 
@@ -89,7 +89,7 @@ export const harbor: SampleSpace = {
   ],
   threads: [{ threadId: "thr_h_logo", channel: "email", subject: "Logo round two", mailboxId: "mbx_h_mine", lastAt: ago(40), participants: ["Kai Moreno"], unread: 1, contactId: "ct_kai" }],
   calls: [],
-  calendars: [{ id: "cal_h", title: "Studio", color: "hsl(160 56% 40%)", provider: "google", ownerId: "usr_irfad", personal: false, state: "syncing" }],
+  calendars: [{ id: "cal_h", title: "Studio", color: "#2E9A78", provider: "google", ownerId: "usr_irfad", personal: false, state: "syncing" }],
 };
 
 export interface SampleInbox {

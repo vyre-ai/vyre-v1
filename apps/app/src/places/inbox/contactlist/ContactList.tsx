@@ -105,7 +105,8 @@ function List(): ReactElement {
   const { state, dispatch } = useInboxState();
   const menu = useMenu();
   const online = useOnline();
-  const slim = useWindowDimensions().width < 560;
+  const width = useWindowDimensions().width;
+  const slim = width > 0 && width < 560; // 0 is "not measured yet" (server render): draw the wide layout
   const view = state.view;
   const sel = useRef<{ key: string; at: number }>({ key: "", at: 0 });
   const [reopen, setReopen] = useState<{ x: number; y: number } | null>(null);

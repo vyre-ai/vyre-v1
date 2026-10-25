@@ -4,13 +4,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
-import { ContactList, ListLoading, filterMenuEntries, lineMenuEntries, viewMenuEntries } from "../src/places/inbox/contactlist/index.ts";
-import { createSampleInbox, harbor, northwind } from "../src/places/inbox/contactlist/sample.ts";
-import type { SampleInbox, SampleSpace } from "../src/places/inbox/contactlist/sample.ts";
-import { InboxDataProvider, InboxSidebar, InboxStateProvider, INITIAL_STATE, SidebarLoading, contactEntry, listState, listTime, narrow, navGroups, reduce, scopeTitle } from "../src/places/inbox/sidebar/index.ts";
-import type { Entry, InboxState } from "../src/places/inbox/sidebar/index.ts";
-import { isItem } from "../../../ui/src/Menu/props.ts";
-import type { MenuEntry, MenuItem } from "../../../ui/src/Menu/props.ts";
+import { ContactList, ListLoading, filterMenuEntries, lineMenuEntries, viewMenuEntries } from "../contactlist/index.ts";
+import { createSampleInbox, harbor, northwind } from "../contactlist/sample.ts";
+import type { SampleInbox, SampleSpace } from "../contactlist/sample.ts";
+import { InboxDataProvider, InboxSidebar, InboxStateProvider, INITIAL_STATE, SidebarLoading, contactEntry, listState, listTime, narrow, navGroups, reduce, scopeTitle } from "../sidebar/index.ts";
+import type { Entry, InboxState } from "../sidebar/index.ts";
+import { isItem } from "../../../../../../ui/src/Menu/props.ts";
+import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/props.ts";
 
 const wrap = (s: SampleInbox, initial: Partial<InboxState>, child: ReactElement): string =>
   renderToStaticMarkup(<InboxDataProvider value={s.data}><InboxStateProvider initial={initial}>{child}</InboxStateProvider></InboxDataProvider>).replaceAll("<!-- -->", "");
@@ -22,7 +22,7 @@ const at = (s: string, needle: string): number => {
   assert.ok(i >= 0, `expected ${needle}`);
   return i;
 };
-const lines = (out: string): string[] => [...out.matchAll(/data-testid="row-line:([^"]+)"/g)].map((m) => m[1]!);
+const lines = (out: string): string[] => [...out.matchAll(/data-testid="row-line:([^"]+)"/g)].map((m) => m[1]!).filter((k) => !k.endsWith("-leading") && !k.endsWith("-trailing"));
 const items = (entries: readonly MenuEntry[]): MenuItem[] => entries.filter(isItem);
 
 test("screen: By contact lists one line per person, newest first, unmatched senders on top", () => {
@@ -113,7 +113,8 @@ test("the sidebar groups inboxes with their unread counts and keeps the lists an
   assert.deepEqual([...order].sort((a, b) => a - b), order, "rows then Mine, Shared, Agents, Lists, Calendars");
   for (const label of ["Work Gmail", "Personal", "+1 415 555 0132", "hello@", "support@", "intake@", "Following", "Campaigns", "Work Google", "Microsoft"]) assert.ok(has(out, `>${label}<`), label);
   assert.ok(has(out, 'data-testid="row-nav:view:contact"') && has(out, 'data-testid="row-nav:view:contact-trailing"'), "sidebar rows are ui/Row with slots");
-  assert.ok(has(out, 'data-testid="cal-dot-cal_work"') && has(out, "hsl(250 56% 46%)"), "each calendar has its colour dot");
+  const dot = (id: string): string => (out.match(/<div[^>]*data-testid="cal-dot-[^"]*"[^>]*>/g) ?? []).find((t) => t.includes(`cal-dot-${id}"`)) ?? "";
+  assert.ok(dot("cal_work").includes("background-color") && dot("cal_ms").includes("background-color") && dot("cal_work") !== dot("cal_ms"), "each calendar has its own colour dot");
   assert.ok(has(out, 'data-testid="inbox-dialer"') && has(out, "Dialer"));
   assert.equal(out.split("background-color:var(--sel)").length - 1, 1, "exactly one row is selected: By contact, with the quiet selection token");
 });
