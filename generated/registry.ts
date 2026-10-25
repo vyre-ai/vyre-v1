@@ -4,4 +4,4 @@ import { readFileSync } from 'node:fs';
 import type { Registry } from '../packages/contracts/src/registry.ts';
 
 export const registry = JSON.parse(readFileSync(new URL('./registry.json', import.meta.url), 'utf8')) as Registry;
-export const registryHash = "a86d03c17255554961d1886f96e44317ae0e7de12d3bae48f3d1715a62d5a844";
+export const registryHash = "2a6338b976593007e78de52efff041092caec4afe6e75ba461122ae8973d6429";
