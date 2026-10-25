@@ -84,7 +84,10 @@ test("each place renders its data from a seeded replica, not its loading frame",
     home: "Send 12 invoices", chat: "Pruitt retainer thread", mail: "Marcus Pruitt", records: "Active clients", files: "Rivera engagement letter.docx",
     sites: "Northwind website", automations: "Welcome new leads", vault: "Stripe restricted key", settings: "Profile",
   };
+  const firstList = (await import("./providers/first-list.tsx")).default;
   for (const p of SHELL_PLACES) {
+    // A place with its own composed layout (providers/<place>.tsx) is tested beside it; this test covers Home and the places still on the first list.
+    if (p.id !== "home" && (await p.load()).default !== firstList) continue;
     const out = await mount(p.id, rt);
     assert.ok(out.includes(titles[p.id]!), `${p.id} shows ${titles[p.id]}`);
     assert.ok(!out.includes("-loading"), `${p.id} is not a loading frame`);
