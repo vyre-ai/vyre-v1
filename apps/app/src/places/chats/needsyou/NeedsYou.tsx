@@ -376,7 +376,8 @@ function keyOfItem(i: Item): string {
 /** The list of requests: ui/VirtualList over ui/Row, 44 high because every row has its second line. Withdrawn requests follow under their own label (same 44 px). */
 type Entry = { key: string; item: Item } | { key: string; label: string };
 function NeedList({ items, withdrawn, render, window }: { items: readonly Item[]; withdrawn: readonly Item[]; render: (i: Item) => ReactElement; window?: VirtualWindow }): ReactElement {
-  const entries: Entry[] = items.map((item) => ({ key: keyOfItem(item), item }));
+  const entries: Entry[] = [];
+  for (const item of items) entries.push({ key: keyOfItem(item), item });
   if (withdrawn.length > 0) {
     entries.push({ key: "label:withdrawn", label: "Withdrawn" });
     for (const item of withdrawn) entries.push({ key: keyOfItem(item), item });
