@@ -31,7 +31,7 @@ type In = {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
-  kinds?: Array<"automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "runbook" | "wait" | "terminal" | "replay" | "other">;
+  kinds?: Array<"automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other">;
   statuses?: Array<"queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped">;
   since?: number;
   cursor?: string;
@@ -45,7 +45,7 @@ type In = {
 type Out = {
   runs: Array<{
       id: string;
-      kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "runbook" | "wait" | "terminal" | "replay" | "other";
+      kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
       name?: string;
       owner: string;
       startedBy: string;
