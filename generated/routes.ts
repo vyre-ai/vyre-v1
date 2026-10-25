@@ -16999,7 +16999,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "file",
+      "type": "note",
       "id": "/noteId"
     },
     "idempotency": "natural",
@@ -17018,7 +17018,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "manage",
     "resource": {
-      "type": "file",
+      "type": "note",
       "id": "/noteId"
     },
     "idempotency": "natural",
@@ -17055,7 +17055,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "file",
+      "type": "note",
       "id": "/noteId"
     },
     "idempotency": "natural",
@@ -20058,6 +20058,25 @@ export const routes: Route[] = [
     "resource": {
       "type": "record",
       "id": "/recordId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/records/view",
+    "cap": "records.view",
+    "v": 1,
+    "module": "records",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "record_type",
+      "id": "/type"
     },
     "idempotency": "natural",
     "risk": "low",

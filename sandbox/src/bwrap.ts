@@ -38,6 +38,8 @@ export function bwrapCommand(spec: SandboxSpec, roots: Roots, argv: readonly str
     ...(spec.env ?? {}), HOME, PATH: "/usr/local/bin:/usr/bin:/bin", LANG: "C.UTF-8",
     ...(o.proxyPort !== undefined ? proxyEnv(`http://127.0.0.1:${o.proxyPort}`) : {}),
   };
+  // bwrap builds the new root as a writable tmpfs; nothing may be written on it (the real bwrap run found the self-test could). The binds above are their own mounts and stay as asked.
+  a.push("--remount-ro", "/");
   a.push("--clearenv");
   for (const [k, v] of Object.entries(env)) a.push("--setenv", k, v);
   a.push("--chdir", checked.mounts[0]?.host ?? HOME, "--", ...argv);

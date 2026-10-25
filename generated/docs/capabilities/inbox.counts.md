@@ -34,6 +34,7 @@ type Out = {
   byInbox: Array<{
       kind: "mailbox" | "number";
       id: string;
+      name?: string;
       unread: number;
     }>;
   total: number;
@@ -59,6 +60,7 @@ type Out = {
       {
         "id": "example",
         "kind": "mailbox",
+        "name": "example",
         "unread": 1
       }
     ],

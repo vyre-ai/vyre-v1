@@ -215,3 +215,5 @@ test("a failed write says so in the quiet line and changes nothing", async () =>
   assert.equal(await complete(d, openNow(h)[0]!), false);
   assert.equal(notes.at(-1)!.text, "Could not complete that task. Try again.");
 });
+
+// rerun for evidence on the final commit (lead request)
