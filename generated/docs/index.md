@@ -5,8 +5,8 @@
 | Modules | 64 |
 | Connector manifests | 12 |
 | Kit manifests | 4 |
-| Capabilities | 1499 |
-| Events | 602 |
+| Capabilities | 1500 |
+| Events | 603 |
 | Permissions | 57 |
 | Entities | 37 |
 | Record types | 15 |
