@@ -573,13 +573,14 @@ async function preview(ctx: Ctx, input: unknown): Promise<{ changes: { kind: str
  * The schema module registers every declared type before its first read, so an identical type is already there and this is a no-op; one that is missing refuses the install.
  */
 export async function ensureDeclaredType(call: (cap: string, input: unknown) => Promise<unknown>, type: string): Promise<void> {
-  try {
-    await call("schema.types.get", { type });
-  } catch (e) {
-    const code = (e as { error?: { code?: unknown } } | null)?.error?.code;
-    if (code === "validation.not_found") throw new Error(`The record type ${type} is declared by the Kit but not in this Space.`);
-    throw e;
+  let cursor: string | undefined;
+  for (let page = 0; page < 50; page++) {
+    const out = (await call("schema.types.list", { limit: 200, ...(cursor !== undefined ? { cursor } : {}) })) as { types?: { key?: unknown }[]; next?: string };
+    if ((out.types ?? []).some((t) => t.key === type)) return;
+    if (out.next === undefined) break;
+    cursor = out.next;
   }
+  throw new Error(`The record type ${type} is declared by the Kit but not in this Space.`);
 }
 
 async function runStep(ctx: Ctx, step: KitStep): Promise<void> {

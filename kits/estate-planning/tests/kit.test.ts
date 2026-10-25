@@ -220,7 +220,7 @@ test("every write step that needs an idempotency key carries a stable one, uniqu
       keys.push(key as string);
     }
   }
-  assert.ok(keys.length >= 5);
+  assert.ok(keys.length >= 4, "the Journey, form, Automation and agent steps carry keys (the record type step is gone, ruling 56)");
   assert.equal(new Set(keys).size, keys.length, "idempotency keys are unique");
   assert.ok(keys.every((k) => k.startsWith(`kit.${KEY}.`)), "keys are namespaced by the Kit");
 });
