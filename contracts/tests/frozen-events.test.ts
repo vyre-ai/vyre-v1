@@ -131,3 +131,5 @@ test('every event has vis, label, redact and sv within the catalogue rules', () 
 // rerun on final commit
 // run on the final commit of P-CC_33
 // run on the final commit of the lanes PR
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.

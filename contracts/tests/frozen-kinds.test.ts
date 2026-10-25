@@ -197,3 +197,5 @@ test('task kinds and retention classes are the closed sets their modules own', (
 // rerun on final commit
 // run on the final commit of P-CC_33
 // run on the final commit of the lanes PR
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
