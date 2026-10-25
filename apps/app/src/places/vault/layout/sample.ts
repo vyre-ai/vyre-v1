@@ -7,7 +7,7 @@ import type { FakeReplica, LiveQuery, QueryState, Row } from "../../../../../../
 import { screensById } from "../../../../../../generated/screens.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { Connection, Principal, VaultData, VaultNav } from "./data.tsx";
-import type { Folder, Item, Provider } from "./model.ts";
+import type { Folder, Item, Provider, Share } from "./model.ts";
 import { DAY_MS, HOUR_MS, MIN_MS } from "./model.ts";
 
 /** Friday 24 October 2025, 10:00 UTC, so every machine prints the same "Used 14 min ago". */
@@ -31,6 +31,8 @@ export interface SampleSpace {
   history: HistorySpec[];
   providers: ProviderSpec[];
   requests: { id: string; name: string; forAutomation: string; agoMin: number }[];
+  /** Who holds each item besides you: [kind, id, level]. */
+  grants?: Record<string, [kind: Share["subject"]["kind"], id: string, level: Share["level"]][]>;
 }
 
 const people: Principal[] = [
@@ -83,6 +85,10 @@ export const northwind: SampleSpace = {
     { id: "prv_anthropic", key: "anthropic", name: "Anthropic", connection: "api_key", via: "API key #Northwind_Anthropic", scope: "shared", item: "vit_anthropic", agents: ["agt_intake"], tokens: 1_100_000, cents: 1320, engine: "claude-code" },
   ],
   requests: [{ id: "req_twilio", name: "Twilio", forAutomation: "New lead follow-up", agoMin: 120 }],
+  grants: {
+    vit_ghl: [["agent", "agt_intake", "use"], ["agent", "agt_research", "use"], ["agent", "agt_billing", "use"], ["person", "usr_omar", "view"], ["person", "usr_maya", "edit"]],
+    vit_stripe: [["agent", "agt_billing", "use"], ["person", "usr_maya", "edit"]],
+  },
 };
 
 export const harbor: SampleSpace = {
@@ -212,7 +218,28 @@ export function createSampleVault(space: SampleSpace = northwind, o: { online?: 
   };
   const touch = (id: string, patch: Partial<ItemRow>): ItemRow => { const next = { ...find(id), ...patch, updatedAt: SAMPLE_NOW } as ItemRow; replica.put("items", [next]); return next; };
 
+  // Who holds each item (access.shares_of): the owner, then the grants above. A grant is changed by vault.share and removed by vault.unshare.
+  const grants = new Map<string, Share[]>();
+  for (const [itemId, list] of Object.entries(space.grants ?? {})) grants.set(itemId, list.map(([kind, id, level]): Share => ({ subject: { kind, id }, level, through: "direct" })));
+  const sharesOf = (itemId: string): Share[] => [{ subject: { kind: "person", id: space.me.id }, level: "manage", through: "owner" }, ...(grants.get(itemId) ?? [])];
+
   const writes: Record<string, (input: any) => unknown> = {
+    "access.shares_of": (i: { resource: { type: string; id: string } }) => ({
+      shares: sharesOf(i.resource.id).map((x, n) => ({ grant: { id: `grt_${n}`, subject: x.subject, resource: i.resource, level: x.level, conditions: {}, by: space.me.id, createdAt: SAMPLE_NOW }, through: x.through })),
+    }),
+    "vault.share": (i: { resource: { id: string }; subject: Share["subject"]; level: Share["level"] }) => {
+      const cur = grants.get(i.resource.id) ?? [];
+      const same = (x: Share): boolean => x.subject.kind === i.subject.kind && x.subject.id === i.subject.id;
+      grants.set(i.resource.id, cur.some(same) ? cur.map((x) => (same(x) ? { ...x, level: i.level } : x)) : [...cur, { subject: i.subject, level: i.level, through: "direct" }]);
+      log(i.resource.id, "shared");
+      return { granted: true };
+    },
+    "vault.unshare": (i: { resource: { id: string }; subject: Share["subject"] }) => {
+      const cur = grants.get(i.resource.id) ?? [];
+      grants.set(i.resource.id, cur.filter((x) => !(x.subject.kind === i.subject.kind && x.subject.id === i.subject.id)));
+      log(i.resource.id, "unshared");
+      return { revoked: 1 };
+    },
     "vault.item.reveal": (i: { itemId: string; fields?: string[] }) => {
       const it = find(i.itemId);
       if (it.kind === "ai_subscription") throw new Error("permission.provider_label");
