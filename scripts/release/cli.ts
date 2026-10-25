@@ -3,6 +3,7 @@
 //   node scripts/release/cli.ts bump <version> | --check
 //   node scripts/release/cli.ts lineage <sha> <tag>
 //   VYRE_SIGNING_KEY=<pkcs8 pem> node scripts/release/cli.ts pubkey [outfile]    prints the public half (hex) and its key id; with outfile writes {"publicKey","keyId"} for compiling into the servers
+//   node scripts/release/cli.ts assets <dir>    writes <channel>.json, <channel>.json.sig (and <channel>-<kind>... for the others) from <dir>/feed.json: the files attached to the GitHub Release
 //   VYRE_SIGNING_KEY=<pkcs8 pem> node scripts/release/cli.ts sign <dir> <channel> <pinned-public-key-hex>
 //     dir holds releases.json ({ app?, server?, kits?, extension? } of { version, tarball, sha256 }); writes <dir>/feed.json with one signed entry per channel present.
 import { execFileSync } from "node:child_process";
@@ -10,7 +11,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { UPDATE_CHANNELS, buildEntries } from "./channels.ts";
-import type { Releases, UpdateChannel } from "./channels.ts";
+import type { FeedEntry, Releases, UpdateChannel } from "./channels.ts";
+import { assetsFor } from "./feed.ts";
 import { lineage, newestStable } from "./lineage.ts";
 import { SIGNING_KEY_ENV, keyId, publicKeyHexOf } from "./sign.ts";
 import { bump, releaseCounter, versionProblems } from "./version.ts";
@@ -55,7 +57,14 @@ function main(argv: string[]): number {
         console.log(`release: signed ${entries.map((e) => e.kind).join(", ") || "nothing"}`);
         return 0;
       }
-      default: console.error("usage: counter | bump | lineage | sign"); return 2;
+      case "assets": {
+        if (a === undefined) { console.error("usage: assets <dir>   (writes the release assets from <dir>/feed.json)"); return 2; }
+        const entries = JSON.parse(fs.readFileSync(path.join(a, "feed.json"), "utf8")) as FeedEntry[];
+        const names = entries.flatMap(assetsFor).map((f) => { fs.writeFileSync(path.join(a, f.name), f.content); return f.name; });
+        console.log(`release: wrote ${names.join(", ")}`);
+        return 0;
+      }
+      default: console.error("usage: counter | bump | lineage | pubkey | sign | assets"); return 2;
     }
   } catch (e) { console.error(`release: ${e instanceof Error ? e.message : "failed"}`); return 1; }
 }

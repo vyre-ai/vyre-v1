@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { CHANNEL_KINDS, buildEntries, manifestFor, readFeed } from "./channels.ts";
 import type { ChannelRelease, FeedEntry } from "./channels.ts";
+import { assetsFor, feedBase } from "./feed.ts";
 import { lineage, newestStable, nextPatchTag } from "./lineage.ts";
 import { SIGNATURE_PREFIX, keyId, publicKeyBytes, publicKeyHexOf, signManifest, verifyManifest } from "./sign.ts";
 import { bump, releaseCounter, versionProblems } from "./version.ts";
@@ -111,4 +112,17 @@ test("the public half derived from the signing key is the one that verifies, and
   assert.equal(keyId(k.pub), keyId(k.pub));
   assert.notEqual(keyId(keys().pub), keyId(k.pub));
   assert.ok(!publicKeyHexOf(k.pem).includes("PRIVATE"));
+});
+
+test("release assets carry the names the installer and the updater read, and the .sig verifies the manifest file byte for byte", () => {
+  const k = keys();
+  const entries = buildEntries({ channel: "stable", releases: { server: rel("1.2.0"), kits: rel("3.0.0", "kits.tgz") }, privateKeyPem: k.pem, pinnedPublicKey: k.pub });
+  const files = entries.flatMap(assetsFor);
+  assert.deepEqual(files.map((f) => f.name), ["stable.json", "stable.json.sig", "stable-kits.json", "stable-kits.json.sig"]);
+  const manifest = files.find((f) => f.name === "stable.json")?.content ?? "";
+  const sig = files.find((f) => f.name === "stable.json.sig")?.content ?? "";
+  assert.equal(verifyManifest(manifest, sig, k.pub), true);
+  assert.equal((JSON.parse(manifest) as { server: { tarball: string } }).server.tarball, "vyre.tgz", "relative to the feed base, as the installer expects");
+  assert.equal(feedBase("stable"), "https://github.com/vyre-ai/vyre-v1/releases/latest/download/");
+  assert.equal(feedBase("beta"), "https://github.com/vyre-ai/vyre-v1/releases/download/channel-beta/");
 });
