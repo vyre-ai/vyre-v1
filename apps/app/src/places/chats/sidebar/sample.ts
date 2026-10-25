@@ -6,6 +6,7 @@ import type { FakeReplica, Row } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { fixtureFor } from "../../../fixtures/index.ts";
+import type { FixtureChannel } from "../../../fixtures/index.ts";
 import type { Agent, Channel, NeedsItem, RecentItem, RecentOut } from "./model.ts";
 import type { ChatsNav, ChatsSidebarData, Connection } from "./data.tsx";
 
@@ -25,6 +26,18 @@ export interface SampleSpace {
   channels: { channelId: string; name: string; unread: number; visibility: "public" | "invite"; project?: boolean }[];
   needs: { taskId: string; title: string; kind: "approve" | "review" | "unblock"; by: string }[];
   needsTotal: number;
+}
+
+/**
+ * The prototype's sidebar draws a project channel only when it is starred or followed (renderSide: c.project && (c.starred || c.followed)); spec 3.2 says the same. Its seed marks
+ * pruitt-matter followed and atp-q4 not, so atp-q4 stays out of the list. The shared fixture carries the channel but not that flag, so the followed ids are kept here.
+ */
+export const FOLLOWED_PROJECTS: ReadonlySet<string> = new Set(["ch_pruitt"]);
+
+function channelsOf(all: readonly FixtureChannel[], followed: ReadonlySet<string>): SampleSpace["channels"] {
+  return all
+    .filter((c) => c.project !== true || followed.has(c.id))
+    .map((c) => ({ channelId: c.id.replace(/^ch_/, ""), name: c.name, unread: c.mentions ?? (c.unread === true ? 1 : 0), visibility: c.private === true ? ("invite" as const) : ("public" as const), ...(c.project === true ? { project: true } : {}) }));
 }
 
 const t = (threadId: string, title: string, agents: string[], lastAt: number, o: Partial<SampleThread> = {}): SampleThread =>
@@ -48,11 +61,7 @@ export const northwind: SampleSpace = {
     t("c5", "Weekly lead report", ["agt_intake"], at(10, 20, 9, 0)),
     t("c7", "Plan the Q4 offsite", ["agt_assistant"], at(10, 20, 8, 30)),
   ],
-  channels: [
-    { channelId: "intake", name: "intake", unread: 1, visibility: "public" }, { channelId: "billing", name: "billing", unread: 0, visibility: "public" },
-    { channelId: "rivera", name: "rivera-matter", unread: 0, visibility: "invite" },
-    { channelId: "pruitt", name: "pruitt-matter", unread: 0, visibility: "public", project: true },
-  ],
+  channels: channelsOf(fixtureFor("northwind").channels, FOLLOWED_PROJECTS),
   needs: [
     { taskId: "tsk_n1", title: "Send 12 invoices", kind: "approve", by: "agt_billing" },
     { taskId: "tsk_n2", title: "Rivera engagement letter", kind: "review", by: "agt_docs" },
@@ -80,7 +89,7 @@ function harborSpace(): SampleSpace {
     id: "harbor", name: f.space.name, assistant: { agentId: "agt_assistant", name: "Assistant" }, otherNeedsYou: false,
     agents: [...f.agents].sort((a, b) => Number(b.pinned) - Number(a.pinned)).map((a) => ({ agentId: a.id, name: a.name, starred: a.pinned || a.id === "agt_assistant" })),
     threads: f.chats.map((c) => t(c.id, c.title, agentId(c.with) ? [c.with] : [], stampOf(c.at), { ...(c.unread === true ? { unread: 1 } : {}), ...(c.starred === true ? { starred: true } : {}) })),
-    channels: f.channels.map((c) => ({ channelId: c.id, name: c.name, unread: c.unread === true ? 1 : 0, visibility: "public" as const })),
+    channels: channelsOf(f.channels, FOLLOWED_PROJECTS),
     needs: f.needs.map((n) => ({ taskId: `tsk_${n.id}`, title: n.title, kind: n.kind === "Approve" ? ("approve" as const) : n.kind === "Review" ? ("review" as const) : ("unblock" as const), by: n.agent })),
     needsTotal: f.needs.length,
   };

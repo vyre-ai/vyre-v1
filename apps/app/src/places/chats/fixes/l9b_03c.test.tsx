@@ -63,7 +63,7 @@ test("channels with nothing new sit dim; the one with unread keeps its count", (
 test("the sidebar lists all seven requests and no extra project", () => {
   const out = html(createSampleSidebar());
   for (const t of ["Send 12 invoices", "Rivera engagement letter", "County records search", "Pruitt intake summary", "Send the ATP reminder", "Problem report from Omar", "Month-end export"]) assert.ok(has(out, t), t);
-  assert.ok(has(out, "pruitt-matter") && !has(out, "atp-q4"), "Projects hold only the followed pruitt-matter");
+  assert.ok(has(out, "pruitt-matter") && !has(out, "atp-q4"), "atp-q4 is a project nobody follows, so the sidebar leaves it out as the prototype does");
 });
 
 test("agents and people wear real faces, the assistant the Vyre mark", () => {
