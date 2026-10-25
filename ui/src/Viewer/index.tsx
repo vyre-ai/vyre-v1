@@ -9,6 +9,7 @@ import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, Vi
 import { AskButton } from "../AskButton/index.tsx";
 import type { AskButtonProps } from "../AskButton/index.tsx";
 import { MenuIcon } from "../Menu/index.tsx";
+import { MONO_VAR } from "../theme/fonts.ts";
 import { Row } from "../Row/index.tsx";
 import { viewerLabel } from "./props.ts";
 import type { MarkupTool, ViewerPin, ViewerProps } from "./props.ts";
@@ -589,7 +590,7 @@ const s = StyleSheet.create({
   h2: { fontSize: 18, lineHeight: 26, fontWeight: "600" },
   p: {},
   li: { paddingLeft: 6 },
-  code: { fontFamily: "var(--mono)" as string, fontSize: 12.5, lineHeight: 19 },
+  code: { fontFamily: MONO_VAR, fontSize: 12.5, lineHeight: 19 },
   mark1: { backgroundColor: "var(--accent-wash)" as string },
   markOn: { backgroundColor: "var(--warn)" as string },
   sheetWrap: { padding: 14, flexGrow: 1 },
