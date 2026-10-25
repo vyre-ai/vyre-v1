@@ -11,6 +11,7 @@ export const codecs = {};
 /**
  * The Space row sign-in options and the join page read (name, fingerprint, which sign-in methods are on), made once at boot by the host. The fingerprint is the Space key's; the server holds no Space key
  * (the admin's device wraps it), so until a device sets it this is a stable placeholder derived from the Space id, which devices must not pin.
+ * DECISION: the fingerprint is a placeholder (see host/src/seams/spaceadmin.ts).
  */
 export const hostCalls = {
   "identity.ensure_space": (ctx: { space: string; db: { run(sql: string, ...a: unknown[]): unknown } }, i: { name: string; github: boolean }): void => {

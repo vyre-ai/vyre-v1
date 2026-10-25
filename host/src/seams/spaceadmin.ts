@@ -1,8 +1,11 @@
 // The spaces module's host drivers (rulings 31 and 32): what space administration needs and a module cannot know (modules/spaces/handlers/extra/core.ts, SpaceAdminDrivers).
 //   owner, fingerprint, isMember   read from the access projection and the identity tables
 //   transferOwner                  the new Owner and the old one an Admin, through the access module as the host
-//   applyAddress                   NOT applied to Caddy or the relay here: the address is recorded on the profile (the invite link reads it) and the network module reconciles routes from it
-//   deleteSpace                    refused: a Space is removed on its server with the command line, never over HTTP
+// DECISION: an address change does not reconfigure Caddy or the relay. applyAddress accepts, the module records the address on the profile (the invite link reads it), and routes follow only when the
+//   network module reconciles them; until then changing the address changes what links say, not what the server answers on.
+// DECISION: deleting a Space is refused over HTTP (internal.unavailable). A Space is removed on its server with the command line, where the person is at the machine and the data directory is theirs to remove.
+// DECISION: the Space key fingerprint is a placeholder (identity.ensure_space). The server holds no Space key, the admin's device wraps it, so the fingerprint a join page shows is derived from the Space id
+//   until a device sets the real one; devices must not pin it.
 import type { AccessSnapshot } from "../../../kernel/src/authorize/snapshot.ts";
 import { fail } from "../routes/errors.ts";
 
