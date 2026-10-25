@@ -1,7 +1,7 @@
 // Mount for P-L9d_02: the Records place with its Board, Gallery and List over the Northwind sample Space (or Harbor Studio with ?space=harbor).
 // ?kind=board|gallery|list|table  ?type=projects|clients  ?view=vw_board (a saved view of that kind)  ?rows=2000 (more clients)  ?menu=kind|filter|fields|lanes|sort opens that header menu on load
 // On a phone width the sidebar is a drawer, so only the view shows. Every control works against the sample replica; a dropped card changes its row.
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { RecordsDataProvider, RecordsSidebar, RecordsStateProvider } from "../../../apps/app/src/places/records/sidebar/index.ts";
@@ -12,8 +12,7 @@ export const title = "Records: Board, Gallery and List";
 
 const MENUS = ["kind", "filter", "fields", "lanes", "sort"] as const;
 
-export default function Mount(): ReactNode {
-  const q = useMemo(() => new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""), []);
+function Page({ q }: { q: URLSearchParams }): ReactNode {
   const bulk = Math.min(200_000, Number(q.get("rows") ?? 0) || 0);
   const space = q.get("space") === "harbor" ? harbor : northwind;
   const sample = useMemo(() => createViewsSample(space, { bulk }), [space, bulk]);
@@ -38,4 +37,11 @@ export default function Mount(): ReactNode {
       </RecordsStateProvider>
     </RecordsDataProvider>
   );
+}
+
+/** The query is read after the page is live (the static export keeps the markup it was rendered with), so the mount draws once the query is known. */
+export default function Mount(): ReactNode {
+  const [q, setQ] = useState<URLSearchParams | null>(null);
+  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  return q ? <Page q={q} /> : null;
 }
