@@ -17,7 +17,7 @@ import { NeedsYouDataProvider, useNeedsData, useOnline, useOptionalNeedsData, us
 import type { NeedsYouData } from "./data.tsx";
 import {
   FILTERS, SNOOZES, agoLabel, blockView, holder, matchesFilter, needsLine, needsNote, needsTake, nextSelection, notePrompt, roleWord, rowNote, sortItems,
-  sourceWord, splitActions, stateWord, stepSelection,
+  isWithdrawn, peopleCount, participants, sourceWord, splitActions, splitWithdrawn, stateWord, stepSelection,
 } from "./model.ts";
 import type { Action, BlockView, Item, KindFilter, Task } from "./model.ts";
 import { Button, Face, Icon, LeadIcon, Tool } from "./parts.tsx";
@@ -63,15 +63,18 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
 
   if (itemsQ.status === "loading") return <NeedsYouLoading />;
   const all = itemsQ.data.items;
-  const list = sortItems(all).filter((i) => matchesFilter(i.task, filter));
-  const current: Item | undefined = list.find((i) => i.task.id === selected) ?? list[0];
+  const list = sortItems(splitWithdrawn(all).live).filter((i) => matchesFilter(i.task, filter));
+  // Withdrawn requests sit in their own section below the list, only while every kind is showing.
+  const withdrawn = filter === "all" ? splitWithdrawn(all).withdrawn : [];
+  const pool = [...list, ...withdrawn];
+  const current: Item | undefined = pool.find((i) => i.task.id === selected) ?? list[0] ?? withdrawn[0];
   const count = countQ.status === "ready" ? countQ.data.count : itemsQ.data.total;
   const who = (t: Task): string => data.nameOf(t.createdBy);
 
   const choose = (id: string): void => { setSelected(id); setCompose(null); setDraft(""); setScreen("detail"); };
   const doAct = async (i: Item, a: Action, note?: string): Promise<void> => {
     if (needsNote(a) && (note ?? "").trim() === "") { setCompose({ taskId: i.task.id, action: a }); setSelected(i.task.id); setScreen("detail"); return; }
-    const after = nextSelection(list, i.task.id);
+    const after = nextSelection(pool, i.task.id);
     const ok = await act(deps, i.task, a, who(i.task), note);
     if (ok) { setSelected(after); setCompose(null); setDraft(""); if (narrow) setScreen("list"); }
   };
@@ -96,7 +99,7 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
   const onKeyDown = (ev: { key?: string; target?: { tagName?: string }; preventDefault?: () => void }): void => {
     const tag = (ev.target?.tagName ?? "").toUpperCase();
     if (tag === "INPUT" || tag === "TEXTAREA") return;
-    if (ev.key === "ArrowDown" || ev.key === "ArrowUp") { ev.preventDefault?.(); setSelected(stepSelection(list, current?.task.id ?? null, ev.key === "ArrowDown" ? 1 : -1)); return; }
+    if (ev.key === "ArrowDown" || ev.key === "ArrowUp") { ev.preventDefault?.(); setSelected(stepSelection(pool, current?.task.id ?? null, ev.key === "ArrowDown" ? 1 : -1)); return; }
     if (!current) return;
     const a = splitActions(current.task);
     if ((ev.key === "a" || ev.key === "A") && a.primary) { ev.preventDefault?.(); void doAct(current, a.primary); }
@@ -106,9 +109,9 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
   const renderRow = (i: Item): ReactElement => {
     const sel = current?.task.id === i.task.id;
     const a = splitActions(i.task);
-    const quick = a.primary && !needsNote(a.primary) ? a.primary : null;
+    const quick = a.primary && !needsNote(a.primary) && !isWithdrawn(i) ? a.primary : null;
     return (
-      <View {...menuTrigger((x, y) => menu.show(entriesFor(i), x, y, "context", { label: i.task.title }))}>
+      <View style={isWithdrawn(i) ? st.dimRow : undefined} {...menuTrigger((x, y) => menu.show(entriesFor(i), x, y, "context", { label: i.task.title }))}>
         <Row
           id={`need-${i.task.id}`} title={i.task.title} note={rowNote(i, who(i.task), clock)} selected={sel} onPress={() => choose(i.task.id)}
           leading={<Face name={who(i.task)} size={26} />}
@@ -132,12 +135,12 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
         {online ? null : <Text testID="needs-offline" style={st.quiet}>Offline</Text>}
         <Tool icon="filter" label="Filter" onPress={filterMenu} active={filter !== "all"} testID="needs-filter" />
       </View>
-      {list.length === 0 ? (
+      {list.length === 0 && withdrawn.length === 0 ? (
         <View testID="needs-empty" style={{ flex: 1 }}>
           <States kind="empty" icon="done" title={filter === "all" ? `All caught up. Nothing in ${data.space.name} is waiting on you.` : "Nothing here. Try another filter."} />
         </View>
       ) : (
-        <NeedList items={list} render={renderRow} {...(window ? { window } : {})} />
+        <NeedList items={list} withdrawn={withdrawn} render={renderRow} {...(window ? { window } : {})} />
       )}
       {line ? <View testID="needs-line" style={st.note}><Text numberOfLines={2} style={st.noteText}>{line}</Text></View> : null}
       <View style={st.foot}><Text style={st.footText}>↑ ↓ to move · A approve · B send back</Text></View>
@@ -187,6 +190,9 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
   const src = t.source;
   const srcTitle = src ? data.sourceTitle(src.kind, src.id) ?? sourceWord(src) : "";
   const assigned = data.nameOf(t.assigned.id);
+  const gone = isWithdrawn(item);
+  const people = participants(t, (id) => (id.startsWith("usr_") ? "person" : "agent"));
+  const peopleMenu = (x: number, y: number): void => showMenu(people.map((p) => ({ label: `${data.nameOf(p.id)}, ${p.role}`, onSelect: () => undefined })), x, y);
   const blockNodes: ReactElement[] = [];
   for (const [i, b] of t.blocks.entries()) blockNodes.push(<Block key={`${b.type}-${i}`} view={blockView(b)} />);
   const moreButtons: ReactElement[] = [];
@@ -200,13 +206,21 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
       <View style={st.dTop}>
         <Face name={who} size={36} />
         <View style={st.dTopText}>
-          <Text testID="needs-kind" style={[st.dKind, warn && { color: "var(--warn)" as string }]}>{needsLine(t)}</Text>
+          <Text testID="needs-kind" style={[st.dKind, warn && { color: "var(--warn)" as string }]}>{gone ? "Withdrawn" : needsLine(t)}</Text>
           <Text accessibilityRole="header" style={st.dTitle}>{t.title}</Text>
           {t.summary ? <Text style={st.dSummary}>{t.summary}</Text> : null}
           <Text testID="needs-meta" style={st.dMeta}>{meta}</Text>
         </View>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Participants, ${peopleCount(people)}`} testID="needs-participants" onPress={(e) => {
+          const box = (e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.();
+          peopleMenu(box ? box.left : 0, box ? box.bottom + 4 : 0);
+        }} style={st.people}>
+          <Icon name="people" size={14} color="var(--accent)" />
+          <Text style={st.peopleN}>{peopleCount(people)}</Text>
+        </Pressable>
         <Tool icon="more" label="More" onPress={(x, y) => showMenu(menuItems, x, y)} testID="needs-more" />
       </View>
+      {gone ? <Text testID="needs-withdrawn" style={st.why}>{`Withdrawn by ${data.nameOf(t.createdBy)}, nothing to do.`}</Text> : null}
       {t.why ? <Text testID="needs-why" style={st.why}>{t.why}</Text> : null}
       {blockNodes}
       <View style={st.src}>
@@ -252,7 +266,15 @@ function Block({ view }: { view: BlockView }): ReactElement {
     const body: ReactElement[] = [];
     for (const [ri, r] of view.rows.entries()) {
       const cells: ReactElement[] = [];
-      for (const [i, c] of r.entries()) cells.push(<Text key={i} style={[st.td, i > 0 && st.tdR]}>{c}</Text>);
+      const tag = view.tags?.[ri] ?? "";
+      for (const [i, c] of r.entries()) {
+        cells.push(
+          <Text key={i} style={[st.td, i > 0 && st.tdR]}>
+            {c}
+            {i === 0 && tag !== "" ? <Text testID="row-tag" style={st.tag}>{`  ${tag}`}</Text> : null}
+          </Text>,
+        );
+      }
       body.push(<View key={ri} style={st.tr}>{cells}</View>);
     }
     return (
@@ -329,6 +351,12 @@ const st = StyleSheet.create({
   pv: { flex: 1, fontSize: 13, color: "var(--ink)" as string },
   quote: { gap: 6, padding: 12, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
   qline: { fontSize: 13, lineHeight: 19, color: "var(--ink)" as string },
+  tag: { fontSize: 11, fontWeight: "500", color: "var(--warn)" as string },
+  people: { height: 24, paddingHorizontal: 6, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 4 },
+  peopleN: { fontSize: 12, fontWeight: "600", color: "var(--accent)" as string },
+  dimRow: { opacity: 0.6 },
+  nsec: { height: 44, justifyContent: "flex-end", paddingHorizontal: 10, paddingBottom: 6 },
+  nsecText: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   qsrc: { flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 4 },
   qsrcText: { fontSize: 12, color: "var(--ink-3)" as string },
   blockLine: { fontSize: 12.5, color: "var(--ink-3)" as string },
@@ -341,7 +369,19 @@ function keyOfItem(i: Item): string {
   return i.task.id;
 }
 
-/** The list of requests: ui/VirtualList over ui/Row, 44 high because every row has its second line. */
-function NeedList({ items, render, window }: { items: readonly Item[]; render: (i: Item) => ReactElement; window?: VirtualWindow }): ReactElement {
-  return <VirtualList data={items} rowHeight={44} keyOf={keyOfItem} renderItem={render} {...(window ? { window } : {})} />;
+/** The list of requests: ui/VirtualList over ui/Row, 44 high because every row has its second line. Withdrawn requests follow under their own label (same 44 px). */
+type Entry = { key: string; item: Item } | { key: string; label: string };
+function NeedList({ items, withdrawn, render, window }: { items: readonly Item[]; withdrawn: readonly Item[]; render: (i: Item) => ReactElement; window?: VirtualWindow }): ReactElement {
+  const entries: Entry[] = items.map((item) => ({ key: keyOfItem(item), item }));
+  if (withdrawn.length > 0) {
+    entries.push({ key: "label:withdrawn", label: "Withdrawn" });
+    for (const item of withdrawn) entries.push({ key: keyOfItem(item), item });
+  }
+  return (
+    <VirtualList
+      data={entries} rowHeight={44} keyOf={(e) => e.key}
+      renderItem={(e) => ("item" in e ? render(e.item) : <View testID="needs-withdrawn-label" style={st.nsec}><Text accessibilityRole="header" style={st.nsecText}>{e.label}</Text></View>)}
+      {...(window ? { window } : {})}
+    />
+  );
 }

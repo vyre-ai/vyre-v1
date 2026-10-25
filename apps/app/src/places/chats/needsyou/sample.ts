@@ -11,15 +11,15 @@ import type { Item, Reason, Task } from "./model.ts";
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const at = (m: number, d: number, h: number, min = 0): number => Date.UTC(2025, m - 1, d, h, min, 0);
 
-export type Variant = "northwind" | "harbor";
+export type Variant = "northwind" | "harbor" | "quiet";
 
 export const ME = "usr_irfad";
 export const NAMES: Record<string, string> = {
   usr_irfad: "You", usr_omar: "Omar Haddad", usr_maya: "Maya Chen",
-  agt_billing: "Billing", agt_docs: "Docs", agt_scout: "Scout", agt_intake: "Intake", agt_research: "Research", agt_assistant: "Assistant",
+  agt_billing: "Billing", agt_docs: "Docs", agt_scout: "Scout", agt_intake: "Intake", agt_research: "Research", agt_assistant: "Assistant", agt_scheduler: "Scheduler", agt_proofer: "Proofer",
   role_finance: "Finance", usr_lena: "Lena Ortiz",
 };
-const SOURCES: Record<string, string> = { "chat:c3": "October invoices", "chat:c4": "Rivera engagement letter", "chat:c6": "County records search", "chat:c1": "Rivera intake", "chat:c2": "Competitor pricing", "chat:c7": "Plan the Q4 offsite" };
+const SOURCES: Record<string, string> = { "chat:c3": "October invoices", "chat:c4": "Rivera engagement letter", "chat:c6": "County records search", "chat:c1": "Rivera intake", "chat:c2": "Competitor pricing", "chat:c7": "Plan the Q4 offsite", "chat:hc-sched": "Studio visits", "chat:hc-proof": "Abel homepage copy", "chat:c4w": "Pruitt fee letter" };
 
 const approve = [{ key: "approve", label: "Approve" }, { key: "send_back", label: "Send back", note: "required" as const }];
 const review = [{ key: "review", label: "Looks good" }, { key: "send_back", label: "Send back", note: "required" as const }];
@@ -35,7 +35,7 @@ function task(id: string, kind: Task["kind"], by: string, title: string, summary
 export function northwindTasks(): { task: Task; reason: Reason; handledBy?: string }[] {
   return [
     { reason: "due_today", task: task("n1", "approve", "agt_billing", "Send 12 invoices", "$18,420 total · due Friday", "The monthly run, same as September. Two clients have new rates since last month; both are marked.", "c3", at(10, 24, 9, 12), {
-      due: at(10, 24, 17), blocks: [{ type: "table", v: 1, data: { columns: ["Client", "Amount", "Due"], rows: [["Harlow & Price", "$2,400", "Oct 31"], ["Grant Legal", "$1,850", "Oct 31"], ["Meyer Law", "$3,100", "Nov 1"], ["Ardent Partners", "$960", "Nov 1"], ["Brook Studio", "$1,200", "Nov 2"]], more: 7 } }],
+      due: at(10, 24, 17), blocks: [{ type: "table", v: 1, data: { columns: ["Client", "Amount", "Due"], rows: [["Harlow & Price", "$2,400", "Oct 31"], ["Grant Legal", "$1,850", "Oct 31"], ["Meyer Law", "$3,100", "Nov 1"], ["Ardent Partners", "$960", "Nov 1"], ["Brook Studio", "$1,200", "Nov 2"]], more: 7, tags: ["", "new rate", "", "", "new rate"] } }],
     }) },
     { reason: "ready", task: task("n2", "review", "agt_docs", "Rivera engagement letter", "Draft from the standard template", "Filled from Elena's record and the consult booking. Three values came from the record; please check the fee.", "c4", at(10, 24, 8, 50), {
       fileIds: ["doc1"], blocks: [{ type: "document", v: 1, data: { lines: ["This letter confirms that Elena Rivera engages Northwind for the matter described below.", "The consult fee is $250, due at the consult on Tuesday, Oct 28."], file: "engagement-letter.docx" } }],
@@ -48,9 +48,19 @@ export function northwindTasks(): { task: Task; reason: Reason; handledBy?: stri
     { reason: "ready", task: task("n6", "review", "agt_assistant", "Problem report from Omar", "The intake form would not send", "Omar pressed Report a problem on the Rivera intake form. The bundle holds the last 20 trace ids, recent errors and a window picture. Sealed values are redacted.", "c7", at(10, 24, 9, 36), {
       blocks: [{ type: "pairs", v: 1, data: { pairs: [["Item", "forms/rivera-intake · e41c"], ["Trace ids", "20 · last tr_91ac07"], ["Errors", "1 · form.send 503"], ["Versions", "app 1.0.0 · server 1.0.0"], ["Device", "MacBook · macOS 26"]] } }],
     }) },
+    // Withdrawn by its source: the fee changed and Docs is redrafting it. It sits under Withdrawn and does not count.
+    { reason: "ready", task: task("n8", "approve", "agt_docs", "Send the Pruitt fee letter", "Withdrawn: the fee changed and Docs is redrafting it.", "", "c4", at(10, 24, 8, 10), { state: "canceled", actions: [{ key: "dismiss", label: "Dismiss" }] }) },
     { reason: "blocking", task: task("n7", "unblock", "agt_billing", "Month-end export is waiting on a sign-in", "The wait outlived your Claude sign-in", "The export has waited 14 hours for the bank to finish. Your Claude sign-in ran out meanwhile. Sign in again and Billing carries on, or let it use its backup key. The run shows Waiting, not Failed.", "c3", at(10, 24, 9, 14), {
       blocked: true, actions: [{ key: "signin", label: "Sign in again" }, { key: "backup", label: "Use the backup key" }],
     }) },
+  ];
+}
+
+/** Harbor Studio's two requests, from the prototype: the Scheduler wants three studio visits confirmed, the Proofer wants a copy review. */
+export function harborTasks(): { task: Task; reason: Reason; handledBy?: string }[] {
+  return [
+    { reason: "ready", task: task("h1", "approve", "agt_scheduler", "Confirm 3 studio visits", "Thursday 10:00, 11:30, 14:00", "Each visitor has a free slot and a booking form on file. Confirming sends them the address and parking note.", "hc-sched", at(10, 24, 9, 20)) },
+    { reason: "ready", task: task("h2", "review", "agt_proofer", "Abel homepage copy", "Four lines marked", "The copy matches the brand sheet except four long lines. Take or leave each change.", "hc-proof", at(10, 24, 8, 40)) },
   ];
 }
 
@@ -73,16 +83,16 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
   const failing = new Set<string>();
   const listeners = new Set<() => void>();
   let online = o.online ?? true;
-  const seed = variant === "northwind" ? northwindTasks() : [];
+  const seed = variant === "northwind" ? northwindTasks() : variant === "harbor" ? harborTasks() : [];
   replica.put("needs", seed.map((x) => ({ id: x.task.id, ...x })));
 
   const rows = (): (Item & Row)[] => replica.rows("needs") as unknown as (Item & Row)[];
   const clean = (x: Item & Row): Item => { const { id: _id, ...rest } = x; return rest as Item; };
   replica.resolve("tasks.needs_you", (_t, input) => {
     const items = rows().map(clean);
-    return { items: items.slice(0, input.limit ?? 50), total: items.length };
+    return { items: items.slice(0, input.limit ?? 50), total: items.filter((i) => i.task.state !== "canceled").length };
   });
-  replica.resolve("tasks.count_needs_you", () => ({ count: rows().length }));
+  replica.resolve("tasks.count_needs_you", () => ({ count: rows().filter((r) => r.task.state !== "canceled").length }));
   replica.resolve("tasks.get", (_t, input) => {
     const r = rows().find((x) => x.task.id === input.taskId);
     if (!r) throw new Error("no such task");

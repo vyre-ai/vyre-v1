@@ -17,6 +17,7 @@ const PATHS = {
   inbox: ["M2.500 9l1.800-5.500h7.400L13.500 9v3.500h-11z", "M2.500 9h3.200l.8 1.600h3l.8-1.600h3.200"],
   clock: ["M8 13.500a5.500 5.500 0 100-11 5.500 5.500 0 000 11z", "M8 5v3.200l2 1.300"],
   key: ["M10.500 6.500a3 3 0 10-2.800 2.900L8.200 10H9.500v1.300h1.300V12.600H12V10.300z"],
+  people: ["M5.500 7a2 2 0 100-4 2 2 0 000 4z", "M1.800 13c0-2.200 1.700-3.800 3.700-3.800S9.200 10.800 9.200 13", "M11 7.500a1.700 1.700 0 100-3.400", "M11.200 9.400c1.800.1 3 1.400 3 3.600"],
   file: ["M4 2.500h5l3 3v7a1 1 0 01-1 1H4a1 1 0 01-1-1v-9a1 1 0 011-1z", "M9 2.500v3h3"],
 } as const;
 export type IconName = keyof typeof PATHS;
@@ -84,9 +85,9 @@ export const s = StyleSheet.create({
   toolOver: { backgroundColor: "var(--press)" as string },
   btn: { height: 30, paddingHorizontal: 12, borderRadius: 8, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 },
   btnOver: { backgroundColor: "var(--hover)" as string },
-  btnPrimary: { backgroundColor: "var(--accent)" as string },
+  btnPrimary: { backgroundColor: "var(--ink)" as string },
   btnText: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
-  btnTextPrimary: { color: "var(--accent-ink)" as string },
+  btnTextPrimary: { color: "var(--win)" as string },
   hint: { fontSize: 11, color: "var(--ink-4)" as string },
-  hintPrimary: { color: "var(--accent-ink)" as string, opacity: 0.7 },
+  hintPrimary: { color: "var(--win)" as string, opacity: 0.6 },
 });

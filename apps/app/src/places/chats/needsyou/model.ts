@@ -51,13 +51,16 @@ export const FILTERS: readonly { key: KindFilter; label: string }[] = [
 ];
 
 export function matchesFilter(t: Task, f: KindFilter): boolean {
+  // A withdrawn request is not something to do, so no filter (not even Everything) counts it; it has its own section.
+  if (t.state === "canceled") return false;
   return f === "all" || t.kind === f;
 }
 
 /** Counts per filter over the whole list, for the filter menu's right-hand column. */
 export function filterCounts(items: readonly Item[]): Record<KindFilter, number> {
-  const out: Record<KindFilter, number> = { all: items.length, approve: 0, review: 0, answer: 0, unblock: 0 };
+  const out: Record<KindFilter, number> = { all: items.filter((i) => i.task.state !== "canceled").length, approve: 0, review: 0, answer: 0, unblock: 0 };
   for (const i of items) {
+    if (i.task.state === "canceled") continue;
     if (i.task.kind === "approve" || i.task.kind === "review" || i.task.kind === "answer" || i.task.kind === "unblock") out[i.task.kind]++;
   }
   return out;
@@ -66,6 +69,7 @@ export function filterCounts(items: readonly Item[]): Record<KindFilter, number>
 /* ---------- urgency ---------- */
 
 function rank(i: Item): number {
+  if (i.task.state === "canceled") return 4;
   if (i.task.blocked || i.reason === "blocking") return 0;
   if (i.reason === "overdue") return 1;
   if (i.reason === "due_today") return 2;
@@ -226,7 +230,7 @@ export function snoozeUntil(key: SnoozeChoice["key"], c: Clock): number {
 /* ---------- blocks ---------- */
 
 export type BlockView =
-  | { type: "table"; columns: string[]; rows: string[][]; more?: number }
+  | { type: "table"; columns: string[]; rows: string[][]; more?: number; tags?: string[] }
   | { type: "pairs"; pairs: [string, string][] }
   | { type: "quote"; lines: string[]; source?: string }
   | { type: "line"; text: string };
@@ -240,7 +244,9 @@ export function blockView(b: Task["blocks"][number]): BlockView {
   const d = b.data;
   if (b.type === "table" && isRec(d) && Array.isArray(d.columns) && Array.isArray(d.rows)) {
     const more = typeof d.more === "number" ? d.more : undefined;
-    return { type: "table", columns: strs(d.columns), rows: d.rows.map((r) => strs(r)), ...(more !== undefined && more > 0 ? { more } : {}) };
+    // `tags` is one short tag per row ("new rate"), drawn in amber beside the first cell; an empty string means none.
+    const tags = Array.isArray(d.tags) ? strs(d.tags) : [];
+    return { type: "table", columns: strs(d.columns), rows: d.rows.map((r) => strs(r)), ...(more !== undefined && more > 0 ? { more } : {}), ...(tags.some((t) => t !== "") ? { tags } : {}) };
   }
   if ((b.type === "checklist" || b.type === "form") && isRec(d) && Array.isArray(d.items)) {
     return { type: "pairs", pairs: d.items.map((x): [string, string] => (isRec(x) ? [str(x.label ?? x.name), str(x.value ?? (x.done === true ? "Done" : "To do"))] : [str(x), ""])) };
@@ -265,4 +271,43 @@ export function sourceWord(s: NonNullable<Task["source"]>): string {
     case "journey": return "a Journey";
     case "manual": return "a person";
   }
+}
+
+/* ---------- withdrawn requests ---------- */
+
+/** A request its source took back (the fee changed, the draft is being redone): nothing to do, kept in its own section until dismissed. */
+export function isWithdrawn(i: Item): boolean {
+  return i.task.state === "canceled";
+}
+
+/** The live list, then the withdrawn ones. Withdrawn requests never count toward Needs you and never take the selection first. */
+export function splitWithdrawn(items: readonly Item[]): { live: Item[]; withdrawn: Item[] } {
+  return { live: items.filter((i) => !isWithdrawn(i)), withdrawn: items.filter(isWithdrawn) };
+}
+
+/* ---------- participants ---------- */
+
+export interface Participant { id: string; kind: string; role: string }
+
+/** Who is on a request: its requester, the person or agent it is assigned to, the reviewer and approver, and whoever follows it. Each appears once with the roles they hold. */
+export function participants(t: Task, kindOf: (id: string) => string): Participant[] {
+  const order: string[] = [];
+  const roles = new Map<string, { kind: string; roles: string[] }>();
+  const add = (id: string, kind: string, role: string): void => {
+    const cur = roles.get(id);
+    if (cur) { if (!cur.roles.includes(role)) cur.roles.push(role); return; }
+    order.push(id);
+    roles.set(id, { kind, roles: [role] });
+  };
+  add(t.createdBy, kindOf(t.createdBy), "Requester");
+  add(t.assigned.id, t.assigned.kind, "Assigned");
+  if (t.reviewer) add(t.reviewer.id, t.reviewer.kind, "Reviewer");
+  if (t.approver) add(t.approver.id, t.approver.kind, "Approver");
+  for (const f of t.followers) add(f, kindOf(f), "Follows");
+  return order.map((id) => ({ id, kind: roles.get(id)!.kind, role: roles.get(id)!.roles.join(", ") }));
+}
+
+/** How many people (not agents) are on the request: the number on the participants button. */
+export function peopleCount(list: readonly Participant[]): number {
+  return list.filter((p) => p.kind === "person").length;
 }

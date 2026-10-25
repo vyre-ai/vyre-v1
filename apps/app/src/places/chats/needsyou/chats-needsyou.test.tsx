@@ -90,7 +90,7 @@ test("every row is a ui/Row with a face, a second line and a time; a quick actio
 });
 
 test("nothing waiting says so, with the Space's name", () => {
-  const out = html(createSample("harbor"));
+  const out = html(createSample("quiet"));
   assert.ok(has(out, 'data-testid="needs-empty"') && has(out, "All caught up. Nothing in Harbor Studio is waiting on you."));
   assert.ok(has(out, 'data-testid="needs-nothing"') && has(out, "Nothing selected"));
 });
@@ -262,6 +262,6 @@ test("content blocks: a table, key/values and an excerpt get their own look; any
 });
 
 test("variants exist for the screenshots", () => {
-  const variants: Variant[] = ["northwind", "harbor"];
+  const variants: Variant[] = ["northwind", "harbor", "quiet"];
   for (const v of variants) assert.ok(createSample(v).data.space.name.length > 0, v);
 });
