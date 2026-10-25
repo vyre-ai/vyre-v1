@@ -9,9 +9,11 @@ import type { SqlDriver } from "../src/replica/index.ts";
 // The shard kills a file at 20 s without a word. Checks inside the loops fail the test with the phase that ran long, measured from the start of the file.
 const FILE_START = performance.now();
 const LIMIT_MS = 16_000;
+const marks: string[] = [];
 function tick(phase: string): void {
   const t = performance.now() - FILE_START;
-  if (t > LIMIT_MS) throw new assert.AssertionError({ message: `${phase}: ${t.toFixed(0)} ms into the file, over ${LIMIT_MS} ms of the 20 s file cap` });
+  if (/^(the perf|seeded|rebuilt)/.test(phase)) marks.push(`${phase} @${t.toFixed(0)}`);
+  if (t > LIMIT_MS) throw new assert.AssertionError({ message: `${phase}: ${t.toFixed(0)} ms into the file, over ${LIMIT_MS} ms of the 20 s file cap; ${marks.join("; ")}` });
 }
 
 const hlc = (ms: number): string => formatHlc({ ms, counter: 1, deviceId: "dev1" });
@@ -135,6 +137,7 @@ test("perf search.local: p95 under 50 ms with 100k rows and 10k messages; prefix
       const t0 = performance.now();
       const r = idx.search(q);
       samples.push(performance.now() - t0);
+      marks.push(`${q}=${(samples[samples.length - 1] ?? 0).toFixed(0)}ms/${r.hits.length}`);
       hits += r.hits.length;
     }
   }
