@@ -108,7 +108,9 @@ export function stubs(ctx: CallCtx) {
         set: call("agents.role_line.set"),
       },
       routine: {
+        delegate: call("agents.routine.delegate"),
         delete: call("agents.routine.delete"),
+        run_now: call("agents.routine.run_now"),
         save: call("agents.routine.save"),
       },
       routines: {
