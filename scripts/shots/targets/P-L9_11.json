@@ -1,0 +1,28 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_11-blocks-plan-question",
+      "route": "/m/P-L9_11?part=a",
+      "proto": "chat,agentnative,{skin}",
+      "waitFor": "[data-testid^='blk-question-']",
+      "note": "The plan card (Plan mode on, four steps, Approve, Edit, Reject) and the question card (three options and the write-your-own box) in an agent message. The prototype image is its agent-native chat, which shows the same two cards.",
+      "protoSettleMs": 2500
+    },
+    {
+      "id": "P-L9_11-blocks-terminal-mount-changeset",
+      "route": "/m/P-L9_11?part=b",
+      "proto": "chat,agentnative,{skin}",
+      "waitFor": "[data-testid^='blk-changeset-']",
+      "note": "The terminal card (commands, output, Open as tab, Star), the mount card and the changeset card with its Review changes button. The prototype image is the same chat; its terminal, mount and changeset cards are the matching ones.",
+      "protoSettleMs": 2500
+    },
+    {
+      "id": "P-L9_11-blocks-deploy-record",
+      "route": "/m/P-L9_11?part=c",
+      "proto": "chat,agentnative,{skin}",
+      "waitFor": "[data-testid^='blk-record_card-']",
+      "note": "The deploy card with its preview link, checks and Promote, and the record card. The prototype has a deploy card at the foot of the same chat; it has no record card, which is compared with the Records list row design instead.",
+      "protoSettleMs": 2500
+    }
+  ]
+}
