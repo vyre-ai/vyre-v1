@@ -1,4 +1,5 @@
 // campaigns warmup client (spec 2.19; ARCH 7.6, R19): join and exchange are signed by the Space key and say what the pool contract says; a Space that opted out warms up with its own
+// @reads /modules/campaigns/handlers/warmup.ts
 // seed inboxes and never contacts the pool; a Space that opted in sends only to the peers the pool gives it, within the day's ramp, and reports health back into warmup.status.
 // The pool is a scripted stand-in that checks every signature with the public key against the documented bytes (relay/warmup/wire.js), so the client and the service agree without
 // the module importing the service. @reads keeps ci-select on this test.

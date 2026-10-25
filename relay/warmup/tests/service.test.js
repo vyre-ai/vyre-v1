@@ -1,4 +1,5 @@
 // The warmup pool service (spec 2.19, ARCH R19): the contract of POST /v1/pool/join and /v1/pool/exchange, signed by the Space key, with the rules the pool keeps.
+// @reads /relay/warmup/service.js
 // Spaces here are real Ed25519 keys; requests are signed the way wire.js documents; the clock is a variable so replay windows and expiry are exact.
 import test from "node:test";
 import assert from "node:assert/strict";
