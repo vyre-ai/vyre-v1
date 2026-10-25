@@ -95,7 +95,7 @@ export function sortRows(rows: readonly (readonly string[])[], col: number, dir:
 export function sheetFoot(sheet: Sheet, col: number | null): string {
   let out = `${sheet.rows.length} rows · ${sheet.cols.length} columns`;
   if (col !== null) {
-    const vals = sheet.rows.map((r) => num(r[col] ?? "")).filter((n) => !Number.isNaN(n));
+    const vals = each(sheet.rows, (r) => num(r[col] ?? "")).filter((n) => !Number.isNaN(n));
     if (vals.length > 1) {
       const sum = vals.reduce((a, b) => a + b, 0);
       out += ` · ${sheet.cols[col] ?? ""}: sum ${sum.toLocaleString("en-US")}, average ${(sum / vals.length).toFixed(1)}`;
@@ -202,10 +202,10 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const [cell, setCell] = useState<{ r: number; c: number } | null>(null);
   const stage = useRef<{ w: number; h: number }>({ w: IMAGE_W, h: IMAGE_H });
 
-  const texts = useMemo(() => blocks.map((b) => b.text), [blocks]);
+  const texts = useMemo(() => each(blocks, (b) => b.text), [blocks]);
   const hits = useMemo(() => findMatches(texts, find), [texts, find]);
   const at = hits.length === 0 ? 0 : cur % hits.length;
-  const pins: readonly ViewerPin[] = props.pins ?? boxes.map((b, i) => ({ id: b.id, n: i + 1, text: b.text }));
+  const pins: readonly ViewerPin[] = props.pins ?? each(boxes, (b, i) => ({ id: b.id, n: i + 1, text: b.text }));
   const editing = props.editing === true;
 
   const setZ = (z: number): void => { setZoom(z); props.onZoom?.(z); };
@@ -299,7 +299,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
         onLayout={(e) => { stage.current = { w: e.nativeEvent.layout.width / zoom, h: e.nativeEvent.layout.height / zoom }; }}
         onStartShouldSetResponder={() => tool !== null} onResponderGrant={(e) => pointer("down", e)} onResponderMove={(e) => pointer("move", e)} onResponderRelease={(e) => pointer("up", e)}>
         <View style={s.picture}><Text style={s.pictureText}>{props.title}</Text></View>
-        {each(strokes, (st, i) => <View key={i} testID={`vw-stroke-${i}`} style={s.strokeMark} {...web({ "data-points": st.points.map((q) => `${q[0].toFixed(3)},${q[1].toFixed(3)}`).join(" ") })} />)}
+        {each(strokes, (st, i) => <View key={i} testID={`vw-stroke-${i}`} style={s.strokeMark} {...web({ "data-points": each(st.points, (q) => `${q[0].toFixed(3)},${q[1].toFixed(3)}`).join(" ") })} />)}
         {each(boxes, (b, i) => (
           <View key={b.id} testID={`vw-box-${b.id}`} pointerEvents="none" style={[s.box, { left: `${b.x * 100}%`, top: `${b.y * 100}%`, width: `${b.w * 100}%`, height: `${b.h * 100}%` }]}>
             <View style={s.pin} testID={`vw-pin-${i + 1}`} {...web({ "data-anchor": `${b.x.toFixed(3)},${b.y.toFixed(3)}` })}><Text style={s.pinText}>{i + 1}</Text></View>
@@ -311,7 +311,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       {note !== null ? (
         <View style={s.noteBox} testID="vw-note">
           <TextInput autoFocus accessibilityLabel="Note for this area" placeholder="What should change here?" placeholderTextColor="var(--ink-4)" style={s.noteInput}
-            onSubmitEditing={(e) => { const text = e.nativeEvent.text.trim(); changeBoxes(boxes.map((b) => (b.id === note ? { ...b, text } : b))); setNote(null); }} />
+            onSubmitEditing={(e) => { const text = e.nativeEvent.text.trim(); changeBoxes(each(boxes, (b) => (b.id === note ? { ...b, text } : b))); setNote(null); }} />
         </View>
       ) : null}
       {pins.length > 0 ? (
@@ -337,7 +337,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           const runs = markRuns(b.text, hits, bi, at, hits);
           if (editing && find === "") {
             return <TextInput key={b.id} multiline value={b.text} accessibilityLabel={`${b.tag} block`} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]}
-              onChangeText={(t) => changeBlocks(blocks.map((x) => (x.id === b.id ? { ...x, text: t } : x)))} />;
+              onChangeText={(t) => changeBlocks(each(blocks, (x) => (x.id === b.id ? { ...x, text: t } : x)))} />;
           }
           return (
             <Text key={b.id} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]} {...web({ "data-tag": b.tag })}>
@@ -353,7 +353,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
 
   const [edits, setEdits] = useState<Record<string, string>>({});
   const base = props.sheet;
-  const sheet = useMemo<Sheet | undefined>(() => (base === undefined ? undefined : { cols: base.cols, rows: base.rows.map((r, ri) => r.map((v, ci) => edits[`${ri}:${ci}`] ?? v)) }), [base, edits]);
+  const sheet = useMemo<Sheet | undefined>(() => (base === undefined ? undefined : { cols: base.cols, rows: each(base.rows, (r, ri) => each(r, (v, ci) => edits[`${ri}:${ci}`] ?? v)) }), [base, edits]);
   const rows = useMemo(() => (sheet === undefined ? [] : sort === null ? sheet.rows : sortRows(sheet.rows, sort.col, sort.dir)), [sheet, sort]);
   const table = sheet === undefined ? null : (
     <View style={s.fill}>
