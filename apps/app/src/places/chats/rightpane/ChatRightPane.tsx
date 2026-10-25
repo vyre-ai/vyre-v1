@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { PaneDeps } from "./actions.ts";
@@ -87,7 +88,9 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   const select = (key: string): void => {
     if (key === MORE_KEY) {
       // The strip does not say where it was pressed; the menu opens under the header, near the pane's left edge.
-      menu.show(fitted.hidden.map((t) => ({ label: t.title, onSelect: () => select(t.key) })), Math.max(0, win.width - (paneWidth ?? paneW) + 40), 40, "other");
+      const rest: MenuEntry[] = [];
+      for (const t of fitted.hidden) rest.push({ label: t.title, onSelect: () => select(t.key) });
+      menu.show(rest, Math.max(0, win.width - (paneWidth ?? paneW) + 40), 40, "other");
       return;
     }
     if (!isTabKey(key)) return;

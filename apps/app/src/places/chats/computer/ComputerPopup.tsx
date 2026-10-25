@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { createForwarder, discardRecording, giveBack, keepRecording, openStream, sendRecording, startRecording, stopRecording, takeOver, wake } from "./actions.ts";
 import type { PopupDeps } from "./actions.ts";
@@ -66,6 +67,7 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
   const [, setTick] = useState(0);
   const [stream, setStream] = useState<{ transport: "webrtc" | "mjpeg"; url: string; ticket: string } | null>(null);
   const box = useRef({ width: 0, height: 0 });
+  const screenNode = useRef<unknown>(null);
   const q = useScreenQuery<ComputerOut>(POPUP_SCREEN, "computer", { computerId: data.computerId });
   const deps: PopupDeps = useMemo(() => ({ call: data.call, note: (text: string) => setLine(text) }), [data.call]);
   const forwarder = useMemo(() => createForwarder(deps, data.computerId, data.display), [deps, data.computerId, data.display]);
@@ -143,19 +145,24 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
     const r = e.currentTarget?.getBoundingClientRect?.();
     return { x: (e.clientX ?? 0) - (r?.left ?? 0), y: (e.clientY ?? 0) - (r?.top ?? 0) };
   };
-  const screenWeb: Record<string, unknown> = Platform.OS !== "web" ? {} : {
-    onContextMenu: (e: DomEvent) => {
+  // Right click (and long press) arrive through the shared menuTrigger, which also keeps the browser's own menu from opening over the screen; the point is made relative to the
+  // screen from its box. Only while you are in control does either go to the agent's desktop.
+  const trigger = menuTrigger((x, y) => {
       if (c.state !== "takeover") return;
-      e.preventDefault?.();
-      const p = domPoint(e);
-      void forwarder.press(p.x, p.y, box.current, data.clock().now, "right");
-    },
-    onWheel: (e: DomEvent) => {
-      if (c.state !== "takeover") return;
-      e.preventDefault?.();
-      const p = domPoint(e);
-      void forwarder.scroll(p.x, p.y, box.current, e.deltaX ?? 0, e.deltaY ?? 0);
-    },
+      const r = (screenNode.current as { getBoundingClientRect?: () => { left: number; top: number } } | null)?.getBoundingClientRect?.();
+      void forwarder.press(x - (r?.left ?? 0), y - (r?.top ?? 0), box.current, data.clock().now, "right");
+  });
+  delete trigger.onKeyDown; // the menu key is a key for the desktop, not a right click
+  const screenWeb: Record<string, unknown> = {
+    ...trigger,
+    ...(Platform.OS !== "web" ? {} : {
+      onWheel: (e: DomEvent) => {
+        if (c.state !== "takeover") return;
+        e.preventDefault?.();
+        const p = domPoint(e);
+        void forwarder.scroll(p.x, p.y, box.current, e.deltaX ?? 0, e.deltaY ?? 0);
+      },
+    }),
   };
 
   const parts = captureParts(rec ? capture : NO_CAPTURE);
@@ -175,6 +182,7 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
           <Pressable
             accessibilityRole="button" accessibilityLabel={c.state === "asleep" ? `Wake ${name}'s computer` : `${name}'s computer`} testID="popup-screen" onPress={screenPress} disabled={!online && c.state === "takeover"}
             onLayout={(e) => { box.current = { width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height }; }}
+            ref={(n) => { screenNode.current = n; }}
             style={st.screen}
             {...screenWeb}
           >
