@@ -83544,6 +83544,8 @@ NOTES.inbox = { title: "Inbox", shape: ["One Inbox for every outside conversatio
   if (tok.includes("conflicts")) synOpen("conf");
   if (tok.includes("notify")) setTimeout(() => notify(Object.assign(billingBanner(), { sticky: true })), 500);
   if (tok.includes("away")) setTimeout(awaySheet, 300);
+  /* screenshots (P-UI_04): the token "askpicker" opens the agent picker of the Ask control in the place that is showing */
+  if (tok.includes("askpicker")) setTimeout(() => { try { const f = Object.values(S.frames).find((x) => x.style.visibility === "visible"), c = f && f.contentDocument.querySelector(".vy-ask .vy-ask-c"); if (c) c.click(); } catch (e) {} }, 2200);
   if (tok.includes("cmdk")) setTimeout(() => palOpen((decodeURIComponent((tok.find((x) => x.startsWith("q:")) || "").slice(2))).replace(/\+/g, " ")), 700);
 
   /* ---------- right-click everywhere in the shell: one menu look (ctx), real state changes; Shift-F10 or the menu key opens it on the focused element ---------- */
