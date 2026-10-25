@@ -20,6 +20,8 @@ export { REPORT_A_PROBLEM, appendReportProblem, resolveMenuItems } from "./props
 /** What was right-clicked, for the report sheet (P-L9_16 shows it). */
 export interface ReportContext {
   label?: string;
+  /** The trace id of the error row the report was opened from, sent as its own field and never folded into the label. */
+  traceId?: string;
 }
 
 type ReportHandler = (context: ReportContext) => void;

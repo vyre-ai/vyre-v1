@@ -47,6 +47,16 @@ CREATE TABLE IF NOT EXISTS "agents_routine" (
 CREATE INDEX IF NOT EXISTS "agents_routine__agent" ON "agents_routine" ("agentId");
 CREATE INDEX IF NOT EXISTS "agents_routine__owner" ON "agents_routine" ("ownerId");
 
+-- The last delegation of a routine, so Undo can hand it back (P-CC_20). One row per routine; handing it back deletes the row.
+CREATE TABLE IF NOT EXISTS "agents_routine_delegation" (
+  "routineId" TEXT PRIMARY KEY,
+  "fromOwnerId" TEXT NOT NULL,
+  "fromAgentId" TEXT NOT NULL,
+  "toKind" TEXT NOT NULL,
+  "toId" TEXT NOT NULL,
+  "at" INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS "agents_suggestion" (
   "id" TEXT PRIMARY KEY,
   "agentId" TEXT NOT NULL,
