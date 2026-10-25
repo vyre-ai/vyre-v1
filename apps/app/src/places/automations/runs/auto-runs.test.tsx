@@ -1,21 +1,22 @@
 // Runs screens (spec 2.13, 3.7; ARCH 7.7): run history, the run chat (one chat per run) and Failed runs, built from the Northwind sample (the prototype's "New lead follow-up" runs) through
 // the live screen queries. The thread shows agent turns and compact plain-step rows; Undo this run previews, then calls runs.undo; a retried run leaves Needs attention. Screens render
-// with react-dom/server over react-native-web (ruling 28); controls are checked by the calls they make, because a static render has no clicks.
+// with react-dom/server over react-native-web (ruling 28); controls are checked by the calls they make, because a static render has no clicks. Path mapping: the packet names
+// apps/app/tests/auto-runs*.test.tsx, which lanes-check rejects as outside lane L9f; the lane's tests live beside the screens, as P-L9f_01's and P-L9f_07's do.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { RunsDataProvider } from "../src/places/automations/runs/data.tsx";
-import { decideTask, postToRun, previewUndo, runMenu, undoRun } from "../src/places/automations/runs/actions.tsx";
-import type { RunActions } from "../src/places/automations/runs/actions.tsx";
-import { FailedRuns } from "../src/places/automations/runs/FailedRuns.tsx";
-import { RunChat } from "../src/places/automations/runs/RunChat.tsx";
-import { RunHistory } from "../src/places/automations/runs/RunHistory.tsx";
-import { UndoPanel } from "../src/places/automations/runs/RunUndo.tsx";
-import { createSampleRuns, harbor, northwind, SAMPLE_NOW } from "../src/places/automations/runs/sample.ts";
-import type { SampleRuns } from "../src/places/automations/runs/sample.ts";
+import { RunsDataProvider } from "./data.tsx";
+import { decideTask, postToRun, previewUndo, runMenu, undoRun } from "./actions.tsx";
+import type { RunActions } from "./actions.tsx";
+import { FailedRuns } from "./FailedRuns.tsx";
+import { RunChat } from "./RunChat.tsx";
+import { RunHistory } from "./RunHistory.tsx";
+import { UndoPanel } from "./RunUndo.tsx";
+import { createSampleRuns, harbor, northwind, SAMPLE_NOW } from "./sample.ts";
+import type { SampleRuns } from "./sample.ts";
 import type { ReactNode } from "react";
-import type { Run, RunStep, ThreadMessage } from "../src/places/automations/runs/model.ts";
-import { buildLines, daySections, failedAcross, failedStep, filterCount, handledIds, matchesFilter, metaLine, needsAttention, rowTime, stamp } from "../src/places/automations/runs/model.ts";
+import type { Run, RunStep, ThreadMessage } from "./model.ts";
+import { buildLines, daySections, failedAcross, failedStep, filterCount, handledIds, matchesFilter, metaLine, needsAttention, rowTime, stamp } from "./model.ts";
 
 const page = (s: SampleRuns, el: ReactNode): string => renderToStaticMarkup(<RunsDataProvider value={s.data}>{el}</RunsDataProvider>).replaceAll("<!-- -->", "");
 const has = (s: string, needle: string): boolean => s.includes(needle);
