@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vyre</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="head">
+    <button id="space" class="space" type="button" aria-haspopup="menu" aria-expanded="false" title="Switch Space"><span id="space-name">Space</span><span class="chev" aria-hidden="true"></span></button>
+    <span id="beacon" class="beacon" hidden title="An agent is using this tab"></span>
+  </header>
+  <p id="site" class="site"></p>
+  <ul id="logins" class="list" role="listbox" aria-label="Logins for this site"></ul>
+  <p id="note" class="note" role="status" hidden></p>
+  <form id="ask" class="ask" autocomplete="off">
+    <button id="face" class="face" type="button" title="Agent"><span id="face-letter">V</span></button>
+    <input id="q" type="text" placeholder="Ask about this page" aria-label="Ask about this page" spellcheck="true">
+  </form>
+  <footer class="foot">
+    <button id="vault" class="link" type="button">Open Vault</button>
+    <button id="web" class="link" type="button" hidden>Open the web app</button>
+  </footer>
+  <div id="menu" class="menu" role="menu" hidden></div>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
