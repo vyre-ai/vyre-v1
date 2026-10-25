@@ -25,7 +25,7 @@ export const WATCHED: Readonly<Record<string, { entity: string; idKey: string; r
   "file.version_added": { entity: "file", idKey: "fileId" }, "file.restored": { entity: "file", idKey: "fileId" },
   "file.deleted": { entity: "file", idKey: "fileId", remove: true }, "file.purged": { entity: "file", idKey: "fileId", remove: true },
   "thread.started": { entity: "thread", idKey: "threadId" }, "thread.updated": { entity: "thread", idKey: "threadId" }, "thread.replied": { entity: "thread", idKey: "threadId" },
-  "message.received": { entity: "thread", idKey: "threadId" }, "message.sent": { entity: "thread", idKey: "threadId" }, "message.edited": { entity: "thread", idKey: "threadId" },
+  "message.received": { entity: "thread", idKey: "threadId" }, "message.edited": { entity: "thread", idKey: "threadId" },
   "message.deleted": { entity: "thread", idKey: "threadId" },
   "agent.created": { entity: "agent", idKey: "agentId" }, "agent.config_changed": { entity: "agent", idKey: "agentId" }, "agent.restored": { entity: "agent", idKey: "agentId" },
   "agent.deleted": { entity: "agent", idKey: "agentId", remove: true },
