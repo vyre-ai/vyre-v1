@@ -13,6 +13,7 @@ on:
       - 'package.json'
       - '**/package.json'
       - 'tools/gen/**'
+      - 'lib/snapshot.ts'
       - 'scripts/shots/prototype/vyre-v1.html'
       - 'scripts/shots/gen-prototype-seed.mjs'
       - '.github/workflows/regen.yml'

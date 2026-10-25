@@ -1,0 +1,35 @@
+{
+  "module": "scheduler-api",
+  "capabilities": {
+    "scheduler.cancel@1": "3cfb20fbbe8bed4d781622ce26bc5a3cab77f222ae7c72c9bf65efd32c1bd24c",
+    "scheduler.catch_up@1": "e8963852bfe956f14f2f8063d71ef148b7c8e0f37515e58e3dc9ecf410d83b7a",
+    "scheduler.fire@1": "8ed0024b57cd1c2c31210ea92019723b79b0e3885030ebe5bdd92389073f1b4b",
+    "scheduler.get@1": "c2efd77456af58c42d477561d0875addb5e9bf0977afa9cf44d2717205787545",
+    "scheduler.list@1": "327c53b69449a8ff5ac1aa19ec856bffca480feb90590dcfe5223966b931f537",
+    "scheduler.missed@1": "e903eb744c7e7233469460da7547d0b55445ff84ed24ae0a95cd4adef5729a51",
+    "scheduler.next_times@1": "2446791cd71895801f9b0dd601139cd1673e2b00a1b42c4065bd1eca758d4612",
+    "scheduler.pause@1": "cf308f7ec1caf28fb4e137d249f352881a3d202a140b5e3002aaf561fdcfa1cb",
+    "scheduler.reschedule@1": "f81ce7e40d2d7180b0e37c839dfb8063f474ca983c29de84756e7f9464a43ae0",
+    "scheduler.resume@1": "e488ba89cd8084930dc54c54e060603119ded31c241609a211948251ed51c1c7",
+    "scheduler.run_now@1": "7f9d3ec155a17b00cbae8285653e937beb7fb27a7952a7d5dff8f3f7a00c34ed",
+    "scheduler.schedule@1": "1fea499119d5bb5c08f227149945df882bfb17d10f4f26d33c9de0a6c919ddfc",
+    "scheduler.status@1": "4b819448f2fcf6cb665e040b7e36067bf2100114ae2104369539b3e1eed11a71",
+    "scheduler.waits.cancel@1": "6425b1e0a2565e34c0ab71bb7e516dc6c7f200168fff2add8bfa52cb51d113dc",
+    "scheduler.waits.expire@1": "fd75ebe96c8da46834e00e8788441012d27f35bb02dc4ef4913bd4592653c4c4",
+    "scheduler.waits.list@1": "e94abf0bb21d0732a3ca81a7152b089f66d162e8036027ce8085c718c3859da2",
+    "scheduler.waits.match@1": "22cc8ddab2b77d92d30304e4103b698d7d6a167ca0a1e0d741f7539055f67b12",
+    "scheduler.waits.register@1": "ea10d95c76f8e80c444521bae433f5435dcd595e1ea2c0a0a758bf304f60c10e"
+  },
+  "events": {
+    "schedule.canceled": "0d46a8dd1f393069e0dbf14fc5c4f5ca9fd468868307b88c84d18e747728d872",
+    "schedule.created": "59bd0afc8be1e7375625a87949fd36adc6204bf9dc2332a75baa2267980f1f3a",
+    "schedule.fired": "b34d42bdf3a4b3eba7143fa41a11679e6ab11e609157198a2361e030ce990791",
+    "schedule.missed": "774206d4c2a161d91c73527b0ea9370b78b1d890c5c3ae38075858b2e715f625",
+    "schedule.paused": "e8d959aca4d67b48306f509e95891613f61944383db55e6f2d8386481d660e03",
+    "schedule.resumed": "0241de89155261c2d409a57e3e873035c3929527dd94da3cd4fb352056eeae00",
+    "wait.canceled": "8f2d7d0ef399f2b377008f5f8b72a36cf3e7c368bd6644b0331249f13aefb888",
+    "wait.expired": "ecc9e3e1741c37fa67bd8f0988343105ab5dd3d0b8f23a5c553d5deee973c5de",
+    "wait.matched": "b99704a5bd7bb29eec51db5695bc31082a73a74d2f2601e61e7a71944c3e06ac",
+    "wait.registered": "3951ae0a83eb19c7c01d6665b1344ad62b115e96d7f5879985bac157fd879ad2"
+  }
+}

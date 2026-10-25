@@ -207,7 +207,7 @@ test("export writes a CSV through the file seam, keeps formulas inert, and says 
   h.events.length = 0;
   const saved: { name: string; csv: string }[] = [];
   const exports = { async save(name: string, csv: string) { saved.push({ name, csv }); return "fil_export1"; } };
-  const out = await handlers["audit.export"](h.as(ADMIN, { exports }), { class: "change" });
+  const out = await handlers["audit.export"]({ ...h.as(ADMIN, { exports }), authorize: () => ({ effect: "allow", reason: "test", decisionId: "dec_t" }) } as never, { class: "change" });
   assert.deepEqual(out, { fileId: "fil_export1", rows: 2 });
   assert.match(saved[0]!.name, /^audit-2025-10-\d\d-\d\d-\d\d-\d\d\.csv$/);
   const lines = saved[0]!.csv.trimEnd().split("\n");

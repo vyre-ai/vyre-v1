@@ -49,7 +49,7 @@ test('explicit gate none with a reason is accepted and the fixture generates', (
   const reg = buildRegistry(l);
   assert.deepEqual(reg.capabilities.map((c) => c.name), ['alpha.create', 'alpha.get', 'beta.notify']);
   const files = emitAll(reg);
-  for (const p of ['registry.json', 'hash.txt', 'routes.ts', 'client.ts', 'stubs.ts', 'types.ts', 'mcp-tools.json', 'tests/alpha.contract.test.ts', 'validators.ts', 'blocks.ts', 'screens.ts', 'probes.json', 'sync/entities.ts', 'sync/replica.sql', 'seed/team.sql', 'modules/alpha/not-implemented.ts', 'docs/capabilities/alpha.get.md']) {
+  for (const p of ['registry.json', 'routes.ts', 'client.ts', 'stubs.ts', 'types.ts', 'mcp-tools.json', 'tests/alpha.contract.test.ts', 'validators.ts', 'blocks.ts', 'screens.ts', 'probes.json', 'sync/entities.ts', 'sync/replica.sql', 'seed/team.sql', 'modules/alpha/not-implemented.ts', 'docs/capabilities/alpha.get.md']) {
     assert.ok(files.has(p), `missing ${p}`);
   }
   const client = files.get('client.ts') as string;

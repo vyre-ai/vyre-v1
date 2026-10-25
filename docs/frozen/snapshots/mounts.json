@@ -1,0 +1,25 @@
+{
+  "module": "mounts",
+  "capabilities": {
+    "mounts.add@1": "706da77c128356a0ecad57d3594b21c597362d611f0917983fed28166c7b515c",
+    "mounts.browse@1": "0f7d5ef780c5f95ba2210072a076885591273bd967dc85a069815a3a2eb05999",
+    "mounts.get@1": "9bbbc633dd2d69fbd1053887bc5fff36d4a2dfc35b9514d04bb34cf19a2fa577",
+    "mounts.lag@1": "b3ad25bdd65004e57ad339ab0235a30fe1593cf5e6ae5b8ed221a41c434a6d4a",
+    "mounts.list@1": "f228f9f957fbdb527841d78c48dbefce0110baaf6d600c4744aecd9b4073ec7e",
+    "mounts.local_report@1": "89a357e1bcb7887bd9c9b4ebab8daf14507a414e8a70c6a6d0060c21b2d6fcd8",
+    "mounts.pause@1": "950c225b541dbb81f5f09f356e26f8a29b90ea8bb45e5c20a1dadb6b1c6891b0",
+    "mounts.remove@1": "8dc272826b18972ddf86ffcaccaf864555d6a2f6a607e3017461bbb7bd707216",
+    "mounts.resume@1": "7f0e46db02e15337c1a2935d4c067b867bd62e3e8305d990cffa4a4c21d590fb",
+    "mounts.sync_now@1": "f8f86ac21b0e5afb2a77b5b0d62a8f09a508e3f72c43adb8449ee222a00a1755",
+    "mounts.update@1": "b87af0255698b45ae2a21c91a7f15d6a00e371da1ae14b90f26500edb9e9ca0a"
+  },
+  "events": {
+    "folder.mounted": "3d66613aad978f8a3d388010e6361e4345c09a84844a499b6b2a8f45ee623f49",
+    "mount.failed": "c1f303e2f357513bed9aec51c1694454310498690f5ae2e46006060f046a1d06",
+    "mount.paused": "6c67f6c56ae13b69a55f6fa77eccbc610c419e54bf6d60cad15272c03b29aecd",
+    "mount.removed": "9c16ce2f753dbc45e16ede41a6cdde8c5460c5243ae5ccfed3fe899fd856e1ed",
+    "mount.resumed": "f04bb986f455881587d20b7f185c8176f58e3422635232d6f09314c0a756ee4e",
+    "mount.synced": "90e5d22f36c128e17e5668a8166622117b89320d6d921e264d787b20ba6a45dc",
+    "mount.updated": "3623a6c4e5f4f69227213a3c4b655c031f4c8059d14642eb10d1770aa91a024c"
+  }
+}

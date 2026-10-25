@@ -3,14 +3,19 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Plan } from "../../../../../../ui/src/Plan/index.tsx";
+import type { PlanTask, PlanWho } from "../../../../../../ui/src/Plan/types.ts";
+import { toIso } from "../../../../../../ui/src/Plan/logic.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useActions } from "./actions.ts";
 import { useHomeData, usePrincipals, useScreenQuery, useSelection } from "./data.tsx";
 import type { Principal } from "./data.tsx";
-import { ASSIGN_GROUPS, MY_WORK_LIMIT, STATE_LABEL, dayNumber, dueCount, dueLabel, givenSub, orderMyWork, seatLabel, statusIcon, workGroups } from "./model.ts";
+import { ASSIGN_GROUPS, DAY_MS, MY_WORK_LIMIT, STATE_LABEL, dayNumber, dueCount, dueLabel, givenSub, orderMyWork, seatLabel, statusIcon, workGroups } from "./model.ts";
 import type { Ref, Task } from "./model.ts";
+import { PERSONAL_STAGE, planEdits, planStages, planTasks } from "./plan.ts";
+import type { PlanContext } from "./plan.ts";
 import { EmptyLine, Face, Glyph, HRow, LinkButton, SectionHeader, Section, Skeleton, StatusCircle, s, useNarrow } from "./parts.tsx";
 
 export const WORK_SCREEN = "tasks.my-work";
@@ -65,6 +70,14 @@ function Circle({ task, onDone }: { task: Task; onDone: () => void }): ReactElem
   );
 }
 
+function LayoutButton({ kind, on, onPress }: { kind: "list" | "plan"; on: boolean; onPress: () => void }): ReactElement {
+  return (
+    <Pressable role="radio" aria-checked={on} aria-label={kind === "list" ? "List" : "Plan"} testID={`work-view-${kind}`} onPress={onPress} style={[local.segBtn, on && local.segOn]}>
+      <Glyph name={kind === "list" ? "list" : "timeline"} size={14} color={on ? "var(--ink)" : "var(--ink-3)"} />
+    </Pressable>
+  );
+}
+
 function NewTask({ onCreate, onCancel }: { onCreate: (title: string) => void; onCancel: () => void }): ReactElement {
   const [title, setTitle] = useState("");
   return (
@@ -89,6 +102,7 @@ export function MyWork(): ReactElement {
   const narrow = useNarrow();
   const menu = useMenu();
   const [adding, setAdding] = useState(false);
+  const [view, setView] = useState<"list" | "plan">("list");
   const open = useScreenQuery<Out>(WORK_SCREEN, "list", { section: "open" });
   const given = useScreenQuery<Out>(WORK_SCREEN, "list", { section: "assigned_by_me" });
   const clock = data.clock();
@@ -144,18 +158,43 @@ export function MyWork(): ReactElement {
 
   const body: ReactElement[] = [];
   for (const g of groups) {
-    body.push(
+    const head = (
       <View key={`g-${g.name}`} style={[local.group]} testID={`group-${g.name}`}>
         <Text style={[local.groupText, g.name === "Overdue" && { color: "var(--danger)" as string }]}>{g.name}<Text style={local.groupCount}>{`  ${g.total}`}</Text></Text>
-      </View>,
+      </View>
     );
-    for (const t of g.rows) body.push(row(t, `work:${t.id}`, false));
+    const rows: ReactElement[] = [];
+    for (const t of g.rows) rows.push(row(t, `work:${t.id}`, false));
+    body.push(head, ...rows);
   }
   if (givenTasks.length) {
-    body.push(<View key="g-given" style={local.group} testID="group-given"><Text style={local.groupText}>Assigned by you<Text style={local.groupCount}>{`  ${givenTasks.length}`}</Text></Text></View>);
-    for (const t of givenTasks) body.push(row(t, `given:${t.id}`, true));
+    const head = <View key="g-given" style={local.group} testID="group-given"><Text style={local.groupText}>Assigned by you<Text style={local.groupCount}>{`  ${givenTasks.length}`}</Text></Text></View>;
+    const rows: ReactElement[] = [];
+    for (const t of givenTasks) rows.push(row(t, `given:${t.id}`, true));
+    body.push(head, ...rows);
   }
 
+  // Plan mode: the same open tasks on the shared timeline; a change on it is written back as a reschedule, a state change or a reassignment
+  const planCtx: PlanContext = { clock, recordTitle: (id) => data.recordTitle(id), name: p.name, kindOf: p.kindOf };
+  const planTaskList = planTasks(tasks, planCtx);
+  const planStageList = planStages(tasks, planCtx);
+  const planToday = toIso(dayNumber(clock.now, clock.offsetMin));
+  const planPeople: PlanWho[] = [];
+  for (const x of p.list) planPeople.push({ name: x.name, kind: x.kind === "agent" ? "agent" : x.kind === "group" ? "group" : x.kind === "role" ? "role" : "person" });
+  // New task and a stage's "+": one tasks.create, assigned to me, under that stage's project (none for Personal), due in two days; the task appears when the live query returns it
+  const onPlanCreate = (stageId: string | null): void => {
+    const recordId = stageId !== null && stageId !== PERSONAL_STAGE ? stageId : undefined;
+    void actions.createTask("New task", { ...(recordId ? { recordId } : {}), due: clock.now + 2 * DAY_MS, effort: 3 });
+  };
+  const onPlanChange = (next: readonly PlanTask[]): void => {
+    for (const e of planEdits(planTaskList, next, tasks, planCtx, p.list)) {
+      const t = tasks.find((x) => x.id === e.id);
+      if (!t) continue;
+      if (e.kind === "reschedule") void actions.reschedule(t, e.due, e.effort);
+      else if (e.kind === "state") void actions.transition(t, e.to);
+      else void actions.assign(t, e.to);
+    }
+  };
   const loading = open.status === "loading";
   const total = open.status === "ready" ? open.data.counts.open : 0;
   const dueN = dueCount(tasks, clock);
@@ -164,6 +203,10 @@ export function MyWork(): ReactElement {
       <SectionHeader id="work" title="My work" count={open.status === "ready" ? `${total} · ${dueN} due` : undefined}>
         {total > MY_WORK_LIMIT ? <LinkButton label={`All ${total} in My work`} onPress={() => data.nav.openMyWork()} testID="work-all" /> : null}
         <LinkButton label="+ New task" onPress={() => setAdding(true)} testID="work-new" />
+        <View style={local.seg} accessibilityRole="radiogroup" accessibilityLabel="My work layout">
+          <LayoutButton kind="list" on={view === "list"} onPress={() => setView("list")} />
+          <LayoutButton kind="plan" on={view === "plan"} onPress={() => setView("plan")} />
+        </View>
       </SectionHeader>
       {adding ? (
         <NewTask
@@ -171,7 +214,7 @@ export function MyWork(): ReactElement {
           onCreate={(title) => { setAdding(false); void actions.createTask(title); }}
         />
       ) : null}
-      {loading ? <Skeleton rows={4} id="work" /> : body.length ? <View accessibilityRole="list">{body}</View> : adding ? null : <EmptyLine id="work" text="No tasks yet" />}
+      {loading ? <Skeleton rows={4} id="work" /> : body.length ? view === "plan" ? <View style={local.plan} testID="work-plan"><Plan today={planToday} stages={planStageList} tasks={planTaskList} people={planPeople} height={340} view="timeline" canDelete={false} onCreate={onPlanCreate} onChange={onPlanChange} onOpenTask={(t) => data.nav.openTask(t.id)} /></View> : <View accessibilityRole="list">{body}</View> : adding ? null : <EmptyLine id="work" text="No tasks yet" />}
       {menu.element}
     </Section>
   );
@@ -183,6 +226,10 @@ const local = StyleSheet.create({
   chipText: { color: "var(--ink-3)" as string, fontSize: 12.5, flexShrink: 1 },
   due: { minWidth: 64, textAlign: "right", color: "var(--ink-2)" as string, fontSize: 12.5 },
   state: { minWidth: 56, textAlign: "right", fontSize: 12, fontWeight: "500", color: "var(--ink-3)" as string },
+  seg: { flexDirection: "row", borderRadius: 7, padding: 2, backgroundColor: "var(--sunk)" as string, marginLeft: 6 },
+  segBtn: { width: 26, height: 22, borderRadius: 5, alignItems: "center", justifyContent: "center" },
+  segOn: { backgroundColor: "var(--raised)" as string },
+  plan: { marginTop: 8 },
   group: { flexDirection: "row", alignItems: "center", marginTop: 12, height: 26 },
   groupText: { fontSize: 12, fontWeight: "600", color: "var(--ink-3)" as string },
   groupCount: { fontWeight: "500" },

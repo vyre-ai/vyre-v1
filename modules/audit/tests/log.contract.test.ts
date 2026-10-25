@@ -38,7 +38,8 @@ async function populated() {
     archive: { async write(year: number, lines: string[]) { return { file: `audit-archive/${year}.jsonl.zst`, sizeBytes: lines.join("\n").length }; } },
     exports: { async save(_name: string, _csv: string) { return "fil_a1b2c3"; } },
   };
-  const ctx = h.as("usr_a1b2c3", seams);
+  // audit.export packs rows into a file and needs authorize to decide per row (P-SEC_07): the host wires it, so this Space has one that allows.
+  const ctx = { ...h.as("usr_a1b2c3", seams), authorize: () => ({ effect: "allow", reason: "test", decisionId: "dec_t" }) } as unknown as AuditCtx;
   appendRow(ctx, { actor: { kind: "person", id: "usr_a1b2c3" }, action: "grant.created", class: "change", resource: { type: "space", id: "spc_test" }, after: { level: "view" } }, "aud_a1b2c3");
   h.advance(1000);
   appendRow(ctx, { actor: { kind: "person", id: "usr_a1b2c3" }, onBehalfOf: { kind: "person", id: "usr_boss" }, action: "role.assigned", class: "admin" });

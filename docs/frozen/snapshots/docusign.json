@@ -1,0 +1,13 @@
+{
+  "module": "docusign",
+  "capabilities": {
+    "docusign.cancel@1": "aba3921bd6bfab5f23ccee71c21d029ef04b9e691e1ee5e3f5c9370e9d0a47d8",
+    "docusign.create@1": "dc62a7bbea0e40dafc19751174c514e630c9c45143603ba2f928b83ba7c6184c",
+    "docusign.fetch_signed@1": "103fed646c920b34d6ad355759d15ba23b9fc0a497142337db0ba6020d3271bd",
+    "docusign.health@1": "d6d781fa20bc968689b80da7cb592abd8ff57e0882c778ab1f9a02c968fd8e29",
+    "docusign.status@1": "6fb8c7b574db363d8d2ee8a1f0afe0c13b641aa60c2e65a86e1ee758bf24cb90"
+  },
+  "events": {
+    "docusign.webhook_received": "a2c3a75bd4bc31d73bf0c19a5bbfc15be17b443da06ea19a2799d6e1c64b3d8a"
+  }
+}
