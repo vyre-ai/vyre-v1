@@ -80,7 +80,7 @@ export function openSync(o: SyncOpts): SyncHandle {
 }
 
 // ---- loader entry (P-H_02). The loader reads `handlers` once the manifest is live: capability name to handler, each taking the host Ctx as the device session.
-type SessionCtx = Pick<Ctx, "trace" | "principal"> & { device?: string; emit?: Ctx["emit"] };
+type SessionCtx = Pick<Ctx, "trace" | "principal"> & { device?: string; emit?: Ctx["emit"]; call?: Ctx["call"] };
 
 let shared: SyncHandle | null = null;
 let pushDeps: PushDeps | null = null;

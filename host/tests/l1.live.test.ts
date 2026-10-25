@@ -170,5 +170,8 @@ test("l1 live golden 4: an offline edit that collides on a protected field is pa
     const undone = await post("/v1/conflicts/undo", { resolutionId: settled.data.resolutionId });
     assert.equal(undone.status, 200, JSON.stringify(undone));
     assert.equal(await ownerNow(), "usr_noah", "Undo puts the earlier value back");
+    const status = await post("/v1/sync/status", {});
+    assert.equal(status.status, 200, JSON.stringify(status));
+    assert.equal(typeof status.data.openConflicts, "number", "sync.status counts from the conflicts module");
   } finally { await d.stop(); }
 });

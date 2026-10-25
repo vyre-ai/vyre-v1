@@ -106,7 +106,7 @@ export function docRowOf(deps: PullDeps): (doc: string) => DocRowRef | undefined
   };
 }
 
-interface InfoCtx { trace: { traceId: string }; principal: { id: string }; device?: string }
+interface InfoCtx { trace: { traceId: string }; principal: { id: string }; device?: string; call?(cap: string, input: unknown): Promise<unknown> }
 const versionsOf = (catalog: Catalog, db: Tx): Record<string, number> => {
   const out: Record<string, number> = {};
   for (const e of catalog.known()) out[e.key] = 1;
@@ -137,7 +137,12 @@ export function createInfoHandlers(deps: PullDeps, seam: SyncHostSeam) {
       const person = ctx.principal.id;
       const row = db.get<{ cursor: number }>("SELECT cursor FROM sync_device_cursor WHERE person = ? AND device = ?", person, device);
       const head = headSeq(db), cursor = row?.cursor ?? 0;
-      return { head, cursor, lag: Math.max(0, head - cursor), epoch: deviceEpochOf(db, person, device), openConflicts: openConflicts(), mode: deviceRevoked(db, person, device) ? "purge" as const : "live" as const };
+      // with the conflicts module live the count is its own (open and waiting for the person), else the collisions sync parked itself
+      let open = openConflicts();
+      if (seam.conflicts && ctx.call) {
+        try { const c = (await ctx.call("conflicts.counts", {})) as { open?: number; needsYou?: number }; open = (c.open ?? 0) + (c.needsYou ?? 0); } catch { /* not readable by this caller: the local count */ }
+      }
+      return { head, cursor, lag: Math.max(0, head - cursor), epoch: deviceEpochOf(db, person, device), openConflicts: open, mode: deviceRevoked(db, person, device) ? "purge" as const : "live" as const };
     },
     "sync.health": async () => {
       start();
