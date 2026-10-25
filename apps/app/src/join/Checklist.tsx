@@ -45,6 +45,18 @@ export function Checklist({ space, items, visible, assistantLocked, heading, dat
     lines.push({ key: it.key, title: it.title, sub: it.done ? "Done" : blocked ? "Connect an AI account first" : WORDS[it.key].sub(space), done: it.done, locked: blocked, action: WORDS[it.key].action });
   }
   const done = lines.filter((l) => l.done).length;
+  const rows: ReactElement[] = [];
+  lines.forEach((l, i) => rows.push(
+    <View key={l.key} style={[s.item, i > 0 && s.itemLine]} testID={`check-${l.key}`}>
+      <Row
+        id={`first-${l.key}`} title={l.title} note={l.sub} leading={<View style={s.lead}><Circle done={l.done} /></View>}
+        trailing={l.done ? null : l.locked ? <Text style={s.locked}>Locked</Text> : (
+          <Pressable accessibilityRole="button" accessibilityLabel={`${l.action}: ${l.title}`} testID={`go-${l.key}`} onPress={() => onGo?.(l.key)} style={s.go}><Text style={s.goText}>{l.action}</Text></Pressable>
+        )}
+        {...(l.done || l.locked ? {} : { onPress: () => onGo?.(l.key) })}
+      />
+    </View>,
+  ));
   const finished = !visible || (items.length > 0 && done === lines.length);
   return (
     <View testID="join-checklist" style={s.page}>
@@ -65,17 +77,7 @@ export function Checklist({ space, items, visible, assistantLocked, heading, dat
               <Pressable accessibilityRole="button" testID="checklist-done" onPress={onDismiss} style={s.hide}><Text style={s.hideText}>Hide</Text></Pressable>
             </View>
             <View testID="checklist" accessibilityRole="list" style={s.body}>
-              {lines.map((l, i) => (
-                <View key={l.key} style={[s.item, i > 0 && s.itemLine]} testID={`check-${l.key}`}>
-                  <Row
-                    id={`first-${l.key}`} title={l.title} note={l.sub} leading={<View style={s.lead}><Circle done={l.done} /></View>}
-                    trailing={l.done ? null : l.locked ? <Text style={s.locked}>Locked</Text> : (
-                      <Pressable accessibilityRole="button" accessibilityLabel={`${l.action}: ${l.title}`} testID={`go-${l.key}`} onPress={() => onGo?.(l.key)} style={s.go}><Text style={s.goText}>{l.action}</Text></Pressable>
-                    )}
-                    {...(l.done || l.locked ? {} : { onPress: () => onGo?.(l.key) })}
-                  />
-                </View>
-              ))}
+              {rows}
             </View>
           </View>
         )}
