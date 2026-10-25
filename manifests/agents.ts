@@ -155,8 +155,8 @@ export default defineManifest({
       in: { ...target, routineId: t.id('rtn') }, out: { routine: routineRow, runId: id.run }, on: ['agent', '/agentId'], perm: 'agents.schedule',
       emits: ['agent.routine_run_started'], tool: 'agents', idem: 'key', errors: ['validation.not_found', 'validation.precondition_failed'],
     }),
-    write('agents.routine.delegate', 'Hand a routine to another person or agent (they become its owner and runs go out as them); undo hands it back to the previous owner', {
-      in: { ...target, routineId: t.id('rtn'), to: t.opt(t.obj({ kind: t.enm('person', 'agent'), id: t.str() })), undo: t.opt(t.bool({ description: 'Hand the routine back to the owner it had before the last delegation; takes no `to`' })) },
+    write('agents.routine.delegate', 'Hand a routine to another person or agent (a person becomes its owner, an agent runs it); undo (no `to`) hands it back to the previous owner and agent', {
+      in: { ...target, routineId: t.id('rtn'), to: t.opt(t.obj({ kind: t.enm('person', 'agent'), id: t.str() })), undo: t.opt(t.bool()) },
       out: { routine: routineRow, previousOwnerId: id.user }, on: ['agent', '/agentId'], perm: 'agents.schedule',
       emits: ['agent.routine_delegated', 'agent.routine_changed'], tool: 'agents', errors: ['validation.not_found', 'validation.bad_input', 'validation.precondition_failed'],
     }),
