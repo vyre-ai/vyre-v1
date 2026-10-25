@@ -5,6 +5,8 @@
 import { readFileSync } from "node:fs";
 import { openRecordStore } from "../../kernel/src/store/records.ts";
 import type { ProjectionHost, Tx } from "../../kernel/src/store/projection.ts";
+import type { SeamSetters } from "../../host/src/seams/index.ts";
+import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
 import { createConnectorsHandlers } from "./handlers/index.ts";
 import type { ConnectorsHandlers } from "./handlers/index.ts";
 import { ensureTables, seedBuiltins } from "./projections.ts";
@@ -37,11 +39,20 @@ export function openConnectors(o: Partial<Omit<SyncDeps, "tx">> & { tx?: Tx; pat
 
 type HostCtx = Omit<ConnectorsCtx, "actor"> & { principal?: { id: string } };
 let shared: ConnectorsHandle | null = null;
-const live = (): ConnectorsHandle => (shared ??= openConnectors());
+let spaceSeam: SpaceStoreSeam | null = null;
+let engine: SyncEngine | null = null;
+/** The host hands the Space store (P-H_08, ruling 31). */
+export function setConnectorsSpaceStore(seam: SpaceStoreSeam | null): void { spaceSeam = seam; shared = null; }
+export const hostSeams: SeamSetters = { setConnectorsSpaceStore };
+const live = (): ConnectorsHandle => {
+  if (!shared) {
+    shared = openConnectors(spaceSeam ? { tx: spaceSeam.open().tx } : {});
+    if (engine) shared.deps.engine = engine;
+  }
+  return shared;
+};
 /** The host hands the sync engine (modules/sources) to the live handlers: preview, undo, conflict settling, replay, confirm deletes and push need it (boundary B1 keeps this module from importing it). */
-export function setSyncEngine(engine: SyncEngine | null): void { if (engine) live().deps.engine = engine; else delete live().deps.engine; }
-// NOT exported as `hostSeams` yet: the daemon has no driver that builds the engine from modules/sources (two Stores per binding), and a setter without a driver shows in health as not set up.
-// Until that host packet (P-H_09) lands, sync_types.preview/confirm_deletes/resolve_conflict/replay_conflict/undo_push and connectors.push answer internal.unavailable, which is the module's own refusal.
+export function setSyncEngine(e: SyncEngine | null): void { engine = e; if (shared) { if (e) shared.deps.engine = e; else delete shared.deps.engine; } }
 
 function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {
