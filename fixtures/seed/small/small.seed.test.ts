@@ -112,6 +112,9 @@ test("a seeded person signs in and pairs a device", async () => {
     const pair = await post("identity.pair_create", { idempotencyKey: "small-pair", purpose: "app" }, sign.data.session.token);
     assert.equal(pair.status, 200, JSON.stringify(pair.data));
     assert.match(pair.data.code, /^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+  } finally { await d.stop(); s.close(); }
+});
+
 test("the access module knows the seed: View as and a folder share work on seeded ids", async () => {
   const s = await bootSmall({ cache, scratch: scratch() });
   const d = await startSeeded(s.dir);
