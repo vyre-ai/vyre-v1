@@ -32528,7 +32528,6 @@ function fitHead() {
       if (T.has("empty")) { const T0 = TY.projects, r = { id: "p9999", title: "Untitled project", stage: "Intake", client: [], lead: null, start: TODAY, due: addDays(TODAY, 30), budget: null, tags: [], srcs: {}, pend: {}, idDoc: [], rec: [] }; T0.rows.unshift(r); BYID[r.id] = ["projects", r]; relDirty(); ui.sel = { k: "record", id: "p9999" }; }
       if (T.has("dense")) { rmInit("c0", "p:Maya Chen"); ui.rm.base = "c0"; ui.rm.hops = 1; }
       if (T.has("recent")) ui.rm.recent = "30"; }
-    if (T.has("recordtypes")) ui.sel = { k: "types" };
     if (T.has("schema") || T.has("schemadiff") || T.has("newtype")) { ui.sel = { k: "schema" }; if (T.has("select")) { ui.sch.sel = "projects"; addPTq("sch:projects"); ui.pane = true; } if (T.has("expand")) ui.sch.exp.clients = true; if (T.has("link")) ui.sch.pend = { src: "hires", dst: "projects", name: "Project" }; }
     if (T.has("schemadiff") || T.has("newtype")) { ui.sch.newOpen = true; if (T.has("schemadiff")) ui.sch.proposal = proposeCsv(); }
     if (T.has("enrich")) ui.sel = { k: "enrich" };
@@ -83535,7 +83534,7 @@ NOTES.inbox = { title: "Inbox", shape: ["One Inbox for every outside conversatio
   { const st = tok.find((x) => x.startsWith("space:")); const si = st ? SID.indexOf(st.slice(6)) : -1; if (si >= 0) { S.space = si; window.__vyreSpace = SID[si]; S.counts = { chat: [7, 2, 0][si] }; S.dots = [{ inbox: 1, records: 1 }, { inbox: 1 }, {}][si]; if (tokSkin) { skinBy[si] = tokSkin; skinBy[0] = SKDEF[0] === tokSkin ? tokSkin : skinBy[0]; } renderRail(); showSkin(curSkin()); renderSkinBtn(); } }
   const startPlace = PLACES.find((p) => p !== "-" && tok.includes(p.k));
   const sub = tok.find((x) => x.startsWith("at:"));
-  if (tok.includes("needs")) go("chat", "needs"); else go(startPlace ? startPlace.k : "home", sub ? sub.slice(3) : (startPlace && /^(files|records)$/.test(startPlace.k) ? (tok.filter((x) => x !== startPlace.k && !SK.find(x) && !/^(space:|at:)/.test(x) && !/^(light|dark|notes|skins|needs|harbor)$/.test(x)).join(",") || null) : null));
+  if (tok.includes("needs")) go("chat", "needs"); else go(startPlace ? startPlace.k : "home", sub ? sub.slice(3) : null);
   if (tok.includes("notes")) setNotes(true);
   if (tok.includes("e2eagent")) { go("chat", "demo-newagent"); setTimeout(() => go(tok.includes("e2efiles") ? "files" : tok.includes("e2evault") ? "vault" : "records", tok.includes("e2efiles") ? "Agents/Bookings" : tok.includes("e2evault") ? null : "agents"), 5000); }
   if (tok.includes("allopen")) { S.ntab = "all"; setNotes(true); }
