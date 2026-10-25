@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Avatar, faceTint, hash, hueOf, kindOf, marbleSpec, initialsOf, notionistsSvg } from "./index.tsx";
+import { marbleGradient } from "./faces.ts";
 import { hslHex } from "./faces.ts";
 
 test("the hash is the prototype's, so a name seeds the same face as the prototype draws", () => {
@@ -130,8 +131,18 @@ test("the face cache keys a face by seed, kind, size and skin, and caches nothin
   assert.match(wrapSvg("<g/>", "0 0 80 80", 18), /^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" viewBox="0 0 80 80" width="18" height="18"><g\/><\/svg>$/);
 });
 
-test("the marble bitmap needs a canvas: with no browser it returns nothing and the row draws the inline svg", async () => {
-  const { marbleBitmap, faceKey } = await import("./cache.ts");
-  assert.equal(marbleBitmap(faceKey("Maya", "person", 18, "paper"), "Maya", 18), undefined);
-  assert.match(renderToStaticMarkup(<Avatar name="Maya Chen" kind="person" size={18} />), /<svg/, "server markup is unchanged");
+test("the marble as CSS is seeded like the svg: same name same string, different names differ, colours from marbleSpec, no filter or svg", () => {
+  const a = marbleGradient("Maya Chen");
+  assert.equal(a, marbleGradient("Maya Chen"));
+  assert.notEqual(a, marbleGradient("Omar Haddad"));
+  const m = marbleSpec("Maya Chen");
+  for (const c of [m.base, m.c1, m.c2]) assert.ok(a.includes(c), c);
+  assert.equal(a.match(/radial-gradient/g)?.length, 2);
+  assert.ok(!/svg|filter|blur/i.test(a));
+  const seen = new Set(Array.from({ length: 200 }, (_, i) => marbleGradient(`Person ${i}`)));
+  assert.ok(seen.size > 190, "200 names give about 200 faces");
+});
+
+test("server markup keeps the inline svg marble; only the browser draws the CSS marble", () => {
+  assert.match(renderToStaticMarkup(<Avatar name="Maya Chen" kind="person" size={18} />), /<svg/);
 });

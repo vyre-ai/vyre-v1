@@ -75,3 +75,24 @@ export function initialsOf(name: string, size: number, person: boolean): string 
   if (person && size >= 24) return words.map((w) => Array.from(w)[0] ?? "").slice(0, 2).join("").toUpperCase() || "?";
   return Array.from(words[0] ?? "?")[0]?.toUpperCase() ?? "?";
 }
+
+/** Where a marble blob's centre lands in the 80 unit box: the path's own centre, scaled 1.2, turned about (40,40), then moved. */
+function blobAt(c: readonly [number, number], t: { x: number; y: number; rot: number }): [number, number] {
+  const sx = (c[0] - 0) * 1.2, sy = (c[1] - 0) * 1.2;
+  const r = (t.rot * Math.PI) / 180;
+  const dx = sx - 40, dy = sy - 40;
+  const x = 40 + dx * Math.cos(r) - dy * Math.sin(r) + t.x;
+  const y = 40 + dx * Math.sin(r) + dy * Math.cos(r) + t.y;
+  return [Math.round(Math.min(110, Math.max(-30, (x / 80) * 100))), Math.round(Math.min(110, Math.max(-30, (y / 80) * 100)))];
+}
+
+/**
+ * The marble as CSS: the base colour under two soft radial blobs placed where the svg's two blurred shapes land. No svg, no canvas, no filter,
+ * so a list can mount thousands of faces while scrolling. Seeded exactly like marbleSpec; the same name gives the same string.
+ */
+export function marbleGradient(name: string): string {
+  const m = marbleSpec(name);
+  const [x1, y1] = blobAt([50, 35], m.t1);
+  const [x2, y2] = blobAt([40, 45], m.t2);
+  return `radial-gradient(circle at ${x1}% ${y1}%, ${m.c1} 0%, ${m.c1} 22%, transparent 62%), radial-gradient(circle at ${x2}% ${y2}%, ${m.c2}B3 0%, ${m.c2}B3 16%, transparent 56%), ${m.base}`;
+}

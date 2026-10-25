@@ -7,13 +7,13 @@ import { createElement, memo, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Image, Platform, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
-import { faceTint, hueOf, initialsOf, marbleInner } from "./faces.ts";
-import { cachedFace, currentSkin, faceKey, marbleBitmap, requestFace } from "./cache.ts";
+import { faceTint, hueOf, initialsOf, marbleGradient, marbleInner } from "./faces.ts";
+import { cachedFace, currentSkin, faceKey, requestFace } from "./cache.ts";
 import { notionistsSvg } from "./notionists.ts";
 import type { AvatarKind, AvatarProps } from "./props.ts";
 
 export type { AvatarKind, AvatarProps } from "./props.ts";
-export { faceTint, hash, hueOf, initialsOf, marbleInner, marbleSpec } from "./faces.ts";
+export { faceTint, hash, hueOf, initialsOf, marbleGradient, marbleInner, marbleSpec } from "./faces.ts";
 export { notionistsSvg } from "./notionists.ts";
 export { cachedFace, cachedFaceCount, clearFaceCache, faceKey } from "./cache.ts";
 
@@ -53,12 +53,13 @@ function svg(markup: string, size: number, viewBox: string, extra: Record<string
 export const Avatar = memo(function Avatar({ name, kind: kindProp, size = AVATAR_DEFAULT_SIZE, photo, running = false, present = false, testID }: AvatarProps): ReactElement {
   const kind = kindOf(name, kindProp);
   // A person's marble and an agent's face are drawn once to a cached bitmap per seed, kind, size and skin; rows reuse it as an <img>.
-  const drawn = web && ((kind === "person" && !photo) || kind === "agent");
+  const browser = web && typeof document !== "undefined";
+  const drawn = web && kind === "agent";
   const key = faceKey(name, kind, size, currentSkin());
   const [, bump] = useState(0);
-  const bitmap = !drawn ? undefined : kind === "person" ? marbleBitmap(key, name, size) : cachedFace(key);
+  const bitmap = drawn ? cachedFace(key) : undefined;
   useEffect(() => {
-    if (!drawn || kind === "person" || cachedFace(key) !== undefined) return;
+    if (!drawn || cachedFace(key) !== undefined) return;
     requestFace(key, sized(notionistsSvg(name), size), size, () => bump((n) => n + 1));
   }, [drawn, key, kind, name, size]);
   const id = testID ?? `avatar-${name}`;
@@ -72,6 +73,8 @@ export const Avatar = memo(function Avatar({ name, kind: kindProp, size = AVATAR
     face = web ? createElement("img", { src: photo, alt: "", width: size, height: size, draggable: false, style: { display: "block", objectFit: "cover", width: size, height: size } }) : <Image accessibilityIgnoresInvertColors source={{ uri: photo }} style={{ width: size, height: size }} />;
   } else if (bitmap !== undefined) {
     face = createElement("img", { src: bitmap, alt: "", width: size, height: size, draggable: false, decoding: "async", style: { display: "block", width: size, height: size }, "data-face": "cached" });
+  } else if (kind === "person" && browser) {
+    face = createElement("span", { style: { display: "block", width: size, height: size, backgroundImage: marbleGradient(name) }, "data-face": "gradient" });
   } else if (kind === "person") {
     face = web ? svg(marbleInner(name), size, "0 0 80 80") : <NativeLetters name={name} size={size} person tint={`hsl(${hueOf(name)}, 45%, 70%)`} />;
   } else if (kind === "agent") {
