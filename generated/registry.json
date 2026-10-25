@@ -115615,6 +115615,120 @@
       "v": 1
     },
     {
+      "effects": "write",
+      "emits": [
+        "notification.rules_changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "channels": [
+              "desktop"
+            ],
+            "kind": "approval.requested",
+            "level": "interrupt"
+          },
+          "name": "example",
+          "output": {
+            "channels": [
+              "desktop"
+            ],
+            "kind": "approval.requested",
+            "level": "interrupt"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "channels": {
+            "items": {
+              "enum": [
+                "desktop",
+                "phone",
+                "email"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "type": "array"
+          },
+          "kind": {
+            "$ref": "#/$defs/s_0766030a72"
+          },
+          "level": {
+            "enum": [
+              "interrupt",
+              "badge",
+              "digest"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "notifications",
+      "name": "notifications.kind.set_level",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "channels": {
+            "items": {
+              "enum": [
+                "desktop",
+                "phone",
+                "email"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "$ref": "#/$defs/s_0766030a72"
+          },
+          "level": {
+            "enum": [
+              "interrupt",
+              "badge",
+              "digest"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "level",
+          "channels"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Set how one kind of notification reaches me: its level and which of desktop, phone and email carry it. Give a level, channels, or both; channels alone pick the level (desktop or phone interrupt, otherwise badge). Approval reminders and owned incidents never go below Interrupt",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "meta"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -115632,6 +115746,12 @@
               {
                 "key": "approval.requested",
                 "level": "interrupt",
+                "mine": {
+                  "channels": [
+                    "desktop"
+                  ],
+                  "level": "interrupt"
+                },
                 "place": "home",
                 "respectHours": true,
                 "title": "example"
@@ -115663,6 +115783,34 @@
                     "digest"
                   ],
                   "type": "string"
+                },
+                "mine": {
+                  "properties": {
+                    "channels": {
+                      "items": {
+                        "enum": [
+                          "desktop",
+                          "phone",
+                          "email"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "level": {
+                      "enum": [
+                        "interrupt",
+                        "badge",
+                        "digest"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "level",
+                    "channels"
+                  ],
+                  "type": "object"
                 },
                 "place": {
                   "enum": [
@@ -206631,6 +206779,17 @@
       "title": "Members excluded from the Microsoft connection"
     },
     {
+      "default": false,
+      "key": "notifications.alert_replies",
+      "module": "notifications",
+      "page": "Notifications",
+      "schema": {
+        "type": "boolean"
+      },
+      "scope": "person",
+      "title": "Alert me on replies"
+    },
+    {
       "default": true,
       "key": "notifications.email_backstop",
       "module": "notifications",
@@ -206640,6 +206799,27 @@
       },
       "scope": "person",
       "title": "Email me once if an approval waits 4 hours"
+    },
+    {
+      "default": null,
+      "key": "notifications.hand_needs_you_to",
+      "module": "notifications",
+      "page": "Notifications",
+      "schema": {
+        "anyOf": [
+          {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "scope": "person",
+      "title": "While you are away, hand Needs you to (a person; none leaves it with you)"
     },
     {
       "default": 5,
@@ -206653,6 +206833,61 @@
       },
       "scope": "space",
       "title": "Minutes idle on the computer before pushes go to the phone"
+    },
+    {
+      "default": {
+        "from": "22:00",
+        "needs": true,
+        "on": false,
+        "to": "07:00"
+      },
+      "key": "notifications.quiet_hours",
+      "module": "notifications",
+      "page": "Notifications",
+      "schema": {
+        "properties": {
+          "from": {
+            "examples": [
+              "22:00"
+            ],
+            "pattern": "^[0-2][0-9]:[0-5][0-9]$",
+            "type": "string"
+          },
+          "needs": {
+            "type": "boolean"
+          },
+          "on": {
+            "type": "boolean"
+          },
+          "to": {
+            "examples": [
+              "07:00"
+            ],
+            "pattern": "^[0-2][0-9]:[0-5][0-9]$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "on",
+          "from",
+          "to",
+          "needs"
+        ],
+        "type": "object"
+      },
+      "scope": "person",
+      "title": "Quiet hours: no sounds or pushes between the two times; Needs you may come through"
+    },
+    {
+      "default": false,
+      "key": "notifications.routines_all",
+      "module": "notifications",
+      "page": "Notifications",
+      "schema": {
+        "type": "boolean"
+      },
+      "scope": "person",
+      "title": "Also tell me when routines succeed (failures always)"
     },
     {
       "default": {

@@ -1403,6 +1403,9 @@ export function stubs(ctx: CallCtx) {
       digest: {
         collect: call("notifications.digest.collect"),
       },
+      kind: {
+        set_level: call("notifications.kind.set_level"),
+      },
       kinds: {
         list: call("notifications.kinds.list"),
       },

@@ -18528,6 +18528,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/notifications/kind/set_level",
+    "cap": "notifications.kind.set_level",
+    "v": 1,
+    "module": "notifications",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/notifications/kinds/list",
     "cap": "notifications.kinds.list",
     "v": 1,

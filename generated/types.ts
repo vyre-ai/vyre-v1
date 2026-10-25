@@ -16789,6 +16789,16 @@ export type NotificationsDigestCollectOut = {
       count: number;
     }>;
 };
+export type NotificationsKindSetLevelIn = {
+  kind: "approval.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  level?: "interrupt" | "badge" | "digest";
+  channels?: Array<"desktop" | "phone" | "email">;
+};
+export type NotificationsKindSetLevelOut = {
+  kind: "approval.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  level: "interrupt" | "badge" | "digest";
+  channels: Array<"desktop" | "phone" | "email">;
+};
 export type NotificationsKindsListIn = Record<string, unknown>;
 export type NotificationsKindsListOut = {
   kinds: Array<{
@@ -16797,6 +16807,10 @@ export type NotificationsKindsListOut = {
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
       respectHours: boolean;
+      mine?: {
+        level: "interrupt" | "badge" | "digest";
+        channels: Array<"desktop" | "phone" | "email">;
+      };
     }>;
 };
 export type NotificationsListIn = {
@@ -26925,6 +26939,7 @@ export interface CapMap {
   "notifications.delegate.resolve": { in: NotificationsDelegateResolveIn; out: NotificationsDelegateResolveOut };
   "notifications.delegate.set": { in: NotificationsDelegateSetIn; out: NotificationsDelegateSetOut };
   "notifications.digest.collect": { in: NotificationsDigestCollectIn; out: NotificationsDigestCollectOut };
+  "notifications.kind.set_level": { in: NotificationsKindSetLevelIn; out: NotificationsKindSetLevelOut };
   "notifications.kinds.list": { in: NotificationsKindsListIn; out: NotificationsKindsListOut };
   "notifications.list": { in: NotificationsListIn; out: NotificationsListOut };
   "notifications.mark_seen": { in: NotificationsMarkSeenIn; out: NotificationsMarkSeenOut };
