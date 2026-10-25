@@ -1,0 +1,25 @@
+{
+  "targets": [
+    {
+      "id": "P-L9d_07c-schema-pane",
+      "route": "/m/P-L9d_07?select=projects",
+      "proto": "records,schema,select,{skin}",
+      "waitFor": "[data-testid='schema-fields-pane']",
+      "note": "Projects selected: its links lit and the fields pane open on the right (type header, 9 fields and 12 records, each field with its kind, Add a field). The prototype side is the same selection with its right pane; the real pane is read only, so its Add a field leads to the Console."
+    },
+    {
+      "id": "P-L9d_07c-schema-map",
+      "route": "/m/P-L9d_07",
+      "proto": "records,schema,{skin}",
+      "waitFor": "[data-testid='schema-card-projects']",
+      "note": "The Schema map with nothing selected: every card head carries the type's line icon (a person, a folder, a page, a calendar), no letter tiles."
+    },
+    {
+      "id": "P-L9d_07c-record-types",
+      "route": "/m/P-L9d_07?part=types",
+      "proto": "records,recordtypes,{skin}",
+      "waitFor": "[data-testid='record-types-list']",
+      "note": "Record types as a grouped inset list: plural names, the type icon, the record and field counts, and the source label with the source app's icon (Built in, Journey, Synced from HubSpot, Synced from GitHub, Site table)."
+    }
+  ]
+}

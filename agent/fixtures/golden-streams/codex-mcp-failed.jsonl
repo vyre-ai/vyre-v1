@@ -1,0 +1,3 @@
+{"type":"thread.started","thread_id":"{{SESSION}}"}
+{"type":"turn.started"}
+{"type":"error","message":"MCP client for `vyre` failed to start: connection refused"}

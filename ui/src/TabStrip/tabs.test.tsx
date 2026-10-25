@@ -105,3 +105,11 @@ test("an extra's own handler is kept", () => {
   first.onSelect?.();
   assert.equal(hit, 1);
 });
+
+test("the + sits right after the last tab and before the spacer and the options button; tabs show their icon when given", () => {
+  const html = renderToStaticMarkup(<TabStrip tabs={[{ key: "a", title: "Chats", icon: "<svg id=\"ic-a\"></svg>" }, { key: "b", title: "Files" }]} active="a" onPlus={() => undefined} />);
+  const at = (needle: string): number => html.indexOf(needle);
+  assert.ok(at('data-testid="tab-b"') > 0 && at('data-testid="tab-strip-plus"') > at('data-testid="tab-b"'), "the + follows the last tab");
+  assert.ok(at('data-testid="tab-strip-plus"') < at('data-testid="tab-strip-more"'), "the + comes before the options button");
+  assert.ok(html.includes('id="ic-a"'), "a tab shows its icon");
+});
