@@ -5,7 +5,7 @@
 #   docker build -t vyre/agent-computer:1 images/agent-computer
 #
 # Vyre for Chrome (apps/chrome) is baked in at /opt/vyre-chrome by copying it into vyre-chrome/ before the build; agentd loads it from there when it has a manifest.json.
-FROM node:24-bookworm-slim
+FROM node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205
 
 # chromium: the browser. xvfb: the screen. ffmpeg: frames for the live view and the recording. python3-xlib: the input injector (XTEST, with a round trip so an input is acknowledged once the server
 # has it). fonts: pages must render. procps and coreutils: ps, du. No sudo, no ssh, no docker client, no package manager left to use at run time.

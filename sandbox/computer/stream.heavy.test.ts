@@ -70,6 +70,8 @@ async function ctl<T = Record<string, unknown>>(action: string, body: Record<str
   const last = r.stderr.trim().split("\n").pop() ?? "";
   return { refused: JSON.parse(last) as { code: string; message: string } } as T & { refused: { code: string; message: string } };
 }
+/** A tool that acts also returns the picture after the step as `frame` (the timeline's frame); the answers below are compared without it. */
+const bare = (o: Record<string, unknown>): Record<string, unknown> => { const { frame: _frame, ...rest } = o; return rest; };
 const tool = (name: string, args: Record<string, unknown> = {}) => ctl<Record<string, unknown>>("tool", { tool: name, args, timeoutMs: 30_000 });
 
 /** Split a stream of concatenated JPEGs and call back with each image's bytes. */
@@ -165,9 +167,9 @@ test("@heavy agent computer: the container is inside its profile and agentd answ
   assert.equal(who.stdout.trim(), "10001");
   const refused = await ctl("no_such_action");
   assert.equal(refused.refused?.code, "bad_input", "an unknown action is refused with a code");
-  assert.deepEqual(Object.keys(await tool("chrome_net", { limit: 5 })), ["requests"], "the debug tools answer");
-  assert.deepEqual(Object.keys(await tool("chrome_console")), ["messages"]);
-  assert.deepEqual(Object.keys(await tool("chrome_sources")).sort(), ["endpoints", "scripts"]);
+  assert.deepEqual(Object.keys(bare(await tool("chrome_net", { limit: 5 }))), ["requests"], "the debug tools answer");
+  assert.deepEqual(Object.keys(bare(await tool("chrome_console"))), ["messages"]);
+  assert.deepEqual(Object.keys(bare(await tool("chrome_sources"))).sort(), ["endpoints", "scripts"]);
   assert.equal((await tool("shell_run", { command: "id" })).refused?.code, "bad_input", "there is no way to run a shell command through the tools");
 });
 
@@ -384,7 +386,9 @@ test("@heavy agent computer: a Vault handle is refused while no filler is attach
   assert.equal(typeof send["heldId"], "string", "a click that sends is held");
   assert.equal((await tool("chrome_state", { tabId: opened["tabId"] }))["title"], "saved", "nothing was sent");
   assert.deepEqual((await tool("chrome_status"))["held"], [send["heldId"]]);
-  assert.deepEqual(await tool("chrome_send", { heldId: send["heldId"] }), { sent: true });
+  const sent = await tool("chrome_send", { heldId: send["heldId"] });
+  assert.deepEqual(bare(sent), { sent: true });
+  assert.equal(typeof sent["frame"], "string", "the step returns its picture for the timeline");
   assert.equal((await tool("chrome_state", { tabId: opened["tabId"] }))["title"], "sent", "chrome_send does what was held");
   assert.equal((await tool("chrome_send", { heldId: send["heldId"] })).refused?.code, "not_found", "a held item is released once");
 });
