@@ -64,8 +64,8 @@ test("a daemon boots on a copy and answers through the gateway: the contacts are
     const post = async (cap: string, body: unknown): Promise<{ status: number; data: any }> => {
       const r = routes.find((x) => x.cap === cap)!;
       const res = await fetch(`${d.url}${r.path}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(body) });
-      const body = (await res.json()) as { data?: unknown; error?: unknown };
-      return { status: res.status, data: body.data ?? body.error ?? null };
+      const reply = (await res.json()) as { data?: unknown; error?: unknown };
+      return { status: res.status, data: reply.data ?? reply.error ?? null };
     };
     assert.equal((await post("schema.types.list", {})).status, 200, "the schema module is read first: records answers no type contact until it has been (lazy built-in types)");
     const rows = await post("records.query", { type: "contact", limit: 500 });
