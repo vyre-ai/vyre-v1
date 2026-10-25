@@ -117,7 +117,7 @@ wait_for() { # wait_for SECONDS CMD...
 healthz() { curl -fsS --max-time 5 "http://127.0.0.1:$PORT/healthz" | grep -q ok; }
 
 t_install() {
-  envrun sh "$HERE/install.sh" --yes --relay >"$W/inst.out" 2>&1 || { cat "$W/inst.out"; tail -n 40 "$D/logs/colima.log" 2>/dev/null || true; return 1; }
+  envrun sh "$HERE/install.sh" --yes --relay >"$W/inst.out" 2>&1 || { cat "$W/inst.out"; echo "--- ha.stderr.log"; tail -n 30 "$HOME/.colima/_lima/colima/ha.stderr.log" 2>/dev/null || true; echo "--- serial"; tail -n 20 "$HOME"/.colima/_lima/colima/serial*.log 2>/dev/null || true; return 1; }
   grep -q "Container runtime: Colima" "$W/inst.out"
   grep -q "vyre-server doctor is green" "$W/inst.out"
   [ -f /Library/LaunchDaemons/run.vyre.colima.plist ] && [ -f /Library/LaunchDaemons/run.vyre.server.plist ] && [ -f /Library/LaunchDaemons/run.vyre.server-update.plist ]
