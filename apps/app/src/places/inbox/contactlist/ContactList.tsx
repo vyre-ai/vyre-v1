@@ -79,7 +79,6 @@ function Meta({ e, x, now, offsetMin, narrow: slim, lit, onMore }: { e: Entry; x
         </Pressable>
       ) : null}
       <View style={styles.timeLine}>
-        {e.kind === "contact" && pinned(e) ? <Tag id={`unmatched-${e.key}`} label="Unmatched" tip="No record has this number yet" /> : null}
         {x?.dnd ? <Tag id={`dnd-${e.key}`} label="DND" tip={`Do not disturb: ${x.dnd}`} /> : null}
         {x?.bounced ? <Tag id={`bounced-${e.key}`} label="Bounced" tip={`An email to ${x.bounced} bounced`} warn /> : null}
         {e.followed ? <View testID={`bell-${e.key}`} accessibilityLabel="Following"><Glyph name="bell" size={12} /></View> : null}
@@ -105,19 +104,48 @@ function Meta({ e, x, now, offsetMin, narrow: slim, lit, onMore }: { e: Entry; x
   );
 }
 
-/** One line: the shared Row, with hover and selection tracked here so the trailing slot can swap the time for the More button. */
+/** The unmatched sender: not a Row but its own accent-wash block, with the "Match to a record" button on the right (prototype Inbox, the pinned line). */
+function Banner({ e, now, offsetMin, selected, onPress, onMore }: { e: Entry; now: number; offsetMin: number; selected: boolean; onPress: () => void; onMore: (px: number, py: number) => void }): ReactElement {
+  const data = useInboxData();
+  return (
+    <View testID={`row-line:${e.key}`} style={styles.bannerSlot} {...menuTrigger(onMore)}>
+      <Pressable accessibilityRole="button" accessibilityLabel={e.name} accessibilityState={{ selected }} onPress={onPress} style={({ hovered }: { hovered?: boolean }) => [styles.banner, (hovered === true || selected) && styles.bannerOver]}>
+        <View style={styles.face}><Ghost size={36} /></View>
+        <View style={styles.bannerText}>
+          <Text numberOfLines={1} style={styles.bannerName}>{e.name}</Text>
+          <Text numberOfLines={1} style={styles.bannerNote}>{e.snippet || "No preview"}</Text>
+        </View>
+        <View style={styles.bannerRight}>
+          <View style={styles.timeLine}>
+            {e.unread > 0 ? <View testID={`unread-${e.key}`} accessibilityLabel="Unread" style={styles.udot} /> : null}
+            <Text style={[styles.time, e.unread > 0 && styles.timeUnread]}>{listTime(e.at, now, offsetMin)}</Text>
+          </View>
+          <Pressable accessibilityRole="link" accessibilityLabel="Match to a record" testID={`match-${e.key}`} onPress={() => data.nav.openMatch(e.openId)} style={({ hovered }: { hovered?: boolean }) => [styles.matchBtn, hovered === true && styles.matchBtnOver]}>
+            <Glyph name="link" size={12} color="var(--accent)" /><Text style={styles.matchText}>Match to a record</Text>
+          </Pressable>
+        </View>
+      </Pressable>
+    </View>
+  );
+}
+
+/** One line: the shared Row (tall, org as the muted suffix, bold name while unread), with hover tracked here so the trailing slot can swap the time for the More button. */
 function Line({ e, x, selected, slim, now, offsetMin, onPress, onMore }: { e: Entry; x: RowExtras | undefined; selected: boolean; slim: boolean; now: number; offsetMin: number; onPress: () => void; onMore: (px: number, py: number) => void }): ReactElement {
   const [over, setOver] = useState(false);
-  const title = x?.org ? `${e.name}  ${x.org}` : e.name;
+  if (pinned(e)) return <Banner e={e} now={now} offsetMin={offsetMin} selected={selected} onPress={onPress} onMore={onMore} />;
+  // "Draft ready" leads the note as plain text until the Row's accent lead-in lands (P-UI_09b)
   const draft = x?.draftReady === true && e.kind === "contact";
   return (
     <View {...menuTrigger(onMore)} {...({ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) } as object)}>
       <Row
         id={`line:${e.key}`}
-        title={title}
+        title={e.name}
+        {...(x?.org ? { titleSuffix: x.org } : {})}
+        tall
+        emphasis={e.unread > 0}
         note={`${draft ? "Draft ready \u00b7 " : ""}${e.snippet || "No preview"}`}
         selected={selected}
-        leading={<View style={styles.face}>{pinned(e) ? <Ghost size={36} /> : <Face name={e.name} size={36} />}</View>}
+        leading={<View style={styles.face}><Face name={e.name} size={36} /></View>}
         trailing={<Meta e={e} x={x} now={now} offsetMin={offsetMin} narrow={slim} lit={over || selected} onMore={onMore} />}
         onPress={onPress}
       />
@@ -270,7 +298,7 @@ function List(): ReactElement {
         <States kind="empty" title={filtered ? "Nothing matches these filters." : view === "calls" ? "No calls yet." : "Nothing here"} icon="inbox" {...(filtered ? { action: { label: "Show all", onPress: () => dispatch({ type: "showAll" }) } } : {})} />
       ) : (
         <View style={styles.listBox} {...({ onKeyDown } as object)}>
-          <VirtualList data={entries} rowHeight={44} keyOf={(e) => e.key} renderItem={renderLine} />
+          <VirtualList data={entries} rowHeight={62} keyOf={(e) => e.key} renderItem={renderLine} />
         </View>
       )}
       {menu.element}
@@ -315,6 +343,15 @@ const styles = StyleSheet.create({
   viaText: { fontSize: 11.5, color: "var(--ink-3)" as string, flexShrink: 1 },
   match: { flexDirection: "row", alignItems: "center", gap: 4 },
   matchText: { fontSize: 11.5, fontWeight: "500", color: "var(--accent)" as string },
+  bannerSlot: { height: 62, paddingHorizontal: 0, justifyContent: "flex-start" },
+  banner: { height: 56, flexDirection: "row", alignItems: "center", paddingLeft: 8, paddingRight: 12, borderRadius: 6, backgroundColor: "var(--accent-wash)" as string },
+  bannerOver: { backgroundColor: "color-mix(in srgb, var(--accent) 16%, transparent)" as string },
+  bannerText: { flex: 1, minWidth: 0 },
+  bannerName: { fontSize: 13, lineHeight: 18, fontWeight: "600", color: "var(--ink)" as string },
+  bannerNote: { fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string },
+  bannerRight: { alignItems: "flex-end", gap: 2, marginLeft: 8 },
+  matchBtn: { flexDirection: "row", alignItems: "center", gap: 5, height: 24, paddingHorizontal: 8, borderRadius: 6 },
+  matchBtnOver: { backgroundColor: "var(--win)" as string },
   skRow: { flexDirection: "row", alignItems: "center", gap: 12, height: 44, paddingHorizontal: 18 },
   skFace: { width: 32, height: 32, borderRadius: 32, backgroundColor: "var(--hover)" as string },
   skLines: { flex: 1, gap: 6 },

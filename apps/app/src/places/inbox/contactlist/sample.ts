@@ -45,14 +45,16 @@ export const northwind: SampleSpace = {
   numberInfo: { [NW_BILL]: { label: "Billing's number", group: "agent" } },
   // organisations, do-not-disturb, a bounced email and the agents' drafts, as the prototype's Inbox shows them
   extras: {
-    elena: { org: "Northwind Property" },
+    elena: { org: "Rivera Holdings" },
     marcus: { org: "Pruitt & Co.", draftReady: true },
     dana: { org: "Whitfield Group" },
     priya: { org: "Nair Studio", draftReady: true },
-    tomas: { org: "Berg Labs" },
-    wei: { org: "Zhang Imports", dnd: "asked not to be emailed" },
-    ben: { org: "Okafor Studio?", orgUnsure: true, bounced: "ben@okafor.example" },
-    hannah: { org: "Cole Design", dnd: "texts after 6 pm" },
+    tomas: { org: "Berg Logistics" },
+    wei: { org: "Zhang Imports" },
+    ben: { org: "Unsure match", orgUnsure: true, bounced: "ben@okafor.example" },
+    grace: { org: "Mbeki Design" },
+    jonas: { org: "Keller Bakery", dnd: "asked not to be emailed" },
+    hannah: { org: "Cole Dental" },
     sofia: { org: "Alvarez Legal" },
   },
   contacts: [

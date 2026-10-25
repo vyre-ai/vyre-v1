@@ -22,7 +22,7 @@ const at = (s: string, needle: string): number => {
   assert.ok(i >= 0, `expected ${needle}`);
   return i;
 };
-const lines = (out: string): string[] => [...out.matchAll(/data-testid="row-line:([^"]+)"/g)].map((m) => m[1]!).filter((k) => !k.endsWith("-leading") && !k.endsWith("-trailing"));
+const lines = (out: string): string[] => [...out.matchAll(/data-testid="row-line:([^"]+)"/g)].map((m) => m[1]!).filter((k) => !k.endsWith("-leading") && !k.endsWith("-trailing") && !k.endsWith("-suffix"));
 const items = (entries: readonly MenuEntry[]): MenuItem[] => entries.filter(isItem);
 
 test("screen: By contact lists one line per person, newest first, unmatched senders on top", () => {

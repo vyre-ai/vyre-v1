@@ -17,7 +17,11 @@ const has = (s: string, n: string): boolean => s.includes(n);
 
 test("the list names each person's organisation next to the name", () => {
   const out = wrap({}, <ContactList />);
-  assert.ok(has(out, "Elena Rivera  Northwind Property") && has(out, "Marcus Pruitt  Pruitt &amp; Co.") && has(out, "Dana Whitfield  Whitfield Group"));
+  const suffix = (k: string): string => out.match(new RegExp(`data-testid="row-line:${k}-suffix"[^>]*>([^<]*)<`))?.[1] ?? "";
+  assert.equal(suffix("elena"), "Rivera Holdings");
+  assert.equal(suffix("marcus"), "Pruitt &amp; Co.");
+  assert.equal(suffix("dana"), "Whitfield Group");
+  assert.equal(suffix("unk"), "", "an unmatched sender has no organisation");
 });
 
 test("Draft ready leads the preview of a line an agent has a draft for, and only that line", () => {
@@ -26,12 +30,24 @@ test("Draft ready leads the preview of a line an agent has a draft for, and only
   assert.ok(!has(out, "Draft ready · Lease documents"));
 });
 
-test("bell and star marks, DND, Bounced and Unmatched tags show on their lines", () => {
+test("the lines are the tall Row, and an unread name is bold", () => {
+  const out = wrap({}, <ContactList />);
+  const row = (k: string): string => out.match(new RegExp(`<div[^>]*data-testid="row-line:${k}"[^>]*>`))?.[0] ?? "";
+  assert.ok(row("elena").includes("height:62px"), "62 px rows");
+  assert.ok(out.includes("font-weight:600"), "bold unread titles");
+});
+
+test("an unmatched sender is its own accent-wash block with the match button on its right, not a Row", () => {
+  const out = wrap({}, <ContactList />);
+  assert.ok(has(out, 'data-testid="row-line:unk"') && !has(out, 'data-testid="row-line:unk-leading"'), "no Row slots on the banner");
+  assert.ok(has(out, "var(--accent-wash)") && has(out, 'data-testid="match-unk"') && has(out, 'data-testid="face-ghost"'));
+});
+
+test("bell and star marks, DND and Bounced tags show on their lines", () => {
   const out = wrap({}, <ContactList />);
   assert.ok(has(out, 'data-testid="bell-elena"') && has(out, 'data-testid="star-marcus"') && !has(out, 'data-testid="star-elena"'));
-  assert.ok(has(out, 'data-testid="dnd-wei"') && has(out, 'data-testid="dnd-hannah"') && has(out, ">DND<"));
+  assert.ok(has(out, 'data-testid="dnd-jonas"') && !has(out, 'data-testid="dnd-wei"') && has(out, ">DND<"));
   assert.ok(has(out, 'data-testid="bounced-ben"') && has(out, ">Bounced<") && has(out, "An email to ben@okafor.example bounced"));
-  assert.ok(has(out, 'data-testid="unmatched-unk"') && has(out, ">Unmatched<"));
   assert.ok(!has(out, 'data-testid="dnd-elena"') && !has(out, 'data-testid="bounced-elena"'));
 });
 
