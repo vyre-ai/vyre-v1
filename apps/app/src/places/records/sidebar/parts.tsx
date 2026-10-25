@@ -77,12 +77,19 @@ export function Face({ name, size = 20 }: { name: string; size?: number }): Reac
   );
 }
 
-/** Where a press landed, so a menu opens under the pointer. A press without coordinates (the keyboard) opens at the top left of the window. */
+/**
+ * Where a menu opens for a press: under the pointer when the press has one, otherwise under the button that was pressed (its left edge, its bottom). A press from the keyboard or from
+ * code has no pointer position, and the menu must land in the same place as it does for a click (brief rule 26).
+ */
 export function pointOf(e: unknown): { x: number; y: number } {
-  const n = (e as { nativeEvent?: { pageX?: number; pageY?: number } }).nativeEvent;
+  const ev = e as { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: Anchor; target?: Anchor };
   const ok = (v: number | undefined): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
-  return { x: ok(n?.pageX), y: ok(n?.pageY) };
+  const x = ok(ev.nativeEvent?.pageX), y = ok(ev.nativeEvent?.pageY);
+  if (x !== 0 || y !== 0) return { x, y };
+  const box = (ev.currentTarget ?? ev.target)?.getBoundingClientRect?.();
+  return box ? { x: box.left, y: box.bottom } : { x, y };
 }
+interface Anchor { getBoundingClientRect?: () => { left: number; bottom: number } }
 
 /** A quiet header button: an icon, a label that drops away on a phone, and what it applies ("Sort", "Name"). Lit when something is applied. */
 export function HeadButton({ icon, label, detail, on = false, testID, onPress, bare = false }: {
