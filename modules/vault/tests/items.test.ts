@@ -245,7 +245,7 @@ test("move across Mine and Shared re-encrypts: enc flips, the value survives, a 
   assert.deepEqual([moved.scope, moved.folderId, secretRow(h, id).enc, secretRow(h, id).wrapped], ["shared", shared, 1, null]);
   assert.deepEqual((await reveal(h, id, { fields: ["api_key"] })).fields, [{ key: "api_key", value: SECRET }]);
   assert.deepEqual(h.named("vault.item_moved")[0]?.payload, { itemId: id, fromFolderId: mine, toFolderId: shared });
-  assert.deepEqual(h.named("item.moved")[0]?.payload, { resource: { type: "vault_item", id }, fromFolderId: mine, toFolderId: shared });
+  assert.deepEqual(h.named("item.moved")[0]?.payload, { resource: { type: "vault_item", id } }, "vault folders are vfd_, so item.moved carries the resource only");
   await v.itemMove(h.ctx, { itemId: id, folderId: mine });
   assert.deepEqual([secretRow(h, id).enc, Boolean(secretRow(h, id).wrapped)], [2, true]);
   assert.deepEqual((await reveal(h, id, { fields: ["api_key"] })).fields, [{ key: "api_key", value: SECRET }]);
