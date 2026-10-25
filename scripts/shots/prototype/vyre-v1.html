@@ -16139,6 +16139,7 @@ mark.wd { color: inherit; border-radius: 3px; padding: 1px 0; } .dfr.add mark.wd
     const hs = (location.hash || "").slice(1).split(","), has = (t) =&gt; hs.includes(t);
     if (has("runbook")) { go("rb"); openFile("rb-deploy", "full"); }
     else if (has("runbook-ran")) { go("rb"); const f = N["rb-deploy"]; rbSeedRan(f); ui.col["rb-deploy"] = "versions"; openFile("rb-deploy", "full"); renderAll(); }
+    else if (has("noteedit")) { go("rb"); ui.vmode["rb-deploy"] = "edit"; openFile("rb-deploy", "full"); renderAll(); }
     else if (has("runbook-fail")) { go("rb"); const f = N["rb-deploy"]; rbOf(f.id).where = "Intake"; openFile("rb-deploy", "full"); setTimeout(() =&gt; rbAll(f), 200); }
   }, 190);
   window.NOTES_FILES_RUNBOOK = {

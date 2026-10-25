@@ -8,6 +8,7 @@
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { MenuIcon } from "../Menu/index.tsx";
 import { bridgeHtml, connectBridge } from "./bridge.ts";
 import type { BridgeEnd } from "./bridge.ts";
 import { blocksToText, plainText } from "./markdown.ts";
@@ -119,7 +120,7 @@ interface EditorLike {
 export interface ToolbarCommand {
   id: string;
   label: string;
-  /** Menu icon name or a short glyph. */
+  /** Text stand-in where no inline svg is drawn (phone). */
   glyph: string;
   run: (e: EditorLike) => void;
   active: (e: EditorLike) => boolean;
@@ -140,6 +141,32 @@ export const TOOLBAR: readonly ToolbarCommand[] = [
 
 type Hover = { hovered?: boolean };
 
+const T = (inner: string): string => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+const H_BASE = '<path d="M2.5 3.5v9M2.5 8h6M8.5 3.5v9"/>';
+/** Toolbar icons, one drawing per command, in the stroke weight of the Menu icons. */
+export const TOOL_ICONS: Readonly<Record<string, string>> = {
+  bold: T('<path d="M5 3.500h3.200a2.200 2.200 0 010 4.500H5zM5 8h3.800a2.250 2.250 0 010 4.500H5z"/>'),
+  italic: T('<path d="M10.500 3.500H7M9 12.500H5.500M9.200 3.500l-2.400 9"/>'),
+  strike: T('<path d="M3 8h10M10.500 5.500c-.4-1-1.400-1.700-2.600-1.700-1.400 0-2.500.8-2.500 1.900 0 2.200 5.200 1.300 5.200 3.600 0 1.100-1.200 2-2.800 2-1.300 0-2.400-.6-2.900-1.700"/>'),
+  code: T('<path d="M5.500 4.500L2.500 8l3 3.500M10.500 4.500l3 3.500-3 3.500"/>'),
+  h1: T(`${H_BASE}<path d="M11.500 9.500l1.200-.8v4"/>`),
+  h2: T(`${H_BASE}<path d="M11.200 9.800c.2-.8 2.200-.9 2.200.3 0 1-2.200 1.400-2.200 2.600h2.300"/>`),
+  bullets: T('<circle cx="3.500" cy="4.500" r=".8" fill="currentColor"/><circle cx="3.500" cy="8" r=".8" fill="currentColor"/><circle cx="3.500" cy="11.500" r=".8" fill="currentColor"/><path d="M6.500 4.500h7M6.500 8h7M6.500 11.500h7"/>'),
+  numbers: T('<path d="M6.500 4.500h7M6.500 8h7M6.500 11.500h7M2.500 3.800l1-.5v3.200M2.400 9c0-.8 1.600-.8 1.600 0 0 .8-1.600 1.300-1.600 2.100h1.700"/>'),
+  quote: T('<path d="M3.500 5.500h3V9h-3zM9.500 5.500h3V9h-3zM6.500 9c0 1.500-.7 2.500-2 3M12.500 9c0 1.500-.7 2.500-2 3"/>'),
+  codeblock: T('<rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6.500 6.500L5 8l1.500 1.500M9.500 6.500L11 8 9.500 9.500"/>'),
+  find: T('<circle cx="7" cy="7" r="4"/><path d="M10 10l3.500 3.500"/>'),
+  info: T('<circle cx="8" cy="8" r="5.500"/><path d="M8 7.500v3.500M8 5.200h.01"/>'),
+  history: T('<path d="M2.500 8a5.500 5.500 0 105.500-5.500c-1.700 0-3.200.8-4.200 2M2.500 3v2.500H5M8 5v3.200l2 1.300"/>'),
+  more: T('<circle cx="3.500" cy="8" r=".9" fill="currentColor"/><circle cx="8" cy="8" r=".9" fill="currentColor"/><circle cx="12.500" cy="8" r=".9" fill="currentColor"/>'),
+  check: T('<path d="M3.500 8.500l3 3 6-7"/>'),
+};
+
+function ToolIcon({ id, color, glyph }: { id: string; color: string; glyph: string }): ReactElement {
+  if (Platform.OS !== "web") return <Text style={{ color, fontSize: 13 }}>{glyph}</Text>;
+  return <MenuIcon icon={TOOL_ICONS[id] ?? ""} size={16} color={color} />;
+}
+
 function Toolbar({ editor, enabled, activeIds, onRun }: { editor: EditorLike | null; enabled: boolean; activeIds: readonly string[]; onRun: () => void }): ReactElement {
   const buttons: ReactElement[] = [];
   for (const c of TOOLBAR) {
@@ -155,7 +182,7 @@ function Toolbar({ editor, enabled, activeIds, onRun }: { editor: EditorLike | n
         testID={`richeditor-tool-${c.id}`}
         style={({ hovered }: Hover) => [styles.tool, hovered === true && enabled && styles.toolHover, on && styles.toolOn]}
       >
-        <Text style={[styles.toolText, on && styles.toolTextOn, !enabled && styles.toolTextOff, c.id === "bold" && styles.bold, c.id === "italic" && styles.italic]}>{c.glyph}</Text>
+        <ToolIcon id={c.id} glyph={c.glyph} color={on ? "var(--accent)" : enabled ? "var(--ink-2)" : "var(--ink-4)"} />
       </Pressable>,
     );
   }
@@ -178,10 +205,11 @@ function runNodes(runs: readonly Run[], keyBase: string, base: object): ReactEle
   return nodes;
 }
 
+/** A thin caret in the person's colour with a small name flag, both inline so they move with the text. */
 function caretNodes(cursor: RemoteCursor, keyBase: string): ReactElement[] {
   return [
-    <Text key={`${keyBase}-c`} testID={`richeditor-cursor-${cursor.clientId}`} style={{ color: cursor.color, fontWeight: "700" }}>{"│"}</Text>,
-    <Text key={`${keyBase}-n`} accessibilityLabel={`${cursor.name}'s cursor`} style={[styles.flag, { backgroundColor: cursor.color }]}>{` ${cursor.name} `}</Text>,
+    <Text key={`${keyBase}-c`} testID={`richeditor-cursor-${cursor.clientId}`} style={{ borderLeftWidth: 2, borderLeftColor: cursor.color, marginLeft: -1, marginRight: -1, fontSize: 1 }}>{"\u200b"}</Text>,
+    <Text key={`${keyBase}-n`} accessibilityLabel={`${cursor.name}'s cursor`} style={[styles.flag, { backgroundColor: cursor.color }]}>{cursor.name}</Text>,
   ];
 }
 
@@ -200,6 +228,41 @@ function inlineWithCursors(runs: readonly Run[], cursors: readonly { cursor: Rem
   }
   out.push(...runNodes(rest, `${keyBase}-z`, base));
   return out;
+}
+
+function NoteHeaderBar({ h, mode }: { h: NoteHeader; mode: RichEditorMode }): ReactElement {
+  const view = mode === "read" ? "view" : "edit";
+  const seg: ReactElement[] = [];
+  for (const v of ["view", "edit"] as const) {
+    seg.push(
+      <Pressable key={v} accessibilityRole="radio" accessibilityLabel={v === "view" ? "View" : "Edit"} accessibilityState={{ checked: view === v }} onPress={() => h.onView?.(v)} testID={`richeditor-${v}`} style={({ hovered }: Hover) => [styles.segBtn, view === v && styles.segOn, hovered === true && view !== v && styles.toolHover]}>
+        <Text style={[styles.segText, view === v && styles.segTextOn]}>{v === "view" ? "View" : "Edit"}</Text>
+      </Pressable>,
+    );
+  }
+  const icons: ReactElement[] = [];
+  for (const [id, label] of [["find", "Find in file"], ["info", "Details"], ["history", "Version history"], ["more", "More"]] as const) {
+    icons.push(
+      <Pressable key={id} accessibilityRole="button" accessibilityLabel={label} testID={`richeditor-head-${id}`} style={({ hovered }: Hover) => [styles.headIcon, hovered === true && styles.toolHover]}>
+        <ToolIcon id={id} glyph={"\u00b7"} color="var(--ink-2)" />
+      </Pressable>,
+    );
+  }
+  return (
+    <View style={styles.head} testID="richeditor-header">
+      <View style={styles.mark}><Text style={styles.markText}>{h.mark ?? "MD"}</Text></View>
+      <View style={styles.headText}>
+        <Text style={styles.name} numberOfLines={1}>{h.name}</Text>
+        <Text style={styles.meta} numberOfLines={1}>{h.meta}</Text>
+      </View>
+      <View style={styles.grow} />
+      {h.version !== undefined && h.version > 1 ? (
+        <View style={styles.saved} testID="richeditor-version"><ToolIcon id="check" glyph={"\u2713"} color="var(--ok)" /><Text style={styles.savedText}>{`v${h.version}`}</Text></View>
+      ) : null}
+      <View accessibilityRole="radiogroup" accessibilityLabel="View or edit" style={styles.seg}>{seg}</View>
+      {icons}
+    </View>
+  );
 }
 
 function StaticDoc({ blocks, cursors, placeholder, compact }: { blocks: readonly Block[]; cursors: readonly RemoteCursor[]; placeholder: string; compact: boolean }): ReactElement {
@@ -251,7 +314,20 @@ function StaticDoc({ blocks, cursors, placeholder, compact }: { blocks: readonly
 
 /* ---------- the component ---------- */
 
+/** The note page header the Files viewer shows: file mark, name, path line, version, View and Edit. */
+export interface NoteHeader {
+  name: string;
+  /** The line under the name: path, who edited, when. */
+  meta: string;
+  /** Short mark in the file tile, for example MD. */
+  mark?: string;
+  /** Version number; the saved check shows from the second. */
+  version?: number;
+  onView?: (view: "view" | "edit") => void;
+}
+
 export interface RichEditorViewProps extends RichEditorProps {
+  header?: NoteHeader;
   /** The document the sync module owns for `docId`. Without it the view makes one and seeds it from `markdown`. */
   doc?: Y.Doc;
   awareness?: Awareness;
@@ -382,6 +458,7 @@ export function RichEditor(props: RichEditorViewProps): ReactElement {
       style={styles.root}
       {...webProps({ role: "group", dataSet: { engine, mode: props.mode } })}
     >
+      {props.header !== undefined ? <NoteHeaderBar h={props.header} mode={props.mode} /> : null}
       <View style={styles.bar}>
         {flags.editable ? <Toolbar editor={editor} enabled={editor !== null} activeIds={activeIds} onRun={() => bump((n) => n + 1)} /> : <View style={styles.grow} />}
         <View style={styles.grow} />
@@ -418,6 +495,20 @@ const styles = StyleSheet.create({
   tool: { minWidth: 28, height: 28, paddingHorizontal: 6, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   toolHover: { backgroundColor: "var(--hover)" as string },
   toolOn: { backgroundColor: "var(--accent-wash)" as string },
+  head: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 56, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  mark: { height: 28, minWidth: 28, paddingHorizontal: 6, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },
+  markText: { color: "var(--ink-3)" as string, fontSize: 10.5, fontWeight: "700" },
+  headText: { flexShrink: 1, minWidth: 0, gap: 1 },
+  name: { color: "var(--ink)" as string, fontSize: 14, fontWeight: "600" },
+  meta: { color: "var(--ink-3)" as string, fontSize: 12 },
+  saved: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 6 },
+  savedText: { color: "var(--ink-2)" as string, fontSize: 12 },
+  seg: { flexDirection: "row", padding: 2, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  segBtn: { height: 24, paddingHorizontal: 10, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  segOn: { backgroundColor: "var(--raised)" as string },
+  segText: { color: "var(--ink-3)" as string, fontSize: 12.5, fontWeight: "500" },
+  segTextOn: { color: "var(--ink)" as string },
+  headIcon: { width: 28, height: 28, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   toolText: { color: "var(--ink-2)" as string, fontSize: 13 },
   toolTextOn: { color: "var(--accent)" as string },
   toolTextOff: { color: "var(--ink-4)" as string },
@@ -440,6 +531,6 @@ const styles = StyleSheet.create({
   list: { marginBottom: 8 },
   li: { flexDirection: "row", gap: 8 },
   bullet: { color: "var(--ink-3)" as string, fontSize: 15, lineHeight: 24, width: 20, textAlign: "right" },
-  flag: { color: "#fff", fontSize: 10, fontWeight: "600" },
+  flag: { color: "#fff", fontSize: 9.5, lineHeight: 12, fontWeight: "600", paddingHorizontal: 4, borderRadius: 3, overflow: "hidden" },
 });
 

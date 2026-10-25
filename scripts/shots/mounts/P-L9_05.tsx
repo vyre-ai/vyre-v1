@@ -38,7 +38,7 @@ export default function Mount() {
     <View style={{ flex: 1, minHeight: 520 }}>
       <RichEditor
         docId="doc_intake" mode={part === "read" ? "read" : "edit"} placeholder="Write" markdown="" density="regular"
-        doc={doc} awareness={aware} engine={part === "live" ? "tiptap" : "static"} user={{ name: "Irfad Imtiaz", color: "#4c6ef5" }}
+        doc={doc} awareness={aware} header={{ name: "Rivera notes.md", meta: "Projects / Rivera matter \u00b7 Docs \u00b7 Yesterday, 4:16 pm", version: 3 }} engine={part === "live" ? "tiptap" : "static"} user={{ name: "Irfad Imtiaz", color: "#4c6ef5" }}
       />
     </View>
   );

@@ -6,6 +6,7 @@ import {
   Awareness,
   RichEditor,
   TOOLBAR,
+  TOOL_ICONS,
   Y,
   blocksToFragment,
   bridgeHtml,
@@ -299,4 +300,20 @@ test("mode flags, engine choice, and cursor placement", () => {
   const cut = splitRunsAt(runs, 8);
   assert.equal(cut.before.map((r) => r.text).join(""), "hello bi");
   assert.equal(cut.after.map((r) => r.text).join(""), "g world");
+});
+
+test("the note header shows the file mark, name, path line, version and View and Edit; the toolbar draws icons, not letters", () => {
+  const html = renderToStaticMarkup(<RichEditor {...base} mode="edit" markdown="x" header={{ name: "Rivera notes.md", meta: "Projects \u00b7 Docs", version: 3 }} />);
+  assert.match(html, /data-testid="richeditor-header"/);
+  assert.match(html, /Rivera notes\.md/);
+  assert.match(html, /Projects \u00b7 Docs/);
+  assert.match(html, /data-testid="richeditor-version"/);
+  assert.match(html, /aria-label="View"/);
+  assert.match(html, /aria-label="Edit"/);
+  assert.match(html, /aria-label="Version history"/);
+  for (const c of TOOLBAR) assert.ok(TOOL_ICONS[c.id] !== undefined && TOOL_ICONS[c.id]?.startsWith("<svg"), `${c.id} has a drawn icon`);
+  const bold = html.slice(html.indexOf('data-testid="richeditor-tool-bold"'));
+  assert.match(bold.slice(0, 600), /<svg/);
+  const first = renderToStaticMarkup(<RichEditor {...base} mode="read" markdown="x" header={{ name: "n.md", meta: "m", version: 1 }} />);
+  assert.doesNotMatch(first, /richeditor-version/, "no saved mark on the first version");
 });

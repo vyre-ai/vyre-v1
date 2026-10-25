@@ -3,16 +3,16 @@
     {
       "id": "P-L9_05-richeditor-cursors",
       "route": "/m/P-L9_05?part=editor",
-      "proto": "files,{skin}",
+      "proto": "files,noteedit,{skin}",
       "waitFor": "[data-testid=\"richeditor-toolbar\"]",
-      "note": "ui/RichEditor with the formatting toolbar, a document (heading, marks, link, list, quote) and two other people's cursors with name flags, against the prototype Files place, the nearest surface that edits a note."
+      "note": "ui/RichEditor with the formatting toolbar, a document (heading, marks, link, list, quote) and two other people's cursors with name flags, against the prototype note page in Edit (token noteedit): file mark, name, path line, version, View and Edit, then the editor."
     },
     {
       "id": "P-L9_05-richeditor-read",
       "route": "/m/P-L9_05?part=read",
-      "proto": "files,{skin}",
+      "proto": "files,noteedit,{skin}",
       "waitFor": "[data-testid=\"richeditor-mode\"]",
-      "note": "ui/RichEditor in read mode (no toolbar, Read only) against the prototype Files place."
+      "note": "ui/RichEditor in read mode (no toolbar, Read only) against the prototype note page (token noteedit)."
     }
   ]
 }
