@@ -10,12 +10,12 @@ export const title = "Plan";
 const P = (name: string): { name: string; kind: "person" } => ({ name, kind: "person" });
 const A = (name: string): { name: string; kind: "agent" } => ({ name, kind: "agent" });
 // The tasks of the prototype's "Rivera engagement" project (the screen the prototype side of each shot opens), so both sides draw the same data.
-const T = (id: string, stage: string, title: string, start: string, end: string, who: ReturnType<typeof P> | ReturnType<typeof A>, status: PlanTask["status"]): PlanTask => ({ id, stage, kind: "task", title, start, end, assigned: who, status, effort: "3h" });
+const T = (id: string, stage: string, title: string, start: string, end: string, who: ReturnType<typeof P> | ReturnType<typeof A>, status: PlanTask["status"], reviewer?: ReturnType<typeof P>): PlanTask => ({ id, stage, kind: "task", title, start, end, assigned: who, status, effort: "3h", ...(reviewer ? { reviewer } : {}) });
 const TASKS: PlanTask[] = [
   T("t1", "Intake", "Send welcome pack", "2026-10-20", "2026-10-23", A("Intake"), "done"),
-  T("t2", "Drafting", "Send the engagement letter for signature", "2026-10-23", "2026-10-26", A("Docs"), "todo"),
-  T("t3", "Drafting", "Request ID document", "2026-10-23", "2026-10-26", A("Intake"), "todo"),
-  T("t4", "Drafting", "Send engagement letter", "2026-10-24", "2026-10-27", A("Docs"), "doing"),
+  T("t2", "Drafting", "Send the engagement letter for signature", "2026-10-23", "2026-10-26", A("Docs"), "todo", P("Lena Ortiz")),
+  T("t3", "Drafting", "Request ID document", "2026-10-23", "2026-10-26", A("Intake"), "todo", P("Maya Chen")),
+  T("t4", "Drafting", "Send engagement letter", "2026-10-24", "2026-10-27", A("Docs"), "doing", P("Lena Ortiz")),
   T("t5", "In review", "Chase Elena's ID scan before Tuesday", "2026-10-23", "2026-10-26", A("Intake"), "todo"),
   T("t6", "In review", "Run the conflict check", "2026-10-23", "2026-10-26", P("Lena Ortiz"), "doing"),
 ];
