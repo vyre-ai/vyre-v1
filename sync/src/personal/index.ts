@@ -77,6 +77,49 @@ export function relayTo<H extends Record<string, Handler>>(host: H, o: { traceOf
   return { handlers: wrapped as H, presence: () => (state.on ? "present" : "absent"), hostOn() { state.on = true; }, hostOff() { state.on = false; }, refused: () => refused };
 }
 
+// ---- a revoked device
+
+/** The epoch a device must present: its person's, or its own if that is higher (sync/src/purge `effectiveEpoch` over the host's tables). */
+export type DeviceEpoch = (person: string, device: string) => number;
+
+export const deviceRevokedError = (traceId: string): VyreErr => new VyreErr({
+  code: "auth.device_revoked",
+  message: "This device was signed out of the Space. Pair it again to use it.",
+  retryable: false, traceId,
+  next: [{ kind: "open_settings", label: "Pair this device again" }],
+});
+
+/**
+ * Hold a revoked device to the epoch the host has for it. A pull that presents an older epoch is answered `reset: "purge"` with the host's epoch and no rows; a push that presents one is
+ * refused `auth.device_revoked` and applies nothing. (The pull handler itself reads the person's epoch only; the device's own epoch is read here, at the host's door.)
+ */
+export function guardDeviceEpoch<H extends Record<string, Handler>>(
+  host: H,
+  o: { epoch: DeviceEpoch; whoOf: (ctx: unknown) => { person: string; device: string }; traceOf: (ctx: unknown) => string },
+): H {
+  const out: Record<string, Handler> = { ...host };
+  const pull = host["sync.pull"] as unknown as ((c: unknown, i: { epoch: number; cursor: number }) => Promise<Record<string, unknown>>) | undefined;
+  if (pull) {
+    out["sync.pull"] = (async (ctx: unknown, req: { epoch: number; cursor: number }) => {
+      const w = o.whoOf(ctx);
+      const eff = o.epoch(w.person, w.device);
+      if (req.epoch >= eff) return pull(ctx, req);
+      // the host answers a stale epoch with a purge and no rows (what the pull found is thrown away); its own epoch for this device goes in the answer so the device remembers which purge it did
+      const res = await pull(ctx, req);
+      return { ...res, changes: [], hide: [], more: false, next: req.cursor, epoch: eff, reset: "purge" };
+    }) as unknown as Handler;
+  }
+  const push = host["sync.push"] as unknown as ((c: unknown, i: { epoch: number }) => Promise<unknown>) | undefined;
+  if (push) {
+    out["sync.push"] = (async (ctx: unknown, req: { epoch: number }) => {
+      const w = o.whoOf(ctx);
+      if (req.epoch < o.epoch(w.person, w.device)) throw deviceRevokedError(o.traceOf(ctx));
+      return push(ctx, req);
+    }) as unknown as Handler;
+  }
+  return out as unknown as H;
+}
+
 // ---- what a device says
 
 export type DeviceState = "online" | "host_off" | "no_network" | "connecting" | "read_only" | "stopped";

@@ -2,6 +2,9 @@
 // Personal Space hosting (ARCH 5.13, spec 2.1). The host device is the Space: the real log, pull and push handlers. The phone reaches it through the relay, keeps its own replica and outbox,
 // and while the host is off it reads the replica, queues what the person changes and says "Your computer is off"; when the host is back the queue goes through and the replica converges.
 // A capability the Personal matrix refuses (teamOnly in its manifest) fails with permission.needs_team before any work.
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { registry } from "../../../generated/registry.ts";
@@ -13,6 +16,7 @@ import { createOutbox, memoryOutboxStore } from "../../../sync/src/outbox/index.
 import type { Outbox } from "../../../sync/src/outbox/index.ts";
 import { createPhonePurge, HOST_OFF_CHAT_LINE, HOST_OFF_LINE, NEEDS_TEAM_LINE, deviceView, personalEndpoints, placeAgentTurn, refuseTeamOnly, teamOnlySet } from "../../../sync/src/personal/index.ts";
 import type { Change, PushReq } from "../../../sync/src/protocol.ts";
+import { effectiveEpoch, replicaTables } from "../../../sync/src/purge/index.ts";
 import { createPurgeHandlers, purgeDepsOf } from "../handlers/purge.ts";
 import { createPushHandlers } from "../handlers/push.ts";
 import { createPersonalHost } from "../handlers/personal.ts";
@@ -96,12 +100,12 @@ const values = (fields: Record<string, { v: unknown }>): Record<string, SqlValue
 const ENT = "contact";
 const FIELDS = ["name", "email", "phone", "region", "stage", "owner"] as const;
 
-function scene() {
+function scene(o: { file?: string } = {}) {
   const rig = pushRig();
   const pushHandlers = createPushHandlers(rig.deps);
-  const host = createPersonalHost({ kind: () => "personal", caps: registry.capabilities });
+  const host = createPersonalHost({ kind: () => "personal", caps: registry.capabilities, deviceEpoch: (person, device) => effectiveEpoch(rig.s.host.tx, person, device) });
   const relay = host.relay({ "sync.pull": rig.s.handlers["sync.pull"], "sync.push": pushHandlers["sync.push"] });
-  const driver = createNodeDriver();
+  const driver = createNodeDriver(o.file);
   const store: ReplicaStore = openReplica({ driver, deviceClass: "phone", registryHash: "h1", personId: ADA });
   let t = NOW;
   const ob: Outbox = createOutbox({ store: memoryOutboxStore(), deviceId: "dev_phone", now: () => t, newTraceId: () => TRACE });
@@ -216,35 +220,72 @@ test("the same op sent twice after a lost answer is applied once", async () => {
   assert.equal(s.rig.value(ENT, "c1", "stage"), "won");
 });
 
-test("the host revokes the phone: while the host is off nothing changes, and on the phone's next contact the replica is wiped", async () => {
-  const s = scene();
-  s.rig.seed(ENT, "c1", row("Ann"));
-  await s.pull();
-  assert.equal(read(s, "c1", "name"), "Ann");
-  const admin = createPurgeHandlers(purgeDepsOf(s.rig.s, { purge: () => 0 }));
-  const wiped: string[] = [];
-  const phonePurge = createPhonePurge({ purge: { driver: s.driver, store: s.phone.store, keychain: { removeAll: () => { wiped.push("keychain"); } }, folder: { wipe: () => { wiped.push("folder"); } } } });
+const scratch = (): string => path.join(os.tmpdir(), `vyre-personal-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}.db`);
+const wipeFile = (f: string): void => { for (const x of ["", "-wal", "-shm"]) fs.rmSync(`${f}${x}`, { force: true }); };
+const count = (d: ReturnType<typeof createNodeDriver>, table: string): number => Number(d.prepare(`SELECT count(*) AS n FROM "${table}"`).get([])?.n ?? 0);
 
-  // the person revokes the phone at the host while the host is off for the phone
-  s.relay.hostOff();
-  const bump = await admin["sync.epoch.bump"]({ trace: { traceId: TRACE }, principal: ADA }, { personId: ADA, reason: "device_revoked", deviceId: "dev_phone" });
-  assert.equal(bump.epoch, 1);
-  assert.equal(phonePurge.purged(), false, "nobody can carry the news to the phone");
-  assert.equal(read(s, "c1", "name"), "Ann", "the phone still has its replica until it reaches the host");
+test("the host revokes the phone: until it reaches the host nothing changes; then its replica, keychain and outbox are gone and its old epoch is refused", async () => {
+  const file = scratch();
+  const s = scene({ file });
+  try {
+    s.rig.seed(ENT, "c1", row("Ann"));
+    await s.pull();
+    assert.equal(read(s, "c1", "name"), "Ann");
+    // an unsent edit waits in the replica's own outbox (pending_ops)
+    s.phone.store.write({
+      entity: ENT, id: "c1", fields: { stage: "won" }, hlc: hl(NOW + 1), actor: ADA,
+      op: { opId: "op_unsent", traceId: TRACE, cap: "test.patch", v: 1, input: JSON.stringify({ fields: { stage: "won" } }), baseSeq: "{}" },
+    });
+    assert.equal(s.phone.store.pendingCount(), 1);
+    const keychain = new Set(["replica-key", "device-token"]);
+    const folder: string[] = ["Space folder"];
+    const phonePurge = createPhonePurge({ purge: { driver: s.driver, store: s.phone.store, keychain: { removeAll: () => { keychain.clear(); } }, folder: { wipe: () => { folder.length = 0; } } } });
+    const admin = createPurgeHandlers(purgeDepsOf(s.rig.s, { purge: () => 0 }));
 
-  // the host is back: the phone's next pull says purge, and only this device is told
-  s.relay.hostOn();
-  const other = await s.relay.handlers["sync.pull"]({ ...s.phone.ctx, deviceId: "dev_laptop", deviceClass: "desktop" } as never, { cursor: 0, epoch: 0 } as never) as { reset?: string };
-  assert.equal(other.reset, undefined, "the person's other devices keep their data");
-  const res = await s.relay.handlers["sync.pull"](s.phone.ctx as never, { cursor: s.phone.cursor, epoch: 0 } as never) as { reset?: "purge"; epoch: number };
-  assert.equal(res.reset, "purge");
-  const report = await phonePurge.onPull(res);
-  assert.ok(report, "the purge ran");
-  assert.deepEqual(report!.errors, []);
-  assert.equal(report!.reason, "revoked");
-  assert.equal(report!.personActive, true, "the person is still in their Personal Space");
-  assert.ok(report!.tables > 0);
-  assert.deepEqual(wiped.sort(), ["folder", "keychain"]);
-  assert.equal(phonePurge.purged(), true);
-  assert.equal(await phonePurge.onPull(res), null, "the same epoch is handled once");
+    // the person revokes the phone at the host while the host is off for the phone
+    s.relay.hostOff();
+    const bump = await admin["sync.epoch.bump"]({ trace: { traceId: TRACE }, principal: ADA }, { personId: ADA, reason: "device_revoked", deviceId: "dev_phone" });
+    assert.equal(bump.epoch, 1);
+    assert.equal(phonePurge.purged(), false, "nobody can carry the news to the phone");
+    assert.equal(read(s, "c1", "name"), "Ann", "the phone still has its replica until it reaches the host");
+    assert.equal(keychain.size, 2);
+
+    // the host is back: the person's other devices are not told to purge, the revoked phone is
+    s.relay.hostOn();
+    const other = await s.relay.handlers["sync.pull"]({ ...s.phone.ctx, deviceId: "dev_laptop", deviceClass: "desktop" } as never, { cursor: 0, epoch: 0 } as never) as { reset?: string };
+    assert.equal(other.reset, undefined, "the person's other devices keep their data");
+    const res = await s.relay.handlers["sync.pull"](s.phone.ctx as never, { cursor: s.phone.cursor, epoch: 0 } as never) as { reset?: "purge"; epoch: number; changes: unknown[] };
+    assert.equal(res.reset, "purge");
+    assert.deepEqual(res.changes, [], "a revoked device is sent no rows");
+    assert.equal(res.epoch, 1);
+    const report = await phonePurge.onPull(res);
+    assert.ok(report, "the purge ran");
+    assert.deepEqual(report!.errors, []);
+    assert.equal(report!.reason, "revoked");
+    assert.equal(report!.personActive, true, "the person is still in their Personal Space");
+    assert.equal(await phonePurge.onPull(res), null, "the same epoch is handled once");
+
+    // the result, not the report: the keychain and the folder are empty, and the replica file holds nothing of the Space
+    assert.equal(keychain.size, 0, "the keychain entries are gone");
+    assert.deepEqual(folder, [], "the local folder is wiped");
+    assert.throws(() => s.phone.store.read(ENT, "c1"), /closed/, "the closed store cannot answer from its read cache");
+    const back = createNodeDriver(file);
+    const reopened = openReplica({ driver: back, deviceClass: "phone", registryHash: "h1", personId: ADA });
+    for (const t of replicaTables()) if (t !== "rejected") assert.equal(count(back, t), 0, `${t} is empty`);
+    assert.equal(reopened.read(ENT, "c1"), null, "no row survives");
+    assert.equal(reopened.readFts(ENT, "c1"), null, "no search entry survives");
+    assert.equal(reopened.pendingCount(), 0, "the outbox is empty");
+    assert.deepEqual(back.prepare("SELECT op_id FROM rejected").all([]).map((r) => r["op_id"]), ["op_unsent"], "the person's unsent words wait in Rejected so they can copy them out");
+    assert.equal(reopened.getState("purged_epoch"), "1");
+    assert.equal(reopened.getState("needs_snapshot"), "1");
+
+    // an old epoch is refused whatever the phone sends: a pull gets a purge and no rows, a push is refused and applies nothing
+    const again = await s.relay.handlers["sync.pull"](s.phone.ctx as never, { cursor: 0, epoch: 0 } as never) as { reset?: string; changes: unknown[] };
+    assert.deepEqual([again.reset, again.changes.length], ["purge", 0]);
+    const before = s.rig.value(ENT, "c1", "stage");
+    const old: PushReq = { deviceId: "dev_phone", epoch: 0, ops: [patchOp({ id: "op_late", fields: { stage: "lost" }, base: {}, hlc: hl(NOW + 9_000, 0, "dev_phone") })] };
+    await assert.rejects(() => s.relay.handlers["sync.push"](s.phone.ctx as never, JSON.parse(JSON.stringify(old)) as never), (e: unknown) => codeOf(e) === "auth.device_revoked");
+    assert.equal(s.rig.value(ENT, "c1", "stage"), before, "nothing the revoked phone sent was applied");
+    await reopened.close();
+  } finally { wipeFile(file); }
 });
