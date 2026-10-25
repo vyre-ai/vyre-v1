@@ -19,7 +19,7 @@
     {
       "id": "automations",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "backup",
@@ -99,7 +99,7 @@
     {
       "id": "events",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "files",
@@ -114,7 +114,7 @@
     {
       "id": "gate",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "git",
@@ -144,7 +144,7 @@
     {
       "id": "home",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "identity",
@@ -164,7 +164,7 @@
     {
       "id": "journeys",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "kits",
@@ -264,12 +264,12 @@
     {
       "id": "runs",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "scheduler-api",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "schema",
@@ -304,7 +304,7 @@
     {
       "id": "steps-core",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "stripe",
@@ -319,7 +319,7 @@
     {
       "id": "tasks",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "telephony",

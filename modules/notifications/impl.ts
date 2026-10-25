@@ -6,6 +6,9 @@ import { send } from "./handlers/rules.ts";
 import type { NotifCtx } from "./projections.ts";
 
 export { handlers, setPushPort };
+
+/** Where the host hands its half at boot (ruling 32): the push transport and the computer's idle time. The loader reads this export. */
+export const hostSeams = { setPushPort };
 export { KINDS, kindOf, withinHours } from "./projections.ts";
 export { buildPush } from "./handlers/push.ts";
 export type { PushMessage, PushPort } from "./handlers/push.ts";
