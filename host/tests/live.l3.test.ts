@@ -1,7 +1,6 @@
-// P-L3_LIVE (rulings 31 and 32): a booted daemon on the seeded `core` Space reports no L3 module as not set up, the L3 modules that are live answer through the gateway, and the two
-// gaps that keep L3 from being all live are named here so a later packet removes them on purpose:
-//   records     is live since P-L3_REC2: all 29 capabilities have a handler, and the site table and value proposal consumers are registered.
-//   connectors  is live, but its sync engine is not wired (P-H_09): preview, confirm_deletes, resolve_conflict, replay_conflict, undo_push and connectors.push refuse until then.
+// P-L3_LIVE2 (rulings 31 and 32): lane L3 is fully live. A booted daemon on the seeded `core` Space reports no L3 module as not set up, every L3 module is live and answers
+// through the gateway, all four data modules run on the Space's one persisted store (P-H_08), and a record created through the gateway is still there after the daemon restarts.
+// The connectors sync engine is wired by the host (P-H_09).
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -31,7 +30,7 @@ test("l3 live: host/modules.json has all six L3 modules live", () => {
   const file = JSON.parse(fs.readFileSync(new URL("../modules.json", import.meta.url), "utf8")) as { modules: { id: string; owner: string; status: string }[] };
   const mine = file.modules.filter((m) => m.owner === "L3");
   assert.deepEqual(mine.map((m) => m.id).sort(), [...L3].sort());
-  for (const m of mine) assert.equal(m.status, LIVE.includes(m.id) ? "live" : "stub", `${m.id} status`);
+  for (const m of mine) assert.equal(m.status, "live", `${m.id} status`);
 });
 
 test("l3 live: a booted daemon has a driver for every L3 module, and the live ones answer through the gateway", async () => {
@@ -65,5 +64,54 @@ test("l3 live: a booted daemon has a driver for every L3 module, and the live on
       assert.equal(r.status, 200, `${what}: ${p} answers through the live handler`);
       assert.ok(((await r.json()) as { data?: unknown }).data !== undefined, `${what}: a data body`);
     }
+  } finally { await d.stop(); }
+});
+
+test("l3 live: a record created through the gateway survives a daemon restart, on the Space store", async () => {
+  const dir = seededDir();
+  const boot = () => startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux", hostname: "l3-live", free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
+  });
+  const post = (d: { url: string; token: string }, p: string, body: unknown) =>
+    fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(body) });
+  type Row = { id: string; type: string; fields: Record<string, unknown> };
+  let d = await boot();
+  let id = "";
+  try {
+    assert.deepEqual((d.seams?.missing ?? []).filter((m) => m.module !== undefined && L3.includes(m.module)), [], "no L3 module is reported as not set up");
+    const applied = await post(d, "/v1/schema/apply", { ops: [{
+      op: "type.create", type: "l3_company",
+      def: { title: "Company", plural: "Companies", icon: "building", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "industry", type: "text", title: "Industry" }] },
+    }] });
+    assert.equal(applied.status, 200, "schema.apply answers");
+    const made = await post(d, "/v1/records/create", { type: "l3_company", fields: { name: "Acme", industry: "Law" } });
+    assert.equal(made.status, 200, "records.create answers through the live handler");
+    id = ((await made.json()) as { data: { record: Row } }).data.record.id;
+    assert.ok(id, "the record has an id");
+  } finally { await d.stop(); }
+  assert.ok(fs.existsSync(path.join(dir, "space.db")), "the Space store file is in the data directory");
+
+  d = await boot();
+  try {
+    assert.deepEqual((d.seams?.missing ?? []).filter((m) => m.module !== undefined && L3.includes(m.module)), [], "still no L3 module missing a driver after the restart");
+    const got = await post(d, "/v1/records/get", { type: "l3_company", recordId: id });
+    assert.equal(got.status, 200, "records.get answers after the restart");
+    const rec = ((await got.json()) as { data: { record: Row } }).data.record;
+    assert.equal(rec.id, id);
+    assert.equal(rec.fields["name"], "Acme");
+    assert.equal(rec.fields["industry"], "Law");
+    const listed = await post(d, "/v1/records/query", { type: "l3_company" });
+    assert.equal(listed.status, 200, "records.query answers");
+    assert.ok(((await listed.json()) as { data: { rows: Row[] } }).data.rows.some((r) => r.id === id), "the record is in the list");
   } finally { await d.stop(); }
 });
