@@ -26,6 +26,25 @@ export interface PullDeps {
 
 interface ChangeRec { seq: number; entity: string; id: string; op: "upsert" | "patch" | "delete" | "rescan"; fields: string }
 
+/**
+ * Has the host revoked this device? `sync.epoch.bump` with reason device_revoked writes the device's own epoch row (purge/server.ts); the row stays, so a revoked device is refused
+ * whatever epoch it says it holds (the epoch a client presents is the client's word). A device that comes back is a new device with a new id. The table exists once a bump has run.
+ */
+export function deviceRevoked(db: Tx, person: string, device: string): boolean {
+  try {
+    return db.get<{ epoch: number }>("SELECT epoch FROM sync_device_epoch WHERE person = ? AND device = ?", person, device) !== undefined;
+  } catch {
+    return false; // no bump has ever run, so no device is revoked
+  }
+}
+
+/** The epoch a device must present: its person's, or its own if that is higher. */
+export function deviceEpochOf(db: Tx, person: string, device: string): number {
+  let own = 0;
+  try { own = db.get<{ epoch: number }>("SELECT epoch FROM sync_device_epoch WHERE person = ? AND device = ?", person, device)?.epoch ?? 0; } catch { /* no bump has run */ }
+  return Math.max(epochOf(db, person), own);
+}
+
 /** The person's current sync epoch (a lower epoch on a device means that device must purge). */
 export function epochOf(db: Tx, person: string): number {
   return db.get<{ epoch: number }>("SELECT epoch FROM sync_epoch WHERE person = ?", person)?.epoch ?? 0;
@@ -97,9 +116,10 @@ function settle(list: Emission[]): { changes: Change[]; hide: Hide[] } {
 
 export function pullChanges(d: PullDeps, who: Who, req: PullReq): PullRes {
   const db = d.db;
-  const epoch = epochOf(db, who.person);
+  const epoch = deviceEpochOf(db, who.person, who.device);
   const serverHlc = d.hlc();
-  if (req.epoch < epoch) return { epoch, changes: [], hide: [], next: req.cursor, more: false, serverHlc, reset: "purge" };
+  // a revoked device gets no rows whatever epoch it presents; a device behind its epoch is told to purge
+  if (deviceRevoked(db, who.person, who.device) || req.epoch < epoch) return { epoch, changes: [], hide: [], next: req.cursor, more: false, serverHlc, reset: "purge" };
   const limit = Math.min(Math.max(req.limit ?? DEFAULT_PULL_LIMIT, 1), MAX_PULL_LIMIT);
   const cursor = req.cursor;
   const excluded = d.catalog.excluded(who.deviceClass);

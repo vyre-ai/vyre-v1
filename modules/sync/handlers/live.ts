@@ -3,7 +3,7 @@
 import { createLiveHub } from "../../../sync/src/live/index.ts";
 import type { LiveClock, LiveHub, LiveWho } from "../../../sync/src/live/index.ts";
 import type { ServerState } from "../../../sync/src/protocol.ts";
-import { epochOf, headSeq, pullChanges } from "../../../sync/src/server/pull/index.ts";
+import { deviceEpochOf, deviceRevoked, headSeq, pullChanges } from "../../../sync/src/server/pull/index.ts";
 import type { PullDeps } from "../../../sync/src/server/pull/index.ts";
 
 export interface LiveOpts {
@@ -41,7 +41,8 @@ export function createSyncLiveHub(deps: PullDeps, o: LiveOpts): LiveHub {
     pull: (who: LiveWho, req) => pullChanges(deps, who, req),
     state: (who: LiveWho): ServerState => ({
       serverVersion: o.serverVersion ?? "1.0.0",
-      epoch: epochOf(deps.db, who.person),
+      // a revoked device is always behind: the largest epoch there is, so its hello is answered purge whatever epoch it says it holds
+      epoch: deviceRevoked(deps.db, who.person, who.device) ? Number.MAX_SAFE_INTEGER : deviceEpochOf(deps.db, who.person, who.device),
       head: headSeq(deps.db),
       serverHlc: deps.hlc(),
       registryHash: o.registryHash,
