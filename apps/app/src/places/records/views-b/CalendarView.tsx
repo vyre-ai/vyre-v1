@@ -18,6 +18,13 @@ import { CELL_EVENTS, WEEKDAYS, addMonths, bucketByDay, dateFieldOf, dateFields,
 import type { RecordRow } from "./model.ts";
 import { useToday } from "./today.tsx";
 
+/** "9:30 AM" reads "9:30a" and "9:00 AM" reads "9a", as the prototype's chips do. */
+export function shortTime(t: string): string {
+  const m = /^(\d{1,2}):(\d{2}) ?(AM|PM)$/i.exec(t.trim());
+  if (!m) return t;
+  return `${m[1]}${m[2] === "00" ? "" : `:${m[2]}`}${m[3]!.toLowerCase().slice(0, 1)}`;
+}
+
 export function CalendarView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const data = useRecordsData();
   const st = useViewState(ctx);
@@ -62,7 +69,7 @@ export function CalendarView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const chip = (r: RecordRow): ReactElement => {
     const title = (tf ? cellText(tf, r.fields[tf.key], names) : "") || "Untitled";
     const hue = hueOfRow(badge, r);
-    const time = field.type === "datetime" ? cellText(field, r.fields[field.key], names).split(", ").pop() ?? "" : "";
+    const time = field.type === "datetime" ? shortTime(cellText(field, r.fields[field.key], names).split(", ").pop() ?? "") : "";
     const el = (
       <Pressable
         accessibilityRole="button" accessibilityLabel={title} testID={`ev-${r.id}`} onPress={() => data.nav.openRecord(r.id)}
@@ -82,7 +89,7 @@ export function CalendarView({ ctx }: { ctx: ViewCtx }): ReactElement {
       const shown = all ? list : list.slice(0, CELL_EVENTS);
       const body = (
         <View testID={`day-${cell.key}`} style={[c.day, !cell.inMonth && c.dayOut, cell.key === todayKey && c.dayToday]}>
-          <Text style={[c.dayNum, cell.key === todayKey && c.dayNumToday]}>{cell.day}</Text>
+          <View style={cell.key === todayKey ? c.todayDot : c.numBox}><Text style={[c.dayNum, cell.key === todayKey && c.dayNumToday]}>{cell.day}</Text></View>
           {each(shown, chip)}
           {list.length > shown.length ? (
             <Pressable accessibilityRole="button" testID={`more-${cell.key}`} onPress={() => setOpen(cell.key)}><Text style={c.more}>{`+${list.length - shown.length} more`}</Text></Pressable>
@@ -129,10 +136,12 @@ const c = StyleSheet.create({
   grid: { flex: 1, minHeight: 0, marginHorizontal: 14, borderTopWidth: 1, borderLeftWidth: 1, borderColor: "var(--line)" as string },
   week: { flex: 1, flexDirection: "row" },
   day: { flex: 1, minHeight: 72, padding: 4, gap: 3, borderRightWidth: 1, borderBottomWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
-  dayOut: { backgroundColor: "var(--sunk)" as string },
-  dayToday: { backgroundColor: "var(--accent-wash)" as string },
+  dayOut: { backgroundColor: "var(--sunk)" as string, opacity: 0.8 },
+  dayToday: { backgroundColor: "transparent" },
   dayNum: { fontSize: 11.5, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"], paddingLeft: 2 },
-  dayNumToday: { color: "var(--accent)" as string, fontWeight: "600" },
+  dayNumToday: { color: "var(--accent-ink)" as string, fontWeight: "600", paddingLeft: 0, textAlign: "center" },
+  numBox: { alignSelf: "flex-start" },
+  todayDot: { alignSelf: "flex-start", minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 5, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string },
   chip: { height: 20, borderRadius: 5, paddingHorizontal: 6, justifyContent: "center" },
   chipText: { fontSize: 11.5, fontWeight: "500" },
   more: { fontSize: 11.5, color: "var(--ink-3)" as string, paddingLeft: 4 },

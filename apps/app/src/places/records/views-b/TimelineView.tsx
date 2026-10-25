@@ -19,6 +19,8 @@ import type { Bar, Cascade, DragMode, Range } from "./model.ts";
 import { useToday } from "./today.tsx";
 
 const BAND_H = 26;
+/** The names column held at the left while the bars scroll, as the prototype's Timeline has it. */
+const NAME_W = 220;
 
 interface Proposal { cascade: Cascade; projectId: string }
 
@@ -61,11 +63,10 @@ function BarEl({ bar, from, y, label, hue, onOpen, onCommit }: {
     onCommit(bar, dragBar(bar, (e.key === "ArrowRight" ? 1 : -1) * DAY_W, e.shiftKey === true ? "end" : "move"));
   };
   useEffect(() => () => { grab.current = null; }, []);
-  const inside = w >= 120;
+  const inside = false; // the name is in the held column, as the prototype has it
   if (Platform.OS !== "web") {
     return (
-      <Pressable accessibilityRole="button" accessibilityLabel={label} testID={`bar-${bar.id}`} onPress={onOpen} style={[c.bar, { left: x, top: y, width: w, backgroundColor: `hsl(${hue}, 60%, 52%)` }]}>
-        {inside ? <Text numberOfLines={1} style={c.barText}>{label}</Text> : null}
+      <Pressable accessibilityRole="button" accessibilityLabel={label} testID={`bar-${bar.id}`} onPress={onOpen} style={[c.bar, { left: x, top: y, width: w, backgroundColor: "var(--line-2)" as string }]}>
       </Pressable>
     );
   }
@@ -75,11 +76,10 @@ function BarEl({ bar, from, y, label, hue, onOpen, onCommit }: {
       key: bar.id, role: "button", tabIndex: 0, "aria-label": label, "data-testid": `bar-${bar.id}`, onKeyDown: key,
       style: { position: "absolute", left: x, top: y, height: BAR_H, width: w, cursor: "grab", touchAction: "none" },
     },
-    createElement("div", { "data-testid": `bar-body-${bar.id}`, onPointerDown: hold("move"), style: { position: "absolute", inset: 0, borderRadius: 7, background: `hsl(${hue}, 60%, 52%)`, boxShadow: "var(--sh-1)", overflow: "hidden", display: "flex", alignItems: "center", paddingLeft: 8 } },
-      inside ? createElement("span", { style: { color: "#fff", fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", pointerEvents: "none" } }, label) : null),
+    createElement("div", { "data-testid": `bar-body-${bar.id}`, onPointerDown: hold("move"), style: { position: "absolute", inset: 0, borderRadius: 7, background: "var(--line-2)", boxShadow: "inset 0 0 0 1px var(--line)", overflow: "hidden", display: "flex", alignItems: "center", paddingLeft: 8 } },
+      null),
     createElement("div", { "data-testid": `bar-start-${bar.id}`, onPointerDown: hold("start"), style: { position: "absolute", left: 0, top: 0, bottom: 0, width: 6, cursor: "ew-resize" } }),
     createElement("div", { "data-testid": `bar-end-${bar.id}`, onPointerDown: hold("end"), style: { position: "absolute", right: 0, top: 0, bottom: 0, width: 6, cursor: "ew-resize" } }),
-    inside ? null : createElement("span", { style: { position: "absolute", left: w + 6, top: 4, fontSize: 12, color: "var(--ink-2)", whiteSpace: "nowrap", pointerEvents: "none" } }, label),
   );
 }
 
@@ -91,6 +91,7 @@ export function TimelineView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const [picked, setPicked] = useState<string | null>(null);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const hscroll = useRef<{ scrollTo(o: { x: number; animated: boolean }): void } | null>(null);
   const { def } = ctx;
   const range: Range | undefined = rangeOf(def, ctx.saved, picked);
   const { rows, count } = useViewRows(ctx.type, st.v, def.titleField);
@@ -138,6 +139,14 @@ export function TimelineView({ ctx }: { ctx: ViewCtx }): ReactElement {
     }
   }
   const height = y + 12;
+  const names: ReactElement[] = [];
+  {
+    let ny = HEAD_H + 6;
+    for (const band of bands) {
+      if (band.title) { names.push(<View key={`nb-${band.key}`} style={[c.nameBand, { top: ny }]}><Text style={c.bandText}>{`${band.title}  ${band.bars.length}`}</Text></View>); ny += BAND_H; }
+      for (const b of band.bars) { names.push(<View key={`n-${b.id}`} style={[c.nameRow, { top: ny }]}><View style={c.ring} /><Text numberOfLines={1} style={c.nameText}>{label(b)}</Text></View>); ny += ROW_H; }
+    }
+  }
   const ticks: ReactElement[] = [];
   for (let i = 0; i < days; i++) {
     const ms = from + i * DAY;
@@ -149,6 +158,8 @@ export function TimelineView({ ctx }: { ctx: ViewCtx }): ReactElement {
     if (d.getUTCDay() === 1) ticks.push(<View key={`l${i}`} style={[c.weekLine, { left: i * DAY_W, height }]} />);
   }
   const todayX = xOf(startOfDay(today), from);
+  // open with today near the left edge, as the prototype does
+  useEffect(() => { hscroll.current?.scrollTo({ x: Math.max(0, todayX - 6 * DAY_W), animated: false }); }, [bars.length > 0, todayX]);
 
   return (
     <View style={c.main} testID="records-timeline" accessibilityLabel={`${def.plural} timeline`}>
@@ -165,7 +176,8 @@ export function TimelineView({ ctx }: { ctx: ViewCtx }): ReactElement {
         <States kind="empty" title={st.v.clauses.length > 0 || st.v.find ? "Nothing matches these filters." : `No ${def.plural.toLowerCase()} with a ${range.start.title.toLowerCase()} yet.`} icon="records" />
       ) : (
         <ScrollView style={c.scroll} testID="timeline-scroll">
-          <ScrollView horizontal contentContainerStyle={{ width, height }}>
+          <ScrollView horizontal ref={hscroll as never} contentContainerStyle={{ width: width + NAME_W, height }}>
+            <View style={[c.names, { height }]} testID="timeline-names">{names}</View>
             <View style={{ width, height }} testID="timeline-canvas" accessibilityLabel={`${bars.length} bars, ${days} days`}>
               {ticks}
               <View style={[c.headLine, { top: HEAD_H, width }]} />
@@ -184,6 +196,11 @@ export function TimelineView({ ctx }: { ctx: ViewCtx }): ReactElement {
 const c = StyleSheet.create({
   main: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
   scroll: { flex: 1 },
+  names: { width: NAME_W, flexShrink: 0, left: 0, zIndex: 3, backgroundColor: "var(--win)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string, ...({ position: "sticky" } as object) },
+  nameBand: { position: "absolute", left: 0, right: 0, height: BAND_H, justifyContent: "center", backgroundColor: "var(--sunk)" as string },
+  nameRow: { position: "absolute", left: 0, right: 0, height: ROW_H, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12 },
+  ring: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.4, borderColor: "var(--ink-4)" as string },
+  nameText: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string },
   bar: { position: "absolute", height: BAR_H, borderRadius: 7, justifyContent: "center", paddingHorizontal: 8 },
   barText: { color: "#fff", fontSize: 12, fontWeight: "500" },
   band: { position: "absolute", left: 0, height: BAND_H, justifyContent: "center", paddingLeft: 12, backgroundColor: "var(--sunk)" as string },
