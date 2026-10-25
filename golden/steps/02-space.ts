@@ -163,3 +163,26 @@ export const todoOf = (gaps: readonly Gap[]): string | false => (gaps.length ? g
 export function okSteps(trail: Trail): string[] {
   return trail.lines.filter((l) => l.startsWith("ok    ")).map((l) => l.slice(6));
 }
+
+/** Boots with `live`; when the host refuses because a module has no handlers, records that as a failed step and boots again without the refused modules, so the rest of the flow still shows its own gaps. */
+export async function bootTolerant(trail: Trail, live: readonly string[], opts: { engineCli?: unknown } = {}): Promise<{ s: FlowSpace | undefined; dropped: string[] }> {
+  let want = [...live];
+  const dropped: string[] = [];
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const s = await bootFlowSpace(want, opts);
+      if (dropped.length === 0) trail.lines.push(`ok    the Space boots with ${live.join(", ")} live`);
+      return { s, dropped };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const bad = [...new Set([...msg.matchAll(/module ([a-z0-9-]+) \(live\)/g)].map((m) => m[1]!))].filter((m) => want.includes(m));
+      if (bad.length === 0) { trail.failures.push(`boot: ${msg.slice(0, 300)}`); trail.lines.push(`FAIL  boot: ${msg.slice(0, 300)}`); return { s: undefined, dropped }; }
+      const why = msg.split("\n").filter((l) => bad.some((b) => l.includes(`module ${b} (live)`))).slice(0, 2).join(" ; ");
+      trail.failures.push(`the Space cannot boot with ${bad.join(", ")} live: ${why.slice(0, 300)}`);
+      trail.lines.push(`FAIL  the Space cannot boot with ${bad.join(", ")} live: ${why.slice(0, 300)}`);
+      dropped.push(...bad);
+      want = want.filter((m) => !bad.includes(m));
+    }
+  }
+  return { s: undefined, dropped };
+}
