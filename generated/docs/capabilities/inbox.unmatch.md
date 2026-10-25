@@ -50,6 +50,11 @@ type Out = {
     followed: boolean;
     alertOnReplies: boolean;
     starred?: boolean;
+    organisation?: string;
+    dnd?: boolean;
+    bounced?: boolean;
+    unmatched?: boolean;
+    draftReady?: boolean;
   };
 };
 ```
@@ -75,9 +80,12 @@ type Out = {
     "conversation": {
       "address": "maya@example.com",
       "alertOnReplies": true,
+      "bounced": true,
       "campaignId": "cmp_a1b2c3",
       "contactId": "rec_a1b2c3",
       "displayName": "example",
+      "dnd": true,
+      "draftReady": true,
       "followed": true,
       "id": "cnv_a1b2c3",
       "lastChannel": "email",
@@ -87,8 +95,10 @@ type Out = {
         "mbx_a1b2c3"
       ],
       "needsMatch": true,
+      "organisation": "Acme Legal",
       "ownerId": "usr_a1b2c3",
       "starred": true,
+      "unmatched": true,
       "unreadCount": 1
     }
   }
