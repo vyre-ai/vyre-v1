@@ -17,14 +17,14 @@
     {
       "id": "P-L9c_03-calendar-newevent",
       "route": "/m/P-L9c_03?new=1",
-      "proto": "inbox,calendar,{skin}",
+      "proto": "inbox,calweek,{skin}",
       "waitFor": "[data-testid='cal-card']",
       "note": "A new event after dragging on the grid: the outline on the day, and the small card with title, when, length, people, the free or busy sentence, the calendar, Find a time, Cancel and Add."
     },
     {
       "id": "P-L9c_03-calendar-month",
       "route": "/m/P-L9c_03?mode=month",
-      "proto": "inbox,calendar,{skin}",
+      "proto": "inbox,calmonth,{skin}",
       "waitFor": "[data-testid='cal-month']",
       "note": "Month: whole weeks, today's number filled, events as dots with the time and title, and a count when a day holds more than fit."
     },
