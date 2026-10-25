@@ -1,11 +1,12 @@
 // Mount for P-L9_19c: the shell opened on Home, with the real Home body in the place (greeting, Needs you with its action buttons, My work groups, Quick start, the Ask box)
 // instead of the sample rows. ?space=harbor and ?space=personal open the other two seeds. Home is opened after mount, so the static export's markup never fixes the place.
-import { useEffect, useMemo } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { createThemeController } from "../../../ui/src/theme/index.ts";
 import type { ThemeRoot } from "../../../ui/src/theme/index.ts";
 import { Shell } from "../../../apps/app/src/shell/spaces/Shell.tsx";
+import type { ShellHub } from "../../../apps/app/src/shell/spaces/hub.ts";
 import { createSampleShell } from "../../../apps/app/src/shell/spaces/sample.tsx";
 import { homePlace } from "../../../apps/app/src/shell/spaces/sample-home.tsx";
 
@@ -20,7 +21,9 @@ const OPEN: Readonly<Record<string, string>> = { harbor: "hb", personal: "me" };
 
 export default function Mount(): ReactNode {
   const height = useWindowDimensions().height;
-  const made = useMemo(() => {
+  // the query and the shell are made after mount, never in the first render: the static export keeps its pre-rendered markup, so a first-render read would show a stale Space and place
+  const [made, setMade] = useState<{ hub: ShellHub; theme: ReturnType<typeof createThemeController> } | null>(null);
+  useEffect(() => {
     const g = globalThis as { location?: { search?: string }; document?: { documentElement?: RootLike } };
     const query = new URLSearchParams(g.location?.search ?? "");
     const openId = OPEN[query.get("space") ?? ""] ?? "nw";
@@ -32,9 +35,11 @@ export default function Mount(): ReactNode {
       removeProperty: (n) => { root?.style.removeProperty(n); },
     };
     const theme = createThemeController({ personId: "irfad", spaceId: openId, spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
-    return { hub: createSampleShell({ openId, theme }), theme };
+    const hub = createSampleShell({ openId, theme });
+    hub.go("home");
+    setMade({ hub, theme });
   }, []);
-  useEffect(() => { made.hub.go("home"); }, [made]);
+  if (made === null) return null;
   return (
     <View style={{ height }}>
       <Shell hub={made.hub} theme={made.theme} renderPlace={homePlace} />
