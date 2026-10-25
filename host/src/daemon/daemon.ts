@@ -46,6 +46,7 @@ import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, W
 import { createLiveHub } from "../ws.ts";
 import type { LiveHub } from "../ws.ts";
 import { createAccess } from "./access.ts";
+import { ADMIN_DEVICE, createSessionResolver } from "./session.ts";
 import { createResourceRegistrar } from "../gateway/resources.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
@@ -338,7 +339,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         validateInput: (cap, v, input) => (extraCaps.has(cap) ? [] : validateInput(cap, v, input)),
         validateEvent: (name, payload) => (extraEvents.has(name) ? [] : validateEvent(name, payload)),
         authorize: (r) => authorize(access.snap, r),
-        handler: (cap, v) => o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v),
+        handler: (cap, v) => {
+          const h = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
+          // The one internal call a module may make with the host's own authority: devices -> sync.epoch.bump (a device was revoked, its replica must purge). The person revoking their own
+          // device holds no sync grant, and a revoke that cannot purge would leave the copy on the device. Nothing else is widened: every other ctx.call keeps the caller's authority.
+          if (!h || !cap.startsWith("devices.")) return h;
+          const wrapped: Handler = (ctx, input) => h({ ...ctx, call: (name, callInput, opts) => (name === "sync.epoch.bump" ? system(name, callInput) : ctx.call(name, callInput, opts)) } as typeof ctx, input);
+          return wrapped;
+        },
         services: hostServices({ base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs }),
         idem, rate: createRateLimiter(), now, log: sinkLog,
         ...(gate ? { gate } : {}),
@@ -440,11 +448,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       await projectionRunner.start();   // after the seams: the events module needs its dispatcher and host ports before the first event reaches webhooks_out
 
       const owner = (): string => cfg.owner ?? access.owner() ?? "usr_owner";
-      const session: GatewayDeps["session"] = o.session ?? ((headers) => {
-        const t = bearer(headers["authorization"]);
-        if (!t || !sameToken(t, token)) return null;
-        return { space: spaceId, principal: { kind: "person", id: owner() }, device: headers["x-vyre-device"] ?? "local-admin" };
-      });
+      // Identity comes from the bearer token alone (host/src/daemon/session.ts): a device session row gives the person and the device; the x-vyre-device header and ?device= are ignored.
+      // The single admin token is the owner bootstrap path only (ensureAdminToken): it acts as the owner on the fixed device `local-admin`.
+      const sessions = createSessionResolver({ db: db!, space: spaceId });
+      const identify = (t: string | null): { space: string; principal: { kind: "person"; id: string }; device: string } | null => {
+        if (!t) return null;
+        if (sameToken(t, token)) return { space: spaceId, principal: { kind: "person", id: owner() }, device: ADMIN_DEVICE };
+        const s = sessions.resolve(t);
+        return s ? { space: s.space, principal: { kind: "person", id: s.person }, device: s.device } : null;
+      };
+      const session: GatewayDeps["session"] = o.session ?? ((headers) => identify(bearer(headers["authorization"])));
       gateway = createGateway({ invoke, caps: indexCapabilities(caps), routes: [...routes, ...(o.extra?.routes ?? [])], session });
       // GET /spaces/<space>/blobs/<id> (ruling 50): a blob is served to a caller who may read the resource its module stored it for
       blobRoute = createBlobRoute({
@@ -457,9 +470,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       const mkHub = (): LiveHub => createLiveHub({
         session: (h, url) => {
-          const t = bearer(h["authorization"]) ?? url.searchParams.get("token");
-          if (!t || !sameToken(t, token)) return null;
-          return { space: spaceId, principal: { kind: "person", id: owner() }, device: url.searchParams.get("device") ?? "local-admin" };
+          return identify(bearer(h["authorization"]) ?? url.searchParams.get("token"));
         },
         invoke, sink,
         eventsSince: (_s, cursor) => (recent.length && recent[0]!.seq <= cursor + 1 ? recent.filter((e) => e.seq > cursor) : []),
