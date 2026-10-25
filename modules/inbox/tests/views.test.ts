@@ -316,3 +316,5 @@ test("list rows carry the organisation, Do not contact, bounced, unmatched and d
   const b = byId(dana);
   assert.deepEqual([b.organisation, b.dnd, b.bounced, b.unmatched, b.draftReady], [undefined, true, true, false, false]);
 });
+
+// Run on the final commit of this packet, after merging main, so the CI log lists the file as ok.
