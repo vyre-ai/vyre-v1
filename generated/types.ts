@@ -3786,6 +3786,7 @@ export type CampaignsAudienceSetOut = {
 export type CampaignsCreateIn = {
   name: string;
   kind: "one_time" | "sequence" | "triggered";
+  folderId?: string;
   idempotencyKey: string;
 };
 export type CampaignsCreateOut = {
@@ -7426,6 +7427,7 @@ export type EmailBuilderAskDiffOut = {
 export type EmailBuilderCreateIn = {
   name: string;
   mode: "blocks" | "html" | "plain";
+  folderId?: string;
   idempotencyKey: string;
 };
 export type EmailBuilderCreateOut = {
@@ -20236,6 +20238,7 @@ export type SitesCreateIn = {
   kind: "site" | "app" | "api" | "worker" | "artifact";
   repoUrl?: string;
   templateKit?: string;
+  folderId?: string;
   idempotencyKey: string;
 };
 export type SitesCreateOut = {

@@ -36270,6 +36270,7 @@
       "examples": [
         {
           "input": {
+            "folderId": "fld_a1b2c3",
             "idempotencyKey": "idem_1",
             "kind": "one_time",
             "name": "example"
@@ -36292,6 +36293,13 @@
       "idempotency": "key",
       "input": {
         "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -36327,7 +36335,7 @@
       "permission": "automations.space",
       "resource": {
         "create": true,
-        "parent": "/name",
+        "parent": "/folderId",
         "type": "campaign"
       },
       "risk": "medium",
@@ -58830,6 +58838,7 @@
       "examples": [
         {
           "input": {
+            "folderId": "fld_a1b2c3",
             "idempotencyKey": "idem_1",
             "mode": "blocks",
             "name": "example"
@@ -58856,6 +58865,13 @@
       "idempotency": "key",
       "input": {
         "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -58891,7 +58907,7 @@
       "permission": null,
       "resource": {
         "create": true,
-        "parent": "/name",
+        "parent": "/folderId",
         "type": "folder"
       },
       "risk": "medium",
@@ -135950,6 +135966,7 @@
       "examples": [
         {
           "input": {
+            "folderId": "fld_a1b2c3",
             "idempotencyKey": "idem_1",
             "kind": "site",
             "name": "example",
@@ -135974,6 +135991,13 @@
       "idempotency": "key",
       "input": {
         "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -136021,7 +136045,7 @@
       "permission": "sites.deploy",
       "resource": {
         "create": true,
-        "parent": "/name",
+        "parent": "/folderId",
         "type": "site"
       },
       "risk": "medium",

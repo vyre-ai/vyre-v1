@@ -18890,6 +18890,7 @@ if (!("kind" in o1112)) e.push(p + "/kind" + ': required');
 if (!("idempotencyKey" in o1112)) e.push(p + "/idempotencyKey" + ': required');
 if ("name" in o1112) lf(o1112["name"], p + "/name", e, L2);
 if ("kind" in o1112) lf(o1112["kind"], p + "/kind", e, L209);
+if ("folderId" in o1112) lf(o1112["folderId"], p + "/folderId", e, L4);
 if ("idempotencyKey" in o1112) lf(o1112["idempotencyKey"], p + "/idempotencyKey", e, L47);
 }
 }
@@ -27286,6 +27287,7 @@ if (!("mode" in o1670)) e.push(p + "/mode" + ': required');
 if (!("idempotencyKey" in o1670)) e.push(p + "/idempotencyKey" + ': required');
 if ("name" in o1670) lf(o1670["name"], p + "/name", e, L2);
 if ("mode" in o1670) lf(o1670["mode"], p + "/mode", e, L178);
+if ("folderId" in o1670) lf(o1670["folderId"], p + "/folderId", e, L4);
 if ("idempotencyKey" in o1670) lf(o1670["idempotencyKey"], p + "/idempotencyKey", e, L47);
 }
 }
@@ -56148,6 +56150,7 @@ if ("name" in o3583) lf(o3583["name"], p + "/name", e, L2);
 if ("kind" in o3583) lf(o3583["kind"], p + "/kind", e, L3);
 if ("repoUrl" in o3583) lf(o3583["repoUrl"], p + "/repoUrl", e, L2);
 if ("templateKit" in o3583) lf(o3583["templateKit"], p + "/templateKit", e, L60);
+if ("folderId" in o3583) lf(o3583["folderId"], p + "/folderId", e, L4);
 if ("idempotencyKey" in o3583) lf(o3583["idempotencyKey"], p + "/idempotencyKey", e, L47);
 }
 }
