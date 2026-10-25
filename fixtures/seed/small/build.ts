@@ -26,7 +26,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The files whose content defines the seed. */
 export const SMALL_SOURCES: readonly string[] = [...CORE_SOURCES, fileURLToPath(import.meta.url), path.join(HERE, "recipe.ts")];
 /** The modules the seed is built with. A test that boots the seed may flip more. */
-export const SMALL_LIVE: readonly string[] = ["records", "schema", "contacts-link", "agents", "files", "access", "devices", "spaces"];
+export const SMALL_LIVE: readonly string[] = ["records", "schema", "contacts-link", "agents", "files", "access", "devices", "spaces", "identity"];
 /** The files of a Space's data directory that make up the seed (the rest is per boot: pid, info, logs, admin token). */
 const KEEP = ["events.db", "modules.db", "space.db", "seal.key", "small.json"];
 
