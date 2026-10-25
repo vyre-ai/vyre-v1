@@ -110,7 +110,7 @@ export async function eraseFind(ctx: GovCtx, input: { subject: unknown }) {
 
   const id = newId("fnd", now);
   const expiresAt = now + DAY;
-  ctx.db.run(`INSERT INTO gov_finding ("id", "by", "at", "expiresAt", "recordIds", "items") VALUES (?, ?, ?, ?, ?, ?)`, id, ctx.principal.id, now, expiresAt, JSON.stringify(recs.map((r) => r.id)), JSON.stringify(items));
+  ctx.db.run(`INSERT INTO gov_finding ("id", "by", "at", "expiresAt", "recordIds", "items") VALUES (?, ?, ?, ?, ?, ?)`, id, ctx.principal.id, now, expiresAt, JSON.stringify(recs.map((r) => r.id)), JSON.stringify(idsOnly(items)));
   const groups = [];
   for (const kind of ERASE_KINDS) {
     const its = items[kind] ?? [];
@@ -131,6 +131,11 @@ async function held(ctx: GovCtx, kind: EraseKind, it: Item, people: string[]): P
   }
   if (kind === "chats") return holdRow(ctx, it.type === "channel" ? "channel" : "thread", it.id) !== null;
   return false;
+}
+
+/** What a finding keeps: kinds, item types and ids. Titles are shown once, in the answer to find, and not stored. */
+function idsOnly(items: Items): Items {
+  return Object.fromEntries(Object.entries(items).map(([k, v]) => [k, (v ?? []).map((x) => ({ type: x.type, id: x.id, title: "" }))])) as Items;
 }
 
 // ---- erasers (also what a restore replays)
