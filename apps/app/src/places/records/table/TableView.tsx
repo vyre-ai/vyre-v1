@@ -156,7 +156,7 @@ const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): 
       onClick: (e: { metaKey?: boolean; ctrlKey?: boolean }) => { if (row) onTap(row.id, e.metaKey === true || e.ctrlKey === true); },
       onContextMenu: (e: { preventDefault(): void; clientX: number; clientY: number }) => { if (row) { e.preventDefault(); onMenu(row, e.clientX, e.clientY); } },
       onMouseEnter: () => onHot(row ? row.id : null), onMouseLeave: () => onHot(null),
-      style: { position: "absolute", boxSizing: "border-box", display: "flex", alignItems: "center", left: 0, top: y, width: GUTTER + primary.width, height: ROW_H, borderBottom: "1px solid var(--line)", backgroundColor: bg, contain: PV === "nocontain" ? "none" : "layout style paint" },
+      style: { position: "absolute", boxSizing: "border-box", display: "flex", alignItems: "center", left: 0, top: y, width: GUTTER + primary.width, height: ROW_H, borderBottom: "1px solid var(--line)", backgroundColor: bg, contain: "layout style paint" },
     },
     createElement("div", { style: { width: GUTTER, height: "100%", display: "flex", alignItems: "center", boxSizing: "border-box", paddingLeft: 10, flex: "none", fontSize: 11.5, color: "var(--ink-4)", fontVariantNumeric: "tabular-nums", backgroundColor: bg } }, String(n)),
     createElement("div", { style: { width: primary.width, height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, boxSizing: "border-box", padding: "0 10px", overflow: "hidden", flex: "none", backgroundColor: bg } },
@@ -170,8 +170,6 @@ const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): 
 // 100,000-row scroll probe was 66.7 ms at p95 with every column and 16.8 ms with the name column alone, so the cost is the cells. Same looks as the cell styles below.
 // No overflow or contain on a cell: each one is a clip in the paint property tree, and 13 of them a row put Layerize at 5.9 ms a frame in the perf trace (run 40219986248, 3.6 s over 606 frames).
 // The text inside clips itself with its own ellipsis and the row clips what is left.
-// DIAGNOSTIC (P-L9d_01b, removed once the scroll cost is found): ?pv=nocells|nofrozen|nocontain|nosticky|bare switches parts of a row off so one perf run says which part costs the frames.
-const PV = typeof location !== "undefined" ? new URLSearchParams(location.search).get("pv") ?? "" : "";
 const CELL_BOX = { boxSizing: "border-box", display: "flex", alignItems: "center", flex: "none", height: "100%", padding: "0 10px", minWidth: 0 } as const;
 const CELL_TEXT = { fontSize: 13, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 } as const;
 const CELL_NUM = { ...CELL_TEXT, fontVariantNumeric: "tabular-nums", textAlign: "right" } as const;
@@ -211,7 +209,7 @@ const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: num
   const { row, n, y, left, width, cols, from, to, pad, names, onTap, onHot, onMenu } = p;
   const bg = bgOf(p);
   const cells: ReactElement[] = [];
-  for (let i = from; i < (PV === "nocells" || PV === "bare" ? from : to); i++) {
+  for (let i = from; i < to; i++) {
     const c = cols[i]!;
     cells.push(createElement("div", { key: c.field.key, style: isNumeric(c.field) ? { ...CELL_BOX, width: c.width, justifyContent: "flex-end" } : { ...CELL_BOX, width: c.width } }, row ? webCell(c.field, row, names) : createElement("div", { style: GHOST })));
   }
@@ -466,7 +464,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
       const tint = colourOf(colourField, it.row);
       if (web && primary) {
         const piece = { row: it.row, n: it.n, y, selected: selected === it.row.id || isPicked(it.row.id), hot: hot === it.row.id, tint, names: data.nameOf, onTap, onOpen, onHot: setHot };
-        if (PV !== "nofrozen" && PV !== "bare") frozen.push(<RowFrozen key={it.row.id} {...piece} primary={primary} />);
+        frozen.push(<RowFrozen key={it.row.id} {...piece} primary={primary} />);
         rows.push(<RowBody key={it.row.id} {...piece} left={fw} width={width - fw} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} />);
       } else rows.push(<TableRow key={it.row.id} row={it.row} n={it.n} y={y} width={width} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} selected={selected === it.row.id || isPicked(it.row.id)} tint={tint} names={data.nameOf} onSelect={setSelected} onOpen={data.nav.openRecord} />);
       continue;
@@ -474,7 +472,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
     const r = rowAt(i);
     if (web && primary) {
       const piece = { row: r, n: i + 1, y, selected: r !== null && (selected === r.id || isPicked(r.id)), hot: r !== null && hot === r.id, tint: r ? colourOf(colourField, r) : null, names: data.nameOf, onTap, onOpen, onHot: setHot };
-      if (PV !== "nofrozen" && PV !== "bare") frozen.push(<RowFrozen key={r ? r.id : `p${i}`} {...piece} primary={primary} />);
+      frozen.push(<RowFrozen key={r ? r.id : `p${i}`} {...piece} primary={primary} />);
       rows.push(<RowBody key={r ? r.id : `p${i}`} {...piece} left={fw} width={width - fw} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} />);
       continue;
     }
@@ -707,7 +705,7 @@ const styles = StyleSheet.create({
   pickOff: { color: "var(--ink-4)" as string },
   pickLinkText: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
   cb: { width: 14, height: 14, borderRadius: 4, borderWidth: 1.4, borderColor: "var(--ink-4)" as string },
-  frozenLayer: { position: PV === "nosticky" ? "absolute" : "sticky", left: 0, width: 0, height: 0, zIndex: 3, overflow: "visible" } as unknown as ViewStyle,
+  frozenLayer: { position: "sticky", left: 0, width: 0, height: 0, zIndex: 3, overflow: "visible" } as unknown as ViewStyle,
   tr: { position: "absolute", left: 0, height: ROW_H, flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   rn: { width: GUTTER, height: "100%", justifyContent: "center", paddingLeft: 10, zIndex: 3 },
   rnText: { fontSize: 11.5, color: "var(--ink-4)" as string, fontVariant: ["tabular-nums"] },

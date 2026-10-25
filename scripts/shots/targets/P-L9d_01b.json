@@ -37,56 +37,6 @@
         "selector": "[data-testid=\"records-scroll\"]:has([data-testid=\"rec-cl_20\"])"
       },
       "note": "100,014 clients: the scroll probe (budget scroll, 16.7 ms) and its layout shift, which must be under 0.05."
-    },
-    {
-      "id": "P-L9d_01b-pv-nocells",
-      "route": "/m/P-L9d_01b?type=clients&rows=100000&pv=nocells",
-      "proto": "records,{skin}",
-      "waitFor": "[data-testid='rec-cl_20']",
-      "scroll": {
-        "selector": "[data-testid=\"records-scroll\"]:has([data-testid=\"rec-cl_20\"])"
-      },
-      "note": "Diagnostic: scroll probe with part of a row switched off (nocells)."
-    },
-    {
-      "id": "P-L9d_01b-pv-nofrozen",
-      "route": "/m/P-L9d_01b?type=clients&rows=100000&pv=nofrozen",
-      "proto": "records,{skin}",
-      "waitFor": "[data-testid='rec-cl_20']",
-      "scroll": {
-        "selector": "[data-testid=\"records-scroll\"]:has([data-testid=\"rec-cl_20\"])"
-      },
-      "note": "Diagnostic: scroll probe with part of a row switched off (nofrozen)."
-    },
-    {
-      "id": "P-L9d_01b-pv-nocontain",
-      "route": "/m/P-L9d_01b?type=clients&rows=100000&pv=nocontain",
-      "proto": "records,{skin}",
-      "waitFor": "[data-testid='rec-cl_20']",
-      "scroll": {
-        "selector": "[data-testid=\"records-scroll\"]:has([data-testid=\"rec-cl_20\"])"
-      },
-      "note": "Diagnostic: scroll probe with part of a row switched off (nocontain)."
-    },
-    {
-      "id": "P-L9d_01b-pv-nosticky",
-      "route": "/m/P-L9d_01b?type=clients&rows=100000&pv=nosticky",
-      "proto": "records,{skin}",
-      "waitFor": "[data-testid='rec-cl_20']",
-      "scroll": {
-        "selector": "[data-testid=\"records-scroll\"]:has([data-testid=\"rec-cl_20\"])"
-      },
-      "note": "Diagnostic: scroll probe with part of a row switched off (nosticky)."
-    },
-    {
-      "id": "P-L9d_01b-pv-bare",
-      "route": "/m/P-L9d_01b?type=clients&rows=100000&pv=bare",
-      "proto": "records,{skin}",
-      "waitFor": "[data-testid='rec-cl_20']",
-      "scroll": {
-        "selector": "[data-testid=\"records-scroll\"]:has([data-testid=\"rec-cl_20\"])"
-      },
-      "note": "Diagnostic: scroll probe with part of a row switched off (bare)."
     }
   ]
 }
