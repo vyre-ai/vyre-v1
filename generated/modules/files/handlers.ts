@@ -10,6 +10,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "changesets.comments.list": Handler<"changesets.comments.list", X>;
   "changesets.diff": Handler<"changesets.diff", X>;
   "changesets.discard": Handler<"changesets.discard", X>;
+  "changesets.edit": Handler<"changesets.edit", X>;
   "changesets.get": Handler<"changesets.get", X>;
   "changesets.list": Handler<"changesets.list", X>;
   "changesets.request_changes": Handler<"changesets.request_changes", X>;

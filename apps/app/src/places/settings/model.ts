@@ -38,7 +38,7 @@ export interface SectionDef { title: string; note?: string; keys: readonly strin
 /** Settings that a page draws itself (a card, a picker, a table) and so are not repeated as rows. */
 export const DRAWN_BY_PAGE: Readonly<Record<string, readonly string[]>> = {
   profile: ["profile.photo", "profile.display_name", "profile.handle", "profile.title", "profile.contact"],
-  appearance: ["appearance.skin", "kit.choice_person", "kit.person_choice"],
+  appearance: ["appearance.skin", "appearance.mode", "kit.choice_person", "kit.person_choice"],
   keyboard: ["keyboard.overrides"],
 };
 
@@ -58,7 +58,7 @@ export const SECTIONS: Readonly<Record<PageKey, readonly SectionDef[]>> = {
   connections: [],
   privacy: [{ title: "Memory and privacy", keys: ["memory.weekly_nudge", "engine.runtime_opt_in"] }],
   signin: [],
-  appearance: [{ title: "Display", keys: ["appearance.mode"] }],
+  appearance: [{ title: "", keys: ["appearance.density", "appearance.text_size", "appearance.reduce_motion"] }],
   keyboard: [{ title: "Chats", keys: ["chat.agent_tabs"] }],
   computer: [
     { title: "Safety", keys: ["security.level", "security.terminal_mode", "security.chrome_mode"] },
@@ -105,6 +105,8 @@ export interface Schema { type?: string; enum?: readonly unknown[]; minimum?: nu
 /** What the registry's schema says that the row itself does not: the choices of an enum and the range of a number. The shell may pass the real schema; this table covers the person rows. */
 export const HINTS: Readonly<Record<string, Schema>> = {
   "appearance.mode": { enum: ["system", "light", "dark"] },
+  "appearance.density": { enum: ["comfortable", "compact"] },
+  "appearance.text_size": { type: "integer", minimum: 90, maximum: 120 },
   "security.level": { enum: ["relaxed", "standard", "strict"] },
   "sync.blob_cache_mb": { type: "integer", minimum: 100, maximum: 100000 },
   "notifications.push_idle_minutes": { type: "integer", minimum: 1, maximum: 60 },
@@ -154,6 +156,10 @@ export function controlFor(row: SettingRow, schema: Schema | undefined = HINTS[r
   return { kind: "summary" };
 }
 
+/** The label a row shows when the registry's title carries a unit or a hint the page says with its control. */
+export const ROW_LABELS: Readonly<Record<string, string>> = { "appearance.text_size": "Text size" };
+export const rowLabel = (row: SettingRow): string => ROW_LABELS[row.key] ?? row.title;
+
 export function labelOf(value: string): string {
   const words = value.replace(/[_-]+/g, " ").trim();
   return words.charAt(0).toUpperCase() + words.slice(1);
@@ -199,7 +205,26 @@ export const MODES = [{ value: "ask", label: "Ask each time" }, { value: "allow"
 
 // ---------------------------------------------------------------- search (Cmd-F)
 
-export interface Hit { key: string; page: PageKey; title: string; score: number }
+export interface Hit { key: string; page: PageKey; title: string; score: number; sub?: string }
+
+/** The line under a search hit and extra words that find it, for rows whose registry title says too little. */
+export const HIT_HELP: Readonly<Record<string, { sub?: string; words?: string }>> = {
+  "appearance.density": { sub: "Comfortable or compact", words: "compact spacing" },
+  "appearance.text_size": { words: "font larger smaller zoom" },
+  "appearance.reduce_motion": { words: "animation accessibility" },
+  "appearance.skin": { words: "theme dark light colour color" },
+};
+
+/** Rows a page draws itself (the sign-in cards) that Cmd-F still finds. */
+export const DRAWN_ROWS: readonly { key: string; page: PageKey; title: string; sub: string; words: string }[] = [
+  { key: "signin.password", page: "signin", title: "Password", sub: "Change your password", words: "sign in login" },
+  { key: "signin.github", page: "signin", title: "GitHub", sub: "Sign in with one click", words: "sign in login" },
+  { key: "signin.totp", page: "signin", title: "Authenticator app", sub: "One-time codes on your phone", words: "second factor 2fa totp" },
+  { key: "signin.passkey", page: "signin", title: "Passkeys", sub: "Touch ID and security keys", words: "second factor biometric" },
+  { key: "signin.floor", page: "signin", title: "Second factor required", sub: "Set by your Space", words: "2fa floor" },
+  { key: "signin.sso", page: "signin", title: "Single sign-on", sub: "Your admin signs you in", words: "sso google okta" },
+  { key: "signin.devs", page: "signin", title: "Devices", sub: "Where you are signed in", words: "computers sign out" },
+];
 
 /** Words in any order; a title that starts with the first word ranks above one that only contains it. */
 export function searchRows(rows: readonly SettingRow[], q: string): Hit[] {
@@ -209,9 +234,16 @@ export function searchRows(rows: readonly SettingRow[], q: string): Hit[] {
   for (const r of rows) {
     const page = pageOfRow(r);
     if (!page) continue;
-    const hay = `${r.title} ${r.key.replace(/[._]/g, " ")} ${page.title}`.toLowerCase();
+    const help = HIT_HELP[r.key];
+    const label = rowLabel(r);
+    const hay = `${label} ${r.key.replace(/[._]/g, " ")} ${page.title} ${help?.sub ?? ""} ${help?.words ?? ""}`.toLowerCase();
     if (!words.every((w) => hay.includes(w))) continue;
-    out.push({ key: r.key, page: page.key, title: r.title, score: r.title.toLowerCase().startsWith(words[0]!) ? 2 : 1 });
+    out.push({ key: r.key, page: page.key, title: label, score: label.toLowerCase().startsWith(words[0]!) ? 2 : 1, ...(help?.sub ? { sub: help.sub } : {}) });
+  }
+  for (const d of DRAWN_ROWS) {
+    const hay = `${d.title} ${d.sub} ${d.words} ${pageByKey(d.page).title}`.toLowerCase();
+    if (!words.every((w) => hay.includes(w))) continue;
+    out.push({ key: d.key, page: d.page, title: d.title, score: d.title.toLowerCase().startsWith(words[0]!) ? 2 : 1, sub: d.sub });
   }
   return out.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
 }

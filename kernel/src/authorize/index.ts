@@ -70,7 +70,8 @@ function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: Resour
   // rule 1: a role of its own or of its groups carries the permission. Agents never hold owner or admin (stripped when the SubjectInfo is built).
   if (perm !== null && !s.perms.has(perm)) return "role_lacks_permission";
   if (steps) steps.push({ ok: true, text: `${p.name ?? p.id}: role ${s.roleNames} allows ${perm ?? "this action"}` });
-  const isOwner = res.owner_id === p.id;
+  // owning the thing is owning it; for a create (no id yet) it is owning the container or any container above it: the Space owner can create anywhere in the Space, a member in a record they own
+  const isOwner = res.id === "" ? chain.some((r) => r.owner_id === p.id) : res.owner_id === p.id;
   // rule 2: grants on the resource, an ancestor, or the whole type
   const need = rankOf(req.action.level);
   scratch.length = 0; sawExpired = false; max = 0;
