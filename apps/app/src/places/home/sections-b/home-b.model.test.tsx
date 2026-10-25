@@ -1,12 +1,12 @@
 // Home sections B: the rules. Today's day window and marks, Starred's terminal lines, the Personal Space split, the checklist rows and progress, the Ask text.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SAMPLE_NOW } from "../src/places/home/sections-a/sample.ts";
+import { SAMPLE_NOW } from "../sections-a/sample.ts";
 import {
   ASK_LOCKED, STARRED_LIMIT, askText, checklistProgress, checklistRows, dayWindow, needsTeamSpace, splitForSpace, starRows, teamOnlyWhat, terminalLine, terminalIds, todayCount, todayRows,
-} from "../src/places/home/sections-b/model.ts";
-import type { CalEvent, Star, TerminalRow } from "../src/places/home/sections-b/model.ts";
-import { northwindEvents, northwindStars, northwindTerminals } from "../src/places/home/sections-b/sample.ts";
+} from "./model.ts";
+import type { CalEvent, Star, TerminalRow } from "./model.ts";
+import { northwindEvents, northwindStars, northwindTerminals } from "./sample.ts";
 
 const clock = { now: SAMPLE_NOW, offsetMin: 0 };
 const ev = (id: string, startH: number, mins: number, o: Partial<CalEvent> = {}): CalEvent => ({

@@ -3,12 +3,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import Home from "../src/places/home/index.tsx";
-import { homeBSlots } from "../src/places/home/sections-b/index.ts";
-import { dismissChecklist, startAsk, unstar } from "../src/places/home/sections-b/actions.ts";
-import type { ActionDeps } from "../src/places/home/sections-b/actions.ts";
-import { createSampleHomeB } from "../src/places/home/sections-b/sample.ts";
-import type { SampleHomeB } from "../src/places/home/sections-b/sample.ts";
+import Home from "../index.tsx";
+import { homeBSlots } from "./index.ts";
+import { dismissChecklist, startAsk, unstar } from "./actions.ts";
+import type { ActionDeps } from "./actions.ts";
+import { createSampleHomeB } from "./sample.ts";
+import type { SampleHomeB } from "./sample.ts";
 
 const html = (h: SampleHomeB): string => {
   const { top, bottom } = homeBSlots(h.extras);

@@ -9,7 +9,6 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { NeedsTeamSpace } from "../../../../../../ui/src/NeedsTeamSpace/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useHomeData, useHomeLine, useScreenQuery, useSelection } from "../sections-a/data.tsx";
-import { rowKeysBy } from "../sections-a/model.ts";
 import { EmptyLine, LinkButton, Section, SectionHeader, Skeleton, useNarrow } from "../sections-a/parts.tsx";
 import { unstar } from "./actions.ts";
 import { isPersonal, useExtras } from "./data.tsx";
@@ -35,7 +34,7 @@ export function Starred(): ReactElement {
   const built = stars.status === "ready" ? starRows(stars.data.stars, status.status === "ready" ? status.data.rows : []) : [];
   const split = splitForSpace(built, isPersonal(extras));
   const shown = all ? split.rows : split.rows.slice(0, STARRED_LIMIT);
-  const keyList = rowKeysBy("star", shown, (r) => r.key).join("|");
+  const keyList = shown.map((r) => r.key).join("|");
   useEffect(() => { sel.register(STARRED_SECTION, keyList ? keyList.split("|") : []); }, [keyList]);
 
   const deps = { call: data.call, note: line.note };
