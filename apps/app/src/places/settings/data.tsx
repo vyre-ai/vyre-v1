@@ -16,7 +16,14 @@ export interface SettingsNav {
   choosePhoto(): Promise<string | null>;
   /** Applies a skin to the window at once, before it is saved. */
   previewSkin?(skinId: string | null): void;
+  /** Starts a sign-in change that needs its own flow (password, authenticator app, passkey, GitHub) for a Space. The shell opens it; the page only asks. */
+  manageSecurity?(kind: "password" | "totp-on" | "totp-off" | "passkey" | "github-on" | "github-off", spaceId: string): void;
 }
+
+/** What one Space asks of this person's sign-in: its second factor, passkeys, the floor its admins set and single sign-on. */
+export interface SpaceSecurity { totp: boolean; passkeys: readonly string[]; floor: string; floorBy: string; sso: string; devices: number }
+/** The sign-in that is the same for every Space: the password and a linked GitHub account. */
+export interface AccountSecurity { passwordChanged: string; github: string | null }
 
 export interface SettingsData {
   screens: ScreenHooks;
@@ -31,6 +38,8 @@ export interface SettingsData {
   name(id: string): string;
   nav: SettingsNav;
   clock(): { now: number; offsetMin: number };
+  /** The sign-in the person has in each Space, as the device holds it. */
+  security?: { account: AccountSecurity; spaces: Readonly<Record<string, SpaceSecurity>> };
 }
 
 const Ctx = createContext<SettingsData | null>(null);
