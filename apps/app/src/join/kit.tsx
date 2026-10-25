@@ -347,19 +347,19 @@ export function Bar({ onBack, hideBack, step, steps, cont, testID }: { onBack?: 
       testID={testID ?? "join-bar"}
       style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 64, paddingHorizontal: 20, paddingVertical: phone ? 10 : 0, borderTopWidth: 1, borderTopColor: p.hair }}
     >
-      <View style={{ flex: 1, alignItems: "flex-start" }}>
-        {hideBack ? null : (
+      {hideBack ? null : (
+        <View style={{ flex: 1, alignItems: "flex-start" }}>
           <Pressable accessibilityRole="button" onPress={onBack} testID="back" style={({ hovered }: { hovered?: boolean }) => ({ paddingVertical: 6, paddingHorizontal: 4, borderRadius: 6, opacity: hovered ? 0.75 : 1 })}>
             <Text style={[base(p), { color: p.blue, fontSize: 13, fontWeight: "500" }]}>Back</Text>
           </Pressable>
-        )}
-      </View>
+        </View>
+      )}
       {steps ? (
         <View accessibilityRole="progressbar" accessibilityLabel={`Step ${Math.min(steps, (step ?? 0) + 1)} of ${steps}`} aria-valuemin={1} aria-valuemax={steps} aria-valuenow={Math.min(steps, (step ?? 0) + 1)} testID="dots" style={{ flexDirection: "row", gap: 7 }}>
           {Array.from({ length: steps }, (_, i) => <View key={i} style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: i === step ? p.tx : i < (step ?? 0) ? p.tx2 : p.hair }} />)}
         </View>
       ) : <View />}
-      <View style={{ flex: 1, alignItems: "flex-end" }}>{cont}</View>
+      <View style={{ flex: hideBack ? 0 : 1, alignItems: "flex-end" }}>{cont}</View>
     </View>
   );
 }
