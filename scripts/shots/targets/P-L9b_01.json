@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_01-home-northwind",
+      "route": "/m/P-L9b_01",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='s-routines']",
+      "note": "Home sections A over the Northwind sample Space: Needs you top 3, My work grouped by due date with Assigned by you, Projects at risk, While you were away, Routines today. The prototype side is its Home place in the same skin."
+    },
+    {
+      "id": "P-L9b_01-home-harbor",
+      "route": "/m/P-L9b_01?space=harbor",
+      "proto": "home,harbor,{skin}",
+      "waitFor": "[data-testid='s-routines']",
+      "note": "The same sections over the Harbor Studio sample Space (two Needs you items, three tasks, one project at risk, two routines)."
+    }
+  ]
+}
