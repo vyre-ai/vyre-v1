@@ -21,11 +21,10 @@ jobs:
       - name: Select affected tests and shard them
         id: sel
         env:
-          BEFORE: ${{ github.event.before }}
         run: |
-          BASE="$BEFORE"
-          if [ -z "$BASE" ] || echo "$BASE" | grep -Eq '^0+$'; then BASE=origin/main; fi
-          git rev-parse --verify -q "$BASE" >/dev/null || BASE=origin/main
+          # Every check run selects against the branch's merge-base with main, never the previous push: a later push must still include every test the branch has touched since it left main.
+          git fetch -q origin main
+          BASE="$(git merge-base origin/main HEAD)"
           node scripts/ci-select.ts "$BASE" --matrix > select.json
           node -e 'const r=JSON.parse(require("fs").readFileSync("select.json","utf8"));console.log("select: "+(r.all?"all":r.files.length+" files")+" "+r.why.join("; "));require("fs").appendFileSync(process.env.GITHUB_OUTPUT,"matrix="+JSON.stringify(r.matrix)+"\ncount="+r.matrix.include.length+"\n")'
   shards:
@@ -323,11 +322,10 @@ jobs:
       - name: Did contracts change?
         id: scope
         env:
-          BEFORE: ${{ github.event.before }}
         run: |
-          BASE="$BEFORE"
-          if [ -z "$BASE" ] || echo "$BASE" | grep -Eq '^0+$'; then BASE=origin/main; fi
-          git rev-parse --verify -q "$BASE" >/dev/null || BASE=origin/main
+          # Every check run selects against the branch's merge-base with main, never the previous push: a later push must still include every test the branch has touched since it left main.
+          git fetch -q origin main
+          BASE="$(git merge-base origin/main HEAD)"
           if git diff --name-only "$BASE"...HEAD | grep -Eq '^(manifests|packages/contracts|tools/gen|generated)/'; then echo "run=true" >> "$GITHUB_OUTPUT"; else echo "run=false" >> "$GITHUB_OUTPUT"; fi
       - name: Regenerate into a scratch directory
         if: steps.scope.outputs.run == 'true'
