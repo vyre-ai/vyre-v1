@@ -10,6 +10,7 @@ import { Filler } from "../handlers/index.ts";
 import { openMine, wrapKeyFromPersonKey } from "../handlers/crypto.ts";
 import { ADMIN, AGENT, MAYA, NOW, ROB, SECRET, contractErrors, harness, keyOfPerson, refusedWith } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
+import { validateEvent } from "../../../generated/validators.ts";
 
 type Json = Record<string, unknown>;
 const out = (x: unknown): Json => x as Json;
@@ -245,7 +246,7 @@ test("move across Mine and Shared re-encrypts: enc flips, the value survives, a 
   assert.deepEqual([moved.scope, moved.folderId, secretRow(h, id).enc, secretRow(h, id).wrapped], ["shared", shared, 1, null]);
   assert.deepEqual((await reveal(h, id, { fields: ["api_key"] })).fields, [{ key: "api_key", value: SECRET }]);
   assert.deepEqual(h.named("vault.item_moved")[0]?.payload, { itemId: id, fromFolderId: mine, toFolderId: shared });
-  assert.deepEqual(h.named("item.moved")[0]?.payload, { resource: { type: "vault_item", id } }, "vault folders are vfd_, so item.moved carries the resource only");
+  assert.deepEqual(h.named("item.moved")[0]?.payload, { resource: { type: "vault_item", id }, fromFolderId: mine, toFolderId: shared }, "item.moved takes vfd_ folders, so a Vault move carries from and to on the shared event");
   await v.itemMove(h.ctx, { itemId: id, folderId: mine });
   assert.deepEqual([secretRow(h, id).enc, Boolean(secretRow(h, id).wrapped)], [2, true]);
   assert.deepEqual((await reveal(h, id, { fields: ["api_key"] })).fields, [{ key: "api_key", value: SECRET }]);
@@ -421,3 +422,14 @@ test("a whole session leaves no value in the database, an event, a call or a log
   assert.ok(!h.everything().includes("sk-live"), "no value, whole or in part");
   assert.ok(!h.everything().includes("NEVER-IN-A-LOG"));
 });
+
+
+test("item.moved takes a Files folder (fld_) and a Vault folder (vfd_) on from and to, and refuses any other id", () => {
+  const res = { type: "vault_item", id: "vit_a1b2c3" };
+  assert.deepEqual(validateEvent("item.moved", { resource: res, fromFolderId: "vfd_a1b2c3", toFolderId: "vfd_d4e5f6" }), [], "a Vault move");
+  assert.deepEqual(validateEvent("item.moved", { resource: { type: "file", id: "fil_a1b2c3" }, fromFolderId: "fld_a1b2c3", toFolderId: "fld_d4e5f6" }), [], "a Files move");
+  assert.deepEqual(validateEvent("item.moved", { resource: res }), [], "from and to stay optional");
+  assert.notDeepEqual(validateEvent("item.moved", { resource: res, toFolderId: "chn_a1b2c3" }), [], "another kind of id is refused");
+});
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
