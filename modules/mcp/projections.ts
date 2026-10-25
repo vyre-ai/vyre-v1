@@ -227,7 +227,7 @@ export function driverCaller(space: string, s: SessionRow): McpCaller {
 
 // ---- the generated catalog ----------------------------------------------------------------------------------------------------------------------------
 
-export interface Generated { catalog: Catalog; defaults: Set<string>; registryHash: string }
+export interface Generated { catalog: Catalog; defaults: Set<string> }
 let generated: Generated | null = null;
 
 const read = (rel: string): string => readFileSync(new URL(`../../${rel}`, import.meta.url), "utf8");
@@ -240,7 +240,13 @@ export function loadGenerated(): Generated {
   generated = {
     catalog: buildCatalog(reg.capabilities, tools, reg.agentTools),
     defaults: parseDefaultTools(read("docs/frozen/agent-tools.md")),
-    registryHash: read("generated/hash.txt").trim(),
   };
   return generated;
+}
+
+let hashed: string | null = null;
+/** The hash of generated/registry.json, computed here (the file holds no hash since the per-manifest snapshots) and kept. */
+export async function registryHash(): Promise<string> {
+  hashed ??= await sha256(read("generated/registry.json"));
+  return hashed;
 }

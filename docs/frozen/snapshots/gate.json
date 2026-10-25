@@ -1,0 +1,22 @@
+{
+  "module": "gate",
+  "capabilities": {
+    "gate.acts.list@1": "4eed0298b09f7f12228433267b72811dc396f639b4430b604d8811a3c8987bf1",
+    "gate.deny@1": "14d821130834a364dc8f803e87b7cf4e1d146c64d74ca6eb1b86a51a3e088492",
+    "gate.effective_rule@1": "a9deb6a276bdfc96c61948cc7a8b6f63462e8bf38722adadd556ec8de65a210f",
+    "gate.expire@1": "91f689719d3f782a1ae65243ee89a36225f5f89ce95db1a3d4f8728b88ee36db",
+    "gate.holds.get@1": "dfbea4a8c120c4df4a02150b450a59c57ea67a3b2c0bef884129c182bd07dd28",
+    "gate.holds.list@1": "8ee6747cc04030d3ecdd59ed0cb1b6d2136d4d1523a676777c96995ce63b6378",
+    "gate.park@1": "bda9e6f074548f854ee40a04f18f951dae6cfd1d9a2b5a5565760de84ce50c63",
+    "gate.release@1": "2c929a04c862141d1e413753f1386ce4bd932a2fe4d7983236aed29b4190ba78",
+    "gate.rules.list@1": "7270fd63f324bccc0c2ddfaa6ba75f94354aef12392eea905fba242fcd48f47c",
+    "gate.rules.set@1": "fe507be6966ef16acebaca76c5881e4497323db141c596b8f4dfdeb4a8c5324b"
+  },
+  "events": {
+    "gate.approved": "3b6b40aeefaa6f84686bc3ac91cb74b4be24deecc143fd8d01a5616214afaab8",
+    "gate.denied": "ccc101595168128de147b741a25331fa334acc6f290f4e6401ea0a7808b2c4ee",
+    "gate.expired": "d6c775ea0800c6ba88d162ec04cd2f7f2f2ac47efe3a017fd06861fa24afc8d0",
+    "gate.requested": "9c37492cdcf1eec690ebababd8f61a517169218a44614ca5dbc0ef741f7a1bf7",
+    "gate.rule_changed": "6dac7ac07061adad321db296ea203d5b87ffcd59d2e0ca1315d2688cd1056d6c"
+  }
+}
