@@ -1,7 +1,6 @@
 // Loads every generated entry point so a broken or unreachable generated file fails a test, and checks the pieces agree.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createClient } from '../../../generated/client.ts';
 import type { CallRequest } from '../../../generated/client.ts';
