@@ -4,7 +4,7 @@ Review of the merged capability registry at the F11 freeze. `packages/contracts/
 
 ## Frozen values
 
-Registry hash: 4119c7ca91d0817d23f4e70ee299770c5c028c1e59e69ce15597a57cea7b820a
+Registry hash: 1c3af69e0b6a3efb5cb4e417996c28265cdf4d11461fe0b1a91f6ad9f59c7493
 Capabilities: 1490
 Events: 598
 Registry modules: 80
