@@ -137,13 +137,6 @@ export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceCl
       // The type filter is part of the MATCH (kind is an indexed column), so a rare kind (one file among 110k rows) is found by its own posting list, not by scanning every row a broad prefix matches.
       const kindMatch = kinds && kinds.length ? ` AND kind : (${kinds.map((k) => `"${k}"`).join(" OR ")})` : "";
       const text = (m: string): string => `{title body} : (${m})`;
-      // Stage 1: candidates in rowid (static rank) order, title matches first, then matches anywhere. LIMIT stops the scan early, so a broad prefix costs the same as a narrow one.
-      const pick = (m: string): number[] => driver.prepare(`SELECT rowid AS r FROM search_idx WHERE search_idx MATCH ? ORDER BY rowid LIMIT ${CANDIDATES}`).all([m]).map((r) => Number(r.r));
-      let cand = pick(`title : (${match})${kindMatch}`);
-      if (cand.length < CANDIDATES) {
-        const seen = new Set(cand);
-        for (const r of pick(`${text(match)}${kindMatch}`)) { if (!seen.has(r)) cand.push(r); if (cand.length >= CANDIDATES) break; }
-      }
       const limit = so.limit ?? defaultLimit;
       const toHit = (r: Record<string, unknown>): SearchHit => ({
         entity: String(r.entity), id: String(r.id), kind: String(r.kind) as SearchKind, title: String(r.title ?? ""), snippet: String(r.snip ?? ""), score: Number(r.score),
@@ -152,12 +145,17 @@ export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceCl
       const recent = driver.prepare(
         `SELECT entity, id, kind, title, snippet(search_recent, 1, '[', ']', '…', 12) AS snip, bm25(search_recent, 8.0, 1.0, 0.0) AS score FROM search_recent WHERE search_recent MATCH ? ORDER BY score LIMIT ?`,
       ).all([`${text(match)}${kindMatch}`, limit]).map(toHit);
-      if (cand.length === 0) return { hits: recent, prefix, scope, actions: false };
-      cand = cand.slice(0, CANDIDATES);
-      // Stage 2: bm25 (title over body) among the candidates.
-      const rows = driver.prepare(
-        `SELECT entity, id, kind, title, snippet(search_idx, 1, '[', ']', '…', 12) AS snip, bm25(search_idx, 8.0, 1.0, 0.0) AS score FROM search_idx WHERE search_idx MATCH ? AND rowid IN (${cand.join(",")}) ORDER BY score LIMIT ?`,
-      ).all([text(match), limit]).map(toHit);
+      // The ranked index, in one pass per query: the first CANDIDATES matches in static rank (rowid) order, scored with bm25 (title over body) only for those, best first. The inner LIMIT
+      // stops the scan early, so a one-letter prefix costs what a narrow one does. Title matches are searched first and matches anywhere second, so a title hit is never crowded out.
+      const ranked = (m: string): SearchHit[] => driver.prepare(
+        `SELECT * FROM (SELECT entity, id, kind, title, snippet(search_idx, 1, '[', ']', '…', 12) AS snip, bm25(search_idx, 8.0, 1.0, 0.0) AS score FROM search_idx WHERE search_idx MATCH ? ORDER BY rowid LIMIT ${CANDIDATES}) ORDER BY score LIMIT ?`,
+      ).all([m, limit]).map(toHit);
+      const seen = new Set<string>();
+      const rows: SearchHit[] = [];
+      for (const h of [...ranked(`title : (${match})${kindMatch}`), ...ranked(`${text(match)}${kindMatch}`)].sort((x, y) => x.score - y.score)) {
+        const k = `${h.entity}\u0000${h.id}`;
+        if (!seen.has(k)) { seen.add(k); rows.push(h); }
+      }
       return { hits: [...recent, ...rows].slice(0, limit), prefix, scope, actions: false };
     },
   };
