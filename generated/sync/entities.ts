@@ -404,7 +404,7 @@ export const syncEntities: SyncEntityConfig[] = [
   {
     "kind": "entity",
     "key": "contact_address",
-    "table": "contacts_address",
+    "table": "contacts_link_address",
     "idPrefix": "adr_",
     "module": "contacts-link",
     "acl": {
@@ -2223,7 +2223,7 @@ export const syncEntities: SyncEntityConfig[] = [
   {
     "kind": "entity",
     "key": "suppression",
-    "table": "contacts_suppression",
+    "table": "contacts_link_suppression",
     "idPrefix": "sup_",
     "module": "contacts-link",
     "acl": {
