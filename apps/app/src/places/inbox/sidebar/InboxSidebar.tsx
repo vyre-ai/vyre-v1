@@ -10,7 +10,7 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useInboxData, useOptionalInboxData, useScreenQuery } from "./data.tsx";
 import { SCREENS, navGroups, sameScope } from "./model.ts";
-import type { ContactRow, NavInbox, Scope, View } from "./model.ts";
+import type { ContactRow, NavInbox, Scope, View as ViewKind } from "./model.ts";
 import { Glyph, IconButton, Unread } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
 import { useInboxState } from "./state.tsx";
@@ -75,7 +75,7 @@ function Sidebar(): ReactElement {
 
   const closed = (k: string): boolean => state.closed.includes(k);
   const scoped = (scope: Scope): boolean => state.main === "list" && sameScope(state.scope, scope);
-  const pick = (scope: Scope, view?: View): void => { dispatch({ type: "scope", scope }); if (view) dispatch({ type: "view", view }); };
+  const pick = (scope: Scope, view?: ViewKind): void => { dispatch({ type: "scope", scope }); if (view) dispatch({ type: "view", view }); };
 
   const inboxMenu = (b: NavInbox, x: number, y: number): void => {
     const entries: MenuEntry[] = [
