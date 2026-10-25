@@ -8,7 +8,7 @@ export const MAX_ENTRIES = 15;
 export const MAX_CAP_SEC = 120;
 export const TEST_FILE = /\.test\.(?:m?js|cjs|tsx?)$/;
 
-export type SlowEntry = { file: string; capSec: number; owner: string; reason: string; heavy?: boolean };
+export type SlowEntry = { file: string; capSec: number; owner: string; reason: string; heavy?: boolean; perf?: boolean };
 
 /** Every problem in a slow list; an empty array means the list is valid. */
 export function checkSlow(entries: unknown): string[] {
@@ -26,6 +26,7 @@ export function checkSlow(entries: unknown): string[] {
     if (typeof e.owner !== "string" || !e.owner.trim()) problems.push(`${at}: owner is required`);
     if (typeof e.reason !== "string" || !e.reason.trim()) problems.push(`${at}: reason is required`);
     if (e.heavy !== undefined && typeof e.heavy !== "boolean") problems.push(`${at}: heavy must be a boolean`);
+    if (e.perf !== undefined && typeof e.perf !== "boolean") problems.push(`${at}: perf must be a boolean`);
   });
   return problems;
 }

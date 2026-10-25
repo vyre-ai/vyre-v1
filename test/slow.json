@@ -4,9 +4,17 @@
   {"file": "host/tests/daemon.boot.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the full daemon on the seeded Space three times; 14-22 s on loaded runners"},
   {"file": "host/tests/live.l6.test.ts", "capSec": 120, "owner": "L6", "reason": "boots the daemon with every L6 module live; about 15 s"},
   {"file": "host/tests/webhooks.live.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the daemon and a local webhook receiver with retries"},
-  {"file": "modules/records/tests/write.perf.test.ts", "capSec": 120, "owner": "L3", "reason": "p95 write budget; measured in the slow shard, away from parallel fast files"},
+  {"file": "modules/records/tests/write.perf.test.ts", "capSec": 120, "owner": "L3", "reason": "p95 write budget; measured in the slow shard, away from parallel fast files", "perf": true},
   {"file": "host/tests/store.live.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the daemon twice on the seeded Space to prove the data modules keep records across a restart"},
   {"file": "host/tests/syncengine.live.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the daemon on the seeded Space and runs the sync engine against a fake connector"},
   {"file": "host/tests/live.l3.test.ts", "capSec": 120, "owner": "L3", "reason": "boots the daemon twice with every L3 module live and restarts it to read a record back; about 15 s"},
-  {"file": "host/tests/webhooks.recover.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the daemon twice on the seeded Space to prove a crashed webhook delivery is sent after a restart"}
+  {"file": "host/tests/webhooks.recover.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the daemon twice on the seeded Space to prove a crashed webhook delivery is sent after a restart"},
+  {"file": "modules/access/tests/check.perf.test.ts", "capSec": 120, "owner": "L2", "reason": "authorize decisions per second budget; node speed numbers count only from the v1-perf runners (ruling 46)", "perf": true},
+  {"file": "modules/records/tests/query.perf.test.ts", "capSec": 120, "owner": "L3", "reason": "query speed budget; node speed numbers count only from the v1-perf runners (ruling 46)", "perf": true},
+  {"file": "agent/tests/drivers-api.perf.test.ts", "capSec": 120, "owner": "L5", "reason": "speed budget; node speed numbers count only from the v1-perf runners (ruling 46)", "perf": true},
+  {"file": "agent/tests/pool.perf.test.ts", "capSec": 120, "owner": "L5", "reason": "speed budget; node speed numbers count only from the v1-perf runners (ruling 46)", "perf": true},
+  {"file": "agent/tests/turn-engine.perf.test.ts", "capSec": 120, "owner": "L5", "reason": "speed budget; node speed numbers count only from the v1-perf runners (ruling 46)", "perf": true},
+  {"file": "kernel/tests/authorize.bench.test.ts", "capSec": 120, "owner": "L1", "reason": "speed benchmark; node speed numbers count only from the v1-perf runners (ruling 46)", "perf": true},
+  {"file": "kernel/tests/log.commit.bench.test.ts", "capSec": 120, "owner": "L1", "reason": "speed benchmark; node speed numbers count only from the v1-perf runners (ruling 46)", "perf": true},
+  {"file": "manifest/tests/scaffold.module.test.ts", "capSec": 120, "owner": "CI", "reason": "took 22 s on loaded runners against the 20 s fast cap"}
 ]
