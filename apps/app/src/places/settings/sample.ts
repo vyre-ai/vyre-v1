@@ -4,6 +4,7 @@
 import { createFakeReplica, createScreenHooks, liveQuery } from "../../../../../client/src/index.ts";
 import type { FakeReplica, LiveQuery, Row, ScreenHooks } from "../../../../../client/src/index.ts";
 import { screensById } from "../../../../../generated/screens.ts";
+import { namesFor } from "../../fixtures/index.ts";
 import type { CapMap } from "../../../../../generated/types.ts";
 import type { SettingsData, SettingsNav, SpaceTile } from "./data.tsx";
 import { searchRows } from "./model.ts";
@@ -63,7 +64,7 @@ const hrs = { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:30" };
 
 export const northwind: SampleSpace = {
   id: "northwind", name: "Northwind", me: { id: "usr_irfad", name: "Irfad Imtiaz" },
-  names: { usr_irfad: "Irfad Imtiaz", agt_intake: "Intake", agt_docs: "Docs", agt_billing: "Billing", ch_sales: "#sales" },
+  names: namesFor("northwind", { ch_sales: "#sales" }),
   values: {
     "appearance.skin": "graphite", "profile.display_name": "Irfad Imtiaz", "profile.handle": "irfad", "profile.title": "Head of operations", "profile.timezone": "America/Los_Angeles",
     "profile.working_hours": hrs, "profile.contact": { email: "irfad@northwind.example", phone: "+1 415 555 0132" }, "engine.subscription_share": false, "engine.runtime_opt_in": false,
@@ -79,7 +80,7 @@ export const northwind: SampleSpace = {
 
 export const harbor: SampleSpace = {
   id: "harbor", name: "Harbor Studio", me: { id: "usr_june", name: "June Okafor" },
-  names: { usr_june: "June Okafor", usr_ines: "Ines Costa" },
+  names: namesFor("harbor"),
   values: { "profile.display_name": "June Okafor", "profile.handle": "june", "profile.title": "Designer", "profile.timezone": "Europe/London", "profile.contact": { email: "june@harborstudio.example" } },
   spaces: [
     { id: "harbor", name: "Harbor Studio", addr: "harbor.vyre.run", kind: "team", role: "Member", needsYou: 0, current: true },

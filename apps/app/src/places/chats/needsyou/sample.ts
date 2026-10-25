@@ -4,6 +4,7 @@
 import { createFakeReplica, createScreenHooks } from "../../../../../../client/src/index.ts";
 import type { FakeReplica, Row } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
+import { namesFor, nameOf } from "../../../fixtures/index.ts";
 import type { Connection, NeedsNav, NeedsYouData } from "./data.tsx";
 import type { Item, Reason, Task } from "./model.ts";
 
@@ -14,11 +15,7 @@ const at = (m: number, d: number, h: number, min = 0): number => Date.UTC(2025, 
 export type Variant = "northwind" | "harbor";
 
 export const ME = "usr_irfad";
-export const NAMES: Record<string, string> = {
-  usr_irfad: "You", usr_omar: "Omar Haddad", usr_maya: "Maya Chen",
-  agt_billing: "Billing", agt_docs: "Docs", agt_scout: "Scout", agt_intake: "Intake", agt_research: "Research", agt_assistant: "Assistant",
-  role_finance: "Finance", usr_lena: "Lena Ortiz",
-};
+export const NAMES: Record<string, string> = namesFor("northwind", { usr_irfad: "You", role_finance: "Finance" });
 const SOURCES: Record<string, string> = { "chat:c3": "October invoices", "chat:c4": "Rivera engagement letter", "chat:c6": "County records search", "chat:c1": "Rivera intake", "chat:c2": "Competitor pricing", "chat:c7": "Plan the Q4 offsite" };
 
 const approve = [{ key: "approve", label: "Approve" }, { key: "send_back", label: "Send back", note: "required" as const }];
@@ -128,7 +125,7 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     connection,
     me: ME,
     space: { name: variant === "northwind" ? "Northwind" : "Harbor Studio" },
-    nameOf: (id) => NAMES[id] ?? id,
+    nameOf: (id) => NAMES[id] ?? nameOf("northwind", id),
     sourceTitle: (kind, id) => SOURCES[`${kind}:${id}`],
     nav,
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
