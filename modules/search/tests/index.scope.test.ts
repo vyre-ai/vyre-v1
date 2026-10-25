@@ -6,7 +6,7 @@ import { registry } from "../../../generated/registry.ts";
 import { deref } from "../../../packages/contracts/src/jsonschema.ts";
 import { indexApply } from "../handlers/index.ts";
 import { query } from "../handlers/query.ts";
-import { WATCHED, consumers, targetOf } from "../impl.ts";
+import { WATCHED, consumers, targetOf, targetsOf } from "../impl.ts";
 import { asPerson, contractErrors, harness, notFound, seed } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -112,6 +112,7 @@ test("an event for an end-to-end row is not followed, and the watched events are
     assert.ok(e, `${name} is a declared event`);
     const props = deref(e!.payload, registry.$defs).properties ?? {};
     assert.ok(w.idKey in props, `${name} carries ${w.idKey}`);
+    if (w.alsoRemove) assert.ok(w.alsoRemove in props, `${name} carries ${w.alsoRemove}`);
   }
   assert.deepEqual(consumers["search.fts"].on, Object.keys(WATCHED));
 });
@@ -151,4 +152,31 @@ test("a row that is gone or hidden leaves the index; a source that fails is coun
   assert.deepEqual(await indexApply(h.ctx, { entity: "task", id: "tsk_a", op: "upsert", seq: 2 }), { indexed: true }, "the same event succeeds on retry");
   assert.equal(h.rows("SELECT count(*) AS c FROM search_failed")[0]!["c"], 0);
   assert.deepEqual(await indexApply(h.ctx, { entity: "mystery", id: "x_1", op: "upsert", seq: 3 }), { indexed: false }, "an entity nobody can read is ignored");
+});
+
+test("a merge takes the merged-away record out of the index and reads the survivor again", async () => {
+  let survivorTitle = "Acme Corp";
+  const h = harness({
+    respond: {
+      "records.get": (i) => (i["recordId"] === "rec_gone" ? notFound() : { record: { id: i["recordId"], type: "client", label: 1, fields: { name: survivorTitle, notes: "merged notes" }, updatedAt: 5 } }),
+      "schema.types.get": () => ({ type: { titleField: "name" } }),
+    },
+  });
+  seed(h, { id: "rec_gone", title: "Acme Corporation duplicate", kind: "record", entity: "record:client", recordType: "client" });
+  seed(h, { id: "rec_keep", title: "Acme Corp", kind: "record", entity: "record:client", recordType: "client" });
+  const event = { type: "record.merged", seq: 40, payload: { survivorId: "rec_keep", mergedId: "rec_gone", type: "client" } };
+  assert.deepEqual(targetsOf(event), [
+    { entity: "record:client", id: "rec_gone", op: "delete", seq: 40 },
+    { entity: "record:client", id: "rec_keep", op: "upsert", seq: 40 },
+  ]);
+  survivorTitle = "Acme Corp (merged)";
+  for (const t of targetsOf(event)) await indexApply(h.ctx, t);
+  assert.deepEqual(h.rows("SELECT id, title FROM search_docs ORDER BY id").map((r) => [r["id"], r["title"]]), [["rec_keep", "Acme Corp (merged)"]], "the merged-away record left, the survivor was read again");
+  assert.deepEqual((await query(h.ctx, { q: "duplicate" })).hits, [], "the merged-away record is not found");
+  assert.deepEqual((await query(h.ctx, { q: "merged notes" })).hits.map((x) => x.id), ["rec_keep"], "the survivor is found by what the merge brought");
+  // the consumer does the same from the event
+  const h2 = harness({ respond: { "records.get": () => ({ record: { id: "rec_keep", type: "client", label: 1, fields: { name: "Acme" } } }), "schema.types.get": () => ({ type: { titleField: "name" } }) } });
+  seed(h2, { id: "rec_gone", title: "Dup", kind: "record", entity: "record:client", recordType: "client" });
+  await consumers["search.fts"].run(h2.ctx, event);
+  assert.deepEqual(h2.rows("SELECT id FROM search_docs ORDER BY id").map((r) => r["id"]), ["rec_keep"]);
 });

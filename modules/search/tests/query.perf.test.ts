@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { query, mergeHits } from "../handlers/query.ts";
-import { writeVector, DIM } from "../projections.ts";
+import { DIM, hashEmbed, normalise, writeVector } from "../projections.ts";
 import { bulk, harness, randomUnit } from "../fixtures/harness.ts";
 
 // The shard kills a file at 20 s without a word: fail inside the loops, naming the phase, well before that.
@@ -30,7 +30,14 @@ test("perf search.server: p95 under 300 ms merged with local, 100k records and 1
   // vectors for a slice of them, so the semantic and hybrid paths scan something real
   const v = new Float32Array(DIM);
   const n0 = Number(h.rows("SELECT MIN(n) AS m FROM search_docs")[0]!["m"]);
-  for (let i = 0; i < 5_000; i++) writeVector(h.db, h.space, n0 + i, randomUnit(i + 1, v));
+  // the vectors are unrelated to the two queries whose answers are asserted exactly: made orthogonal to what those queries embed to, so their cosine is zero, not a chance figure
+  const away = [hashEmbed("zelda"), hashEmbed("quill")];
+  for (let i = 0; i < 5_000; i++) {
+    randomUnit(i + 1, v);
+    for (let pass = 0; pass < 2; pass++) for (const q of away) { let d = 0; for (let j = 0; j < DIM; j++) d += v[j]! * q[j]!; for (let j = 0; j < DIM; j++) v[j] = v[j]! - d * q[j]!; }
+    normalise(v);
+    writeVector(h.db, h.space, n0 + i, v);
+  }
   tick("vectors written");
 
   const queries = ["b", "ba", "k", "ke", "a", "b k", "ba ke", "bake", "balo mi", "pidog", "gafe zu", "zelda", "quill", "vona", "kera", "mirasu", "tevo na"];
@@ -52,7 +59,7 @@ test("perf search.server: p95 under 300 ms merged with local, 100k records and 1
   samples.sort((a, b) => a - b);
   const p95 = samples[Math.floor(samples.length * 0.95)] ?? 0;
   assert.ok(hits > 0);
-  assert.deepEqual((await query(h.ctx, { q: "zelda", mode: "keyword" })).hits.map((x) => x.id), ["usr_0"]);
-  assert.deepEqual((await query(h.ctx, { q: "quill", types: ["file"], mode: "keyword" })).hits.map((x) => x.id), ["fil_1"], "the type filter finds the one file among 110,000 rows");
+  assert.deepEqual((await query(h.ctx, { q: "zelda" })).hits.map((x) => x.id), ["usr_0"]);
+  assert.deepEqual((await query(h.ctx, { q: "quill", types: ["file"] })).hits.map((x) => x.id), ["fil_1"], "the type filter finds the one file among 110,000 rows");
   assert.ok(p95 < 300, `search.server p95 ${p95.toFixed(1)} ms is over 300 ms; slowest ${samples[samples.length - 1]!.toFixed(0)} ms`);
 });

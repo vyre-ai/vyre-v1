@@ -17,8 +17,9 @@ export { ensure } from "./projections.ts";
 export interface IndexEvent { type: string; seq: number; enc?: number; entity?: string; entityId?: string; payload: Record<string, unknown> }
 
 /** The events that change what the index holds: which entity, which payload key holds its id, and whether the event removes it. */
-export const WATCHED: Readonly<Record<string, { entity: string; idKey: string; remove?: boolean }>> = {
+export const WATCHED: Readonly<Record<string, { entity: string; idKey: string; remove?: boolean; /** a second row the event takes out of the index (a merge: the merged-away record) */ alsoRemove?: string }>> = {
   "record.created": { entity: "record", idKey: "recordId" }, "record.updated": { entity: "record", idKey: "recordId" }, "record.restored": { entity: "record", idKey: "recordId" },
+  "record.merged": { entity: "record", idKey: "survivorId", alsoRemove: "mergedId" },
   "record.deleted": { entity: "record", idKey: "recordId", remove: true },
   "file.created": { entity: "file", idKey: "fileId" }, "file.renamed": { entity: "file", idKey: "fileId" }, "file.moved": { entity: "file", idKey: "fileId" },
   "file.version_added": { entity: "file", idKey: "fileId" }, "file.restored": { entity: "file", idKey: "fileId" },
@@ -35,14 +36,25 @@ export const WATCHED: Readonly<Record<string, { entity: string; idKey: string; r
   "channel.archived": { entity: "channel", idKey: "channelId", remove: true },
 };
 
-/** The entity row an event is about, or null when it is not one the index follows or it is end-to-end. */
-export function targetOf(e: IndexEvent): { entity: string; id: string; op: "upsert" | "delete"; seq: number } | null {
+export interface IndexTarget { entity: string; id: string; op: "upsert" | "delete"; seq: number }
+
+/** The entity rows an event is about, or none when it is not one the index follows or it is end-to-end. A merge has two: the merged-away record leaves, the survivor is read again. */
+export function targetsOf(e: IndexEvent): IndexTarget[] {
   const w = WATCHED[e.type];
-  if (!w || e.enc === 2) return null;
+  if (!w || e.enc === 2) return [];
   const id = typeof e.payload[w.idKey] === "string" ? (e.payload[w.idKey] as string) : e.entityId;
-  if (!id) return null;
+  if (!id) return [];
   const type = w.entity === "record" && typeof e.payload["type"] === "string" ? `record:${e.payload["type"] as string}` : w.entity;
-  return { entity: type, id, op: w.remove ? "delete" : "upsert", seq: e.seq };
+  const out: IndexTarget[] = [];
+  const gone = w.alsoRemove !== undefined ? e.payload[w.alsoRemove] : undefined;
+  if (typeof gone === "string") out.push({ entity: type, id: gone, op: "delete", seq: e.seq });
+  out.push({ entity: type, id, op: w.remove ? "delete" : "upsert", seq: e.seq });
+  return out;
+}
+
+/** The single row an event is about (the last of its targets): what a one-row event means. */
+export function targetOf(e: IndexEvent): IndexTarget | null {
+  return targetsOf(e).at(-1) ?? null;
 }
 
 export const consumers = {
@@ -50,15 +62,14 @@ export const consumers = {
   "search.fts": {
     on: Object.keys(WATCHED),
     run: async (ctx: SearchCtx, event: IndexEvent): Promise<void> => {
-      const t = targetOf(event);
-      if (t) await indexApply(ctx, t);
+      for (const t of targetsOf(event)) await indexApply(ctx, t);
     },
   },
   /** What changed gets its vector within seconds: the newest documents without one are embedded in a small batch. */
   "search.vectors": {
     on: Object.keys(WATCHED),
     run: async (ctx: SearchCtx, event: IndexEvent): Promise<void> => {
-      if (targetOf(event)) await embedRun(ctx, { limit: 50 });
+      if (targetsOf(event).length > 0) await embedRun(ctx, { limit: 50 });
     },
   },
 };
