@@ -5351,7 +5351,7 @@ kbd { font: 500 11px/16px var(--ui); color: var(--ink-3); padding: 0 4px; border
     if (f.kind === "csv") {
       let rows = f.rows.map((r, i) =&gt; [r, i]);
       if (ui.sortCol !== null) rows.sort((a, b) =&gt; { const x = a[0][ui.sortCol], y = b[0][ui.sortCol]; const nx = parseFloat(String(x).replace(/[^0-9.]/g, "")), ny = parseFloat(String(y).replace(/[^0-9.]/g, "")); return (isNaN(nx) || isNaN(ny) ? String(x).localeCompare(String(y)) : nx - ny) * ui.sortDir; });
-      const isNum = (v) =&gt; /^[$\d.,\u2014-]+$/.test(v);
+      const isNum = (v) =&gt; /^[$\d.,\u{2014}-]+$/u.test(v);
       return `&lt;div class="fvbody white"&gt;&lt;div class="sheetv"&gt;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th class="rn"&gt;&lt;/th&gt;${f.cols.map((c, ci) =&gt; `&lt;th data-sort="${ci}" title="Sort"&gt;${esc(c)}${ui.sortCol === ci ? `&lt;span class="srt"&gt;${ui.sortDir &gt; 0 ? "↑" : "↓"}&lt;/span&gt;` : ""}&lt;/th&gt;`).join("")}&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;${rows.map(([r, ri], k) =&gt; `&lt;tr&gt;&lt;td class="rn"&gt;${k + 1}&lt;/td&gt;${r.map((v, ci) =&gt; `&lt;td class="${isNum(v) ? "num" : ""}" data-cell="${ri}:${ci}"&gt;${esc(v)}&lt;/td&gt;`).join("")}&lt;/tr&gt;`).join("")}&lt;/tbody&gt;&lt;/table&gt;&lt;/div&gt;&lt;div class="sheetfoot"&gt;&lt;span&gt;${f.rows.length} rows · ${f.cols.length} columns&lt;/span&gt;&lt;span&gt;${editing ? "Double-click a cell to edit · Enter saves" : "Click a column to sort"}&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;`;
     }
     if (f.kind === "md") {
