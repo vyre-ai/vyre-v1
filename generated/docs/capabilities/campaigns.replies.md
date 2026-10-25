@@ -68,7 +68,7 @@ type Out = {
     "replies": [
       {
         "at": 1760000000000,
-        "messageId": "msg_a1b2c3",
+        "messageId": "eml_a1b2c3",
         "recordId": "rec_a1b2c3"
       }
     ],
