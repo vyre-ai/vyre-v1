@@ -9,18 +9,18 @@ export const title = "Plan";
 
 const P = (name: string): { name: string; kind: "person" } => ({ name, kind: "person" });
 const A = (name: string): { name: string; kind: "agent" } => ({ name, kind: "agent" });
+// The tasks of the prototype's "Rivera engagement" project (the screen the prototype side of each shot opens), so both sides draw the same data.
+const T = (id: string, stage: string, title: string, start: string, end: string, who: ReturnType<typeof P> | ReturnType<typeof A>, status: PlanTask["status"]): PlanTask => ({ id, stage, kind: "task", title, start, end, assigned: who, status, effort: "3h" });
 const TASKS: PlanTask[] = [
-  { id: "t1", stage: "pruitt", kind: "task", title: "Send the retainer reminder to Marcus Pruitt", start: "2026-10-20", end: "2026-10-22", status: "doing", assigned: P("Irfad Imtiaz") },
-  { id: "t2", stage: "pruitt", kind: "task", title: "Review the Pruitt intake form", start: "2026-10-23", end: "2026-10-26", status: "review", assigned: A("Intake"), deps: ["t1"] },
-  { id: "t3", stage: "pruitt", kind: "task", title: "Prepare the consult folder", start: "2026-10-27", end: "2026-10-29", assigned: P("Omar Haddad"), deps: ["t2"] },
-  { id: "m1", stage: "pruitt", kind: "milestone", title: "Consult", start: "2026-10-30", deps: ["t3"], fixed: true },
-  { id: "t4", stage: "atp", kind: "task", title: "Review the Harlow & Price worksheet", start: "2026-10-22", end: "2026-10-23", status: "blocked", assigned: A("Research") },
-  { id: "t5", stage: "atp", kind: "task", title: "Quarterly ATP review", start: "2026-10-26", end: "2026-10-31", assigned: P("Irfad Imtiaz"), deps: ["t4"] },
-  { id: "t6", stage: "rivera", kind: "task", title: "Approve the engagement letter", start: "2026-10-24", end: "2026-10-24", status: "approval", assigned: A("Docs") },
-  { id: "t7", stage: "rivera", kind: "task", title: "Call Elena about the fee waiver", start: "2026-10-24", end: "2026-10-25", status: "doing", assigned: P("Irfad Imtiaz") },
+  T("t1", "Intake", "Send welcome pack", "2026-10-20", "2026-10-23", A("Intake"), "done"),
+  T("t2", "Drafting", "Send the engagement letter for signature", "2026-10-23", "2026-10-26", A("Docs"), "todo"),
+  T("t3", "Drafting", "Request ID document", "2026-10-23", "2026-10-26", A("Intake"), "todo"),
+  T("t4", "Drafting", "Send engagement letter", "2026-10-24", "2026-10-27", A("Docs"), "doing"),
+  T("t5", "In review", "Chase Elena's ID scan before Tuesday", "2026-10-23", "2026-10-26", A("Intake"), "todo"),
+  T("t6", "In review", "Run the conflict check", "2026-10-23", "2026-10-26", P("Lena Ortiz"), "doing"),
 ];
-const STAGES = [{ id: "pruitt", name: "Pruitt engagement" }, { id: "atp", name: "ATP · Harlow & Price" }, { id: "rivera", name: "Rivera matter" }];
-const PEOPLE = [P("Irfad Imtiaz"), P("Maya Chen"), P("Omar Haddad"), A("Intake"), A("Docs"), A("Research")];
+const STAGES = [{ id: "Intake", name: "Intake" }, { id: "Drafting", name: "Drafting" }, { id: "In review", name: "In review" }, { id: "Delivered", name: "Delivered" }];
+const PEOPLE = [P("Maya Chen"), P("Omar Haddad"), P("Lena Ortiz"), P("Sam Patel"), A("Intake"), A("Billing"), A("Research"), A("Docs"), A("Scout")];
 const VIEWS: readonly PlanView[] = ["timeline", "board", "list", "calendar"];
 
 export default function Mount(): ReactNode {

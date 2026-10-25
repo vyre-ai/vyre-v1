@@ -12,7 +12,7 @@ function card(c: PlanCtx, it: Item): ReactElement {
     key: it.id, role: "button", "aria-pressed": on, draggable: true, tabIndex: -1, "data-testid": `plan-card-${it.id}`,
     onClick: (e: EventLike) => c.select(it.id, e.metaKey || e.ctrlKey, e.shiftKey), onDoubleClick: () => c.open(it.id), ...menuTrigger((x: number, y: number) => c.menu(it.id, x, y)),
     onDragStart: (e: EventLike) => { if (!c.sel.has(it.id)) c.only(it.id); c.cardDragStart(it.id); if (e.dataTransfer) { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", it.id); } },
-    style: { display: "flex", flexDirection: "column", gap: 6, padding: "8px 10px", borderRadius: 9, background: "var(--raised)", border: `1px solid ${on ? "var(--accent)" : "var(--line)"}`, boxShadow: on ? "0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent)" : "none", cursor: "grab" },
+    style: { display: "flex", flexDirection: "column", gap: 6, padding: "8px 10px", borderRadius: 9, background: "var(--win)", border: `1px solid ${on ? "var(--accent)" : "var(--line)"}`, opacity: it.status === "done" && !on ? 0.75 : 1, boxShadow: on ? "0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent)" : "none", cursor: "grab" },
   },
   h("div", { style: { display: "flex", alignItems: "center", gap: 8, fontSize: 13 } },
     h("button", { type: "button", "aria-label": it.status === "done" ? "Reopen" : "Mark done", "data-testid": `plan-done-${it.id}`, onClick: (e: EventLike) => { e.stopPropagation(); c.toggleDone(c.sel.has(it.id) && c.sel.size > 1 ? [...c.sel] : [it.id]); }, style: { border: 0, background: "none", padding: 0, cursor: "pointer", display: "inline-flex" } },
@@ -36,7 +36,7 @@ export function boardView(c: PlanCtx, height: number): ReactElement {
     cols.push(h("div", {
       key: st.id, "data-testid": `plan-col-${st.id}`,
       onDragOver: (e: EventLike) => e.preventDefault(), onDrop: (e: EventLike) => { e.preventDefault(); c.cardDrop(st.id); },
-      style: { flex: "1 1 240px", minWidth: 240, display: "flex", flexDirection: "column", gap: 8, padding: 8, borderRadius: 10, background: "var(--sunk)" },
+      style: { flex: "1 1 210px", minWidth: 210, display: "flex", flexDirection: "column", gap: 8, padding: 8 },
     },
     h("div", { style: { display: "flex", alignItems: "center", gap: 8, padding: "2px 4px", fontSize: 12.5 } },
       h("b", null, st.name), h("span", { style: { color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" } }, its.length === all.length ? String(all.length) : `${its.length} of ${all.length}`),

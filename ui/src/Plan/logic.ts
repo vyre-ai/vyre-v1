@@ -70,7 +70,7 @@ export function passes(i: Item, f: PlanFilter, today: number): boolean {
 
 /* ---------- geometry ---------- */
 
-export const LABEL_W = 220;
+export const LABEL_W = 224;
 export const STAGE_H = 34;
 export const ROW_H = 36;
 export const HEAD_H = 46;
