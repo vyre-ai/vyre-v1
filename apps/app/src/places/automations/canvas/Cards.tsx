@@ -49,6 +49,7 @@ export function StepCard({ card, selected, hovered, handlers, agent, onHover }: 
       accessibilityRole="button"
       accessibilityLabel={`${card.title}. ${card.sub}${card.issues.length ? `. ${card.issues.length} to fix` : ""}`}
       accessibilityState={{ selected }}
+      aria-selected={selected}
       testID={`card-${card.id}`}
       onPress={() => { handlers.onSelect(card.id); const now = Date.now(); if (now - last.current < DOUBLE_MS) { last.current = 0; handlers.onOpen(card.id); } else last.current = now; }}
       onHoverIn={() => onHover(card.id)}

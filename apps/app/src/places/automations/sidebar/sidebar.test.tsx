@@ -83,7 +83,7 @@ test("the sidebar draws the tabs, search, Failed runs and each section with its 
 
 test("the selected Automation's row is marked and Groups start closed", () => {
   const out = html(createSampleAutomations(northwind), { selectedId: "aut_lead" });
-  assert.match(out.match(/<[^>]*data-testid="row-auto-needs:aut_lead"[^>]*>/)![0], /aria-selected="true"/);
+  assert.match(out.match(/<[^>]*data-testid="row-auto-needs:aut_lead"[^>]*>/)![0], /var\(--sel\)/, "the shared Row paints the selection token");
   assert.ok(!has(out, 'data-testid="row-auto-space:aut_score"'), "Lead scoring is inside the closed Sales Group");
   const open = html(createSampleAutomations(northwind), { initialOpen: ["space:agr_sales"] });
   assert.ok(has(open, 'data-testid="row-auto-space:aut_score"') && has(open, "Hot lead alert"));

@@ -73,6 +73,7 @@ export function SubTabs({ tabs, active, onSelect, label }: { tabs: readonly SubT
         key={t.key}
         accessibilityRole="tab"
         accessibilityState={{ selected: on }}
+        aria-selected={on}
         accessibilityLabel={t.label}
         testID={`subtab-${t.key}`}
         onPress={() => onSelect(t.key)}
