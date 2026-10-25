@@ -19,7 +19,7 @@ import type { PageDeps } from "./actions.ts";
 import { AgentPageDataProvider, paneDataOf, useAgentPageData, useOnline, useOptionalAgentPageData, useScreenQuery } from "./data.tsx";
 import type { AgentPageData } from "./data.tsx";
 import { ChatsTab } from "./ChatsTab.tsx";
-import { TabMeasure, useFittedTabs, useTitleWidths } from "../rightpane/fit.ts";
+import { TabMeasure, useFittedTabs, useTitleWidths } from "../rightpane/fit.tsxx";
 import { RoleLine } from "./RoleLine.tsx";
 import { SettingsTab } from "./SettingsTab.tsx";
 import { DEFAULT_TAB, TABS, collect, spendRatio, statusLine, stripOf } from "./model.ts";
@@ -85,7 +85,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
     return () => clearTimeout(t);
   }, [notice]);
 
-  // The page's tab strip folds like the pane's: the same fit and More menu (rightpane/fit.ts), at the page column's own width (390 px phone: Settings never clips).
+  // The page's tab strip folds like the pane's: the same fit and More menu (rightpane/fit.tsx), at the page column's own width (390 px phone: Settings never clips).
   const pageW = colW > 0 ? colW : win.width > 0 ? Math.min(win.width, 760) : 760;
   const { strip, select } = useFittedTabs(TABS, tab, pageW, {
     chrome: STRIP_PADDING, measured: titles.widths,

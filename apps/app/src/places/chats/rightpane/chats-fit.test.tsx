@@ -1,4 +1,4 @@
-// P-L9b_09b: the agent page's tab strip folds like the right pane's, through the same fit (rightpane/fit.ts). At the phone width (390 px) Settings never clips: what does not fit
+// P-L9b_09b: the agent page's tab strip folds like the right pane's, through the same fit (rightpane/fit.tsx). At the phone width (390 px) Settings never clips: what does not fit
 // goes behind More, the open tab stays drawn, and the page still lists every tab on a wide screen.
 import test from "node:test";
 import assert from "node:assert/strict";

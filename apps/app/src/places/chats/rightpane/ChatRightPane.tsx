@@ -18,7 +18,7 @@ import { MemoryTab } from "./MemoryTab.tsx";
 import { RoutinesTab } from "./RoutinesTab.tsx";
 import { ThreadsTab, AGENT_PAGE_SCREEN } from "./ThreadsTab.tsx";
 import { DEFAULT_TAB, PANE_KEY, PANE_WIDTH_GUESS, TABS } from "./model.ts";
-import { TabMeasure, useFittedTabs, useTitleWidths } from "./fit.ts";
+import { TabMeasure, useFittedTabs, useTitleWidths } from "./fit.tsx";
 import type { TabKey } from "./model.ts";
 import { Face, Notice, Tool } from "./parts.tsx";
 
