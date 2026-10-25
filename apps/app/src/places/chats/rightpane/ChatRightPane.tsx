@@ -18,7 +18,7 @@ import { MemoryTab } from "./MemoryTab.tsx";
 import { RoutinesTab } from "./RoutinesTab.tsx";
 import { ThreadsTab, AGENT_PAGE_SCREEN } from "./ThreadsTab.tsx";
 import { DEFAULT_TAB, PANE_KEY, PANE_WIDTH_GUESS, TABS } from "./model.ts";
-import { useFittedTabs } from "./fit.ts";
+import { TabMeasure, useFittedTabs, useTitleWidths } from "./fit.ts";
 import type { TabKey } from "./model.ts";
 import { Face, Notice, Tool } from "./parts.tsx";
 
@@ -84,9 +84,10 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
 
   const agentQ = useScreenQuery<AgentOut>(AGENT_PAGE_SCREEN, "agent", { agentId: data.agent.agentId });
   const agent = agentQ.status === "ready" ? agentQ.data.agent : null;
+  const titles = useTitleWidths();
   const paneNow = paneWidth ?? (narrow ? win.width : paneW);
   const { strip, select } = useFittedTabs(TABS, tab, paneNow, {
-    menu, left: Math.max(0, win.width - paneNow) + 40, top: 40,
+    menu, left: Math.max(0, win.width - paneNow) + 40, top: 40, measured: titles.widths,
     pick: (key) => { setOwn(key); onTab?.(key); },
   });
   const moreMenu = (x: number, y: number): void => {
@@ -99,6 +100,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   return (
     <SidePane paneKey={PANE_KEY} toggle={{ open, onPress: onToggle }} title={data.agent.name} tabs={strip} activeTab={tab} onSelectTab={select} {...(narrow ? { max: 1, defaultWidth: win.width } : {})}>
       <View testID="chats-right-pane" style={st.root} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}>
+        <TabMeasure titles={TAB_TITLES} onWidth={titles.set} />
         <View testID="pane-agent" style={st.who}>
           <Face name={data.agent.name} size={30} pulse={agent?.status === "working"} />
           <View style={st.whoText}>
@@ -121,6 +123,8 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
     </SidePane>
   );
 }
+
+const TAB_TITLES: readonly string[] = TABS.map((x) => x.title);
 
 const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--side)" as string },

@@ -19,7 +19,7 @@ import type { PageDeps } from "./actions.ts";
 import { AgentPageDataProvider, paneDataOf, useAgentPageData, useOnline, useOptionalAgentPageData, useScreenQuery } from "./data.tsx";
 import type { AgentPageData } from "./data.tsx";
 import { ChatsTab } from "./ChatsTab.tsx";
-import { useFittedTabs } from "../rightpane/fit.ts";
+import { TabMeasure, useFittedTabs, useTitleWidths } from "../rightpane/fit.ts";
 import { RoleLine } from "./RoleLine.tsx";
 import { SettingsTab } from "./SettingsTab.tsx";
 import { DEFAULT_TAB, TABS, collect, spendRatio, statusLine, stripOf } from "./model.ts";
@@ -42,8 +42,8 @@ export interface AgentPageProps {
 export const NOTICE_MS = 8000;
 /** Below this window width the header stacks and the strip wraps. */
 export const NARROW = 640;
-/** The page strip pads its tabs wider than the pane model counts (16 px each side), so the fit takes this much off the column: at 390 px nothing clips. */
-const STRIP_SLACK = 40;
+/** ui/TabStrip pads its tab row 6 px each side; the page strip has no toggle or options button, so this is all the chrome the fit subtracts. */
+const STRIP_PADDING = 12;
 
 export function AgentPage(props: AgentPageProps): ReactElement {
   const ctx = useOptionalAgentPageData();
@@ -73,6 +73,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   const [own, setOwn] = useState<TabKey>(initialTab ?? DEFAULT_TAB);
   const tab = controlled ?? own;
   const [colW, setColW] = useState(0);
+  const titles = useTitleWidths();
   const [notice, setNotice] = useState<{ text: string; undo?: () => Promise<void> | void } | null>(null);
   const deps: PageDeps = useMemo(() => ({
     call: data.call,
@@ -86,7 +87,8 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
 
   // The page's tab strip folds like the pane's: the same fit and More menu (rightpane/fit.ts), at the page column's own width (390 px phone: Settings never clips).
   const pageW = colW > 0 ? colW : win.width > 0 ? Math.min(win.width, 760) : 760;
-  const { strip, select } = useFittedTabs(TABS, tab, pageW - STRIP_SLACK, {
+  const { strip, select } = useFittedTabs(TABS, tab, pageW, {
+    chrome: STRIP_PADDING, measured: titles.widths,
     menu, left: Math.max(0, (win.width - pageW) / 2) + 16, top: 330,
     pick: (key) => { setOwn(key); onTab?.(key); },
   });
@@ -148,6 +150,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
             ))}
           </View>
         ) : <View testID="agent-strip-loading" style={st.skStrip} />}
+        <TabMeasure titles={TAB_TITLES} onWidth={titles.set} />
         <TabStrip tabs={strip} active={tab} onSelect={select} label={`${name}'s page`} />
         <View testID={`page-body-${tab}`} style={st.body}>
           <RightPaneDataProvider value={paneDataOf(data)}>
@@ -164,6 +167,8 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
     </View>
   );
 }
+
+const TAB_TITLES: readonly string[] = TABS.map((x) => x.title);
 
 const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, alignItems: "center", backgroundColor: "var(--win)" as string },

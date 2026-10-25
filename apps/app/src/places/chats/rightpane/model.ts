@@ -22,8 +22,13 @@ export const PANE_WIDTH_GUESS = 340;
 export const HEADER_CHROME = 80;
 const GLYPH_W = 6.8;
 const TAB_CHROME = 20;
+/** What a tab in ui/TabStrip adds around its text: 10 + 6 padding, 1 + 1 border, the 7 px gap and the 18 px close slot. The text itself is measured on screen. */
+export const TAB_EXTRA = 43;
 /** The room one tab takes in the shared strip (12.5 px type, 10 + 6 padding, 2 gap). */
 export function tabWidth(title: string): number {
+  return tabW(title);
+}
+function tabW(title: string): number {
   return Math.ceil(title.length * GLYPH_W + TAB_CHROME);
 }
 
@@ -36,8 +41,11 @@ export interface FittedTabs<T extends { key: string; title: string }> {
  * Which tabs the strip draws at `width` (the pane's own width). When all fit, all are shown. Otherwise the open tab is always shown, as many others as fit
  * follow in their own order, and the rest go behind a More tab. Nothing is ever clipped.
  */
-export function fitTabs<T extends { key: string; title: string }>(tabs: readonly T[], active: string, width: number): FittedTabs<T> {
-  const room = width - HEADER_CHROME;
+export function fitTabs<T extends { key: string; title: string }>(
+  tabs: readonly T[], active: string, width: number, o: { chrome?: number; widthOf?: (title: string) => number } = {},
+): FittedTabs<T> {
+  const tabWidth = o.widthOf ?? tabW;
+  const room = width - (o.chrome ?? HEADER_CHROME);
   let total = 0;
   for (const t of tabs) total += tabWidth(t.title);
   if (total <= room) return { shown: tabs.slice(), hidden: [] };

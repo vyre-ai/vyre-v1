@@ -52,3 +52,14 @@ test("Run now and Delegate call the P-CC_20 capabilities with their real inputs"
   assert.deepEqual(s.calls.at(-1)!.input, { agentId: r.agentId, routineId: "r3", undo: true });
   assert.equal(rows().find((x) => x.routineId === "r3")!.ownerId, r.ownerId, "undo gives it back");
 });
+
+test("the fit folds by measured widths: wider real text folds sooner, narrower text keeps more", () => {
+  const width = 358;
+  const est = fitTabs(PAGE_TABS, "chats", width, { chrome: 12 });
+  const wide = fitTabs(PAGE_TABS, "chats", width, { chrome: 12, widthOf: () => 110 });
+  const narrow = fitTabs(PAGE_TABS, "chats", width, { chrome: 12, widthOf: () => 40 });
+  assert.ok(wide.shown.length < est.shown.length || est.hidden.length > 0);
+  assert.equal(narrow.hidden.length, 0, "five 40 px tabs fit 346 px");
+  assert.ok(wide.shown.some((t) => t.key === "chats") && wide.hidden.length > 0);
+  for (const f of [wide, narrow, est]) assert.deepEqual([...f.shown, ...f.hidden].map((t) => t.key).sort(), PAGE_TABS.map((t) => t.key).sort());
+});
