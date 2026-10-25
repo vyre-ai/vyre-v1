@@ -4,7 +4,7 @@
 import { ScrollViewStyleReset, useServerDocumentContext } from "expo-router/html";
 import type { PropsWithChildren } from "react";
 import { bootScript } from "../src/startup/boot.ts";
-import { rootFontCss } from "@vyre/ui/theme/fonts";
+import { rootFontCss } from "@vyre/ui/src/theme/fonts.ts";
 
 export default function Root({ children }: PropsWithChildren) {
   const { htmlAttributes, bodyAttributes, headNodes, bodyNodes } = useServerDocumentContext();

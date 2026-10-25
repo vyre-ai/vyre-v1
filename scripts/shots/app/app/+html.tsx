@@ -3,7 +3,7 @@
 import { ScrollViewStyleReset, useServerDocumentContext } from "expo-router/html";
 import type { PropsWithChildren } from "react";
 import { skins } from "@vyre/ui/tokens";
-import { rootFontCss } from "@vyre/ui/theme/fonts";
+import { rootFontCss } from "@vyre/ui/src/theme/fonts.ts";
 
 const data: Record<string, { base: string; light: Record<string, string>; dark: Record<string, string> }> = {};
 for (const s of skins) data[s.id] = { base: s.base, light: s.light, dark: s.dark };
