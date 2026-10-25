@@ -3,9 +3,11 @@ import { create, defineManifest, ev, outward, read, t, write } from '../packages
 import { id } from './_common.ts';
 
 const emailId = t.id('eml');
-const blockSchema = t.obj({ type: t.enm('text', 'image', 'button', 'columns', 'divider', 'merge', 'html'), props: t.rec() });
+const blockSchema = t.obj({ type: t.enm('text', 'heading', 'image', 'button', 'columns', 'divider', 'merge', 'footer', 'html', 'spacer', 'social', 'saved'), props: t.rec() });
 const doc = t.obj({ emailId, name: t.str(), mode: t.enm('blocks', 'html', 'plain'), blocks: t.opt(t.arr(blockSchema)), html: t.opt(t.str()), plain: t.opt(t.str()), subject: t.opt(t.str()) });
 const target = { emailId };
+const blockId = t.id('blk');
+const savedBlockRow = t.obj({ blockId, name: t.str(), block: blockSchema, shared: t.bool(), updatedAt: t.ts() });
 const snippetId = t.id('snp');
 const snippetRow = t.obj({ snippetId, name: t.str(), body: t.str(), shortcut: t.opt(t.str()), shared: t.bool(), updatedAt: t.ts() });
 
@@ -15,6 +17,7 @@ export default defineManifest({
   owner: 'L8',
   events: [
     ev('email_template.saved', 'An email design was saved as a version', { p: { emailId, version: t.int() }, subject: ['entity', '/emailId'] }),
+    ev('email_block.saved', 'A block was saved for reuse in email designs', { p: { blockId, shared: t.bool() }, subject: ['entity', '/blockId'], vis: 'owner' }),
     ev('email_template.test_sent', 'A test email was sent to the author', { p: { emailId }, subject: ['entity', '/emailId'], replay: 'stub' }),
   ],
   capabilities: [
@@ -31,6 +34,11 @@ export default defineManifest({
     read('email_builder.merge_fields', 'Merge fields available for a record type', { in: { type: id.recordType }, out: { fields: t.arr(t.obj({ key: t.str(), title: t.str() })) }, tool: 'inbox' }),
     read('email_builder.snippets.list', 'List composer snippets: short reusable text for Inbox email and text replies, mine and shared with the Space', { out: { snippets: t.arr(snippetRow) }, tool: 'inbox' }),
     write('email_builder.snippets.save', 'Create or change a composer snippet', { in: { snippetId: t.opt(snippetId), name: t.str(), body: t.str(), shortcut: t.opt(t.str()), shared: t.opt(t.bool()) }, out: { snippet: snippetRow }, tool: 'inbox', offline: 'queue' }),
+    read('email_builder.saved_blocks.list', 'List saved blocks: mine and the ones shared with the Space, to drop into a design', { out: { blocks: t.arr(savedBlockRow) }, tool: 'inbox' }),
+    write('email_builder.saved_blocks.save', 'Save a block for reuse, or change one of mine; only the person who saved it can change it', {
+      in: { blockId: t.opt(blockId), name: t.str(), block: blockSchema, shared: t.opt(t.bool()) }, out: { block: savedBlockRow }, emits: ['email_block.saved'], tool: 'inbox', offline: 'queue',
+      errors: ['validation.bad_input', 'validation.not_found', 'permission.no_grant'],
+    }),
     write('email_builder.snippets.delete', 'Delete a composer snippet', { in: { snippetId }, out: { deleted: t.bool() }, tool: 'inbox' }),
   ],
 });
