@@ -18,7 +18,7 @@ import type { LiveHub } from "../../sync/src/live/index.ts";
 import type { BumpInput, ReindexInput } from "../../sync/src/purge/index.ts";
 import type { PullHandlers } from "./handlers/index.ts";
 import { syncChanges } from "./projections.ts";
-import { snapshotDocAccess, createDocHandlers, docServerOf, toDocCtx } from "./handlers/docs.ts";
+import type { DocHandlers } from "./handlers/docs.ts";
 import { createInfoHandlers, docRowOf, noteCursor, pushDepsOf } from "./handlers/host.ts";
 import type { SyncHostSeam } from "./handlers/host.ts";
 import type { ProjectionHost as Host } from "../../kernel/src/store/projection.ts";
@@ -94,7 +94,7 @@ let hub: Hub = { purge: () => 0 };
 export function setLiveHub(h: Hub | null): void { hub = h ?? { purge: () => 0 }; }
 
 let seam: SyncHostSeam | null = null;
-let docs: ReturnType<typeof createDocHandlers> | null = null;
+let docs: DocHandlers | null = null;
 let info: ReturnType<typeof createInfoHandlers> | null = null;
 /**
  * The host's half (ruling 31/32): the Space store, the access snapshot, the clock, the registry hash and the way to run a capability as a person. Declaring the sync.changes projection on the
@@ -118,10 +118,12 @@ function pushOf(): PushDeps | null {
   if (pushDeps) return pushDeps;
   return seam ? (pushDeps = pushDepsOf(live().deps, seam)) : null;
 }
-function docHandlers() {
+/** The document handlers load on first use: they need yjs, which a server that never opens a document should not have to carry at boot. */
+async function docHandlers(): Promise<DocHandlers> {
   if (!docs) {
+    const m = await import("./handlers/docs.ts");
     const h = live();
-    docs = createDocHandlers(docServerOf(h, { access: snapshotDocAccess({ snapshot: seam ? seam.access : () => { throw new Error("sync has no access snapshot: the host calls configureSync first"); }, rowOf: docRowOf(h.deps), now: h.deps.now }), now: h.deps.now }));
+    docs = m.createDocHandlers(m.docServerOf(h, { access: m.snapshotDocAccess({ snapshot: seam ? seam.access : () => { throw new Error("sync has no access snapshot: the host calls configureSync first"); }, rowOf: docRowOf(h.deps), now: h.deps.now }), now: h.deps.now }));
   }
   return docs;
 }
@@ -159,8 +161,8 @@ export const handlers = {
   "sync.endpoints": (_ctx: SessionCtx) => infoHandlers()["sync.endpoints"](),
   "sync.entities": (ctx: SessionCtx, input: never) => infoHandlers()["sync.entities"](ctx, input),
   "sync.devices.lag": (ctx: SessionCtx, input: never) => infoHandlers()["sync.devices.lag"](ctx, input),
-  "sync.doc.open": (ctx: SessionCtx, input: never) => docHandlers()["sync.doc.open"](toDocCtx(ctx), input),
-  "sync.doc.update": (ctx: SessionCtx, input: never) => docHandlers()["sync.doc.update"](toDocCtx(ctx), input),
-  "sync.doc.close": (ctx: SessionCtx, input: never) => docHandlers()["sync.doc.close"](toDocCtx(ctx), input),
-  "sync.doc.compact": (ctx: SessionCtx, input: never) => docHandlers()["sync.doc.compact"](toDocCtx(ctx), input),
+  "sync.doc.open": async (ctx: SessionCtx, input: never) => (await docHandlers())["sync.doc.open"]({ trace: ctx.trace, principal: ctx.principal.id }, input),
+  "sync.doc.update": async (ctx: SessionCtx, input: never) => (await docHandlers())["sync.doc.update"]({ trace: ctx.trace, principal: ctx.principal.id }, input),
+  "sync.doc.close": async (ctx: SessionCtx, input: never) => (await docHandlers())["sync.doc.close"]({ trace: ctx.trace, principal: ctx.principal.id }, input),
+  "sync.doc.compact": async (ctx: SessionCtx, input: never) => (await docHandlers())["sync.doc.compact"]({ trace: ctx.trace, principal: ctx.principal.id }, input),
 };
