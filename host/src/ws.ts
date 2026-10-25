@@ -19,6 +19,10 @@ import type { LogSink } from "./logsink/index.ts";
 
 export const HEARTBEAT_MS = 15_000;
 export const HEARTBEAT_DEAD_MS = 40_000;
+const deviceClassOf = (url: string | undefined): "desktop" | "phone" | "web" => {
+  const v = new URL(url ?? "/", "http://live").searchParams.get("deviceClass");
+  return v === "phone" || v === "web" ? v : "desktop";
+};
 export const MAX_FRAME_BYTES = 1 << 20;
 const GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
@@ -71,12 +75,31 @@ export class FrameReader {
 
 // ---- the hub ----
 
+/** Sync's live hub as this socket needs it (sync/src/live LiveHub): the transport it is handed, and what it is told. Declared here so the host layer takes no import from sync. */
+export interface SyncTransport {
+  send(frame: unknown): void;
+  close(reason?: string): void;
+  onFrame(cb: (frame: unknown) => void): void;
+  onClose(cb: (reason: string) => void): void;
+}
+export interface SyncHubPort {
+  accept(t: SyncTransport, who: { person: string; device: string; deviceClass: "desktop" | "phone" | "web" }): { close(reason?: string): void };
+  /** The log committed: sessions flush what they owe. */
+  commit(): void;
+}
+
 export interface LiveSession { space: string; principal: CtxSeed["principal"]; device: string; actingFor?: string | undefined }
 export interface HelloFrame { t: "hello"; cursor?: number; epoch?: number }
 export interface LiveOptions {
   /** Who is this upgrade request? null refuses it (401). */
   session(headers: http.IncomingHttpHeaders, url: URL): LiveSession | null | Promise<LiveSession | null>;
   invoke?: Invoke;
+  /**
+   * Sync's live hub (ARCH 5.9). When given, a socket speaks the sync protocol: hello is answered by the hub (hello_ok { ok: { serverVersion, epoch, serverHlc, mode, head, entityVersions } }),
+   * `ev` batches are the filtered pull, acks and heartbeats are the hub's. This server keeps the RFC 6455 framing, the session check, `call` frames (low-latency capability calls) and purge.
+   * Without it the socket keeps its own envelope replay (eventsSince), which is what the echo path and the older tests use.
+   */
+  sync?: SyncHubPort;
   /** The events after a cursor, oldest first: what a (re)connecting device is replayed. */
   eventsSince?(space: string, cursor: number): EventEnvelope[];
   head?(space: string): number;
@@ -89,6 +112,8 @@ export interface LiveOptions {
 
 interface Conn {
   id: string; session: LiveSession; socket: Duplex; reader: FrameReader; lastSeen: number; acked: number; pending: EventEnvelope[]; closed: boolean;
+  /** set when the socket speaks through sync's hub */
+  link?: { frame(f: unknown): void; gone(reason: string): void; session: { close(reason?: string): void } };
 }
 
 export interface LiveHub {
@@ -109,6 +134,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
   const conns = new Map<string, Conn>();   // key: space + device
   const spans: SpanSink = o.spans ?? o.sink ?? { span: () => {} };
   const key = (s: LiveSession): string => `${s.space}\u0000${s.device}`;
+  const connKey = (c: Conn): string => (c.link ? `${key(c.session)}\u0000${c.id}` : key(c.session));   // a sync socket may race two per device; the hub caps them
 
   const server = http.createServer((_req, res) => { res.writeHead(426, { "content-type": "text/plain" }).end("upgrade required"); });
 
@@ -119,7 +145,8 @@ export function createLiveHub(o: LiveOptions): LiveHub {
     const reason = Buffer.from(why).subarray(0, 100);
     const body = Buffer.alloc(2 + reason.length); body.writeUInt16BE(code, 0); reason.copy(body, 2);
     try { c.socket.write(encodeFrame(0x8, body)); c.socket.end(); } catch { /* already gone */ }
-    if (conns.get(key(c.session)) === c) conns.delete(key(c.session));
+    if (conns.get(connKey(c)) === c) conns.delete(connKey(c));
+    c.link?.gone(why);
     o.sink?.log({ space: c.session.space, level: 20, msg: "live.closed", device: c.session.device, actor: c.session.principal.id, result: String(code) });
   };
   const purgeWhere = (match: (c: Conn) => boolean, epoch: number, code: number, why: string): number => {
@@ -160,6 +187,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
     c.lastSeen = now();
     let f: Record<string, unknown>;
     try { const j: unknown = JSON.parse(text); if (!j || typeof j !== "object" || Array.isArray(j)) throw new Error("not an object"); f = j as Record<string, unknown>; } catch { close(c, 1003, "frames are JSON objects"); return; }
+    if (c.link && f["t"] !== "call") { c.link.frame(f); return; }
     switch (f["t"]) {
       case "hello": {
         const cursor = typeof f["cursor"] === "number" && f["cursor"] >= 0 ? f["cursor"] : 0;
@@ -190,10 +218,21 @@ export function createLiveHub(o: LiveOptions): LiveHub {
       if (!session) { socket.end("HTTP/1.1 401 Unauthorized\r\n\r\n"); return; }
       const accept = crypto.createHash("sha1").update(wsKey + GUID).digest("base64");
       socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
-      const old = conns.get(key(session));
       const c: Conn = { id: crypto.randomUUID(), session, socket, reader: new FrameReader(), lastSeen: now(), acked: 0, pending: [], closed: false };
-      if (old) close(old, 4000, "replaced by a newer connection from this device");
-      conns.set(key(session), c);
+      if (o.sync) {
+        const frameCbs: Array<(f: unknown) => void> = [], closeCbs: Array<(r: string) => void> = [];
+        const sess = o.sync.accept({
+          send: (frame) => send(c, frame as Record<string, unknown>),
+          close: (reason) => close(c, reason === "purged" || reason === "auth.device_revoked" ? 4003 : 1000, reason ?? "closed"),
+          onFrame: (cb) => { frameCbs.push(cb); },
+          onClose: (cb) => { closeCbs.push(cb); },
+        }, { person: session.principal.id, device: session.device, deviceClass: deviceClassOf(req.url) });
+        c.link = { frame: (f) => { for (const cb of frameCbs) cb(f); }, gone: (r) => { for (const cb of closeCbs) cb(r); }, session: sess };
+      } else {
+        const old = conns.get(key(session));
+        if (old) close(old, 4000, "replaced by a newer connection from this device");
+      }
+      if (!c.closed) conns.set(connKey(c), c);   // a revoked device was already told and closed inside accept
       o.sink?.log({ space: session.space, level: 20, msg: "live.opened", device: session.device, actor: session.principal.id });
       socket.on("data", (chunk: Buffer) => {
         for (const m of c.reader.push(chunk)) {
@@ -203,7 +242,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
         }
         if (c.reader.error) close(c, c.reader.error.code, c.reader.error.why);
       });
-      socket.on("close", () => { c.closed = true; if (conns.get(key(session!)) === c) conns.delete(key(session!)); });
+      socket.on("close", () => { const was = c.closed; c.closed = true; if (conns.get(connKey(c)) === c) conns.delete(connKey(c)); if (!was) c.link?.gone("peer closed"); });
       socket.on("error", () => { c.closed = true; });
     })();
   });
@@ -211,6 +250,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
   // heartbeat and dead-peer detection
   const timer = setInterval(() => {
     for (const c of [...conns.values()]) {
+      if (c.link) continue;   // sync's hub keeps its own heartbeat and dead-peer rule
       if (now() - c.lastSeen > deadMs) { close(c, 4001, "heartbeat missed"); continue; }
       send(c, { t: "hb", seq: o.head?.(c.session.space) ?? 0 });
     }
@@ -221,8 +261,9 @@ export function createLiveHub(o: LiveOptions): LiveHub {
     server,
     listen: (port = 0) => new Promise((resolve) => server.listen(port, "127.0.0.1", () => resolve((server.address() as { port: number }).port))),
     publish(space, events) {
+      o.sync?.commit();
       for (const c of conns.values()) {
-        if (c.session.space !== space) continue;
+        if (c.session.space !== space || c.link) continue;
         for (const e of events) { c.pending.push(e); send(c, eventFrame(e)); }
       }
     },
