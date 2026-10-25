@@ -6,6 +6,14 @@ import { createNodeDriver, openReplica } from "../src/replica/index.ts";
 import { createSearchIndex, kindOf, matchText, searchActions, splitPrefix } from "../src/fts/index.ts";
 import type { SqlDriver } from "../src/replica/index.ts";
 
+// The shard kills a file at 20 s without a word. Checks inside the loops fail the test with the phase that ran long, measured from the start of the file.
+const FILE_START = performance.now();
+const LIMIT_MS = 16_000;
+function tick(phase: string): void {
+  const t = performance.now() - FILE_START;
+  if (t > LIMIT_MS) throw new assert.AssertionError({ message: `${phase}: ${t.toFixed(0)} ms into the file, over ${LIMIT_MS} ms of the 20 s file cap` });
+}
+
 const hlc = (ms: number): string => formatHlc({ ms, counter: 1, deviceId: "dev1" });
 
 function plainFts(): SqlDriver {
@@ -98,9 +106,7 @@ test("incremental updates follow the replica's own writes, edits, hides and remo
 });
 
 test("perf search.local: p95 under 50 ms with 100k rows and 10k messages; prefix and type filter stay correct", () => {
-  const start = performance.now();
-  // the shard kills a file at 20 s without a word: say which phase ate the time before that happens
-  const phase = (name: string): void => { const t = performance.now() - start; assert.ok(t < 16_000, `${name} finished at ${t.toFixed(0)} ms of the 20 s file cap`); };
+  tick("the perf test starts");
   const d = plainFts();
   // 3,375 distinct words (three syllables of fifteen), picked by a fixed hash so the corpus is the same every run. The queries below include one- and two-letter prefixes that match tens of thousands of rows.
   const sy = ["ba", "ke", "lo", "mi", "ra", "su", "te", "vo", "na", "pi", "do", "ga", "fe", "zu", "ho"];
@@ -109,29 +115,29 @@ test("perf search.local: p95 under 50 ms with 100k rows and 10k messages; prefix
   const w = (i: number, k: number): string => `${pick(i, k)} ${pick(i, k + 17)}`;
   const insert = d.prepare("INSERT INTO fts (entity, id, title, body) VALUES (?, ?, ?, ?)");
   d.transaction(() => {
-    for (let i = 0; i < 100_000; i++) insert.run(["client_plan", `rec_${i}`, w(i, 1), `${w(i, 2)} ${w(i, 3)}`]);
+    for (let i = 0; i < 100_000; i++) { if (i % 10_000 === 0) tick(`seeding record ${i}`); insert.run(["client_plan", `rec_${i}`, w(i, 1), `${w(i, 2)} ${w(i, 3)}`]); }
     for (let i = 0; i < 10_000; i++) insert.run(["message", `msg_${i}`, "", `${w(i, 3)} ${w(i, 4)} please`]);
     insert.run(["principal", "usr_unique", "Zelda Quillfeather", "Partner"]);
     insert.run(["file", "fil_unique", "Quillfeather deed.pdf", ""]);
   });
-  phase("seeding the 110k fts rows");
+  tick("seeded the 110k fts rows");
   const idx = createSearchIndex(d);
   const built = idx.rebuild();
   assert.equal(built, 110_002);
-  phase("rebuilding the search index");
+  tick("rebuilt the search index");
 
   const queries = ["b", "ba", "k", "ke", "a", "b k", "ba ke", "#b", "#ba", "@s", "@su", "/t", "/te", "bake", "balo mi", "#kera", "pidog", "gafe zu", "zelda", "quill", "#mira dos", "vona"];
   const samples: number[] = [];
   let hits = 0;
   for (let round = 0; round < 6; round++) {
     for (const q of queries) {
+      tick(`searching ${q}`);
       const t0 = performance.now();
       const r = idx.search(q);
       samples.push(performance.now() - t0);
       hits += r.hits.length;
     }
   }
-  phase("the 132 timed searches");
   samples.sort((a, b) => a - b);
   const p95 = samples[Math.floor(samples.length * 0.95)] ?? 0;
   assert.ok(hits > 0);
