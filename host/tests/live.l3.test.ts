@@ -10,8 +10,9 @@ import { bootCore } from "../../fixtures/seed/core/index.ts";
 import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
-import { startDaemon, CODE_ROOT } from "../src/daemon/daemon.ts";
-import { fileExportsImporter } from "../src/loader.ts";
+import { startDaemon } from "../src/daemon/daemon.ts";
+import { ROLE_PERMS } from "../../kernel/src/grants/roles.ts";
+import { PERMISSIONS } from "../../manifests/permissions.ts";
 
 const L3 = ["connectors", "import", "projects", "records", "schema", "sources"];
 const LIVE = ["connectors", "import", "projects", "records", "schema", "sources"];
@@ -20,6 +21,13 @@ const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, heade
 
 function seededDir(): string {
   const core = bootCore();
+  // The kernel's role table (kernel/src/grants/roles.ts) predates the permission catalogue (manifests/permissions.ts) and lacks e.g. schema.manage and records.edit. The Space's roles are
+  // brought up to the catalogue by role.defined events in this copy, so the seeded owner can do what the catalogue says an owner can, and a member still cannot (gap reported to the lead).
+  const events = (["owner", "member"] as const).map((role, i) => ({
+    id: `evt_l3live_${i}`, type: "role.defined", sv: 1, trace_id: "0".repeat(32), actor: "svc_seed", vis: "space" as const, entity: "role", entity_id: role,
+    payload: { id: role, clearance: role === "owner" ? 3 : 1, name: role, perms: [...new Set([...ROLE_PERMS[role], ...PERMISSIONS.filter((p) => p.defaults[role]).map((p) => p.key)])] },
+  }));
+  for (const r of core.store.appendBatch(events)) assert.ok(r.ok, "a role is brought up to the catalogue");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-l3-live-"));
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
   fs.copyFileSync(core.file, path.join(dir, "events.db"));
@@ -68,20 +76,14 @@ test("l3 live: a booted daemon has a driver for every L3 module, and the live on
   } finally { await d.stop(); }
 });
 
-type H = Record<string, (ctx: never, input: never) => Promise<unknown>>;
-/** Host never imports a module (layer rule): take the module the way the loader does, the very instance the daemon wired. */
-async function handlersOf(id: string): Promise<H> {
-  const ns = await fileExportsImporter(CODE_ROOT)(id);
-  assert.ok(ns, `${id} loads`);
-  return ns["handlers"] as H;
-}
-const hctx = { trace: { traceId: "0123456789abcdef0123456789abcdef", spanId: "0123456789abcdef" }, emit: () => ({}), call: () => Promise.reject(new Error("no calls")), actor: "usr_owner", principal: { id: "usr_owner" } };
+const OWNER_TOKEN = "tok-usr_olivia";
+const MEMBER_TOKEN = "tok-usr_noah";
 const COMPANY = {
   op: "type.create", type: "l3_company",
   def: { title: "Company", plural: "Companies", icon: "building", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "industry", type: "text", title: "Industry" }] },
 };
 
-test("l3 live: a record created on the live records module survives a daemon restart, on the Space store", async () => {
+test("l3 live: through the gateway a record survives a daemon restart, and a member without schema.manage is refused", async () => {
   const dir = seededDir();
   const boot = () => startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
@@ -94,17 +96,29 @@ test("l3 live: a record created on the live records module survives a daemon res
       },
     }),
     fetch: caddyFetch,
+    // two real people from the seeded Space: the owner (Olivia) and a member (Noah)
+    session: (h) => {
+      const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+      const who = t === OWNER_TOKEN ? "usr_olivia" : t === MEMBER_TOKEN ? "usr_noah" : null;
+      return who === null ? null : { space: "spc_core", principal: { kind: "person", id: who }, device: "l3-live" };
+    },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
+  const post = (d: { url: string }, token: string, p: string, body: unknown) =>
+    fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
   type Row = { id: string; fields: Record<string, unknown> };
   let d = await boot();
   let id = "";
   try {
     assert.deepEqual((d.seams?.missing ?? []).filter((m) => m.module !== undefined && L3.includes(m.module)), [], "no L3 module is reported as not set up");
-    const applied = await (await handlersOf("schema"))["schema.apply"]!(hctx as never, { ops: [COMPANY], idempotencyKey: "l3-live-type" } as never) as { applied?: number };
-    assert.ok(applied.applied, "schema.apply answers");
-    const made = await (await handlersOf("records"))["records.create"]!(hctx as never, { type: "l3_company", fields: { name: "Acme", industry: "Law" }, idempotencyKey: "l3-live-rec" } as never) as { record: Row };
-    id = made.record.id;
+    const refused = await post(d, MEMBER_TOKEN, "/v1/schema/apply", { idempotencyKey: "l3-live-noah", ops: [COMPANY] });
+    assert.equal(refused.status, 403, "a member cannot change record types");
+    assert.equal(((await refused.json()) as { error?: { code?: string } }).error?.code, "permission.role_lacks_permission");
+    const applied = await post(d, OWNER_TOKEN, "/v1/schema/apply", { idempotencyKey: "l3-live-type", ops: [COMPANY] });
+    assert.equal(applied.status, 200, `the owner applies the type: ${await applied.clone().text()}`);
+    const made = await post(d, OWNER_TOKEN, "/v1/records/create", { idempotencyKey: "l3-live-rec", type: "l3_company", fields: { name: "Acme", industry: "Law" } });
+    assert.equal(made.status, 200, `records.create answers through the live handler: ${await made.clone().text()}`);
+    id = ((await made.json()) as { data: { record: Row } }).data.record.id;
     assert.ok(id, "the record has an id");
   } finally { await d.stop(); }
   assert.ok(fs.existsSync(path.join(dir, "space.db")), "the Space store file is in the data directory");
@@ -112,11 +126,16 @@ test("l3 live: a record created on the live records module survives a daemon res
   d = await boot();
   try {
     assert.deepEqual((d.seams?.missing ?? []).filter((m) => m.module !== undefined && L3.includes(m.module)), [], "still no L3 module missing a driver after the restart");
-    const rec = ((await (await handlersOf("records"))["records.get"]!(hctx as never, { type: "l3_company", recordId: id } as never)) as { record: Row }).record;
+    const got = await post(d, OWNER_TOKEN, "/v1/records/get", { type: "l3_company", recordId: id });
+    assert.equal(got.status, 200, `records.get answers after the restart: ${await got.clone().text()}`);
+    const rec = ((await got.json()) as { data: { record: Row } }).data.record;
     assert.equal(rec.id, id);
     assert.equal(rec.fields["name"], "Acme");
     assert.equal(rec.fields["industry"], "Law");
-    const rows = ((await (await handlersOf("records"))["records.query"]!(hctx as never, { type: "l3_company" } as never)) as { rows: Row[] }).rows;
-    assert.ok(rows.some((r) => r.id === id), "the record is in the query");
+    const listed = await post(d, OWNER_TOKEN, "/v1/records/query", { type: "l3_company" });
+    assert.equal(listed.status, 200, `records.query answers: ${await listed.clone().text()}`);
+    assert.ok(((await listed.json()) as { data: { rows: Row[] } }).data.rows.some((r) => r.id === id), "the record is in the query");
+    const again = await post(d, MEMBER_TOKEN, "/v1/schema/apply", { idempotencyKey: "l3-live-noah2", ops: [COMPANY] });
+    assert.equal(again.status, 403, "still refused after the restart");
   } finally { await d.stop(); }
 });
