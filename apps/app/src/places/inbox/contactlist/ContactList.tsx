@@ -26,6 +26,8 @@ type ThreadsOut = CapMap["inbox.list_by_thread"]["out"];
 type CallsOut = CapMap["telephony.call.list"]["out"];
 type BoxesOut = CapMap["mail.mailbox.list"]["out"];
 
+// a plain object, not a StyleSheet id, so the painted token is visible in the element's inline style (as ui/Row does)
+const BANNER = { backgroundColor: "var(--accent-wash)" };
 const DOUBLE_MS = 450;
 const QUERY_OF: Record<ViewKind, string> = { contact: "rows", thread: "threads", calls: "calls" };
 const CHANNEL_ICON: Record<Channel | "meeting", IconName> = { email: "mail", sms: "sms", call: "call", meeting: "cal" };
@@ -109,7 +111,7 @@ function Banner({ e, now, offsetMin, selected, onPress, onMore }: { e: Entry; no
   const data = useInboxData();
   return (
     <View testID={`row-line:${e.key}`} style={styles.bannerSlot} {...menuTrigger(onMore)}>
-      <Pressable accessibilityRole="button" accessibilityLabel={e.name} accessibilityState={{ selected }} onPress={onPress} style={({ hovered }: { hovered?: boolean }) => [styles.banner, (hovered === true || selected) && styles.bannerOver]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={e.name} accessibilityState={{ selected }} onPress={onPress} style={({ hovered }: { hovered?: boolean }) => [styles.banner, BANNER, (hovered === true || selected) && styles.bannerOver]}>
         <View style={styles.face}><Ghost size={36} /></View>
         <View style={styles.bannerText}>
           <Text numberOfLines={1} style={styles.bannerName}>{e.name}</Text>
@@ -344,7 +346,7 @@ const styles = StyleSheet.create({
   match: { flexDirection: "row", alignItems: "center", gap: 4 },
   matchText: { fontSize: 11.5, fontWeight: "500", color: "var(--accent)" as string },
   bannerSlot: { height: 62, paddingHorizontal: 0, justifyContent: "flex-start" },
-  banner: { height: 56, flexDirection: "row", alignItems: "center", paddingLeft: 8, paddingRight: 12, borderRadius: 6, backgroundColor: "var(--accent-wash)" as string },
+  banner: { height: 56, flexDirection: "row", alignItems: "center", paddingLeft: 8, paddingRight: 12, borderRadius: 6 },
   bannerOver: { backgroundColor: "color-mix(in srgb, var(--accent) 16%, transparent)" as string },
   bannerText: { flex: 1, minWidth: 0 },
   bannerName: { fontSize: 13, lineHeight: 18, fontWeight: "600", color: "var(--ink)" as string },
