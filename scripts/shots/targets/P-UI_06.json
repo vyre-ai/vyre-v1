@@ -1,32 +1,32 @@
 {
   "targets": [
     {
-      "id": "P-UI_06-records-harbor",
-      "route": "/m/P-L9d_01?space=harbor",
-      "proto": "records,harbor,{skin}",
+      "id": "P-UI_06-records-northwind",
+      "route": "/m/P-L9d_01",
+      "proto": "records,{skin}",
       "waitFor": "[data-testid='records-count']",
-      "note": "Records over Harbor Studio: the Owner column names Harbor's own people (June Okafor, Ines Costa, Theo Lindqvist), never a Northwind teammate or a raw id. The prototype side is its Records place over Harbor Studio."
+      "note": "Records over Northwind: Clients with the prototype's columns (Name, Status, Owner, Fit, Client since, First channel, Latest channel) and its 1,240 rows in its order (Elena Rivera, Marcus Webb, Priya Nair ... then the drawn ones). The prototype side is its Records place."
     },
     {
-      "id": "P-UI_06-files-harbor",
-      "route": "/m/P-L9e_01?space=harbor",
-      "proto": "files,harbor,{skin}",
-      "waitFor": "[data-testid='files-count']",
-      "note": "Files over Harbor Studio with the owners resolved to names (June Okafor, Ines Costa). The prototype side is its Files place over Harbor Studio."
+      "id": "P-UI_06-records-harbor",
+      "route": "/m/P-L9d_01?space=harbor",
+      "proto": "records,space:harbor,{skin}",
+      "waitFor": "[data-testid='records-count']",
+      "note": "Records over Harbor Studio: the prototype's Clients (Kestrel Coffee, Tidewater Books, Alder Pottery) and Jobs types, owners Noor Hashmi and Ravi Menon. The prototype side is its Records place over Harbor Studio."
     },
     {
       "id": "P-UI_06-needs-harbor",
       "route": "/m/P-L9b_06?v=harbor",
       "proto": "chat,needs,space:harbor,{skin}",
       "waitFor": "[data-testid='needs-you']",
-      "note": "Needs you over Harbor Studio: Scheduler and Proofer ask, the Moreno gallery and the Saturday call sheet. The prototype side is its Needs you list over Harbor Studio."
+      "note": "Needs you over Harbor Studio: Send the Moreno gallery (Approve, Proofer) and Saturday call sheet (Review, Scheduler). The prototype side is its Needs you list over Harbor Studio."
     },
     {
-      "id": "P-UI_06-records-northwind",
-      "route": "/m/P-L9d_01",
-      "proto": "records,{skin}",
-      "waitFor": "[data-testid='records-count']",
-      "note": "Records over Northwind with owners from the shared fixtures (Irfad Imtiaz, Maya Chen, Omar Haddad, Lena Ortiz, Sam Patel)."
+      "id": "P-UI_06-chats-harbor",
+      "route": "/m/P-L9b_03?space=harbor",
+      "proto": "chat,space:harbor,{skin}",
+      "waitFor": "[data-testid='chats-sidebar']",
+      "note": "The Chats sidebar over Harbor Studio: Scheduler and Proofer, Needs you with the two items, the studio and galleries channels, Moreno shoot Saturday, Moreno gallery, Theo Lindqvist and Studio gear list. The prototype side is its Chats place over Harbor Studio."
     }
   ]
 }

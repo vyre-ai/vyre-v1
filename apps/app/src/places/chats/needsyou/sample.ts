@@ -4,7 +4,7 @@
 import { createFakeReplica, createScreenHooks } from "../../../../../../client/src/index.ts";
 import type { FakeReplica, Row } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
-import { namesFor, nameOf } from "../../../fixtures/index.ts";
+import { fixtureFor, nameOf, namesFor } from "../../../fixtures/index.ts";
 import type { Connection, NeedsNav, NeedsYouData } from "./data.tsx";
 import type { Item, Reason, Task } from "./model.ts";
 
@@ -15,8 +15,8 @@ const at = (m: number, d: number, h: number, min = 0): number => Date.UTC(2025, 
 export type Variant = "northwind" | "harbor";
 
 export const ME = "usr_irfad";
-export const NAMES: Record<string, string> = namesFor("northwind", { usr_irfad: "You", role_finance: "Finance" });
-const SOURCES: Record<string, string> = { "chat:c3": "October invoices", "chat:c4": "Rivera engagement letter", "chat:c6": "County records search", "chat:c1": "Rivera intake", "chat:c2": "Competitor pricing", "chat:c7": "Plan the Q4 offsite" };
+export const NAMES: Record<string, string> = { ...namesFor("harbor"), ...namesFor("northwind", { usr_irfad: "You", role_finance: "Finance" }) };
+const SOURCES: Record<string, string> = { "chat:c3": "October invoices", "chat:c4": "Rivera engagement letter", "chat:c6": "County records search", "chat:c1": "Rivera intake", "chat:c2": "Competitor pricing", "chat:c7": "Plan the Q4 offsite", "chat:h1": "Moreno shoot Saturday", "chat:h2": "Moreno gallery" };
 
 const approve = [{ key: "approve", label: "Approve" }, { key: "send_back", label: "Send back", note: "required" as const }];
 const review = [{ key: "review", label: "Looks good" }, { key: "send_back", label: "Send back", note: "required" as const }];
@@ -51,6 +51,16 @@ export function northwindTasks(): { task: Task; reason: Reason; handledBy?: stri
   ];
 }
 
+/** Harbor Studio's two Needs you, as the prototype's Harbor has them (read through the shared fixtures for the ids and titles). */
+export function harborTasks(): { task: Task; reason: Reason; handledBy?: string }[] {
+  const needs = fixtureFor("harbor").needs;
+  const n1 = needs.find((n) => n.id === "n1")!, n2 = needs.find((n) => n.id === "n2")!;
+  return [
+    { reason: "ready", task: task("n1", "approve", n1.agent, n1.title, n1.sub, "The client picked 84 favourites. This sends the gallery link from the studio address.", n1.chat, at(10, 24, 9, 5)) },
+    { reason: "ready", task: task("n2", "review", n2.agent, n2.title, n2.sub, "Times, addresses and the shot list from the brief. Check the second shooter's start time.", n2.chat, at(10, 24, 8, 41)) },
+  ];
+}
+
 export interface Sample {
   data: NeedsYouData;
   replica: FakeReplica;
@@ -63,14 +73,14 @@ export interface Sample {
   failNext(cap: string): void;
 }
 
-export function createSample(variant: Variant = "northwind", o: { online?: boolean } = {}): Sample {
+export function createSample(variant: Variant = "northwind", o: { online?: boolean; empty?: boolean } = {}): Sample {
   const replica = createFakeReplica(variant);
   const calls: { cap: string; input: unknown }[] = [];
   const opened: string[] = [];
   const failing = new Set<string>();
   const listeners = new Set<() => void>();
   let online = o.online ?? true;
-  const seed = variant === "northwind" ? northwindTasks() : [];
+  const seed = o.empty === true ? [] : variant === "northwind" ? northwindTasks() : harborTasks();
   replica.put("needs", seed.map((x) => ({ id: x.task.id, ...x })));
 
   const rows = (): (Item & Row)[] => replica.rows("needs") as unknown as (Item & Row)[];

@@ -8,7 +8,7 @@ import { View, useWindowDimensions } from "react-native";
 import { RecordsDataProvider, RecordsSidebar, RecordsStateProvider } from "../../../apps/app/src/places/records/sidebar/index.ts";
 import { TableView } from "../../../apps/app/src/places/records/table/index.ts";
 import type { TableViewState } from "../../../apps/app/src/places/records/table/index.ts";
-import { createSampleRecords, harbor, northwind } from "../../../apps/app/src/places/records/table/sample.ts";
+import { createSampleRecords, protoHarborSpace, protoNorthwindSpace } from "../../../apps/app/src/places/records/table/sample.ts";
 
 export const title = "Records";
 
@@ -17,7 +17,7 @@ const MENUS = ["filter", "sort", "group", "fields", "colour"] as const;
 export default function Mount(): ReactNode {
   const q = useMemo(() => new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""), []);
   const bulk = Math.min(200_000, Number(q.get("rows") ?? 0) || 0);
-  const space = q.get("space") === "harbor" ? harbor : northwind;
+  const space = q.get("space") === "harbor" ? protoHarborSpace : protoNorthwindSpace;
   const sample = useMemo(() => createSampleRecords(space, { bulk }), [space, bulk]);
   const initial = useMemo(() => ({ ...(q.get("type") ? { type: q.get("type") as string } : {}), ...(q.get("view") ? { viewId: q.get("view") as string } : {}) }), [q]);
   const view = useMemo<Partial<TableViewState>>(() => ({
