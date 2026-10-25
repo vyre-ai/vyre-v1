@@ -1,0 +1,12 @@
+{
+  "module": "hubspot",
+  "capabilities": {
+    "hubspot.health@1": "cc131f99ff40271725187d2f767c5bc523397baa3ddd955f5c7464132561268f",
+    "hubspot.list_objects@1": "6d4e7abed75a2cddf1007e3cb00b6fa1696ca56484308a5e681544ea7ed736ba",
+    "hubspot.push_object@1": "2cbea45fd44d3dc4cc23dc5d5f98f6b3541b4791fe969b0ae0feb7667e93980e",
+    "hubspot.test_connection@1": "d17ca2df75685e2ec8502ffc118c7e5d05fc78e58c7c6f07104375fb1d4f98fd"
+  },
+  "events": {
+    "hubspot.webhook_received": "588db2ba64521968e490c30c93b57e1397b0d9c1baafca58027ad3e3d37782e6"
+  }
+}

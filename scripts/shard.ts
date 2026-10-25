@@ -61,10 +61,10 @@ export function shardFiles(files: string[], timings: Timings, slow: SlowEntry[],
 }
 
 /** The select job's output: plain jobs, not matrix-expanded workflows. */
-export function toMatrix(s: Shards): { include: { name: string; files: string; slow: boolean; runner: "v1" | "v1-perf" }[] } {
+export function toMatrix(s: Shards): { include: { name: string; files: string; slow: boolean; runner: "hosted" | "v1" | "v1-perf" }[] } {
   return {
     include: [
-      ...s.fast.map((b, i) => ({ name: `fast-${i + 1}`, files: b.files.join(" "), slow: false, runner: "v1" as const })),
+      ...s.fast.map((b, i) => ({ name: `fast-${i + 1}`, files: b.files.join(" "), slow: false, runner: "hosted" as const })),
       ...s.slow.map((j, i) => ({ name: `slow-${i + 1}`, files: j.file, slow: true, runner: j.perf ? ("v1-perf" as const) : ("v1" as const) })),
     ],
   };

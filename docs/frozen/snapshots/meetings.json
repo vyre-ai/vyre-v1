@@ -1,0 +1,28 @@
+{
+  "module": "meetings",
+  "capabilities": {
+    "meetings.attach_recording@1": "a754048112c13f826e29489f4f32bdfb86cc0413ba392f4d6f2befe16d09abcd",
+    "meetings.cancel@1": "d3779391be4af69f56ee694bead11f26c218163fd143b029284cb90ffc94e9f4",
+    "meetings.get@1": "f09580e2cd1e243be16bb945f3ba61642ebfb731e8e2f78a8362219a22f0174d",
+    "meetings.ingest@1": "d11df044c4181ae516481279f7494aab5e929abf7ccf10d6c965f1ef86fa6a18",
+    "meetings.list@1": "591e6067a4201b249d5be99e59d4be1466b078717723b08f22858222a91e0516",
+    "meetings.match_attendees@1": "f59b0a83a27bd9bacd14fb0ad4d4d6e47e23ec6b3bbdff2d10a99a30889babd6",
+    "meetings.merge@1": "82e47cbd478cb869060ccc13bbef142d13e4b57d2ab54cb7c1c7308453cf563c",
+    "meetings.schedule@1": "27f90e1cd14de1e289cfa5be5cdbbb2bcc7aee0fc069c04e6718e1ca04abdd49",
+    "meetings.set_state@1": "c8e2c5e695d00144ee0cc365dffca6150e00ed912bb3dd27bfb38cb282df6f2f",
+    "meetings.set_summary@1": "2554c68fa48c45f0055ec0c6ebad24e52fd27d3eaf2cb4fda3f07f5d529ef428",
+    "meetings.summarize@1": "671cf83f5405b2e3b3a6d5c6ec2714b0542907b72c8a247f74ec7cef75ac688b",
+    "meetings.transcript.get@1": "1c0277c11a20ed992353bc4339bf1424b034f5c47323efbcf85665e535a8f5e6",
+    "meetings.unmerge@1": "188f43f0ab30c4e0f826da1f73cde220ccf6d44bd6eaffb0fceef77a63dd89f2"
+  },
+  "events": {
+    "meeting.canceled": "97e465cef0cd9a8b00e067711cf70c99855d013ba9d175cb506ab2ccd5daf4d8",
+    "meeting.ended": "2264ed3e98d64d2d8e762f8d47d68ec5910ba3f58fb86dde7cc3e14aba3600f0",
+    "meeting.merged": "7b6063362361001f08f59612db1afbff3e63ae256a5a027d49ceb3a4185cf512",
+    "meeting.recording_attached": "fb30b2da796dbf6196dbfd518fcaf8f927be9faa492b8061d325bc34ad390945",
+    "meeting.started": "5507606a5ef76fda96925cca70bdbafedb2a45a987755816512051d0f5a1e729",
+    "meeting.summary_ready": "fcd095556762d3958211e9f9e38906016629104df3f490168137104b5d0c3285",
+    "meeting.transcript_ready": "82ed160247dd9feeec45d2d30ae10c7bf5f90ff49823208bea9df38445884207",
+    "meeting.unmerged": "0682a0a838fa87ccaf601c8064827f0bf5d164214ef5f03846864b3d96ede6b1"
+  }
+}
