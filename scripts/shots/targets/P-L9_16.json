@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_16-report-sheet",
+      "route": "/m/P-L9_16",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='report-fact-Where']",
+      "note": "The Report a problem sheet: title, the optional What went wrong line with a note typed, What is sent expanded to the eight lines (Where, Last 20 trace ids, Recent events and errors, Versions, Device, Screenshot, Local log, Left out), Cancel and Send. The prototype opens this sheet only from Cmd-Shift-/ or a right-click menu item (no hash), so the prototype image is its Home place; the sheet follows the prototype reportSheet() card (520 px, 14 px radius, 36 px field, 110 px label column). Paper and graphite, 1280 and 390 wide."
+    }
+  ]
+}

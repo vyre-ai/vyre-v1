@@ -1,0 +1,11 @@
+# @MARK@
+[Unit]
+Description=Vyre Server update (backup first, health check, roll back on failure)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=@BIN@ update --yes
+Nice=10
+TimeoutStartSec=1800

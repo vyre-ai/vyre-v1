@@ -5300,6 +5300,12 @@
     },
     {
       "deferred": false,
+      "name": "records_view",
+      "summary": "Read a saved view of a record type resolved for the table: the view definition and its rows with the saved filter, sort and group applied, a page at a time",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "reports_get",
       "summary": "Read one report",
       "toolset": "meta"
