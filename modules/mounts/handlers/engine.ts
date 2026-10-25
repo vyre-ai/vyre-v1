@@ -15,6 +15,7 @@ import { mintUuid } from "../../../lib/ids.ts";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
+import { pushMoves } from "./outbound-moves.ts";
 import { PROVIDER_LABEL, isCloud, providerOf } from "./providers.ts";
 import type { MountKind, MountMode, MountRec, Provider, PullBatch, RemoteItem } from "./providers.ts";
 
@@ -385,6 +386,12 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): 
     const parent = rows.find((r) => r["item_key"] === row["parent_key"]);
     return parent && !isNull(parent["remote_id"]) ? str(parent["remote_id"]) : undefined;
   };
+
+  // renames and moves made in Vyre go out first, so a folder is where it should be before anything new is sent into it
+  const mv = await pushMoves(ctx, m, provider, rows, (row, fields) => patchItem(ctx, row, fields));
+  res.pushed += mv.moved;
+  res.held += mv.held;
+  res.errors.push(...mv.errors);
 
   // new folders, parents first
   const folders = rows.filter((r) => flag(r["dirty"]) && flag(r["is_folder"]) && !flag(r["deleted"]) && isNull(r["remote_id"])).sort((a, b) => depthOf(rows, a) - depthOf(rows, b));
