@@ -22,7 +22,6 @@ jobs:
         with: { node-version: 24 }
       - name: Select affected tests and shard them
         id: sel
-        env:
         run: |
           # Every check run selects against the branch's merge-base with main, never the previous push: a later push must still include every test the branch has touched since it left main.
           git fetch -q origin main
@@ -323,7 +322,6 @@ jobs:
         with: { node-version: 24 }
       - name: Did contracts change?
         id: scope
-        env:
         run: |
           # Every check run selects against the branch's merge-base with main, never the previous push: a later push must still include every test the branch has touched since it left main.
           git fetch -q origin main
