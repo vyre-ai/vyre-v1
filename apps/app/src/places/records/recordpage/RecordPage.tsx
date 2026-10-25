@@ -79,7 +79,7 @@ function RelationCard({ field, id }: { field: FieldDef; id: string }): ReactElem
 function Tag({ field, value }: { field: FieldDef; value: string }): ReactElement {
   const opt = optionsOf(field).find((o) => o.key === value);
   const hue = opt?.color && /^\d+$/.test(opt.color) ? Number(opt.color) : hueOf(value);
-  return <View style={[p.tag, { backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)` }]}><Text style={[p.tagText, { color: `color-mix(in srgb, hsl(${hue}, 70%, 50%) 38%, var(--ink))` }]}>{opt?.title ?? value}</Text></View>;
+  return <View style={[p.tag, { backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)` }]}><Text style={[p.tagText, { color: "var(--ink)" }]}>{opt?.title ?? value}</Text></View>;
 }
 
 interface FieldProps {
