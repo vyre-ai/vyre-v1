@@ -49,3 +49,8 @@ test("a Personal Space with starred things draws Starred, and a Team Space still
   for (const id of ["s-needs", "s-work", "s-away", "s-routines", "s-today", "s-starred"]) assert.ok(has(team, `data-testid="${id}"`), id);
   assert.ok(!has(team, "Your Personal Space"));
 });
+
+test("the Get started card has no Hide link (the prototype has none): it goes when every row is done", () => {
+  const out = html("personal");
+  assert.ok(!has(out, ">Hide<") && !has(out, 'data-testid="first-hide"'));
+});
