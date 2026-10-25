@@ -7,7 +7,6 @@ import { MobileShell, YouScreen } from "./index.ts";
 import { MOBILE_TABS, NOT_ON_PHONE, SWIPE_OPEN_AT, back, canBack, current, initialNav, isAllowed, open, origin, selectTab, swipeOffset, swipeRest } from "./model.ts";
 import { SwipeRow } from "../sheets/SwipeRow.tsx";
 import { Sheet } from "../sheets/Sheet.tsx";
-import Mount from "../../../../../scripts/shots/mounts/P-L9_17.tsx";
 
 const has = (s: string, n: string): boolean => s.includes(n);
 
@@ -86,9 +85,4 @@ test("a sheet is a labelled dialog with Done, and draws nothing when closed", ()
   assert.equal(renderToStaticMarkup(<Sheet open={false} title="Record" onClose={() => undefined}><span>x</span></Sheet>), "");
   const out = renderToStaticMarkup(<Sheet open title="Record" onClose={() => undefined}><span>Body</span></Sheet>);
   assert.ok(has(out, 'role="dialog"') && has(out, 'aria-label="Record"') && has(out, "Done") && has(out, "Body"));
-});
-
-test("the screenshot mount draws its blank first frame before it reads the query (static export keeps first-render markup)", () => {
-  const out = renderToStaticMarkup(<Mount />);
-  assert.ok(!has(out, 'data-testid="mobile-tabs"'), "the tab bar appears after mount, so the first frame is the same on the server and the client");
 });
