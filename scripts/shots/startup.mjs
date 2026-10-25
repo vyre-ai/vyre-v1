@@ -35,6 +35,24 @@ export function entryScripts(dist) {
   return [...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map((m) => m[1].replace(/^\//, ""));
 }
 
+/** Source weight per package of the entry bundle, from its source map (sourcesContent length: the unminified size, so relative weight, not bytes shipped). */
+export function weights(dist) {
+  const maps = [];
+  const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.js\.map$/.test(e.name)) maps.push(p); } };
+  walk(dist);
+  const by = new Map();
+  for (const m of maps) {
+    const map = JSON.parse(fs.readFileSync(m, "utf8"));
+    (map.sources || []).forEach((src, i) => {
+      const len = (map.sourcesContent && map.sourcesContent[i] ? map.sourcesContent[i].length : 0);
+      const nm = /node_modules\/((?:@[^/]+\/)?[^/]+)/.exec(src);
+      const key = nm ? nm[1] : (/^(?:\.\.\/)*(?:[^/]*\/)?((?:apps|ui|client|lib|kernel|host|agent|generated|contracts|manifest)\/[^/]+(?:\/[^/]+)?)/.exec(src)?.[1] ?? "other");
+      by.set(key, (by.get(key) || 0) + len);
+    });
+  }
+  return [...by.entries()].sort((a, b) => b[1] - a[1]).map(([name, bytes]) => ({ name, bytes }));
+}
+
 export const median = (a) => { const s = a.filter((x) => x !== null).sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
 const kb = (n) => (n / 1024).toFixed(1).padStart(8);
 
@@ -56,10 +74,12 @@ export async function main(argv) {
   ensureChromium(REPO);
   if (!args["skip-export"]) {
     fs.rmSync(dist, { recursive: true, force: true });
-    execSync("npx expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: { ...process.env, CI: "1", EXPO_NO_TELEMETRY: "1" } });
+    execSync("npx expo export --platform web --output-dir dist --source-maps", { cwd: appDir, stdio: "inherit", env: { ...process.env, CI: "1", EXPO_NO_TELEMETRY: "1" } });
   }
   const rep = report(dist);
   console.log(rep.text);
+  const w = weights(dist);
+  if (w.length) console.log("\n| source weight (unminified) | KB |\n|---|---:|\n" + w.slice(0, 40).map((x) => `| ${x.name} | ${(x.bytes / 1024).toFixed(0)} |`).join("\n"));
   console.log(`METRIC ${JSON.stringify({ name: "bundle_bytes", raw: rep.total, gzip: rep.totalGz, entry_raw: rep.entryRaw, entry_gzip: rep.entryGz, chunks: rep.chunks.length })}`);
   const server = await serve(dist, { spa: true });
   const { chromium } = await import("playwright-core");
