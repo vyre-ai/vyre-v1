@@ -16,7 +16,7 @@ export async function runMemory(live: readonly string[]): Promise<{ events: Obse
   const s = await bootFlowSpace(live);
   const trail = new Trail();
   try {
-    const noah = s.signedIn("usr_noah"), sana = s.signedIn("usr_sana"), mia = s.signedIn("usr_mia");   // Mia owns the Helper agent, so she is its approver
+    const noah = s.signedIn("usr_noah"), sana = s.signedIn("usr_sana");
     const fact = await trail.step("Noah proposes a fact in his own layer", async () => {
       const out = expectStatus(await s.call("memory.propose_fact", noah, { idempotencyKey: "golden-8-fact", layer: "person", agentId: "agt_scout", text: TEXT, sourceKind: "manual", sourceRef: "golden-8" }), 200, "memory.propose_fact");
       return { id: out.fact.factId as string, merged: out.merged as boolean };
@@ -30,27 +30,54 @@ export async function runMemory(live: readonly string[]): Promise<{ events: Obse
       const r = await s.call("memory.fact.get", sana, { factId: fact!.id });
       assert.ok(r.status === 403 || r.status === 404, `Sana reading Noah's person-layer fact: ${r.status} ${short(r.body?.error ?? r.body)}`);
     }, ["Noah proposes a fact in his own layer"]);
-    // Helper is Mia's agent: Noah is a member who may not edit its memory, so the request goes to an approver. If the seed lets him edit it, the promotion applies at once (both paths emit the same events).
-    const promo = await trail.step("Noah asks to promote it to Helper's memory", async () => {
-      const out = expectStatus(await s.call("memory.promote", noah, { idempotencyKey: "golden-8-promote", factId: fact!.id, toLayer: "agent", agentId: "agt_helper", note: "Helper should know this" }), 200, "memory.promote");
-      if (!out.promoted) assert.ok(out.taskId, `the request opened a task for the approver: ${short(out)}`);
-      return { id: out.promotionId as string, promoted: out.promoted as boolean };
+    // Noah is a member and holds edit on the Space, so his own approval is enough for the Space layer (spec 2.15: no admin needed when the person can edit the target).
+    // Both paths emit memory.promotion_requested then memory.promoted; the approver path is runMemoryApproval below.
+    await trail.step("Noah promotes it to the Space layer", async () => {
+      const out = expectStatus(await s.call("memory.promote", noah, { idempotencyKey: "golden-8-promote", factId: fact!.id, toLayer: "space", note: "Everyone should know this" }), 200, "memory.promote");
+      assert.equal(out.promoted, true, `promotion ${short(out)}`);
     }, ["the fact is accepted into current memory"]);
-    await trail.step("refusal: Sana cannot approve the request", async () => {
-      if (promo!.promoted) return;
-      const r = await s.call("memory.promotion.approve", sana, { promotionId: promo!.id });
-      assert.equal(r.status, 403, `memory.promotion.approve as Sana: ${r.status} ${short(r.body?.error ?? r.body)}`);
-    }, ["Noah asks to promote it to Helper's memory"]);
-    await trail.step("the approver approves", async () => {
-      if (promo!.promoted) return;
-      expectStatus(await s.call("memory.promotion.approve", mia, { promotionId: promo!.id }), 200, "memory.promotion.approve");
-    }, ["Noah asks to promote it to Helper's memory"]);
-    await trail.step("the fact is in Helper's layer and Noah's own copy stays", async () => {
-      const list = expectStatus(await s.call("memory.facts.list", mia, { layer: "agent", agentId: "agt_helper" }), 200, "memory.facts.list").facts as { text: string }[];
-      assert.ok(list.some((f) => f.text === TEXT), `Helper's layer lists it: ${short(list)}`);
+    await trail.step("Sana now sees it in the Space layer", async () => {
+      const list = expectStatus(await s.call("memory.facts.list", sana, { layer: "space" }), 200, "memory.facts.list").facts as { text: string }[];
+      assert.ok(list.some((f) => f.text === TEXT), `Space layer ${short(list)}`);
+    }, ["Noah promotes it to the Space layer"]);
+    await trail.step("Noah's own copy stays in his layer", async () => {
       const got = expectStatus(await s.call("memory.fact.get", noah, { factId: fact!.id }), 200, "memory.fact.get");
       assert.equal(got.fact.layer, "person");
-    }, ["the approver approves"]);
+    }, ["Noah promotes it to the Space layer"]);
+    return { events: await s.events(), trail };
+  } finally { await s.stop(); }
+}
+
+/** The approver path: a promotion into a layer Noah cannot edit waits as a task for its owner. Helper is Mia's agent. */
+export const APPROVAL_GAPS: Gap[] = [
+  { packet: "P-L11_04", lane: "L11", what: "the core seed has no agent resource for agt_helper, so nobody can edit its memory layer: the owner's approval answers 403 'Only someone who can edit this memory can approve it'" },
+];
+
+export async function runMemoryApproval(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
+  const s = await bootFlowSpace(live);
+  const trail = new Trail();
+  try {
+    const noah = s.signedIn("usr_noah"), sana = s.signedIn("usr_sana"), mia = s.signedIn("usr_mia");
+    const fact = await trail.step("Noah proposes and accepts a fact", async () => {
+      const out = expectStatus(await s.call("memory.propose_fact", noah, { idempotencyKey: "golden-8b-fact", layer: "person", agentId: "agt_scout", text: TEXT, sourceKind: "manual", sourceRef: "golden-8b" }), 200, "memory.propose_fact");
+      if (!out.merged) expectStatus(await s.call("memory.fact.accept", noah, { factId: out.fact.factId }), 200, "memory.fact.accept");
+      return out.fact.factId as string;
+    });
+    const promo = await trail.step("Noah asks to promote it to Helper's memory and a task waits", async () => {
+      const out = expectStatus(await s.call("memory.promote", noah, { idempotencyKey: "golden-8b-promote", factId: fact!, toLayer: "agent", agentId: "agt_helper" }), 200, "memory.promote");
+      assert.equal(out.promoted, false);
+      assert.ok(out.taskId, `a task for the approver: ${short(out)}`);
+      return out.promotionId as string;
+    }, ["Noah proposes and accepts a fact"]);
+    await trail.step("refusal: Sana cannot approve the request", async () => {
+      const r = await s.call("memory.promotion.approve", sana, { promotionId: promo! });
+      assert.equal(r.status, 403, `memory.promotion.approve as Sana: ${r.status} ${short(r.body?.error ?? r.body)}`);
+    }, ["Noah asks to promote it to Helper's memory and a task waits"]);
+    await trail.step("Mia, Helper's owner, approves and the fact is in Helper's layer", async () => {
+      expectStatus(await s.call("memory.promotion.approve", mia, { promotionId: promo! }), 200, "memory.promotion.approve");
+      const list = expectStatus(await s.call("memory.facts.list", mia, { layer: "agent", agentId: "agt_helper" }), 200, "memory.facts.list").facts as { text: string }[];
+      assert.ok(list.some((f) => f.text === TEXT), `Helper's layer ${short(list)}`);
+    }, ["Noah asks to promote it to Helper's memory and a task waits"]);
     return { events: await s.events(), trail };
   } finally { await s.stop(); }
 }
