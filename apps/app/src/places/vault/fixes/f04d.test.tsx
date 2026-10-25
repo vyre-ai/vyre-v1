@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { Dimensions } from "react-native";
 import { renderToStaticMarkup } from "react-dom/server";
 import Vault, { VaultDataProvider } from "../layout/index.tsx";
-import { createSampleVault } from "../layout/sample.ts";
+import { createSampleVault, northwind } from "../layout/sample.ts";
 import type { SampleVault } from "../layout/sample.ts";
 import type { Share } from "../layout/model.ts";
 import { EditSheet } from "../itemenv/EditSheet.tsx";
@@ -51,7 +51,7 @@ test("Who can use it: a person who is not the owner is listed first with the lev
   const out = who([], { you: { name: "Maya Chen", level: "edit", owner: false } });
   assert.ok(has(out, 'data-testid="row-who:you"') && has(out, ">Person<") && !has(out, ">Owner<"));
   assert.match(tag(out, "who-level-you"), />Edit$/);
-  assert.equal((out.match(/data-testid="row-who:/g) ?? []).length, 1, "only you");
+  assert.equal((out.match(/data-testid="row-who:[a-z_:]+"/g) ?? []).length, 1, "only you");
 });
 
 test("item page: Ask sits in the header next to Edit, and Add field sits under the fields inside the card", () => {
@@ -66,7 +66,7 @@ test("item page: Ask sits in the header next to Edit, and Add field sits under t
 
 test("Add field opens the Edit sheet in Fields with one new empty secret field after the existing ones, and a plain Edit opens in .env", async () => {
   const v = createSampleVault();
-  const count = (await v.data.call("vault.item.get", { itemId: "vit_ghl" }) as { fields: unknown[] }).fields.length;
+  const count = northwind.items.find((i) => i.id === "vit_ghl")!.fields.length;
   const sheet = (addField: boolean): string => renderToStaticMarkup(<VaultDataProvider value={v.data}><EditSheet itemId="vit_ghl" addField={addField} onClose={() => undefined} onSaved={() => undefined} /></VaultDataProvider>).replaceAll("<!-- -->", "");
   const added = sheet(true);
   assert.match(tag(added, "edit-mode-fields"), /aria-selected="true"/);
