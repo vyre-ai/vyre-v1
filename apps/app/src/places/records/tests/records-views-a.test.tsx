@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
-import { RecordsDataProvider, RecordsStateProvider } from "../sidebar/index.ts";
+import { RecordsDataProvider, RecordsStateProvider, pointOf } from "../sidebar/index.ts";
 import type { RecordsState } from "../sidebar/index.ts";
 import { PLAIN, countSpec } from "../table/index.ts";
 import {
@@ -365,4 +365,12 @@ test("the sample is what the views read: twelve projects with budgets and covers
   const c = s.data.live("records.counts", countSpec("projects", PLAIN, "name")).getSnapshot();
   assert.equal(c.status === "ready" ? c.data.count : -1, 12);
   assert.ok(rows.every((r) => r.updatedAt <= SAMPLE_NOW));
+});
+
+test("a menu opened from a button lands under the button when the press has no pointer: keyboard, code and click open it in the same place", () => {
+  const button = { getBoundingClientRect: () => ({ left: 640, bottom: 52 }) };
+  assert.deepEqual(pointOf({ nativeEvent: { pageX: 0, pageY: 0 }, currentTarget: button }), { x: 640, y: 52 }, "Enter on the button");
+  assert.deepEqual(pointOf({ nativeEvent: {}, target: button }), { x: 640, y: 52 }, "a press with no coordinates at all");
+  assert.deepEqual(pointOf({ nativeEvent: { pageX: 700, pageY: 60 }, currentTarget: button }), { x: 700, y: 60 }, "a click keeps its pointer");
+  assert.deepEqual(pointOf({}), { x: 0, y: 0 }, "nothing to anchor to");
 });
