@@ -4,7 +4,7 @@
 import { memo, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
+import { menuTrigger, reportProblem } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { MarkdownBlocks, StreamText } from "../../../../../../ui/src/stream/index.ts";
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
@@ -14,7 +14,7 @@ import { Face } from "../needsyou/parts.tsx";
 import { AgentFileProposal, PlanFileCard, isPlanFile, isProposal } from "./proposal.tsx";
 import { Fold, Glyph, IconButton, TextButton } from "./parts.tsx";
 import type { GlyphName } from "./parts.tsx";
-import { bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, planSteps, questionOptions, workOf } from "./model.ts";
+import { reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, planSteps, questionOptions, workOf } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
 
 export interface MessageActions {
@@ -260,7 +260,7 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
   const e = errorRow(block);
   const [open, setOpen] = useState(false);
   return (
-    <View testID={`error-${block.id}`} accessibilityRole="alert" style={st.err}>
+    <View testID={`error-${block.id}`} accessibilityRole="alert" {...menuTrigger((x, y) => actions.showMenu([{ label: "Copy Trace Id", onSelect: () => actions.copy(e.traceId) }, { label: "What Happened?", onSelect: () => setOpen((o) => !o) }], x, y, "Error"))} style={st.err}>
       <View style={st.errTop}><Glyph name="alert" size={15} color="var(--warn)" /><Text style={st.errMsg}>{e.message}</Text></View>
       {e.cause ? <Text style={st.errCause}>{e.cause}</Text> : null}
       <View style={st.errActions}>
@@ -268,6 +268,7 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
         {e.retryable && e.turnId ? <TextButton link label="Retry" testID="err-retry" onPress={() => actions.retryTurn(e.turnId)} /> : null}
         <TextButton link label="What happened?" testID="err-what" onPress={() => setOpen((o) => !o)} />
         <TextButton link label="Copy trace id" testID="err-trace" onPress={() => actions.copy(e.traceId)} />
+        <TextButton link label="Report a problem" testID="err-report" onPress={() => reportProblem({ label: reportLabel(e.message, e.traceId) })} />
       </View>
       {open ? (
         <View testID="err-steps" style={st.errSteps}>

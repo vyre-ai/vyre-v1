@@ -8,7 +8,7 @@ import { MessageView } from "./MessageView.tsx";
 import * as act from "./actions.ts";
 import {
   WINDOW, beforeCursor, byOrder, dayLabel, faces, lastMessages, leadOf, mentionsIn, mergePages, pendingMessage, queueNote, queuedCount, respondersFor, sendKind, stillPending, stopLabel,
-  swapNeeded, timeline, whoLine, workOf, workingAgents, bodyBlocks, findMatches, matchLine, modelLabel, participants, placeholderFor, summarizeOpen, openVerdict, CHAT_OPEN_BUDGET_MS,
+  swapNeeded, timeline, whoLine, workOf, workingAgents, bodyBlocks, findMatches, reportLabel, matchLine, modelLabel, participants, placeholderFor, summarizeOpen, openVerdict, CHAT_OPEN_BUDGET_MS,
 } from "./model.ts";
 import { changeCount, editedNote, isPlanFile, isProposal, planFileLine, proposalActs, proposalData } from "./proposal.tsx";
 import type { Message, Pending, Thread } from "./model.ts";
@@ -183,7 +183,7 @@ test("an error is one inline row: what, why, next, What happened, Copy trace id;
   const s = createSample("errors");
   const out = html(s);
   assert.ok(has(out, "Docs did not read fee-schedule.csv") && has(out, "Restricted data only goes to a model on your computer."));
-  for (const t of ["Switch to Llama 3.3 on this computer", "Ask for access", "Retry", "What happened?", "Copy trace id"]) assert.ok(has(out, t), t);
+  for (const t of ["Switch to Llama 3.3 on this computer", "Ask for access", "Retry", "What happened?", "Copy trace id", "Report a problem"]) assert.ok(has(out, t), t);
   assert.ok(has(out, "Changed 1 file in Rivera matter") && has(out, "Review changes") && has(out, "Rivera engagement letter"));
   await act.retryTurn(s.data, "turn_9").catch(() => undefined);
   assert.equal(s.calls[0]!.cap, "engine.turn.retry");
@@ -360,4 +360,15 @@ test("the diff draws removed lines red and added lines green, and Accept is the 
   assert.ok(has(edit, "<svg"), "Edit has its icon");
   const reject = out.slice(at(out, 'data-testid="proposal-b2-reject"'), at(out, 'data-testid="proposal-b2-reject"') + 900);
   assert.ok(has(reject, "<svg"), "Reject has its icon");
+});
+
+test("the error row offers Report a problem, which opens the shared report sheet with the message and the trace id", async () => {
+  const { setReportProblemHandler } = await import("../../../../../../ui/src/Menu/index.tsx");
+  const seen: { label?: string }[] = [];
+  const off = setReportProblemHandler((c) => seen.push(c));
+  const { reportProblem } = await import("../../../../../../ui/src/Menu/index.tsx");
+  reportProblem({ label: reportLabel("Docs did not read fee-schedule.csv", "tr_5e20b4") });
+  off();
+  assert.deepEqual(seen, [{ label: "Docs did not read fee-schedule.csv (trace tr_5e20b4)" }]);
+  assert.ok(has(html(createSample("errors")), 'data-testid="err-report"'));
 });

@@ -154,6 +154,11 @@ export function errorRow(b: MessageBlock): ErrorRow {
   return { code: str(d.code), message: str(d.message) || "Something went wrong", cause: str(d.cause), next, retryable: d.retryable === true, traceId: str(d.traceId) || b.traceId, turnId: str(d.turnId), steps };
 }
 
+/** What the report sheet is told about the error row it was opened from: the message and its trace id, so the report reaches the owner with the trace. */
+export function reportLabel(message: string, traceId: string): string {
+  return traceId === "" ? message : `${message} (trace ${traceId})`;
+}
+
 /* ---------- markdown for a message that is not streaming ---------- */
 
 const mdCache = new Map<string, readonly MdBlock[]>();
