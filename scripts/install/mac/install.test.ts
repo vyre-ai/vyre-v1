@@ -247,8 +247,8 @@ function fakeTools(dir: string): { files: Record<string, string>; env: Record<st
   fs.mkdirSync(path.join(w, "docker/docker"), { recursive: true });
   fs.writeFileSync(path.join(w, "colima"), "#!/bin/sh\necho colima\n");
   fs.writeFileSync(path.join(w, "compose"), "#!/bin/sh\necho compose\n");
-  fs.writeFileSync(path.join(w, "lima/bin/limactl"), "#!/bin/sh\necho lima\n");
-  fs.writeFileSync(path.join(w, "docker/docker/docker"), "#!/bin/sh\necho docker\n");
+  fs.writeFileSync(path.join(w, "lima/bin/limactl"), "#!/bin/sh\necho lima\n", { mode: 0o755 });
+  fs.writeFileSync(path.join(w, "docker/docker/docker"), "#!/bin/sh\necho docker\n", { mode: 0o755 });
   assert.equal(spawnSync("tar", ["-czf", path.join(w, "lima.tgz"), "-C", path.join(w, "lima"), "."]).status, 0);
   assert.equal(spawnSync("tar", ["-czf", path.join(w, "docker.tgz"), "-C", path.join(w, "docker"), "."]).status, 0);
   const url = (n: string): string => `file://${path.join(w, n)}`;
