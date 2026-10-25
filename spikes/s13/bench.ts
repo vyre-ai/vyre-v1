@@ -1,3 +1,4 @@
+import os from "node:os";
 // S13 on the v1-perf runner (ruling 46): the 60 ms budget for brute-force cosine over 200,000 vectors of 384 dimensions, and the 100 chunks per second budget for the real model.
 // Prints every number and exits non-zero when a budget is missed. Median of 5 after one warm-up; the worst is printed too. Usage: node spikes/s13/bench.ts [kernel|embed|all]
 import { DIM, VectorIndex, jsKernel, normalise } from "../../modules/search/projections.ts";
