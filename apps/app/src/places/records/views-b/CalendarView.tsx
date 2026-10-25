@@ -58,6 +58,16 @@ export function CalendarView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const by = bucketByDay(rows, field);
   const dated = rows.filter((r) => msOf(r.fields[field.key]) !== null).length;
   const todayKey = dayKey(today);
+  // Prev, Next, the month and Today sit in the header right after the view picker, as the prototype's do
+  const nav = (
+    <View style={c.bar} testID="cal-nav">
+      <Pressable accessibilityRole="button" accessibilityLabel="Previous month" testID="cal-prev" onPress={() => setCursor(addMonths(month, -1))} style={c.nav}><Glyph name="chevd" size={12} color="var(--ink-2)" /></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Next month" testID="cal-next" onPress={() => setCursor(addMonths(month, 1))} style={[c.nav, c.navNext]}><Glyph name="chevd" size={12} color="var(--ink-2)" /></Pressable>
+      <Text style={c.title} testID="cal-title" accessibilityRole="header">{monthTitle(month)}</Text>
+      <Pressable accessibilityRole="button" testID="cal-today" onPress={() => setCursor(null)} style={({ hovered }: { hovered?: boolean }) => [c.todayBtn, hovered === true && c.todayOver]}><Text style={c.todayText}>Today</Text></Pressable>
+    </View>
+  );
+  const headFull = <ViewHead ctx={ctx} st={st} fields={false} extra={dateButton} crumbExtra={nav} />;
   const drop = (day: number): void => {
     const row = drag.current;
     drag.current = null;
@@ -105,14 +115,8 @@ export function CalendarView({ ctx }: { ctx: ViewCtx }): ReactElement {
 
   return (
     <View style={c.main} testID="records-calendar" accessibilityLabel={`${def.plural} calendar`}>
-      {head}
-      <View style={c.bar}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Previous month" testID="cal-prev" onPress={() => setCursor(addMonths(month, -1))} style={c.nav}><Glyph name="chevd" size={12} color="var(--ink-2)" /></Pressable>
-        <Text style={c.title} testID="cal-title" accessibilityRole="header">{monthTitle(month)}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Next month" testID="cal-next" onPress={() => setCursor(addMonths(month, 1))} style={[c.nav, c.navNext]}><Glyph name="chevd" size={12} color="var(--ink-2)" /></Pressable>
-        <Pressable accessibilityRole="button" testID="cal-today" onPress={() => setCursor(null)} style={({ hovered }: { hovered?: boolean }) => [c.todayBtn, hovered === true && c.todayOver]}><Text style={c.todayText}>Today</Text></Pressable>
-        {error ? <Text style={c.error} accessibilityRole="alert" testID="calendar-error">{error}</Text> : null}
-      </View>
+      {headFull}
+      {error ? <Text style={c.error} accessibilityRole="alert" testID="calendar-error">{error}</Text> : null}
       <View style={c.dow}>{each(WEEKDAYS, (d) => <Text key={d} style={c.dowText}>{d}</Text>)}</View>
       <View style={c.grid} testID="cal-grid">{weeks}</View>
       <Text style={c.foot} testID="records-count">{`${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()}${count > dated ? `, ${count - dated} with no ${field.title.toLowerCase()}` : ""}`}</Text>
@@ -123,14 +127,14 @@ export function CalendarView({ ctx }: { ctx: ViewCtx }): ReactElement {
 
 const c = StyleSheet.create({
   main: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
-  bar: { height: 44, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14 },
+  bar: { flexDirection: "row", alignItems: "center", gap: 2, marginLeft: 8, flexShrink: 0 },
   nav: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center", transform: [{ rotate: "90deg" }] },
   navNext: { transform: [{ rotate: "-90deg" }] },
-  title: { minWidth: 130, textAlign: "center", fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, fontVariant: ["tabular-nums"] },
+  title: { minWidth: 110, textAlign: "left", paddingHorizontal: 6, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, fontVariant: ["tabular-nums"] },
   todayBtn: { height: 28, paddingHorizontal: 10, borderRadius: 7, justifyContent: "center" },
   todayOver: { backgroundColor: "var(--hover)" as string },
   todayText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
-  error: { marginLeft: 12, fontSize: 12.5, color: "var(--danger)" as string },
+  error: { paddingHorizontal: 18, paddingVertical: 6, fontSize: 12.5, color: "var(--danger)" as string },
   dow: { flexDirection: "row", paddingHorizontal: 14, paddingBottom: 4 },
   dowText: { flex: 1, fontSize: 11.5, fontWeight: "500", color: "var(--ink-3)" as string, paddingLeft: 8 },
   grid: { flex: 1, minHeight: 0, marginHorizontal: 14, borderTopWidth: 1, borderLeftWidth: 1, borderColor: "var(--line)" as string },

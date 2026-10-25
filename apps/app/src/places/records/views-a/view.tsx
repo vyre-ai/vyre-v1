@@ -78,9 +78,11 @@ export interface HeadProps {
   fields?: boolean;
   /** Buttons a later kind adds before the kind switch (the calendar's date field, the chart's measure). */
   extra?: ReactNode;
+  /** Controls that sit in the header right after the title and view picker (the calendar's Prev, Next, month and Today). */
+  crumbExtra?: ReactNode;
 }
 
-export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }: HeadProps): ReactElement {
+export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra, crumbExtra }: HeadProps): ReactElement {
   const data = useRecordsData();
   const { state, dispatch } = useRecordsState();
   const menu = useMenu();
@@ -158,6 +160,7 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
           </View>
         ) : null}
       </View>
+      {crumbExtra}
       <View style={s.grow} />
       {st.finding ? (
         <TextInput
