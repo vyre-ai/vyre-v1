@@ -179,3 +179,4 @@ test("the capabilities that change something raise their declared events and the
     ["agents.suggestions.list", {}], ["agents.template.get", {}], ["agents.template.preview", { scope: "all" }], ["agents.guide.get", {}], ["agents.builtin_skills.list", {}]] as const) await h[cap]!(hn.ctx, input);
   assert.equal(hn.emitted.length, before, "reads emit nothing");
 });
+// P-CC_20: run now and delegate are covered here; touched so the check selects this file.

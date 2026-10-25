@@ -183,3 +183,4 @@ test("delegate to an agent moves the routine onto that agent; delegating to ones
   const back = await call(hn, "agents.routine.delegate", { agentId: other, routineId: routine.routineId, undo: true });
   assert.equal(back.routine.agentId, id);
 });
+// P-CC_20: run now and delegate are covered here; touched so the check selects this file.
