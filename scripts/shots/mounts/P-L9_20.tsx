@@ -50,7 +50,7 @@ function search(): URLSearchParams {
 const Header = memo(function Header({ who, time }: { who: string; time: string }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, height: AVATAR_SIZE + HEADER_GAP, paddingBottom: HEADER_GAP }}>
-      <AvatarSlot label={who} color="var(--accent-wash)" />
+      <AvatarSlot label={who} kind={who === "Intake" || who === "Docs" ? "agent" : "person"} />
       <Text style={{ color: "var(--ink)", fontSize: 13, fontWeight: "600" }}>{who}</Text>
       <Text style={{ color: "var(--ink-3)", fontSize: 11.5 }}>{time}</Text>
     </View>
