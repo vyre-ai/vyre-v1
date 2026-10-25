@@ -24,7 +24,7 @@ function setup() {
   };
   const store: SpaceStore = { spaceId: "spc_a", db, changes };
   const set = (id: string, patch: Partial<Item>): void => { const cur = byId.get(id); if (cur) Object.assign(cur, patch); changes.emit({ entity: "item", id }); };
-  const add = (id: string, title: string, rank: number): void => { byId.set(id, { id, title, rank, open: 1 }); changes.emit({ entity: "item", id }); };
+  const add = (id: string, title: string, rank: number, open = 1): void => { byId.set(id, { id, title, rank, open }); changes.emit({ entity: "item", id }); };
   const remove = (id: string): void => { byId.delete(id); changes.emit({ entity: "item", id }); };
   let rowReads = 0;
   const def: ListDef<{ open: number }, Item> = {
@@ -102,9 +102,9 @@ test("a change that moves a row, removes it or adds one rebuilds the ids and not
   t.remove("it_new");
   assert.equal(win(q).count, ROWS);
   const before = calls;
-  t.add("it_closed", "Closed one", 3);
-  t.set("it_closed", { open: 0 });
-  assert.equal(calls, before + 1, "a row that never matched this list is ignored, even when it changes again");
+  t.add("it_closed", "Closed one", 3, 0);
+  t.set("it_closed", { title: "Closed one, edited" });
+  assert.equal(calls, before, "a row that never matched this list is ignored, even when it changes again");
   assert.equal(client.stats().listRebuilds >= 4, true);
 });
 
