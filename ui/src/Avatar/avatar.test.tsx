@@ -115,3 +115,17 @@ test("the letters used when a face cannot draw: two for a person from 24 px, els
   assert.equal(initialsOf("scheduler", 24, false), "S");
   assert.equal(initialsOf("  ", 24, true), "?");
 });
+
+test("the face cache keys a face by seed, kind, size and skin, and caches nothing where there is no browser", async () => {
+  const { faceKey, cachedFace, cachedFaceCount, clearFaceCache, requestFace, wrapSvg } = await import("./cache.ts");
+  const keys = new Set([faceKey("Maya", "person", 18, "paper"), faceKey("Maya", "person", 18, "graphite"), faceKey("Maya", "person", 24, "paper"), faceKey("Maya", "agent", 18, "paper"), faceKey("Omar", "person", 18, "paper")]);
+  assert.equal(keys.size, 5, "seed, kind, size and skin each change the key");
+  assert.equal(faceKey("Maya", "person", 18, "paper"), faceKey("Maya", "person", 18, "paper"));
+  clearFaceCache();
+  let called = 0;
+  requestFace(faceKey("Maya", "person", 18, "paper"), wrapSvg("<g/>", "0 0 80 80", 18), 18, () => { called += 1; });
+  assert.equal(called, 0, "no document, no draw");
+  assert.equal(cachedFace(faceKey("Maya", "person", 18, "paper")), undefined);
+  assert.equal(cachedFaceCount(), 0);
+  assert.match(wrapSvg("<g/>", "0 0 80 80", 18), /^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" viewBox="0 0 80 80" width="18" height="18"><g\/><\/svg>$/);
+});

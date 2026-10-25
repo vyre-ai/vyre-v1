@@ -3,17 +3,19 @@
 // Automations and groups get a line glyph on the neutral tile. Radius is 30% for everything but people, who are round (as the prototype's tile.a and tile.p).
 // Web draws inline svg; native has no svg here, so it shows the letters on the face's tint until a native icon set lands.
 
-import { createElement, memo } from "react";
+import { createElement, memo, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Image, Platform, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
 import { faceTint, hueOf, initialsOf, marbleInner } from "./faces.ts";
+import { cachedFace, currentSkin, faceKey, requestFace, wrapSvg } from "./cache.ts";
 import { notionistsSvg } from "./notionists.ts";
 import type { AvatarKind, AvatarProps } from "./props.ts";
 
 export type { AvatarKind, AvatarProps } from "./props.ts";
 export { faceTint, hash, hueOf, initialsOf, marbleInner, marbleSpec } from "./faces.ts";
 export { notionistsSvg } from "./notionists.ts";
+export { cachedFace, cachedFaceCount, clearFaceCache, faceKey } from "./cache.ts";
 
 export const AVATAR_DEFAULT_SIZE = 18;
 
@@ -50,6 +52,15 @@ function svg(markup: string, size: number, viewBox: string, extra: Record<string
 
 export const Avatar = memo(function Avatar({ name, kind: kindProp, size = AVATAR_DEFAULT_SIZE, photo, running = false, present = false, testID }: AvatarProps): ReactElement {
   const kind = kindOf(name, kindProp);
+  // A person's marble and an agent's face are drawn once to a cached bitmap per seed, kind, size and skin; rows reuse it as an <img>.
+  const drawn = web && ((kind === "person" && !photo) || kind === "agent");
+  const key = faceKey(name, kind, size, currentSkin());
+  const [, bump] = useState(0);
+  const bitmap = drawn ? cachedFace(key) : undefined;
+  useEffect(() => {
+    if (!drawn || cachedFace(key) !== undefined) return;
+    requestFace(key, kind === "person" ? wrapSvg(marbleInner(name), "0 0 80 80", size) : sized(notionistsSvg(name), size), size, () => bump((n) => n + 1));
+  }, [drawn, key, kind, name, size]);
   const id = testID ?? `avatar-${name}`;
   const round = kind === "person";
   const box: ViewStyle = { width: size, height: size, borderRadius: round ? size / 2 : ("30%" as unknown as number), alignItems: "center", justifyContent: "center", flexShrink: 0 };
@@ -59,6 +70,8 @@ export const Avatar = memo(function Avatar({ name, kind: kindProp, size = AVATAR
 
   if (kind === "person" && photo) {
     face = web ? createElement("img", { src: photo, alt: "", width: size, height: size, draggable: false, style: { display: "block", objectFit: "cover", width: size, height: size } }) : <Image accessibilityIgnoresInvertColors source={{ uri: photo }} style={{ width: size, height: size }} />;
+  } else if (bitmap !== undefined) {
+    face = createElement("img", { src: bitmap, alt: "", width: size, height: size, draggable: false, decoding: "async", style: { display: "block", width: size, height: size }, "data-face": "cached" });
   } else if (kind === "person") {
     face = web ? svg(marbleInner(name), size, "0 0 80 80") : <NativeLetters name={name} size={size} person tint={`hsl(${hueOf(name)}, 45%, 70%)`} />;
   } else if (kind === "agent") {
