@@ -6,8 +6,8 @@ import { Face, Glyph } from "../sidebar/parts.tsx";
 import { cellText, hueOf, isNumeric, optionsOf } from "../table/model.ts";
 import type { FieldDef, RecordRow } from "./model.ts";
 
-/** A text colour for a hue that reads on its own tint in every skin: the hue mixed into the skin's ink, so it darkens on paper and lightens on graphite. */
-export const inkOf = (hue: number): string => `color-mix(in srgb, hsl(${hue}, 70%, 50%) 38%, var(--ink))`;
+/** The text colour of a tag or a cover's initials: the skin's own ink, so it reads on every tint in every skin; the hue lives in the tint behind it. */
+export const inkOf = (_hue: number): string => "var(--ink)";
 
 export function Tag({ field, value }: { field: FieldDef; value: string }): ReactElement {
   const opt = optionsOf(field).find((o) => o.key === value);
