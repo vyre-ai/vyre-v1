@@ -7,13 +7,13 @@ inputs:
 outputs:
   hit:
     description: "true when the set was already on the host"
-    value: ${{ steps.deps.outputs.hit }}
+    value: ${{ steps.deps.outputs.hit || steps.deps-hosted.outputs.hit }}
   key:
     description: Lockfile hash the set is stored under
-    value: ${{ steps.deps.outputs.key }}
+    value: ${{ steps.deps.outputs.key || steps.deps-hosted.outputs.key }}
   ms:
     description: Milliseconds the step took
-    value: ${{ steps.deps.outputs.ms }}
+    value: ${{ steps.deps.outputs.ms || steps.deps-hosted.outputs.ms }}
 runs:
   using: composite
   steps:
@@ -28,7 +28,12 @@ runs:
         path: ${{ runner.temp }}/deps-cache
         key: deps-${{ runner.os }}-${{ hashFiles('package-lock.json', '**/package.json') }}
     - id: deps
+      if: runner.environment != 'github-hosted'
+      shell: bash
+      run: bash "${{ github.workspace }}/scripts/ci-deps.sh" "${{ inputs.workspace }}"
+    - id: deps-hosted
+      if: runner.environment == 'github-hosted'
       shell: bash
       env:
-        VYRE_DEPS_CACHE: ${{ runner.environment == 'github-hosted' && format('{0}/deps-cache', runner.temp) || '' }}
+        VYRE_DEPS_CACHE: ${{ runner.temp }}/deps-cache
       run: bash "${{ github.workspace }}/scripts/ci-deps.sh" "${{ inputs.workspace }}"
