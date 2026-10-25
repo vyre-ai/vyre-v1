@@ -135,3 +135,8 @@ test("proof set: another person's layer is theirs alone, and it opens for them",
     assert.match(String(row["sealed"]), /"keyId":"k1\/mem\.usr_/);
   }
 });
+
+test("proof set: REPORT (temporary)", async () => {
+  const r = await report;
+  assert.fail(`${JSON.stringify(r.metrics)} p95=${r.p95ms}\n${r.detail.join("\n")}`);
+});

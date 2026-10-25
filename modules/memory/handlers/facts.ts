@@ -352,7 +352,7 @@ export async function counts(ctx: MemCtx, input: { agentId: string }) {
 
 // ---- search
 
-interface Doc { kind: "fact" | "note"; id: string; title: string; text: string; layer: Layer; path: string | null; since: number | null; link: string | null; learnedAt: number }
+interface Doc { kind: "fact" | "note"; id: string; title: string; text: string; layer: Layer; path: string | null; since: number | null; link: string | null; learnedAt: number; shared: boolean }
 
 const factTitle = (f: Fact): string => (f.kind ? `${f.kind.slice(0, 1).toUpperCase()}${f.kind.slice(1)}` : "Fact");
 
@@ -374,7 +374,7 @@ async function noteDocs(ctx: MemCtx, access: Access, agentId: string | undefined
     }
     out.push({
       kind: "note", id: str(r["note_id"]), noteId: str(r["note_id"]), title, text: layer === "person" ? "" : str(r["body"]), layer, path: str(r["path"]), since: null, link: `/files/${str(r["file_id"])}`,
-      learnedAt: num(r["updated_at"]),
+      learnedAt: num(r["updated_at"]), shared: layer !== "person",
     });
   }
   return out;
@@ -398,7 +398,7 @@ async function factDocs(ctx: MemCtx, access: Access, agentId: string | undefined
       if (!paths.has(f.noteId)) paths.set(f.noteId, str(rowsOf(ctx.db, "SELECT path FROM memory_notes WHERE note_id = ?", f.noteId)[0]?.["path"]));
       path = paths.get(f.noteId) || null;
     }
-    docs.push({ kind: "fact", id: f.id, title: factTitle(f), text: f.text, layer: f.layer, path, since: f.validFrom, link: f.sourceLink, learnedAt: f.learnedAt });
+    docs.push({ kind: "fact", id: f.id, title: factTitle(f), text: f.text, layer: f.layer, path, since: f.validFrom, link: f.sourceLink, learnedAt: f.learnedAt, shared: f.layer !== "person" });
   }
   return docs;
 }

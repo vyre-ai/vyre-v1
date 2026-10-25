@@ -271,20 +271,39 @@ export interface Ranked {
   mass: number;
 }
 
+interface DocTok { len: number; tf: Map<string, number> }
+const tokCache = new Map<string, DocTok>();
+const TOK_CACHE_MAX = 50_000;
+
+function docTok(d: RankDoc): DocTok {
+  const key = d.shared ? `${d.title}\u0000${d.text}` : null;
+  if (key !== null) {
+    const hit = tokCache.get(key);
+    if (hit) return hit;
+  }
+  const toks = [...tokens(d.title), ...tokens(d.title), ...tokens(d.text)];
+  const tf = new Map<string, number>();
+  for (const w of toks) tf.set(w, (tf.get(w) ?? 0) + 1);
+  const out = { len: toks.length, tf };
+  if (key !== null) {
+    if (tokCache.size >= TOK_CACHE_MAX) tokCache.clear();
+    tokCache.set(key, out);
+  }
+  return out;
+}
+
+/** A document to rank. `shared` documents (agent, project and Space layers, notes) have their words cached by content; a person's own text is never kept between calls. */
+export interface RankDoc { title: string; text: string; shared?: boolean }
+
 /** BM25 of the query over each document (title counts twice), plus a coverage measure that does not depend on how many documents there are. */
-export function bm25(docs: ReadonlyArray<{ title: string; text: string }>, query: string): Ranked[] {
+export function bm25(docs: ReadonlyArray<RankDoc>, query: string): Ranked[] {
   const q = [...new Set(tokens(query))];
   const out: Ranked[] = docs.map(() => ({ score: 0, matched: 0, terms: q.length, coverage: 0, mass: 0 }));
   if (q.length === 0 || docs.length === 0) return out;
-  const toks = docs.map((d) => [...tokens(d.title), ...tokens(d.title), ...tokens(d.text)]);
-  const avg = toks.reduce((a, t) => a + t.length, 0) / docs.length || 1;
-  const tfs = toks.map((t) => {
-    const m = new Map<string, number>();
-    for (const w of t) m.set(w, (m.get(w) ?? 0) + 1);
-    return m;
-  });
+  const toks = docs.map(docTok);
+  const avg = toks.reduce((a, t) => a + t.len, 0) / docs.length || 1;
   const df = new Map<string, number>();
-  for (const m of tfs) for (const w of q) if (m.has(w)) df.set(w, (df.get(w) ?? 0) + 1);
+  for (const t of toks) for (const w of q) if (t.tf.has(w)) df.set(w, (df.get(w) ?? 0) + 1);
   const n = docs.length;
   const idf = (d: number): number => Math.log(1 + (n - d + 0.5) / (d + 0.5));
   const rarest = idf(1);
@@ -293,16 +312,16 @@ export function bm25(docs: ReadonlyArray<{ title: string; text: string }>, query
     return d === 0 ? 1 : Math.min(1, idf(d) / rarest);
   };
   const total = q.reduce((a, w) => a + rel(w), 0);
-  tfs.forEach((m, i) => {
+  toks.forEach((t, i) => {
     let s = 0;
     let matched = 0;
     let mass = 0;
     for (const w of q) {
-      const f = m.get(w);
+      const f = t.tf.get(w);
       if (!f) continue;
       matched++;
       mass += rel(w);
-      s += (idf(df.get(w) ?? 0) * f * 2.2) / (f + 1.2 * (0.25 + (0.75 * (toks[i]?.length ?? 0)) / avg));
+      s += (idf(df.get(w) ?? 0) * f * 2.2) / (f + 1.2 * (0.25 + (0.75 * t.len) / avg));
     }
     out[i] = { score: s, matched, terms: q.length, coverage: total > 0 ? mass / total : 0, mass };
   });
