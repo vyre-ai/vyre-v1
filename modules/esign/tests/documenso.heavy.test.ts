@@ -63,6 +63,7 @@ http.createServer((req, res) => {
   let b = "";
   req.on("data", (d) => { b += d; });
   req.on("end", () => {
+    res.setHeader("connection", "close");
     if (req.method === "GET" && req.url === "/captured") { res.setHeader("content-type", "application/json"); res.end(JSON.stringify(captured)); return; }
     if (req.method === "POST") captured.hooks.push({ url: req.url, headers: req.headers, body: b, at: Date.now() });
     res.end("ok");
