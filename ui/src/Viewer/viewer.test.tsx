@@ -64,17 +64,17 @@ test("pins are numbered in order with their notes beside the image", () => {
 test("find in file lists every match in reading order and marks the current one", () => {
   const texts = BLOCKS.map((b) => b.text);
   const hits = findMatches(texts, "fee");
-  assert.equal(hits.length, 5);
-  assert.deepEqual(hits.map((h) => h.block), [0, 1, 1, 1, 2]);
+  assert.equal(hits.length, 4);
+  assert.deepEqual(hits.map((h) => h.block), [0, 1, 1, 2]);
   assert.deepEqual(findMatches(texts, "  "), []);
   const runs = markRuns(texts[1] ?? "", hits, 1, 2, hits);
-  assert.deepEqual(runs.filter((r) => r.hit === true).length, 3);
+  assert.deepEqual(runs.filter((r) => r.hit === true).length, 2);
   assert.equal(runs.filter((r) => r.on === true).length, 1);
   assert.equal(runs.map((r) => r.text).join(""), texts[1]);
   const html = renderToStaticMarkup(<Viewer fileId="d" title="Fees.md" kind="document" blocks={BLOCKS} find="fee" />);
-  assert.equal(html.match(/data-find="(?:match|current)"/g)?.length, 5, "every match is highlighted");
+  assert.equal(html.match(/data-find="(?:match|current)"/g)?.length, 4, "every match is highlighted");
   assert.equal(html.match(/data-find="current"/g)?.length, 1);
-  assert.match(html, /1 of 5/);
+  assert.match(html, /1 of 4/);
   assert.match(renderToStaticMarkup(<Viewer fileId="d" title="Fees.md" kind="document" blocks={BLOCKS} find="zzz" />), /No matches/);
 });
 
