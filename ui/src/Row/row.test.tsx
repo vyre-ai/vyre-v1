@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Row, ROW_HEIGHT, ROW_HEIGHT_WITH_NOTE, rowHeight } from "./index.tsx";
+import { Row, ROW_HEIGHT, ROW_HEIGHT_WITH_NOTE, ROW_HEIGHT_TALL, rowHeight } from "./index.tsx";
 
 test("a selected row paints the selection token on the row itself, full width", () => {
   const html = renderToStaticMarkup(<Row id="a" title="Weekly sync" selected />);
@@ -44,4 +44,21 @@ test("leading and trailing slots sit inside the painted row, around the text, wi
 test("a row without slots renders no slot wrappers", () => {
   const html = renderToStaticMarkup(<Row id="n" title="Inbox" />);
   assert.doesNotMatch(html, /row-n-leading|row-n-trailing/);
+});
+
+test("the two-line variant is 62 px and its note may take two lines; the default heights are unchanged", () => {
+  assert.equal(ROW_HEIGHT_TALL, 62);
+  assert.equal(rowHeight("x", true), 62);
+  assert.equal(rowHeight(undefined, true), 62);
+  assert.equal(rowHeight(), ROW_HEIGHT);
+  assert.equal(rowHeight("x"), ROW_HEIGHT_WITH_NOTE);
+  const html = renderToStaticMarkup(<Row id="a" title="Maya Chen" note="Can you move Tuesday? I have a conflict that morning." tall />);
+  assert.match(html, /height:62px/);
+});
+
+test("a title suffix draws muted after the name on the same line, and rows without one render as before", () => {
+  const html = renderToStaticMarkup(<Row id="a" title="Maya Chen" titleSuffix="Northwind" />);
+  assert.ok(html.includes('data-testid="row-a-suffix"') && html.includes("Northwind") && html.includes("Maya Chen"));
+  assert.ok(html.indexOf("Maya Chen") < html.indexOf("Northwind"), "the suffix follows the name");
+  assert.ok(!renderToStaticMarkup(<Row id="a" title="Maya Chen" />).includes("-suffix"));
 });
