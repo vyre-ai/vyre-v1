@@ -35,6 +35,16 @@ export function issueSessionToken(db: HostDb, sessionId: string, now: () => numb
   return token;
 }
 
+/** Is this device session still signed in: its row is not revoked and its device is not revoked or deleted. */
+export function sessionLive(db: HostDb, sessionId: string): boolean {
+  try {
+    return db.all(
+      `SELECT 1 AS ok FROM devices_session s JOIN devices_device d ON d.id = s.device_id WHERE s.id = ? AND s.kind = 'device' AND s.revoked_at IS NULL AND d.revokedAt IS NULL AND d.deleted_at IS NULL`,
+      sessionId,
+    ).length > 0;
+  } catch { return false; }
+}
+
 interface Row { session_id: string; person: string; device_id: string }
 
 export function createSessionResolver(o: { db: HostDb; space: string }): SessionResolver {

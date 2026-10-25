@@ -80,6 +80,11 @@ export interface SchemaDeps {
   readFile?: (fileId: string, sheet?: string) => Promise<string>;
   /** Prefix of external view links (the Space's public address). Without it a link is the path alone. */
   publicBase?: string;
+  /**
+   * Set once the manifests' record types were seeded at start (SchemaHandle.start). From then on a read only awaits it and never writes; before it (a handle used standalone) a read seeds on
+   * first use as it always did.
+   */
+  started?: Promise<void>;
 }
 
 export interface SchemaCtx {

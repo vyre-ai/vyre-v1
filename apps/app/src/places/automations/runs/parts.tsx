@@ -29,18 +29,19 @@ export function IconButton({ icon, label, onPress, size = 24, testID }: { icon: 
   );
 }
 
-export type QuietTone = "plain" | "accent" | "danger";
+export type QuietTone = "plain" | "accent" | "danger" | "filled";
 /** The prototype's .qb: 26 px, 12.5 px type, tinted on hover. */
 export function QuietButton({ label, icon, onPress, tone = "plain", disabled = false, testID, title }: { label: string; icon?: GlyphName; onPress?: (event: unknown) => void; tone?: QuietTone; disabled?: boolean; testID?: string; title?: string }): ReactElement {
   const [over, setOver] = useState(false);
-  const fg = tone === "accent" ? "var(--accent)" : tone === "danger" ? "var(--danger)" : over ? "var(--ink)" : "var(--ink-2)";
+  const filled = tone === "filled";
+  const fg = filled ? "var(--win)" : tone === "accent" ? "var(--accent)" : tone === "danger" ? "var(--danger)" : over ? "var(--ink)" : "var(--ink-2)";
   const wash = tone === "accent" ? "var(--accent-wash)" : tone === "danger" ? "color-mix(in srgb, var(--danger) 12%, transparent)" : "var(--hover)";
   return (
     <Pressable
       accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} testID={testID} disabled={disabled} onPress={onPress}
       onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
-      {...webOnly(title ? { title } : {})}
-      style={[s.qb, over && !disabled && { backgroundColor: wash as string }, disabled && { opacity: 0.4 }, pointer]}
+      {...webOnly({ dataSet: { tone }, ...(title ? { title } : {}) })}
+      style={[s.qb, filled && { backgroundColor: "var(--ink)" as string, paddingHorizontal: 12, borderRadius: 7 }, over && !disabled && !filled && { backgroundColor: wash as string }, disabled && { opacity: 0.4 }, pointer]}
     >
       {icon ? <Glyph name={icon} size={13} color={fg} /> : null}
       <Text style={[s.qbText, { color: fg as string }]} numberOfLines={1}>{label}</Text>

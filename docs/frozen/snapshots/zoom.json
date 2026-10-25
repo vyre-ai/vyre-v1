@@ -1,0 +1,20 @@
+{
+  "module": "zoom",
+  "capabilities": {
+    "zoom.health@1": "34aefc89fe6c94a90736343748c13f2a22c55fe8a4a19c6d796b5250048dc02e",
+    "zoom.meetings.create@1": "7aa2946170fd5c64271f9e485b06c01da771f0c64a18bf2685824988e44ff27f",
+    "zoom.meetings.delete@1": "3871834c010a1c84a916e1e9cbbe98ebd59c72d37849883dd2309ec7aa111c24",
+    "zoom.meetings.get@1": "c56d34e0d47cb71907c87c732dc78be4e18a02d970ce64962aea930c66f7301e",
+    "zoom.meetings.list@1": "18e05883a56008308163521fc7f7519668c595fdf8a93c9872fbcf46df6f8e2a",
+    "zoom.meetings.update@1": "21c15c5fc19e1bc2737ad194002fc6fb1290d6bef6834beab1eb9abb67135825",
+    "zoom.receive_webhook@1": "f7b48f0eae175814bd3a408f8be855c4592f48254bf2c5c2483cbec03165ebc4",
+    "zoom.recordings.download@1": "25d9f62653a794d680ee107682aa65dbde41eb368d7b321a10b474ccb06c52f0",
+    "zoom.recordings.get@1": "e99cc998a2392c6e69d31f02f2dc1c85dbe3376480d5e8bbac0e24f0a2e90776",
+    "zoom.recordings.list@1": "69d8166961f69d87a352d0feee206310b8afb6afcf463cd677dd6a54c3ea4c3c",
+    "zoom.transcripts.get@1": "64e9f29bfbe0403cf2642242ee1cc0d0b2c2cdd3e84abd4f392fc73d12ebf319",
+    "zoom.users.me@1": "4bf1692019ddb17e10c9e86d115b45475f13fc2129434ebd2be73711ba70e68e"
+  },
+  "events": {
+    "zoom.event_received": "04827d437b2c31cc23263e1be3cb7149532bebc7a33b9fd804d922033d333cc9"
+  }
+}
