@@ -4,6 +4,10 @@ import { id } from './_common.ts';
 
 const state = t.enm('healthy', 'degraded', 'down');
 const probe = { state, detail: t.opt(t.str()), latencyMs: t.opt(t.int()) };
+const machine = t.obj({
+  cpuPercent: t.opt(t.num({ minimum: 0, maximum: 100 })), memoryUsedBytes: t.opt(t.int({ minimum: 0 })), memoryTotalBytes: t.opt(t.int({ minimum: 0 })),
+  diskFreeBytes: t.opt(t.int({ minimum: 0 })), diskTotalBytes: t.opt(t.int({ minimum: 0 })),
+});
 const checkRow = t.obj({ key: t.str(), title: t.str(), state, detail: t.opt(t.str()), checkedAt: t.ts(), module: t.str(), next: t.str() });
 
 export default defineManifest({
@@ -33,6 +37,7 @@ export default defineManifest({
     read('health.docker', 'Probe: Docker (or Colima) answers on its socket', { out: probe }),
     read('health.caddy', 'Probe: Caddy admin API answers and routes are loaded', { out: probe }),
     read('health.disk_space', 'Probe: free disk space on the data directory', { out: { ...probe, freeBytes: t.opt(t.int()) } }),
+    read('health.machine', 'Probe: CPU load, memory and disk of the server as the host last reported them (Console Overview tiles)', { out: { ...probe, machine: t.opt(machine) }, perm: 'console.access', tool: 'engineer' }),
     read('health.time_skew', 'Probe: clock skew against the relay (HLC clamps at 5 minutes)', { out: { ...probe, skewMs: t.opt(t.int()) } }),
   ],
   health: [

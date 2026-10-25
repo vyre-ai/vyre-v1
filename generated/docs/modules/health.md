@@ -4,7 +4,7 @@ Lane L7b. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (16)
+## Capabilities (17)
 
 - [health.caddy](../capabilities/health.caddy.md): Probe: Caddy admin API answers and routes are loaded
 - [health.disk_encrypted](../capabilities/health.disk_encrypted.md): Probe: the data directory sits on an encrypted volume (FileVault, LUKS, dm-crypt)
@@ -14,6 +14,7 @@ Requires: nothing.
 - [health.events_db](../capabilities/health.events_db.md): Probe: events.db opens, hash chain head verifies, writer queue is short
 - [health.history](../capabilities/health.history.md): Samples of a health check over time
 - [health.index_db](../capabilities/health.index_db.md): Probe: search index lag behind the log head
+- [health.machine](../capabilities/health.machine.md): Probe: CPU load, memory and disk of the server as the host last reported them (Console Overview tiles)
 - [health.paused_reasons](../capabilities/health.paused_reasons.md): What is paused and why (shown on the paused automation, sync or campaign)
 - [health.run](../capabilities/health.run.md): Run one health check or all of them now
 - [health.scheduler](../capabilities/health.scheduler.md): Probe: the scheduler ticked in the last minute

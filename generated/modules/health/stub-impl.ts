@@ -12,6 +12,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "health.events_db": async () => ({"detail":"example","latencyMs":1,"state":"healthy"} as unknown) as never,
   "health.history": async () => ({"samples":[{"at":1760000000000,"detail":"example","latencyMs":1,"state":"healthy"}]} as unknown) as never,
   "health.index_db": async () => ({"detail":"example","latencyMs":1,"state":"healthy"} as unknown) as never,
+  "health.machine": async () => ({"detail":"example","latencyMs":1,"machine":{"cpuPercent":1,"diskFreeBytes":1,"diskTotalBytes":1,"memoryTotalBytes":1,"memoryUsedBytes":1},"state":"healthy"} as unknown) as never,
   "health.paused_reasons": async () => ({"paused":[{"area":"automations","key":"example","reason":"example"}]} as unknown) as never,
   "health.run": async () => ({"checks":[{"checkedAt":1760000000000,"detail":"example","key":"example","module":"example","next":"example","state":"healthy","title":"example"}]} as unknown) as never,
   "health.scheduler": async () => ({"detail":"example","latencyMs":1,"state":"healthy"} as unknown) as never,
