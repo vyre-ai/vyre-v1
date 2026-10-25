@@ -25,7 +25,8 @@ export default function Mount(): ReactNode {
     ...(q.get("sort") ? { sort: [{ field: q.get("sort") as string, dir: "asc" as const }] } : {}),
     ...(q.get("find") ? { find: q.get("find") as string } : {}),
   }), [q]);
-  const phone = useWindowDimensions().width < 720;
+  const width = useWindowDimensions().width;
+  const phone = width > 0 && width < 720; // 0 is "not measured yet" (the static page)
   useEffect(() => {
     const menu = MENUS.find((m) => m === q.get("menu"));
     if (!menu) return;

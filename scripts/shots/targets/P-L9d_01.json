@@ -39,8 +39,8 @@
       "id": "P-L9d_01-records-100k",
       "route": "/m/P-L9d_01?rows=100000",
       "proto": "records,{skin}",
-      "waitFor": "[data-testid='records-count']",
-      "scroll": { "selector": "[data-testid=\"records-scroll\"]" },
+      "waitFor": "[data-testid='rec-cl_20']",
+      "scroll": { "selector": "[data-testid=\"records-scroll\"]:has([data-testid=\"rec-cl_20\"])" },
       "note": "100,014 clients: the table opens by drawing a window and reserves the full height; the scroll probe takes the p95 frame interval over a full scroll (budget scroll, 16.7 ms) and checks the height does not change."
     }
   ]
