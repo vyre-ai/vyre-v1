@@ -48,7 +48,12 @@ test("a watcher is saved with no schedule, listed as a watcher, and never gets a
 
 test("a watcher needs its channel, and only a watcher may name one; a schedule needs its cron", async () => {
   const { hn, id } = await setup();
-  const bad = (over: Record<string, unknown>) => failure(() => watch(hn, id, over));
+  // straight to the handler: these inputs are ones the contract itself may not describe (a missing watch, a bad channel id), and the handler must still refuse them
+  const bad = (over: Record<string, unknown>) => {
+    const input: Record<string, unknown> = { agentId: id, title: "Greet new leads", kind: "watch", watch: { on: "message", channelId: "chn_leads" }, prompt: "Say hello.", idempotencyKey: `y${++n}`, ...over };
+    for (const k of Object.keys(input)) if (input[k] === undefined) delete input[k];
+    return failure(() => h["agents.routine.save"]!(hn.ctx, input));
+  };
   assert.equal(await bad({ watch: undefined }), "validation.bad_input");
   assert.equal(await bad({ watch: { on: "message", channelId: "usr_nope" } }), "validation.bad_input");
   assert.equal(await bad({ kind: "schedule", cron: "0 9 * * *" }), "validation.bad_input", "a schedule routine that names a watch is refused");
