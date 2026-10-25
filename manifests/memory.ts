@@ -69,8 +69,11 @@ export default defineManifest({
       in: { agentId: t.opt(id.agent), projectId: t.opt(id.project) },
       out: { layers: t.arr(t.obj({ layer, title: t.str(), readable: t.bool(), writable: t.bool(), private: t.bool() })) }, tool: 'memory',
     }),
-    read('memory.counts', 'Counts for the agent strip: current facts, proposed facts and facts from the caller', {
-      in: { agentId: id.agent }, out: { current: t.int(), proposed: t.int(), fromMe: t.int() }, tool: 'memory',
+    read('memory.counts', 'Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own', {
+      in: { agentId: id.agent }, out: { current: t.int(), proposed: t.int(), fromMe: t.int(), autoMerged: t.int({ minimum: 0, description: 'Current facts that merged on their own because their kind is low risk, so no person accepted them' }) }, tool: 'memory',
+    }),
+    read('memory.map.get', 'The MAP.md block of an agent as the nightly job last wrote it (agent layer only, never personal memory); absent before the first night', {
+      in: { agentId: id.agent }, out: { map: t.opt(t.obj({ body: t.str(), lines: t.int({ minimum: 0 }), updatedAt: t.ts() })) }, label: 'check', tool: 'memory', errors: ['permission.no_grant'],
     }),
     read('memory.pointer', 'Pointer block for a message: up to about 5 lines from a local lookup, no model call, deduplicated against the thread', {
       in: { threadId: id.thread, agentId: id.agent, text: t.str(), sinceIdx: t.opt(t.int()) },

@@ -9,7 +9,7 @@ export default defineManifest({
   recordTypes: [
     rtype('client_plan', 'Client plan', 'Client plans', 'scroll', [
       field('client', 'text', 'Client', { required: true }),
-      field('stage', 'status', 'Stage'),
+      field('stage', 'status', 'Stage', { options: { stages: [{ key: 'intake', title: 'Intake' }, { key: 'drafting', title: 'Drafting' }, { key: 'review', title: 'Review' }, { key: 'signing', title: 'Signing' }, { key: 'funding', title: 'Funding' }, { key: 'complete', title: 'Complete' }] } }),
       field('trustName', 'text', 'Trust name'),
       field('taxId', 'sealed', 'Tax ID', { label: 'restricted' }),
       field('signed', 'files', 'Signed documents'),
