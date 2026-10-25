@@ -19,6 +19,14 @@ const SITE_ID = /^sit_[a-z0-9]+$/;
 const FIELD_KEY = /^[a-z][a-z0-9_]{0,62}$/;
 const KIND = /^[a-z][a-z0-9_.]{0,39}$/;
 
+/** The field types a site table is asked for (the record field types of the manifest) and the kind the store keeps each as. A kernel kind passes through; anything else is text. */
+const KINDS: Record<string, string> = {
+  text: "text", longtext: "rich_text", number: "number", money: "money", datetime: "datetime", duration: "number", choice: "choice", status: "stage", multichoice: "multi_choice",
+  checkbox: "boolean", rating: "rating", person: "text", email: "text", phone: "text", url: "url", address: "address", relation: "link",
+};
+const STORE_KINDS = new Set(["text", "rich_text", "number", "money", "boolean", "date", "datetime", "choice", "stage", "multi_choice", "url", "link", "actor", "file", "address", "phones", "emails", "urls"]);
+export const kindOf = (type: string): string => KINDS[type] ?? (STORE_KINDS.has(type) ? type : "text");
+
 const refuse = (message: string): never => { throw new StoreError("invalid", message); };
 
 /** Is this type a site table that still belongs to its site? */
@@ -53,7 +61,7 @@ function fieldsOf(raw: readonly SiteField[] | undefined): FieldDef[] {
     if (seen.has(f.key)) refuse(`the field ${f.key} is listed twice`);
     seen.add(f.key);
     const title = typeof f.title === "string" && f.title.trim() !== "" ? f.title.trim() : f.key;
-    out.push({ name: f.key, kind: f.type, label: title });
+    out.push({ name: f.key, kind: kindOf(f.type), label: title, ...(KINDS[f.type] === "link" ? { many: true } : {}) });
   }
   return out;
 }

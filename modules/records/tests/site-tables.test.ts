@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { mintUuid } from "../../../lib/ids.ts";
 import { openRecords } from "../impl.ts";
-import { consoleCreatable, createSiteTableHandlers, isSiteTable, listGroup, siteOf, siteTablesOf, SITES_GROUP } from "../handlers/site-tables.ts";
+import { consoleCreatable, createSiteTableHandlers, isSiteTable, kindOf, listGroup, siteOf, siteTablesOf, SITES_GROUP } from "../handlers/site-tables.ts";
 
 const SITE = "sit_abc123";
 const OTHER = "sit_def456";
@@ -21,7 +21,7 @@ test("site.table_created makes a record type scoped to the site, with its fields
   assert.equal(d["scope"], "site");
   assert.equal(d["site_id"], SITE);
   assert.equal(d.label, "Leads");
-  assert.deepEqual(d.fields.map((f) => [f.name, f.kind, f.label]), [["name", "text", "Name"], ["email", "email", "Email"], ["seats", "number", "seats"]]);
+  assert.deepEqual(d.fields.map((f) => [f.name, f.kind, f.label]), [["name", "text", "Name"], ["email", "text", "Email"], ["seats", "number", "seats"]]);
   const id = mintUuid();
   await store.create(TYPE, id, { name: "Ada", email: "ada@example.com", seats: 3 });
   assert.equal((await store.get(TYPE, id))?.data["name"], "Ada");
@@ -111,4 +111,14 @@ test("a Space type that was never a site table cannot be 'promoted'", async () =
   const { store, h } = make();
   await store.define({ add_types: [{ name: "site_abc123_plain", label: "Plain", fields: [{ name: "a", kind: "text" }] }] });
   await assert.rejects(h.promoted({ siteId: SITE, type: "site_abc123_plain" }), refused("invalid"));
+});
+
+test("record field types are stored as the kinds the store keeps; a kind the store knows passes through; anything else is text", async () => {
+  assert.deepEqual(["text", "longtext", "number", "checkbox", "datetime", "multichoice", "status", "email", "url", "formula", "boolean", "rich_text"].map(kindOf),
+    ["text", "rich_text", "number", "boolean", "datetime", "multi_choice", "stage", "text", "url", "text", "boolean", "rich_text"]);
+  const { store, h } = make();
+  await h.created({ siteId: SITE, type: TYPE, fields: [{ key: "done", type: "checkbox" }, { key: "notes", type: "longtext" }, { key: "when", type: "datetime" }] });
+  const id = mintUuid();
+  await store.create(TYPE, id, { done: true, notes: "long", when: "2026-01-05T10:00:00Z" });
+  assert.equal((await store.get(TYPE, id))?.data["done"], true);
 });
