@@ -77,10 +77,10 @@ export function splitPrefix(q: string): { prefix: string | null; rest: string } 
 export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceClass; limit?: number } = {}): SearchIndex {
   if (!driver.sync) throw new ReplicaError("not_ready", "local search needs a driver that reads synchronously");
   driver.exec(
-    "CREATE VIRTUAL TABLE IF NOT EXISTS search_idx USING fts5(title, body, entity UNINDEXED, id UNINDEXED, kind UNINDEXED, tokenize='unicode61 remove_diacritics 2', prefix='1 2 3 4')",
+    "CREATE VIRTUAL TABLE IF NOT EXISTS search_idx USING fts5(title, body, kind, entity UNINDEXED, id UNINDEXED, tokenize='unicode61 remove_diacritics 2', prefix='1 2 3 4')",
   );
   driver.exec(
-    "CREATE VIRTUAL TABLE IF NOT EXISTS search_recent USING fts5(title, body, entity UNINDEXED, id UNINDEXED, kind UNINDEXED, tokenize='unicode61 remove_diacritics 2', prefix='1 2 3 4')",
+    "CREATE VIRTUAL TABLE IF NOT EXISTS search_recent USING fts5(title, body, kind, entity UNINDEXED, id UNINDEXED, tokenize='unicode61 remove_diacritics 2', prefix='1 2 3 4')",
   );
   const delRecent = driver.prepare("DELETE FROM search_recent WHERE entity = ? AND id = ?");
   const insRecent = driver.prepare("INSERT INTO search_recent (title, body, entity, id, kind) VALUES (?, ?, ?, ?, ?)");
@@ -134,14 +134,15 @@ export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceCl
       const match = matchText(rest);
       if (!match) return { hits: [], prefix, scope, actions: false };
       const kinds = so.kinds ?? (prefix ? PREFIX_KINDS[prefix] : undefined);
-      const kindSql = kinds && kinds.length ? ` AND kind IN (${kinds.map(() => "?").join(", ")})` : "";
-      const kindArgs: string[] = kinds && kinds.length ? [...kinds] : [];
+      // The type filter is part of the MATCH (kind is an indexed column), so a rare kind (one file among 110k rows) is found by its own posting list, not by scanning every row a broad prefix matches.
+      const kindMatch = kinds && kinds.length ? ` AND kind : (${kinds.map((k) => `"${k}"`).join(" OR ")})` : "";
+      const text = (m: string): string => `{title body} : (${m})`;
       // Stage 1: candidates in rowid (static rank) order, title matches first, then matches anywhere. LIMIT stops the scan early, so a broad prefix costs the same as a narrow one.
-      const pick = (m: string): number[] => driver.prepare(`SELECT rowid AS r FROM search_idx WHERE search_idx MATCH ?${kindSql} ORDER BY rowid LIMIT ${CANDIDATES}`).all([m, ...kindArgs]).map((r) => Number(r.r));
-      let cand = pick(`title : (${match})`);
+      const pick = (m: string): number[] => driver.prepare(`SELECT rowid AS r FROM search_idx WHERE search_idx MATCH ? ORDER BY rowid LIMIT ${CANDIDATES}`).all([m]).map((r) => Number(r.r));
+      let cand = pick(`title : (${match})${kindMatch}`);
       if (cand.length < CANDIDATES) {
         const seen = new Set(cand);
-        for (const r of pick(match)) { if (!seen.has(r)) cand.push(r); if (cand.length >= CANDIDATES) break; }
+        for (const r of pick(`${text(match)}${kindMatch}`)) { if (!seen.has(r)) cand.push(r); if (cand.length >= CANDIDATES) break; }
       }
       const limit = so.limit ?? defaultLimit;
       const toHit = (r: Record<string, unknown>): SearchHit => ({
@@ -149,14 +150,14 @@ export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceCl
       });
       // Recent rows first: small, searched whole, ranked by bm25 among themselves.
       const recent = driver.prepare(
-        `SELECT entity, id, kind, title, snippet(search_recent, 1, '[', ']', '…', 12) AS snip, bm25(search_recent, 8.0, 1.0) AS score FROM search_recent WHERE search_recent MATCH ?${kindSql} ORDER BY score LIMIT ?`,
-      ).all([match, ...kindArgs, limit]).map(toHit);
+        `SELECT entity, id, kind, title, snippet(search_recent, 1, '[', ']', '…', 12) AS snip, bm25(search_recent, 8.0, 1.0, 0.0) AS score FROM search_recent WHERE search_recent MATCH ? ORDER BY score LIMIT ?`,
+      ).all([`${text(match)}${kindMatch}`, limit]).map(toHit);
       if (cand.length === 0) return { hits: recent, prefix, scope, actions: false };
       cand = cand.slice(0, CANDIDATES);
       // Stage 2: bm25 (title over body) among the candidates.
       const rows = driver.prepare(
-        `SELECT entity, id, kind, title, snippet(search_idx, 1, '[', ']', '…', 12) AS snip, bm25(search_idx, 8.0, 1.0) AS score FROM search_idx WHERE search_idx MATCH ? AND rowid IN (${cand.join(",")}) ORDER BY score LIMIT ?`,
-      ).all([match, limit]).map(toHit);
+        `SELECT entity, id, kind, title, snippet(search_idx, 1, '[', ']', '…', 12) AS snip, bm25(search_idx, 8.0, 1.0, 0.0) AS score FROM search_idx WHERE search_idx MATCH ? AND rowid IN (${cand.join(",")}) ORDER BY score LIMIT ?`,
+      ).all([text(match), limit]).map(toHit);
       return { hits: [...recent, ...rows].slice(0, limit), prefix, scope, actions: false };
     },
   };

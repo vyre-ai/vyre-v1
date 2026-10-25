@@ -98,6 +98,9 @@ test("incremental updates follow the replica's own writes, edits, hides and remo
 });
 
 test("perf search.local: p95 under 50 ms with 100k rows and 10k messages; prefix and type filter stay correct", () => {
+  const start = performance.now();
+  // the shard kills a file at 20 s without a word: say which phase ate the time before that happens
+  const phase = (name: string): void => { const t = performance.now() - start; assert.ok(t < 16_000, `${name} finished at ${t.toFixed(0)} ms of the 20 s file cap`); };
   const d = plainFts();
   // 3,375 distinct words (three syllables of fifteen), picked by a fixed hash so the corpus is the same every run. The queries below include one- and two-letter prefixes that match tens of thousands of rows.
   const sy = ["ba", "ke", "lo", "mi", "ra", "su", "te", "vo", "na", "pi", "do", "ga", "fe", "zu", "ho"];
@@ -111,9 +114,11 @@ test("perf search.local: p95 under 50 ms with 100k rows and 10k messages; prefix
     insert.run(["principal", "usr_unique", "Zelda Quillfeather", "Partner"]);
     insert.run(["file", "fil_unique", "Quillfeather deed.pdf", ""]);
   });
+  phase("seeding the 110k fts rows");
   const idx = createSearchIndex(d);
   const built = idx.rebuild();
   assert.equal(built, 110_002);
+  phase("rebuilding the search index");
 
   const queries = ["b", "ba", "k", "ke", "a", "b k", "ba ke", "#b", "#ba", "@s", "@su", "/t", "/te", "bake", "balo mi", "#kera", "pidog", "gafe zu", "zelda", "quill", "#mira dos", "vona"];
   const samples: number[] = [];
@@ -126,6 +131,7 @@ test("perf search.local: p95 under 50 ms with 100k rows and 10k messages; prefix
       hits += r.hits.length;
     }
   }
+  phase("the 132 timed searches");
   samples.sort((a, b) => a - b);
   const p95 = samples[Math.floor(samples.length * 0.95)] ?? 0;
   assert.ok(hits > 0);
