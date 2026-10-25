@@ -161,6 +161,9 @@ t_restart_comes_back() {
   envrun "$D/current/bin/vyre-server" doctor --quiet
 }
 t_perf_idle() {
+  # Nothing real to measure means a failure, never an ok: the VM must be running and answering, and the figures must come from it.
+  "$D/tools/bin/colima" status 2>&1 | grep -qi running || { echo "Colima is not running: nothing to measure"; return 1; }
+  dk info >/dev/null 2>&1 || { echo "Docker does not answer: nothing to measure"; return 1; }
   # Let it settle, then sample the VM's processes for 60 s. CPU is the sum of %cpu of the Colima/Lima/Virtualization processes; disk is what the VM and the install use.
   sleep 60
   sum=0; samples=0
@@ -174,6 +177,7 @@ t_perf_idle() {
   data_mb=$(du -sm "$D/data" 2>/dev/null | awk '{print $1}')
   tools_mb=$(du -sm "$D/tools" 2>/dev/null | awk '{print $1}')
   mem_gib=$(sed -n 's/^COLIMA_MEM=//p' "$D/colima-size.env")
+  [ "${vm_mb:-0}" -gt 0 ] && [ "${data_mb:-0}" -gt 0 ] && [ -n "$mem_gib" ] || { echo "no real figures (vm_mb=${vm_mb:-} data_mb=${data_mb:-} mem_gib=${mem_gib:-})"; return 1; }
   echo "# perf s14 idle_cpu_percent=$idle colima_vm_disk_mb=$vm_mb data_mb=$data_mb tools_mb=$tools_mb vm_memory_gib=$mem_gib"
   printf '{"id":"s14","idle_cpu_percent":%s,"colima_vm_disk_mb":%s,"data_mb":%s,"tools_mb":%s,"vm_memory_gib":%s}\n' "$idle" "${vm_mb:-0}" "${data_mb:-0}" "${tools_mb:-0}" "${mem_gib:-0}" >"${VYRE_PERF_OUT:-$W/perf-s14.json}"
 }
