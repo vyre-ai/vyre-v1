@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
+import { Avatar } from "../../../../../ui/src/Avatar/index.tsx";
 import { Bar, RegistrySections, useRead } from "./blocks.tsx";
 import { CopyFromSpace } from "./CopyFromSpace.tsx";
 import { CONNECTIONS, MODELS, NOTIFICATIONS, useSettingsData, useScreenQuery } from "./data.tsx";
@@ -44,7 +45,7 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
   return (
     <>
       <View style={s.card} testID="profile-card">
-        <View style={s.photo} accessibilityLabel="Your photo"><Text style={s.photoText}>{(who.trim()[0] ?? "?").toUpperCase()}</Text></View>
+        <View style={s.photo} accessibilityLabel="Your photo"><Avatar name={who} kind="person" size={72} /></View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text accessibilityRole="header" numberOfLines={1} style={s.who}>{who}</Text>
           <Text numberOfLines={1} style={s.line} testID="profile-line">{line}</Text>
@@ -219,8 +220,7 @@ export function PrivacyPage({ rows, found }: PageProps): ReactElement {
 
 const s = StyleSheet.create({
   card: { flexDirection: "row", alignItems: "center", gap: 16, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
-  photo: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
-  photoText: { fontSize: 28, fontWeight: "600", color: "var(--accent)" as string },
+  photo: { width: 72, height: 72, borderRadius: 36, overflow: "hidden" },
   who: { fontSize: 17, fontWeight: "600", color: "var(--ink)" as string },
   line: { fontSize: 12.5, color: "var(--ink-3)" as string, marginTop: 2 },
   copyBtn: { width: 28, height: 28, alignItems: "center", justifyContent: "center", borderRadius: 7, alignSelf: "flex-start" },

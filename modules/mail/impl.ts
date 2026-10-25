@@ -7,6 +7,7 @@
 import { fail } from "../../host/src/routes/errors.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { connect, draft, draftsDiscard, draftsList, ingest, send, sendAs, sendPreview, syncNow } from "./handlers/index.ts";
+import { extraHandlers } from "./handlers/extra/index.ts";
 import { setDefaultImapSession } from "./handlers/ingest.ts";
 import type { ImapConfig, ImapMessage, ImapSession, ImapSessionFactory } from "./handlers/ingest.ts";
 import type { MailCtx, Party } from "./projections.ts";
@@ -22,6 +23,8 @@ export const handlers: Record<string, Handler> = {
   "mail.send": (ctx, input) => send(ctx, input),
   "mail.send_as": (ctx, input) => sendAs(ctx, input),
   "mail.send_preview": (ctx, input) => sendPreview(ctx, input),
+  // mailbox admin, message reads, attachment save, health, status updates, auto-connect, sending domains and routes (P-L5_01c)
+  ...extraHandlers,
 };
 
 export const projections = { inline, consumers };

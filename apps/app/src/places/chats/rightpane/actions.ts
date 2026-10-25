@@ -79,6 +79,26 @@ export function setRoutine(d: PaneDeps, r: Routine, enabled: boolean): Promise<b
   });
 }
 
+/**
+ * Run a routine once now, without touching its schedule. The capability `agents.routine.run_now` is not in the manifest yet (the nearest is scheduler.run_now, which takes a
+ * schedule id a routine row does not carry): P-L9b_09 asks the contract steward for it. Until it exists the call fails and the pane says "Could not run it".
+ */
+export function runNow(d: PaneDeps, r: Routine): Promise<boolean> {
+  return attempt(d, "run it", async () => { await d.call("agents.routine.run_now", { agentId: r.agentId, routineId: r.routineId, idempotencyKey: key("routine-run", r.routineId) }); d.note(`Running ${r.title}`); });
+}
+
+/**
+ * Give a routine to another person: it then runs with the agent's access intersected with theirs (spec 7, rule 5). Undo gives it back to the person it came from.
+ * Needs `agents.routine.delegate` (agentId, routineId, ownerId), which the manifest does not have yet: asked of the contract steward on P-L9b_09.
+ */
+export function delegateRoutine(d: PaneDeps, r: Routine, ownerId: string, name: string): Promise<boolean> {
+  if (ownerId === r.ownerId) return Promise.resolve(false);
+  return attempt(d, "hand it over", async () => {
+    await d.call("agents.routine.delegate", { agentId: r.agentId, routineId: r.routineId, ownerId });
+    d.note(`${r.title} now belongs to ${name}`, () => attempt(d, "undo that", async () => { await d.call("agents.routine.delegate", { agentId: r.agentId, routineId: r.routineId, ownerId: r.ownerId }); }).then(() => undefined));
+  });
+}
+
 /** Duplicate a routine, paused until you turn it on. */
 export function duplicateRoutine(d: PaneDeps, r: Routine): Promise<boolean> {
   return attempt(d, "duplicate it", async () => {

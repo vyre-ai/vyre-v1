@@ -1,0 +1,46 @@
+{
+  "targets": [
+    {
+      "id": "P-L9d_02-board",
+      "route": "/m/P-L9d_02?kind=board&type=projects",
+      "proto": "records,board,{skin}",
+      "waitFor": "[data-testid='lane-active']",
+      "note": "The Projects board: a lane per status with its cached count, a card per project with its lead and budget, New at the foot of each lane. The prototype side is its Projects board (the shared plan board) in the same skin; it shows stages and tasks where the real board shows the sample Space's three statuses, and the sidebar is the real one on both sides."
+    },
+    {
+      "id": "P-L9d_02-board-menu",
+      "route": "/m/P-L9d_02?kind=board&type=projects&menu=kind",
+      "proto": "records,board,{skin}",
+      "waitFor": "[data-testid='menu']",
+      "note": "The View as menu open over the board: Table, Board, Gallery, List with a checkmark on the current one. The prototype draws the same choice from its mode button."
+    },
+    {
+      "id": "P-L9d_02-gallery",
+      "route": "/m/P-L9d_02?kind=gallery&type=clients",
+      "proto": "records,gallery,{skin}",
+      "waitFor": "[data-testid='gallery-grid']",
+      "note": "The Clients gallery: fixed-size cards with the owner's face on a coloured cover, the stage as a tag and the fields that matter under the name. The prototype side is its Clients gallery in the same skin."
+    },
+    {
+      "id": "P-L9d_02-gallery-covers",
+      "route": "/m/P-L9d_02?kind=gallery&type=projects",
+      "proto": "records,gallery,{skin}",
+      "waitFor": "[data-testid='cover-projects_0']",
+      "note": "The Projects gallery with pictures on every third card, loaded lazily into the same fixed box as the cards without. The prototype has no pictures on its project cards, so its side is the Clients gallery."
+    },
+    {
+      "id": "P-L9d_02-list",
+      "route": "/m/P-L9d_02?kind=list&type=projects",
+      "proto": "records,recordlist,{skin}",
+      "waitFor": "[data-testid='row-rec-projects_0']",
+      "note": "The Projects list: the shared Row with the lead's face leading, one line of fields under the title and the status tag at the right. The prototype side is the list view of its Projects plan."
+    },
+    {
+      "id": "P-L9d_02-board-harbor",
+      "route": "/m/P-L9d_02?kind=board&type=projects&space=harbor",
+      "proto": "records,harbor,board,{skin}",
+      "waitFor": "[data-testid='lane-active']",
+      "note": "The same board over the Harbor Studio sample Space."
+    }
+  ]
+}
