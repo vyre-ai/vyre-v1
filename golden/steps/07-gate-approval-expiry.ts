@@ -5,11 +5,10 @@ import { bootFlowSpace, expectStatus, short, Trail } from "./02-space.ts";
 import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
-export const LIVE_FOR_GATE = ["gate", "tasks", "mail", "agents", "runs", "devices", "access", "inbox"];
+export const LIVE_FOR_GATE = ["gate", "tasks", "mail", "agents", "runs", "devices", "access", "inbox", "files"];
 
 /** Why this flow is a todo today (ruling 53). */
 export const GAPS: Gap[] = [
-  { packet: "P-L11_04", lane: "L11", what: "the core seed has no Agents folder resource, so agents.create answers 500 'The Agents folder is missing from this Space'" },
   { packet: "P-L2_23", lane: "L2", what: "the daemon never constructs the agent turn engine, so agents.routine.run_now starts no turn and no send is raised for the Gate to hold" },
   { packet: "P-L2_LIVE", lane: "L2", what: "no real-token path puts an agent principal in front of the Gate: the gateway resolves device sessions only, so an agent act can only come from an engine turn" },
 ];
