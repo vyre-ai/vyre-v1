@@ -11,7 +11,7 @@ test("two different addresses get separate ids, the same address the same id, an
   assert.equal(a, idOf({ "x-vyre-remote": "203.0.113.9" }));
   assert.match(a, /^anon:[0-9a-f]{16}$/);
   assert.match(idOf({ "x-vyre-remote": "203.0.113.9" }, "pending"), /^pending:[0-9a-f]{16}$/);
-  assert.notEqual(a.slice(5), idOf({ "x-vyre-remote": "203.0.113.9" }, "pending").slice(8) + "x");
+  assert.notEqual(a, idOf({ "x-vyre-remote": "203.0.113.9" }, "pending"), "an anonymous and a pending caller from one address are two buckets");
 });
 
 test("the principal is a service, never a person, and carries no address", () => {
