@@ -7,8 +7,6 @@ import * as Y from "yjs";
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from "y-protocols/awareness.js";
 import type { Frame } from "../../../sync/src/protocol.ts";
 import type { SqlDriver } from "../../../sync/src/replica/types.ts";
-import { docPrefix } from "../../../sync/src/purge/ports.ts";
-import type { OpenDocs } from "../../../sync/src/purge/ports.ts";
 import { fromB64, isEmptyUpdate, toB64 } from "./b64.ts";
 import { BODY, CONTENT, newDoc, toMarkdown } from "./markdown.ts";
 import type { DocEnc } from "./store.ts";
@@ -106,7 +104,14 @@ export interface DocBinding {
   close(): void;
 }
 
-export interface DocClient extends OpenDocs {
+/** The id convention for a row's documents: `<entity>:<id>` for the main one, `<entity>:<id>:<field>` for one text field. The purge client's OpenDocs port (sync/src/purge) is this shape. */
+export const docPrefix = (entity: string, id: string): string => `${entity}:${id}`;
+
+export interface DocClient {
+  /** Close and forget the documents of one row. */
+  closeFor(entity: string, id: string): void;
+  /** Close and forget every open document. */
+  closeAll(): void;
   open(id: string, o?: OpenOpts): DocBinding;
   /** A socket came up (or went away with null). Every open document starts its handshake on attach. */
   attach(link: DocLink | null): void;
