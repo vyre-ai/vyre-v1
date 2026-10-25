@@ -5,6 +5,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { eraseItem, purgeKind } from "../handlers/erasers.ts";
+import { jobsList, seedTicks } from "../handlers/retention.ts";
+import { harness } from "../fixtures/harness.ts";
 import type { GovCtx } from "../projections.ts";
 
 const DAY = 86_400_000;
@@ -116,9 +118,9 @@ test("a kind whose eraser is not in the contract yet is no_eraser: it removes no
   const ctx = world(s, ["threads.erase", "mail.message.erase", "records.purge"]);
   assert.equal(await eraseItem(ctx, "chats", "chat", "thr_pat00001", "r"), "no_eraser");
   assert.equal(await eraseItem(ctx, "mail", "email", "eml_pat00001", "r"), "no_eraser");
-  assert.equal(await eraseItem(ctx, "records", "contact", PAT, "r"), "no_eraser");
+  assert.equal(await eraseItem(ctx, "records", "contact", PAT, "r"), "trashed", "a record is taken out of views but is not hard-deleted");
   assert.ok(s.threads.has("thr_pat00001") && s.mail.has("eml_pat00001"), "nothing was removed");
-  assert.ok(s.records.has(PAT), "the record is not reported erased, though it was taken out of views (in Trash)");
+  assert.ok(s.records.has(PAT), "the record is still stored: it is reported trashed, not erased");
   assert.ok(s.trash.has(PAT));
   assert.equal(await eraseItem(ctx, "calls", "meeting", "mtg_x0000001", "r"), "no_eraser", "a type nobody can erase");
 });
@@ -170,4 +172,17 @@ test("a purge works in batches until the store says there is no more, with one i
   const ctx = { call: async (_c: string, i: unknown) => { seen.push(i as Row); return { removed: 500, more: seen.length < 3 }; } } as unknown as GovCtx;
   assert.deepEqual(await purgeKind(ctx, "logs", NOW, "2025-10-09"), { kind: "logs", status: "purged", removed: 1500 });
   assert.deepEqual(seen.map((i) => i["idempotencyKey"]), ["gov-purge:logs:2025-10-09:0", "gov-purge:logs:2025-10-09:1", "gov-purge:logs:2025-10-09:2"]);
+});
+
+test("boot seeds the first daily tick for every kind once: a second boot schedules nothing, a kind whose tick lapsed gets a new one", async () => {
+  const h = harness();
+  assert.deepEqual(await seedTicks(h.ctx), { scheduled: 10 });
+  assert.equal(h.scheduled.length, 10);
+  assert.deepEqual(new Set(h.scheduled.map((x) => x.cap)), new Set(["governance.jobs.tick"]));
+  assert.deepEqual(h.scheduled.map((x) => (x.input as { kind: string }).kind).sort(), ["audit", "backups", "events", "file_versions", "logs", "memory", "records", "run_logs", "transcripts", "trash"]);
+  assert.ok(h.scheduled.every((x) => x.at === NOW + DAY));
+  const jobs = (await jobsList(h.ctx)).jobs as Row[];
+  assert.ok(jobs.every((j) => j["nextRunAt"] === NOW + DAY), "the job rows say when the first tick is");
+  assert.deepEqual(await seedTicks(h.ctx), { scheduled: 0 }, "a second boot adds no second tick");
+  assert.equal(h.scheduled.length, 10);
 });

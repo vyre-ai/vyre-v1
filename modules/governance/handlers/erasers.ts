@@ -8,7 +8,8 @@
 import { codeOf, obj, text } from "../projections.ts";
 import type { EraseKind, GovCtx, Kind } from "../projections.ts";
 
-export type Outcome = "erased" | "gone" | "no_eraser";
+/** erased: removed. gone: already gone. trashed: a record taken out of every view (Trash) while records.purge is not in the contract; it is not a hard delete. no_eraser: nothing was removed. */
+export type Outcome = "erased" | "gone" | "trashed" | "no_eraser";
 
 const missingCap = (e: unknown): boolean => codeOf(e) === "validation.unknown_capability";
 const gone = (e: unknown): boolean => codeOf(e) === "validation.not_found";
@@ -49,7 +50,7 @@ export async function eraseItem(ctx: GovCtx, kind: EraseKind, type: string, id: 
     const out = obj(await ctx.call(e.cap, e.input(type, id, key)));
     return out["erased"] === false ? "gone" : "erased";
   } catch (e) {
-    if (missingCap(e)) return "no_eraser";
+    if (missingCap(e)) return kind === "records" ? "trashed" : "no_eraser";
     if (gone(e)) return "gone";
     throw e;
   }
@@ -57,7 +58,7 @@ export async function eraseItem(ctx: GovCtx, kind: EraseKind, type: string, id: 
 
 // ---- purgers (retention)
 
-export type Purged = { kind: Kind; status: "purged"; removed: number } | { kind: Kind; status: "no_purger" } | { kind: Kind; status: "kept"; why: string };
+export type Purged = { kind: Kind; status: "purged"; removed: number; skipped?: number } | { kind: Kind; status: "no_purger" } | { kind: Kind; status: "kept"; why: string };
 
 interface Purger { cap: string; input(before: number, key: string): Record<string, unknown> }
 /** One purger per retention kind that removes by age. `trash` and `audit` already have theirs in retention.ts (files.purge and audit.archive); `backups` uses backup.list and backup.delete. */
@@ -76,19 +77,20 @@ export async function purgeKind(ctx: GovCtx, kind: Kind, before: number, day: st
   if (kind === "backups") return purgeBackups(ctx, before);
   const p = PURGERS[kind];
   if (!p) return { kind, status: "no_purger" };
-  let removed = 0;
+  let removed = 0, skipped = 0;
   try {
     for (let batch = 0; batch < MAX_BATCHES; batch++) {
       const out = obj(await ctx.call(p.cap, p.input(before, `gov-purge:${kind}:${day}:${batch}`)));
       const n = out["removed"];
       removed += typeof n === "number" ? n : 0;
+      skipped += typeof out["skippedOnHold"] === "number" ? out["skippedOnHold"] : 0;
       if (out["more"] !== true) break;
     }
   } catch (e) {
     if (missingCap(e)) return { kind, status: "no_purger" };
     throw e;
   }
-  return { kind, status: "purged", removed };
+  return { kind, status: "purged", removed, ...(skipped ? { skipped } : {}) };
 }
 
 /** Backups older than the cutoff go, except the newest verified one (or the newest of all when none is verified), so a purge never leaves a Space with nothing to restore. */
