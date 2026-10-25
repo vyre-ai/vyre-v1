@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "dependencies": { "hash-wasm": "4.12.0" },
   "exports": { ".": "./src/index.ts", "./fake": "./src/fake/index.ts" },
   "description": "Typed client runtime (ARCH 2.2, 5.9): live query hooks over the local replica. This skeleton runs over an in-memory fake replica keyed by spaceId."
 }
