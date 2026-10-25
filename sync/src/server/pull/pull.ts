@@ -30,18 +30,24 @@ interface ChangeRec { seq: number; entity: string; id: string; op: "upsert" | "p
  * Has the host revoked this device? `sync.epoch.bump` with reason device_revoked writes the device's own epoch row (purge/server.ts); the row stays, so a revoked device is refused
  * whatever epoch it says it holds (the epoch a client presents is the client's word). A device that comes back is a new device with a new id. The table exists once a bump has run.
  */
+const DEVICE_EPOCH_DDL = "CREATE TABLE IF NOT EXISTS sync_device_epoch (person TEXT NOT NULL, device TEXT NOT NULL, epoch INTEGER NOT NULL, PRIMARY KEY (person, device)) WITHOUT ROWID";
+const ready = new WeakSet<object>();
+/** The table is made once per handle (the same statement the purge server runs), so a read never fails for want of it and never pays for a failed prepare. */
+function ensureDeviceEpoch(db: Tx): void {
+  if (ready.has(db)) return;
+  db.exec(DEVICE_EPOCH_DDL);
+  ready.add(db);
+}
+
 export function deviceRevoked(db: Tx, person: string, device: string): boolean {
-  try {
-    return db.get<{ epoch: number }>("SELECT epoch FROM sync_device_epoch WHERE person = ? AND device = ?", person, device) !== undefined;
-  } catch {
-    return false; // no bump has ever run, so no device is revoked
-  }
+  ensureDeviceEpoch(db);
+  return db.get<{ epoch: number }>("SELECT epoch FROM sync_device_epoch WHERE person = ? AND device = ?", person, device) !== undefined;
 }
 
 /** The epoch a device must present: its person's, or its own if that is higher. */
 export function deviceEpochOf(db: Tx, person: string, device: string): number {
-  let own = 0;
-  try { own = db.get<{ epoch: number }>("SELECT epoch FROM sync_device_epoch WHERE person = ? AND device = ?", person, device)?.epoch ?? 0; } catch { /* no bump has run */ }
+  ensureDeviceEpoch(db);
+  const own = db.get<{ epoch: number }>("SELECT epoch FROM sync_device_epoch WHERE person = ? AND device = ?", person, device)?.epoch ?? 0;
   return Math.max(epochOf(db, person), own);
 }
 
