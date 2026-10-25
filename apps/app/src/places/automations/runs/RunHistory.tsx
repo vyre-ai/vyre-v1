@@ -72,7 +72,7 @@ export function RunHistory({ subject, scope = subject ? "subject" : "mine", curr
             id={`attention-${r.id}`} title={runTitle(r)} note={`${metaLine(r)} · ${ago(r.startedAt, now)}`} selected={selectedRunId === r.id}
             onPress={() => data.nav.openRunSide(r.id)}
             leading={<StatusMark status="failed" />}
-            trailing={<View style={h.acts}><QuietButton label="Retry step" icon="retry" tone="accent" testID={`retry-step-${r.id}`} onPress={() => void actions.retryStep(r)} /><QuietButton label="Copy trace id" testID={`copy-trace-${r.id}`} title={r.traceId} onPress={() => actions.copy(r.traceId, "the trace id")} /></View>}
+            trailing={<View style={h.acts}><QuietButton label="Retry step" icon="retry" tone="accent" testID={`retry-step-${r.id}`} onPress={() => void actions.retryStep(r)} /><QuietButton label="Copy trace id" testID={`copy-trace-${r.id}`} title={r.traceId} onPress={() => actions.copy(r.traceId, "the trace id")} /><QuietButton label="Stop" tone="danger" testID={`stop-${r.id}`} onPress={() => void actions.stop(r)} /></View>}
           />
         </View>
       );

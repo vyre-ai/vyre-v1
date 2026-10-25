@@ -113,7 +113,7 @@ test("history: Needs attention comes first with the failed run and its two butto
   assert.ok(!has(out, ">Today<"), "the only run today is waiting under Needs attention");
   assert.ok(has(out, 'data-testid="row-attention-rl1"') && has(out, "Elena Rivera arrived from the Meta lead form"));
   assert.ok(has(out, "No Twilio key") && has(out, "33 min ago"));
-  assert.ok(has(out, 'data-testid="retry-step-rl1"') && has(out, "Retry step") && has(out, "Copy trace id"));
+  assert.ok(has(out, 'data-testid="retry-step-rl1"') && has(out, "Retry step") && has(out, "Copy trace id") && has(out, 'data-testid="stop-rl1"'));
   const rows = ["rl2", "rl3", "rl4", "rl5", "rl6"].map((id) => at(out, `data-testid="row-run-${id}"`));
   assert.deepEqual([...rows].sort((a, b) => a - b), rows, "newest first");
   assert.ok(has(out, "Succeeded, 6 steps, 41 s"));
@@ -253,6 +253,7 @@ test("Failed runs lists every failed run across Automations with the Automation'
   assert.ok(at(out, 'data-testid="row-run-rl1"') < at(out, 'data-testid="row-run-rbig0"'), "the newer failure first");
   assert.ok(has(out, "No Twilio key") && has(out, "The message was refused"));
   assert.ok(!has(out, "Priya Nair"), "succeeded runs stay out");
+  assert.ok(has(out, 'data-testid="open-rl1"') && has(out, 'data-testid="retry-rl1"') && has(out, 'data-testid="stop-rl1"'), "Open, Retry and Stop stay on each failed row (prototype)");
 });
 
 test("Failed runs is empty once everything was retried", async () => {

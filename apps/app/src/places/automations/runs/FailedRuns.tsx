@@ -43,7 +43,7 @@ export function FailedRuns({ scope = "mine", selectedRunId = null }: FailedRunsP
 
   const renderRun = (run: Run): ReactElement => (
     <RunRow
-      run={run} now={now} rowKey={run.id} selected={selectedRunId === run.id} open title={`${subjectName(run)} \u00B7 ${runTitle(run)}`}
+      run={run} now={now} rowKey={run.id} selected={selectedRunId === run.id} open alwaysActions onStop={(x) => void actions.stop(x)} title={`${subjectName(run)} \u00B7 ${runTitle(run)}`}
       onOpen={(x) => data.nav.openRunSide(x.id)} onOpenMain={(x) => data.nav.openRun(x.id)} onRetry={(x) => void actions.retryStep(x)} onMenu={menu}
     />
   );

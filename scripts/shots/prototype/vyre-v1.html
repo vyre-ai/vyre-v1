@@ -56899,10 +56899,10 @@ textarea.inp { height: auto; min-height: 150px; padding: 11px 12px; line-height:
     if (has("journeys") || has("journey") || has("stage")) { ui.sTab = "jour"; ui.tabs = ["j:onb"]; ui.active = "j:onb"; if (has("stage")) { ui.jsel.onb = { g: "g2" }; } }
     if (has("automation")) ui.selStep.lead = findLeadAgentStep();
     if (has("paths")) ui.selStep.lead = AUTOS[0].steps[2].id;
-    if (has("run-ok")) { ui.sub["a:lead"] = "runs"; ui.runSel.lead = "rl3"; ui.pt.push("r:rl3"); ui.pact = "r:rl3"; }
-    if (has("run")) { ui.sub["a:lead"] = "runs"; ui.pt.push("r:rl1"); ui.pact = "r:rl1"; }
+    if (has("run-ok")) { ui.sub["a:lead"] = "runs"; ui.runSel.lead = "rl3"; ui.pt.push("r:rl3"); ui.pact = "r:rl3"; ui.pane = true; }
+    if (has("run")) { ui.sub["a:lead"] = "runs"; ui.pt.push("r:rl1"); ui.pact = "r:rl1"; ui.pane = true; }
     if (has("versions")) { ui.sub["a:lead"] = "versions"; ui.cf = { k: "cmp", id: "lead", n: 5 }; }
-    if (has("waiting")) { ui.tabs = ["a:inv"]; ui.active = "a:inv"; ui.pt.push("r:ri1"); ui.pact = "r:ri1"; }
+    if (has("waiting")) { ui.tabs = ["a:inv"]; ui.active = "a:inv"; ui.sub["a:inv"] = "runs"; ui.pt.push("r:ri1"); ui.pact = "r:ri1"; ui.pane = true; }
     if (has("failed")) { ui.tabs.push("failed"); ui.active = "failed"; }
     if (has("digest-ask")) { ui.tabs = ["a:digest"]; ui.active = "a:digest"; ui.pt.push("ask:a:digest"); ui.pact = "ask:a:digest"; ui.pane = true; }
     if (has("ask")) { ui.pt.push("ask:a:lead"); ui.pact = "ask:a:lead"; }
