@@ -140,3 +140,44 @@ test("l7 live: through the gateway a Shared item is put, used by name and filled
     assert.deepEqual([body.error?.code, body.error?.message], ["internal.unavailable", "Not in this version yet"]);
   } finally { await d.stop(); }
 });
+
+test("l7 live: an invite made by the owner is accepted by a stranger through the gateway (identity reaches members through the host), and the code works once", async () => {
+  const dir = seededDir();
+  const d = await startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux", hostname: "l7-join", free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    session: (h) => {
+      const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+      return t === OWNER_TOKEN ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "l7-join" } : null;
+    },
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
+  });
+  const post = (token: string | null, p: string, body: unknown) =>
+    fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
+  const join = (code: string, username: string) => post(null, "/v1/invites/accept_create_account", {
+    code, username, password: "correct horse battery staple 9", deviceName: "Stranger's Mac", deviceClass: "desktop",
+    keys: { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] },
+  });
+  try {
+    const made = await post(OWNER_TOKEN, "/v1/members/invites/create", { role: "member", idempotencyKey: "l7-join-invite" });
+    assert.equal(made.status, 200, await made.clone().text());
+    const link = ((await made.json()) as { data: { link: string } }).data.link;
+    const code = decodeURIComponent(link.slice(link.lastIndexOf("/") + 1));
+    const joined = await join(code, "newbie");
+    assert.equal(joined.status, 200, await joined.clone().text());
+    const again = await join(code, "newbie2");
+    assert.notEqual(again.status, 200, "an accepted invite cannot be used again");
+    const bad = await join("NOPE-NOPE", "newbie3");
+    assert.notEqual(bad.status, 200, "an unknown code is refused");
+    const who = await post(OWNER_TOKEN, "/v1/identity/sign_in_options", {});
+    assert.equal(who.status, 200);
+  } finally { await d.stop(); }
+});

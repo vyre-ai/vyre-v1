@@ -124,7 +124,7 @@ export async function acceptCreateAccount(
 ): Promise<SignInOut> {
   const tid = ctx.trace.traceId;
   if (!ctx.invites) raise(tid, "internal.not_implemented", "invites are not wired into this host");
-  const invite = ctx.invites.peek(input.code.trim());
+  const invite = await ctx.invites.peek(input.code.trim());
   if (invite === "invalid") { await burnVerify(input.password); raise(tid, "auth.invalid_code"); }
   if (invite === "expired") raise(tid, "auth.expired");
   const username = input.username.trim().toLowerCase();
@@ -135,7 +135,7 @@ export async function acceptCreateAccount(
   const personId = nid("usr");
   await provisionAccount(ctx, { personId, username, name: input.displayName?.trim() || username, secret: input.password });
   setKeys(ctx, personId, input.keys, "first_device");
-  ctx.invites.accept(invite.inviteId, personId);
+  await ctx.invites.accept(invite.inviteId, personId);
   ctx.emit("principal.created", personId, { principalId: personId, kind: "person" });
   ctx.emit("member.joined", personId, { personId, inviteId: invite.inviteId, role: invite.role, invitedBy: invite.invitedBy });
   return issueSession(ctx, mustAccount(ctx, personId), input, "password");
