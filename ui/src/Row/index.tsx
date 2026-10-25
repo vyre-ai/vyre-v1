@@ -18,7 +18,7 @@ export function rowHeight(note?: string, tall = false): number {
   return note ? ROW_HEIGHT_WITH_NOTE : ROW_HEIGHT;
 }
 
-export const Row = memo(function Row({ id, title, titleSuffix, noteLead, tall = false, emphasis = false, note, selected = false, hovered = false, leading, trailing, onPress }: RowProps) {
+export const Row = memo(function Row({ id, title, titleSuffix, titleMarks, noteLead, tall = false, emphasis = false, note, selected = false, hovered = false, leading, trailing, onPress }: RowProps) {
   const [over, setOver] = useState(false);
   const lit = hovered || over;
   return (
@@ -34,10 +34,11 @@ export const Row = memo(function Row({ id, title, titleSuffix, noteLead, tall = 
     >
       {leading ? <View testID={id ? `row-${id}-leading` : undefined} style={styles.leading}>{leading}</View> : null}
       <View style={styles.text}>
-        {titleSuffix ? (
+        {titleSuffix || titleMarks ? (
           <View style={styles.titleLine}>
             <Text numberOfLines={1} style={[styles.title, styles.titleMain, emphasis && BOLD]}>{title}</Text>
-            <Text numberOfLines={1} testID={id ? `row-${id}-suffix` : undefined} style={styles.suffix}>{titleSuffix}</Text>
+            {titleSuffix ? <Text numberOfLines={1} testID={id ? `row-${id}-suffix` : undefined} style={styles.suffix}>{titleSuffix}</Text> : null}
+            {titleMarks ? <View testID={id ? `row-${id}-marks` : undefined} style={styles.marks}>{titleMarks}</View> : null}
           </View>
         ) : <Text numberOfLines={1} style={[styles.title, emphasis && BOLD]}>{title}</Text>}
         {note ? (
@@ -66,6 +67,7 @@ const styles = StyleSheet.create({
   titleLine: { flexDirection: "row", alignItems: "baseline", minWidth: 0, gap: 6 },
   titleMain: { flexShrink: 0, maxWidth: "70%" },
   suffix: { flexShrink: 1, color: "var(--ink-3)" as string, fontSize: 12, lineHeight: 18 },
+  marks: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 4 },
   noteLead: { color: "var(--accent)" as string, fontWeight: "500" },
   note: { color: "var(--ink-3)" as string, fontSize: 11.5, lineHeight: 16 },
 });

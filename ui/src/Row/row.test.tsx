@@ -82,3 +82,14 @@ test("noteLead draws an accent lead-in before the note, only with a note; rows w
   assert.ok(!plain.includes("notelead") && plain.includes("Two edits left"));
   assert.equal(rowHeight("x"), ROW_HEIGHT_WITH_NOTE, "heights are unchanged");
 });
+
+test("titleMarks draw after the title and the suffix on the title line; rows without them are unchanged", () => {
+  const html = renderToStaticMarkup(<Row id="a" title="Maya Chen" titleSuffix="Northwind" titleMarks={<span data-mark="star">S</span>} />);
+  assert.ok(html.includes('data-testid="row-a-marks"') && html.includes('data-mark="star"'));
+  assert.ok(html.indexOf("Maya Chen") < html.indexOf("Northwind") && html.indexOf("Northwind") < html.indexOf('data-mark="star"'), "title, then suffix, then marks");
+  const only = renderToStaticMarkup(<Row id="a" title="Maya Chen" titleMarks={<span data-mark="dnd">D</span>} />);
+  assert.ok(only.includes('data-testid="row-a-marks"') && !only.includes("-suffix") && only.indexOf("Maya Chen") < only.indexOf('data-mark="dnd"'), "marks work without a suffix");
+  const plain = renderToStaticMarkup(<Row id="a" title="Maya Chen" />);
+  assert.ok(!plain.includes("-marks"));
+  assert.equal(rowHeight(), ROW_HEIGHT, "heights are unchanged");
+});
