@@ -22,9 +22,10 @@ export default function Mount(): ReactNode {
   const initial = useMemo(() => ({ ...(q.get("type") ? { type: q.get("type") as string } : {}), ...(q.get("view") ? { viewId: q.get("view") as string } : {}) }), [q]);
   const view = useMemo<Partial<TableViewState>>(() => ({
     ...(q.get("group") ? { group: q.get("group") as string } : {}),
-    ...(q.get("sort") ? { sort: [{ field: q.get("sort") as string, dir: "asc" as const }] } : {}),
+    // the prototype's Northwind Clients open sorted by Client since, newest first
+    ...(q.get("sort") ? { sort: [{ field: q.get("sort") as string, dir: q.get("dir") === "desc" ? ("desc" as const) : ("asc" as const) }] } : space === protoNorthwindSpace ? { sort: [{ field: "since", dir: "desc" as const }] } : {}),
     ...(q.get("find") ? { find: q.get("find") as string } : {}),
-  }), [q]);
+  }), [q, space]);
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < 720; // 0 is "not measured yet" (the static page)
   useEffect(() => {
