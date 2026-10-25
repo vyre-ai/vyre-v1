@@ -98,7 +98,8 @@ function newest(fields: Record<string, { hlc: string }>): string {
 const values = (fields: Record<string, { v: unknown }>): Record<string, SqlValue> => Object.fromEntries(Object.entries(fields).map(([k, c]) => [k, c.v as SqlValue]));
 
 const ENT = "contact";
-const FIELDS = ["name", "email", "phone", "region", "stage", "owner"] as const;
+// the columns the replica's contact table has (generated/sync/replica.sql)
+const FIELDS = ["name", "email", "phone", "title", "company", "owner"] as const;
 
 function scene(o: { file?: string } = {}) {
   const rig = pushRig();
@@ -157,7 +158,7 @@ function scene(o: { file?: string } = {}) {
   };
 }
 
-const row = (name: string, extra: Record<string, unknown> = {}): Record<string, unknown> => ({ name, email: `${name.toLowerCase()}@example.com`, phone: "+1555", region: "eu", stage: "lead", owner: ADA, ...extra });
+const row = (name: string, extra: Record<string, unknown> = {}): Record<string, unknown> => ({ name, email: `${name.toLowerCase()}@example.com`, phone: "+1555", title: "Lead", company: "Acme", owner: ADA, ...extra });
 const read = (s: ReturnType<typeof scene>, id: string, f: string): unknown => s.phone.store.read(ENT, id)?.[f];
 
 test("a phone reads, edits and queues while the host is off, then converges when it is back", async () => {
@@ -178,8 +179,8 @@ test("a phone reads, edits and queues while the host is off, then converges when
   assert.equal(s.host.placeTurn().line, HOST_OFF_CHAT_LINE);
 
   // 3 the person edits on the phone: it shows at once and waits in the outbox
-  s.edit("c1", "stage", "won");
-  assert.equal(read(s, "c1", "stage"), "won", "the replica shows the edit now");
+  s.edit("c1", "title", "Won");
+  assert.equal(read(s, "c1", "title"), "Won", "the replica shows the edit now");
   assert.equal(s.phone.ob.pending(), 1);
   assert.equal(await s.push(), false, "the relay turns the push away");
   assert.equal(s.relay.refused(), 2, "one pull and one push were refused");
@@ -198,7 +199,7 @@ test("a phone reads, edits and queues while the host is off, then converges when
   assert.equal(s.phone.ob.pending(), 0);
   await s.pull();
   for (const id of ["c1", "c2", "c3"]) for (const f of FIELDS) assert.equal(read(s, id, f), s.rig.value(ENT, id, f), `${id}.${f} on the phone equals the host`);
-  assert.equal(s.rig.value(ENT, "c1", "stage"), "won", "the phone's edit reached the host");
+  assert.equal(s.rig.value(ENT, "c1", "title"), "Won", "the phone's edit reached the host");
   assert.equal(s.rig.value(ENT, "c1", "name"), "Anna", "the host's edit reached the phone");
   assert.deepEqual(deviceView({ status: "live", presence: s.relay.presence(), pending: 0 }), { state: "online", line: "", waiting: "" });
   assert.equal(s.host.placeTurn().where, "host");
@@ -208,7 +209,7 @@ test("the same op sent twice after a lost answer is applied once", async () => {
   const s = scene();
   s.rig.seed(ENT, "c1", row("Ann"));
   await s.pull();
-  s.edit("c1", "stage", "won");
+  s.edit("c1", "title", "Won");
   const ops = s.phone.ob.batch();
   const req = { deviceId: "dev_phone", epoch: 0, ops } as PushReq;
   const first = await s.relay.handlers["sync.push"](s.phone.ctx as never, JSON.parse(JSON.stringify(req)) as never);
@@ -217,7 +218,7 @@ test("the same op sent twice after a lost answer is applied once", async () => {
   assert.equal(await s.push(), true);
   assert.equal(s.phone.ob.pending(), 0);
   assert.equal(s.rig.applied.size, 1, "one application for one op id");
-  assert.equal(s.rig.value(ENT, "c1", "stage"), "won");
+  assert.equal(s.rig.value(ENT, "c1", "title"), "Won");
 });
 
 const scratch = (): string => path.join(os.tmpdir(), `vyre-personal-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}.db`);
@@ -233,8 +234,8 @@ test("the host revokes the phone: until it reaches the host nothing changes; the
     assert.equal(read(s, "c1", "name"), "Ann");
     // an unsent edit waits in the replica's own outbox (pending_ops)
     s.phone.store.write({
-      entity: ENT, id: "c1", fields: { stage: "won" }, hlc: hl(NOW + 1), actor: ADA,
-      op: { opId: "op_unsent", traceId: TRACE, cap: "test.patch", v: 1, input: JSON.stringify({ fields: { stage: "won" } }), baseSeq: "{}" },
+      entity: ENT, id: "c1", fields: { title: "Won" }, hlc: hl(NOW + 1), actor: ADA,
+      op: { opId: "op_unsent", traceId: TRACE, cap: "test.patch", v: 1, input: JSON.stringify({ fields: { title: "Won" } }), baseSeq: "{}" },
     });
     assert.equal(s.phone.store.pendingCount(), 1);
     const keychain = new Set(["replica-key", "device-token"]);
@@ -282,10 +283,10 @@ test("the host revokes the phone: until it reaches the host nothing changes; the
     // an old epoch is refused whatever the phone sends: a pull gets a purge and no rows, a push is refused and applies nothing
     const again = await s.relay.handlers["sync.pull"](s.phone.ctx as never, { cursor: 0, epoch: 0 } as never) as { reset?: string; changes: unknown[] };
     assert.deepEqual([again.reset, again.changes.length], ["purge", 0]);
-    const before = s.rig.value(ENT, "c1", "stage");
-    const old: PushReq = { deviceId: "dev_phone", epoch: 0, ops: [patchOp({ id: "op_late", fields: { stage: "lost" }, base: {}, hlc: hl(NOW + 9_000, 0, "dev_phone") })] };
+    const before = s.rig.value(ENT, "c1", "title");
+    const old: PushReq = { deviceId: "dev_phone", epoch: 0, ops: [patchOp({ id: "op_late", fields: { title: "Lost" }, base: {}, hlc: hl(NOW + 9_000, 0, "dev_phone") })] };
     await assert.rejects(() => s.relay.handlers["sync.push"](s.phone.ctx as never, JSON.parse(JSON.stringify(old)) as never), (e: unknown) => codeOf(e) === "auth.device_revoked");
-    assert.equal(s.rig.value(ENT, "c1", "stage"), before, "nothing the revoked phone sent was applied");
+    assert.equal(s.rig.value(ENT, "c1", "title"), before, "nothing the revoked phone sent was applied");
     await reopened.close();
   } finally { wipeFile(file); }
 });
