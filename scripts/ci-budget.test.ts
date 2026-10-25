@@ -4,8 +4,8 @@ import fs from "node:fs";
 import { LIMIT_MIN, QUEUE_ALERT_SEC, budgetLines, checkBudget, split, wallSec } from "./ci-budget.ts";
 import { queueVsExec, report, rows } from "./ci-report.ts";
 
-test("limits are 5, 10 and 25 minutes", () => {
-  assert.deepEqual(LIMIT_MIN, { push: 5, main: 10, tag: 25 });
+test("limits are 5, 10 and 25 minutes, plus 30 for the hourly perf run (ruling 55)", () => {
+  assert.deepEqual(LIMIT_MIN, { push: 5, main: 10, tag: 25, perf: 30 });
 });
 
 test("a run fails when wall time exceeds 5, 10 and 25 minutes", () => {
