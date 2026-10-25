@@ -1,6 +1,8 @@
 // Files > list (spec 3.5, 2.16): a folder, Recent, Shared with me, Trash or Knowledge as one list, Finder-grade. Click selects; Cmd-click toggles; Shift-click ranges; arrows move;
 // Cmd-A selects all; Space opens Quick Look; Enter opens; Delete moves to the Trash. Drag the selection onto a folder line, or onto a folder in the tree, to move it; hold a drag over a
-// folder and it opens (spring-load). Every line is a ui/Row with an icon in the leading slot and the date in the trailing slot; right-click opens the line's menu.
+// folder and it opens (spring-load). Every line is a ui/Row with an icon in the leading slot and the Modified, Made by, Size and Kind columns in the trailing slot; right-click opens the line's menu.
+// P-L9e_01b: the header is the shared Toolbar (breadcrumb, sort button, list/grid toggle) in ../Toolbar.tsx, the column header and the grid tiles are in ../FileList.tsx. (Path mapping: the
+// packet's FileList.tsx and Toolbar.tsx sit beside the list/ folder, and the wiring is here.)
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -14,8 +16,11 @@ import {
   SORTS, SORT_LABEL, WHERE_LABEL, createSpring, crumbs, dragPayload, dropMoves, emptyText, fileLine, folderLine, kindLabel, parsePayload, sizeText, sortLines, sourceOf, updatedText,
 } from "../tree/model.ts";
 import type { Line, Spring } from "../tree/model.ts";
-import { Glyph, IconButton, iconOfKind, pointOf } from "../tree/parts.tsx";
+import { Glyph, iconOfKind } from "../tree/parts.tsx";
 import { useFilesState } from "../tree/state.tsx";
+import { ColumnHeader, GridRow, LIST_ROW, RowCells, Tile, WIDE, chunk, gridLayout } from "../FileList.tsx";
+import { Toolbar } from "../Toolbar.tsx";
+import type { Crumb } from "../Toolbar.tsx";
 import { DragWrap } from "./DragWrap.tsx";
 import { QuickLook } from "./QuickLook.tsx";
 
@@ -38,12 +43,6 @@ export function lineMenuEntries(
   }
   out.push({ label: lines.length === 1 ? "Move to Trash" : `Move ${lines.length} Items to Trash`, danger: true, onSelect: () => h.trash(lines) });
   return out;
-}
-
-function pathOf(path: readonly { name: string }[]): string {
-  let out = "";
-  for (const p of path.slice(0, -1)) out += `${p.name} / `;
-  return out.trimEnd();
 }
 
 export function sortMenuEntries(sort: string, dir: "asc" | "desc", pick: (k: (typeof SORTS)[number]) => void, setDir: (d: "asc" | "desc") => void): MenuEntry[] {
@@ -76,6 +75,7 @@ function List(): ReactElement {
   const mods = useRef({ meta: false, shift: false });
   const last = useRef<{ key: string; at: number }>({ key: "", at: 0 });
   const [over, setOver] = useState<string | null>(null);
+  const [width, setWidth] = useState(0);
   const spring = useRef<Spring | null>(null);
   if (spring.current === null) spring.current = createSpring((id) => dispatch({ type: "go", where: { kind: "folder", id } }));
   useEffect(() => () => spring.current?.cancel(), []);
@@ -85,11 +85,14 @@ function List(): ReactElement {
     const all: Line[] = [];
     for (const f of src.data.folders ?? []) all.push(folderLine(f));
     for (const f of src.data.files) all.push(fileLine(f));
-    return sortLines(all, state.sort, state.dir);
-  }, [src, state.sort, state.dir]);
+    return sortLines(all, state.sort, state.dir, data.nameOf);
+  }, [src, state.sort, state.dir, data]);
   const order = useMemo(() => lines.map((l) => l.key), [lines]);
   const byKey = useMemo(() => new Map(lines.map((l) => [l.key, l] as const)), [lines]);
   const c = data.clock();
+  const grid = state.view === "grid";
+  const wide = width === 0 || width >= WIDE; // 0 is "not measured yet" (the static page)
+  const layout = gridLayout(width === 0 ? 900 : width);
   const inTrash = state.where.kind === "trash";
 
   const open = (l: Line): void => {
@@ -124,13 +127,15 @@ function List(): ReactElement {
 
   const onKeyDown = (ev: { key?: string; shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean; preventDefault?: () => void }): void => {
     const k = ev.key;
-    if (k === "ArrowDown" || k === "ArrowUp") {
+    if (k === "ArrowDown" || k === "ArrowUp" || (grid && (k === "ArrowRight" || k === "ArrowLeft"))) {
       ev.preventDefault?.();
+      const dir = k === "ArrowDown" || k === "ArrowRight" ? 1 : -1;
+      const step = grid && (k === "ArrowDown" || k === "ArrowUp") ? layout.per : 1;
       if (state.quickLook !== null) {
         const at = order.indexOf(state.quickLook);
-        const next = order[Math.max(0, Math.min(order.length - 1, at + (k === "ArrowDown" ? 1 : -1)))];
+        const next = order[Math.max(0, Math.min(order.length - 1, at + dir * step))];
         if (next) dispatch({ type: "quicklook", key: next });
-      } else dispatch({ type: "arrow", order, dir: k === "ArrowDown" ? 1 : -1, shift: ev.shiftKey === true });
+      } else for (let i = 0; i < step; i++) dispatch({ type: "arrow", order, dir, shift: ev.shiftKey === true });
     } else if ((k === "a" || k === "A") && (ev.metaKey === true || ev.ctrlKey === true)) {
       ev.preventDefault?.();
       dispatch({ type: "all", order });
@@ -149,7 +154,15 @@ function List(): ReactElement {
     }
   };
 
-  const renderLine = (l: Line): ReactElement => (
+  const press = (l: Line): void => {
+    const now = Date.now();
+    const dbl = last.current.key === l.key && now - last.current.at < DOUBLE_MS;
+    last.current = { key: l.key, at: now };
+    if (dbl) { open(l); return; }
+    dispatch({ type: "click", order, key: l.key, mods: mods.current });
+    mods.current = { meta: false, shift: false };
+  };
+  const dragged = (l: Line, child: ReactElement): ReactElement => (
     <DragWrap
       props={menuTrigger((x, y) => lineMenu(l, x, y))}
       handlers={{
@@ -161,49 +174,68 @@ function List(): ReactElement {
         onDrop: (payload) => drop(l, payload),
       }}
     >
+      {child}
+    </DragWrap>
+  );
+  const whenOf = (l: Line): string => updatedText(l.updatedAt, c.now, c.offsetMin);
+  const byOf = (l: Line): string | null => (l.updatedBy === null ? null : data.nameOf(l.updatedBy));
+  const sizeOfLine = (l: Line): string => (l.type === "folder" ? `${l.items} item${l.items === 1 ? "" : "s"}` : sizeText(l.size));
+  const kindOfLine = (l: Line): string => `${kindLabel(l.kind)}${l.source ? ` \u00b7 ${l.source}` : ""}`;
+
+  const renderLine = (l: Line): ReactElement => dragged(l, (
+    <View style={styles.lineSlot}>
       <Row
         id={`line:${l.key}`}
         title={l.name}
-        note={l.type === "folder" ? `${l.items} item${l.items === 1 ? "" : "s"}` : `${kindLabel(l.kind)} \u00b7 ${sizeText(l.size)}${l.source ? ` \u00b7 ${l.source}` : ""}`}
         selected={state.selection.includes(l.key)}
         hovered={over === l.key}
         leading={<View style={styles.icon}><Glyph name={iconOfKind(l.kind)} size={18} color={l.type === "folder" ? "var(--accent)" : "var(--ink-3)"} /></View>}
-        trailing={<Text style={styles.when}>{updatedText(l.updatedAt, c.now, c.offsetMin)}</Text>}
-        onPress={() => {
-          const now = Date.now();
-          const dbl = last.current.key === l.key && now - last.current.at < DOUBLE_MS;
-          last.current = { key: l.key, at: now };
-          if (dbl) { open(l); return; }
-          dispatch({ type: "click", order, key: l.key, mods: mods.current });
-          mods.current = { meta: false, shift: false };
-        }}
+        trailing={<RowCells wide={wide} cells={{ when: whenOf(l), by: byOf(l), size: sizeOfLine(l), kind: kindOfLine(l) }} />}
+        onPress={() => press(l)}
       />
-    </DragWrap>
-  );
+    </View>
+  ));
+  const renderTile = (l: Line): ReactElement => dragged(l, (
+    <Tile
+      id={l.key} name={l.name} folder={l.type === "folder"} icon={iconOfKind(l.kind)} width={layout.tile}
+      meta={l.type === "folder" ? sizeOfLine(l) : [whenOf(l), sizeText(l.size)].filter((x) => x !== "").join(" \u00b7 ")}
+      selected={state.selection.includes(l.key)} hovered={over === l.key} onPress={() => press(l)}
+    />
+  ));
+  const gridRows = useMemo(() => chunk(lines, layout.per), [lines, layout.per]);
 
   const title = state.where.kind === "folder" ? (state.where.id === null ? "Files" : crumbs(nodes.status === "ready" ? nodes.data : [], state.where.id).pop()?.name ?? "Files") : WHERE_LABEL[state.where.kind];
   const path = state.where.kind === "folder" && nodes.status === "ready" ? crumbs(nodes.data, state.where.id) : [];
-  const pathText = pathOf(path);
+  const trail: Crumb[] = state.where.kind === "folder"
+    ? [{ key: "root", name: "Files", id: null }, ...path.map((p) => ({ key: p.id, name: p.name, id: p.id }))]
+    : [{ key: state.where.kind, name: title }];
   const ql = state.quickLook !== null ? byKey.get(state.quickLook) : undefined;
 
   return (
     <View style={styles.main} testID="files-list" accessibilityLabel={title}>
-      <View style={styles.head} testID="files-head">
-        <View style={styles.tt}>
-          {path.length > 1 ? <Text style={styles.path} numberOfLines={1} testID="files-path">{pathText}</Text> : null}
-          <Text accessibilityRole="header" aria-level={1} style={styles.h1} numberOfLines={1}>{title}</Text>
-          {src.status === "ready" ? <Text style={styles.meta} testID="files-count">{`${lines.length} item${lines.length === 1 ? "" : "s"}${state.selection.length > 0 ? `, ${state.selection.length} selected` : ""}`}</Text> : null}
-        </View>
-        <View style={styles.grow} />
-        <IconButton icon="sort" label="Sort" testID="files-sort" onPress={(x, y) => menu.show(sortMenuEntries(state.sort, state.dir, (k) => dispatch({ type: "sort", key: k }), (d) => dispatch({ type: "dir", dir: d })), x, y)} />
-      </View>
+      <Toolbar
+        crumbs={trail}
+        count={src.status === "ready" ? `${lines.length} item${lines.length === 1 ? "" : "s"}${state.selection.length > 0 ? `, ${state.selection.length} selected` : ""}` : null}
+        sortLabel={SORT_LABEL[state.sort]}
+        view={state.view}
+        onGo={(id) => dispatch({ type: "go", where: { kind: "folder", id } })}
+        onSort={(x, y) => menu.show(sortMenuEntries(state.sort, state.dir, (k) => dispatch({ type: "sort", key: k }), (d) => dispatch({ type: "dir", dir: d })), x, y)}
+        onView={(view) => dispatch({ type: "view", view })}
+      />
       {ql ? <QuickLook line={ql} now={c.now} offsetMin={c.offsetMin} nameOf={data.nameOf} onClose={() => dispatch({ type: "quicklook", key: null })} onOpen={() => { dispatch({ type: "quicklook", key: null }); open(ql); }} /> : null}
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="files-offline">Offline, showing your saved copy</Text>}
       {src.status !== "ready" ? <ListLoading bare /> : lines.length === 0 ? (
         <States kind="empty" title={emptyText(state.where)} icon="files" />
       ) : (
-        <View style={styles.listBox} {...({ onKeyDown, tabIndex: 0 } as object)}>
-          <VirtualList data={lines} rowHeight={44} keyOf={(l) => l.key} renderItem={renderLine} />
+        <View style={styles.listBox} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))} {...({ onKeyDown, tabIndex: 0 } as object)}>
+          {grid ? (
+            <VirtualList data={gridRows} rowHeight={layout.height} keyOf={(r) => r.map((l) => l.key).join("|")} renderItem={(r) => <GridRow>{r.map((l) => <View key={l.key}>{renderTile(l)}</View>)}</GridRow>} />
+          ) : (
+            <>
+              <ColumnHeader sort={state.sort} dir={state.dir} wide={wide} onSort={(k) => dispatch({ type: "sort", key: k })} />
+              <VirtualList data={lines} rowHeight={LIST_ROW} keyOf={(l) => l.key} renderItem={renderLine} />
+            </>
+          )}
         </View>
       )}
       {menu.element}
@@ -220,13 +252,10 @@ export function FilesList(): ReactElement {
 const styles = StyleSheet.create({
   main: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 18, paddingRight: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
-  tt: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0, flexShrink: 1 },
-  path: { fontSize: 13, color: "var(--ink-3)" as string, flexShrink: 1 },
+  lineSlot: { height: LIST_ROW, justifyContent: "center", paddingHorizontal: 6 },
   h1: { margin: 0, fontSize: 14, fontWeight: "600", letterSpacing: -0.07, color: "var(--ink)" as string },
-  meta: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  grow: { flex: 1 },
   offline: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingHorizontal: 18, paddingVertical: 6 },
-  listBox: { flex: 1, paddingHorizontal: 6, paddingTop: 4 },
+  listBox: { flex: 1 },
   icon: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string, marginRight: 10 },
   when: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   skRow: { flexDirection: "row", alignItems: "center", gap: 12, height: 44, paddingHorizontal: 18 },
