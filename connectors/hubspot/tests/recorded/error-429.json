@@ -1,0 +1,1 @@
+{"status":"error","message":"You have reached your secondly limit.","errorType":"RATE_LIMIT","correlationId":"b1b2c3d4-0000-4000-8000-000000000002","policyName":"SECONDLY","category":"RATE_LIMITS"}
