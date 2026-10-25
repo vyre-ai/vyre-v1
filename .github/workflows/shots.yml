@@ -30,11 +30,17 @@ jobs:
           path: package-lock.json
           retention-days: 7
   shots:
-    runs-on: [self-hosted, linux, v1]
+    # GitHub-hosted (like the desktop builds, ruling 4) so screenshots never queue behind the test shards on the self-hosted runners.
+    runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/deps
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --ignore-scripts
       - name: Export the web build and take side-by-side screenshots (export budget 120 s)
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}

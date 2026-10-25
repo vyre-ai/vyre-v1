@@ -1,0 +1,36 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_02-home-northwind",
+      "route": "/m/P-L9b_02",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='s-ask']",
+      "note": "Home over the Northwind sample Space: the greeting and sections A, then Today, Starred and the Ask box. The prototype side is its Home in the same skin; it has no Today or Starred section, so those two are compared by their design notes (spec 3.1), and the quick start row and Ask box at the foot are compared directly.",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_02-home-northwind-lower",
+      "route": "/m/P-L9b_02?scroll=s-today",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='s-ask']",
+      "note": "The same page scrolled to Today and Starred (terminals with live status, Show all) with the quick start row and Ask box docked at the foot, as the prototype docks them under its Home.",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_02-home-firstrun",
+      "route": "/m/P-L9b_02?v=firstrun",
+      "proto": "home,firstrun,{skin}",
+      "waitFor": "[data-testid='s-ask']",
+      "note": "A new member's first Home: the Get started card (0 of 6, assistant locked, Connect an AI account first) above empty sections, the locked Ask box. The prototype side is its first-run Home.",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_02-home-personal",
+      "route": "/m/P-L9b_02?v=personal",
+      "proto": "home,space:personal,{skin}",
+      "waitFor": "[data-testid='s-ask']",
+      "note": "A Personal Space: Get started without the project row, no Today (no calendar connected), a locked Ask box. The prototype side is its Personal Space Home.",
+      "protoSettleMs": 1500
+    }
+  ]
+}
