@@ -120,6 +120,8 @@ export interface DaemonOptions {
   } & Partial<Omit<SeamDeps, "vault" | "drivers" | "owners">>;
   /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
   engineSandbox?: unknown;
+  /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
+  engineCli?: unknown;
   /** replace the consumers and periodic jobs read from the live modules' exports (tests) */
   hooks?: ModuleHooks[];
   /** The key behind ctx.seal. Omitted: a random 32-byte key kept in <data dir>/seal.key (0600). */
@@ -412,7 +414,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }),
         setEventsDispatch: () => system,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
-        setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
+        setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
         // the import module reads an Airtable or Notion key from the Vault by handle, for one call
         setImportHost: (d) => ({ secret: (_ctx: unknown, handle: string) => d.vault.secret(handle.startsWith("#") ? handle : `#${handle}`, d.space) }),
         setEventsHost: () => createEventsHost({

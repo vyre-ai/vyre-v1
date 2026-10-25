@@ -20,6 +20,8 @@ export interface DefaultSandboxOptions {
   bwrapPaths?: readonly string[];
   egressHosts?: readonly string[];
   node?: string;
+  /** Extra read-only folders for the program being run (a CLI installed outside /usr). */
+  programRead?: readonly string[];
 }
 
 const BWRAP = ["/usr/bin/bwrap", "/usr/local/bin/bwrap", "/bin/bwrap"];
@@ -33,13 +35,13 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
   if (platform === "linux") {
     if (!(o.bwrapPaths ?? BWRAP).some((p) => fs.existsSync(p))) return unavailable("bubblewrap (bwrap) is not installed on this server, so CLI engines cannot be sandboxed");
     const wall = await startNetWall({ allow: hosts });
-    return done({ kind: "bwrap", wallDir: wall.dir, node }, () => wall.close());
+    return done({ kind: "bwrap", wallDir: wall.dir, node, ...(o.programRead ? { programRead: o.programRead } : {}) }, () => wall.close());
   }
   if (platform === "darwin") {
     const proxy = createEgressProxy({ allow: hosts });
     const { port } = await proxy.listen();
     // Seatbelt denies reads by default: the program being run (this Node, and the CLI's install folders) must be readable.
-    const programRead = [path.dirname(path.dirname(node)), path.join(process.env["HOME"] ?? "/", ".local"), "/opt/homebrew", "/usr/local"].filter((p) => p !== "/");
+    const programRead = [...(o.programRead ?? []), path.dirname(path.dirname(node)), path.join(process.env["HOME"] ?? "/", ".local"), "/opt/homebrew", "/usr/local"].filter((p) => p !== "/");
     return done({ kind: "seatbelt", proxyPort: port, programRead }, () => proxy.close());
   }
   return unavailable(`CLI engines cannot be sandboxed on ${platform}`);

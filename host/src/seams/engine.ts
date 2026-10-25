@@ -28,6 +28,11 @@ export interface EngineHostSeam {
   sandbox?: unknown;
   /** The Space data directory: work folders and the default sandbox are made under it. */
   dataDir?: string;
+  /** CLI program swap and extra sandbox read folders (tests). Handed to the module as is. */
+  cli?: unknown;
+  /** The daemon's invoke pipeline and Space id, for tools on API-key chats. */
+  invoke?: Invoke;
+  space?: string;
 }
 
 export interface EngineHostDeps {
@@ -40,6 +45,7 @@ export interface EngineHostDeps {
   /** Handed to the module as is; the host does not look inside it. Omitted: the module builds the default sandbox for the platform. */
   sandbox?: unknown;
   dataDir?: string;
+  cli?: unknown;
 }
 
 const SYSTEM = { kind: "service", id: "svc_host" } as const;
@@ -57,5 +63,5 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
   const call: EngineInvoke = (cap, input, as) => run(cap, input, as ? { kind: "person", id: as } : { ...SYSTEM });
   const postAs: EngineHostSeam["postAs"] = (agentId, post) => run("chat.post", post, { kind: "agent", id: agentId });
   const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space }) : undefined;
-  return { holder: `host:${d.space}`, call, postAs, ...(d.now ? { now: d.now } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}) };
+  return { holder: `host:${d.space}`, call, postAs, ...(d.now ? { now: d.now } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), invoke: d.invoke, space: d.space };
 }

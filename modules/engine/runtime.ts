@@ -6,7 +6,9 @@ import type { TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { AccountQuery, OpenSession, ResolvedAccount, TurnRow } from "../../agent/src/turn-engine/types.ts";
 import { open } from "./handlers/control.ts";
 import { bindBridge, createBridge } from "./handlers/bridge.ts";
-import { buildOpener } from "./session.ts";
+import type { Invoke } from "../../host/src/invoke.ts";
+import { createEngineApiTools } from "./api-tools.ts";
+import { buildOpener, roleBlocks } from "./session.ts";
 import { defaultSandbox } from "./sandbox-default.ts";
 import type { DefaultSandbox } from "./sandbox-default.ts";
 import type { SandboxPlan } from "./sandbox.ts";
@@ -26,6 +28,11 @@ export interface EngineHostSeam {
   session?: EngineSessionPorts;
   /** Where CLI engines run sandboxed (work folders, the wall). Absent: CLI turns fail closed. */
   sandbox?: SandboxPlan;
+  /** The host's invoke pipeline, for tools on API-key chats: each tool call is one capability invoke as the agent acting for the asker. Absent: an API chat answers in words only. */
+  invoke?: Invoke;
+  space?: string;
+  /** CLI engines: swap a program for a command (a fake CLI in a test), and extra read-only folders the sandbox must expose for it. Default: the real CLI, nothing extra. */
+  cli?: { command?: Readonly<Record<string, readonly string[]>>; programRead?: readonly string[] };
   /** The Space data directory. With it and no `sandbox`, the module builds the default sandbox for this platform on the first CLI turn (sandbox-default.ts). */
   dataDir?: string;
   now?: () => number;
@@ -83,7 +90,7 @@ async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: Resolv
 
 let defaultBuilt: DefaultSandbox | null = null;
 /** The default sandbox plan for this platform, built once per runtime. */
-const defaultPlan = (dataDir: string) => async (): Promise<SandboxPlan> => (defaultBuilt ??= await defaultSandbox({ dataDir })).plan;
+const defaultPlan = (dataDir: string, programRead?: readonly string[]) => async (): Promise<SandboxPlan> => (defaultBuilt ??= await defaultSandbox({ dataDir, ...(programRead ? { programRead } : {}) })).plan;
 /** Stop the default sandbox's wall (daemon shutdown, tests). */
 export async function closeDefaultSandbox(): Promise<void> { const d = defaultBuilt; defaultBuilt = null; await d?.close(); }
 
@@ -94,7 +101,8 @@ export async function closeDefaultSandbox(): Promise<void> { const d = defaultBu
 export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | null> {
   if (!host || (!host.openSession && !host.session)) return Promise.resolve(null);   // no way to open a session: the control handlers keep answering internal.unavailable
   const h = host;
-  const opener = host.openSession ? null : buildOpener({ session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir) } : {}) });
+  const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call) }) : undefined;
+  const opener = host.openSession ? null : buildOpener({ ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, host.cli?.programRead) } : {}) });
   const openSession = host.openSession ?? (opener as NonNullable<typeof opener>).openSession;
   closeOpener = opener ? () => opener.close() : null;
   building ??= (async () => {
@@ -106,6 +114,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       resolveAccount: (q) => accountFor(h, q),
       onNoAccount: (info) => unblock(h, ctx.db, info),
       onTurnEnd: (turn, account) => meter(h, turn, account),
+      ...(apiTools ? { callTool: apiTools.runner } : {}),
     });
     bridge?.attach(engine);
     h.extend?.(engine);
