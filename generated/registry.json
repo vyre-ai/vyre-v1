@@ -304,33 +304,6 @@
       },
       "type": "array"
     },
-    "s_06e2de2d97": {
-      "enum": [
-        "approval.requested",
-        "approval.backstop",
-        "dm",
-        "mention",
-        "call.incoming",
-        "agent.blocked",
-        "incident.owned",
-        "task.assigned",
-        "reply.followed",
-        "agent.task_finished",
-        "campaign.reply",
-        "digest.away",
-        "mention.thread",
-        "run.failed",
-        "conflict.needs_you",
-        "access.requested",
-        "access.decided",
-        "sync.attention",
-        "health.degraded",
-        "problem.report",
-        "member.joined",
-        "limit.hit"
-      ],
-      "type": "string"
-    },
     "s_07340211b5": {
       "anyOf": [
         {
@@ -366,6 +339,34 @@
           "$ref": "#/$defs/s_0506fc3ab2"
         }
       ]
+    },
+    "s_0766030a72": {
+      "enum": [
+        "approval.requested",
+        "approval.backstop",
+        "dm",
+        "mention",
+        "call.incoming",
+        "agent.blocked",
+        "incident.owned",
+        "task.assigned",
+        "reply.followed",
+        "agent.task_finished",
+        "campaign.reply",
+        "digest.away",
+        "mention.thread",
+        "run.failed",
+        "conflict.needs_you",
+        "access.requested",
+        "access.decided",
+        "sync.attention",
+        "health.degraded",
+        "problem.report",
+        "member.joined",
+        "limit.hit",
+        "vault.rotation_due"
+      ],
+      "type": "string"
     },
     "s_08106672f4": {
       "properties": {
@@ -115452,7 +115453,7 @@
                   "type": "integer"
                 },
                 "kind": {
-                  "$ref": "#/$defs/s_06e2de2d97"
+                  "$ref": "#/$defs/s_0766030a72"
                 },
                 "subject": {
                   "$ref": "#/$defs/s_f21ece25da"
@@ -115529,7 +115530,7 @@
             "items": {
               "properties": {
                 "key": {
-                  "$ref": "#/$defs/s_06e2de2d97"
+                  "$ref": "#/$defs/s_0766030a72"
                 },
                 "level": {
                   "enum": [
@@ -115736,7 +115737,7 @@
                   "type": "string"
                 },
                 "kind": {
-                  "$ref": "#/$defs/s_06e2de2d97"
+                  "$ref": "#/$defs/s_0766030a72"
                 },
                 "level": {
                   "enum": [
@@ -116519,7 +116520,7 @@
             "type": "object"
           },
           "kind": {
-            "$ref": "#/$defs/s_06e2de2d97"
+            "$ref": "#/$defs/s_0766030a72"
           },
           "runId": {
             "examples": [
@@ -178652,7 +178653,7 @@
             "type": "string"
           },
           "kind": {
-            "$ref": "#/$defs/s_06e2de2d97"
+            "$ref": "#/$defs/s_0766030a72"
           },
           "perHour": {
             "type": "integer"
@@ -178721,7 +178722,7 @@
             "type": "string"
           },
           "kind": {
-            "$ref": "#/$defs/s_06e2de2d97"
+            "$ref": "#/$defs/s_0766030a72"
           },
           "level": {
             "enum": [
