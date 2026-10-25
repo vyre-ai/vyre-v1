@@ -8,7 +8,7 @@ import { MessageView } from "./MessageView.tsx";
 import * as act from "./actions.ts";
 import {
   WINDOW, beforeCursor, byOrder, dayLabel, faces, lastMessages, leadOf, mentionsIn, mergePages, pendingMessage, queueNote, queuedCount, respondersFor, sendKind, stillPending, stopLabel,
-  swapNeeded, timeline, whoLine, workOf, workingAgents, bodyBlocks, findMatches, matchLine, modelLabel, participants, placeholderFor, summarizeOpen, CHAT_OPEN_BUDGET_MS,
+  swapNeeded, timeline, whoLine, workOf, workingAgents, bodyBlocks, findMatches, matchLine, modelLabel, participants, placeholderFor, summarizeOpen, openVerdict, CHAT_OPEN_BUDGET_MS,
 } from "./model.ts";
 import { changeCount, editedNote, isPlanFile, isProposal, planFileLine, proposalActs, proposalData } from "./proposal.tsx";
 import type { Message, Pending, Thread } from "./model.ts";
@@ -329,4 +329,35 @@ test("the browser chat-open probe: one warm-up discarded, the median of five aga
   assert.equal(summarizeOpen([40, 41, 42, 43, 44], 51).ok, false, "not the last 50 messages");
   assert.equal(summarizeOpen([40, 41, 42], 50).ok, false, "fewer than five counted runs");
   assert.equal(summarizeOpen([], 50).ok, false);
+});
+
+test("the probe line is never backwards: a fast open with 50 rows is ok, a slow one is over budget, a wrong count says so", () => {
+  assert.equal(openVerdict(summarizeOpen([40, 48, 50, 52, 60], 50)), "ok");
+  assert.equal(openVerdict(summarizeOpen([110, 120, 130, 140, 150], 50)), "OVER BUDGET");
+  assert.equal(openVerdict(summarizeOpen([40, 48, 50, 52, 60], 49)), "WRONG ROW COUNT (49 of 50)");
+  assert.equal(openVerdict(summarizeOpen([40, 48], 50)), "TOO FEW RUNS (2 of 5)");
+});
+
+test("the long sample's last 50 rows are 50 timeline rows (messages and events), the count the probe checks", () => {
+  const s = createSample("long");
+  const rows = lastMessages(msgs(s), WINDOW).rows;
+  assert.equal(rows.length, 50);
+  const out = html(s);
+  const n = (out.match(/data-testid="(?:msg|event)-[^"]+"/g) ?? []).length;
+  assert.equal(n, 50);
+});
+
+test("the diff draws removed lines red and added lines green, and Accept is the dark button with its check while Edit and Reject carry their icons", () => {
+  const out = html(createSample("idle"));
+  const del = out.slice(out.lastIndexOf("<", out.indexOf('data-testid="diff-del"')), out.indexOf(">", out.indexOf('data-testid="diff-del"')) + 1);
+  const add = out.slice(out.lastIndexOf("<", out.indexOf('data-testid="diff-add"')), out.indexOf(">", out.indexOf('data-testid="diff-add"')) + 1);
+  assert.ok(has(del, "var(--danger)") && has(add, "var(--ok)"));
+  assert.equal(out.split('data-testid="diff-del"').length - 1, 1, "one removed line");
+  assert.equal(out.split('data-testid="diff-add"').length - 1, 2, "two added lines");
+  const accept = out.slice(at(out, 'data-testid="proposal-b2-accept"'), at(out, 'data-testid="proposal-b2-edit-open"'));
+  assert.ok(has(accept, "<svg") && has(accept, "var(--ink)"), "Accept: ink fill with the check icon");
+  const edit = out.slice(at(out, 'data-testid="proposal-b2-edit-open"'), at(out, 'data-testid="proposal-b2-reject"'));
+  assert.ok(has(edit, "<svg"), "Edit has its icon");
+  const reject = out.slice(at(out, 'data-testid="proposal-b2-reject"'), at(out, 'data-testid="proposal-b2-reject"') + 900);
+  assert.ok(has(reject, "<svg"), "Reject has its icon");
 });

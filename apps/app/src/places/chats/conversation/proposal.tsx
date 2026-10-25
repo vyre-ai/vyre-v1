@@ -109,8 +109,8 @@ export function AgentFileProposal({ block, host }: { block: Block; host: BlockHo
           {collect(d.hunks, (h, i) => (
             <View key={i}>
               {h.sec ? <Text style={[st.line, st.ctx]}>{h.sec}</Text> : null}
-              {h.del ? <View style={[st.lineRow, st.del]}><Text style={st.sign}>{"−"}</Text><Text style={[st.line, { color: "var(--ink-2)" as string }]}>{h.del}</Text></View> : null}
-              <View style={[st.lineRow, st.add]}><Text style={st.sign}>+</Text><Text style={st.line}>{h.add}</Text></View>
+              {h.del ? <View style={st.lineRow}><View testID="diff-del" pointerEvents="none" style={[st.wash, { backgroundColor: "var(--danger)" as string, opacity: 0.13 }]} /><Text style={st.sign}>{"−"}</Text><Text style={[st.line, { color: "var(--ink-2)" as string }]}>{h.del}</Text></View> : null}
+              <View style={st.lineRow}><View testID="diff-add" pointerEvents="none" style={[st.wash, { backgroundColor: "var(--ok)" as string, opacity: 0.16 }]} /><Text style={st.sign}>+</Text><Text style={st.line}>{h.add}</Text></View>
             </View>
           ))}
         </View>
@@ -118,19 +118,19 @@ export function AgentFileProposal({ block, host }: { block: Block; host: BlockHo
       <View style={st.foot}>
         {editing ? (
           <>
-            <TextButton label="Send Edited" primary testID={`proposal-${id}-send`} onPress={sendEdited} />
+            <TextButton label="Send Edited" dark icon="check" testID={`proposal-${id}-send`} onPress={sendEdited} />
             <TextButton label="Cancel" testID={`proposal-${id}-cancel`} onPress={() => setEditing(false)} />
           </>
         ) : d.canAccept ? (
           <>
-            <TextButton label="Accept" primary testID={`proposal-${id}-accept`} onPress={accept} />
-            <TextButton label="Edit" testID={`proposal-${id}-edit-open`} onPress={() => setEditing(true)} />
-            <TextButton label="Reject" testID={`proposal-${id}-reject`} onPress={reject} />
+            <TextButton label="Accept" dark icon="check" testID={`proposal-${id}-accept`} onPress={accept} />
+            <TextButton label="Edit" icon="edit" testID={`proposal-${id}-edit-open`} onPress={() => setEditing(true)} />
+            <TextButton label="Reject" icon="x" testID={`proposal-${id}-reject`} onPress={reject} />
           </>
         ) : (
           <>
-            <TextButton label={`Suggest to ${d.owner || "the Owner"}`} primary testID={`proposal-${id}-suggest`} onPress={suggest} />
-            <TextButton label="Reject" testID={`proposal-${id}-reject`} onPress={reject} />
+            <TextButton label={`Suggest to ${d.owner || "the Owner"}`} dark icon="check" testID={`proposal-${id}-suggest`} onPress={suggest} />
+            <TextButton label="Reject" icon="x" testID={`proposal-${id}-reject`} onPress={reject} />
           </>
         )}
       </View>
@@ -182,12 +182,11 @@ const st = StyleSheet.create({
   faint: { fontSize: 12, color: "var(--ink-3)" as string },
   why: { fontSize: 13, lineHeight: 20, color: "var(--ink-2)" as string },
   diff: { borderRadius: 10, paddingVertical: 6, overflow: "hidden", backgroundColor: "var(--win)" as string, ...RING },
-  lineRow: { flexDirection: "row", paddingHorizontal: 10 },
+  lineRow: { flexDirection: "row", paddingHorizontal: 10, position: "relative" },
+  wash: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 },
   sign: { width: 14, fontFamily: MONO, fontSize: 12, lineHeight: 18, color: "var(--ink-3)" as string },
   line: { flex: 1, fontFamily: MONO, fontSize: 12, lineHeight: 18, color: "var(--ink)" as string, paddingHorizontal: 0 },
   ctx: { paddingHorizontal: 10, color: "var(--ink-4)" as string },
-  add: { backgroundColor: "color-mix(in srgb, var(--ok) 14%, transparent)" as string },
-  del: { backgroundColor: "color-mix(in srgb, var(--danger) 12%, transparent)" as string },
   edit: { minHeight: 70, borderRadius: 10, padding: 10, fontFamily: MONO, fontSize: 12, lineHeight: 18, color: "var(--ink)" as string, backgroundColor: "var(--sunk)" as string, outlineStyle: "none" } as object,
   foot: { flexDirection: "row", alignItems: "center", gap: 6 },
   plan: { flexDirection: "row", alignItems: "center", gap: 12, alignSelf: "flex-start", maxWidth: 460, marginTop: 6, marginBottom: 8, paddingVertical: 10, paddingRight: 14, paddingLeft: 10, borderRadius: 12, ...RING },

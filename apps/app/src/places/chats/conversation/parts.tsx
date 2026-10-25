@@ -90,16 +90,18 @@ export function FaceButton({ name, mode, working, onPress, title, testID, size =
   );
 }
 
-/** A text button; `primary` is the one filled action. */
-export function TextButton({ label, onPress, primary = false, disabled = false, danger = false, testID }: { label: string; onPress: () => void; primary?: boolean; disabled?: boolean; danger?: boolean; testID?: string }): ReactElement {
+/** A text button; `primary` is the one filled action (the accent), `dark` the ink-filled one the cards use, `icon` a glyph before the label. */
+export function TextButton({ label, onPress, primary = false, dark = false, icon, disabled = false, danger = false, testID }: { label: string; onPress: () => void; primary?: boolean; dark?: boolean; icon?: GlyphName; disabled?: boolean; danger?: boolean; testID?: string }): ReactElement {
   const [over, setOver] = useState(false);
+  const filled = primary || dark;
   return (
     <Pressable
       accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} testID={testID} onPress={onPress}
       onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
-      style={[s.btn, primary ? s.btnPrimary : over && s.btnOver, disabled && { opacity: 0.5 }]}
+      style={[s.btn, dark ? s.btnDark : primary ? s.btnPrimary : over && s.btnOver, dark && over && { opacity: 0.88 }, disabled && { opacity: 0.5 }]}
     >
-      <Text style={[s.btnText, primary && s.btnTextPrimary, danger && { color: "var(--danger)" as string }]}>{label}</Text>
+      {icon ? <Glyph name={icon} size={13} color={dark ? "var(--win)" : primary ? "var(--accent-ink)" : "var(--ink-2)"} /> : null}
+      <Text style={[s.btnText, filled && (dark ? s.btnTextDark : s.btnTextPrimary), danger && { color: "var(--danger)" as string }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -132,8 +134,10 @@ export const s = StyleSheet.create({
   btn: { height: 28, paddingHorizontal: 11, borderRadius: 8, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
   btnOver: { backgroundColor: "var(--hover)" as string },
   btnPrimary: { backgroundColor: "var(--accent)" as string },
+  btnDark: { backgroundColor: "var(--ink)" as string },
   btnText: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
   btnTextPrimary: { color: "var(--accent-ink)" as string },
+  btnTextDark: { color: "var(--win)" as string },
   fold: { gap: 4 },
   foldHead: { minHeight: 24, flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" },
   foldText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-3)" as string },

@@ -415,6 +415,13 @@ export function summarizeOpen(runs: readonly number[], messages: number, budget 
   return { runs: [...runs], median, worst, budget, ok: messages === WINDOW && sorted.length >= OPEN_RUNS && median < budget, messages };
 }
 
+/** What the probe line says: ok, over the budget, or not the last 50 rows (a wrong count is never reported as a slow open). */
+export function openVerdict(r: OpenResult): string {
+  if (r.messages !== WINDOW) return `WRONG ROW COUNT (${r.messages} of ${WINDOW})`;
+  if (r.runs.length < OPEN_RUNS) return `TOO FEW RUNS (${r.runs.length} of ${OPEN_RUNS})`;
+  return r.median < r.budget ? "ok" : "OVER BUDGET";
+}
+
 /** Builds a list from a list. Written as a function (not `.map`) so a list of JSX is plainly the composition of its parts. */
 export function collect<T, U>(list: readonly T[], fn: (item: T, index: number) => U): U[] {
   const out: U[] = [];

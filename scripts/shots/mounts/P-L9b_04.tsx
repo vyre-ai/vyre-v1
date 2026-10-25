@@ -15,7 +15,7 @@ import { Text, View } from "react-native";
 import { Conversation } from "../../../apps/app/src/places/chats/conversation/Conversation.tsx";
 import { createSample } from "../../../apps/app/src/places/chats/conversation/sample.ts";
 import type { Variant } from "../../../apps/app/src/places/chats/conversation/sample.ts";
-import { OPEN_RUNS, summarizeOpen } from "../../../apps/app/src/places/chats/conversation/model.ts";
+import { OPEN_RUNS, openVerdict, summarizeOpen } from "../../../apps/app/src/places/chats/conversation/model.ts";
 import type { OpenResult } from "../../../apps/app/src/places/chats/conversation/model.ts";
 
 export const title = "Chats conversation";
@@ -43,7 +43,8 @@ function openOnce(host: Node_): { ms: number; messages: number; last: boolean } 
   const root = createRoot(box as unknown as Parameters<typeof createRoot>[0]);
   const t0 = performance.now();
   flushSync(() => root.render(<Conversation data={sample.data} />));
-  const rows = box.querySelectorAll('[data-testid^="msg-"]');
+  // The window is 50 rows: messages and the one-line events between them.
+  const rows = box.querySelectorAll('[data-testid^="msg-"], [data-testid^="event-"]');
   const last = box.querySelector('[data-testid="msg-f149"]');
   last?.getBoundingClientRect(); // forces layout of everything above it
   const ms = performance.now() - t0;
@@ -78,7 +79,7 @@ function OpenProbe(): ReactNode {
       setRes(out);
     }));
   }, []);
-  const line = res === null ? "Measuring…" : `Chat open, last ${res.messages} messages: median ${res.median.toFixed(1)} ms, worst ${res.worst.toFixed(1)} ms of ${res.runs.length} (warm-up discarded), budget ${res.budget} ms: ${res.ok ? "ok" : "OVER BUDGET"}`;
+  const line = res === null ? "Measuring…" : `Chat open, last ${res.messages} rows: median ${res.median.toFixed(1)} ms, worst ${res.worst.toFixed(1)} ms of ${res.runs.length} (warm-up discarded), budget ${res.budget} ms: ${openVerdict(res)}`;
   return (
     <View style={{ flex: 1, backgroundColor: "var(--win)" as string }}>
       <Text testID={res === null ? "open-probe-running" : "open-probe-done"} accessibilityLiveRegion="polite" style={{ padding: 12, fontSize: 13, color: (res !== null && !res.ok ? "var(--danger)" : "var(--ink)") as string }}>{line}</Text>
