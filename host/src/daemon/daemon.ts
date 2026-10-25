@@ -24,7 +24,7 @@ import { createGateway, indexRoutes } from "../gateway.ts";
 import { withEventIds } from "../ids.ts";
 import type { GatewayDeps, RouteRec } from "../gateway.ts";
 import { createInvoke, createRateLimiter, fail, indexCapabilities, makeError } from "../invoke.ts";
-import type { AuditRow, Handler, Invoke } from "../invoke.ts";
+import type { AuditRow, Handler, Invoke, InvokeDeps } from "../invoke.ts";
 import { fileExportsImporter, fileImporter, fileSeamImporter, loadHost, readModuleList } from "../loader.ts";
 import type { RegistryLike } from "../loader.ts";
 import { LogSink } from "../logsink/index.ts";
@@ -98,6 +98,8 @@ export interface DaemonOptions {
   network?: NetworkPort;
   /** replace a probe (P-L7b_04 supplies the recorded-output disk check) */
   probes?: { diskEncrypted?: () => Promise<ProbeResult>; indexLag?: () => number | null };
+  /** The Personal Space gate (the sync module's createPersonalHost(...).gate) asked first for every capability; omitted on a Team Space. */
+  personal?: InvokeDeps["personal"];
   /** more supervised services: Caddy, the vault filler, the Chrome bridge, local turns */
   services?: ServiceSpec[];
   /** capabilities, routes, handlers and event names beyond the generated registry (tests register example.echo; later lanes register host-only calls) */
@@ -350,6 +352,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         services: hostServices({ base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs }),
         idem, rate: createRateLimiter(), now, log: sinkLog,
         ...(gate ? { gate } : {}),
+        ...(o.personal ? { personal: o.personal } : {}),
         // P-H_16: an object a call creates is a resource in the same commit, so it is authorizable at once
         resources: createResourceRegistrar({ events: registry.events, exists: (id) => access.snap.resource(id) !== undefined }),
         commit: withEventIds(async (b) => {
