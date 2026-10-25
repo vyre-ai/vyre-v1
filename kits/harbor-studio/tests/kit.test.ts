@@ -1,57 +1,137 @@
 // Built-in Kit "harbor-studio" (P-L8_09, spec 2.21, 1; ARCH 7.6, 10.4): the Kit file is valid, names only capabilities that exist with inputs that validate, matches the
-// record types and settings its manifest declares, installs and rolls into the Space in order, and passes its own tests on a fixture Space.
-// Real SQLite behind the kits module, generated validators on every input; the fixture Space answers like the neighbours it stands for.
+// record types and settings its manifest declares, applies in order to a fixture Space, and passes its own declared tests there.
+// A Kit folder may import only lib, contracts, client, ui and the testkit (boundaries), so the Kit format rules and the declared-test runner of the kits module
+// (modules/kits/handlers: checkKit, runKitTests) are mirrored here in small form; kits.publish runs the module's own copy on the host and in kits.yml.
 // @reads /kits/harbor-studio/kit.json
 // @reads /kits/harbor-studio/fixtures/seed.ts
 
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { checkKit, sheetOf } from "../../../modules/kits/handlers/index.ts";
-import type { KitManifest } from "../../../modules/kits/handlers/index.ts";
-import type { KitStep } from "../../../modules/kits/handlers/install.ts";
-import { FakeSpace, harness } from "../../../modules/kits/fixtures/db.ts";
 import { registry } from "../../../generated/registry.ts";
 import { validateInput } from "../../../generated/validators.ts";
 import { seed } from "../fixtures/seed.ts";
 
 type Obj = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
-const raw = (): Obj => JSON.parse(readFileSync(new URL("../kit.json", import.meta.url), "utf8")) as Obj;
-const kit = (): KitManifest => {
-  const c = checkKit(raw());
-  assert.deepEqual(c.problems, []);
-  return c.kit!;
-};
-const contentsOf = (k: KitManifest): string[] => ["ui", "structure", "steps", "tools"].filter((c) => k.items.some((i) => i.content === c));
-const steps = (k: KitManifest): { item: string; which: string; step: KitStep }[] =>
-  k.items.flatMap((it) => (["apply", "undo"] as const).flatMap((w) => (it[w] ? [{ item: it.key, which: w, step: it[w]! }] : [])));
+type Step = { cap: string; input: Obj };
+type Item = { key: string; content: string; type: string; title: string; apply?: Step; undo?: Step; recordType?: string; tools?: string[] };
+type Declared = { name: string; kind: "space"; seed?: Step[]; expect: { events?: { name: string; payload?: Obj }[]; views?: { cap: string; input?: Obj; rows?: number; contains?: Obj }[] } };
+type KitManifest = { key: string; title: string; version: string; channel: string; description?: string; items: Item[]; tests?: Declared[] };
 
-/** A fixture Space whose neighbours answer like the real modules: types, settings, automations and agents appear, each with its event. */
-function realisticSpace(): FakeSpace {
-  const s = new FakeSpace();
-  const on = (cap: string, f: (i: any) => unknown): void => { s.answers.set(cap, f); };   // eslint-disable-line @typescript-eslint/no-explicit-any
-  on("schema.apply", (i) => {
-    for (const op of i.ops as { op: string; type: string }[]) {
-      if (op.op === "type.create" && !s.types.includes(op.type)) s.types.push(op.type);
-      if (op.op === "type.drop") s.types = s.types.filter((t) => t !== op.type);
-    }
-    s.log.push({ name: "schema.changed", payload: { count: i.ops.length } });
-    return { changeId: "sch_1", applied: i.ops.length, items: [] };
+const CONTENT = ["ui", "structure", "steps", "tools"];
+const CAP = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){1,3}$/;
+const raw = (): Obj => JSON.parse(readFileSync(new URL("../kit.json", import.meta.url), "utf8")) as Obj;
+
+/** The Kit format rules of modules/kits (checkKit), as problems naming a path. */
+function formatProblems(k: Obj): string[] {
+  const out: string[] = [];
+  const bad = (p: string, m: string): void => { out.push(`${p}: ${m}`); };
+  if (typeof k["key"] !== "string" || !/^[a-z][a-z0-9-]{1,40}$/.test(k["key"])) bad("key", "lowercase letters, digits and dashes");
+  if (typeof k["title"] !== "string" || !k["title"] || k["title"].length > 80) bad("title", "1 to 80 characters");
+  if (typeof k["version"] !== "string" || !/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(k["version"])) bad("version", "semver");
+  if (!["stable", "beta"].includes(k["channel"])) bad("channel", "stable or beta");
+  if (typeof k["description"] === "string" && k["description"].length > 300) bad("description", "at most 300 characters");
+  const forbidden = (cap: string): boolean => /^kits\./.test(cap) || /^vault\.(item\.get|export_env|export|use|fill)$/.test(cap);
+  const stepOk = (s: Obj | undefined, p: string): void => {
+    if (s === undefined) return;
+    if (typeof s["cap"] !== "string" || !CAP.test(s["cap"]) || (s["input"] !== undefined && (typeof s["input"] !== "object" || s["input"] === null))) { bad(p, "a step is { cap, input }"); return; }
+    if (forbidden(s["cap"])) bad(p, `${s["cap"]} cannot be used by a Kit`);
+  };
+  if (!Array.isArray(k["items"]) || k["items"].length < 1 || k["items"].length > 500) { bad("items", "1 to 500 items"); return out; }
+  const seen = new Set<string>();
+  (k["items"] as Obj[]).forEach((it, i) => {
+    const at = `items[${i}]`;
+    if (typeof it["key"] !== "string" || !/^[a-z][a-z0-9_.-]{0,60}$/.test(it["key"])) bad(`${at}.key`, "lowercase letters, digits, dots, dashes, underscores");
+    else if (seen.has(it["key"])) bad(`${at}.key`, `${it["key"]} is used twice`);
+    else seen.add(it["key"]);
+    if (!CONTENT.includes(it["content"])) bad(`${at}.content`, "ui, structure, steps or tools");
+    if (typeof it["type"] !== "string" || !/^[a-z][a-z0-9_]{0,39}$/.test(it["type"])) bad(`${at}.type`, "a type such as record_type");
+    if (typeof it["title"] !== "string" || !it["title"] || it["title"].length > 120) bad(`${at}.title`, "1 to 120 characters");
+    stepOk(it["apply"], `${at}.apply`);
+    stepOk(it["undo"], `${at}.undo`);
+    for (const t of (it["tools"] ?? []) as string[]) if (!CAP.test(t) || forbidden(t)) bad(`${at}.tools`, `${t} is not a capability a Kit may use`);
   });
-  on("schema.types.list", () => ({ types: s.types.map((key) => ({ key })) }));
-  on("schema.layout.set", (i) => { s.log.push({ name: "schema.changed", payload: { type: i.type } }); return { sections: i.sections }; });
-  on("settings.set_space", (i) => { s.log.push({ name: "settings.changed", payload: { key: i.key } }); return { row: { key: i.key }, previous: null }; });
-  on("settings.reset_space", (i) => { s.log.push({ name: "settings.changed", payload: { key: i.key } }); return {}; });
-  on("access.groups.defaults_set", (i) => { s.log.push({ name: "access.everyone_defaults_changed", payload: { grants: i.grants.length } }); return { groupId: "grp_everyone", grants: i.grants }; });
-  on("automations.create", (i) => { s.log.push({ name: "automation.created", payload: { name: i.name } }); return { automation: { name: i.name } }; });
-  on("agents.create", (i) => { s.log.push({ name: "agent.created", payload: { name: i.name } }); return { agent: { name: i.name } }; });
-  return s;
+  if (!Array.isArray(k["tests"]) || k["tests"].length === 0) bad("tests", "every Kit needs at least one test before it can publish");
+  for (const [i, t] of ((k["tests"] ?? []) as Obj[]).entries()) if (t["kind"] !== "space" || !t["name"] || typeof t["expect"] !== "object") bad(`tests[${i}]`, "a space test has a name and an expect object");
+  return out;
 }
 
-function installable() {
-  const h = harness({ fixture: realisticSpace });
-  for (const cap of ["schema.layout.set", "settings.set_space", "settings.reset_space", "access.groups.defaults_set", "agents.create", "calendar.list_events"]) h.callee(cap, () => ({}));
-  return h;
+const kit = (): KitManifest => {
+  assert.deepEqual(formatProblems(raw()), []);
+  return raw() as KitManifest;
+};
+const contentsOf = (k: KitManifest): string[] => CONTENT.filter((c) => k.items.some((i) => i.content === c));
+const steps = (k: KitManifest): { item: string; which: string; step: Step }[] =>
+  k.items.flatMap((it) => (["apply", "undo"] as const).flatMap((w) => (it[w] ? [{ item: it.key, which: w, step: it[w]! }] : [])));
+
+/** What the install sheet lists (sheetOf of modules/kits): every capability called, record types made, nothing else. */
+function sheetOf(k: KitManifest): { tools: string[]; recordTypes: string[] } {
+  const tools = new Set<string>(), types = new Set<string>();
+  for (const it of k.items) {
+    for (const t of it.tools ?? []) tools.add(t);
+    if (it.apply) tools.add(it.apply.cap);
+    if (it.undo) tools.add(it.undo.cap);
+    if (it.type === "record_type") types.add(it.recordType ?? it.key);
+  }
+  return { tools: [...tools].sort(), recordTypes: [...types].sort() };
+}
+
+/** A fixture Space whose neighbours answer like the real modules: types, settings, automations and agents appear, each with its event. */
+class Fixture {
+  calls: Step[] = [];
+  log: { name: string; payload: Obj }[] = [];
+  types: string[] = [];
+  answers = new Map<string, (i: Obj) => unknown>();
+  constructor() {
+    const on = (cap: string, f: (i: Obj) => unknown): void => { this.answers.set(cap, f); };
+    on("schema.apply", (i) => {
+      for (const op of i["ops"] as { op: string; type: string }[]) {
+        if (op.op === "type.create" && !this.types.includes(op.type)) this.types.push(op.type);
+        if (op.op === "type.drop") this.types = this.types.filter((t) => t !== op.type);
+      }
+      this.log.push({ name: "schema.changed", payload: { count: i["ops"].length } });
+      return { changeId: "sch_1", applied: i["ops"].length, items: [] };
+    });
+    on("schema.types.list", () => ({ types: this.types.map((key) => ({ key })) }));
+    on("schema.layout.set", (i) => { this.log.push({ name: "schema.changed", payload: { type: i["type"] } }); return { sections: i["sections"] }; });
+    on("settings.set_space", (i) => { this.log.push({ name: "settings.changed", payload: { key: i["key"] } }); return { row: { key: i["key"] }, previous: null }; });
+    on("settings.reset_space", (i) => { this.log.push({ name: "settings.changed", payload: { key: i["key"] } }); return {}; });
+    on("access.groups.defaults_set", (i) => { this.log.push({ name: "access.everyone_defaults_changed", payload: { grants: i["grants"].length } }); return { groupId: "grp_everyone", grants: i["grants"] }; });
+    on("automations.create", (i) => { this.log.push({ name: "automation.created", payload: { name: i["name"] } }); return { automation: { name: i["name"] } }; });
+    on("agents.create", (i) => { this.log.push({ name: "agent.created", payload: { name: i["name"] } }); return { agent: { name: i["name"] } }; });
+  }
+  async call(cap: string, input: Obj): Promise<unknown> {
+    this.calls.push({ cap, input });
+    const a = this.answers.get(cap);
+    if (!a) throw new Error(`the fixture Space has no answer for ${cap}`);
+    return a(input);
+  }
+}
+
+const subset = (want: Obj, have: Obj): boolean => Object.entries(want).every(([k, v]) => JSON.stringify(have[k]) === JSON.stringify(v));
+
+/** The kits module's declared-test runner (runKitTests), small form: each test applies the Kit to its own fresh Space, seeds, then checks events and views. */
+async function runDeclared(k: KitManifest): Promise<{ test: string; message: string }[]> {
+  const failures: { test: string; message: string }[] = [];
+  for (const t of k.tests ?? []) {
+    const s = new Fixture();
+    try {
+      for (const it of k.items) if (it.apply) await s.call(it.apply.cap, it.apply.input);
+      for (const st of t.seed ?? []) await s.call(st.cap, st.input);
+      for (const want of t.expect.events ?? []) {
+        if (!s.log.some((e) => e.name === want.name && (want.payload === undefined || subset(want.payload, e.payload)))) failures.push({ test: t.name, message: `expected the event ${want.name}; saw ${s.log.map((e) => e.name).join(", ") || "no events"}` });
+      }
+      for (const v of t.expect.views ?? []) {
+        const out = await s.call(v.cap, v.input ?? {});
+        const rows = (Object.values(out as Obj).find((x) => Array.isArray(x)) ?? []) as Obj[];
+        if (v.rows !== undefined && rows.length !== v.rows) failures.push({ test: t.name, message: `view ${v.cap} returned ${rows.length} rows, expected ${v.rows}` });
+        if (v.contains !== undefined && !rows.some((r) => subset(v.contains!, r))) failures.push({ test: t.name, message: `view ${v.cap} has no row like ${JSON.stringify(v.contains)}` });
+      }
+    } catch (e) {
+      failures.push({ test: t.name, message: `the test could not run: ${e instanceof Error ? e.message : String(e)}` });
+    }
+  }
+  return failures;
 }
 
 // ---- the file --------------------------------------------------------------------------------------------------------------------
@@ -69,9 +149,8 @@ test("the Kit file is a valid Kit: key, semver version, stable channel, every co
 test("the install sheet lists what the Kit touches and names no network domain, no Vault handle and no script", () => {
   const sheet = sheetOf(kit());
   assert.deepEqual(sheet.recordTypes, ["commission"]);
-  assert.deepEqual(sheet.networkDomains, []);
-  assert.deepEqual(sheet.vaultNames, []);
-  assert.equal(sheet.scripts, 0);
+  assert.ok(kit().items.every((i) => !("networkDomains" in i) && !("vaultNames" in i)), "no network domain and no Vault handle");
+  assert.equal((raw()["scripts"] ?? []).length, 0, "no scripts");
   for (const t of ["schema.apply", "settings.set_space", "agents.create", "calendar.list_events"]) assert.ok(sheet.tools.includes(t), `the sheet lists ${t}`);
 });
 
@@ -171,39 +250,38 @@ test("the status stages run brief, concept, review, delivered, in the order a st
   for (const s of seed) assert.ok(["brief", "concept", "review", "delivered"].includes((s.input["fields"] as Obj)["status"] as string));
 });
 
-// ---- on the kits module and a fixture Space ----------------------------------------------------------------------------------------
+// ---- on a fixture Space ----------------------------------------------------------------------------------------------------------
 
-test("install: the module applies the Kit's steps in order, each with its own input, and nothing else", async () => {
-  const h = installable();
-  const kitId = await h.shipped(raw());
-  const sheet = await h.call("kits.install_sheet", { kitId });
-  assert.deepEqual(sheet.sheet.recordTypes, ["commission"]);
-  await h.call("kits.install", { kitId, accepted: true });
-  const applied = steps(kit()).filter((s) => s.which === "apply").map((s) => s.step.cap);
-  assert.deepEqual(h.calls.filter((c) => c.cap !== "kits.install").map((c) => c.cap).filter((c) => applied.includes(c)), applied.filter((c) => c !== "kits.install"));
-  assert.equal(h.callsTo("schema.apply").length, steps(kit()).filter((s) => s.which === "apply" && s.step.cap === "schema.apply").length);
-  assert.deepEqual(h.callsTo("settings.set_space").map((c) => c.input["key"]), ["kit.default.rail", "space.skin_default"]);
-  const got = (await h.call("kits.get", { kitId })).kit;
-  assert.deepEqual([got.installed, got.version, got.contents], [true, "1.0.0", contentsOf(kit())]);
+test("install: the Kit's steps apply in item order, each with its own input, and the record types, layouts, settings and agents exist afterwards", async () => {
+  const s = new Fixture();
+  for (const it of kit().items) if (it.apply) await s.call(it.apply.cap, it.apply.input);
+  assert.deepEqual(s.calls.map((c) => c.cap), kit().items.flatMap((i) => (i.apply ? [i.apply.cap] : [])));
+  assert.deepEqual(s.types, ["commission"]);
+  assert.deepEqual(s.calls.filter((c) => c.cap === "settings.set_space").map((c) => c.input["key"]), ["kit.default.rail", "space.skin_default"]);
+  assert.ok(s.log.some((e) => e.name === "schema.changed") && s.log.some((e) => e.name === "settings.changed"));
 });
 
-test("the Kit's own tests pass on a fixture Space that answers like the real neighbours", async () => {
-  const h = installable();
-  const kitId = await h.shipped(raw());
-  const out = await h.call("kits.test_run", { kitId });
-  assert.deepEqual(out, { passed: true, failures: [] });
-  assert.ok(h.spaces.length >= (raw()["tests"] as unknown[]).length, "each test opened its own fresh Space");
-  assert.ok(h.spaces.every((s) => s.closed));
+test("the Kit's own declared tests pass on a fixture Space that answers like the real neighbours", async () => {
+  assert.ok((kit().tests ?? []).length >= 2);
+  assert.deepEqual(await runDeclared(kit()), []);
 });
 
 test("a Kit that loses its record type fails its own test and names it", async () => {
-  const h = installable();
-  const broken = raw();
-  broken["items"] = (broken["items"] as Obj[]).filter((i) => i["key"] !== "rt.commission");
-  const kitId = await h.shipped(broken);
-  const out = await h.call("kits.test_run", { kitId });
-  assert.equal(out.passed, false);
-  assert.match(out.failures.map((f: { message: string }) => f.message).join("\n"), /commission/);
+  const broken = kit();
+  broken.items = broken.items.filter((i) => i.key !== "rt.commission");
+  const failures = await runDeclared(broken);
+  assert.ok(failures.length >= 1);
+  assert.match(failures.map((f) => f.message).join("\n"), /commission/);
+});
+
+test("the format check names the path of each problem (a Kit with a forbidden capability, a duplicate key and no tests)", () => {
+  const bad = raw();
+  bad["items"] = [...bad["items"], { ...bad["items"][0] }, { key: "x.install", content: "steps", type: "automation", title: "X", apply: { cap: "kits.install", input: {} } }];
+  delete bad["tests"];
+  const problems = formatProblems(bad).join("\n");
+  assert.match(problems, /is used twice/);
+  assert.match(problems, /kits\.install cannot be used by a Kit/);
+  assert.match(problems, /tests: every Kit needs at least one test/);
 });
 
 test("the seed recipe creates records of the Kit's own type with unique idempotency keys that pass the generated validator", () => {
