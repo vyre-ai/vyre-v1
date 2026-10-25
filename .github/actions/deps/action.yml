@@ -17,6 +17,18 @@ outputs:
 runs:
   using: composite
   steps:
+    # GitHub-hosted runners (P-CI_31): Node 24, and the node_modules set cached under RUNNER_TEMP keyed by the lockfiles. Self-hosted runners keep their host-local cache and their own node.
+    - if: runner.environment == 'github-hosted'
+      uses: actions/setup-node@v4
+      with:
+        node-version: 24
+    - if: runner.environment == 'github-hosted'
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/deps-cache
+        key: deps-${{ runner.os }}-${{ hashFiles('package-lock.json', '**/package.json') }}
     - id: deps
       shell: bash
+      env:
+        VYRE_DEPS_CACHE: ${{ runner.environment == 'github-hosted' && format('{0}/deps-cache', runner.temp) || '' }}
       run: bash "${{ github.workspace }}/scripts/ci-deps.sh" "${{ inputs.workspace }}"
