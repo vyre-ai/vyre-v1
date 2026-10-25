@@ -10,10 +10,12 @@
 //                 authority of its own: every request carries the device's bearer token, and the gateway checks it exactly as it does for a direct connection.
 // The relay learns the public route key, route id, timing and sizes. It never holds a key that opens a frame.
 //
-// Layer rules: host never imports relay/ (the relay client is a device-side package), and B3 keeps node:crypto out of the host, so the Noise state machine is ported here on WebCrypto, which
-// Node 24 has for X25519, Ed25519, AES-GCM, HMAC and SHA-256. The port is checked against relay/client in test/relay.box.test.ts (the device dials with the client's own Initiator).
+// Layer rules: host never imports relay/ (the relay client is a device-side package), and B3 keeps node:crypto out of the host. Key making, X25519 and the Ed25519 signature come from the kernel's seal
+// primitives; the Noise composition (HKDF chain, symmetric state, counter nonces) and AES-GCM are here, on WebCrypto. test/relay.box.test.mjs checks the port against relay/client's own Initiator: same handshake hash, ciphers
+// that open each other's frames.
 import fs from "node:fs";
 import path from "node:path";
+import { ed25519Pair, ed25519Sign, x25519Pair, x25519Shared } from "../../../kernel/src/seal/index.ts";
 
 const subtle = globalThis.crypto.subtle;
 const utf8 = (s: string): Uint8Array => new TextEncoder().encode(s);
@@ -27,13 +29,10 @@ const concat = (...parts: Uint8Array[]): Uint8Array => {
 };
 const b64u = (b: Uint8Array): string => Buffer.from(b).toString("base64url");
 const fromB64u = (s: string): Uint8Array => new Uint8Array(Buffer.from(s, "base64url"));
-const hex = (s: string): Uint8Array => new Uint8Array(Buffer.from(s, "hex"));
 const isZero = (b: Uint8Array): boolean => b.every((x) => x === 0);
 
 // ---- keys
 
-const X_PKCS8 = hex("302e020100300506032b656e04220420");
-const ED_PKCS8 = hex("302e020100300506032b657004220420");
 const B32 = "abcdefghijklmnopqrstuvwxyz234567";
 
 function base32(buf: Uint8Array): string {
@@ -52,27 +51,21 @@ export async function routeIdOf(pub: Uint8Array): Promise<string> {
   return base32(new Uint8Array(await subtle.digest("SHA-256", pub))).slice(0, 26);
 }
 
-interface Keys { routeSeed: Uint8Array; routePub: Uint8Array; boxSeed: Uint8Array; boxPub: Uint8Array; routeKey: CryptoKey; boxKey: CryptoKey }
-
-async function derive(routeSeed: Uint8Array, boxSeed: Uint8Array): Promise<Keys> {
-  const routeKey = await subtle.importKey("pkcs8", concat(ED_PKCS8, routeSeed), { name: "Ed25519" }, true, ["sign"]);
-  const boxKey = await subtle.importKey("pkcs8", concat(X_PKCS8, boxSeed), { name: "X25519" }, true, ["deriveBits"]);
-  const routePub = fromB64u(String((await subtle.exportKey("jwk", routeKey)).x));
-  const boxPub = fromB64u(String((await subtle.exportKey("jwk", boxKey)).x));
-  return { routeSeed, routePub, boxSeed, boxPub, routeKey, boxKey };
-}
+/** Both keys come from the kernel's seal primitives (x25519Pair, ed25519Pair); this file only keeps them. Seeds are base64url, the public halves raw. */
+export interface Keys { routeSeed: string; routePub: Uint8Array; boxPriv: string; boxPub: Uint8Array }
 
 /** The route key (signs the relay's challenge) and the box key (the static Noise key devices pin), made once and kept beside the seal key, readable by this user only. */
-export async function loadRelayKeys(dir: string): Promise<Keys> {
+export function loadRelayKeys(dir: string): Keys {
   const file = path.join(dir, "relay.key");
   try {
-    const j = JSON.parse(fs.readFileSync(file, "utf8")) as { route?: string; box?: string };
-    if (typeof j.route === "string" && typeof j.box === "string") return await derive(fromB64u(j.route), fromB64u(j.box));
+    const j = JSON.parse(fs.readFileSync(file, "utf8")) as { routeSeed?: string; routePub?: string; boxPriv?: string; boxPub?: string };
+    if (typeof j.routeSeed === "string" && typeof j.routePub === "string" && typeof j.boxPriv === "string" && typeof j.boxPub === "string") {
+      return { routeSeed: j.routeSeed, routePub: fromB64u(j.routePub), boxPriv: j.boxPriv, boxPub: fromB64u(j.boxPub) };
+    }
   } catch { /* none yet, or unreadable: make new ones */ }
-  const routeSeed = globalThis.crypto.getRandomValues(new Uint8Array(32));
-  const boxSeed = globalThis.crypto.getRandomValues(new Uint8Array(32));
-  fs.writeFileSync(file, JSON.stringify({ v: 1, route: b64u(routeSeed), box: b64u(boxSeed) }), { mode: 0o600 });
-  return derive(routeSeed, boxSeed);
+  const route = ed25519Pair(), box = x25519Pair();
+  fs.writeFileSync(file, JSON.stringify({ v: 2, routeSeed: route.seed, routePub: route.pub, boxPriv: box.priv, boxPub: box.pub }), { mode: 0o600 });
+  return { routeSeed: route.seed, routePub: fromB64u(route.pub), boxPriv: box.priv, boxPub: fromB64u(box.pub) };
 }
 
 // ---- Noise_IK_25519_AESGCM_SHA256, responder side (revision 34)
@@ -93,10 +86,11 @@ async function hkdf2(ck: Uint8Array, ikm: Uint8Array): Promise<[Uint8Array, Uint
   const o2 = await hmac(temp, concat(o1, new Uint8Array([2])));
   return [o1, o2];
 }
-async function dh(priv: CryptoKey, pub: Uint8Array): Promise<Uint8Array> {
+/** X25519 through the kernel's primitive; an all-zero result (a low-order key) is refused, as on the device. */
+function dh(privB64: string, pub: Uint8Array): Uint8Array {
   if (pub.length !== DHLEN) throw new Error("an X25519 public key is 32 bytes");
   let out: Uint8Array;
-  try { out = new Uint8Array(await subtle.deriveBits({ name: "X25519", public: await subtle.importKey("raw", pub, { name: "X25519" }, true, []) }, priv, 256)); } catch { throw new Error("invalid peer key"); }
+  try { out = new Uint8Array(x25519Shared(privB64, b64u(pub))); } catch { throw new Error("invalid peer key"); }
   if (isZero(out)) throw new Error("invalid peer key");
   return out;
 }
@@ -150,13 +144,15 @@ class SymmetricState {
 }
 
 /** The box's half: -> e, es, s, ss  then  <- e, ee, se. */
-class Responder {
+export class Responder {
   private ss = new SymmetricState();
   private re: Uint8Array = EMPTY;
   rs: Uint8Array = EMPTY;
   send: CipherState | null = null;
   recv: CipherState | null = null;
-  constructor(private s: { key: CryptoKey; pub: Uint8Array }, private prologue: Uint8Array) {}
+  /** the Noise handshake hash after the second message: both ends hold the same value (the channel binding) */
+  hash: Uint8Array = EMPTY;
+  constructor(private s: { priv: string; pub: Uint8Array }, private prologue: Uint8Array) {}
   async readMessage(message: Uint8Array): Promise<Uint8Array> {
     if (message.length < DHLEN + DHLEN + TAGLEN + TAGLEN) throw new Error("handshake message too short");
     const ss = this.ss;
@@ -165,22 +161,23 @@ class Responder {
     await ss.mixHash(this.s.pub);
     this.re = message.slice(0, DHLEN);
     await ss.mixHash(this.re);
-    await ss.mixKey(await dh(this.s.key, this.re));
+    await ss.mixKey(dh(this.s.priv, this.re));
     this.rs = await ss.decryptAndHash(message.subarray(DHLEN, DHLEN + DHLEN + TAGLEN));
-    await ss.mixKey(await dh(this.s.key, this.rs));
+    await ss.mixKey(dh(this.s.priv, this.rs));
     return ss.decryptAndHash(message.subarray(DHLEN + DHLEN + TAGLEN));
   }
   async writeMessage(payload: Uint8Array): Promise<Uint8Array> {
     const ss = this.ss;
-    const kp = (await subtle.generateKey({ name: "X25519" }, true, ["deriveBits"])) as CryptoKeyPair;
-    const epub = new Uint8Array(await subtle.exportKey("raw", kp.publicKey));
+    const e = x25519Pair();
+    const epub = fromB64u(e.pub);
     await ss.mixHash(epub);
-    await ss.mixKey(await dh(kp.privateKey, this.re));
-    await ss.mixKey(await dh(kp.privateKey, this.rs));
+    await ss.mixKey(dh(e.priv, this.re));
+    await ss.mixKey(dh(e.priv, this.rs));
     const out = concat(epub, await ss.encryptAndHash(payload));
     const [c1, c2] = await ss.split();
     this.recv = c1;
     this.send = c2;
+    this.hash = ss.h;
     return out;
   }
 }
@@ -391,9 +388,9 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
       try { m = JSON.parse(e.data) as typeof m; } catch { return; }
       if (m.t === "challenge") {
         const msg = concat(utf8(`vyre-relay-box-v1\n${route}\n`), fromB64u(String(m.n)));
-        void subtle.sign({ name: "Ed25519" }, k.routeKey, msg).then((sig) => {
-          if (ws === control) ws.send(JSON.stringify({ t: "auth", pub: b64u(k.routePub), sig: b64u(new Uint8Array(sig)) }));
-        }, (err: unknown) => log(`relay: could not sign the challenge: ${(err as Error).message}`));
+        let sig: string;
+        try { sig = ed25519Sign(k.routeSeed, msg); } catch (err) { log(`relay: could not sign the challenge: ${(err as Error).message}`); return; }
+        if (ws === control) ws.send(JSON.stringify({ t: "auth", pub: b64u(k.routePub), sig }));
       } else if (m.t === "ready") {
         clearTimeout(dial);
         ticket = String(m.ticket ?? "");
@@ -426,7 +423,7 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
       send: (b: Uint8Array): void => { try { ws.send(b); } catch { /* closing */ } },
       close: (code: number, reason: string): void => { try { ws.close(code === 1000 || (code >= 3000 && code <= 4999) ? code : 4000, reason.slice(0, 120)); } catch { /* closed */ } },
     };
-    const hs = new Responder({ key: k.boxKey, pub: k.boxPub }, utf8(`vyre-relay-v1\n${route}`));
+    const hs = new Responder({ priv: k.boxPriv, pub: k.boxPub }, utf8(`vyre-relay-v1\n${route}`));
     let channel: Channel | null = null;
     let started = false;
     let q: Promise<void> = Promise.resolve();
@@ -451,7 +448,7 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
   }
 
   const ready = (async () => {
-    keys = await loadRelayKeys(o.dataDir);
+    keys = loadRelayKeys(o.dataDir);
     route = await routeIdOf(keys.routePub);
     connect();
     const deviceUrl = `${base}/v1/device?route=${route}#box=${b64u(keys.boxPub)}`;

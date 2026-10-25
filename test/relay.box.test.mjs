@@ -14,6 +14,8 @@ import { startDaemon } from "../host/src/daemon/daemon.ts";
 import { createRelay } from "../relay/node/server.js";
 import { openChannel, request } from "../relay/client/client.js";
 import { webCrypto } from "../relay/client/webcrypto.js";
+import { Initiator } from "../relay/client/noise.js";
+import { Responder, loadRelayKeys } from "../host/src/seams/relay.ts";
 
 const OWNER = "tok-usr_olivia";
 const MEMBER = "tok-usr_noah";
@@ -118,4 +120,41 @@ test("a phone reaches the Space through the relay, the gateway checks its token,
     await relay.close();
     await relayEndpoint(d, "down");
   } finally { await d.stop(); await relay.close().catch(() => {}); }
+});
+
+// The box side of Noise_IK_25519_AESGCM_SHA256 is written in the host (B3 keeps node:crypto out of it). The device side is relay/client/noise.js, which has its own vector tests, so
+// the two are independent readings of the protocol: they must end with the same handshake hash, and each side's cipher must open the other's frames, across a rekey.
+test("the host's Noise responder interoperates with the relay client's initiator: same handshake hash, ciphers open each other, a bad prologue or a flipped bit fails", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-relay-keys-"));
+  const keys = loadRelayKeys(dir);
+  assert.equal(fs.statSync(path.join(dir, "relay.key")).mode & 0o077, 0);
+  assert.deepEqual(loadRelayKeys(dir).boxPub, keys.boxPub, "the same keys come back from the file");
+  const crypto = webCrypto();
+  const device = await crypto.generateKeyPair();
+  const prologue = utf8("vyre-relay-v1\nabcdefghijklmnopqrstuvwxyz");
+  const init = new Initiator(crypto, { s: device, rs: keys.boxPub, prologue });
+  const resp = new Responder({ priv: keys.boxPriv, pub: keys.boxPub }, prologue);
+  const m1 = await init.writeMessage(utf8('{"v":1,"name":"a phone"}'));
+  assert.equal(new TextDecoder().decode(await resp.readMessage(m1)), '{"v":1,"name":"a phone"}');
+  assert.deepEqual(resp.rs, device.publicKey, "the box learns the device's static key");
+  const m2 = await resp.writeMessage(utf8('{"ok":true,"v":1}'));
+  assert.equal(new TextDecoder().decode(await init.readMessage(m2)), '{"ok":true,"v":1}');
+  assert.deepEqual(resp.hash, init.hash, "both ends hold the same handshake hash");
+
+  for (let i = 0; i < 3; i++) {
+    const up = await init.send.encrypt(new Uint8Array(0), utf8(`frame ${i}`));
+    assert.equal(new TextDecoder().decode(await resp.recv.decrypt(new Uint8Array(0), up)), `frame ${i}`);
+    const down = await resp.send.encrypt(new Uint8Array(0), utf8(`answer ${i}`));
+    assert.equal(new TextDecoder().decode(await init.recv.decrypt(new Uint8Array(0), down)), `answer ${i}`);
+  }
+  await init.send.rekey(); await resp.recv.rekey();
+  await resp.send.rekey(); await init.recv.rekey();
+  const after = await init.send.encrypt(new Uint8Array(0), utf8("after the rekey"));
+  assert.equal(new TextDecoder().decode(await resp.recv.decrypt(new Uint8Array(0), after)), "after the rekey");
+
+  // another route's prologue, or one flipped bit in the first message, never completes
+  const other = new Responder({ priv: keys.boxPriv, pub: keys.boxPub }, utf8("vyre-relay-v1\nzyxwvutsrqponmlkjihgfedcba"));
+  await assert.rejects(() => other.readMessage(m1));
+  const bad = m1.slice(); bad[bad.length - 1] ^= 1;
+  await assert.rejects(() => new Responder({ priv: keys.boxPriv, pub: keys.boxPub }, prologue).readMessage(bad));
 });
