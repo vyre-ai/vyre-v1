@@ -5,14 +5,18 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { openCipherOpfs, rekeyCipherOpfs, createReplicaKeyVault, memoryKeyBox, openDeviceReplica } from "../src/device/index.ts";
 import type { McModule } from "../src/device/index.ts";
 
 const SPIKE = path.join(fileURLToPath(new URL("../../spikes/sync-c/", import.meta.url)));
-await import("../../spikes/sync-c/ensure-deps.mjs");
 const req = createRequire(import.meta.url);
+// The same install the S5 spike uses (spikes/sync-c/package.json pins sqlite-wasm-cipher 2.2.4). Runs on the CI runner only; a layer package may not import the spike's helper.
+if (!fs.existsSync(path.join(SPIKE, "node_modules", "sqlite-wasm-cipher", "package.json"))) {
+  execFileSync("npm", ["install", "--no-audit", "--no-fund", "--no-package-lock", "--ignore-scripts"], { cwd: SPIKE, stdio: "inherit" });
+}
 
 interface Cipher { default: (opts?: { wasmBinary: Uint8Array }) => Promise<RealSqlite3> }
 interface RealSqlite3 extends McModule { capi: McModule["capi"] & { sqlite3_js_db_export(ptr: unknown): Uint8Array }; }
@@ -44,10 +48,10 @@ const MARK = "CIPHER-MARK-4471-vyre-replica";
 test("real engine: bytes at rest hold no marker or SQLite header; wrong key and no key fail; rekey moves the file", async () => {
   const sqlite3 = await loadEngine();
   // The stored bytes: a named in-memory database is one buffer shared by every connection. A holder connection that never sends a key keeps it alive and serializes that raw buffer
-  // (for the memdb VFS sqlite3_serialize hands back the stored pages, not decrypted ones).
-  const uri = "file:/enc.db?vfs=memdb";
-  const holder = new sqlite3.oo1.DB(uri, "c");
-  const open = (k: Uint8Array) => openCipherOpfs({ mod: sqlite3, vfs: null, uri, file: "enc.db", key: k });
+  // (for the memdb VFS sqlite3_serialize hands back the stored pages, not decrypted ones). The cipher lives in the wrapper VFS multipleciphers-memdb, which stores into that same buffer.
+  const plainUri = "file:/enc.db?vfs=memdb";
+  const holder = new sqlite3.oo1.DB(plainUri, "c");
+  const open = (k: Uint8Array) => openCipherOpfs({ mod: sqlite3, vfs: "memdb", file: "enc.db", key: k });
   const d = open(key(1));
   d.exec("CREATE TABLE t (id TEXT PRIMARY KEY, v TEXT)");
   d.prepare("INSERT INTO t VALUES (?, ?)").run(["a", MARK]);
@@ -67,7 +71,7 @@ test("real engine: bytes at rest hold no marker or SQLite header; wrong key and 
   assert.notEqual(Buffer.from(bytes.slice(0, 15)).toString(), "SQLite format 3", "no SQLite header in the file bytes");
 
   assert.throws(() => open(key(2)), (e: unknown) => (e as { code?: string }).code === "wrong_key");
-  const keyless = new sqlite3.oo1.DB(uri, "w");
+  const keyless = new sqlite3.oo1.DB("file:/enc.db?vfs=multipleciphers-memdb", "w");
   try { assert.throws(() => keyless.selectValue("SELECT v FROM t"), "no key cannot read"); } finally { keyless.close(); }
 
   const live = open(key(1));
