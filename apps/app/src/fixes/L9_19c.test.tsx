@@ -9,6 +9,8 @@ import { StyleSheet } from "react-native";
 import { createSampleHome, northwind as northwindHome } from "../places/home/sections-a/sample.ts";
 import { ASK_DOCK } from "../places/home/sections-b/AskBox.tsx";
 import { statusIcon } from "../places/home/sections-a/model.ts";
+import { Plan } from "../../../../ui/src/Plan/index.tsx";
+import { createTask } from "../places/home/sections-a/actions.ts";
 import { planEdits, planStatus, planTasks, stateOf } from "../places/home/sections-a/plan.ts";
 import { StatusCircle } from "../places/home/sections-a/parts.tsx";
 import type { PlaceContext } from "../shell/spaces/Shell.tsx";
@@ -111,4 +113,23 @@ test("Plan mode: a bar moved on the timeline becomes a reschedule of that task, 
     { kind: "assign", id: "a", to: { kind: "person", id: "usr_maya" } },
   ]);
   assert.deepEqual(planEdits(prev, prev, [tk], ctx, []), []);
+});
+
+test("Plan's New task and a stage's + create the task through tasks.create (mine, in that project), and it comes back from the live query, not a local insert", async () => {
+  const home = createSampleHome(northwindHome);
+  const calls: { cap: string; input: unknown }[] = [];
+  const d = { call: async (cap: string, input: unknown) => { calls.push({ cap, input }); return home.data.call(cap, input); }, note: () => undefined, me: "usr_irfad", nameOf: (id: string) => id };
+  const before = (home.replica.rows("tasks") as unknown[]).length;
+  assert.equal(await createTask(d as never, "New task", { recordId: "rec_atp1", due: Date.UTC(2025, 9, 26), effort: 3 }), true);
+  assert.deepEqual(calls.map((c) => c.cap), ["tasks.create"]);
+  const input = calls[0]!.input as Record<string, unknown>;
+  assert.deepEqual([input["title"], input["recordId"], input["assigned"], input["effort"]], ["New task", "rec_atp1", { kind: "person", id: "usr_irfad" }, 3]);
+  assert.equal((home.replica.rows("tasks") as unknown[]).length, before + 1, "the replica has the new task");
+  assert.equal(await createTask(d as never, "New task"), true);
+  assert.equal("recordId" in (calls[1]!.input as object), false, "Personal: no project");
+});
+
+test("the Plan with onCreate asks the host and inserts nothing itself", () => {
+  const html = renderToStaticMarkup(<Plan today="2025-10-24" stages={[{ id: "s", name: "S" }]} tasks={[]} onCreate={() => undefined} />);
+  assert.ok(html.includes('data-testid="plan-add"'));
 });

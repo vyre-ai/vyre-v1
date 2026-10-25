@@ -239,9 +239,9 @@ export function createSampleHome(space: SampleSpace = northwind, o: { online?: b
       const patch: Partial<Task> = i.slot === "assigned" ? { assigned: i.to as Ref } : i.slot === "reviewer" ? { reviewer: i.to ?? undefined } as Partial<Task> : { approver: i.to ?? undefined } as Partial<Task>;
       return { task: patchTask(i.taskId, patch) };
     },
-    "tasks.create": (i: { kind: Task["kind"]; title: string; assigned: Ref }) => {
+    "tasks.create": (i: { kind: Task["kind"]; title: string; assigned: Ref; recordId?: string; due?: number; effort?: number }) => {
       const id = `tsk_new${replica.rows("tasks").length + 1}`;
-      replica.put("tasks", [{ ...task(id, { title: i.title, kind: i.kind, assigned: i.assigned, due: SAMPLE_NOW + DAY, createdBy: me }), createdAt: SAMPLE_NOW, updatedAt: SAMPLE_NOW } as TaskRow]);
+      replica.put("tasks", [{ ...task(id, { title: i.title, kind: i.kind, assigned: i.assigned, due: i.due ?? SAMPLE_NOW + DAY, ...(i.recordId ? { recordId: i.recordId } : {}), ...(i.effort !== undefined ? { effort: i.effort } : {}), createdBy: me }), createdAt: SAMPLE_NOW, updatedAt: SAMPLE_NOW } as TaskRow]);
       return { task: taskRows().find((t) => t.id === id) };
     },
     "home.mark_digest_seen": (i: { digestId: string }) => {

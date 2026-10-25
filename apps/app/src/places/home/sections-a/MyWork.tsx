@@ -12,9 +12,9 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { useActions } from "./actions.ts";
 import { useHomeData, usePrincipals, useScreenQuery, useSelection } from "./data.tsx";
 import type { Principal } from "./data.tsx";
-import { ASSIGN_GROUPS, MY_WORK_LIMIT, STATE_LABEL, dayNumber, dueCount, dueLabel, givenSub, orderMyWork, seatLabel, statusIcon, workGroups } from "./model.ts";
+import { ASSIGN_GROUPS, DAY_MS, MY_WORK_LIMIT, STATE_LABEL, dayNumber, dueCount, dueLabel, givenSub, orderMyWork, seatLabel, statusIcon, workGroups } from "./model.ts";
 import type { Ref, Task } from "./model.ts";
-import { planEdits, planStages, planTasks } from "./plan.ts";
+import { PERSONAL_STAGE, planEdits, planStages, planTasks } from "./plan.ts";
 import type { PlanContext } from "./plan.ts";
 import { EmptyLine, Face, Glyph, HRow, LinkButton, SectionHeader, Section, Skeleton, StatusCircle, s, useNarrow } from "./parts.tsx";
 
@@ -181,6 +181,11 @@ export function MyWork(): ReactElement {
   const planToday = toIso(dayNumber(clock.now, clock.offsetMin));
   const planPeople: PlanWho[] = [];
   for (const x of p.list) planPeople.push({ name: x.name, kind: x.kind === "agent" ? "agent" : x.kind === "group" ? "group" : x.kind === "role" ? "role" : "person" });
+  // New task and a stage's "+": one tasks.create, assigned to me, under that stage's project (none for Personal), due in two days; the task appears when the live query returns it
+  const onPlanCreate = (stageId: string | null): void => {
+    const recordId = stageId !== null && stageId !== PERSONAL_STAGE ? stageId : undefined;
+    void actions.createTask("New task", { ...(recordId ? { recordId } : {}), due: clock.now + 2 * DAY_MS, effort: 3 });
+  };
   const onPlanChange = (next: readonly PlanTask[]): void => {
     for (const e of planEdits(planTaskList, next, tasks, planCtx, p.list)) {
       const t = tasks.find((x) => x.id === e.id);
@@ -209,7 +214,7 @@ export function MyWork(): ReactElement {
           onCreate={(title) => { setAdding(false); void actions.createTask(title); }}
         />
       ) : null}
-      {loading ? <Skeleton rows={4} id="work" /> : body.length ? view === "plan" ? <View style={local.plan} testID="work-plan"><Plan today={planToday} stages={planStageList} tasks={planTaskList} people={planPeople} height={340} view="timeline" canAdd={false} canDelete={false} onChange={onPlanChange} onOpenTask={(t) => data.nav.openTask(t.id)} /></View> : <View accessibilityRole="list">{body}</View> : adding ? null : <EmptyLine id="work" text="No tasks yet" />}
+      {loading ? <Skeleton rows={4} id="work" /> : body.length ? view === "plan" ? <View style={local.plan} testID="work-plan"><Plan today={planToday} stages={planStageList} tasks={planTaskList} people={planPeople} height={340} view="timeline" canDelete={false} onCreate={onPlanCreate} onChange={onPlanChange} onOpenTask={(t) => data.nav.openTask(t.id)} /></View> : <View accessibilityRole="list">{body}</View> : adding ? null : <EmptyLine id="work" text="No tasks yet" />}
       {menu.element}
     </Section>
   );
