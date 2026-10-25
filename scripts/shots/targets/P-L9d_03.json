@@ -3,14 +3,14 @@
     {
       "id": "P-L9d_03-timeline",
       "route": "/m/P-L9d_03?kind=timeline&type=projects",
-      "proto": "records,projtable,timeline,{skin}",
+      "proto": "records,timeline,{skin}",
       "waitFor": "[data-testid='bar-tasks_1']",
       "note": "The Tasks timeline of project Rivera engagement: bars in bands by status, a line for today, weekends tinted. The prototype side is its Projects timeline (the shared plan) in the same skin; it draws stages as bands and shows dependency arrows, which come with the Projects Plan packet."
     },
     {
       "id": "P-L9d_03-calendar",
       "route": "/m/P-L9d_03?kind=calendar&type=meetings",
-      "proto": "records,meetingtable,calendar,{skin}",
+      "proto": "records,calendar,{skin}",
       "waitFor": "[data-testid='cal-grid']",
       "note": "October 2025 with the projects on their due dates, chips tinted by status, today lit. The prototype side is its Meetings calendar in the same skin."
     },
