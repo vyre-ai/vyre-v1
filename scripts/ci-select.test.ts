@@ -271,7 +271,7 @@ test("a perf file lands in its own v1-perf matrix entry; every other entry runs 
   const hit = m.filter((j) => j.files.split(" ").includes(perf));
   assert.equal(hit.length, 1);
   assert.deepEqual({ files: hit[0]!.files, slow: hit[0]!.slow, runner: hit[0]!.runner }, { files: perf, slow: true, runner: "v1-perf" });
-  assert.ok(m.filter((j) => j !== hit[0]).every((j) => j.runner === "hosted"), "fast and non-heavy slow entries run on GitHub-hosted runners");
+  assert.ok(m.filter((j) => j !== hit[0]).every((j) => j.runner === "v1"), "fast and slow entries run on the self-hosted v1 runners");
 });
 
 test("a perf file runs only when its own import closure changed, or always on main", () => {
@@ -286,4 +286,17 @@ test("a perf file runs only when its own import closure changed, or always on ma
   assert.deepEqual(dropUnaffectedPerf(all, ["kernel/log.ts"], perf, tr, rd, false), all);
   assert.deepEqual(dropUnaffectedPerf(all, ["kernel/bench.test.ts"], perf, tr, rd, false), all);
   assert.deepEqual(dropUnaffectedPerf(all, ["ui/Row.ts"], perf, tr, rd, true), all);
+});
+
+test("--perf-only lists every perf file as a v1-perf job, --no-perf lists none (ruling 55)", () => {
+  const run = (flag: string) => {
+    const r = spawnSync("node", [path.join(path.dirname(new URL(import.meta.url).pathname), "ci-select.ts"), "", "--matrix", flag], { encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    return JSON.parse(r.stdout).matrix.include as { files: string; runner: string }[];
+  };
+  const only = run("--perf-only");
+  assert.ok(only.length > 0 && only.every((m) => m.runner === "v1-perf"));
+  const none = run("--no-perf");
+  const perfFiles = new Set(only.map((m) => m.files));
+  assert.ok(none.every((m) => m.files.split(" ").every((f) => !perfFiles.has(f))));
 });
