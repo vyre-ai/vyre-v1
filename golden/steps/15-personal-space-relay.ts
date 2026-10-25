@@ -5,7 +5,7 @@ import { bootFlowSpace, expectStatus, short, Trail } from "./02-space.ts";
 import type { FlowSpace, Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
-export const LIVE_FOR_PERSONAL = ["spaces", "devices", "network", "access", "members", "documents"];
+export const LIVE_FOR_PERSONAL = ["spaces", "devices", "network", "access", "members", "documents", "identity"];
 
 /** Why this flow is a todo today (ruling 53). */
 export const GAPS: Gap[] = [
