@@ -197,8 +197,8 @@ test("Appearance: mode, every skin in Dark and Light with the chosen one marked,
   assert.ok(has(out, "Everything here is the same in every Space except the skin"));
   assert.ok(!has(out, 'data-testid="ctl-appearance.mode"'), "no separate light or dark control");
   for (const id of ["graphite", "obsidian", "charcoal", "slate", "ember", "moss", "dusk", "paper", "fog", "linen", "sand", "sage", "mist"]) assert.ok(has(out, `data-testid="skin-${id}"`), id);
-  assert.match(tag(out, "skin-graphite"), /aria-checked="true"/);
-  assert.match(tag(out, "skin-paper"), /aria-checked="false"/);
+  assert.match(tag(out, "skin-system"), /aria-checked="true"/, "System is on until a skin is chosen");
+  assert.match(tag(out, "skin-graphite"), /aria-checked="false"/);
   assert.ok(out.indexOf("skins-dark") < out.indexOf("skins-light"));
   assert.ok(has(out, "Follow the Space") && has(out, "In effect: Law firm"));
 });

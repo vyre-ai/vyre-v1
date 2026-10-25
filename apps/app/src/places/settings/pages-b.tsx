@@ -1,5 +1,5 @@
 // Settings pages that are the same in every Space: Sign-in and devices, Appearance (with Kit choice), Keyboard, This computer, Spaces.
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { skins, system } from "../../../../../ui/src/tokens/skins.ts";
@@ -130,8 +130,18 @@ type KitOut = CapMap["settings.kit.get"]["out"];
 type KitsOut = CapMap["kits.list"]["out"];
 
 /** The little window above the tiles: the skin you hover (or the one you have) drawn with its own palette, so a tile is tried before it is kept. */
+function documentMode(): "dark" | "light" | null {
+  const root = (globalThis as { document?: { documentElement?: { getAttribute(n: string): string | null } } }).document?.documentElement;
+  const m = root?.getAttribute("data-mode") ?? null;
+  return m === "dark" || m === "light" ? m : null;
+}
+const noWatch = (): (() => void) => () => undefined;
+
+/** System shows the skin the computer is on: Graphite in the dark, Paper in the light. The server snapshot is "unmarked", so a pre-rendered page hydrates and then follows the document. */
 function SkinPreview({ skinId, space }: { skinId: string; space: string }): ReactElement {
-  const sk = skins.find((x) => x.id === skinId) ?? skins.find((x) => x.id === "paper")!;
+  const ambient = useSyncExternalStore(noWatch, documentMode, () => null);
+  const shown = skinId === "system" ? (ambient === "dark" ? "graphite" : "paper") : skinId;
+  const sk = skins.find((x) => x.id === shown) ?? skins.find((x) => x.id === "paper")!;
   const p = sk.palette;
   return (
     <View style={a.pvStage} testID="skin-preview" accessibilityLabel={`Preview of ${sk.name}`}>
@@ -214,7 +224,7 @@ export function AppearancePage({ rows, found }: PageProps): ReactElement {
       {skinRow ? (
         <>
           <Text accessibilityRole="header" style={a.heading}>Skin</Text>
-          <SkinPreview skinId={shown === "system" ? "paper" : shown} space={data.space.name} />
+          <SkinPreview skinId={shown} space={data.space.name} />
           <Text style={a.group}>System</Text>
           <View style={a.grid} testID="skins-system">{tile("system", system.name, system.note, systemSwatch)}</View>
           <Text style={a.group}>Dark</Text>

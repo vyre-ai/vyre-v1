@@ -68,7 +68,7 @@ export const northwind: SampleSpace = {
   id: "northwind", name: "Northwind", me: { id: "usr_irfad", name: "Irfad Imtiaz" },
   names: { usr_irfad: "Irfad Imtiaz", agt_intake: "Intake", agt_docs: "Docs", agt_billing: "Billing", ch_sales: "#sales" },
   values: {
-    "appearance.skin": "graphite", "profile.display_name": "Irfad Imtiaz", "profile.handle": "irfad", "profile.title": "Head of operations", "profile.timezone": "America/Los_Angeles",
+    "appearance.skin": "system", "profile.display_name": "Irfad Imtiaz", "profile.handle": "irfad", "profile.title": "Head of operations", "profile.timezone": "America/Los_Angeles",
     "profile.working_hours": hrs, "profile.contact": { email: "irfad@northwind.example", phone: "+1 415 555 0132" }, "engine.subscription_share": false, "engine.runtime_opt_in": false,
     "notifications.working_hours": { days: [1, 2, 3, 4, 5], from: "09:00", to: "18:00", tz: "America/Los_Angeles" },
   },
