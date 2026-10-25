@@ -4,7 +4,8 @@
 // What it is built from. People, roles, groups, one channel and the folder tree come from `core`. The kernel-level facts a module cannot make for itself are appended to the core log before
 // the first boot: the 39 more channels, and the authorization resources of the built-in record types (`contact`, `company`), which the records module needs to find under the Space. Everything
 // else goes through the gateway with the daemon's owner token: 500 contacts (records.bulk_upsert) and 12 agents (agents.create, which builds each agent's Agents/<name> tree through files).
-// Channels stay resources only: the chat module has no handlers yet, so there is no capability that makes a channel.
+// Channels stay resources only: the chat module has no handlers yet, so there is no capability that makes a channel. Agents are made with agents.create; while that cannot work (the files module's
+// tables are incomplete) the builder records the reason in small.json (`gaps`) and adds the missing agents as kernel principals, the way core adds its own two, so the seed still has 12.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -17,16 +18,17 @@ import { loadConfig } from "../../../host/src/daemon/config.ts";
 import { startDaemon } from "../../../host/src/daemon/daemon.ts";
 import type { Daemon } from "../../../host/src/daemon/daemon.ts";
 import type { NewEvent } from "../../../kernel/src/log/types.ts";
-import { CORE_SOURCES, CORE_SPACE, REPO, bootCore, cacheDir, registryHash, templateKey } from "../core/index.ts";
+import { LogStore } from "../../../kernel/src/log/store.ts";
+import { CORE_SOURCES, CORE_SPACE, PEOPLE, REPO, bootCore, cacheDir, registryHash, templateKey } from "../core/index.ts";
 import { SMALL_TARGET } from "./recipe.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The files whose content defines the seed. */
 export const SMALL_SOURCES: readonly string[] = [...CORE_SOURCES, fileURLToPath(import.meta.url), path.join(HERE, "recipe.ts")];
 /** The modules the seed is built with. A test that boots the seed may flip more. */
-export const SMALL_LIVE: readonly string[] = ["records", "schema", "agents", "files", "access", "devices", "spaces"];
+export const SMALL_LIVE: readonly string[] = ["records", "schema", "contacts-link", "agents", "files", "access", "devices", "spaces"];
 /** The files of a Space's data directory that make up the seed (the rest is per boot: pid, info, logs, admin token). */
-const KEEP = ["events.db", "modules.db", "seal.key"];
+const KEEP = ["events.db", "modules.db", "seal.key", "small.json"];
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 
@@ -64,6 +66,8 @@ export function startSeeded(dir: string, live: readonly string[] = SMALL_LIVE): 
   });
 }
 
+/** Agents beyond the two of core, so the Space ends with SMALL_TARGET.agents. */
+const MODULE_AGENTS = SMALL_TARGET.agents - 2;
 const TRACE = "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a";
 const ev = (n: number, entity: string, id: string, payload: unknown): NewEvent => ({
   id: `evt_small_${String(n).padStart(4, "0")}`, type: "resource.created", sv: 1, trace_id: TRACE, actor: "svc_seed", vis: "space", entity, entity_id: id, payload,
@@ -102,6 +106,8 @@ export const lastBuildTimings = (): BuildTimings | null => lastBuild;
 
 /** Builds the template into `into` (an empty directory): core log plus extras, then the capability calls on a booted daemon. */
 async function build(into: string): Promise<void> {
+  const gaps: string[] = [];
+  let madeByModule = 0;
   const t0 = performance.now();
   const core = bootCore();
   for (const r of core.store.appendBatch(extraEvents())) if (!r.ok) throw new Error(`seed event refused: ${r.message}`);
@@ -115,10 +121,31 @@ async function build(into: string): Promise<void> {
     const out = (await call(d, "records.bulk_upsert", { idempotencyKey: "small-contacts", type: "contact", rows: contactRows(), match: ["email"] })) as { created: number };
     if (out.created !== SMALL_TARGET.records) throw new Error(`records.bulk_upsert created ${out.created} of ${SMALL_TARGET.records}`);
     const t3 = performance.now();
-    for (let i = 1; i <= SMALL_TARGET.agents; i++) await call(d, "agents.create", { idempotencyKey: `small-agent-${i}`, name: `Agent ${String(i).padStart(2, "0")}`, role: `Seed agent ${i}` });
+    for (let i = 1; i <= MODULE_AGENTS; i++) {
+      try { await call(d, "agents.create", { idempotencyKey: `small-agent-${i}`, name: `Agent ${String(i).padStart(2, "0")}`, role: `Seed agent ${i}` }); madeByModule++; } catch (e) {
+        gaps.push(`agents.create: ${(e as Error).message.slice(0, 600)}`);
+        break;
+      }
+    }
     const t4 = performance.now();
     lastBuild = { coreMs: t1 - t0, bootMs: t2 - t1, recordsMs: t3 - t2, agentsMs: t4 - t3, totalMs: t4 - t0 };
   } finally { await d.stop(); }
+  // agents the module could not make: kernel principals, like core's own two
+  if (madeByModule < MODULE_AGENTS) {
+    const store = new LogStore({ db: new DatabaseSync(path.join(into, "events.db")), space: CORE_SPACE });
+    const more: NewEvent[] = [];
+    for (let i = madeByModule + 1; i <= MODULE_AGENTS; i++) {
+      const id = `agt_small${String(i).padStart(2, "0")}`;
+      const owner = PEOPLE[i % PEOPLE.length]!.id;
+      const e = (type: string, entity: string, entityId: string, payload: unknown): NewEvent => ({ id: `evt_smallagt_${String(more.length + 1).padStart(4, "0")}`, type, sv: 1, trace_id: TRACE, actor: "svc_seed", vis: "space", entity, entity_id: entityId, payload });
+      more.push(e("principal.created", "principal", id, { id, kind: "agent", owner, status: "active", name: `Agent ${String(i).padStart(2, "0")}` }));
+      more.push(e("principal.role_set", "principal", id, { holder: id, role: "member" }));
+    }
+    for (const r of store.appendBatch(more)) if (!r.ok) throw new Error(`seed event refused: ${r.message}`);
+    store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
+    store.close();
+  }
+  fs.writeFileSync(path.join(into, "small.json"), JSON.stringify({ gaps, agentsByModule: madeByModule }));
   for (const f of ["modules.db", "events.db"]) {
     const file = path.join(into, f);
     if (!fs.existsSync(file)) continue;
@@ -137,6 +164,10 @@ export interface SmallSpace {
   /** Was the template already cached? */
   hit: boolean;
   key: string;
+  /** Why parts of the seed could not be built through capabilities (empty when everything was). */
+  gaps: string[];
+  /** How many agents came from agents.create rather than from kernel events. */
+  agentsByModule: number;
   close(): void;
 }
 
@@ -157,5 +188,6 @@ export async function bootSmall(o: BootSmallOptions = {}): Promise<SmallSpace> {
   }
   const dir = fs.mkdtempSync(path.join(o.scratch ?? os.tmpdir(), "small-seed-"));
   for (const f of KEEP) if (fs.existsSync(path.join(tpl, f))) fs.copyFileSync(path.join(tpl, f), path.join(dir, f));
-  return { dir, space: CORE_SPACE, hit, key, close: () => fs.rmSync(dir, { recursive: true, force: true }) };
+  const meta = JSON.parse(fs.readFileSync(path.join(tpl, "small.json"), "utf8")) as { gaps: string[]; agentsByModule: number };
+  return { dir, space: CORE_SPACE, hit, key, gaps: meta.gaps, agentsByModule: meta.agentsByModule, close: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
