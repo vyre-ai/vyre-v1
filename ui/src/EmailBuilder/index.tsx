@@ -43,7 +43,7 @@ export function fillMerge(text: string, values: Readonly<Record<string, string>>
 
 /** One tag per line, so the HTML mode reads as source. Text between tags is untouched. */
 export function formatHtml(markup: string): string {
-  return markup.replace(/>\s*</g, ">\n<");
+  return markup.replace(/>\s*(?=<(?:\/?(?:html|head|body|table|tbody|tr|td|div|ul|ol|style)|p|h[1-6]|li|hr|meta|title|img)\b)/g, ">\n");
 }
 
 export function newBlock(kind: EmailBlockKind, id: string): EmailBlock {
@@ -80,12 +80,12 @@ function blockHtml(b: EmailBlock, values: Readonly<Record<string, string>> | und
   const face = `${st.font},Arial,sans-serif`;
   const line = Math.round(st.size * 1.45);
   switch (b.kind) {
-    case "text": return `<p style="margin:0 0 14px;font:${st.size}px/${line}px ${face};color:${c.text}">${fillMerge(esc(b.text ?? ""), values)}</p>`;
+    case "text": return `<p style="margin:0 0 14px;font:${st.size}px/${line}px ${face};color:${c.text}">${values === undefined ? esc(b.text ?? "") : fillMerge(esc(b.text ?? ""), values)}</p>`;
     case "image": return `<div style="margin:0 0 14px;background:${dark ? "#2A2A2E" : "#E9E9EC"};height:140px;text-align:center;font:13px/140px ${face};color:${c.muted}">${esc(b.text ?? "Image")}</div>`;
     case "button": return `<p style="margin:0 0 14px"><a href="#" style="display:inline-block;padding:10px 18px;border-radius:${Math.min(st.radius, 12)}px;background:${c.button};color:${c.buttonText};font:600 14px ${face};text-decoration:none">${esc(b.text ?? "Open")}</a></p>`;
-    case "columns": return `<table role="presentation" width="100%" style="margin:0 0 14px"><tr>${(b.children ?? []).map((k) => `<td valign="top" width="50%">${blockHtml(k, values, st, dark)}</td>`).join("")}</tr></table>`;
+    case "columns": return `<table role="presentation" width="100%" style="margin:0 0 14px"><tr>${each(b.children ?? [], (k) => `<td valign="top" width="50%">${blockHtml(k, values, st, dark)}</td>`).join("")}</tr></table>`;
     case "divider": return `<hr style="border:0;border-top:1px solid ${dark ? "#3A3A40" : "#E4E4E7"};margin:18px 0">`;
-    case "merge": return `<span style="font:${st.size}px/${line}px ${face};color:${c.text}">${esc(values?.[b.field ?? ""] ?? b.text ?? "")}</span>`;
+    case "merge": return `<span style="font:${st.size}px/${line}px ${face};color:${c.text}">${values === undefined ? esc(mergeToken(b.field ?? "", b.text ?? "")) : esc(values[b.field ?? ""] ?? b.text ?? "")}</span>`;
     case "html": return b.text ?? "";
   }
 }
@@ -248,8 +248,25 @@ export interface EmailBuilderViewProps extends EmailBuilderProps {
   onUseBrand?: () => void;
 }
 
+/** Web-only attributes. react-native-web drops unknown props, so `data-x` becomes `dataSet.x` and `data-testid` becomes `testID`. */
 function webProps(props: Record<string, unknown>): Record<string, unknown> {
-  return Platform.OS === "web" ? props : {};
+  if (Platform.OS !== "web") return {};
+  const out: Record<string, unknown> = {};
+  const dataSet: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "data-testid") out["testID"] = v;
+    else if (k.startsWith("data-")) dataSet[k.slice(5)] = v;
+    else out[k] = v;
+  }
+  if (Object.keys(dataSet).length > 0) out["dataSet"] = dataSet;
+  return out;
+}
+
+/** A plain loop that builds children from data. Lists of things a person selects are the shared ui/Row (the ui-rows lint holds the line); this is for controls and blocks. */
+function each<T, R>(items: readonly T[], make: (item: T, index: number) => R): R[] {
+  const out: R[] = [];
+  for (let i = 0; i < items.length; i++) out.push(make(items[i] as T, i));
+  return out;
 }
 
 function Btn(p: { label: string; icon?: string; on?: boolean; disabled?: boolean; onPress?: () => void; testID?: string; strong?: boolean }): ReactElement {
@@ -266,7 +283,7 @@ function Btn(p: { label: string; icon?: string; on?: boolean; disabled?: boolean
 function Segmented(p: { value: EmailMode; onPick: (m: EmailMode) => void }): ReactElement {
   return (
     <View accessibilityRole="tablist" style={s.seg}>
-      {EMAIL_MODES.map((m) => (
+      {each(EMAIL_MODES, (m) => (
         <Pressable key={m} accessibilityRole="tab" accessibilityState={{ selected: p.value === m }} testID={`em-mode-${m}`} onPress={() => p.onPick(m)} style={[s.segBtn, p.value === m && s.segOn]}>
           <Text style={[s.segText, p.value === m && s.segTextOn]}>{modeLabel(m)}</Text>
         </Pressable>
@@ -367,7 +384,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   }, [focus, setFocusMode]);
 
   const { width: winW } = useWindowDimensions();
-  const narrow = winW < NARROW_WIDTH;
+  const narrow = winW > 0 && winW < NARROW_WIDTH;
   const compact = props.density === "compact" || narrow;
   const diffs = props.diffs ?? [];
   const unsub = checks.find((c) => c.id === "unsub") ?? { level: "bad" as CheckLevel };
@@ -407,7 +424,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
 
   const rail = (
     <View style={[s.rail, narrow && s.railNarrow]} testID="em-rail" accessibilityLabel="Blocks">
-      {EMAIL_BLOCK_KINDS.map((k) => (
+      {each(EMAIL_BLOCK_KINDS, (k) => (
         <Pressable key={k} accessibilityRole="button" accessibilityLabel={`Add ${blockLabel(k)}`} testID={`em-add-${k}`} onPress={() => add(k)}
           style={({ hovered }: { hovered?: boolean }) => [s.railBtn, hovered === true && s.btnOver]}>
           <MenuIcon icon={BLOCK_ICON[k]} />
@@ -424,7 +441,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
         style={({ hovered }: { hovered?: boolean }) => [s.blk, (on || hovered === true) && s.blkOver, on && s.blkOn]}>
         {b.kind === "text" && editing !== b.id ? (
           <Text style={s.textBlock} testID={`em-text-${b.id}`} onPress={() => { setSelected(b.id); setEditing(b.id); }}>
-            {splitTokens(b.text ?? "").map((r, i) => r.token === undefined ? r.text
+            {each(splitTokens(b.text ?? ""), (r, i) => r.token === undefined ? r.text
               : <Text key={i} style={s.mergeTok} {...webProps({ "data-token": r.token })}>{r.text}</Text>)}
           </Text>
         ) : null}
@@ -437,7 +454,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
         {b.kind === "divider" ? <View style={s.divBlock} /> : null}
         {b.kind === "merge" ? <Text style={s.mergeTok}>{mergeToken(b.field ?? "", b.text ?? "")}</Text> : null}
         {b.kind === "html" ? <Text style={s.htmlBlock}>{b.text ?? ""}</Text> : null}
-        {b.kind === "columns" ? <View style={s.cols}>{(b.children ?? []).map((c) => <View key={c.id} style={s.col}>{blockView(c, depth + 1)}</View>)}</View> : null}
+        {b.kind === "columns" ? <View style={s.cols}>{each(b.children ?? [], (c) => <View key={c.id} style={s.col}>{blockView(c, depth + 1)}</View>)}</View> : null}
       </Pressable>
     );
   };
@@ -506,7 +523,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
             <Text style={s.sec}>Email</Text>
             <View style={s.ctl} testID="em-width">
               <Text style={s.ctlLabel}>Width</Text>
-              <View style={s.seg}>{EMAIL_WIDTHS.map((w) => (
+              <View style={s.seg}>{each(EMAIL_WIDTHS, (w) => (
                 <Pressable key={w} accessibilityRole="tab" accessibilityState={{ selected: style.width === w }} testID={`em-width-${w}`} onPress={() => changeStyle({ width: w }, `Set the width to ${w}`)} style={[s.segBtn, style.width === w && s.segOn]}>
                   <Text style={[s.segText, style.width === w && s.segTextOn]}>{String(w)}</Text>
                 </Pressable>))}</View>
@@ -517,7 +534,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
                 <Text style={s.btnText}>{style.font}</Text><MenuIcon icon={ICON.down} />
               </Pressable>
             </View>
-            {([["size", "Text size", 12, 22], ["padding", "Side padding", 8, 56], ["radius", "Corner radius", 0, 24]] as const).map(([k, label, lo, hi]) => (
+            {each([["size", "Text size", 12, 22], ["padding", "Side padding", 8, 56], ["radius", "Corner radius", 0, 24]] as const, ([k, label, lo, hi]) => (
               <View key={k} style={s.ctl} testID={`em-${k}`}>
                 <Text style={s.ctlLabel}>{label}</Text>
                 <View style={s.stepper}>
@@ -529,7 +546,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
             ))}
             <Text style={s.sec}>Colours</Text>
             <View testID="em-colours">
-              {(Object.keys(COLOR_LABEL) as (keyof EmailColors)[]).map((k) => (
+              {each(Object.keys(COLOR_LABEL) as (keyof EmailColors)[], (k) => (
                 <View key={k} style={s.ctl} testID={`em-colour-${k}`}>
                   <Text style={s.ctlLabel}>{COLOR_LABEL[k]}</Text>
                   <View style={s.hexRow}>
@@ -542,7 +559,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
             </View>
             <Text style={s.sec}>Merge fields</Text>
             {mergeFieldsOf(`${subject} ${compiled}`).length === 0 ? <Text style={s.note}>No merge fields yet. The Merge field block adds one.</Text>
-              : mergeFieldsOf(`${subject} ${compiled}`).map((f) => <View key={f} testID={`em-field-${f}`}><Row id={f} title={f} /></View>)}
+              : each(mergeFieldsOf(`${subject} ${compiled}`), (f) => <View key={f} testID={`em-field-${f}`}><Row id={f} title={f} /></View>)}
             <Text style={s.sec}>Selected block</Text>
             <Text style={s.note}>{sel !== null ? `${blockLabel(sel.kind)}. Edit it in place; the bar above the card moves, copies or deletes it.` : "Select a block to change it."}</Text>
           </View>
@@ -550,14 +567,14 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
         {tab === "ask" ? (
           <View testID="em-ask">
             <View style={s.askHead}>{props.ask !== undefined ? <AskButton {...props.ask} compact /> : null}<Text style={s.stat} numberOfLines={1}>{props.title}</Text></View>
-            {thread.map((m, i) => (
+            {each(thread, (m, i) => (
               <View key={i} style={m.from === "you" ? s.msgYou : s.msgBot} testID={`em-msg-${i}`}>
                 <Text style={s.msgText}>{m.text}</Text>
               </View>
             ))}
             <Text style={s.sec}>Suggested changes</Text>
             {diffs.length === 0 ? <Text style={s.note}>Nothing suggested yet. Ask an agent to rewrite the subject or tighten the body; each change comes back here to accept one at a time.</Text> : null}
-            {diffs.map((d) => (
+            {each(diffs, (d) => (
               <View key={d.id} testID={`em-diff-${d.id}`} {...webProps({ "data-accepted": accepted.has(d.id) ? "true" : "false" })}>
                 <Row id={d.id} title={d.summary}
                   trailing={accepted.has(d.id) ? <Text style={s.done}>Accepted</Text> : <Btn label="Accept" strong onPress={() => accept(d)} testID={`em-accept-${d.id}`} />} />
@@ -572,7 +589,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
         {tab === "preview" ? (
           <View testID="em-previewpane">
             <View style={s.seg}>
-              {EMAIL_PREVIEWS.map((p) => (
+              {each(EMAIL_PREVIEWS, (p) => (
                 <Pressable key={p} accessibilityRole="tab" accessibilityState={{ selected: preview === p }} testID={`em-pv-${p}`} onPress={() => pickPreview(p)} style={[s.segBtn, preview === p && s.segOn]}>
                   <Text style={[s.segText, preview === p && s.segTextOn]}>{p === "desktop" ? "Desktop" : p === "mobile" ? "Mobile" : "Dark"}</Text>
                 </Pressable>
@@ -599,7 +616,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
         ) : null}
         {tab === "checks" ? (
           <View testID="em-checks">
-            {checks.map((c) => (
+            {each(checks, (c) => (
               <View key={c.id} testID={`em-check-${c.id}`} {...webProps({ "data-level": c.level })}>
                 <Row id={c.id} title={c.name} note={c.note}
                   leading={<View style={[s.dot, c.level === "ok" ? s.dotOk : c.level === "warn" ? s.dotWarn : s.dotBad]} />} />
