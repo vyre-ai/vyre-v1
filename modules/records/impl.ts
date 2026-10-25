@@ -9,6 +9,8 @@ import { isSealedRef } from "../../kernel/src/store/values.ts";
 import { StoreError } from "../../kernel/src/store/types.ts";
 import type { FieldDef, Store, StoredRecord, TypeDef } from "../../kernel/src/store/types.ts";
 import type { ProjectionHost } from "../../kernel/src/store/projection.ts";
+import type { SeamSetters } from "../../host/src/seams/index.ts";
+import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
 import { createQueryHandlers, createRecordsHandlers, mapError, RecordsError, toRow } from "./handlers/index.ts";
 import type { QueryHandlers, RecordRow, WriteCtx, WriteHandlers } from "./handlers/index.ts";
 import { fieldMetaTable, historyText, recordsFieldMeta } from "./projections.ts";
@@ -16,6 +18,10 @@ import { createHistoryHandlers } from "./handlers/history.ts";
 import type { HistoryHandlers } from "./handlers/history.ts";
 import { createMergeHandlers } from "./handlers/merge.ts";
 import type { MergeHandlers } from "./handlers/merge.ts";
+import { createReviewHandlers, propose } from "./handlers/review.ts";
+import type { ReviewHandlers } from "./handlers/review.ts";
+import { createViewHandlers } from "./handlers/views.ts";
+import type { ViewHandlers } from "./handlers/views.ts";
 import { createSiteTableHandlers } from "./handlers/site-tables.ts";
 import type { SiteTableEvent, SiteTableHandlers } from "./handlers/site-tables.ts";
 
@@ -112,8 +118,9 @@ function assertWriteOnce(def: TypeDef, current: Record<string, unknown>, patch: 
   }
 }
 
-export function openRecords(o: { path?: string; space?: string; actor?: string; clock?: () => number } = {}): RecordsHandle {
-  const opened = openRecordStore({
+export function openRecords(o: { path?: string; space?: string; actor?: string; clock?: () => number; opened?: { host: ProjectionHost; store: Store } } = {}): RecordsHandle {
+  // `opened` is the Space store the host hands over (P-H_08); without it (tests) the module opens a private one
+  const opened = o.opened ?? openRecordStore({
     path: o.path ?? ":memory:",
     space: o.space ?? "sp_records",
     extra: [recordsFieldMeta],
@@ -270,15 +277,24 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
 }
 
 let shared: RecordsHandle | null = null;
+let spaceSeam: SpaceStoreSeam | null = null;
+/** The host hands the Space store (P-H_08, ruling 31). The per-field clocks projection must be on that store before it opens, so it is declared here. */
+export function setRecordsSpaceStore(seam: SpaceStoreSeam | null): void {
+  spaceSeam = seam;
+  shared = null;
+  extra = null;
+  seam?.declare([recordsFieldMeta]);
+}
+export const hostSeams: SeamSetters = { setRecordsSpaceStore };
 function live(): RecordsHandle {
-  if (!shared) shared = openRecords();
+  if (!shared) shared = openRecords(spaceSeam ? { opened: spaceSeam.open() } : {});
   return shared;
 }
 
 // The rest of the live map (P-L3_LIVE): history, versions and holds (handlers/history.ts), merge, bulk upsert and export (handlers/merge.ts), both built once over the live handle.
 // DECISION: reveal has no `unseal` and export no `putFile` until the host hands this module the Vault and the Files port (a host seam); until then they refuse, they do not guess.
 type LiveHistory = Omit<HistoryHandlers, "records.history">;
-let extra: { history: LiveHistory; merge: MergeHandlers; sites: SiteTableHandlers } | null = null;
+let extra: { history: LiveHistory; merge: MergeHandlers; sites: SiteTableHandlers; review: ReviewHandlers; views: ViewHandlers } | null = null;
 function more(): NonNullable<typeof extra> {
   if (!extra) {
     const h = live();
@@ -286,12 +302,14 @@ function more(): NonNullable<typeof extra> {
       history: createHistoryHandlers({ tx: h.host.tx, store: h.store, writes: h.handlers, readLog: (q) => h.host.store.read(q) }),
       merge: createMergeHandlers({ store: h.store, tx: h.host.tx }),
       sites: createSiteTableHandlers({ store: h.store }),
+      review: createReviewHandlers({ tx: h.host.tx, store: h.store, writes: h.handlers, space: h.host.store.space }),
+      views: createViewHandlers({ tx: h.host.tx, store: h.store, writes: h.handlers, space: h.host.store.space }),
     };
   }
   return extra;
 }
 
-export type LiveRecordsHandlers = RecordsHandlers & LiveHistory & MergeHandlers;
+export type LiveRecordsHandlers = RecordsHandlers & LiveHistory & MergeHandlers & ReviewHandlers & ViewHandlers;
 
 /** Loader entry. The module stays stub until its manifest flips to live, which is when the host reads this. */
 export const handlers: LiveRecordsHandlers = {
@@ -313,6 +331,17 @@ export const handlers: LiveRecordsHandlers = {
   "records.merge": (ctx, input) => more().merge["records.merge"](ctx, input),
   "records.bulk_upsert": (ctx, input) => more().merge["records.bulk_upsert"](ctx, input),
   "records.export": (ctx, input) => more().merge["records.export"](ctx, input),
+  "records.changes": (ctx, input) => more().review["records.changes"](ctx, input),
+  "records.completeness": (ctx, input) => more().review["records.completeness"](ctx, input),
+  "records.gap_check": (ctx, input) => more().review["records.gap_check"](ctx, input),
+  "records.relate": (ctx, input) => more().review["records.relate"](ctx, input),
+  "records.value_source": (ctx, input) => more().review["records.value_source"](ctx, input),
+  "records.values.pending": (ctx, input) => more().review["records.values.pending"](ctx, input),
+  "records.values.review": (ctx, input) => more().review["records.values.review"](ctx, input),
+  "records.view": (ctx, input) => more().views["records.view"](ctx, input),
+  "records.relations_map": (ctx, input) => more().views["records.relations_map"](ctx, input),
+  "records.page_prefs.get": (ctx, input) => more().views["records.page_prefs.get"](ctx, input),
+  "records.page_prefs.set": (ctx, input) => more().views["records.page_prefs.set"](ctx, input),
 };
 
 /** The site tables (P-L3_ST): the sites module announces a table, this module makes the record type. The host runs it once per event after commit (ruling 32). */
@@ -323,6 +352,13 @@ export const consumers = {
       const ev = event.payload as unknown as SiteTableEvent;
       if (event.name === "site.table_created") await more().sites.created(ev);
       else await more().sites.promoted(ev);
+    },
+  },
+  /** An agent or automation proposed a value: it waits for review or counts straight away (per field), and the source is kept for the popover. */
+  "records.value_source": {
+    on: ["record.value_proposed"],
+    async run(_ctx: unknown, event: { name: string; payload: Record<string, unknown> }): Promise<void> {
+      propose(live().host.tx, event.payload);
     },
   },
 };
