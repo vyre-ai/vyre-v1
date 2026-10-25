@@ -3,11 +3,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { fileURLToPath } from "node:url";
-import { OUT, runSeed } from "../../../../scripts/shots/gen-prototype-seed.mjs";
+import { OUT, runSeed } from "./gen-prototype-seed.mjs";
 
 const committed = (): ReturnType<typeof runSeed> => {
-  assert.ok(fs.existsSync(OUT), `run node scripts/shots/gen-prototype-seed.mjs --write (the CI regen job does) to write ${fileURLToPath(new URL(`file://${OUT}`))}`);
+  assert.ok(fs.existsSync(OUT), `run node scripts/shots/gen-prototype-seed.mjs --write (the CI regen job does) to write ${OUT}`);
   return JSON.parse(fs.readFileSync(OUT, "utf8"));
 };
 

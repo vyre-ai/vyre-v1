@@ -29,9 +29,10 @@ function loose() {
 }
 
 function stubs(space) {
-  const win = { VyreUI: { space: () => space }, name: "", addEventListener() {}, matchMedia: () => ({ matches: false, addEventListener() {} }), innerWidth: 1280, innerHeight: 800, localStorage: { getItem: () => null, setItem() {} } };
+  const ui = new Proxy(function () {}, { get: (_t, k) => (k === "space" ? () => space : k === "then" ? undefined : loose()), has: () => true });
+  const win = { VyreUI: ui, name: "", addEventListener() {}, matchMedia: () => ({ matches: false, addEventListener() {} }), innerWidth: 1280, innerHeight: 800, localStorage: { getItem: () => null, setItem() {} } };
   return {
-    window: win, parent: win, self: win, location: { hash: "", search: "" }, navigator: { clipboard: loose(), userAgent: "node" },
+    VyreUI: ui, window: win, parent: win, self: win, location: { hash: "", search: "" }, navigator: { clipboard: loose(), userAgent: "node" },
     document: loose(), matchMedia: win.matchMedia, localStorage: win.localStorage, setTimeout: () => 0, clearTimeout() {}, requestAnimationFrame: () => 0,
     console: { log() {}, warn() {}, error() {} }, Intl, Date, Math, JSON, Object, Array, Map, Set, Promise, RegExp, String, Number, Symbol, Error,
   };
