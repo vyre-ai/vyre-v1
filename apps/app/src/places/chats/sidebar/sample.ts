@@ -5,6 +5,7 @@ import { createFakeReplica, createScreenHooks } from "../../../../../../client/s
 import type { FakeReplica, Row } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { fixtureFor } from "../../../fixtures/index.ts";
 import type { Agent, Channel, NeedsItem, RecentItem, RecentOut } from "./model.ts";
 import type { ChatsNav, ChatsSidebarData, Connection } from "./data.tsx";
 
@@ -15,7 +16,7 @@ const DAY = 86_400_000;
 
 export interface SampleThread { threadId: string; title: string; agents: string[]; unread: number; working: boolean; starred: boolean; lastAt: number; preview?: string }
 export interface SampleSpace {
-  id: "northwind" | "harbor";
+  id: "northwind" | "harbor" | "personal";
   name: string;
   assistant: { agentId: string; name: string };
   otherNeedsYou: boolean;
@@ -64,8 +65,30 @@ export const northwind: SampleSpace = {
   needsTotal: 7,
 };
 
-export const harbor: SampleSpace = {
-  id: "harbor", name: "Harbor Studio", assistant: { agentId: "agt_assistant", name: "Assistant" }, otherNeedsYou: false,
+/** A prototype clock string: "8:41" is today at 08:41, "Yesterday" yesterday midday, a weekday name the Monday before. */
+const stampOf = (when: string): number => {
+  const m = /^(\d+):(\d+)$/.exec(when);
+  if (m) return at(10, 24, Number(m[1]), Number(m[2]));
+  return when === "Yesterday" ? at(10, 23, 12) : at(10, 20, 9);
+};
+
+/** Harbor Studio, read from the shared fixtures (which are read from the prototype): Scheduler and Proofer starred, studio and galleries, two Needs you, the Moreno chats. */
+function harborSpace(): SampleSpace {
+  const f = fixtureFor("harbor");
+  const agentId = (id: string): boolean => id.startsWith("agt_");
+  return {
+    id: "harbor", name: f.space.name, assistant: { agentId: "agt_assistant", name: "Assistant" }, otherNeedsYou: false,
+    agents: [...f.agents].sort((a, b) => Number(b.pinned) - Number(a.pinned)).map((a) => ({ agentId: a.id, name: a.name, starred: a.pinned || a.id === "agt_assistant" })),
+    threads: f.chats.map((c) => t(c.id, c.title, agentId(c.with) ? [c.with] : [], stampOf(c.at), { ...(c.unread === true ? { unread: 1 } : {}), ...(c.starred === true ? { starred: true } : {}) })),
+    channels: f.channels.map((c) => ({ channelId: c.id, name: c.name, unread: c.unread === true ? 1 : 0, visibility: "public" as const })),
+    needs: f.needs.map((n) => ({ taskId: `tsk_${n.id}`, title: n.title, kind: n.kind === "Approve" ? ("approve" as const) : n.kind === "Review" ? ("review" as const) : ("unblock" as const), by: n.agent })),
+    needsTotal: f.needs.length,
+  };
+}
+export const harbor: SampleSpace = harborSpace();
+
+export const personal: SampleSpace = {
+  id: "personal", name: "Personal", assistant: { agentId: "agt_assistant", name: "Assistant" }, otherNeedsYou: false,
   agents: [{ agentId: "agt_assistant", name: "Assistant", starred: true }],
   threads: [
     t("m1", "Plan the week", ["agt_assistant"], at(10, 24, 8, 5)),

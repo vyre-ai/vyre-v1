@@ -7,7 +7,7 @@ import { ChatsSidebar } from "./ChatsSidebar.tsx";
 import { createSidebarApi } from "./actions.ts";
 import { NEW_CHAT_MS, groupRecent, rowOf } from "./model.ts";
 import type { ChatRow, RecentOut } from "./model.ts";
-import { createSampleSidebar, harbor, northwind } from "./sample.ts";
+import { createSampleSidebar, harbor, northwind, personal } from "./sample.ts";
 import type { SampleSidebar } from "./sample.ts";
 
 const html = (s: SampleSidebar): string => renderToStaticMarkup(<ChatsSidebar data={s.data} window={{ start: 0, end: 500 }} />).replaceAll("<!-- -->", "");
@@ -64,11 +64,18 @@ test("unread chats carry a dot and channels a count; Projects sit under Channels
   assert.ok(out.includes("other-space-dot"), "another Space needs you");
 });
 
-test("Harbor Studio: a personal Space has no Needs you and no Channels", () => {
-  const out = html(createSampleSidebar(harbor));
+test("Personal: a personal Space has no Needs you and no Channels", () => {
+  const out = html(createSampleSidebar(personal));
   assert.ok(!out.includes('data-testid="head-needs"') && !out.includes('data-testid="head-channels"'));
-  assert.ok(out.includes("Harbor Studio") && out.includes("Flights to Kuala Lumpur"));
+  assert.ok(out.includes("Personal") && out.includes("Flights to Kuala Lumpur"));
   assert.ok(!out.includes("other-space-dot"));
+});
+
+test("Harbor Studio is the prototype's: Scheduler and Proofer, two Needs you, studio and galleries, the Moreno chats", () => {
+  const out = html(createSampleSidebar(harbor));
+  for (const text of ["Harbor Studio", "Scheduler", "Proofer", "Send the Moreno gallery", "Saturday call sheet", "studio", "galleries", "Moreno shoot Saturday", "Moreno gallery", "Theo Lindqvist", "Studio gear list"]) assert.ok(out.includes(text), text);
+  assert.ok(out.includes('data-testid="head-needs"') && out.includes('data-testid="head-channels"'));
+  assert.ok(!out.includes("Flights to Kuala Lumpur"), "none of the Personal chats");
 });
 
 test("before the data arrives the sidebar draws its loading frame; offline it says so and still shows the saved copy", () => {

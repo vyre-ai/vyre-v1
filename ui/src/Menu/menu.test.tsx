@@ -105,6 +105,24 @@ test("choosing Report a problem calls the shell's handler with what was right-cl
   assert.equal(seen.length, 2, "a removed handler is not called");
 });
 
+test("an error row report carries the trace id as its own field, not inside the label", () => {
+  const seen: { label?: string; traceId?: string }[] = [];
+  const off = setReportProblemHandler((context) => seen.push(context));
+  try {
+    const entries = menuEntries({ items: [{ label: "Open" }] }, { label: "Docs did not read fee-schedule.csv", traceId: "tr_5e20b4" });
+    const last = entries[entries.length - 1];
+    assert.ok(last !== undefined && isItem(last) && last.onSelect !== undefined);
+    last.onSelect();
+    reportProblem({ label: "Error row", traceId: "tr_77" });
+  } finally {
+    off();
+  }
+  assert.equal(seen[0]?.traceId, "tr_5e20b4");
+  assert.equal(seen[0]?.label, "Docs did not read fee-schedule.csv");
+  assert.ok(!(seen[0]?.label ?? "").includes("tr_5e20b4"), "the label never carries the trace id");
+  assert.equal(seen[1]?.traceId, "tr_77");
+});
+
 test("a rendered menu lists the items in order and Report a problem last, with a separator before it", () => {
   const html = renderToStaticMarkup(<Menu items={[{ head: "File" }, { label: "Open", icon: "open" }, { label: "Delete", icon: "trash", danger: true }, { label: "Pinned", icon: "star", checked: true }]} x={40} y={40} />);
   assert.match(html, /role="menu"/);
