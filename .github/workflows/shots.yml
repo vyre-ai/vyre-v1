@@ -46,7 +46,7 @@ jobs:
           node scripts/shots/shots.mjs --target "$T" --out shots-out
       - name: theme_flash probe (zero wrong frames)
         run: node scripts/shots/theme-flash.mjs --skip-export
-      - name: Browser perf probes (ruling 43: warm-up discarded, median of 5, worst printed), desktop 1x and phone 4x CPU
+      - name: Browser perf probes (ruling 43, warm-up discarded, median of 5, worst printed) desktop 1x and phone 4x CPU
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
