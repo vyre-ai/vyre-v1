@@ -362,12 +362,61 @@ function isTyping(event: KeyLike): boolean {
 const MONO = Platform.OS === "web" ? "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" : "Menlo";
 
 function Marked({ segments, mark, style }: { segments: readonly Segment[]; mark: "del" | "add"; style: StyleProp<TextStyle> }): ReactElement {
+  const nodes: ReactNode[] = [];
+  segments.forEach((seg, index) => {
+    nodes.push(<Text key={index} style={seg.kind === "same" ? null : mark === "del" ? styles.markDel : styles.markAdd}>{seg.text}</Text>);
+  });
+  return <Text style={style}>{nodes}</Text>;
+}
+
+/** The body of a paragraph change (docx, md): removed paragraphs, then added ones. */
+function ParagraphBody({ hunk, marks }: { hunk: DiffHunk; marks: boolean }): ReactElement {
+  const nodes: ReactNode[] = [];
+  paragraphRows(hunk, marks).forEach((row, index) => {
+    nodes.push(
+      <View key={index} style={[styles.para, row.kind === "removed" ? styles.lineDel : styles.lineAdd]} testID={`diff-para-${row.kind}`}>
+        <Marked segments={row.segments} mark={row.kind === "removed" ? "del" : "add"} style={styles.prose} />
+      </View>,
+    );
+  });
+  return <View testID="diff-paragraphs">{nodes}</View>;
+}
+
+function SplitBody({ hunk, marks }: { hunk: DiffHunk; marks: boolean }): ReactElement {
+  const nodes: ReactNode[] = [];
+  splitRows(hunk, marks).forEach((row, index) => {
+    nodes.push(
+      <View key={index} style={styles.splitRow}>
+        <SplitCell line={row.left} side="left" />
+        <SplitCell line={row.right} side="right" />
+      </View>,
+    );
+  });
+  return <View testID="diff-split">{nodes}</View>;
+}
+
+function UnifiedBody({ hunk, marks }: { hunk: DiffHunk; marks: boolean }): ReactElement {
+  const nodes: ReactNode[] = [];
+  unifiedLines(hunk, marks).forEach((line, index) => {
+    nodes.push(<LineRow key={index} line={line} testID={`diff-line-${line.sign === "-" ? "del" : "add"}`} />);
+  });
+  return <View testID="diff-unified">{nodes}</View>;
+}
+
+/** A comment: the author's initial, the name, the text with every @mention coloured. */
+function Note({ comment }: { comment: DiffComment }): ReactElement {
+  const parts: ReactNode[] = [];
+  bodyParts(comment.body).forEach((part, index) => {
+    parts.push(<Text key={index} style={part.mention ? styles.mention : null}>{part.text}</Text>);
+  });
   return (
-    <Text style={style}>
-      {segments.map((seg, index) => (
-        <Text key={index} style={seg.kind === "same" ? null : mark === "del" ? styles.markDel : styles.markAdd}>{seg.text}</Text>
-      ))}
-    </Text>
+    <View style={styles.comment} testID={`diff-note-${comment.id}`}>
+      <View style={styles.author}><Text style={styles.authorText}>{comment.author.slice(0, 1).toUpperCase()}</Text></View>
+      <View style={styles.commentBody}>
+        <Text style={styles.who}>{comment.author}</Text>
+        <Text style={styles.text}>{parts}</Text>
+      </View>
+    </View>
   );
 }
 
@@ -537,7 +586,8 @@ export function DiffTab(props: DiffTabViewProps): ReactElement {
   if (file !== null) {
     for (const hunk of file.hunks) {
       const lit = focus !== null && focus.path === file.path && focus.hunkId === hunk.id;
-      const thread = commentsFor(comments, hunk.id);
+      const notes: ReactNode[] = [];
+      for (const c of commentsFor(comments, hunk.id)) notes.push(<Note key={c.id} comment={c} />);
       hunks.push(
         <View
           key={hunk.id}
@@ -556,38 +606,13 @@ export function DiffTab(props: DiffTabViewProps): ReactElement {
           {file.body === "image" ? (
             <ImageDiff before={hunk.removed} after={hunk.added} mode={imageMode} onMode={setImageMode} />
           ) : file.body === "paragraph" ? (
-            <View testID="diff-paragraphs">
-              {paragraphRows(hunk, marks).map((row, index) => (
-                <View key={index} style={[styles.para, row.kind === "removed" ? styles.lineDel : styles.lineAdd]} testID={`diff-para-${row.kind}`}>
-                  <Marked segments={row.segments} mark={row.kind === "removed" ? "del" : "add"} style={styles.prose} />
-                </View>
-              ))}
-            </View>
+            <ParagraphBody hunk={hunk} marks={marks} />
           ) : layout === "split" ? (
-            <View testID="diff-split">
-              {splitRows(hunk, marks).map((row, index) => (
-                <View key={index} style={styles.splitRow}>
-                  <SplitCell line={row.left} side="left" />
-                  <SplitCell line={row.right} side="right" />
-                </View>
-              ))}
-            </View>
+            <SplitBody hunk={hunk} marks={marks} />
           ) : (
-            <View testID="diff-unified">
-              {unifiedLines(hunk, marks).map((line, index) => <LineRow key={index} line={line} testID={`diff-line-${line.sign === "-" ? "del" : "add"}`} />)}
-            </View>
+            <UnifiedBody hunk={hunk} marks={marks} />
           )}
-          {thread.map((c) => (
-            <View key={c.id} style={styles.comment} testID={`diff-note-${c.id}`}>
-              <View style={styles.author}><Text style={styles.authorText}>{c.author.slice(0, 1).toUpperCase()}</Text></View>
-              <View style={styles.commentBody}>
-                <Text style={styles.who}>{c.author}</Text>
-                <Text style={styles.text}>
-                  {bodyParts(c.body).map((part, index) => <Text key={index} style={part.mention ? styles.mention : null}>{part.text}</Text>)}
-                </Text>
-              </View>
-            </View>
-          ))}
+          {notes}
           {replying === hunk.id ? (
             <View style={styles.reply}>
               <CommentReply threadId={`${file.path}#${hunk.id}`} value="" placeholder="Comment, @ a person or an agent" disabled={false} density={density} onSend={(text) => sendComment(hunk, text)} testID={`diff-reply-${hunk.id}`} />

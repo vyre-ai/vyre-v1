@@ -161,7 +161,8 @@ export function ObjectPage(props: ObjectPageViewProps): ReactElement {
   /** The more menu: on a phone every action, on a wide page only the destructive ones (the rest are buttons). */
   const menuFor = (includeSafe: boolean): MenuEntry[] => {
     const safe = [...(split.primary === null ? [] : [split.primary]), ...split.secondary];
-    const items: MenuEntry[] = includeSafe ? safe.map((a) => ({ label: a.label, onSelect: () => choose(a) })) : [];
+    const items: MenuEntry[] = [];
+    if (includeSafe) for (const a of safe) items.push({ label: a.label, onSelect: () => choose(a) });
     if (items.length > 0 && split.destructive.length > 0) items.push({ separator: true });
     for (const a of split.destructive) items.push({ label: a.label, danger: true, onSelect: () => choose(a) });
     return items;
@@ -192,6 +193,26 @@ export function ObjectPage(props: ObjectPageViewProps): ReactElement {
   const pendingAction = pending === null ? null : actions.find((a) => a.id === pending.actionId) ?? null;
   const doneAction = done === null ? null : actions.find((a) => a.id === done) ?? null;
   const more = menuFor(compact);
+  const secondaryButtons: ReactNode[] = [];
+  if (!compact) for (const a of split.secondary) secondaryButtons.push(<HeadButton key={a.id} label={a.label} testID={`object-action-${a.id}`} onPress={() => choose(a)} />);
+  const tabNodes: ReactNode[] = [];
+  for (const tab of tabs) {
+    const on = tab.id === active;
+    tabNodes.push(
+      <Pressable
+        key={tab.id}
+        role="tab"
+        aria-selected={on}
+        aria-label={tabText(tab)}
+        testID={`object-tab-${tab.id}`}
+        onPress={() => select(tab.id)}
+        style={[styles.tab, on && styles.tabOn]}
+      >
+        <Text style={[styles.tabText, on && styles.tabTextOn]}>{tab.label}</Text>
+        {tab.count !== null ? <Text style={styles.tabCount}>{tab.count}</Text> : null}
+      </Pressable>,
+    );
+  }
 
   return (
     <View
@@ -230,7 +251,7 @@ export function ObjectPage(props: ObjectPageViewProps): ReactElement {
           </View>
           <View style={styles.actions}>
             {!compact && split.primary !== null ? <HeadButton label={split.primary.label} outlined testID={`object-action-${split.primary.id}`} onPress={() => choose(split.primary as ObjectAction)} /> : null}
-            {!compact ? split.secondary.map((a) => <HeadButton key={a.id} label={a.label} testID={`object-action-${a.id}`} onPress={() => choose(a)} />) : null}
+            {secondaryButtons}
             {more.length > 0 ? (
               <Pressable
                 role="button"
@@ -248,23 +269,7 @@ export function ObjectPage(props: ObjectPageViewProps): ReactElement {
 
         <View style={styles.tabsBox}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs} role="tablist" aria-label={`${name} tabs`} testID="object-tabs">
-            {tabs.map((tab) => {
-              const on = tab.id === active;
-              return (
-                <Pressable
-                  key={tab.id}
-                  role="tab"
-                  aria-selected={on}
-                  aria-label={tabText(tab)}
-                  testID={`object-tab-${tab.id}`}
-                  onPress={() => select(tab.id)}
-                  style={[styles.tab, on && styles.tabOn]}
-                >
-                  <Text style={[styles.tabText, on && styles.tabTextOn]}>{tab.label}</Text>
-                  {tab.count !== null ? <Text style={styles.tabCount}>{tab.count}</Text> : null}
-                </Pressable>
-              );
-            })}
+            {tabNodes}
           </ScrollView>
         </View>
 

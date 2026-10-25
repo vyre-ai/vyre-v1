@@ -341,6 +341,14 @@ export function HistoryTab(props: HistoryTabViewProps): ReactElement {
   }
 
   const plan = selected !== null && selected.runId !== null ? undoPlan(versions, selected.runId) : null;
+  const actionButtons: ReactNode[] = [];
+  if (selected !== null) {
+    const allowed = actionsFor(versions, selected);
+    for (const action of HISTORY_ACTIONS) {
+      if (action === "compare") actionButtons.push(<TextButton key={action} label="Compare" testID="history-compare" disabled={!allowed.compare} density={density} onPress={() => compare(selected)} />);
+      else actionButtons.push(<TextButton key={action} label="Restore this version" testID="history-restore" disabled={!allowed.restore} density={density} onPress={() => askRestore(selected)} />);
+    }
+  }
   const can = selected === null ? null : actionsFor(versions, selected);
   const pendingVersion = pending === null ? null : list.find((v) => v.id === pending.versionId) ?? null;
 
@@ -362,11 +370,7 @@ export function HistoryTab(props: HistoryTabViewProps): ReactElement {
 
       {selected !== null && can !== null ? (
         <View style={styles.bar} testID="history-actions">
-          {HISTORY_ACTIONS.map((action) => (
-            action === "compare"
-              ? <TextButton key={action} label="Compare" testID="history-compare" disabled={!can.compare} density={density} onPress={() => compare(selected)} />
-              : <TextButton key={action} label="Restore this version" testID="history-restore" disabled={!can.restore} density={density} onPress={() => askRestore(selected)} />
-          ))}
+          {actionButtons}
           {plan !== null ? (
             <TextButton label={undoLabel(plan)} testID="history-undo" disabled={!can.undo} density={density} onPress={() => askUndo(selected)} />
           ) : null}
