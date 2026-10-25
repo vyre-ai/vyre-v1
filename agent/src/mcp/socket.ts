@@ -3,13 +3,14 @@
 // endpoint uses, so tool lists, scopes, the invoke pipeline, the Gate and the audit are the same code. The token is still checked: every frame carries it and `handle` refuses an unknown,
 // expired or revoked one (401). The socket file is the person's session only (directory 0700, socket 0600).
 //
-//   frame in    {"token": "...", "session"?: "...", "body": "<json-rpc text>"}\n
-//   frame out   {"status": 200, "session"?: "...", "body": "<json-rpc text>"}\n
+//   frame in    {"n": 1, "token": "...", "session"?: "...", "body": "<json-rpc text>"}\n
+//   frame out   {"n": 1, "status": 200, "session"?: "...", "body": "<json-rpc text>"}   (n echoes the frame it answers; answers may come in any order)\n
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import type { McpServer } from "./types.ts";
 
+interface Answer { n?: number; status: number; session?: string; body: string }
 export interface McpSocket { path: string; close(): Promise<void> }
 
 const MAX_FRAME = 2 * 1024 * 1024;
@@ -28,7 +29,7 @@ export async function listenMcpSocket(server: Pick<McpServer, "handle">, socketP
     conn.on("error", () => conn.destroy());
     conn.setEncoding("utf8");
     let buf = "";
-    const reply = (o: { status: number; session?: string; body: string }): void => { if (!conn.destroyed) conn.write(`${JSON.stringify(o)}\n`); };
+    const reply = (o: Answer): void => { if (!conn.destroyed) conn.write(`${JSON.stringify(o)}\n`); };
     conn.on("data", (chunk: string) => {
       buf += chunk;
       if (buf.length > MAX_FRAME && !buf.includes("\n")) { reply({ status: 413, body: "" }); conn.destroy(); return; }
@@ -41,10 +42,12 @@ export async function listenMcpSocket(server: Pick<McpServer, "handle">, socketP
     });
   });
 
-  async function frame(line: string, reply: (o: { status: number; session?: string; body: string }) => void): Promise<void> {
-    let f: { token?: unknown; session?: unknown; body?: unknown };
+  async function frame(line: string, reply: (o: Answer) => void): Promise<void> {
+    let f: { n?: unknown; token?: unknown; session?: unknown; body?: unknown };
     try { f = JSON.parse(line) as typeof f; } catch { reply({ status: 400, body: "" }); return; }
-    if (typeof f.token !== "string" || f.token === "" || typeof f.body !== "string") { reply({ status: 401, body: "" }); return; }
+    const n = typeof f.n === "number" ? f.n : undefined;
+    const say = (o: Answer): void => reply(n === undefined ? o : { ...o, n });
+    if (typeof f.token !== "string" || f.token === "" || typeof f.body !== "string") { say({ status: 401, body: "" }); return; }
     try {
       const r = await server.handle({
         method: "POST",
@@ -52,9 +55,9 @@ export async function listenMcpSocket(server: Pick<McpServer, "handle">, socketP
         body: f.body,
       });
       const session = r.headers["mcp-session-id"];
-      reply({ status: r.status, ...(session === undefined ? {} : { session }), body: r.body });
+      say({ status: r.status, ...(session === undefined ? {} : { session }), body: r.body });
     } catch {
-      reply({ status: 500, body: "" });
+      say({ status: 500, body: "" });
     }
   }
 

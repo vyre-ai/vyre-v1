@@ -24,17 +24,19 @@ export async function runShim(o: ShimOptions): Promise<void> {
   const finished = new Promise<void>((resolve) => { done = resolve; });
   const maybeDone = (): void => { if (ended && waiting === 0) done(); };
 
-  // Requests are answered in the order they were sent; a notification gets a 202 and no output.
-  const asked: Array<string | null> = [];
+  // What each frame asked, by frame number: answers come in any order. A notification gets a 202 and no output.
+  const asked = new Map<number, string | null>();
+  let n = 0;
   let buf = "";
   conn.on("data", (chunk: string) => {
     buf += chunk;
     for (let at = buf.indexOf("\n"); at >= 0; at = buf.indexOf("\n")) {
       const line = buf.slice(0, at);
       buf = buf.slice(at + 1);
-      let r: { status?: number; session?: string; body?: string };
+      let r: { n?: number; status?: number; session?: string; body?: string };
       try { r = JSON.parse(line) as typeof r; } catch { continue; }
-      const id = asked.shift() ?? null;
+      const id = (r.n === undefined ? null : asked.get(r.n)) ?? null;
+      if (r.n !== undefined) asked.delete(r.n);
       waiting -= 1;
       if (typeof r.session === "string") session = r.session;
       if (r.status === 200 && typeof r.body === "string" && r.body !== "") o.write(r.body);
@@ -49,9 +51,10 @@ export async function runShim(o: ShimOptions): Promise<void> {
   const send = (text: string): void => {
     let id: string | null = null;
     try { const m = JSON.parse(text) as { id?: unknown }; if (m && !Array.isArray(m) && m.id !== undefined) id = JSON.stringify(m.id); } catch { /* the server answers a parse error itself */ }
-    asked.push(id);
+    n += 1;
+    asked.set(n, id);
     waiting += 1;
-    conn.write(`${JSON.stringify({ token: o.token, ...(session === undefined ? {} : { session }), body: text })}\n`);
+    conn.write(`${JSON.stringify({ n, token: o.token, ...(session === undefined ? {} : { session }), body: text })}\n`);
   };
   for await (const chunk of o.input) {
     carry += typeof chunk === "string" ? chunk : dec.decode(chunk, { stream: true });
