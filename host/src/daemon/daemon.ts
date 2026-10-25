@@ -35,6 +35,8 @@ import type { FetchFn, ProbeName, ProbeResult } from "../platform/probes.ts";
 import { Scheduler } from "../scheduler/index.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
+import { createGateHook } from "./gate-hook.ts";
+import { withGateNesting } from "./gate-nesting.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, wireSeams } from "../seams/index.ts";
@@ -305,6 +307,23 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const seal = createCtxSeal(sealKey);
       const blobs = createBlobStore({ dir: path.join(paths.root, "blobs", "ctx"), key: sealKey.key, now });
 
+      // The Gate hook, only once the Gate module is live (a stub answers with examples, which must never decide a send). Its questions and parked calls run as the Space itself.
+      const gate = loaded.serving.get("gate") === "live"
+        ? withGateNesting(createGateHook({
+          call: async (cap, input) => {
+            const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: owner() }, origin: "gate" });
+            if (r.status === "held") throw fail("internal.unavailable", r.traceId, { message: "Approvals are not available right now." });
+            return r.output;
+          },
+          unseal: (s) => seal.unseal(s), now,
+          hold: (id) => {
+            const r = db?.all("SELECT state, principal_kind, principal_id, acting_for, run_id, thread_id, payload_hash FROM gate_holds WHERE id = ?", id)[0] as
+              { state: string; principal_kind: string; principal_id: string; acting_for: string | null; run_id: string | null; thread_id: string | null; payload_hash: string } | undefined;
+            return r ? { state: r.state, principalKind: r.principal_kind, principalId: r.principal_id, actingFor: r.acting_for ?? undefined, run: r.run_id ?? undefined, thread: r.thread_id ?? undefined, payloadHash: r.payload_hash } : null;
+          },
+        }))
+        : undefined;
+
       const invoke = createInvoke({
         caps: indexCapabilities(caps),
         validateInput: (cap, v, input) => (extraCaps.has(cap) ? [] : validateInput(cap, v, input)),
@@ -313,6 +332,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         handler: (cap, v) => o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v),
         services: hostServices({ base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs }),
         idem, rate: createRateLimiter(), now, log: sinkLog,
+        ...(gate ? { gate } : {}),
         // P-H_16: an object a call creates is a resource in the same commit, so it is authorizable at once
         resources: createResourceRegistrar({ events: registry.events, exists: (id) => access.snap.resource(id) !== undefined }),
         commit: withEventIds(async (b) => {

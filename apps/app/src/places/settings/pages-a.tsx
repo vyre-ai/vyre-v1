@@ -4,11 +4,11 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Avatar } from "../../../../../ui/src/Avatar/index.tsx";
-import { Bar, Hint, RegistrySections, useRead } from "./blocks.tsx";
+import { Bar, RegistrySections, useRead } from "./blocks.tsx";
 import { CopyFromSpace } from "./CopyFromSpace.tsx";
 import { CONNECTIONS, MODELS, NOTIFICATIONS, useSettingsData, useScreenQuery } from "./data.tsx";
-import { hoursSummary, labelOf, moneyLabel, sectionsFor } from "./model.ts";
-import type { Hours, SettingRow } from "./model.ts";
+import { labelOf, moneyLabel, sectionsFor } from "./model.ts";
+import type { SettingRow } from "./model.ts";
 import { SettingRowFor, useChange } from "./rows.tsx";
 import { useSaved } from "./saved.tsx";
 import { Choice, Field, Glyph, Section, SettingsRow, SmallButton, Value, pointer } from "./ui.tsx";
@@ -28,7 +28,6 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
   const handle = rowOf(rows, "profile.handle");
   const title = rowOf(rows, "profile.title");
   const contact = rowOf(rows, "profile.contact");
-  const hours = rowOf(rows, "profile.working_hours");
   const photo = rowOf(rows, "profile.photo");
   const who = str(name) || data.me.name;
   const c = (contact?.value ?? {}) as { email?: string; phone?: string };
@@ -69,7 +68,6 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
         </Section>
       ) : null}
       {after}
-      <Hint>{hours ? `Your hours are ${hoursSummary(hours.value as Hours)}. Outside them only calls, urgent approvals and incidents interrupt.` : ""}</Hint>
       {copy ? <CopyFromSpace onClose={() => setCopy(false)} /> : null}
     </>
   );
@@ -87,7 +85,7 @@ export function NotificationsPage({ rows, found }: PageProps): ReactElement {
   const mutes = useScreenQuery<MutesOut>(NOTIFICATIONS, "mutes", {});
   const list: ReactElement[] = [];
   (kinds?.kinds ?? []).forEach((k, i) => list.push(
-    <SettingsRow key={k.key} id={`kind.${k.key}`} label={k.title} first={i === 0} {...(k.respectHours ? { sub: "Waits outside your working hours" } : {})} control={<Value text={LEVEL[k.level]} />} />,
+    <SettingsRow key={k.key} id={`kind.${k.key}`} label={k.title} first={i === 0} control={<Value text={LEVEL[k.level] ?? labelOf(k.level)} testID={`kind-${k.key}`} />} />,
   ));
   const muteRows: ReactElement[] = [];
   if (mutes.status === "ready") {
@@ -100,13 +98,14 @@ export function NotificationsPage({ rows, found }: PageProps): ReactElement {
   }
   return (
     <>
-      <Section title="How each kind arrives" note="Interrupt rings and shows a banner. Badge adds a dot. Digest waits for While you were away on Home.">{list}</Section>
+      <Section title="Notify me on" testID="notify-me-on">{list}</Section>
       <RegistrySections page="notifications" rows={rows} found={found} />
       {muteRows.length > 0 ? <Section title="Muted">{muteRows}</Section> : null}
     </>
   );
 }
-const LEVEL: Record<string, string> = { interrupt: "Interrupt", badge: "Badge", digest: "Digest" };
+/** How each level reaches the person: interrupt rings the desktop and the phone, badge adds a dot only, digest waits for While you were away. */
+const LEVEL: Record<string, string> = { interrupt: "Interrupt on desktop, Interrupt on phone", badge: "Badge only", digest: "Digest" };
 
 // ---------------------------------------------------------------- Models and usage
 
@@ -162,7 +161,7 @@ export function ModelsPage({ rows, found }: PageProps): ReactElement {
       </Section>
       {use.length > 0 ? <Section title="You and your agents this month" testID="usage">{use}</Section> : null}
       <RegistrySections page="models" rows={rows} found={found} />
-      <Section title="Providers" note="Provider sign-ins and keys live in the Vault. Settings shows what is connected and whether it works.">
+      <Section title="Providers">
         {acc}
         <SettingsRow id="open-vault" label="Open Vault" lead={<Glyph name="key" size={15} />} first={acc.length === 0} onPress={() => data.nav.openVault()} control={<Glyph name="chevR" size={13} />} />
       </Section>
@@ -199,7 +198,7 @@ export function ConnectionsPage({ rows, found }: PageProps): ReactElement {
   }
   return (
     <>
-      <Section title="Mail and calendar" note="Connect a mailbox and calendar so agents can draft and schedule for you. Nothing is sent without your yes.">
+      <Section title="Mail and calendar">
         {list}
         <SettingsRow id="connect-mailbox" label="Connect a mailbox" first={list.length === 0} lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("mailbox")} control={<Glyph name="chevR" size={13} />} />
         <SettingsRow id="connect-calendar" label="Connect a calendar" lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("calendar")} control={<Glyph name="chevR" size={13} />} />
@@ -215,7 +214,6 @@ export function PrivacyPage({ rows, found }: PageProps): ReactElement {
   return (
     <>
       <RegistrySections page="privacy" rows={rows} found={found} />
-      <Hint>Your private items stay yours. Agents read only what your access and the item's label allow, and what they read is logged.</Hint>
     </>
   );
 }

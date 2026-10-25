@@ -9,7 +9,7 @@ import { SettingsPlace } from "./SettingsPlace.tsx";
 import type { SettingsProps } from "./SettingsPlace.tsx";
 import { CopyFromSpace, copyItems, copyValues } from "./CopyFromSpace.tsx";
 import { SavedProvider } from "./saved.tsx";
-import { PAGES, bytesLabel, clock, controlFor, hoursSummary, moneyLabel, pageOfRow, searchRows, sectionsFor, splitList, summaryOf, timeIn } from "./model.ts";
+import { PAGES, bytesLabel, clock, controlFor, hoursSummary, moneyLabel, pageOfRow, rowLabel, searchRows, sectionsFor, splitList, summaryOf, timeIn } from "./model.ts";
 import type { PageKey, SettingRow } from "./model.ts";
 import { whenLabel } from "./pages-b.tsx";
 import { ROWS, createSampleSettings, harbor, northwind } from "./sample.ts";
@@ -24,6 +24,8 @@ const valueOf = (s: SampleSettings, key: string): unknown => rowsOf(s).find((r) 
 
 /** A registry row that has no SettingsRow of its own id is one the page draws as part of another row; each is named here with the row that carries it. */
 const CARRIED_BY: Record<string, string> = { "kit.choice_person": "kit.person_choice" };
+/** Rows the pages no longer draw on purpose: the prototype has no separate light or dark control, each skin is light or dark and System follows the computer (P-L9f_06c). */
+const NOT_DRAWN = new Set(["appearance.mode"]);
 
 test("every SettingDef that has a page renders in a SettingsRow and is found by Cmd-F", () => {
   const s = createSampleSettings(northwind);
@@ -34,8 +36,8 @@ test("every SettingDef that has a page renders in a SettingsRow and is found by 
     const page = pageOfRow(r)!;
     const out = html(s, { initialPage: page.key });
     const id = CARRIED_BY[r.key] ?? r.key;
-    assert.ok(has(out, `data-sid="${id}"`), `${r.key} has a row on ${page.title}`);
-    const hit = searchRows(all, r.title).find((h) => h.key === r.key);
+    if (!NOT_DRAWN.has(r.key)) assert.ok(has(out, `data-sid="${id}"`), `${r.key} has a row on ${page.title}`);
+    const hit = searchRows(all, rowLabel(r)).find((h) => h.key === r.key);
     assert.ok(hit, `${r.key} is found by its title`);
     assert.equal(hit.page, page.key);
   }
@@ -140,8 +142,8 @@ test("the file cache keeps to its range and the mode choices are Ask each time, 
 
 test("Notifications: each kind with how it arrives, the delivery rows and who is muted", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "notifications" });
-  assert.ok(has(out, "How each kind arrives") && has(out, "A direct message") && has(out, "Interrupt") && has(out, "Badge") && has(out, "Digest"));
-  assert.ok(has(out, "Waits outside your working hours"));
+  assert.ok(has(out, "Notify me on") && has(out, "Needs you") && has(out, "Mentions") && has(out, "Interrupt on desktop, Interrupt on phone") && has(out, "Badge only") && has(out, "Digest"));
+  assert.ok(!has(out, "Waits outside your working hours") && !has(out, "How each kind arrives"));
   assert.ok(has(out, "Email me once if an approval waits 4 hours") && has(out, 'data-testid="ctl-notifications.push_idle_minutes"'));
   assert.ok(has(out, ">Muted<") && has(out, "Docs") && has(out, "#sales") && has(out, "Unmute"));
 });
@@ -181,7 +183,7 @@ test("Sign-in and devices: this device first, the others with Sign out, a signed
   assert.ok(has(out, "This device") && has(out, "Last seen 3 hours ago, San Francisco") && has(out, "Last seen 6 days ago, Oakland"));
   assert.ok(has(out, 'data-testid="revoke-dev_phone"') && !has(out, 'data-testid="revoke-dev_mac"'));
   assert.ok(has(out, "Sign out of every other device"));
-  assert.ok(has(out, "Its own password, second factor and devices") && has(out, "Open now"));
+  assert.ok(has(out, 'data-testid="security-northwind"') && has(out, "Open now") && has(out, 'data-testid="open-harbor"'), "each Space has its own sign-in card");
   await s.data.call("devices.revoke", { deviceId: "dev_phone" });
   assert.ok(!has(html(s, { initialPage: "signin" }), "Irfad&#x27;s iPhone"));
   await s.data.call("devices.revoke_others", {});
@@ -193,10 +195,10 @@ test("Sign-in and devices: this device first, the others with Sign out, a signed
 test("Appearance: mode, every skin in Dark and Light with the chosen one marked, and the Kit", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "appearance" });
   assert.ok(has(out, "Everything here is the same in every Space except the skin"));
-  assert.ok(has(out, 'data-testid="ctl-appearance.mode"'));
+  assert.ok(!has(out, 'data-testid="ctl-appearance.mode"'), "no separate light or dark control");
   for (const id of ["graphite", "obsidian", "charcoal", "slate", "ember", "moss", "dusk", "paper", "fog", "linen", "sand", "sage", "mist"]) assert.ok(has(out, `data-testid="skin-${id}"`), id);
-  assert.match(tag(out, "skin-graphite"), /aria-checked="true"/);
-  assert.match(tag(out, "skin-paper"), /aria-checked="false"/);
+  assert.match(tag(out, "skin-system"), /aria-checked="true"/, "System is on until a skin is chosen");
+  assert.match(tag(out, "skin-graphite"), /aria-checked="false"/);
   assert.ok(out.indexOf("skins-dark") < out.indexOf("skins-light"));
   assert.ok(has(out, "Follow the Space") && has(out, "In effect: Law firm"));
 });
@@ -257,7 +259,8 @@ test("search results replace the page list and name the page of each row", () =>
   assert.ok(has(out, 'data-testid="search-results"') || has(out, 'data-testid="search-none"'));
   const found = html(createSampleSettings(northwind), { initialQuery: "skin" });
   assert.ok(has(found, 'data-testid="row-hit-appearance.skin"') && has(found, "Appearance"));
-  assert.ok(has(html(createSampleSettings(northwind), { initialQuery: "qqqq" }), "No setting matches"));
+  assert.ok(has(found, 'data-testid="search-count"') && has(found, 'data-testid="page-search"'), "the results are a page of their own");
+  assert.ok(has(html(createSampleSettings(northwind), { initialQuery: "qqqq" }), "Nothing matches"));
 });
 
 test("the row a search found is outlined and the others are not", () => {

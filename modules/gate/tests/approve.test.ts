@@ -40,8 +40,8 @@ test("a valid approval re-invokes the parked call as its original caller, once, 
   const call = h.calls.slice(before).find((c) => c.cap === "mail.send")!;
   assert.deepEqual(call.input, parkInput().input, "exactly what was held");
   assert.equal(call.opts?.idempotencyKey, p.holdId);
-  assert.ok(call.opts?.approval?.startsWith("apv_"));
-  assert.deepEqual(call.opts?.as, { principal: bot, actingFor: alice.id, run: "run_1", thread: undefined }, "as the agent that asked, not as the approver");
+  assert.ok(call.opts?.approvalToken?.startsWith("apv_"));
+  assert.equal(call.opts?.onBehalfOf, bot.id, "as the agent that asked, not as the approver");
   const hold = findHold(h.db, p.holdId)!;
   assert.equal(hold.state, "approved");
   assert.equal(hold.decidedBy, alice.id);

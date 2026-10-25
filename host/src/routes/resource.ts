@@ -27,8 +27,8 @@ export function resolveResource(
 ): ResourceRef {
   const b: ResourceBinding = cap.resource;
   if ("create" in b && b.create === true) {
-    const parent = str(pointer(input, b.parent));
-    if (!parent) throw new BindingError(b.parent, "the container to create in is missing");
+    // no container named: the thing is made in the Space itself (a task with no record, the Gate's Approve task); a capability that needs a container has it required in its input schema
+    const parent = str(pointer(input, b.parent)) ?? spaceId;
     return { type: b.type, id: null, parent };
   }
   if (b.type === "dynamic") {
