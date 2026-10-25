@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import { FilesList, StagedBanner, approveStaged, newMenuEntries, stagedText } from "../list/index.ts";
 import { KindBadge, RowCells } from "../FileList.tsx";
+import { faceUri } from "../FaceImage.tsx";
 import { createSampleFiles } from "../list/sample.ts";
 import type { SampleFiles } from "../list/sample.ts";
 import { FilesDataProvider, FilesStateProvider, INITIAL_STATE, reduce } from "../tree/index.ts";
@@ -94,6 +95,9 @@ test("Made by is a face: a person's, or the agent's own", () => {
   assert.ok(has(out, 'data-testid="face-Docs"') && has(out, 'data-avatar="agent"'));
   const person = renderToStaticMarkup(<RowCells wide cells={{ when: "9:00 AM", by: "Maya Chen", size: "1 MB", kind: "PDF" }} />);
   assert.ok(has(person, 'data-testid="face-Maya Chen"') && has(person, 'data-avatar="person"'));
+  assert.ok(has(out, 'data-face="image"') && !has(out, "feGaussianBlur"), "faces in rows are cached images, not a blurred inline svg per row (the scroll budget)");
+  assert.equal(faceUri("Docs", true), faceUri("Docs", true));
+  assert.notEqual(faceUri("Docs", true), faceUri("Docs", false), "an agent and a person of one name differ");
   const sales = list(createSampleFiles(), folder("fld_proposals"));
   assert.ok(has(sales, 'data-testid="face-Docs"') && has(sales, 'data-testid="face-Irfad Imtiaz"'));
 });

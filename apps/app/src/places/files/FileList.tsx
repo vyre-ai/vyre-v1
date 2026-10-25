@@ -2,7 +2,7 @@
 // grid scrolls on the same VirtualList as the list). The list itself stays in list/FilesList.tsx; this file owns what is drawn per line. Row stays the shared ui/Row (ruling 36).
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { ReactElement, ReactNode } from "react";
-import { Avatar } from "../../../../../ui/src/Avatar/index.tsx";
+import { FaceImage } from "./FaceImage.tsx";
 import { Glyph } from "./tree/parts.tsx";
 import type { IconName } from "./tree/parts.tsx";
 import type { SortKey } from "./tree/model.ts";
@@ -43,9 +43,9 @@ export function ColumnHeader({ sort, dir, wide, onSort }: { sort: SortKey; dir: 
   return <View style={styles.headRow} testID="files-columns" accessibilityRole="row">{cells}</View>;
 }
 
-/** Who made it: the shared face (a person is round, an agent is the agent's face) from the shared Avatar. */
+/** Who made it: the shared faces (a person is round, an agent has the agent's face), drawn as cached images so a long list scrolls at full rate. */
 function Face({ name, agent }: { name: string; agent: boolean }): ReactElement {
-  return <Avatar name={name} kind={agent ? "agent" : "person"} size={16} testID={`face-${name}`} />;
+  return <FaceImage name={name} agent={agent} size={16} />;
 }
 
 /** A kind's tint: a hue per family so the Kind column reads at a glance, on every skin (translucent ground, the hue as ink). */
