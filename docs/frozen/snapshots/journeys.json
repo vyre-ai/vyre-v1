@@ -1,0 +1,33 @@
+{
+  "module": "journeys",
+  "capabilities": {
+    "journeys.advance@1": "8201c029f96b0dace31ceaf3cd653c994ad0a509597330824d8927184f3349a5",
+    "journeys.check_limits@1": "86be8e2a9d40e74e2b22f3d94bdc191299969c504dc563739a4212a181fbdbeb",
+    "journeys.create@1": "2523dd4a036aafc098d06a21c33d3d7e6bf86ef7c036c7bb3875fc96c6f14dc2",
+    "journeys.delete@1": "e131eda4c41a7a22553c297ebfb835dfcaee9e7a0dce046c9cf5389f166753b5",
+    "journeys.design@1": "80f7ed4b29c495c8dec6dba4756ad479c18fa3982d76ba3eb2a5f4e48cb9287e",
+    "journeys.get@1": "b5bc8d469ece163e12bb37683a8cfb7d70693fecf8b325c47aad6e6c6f906152",
+    "journeys.list@1": "9fe790a3945f833b119952e6a9d954b0dfd4ecb0f9236012b1a9b24de9a57bb0",
+    "journeys.migrate@1": "4fec5254c866fd07f55e13b44d189f425fb740866a383f0cdc3a775919b234a6",
+    "journeys.move_stage@1": "a69988529d58373fe895b3ccfcec2c6407c991fe5cc61eea428c326fae450b2b",
+    "journeys.preview_migrate@1": "a72297c789d94e26ab29e80305b4128c75a7107f5c341a5eb6448028cbe24312",
+    "journeys.rename@1": "c548a601d48be04d54dade4e36df9d98451a456424b35dbe725eb14f7ed08f9f",
+    "journeys.rules.set@1": "fb809c5f7b10af0479088825087843dffa224b75b3c3b318b4389a4b56ea4a2e",
+    "journeys.stage_counts@1": "a9266086a1ee9d3f592752ab2cc9df15484c321c0ec5b704cf64554e42410c59",
+    "journeys.start@1": "8fe98712fe96f4694a09e4ea4acb628be044e1264b92a2a61c039df006e64581",
+    "journeys.tasks@1": "95a1cdc8c3a4ad87bbf9fce4ca1379b2c4a794df7d31d5ab1deb49ad1c74c0cb",
+    "journeys.versions@1": "f2a15b8735d3a04ed6d7c0dc3a4d4f132dc6d96d7e8a2628e601384418604e2b"
+  },
+  "events": {
+    "journey.completed": "ddb5a5f8ccda8832449046f324c1eca7fa387e7108002aeb7ea1e0841549e720",
+    "journey.created": "e07447e67858986324fa36da560222ece45ae512b6034336d99789690ba7dcc4",
+    "journey.deleted": "1f9b22b7d585e2e62c17dd13ca02363964239bd6982c01f22a8bb825ec6ccfb4",
+    "journey.designed": "3b37928646194d0be1e8aaf5cbe635d38b7383376233c5e3f720227a385736d2",
+    "journey.migrated": "8cf5deaccdc86a5a27fc8927195f3ce9fb7b2dfe79f6245dc775a62a1d07e182",
+    "journey.moved": "3c9637935842c571f11ade2379606b417866ff47939ac464696df7bf48d09f75",
+    "journey.stage_entered": "674ff1e6ad0b7e1dfbad8b956e92c1d5f99efc140e72c18c66970c69ccc1c15f",
+    "journey.stage_exited": "8c9ad5f2d42db82b4c5a30d4975a17d22933361a38c8e75aab8d8485bd35cb65",
+    "journey.started": "21db24b07f1bd69336c614d071f017f9f19562bfd4560e2b2e615443e1b78a52",
+    "journey.time_limit_breached": "614f1d2a2ac3ae72330d3b9f94be35624bae20a554360bea89fa7916b94bd4f5"
+  }
+}

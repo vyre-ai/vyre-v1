@@ -1,0 +1,12 @@
+{
+  "module": "console-views",
+  "capabilities": {
+    "console.activity@1": "0302375ebed06da97134676680d1def95c355655fbec0aa470fbb04e3a5343dd",
+    "console.attention@1": "378d0e48aa6d779010cf19f96b569e640f82f7b6d7e4cbf3e5106dbe51eacf5b",
+    "console.nav@1": "152a200f177e59737b14ea2d9f75f0ea2d81ba5149f3ec21f4c612dabe59eb2e",
+    "console.overview@1": "278f28b8b3f1a94e3d8b670a5ff9249cbcafa3f4a1f949f2295924c348ef0109",
+    "console.speed@1": "755da221ddaf6078c52798f000e89a7c94d41fd8fcb68ae881cdfbe687bdfb5d",
+    "console.usage@1": "7212f7211373863b3422a4b4d258a1b90d9d1fc903c14edb40ddd13780bd6f76"
+  },
+  "events": {}
+}
