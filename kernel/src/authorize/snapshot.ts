@@ -3,8 +3,11 @@
 import { rankOf } from "./types.ts";
 import type { Conditions, Expr, GrantRow, GroupMemberRow, Level, Policy, PrincipalRoleRow, PrincipalRow, ResourceRow, RoleRow } from "./types.ts";
 
-/** Agents never hold these roles, whatever the projection says (ARCH 4.5 "Agents"). */
-export const ELEVATED_ROLES: ReadonlySet<string> = new Set(["owner", "admin"]);
+/** The one source of the roles an agent never holds, whatever the projection says (ARCH 4.5 "Agents"): the plain names (kernel fixtures) and the access module's built-in role ids. */
+export const ELEVATED_ROLES: ReadonlySet<string> = new Set(["owner", "admin", "rol_owner", "rol_admin"]);
+const ELEVATED_NAMES: ReadonlySet<string> = new Set(["owner", "admin"]);
+/** True for a role an agent must never hold: by id, or by the built-in name. */
+export const isElevatedRole = (id: string, name?: string): boolean => ELEVATED_ROLES.has(id) || (name !== undefined && ELEVATED_NAMES.has(name.toLowerCase()));
 
 export interface SubjectInfo {
   readonly p: PrincipalRow;
@@ -116,8 +119,8 @@ export class AccessSnapshot {
     const keys = new Set<string>([`actor:${id}`]);
     for (const g of groups) keys.add(`group:${g}`);
     for (const rid of roleIds) {
-      if (p.kind === "agent" && ELEVATED_ROLES.has(rid)) continue;
       const r = this.roles.get(rid);
+      if (p.kind === "agent" && isElevatedRole(rid, r?.name)) continue;
       if (!r) continue;
       keys.add(`role:${rid}`); names.push(r.name ?? r.id);
       if (r.clearance > clearance) clearance = r.clearance;
