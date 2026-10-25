@@ -256,12 +256,21 @@ export function summary(nodes: number, fields: number | null): string {
 
 // ---------------------------------------------------------------- types list
 
-export type TypeTag = { kind: "synced"; text: string } | { kind: "plain"; text: string };
+export type TypeTag = { kind: "synced"; text: string; app: string } | { kind: "plain"; text: string };
 
-/** The small tag at the right of a type: where it comes from. */
+/** How an app's key is written to a person: HubSpot, GitHub (not Hubspot). */
+const APP_NAME: Readonly<Record<string, string>> = {
+  hubspot: "HubSpot", github: "GitHub", gmail: "Gmail", gcal: "Google Calendar", gdrive: "Google Drive", stripe: "Stripe", quickbooks: "QuickBooks", lawmatics: "Lawmatics",
+  airtable: "Airtable", notion: "Notion", linear: "Linear", slack: "Slack", zoom: "Zoom", calendly: "Calendly", meta: "Meta",
+};
+export const appName = (key: string): string => APP_NAME[key.toLowerCase()] ?? humanize(key);
+
+/** The small label at the right of a type: where it comes from (Synced from HubSpot, Site table, Journey, Built in). The prototype's order. */
 export function typeTag(t: Pick<TypeRow, "syncedFrom" | "system" | "group">): TypeTag | null {
-  if (t.syncedFrom) return { kind: "synced", text: `Synced from ${humanize(t.syncedFrom)}` };
-  if (t.group === "Sites" || t.group === "sites") return { kind: "plain", text: "Site table" };
+  if (t.syncedFrom) return { kind: "synced", text: `Synced from ${appName(t.syncedFrom)}`, app: t.syncedFrom };
+  const g = t.group?.toLowerCase();
+  if (g === "sites") return { kind: "plain", text: "Site table" };
+  if (g === "journeys" || g === "journey") return { kind: "plain", text: "Journey" };
   if (t.system) return { kind: "plain", text: "Built in" };
   return null;
 }
