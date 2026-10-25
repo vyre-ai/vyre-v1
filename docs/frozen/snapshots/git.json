@@ -1,0 +1,30 @@
+{
+  "module": "git",
+  "capabilities": {
+    "git.branch@1": "377463c54a378dfc8c203cd32c6f9547215c237f231df316c97bcbe384cd6c7c",
+    "git.commit@1": "ed5351991e62d52e20dcaaf6d4533b37a329e37bcccc23bf5945f51b293d2689",
+    "git.diff@1": "c7a3532039d354c8065b068762755bf161121f432ede803bd7c879c9d1d01f48",
+    "git.health@1": "4bdeb656d17e40af4355cc829e5eb29849b12607b1979249f74e5b198f65c2e4",
+    "git.init@1": "ea4187a9754ecd6257018e440c34c9b73f84eb8f87046f4bce94c817887d1c72",
+    "git.list_branches@1": "aae08d370ca6fcf83aac7222ede54d45ad988aca2edd66734767f0358bc00788",
+    "git.log@1": "4adb62a9008ee9a394d5b4de67a11ba9659afc8d6fb95a070a4530370a0acbc7",
+    "git.protect@1": "7c6d05de07a5d73e1b3fc5978524b4512e4d7ed7b7244813b3e40809a217b6cb",
+    "git.pull@1": "18a7a9ef3f732969647a4cf8774d7c24563389f39c4194c4ca8ea16540d51203",
+    "git.push@1": "a645748be088e997f3e5207e6550ae4fadcb9e8036cc42713d5f874ee8ca9b46",
+    "git.remote_add@1": "ff65408c746ae48a9b1e18d0bcd9fe5ea8fe1cb835617b41bf4e9cfbfab9987b",
+    "git.remote_remove@1": "2c95a738fdaad4b6349e11071a82841fa388873d51c32f5cfa27e7ce1c97f8f6",
+    "git.show@1": "646dfd32fec5158477bd7396a6e91d0ff24c2bdbec1835cc2280f1b6d2ac3d4f",
+    "git.status@1": "6e5ef0770d84d15a0c9eb859a614f61c2988d723fa29e28932bfd436c158eb02",
+    "git.sync@1": "5562263471ad0886cb641c69ab7419694f351e336820ff201e1ff28c6b68b360"
+  },
+  "events": {
+    "git.branch_changed": "1b608f70579b816134073c5729c82b70d67722f9dcba16c5e7750647082b03d2",
+    "git.committed": "a6c82878140b34797b8d338e6f010c1b0a7ea79aa92ed5fceac1973527462010",
+    "git.initialized": "326470f7a4929ffdde29ae200b88ffb0b4569dba29ffca806af7f8ef96a8d48f",
+    "git.protection_changed": "a34f7ad44511f064849785f318a0efc0a355c25a088f30ffe7721d96b667269a",
+    "git.pulled": "f25b442fc46a2e2d5da046cb32d781ccbd45b308b489f3b497bba5c75539c9f9",
+    "git.pushed": "afeb47edf24f386c683b0389db9c5de2d0a5a28b3b882cf1ce09de6753dc0f31",
+    "git.remote_added": "427a241a07cf1719a0169b8cae56732ea568bd69eac1f4900d859b4c4ca36575",
+    "git.remote_removed": "a2ec3d8a2067c2ff9141b9a0a9b27310acfaa93fb21529498969da23ae9bf190"
+  }
+}

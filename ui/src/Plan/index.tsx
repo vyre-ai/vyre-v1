@@ -142,6 +142,7 @@ export function Plan(props: PlanProps): ReactElement {
 
   /* ---------- adding and naming ---------- */
   const add = (stageId: string | null): void => {
+    if (props.onCreate) { props.onCreate(stageId); return; }
     const t = props.onAddTask?.(stageId) ?? blankTask(stageId ?? props.stages[0]?.id ?? "", today, uid());
     const it = itemOf(t);
     setUndo((u) => [...u.slice(-39), { text: `Added ${it.title}`, items, slips }]);
