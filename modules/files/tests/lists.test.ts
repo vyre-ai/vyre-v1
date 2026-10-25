@@ -146,6 +146,7 @@ test("Shared with me follows access across pages of its answer", async () => {
     return script(cap, input);
   });
   const tree = await handlers["files.tree"](ctx, {});
+  seen.length = 0;   // the tree's own Shared with me count asks access too; this test is about the pages of files.shared_with_me
   const personal = idOf(tree.roots.find((r) => r.key === "personal")?.folderId, "personal");
   for (const name of ["a.txt", "b.txt"]) ids.push((await handlers["files.create"](ctx, { folderId: personal, name, content: { text: name } })).file.fileId);
   const out = await handlers["files.shared_with_me"](ctx, {});

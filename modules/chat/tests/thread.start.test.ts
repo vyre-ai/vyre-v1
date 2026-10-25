@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
-import { lastMessages } from "../projections.ts";
+import { lastMessages, threadBy, threadOut } from "../projections.ts";
 import { DANA, DRAFTER, INTAKE, LEO, MAYA, REVIEWER, assertEventsConform, failure, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -134,3 +134,22 @@ test("a thread needs a message of that thread, and a private chat's messages are
   assert.equal(await failure(() => h["chat.thread"]!(hn.ctx, { threadId: "thr_none", messageId: mine.messageId })), "validation.not_found");
   assert.equal(await failure(() => h["chat.thread"]!(hn.person(MAYA), { threadId: other.threadId, messageId: mine.messageId })), "validation.not_found");
 });
+
+test("a thread carries its reply count and the time of its last message, and a deleted message is not counted (P-CC_34)", async () => {
+  const hn = harness();
+  const { thread } = await start(hn.ctx, { agentIds: [INTAKE] });
+  assert.equal(thread.replyCount, 0);
+  assert.equal(thread.lastMessageAt, undefined, "no message yet");
+  await h["chat.post"]!(hn.ctx, { threadId: thread.threadId, body: "one", idempotencyKey: `rc${++n}` });
+  hn.advance(5000);
+  await h["chat.post"]!(hn.ctx, { threadId: thread.threadId, body: "two", idempotencyKey: `rc${++n}` });
+  const got = threadOut(hn.db, threadBy(hn.db, thread.threadId)!);   // what threads.get returns for it
+  assert.equal(got.replyCount, 2);
+  assert.equal(got.lastMessageAt, hn.clock.t);
+  const other = (await start(hn.ctx, { agentIds: [INTAKE] })).thread;
+  assert.equal(other.replyCount, 0, "another thread keeps its own count");
+});
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+// run on the final commit

@@ -149,11 +149,17 @@ export function touch(ctx: RunsCtx, r: Run): Run {
 }
 
 /** The contract's runRow. */
-export function runOut(r: Run): Record<string, unknown> {
+export interface RunTrigger { messageId: string; threadId: string; channelId?: string }
+export function readTrigger(db: Db, runId: string): RunTrigger | undefined {
+  const r = (db.all("SELECT * FROM runs_trigger WHERE run_id = ?", runId) as Raw[])[0];
+  if (!r) return undefined;
+  return clean({ messageId: String(r.message_id), threadId: String(r.thread_id), channelId: r.channel_id === null || r.channel_id === undefined ? undefined : String(r.channel_id) }) as RunTrigger;
+}
+export function runOut(r: Run, trigger?: RunTrigger): Record<string, unknown> {
   return clean({
     id: r.id, kind: r.kind, name: r.name, owner: r.owner, startedBy: r.startedBy, subject: r.subject, status: r.status, waitReason: r.waitReason,
     definitionVersion: r.definitionVersion, keyUsed: r.keyUsed, modelUsed: r.modelUsed, costMicros: r.costMicros, startedAt: r.startedAt, endedAt: r.endedAt,
-    parentRun: r.parentRun, threadId: r.threadId, traceId: r.traceId, summary: r.summary,
+    parentRun: r.parentRun, threadId: r.threadId, traceId: r.traceId, summary: r.summary, trigger,
   });
 }
 
