@@ -380,8 +380,20 @@
     },
     {
       "deferred": false,
+      "name": "agents_routine_delegate",
+      "summary": "Hand a routine to another person or agent (a person becomes its owner, an agent runs it); undo (no `to`) hands it back to the previous owner and agent",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "agents_routine_delete",
       "summary": "Delete a routine",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "agents_routine_run_now",
+      "summary": "Run a routine now. The run starts as the routine owner, never as the caller, so its reach and its \"Sent by <agent> on a routine <person> set\" line are the owner's",
       "toolset": "agents"
     },
     {
@@ -988,6 +1000,12 @@
       "deferred": false,
       "name": "changesets_discard",
       "summary": "Throw the staged changes away",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
+      "name": "changesets_edit",
+      "summary": "Edit a proposed change in place before accepting it: replace a run of lines in one staged file. The proposer stays recorded and so does the editor; Approve still goes through its own Gate",
       "toolset": "files"
     },
     {

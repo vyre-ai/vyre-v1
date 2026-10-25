@@ -108,7 +108,9 @@ export function createClient(transport: Transport) {
         set: call("agents.role_line.set", 1),
       },
       routine: {
+        delegate: call("agents.routine.delegate", 1),
         delete: call("agents.routine.delete", 1),
+        run_now: call("agents.routine.run_now", 1),
         save: call("agents.routine.save", 1),
       },
       routines: {
@@ -268,6 +270,7 @@ export function createClient(transport: Transport) {
       },
       diff: call("changesets.diff", 1),
       discard: call("changesets.discard", 1),
+      edit: call("changesets.edit", 1),
       get: call("changesets.get", 1),
       list: call("changesets.list", 1),
       request_changes: call("changesets.request_changes", 1),
