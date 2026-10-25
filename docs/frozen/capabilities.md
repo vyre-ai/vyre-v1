@@ -4,9 +4,9 @@ Review of the merged capability registry at the F11 freeze. `packages/contracts/
 
 ## Frozen values
 
-Registry hash: 62fb88de8093aed90ecbf457846fc51caad5961eaf5bd69a751d0ec3cb1f17b6
-Capabilities: 1499
-Events: 602
+Registry hash: e40160da06d6b1bbb8c20f83444511421136932f1c25498ff9837e5a48aa0efd
+Capabilities: 1500
+Events: 603
 Registry modules: 80
 Host modules: 72
 
@@ -29,7 +29,7 @@ Selection rule: capabilities of the lane (owner of the module) sorted by name, n
 | L1 | 37 | 4 |
 | L2 | 263 | 27 |
 | L3 | 152 | 16 |
-| L4 | 108 | 11 |
+| L4 | 109 | 11 |
 | L5 | 344 | 35 |
 | L6 | 163 | 17 |
 | L7a | 218 | 22 |

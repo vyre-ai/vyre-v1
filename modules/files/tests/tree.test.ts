@@ -489,3 +489,4 @@ test("folders and tree roots say whether they belong to an agent, a project or t
   assert.deepEqual(plain.folder.subject, { kind: "space" });
   await expectCode("validation.bad_input", () => handlers["files.folder.create"](ctx, { parentId: agentsId, name: "Bad", subject: { kind: "space", id: "x" } }));
 });
+// run on the final commit of P-CC_27
