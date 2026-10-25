@@ -34,8 +34,10 @@ export interface ChromeBridgeDeps {
 
 /** A tool failure the extension reported: the agent reads `message`, the run log keeps `code`. */
 export class ChromeToolError extends Error {
-  constructor(readonly code: string, message: string) {
+  readonly code: string;
+  constructor(code: string, message: string) {
     super(message);
+    this.code = code;
     this.name = "ChromeToolError";
   }
 }
