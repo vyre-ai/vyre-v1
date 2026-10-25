@@ -1483,105 +1483,6 @@
       ],
       "type": "object"
     },
-    "s_159aeafb99": {
-      "properties": {
-        "address": {
-          "description": "Email, number or handle when no contact is matched",
-          "examples": [
-            "maya@example.com"
-          ],
-          "type": "string"
-        },
-        "alertOnReplies": {
-          "type": "boolean"
-        },
-        "campaignId": {
-          "examples": [
-            "cmp_a1b2c3"
-          ],
-          "pattern": "^cmp_[a-z0-9]+$",
-          "type": "string"
-        },
-        "contactId": {
-          "examples": [
-            "rec_a1b2c3"
-          ],
-          "pattern": "^rec_[a-z0-9]+$",
-          "type": "string"
-        },
-        "displayName": {
-          "type": "string"
-        },
-        "followed": {
-          "type": "boolean"
-        },
-        "id": {
-          "examples": [
-            "cnv_a1b2c3"
-          ],
-          "pattern": "^cnv_[a-z0-9]+$",
-          "type": "string"
-        },
-        "lastChannel": {
-          "enum": [
-            "email",
-            "sms",
-            "call",
-            "meeting"
-          ],
-          "type": "string"
-        },
-        "lastMessageAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "lastPreview": {
-          "type": "string"
-        },
-        "mailboxIds": {
-          "items": {
-            "examples": [
-              "mbx_a1b2c3"
-            ],
-            "pattern": "^mbx_[a-z0-9]+$",
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "needsMatch": {
-          "type": "boolean"
-        },
-        "ownerId": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "pattern": "^usr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "unreadCount": {
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "id",
-        "address",
-        "displayName",
-        "lastMessageAt",
-        "lastChannel",
-        "lastPreview",
-        "unreadCount",
-        "needsMatch",
-        "mailboxIds",
-        "followed",
-        "alertOnReplies"
-      ],
-      "type": "object"
-    },
     "s_15f66327ba": {
       "enum": [
         "routines",
@@ -2493,12 +2394,6 @@
       ],
       "type": "object"
     },
-    "s_20d61750b4": {
-      "items": {
-        "$ref": "#/$defs/s_7fd2715127"
-      },
-      "type": "array"
-    },
     "s_20def9ae8f": {
       "properties": {
         "at": {
@@ -3383,6 +3278,17 @@
         "type": "object"
       },
       "type": "array"
+    },
+    "s_2e121bf748": {
+      "properties": {
+        "number": {
+          "$ref": "#/$defs/s_93ed523472"
+        }
+      },
+      "required": [
+        "number"
+      ],
+      "type": "object"
     },
     "s_2edf0a52c6": {
       "properties": {
@@ -4426,10 +4332,7 @@
           "type": "string"
         },
         "rows": {
-          "items": {
-            "$ref": "#/$defs/s_b87b1cfef9"
-          },
-          "type": "array"
+          "$ref": "#/$defs/s_a56f3dc8f1"
         },
         "total": {
           "type": "integer"
@@ -7077,6 +6980,17 @@
       ],
       "type": "object"
     },
+    "s_611f84de8a": {
+      "properties": {
+        "conversation": {
+          "$ref": "#/$defs/s_bbe05acc1e"
+        }
+      },
+      "required": [
+        "conversation"
+      ],
+      "type": "object"
+    },
     "s_61ad3658fc": {
       "properties": {
         "person": {
@@ -8220,17 +8134,6 @@
       ],
       "type": "object"
     },
-    "s_72d1849997": {
-      "properties": {
-        "number": {
-          "$ref": "#/$defs/s_7fd2715127"
-        }
-      },
-      "required": [
-        "number"
-      ],
-      "type": "object"
-    },
     "s_73cbbf9330": {
       "properties": {
         "record": {
@@ -8944,6 +8847,12 @@
       ],
       "type": "object"
     },
+    "s_7bc0d5d531": {
+      "items": {
+        "$ref": "#/$defs/s_bbe05acc1e"
+      },
+      "type": "array"
+    },
     "s_7c4e790000": {
       "items": {
         "properties": {
@@ -9189,93 +9098,6 @@
         "type": "object"
       },
       "type": "array"
-    },
-    "s_7fd2715127": {
-      "properties": {
-        "a2p": {
-          "enum": [
-            "none",
-            "pending",
-            "approved",
-            "rejected"
-          ],
-          "type": "string"
-        },
-        "assigneeId": {
-          "type": "string"
-        },
-        "assigneeKind": {
-          "enum": [
-            "person",
-            "agent",
-            "inbox"
-          ],
-          "type": "string"
-        },
-        "capabilities": {
-          "items": {
-            "enum": [
-              "voice",
-              "sms",
-              "mms"
-            ],
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "e164": {
-          "examples": [
-            "+14155550123"
-          ],
-          "pattern": "^\\+[1-9][0-9]{6,14}$",
-          "type": "string"
-        },
-        "hours": {
-          "$ref": "#/$defs/s_50d16df7bf"
-        },
-        "id": {
-          "examples": [
-            "num_a1b2c3"
-          ],
-          "pattern": "^num_[a-z0-9]+$",
-          "type": "string"
-        },
-        "recording": {
-          "enum": [
-            "off",
-            "announce",
-            "ask"
-          ],
-          "type": "string"
-        },
-        "route": {
-          "$ref": "#/$defs/s_1f11893d34"
-        },
-        "state": {
-          "enum": [
-            "pending",
-            "active",
-            "released"
-          ],
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "e164",
-        "title",
-        "capabilities",
-        "assigneeKind",
-        "route",
-        "hours",
-        "recording",
-        "a2p",
-        "state"
-      ],
-      "type": "object"
     },
     "s_8000f960cb": {
       "properties": {
@@ -10374,6 +10196,100 @@
       ],
       "type": "object"
     },
+    "s_93ed523472": {
+      "properties": {
+        "a2p": {
+          "enum": [
+            "none",
+            "pending",
+            "approved",
+            "rejected"
+          ],
+          "type": "string"
+        },
+        "assigneeId": {
+          "type": "string"
+        },
+        "assigneeKind": {
+          "enum": [
+            "person",
+            "agent",
+            "inbox"
+          ],
+          "type": "string"
+        },
+        "capabilities": {
+          "items": {
+            "enum": [
+              "voice",
+              "sms",
+              "mms"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "displayName": {
+          "description": "The name lists and the Inbox sidebar show: the title when one is set, otherwise the number formatted for reading",
+          "examples": [
+            "Intake line"
+          ],
+          "type": "string"
+        },
+        "e164": {
+          "examples": [
+            "+14155550123"
+          ],
+          "pattern": "^\\+[1-9][0-9]{6,14}$",
+          "type": "string"
+        },
+        "hours": {
+          "$ref": "#/$defs/s_50d16df7bf"
+        },
+        "id": {
+          "examples": [
+            "num_a1b2c3"
+          ],
+          "pattern": "^num_[a-z0-9]+$",
+          "type": "string"
+        },
+        "recording": {
+          "enum": [
+            "off",
+            "announce",
+            "ask"
+          ],
+          "type": "string"
+        },
+        "route": {
+          "$ref": "#/$defs/s_1f11893d34"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "active",
+            "released"
+          ],
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "e164",
+        "title",
+        "capabilities",
+        "assigneeKind",
+        "route",
+        "hours",
+        "recording",
+        "a2p",
+        "state"
+      ],
+      "type": "object"
+    },
     "s_94582a873c": {
       "properties": {
         "createdAt": {
@@ -10632,12 +10548,6 @@
         "url"
       ],
       "type": "object"
-    },
-    "s_9545dbb97f": {
-      "items": {
-        "$ref": "#/$defs/s_159aeafb99"
-      },
-      "type": "array"
     },
     "s_98c786d7d8": {
       "properties": {
@@ -11268,6 +11178,12 @@
         "notes"
       ],
       "type": "object"
+    },
+    "s_a56f3dc8f1": {
+      "items": {
+        "$ref": "#/$defs/s_b87b1cfef9"
+      },
+      "type": "array"
     },
     "s_a5a386f9c8": {
       "properties": {
@@ -13068,6 +12984,108 @@
         "plainChoice",
         "protectedField",
         "openedAt"
+      ],
+      "type": "object"
+    },
+    "s_bbe05acc1e": {
+      "properties": {
+        "address": {
+          "description": "Email, number or handle when no contact is matched",
+          "examples": [
+            "maya@example.com"
+          ],
+          "type": "string"
+        },
+        "alertOnReplies": {
+          "type": "boolean"
+        },
+        "campaignId": {
+          "examples": [
+            "cmp_a1b2c3"
+          ],
+          "pattern": "^cmp_[a-z0-9]+$",
+          "type": "string"
+        },
+        "contactId": {
+          "examples": [
+            "rec_a1b2c3"
+          ],
+          "pattern": "^rec_[a-z0-9]+$",
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "followed": {
+          "type": "boolean"
+        },
+        "id": {
+          "examples": [
+            "cnv_a1b2c3"
+          ],
+          "pattern": "^cnv_[a-z0-9]+$",
+          "type": "string"
+        },
+        "lastChannel": {
+          "enum": [
+            "email",
+            "sms",
+            "call",
+            "meeting"
+          ],
+          "type": "string"
+        },
+        "lastMessageAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lastPreview": {
+          "type": "string"
+        },
+        "mailboxIds": {
+          "items": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "needsMatch": {
+          "type": "boolean"
+        },
+        "ownerId": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "starred": {
+          "type": "boolean"
+        },
+        "unreadCount": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "address",
+        "displayName",
+        "lastMessageAt",
+        "lastChannel",
+        "lastPreview",
+        "unreadCount",
+        "needsMatch",
+        "mailboxIds",
+        "followed",
+        "alertOnReplies"
       ],
       "type": "object"
     },
@@ -15793,17 +15811,6 @@
       ],
       "type": "object"
     },
-    "s_e3a09a2137": {
-      "properties": {
-        "conversation": {
-          "$ref": "#/$defs/s_159aeafb99"
-        }
-      },
-      "required": [
-        "conversation"
-      ],
-      "type": "object"
-    },
     "s_e3fd3efebd": {
       "properties": {
         "clientLogFileId": {
@@ -16697,6 +16704,12 @@
         "number"
       ],
       "type": "object"
+    },
+    "s_f13f776230": {
+      "items": {
+        "$ref": "#/$defs/s_93ed523472"
+      },
+      "type": "array"
     },
     "s_f1aa180d5c": {
       "properties": {
@@ -90272,6 +90285,7 @@
               {
                 "id": "example",
                 "kind": "mailbox",
+                "name": "example",
                 "unread": 1
               }
             ],
@@ -90301,6 +90315,10 @@
                     "mailbox",
                     "number"
                   ],
+                  "type": "string"
+                },
+                "name": {
+                  "description": "What the sidebar shows: the mailbox address or the number display name (telephony number displayName), never the id",
                   "type": "string"
                 },
                 "unread": {
@@ -90760,6 +90778,7 @@
                 ],
                 "needsMatch": true,
                 "ownerId": "usr_a1b2c3",
+                "starred": true,
                 "unreadCount": 1
               }
             ],
@@ -90783,7 +90802,7 @@
             "type": "string"
           },
           "rows": {
-            "$ref": "#/$defs/s_9545dbb97f"
+            "$ref": "#/$defs/s_7bc0d5d531"
           },
           "showing": {
             "description": "Plain words for the header: what is showing",
@@ -90992,6 +91011,7 @@
               ],
               "needsMatch": true,
               "ownerId": "usr_a1b2c3",
+              "starred": true,
               "unreadCount": 1
             }
           }
@@ -91021,7 +91041,7 @@
       "name": "inbox.mark_read",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_e3a09a2137"
+        "$ref": "#/$defs/s_611f84de8a"
       },
       "permission": null,
       "resource": {
@@ -91078,6 +91098,7 @@
               ],
               "needsMatch": true,
               "ownerId": "usr_a1b2c3",
+              "starred": true,
               "unreadCount": 1
             },
             "undoToken": "example"
@@ -91126,7 +91147,7 @@
       "output": {
         "properties": {
           "conversation": {
-            "$ref": "#/$defs/s_159aeafb99"
+            "$ref": "#/$defs/s_bbe05acc1e"
           },
           "undoToken": {
             "type": "string"
@@ -91193,6 +91214,7 @@
               ],
               "needsMatch": true,
               "ownerId": "usr_a1b2c3",
+              "starred": true,
               "unreadCount": 1
             },
             "recordId": "rec_a1b2c3"
@@ -91240,7 +91262,7 @@
       "output": {
         "properties": {
           "conversation": {
-            "$ref": "#/$defs/s_159aeafb99"
+            "$ref": "#/$defs/s_bbe05acc1e"
           },
           "recordId": {
             "examples": [
@@ -91385,6 +91407,7 @@
                   ],
                   "needsMatch": true,
                   "ownerId": "usr_a1b2c3",
+                  "starred": true,
                   "unreadCount": 1
                 },
                 "suggestions": [
@@ -91430,7 +91453,7 @@
             "items": {
               "properties": {
                 "conversation": {
-                  "$ref": "#/$defs/s_159aeafb99"
+                  "$ref": "#/$defs/s_bbe05acc1e"
                 },
                 "suggestions": {
                   "$ref": "#/$defs/s_11fec22d98"
@@ -91751,6 +91774,7 @@
               ],
               "needsMatch": true,
               "ownerId": "usr_a1b2c3",
+              "starred": true,
               "unreadCount": 1
             },
             "items": [
@@ -91814,7 +91838,7 @@
       "output": {
         "properties": {
           "conversation": {
-            "$ref": "#/$defs/s_159aeafb99"
+            "$ref": "#/$defs/s_bbe05acc1e"
           },
           "items": {
             "items": {
@@ -91947,6 +91971,7 @@
               ],
               "needsMatch": true,
               "ownerId": "usr_a1b2c3",
+              "starred": true,
               "unreadCount": 1
             }
           }
@@ -91976,7 +92001,7 @@
       "name": "inbox.unmatch",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_e3a09a2137"
+        "$ref": "#/$defs/s_611f84de8a"
       },
       "permission": "records.edit",
       "resource": {
@@ -92031,6 +92056,7 @@
                 ],
                 "needsMatch": true,
                 "ownerId": "usr_a1b2c3",
+                "starred": true,
                 "unreadCount": 1
               }
             ],
@@ -92066,7 +92092,7 @@
             "type": "string"
           },
           "rows": {
-            "$ref": "#/$defs/s_9545dbb97f"
+            "$ref": "#/$defs/s_7bc0d5d531"
           },
           "total": {
             "type": "integer"
@@ -123685,6 +123711,200 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "cursor": "example",
+            "limit": 1,
+            "type": "contact",
+            "viewId": "viw_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "next": "example",
+            "rows": [
+              {
+                "createdAt": 1760000000000,
+                "deletedAt": 1760000000000,
+                "fields": {},
+                "holds": 1,
+                "id": "rec_a1b2c3",
+                "label": 1,
+                "type": "contact",
+                "updatedAt": 1760000000000,
+                "version": 1
+              }
+            ],
+            "total": 1,
+            "view": {
+              "colorRules": {},
+              "config": {},
+              "filter": {},
+              "group": "example",
+              "hidden": [
+                "example"
+              ],
+              "kind": "table",
+              "shared": true,
+              "sort": {},
+              "title": "example",
+              "type": "contact",
+              "updatedAt": 1760000000000,
+              "viewId": "viw_a1b2c3"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "viewId": {
+            "examples": [
+              "viw_a1b2c3"
+            ],
+            "pattern": "^viw_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "viewId"
+        ],
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "records",
+      "name": "records.view",
+      "output": {
+        "properties": {
+          "next": {
+            "description": "Cursor for the next page; absent on the last page",
+            "type": "string"
+          },
+          "rows": {
+            "$ref": "#/$defs/s_a56f3dc8f1"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "view": {
+            "properties": {
+              "colorRules": {
+                "description": "Any JSON value"
+              },
+              "config": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "filter": {
+                "description": "Any JSON value"
+              },
+              "group": {
+                "type": "string"
+              },
+              "hidden": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "kind": {
+                "examples": [
+                  "table"
+                ],
+                "type": "string"
+              },
+              "shared": {
+                "type": "boolean"
+              },
+              "sort": {
+                "description": "Any JSON value"
+              },
+              "title": {
+                "type": "string"
+              },
+              "type": {
+                "examples": [
+                  "contact"
+                ],
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "type": "string"
+              },
+              "updatedAt": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              "viewId": {
+                "examples": [
+                  "viw_a1b2c3"
+                ],
+                "pattern": "^viw_[a-z0-9]+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "viewId",
+              "type",
+              "kind",
+              "title",
+              "shared",
+              "updatedAt"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "view",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/type",
+        "type": "record_type"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Read a saved view of a record type resolved for the table: the view definition and its rows with the saved filter, sort and group applied, a page at a time",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
         "validation.bad_input"
       ],
       "examples": [
@@ -149134,6 +149354,7 @@
               "capabilities": [
                 "voice"
               ],
+              "displayName": "Intake line",
               "e164": "+14155550123",
               "hours": {
                 "outsideHours": "voicemail",
@@ -149173,7 +149394,7 @@
       "module": "telephony",
       "name": "telephony.number.assign",
       "output": {
-        "$ref": "#/$defs/s_72d1849997"
+        "$ref": "#/$defs/s_2e121bf748"
       },
       "permission": "comms.numbers",
       "resource": {
@@ -149226,6 +149447,7 @@
               "capabilities": [
                 "voice"
               ],
+              "displayName": "Intake line",
               "e164": "+14155550123",
               "hours": {
                 "outsideHours": "voicemail",
@@ -149304,7 +149526,7 @@
       "module": "telephony",
       "name": "telephony.number.buy",
       "output": {
-        "$ref": "#/$defs/s_72d1849997"
+        "$ref": "#/$defs/s_2e121bf748"
       },
       "permission": "comms.numbers",
       "resource": {
@@ -149345,6 +149567,7 @@
               "capabilities": [
                 "voice"
               ],
+              "displayName": "Intake line",
               "e164": "+14155550123",
               "hours": {
                 "outsideHours": "voicemail",
@@ -149397,7 +149620,7 @@
       "module": "telephony",
       "name": "telephony.number.get",
       "output": {
-        "$ref": "#/$defs/s_72d1849997"
+        "$ref": "#/$defs/s_2e121bf748"
       },
       "permission": null,
       "resource": {
@@ -149446,6 +149669,7 @@
                 "capabilities": [
                   "voice"
                 ],
+                "displayName": "Intake line",
                 "e164": "+14155550123",
                 "hours": {
                   "outsideHours": "voicemail",
@@ -149513,7 +149737,7 @@
             "type": "integer"
           },
           "numbers": {
-            "$ref": "#/$defs/s_20d61750b4"
+            "$ref": "#/$defs/s_f13f776230"
           }
         },
         "required": [
@@ -149564,6 +149788,7 @@
                 "capabilities": [
                   "voice"
                 ],
+                "displayName": "Intake line",
                 "e164": "+14155550123",
                 "hours": {
                   "outsideHours": "voicemail",
@@ -149625,7 +149850,7 @@
             "type": "string"
           },
           "numbers": {
-            "$ref": "#/$defs/s_20d61750b4"
+            "$ref": "#/$defs/s_f13f776230"
           },
           "total": {
             "type": "integer"
@@ -149836,6 +150061,7 @@
               "capabilities": [
                 "voice"
               ],
+              "displayName": "Intake line",
               "e164": "+14155550123",
               "hours": {
                 "outsideHours": "voicemail",
@@ -149891,7 +150117,7 @@
       "module": "telephony",
       "name": "telephony.number.set_hours",
       "output": {
-        "$ref": "#/$defs/s_72d1849997"
+        "$ref": "#/$defs/s_2e121bf748"
       },
       "permission": "comms.numbers",
       "resource": {
@@ -149938,6 +150164,7 @@
               "capabilities": [
                 "voice"
               ],
+              "displayName": "Intake line",
               "e164": "+14155550123",
               "hours": {
                 "outsideHours": "voicemail",
@@ -149998,7 +150225,7 @@
       "module": "telephony",
       "name": "telephony.number.set_recording",
       "output": {
-        "$ref": "#/$defs/s_72d1849997"
+        "$ref": "#/$defs/s_2e121bf748"
       },
       "permission": "comms.numbers",
       "resource": {
@@ -150054,6 +150281,7 @@
               "capabilities": [
                 "voice"
               ],
+              "displayName": "Intake line",
               "e164": "+14155550123",
               "hours": {
                 "outsideHours": "voicemail",
@@ -150109,7 +150337,7 @@
       "module": "telephony",
       "name": "telephony.number.set_route",
       "output": {
-        "$ref": "#/$defs/s_72d1849997"
+        "$ref": "#/$defs/s_2e121bf748"
       },
       "permission": "comms.numbers",
       "resource": {
