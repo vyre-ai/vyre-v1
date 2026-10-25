@@ -1,0 +1,375 @@
+// ui/Viewer: one viewer for every file type (spec 2.16, 3.5; ARCH 7.5). Image, document (md and code), CSV, plan and a quiet "no preview" state.
+// Find in file highlights every match and steps through them. Images take markup: Draw (freehand) and Comment on an area (drag a box, type a note);
+// notes are numbered pins kept in unit coordinates (0..1 of the image), so they stay on the same spot at any zoom. Plans and documents edit in place
+// and take highlight-and-comment. The Ask control is the shared AskButton. Colours are skin tokens (CSS variables on web).
+
+import { useMemo, useRef, useState } from "react";
+import type { ReactElement } from "react";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { AskButton } from "../AskButton/index.tsx";
+import type { AskButtonProps } from "../AskButton/index.tsx";
+import { MenuIcon } from "../Menu/index.tsx";
+import { viewerLabel } from "./props.ts";
+import type { MarkupTool, ViewerPin, ViewerProps } from "./props.ts";
+
+export type { MarkupTool, ViewerKind, ViewerPane, ViewerPin, ViewerProps } from "./props.ts";
+export { MARKUP_TOOLS, VIEWER_KINDS, viewerLabel } from "./props.ts";
+
+/* ---------- pure logic ---------- */
+
+/** A pin or box anchor in unit coordinates of the image (0..1). Zoom never changes it. */
+export interface Anchor { x: number; y: number; w: number; h: number }
+export interface Stroke { points: readonly (readonly [number, number])[] }
+export interface MarkupBox extends Anchor { id: string; text: string }
+export interface DocBlock { id: string; tag: "h1" | "h2" | "p" | "li" | "code"; text: string }
+export interface Sheet { cols: readonly string[]; rows: readonly (readonly string[])[] }
+
+export const ZOOM_MIN = 0.5;
+export const ZOOM_MAX = 4;
+export const IMAGE_W = 1000;
+export const IMAGE_H = 750;
+
+export const clampZoom = (z: number): number => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
+export const stepZoom = (z: number, dir: -1 | 0 | 1): number => (dir === 0 ? 1 : clampZoom(z + dir * 0.25));
+
+/** Where a pin draws, in image pixels at the given zoom. The anchor itself never changes. */
+export function pinAt(a: Anchor, zoom: number): { left: number; top: number } {
+  return { left: a.x * IMAGE_W * zoom, top: a.y * IMAGE_H * zoom };
+}
+
+/** A pointer position inside the stage (px, with the stage's own size) as a unit coordinate. */
+export function toUnit(px: number, py: number, stageW: number, stageH: number): [number, number] {
+  return [Math.min(1, Math.max(0, px / Math.max(1, stageW))), Math.min(1, Math.max(0, py / Math.max(1, stageH)))];
+}
+
+/** A dragged box between two unit points, or null when it is too small to be an area. */
+export function boxFrom(a: readonly [number, number], b: readonly [number, number]): Anchor | null {
+  const w = Math.abs(b[0] - a[0]);
+  const h = Math.abs(b[1] - a[1]);
+  if (w < 0.02 || h < 0.02) return null;
+  return { x: Math.min(a[0], b[0]), y: Math.min(a[1], b[1]), w, h };
+}
+
+export interface FindHit { block: number; at: number; len: number }
+
+/** Every case-insensitive match of the query, in reading order. */
+export function findMatches(texts: readonly string[], query: string): readonly FindHit[] {
+  const q = query.trim().toLowerCase();
+  if (q === "") return [];
+  const hits: FindHit[] = [];
+  texts.forEach((t, block) => {
+    const low = t.toLowerCase();
+    for (let at = low.indexOf(q); at >= 0; at = low.indexOf(q, at + q.length)) hits.push({ block, at, len: q.length });
+  });
+  return hits;
+}
+
+/** Splits one block's text into plain and marked runs; `current` marks the run that is the active match. */
+export function markRuns(text: string, hits: readonly FindHit[], block: number, current: number, all: readonly FindHit[]): readonly { text: string; hit?: boolean; on?: boolean }[] {
+  const mine = hits.filter((h) => h.block === block);
+  const runs: { text: string; hit?: boolean; on?: boolean }[] = [];
+  let at = 0;
+  for (const h of mine) {
+    if (h.at > at) runs.push({ text: text.slice(at, h.at) });
+    runs.push({ text: text.slice(h.at, h.at + h.len), hit: true, on: all[current] === h });
+    at = h.at + h.len;
+  }
+  if (at < text.length) runs.push({ text: text.slice(at) });
+  return runs.length === 0 ? [{ text }] : runs;
+}
+
+const num = (v: string): number => Number.parseFloat(v.replace(/[^0-9.-]/g, ""));
+const isNum = (v: string): boolean => v !== "" && /^[$\d.,-]+$/.test(v);
+
+/** Rows sorted by one column; numbers by value, the rest by text. Direction 1 up, -1 down. */
+export function sortRows(rows: readonly (readonly string[])[], col: number, dir: 1 | -1): readonly (readonly string[])[] {
+  return [...rows].sort((a, b) => {
+    const x = a[col] ?? "";
+    const y = b[col] ?? "";
+    const r = isNum(x) && isNum(y) ? num(x) - num(y) : x.localeCompare(y);
+    return r * dir;
+  });
+}
+
+/** The sheet footer line: counts, and sum and average for a selected numeric column. */
+export function sheetFoot(sheet: Sheet, col: number | null): string {
+  let out = `${sheet.rows.length} rows · ${sheet.cols.length} columns`;
+  if (col !== null) {
+    const vals = sheet.rows.map((r) => num(r[col] ?? "")).filter((n) => !Number.isNaN(n));
+    if (vals.length > 1) {
+      const sum = vals.reduce((a, b) => a + b, 0);
+      out += ` · ${sheet.cols[col] ?? ""}: sum ${sum.toLocaleString("en-US")}, average ${(sum / vals.length).toFixed(1)}`;
+    }
+  }
+  return out;
+}
+
+/* ---------- icons ---------- */
+
+const SVG = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">`;
+const ICON = {
+  draw: `${SVG}<path d="M3 13l1-3.500L11.500 2 14 4.500 6.500 12 3 13z"/></svg>`,
+  area: `${SVG}<path d="M2.500 5.500v-3h3M10.500 2.500h3v3M13.500 10.500v3h-3M5.500 13.500h-3v-3"/></svg>`,
+  find: `${SVG}<circle cx="7" cy="7" r="4"/><path d="M10 10l3.500 3.500"/></svg>`,
+  up: `${SVG}<path d="M4 10l4-4 4 4"/></svg>`,
+  down: `${SVG}<path d="M4 6l4 4 4-4"/></svg>`,
+} as const;
+
+/* ---------- the view ---------- */
+
+export interface ViewerViewProps extends ViewerProps {
+  ask?: AskButtonProps;
+  /** Image: the picture (a uri), its marked boxes and strokes. */
+  src?: string;
+  boxes?: readonly MarkupBox[];
+  strokes?: readonly Stroke[];
+  /** Document, plan and code: the blocks. */
+  blocks?: readonly DocBlock[];
+  /** CSV. */
+  sheet?: Sheet;
+  zoom?: number;
+  onBoxes?: (boxes: readonly MarkupBox[]) => void;
+  onStrokes?: (strokes: readonly Stroke[]) => void;
+  onEdit?: (blocks: readonly DocBlock[]) => void;
+  onZoom?: (zoom: number) => void;
+}
+
+const web = (p: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? p : {});
+
+function Tool(p: { label: string; icon: string; on?: boolean; onPress: () => void; testID: string }): ReactElement {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={p.label} accessibilityState={{ selected: p.on === true }} testID={p.testID} onPress={p.onPress}
+      style={({ hovered }: { hovered?: boolean }) => [s.tool, p.on === true && s.toolOn, hovered === true && s.toolOver]}>
+      <MenuIcon icon={p.icon} />
+      <Text style={s.toolText}>{p.label}</Text>
+    </Pressable>
+  );
+}
+
+export function Viewer(props: ViewerViewProps): ReactElement {
+  const [find, setFind] = useState(props.find ?? "");
+  const [cur, setCur] = useState(0);
+  const [tool, setTool] = useState<MarkupTool | null>(props.tool ?? null);
+  const [zoom, setZoom] = useState(props.zoom ?? 1);
+  const [boxes, setBoxes] = useState<readonly MarkupBox[]>(props.boxes ?? []);
+  const [strokes, setStrokes] = useState<readonly Stroke[]>(props.strokes ?? []);
+  const [blocks, setBlocks] = useState<readonly DocBlock[]>(props.blocks ?? []);
+  const [drag, setDrag] = useState<{ a: readonly [number, number]; b: readonly [number, number] } | null>(null);
+  const [line, setLine] = useState<readonly (readonly [number, number])[] | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [sort, setSort] = useState<{ col: number; dir: 1 | -1 } | null>(null);
+  const [cell, setCell] = useState<{ r: number; c: number } | null>(null);
+  const stage = useRef<{ w: number; h: number }>({ w: IMAGE_W, h: IMAGE_H });
+
+  const texts = useMemo(() => blocks.map((b) => b.text), [blocks]);
+  const hits = useMemo(() => findMatches(texts, find), [texts, find]);
+  const at = hits.length === 0 ? 0 : cur % hits.length;
+  const pins: readonly ViewerPin[] = props.pins ?? boxes.map((b, i) => ({ id: b.id, n: i + 1, text: b.text }));
+  const editing = props.editing === true;
+
+  const setZ = (z: number): void => { setZoom(z); props.onZoom?.(z); };
+  const changeBoxes = (next: readonly MarkupBox[]): void => { setBoxes(next); props.onBoxes?.(next); };
+  const changeStrokes = (next: readonly Stroke[]): void => { setStrokes(next); props.onStrokes?.(next); };
+  const changeBlocks = (next: readonly DocBlock[]): void => { setBlocks(next); props.onEdit?.(next); };
+  const pick = (t: MarkupTool): void => setTool((x) => (x === t ? null : t));
+
+  const bar = (
+    <View style={s.bar} testID="vw-bar">
+      <Text style={s.title} numberOfLines={1}>{viewerLabel(props)}</Text>
+      <View style={s.grow} />
+      <View style={s.findBox} testID="vw-find">
+        <MenuIcon icon={ICON.find} />
+        <TextInput accessibilityLabel="Find in file" testID="vw-find-input" value={find} placeholder="Find in file" placeholderTextColor="var(--ink-4)" style={s.findInput}
+          onChangeText={(t) => { setFind(t); setCur(0); props.onFind?.(t); }} onSubmitEditing={() => setCur((c) => c + 1)} />
+        {find !== "" ? <Text style={s.count} testID="vw-count">{hits.length === 0 ? "No matches" : `${at + 1} of ${hits.length}`}</Text> : null}
+        {hits.length > 1 ? (
+          <>
+            <Pressable accessibilityRole="button" accessibilityLabel="Previous match" testID="vw-prev" onPress={() => setCur((c) => (c - 1 + hits.length) % hits.length)}><MenuIcon icon={ICON.up} /></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Next match" testID="vw-next" onPress={() => setCur((c) => c + 1)}><MenuIcon icon={ICON.down} /></Pressable>
+          </>
+        ) : null}
+      </View>
+      {props.kind === "image" ? (
+        <View style={s.zoom} testID="vw-zoom">
+          <Pressable accessibilityRole="button" accessibilityLabel="Zoom out" testID="vw-zoom-out" onPress={() => setZ(stepZoom(zoom, -1))}><Text style={s.zoomText}>{"−"}</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Reset zoom" testID="vw-zoom-reset" onPress={() => setZ(stepZoom(zoom, 0))}><Text style={s.zoomText}>{`${Math.round(zoom * 100)}%`}</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Zoom in" testID="vw-zoom-in" onPress={() => setZ(stepZoom(zoom, 1))}><Text style={s.zoomText}>{"+"}</Text></Pressable>
+        </View>
+      ) : null}
+      {props.ask !== undefined ? <AskButton {...props.ask} compact /> : null}
+    </View>
+  );
+
+  const markBar = props.kind === "image" ? (
+    <View style={s.mark} testID="vw-markup" accessibilityRole="toolbar" accessibilityLabel="Mark up">
+      <Tool label="Draw" icon={ICON.draw} on={tool === "draw"} onPress={() => pick("draw")} testID="vw-tool-draw" />
+      <Tool label="Comment on an area" icon={ICON.area} on={tool === "comment"} onPress={() => pick("comment")} testID="vw-tool-comment" />
+      <View style={s.grow} />
+      {boxes.length + strokes.length > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Clear markup" testID="vw-clear" onPress={() => { changeBoxes([]); changeStrokes([]); setNote(null); }}><Text style={s.toolText}>Clear</Text></Pressable> : null}
+    </View>
+  ) : null;
+
+  const pointer = (phase: "down" | "move" | "up", e: { nativeEvent: { locationX: number; locationY: number } }): void => {
+    if (tool === null) return;
+    const p = toUnit(e.nativeEvent.locationX, e.nativeEvent.locationY, stage.current.w * zoom, stage.current.h * zoom);
+    if (phase === "down") { if (tool === "draw") setLine([p]); else setDrag({ a: p, b: p }); return; }
+    if (phase === "move") { if (tool === "draw") setLine((l) => (l === null ? l : [...l, p])); else setDrag((d) => (d === null ? d : { a: d.a, b: p })); return; }
+    if (tool === "draw") { if (line !== null && line.length > 1) changeStrokes([...strokes, { points: line }]); setLine(null); return; }
+    const box = drag === null ? null : boxFrom(drag.a, drag.b);
+    setDrag(null);
+    if (box !== null) { const id = `bx${boxes.length + 1}-${Date.now().toString(36)}`; changeBoxes([...boxes, { id, text: "", ...box }]); setNote(id); }
+  };
+
+  const image = (
+    <ScrollView style={s.scroll} contentContainerStyle={s.imgWrap} testID="vw-image">
+      <View style={[s.stageBox, { width: IMAGE_W * zoom * 0.6, height: IMAGE_H * zoom * 0.6 }]} testID="vw-stage"
+        onLayout={(e) => { stage.current = { w: e.nativeEvent.layout.width / zoom, h: e.nativeEvent.layout.height / zoom }; }}
+        onStartShouldSetResponder={() => tool !== null} onResponderGrant={(e) => pointer("down", e)} onResponderMove={(e) => pointer("move", e)} onResponderRelease={(e) => pointer("up", e)}>
+        <View style={s.picture}><Text style={s.pictureText}>{props.title}</Text></View>
+        {strokes.map((st, i) => <View key={i} testID={`vw-stroke-${i}`} style={s.strokeMark} {...web({ "data-points": st.points.map((q) => `${q[0].toFixed(3)},${q[1].toFixed(3)}`).join(" ") })} />)}
+        {boxes.map((b, i) => (
+          <View key={b.id} testID={`vw-box-${b.id}`} pointerEvents="none" style={[s.box, { left: `${b.x * 100}%`, top: `${b.y * 100}%`, width: `${b.w * 100}%`, height: `${b.h * 100}%` }]}>
+            <View style={s.pin} testID={`vw-pin-${i + 1}`} {...web({ "data-anchor": `${b.x.toFixed(3)},${b.y.toFixed(3)}` })}><Text style={s.pinText}>{i + 1}</Text></View>
+          </View>
+        ))}
+        {drag !== null ? (() => { const d = boxFrom(drag.a, drag.b); return d === null ? null : <View pointerEvents="none" style={[s.box, s.boxLive, { left: `${d.x * 100}%`, top: `${d.y * 100}%`, width: `${d.w * 100}%`, height: `${d.h * 100}%` }]} />; })() : null}
+      </View>
+      {note !== null ? (
+        <View style={s.noteBox} testID="vw-note">
+          <TextInput autoFocus accessibilityLabel="Note for this area" placeholder="What should change here?" placeholderTextColor="var(--ink-4)" style={s.noteInput}
+            onSubmitEditing={(e) => { const text = e.nativeEvent.text.trim(); changeBoxes(boxes.map((b) => (b.id === note ? { ...b, text } : b))); setNote(null); }} />
+        </View>
+      ) : null}
+      {pins.length > 0 ? (
+        <View style={s.pinList} testID="vw-pins">
+          {pins.map((p) => <Text key={p.id} style={s.pinRow} testID={`vw-pinrow-${p.n}`}>{`${p.n}  ${p.text === "" ? "No note yet" : p.text}`}</Text>)}
+        </View>
+      ) : null}
+    </ScrollView>
+  );
+
+  const docBody = (
+    <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
+      <View style={s.doc}>
+        {blocks.map((b, bi) => {
+          const runs = markRuns(b.text, hits, bi, at, hits);
+          if (editing && find === "") {
+            return <TextInput key={b.id} multiline value={b.text} accessibilityLabel={`${b.tag} block`} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]}
+              onChangeText={(t) => changeBlocks(blocks.map((x) => (x.id === b.id ? { ...x, text: t } : x)))} />;
+          }
+          return (
+            <Text key={b.id} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]} {...web({ "data-tag": b.tag })}>
+              {b.tag === "li" ? "•  " : ""}
+              {runs.map((r, i) => (r.hit === true ? <Text key={i} style={[s.mark1, r.on === true && s.markOn]} {...web({ "data-find": r.on === true ? "current" : "match" })}>{r.text}</Text> : r.text))}
+            </Text>
+          );
+        })}
+        {blocks.length === 0 ? <Text style={s.empty}>This file is empty.</Text> : null}
+      </View>
+    </ScrollView>
+  );
+
+  const sheet = props.sheet;
+  const rows = useMemo(() => (sheet === undefined ? [] : sort === null ? sheet.rows : sortRows(sheet.rows, sort.col, sort.dir)), [sheet, sort]);
+  const table = sheet === undefined ? null : (
+    <View style={s.fill}>
+      <ScrollView style={s.scroll} horizontal contentContainerStyle={s.sheetWrap} testID="vw-sheet">
+        <View>
+          <View style={s.tr}>
+            <Text style={[s.th, s.rn]}>{""}</Text>
+            {sheet.cols.map((c, ci) => (
+              <Pressable key={c} accessibilityRole="button" accessibilityLabel={`Sort by ${c}`} testID={`vw-sort-${ci}`} style={s.thCell}
+                onPress={() => setSort((x) => (x !== null && x.col === ci ? { col: ci, dir: x.dir === 1 ? -1 : 1 } : { col: ci, dir: 1 }))}>
+                <Text style={s.th}>{`${c}${sort !== null && sort.col === ci ? (sort.dir === 1 ? " ↑" : " ↓") : ""}`}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {rows.map((r, ri) => (
+            <View key={ri} style={s.tr}>
+              <Text style={[s.td, s.rn]}>{ri + 1}</Text>
+              {r.map((v, ci) => {
+                const on = cell !== null && cell.r === ri && cell.c === ci;
+                const m = find !== "" && v.toLowerCase().includes(find.trim().toLowerCase());
+                return (
+                  <Pressable key={ci} accessibilityRole="button" accessibilityState={{ selected: on }} testID={`vw-cell-${ri}-${ci}`} onPress={() => setCell({ r: ri, c: ci })}
+                    style={[s.tdCell, on && s.tdOn, m && s.mark1]}>
+                    <Text style={[s.td, isNum(v) && s.numCell]}>{v}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+      <Text style={s.foot} testID="vw-foot">{sheetFoot(sheet, cell === null ? null : cell.c)}</Text>
+    </View>
+  );
+
+  const body = props.kind === "image" ? image
+    : props.kind === "csv" ? table
+    : props.kind === "document" || props.kind === "plan" ? docBody
+    : <View style={s.emptyBox} testID="vw-other"><Text style={s.empty}>No preview for this file. Open it in its own app.</Text></View>;
+
+  return (
+    <View accessibilityLabel={viewerLabel(props)} style={s.root} testID="viewer"
+      {...web({ "data-testid": "viewer", "data-kind": props.kind, "data-pane": props.pane ?? "side", "data-tool": tool ?? "none", "data-zoom": String(zoom), "data-density": props.density ?? "regular" })}>
+      {bar}
+      {markBar}
+      <View style={s.fill}>{body}</View>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  root: { flex: 1, minHeight: 0, minWidth: 0, backgroundColor: "var(--win)" as string },
+  fill: { flex: 1, minHeight: 0 },
+  grow: { flex: 1 },
+  scroll: { flex: 1 },
+  bar: { height: 44, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  title: { color: "var(--ink)" as string, fontSize: 13.5, fontWeight: "600", flexShrink: 1 },
+  findBox: { flexDirection: "row", alignItems: "center", gap: 6, height: 30, paddingHorizontal: 8, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  findInput: { width: 140, color: "var(--ink)" as string, fontSize: 13, padding: 0 },
+  count: { color: "var(--ink-3)" as string, fontSize: 11.5 },
+  zoom: { flexDirection: "row", alignItems: "center", gap: 10 },
+  zoomText: { color: "var(--ink-3)" as string, fontSize: 13 },
+  mark: { height: 40, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  tool: { flexDirection: "row", alignItems: "center", gap: 6, height: 28, paddingHorizontal: 10, borderRadius: 8 },
+  toolOn: { backgroundColor: "var(--accent-wash)" as string },
+  toolOver: { backgroundColor: "var(--hover)" as string },
+  toolText: { color: "var(--ink-3)" as string, fontSize: 12.5, fontWeight: "500" },
+  imgWrap: { padding: 24, alignItems: "center", gap: 14 },
+  stageBox: { borderRadius: 10, overflow: "hidden", backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
+  picture: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "var(--raised)" as string },
+  pictureText: { color: "var(--ink-4)" as string, fontSize: 13 },
+  strokeMark: { position: "absolute", left: 0, top: 0, width: 1, height: 1 },
+  box: { position: "absolute", borderWidth: 2, borderColor: "var(--accent)" as string, borderRadius: 6 },
+  boxLive: { borderStyle: "dashed" },
+  pin: { position: "absolute", left: -12, top: -12, width: 24, height: 24, borderRadius: 12, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
+  pinText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
+  noteBox: { width: "100%", maxWidth: 480, borderRadius: 10, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string, padding: 10 },
+  noteInput: { color: "var(--ink)" as string, fontSize: 13, padding: 0 },
+  pinList: { width: "100%", maxWidth: 480, gap: 6 },
+  pinRow: { color: "var(--ink-2)" as string, fontSize: 13 },
+  docWrap: { padding: 24, alignItems: "center" },
+  doc: { width: "100%", maxWidth: 720, gap: 10 },
+  block: { color: "var(--ink)" as string, fontSize: 15, lineHeight: 23, padding: 0 },
+  h1: { fontSize: 24, lineHeight: 30, fontWeight: "700" },
+  h2: { fontSize: 18, lineHeight: 26, fontWeight: "600" },
+  p: {},
+  li: { paddingLeft: 6 },
+  code: { fontFamily: "var(--mono)" as string, fontSize: 12.5, lineHeight: 19 },
+  mark1: { backgroundColor: "var(--accent-wash)" as string },
+  markOn: { backgroundColor: "var(--warn)" as string },
+  sheetWrap: { padding: 14 },
+  tr: { flexDirection: "row" },
+  th: { color: "var(--ink-3)" as string, fontSize: 12, fontWeight: "600", paddingVertical: 6 },
+  thCell: { width: 150, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  rn: { width: 36, textAlign: "right", paddingRight: 8, color: "var(--ink-4)" as string },
+  td: { color: "var(--ink)" as string, fontSize: 13, paddingVertical: 7 },
+  tdCell: { width: 150, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  tdOn: { borderWidth: 2, borderColor: "var(--accent)" as string },
+  numCell: { textAlign: "right" },
+  foot: { color: "var(--ink-3)" as string, fontSize: 12, paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  emptyBox: { flex: 1, alignItems: "center", justifyContent: "center" },
+  empty: { color: "var(--ink-3)" as string, fontSize: 13, textAlign: "center", paddingVertical: 40 },
+});

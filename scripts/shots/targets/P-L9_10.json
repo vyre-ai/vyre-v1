@@ -1,0 +1,9 @@
+{
+  "targets": [
+    { "id": "P-L9_10-image", "route": "/m/P-L9_10?kind=image", "proto": "viewer-img,{skin}", "waitFor": "[data-testid='vw-image']", "note": "The image viewer with a marked box, its numbered pin and a freehand stroke; Draw and Comment on an area in the bar." },
+    { "id": "P-L9_10-md", "route": "/m/P-L9_10?kind=md&find=fee", "proto": "viewer-md,{skin}", "waitFor": "[data-testid='vw-doc']", "note": "A note in the viewer with Find in file highlighting every match." },
+    { "id": "P-L9_10-csv", "route": "/m/P-L9_10?kind=csv", "proto": "viewer-csv,{skin}", "waitFor": "[data-testid='vw-sheet']", "note": "A CSV as a sheet with row numbers, sortable columns and the footer line." },
+    { "id": "P-L9_10-code", "route": "/m/P-L9_10?kind=code", "proto": "viewer-code,{skin}", "waitFor": "[data-testid='vw-doc']", "note": "Code in the mono face." },
+    { "id": "P-L9_10-plan", "route": "/m/P-L9_10?kind=plan", "proto": "viewer-plan,{skin}", "waitFor": "[data-testid='vw-doc']", "note": "A plan edited in place." }
+  ]
+}
