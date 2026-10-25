@@ -133,6 +133,8 @@ test("l7 live: through the gateway a Shared item is put, used by name and filled
     assert.equal(((await noSink.json()) as { error?: { code?: string } }).error?.code, "internal.unavailable", "a place with no sink is refused");
     const memberUse = await post(MEMBER_TOKEN, "/v1/vault/use", { item: "Dana Lawmatics" });
     assert.notEqual(memberUse.status, 200, "a member with no grant on the item cannot use it");
+    const pulled = await fetch(`${d.url}/exports/vex_nothing?token=nope`);
+    assert.equal(pulled.status, 404, "the export pull route is mounted and refuses an unknown link");
     const deferred = await post(OWNER_TOKEN, "/v1/vault/generate", { kind: "password" });
     const body = (await deferred.json()) as { error?: { code?: string; message?: string } };
     assert.deepEqual([body.error?.code, body.error?.message], ["internal.unavailable", "Not in this version yet"]);
