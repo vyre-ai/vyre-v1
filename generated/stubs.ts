@@ -270,6 +270,7 @@ export function stubs(ctx: CallCtx) {
       },
       diff: call("changesets.diff"),
       discard: call("changesets.discard"),
+      edit: call("changesets.edit"),
       get: call("changesets.get"),
       list: call("changesets.list"),
       request_changes: call("changesets.request_changes"),

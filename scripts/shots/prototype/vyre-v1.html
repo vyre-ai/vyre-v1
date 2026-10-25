@@ -44597,7 +44597,7 @@ textarea.inp { height: auto; min-height: 64px; padding: 9px 11px; line-height: 1
     const k = (location.hash || "").slice(1).split(/-(.+)/)[0];
     if (k === "light" || k === "dark") window.vyreSkin.set(k === "light" ? "paper" : "graphite");
     if (PAGE_IDS.includes(k)) { ui.page = k; ui.q = ""; $("sq").value = ""; }
-    if (k === "search") { ui.q = "quiet"; $("sq").value = "quiet"; }
+    if (k === "search") { const sq = decodeURIComponent((location.hash || "").slice(1).split(/-(.+)/)[1] || "") || "quiet"; ui.q = sq; $("sq").value = sq; } /* P-L9f_06c: search-<words> searches those words */
     if (k === "selftest") selftest();
     renderAll();
   }

@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
-import type { Ctx, Decision } from "../../../packages/contracts/src/ctx.ts";
+import type { BlobMeta, Blobs, Ctx, Decision } from "../../../packages/contracts/src/ctx.ts";
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
 import type { EventName } from "../../../packages/contracts/src/types.ts";
 import { configurePreviews, decodePng, encodePng, probeImage } from "../handlers/render.ts";
@@ -80,11 +80,39 @@ export class FakeFiles {
   }
 }
 
+/** A blob store with the contract of ctx.blobs: content types and sizes kept, a missing id absent, delete reported, another module's id refused (`foreign` ids stand for those). */
+export class FakeBlobs implements Blobs {
+  readonly items = new Map<string, { meta: BlobMeta; bytes: Uint8Array }>();
+  readonly foreign = new Set<string>();
+  puts = 0;
+  deletes: string[] = [];
+  /** make put fail with this code once (quota, size) */
+  failPut: string | undefined;
+  private seq = 0;
+
+  async put(bytes: Uint8Array, contentType: string): Promise<BlobMeta> {
+    if (this.failPut) { const code = this.failPut; this.failPut = undefined; throw vyreErr(code, "The blob store refused this blob."); }
+    this.puts += 1;
+    this.seq += 1;
+    const id = `blb_${this.seq.toString(16).padStart(32, "0")}`;
+    const meta: BlobMeta = { id, contentType, size: bytes.byteLength, sha256: "0".repeat(64), createdAt: NOW };
+    this.items.set(id, { meta, bytes: new Uint8Array(bytes) });
+    return meta;
+  }
+  private own(id: string): void {
+    if (this.foreign.has(id)) throw vyreErr("permission.no_grant", "A module may only use its own blobs.");
+  }
+  async get(id: string) { this.own(id); return this.items.get(id) ?? null; }
+  async stat(id: string) { this.own(id); return this.items.get(id)?.meta ?? null; }
+  async delete(id: string): Promise<boolean> { this.own(id); this.deletes.push(id); return this.items.delete(id); }
+}
+
 export interface Tools { pdftoppm: boolean; pdftotext: boolean; soffice: boolean; vips: boolean }
 
 export function harness() {
   const db = new MemoryDb();
   const files = new FakeFiles();
+  const blobs = new FakeBlobs();
   const events: Emitted[] = [];
   const calls: { cap: string; input: unknown }[] = [];
   const execCalls: ExecCall[] = [];
@@ -173,10 +201,11 @@ export function harness() {
     log: { debug() {}, info() {}, warn() {}, error() {} },
     schedule: async () => "sch_1",
     seal: { seal: () => ({ keyId: "k", nonce: "n", bytes: "b" }), unseal: () => new Uint8Array() },
+    blobs,
   };
 
   return {
-    ctx, db, files, events, calls, execCalls, tools, text, converted, failures,
+    ctx, db, files, blobs, events, calls, execCalls, tools, text, converted, failures,
     advance(ms: number) { clock += ms; },
     named(name: string): unknown[] { return events.filter((e) => e.name === name).map((e) => e.payload); },
     ran(prog: string): ExecCall[] { return execCalls.filter((c) => path.basename(c.argv[0] ?? "") === prog); },
@@ -187,13 +216,18 @@ export function harness() {
 
 export type World = ReturnType<typeof harness>;
 
-/** Width and height of a data address made by the module. */
-export function dimsOf(url: string): { width: number; height: number } {
-  const prefix = "data:image/png;base64,";
-  if (!url.startsWith(prefix)) throw new Error(`not a png data address: ${url.slice(0, 30)}`);
-  const bytes = new Uint8Array(Buffer.from(url.slice(prefix.length), "base64"));
-  const r = decodePng(bytes);
+/** The blob a reference returned by the module points at: its bytes and metadata. Fails when the reference is not `/spaces/<space>/blobs/<id>` or names no stored blob. */
+export function blobOf(w: { blobs: FakeBlobs; ctx: Ctx }, url: string): { meta: BlobMeta; bytes: Uint8Array } {
+  const prefix = `/spaces/${w.ctx.space}/blobs/`;
+  if (!url.startsWith(prefix)) throw new Error(`not a blob reference: ${url.slice(0, 40)}`);
+  const hit = w.blobs.items.get(url.slice(prefix.length));
+  if (!hit) throw new Error(`no stored blob for ${url}`);
+  return hit;
+}
+
+/** Width and height of the png a blob reference points at. */
+export function dimsOf(w: { blobs: FakeBlobs; ctx: Ctx }, url: string): { width: number; height: number } {
+  const r = decodePng(blobOf(w, url).bytes);
   if (!r) throw new Error("not a decodable png");
   return { width: r.width, height: r.height };
 }
-

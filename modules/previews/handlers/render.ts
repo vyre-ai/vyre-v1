@@ -8,7 +8,7 @@
 //   other    video, audio, archives: failed with reason `unsupported`; the file still opens as a download.
 // No OCR in v1: a scan with no text layer returns empty text with source `none`.
 //
-// Bytes come from the files module (files.read as base64, in chunks; nothing is copied into this module's tables except the made images, as data addresses, and the extracted text).
+// Bytes come from the files module (files.read as base64, in chunks; the made images are kept as blobs (handlers/store.ts), only the extracted text is copied into this module's tables).
 // A preview never blocks a save: the consumer of file.version_added only queues the version; previews.render (or the first read of a preview) makes it.
 // The converters run as child processes through an injected Exec (argv, no shell, a deadline), so tests drive a fake and the host passes processExec(). A missing converter is reason `converter_down` for the
 // part that needs it; everything that does not need it keeps working, and previews.health says what is missing.
@@ -21,6 +21,8 @@ import { deflateSync, inflateRawSync, inflateSync } from "node:zlib";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
+import type { StoredImage } from "./store.ts";
+import { blobRef, dropImages, findImage, putImage, sweepGc } from "./store.ts";
 
 type Row = Record<string, unknown>;
 
@@ -189,7 +191,6 @@ const u32be = (b: Uint8Array, i: number): number => (((b[i] ?? 0) * 2 ** 24) + (
 const u16le = (b: Uint8Array, i: number): number => (b[i] ?? 0) | ((b[i + 1] ?? 0) << 8);
 const u32le = (b: Uint8Array, i: number): number => ((b[i] ?? 0) | ((b[i + 1] ?? 0) << 8) | ((b[i + 2] ?? 0) << 16) | ((b[i + 3] ?? 0) << 24)) >>> 0;
 const ascii = (b: Uint8Array, i: number, n: number): string => String.fromCharCode(...Array.from(b.subarray(i, i + n)));
-const toBase64 = (b: Uint8Array): string => Buffer.from(b.buffer, b.byteOffset, b.byteLength).toString("base64");
 const latin1 = (b: Uint8Array): string => Buffer.from(b.buffer, b.byteOffset, b.byteLength).toString("latin1");
 
 let crcTable: Uint32Array | null = null;
@@ -909,26 +910,10 @@ async function officeToPdf(d: PreviewDrivers, bytes: Uint8Array, name: string): 
 
 // ---- the cache ----------------------------------------------------------------------------------------------
 
-interface Made { kind: "thumb" | "page"; size: SizeKey; page: number; bytes: Uint8Array; width: number; height: number }
+interface Made extends StoredImage { size: SizeKey }
 
 function filesRow(ctx: Ctx, fileId: string, version: number): Row | undefined {
   return (ctx.db.all("SELECT * FROM previews_file WHERE file_id = ? AND version = ?", fileId, version) as Row[])[0];
-}
-
-function imageRows(ctx: Ctx, fileId: string, version: number): Row[] {
-  return ctx.db.all("SELECT * FROM previews_image WHERE file_id = ? AND version = ?", fileId, version) as Row[];
-}
-
-function findImage(ctx: Ctx, fileId: string, version: number, kind: string, size: SizeKey, page: number): Row | undefined {
-  return imageRows(ctx, fileId, version).find((r) => r["kind"] === kind && r["size"] === size && r["page"] === page);
-}
-
-function putImage(ctx: Ctx, fileId: string, version: number, m: Made): void {
-  ctx.db.run("DELETE FROM previews_image WHERE file_id = ? AND version = ? AND kind = ? AND size = ? AND page = ?", fileId, version, m.kind, m.size, m.page);
-  ctx.db.run(
-    "INSERT INTO previews_image (file_id, version, kind, size, page, data, width, height, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    fileId, version, m.kind, m.size, m.page, `data:image/png;base64,${toBase64(m.bytes)}`, m.width, m.height, ctx.now(),
-  );
 }
 
 function putFile(ctx: Ctx, fileId: string, version: number, f: { versionId?: string; state: "ready" | "failed"; reason?: string; pages?: number; source: string; text?: string; truncated?: boolean }): void {
@@ -940,10 +925,10 @@ function putFile(ctx: Ctx, fileId: string, version: number, f: { versionId?: str
 }
 
 /** Older versions keep their previews until a newer one is made; then only the latest two stay. */
-function trimOld(ctx: Ctx, fileId: string, keepFrom: number): void {
+async function trimOld(ctx: Ctx, fileId: string, keepFrom: number): Promise<void> {
   for (const r of ctx.db.all("SELECT * FROM previews_file WHERE file_id = ?", fileId) as Row[]) {
     if (num(r["version"]) >= keepFrom) continue;
-    ctx.db.run("DELETE FROM previews_image WHERE file_id = ? AND version = ?", fileId, r["version"]);
+    await dropImages(ctx, fileId, num(r["version"]));
     ctx.db.run("DELETE FROM previews_file WHERE file_id = ? AND version = ?", fileId, r["version"]);
   }
 }
@@ -1077,6 +1062,7 @@ const FINAL = new Set(["unsupported", "too_large", "corrupt"]);
 /** Makes (or reads from the cache) the preview of one version. Never throws for a file that cannot be previewed: that is a stored failure. */
 async function ensureRendered(ctx: Ctx, fileId: string, versionId: string | undefined, force: boolean): Promise<Outcome> {
   const d = drivers();
+  await sweepGc(ctx);
   const asked = await versionNumber(ctx, fileId, versionId);
   return exclusive(`render:${fileId}`, async () => {
     const hit = filesRow(ctx, fileId, asked.n);
@@ -1086,7 +1072,7 @@ async function ensureRendered(ctx: Ctx, fileId: string, versionId: string | unde
     }
     const failed = async (version: number, reason: FailReason): Promise<Outcome> => {
       const vid = await versionIdOf(ctx, fileId, version, versionId);
-      ctx.db.run("DELETE FROM previews_image WHERE file_id = ? AND version = ?", fileId, version);
+      await dropImages(ctx, fileId, version);
       putFile(ctx, fileId, version, { state: "failed", reason, source: "none", ...(vid !== undefined ? { versionId: vid } : {}) });
       ctx.db.run("DELETE FROM previews_queue WHERE file_id = ? AND version = ?", fileId, version);
       ctx.emit("preview.failed", `file/${fileId}`, { fileId, versionId: vid ?? "ver_unknown", reason });
@@ -1103,13 +1089,13 @@ async function ensureRendered(ctx: Ctx, fileId: string, versionId: string | unde
     const vid = await versionIdOf(ctx, fileId, l.version, versionId);
     try {
       const r = await renderBytes(d, l);
-      ctx.db.run("DELETE FROM previews_image WHERE file_id = ? AND version = ?", fileId, l.version);
-      for (const m of r.made) putImage(ctx, fileId, l.version, m);
+      await dropImages(ctx, fileId, l.version);
+      for (const m of r.made) await putImage(ctx, fileId, l.version, m);
       putFile(ctx, fileId, l.version, {
         state: "ready", source: r.source, text: r.text, truncated: r.truncated, ...(r.pages !== undefined ? { pages: r.pages } : {}), ...(vid !== undefined ? { versionId: vid } : {}),
         ...(r.imageReason !== undefined ? { reason: r.imageReason } : r.made.length === 0 ? { reason: "no_image" } : {}),
       });
-      trimOld(ctx, fileId, l.version - 1);
+      await trimOld(ctx, fileId, l.version - 1);
       ctx.db.run("DELETE FROM previews_queue WHERE file_id = ? AND version = ?", fileId, l.version);
       const kinds: string[] = [];
       if (r.made.some((m) => m.kind === "thumb")) kinds.push("thumbnail");
@@ -1138,8 +1124,8 @@ async function makePage(ctx: Ctx, fileId: string, versionId: string | undefined,
       else if (c.kind === "office") pdf = await officeToPdf(d, l.bytes, l.name);
       else return undefined;
       const img = await pdftoppmPage(d, pdf, page, SIZE_WIDTH[size]);
-      putImage(ctx, fileId, version, { kind: "page", size, page, ...img });
-      if (page === 1) putImage(ctx, fileId, version, { kind: "thumb", size, page: 0, ...img });
+      await putImage(ctx, fileId, version, { kind: "page", size, page, ...img });
+      if (page === 1) await putImage(ctx, fileId, version, { kind: "thumb", size, page: 0, ...img });
     } catch (e) {
       if (e instanceof PreviewFail) return undefined;
       throw e;
@@ -1157,7 +1143,7 @@ async function makeThumb(ctx: Ctx, fileId: string, versionId: string | undefined
     if (classify(l.name, l.mime).kind !== "image") return undefined;
     try {
       const t = await thumbnailOf(d, l.bytes, SIZE_WIDTH[size]);
-      putImage(ctx, fileId, version, { kind: "thumb", size, page: 0, ...t });
+      await putImage(ctx, fileId, version, { kind: "thumb", size, page: 0, ...t });
     } catch (e) {
       if (e instanceof PreviewFail) return undefined;
       throw e;
@@ -1168,7 +1154,7 @@ async function makeThumb(ctx: Ctx, fileId: string, versionId: string | undefined
 
 // ---- capabilities -------------------------------------------------------------------------------------------
 
-const imageOut = (r: Row): Row => ({ url: str(r["data"]), width: num(r["width"]), height: num(r["height"]) });
+const imageOut = (ctx: Ctx, r: Row): Row => ({ url: blobRef(ctx, r), width: num(r["width"]), height: num(r["height"]) });
 
 function whyNot(row: Row | undefined, outcome: Outcome): string {
   if (outcome.state === "failed") return outcome.reason ?? "unsupported";
@@ -1200,7 +1186,7 @@ async function get(ctx: Ctx, input: unknown): Promise<Row> {
   if (!img) {
     return { ready: false, reason: whyNot(row, outcome), ...pages };
   }
-  return { ready: true, ...imageOut(img), ...pages };
+  return { ready: true, ...imageOut(ctx, img), ...pages };
 }
 
 async function thumbnails(ctx: Ctx, input: unknown): Promise<{ items: Row[] }> {
@@ -1235,7 +1221,7 @@ async function pagesOf(ctx: Ctx, input: unknown): Promise<Row> {
   for (let n = from; n < from + count && n <= total; n++) {
     const img = findImage(ctx, fileId, outcome.version, "page", size, n) ?? (await makePage(ctx, fileId, versionId, outcome.version, n, size));
     if (!img) break;
-    pages.push({ n, ...imageOut(img) });
+    pages.push({ n, ...imageOut(ctx, img) });
   }
   return { total, pages };
 }
