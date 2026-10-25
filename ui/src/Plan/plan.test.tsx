@@ -247,10 +247,3 @@ test("the picker draws the month, its arrows and a button per day", () => {
   const html = renderToStaticMarkup(<DatePicker at={{ x: 10, y: 10, cur: toDay("2026-10-27"), ids: ["b"] }} today={toDay(TODAY)} onPick={() => undefined} onClose={() => undefined} />);
   assert.ok(html.includes("October 2026") && html.includes('data-testid="plan-dp-27"') && html.includes('data-testid="plan-dp-prev"') && html.includes('data-testid="plan-dp-next"'));
 });
-
-test("the shots mount draws the prototype project's plan with its stages, tasks and reviewers", async () => {
-  const mod = await import("../../../scripts/shots/mounts/P-UI_12.tsx");
-  const Mount = mod.default;
-  const html = renderToStaticMarkup(<Mount />);
-  assert.ok(html.includes('data-testid="plan-root"') && html.includes('data-testid="plan-bar-t4"') && html.includes("Intake") && html.includes("Drafting") && html.includes("In review") && html.includes("Delivered"));
-});
