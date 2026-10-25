@@ -1,0 +1,32 @@
+{
+  "targets": [
+    {
+      "id": "P-UI_12-plan-timeline",
+      "route": "/m/P-UI_12?view=timeline",
+      "proto": "home,plan,{skin}",
+      "waitFor": "[data-testid='plan-root']",
+      "note": "The shared Plan in its timeline view over the Northwind tasks. The prototype side is its Home with My work in Plan mode (the timeline); its other views live in the project and Journey Plan tabs, which have no hash token yet, so the board, list and calendar targets are compared against the same screen for look and skin only."
+    },
+    {
+      "id": "P-UI_12-plan-board",
+      "route": "/m/P-UI_12?view=board",
+      "proto": "home,plan,{skin}",
+      "waitFor": "[data-testid='plan-root']",
+      "note": "The shared Plan in its board view over the Northwind tasks. The prototype side is its Home with My work in Plan mode (the timeline); its other views live in the project and Journey Plan tabs, which have no hash token yet, so the board, list and calendar targets are compared against the same screen for look and skin only."
+    },
+    {
+      "id": "P-UI_12-plan-list",
+      "route": "/m/P-UI_12?view=list",
+      "proto": "home,plan,{skin}",
+      "waitFor": "[data-testid='plan-root']",
+      "note": "The shared Plan in its list view over the Northwind tasks. The prototype side is its Home with My work in Plan mode (the timeline); its other views live in the project and Journey Plan tabs, which have no hash token yet, so the board, list and calendar targets are compared against the same screen for look and skin only."
+    },
+    {
+      "id": "P-UI_12-plan-calendar",
+      "route": "/m/P-UI_12?view=calendar",
+      "proto": "home,plan,{skin}",
+      "waitFor": "[data-testid='plan-root']",
+      "note": "The shared Plan in its calendar view over the Northwind tasks. The prototype side is its Home with My work in Plan mode (the timeline); its other views live in the project and Journey Plan tabs, which have no hash token yet, so the board, list and calendar targets are compared against the same screen for look and skin only."
+    }
+  ]
+}
