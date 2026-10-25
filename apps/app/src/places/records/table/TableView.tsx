@@ -386,12 +386,12 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
     <View style={styles.main} testID="records-table" accessibilityLabel={`${def.plural} table`}>
       <View style={styles.head} testID="records-head">
         <View style={styles.crumb}>
-          <Glyph name={typeIcon(def.icon)} size={18} color="var(--ink-2)" />
+          {slim ? null : <Glyph name={typeIcon(def.icon)} size={18} color="var(--ink-2)" />}
           <Text accessibilityRole="header" aria-level={1} style={styles.h1} numberOfLines={1}>{def.plural}</Text>
-          <Text style={styles.slash}>/</Text>
+          {slim ? null : <Text style={styles.slash}>/</Text>}
           <Pressable accessibilityRole="button" accessibilityLabel="Saved views" testID="records-views" onPress={(e) => { const p = pointOf(e); menu.show(viewEntries(), p.x, p.y); }}
             style={({ hovered }: { hovered?: boolean }) => [styles.pick, hovered === true && styles.pickOver]}>
-            <Text style={styles.pickText}>{saved ? saved.title : `All ${def.plural.toLowerCase()}`}</Text>
+            <Text style={styles.pickText} numberOfLines={1}>{saved ? saved.title : `All ${def.plural.toLowerCase()}`}</Text>
             {edited ? <Text style={styles.dirty}>{"·"}</Text> : null}
             <Glyph name="chevd" size={9} />
           </Pressable>
@@ -508,12 +508,12 @@ function Open({ type, view, headerExtra }: TableViewProps): ReactElement {
 const styles = StyleSheet.create({
   main: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 2, paddingLeft: 18, paddingRight: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, zIndex: 10 },
-  crumb: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0, flexShrink: 1 },
-  h1: { margin: 0, fontSize: 14, fontWeight: "600", letterSpacing: -0.07, color: "var(--ink)" as string },
+  crumb: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0, flexShrink: 1, overflow: "hidden" },
+  h1: { margin: 0, flexShrink: 1, minWidth: 0, fontSize: 14, fontWeight: "600", letterSpacing: -0.07, color: "var(--ink)" as string },
   slash: { fontSize: 14, color: "var(--ink-4)" as string },
-  pick: { height: 26, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 7, borderRadius: 6 },
+  pick: { height: 26, flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 7, borderRadius: 6 },
   pickOver: { backgroundColor: "var(--hover)" as string },
-  pickText: { fontSize: 13, color: "var(--ink-2)" as string },
+  pickText: { flexShrink: 1, fontSize: 13, color: "var(--ink-2)" as string },
   dirty: { fontSize: 16, lineHeight: 16, color: "var(--accent)" as string },
   modline: { flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 6 },
   modText: { fontSize: 12.5, color: "var(--ink-3)" as string },
