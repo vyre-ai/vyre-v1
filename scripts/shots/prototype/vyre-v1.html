@@ -49980,8 +49980,6 @@ kbd { font: 500 11px/16px var(--ui); color: var(--ink-3); padding: 0 4px; border
     if (FIRST) { const q = (window.name + "," + location.hash).toLowerCase(); if (q.includes("fr-1") || q.includes("fr-2") || q.includes("fr-3") || q.includes("fr-done")) FR.ai = true; if (q.includes("fr-2")) { FR.photo = true; FR.title = "Associate attorney"; FR.mail = FR.cal = true; } if (q.includes("fr-3")) { FR.photo = FR.mail = FR.cal = FR.assistant = true; FR.title = "Associate attorney"; } if (q.includes("fr-done")) { FR.photo = FR.mail = FR.cal = FR.assistant = FR.project = true; FR.title = "Associate attorney"; } }
     if (h === "runs") ui.view = "runs";
     if (h === "mywork" || h === "mywork-plan") { ui.view = "mywork"; if (h === "mywork-plan") ui.mwMode = "plan"; }
-    if (/(^|[,#|:])plan([,#|]|$)/.test(window.name + "," + (location.hash || ""))) ui.mwMode = "plan";
-    setTimeout(() => { if (/(^|[,#|:])plan([,#|]|$)/.test(window.name + "," + (location.hash || "")) && ui.mwMode !== "plan") { ui.mwMode = "plan"; renderAll(); } }, 200);
     renderAll();
     if (h === "away") { const el = document.getElementById("s-away"); el &amp;&amp; el.scrollIntoView({ block: "start" }); }
     if (h === "newtask") setTimeout(() =&gt; ACT.newtask &amp;&amp; ACT.newtask(), 60);
@@ -56902,6 +56900,7 @@ textarea.inp { height: auto; min-height: 150px; padding: 11px 12px; line-height:
     const has = (t) =&gt; toks.includes(t);
     if (has("light") || has("dark")) document.documentElement.dataset.theme = has("dark") ? "dark" : "light";
     { const f0 = autos()[0]; ui.tabs = f0 ? ["a:" + f0.id] : []; ui.active = f0 ? "a:" + f0.id : null; }
+    if (has("jfields") || has("jsettings")) { ui.sTab = "jour"; ui.tabs = ["j:onb"]; ui.active = "j:onb"; ui.jsub["j:onb"] = has("jfields") ? "fields" : "settings"; }
     if (has("journeys") || has("journey") || has("stage")) { ui.sTab = "jour"; ui.tabs = ["j:onb"]; ui.active = "j:onb"; if (has("stage")) { ui.jsel.onb = { g: "g2" }; ui.pane = true; } }
     if (has("automation")) ui.selStep.lead = findLeadAgentStep();
     if (has("paths")) ui.selStep.lead = AUTOS[0].steps[2].id;
