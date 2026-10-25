@@ -27,7 +27,12 @@ function seededDir(): string {
     id: `evt_l3live_${i}`, type: "role.defined", sv: 1, trace_id: "0".repeat(32), actor: "svc_seed", vis: "space" as const, entity: "role", entity_id: role,
     payload: { id: role, clearance: role === "owner" ? 3 : 1, name: role, perms: [...new Set([...ROLE_PERMS[role], ...PERMISSIONS.filter((p) => p.defaults[role]).map((p) => p.key)])] },
   }));
-  for (const r of core.store.appendBatch(events)) assert.ok(r.ok, "a role is brought up to the catalogue");
+  // The seed holds no role grants on the Space (people reach things by owning them or by a share), so the two people the test uses get the grant their role carries: owner manage, member edit.
+  const grants = [["usr_olivia", "manage"], ["usr_noah", "edit"]].map(([who, level], i) => ({
+    id: `evt_l3live_g${i}`, type: "grant.created", sv: 1, trace_id: "0".repeat(32), actor: "svc_seed", vis: "space" as const, entity: "grant", entity_id: `gr_l3live_${i}`,
+    payload: { id: `gr_l3live_${i}`, subject_kind: "actor", subject_id: who, resource_type: "space", resource_id: "spc_core", level, by: "usr_olivia" },
+  }));
+  for (const r of core.store.appendBatch([...events, ...grants])) assert.ok(r.ok, "a role is brought up to the catalogue");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-l3-live-"));
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
   fs.copyFileSync(core.file, path.join(dir, "events.db"));
