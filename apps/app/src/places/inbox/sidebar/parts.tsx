@@ -2,6 +2,7 @@
 import { createElement } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 
 /** 16 px viewBox stroke icons, from the prototype's Inbox. */
 export const ICON = {
@@ -39,32 +40,11 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)" }: { name: IconN
   );
 }
 
-export function hash(s: string): number {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
-  return h;
-}
-
-export function initialsOf(name: string, size: number): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (size >= 24) {
-    let out = "";
-    for (const w of words.slice(0, 2)) out += (w[0] ?? "").toUpperCase();
-    return out || "?";
-  }
-  return (words[0]?.[0] ?? "?").toUpperCase();
-}
-
-/** A person is a circle; the colour comes from the name, mixed into the surface so it reads in every skin. */
+/** A person is a round marble seeded by the name (a square-cornered pixel face when `round` is off): the shared Avatar. */
 export function Face({ name, size = 36, round = true }: { name: string; size?: number; round?: boolean }): ReactElement {
-  const hue = (hash(name) % 12) * 30;
   return (
-    <View
-      aria-hidden
-      testID={`face-${name}`}
-      style={{ width: size, height: size, borderRadius: round ? size : Math.round(size * 0.3), backgroundColor: `hsla(${hue}, 65%, 52%, 0.22)` as string, alignItems: "center", justifyContent: "center" }}
-    >
-      <Text style={{ color: `hsl(${hue}, 55%, 46%)` as string, fontSize: Math.max(9, Math.round(size * 0.4)), fontWeight: "600", letterSpacing: -0.1 }}>{initialsOf(name, size)}</Text>
+    <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0 }}>
+      <Avatar name={name} kind={round ? "person" : "agent"} size={size} />
     </View>
   );
 }
