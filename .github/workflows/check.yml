@@ -206,9 +206,9 @@ jobs:
         run: |
           set -o pipefail
           sh scripts/install/tests/install.real.heavy.test.sh 2>&1 | tee installer-real.out
-          grep -q '^# pass 7 fail 0$' installer-real.out
+          grep -q '^# pass 8 fail 0$' installer-real.out
           ! grep -qi 'skipped' installer-real.out
-          [ "$(grep -c '^ok ' installer-real.out)" = 7 ]
+          [ "$(grep -c '^ok ' installer-real.out)" = 8 ]
       - name: Nothing left behind
         if: always() && steps.scope.outputs.changed == 'true'
         run: |

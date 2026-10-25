@@ -84,6 +84,21 @@ check() {
   else FAIL=$((FAIL + 1)); echo "not ok $N - $name"; sed 's/^/#   /' "$W/out" | tail -n 60; fi
 }
 
+t_installer_names_a_space() {
+  # The compose unit hands the daemon VYRE_SPACE from compose.env; the daemon refuses to boot a data directory that has no Space ("pass --space <id> to create one").
+  # So the installer itself must write a Space id (or the daemon must create one). Run the plain install and read the daemon's own words if it does not come up.
+  env -u VYRE_SPACE PATH="$SHIM_PATH" VYRE_TEST_MODE=1 VYRE_TEST_NONROOT=1 VYRE_DIR="$W/srv" VYRE_BIN_DIR="$W/bin" VYRE_SYSTEMD_DIR="$W/units" \
+    VYRE_UPDATE_URL="file://$W/chan/" VYRE_RELEASE_KEY_PEM="$W/release.pub" VYRE_TEST_PROC_MOUNTS="$W/mounts-crypt" VYRE_TEST_LSBLK="$W/shim/lsblk-crypt" \
+    VYRE_MIN_FREE_MB=100 VYRE_UP_WAIT=90 VYRE_TEST_HEALTH_URL="http://127.0.0.1:$PORT/healthz" COMPOSE_PROJECT_NAME=$PROJECT sh "$INSTALL_DIR/install.sh" --yes >"$W/inst0.out" 2>&1 || {
+      for c in $(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT"); do echo "--- logs of $c"; docker logs "$c" 2>&1 | tail -n 5; done
+      return 1
+    }
+}
+reset_stack() {
+  if [ -d "$W/srv/current" ]; then COMPOSE_PROJECT_NAME=$PROJECT "$W/shim/docker" compose --project-directory "$W/srv/current" --env-file "$W/srv/compose.env" -f "$W/srv/current/compose.server.yml" -f "$W/srv/compose.override.yml" down -v --remove-orphans >/dev/null 2>&1 || true; fi
+  sudo -n chown -R "$(id -u):$(id -g)" "$W/srv" 2>/dev/null || true
+  rm -rf "$W/srv" "$W/bin/vyre-server" "$W/units"/* 2>/dev/null || true
+}
 t_install_first_boot() {
   install_enc --yes >"$W/inst.out" 2>&1 || { cat "$W/inst.out"; docker ps -a; for c in $(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT"); do echo "--- logs of $c"; docker logs "$c" 2>&1 | tail -n 40; done; return 1; }
   grep -q "vyre-server doctor is green" "$W/inst.out"
@@ -136,6 +151,10 @@ t_purge_leaves_nothing() {
   ! curl -fsS "http://127.0.0.1:$PORT/healthz" >/dev/null 2>&1
 }
 
+check "the installer gives the daemon a Space id, so a plain install boots" t_installer_names_a_space
+reset_stack
+# Until the installer supplies one, the rest of the real path is proved with a Space id handed in the way an operator would.
+export VYRE_SPACE=${VYRE_REAL_SPACE:-spc_realtest}
 check "install pulls the real image and the real daemon boots for the first time, ending with doctor green" t_install_first_boot
 check "doctor is green: daemon, Caddy, /healthz" t_doctor_green
 check "the real vyred answers /healthz and server and caddy are up" t_real_daemon_answers
