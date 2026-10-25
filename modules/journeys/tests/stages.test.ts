@@ -381,3 +381,42 @@ test("a stage without a limit never breaches, and a record that moved on starts 
   h.advance(100 * HOUR);
   assert.equal((await h.call("journeys.check_limits", {}, alice)).breached, 0, "review has no limit");
 });
+
+// ---- on leaving, and task state (P-CC_26) ----
+
+test("a stage's on-leaving Automations run when a record leaves it, in the order: leave, then enter", async () => {
+  const h = harness();
+  const j = await mk(h, { stages: threeStages({ intake: { onLeaving: ["aut_bye1"] }, review: { automations: ["aut_review1"] } }) });
+  const recordId = await begin(h, j);
+  h.reset();
+  await h.call("journeys.move_stage", { journeyId: j.id, recordId, toStage: "review", reason: "Skip the call" }, alice);
+  const fired = h.only("automations.fire");
+  assert.deepEqual(fired.map((f) => [f.input.automationId, f.input.trigger]), [["aut_bye1", "journey_stage_left"], ["aut_review1", "journey_stage_entered"]]);
+  assert.deepEqual(fired[0]!.input.payload, { journeyId: j.id, recordId, stage: "intake", toStage: "review" });
+  // a stage with no on-leaving list, and an Automation that cannot start, never stop the move
+  h.callee("automations.fire", () => { throw new Error("down"); });
+  await h.call("journeys.move_stage", { journeyId: j.id, recordId, toStage: "done", reason: "Finish" }, alice);
+  assert.equal((await h.call("journeys.get", { journeyId: j.id }, alice)).journey.stages[0].onLeaving[0], "aut_bye1");
+});
+
+test("journeys.tasks lists a record's tasks with todo, in review, blocked and done states, and leaves out withdrawn ones", async () => {
+  const h = harness();
+  const j = await mk(h);
+  const recordId = await begin(h, j);
+  const [a, b] = h.tasks;
+  a!.state = "done";
+  const blocked = new Set<string>();
+  h.callee("tasks.get", (i) => {
+    const t = h.tasks.find((x) => x.id === i.taskId);
+    return { task: { id: i.taskId, title: t!.input.title, state: t!.state, blocked: blocked.has(String(i.taskId)), assigned: t!.input.assigned } };
+  });
+  const state = async (stage?: string) => (await h.call("journeys.tasks", { recordId, ...(stage ? { stage } : {}) }, alice)).tasks.map((x: { taskKey: string; state: string }) => [x.taskKey, x.state]);
+  assert.deepEqual(await state(), [["collect_documents", "done"], ["welcome_call", "todo"]]);
+  b!.state = "awaiting_approval";
+  assert.deepEqual(await state("intake"), [["collect_documents", "done"], ["welcome_call", "in_review"]]);
+  b!.state = "doing"; blocked.add(b!.id);
+  assert.deepEqual((await state()).at(-1), ["welcome_call", "blocked"]);
+  b!.state = "canceled";
+  assert.deepEqual(await state(), [["collect_documents", "done"]]);
+  await refused(h.call("journeys.tasks", { recordId: "rec_nothere" }, alice), "validation.not_found", "not_in_journey");
+});
