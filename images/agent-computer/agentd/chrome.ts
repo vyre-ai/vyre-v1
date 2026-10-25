@@ -1,6 +1,6 @@
 // The browser of the agent computer: Chromium on the Xvfb display with its profile on the profile disk, driven over the DevTools Protocol (cdp.ts). The tools here are the Chrome tools of
 // modules/computers (handlers/tools/chrome.ts) that agentd answers itself: open, tabs, state, status, snapshot with refs, click, type, fill, act, wait, screenshot, eval, plan, stop, resume, send.
-// What it does not answer yet (console, net, inspect, api, sources) is refused as unavailable, and a #Handle.field is refused until a Vault filler is attached to the computer.
+// What it does not answer yet (none now) and a #Handle.field is filled by main.ts from the Vault values folder (vault.ts).
 //
 // Outward acts are held, not done: a click on something that sends, posts, pays or deletes answers with a heldId, and only chrome_send (behind the Gate) does it.
 import { spawn } from "node:child_process";
@@ -9,7 +9,7 @@ import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { connectCdp } from "./cdp.ts";
 import type { Cdp } from "./cdp.ts";
-import { AgentError, badInput, notFound, paused, refuseHandles, sleep, unavailable } from "./errors.ts";
+import { AgentError, badInput, notFound, paused, sleep, unavailable } from "./errors.ts";
 import type { Screen } from "./x11.ts";
 
 const PORT = 9222;
@@ -75,6 +75,34 @@ export function launchChrome(screen: Screen, profileDir: string, extensionDir: s
     return up;
   };
 
+  // What a tab logged, from the first time a tool touched it: console messages and network requests. Kept small; the oldest go first.
+  interface Log { console: Array<{ level: string; text: string; at: number }>; net: Array<{ id: string; url: string; method: string; status?: number; type?: string; at: number }>; conn: Cdp }
+  const logs = new Map<string, Log>();
+  const watch = async (t: Target): Promise<Log> => {
+    const have = logs.get(t.id);
+    if (have) return have;
+    const conn = await connect(t);
+    const log: Log = { console: [], net: [], conn };
+    logs.set(t.id, log);
+    conn.on("Runtime.consoleAPICalled", (p) => {
+      const args = (p["args"] as Array<{ value?: unknown; description?: string }> | undefined) ?? [];
+      log.console.push({ level: String(p["type"]), text: args.map((a) => (a.value !== undefined ? String(a.value) : a.description ?? "")).join(" ").slice(0, 2000), at: Date.now() });
+      if (log.console.length > 500) log.console.shift();
+    });
+    conn.on("Network.requestWillBeSent", (p) => {
+      const r = p["request"] as { url: string; method: string };
+      log.net.push({ id: String(p["requestId"]), url: r.url.slice(0, 2000), method: r.method, type: String(p["type"] ?? ""), at: Date.now() });
+      if (log.net.length > 500) log.net.shift();
+    });
+    conn.on("Network.responseReceived", (p) => {
+      const e = log.net.find((x) => x.id === p["requestId"]);
+      if (e) e.status = (p["response"] as { status: number }).status;
+    });
+    await conn.send("Runtime.enable");
+    await conn.send("Network.enable");
+    return log;
+  };
+
   const targets = async (): Promise<Target[]> => (await getJson<Target[]>("/json/list")).filter((t) => t.type === "page");
   const pick = async (tabId: unknown): Promise<Target> => {
     const all = await targets();
@@ -89,6 +117,7 @@ export function launchChrome(screen: Screen, profileDir: string, extensionDir: s
   };
   const withTab = async <T>(tabId: unknown, f: (c: Cdp, t: Target) => Promise<T>): Promise<T> => {
     const t = await pick(tabId);
+    await watch(t).catch(() => undefined);
     const c = await connect(t);
     try { return await f(c, t); } finally { c.close(); }
   };
@@ -182,9 +211,7 @@ export function launchChrome(screen: Screen, profileDir: string, extensionDir: s
   const pngSize = (b: Buffer): { width: number; height: number } => ({ width: b.readUInt32BE(16), height: b.readUInt32BE(20) });
 
   async function tool(name: string, args: Record<string, unknown>, state: ChromeState): Promise<Record<string, unknown>> {
-    const NOT_DONE = new Set(["chrome_console", "chrome_net", "chrome_inspect", "chrome_api", "chrome_sources"]);
-    if (NOT_DONE.has(name)) throw unavailable(`${name} is not part of this computer's browser yet.`);
-    if (name === "chrome_status") return { connected: proc !== null && proc.exitCode === null, paused: state.stopped, held: [...held.keys()] };
+        if (name === "chrome_status") return { connected: proc !== null && proc.exitCode === null, paused: state.stopped, held: [...held.keys()] };
     if (name === "chrome_stop") { state.stopped = true; return { stopped: true }; }
     if (name === "chrome_resume") { const was = state.stopped; state.stopped = false; return { resumed: was }; }
     if (state.stopped) throw paused("The browser is stopped. Resume it first.");
@@ -273,7 +300,6 @@ export function launchChrome(screen: Screen, profileDir: string, extensionDir: s
           return { ok: true };
         });
       case "chrome_type": {
-        refuseHandles(args);
         return withTab(tabId, async (c) => {
           if (typeof args["ref"] === "string") { const l = await locate(c, args["ref"]); await mouse(c, l.x, l.y); }
           await c.send("Input.insertText", { text: s("text") ?? "" });
@@ -287,7 +313,6 @@ export function launchChrome(screen: Screen, profileDir: string, extensionDir: s
         });
       }
       case "chrome_fill": {
-        refuseHandles(args);
         const fields = Array.isArray(args["fields"]) ? (args["fields"] as Array<{ ref: string; value: string }>) : [];
         return withTab(tabId, async (c) => {
           let n = 0;
@@ -302,7 +327,6 @@ export function launchChrome(screen: Screen, profileDir: string, extensionDir: s
         });
       }
       case "chrome_act": {
-        refuseHandles(args);
         const action = s("action") ?? "";
         return withTab(tabId, async (c) => {
           const ref = s("ref");
@@ -321,6 +345,62 @@ export function launchChrome(screen: Screen, profileDir: string, extensionDir: s
           return { ok: true };
         });
       }
+      case "chrome_console": {
+        const t = await pick(tabId);
+        const log = await watch(t);
+        const level = s("level");
+        const limit = typeof args["limit"] === "number" ? Math.max(1, Math.min(args["limit"], 500)) : 100;
+        return { messages: log.console.filter((m) => !level || m.level === level).slice(-limit) };
+      }
+      case "chrome_net": {
+        const t = await pick(tabId);
+        const log = await watch(t);
+        const filter = s("filter");
+        const limit = typeof args["limit"] === "number" ? Math.max(1, Math.min(args["limit"], 500)) : 100;
+        const rows = log.net.filter((r) => !filter || r.url.includes(filter)).slice(-limit);
+        const requests = [];
+        for (const r of rows) {
+          const row: Record<string, unknown> = { url: r.url, method: r.method, ...(r.status !== undefined ? { status: r.status } : {}), type: r.type, at: r.at };
+          if (args["bodies"] === true && r.status !== undefined) {
+            try { const b = await log.conn.send<{ body: string; base64Encoded: boolean }>("Network.getResponseBody", { requestId: r.id }, 5000); if (!b.base64Encoded) row["body"] = b.body.slice(0, 20_000); } catch { /* gone from the browser's cache */ }
+          }
+          requests.push(row);
+        }
+        return { requests };
+      }
+      case "chrome_inspect":
+        return withTab(tabId, async (c) => {
+          const r = await evalIn<Record<string, unknown> | null>(c, `(() => {
+            const el = document.querySelector('[data-vyre-ref=${JSON.stringify(s("ref") ?? "")}]');
+            if (!el) return null;
+            const b = el.getBoundingClientRect(); const cs = getComputedStyle(el);
+            const attrs = {}; for (const a of el.attributes) if (a.name !== "data-vyre-ref" && a.name !== "value" || el.type !== "password") attrs[a.name] = el.type === "password" && a.name === "value" ? "" : a.value.slice(0, 300);
+            return { tag: el.tagName.toLowerCase(), id: el.id, classes: [...el.classList], text: (el.innerText || "").slice(0, 500), attributes: attrs, rect: { x: b.left, y: b.top, width: b.width, height: b.height },
+              visible: b.width > 0 && b.height > 0 && cs.visibility !== "hidden" && cs.display !== "none", styles: { color: cs.color, background: cs.backgroundColor, display: cs.display, position: cs.position, fontSize: cs.fontSize } };
+          })()`);
+          if (!r) throw notFound(`There is no element ${s("ref") ?? ""} on this page. Take a new snapshot.`);
+          return { element: r };
+        });
+      case "chrome_sources": {
+        const t = await pick(tabId);
+        const log = await watch(t);
+        const scripts = await withTab(tabId, (c) => evalIn<string[]>(c, "[...document.scripts].map((x) => x.src).filter(Boolean)"));
+        const endpoints = [...new Set(log.net.filter((r) => r.type === "XHR" || r.type === "Fetch").map((r) => `${r.method} ${r.url.split("?")[0]}`))].slice(0, 200);
+        return { scripts, endpoints };
+      }
+      case "chrome_api":
+        return withTab(tabId, async (c) => {
+          const r = await evalIn<{ status: number; headers: Record<string, string>; body: unknown }>(c, `(async () => {
+            const init = { method: ${JSON.stringify(s("method") ?? "GET")}, credentials: "include", headers: ${JSON.stringify(args["headers"] ?? {})} };
+            const body = ${JSON.stringify(args["body"] ?? null)};
+            if (body !== null) { init.body = typeof body === "string" ? body : JSON.stringify(body); if (typeof body !== "string" && !Object.keys(init.headers).some((k) => k.toLowerCase() === "content-type")) init.headers["content-type"] = "application/json"; }
+            const res = await fetch(${JSON.stringify(s("url") ?? "")}, init);
+            const text = await res.text(); let parsed = text; try { parsed = JSON.parse(text); } catch {}
+            const headers = {}; res.headers.forEach((v, k) => { headers[k] = v; });
+            return { status: res.status, headers, body: typeof parsed === "string" ? parsed.slice(0, 200000) : parsed };
+          })()`);
+          return { status: r.status, headers: r.headers, body: r.body };
+        });
       case "chrome_send": {
         const id = s("heldId") ?? "";
         const h = held.get(id);

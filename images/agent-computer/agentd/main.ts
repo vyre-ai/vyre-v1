@@ -8,8 +8,8 @@
 //   sessions      { sessions: [{ site, since, lastSeen }] }                 sign_out    { site } -> { ok }
 //   tool          { tool, args, timeoutMs } -> the tool's answer
 //
-// Not done in this build, said so rather than faked: WebRTC for the live view (the host brings it), the Chrome tools console, net, inspect, api and sources, and filling a #Handle.field (a Vault
-// filler is not attached to the computer yet). Vyre for Chrome is loaded from /opt/vyre-chrome when the release build put it there.
+// Not done in this build, said so rather than faked: WebRTC for the live view (only if MJPEG misses S9). #Handle.field is filled from the Vault values folder (vault.ts); with no folder or no value it is
+// refused and nothing is typed. Vyre for Chrome is loaded from /opt/vyre-chrome when the image was built with the `ext` context.
 import { spawn } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { createServer as createNetServer } from "node:net";
@@ -19,6 +19,7 @@ import { AgentError, badInput, notFound, paused, unavailable, within } from "./e
 import { launchChrome } from "./chrome.ts";
 import type { ChromeState } from "./chrome.ts";
 import { fileTools } from "./files.ts";
+import { fillArgs, scrubUsed } from "./vault.ts";
 import { createFrameHub } from "./frames.ts";
 import { createRecorder } from "./record.ts";
 import { screenTools } from "./screen.ts";
@@ -109,13 +110,17 @@ async function runTool(args: Args): Promise<Args> {
   if (!isChrome && !isScreen && !isFiles) throw badInput(`${name} is not a tool of this computer.`);
   // A person at the controls: the agent's tools wait, except the two that only look.
   if (state.takeover && name !== "chrome_status" && name !== "chrome_stop") throw paused("A person has the controls. The tools wait until they give them back.");
+  // Only the tools that type or fill take #Handle.field: a CSS selector such as #main.content in a script is not one.
+  const typing = name === "screen_type" || name === "chrome_type" || name === "chrome_fill" || name === "chrome_act";
+  const filled = typing ? fillArgs(a) : { args: a, used: [] };
   state.busy += 1;
   try {
-    const out = await within(ms, name, async () => {
-      if (isChrome) return chrome.tool(name, a, state);
-      if (isScreen) return screenApi.run(name, a);
-      return filesApi.run(name, a);
+    const raw = await within(ms, name, async () => {
+      if (isChrome) return chrome.tool(name, filled.args, state);
+      if (isScreen) return screenApi.run(name, filled.args);
+      return filesApi.run(name, filled.args);
     });
+    const out = filled.used.length > 0 ? { ...scrubUsed(raw, filled.used), used: filled.used } : raw;
     state.caption = name.replace(/_/g, " ");
     recorder.note({ by: "agent", type: "tool", tool: name });
     // The picture after the step is the timeline's frame. A look at the screen is its own picture.

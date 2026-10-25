@@ -148,7 +148,9 @@ test("@heavy agent computer: the container is inside its profile and agentd answ
   assert.equal(who.stdout.trim(), "10001");
   const refused = await ctl("no_such_action");
   assert.equal(refused.refused?.code, "bad_input", "an unknown action is refused with a code");
-  assert.equal((await tool("chrome_net")).refused?.code, "unavailable", "what this build does not do is said so");
+  assert.deepEqual(Object.keys(await tool("chrome_net", { limit: 5 })), ["requests"], "the debug tools answer");
+  assert.deepEqual(Object.keys(await tool("chrome_console")), ["messages"]);
+  assert.deepEqual(Object.keys(await tool("chrome_sources")).sort(), ["endpoints", "scripts"]);
   assert.equal((await tool("shell_run", { command: "id" })).refused?.code, "bad_input", "there is no way to run a shell command through the tools");
 });
 
@@ -308,6 +310,18 @@ test("@heavy agent computer: a Vault handle is refused while no filler is attach
   assert.match(typed.refused?.message ?? "", /Vault/);
 
   const opened = await tool("chrome_open", { url: "about:blank" });
+  // Vault fill: the values are in a tmpfs folder the host fills for a turn. A page field takes the value, the answer never carries it, and a handle with no value types nothing.
+  await exec(["sh", "-c", "mkdir -p /tmp/vault && printf 's3cret-pw-0042' > /tmp/vault/Dana_Portal.password && printf 'vit_hv1' > /tmp/vault/Dana_Portal.password.item"]);
+  await tool("chrome_eval", { tabId: opened["tabId"], expression: `document.body.innerHTML = '<input id="pw" type="password" aria-label="Password">'; "ok"` });
+  const form = String((await tool("chrome_snapshot", { tabId: opened["tabId"] }))["tree"]);
+  const pwRef = /\[ref=(e\d+)\]/.exec(form)?.[1] ?? "";
+  const filledOut = await tool("chrome_fill", { tabId: opened["tabId"], fields: [{ ref: pwRef, value: "#Dana_Portal.password" }] });
+  assert.equal(filledOut["filled"], 1);
+  assert.deepEqual(filledOut["used"], [{ handle: "#Dana_Portal.password", itemId: "vit_hv1", value: "s3cret-pw-0042" }], "agentd reports what it used so the host can scrub it");
+  assert.equal((await tool("chrome_eval", { tabId: opened["tabId"], expression: "document.getElementById('pw').value.length" }))["result"], 14);
+  assert.equal(JSON.stringify(await tool("chrome_snapshot", { tabId: opened["tabId"] })).includes("s3cret-pw-0042"), false, "the page tree never shows the value");
+  assert.equal((await tool("chrome_fill", { tabId: opened["tabId"], fields: [{ ref: pwRef, value: "#Dana_Portal.nothere" }] })).refused?.code, "not_found");
+  await exec(["rm", "-rf", "/tmp/vault"]);
   await tool("chrome_eval", { tabId: opened["tabId"], expression: `document.body.innerHTML = '<button id="b" onclick="document.title=\\'sent\\'">Send message</button><button id="c" onclick="document.title=\\'saved\\'">Save draft</button>'; "ok"` });
   const snap = await tool("chrome_snapshot", { tabId: opened["tabId"] });
   const tree = String(snap["tree"]);

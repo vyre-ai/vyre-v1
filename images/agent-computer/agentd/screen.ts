@@ -1,5 +1,5 @@
 // The Screen tools of an agent computer (modules/computers/handlers/tools/screen.ts): the whole desktop, not just the browser. A picture, click, move, drag, type, key, scroll, wait.
-import { badInput, refuseHandles, sleep } from "./errors.ts";
+import { badInput, sleep } from "./errors.ts";
 import { screenshotPng } from "./x11.ts";
 import type { Injector, Screen } from "./x11.ts";
 
@@ -65,7 +65,6 @@ export function screenTools(screen: Screen, input: Injector, onInput: (e: Record
           return { ok: true };
         }
         case "screen_type": {
-          refuseHandles(args);
           const text = args["text"];
           if (typeof text !== "string" || text === "") throw badInput("Give the text to type.");
           await input.call({ op: "type", text });

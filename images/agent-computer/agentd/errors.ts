@@ -20,9 +20,3 @@ export async function within<T>(ms: number, what: string, f: () => Promise<T>): 
   try { return await Promise.race([f(), late]); } finally { if (timer !== undefined) clearTimeout(timer); }
 }
 
-/** Handles are #Name.field. The Vault values behind them are not on this computer yet, so a tool that was given one says so instead of typing the handle itself. */
-export const HANDLE = /#[A-Za-z][A-Za-z0-9_]*\.[A-Za-z0-9_]+/;
-export function refuseHandles(v: unknown): void {
-  const text = JSON.stringify(v ?? null);
-  if (HANDLE.test(text)) throw unavailable("This computer has no Vault filler attached, so it cannot fill a #Handle.field. Nothing was typed.");
-}

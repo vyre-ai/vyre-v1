@@ -4,8 +4,11 @@
 #
 #   docker build -t vyre/agent-computer:1 images/agent-computer
 #
-# Vyre for Chrome (apps/chrome) is added by the release build, which has the whole repository as its context: it copies the built extension to /opt/vyre-chrome, and agentd loads it from there when
-# it exists. The extension is not part of this build context.
+# Vyre for Chrome (apps/chrome) is baked in at /opt/vyre-chrome through the `ext` build context (see below); agentd loads it from there when it has a manifest.json.
+# Vyre for Chrome, built from apps/chrome, comes in as a named build context: `docker build --build-context ext=<built extension folder> ...`. Without it the stage is empty and the
+# computer runs without the extension (agentd loads /opt/vyre-chrome only when it has a manifest.json).
+FROM scratch AS ext
+
 FROM node:24-bookworm-slim
 
 # chromium: the browser. xvfb: the screen. ffmpeg: frames for the live view and the recording. python3-xlib: the input injector (XTEST, with a round trip so an input is acknowledged once the server
@@ -26,6 +29,7 @@ RUN groupadd --gid 10001 agent \
  && chmod 0700 /home/agent
 
 COPY agentd/ /opt/agentd/
+COPY --from=ext / /opt/vyre-chrome/
 RUN chmod 0755 /opt/agentd/ctl && chmod 0644 /opt/agentd/*.ts /opt/agentd/*.py /opt/agentd/package.json
 
 ENV HOME=/home/agent \
