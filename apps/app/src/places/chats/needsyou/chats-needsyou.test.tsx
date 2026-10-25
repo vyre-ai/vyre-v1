@@ -181,9 +181,12 @@ test("every nav handler is reachable: the shell is told what to open, never how"
 
 /* ---------- the rules behind it ---------- */
 
-test("sorting: blocked, overdue, due today, ready; earlier due first; newer request first", () => {
+test("sorting keeps the queue's order as the prototype lists it (ruling 45) and puts withdrawn requests last", () => {
   const s = createSample();
   const mk = (id: string, reason: Item["reason"], o: Partial<Item["task"]> = {}): Item => ({ reason, task: { ...item(s, "n4").task, id, blocked: false, ...o } });
+  const given = [mk("ready-old", "ready", { updatedAt: 1 }), mk("gone", "ready", { state: "canceled" }), mk("late", "overdue", { due: 3 }), mk("blocked", "ready", { blocked: true, updatedAt: 99 }), mk("today", "due_today", { due: 5 })];
+  assert.deepEqual(sortItems(given).map((i) => i.task.id), ["ready-old", "late", "blocked", "today", "gone"]);
+});
   const sorted = sortItems([mk("ready-old", "ready", { updatedAt: 1 }), mk("ready-new", "ready", { updatedAt: 9 }), mk("today", "due_today", { due: 5 }), mk("late", "overdue", { due: 3 }), mk("blocker", "blocking", { updatedAt: 50 }), mk("blocked", "ready", { blocked: true, updatedAt: 99 })]);
   assert.deepEqual(sorted.map((i) => i.task.id), ["blocked", "blocker", "late", "today", "ready-new", "ready-old"]);
 });

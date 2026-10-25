@@ -68,17 +68,12 @@ export function filterCounts(items: readonly Item[]): Record<KindFilter, number>
 
 /* ---------- urgency ---------- */
 
-function rank(i: Item): number {
-  if (i.task.state === "canceled") return 4;
-  if (i.task.blocked || i.reason === "blocking") return 0;
-  if (i.reason === "overdue") return 1;
-  if (i.reason === "due_today") return 2;
-  return 3;
-}
-
-/** One list: blocked first, then overdue, then due today, then the rest; inside a rank the earlier due date, then the newer request. No groups. */
+/**
+ * One list, in the order the queue gives it (the prototype's list is the queue in the order requests arrived; ruling 45: the prototype wins). Urgency is carried by the
+ * row's own words (Blocked, Due today) rather than by moving rows. Withdrawn requests go last. No groups.
+ */
 export function sortItems(items: readonly Item[]): Item[] {
-  return items.slice().sort((a, b) => rank(a) - rank(b) || (a.task.due ?? Infinity) - (b.task.due ?? Infinity) || b.task.updatedAt - a.task.updatedAt);
+  return [...items.filter((i) => i.task.state !== "canceled"), ...items.filter((i) => i.task.state === "canceled")];
 }
 
 /** The id to select after `id` leaves the list: the next row, else the one before, else none. */
