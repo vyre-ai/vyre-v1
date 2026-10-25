@@ -83,6 +83,10 @@ export function extraEvents(): NewEvent[] {
   return out;
 }
 
+const CONTACT = {
+  op: "type.create", type: "contact",
+  def: { title: "Contact", plural: "Contacts", icon: "user", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "email", type: "text", title: "Email" }] },
+};
 const FIRST = ["Ann", "Ben", "Cara", "Dev", "Eli", "Fay", "Gus", "Hana", "Ivo", "Jun"];
 const LAST = ["Adams", "Brooks", "Chen", "Diaz", "Evans", "Fox", "Gray", "Hill", "Ito", "Jones"];
 /** Contact rows, deterministic: the same 500 every build. */
@@ -118,6 +122,10 @@ async function build(into: string): Promise<void> {
   const d = await startSeeded(into);
   const t2 = performance.now();
   try {
+    const seen = await call(d, "schema.types.list", {}).catch((e: Error) => e.message);
+    console.log(`small seed: schema.types.list before the contacts: ${JSON.stringify(seen).slice(0, 700)}`);
+    const made = await call(d, "schema.apply", { idempotencyKey: "small-type", ops: [CONTACT] }).catch((e: Error) => e.message);
+    console.log(`small seed: schema.apply contact: ${JSON.stringify(made).slice(0, 500)}`);
     const out = (await call(d, "records.bulk_upsert", { idempotencyKey: "small-contacts", type: "contact", rows: contactRows(), match: ["email"] })) as { created: number };
     if (out.created !== SMALL_TARGET.records) throw new Error(`records.bulk_upsert created ${out.created} of ${SMALL_TARGET.records}`);
     const t3 = performance.now();
