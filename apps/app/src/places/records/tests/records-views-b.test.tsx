@@ -14,6 +14,8 @@ import {
   dropRecord, isGroupField, isMeasureField, measureText, monthGrid, monthTitle, moveBar, moveError, msOf, plot, pointOf, projectIdOf, rangeOf, spanOf, startOfDay, tally, total, valueText, widths, xOf,
 } from "../views-b/index.tsx";
 import type { RecordRow } from "../views-b/index.tsx";
+import { doneOfTotal, isDoneRow } from "../views-b/model.ts";
+import { shortTime } from "../views-b/CalendarView.tsx";
 import { LOCATIONS_DEF, TASKS_DEF, TODAY, createBSample, harborRich, location, northRich, task } from "../views-b/sample.ts";
 import type { BSample } from "../views-b/sample.ts";
 
@@ -363,4 +365,22 @@ test("harbor studio draws its three projects on the calendar, timeline and chart
 
 test("before data arrives the views draw a frame, never a blank page", () => {
   assert.ok(has(renderToStaticMarkup(<RecordViews kind="timeline" extraKinds={EXTRA_KINDS} />), "records-table-loading"));
+});
+
+test("the prototype's looks: Today pill over the line, names held at the left, group counts as done of total, round row rings", () => {
+  const out = views("timeline", "tasks");
+  assert.ok(has(out, 'data-testid="today-pill"') && has(out, ">Today<"), "the Today pill");
+  assert.ok(has(out, 'data-testid="timeline-names"'), "the names column is held at the left");
+  assert.ok(has(out, "To do  0/") || has(out, "To do  0/2") || /(To do|Doing|Done)\s+\d+\/\d+/.test(out), "a group counts done of total");
+  assert.equal(doneOfTotal(0, 30), "0/30");
+  assert.equal(isDoneRow({ fields: { status: "done" } }, "status"), true);
+  assert.equal(isDoneRow({ fields: { status: "doing" } }, "status"), false);
+  assert.equal(isDoneRow({ fields: { done: true } }, undefined), true);
+});
+
+test("calendar chip times read 9:30a and 9a", () => {
+  assert.equal(shortTime("9:30 AM"), "9:30a");
+  assert.equal(shortTime("9:00 AM"), "9a");
+  assert.equal(shortTime("12:30 PM"), "12:30p");
+  assert.equal(shortTime("noon"), "noon");
 });

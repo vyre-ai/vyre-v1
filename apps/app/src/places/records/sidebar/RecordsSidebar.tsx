@@ -5,7 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useOptionalRecordsData, useRecordsData, useScreenQuery } from "./data.tsx";
-import { SCREENS, compact, effectiveType, sortedViews, typeGroups } from "./model.ts";
+import { SCREENS, effectiveType, sortedViews, typeGroups } from "./model.ts";
 import { Glyph, typeIcon } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
 import { useRecordsState } from "./state.tsx";
@@ -59,7 +59,7 @@ function Sidebar(): ReactElement {
       sections.push(
         <SideRow
           key={t.key} id={`type:${t.key}`} title={t.label} glyph={typeIcon(t.icon)} selected={open === t.key && state.viewId === null}
-          trailing={<>{t.synced ? <Glyph name="sync" size={12} /> : null}<Text style={styles.count} testID={`count-${t.key}`}>{compact(t.count)}</Text></>}
+          trailing={<>{t.synced ? <Glyph name="sync" size={12} /> : null}<Text style={styles.count} testID={`count-${t.key}`}>{t.count.toLocaleString("en-US")}</Text></>}
           onPress={() => dispatch({ type: "open", key: t.key })}
         />,
       );

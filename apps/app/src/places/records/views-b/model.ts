@@ -307,3 +307,13 @@ export function valueText(n: number, measure: Measure, def: TypeDef): string {
   const plain = Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return f?.type === "money" ? `$${plain}` : plain;
 }
+
+/** A record counts as done when its status says so (done, complete, closed) or its checkbox is ticked: the "0/30" of a Timeline group. */
+export function isDoneRow(row: { fields: Record<string, unknown> }, statusKey: string | undefined): boolean {
+  const v = statusKey ? row.fields[statusKey] : undefined;
+  if (typeof v === "string") return /^(done|complete|completed|closed|signed|paid)$/i.test(v);
+  return Object.values(row.fields).some((x) => x === true);
+}
+
+/** "done/total" for a group of bars. */
+export const doneOfTotal = (done: number, total: number): string => `${done}/${total}`;

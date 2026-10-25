@@ -14,7 +14,7 @@ import { ViewHead, useViewState } from "../views-a/view.tsx";
 import type { ViewCtx } from "../views-a/view.tsx";
 import { decideCascade, moveBar, moveError } from "./actions.ts";
 import { useViewRows } from "./data.ts";
-import { BAR_H, DAY, DAY_W, HEAD_H, ROW_H, bandsOf, barsOf, cascadeLine, dateFields, dragBar, hueOfRow, rangeOf, shortDay, spanOf, startOfDay, xOf } from "./model.ts";
+import { BAR_H, DAY, DAY_W, HEAD_H, ROW_H, bandsOf, barsOf, cascadeLine, dateFields, dragBar, doneOfTotal, hueOfRow, isDoneRow, rangeOf, shortDay, spanOf, startOfDay, xOf } from "./model.ts";
 import type { Bar, Cascade, DragMode, Range } from "./model.ts";
 import { useToday } from "./today.tsx";
 
@@ -130,7 +130,7 @@ export function TimelineView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const body: ReactElement[] = [];
   for (const band of bands) {
     if (band.title) {
-      body.push(<View key={`band-${band.key}`} testID={`band-${band.key || "none"}`} style={[c.band, { top: y, width }]}><Text style={c.bandText}>{`${band.title}  ${band.bars.length}`}</Text></View>);
+      body.push(<View key={`band-${band.key}`} testID={`band-${band.key || "none"}`} style={[c.band, { top: y, width }]}><Text style={c.bandText}>{`${band.title}  ${doneOfTotal(band.bars.filter((x) => isDoneRow(x.row, def.statusField ?? laneFieldOf(def, ctx.saved)?.key)).length, band.bars.length)}`}</Text></View>);
       y += BAND_H;
     }
     for (const b of band.bars) {
@@ -143,7 +143,7 @@ export function TimelineView({ ctx }: { ctx: ViewCtx }): ReactElement {
   {
     let ny = HEAD_H + 6;
     for (const band of bands) {
-      if (band.title) { names.push(<View key={`nb-${band.key}`} style={[c.nameBand, { top: ny }]}><Text style={c.bandText}>{`${band.title}  ${band.bars.length}`}</Text></View>); ny += BAND_H; }
+      if (band.title) { names.push(<View key={`nb-${band.key}`} style={[c.nameBand, { top: ny }]}><Text style={c.bandText}>{`${band.title}  ${doneOfTotal(band.bars.filter((x) => isDoneRow(x.row, def.statusField ?? laneFieldOf(def, ctx.saved)?.key)).length, band.bars.length)}`}</Text></View>); ny += BAND_H; }
       for (const b of band.bars) { names.push(<View key={`n-${b.id}`} style={[c.nameRow, { top: ny }]}><View style={c.ring} /><Text numberOfLines={1} style={c.nameText}>{label(b)}</Text></View>); ny += ROW_H; }
     }
   }
@@ -183,6 +183,7 @@ export function TimelineView({ ctx }: { ctx: ViewCtx }): ReactElement {
               <View style={[c.headLine, { top: HEAD_H, width }]} />
               {body}
               <View testID="today-line" style={[c.today, { left: todayX + Math.floor(DAY_W / 2), height }]} />
+              <View testID="today-pill" style={[c.pill, { left: todayX + Math.floor(DAY_W / 2) - 20 }]}><Text style={c.pillText}>Today</Text></View>
             </View>
           </ScrollView>
         </ScrollView>
@@ -210,6 +211,8 @@ const c = StyleSheet.create({
   tick: { position: "absolute", top: 24, width: DAY_W, textAlign: "center", fontSize: 11, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   month: { position: "absolute", top: 6, fontSize: 12, fontWeight: "600", color: "var(--ink-2)" as string },
   headLine: { position: "absolute", left: 0, height: 1, backgroundColor: "var(--line)" as string },
+  pill: { position: "absolute", top: 2, width: 40, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
+  pillText: { fontSize: 11, fontWeight: "500", color: "var(--accent)" as string },
   today: { position: "absolute", top: 0, width: 2, backgroundColor: "var(--accent)" as string },
   cascade: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 18, paddingVertical: 8, backgroundColor: "var(--accent-wash)" as string },
   cascadeText: { flex: 1, fontSize: 13, color: "var(--ink)" as string },
