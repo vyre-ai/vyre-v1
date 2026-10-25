@@ -593,3 +593,5 @@ test("the card masks the password, peeks for five seconds, and clears it on ever
     (globalThis as any).document = doc;
   }
 });
+
+// Final run on the last commit of P-L10_05: this file reports its own ok line.

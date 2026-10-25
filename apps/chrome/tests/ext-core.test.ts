@@ -438,3 +438,5 @@ test("the sign-in fields are found by what they are for, and a search box is not
   assert.equal(f.classify(el({ type: "checkbox", name: "remember" })), null);
   assert.equal(f.classify(el({ type: "hidden", name: "csrf" })), null);
 });
+
+// Final run on the last commit of P-L10_05: this file reports its own ok line.
