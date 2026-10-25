@@ -14,7 +14,7 @@ import { events, triggerEvents } from '../../../generated/events.ts';
 import * as kinds from '../../../generated/kinds.ts';
 import type { KnownErrorCode } from '../../../generated/errors.ts';
 import type { CapMap, EventMap } from '../../../generated/types.ts';
-import { registry, registryHash } from '../../../generated/registry.ts';
+import { registry } from '../../../generated/registry.ts';
 import { blockRegistry, renderFallback } from '../../../generated/blocks.ts';
 import type { BlockDataMap } from '../../../generated/blocks.ts';
 import { screens } from '../../../generated/screens.ts';
@@ -22,9 +22,10 @@ import { syncEntities } from '../../../generated/sync/entities.ts';
 import { validateInput, validateEvent } from '../../../generated/validators.ts';
 import { levelIncludes, ladderFor } from '../../../packages/contracts/src/index.ts';
 
-test('registry hash is the hash of registry.json, computed and never written down', () => {
+test('registry.ts loads registry.json and stays free of node:crypto (it reaches the web bundle)', () => {
   const text = readFileSync(new URL('../../../generated/registry.json', import.meta.url), 'utf8');
-  assert.equal(createHash('sha256').update(text).digest('hex'), registryHash);
+  assert.deepEqual(registry, JSON.parse(text));
+  assert.ok(!/node:crypto|registryHash/.test(readFileSync(new URL('../../../generated/registry.ts', import.meta.url), 'utf8')));
 });
 
 test('routes, tools and catalogues agree with the registry', () => {
