@@ -1,5 +1,5 @@
 // Handler table of the conflicts module: all 11 capabilities of manifests/conflicts.ts. Reads are the caller's own conflicts; the writes are in detect.ts and resolve.ts.
-// The module's `status` in host/modules.json is flipped by this lane's live packet (ruling 25).
+// The module's `status` in host/modules.json is flipped by P-L1_LIVE (ruling 25).
 import { assist, logBinary, propose } from "./detect.ts";
 import { confirm, owned, redo, resolve, undo } from "./resolve.ts";
 import { actorOf, ensure, listConflicts, loadConflict, num, pageOf, raise, rowsOf, fromJson, toContractRow } from "../projections.ts";
