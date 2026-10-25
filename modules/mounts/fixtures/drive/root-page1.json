@@ -1,0 +1,7 @@
+{
+  "files": [
+    { "id": "d1", "name": "Contracts", "mimeType": "application/vnd.google-apps.folder", "modifiedTime": "2026-10-01T10:00:00.000Z" },
+    { "id": "f1", "name": "intro.pdf", "mimeType": "application/pdf", "modifiedTime": "2026-10-01T10:05:00.000Z", "size": 2048 }
+  ],
+  "nextPageToken": "page2"
+}

@@ -94,7 +94,7 @@ export interface InvokeDeps {
   /** spend so far per meter, for the spend policies */
   spend?(principal: string): Record<string, number> | undefined;
   /** module services for the handler context: db, vault, http, schedule, seal */
-  services?(seed: CtxSeed, cap: CapabilityDef): Partial<Pick<Ctx, "db" | "vault" | "http" | "schedule" | "seal">>;
+  services?(seed: CtxSeed, cap: CapabilityDef): Partial<Pick<Ctx, "db" | "vault" | "http" | "schedule" | "seal" | "blobs">>;
   log?: Logger;
   onSpan?(s: SpanRecord): void;
   now?(): number;
@@ -290,6 +290,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       log,
       schedule: svc.schedule ?? unavailable("schedule"),
       seal: svc.seal ?? { seal: unavailable("seal"), unseal: unavailable("seal") },
+      ...(svc.blobs ? { blobs: svc.blobs } : {}),
     };
     return ctx;
   }

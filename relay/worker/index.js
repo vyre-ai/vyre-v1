@@ -1,0 +1,971 @@
+// from vyre 0.6.9 relay/worker/index.js@57ce975b8
+// @ts-check
+/* global WebSocketPair, WebSocketRequestResponsePair -- Cloudflare Worker runtime globals */
+// The relay on Cloudflare (ADR 0026, section 2): a Worker in front and one Durable Object per route
+// id. The same protocol as relay/node/server.js, message for message, so core/relay/link.js runs
+// against either unchanged.
+//
+//   GET /v1/box?route=<id>                  the box's control socket, after a signed challenge
+//   GET /v1/box?route=<id>&c=<conn>&t=<ticket>   the box's data socket for one device connection
+//   GET /v1/device?route=<id>               a device; the relay tells the box, then pipes frames
+//   POST /v1/wink/code                      one step of a typed Wink code's PAKE, forwarded to the box that holds the rendezvous
+//   POST /v1/pair                           resolve a Wink pairing ticket's or a setup offer's locator (ADR 0045)
+//   POST /v1/setup/mbx                      append a line to a setup progress mailbox (the install script)
+//   GET /v1/setup/mbx                       read it, long poll, signed by the setup page's key (tailnet plan 3.6b)
+//   GET /health
+//
+// Hibernation: the DO holds no timers and no alarms, and keeps no state in instance fields. Every
+// socket carries its role in a serialized attachment, frames buffered for a waiting device live in
+// ctx.storage, and a text "ping" is answered at the edge without waking the object. An idle route
+// costs nothing. No dependencies: WebCrypto only.
+//
+// Wink tickets (ADR 0045) get their own Durable Object, `PairTicket`, bound as `env.TICKETS`, one
+// object per locator (`env.TICKETS.idFromName(loc)`) rather than living in `RouteRelay`: a
+// resolve request carries only a locator, not a route id, so there is nothing to route it to a
+// specific RouteRelay object by. `RouteRelay`'s control socket writes to it (`registerTicket`,
+// below); `/v1/pair` reads it. Same contract as relay/node/server.js's `pairTickets` map: stores
+// only what the box handed the relay (a sealed record, mac, exp), single-use (deleted on the one resolve
+// that finds it, whether it answers or not), and never the pairing secret itself, which the relay
+// never sees at all (relay/node/wire.js's ticketDerive).
+
+/**
+ * These repeat relay/node/wire.js, which uses node:crypto and so cannot load here.
+ * relay/worker/worker.test.js checks that they match.
+ */
+import { onGithub } from "./github.js";
+export { GithubLinks } from "./github.js";
+export const BOX_AUTH_TAG = "vyre-relay-box-v1";
+/** What this relay does that a box may rely on, told in `ready` (an older relay says nothing): `registered` answers every ticket registration with 200 or 409. */
+/** Sign in by name: how long a box's watch on a name lasts without renewal, and how often one name may be asked about. */
+const SIGNIN = { watchMs: 10 * 60_000, locPerMin: 3 };
+export const FEATURES = Object.freeze(["registered", "revoke", "code", "signin"]);
+export const LIMITS = Object.freeze({ waiting: 8, open: 32, buffered: 64, frame: 1 << 20 });
+export const CLOSE = Object.freeze({ boxOffline: 4404, busy: 4429, refused: 4401, replaced: 4409, boxGone: 4410, deviceGone: 4411, tooBig: 1009 });
+export const ROUTE_RE = /^[a-z2-7]{26}$/;
+/** The typed Wink code's limits and alphabet; these repeat relay/node/wire.js (worker.test.js checks they match). */
+export const CODE = Object.freeze({ ttl: 10 * 60_000, sessionPerMin: 10, stepPerMin: 30, missPerMin: 30, msg: 200, waitMs: 10_000, pending: 64, allocPerMin: 20, graceMs: 90_000 });
+export const CODE_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+export const CODE_RV_RE = /^[0-9A-HJKMNP-TV-Z]{2}$/;
+const CODE_REFUSED = { error: "that code did not work" };
+
+/**
+ * A durable storage value holds at most 128 KiB, and a frame can be 1 MiB, so a buffered frame is
+ * split into parts under keys `b/<conn>/<frame 3 digits>.<part 2 digits>`, which list in order.
+ * The count cap (LIMITS.buffered frames per waiting connection, LIMITS.waiting connections) bounds
+ * a route at 8 x 64 frames. Frames are only buffered between a device's first message and the
+ * box's data socket, normally one round trip, and are deleted as soon as they are delivered or
+ * the device leaves.
+ */
+const PART = 120 * 1024;
+
+const ALPHABET = "abcdefghijklmnopqrstuvwxyz234567";
+
+/** RFC 4648 base32, lowercase, no padding. @param {Uint8Array} buf */
+export function base32(buf) {
+  let bits = 0, value = 0, out = "";
+  for (const byte of buf) {
+    value = (value << 8) | byte;
+    bits += 8;
+    while (bits >= 5) { out += ALPHABET[(value >>> (bits - 5)) & 31]; bits -= 5; }
+  }
+  if (bits > 0) out += ALPHABET[(value << (5 - bits)) & 31];
+  return out;
+}
+
+/** @param {Uint8Array} bytes */
+export function b64url(bytes) {
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** @param {string} s @returns {Uint8Array|null} */
+export function unb64url(s) {
+  if (!/^[A-Za-z0-9_-]*$/.test(s)) return null;
+  try {
+    const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4));
+    return Uint8Array.from(bin, ch => ch.charCodeAt(0));
+  } catch { return null; }
+}
+
+const enc = new TextEncoder();
+const random = n => crypto.getRandomValues(new Uint8Array(n));
+
+/** The route id: the first 26 base32 characters of sha256 of the Ed25519 route key. @param {Uint8Array} pub */
+export async function routeId(pub) {
+  return base32(new Uint8Array(await crypto.subtle.digest("SHA-256", pub))).slice(0, 26);
+}
+
+/** @param {string} route @param {Uint8Array} challenge */
+export function authMessage(route, challenge) {
+  const head = enc.encode(`${BOX_AUTH_TAG}\n${route}\n`);
+  const out = new Uint8Array(head.length + challenge.length);
+  out.set(head);
+  out.set(challenge, head.length);
+  return out;
+}
+
+/** @param {Uint8Array} pub @param {Uint8Array} message @param {Uint8Array} sig */
+export async function verifyRoute(pub, message, sig) {
+  if (pub.length !== 32 || sig.length !== 64) return false;
+  try {
+    const key = await crypto.subtle.importKey("raw", pub, { name: "Ed25519" }, false, ["verify"]);
+    return await crypto.subtle.verify({ name: "Ed25519" }, key, sig, message);
+  } catch { return false; }
+}
+
+/** Compares two strings in time that depends only on their length. @param {string} a @param {string} b */
+export function sameTicket(a, b) {
+  const x = enc.encode(a), y = enc.encode(b);
+  if (x.length !== y.length || x.length === 0) return false;
+  let d = 0;
+  for (let i = 0; i < x.length; i++) d |= x[i] ^ y[i];
+  return d === 0;
+}
+
+/** @param {string|ArrayBuffer|ArrayBufferView} m */
+const size = m => typeof m === "string" ? enc.encode(m).length : m.byteLength;
+
+/** ADR 0045's own ticket TTL (relay/node/wire.js's TICKET_TTL); repeated here so a box that ever
+ * sent a wildly long exp cannot make a PairTicket object outlive what the mechanism promises. */
+const TICKET_TTL_MAX = 5 * 60_000;
+/** A setup offer and its mailbox live for the setup code's hour (relay/node/wire.js SETUP_TTL). */
+const SETUP_TTL_MAX = 60 * 60_000;
+const LOC_RE = /^[A-Za-z0-9_-]{20,64}$/;
+/** A Wink record is ciphertext the box sealed under a key only the ticket gives (relay/node/wire.js
+ * ticketSeal); anything else, a plaintext JSON record included, is refused, so the relay never
+ * holds a box's name, handle or key in the clear. Same rule as relay/node/server.js. */
+const SEALED = /^[A-Za-z0-9_-]{22,2048}$/;
+// /v1/pair alone answers any origin (ADR 0045): a phone's page may be phone.vyre.run, a
+// <handle>.vyre.run or a self-hosted box's own address, and the endpoint's safety is the ticket
+// (an opaque locator, a sealed and MAC'd record), never the caller's origin. No credentials: it
+// reads no cookies and sets none. Every other route stays without CORS.
+const PAIR_CORS = { "access-control-allow-origin": "*" };
+const PAIR_PREFLIGHT = { ...PAIR_CORS, "access-control-allow-methods": "POST", "access-control-allow-headers": "content-type", "access-control-max-age": "600" };
+/** @param {Response} r */
+const withPairCors = r => { const out = new Response(r.body, r); for (const [k, v] of Object.entries(PAIR_CORS)) out.headers.set(k, v); return out; };
+/** The setup mailbox is read by the setup page from vyre.run, so it answers any origin too, and for the same reason: its safety is a signature and a MAC'd, sealed stream, never the origin. */
+const MBX_CORS = { "access-control-allow-origin": "*" };
+const MBX_PREFLIGHT = { ...MBX_CORS, "access-control-allow-methods": "GET, POST", "access-control-allow-headers": "content-type, x-vyre-setup-key, x-vyre-setup-ts, x-vyre-setup-sig", "access-control-max-age": "600" };
+const withMbxCors = r => { const out = new Response(r.body, r); for (const [k, v] of Object.entries(MBX_CORS)) out.headers.set(k, v); return out; };
+/** Mailbox limits, repeated from relay/node/wire.js (worker.test.js checks the line size). */
+const MBX = Object.freeze({ bytes: 64 * 1024, line: 2048, lines: 512, skew: 120_000, batch: 64, waitMax: 25 });
+const SETUP_TAG_KEY = "vyre-setup-key", SETUP_TAG_READ = "vyre-setup-read";
+const P256_HEAD = "3059301306072a8648ce3d020106082a8648ce3d030107034200";
+/** @param {Uint8Array} spki */
+const isP256Spki = spki => spki.length === 91 && spki[26] === 4 && P256_HEAD.match(/../g).every((h, i) => spki[i] === parseInt(h, 16));
+/** sha256("vyre-setup-key\n" || spki)[0:16], base64url: the fingerprint a setup code carries. @param {Uint8Array} spki */
+export async function setupFingerprint(spki) {
+  const head = enc.encode(`${SETUP_TAG_KEY}\n`);
+  const all = new Uint8Array(head.length + spki.length);
+  all.set(head); all.set(spki, head.length);
+  return b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", all)).slice(0, 16));
+}
+/** @param {string} loc @param {number} ts @param {number} after */
+const mbxReadMessage = (loc, ts, after) => enc.encode(`${SETUP_TAG_READ}\n${loc}\n${ts}\n${after}`);
+/** ECDSA P-256 over SHA-256, r || s. @param {Uint8Array} spki @param {Uint8Array} message @param {Uint8Array} sig */
+async function verifyP256(spki, message, sig) {
+  if (!isP256Spki(spki) || sig.length !== 64) return false;
+  try {
+    const key = await crypto.subtle.importKey("spki", spki, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+    return await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, sig, message);
+  } catch { return false; }
+}
+const sha256b64 = async s => b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(s))));
+const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+/**
+ * The Worker: health, request checks, per-address limiting, then the route's Durable Object.
+ * Per-address rate limiting uses Cloudflare's rate limiting binding when DEVICE_LIMITER is bound
+ * (see wrangler.toml); without it, the DO's per-route caps are the only limit, and a Cloudflare
+ * rate limiting rule on /v1/device is configured at deploy.
+ */
+export default {
+  /** @param {Request} request @param {any} env */
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    if (url.pathname === "/health") return new Response('{"ok":true}', { headers: { "content-type": "application/json" } });
+    if (!url.pathname.startsWith("/v1/")) return new Response(null, { status: 404 });
+    if (url.pathname === "/v1/pair" && request.method === "OPTIONS") return new Response(null, { status: 204, headers: PAIR_PREFLIGHT });
+    if (url.pathname === "/v1/pair" && request.method === "POST") return withPairCors(await onPairResolve(request, env));
+    if (url.pathname === "/v1/wink/code" && request.method === "OPTIONS") return new Response(null, { status: 204, headers: PAIR_PREFLIGHT });
+    if (url.pathname === "/v1/wink/code" && request.method === "POST") return withPairCors(await onCodeStep(request, env));
+    if (url.pathname === "/v1/signin" && request.method === "OPTIONS") return new Response(null, { status: 204, headers: PAIR_PREFLIGHT });
+    if (url.pathname === "/v1/signin" && request.method === "POST") return withPairCors(await onSignin(request, env));
+    if (url.pathname.startsWith("/v1/github/")) return onGithub(request, url, env);
+    if (url.pathname === "/v1/setup/mbx" && request.method === "OPTIONS") return new Response(null, { status: 204, headers: MBX_PREFLIGHT });
+    if (url.pathname === "/v1/setup/mbx" && (request.method === "POST" || request.method === "GET")) return withMbxCors(await onSetupMbx(request, url, env));
+    if (String(request.headers.get("upgrade")).toLowerCase() !== "websocket") return new Response(null, { status: 426 });
+    const route = url.searchParams.get("route") || "";
+    if ((url.pathname !== "/v1/box" && url.pathname !== "/v1/device") || !ROUTE_RE.test(route)) return new Response(null, { status: 400 });
+    if (url.pathname === "/v1/device" && env.DEVICE_LIMITER) {
+      const who = request.headers.get("cf-connecting-ip") || "unknown";
+      const { success } = await env.DEVICE_LIMITER.limit({ key: who });
+      if (!success) return new Response(null, { status: 429 });
+    }
+    return env.ROUTES.get(env.ROUTES.idFromName(route)).fetch(request);
+  },
+};
+
+/**
+ * Resolve a Wink pairing ticket's locator (ADR 0045): a POST body, never a URL, so it never lands
+ * in an access log. Single-use either way -- found or not, the PairTicket object it named is gone
+ * after this call. The lookup always happens and a hit (200) or a contested ticket (409) is always
+ * served, with no charge: nothing an outsider sends can stop a real ticket from resolving, and a
+ * shared address (carrier-grade NAT, a cafe's Wi-Fi) cannot be used to block a real pairing there by this code, only by the edge's
+ * per-address cap (a neighbour who sends about 300 a minute).
+ * Only a MISS is charged, to a per-address limit (env.PAIR_LIMITER), and no global limit exists (a
+ * global cap on requests let any outsider block pairing for every user). Guessing is bounded by the
+ * keyspace, not a limiter: a seed of at least 64 bits against a ticket's five minutes. Cost is the
+ * edge's: a loose per-address rule on the route, never a global one.
+ * @param {Request} request @param {any} env
+ */
+async function onPairResolve(request, env) {
+  const who = request.headers.get("cf-connecting-ip") || "unknown";
+  if (!env.TICKETS) return json(404, { error: "this relay does not support scan-to-pair" });
+  let body;
+  try { body = await request.json(); } catch { return json(400, { error: "bad request" }); }
+  const loc = String((body && body.loc) || "");
+  if (!LOC_RE.test(loc)) return json(400, { error: "bad request" });
+  const res = await env.TICKETS.get(env.TICKETS.idFromName(loc)).fetch("https://ticket/resolve", { method: "POST" });
+  if (res.status === 200) return json(200, await res.json());
+  if (res.status === 409) return json(409, { error: "contested" });
+  // A miss: charged to this address only.
+  if (env.PAIR_LIMITER) { const { success } = await env.PAIR_LIMITER.limit({ key: who }); if (!success) return json(429, { error: "too many pairing attempts; wait a minute" }); }
+  return json(404, { error: "this pairing code has expired or was already used" });
+}
+
+/**
+ * One step of a typed Wink code's PAKE (spec 6.5), from the typing device: { rv, s, n, m }. The
+ * Worker looks the rendezvous up in its CodeSlot object (a read; nothing is created for one that is
+ * not live), forwards the message to the RouteRelay object of the route that allocated it, and
+ * returns the box's answer. It stores no password-derived data: `m` is an opaque string it passes
+ * on. Per-address limits through the optional rate limiting bindings, as for /v1/pair, and never a
+ * global one (GHSA-25xh-w9j7-7v28): env.CODE_LIMITER charges every session (step 1, 10 a minute),
+ * env.CODE_STEP_LIMITER every later step, and env.CODE_MISS_LIMITER a miss (no live rendezvous) on top.
+ * Unknown, closed, expired, refused and silent are one answer. The wait for the box is a poll of the
+ * route's object (env.CODE_POLL_MS, 250 ms), not an open request inside it: the object holds no
+ * timers and no promises across events, so it can hibernate between the forward and the answer.
+ * @param {Request} request @param {any} env
+ */
+async function onCodeStep(request, env) {
+  const who = request.headers.get("cf-connecting-ip") || "unknown";
+  const refused = () => json(404, CODE_REFUSED);
+  const busy = () => json(429, { error: "too many tries; wait a minute" });
+  if (!env.CODES) return refused();
+  const text = await request.text();
+  if (text.length > 1024) return json(400, { error: "bad request" });
+  let m;
+  try { m = JSON.parse(text); } catch { return json(400, { error: "bad request" }); }
+  const rv = String((m && m.rv) || ""), sid = String((m && m.s) || ""), n = Number(m && m.n), msg = String((m && m.m) || "");
+  if (!CODE_RV_RE.test(rv) || !/^[A-Za-z0-9_-]{22}$/.test(sid) || (n !== 1 && n !== 3) || !/^[A-Za-z0-9_-]+$/.test(msg) || msg.length > CODE.msg) return json(400, { error: "bad request" });
+  // Charged to the address that asked, before anything is looked up, whether or not the code is live.
+  const limiter = n === 1 ? env.CODE_LIMITER : env.CODE_STEP_LIMITER;
+  if (limiter && !(await limiter.limit({ key: who })).success) return busy();
+  const slot = await env.CODES.get(env.CODES.idFromName(`rv:${rv}`)).fetch("https://code/lookup", { method: "POST" });
+  const slotInfo = slot.status === 200 ? /** @type {any} */ (await slot.json()) : null;
+  const route = slotInfo ? String(slotInfo.route || "") : "";
+  const slotExp = slotInfo && Number.isFinite(Number(slotInfo.exp)) ? Number(slotInfo.exp) : null;
+  if (!ROUTE_RE.test(route)) {
+    // A miss: charged again, to this address only. Nothing was created for it.
+    if (env.CODE_MISS_LIMITER && !(await env.CODE_MISS_LIMITER.limit({ key: who })).success) return busy();
+    return refused();
+  }
+  const relay = env.ROUTES.get(env.ROUTES.idFromName(route));
+  const sent = await relay.fetch("https://route/code/send", { method: "POST", body: JSON.stringify({ rv, s: sid, n, m: msg }) });
+  if (sent.status !== 200) return refused();
+  const q = String(/** @type {any} */ (await sent.json()).q || "");
+  const deadline = Date.now() + (Number(env.CODE_WAIT_MS) || CODE.waitMs), tick = Number(env.CODE_POLL_MS) || 250;
+  for (;;) {
+    const res = await relay.fetch("https://route/code/take", { method: "POST", body: JSON.stringify({ q }) });
+    const out = res.status === 200 ? /** @type {any} */ (await res.json()) : { state: "gone" };
+    if (out.state === "answer") return out.m ? json(200, { m: out.m, route, ...(slotExp ? { exp: slotExp } : {}) }) : refused();
+    if (out.state === "gone") return refused();
+    if (Date.now() + tick > deadline) { await relay.fetch("https://route/code/drop", { method: "POST", body: JSON.stringify({ q }) }); return refused(); }
+    await new Promise(r => setTimeout(r, tick));
+  }
+}
+
+/**
+ * Sign in by name: a new device posts { loc, s } (a hash of the name, and a one-time secret). The Worker asks the name's SigninSlot object, which counts the request against the name (3 a
+ * minute) and says which routes serve it, hands the request to each of those routes' boxes, and answers 202 whether or not any route does: a device asking learns nothing about whether the
+ * name has a device online. Per-address limit through the optional env.SIGNIN_LIMITER. The relay holds the name only as a hash and the secret only for the length of the call.
+ * @param {Request} request @param {any} env
+ */
+async function onSignin(request, env) {
+  const who = request.headers.get("cf-connecting-ip") || "unknown";
+  if (!env.SIGNIN) return json(404, { error: "sign in by name is not on this relay" });
+  const text = await request.text();
+  if (text.length > 512) return json(400, { error: "bad request" });
+  let m;
+  try { m = JSON.parse(text); } catch { return json(400, { error: "bad request" }); }
+  const loc = String((m && m.loc) || ""), sd = String((m && m.s) || "");
+  if (!/^[A-Za-z0-9_-]{43}$/.test(loc) || !/^[A-Za-z0-9_-]{22,43}$/.test(sd)) return json(400, { error: "bad request" });
+  const busy = () => json(429, { error: "too many sign-in requests; wait a minute" });
+  if (env.SIGNIN_LIMITER && !(await env.SIGNIN_LIMITER.limit({ key: who })).success) return busy();
+  const r = await env.SIGNIN.get(env.SIGNIN.idFromName(`si:${loc}`)).fetch("https://signin/ask", { method: "POST" });
+  const out = r.status === 200 ? /** @type {any} */ (await r.json()) : { limited: true };
+  if (out.limited) return busy();
+  for (const route of Array.isArray(out.routes) ? out.routes : []) {
+    if (!ROUTE_RE.test(String(route))) continue;
+    try { await env.ROUTES.get(env.ROUTES.idFromName(String(route))).fetch("https://route/signin/ask", { method: "POST", body: JSON.stringify({ loc, s: sd }) }); } catch { /* a route that cannot be reached is the same answer */ }
+  }
+  return json(202, { ok: true });
+}
+
+/**
+ * The setup mailbox's front door (tailnet plan 3.6, 3.6b). Two callers, two proofs, and the relay
+ * checks the second itself:
+ *   POST  the install script appends a line: { loc, fp, wtok, line? }. `wtok` is a token derived
+ *         from the setup secret (setupDerive "mbxw"); the first POST for a locator fixes it and the
+ *         page key's fingerprint `fp` (also in the setup code) and every later POST must repeat both,
+ *         or the locator is marked contested (first writer wins, as for the offer). The relay never
+ *         holds a key that can read or forge a line: each is AES-256-CTR sealed and HMAC'd under keys
+ *         only the secret gives, with its sequence number inside the HMAC.
+ *   GET   the page reads, a long poll: ?loc=&after=&wait= with x-vyre-setup-key (its SPKI), -ts and
+ *         -sig, an ECDSA signature over "vyre-setup-read\nloc\nts\nafter" (relay/node/wire.js
+ *         mbxReadMessage). This is the simplest thing that meets "only the page's key may read":
+ *         the relay holds fp from the writer, checks the SPKI hashes to it, and checks a signature
+ *         no more than two minutes old that names this locator and this read position. Whoever has
+ *         only the code has fp but neither the SPKI (a hash of it is all the code carries) nor the
+ *         private key. A request replayed inside the window returns ciphertext to whoever saw the
+ *         request, which is only the relay operator, who holds that ciphertext anyway.
+ * Per-address limits (env.SETUP_LIMITER, env.SETUP_READ_LIMITER) and a per-locator one on appends
+ * (env.SETUP_LOC_LIMITER; a locator is a secret the installing box and its page know), the same optional
+ * bindings the other routes use. There is no global limit: a shared cap on appends let any outsider block
+ * every install's progress lines. Storage is bounded per locator by the 64 KB cap and the expiry, and cost
+ * is a per-address rule at the edge.
+ * The long poll lives here, not in the object: it asks the object once a second (env.SETUP_POLL_MS).
+ * @param {Request} request @param {URL} url @param {any} env
+ */
+async function onSetupMbx(request, url, env) {
+  const who = request.headers.get("cf-connecting-ip") || "unknown";
+  const busy = () => json(429, { error: "too many setup requests; wait a minute" });
+  if (!env.TICKETS) return json(404, { error: "this relay does not support setup" });
+  const stub = loc => env.TICKETS.get(env.TICKETS.idFromName(loc));
+  if (request.method === "POST") {
+    if (env.SETUP_LIMITER && !(await env.SETUP_LIMITER.limit({ key: who })).success) return busy();
+    const text = await request.text();
+    if (text.length > 8 * 1024) return json(413, { error: "too big" });
+    let m;
+    try { m = JSON.parse(text); } catch { return json(400, { error: "bad request" }); }
+    const loc = String((m && m.loc) || "");
+    if (!LOC_RE.test(loc) || !/^[A-Za-z0-9_-]{22}$/.test(String(m.fp || "")) || !/^[A-Za-z0-9_-]{43}$/.test(String(m.wtok || ""))) return json(400, { error: "bad request" });
+    if (env.SETUP_LOC_LIMITER && !(await env.SETUP_LOC_LIMITER.limit({ key: loc })).success) return busy();
+    const res = await stub(loc).fetch("https://ticket/mbx/append", { method: "POST", body: JSON.stringify({ fp: m.fp, wtok: m.wtok, line: m.line === undefined ? null : String(m.line) }) });
+    return new Response(res.body, { status: res.status, headers: { "content-type": "application/json" } });
+  }
+  if (env.SETUP_READ_LIMITER && !(await env.SETUP_READ_LIMITER.limit({ key: who })).success) return busy();
+  const loc = url.searchParams.get("loc") || "";
+  const after = Number(url.searchParams.get("after") || 0);
+  const wait = Math.min(Math.max(Number(url.searchParams.get("wait") || 0), 0), MBX.waitMax);
+  if (!LOC_RE.test(loc) || !Number.isInteger(after) || after < 0) return json(400, { error: "bad request" });
+  const read = { key: request.headers.get("x-vyre-setup-key") || "", ts: Number(request.headers.get("x-vyre-setup-ts") || 0), sig: request.headers.get("x-vyre-setup-sig") || "", after, loc };
+  const deadline = Date.now() + wait * 1000, tick = Number(env.SETUP_POLL_MS) || 1000;
+  for (;;) {
+    const res = await stub(loc).fetch("https://ticket/mbx/read", { method: "POST", body: JSON.stringify(read) });
+    const body = /** @type {any} */ (await res.json());
+    // Nothing yet (no mailbox, or no new line) is the only answer that waits.
+    if (res.status !== 200 || (body.lines && body.lines.length > 0) || Date.now() + tick > deadline) return json(res.status, body);
+    await new Promise(r => setTimeout(r, tick));
+  }
+}
+
+/**
+ * One Wink pairing ticket (ADR 0045) or one setup offer (tailnet plan 3.6), keyed by its locator:
+ * what a box's control socket registered (record, mac, exp). A Wink ticket is single-use; a setup
+ * offer lives its hour and is read as often as the page needs, and the same object holds the setup
+ * mailbox. FIRST WRITER WINS for both: a second register with a different record (or a different
+ * mac) leaves the first in place, marks the locator contested and answers 409; the identical record
+ * and mac again (a reconnect re-sending) answers 200. Once contested, resolve, append and read all
+ * answer 409 until the object's exp. No timers, no alarm needed for correctness: expiry is checked
+ * lazily on reads, and the alarm set at register time sweeps what nobody ever read.
+ */
+export class PairTicket {
+  /** @param {any} ctx */
+  constructor(ctx) { this.ctx = ctx; }
+
+  /** Set an alarm no earlier than the one already there. @param {number} at */
+  async alarmAtLeast(at) {
+    const cur = await this.ctx.storage.getAlarm();
+    if (!cur || cur < at) await this.ctx.storage.setAlarm(at);
+  }
+
+  /** @param {number} exp */
+  async contest(exp) {
+    const t = await this.ctx.storage.get("t");
+    await this.ctx.storage.put("t", { ...(t || { exp }), contested: true });
+    await this.alarmAtLeast(t ? t.exp : exp);
+  }
+
+  /** @param {Request} request */
+  async fetch(request) {
+    const url = new URL(request.url);
+    const now = Date.now();
+    if (request.method === "PUT" && url.pathname === "/register") {
+      let body;
+      try { body = await request.json(); } catch { return new Response(null, { status: 400 }); }
+      const record = String((body && body.record) || ""), mac = String((body && body.mac) || "");
+      const setup = Boolean(body && body.setup);
+      const exp = Math.min(Number(body && body.exp) || 0, now + (setup ? SETUP_TTL_MAX : TICKET_TTL_MAX));
+      if (!SEALED.test(record) || !LOC_RE.test(mac) || exp <= now) return new Response(null, { status: 400 });
+      const cur = await this.ctx.storage.get("t");
+      if (cur && cur.exp > now) {
+        if (cur.contested || cur.revoked) return json(200, { status: 409 });
+        if (cur.record === record && cur.mac === mac) return json(200, { status: 200 });
+        await this.ctx.storage.put("t", { ...cur, contested: true });
+        return json(200, { status: 409 });
+      }
+      await this.ctx.storage.put("t", { record, mac, exp, ...(body && typeof body.route === "string" && body.route ? { owner: await sha256b64(body.route) } : {}), ...(setup ? { setup: true } : {}) });
+      // A locator nobody ever resolves would otherwise sit in storage forever (reviewer's LOW,
+      // 28 Sep): clean it up at its own exp either way, resolved or not.
+      await this.alarmAtLeast(exp);
+      return json(200, { status: 200 });
+    }
+    if (request.method === "POST" && url.pathname === "/revoke") {
+      let body;
+      try { body = await request.json(); } catch { return new Response(null, { status: 400 }); }
+      const t = await this.ctx.storage.get("t");
+      if (!t || t.setup || t.revoked || t.exp <= now || !t.owner || t.owner !== await sha256b64(String((body && body.route) || ""))) return json(200, { status: 404 });
+      // The owner's withdrawal leaves a tombstone until the ticket's own exp (its alarm stays): nobody, an outsider least of all, may register this locator again, and it resolves to nothing.
+      await this.ctx.storage.put("t", { exp: t.exp, revoked: true });
+      return json(200, { status: 200 });
+    }
+    if (request.method === "POST" && url.pathname === "/resolve") {
+      const t = await this.ctx.storage.get("t");
+      if (t && t.exp > now && t.contested) return new Response(null, { status: 409 });
+      if (t && t.revoked) return new Response(null, { status: 404 });
+      if (t && !t.setup) { await this.ctx.storage.deleteAll(); await this.ctx.storage.deleteAlarm(); }
+      if (!t || t.exp <= now || !t.record) return new Response(null, { status: 404 });
+      return json(200, { record: t.record, mac: t.mac });
+    }
+    if (request.method === "POST" && url.pathname === "/mbx/append") {
+      let body;
+      try { body = await request.json(); } catch { return json(400, { error: "bad request" }); }
+      const t = await this.ctx.storage.get("t");
+      if (t && t.exp > now && t.contested) return json(409, { error: "contested" });
+      const wh = await sha256b64(String(body.wtok));
+      let m = await this.ctx.storage.get("m");
+      if (m && m.exp <= now) { await this.ctx.storage.deleteAll(); m = undefined; }
+      if (m && !(sameTicket(m.fp, String(body.fp)) && sameTicket(m.wh, wh))) { await this.contest(m.exp); return json(409, { error: "contested" }); }
+      const line = body.line;
+      if (line !== null && line !== undefined && !(/^[A-Za-z0-9_-]{64,}$/.test(line) && line.length <= MBX.line)) return json(400, { error: "bad line" });
+      if (!m) { m = { fp: String(body.fp), wh, exp: now + SETUP_TTL_MAX, n: 0, bytes: 0 }; await this.alarmAtLeast(m.exp); }
+      if (line !== null && line !== undefined) {
+        if (m.bytes + line.length > MBX.bytes || m.n >= MBX.lines) return json(413, { error: "mailbox full" });
+        await this.ctx.storage.put(`m/${String(m.n).padStart(5, "0")}`, line);
+        m = { ...m, n: m.n + 1, bytes: m.bytes + line.length };
+      }
+      await this.ctx.storage.put("m", m);
+      return json(200, { n: m.n });
+    }
+    if (request.method === "POST" && url.pathname === "/mbx/read") {
+      let q;
+      try { q = await request.json(); } catch { return json(400, { error: "bad request" }); }
+      const t = await this.ctx.storage.get("t");
+      if (t && t.exp > now && t.contested) return json(409, { error: "contested" });
+      const m = await this.ctx.storage.get("m");
+      if (!m || m.exp <= now) return json(200, { n: 0, lines: [], absent: true });
+      const spki = unb64url(String(q.key || "")) || new Uint8Array(0);
+      const sig = unb64url(String(q.sig || "")) || new Uint8Array(0);
+      const ts = Number(q.ts), after = Number(q.after);
+      const good = isP256Spki(spki) && sameTicket(await setupFingerprint(spki), m.fp) && Number.isFinite(ts) && Math.abs(now - ts) <= MBX.skew
+        && await verifyP256(spki, mbxReadMessage(String(q.loc), ts, after), sig);
+      if (!good) return json(401, { error: "not the setup page's key" });
+      const lines = [];
+      for (let i = after; i < Math.min(m.n, after + MBX.batch); i++) lines.push({ i, line: await this.ctx.storage.get(`m/${String(i).padStart(5, "0")}`) });
+      return json(200, { n: m.n, lines });
+    }
+    return new Response(null, { status: 404 });
+  }
+
+  /** The alarm set at register time: gone by its own exp either way (reviewer's LOW, 28 Sep). */
+  async alarm() { await this.ctx.storage.deleteAll(); }
+}
+
+/**
+ * One typed-code rendezvous (spec 6.5), one object per two-symbol value (`rv:XX`, 1024 of them): who
+ * holds it and until when. Reading a value that is not live writes nothing. A claim of a live
+ * rendezvous by another route is refused, so the box that asks gets a free one. Cleaned up by its
+ * alarm at its own expiry either way.
+ */
+export class CodeSlot {
+  /** @param {any} ctx */
+  constructor(ctx) { this.ctx = ctx; }
+
+  /** @param {Request} request */
+  async fetch(request) {
+    const url = new URL(request.url);
+    const now = Date.now();
+    const cur = await this.ctx.storage.get("c");
+    const live = cur && cur.exp > now ? cur : null;
+    if (request.method === "PUT" && url.pathname === "/claim") {
+      let body;
+      try { body = await request.json(); } catch { return new Response(null, { status: 400 }); }
+      const route = String((body && body.route) || ""), exp = Math.min(Number(body && body.exp) || 0, now + CODE.ttl);
+      if (!ROUTE_RE.test(route) || exp <= now) return new Response(null, { status: 400 });
+      if (live) return json(409, { ok: false });
+      await this.ctx.storage.put("c", { route, exp });
+      await this.ctx.storage.setAlarm(exp);
+      return json(200, { ok: true, exp });
+    }
+    if (request.method === "POST" && url.pathname === "/release") {
+      let body;
+      try { body = await request.json(); } catch { return new Response(null, { status: 400 }); }
+      if (cur && cur.route === String((body && body.route) || "")) { await this.ctx.storage.deleteAll(); await this.ctx.storage.deleteAlarm(); }
+      return json(200, { ok: true });
+    }
+    if (request.method === "POST" && url.pathname === "/lookup") {
+      if (!live) { if (cur) { await this.ctx.storage.deleteAll(); await this.ctx.storage.deleteAlarm(); } return new Response(null, { status: 404 }); }
+      return json(200, { route: live.route, exp: live.exp });
+    }
+    return new Response(null, { status: 404 });
+  }
+
+  async alarm() { await this.ctx.storage.deleteAll(); }
+}
+
+/**
+ * One name's sign-in requests (`si:<hash of the name>`): which routes serve it and until when, and a count of asks this minute. It holds no name and no secret.
+ */
+export class SigninSlot {
+  /** @param {any} ctx */
+  constructor(ctx) { this.ctx = ctx; }
+
+  /** @param {Request} request */
+  async fetch(request) {
+    const url = new URL(request.url);
+    const now = Date.now();
+    /** @type {Record<string, number>} */
+    const routes = (await this.ctx.storage.get("r")) || {};
+    for (const k of Object.keys(routes)) if (routes[k] <= now) delete routes[k];
+    if (request.method === "POST" && url.pathname === "/watch") {
+      let body;
+      try { body = await request.json(); } catch { return new Response(null, { status: 400 }); }
+      const route = String((body && body.route) || "");
+      if (!ROUTE_RE.test(route)) return new Response(null, { status: 400 });
+      if (Object.keys(routes).length < 16 || routes[route]) routes[route] = now + SIGNIN.watchMs;
+      await this.ctx.storage.put("r", routes);
+      await this.ctx.storage.setAlarm(now + SIGNIN.watchMs + 1000);
+      return json(200, { ok: true });
+    }
+    if (request.method === "POST" && url.pathname === "/ask") {
+      const minute = Math.floor(now / 60_000);
+      const c = (await this.ctx.storage.get("c")) || { minute, n: 0 };
+      if (c.minute !== minute) { c.minute = minute; c.n = 0; }
+      c.n++;
+      await this.ctx.storage.put("c", c);
+      if (c.n > SIGNIN.locPerMin) return json(200, { limited: true });
+      return json(200, { routes: Object.keys(routes) });
+    }
+    return new Response(null, { status: 404 });
+  }
+
+  async alarm() {
+    const now = Date.now();
+    const routes = (await this.ctx.storage.get("r")) || {};
+    for (const k of Object.keys(routes)) if (routes[k] <= now) delete routes[k];
+    if (Object.keys(routes).length) { await this.ctx.storage.put("r", routes); await this.ctx.storage.setAlarm(now + SIGNIN.watchMs + 1000); }
+    else await this.ctx.storage.deleteAll();
+  }
+}
+
+/**
+ * @typedef {{ k: "pending", n: string, route: string } | { k: "control", ticket: string } | { k: "device", c: string, piped: boolean, n: number }
+ *   | { k: "data", c: string } | { k: "gone" }} Role
+ * The attachment on every socket. Tags: "box" (control sockets, pending or authed), "device" and
+ * "dev:<c>", "data" and "data:<c>". Tags cannot change after accept, so the role lives here.
+ */
+
+/** One route: the box's control socket, its device connections and their data sockets. */
+export class RouteRelay {
+  /** @param {any} ctx @param {any} env */
+  constructor(ctx, env) {
+    this.ctx = ctx;
+    this.env = env;
+    this.limits = { ...LIMITS, ...(env && env.RELAY_LIMITS ? JSON.parse(env.RELAY_LIMITS) : {}) };
+    // The keepalive answered by the edge; it never wakes the object (link.js sends it every 60 s).
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
+    // A per-route cap on ticket registrations (ADR 0045), hygiene against a runaway or
+    // compromised box, not the real defence (the MAC is). In-memory only: resets on hibernation,
+    // which only weakens the cap, never the pairing security it sits in front of.
+    this.ticketRegs = 0;
+    this.ticketRegWindow = 0;
+    this.codeAllocs = 0;
+    this.codeAllocWindow = 0;
+  }
+
+  /** @returns {boolean} under the per-route cap on code allocations a minute */
+  codeAllocAllowed() {
+    const minute = Math.floor(Date.now() / 60_000);
+    if (minute !== this.codeAllocWindow) { this.codeAllocWindow = minute; this.codeAllocs = 0; }
+    this.codeAllocs++;
+    return this.codeAllocs <= (Number(this.env && this.env.CODE_ALLOC_PER_MIN) || CODE.allocPerMin);
+  }
+
+  /** @returns {boolean} under the 60/route/minute registration cap */
+  ticketRegAllowed() {
+    const now = Date.now(), minute = Math.floor(now / 60_000);
+    if (minute !== this.ticketRegWindow) { this.ticketRegWindow = minute; this.ticketRegs = 0; }
+    this.ticketRegs++;
+    return this.ticketRegs <= 60;
+  }
+
+  /** @param {any} ws @returns {Role} */
+  role(ws) { return ws.deserializeAttachment() || { k: "gone" }; }
+
+  /** @param {string} tag @param {(r: Role) => boolean} [pred] */
+  live(tag, pred = () => true) { return this.ctx.getWebSockets(tag).filter(ws => { const r = this.role(ws); return r.k !== "gone" && pred(r); }); }
+
+  /** The authed control socket, if any. */
+  control() { return this.live("box", r => r.k === "control")[0] || null; }
+
+  /** @param {any} ws @param {any} v */
+  json(ws, v) { try { ws.send(JSON.stringify(v)); } catch {} }
+
+  /** Marks a socket gone (so its later close event is ignored) and closes it. */
+  end(ws, code, reason) {
+    ws.serializeAttachment({ k: "gone" });
+    try { ws.close(code, reason); } catch {}
+  }
+
+  /** @param {Request} request */
+  async fetch(request) {
+    const url = new URL(request.url);
+    // Typed-code messages come from the Worker over the object binding (never from the internet: the
+    // Worker routes no public path here).
+    if (url.pathname.startsWith("/code/") && request.method === "POST") return this.onCodeRequest(url.pathname, request);
+    if (url.pathname === "/signin/ask" && request.method === "POST") {
+      let body;
+      try { body = await request.json(); } catch { return new Response(null, { status: 400 }); }
+      const control = this.control();
+      if (control) this.json(control, { t: "signin.ask", loc: String(body.loc), s: String(body.s) });
+      return json(200, { ok: true });
+    }
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair);
+    const done = () => new Response(null, { status: 101, webSocket: client });
+    const c = url.searchParams.get("c");
+    if (url.pathname === "/v1/device") await this.onDevice(server);
+    else if (c) await this.onBoxData(c, url.searchParams.get("t") || "", server);
+    else {
+      const challenge = random(32);
+      this.ctx.acceptWebSocket(server, ["box"]);
+      server.serializeAttachment({ k: "pending", n: b64url(challenge), route: url.searchParams.get("route") || "" });
+      this.json(server, { t: "challenge", n: b64url(challenge) });
+    }
+    return done();
+  }
+
+  /** Accepts a socket only to close it with a code, as the Node relay does. */
+  refuse(server, code, reason) {
+    this.ctx.acceptWebSocket(server, ["refused"]);
+    this.end(server, code, reason);
+  }
+
+  async onDevice(server) {
+    if (!this.control()) return this.refuse(server, CLOSE.boxOffline, "box offline");
+    const devices = this.live("device").map(ws => /** @type {any} */ (this.role(ws)));
+    const waiting = devices.filter(r => !r.piped).length;
+    if (devices.length >= this.limits.open || waiting >= this.limits.waiting) return this.refuse(server, CLOSE.busy, "too many connections");
+    const c = b64url(random(12));
+    this.ctx.acceptWebSocket(server, ["device", `dev:${c}`]);
+    server.serializeAttachment({ k: "device", c, piped: false, n: 0 });
+    const control = this.control();
+    if (control) this.json(control, { t: "open", c });
+  }
+
+  async onBoxData(c, ticket, server) {
+    const control = this.control();
+    const r = control && /** @type {any} */ (this.role(control));
+    const device = this.live(`dev:${c}`)[0];
+    const d = device && /** @type {any} */ (this.role(device));
+    if (!r || !sameTicket(ticket, r.ticket) || !d || d.piped) return this.refuse(server, CLOSE.refused, "unknown connection");
+    this.ctx.acceptWebSocket(server, ["data", `data:${c}`]);
+    server.serializeAttachment({ k: "data", c });
+    device.serializeAttachment({ ...d, piped: true, n: 0 });
+    for (const frame of await this.takeBuffer(c)) { try { server.send(frame); } catch {} }
+  }
+
+  /** @param {any} ws @param {string|ArrayBuffer} message */
+  async webSocketMessage(ws, message) {
+    const r = this.role(ws);
+    if (r.k === "gone") return;
+    if (size(message) > this.limits.frame) return this.drop(ws, CLOSE.tooBig, "frame too big");
+    const binary = typeof message !== "string";
+    // The edge answers "ping"; this covers a runtime that delivers it anyway.
+    if (message === "ping") { try { ws.send("pong"); } catch {} return; }
+    if (r.k === "pending") return this.onAuth(ws, r, message);
+    if (r.k === "control") return this.onTicket(ws, message);
+    if (!binary) return;
+    if (r.k === "data") {
+      const device = this.live(`dev:${r.c}`)[0];
+      if (device) { try { device.send(message); } catch {} }
+      return;
+    }
+    if (r.k === "device") {
+      if (r.piped) {
+        const data = this.live(`data:${r.c}`)[0];
+        if (data) { try { data.send(message); } catch {} }
+        return;
+      }
+      if (r.n >= this.limits.buffered) return this.drop(ws, CLOSE.busy, "box is not answering");
+      await this.putFrame(r.c, r.n, new Uint8Array(/** @type {ArrayBuffer} */ (message)));
+      ws.serializeAttachment({ ...r, n: r.n + 1 });
+    }
+  }
+
+  /** @param {any} ws @param {{ n: string, route: string }} r @param {string|ArrayBuffer} message */
+  async onAuth(ws, r, message) {
+    let m;
+    try { if (typeof message !== "string") throw 0; m = JSON.parse(message); } catch { return this.end(ws, CLOSE.refused, "expected auth"); }
+    const pub = unb64url(String(m?.pub || "")) || new Uint8Array(0);
+    const sig = unb64url(String(m?.sig || "")) || new Uint8Array(0);
+    const challenge = /** @type {Uint8Array} */ (unb64url(r.n));
+    if (m?.t !== "auth" || (await routeId(pub)) !== r.route || !(await verifyRoute(pub, authMessage(r.route, challenge), sig))) {
+      return this.end(ws, CLOSE.refused, "bad signature");
+    }
+    const old = this.control();
+    if (old) this.end(old, CLOSE.replaced, "replaced by a newer box connection");
+    // The same box reconnecting keeps the code its screen shows (until its own expiry); only what was in flight on the old socket is refused.
+    await this.ctx.storage.delete("codeGrace");
+    await this.refusePending();
+    const kept = await this.ctx.storage.get("code");
+    if (kept && kept.exp <= Date.now()) await this.releaseCode();
+    const ticket = b64url(random(18));
+    ws.serializeAttachment({ k: "control", ticket, route: r.route });
+    const waiting = this.live("device", x => !(/** @type {any} */ (x).piped)).map(d => /** @type {any} */ (this.role(d)).c);
+    this.json(ws, { t: "ready", ticket, waiting, features: [...FEATURES] });
+  }
+
+  /**
+   * What a control socket sends after auth: registering a Wink pairing ticket's locator
+   * (ADR 0045, `t: "ticket"`) or a setup offer's (tailnet plan 3.6, `t: "setup"`, same fields) with
+   * its own PairTicket object. Either way the box hears back `{ t: "registered", loc, status }`,
+   * 200 or, when another server got there first with a different record, 409 (first writer wins).
+   * Everything here is the box's own word about its own route, so this is not a trust boundary the
+   * way /v1/pair's resolve side is (that's where the MAC matters); the size caps and the per-route
+   * cap are hygiene against a runaway or compromised box, not the real defence. Not "ticket" as in
+   * the per-connection auth ticket above -- ADR 0045's pairing ticket, a different thing with the
+   * same English word.
+   * @param {any} ws @param {string|ArrayBuffer} message
+   */
+  async onTicket(ws, message) {
+    if (typeof message !== "string") return;
+    if (message.includes('"signin.watch"')) {
+      let c;
+      try { c = JSON.parse(message); } catch { return; }
+      if (c && c.t === "signin.watch" && this.env.SIGNIN && /^[A-Za-z0-9_-]{43}$/.test(String(c.loc || ""))) {
+        const route = String(/** @type {any} */ (this.role(ws)).route || "");
+        try { await this.env.SIGNIN.get(this.env.SIGNIN.idFromName(`si:${c.loc}`)).fetch("https://signin/watch", { method: "POST", body: JSON.stringify({ route }) }); } catch { /* the box renews in a few minutes */ }
+      }
+      return;
+    }
+    if (message.includes('"code.')) {
+      let c;
+      try { c = JSON.parse(message); } catch { return; }
+      if (c && typeof c.t === "string" && c.t.startsWith("code.")) return this.onCodeControl(ws, c);
+    }
+    if (!this.ticketRegAllowed()) return;
+    let m;
+    try { m = JSON.parse(message); } catch { return; }
+    if (m?.t === "revoke") {
+      // A box withdraws a ticket it registered (a renewal replaces the previous one). Only the route that registered it may.
+      const rloc = String(m.loc || "");
+      if (!/^[A-Za-z0-9_-]{20,64}$/.test(rloc) || !this.env.TICKETS) return;
+      try {
+        const res = await this.env.TICKETS.get(this.env.TICKETS.idFromName(rloc)).fetch("https://ticket/revoke", {
+          method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ route: String(/** @type {any} */ (this.role(ws)).route || "") }),
+        });
+        const out = res.status === 200 ? /** @type {any} */ (await res.json()) : null;
+        if (out) this.json(ws, { t: "revoked", loc: rloc, status: out.status });
+      } catch {}
+      return;
+    }
+    if (m?.t !== "ticket" && m?.t !== "setup") return;
+    const setup = m.t === "setup";
+    const loc = String(m.loc || ""), record = String(m.record || ""), mac = String(m.mac || "");
+    if (!/^[A-Za-z0-9_-]{20,64}$/.test(loc) || !/^[A-Za-z0-9_-]{20,64}$/.test(mac) || !SEALED.test(record)) return;
+    const exp = Math.min(Number(m.exp) || 0, Date.now() + (setup ? SETUP_TTL_MAX : TICKET_TTL_MAX));
+    if (exp <= Date.now() || !this.env.TICKETS) return;
+    try {
+      const res = await this.env.TICKETS.get(this.env.TICKETS.idFromName(loc)).fetch("https://ticket/register", {
+        method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ record, mac, exp, setup, route: String(/** @type {any} */ (this.role(ws)).route || "") }),
+      });
+      const out = res.status === 200 ? /** @type {any} */ (await res.json()) : null;
+      if (out) this.json(ws, { t: "registered", loc, status: out.status });
+    } catch {}
+  }
+
+  /**
+   * The box's side of a typed code, on its control socket: ask for a rendezvous (`code.alloc`, one
+   * live code per box, random among the free ones), give it back (`code.release`), and answer a
+   * forwarded message (`code.reply`, only to a request this object forwarded).
+   * @param {any} ws @param {any} m
+   */
+  async onCodeControl(ws, m) {
+    if (m.t === "code.alloc") {
+      const busy = () => this.json(ws, { t: "code.allocated", error: "busy" });
+      if (!this.env.CODES || !this.codeAllocAllowed()) return busy();
+      await this.releaseCode();
+      const route = String(/** @type {any} */ (this.role(ws)).route || "");
+      const exp = Date.now() + CODE.ttl;
+      const claim = async rv => {
+        const res = await this.env.CODES.get(this.env.CODES.idFromName(`rv:${rv}`)).fetch("https://code/claim", { method: "PUT", body: JSON.stringify({ route, exp }) });
+        return res.status === 200;
+      };
+      // Random among the free: random tries first, then a run from a random start, so it only fails when the namespace is full.
+      const start = (random(2)[0] << 8 | random(2)[1]) & 1023;
+      const order = [];
+      for (let i = 0; i < 16; i++) order.push((random(2)[0] << 8 | random(2)[1]) & 1023);
+      for (let i = 0; i < 96; i++) order.push((start + i) & 1023);
+      let got = "";
+      for (const i of order) { const rv = CODE_ALPHABET[i >> 5] + CODE_ALPHABET[i & 31]; if (await claim(rv)) { got = rv; break; } }
+      if (!got) return busy();
+      await this.ctx.storage.put("code", { rv: got, exp, route });
+      this.json(ws, { t: "code.allocated", rv: got, exp });
+    } else if (m.t === "code.release") await this.releaseCode();
+    else if (m.t === "code.reply") {
+      const q = String(m.q || "");
+      if (!/^[A-Za-z0-9_-]{8,16}$/.test(q) || !(await this.ctx.storage.get(`code/q/${q}`))) return;
+      const ans = typeof m.m === "string" && m.m.length > 0 && m.m.length <= CODE.msg && /^[A-Za-z0-9_-]+$/.test(m.m) ? m.m : null;
+      await this.ctx.storage.put(`code/a/${q}`, { m: ans });
+    }
+  }
+
+  /** Forgets what was waiting on this route's code but keeps the code (the control socket changed; the code did not). */
+  async refusePending() {
+    const stale = [...(await this.ctx.storage.list({ prefix: "code/" })).keys()];
+    for (let k = 0; k < stale.length; k += 128) await this.ctx.storage.delete(stale.slice(k, k + 128));
+  }
+
+  /** The grace is over: a code whose box never came back is freed. A box that reconnected cleared the mark in onAuth. */
+  async alarm() {
+    const g = await this.ctx.storage.get("codeGrace");
+    if (g === undefined) return;
+    if (this.control()) { await this.ctx.storage.delete("codeGrace"); return; }
+    if (Date.now() < g) { await this.ctx.storage.setAlarm(g); return; }
+    await this.ctx.storage.delete("codeGrace");
+    await this.releaseCode();
+  }
+
+  /** Frees this route's code, if it has one, and forgets what was waiting on it. */
+  async releaseCode() {
+    const cur = await this.ctx.storage.get("code");
+    if (!cur) return;
+    await this.ctx.storage.delete(["code", "codeGrace"]);
+    const stale = [...(await this.ctx.storage.list({ prefix: "code/" })).keys()];
+    for (let k = 0; k < stale.length; k += 128) await this.ctx.storage.delete(stale.slice(k, k + 128));
+    if (this.env.CODES) { try { await this.env.CODES.get(this.env.CODES.idFromName(`rv:${cur.rv}`)).fetch("https://code/release", { method: "POST", body: JSON.stringify({ route: cur.route }) }); } catch {} }
+  }
+
+  /** The Worker's calls: send a message to the box, take its answer, drop a request. @param {string} path @param {Request} request */
+  async onCodeRequest(path, request) {
+    let body;
+    try { body = await request.json(); } catch { return new Response(null, { status: 400 }); }
+    const now = Date.now();
+    if (path === "/code/send") {
+      const cur = await this.ctx.storage.get("code");
+      const control = this.control();
+      if (!cur || cur.exp <= now || cur.rv !== String(body.rv) || !control) return new Response(null, { status: 404 });
+      const waiting = await this.ctx.storage.list({ prefix: "code/q/" });
+      for (const [k, v] of waiting) if (v.at + 2 * (Number(this.env.CODE_WAIT_MS) || CODE.waitMs) < now) await this.ctx.storage.delete([k, `code/a/${k.slice(7)}`]);
+      if ((await this.ctx.storage.list({ prefix: "code/q/" })).size >= CODE.pending) return new Response(null, { status: 404 });
+      const q = b64url(random(9));
+      await this.ctx.storage.put(`code/q/${q}`, { at: now });
+      this.json(control, { t: "code.msg", q, rv: cur.rv, s: String(body.s), n: Number(body.n), m: String(body.m) });
+      return json(200, { q });
+    }
+    const q = String(body.q || "");
+    if (!/^[A-Za-z0-9_-]{8,16}$/.test(q)) return new Response(null, { status: 400 });
+    if (path === "/code/take") {
+      if (!(await this.ctx.storage.get(`code/q/${q}`))) return json(200, { state: "gone" });
+      const a = await this.ctx.storage.get(`code/a/${q}`);
+      if (!a) return json(200, { state: "wait" });
+      await this.ctx.storage.delete([`code/q/${q}`, `code/a/${q}`]);
+      return json(200, { state: "answer", m: a.m });
+    }
+    if (path === "/code/drop") { await this.ctx.storage.delete([`code/q/${q}`, `code/a/${q}`]); return json(200, { ok: true }); }
+    return new Response(null, { status: 404 });
+  }
+
+  /** @param {any} ws */
+  async webSocketClose(ws, code, reason) {
+    // The one thing a box may tell the device it was serving through its own close: "device removed"
+    // (4401). Nothing else the box writes is forwarded, so a box cannot put words in a device's ear.
+    await this.gone(ws, code === CLOSE.refused && reason === "device removed" ? { code, reason } : null);
+    try { ws.close(code === 1005 || code === 1006 ? 1000 : code, reason); } catch {}
+  }
+
+  /** @param {any} ws */
+  async webSocketError(ws) { await this.gone(ws); }
+
+  /** Closes a socket from this side and runs what its close would. */
+  async drop(ws, code, reason) {
+    const r = this.role(ws);
+    this.end(ws, code, reason);
+    await this.after(r);
+  }
+
+  /** A socket went away on its own. */
+  async gone(ws, told = null) {
+    const r = this.role(ws);
+    if (r.k === "gone") return;
+    ws.serializeAttachment({ k: "gone" });
+    await this.after(r, told);
+  }
+
+  /** What a socket leaving means for the others. @param {Role} r */
+  async after(r, told = null) {
+    if (r.k === "control") {
+      // The box's control socket is gone: nobody can answer for its code now, so what waited on it is refused, but the code itself keeps for a short grace so a
+      // reconnect (a flapping link, a proxy that cuts idle sockets) does not silently kill the code its screen still shows. Its own expiry still applies.
+      const cur = await this.ctx.storage.get("code");
+      if (cur) {
+        await this.refusePending();
+        const at = Date.now() + CODE.graceMs;
+        await this.ctx.storage.put("codeGrace", at);
+        await this.ctx.storage.setAlarm(at);
+      }
+    } else if (r.k === "data") {
+      const device = this.live(`dev:${r.c}`)[0];
+      if (device) this.end(device, told ? told.code : CLOSE.boxGone, told ? told.reason : "box closed the connection");
+    } else if (r.k === "device") {
+      const data = this.live(`data:${r.c}`)[0];
+      if (data) this.end(data, CLOSE.deviceGone, "device left");
+      if (!r.piped && r.n > 0) await this.takeBuffer(r.c);
+      const control = this.control();
+      if (control) this.json(control, { t: "close", c: r.c });
+    }
+  }
+
+  /** @param {string} c @param {number} i @param {Uint8Array} frame */
+  async putFrame(c, i, frame) {
+    /** @type {Record<string, Uint8Array>} */
+    const parts = {};
+    const n = Math.max(1, Math.ceil(frame.length / PART));
+    for (let j = 0; j < n; j++) parts[`b/${c}/${String(i).padStart(3, "0")}.${String(j).padStart(2, "0")}`] = frame.slice(j * PART, (j + 1) * PART);
+    await this.ctx.storage.put(parts);
+  }
+
+  /** Reads and deletes a connection's buffered frames, in order. @param {string} c @returns {Promise<Uint8Array[]>} */
+  async takeBuffer(c) {
+    const stored = /** @type {Map<string, Uint8Array>} */ (await this.ctx.storage.list({ prefix: `b/${c}/` }));
+    if (stored.size === 0) return [];
+    /** @type {Map<string, Uint8Array[]>} */
+    const frames = new Map();
+    for (const [key, part] of stored) {
+      const i = key.slice(key.lastIndexOf("/") + 1, key.lastIndexOf("."));
+      if (!frames.has(i)) frames.set(i, []);
+      /** @type {Uint8Array[]} */ (frames.get(i)).push(new Uint8Array(part));
+    }
+    const keys = [...stored.keys()];
+    for (let k = 0; k < keys.length; k += 128) await this.ctx.storage.delete(keys.slice(k, k + 128));
+    return [...frames.values()].map(parts => {
+      const out = new Uint8Array(parts.reduce((s, p) => s + p.length, 0));
+      let at = 0;
+      for (const p of parts) { out.set(p, at); at += p.length; }
+      return out;
+    });
+  }
+}

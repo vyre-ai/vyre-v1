@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { ensureDeps, ensureChromium } from "./ensure-deps.mjs";
 import { parseArgs, SKINS, SIZES, MAX_EXPORT_S, protoHash, routeUrl, loadTargets, sideBySideHtml } from "./lib.mjs";
 import { serve } from "./serve.mjs";
+import { measureScroll, withinBudget, SCROLL_P95_MS } from "./probes/scroll.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)), REPO = path.resolve(HERE, "../..");
 const args = parseArgs(process.argv.slice(2));
@@ -21,7 +22,8 @@ const sizes = (args.sizes || Object.keys(SIZES).join(",")).split(",").map((n) =>
 const maxExport = Number(args["max-export-s"] || MAX_EXPORT_S);
 const want = args.target || "all";
 
-const targets = loadTargets(HERE).filter((t) => want === "all" || t.id === want);
+// A packet id (P-L9b_02) selects that packet's targets, whose ids start with it; "all" runs everything.
+const targets = loadTargets(HERE).filter((t) => want === "all" || t.id === want || (want.startsWith("P-") && t.id.startsWith(want + "-")));
 if (!targets.length) { console.error(`no target ${want}`); process.exit(1); }
 
 await ensureDeps(REPO);
@@ -44,6 +46,7 @@ const proto = await serve(path.join(HERE, "prototype"));
 const { chromium } = await import("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
 const rows = [];
+const scrollFailed = [];
 try {
   for (const t of targets) for (const skin of skins) for (const [sizeName, vp] of sizes) {
     const dir = path.join(out, t.id); fs.mkdirSync(dir, { recursive: true });
@@ -72,7 +75,24 @@ try {
     rows.push(`| ${t.id} | ${skin} | ${sizeName} ${vp.width}x${vp.height} | ${t.id}/${stem}-side-by-side.png |`);
     console.log(`shot ${t.id} ${skin} ${sizeName}`);
   }
+  // Scroll probe (ruling 29): a target with "scroll": { "selector": "<css>" } is scrolled top to bottom and its p95 frame interval checked.
+  for (const t of targets) if (t.scroll) {
+    const ctx = await browser.newContext({ viewport: SIZES.desktop, deviceScaleFactor: 1, reducedMotion: "no-preference" });
+    const page = await ctx.newPage();
+    await page.goto(routeUrl(real.origin, t.route, "paper"), { waitUntil: "load", timeout: 60000 });
+    const r = await measureScroll(page, t.scroll);
+    const ok = withinBudget(r);
+    console.log(`METRIC ${JSON.stringify({ name: "scroll", target: t.id, frames: r.frames, p95_ms: +r.p95.toFixed(2), max_ms: +r.max.toFixed(2), budget_ms: SCROLL_P95_MS, layout_shift: r.layoutShift, height_stable: r.heightStable, ok })}`);
+    if (!ok || !r.heightStable) scrollFailed.push(t.id);
+    await ctx.close();
+  }
 } finally { await browser.close(); real.close(); proto.close(); }
 fs.writeFileSync(path.join(out, "index.md"), `# Side-by-side screenshots\n\nExport: ${exportSeconds ? exportSeconds.toFixed(1) + " s" : "skipped"} (budget ${maxExport} s)\n\n| target | skin | size | file |\n|---|---|---|---|\n${rows.join("\n")}\n`);
+if (scrollFailed.length) { console.error(`scroll probe over budget: ${scrollFailed.join(", ")}`); process.exit(1); }
 if (exportSeconds > maxExport) { console.error(`web export took ${exportSeconds.toFixed(1)} s, over ${maxExport} s`); process.exit(1); }
 console.log(`${rows.length} side-by-side images in ${out}`);
+
+// Startup probe on the real app (budget startup). Skipped when a single target or no apps/app is asked for.
+if (want === "all" && !args["skip-startup"] && fs.existsSync(path.join(REPO, "apps/app/app.json"))) {
+  execSync("node scripts/shots/probes/startup.mjs", { cwd: REPO, stdio: "inherit" });
+}

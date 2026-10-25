@@ -324,13 +324,41 @@ function envName(name: string): boolean {
   return /^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(name);
 }
 
-/** The lowest TCP port the image says it exposes, else 3000. */
+/**
+ * The first TCP port an EXPOSE line of the last build stage names, or null. A base image such as caddy exposes its own ports (80, 443, 2019), and an image
+ * inherits them, so the port the site listens on is read from the Dockerfile that was built, not from the merged image config.
+ */
+export function dockerfilePort(text: string): number | null {
+  const stages = text.split(/^\s*FROM\s/im);
+  const last = stages.length > 1 ? (stages[stages.length - 1] ?? "") : text;
+  for (const line of last.split(/\r?\n/)) {
+    const m = line.match(/^\s*EXPOSE\s+(.+)$/i);
+    if (!m || !m[1]) continue;
+    for (const tok of m[1].trim().split(/\s+/)) {
+      const p = tok.match(/^(\d{1,5})(?:\/tcp)?$/i);
+      if (p && p[1] && Number(p[1]) >= 1 && Number(p[1]) <= 65535) return Number(p[1]);
+    }
+  }
+  return null;
+}
+
+/**
+ * The port a site container listens on. `json` is either the image's ExposedPorts map or `{ports, label}` where label is the vyre.port label the build
+ * wrote from the Dockerfile. The label wins; without it the lowest exposed TCP port is used, else 3000.
+ */
 export function exposedPort(json: string): number {
   try {
     const v: unknown = JSON.parse(json);
     if (typeof v !== "object" || v === null) return DEFAULT_PORT;
-    const ports = Object.keys(v).map((k) => k.match(/^(\d+)\/tcp$/)).filter((m): m is RegExpMatchArray => m !== null).map((m) => Number(m[1])).sort((a, b) => a - b);
-    return ports[0] ?? DEFAULT_PORT;
+    let map: object = v;
+    if ("ports" in v || "label" in v) {
+      const label = (v as { label?: unknown }).label;
+      if (typeof label === "string" && /^\d{1,5}$/.test(label) && Number(label) >= 1 && Number(label) <= 65535) return Number(label);
+      const ports = (v as { ports?: unknown }).ports;
+      map = typeof ports === "object" && ports !== null ? ports : {};
+    }
+    const found = Object.keys(map).map((k) => k.match(/^(\d+)\/tcp$/)).filter((m): m is RegExpMatchArray => m !== null).map((m) => Number(m[1])).sort((a, b) => a - b);
+    return found[0] ?? DEFAULT_PORT;
   } catch {
     return DEFAULT_PORT;
   }
@@ -376,8 +404,22 @@ export function dockerRuntime(o: DockerRuntimeOptions): SiteRuntime {
         "--cache-from", cache,
       ];
       for (const [k, v] of Object.entries(plan.args)) argv.push("--build-arg", `${k}=${v}`);
+      let declared: number | null = null;
+      try {
+        declared = dockerfilePort(fs.readFileSync(plan.dockerfile, "utf8"));
+      } catch {
+        declared = null;
+      }
+      if (declared !== null) argv.push("--label", `vyre.port=${declared}`);
       argv.push(source.dir);
-      const built = await exec(argv, { timeoutMs: BUILD_TIMEOUT_MS });
+      let built = await exec(argv, { timeoutMs: BUILD_TIMEOUT_MS });
+      if (built.code !== 0 && /failed to restore cached image|failed to create cache image/i.test(`${built.stdout}\n${built.stderr}`)) {
+        // The classic builder (no buildx on the host) can fail to restore its --cache-from image. The local layer cache still applies, so build again without it.
+        log.push("The classic Docker builder could not restore the cache image; building again without --cache-from.");
+        const at = argv.indexOf("--cache-from");
+        const plain = at < 0 ? argv : [...argv.slice(0, at), ...argv.slice(at + 2)];
+        built = await exec(plain, { timeoutMs: BUILD_TIMEOUT_MS });
+      }
       log.push(...lines(built.stdout), ...lines(built.stderr));
       if (built.code !== 0) {
         log.push(built.code === 124 ? "The build ran out of time (10 minutes)." : "The build failed. The last lines above say why.");
@@ -403,13 +445,13 @@ export function dockerRuntime(o: DockerRuntimeOptions): SiteRuntime {
     const image = req.image;
     if (image.startsWith("-")) throw new Error("Unsafe image name.");
     await ensureNetwork(network);
-    const inspected = await exec(["docker", "image", "inspect", "--format", "{{json .Config.ExposedPorts}}", image], { timeoutMs: 15_000 });
+    const inspected = await exec(["docker", "image", "inspect", "--format", `{"ports":{{json .Config.ExposedPorts}},"label":{{json (index .Config.Labels "vyre.port")}}}`, image], { timeoutMs: 15_000 });
     if (inspected.code !== 0) throw new Error(`The image ${image} is not on this server. Build the site again.`);
     const port = exposedPort(inspected.stdout.trim());
     const childEnv: Record<string, string> = {};
     const argv = [
       "docker", "run", "--detach", "--name", name, "--network", network, "--restart", "unless-stopped",
-      "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--memory", memory, "--pids-limit", String(pids),
+      "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE", "--security-opt", "no-new-privileges", "--memory", memory, "--pids-limit", String(pids),
       "--label", `vyre.site=${req.siteId}`, "--label", `vyre.deployment=${req.deploymentId}`, "--label", `vyre.env=${req.env}`,
       "--env", `PORT=${port}`, "--env", `VYRE_SITE_ID=${req.siteId}`, "--env", `VYRE_SERVICE_PRINCIPAL=${req.servicePrincipal}`,
     ];
