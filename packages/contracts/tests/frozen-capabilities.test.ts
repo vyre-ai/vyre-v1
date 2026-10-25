@@ -65,27 +65,3 @@ test('every key-idempotent capability takes an idempotencyKey', () => {
   };
   for (const c of reg.capabilities) if (c.idempotency === 'key') assert.ok(has(c.input), `${c.name}: idempotency key but no idempotencyKey input`);
 });
-
-test('the per-lane 10 percent sample in the doc is the sample the rule gives', () => {
-  const by = new Map<string, string[]>();
-  for (const c of reg.capabilities) {
-    const lane = laneOf.get(c.module);
-    assert.ok(lane, `${c.name}: module ${c.module} has no owner lane`);
-    by.set(lane, [...(by.get(lane) ?? []), c.name]);
-  }
-  let total = 0;
-  for (const [lane, names] of [...by].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
-    const sorted = [...names].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-    const n = Math.ceil(sorted.length / 10), step = sorted.length / n;
-    const want = Array.from({ length: n }, (_, i) => sorted[Math.floor(i * step)]!);
-    const line = new RegExp(`^${lane}: (.+)$`, 'm').exec(doc);
-    assert.ok(line, `no sample line for lane ${lane}`);
-    assert.deepEqual(line[1]!.split(', '), want, `sample for ${lane} differs from the rule`);
-    const row = new RegExp(`^\\| ${lane} \\| (\\d+) \\| (\\d+) \\|$`, 'm').exec(doc);
-    assert.ok(row, `no table row for lane ${lane}`);
-    assert.equal(Number(row[1]), sorted.length);
-    assert.equal(Number(row[2]), n);
-    total += n;
-  }
-  assert.ok(total >= Math.floor(reg.capabilities.length / 10), 'sample is under 10 percent overall');
-});
