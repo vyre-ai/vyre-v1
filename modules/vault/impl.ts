@@ -1,9 +1,10 @@
-// vault (lane L7a): items, sharing, folders, use by name, fill, env injection and .env exports. AI providers (list, add, remove, test, sign-in) are real. Import, generate, health, policy, site rules and the rest of folders are deferred (ruling 60, docs/deferred.md): their handlers refuse.
+// vault (lane L7a): items, sharing, folders, use by name, fill, env injection and .env exports. AI providers (list, add, remove, test, sign-in) are real. Import is deferred (ruling 60, docs/deferred.md): its handlers refuse.
 // The host registers its half once at boot: setFiller (the vault service's own key) and setKeyPort (the signed-in owner's person key, for Mine items), see handlers/crypto.ts.
 import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
 import * as u from "./handlers/use.ts";
 import * as pr from "./handlers/providers.ts";
+import * as g from "./handlers/g20.ts";
 import { Filler, setFiller, setKeyPort } from "./handlers/crypto.ts";
 import type { KeyPort } from "./handlers/crypto.ts";
 import { deferredHandlers } from "../../host/src/routes/deferred.ts";
@@ -17,7 +18,7 @@ export { configureVault, secretPort, scrub, leaks, forms, exportPull } from "./h
 export type { VaultHost, FillSink } from "./handlers/use.ts";
 
 /** Capabilities whose packet is deferred (ruling 60, docs/deferred.md). */
-export const DEFERRED = ["vault.folders.delete", "vault.folders.update", "vault.generate", "vault.health", "vault.import", "vault.import_parse", "vault.items.export_mine", "vault.items.match", "vault.policy.get", "vault.policy.set", "vault.site_rules.list", "vault.site_rules.set"] as const;
+export const DEFERRED = ["vault.import", "vault.import_parse"] as const;
 export type { KeyPort } from "./handlers/index.ts";
 
 export const handlers: Record<string, Handler> = {
@@ -51,6 +52,16 @@ export const handlers: Record<string, Handler> = {
   "providers.subscription_start": (ctx, i) => pr.subscriptionStart(ctx, i),
   "providers.subscription_complete": (ctx, i) => pr.subscriptionComplete(ctx, i),
   "providers.test": (ctx, i) => pr.test(ctx, i),
+  "vault.folders.update": (ctx, i) => g.foldersUpdate(ctx, i),
+  "vault.folders.delete": (ctx, i) => g.foldersDelete(ctx, i),
+  "vault.generate": (ctx, i) => g.generate(ctx, i),
+  "vault.health": (ctx, i) => g.health(ctx, i),
+  "vault.policy.get": (ctx) => g.policyGet(ctx),
+  "vault.policy.set": (ctx, i) => g.policySet(ctx, i),
+  "vault.items.match": (ctx, i) => g.itemsMatch(ctx, i),
+  "vault.site_rules.list": (ctx) => g.siteRulesList(ctx),
+  "vault.site_rules.set": (ctx, i) => g.siteRulesSet(ctx, i),
+  "vault.items.export_mine": (ctx, i) => g.exportMine(ctx, i),
   ...deferredHandlers(DEFERRED),
 };
 
