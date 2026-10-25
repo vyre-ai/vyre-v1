@@ -97,7 +97,7 @@ test("redaction property: a bundle built over Restricted and sealed rows contain
     assert.ok(preview.redactions >= 1, `seed ${seed}: something was removed`);
     // what is stored and sent
     const out = await call("reports.submit", w.ctx, { bundle: sent }) as { reportId: string; sentToVyre: boolean };
-    assertClean(JSON.parse(String(w.raw.rows("reports_report")[0]!["bundle_json"])), values, `seed ${seed} stored`);
+    assertClean(JSON.parse(String(w.raw.rows("reports_client_report")[0]!["bundle_json"])), values, `seed ${seed} stored`);
     assert.equal(w.posted.length, 1);
     assertClean(w.posted[0]!.bundle, values, `seed ${seed} posted`);
     const got = await call("reports.get", w.ctx, { reportId: out.reportId }) as { bundle: Bundle };
@@ -147,7 +147,7 @@ test("preview builds the bundle from the host's recent traces, events and versio
   assert.equal(out.bundle.note, `${REDACTED}'s page is blank`);
   assert.equal(out.bundle.events[0]!.type, `note.created for ${REDACTED}`);
   assert.equal(out.redactions, 2);
-  assert.deepEqual(w.raw.rows("reports_report"), [], "a preview stores nothing");
+  assert.deepEqual(w.raw.rows("reports_client_report"), [], "a preview stores nothing");
 });
 
 test("submit stores the redacted bundle, makes the Review task for admins and keeps the original trace ids in order", async () => {
@@ -158,7 +158,7 @@ test("submit stores the redacted bundle, makes the Review task for admins and ke
   assert.equal(out.taskId, "tsk_1");
   const task = w.tasks[0] as { kind: string; title: string; assigned: unknown; source: unknown };
   assert.deepEqual([task.kind, task.title, task.assigned, task.source], ["review", "Problem report from Omar", { kind: "role", id: "admin" }, { kind: "manual", id: out.reportId }]);
-  const row = w.raw.rows("reports_report")[0]!;
+  const row = w.raw.rows("reports_client_report")[0]!;
   assert.deepEqual([row["status"], row["reporter"], row["task_id"], JSON.parse(String(row["trace_ids"]))], ["sent", "usr_omar", "tsk_1", ids]);
   assert.deepEqual(w.events.map((e) => e.name), ["report.submitted", "report.sent_to_vyre"]);
   assert.deepEqual(w.events[0]!.payload, { reportId: out.reportId, by: "usr_omar", traceIds: ids });
@@ -168,7 +168,7 @@ test("an incomplete bundle is refused", async () => {
   const w = ready();
   const err = await failed(call("reports.submit", w.ctx, { bundle: { context: {}, versions: {} } }));
   assert.equal(err.error.code, "validation.bad_input");
-  assert.deepEqual(w.raw.rows("reports_report"), []);
+  assert.deepEqual(w.raw.rows("reports_client_report"), []);
   assert.deepEqual(w.tasks, []);
 });
 
@@ -180,7 +180,7 @@ test("policy On posts the redacted bundle; Ask and Off keep the report here: onl
     w.sensitive = ["Maria Okafor", "123-45-6789"];
     const sent = bundleOf({ note: "Maria Okafor 123-45-6789 broke it", screenshotFileId: "fil_shot1" });
     results[policy] = await call("reports.submit", w.ctx, { bundle: sent }) as { sentToVyre: boolean };
-    const row = w.raw.rows("reports_report")[0]!;
+    const row = w.raw.rows("reports_client_report")[0]!;
     stored[policy] = JSON.parse(String(row["bundle_json"]));
     assert.equal(row["redactions"], 3);
     assert.equal(w.posted.length, policy === "on" ? 1 : 0, `${policy}: destination`);
@@ -222,7 +222,7 @@ test("the service slowing down or being unreachable keeps the report and says wh
   assert.equal((await failed(call("reports.send_to_vyre", w.ctx, { reportId }))).error.code, "rate_limit.exceeded");
   w.serviceFails = "down";
   assert.equal((await failed(call("reports.send_to_vyre", w.ctx, { reportId }))).error.code, "provider.unavailable");
-  assert.equal(w.raw.rows("reports_report")[0]!["status"], "new");
+  assert.equal(w.raw.rows("reports_client_report")[0]!["status"], "new");
   w.serviceFails = null;
   assert.deepEqual(await call("reports.send_to_vyre", w.ctx, { reportId }), { issueNumber: 1234, stored: true });
 });
@@ -232,7 +232,7 @@ test("a post that fails while submitting does not lose the report", async () => 
   w.serviceFails = "down";
   const out = await call("reports.submit", w.ctx, { bundle: bundleOf() }) as { sentToVyre: boolean; reportId: string; taskId: string };
   assert.equal(out.sentToVyre, false);
-  assert.equal(w.raw.rows("reports_report").length, 1);
+  assert.equal(w.raw.rows("reports_client_report").length, 1);
   assert.equal(w.tasks.length, 1);
 });
 
@@ -247,7 +247,7 @@ test("resolved closes a report this Space sent, with the issue number it was giv
   assert.deepEqual(w.events, []);
   assert.deepEqual(await call("reports.resolved", w.ctx, { reportId, issueNumber: 1234, fixedIn: "1.2.2" }), { ok: true });
   assert.deepEqual(w.events.map((e) => [e.name, e.payload]), [["report.resolved", { reportId, issueNumber: 1234, fixedIn: "1.2.2" }]]);
-  const row = w.raw.rows("reports_report")[0]!;
+  const row = w.raw.rows("reports_client_report")[0]!;
   assert.deepEqual([row["status"], row["fixed_in"]], ["resolved", "1.2.2"]);
   w.events.length = 0;
   assert.deepEqual(await call("reports.resolved", w.ctx, { reportId, issueNumber: 1234 }), { ok: true });
@@ -258,7 +258,7 @@ test("a report that was never sent cannot be resolved from outside", async () =>
   const w = ready({ policy: "off" });
   const { reportId } = await call("reports.submit", w.ctx, { bundle: bundleOf() }) as { reportId: string };
   assert.equal((await failed(call("reports.resolved", w.ctx, { reportId, issueNumber: 1234 }))).error.code, "validation.precondition_failed");
-  assert.equal(w.raw.rows("reports_report")[0]!["status"], "new");
+  assert.equal(w.raw.rows("reports_client_report")[0]!["status"], "new");
 });
 
 // ---- list, get, policy, health
