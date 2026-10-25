@@ -56,7 +56,7 @@ test("screen: a folder lists its folders first, then its files by name, each a u
   const out = list(folder("fld_sales"));
   assert.deepEqual(lines(out), ["folder:fld_proposals", "file:fil_logo", "file:fil_deck", "file:fil_pricing"]);
   assert.ok(has(out, ">Sales<") && has(out, "4 items"));
-  const cell = (key: string, id: string): string => new RegExp(`data-testid="row-line:${key}-trailing"[\\s\\S]*?data-testid="cell-${id}"[^>]*>([^<]*)<`).exec(out)?.[1] ?? "";
+  const cell = (key: string, id: string): string => new RegExp(`data-testid="row-line:${key}-trailing"[\\s\\S]*?data-testid="cell-${id}"[^>]*>(?:<[^>]*>)*([^<]*)<`).exec(out)?.[1] ?? "";
   assert.equal(cell("file:fil_deck", "kind"), "Presentation");
   assert.equal(cell("file:fil_deck", "size"), "8.9 MB");
   assert.equal(cell("file:fil_pricing", "size"), "62 KB");
