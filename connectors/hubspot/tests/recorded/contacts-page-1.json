@@ -1,0 +1,4 @@
+{"results":[
+ {"id":"501","properties":{"createdate":"2026-09-01T10:00:00.000Z","email":"ann.baker@example.test","firstname":"Ann","lastname":"Baker","phone":"+1 555 0101","hs_lastmodifieddate":"2026-10-01T09:00:00.000Z","hs_object_id":"501"},"createdAt":"2026-09-01T10:00:00.000Z","updatedAt":"2026-10-01T09:00:00.000Z","archived":false},
+ {"id":"502","properties":{"createdate":"2026-09-02T11:00:00.000Z","email":"omar.reyes@example.test","firstname":"Omar","lastname":"Reyes","phone":null,"hs_lastmodifieddate":"2026-10-02T09:30:00.000Z","hs_object_id":"502"},"createdAt":"2026-09-02T11:00:00.000Z","updatedAt":"2026-10-02T09:30:00.000Z","archived":false}
+],"paging":{"next":{"after":"NTI1Cg","link":"https://api.hubapi.com/crm/v3/objects/contacts?after=NTI1Cg"}}}
