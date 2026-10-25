@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "P-L9f_03c-journey-states",
+      "route": "/m/P-L9f_03c?view=journey&states=1",
+      "proto": "automations,at:jstatus,{skin}",
+      "waitFor": "[data-testid='state-t_review']",
+      "note": "Client onboarding on its Stages tab with the Journey types tree in the sidebar (section head, tiles, counts): Consult booked done (filled check), Intake with the review In review and the conflict check Blocked, and an Automation under On leaving. The prototype side is the same Journey with the same states (token jstatus, added to the prototype copy per ruling 42)."
+    },
+    {
+      "id": "P-L9f_03c-alerts",
+      "route": "/m/P-L9f_03c?view=alerts&space=northwind",
+      "proto": "automations,at:alerts,{skin}",
+      "waitFor": "[data-testid='alerts-tab']",
+      "note": "The Alerts tab of New lead follow-up: the escalation chain ends with its Add a step row and no explaining line under it."
+    }
+  ]
+}
