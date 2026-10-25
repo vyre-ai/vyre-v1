@@ -1,7 +1,7 @@
 // Props for ui/Avatar: the one face for a person, an agent, the assistant, an automation or a group, at any size.
-// People get a marble seeded by their name until they add a photo; agents get a pixel face seeded by their name; the assistant is the Vyre mark.
+// People get a marble seeded by their name until they add a photo; agents get a DiceBear Notionists face seeded by their name; a Space gets a letter on a tint; the assistant is the Vyre mark.
 
-export type AvatarKind = "person" | "agent" | "assistant" | "automation" | "group";
+export type AvatarKind = "person" | "agent" | "assistant" | "automation" | "group" | "space";
 
 export interface AvatarProps {
   /** The name the face is seeded from. The same name draws the same face everywhere. */

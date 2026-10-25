@@ -190,6 +190,16 @@
       "dev": false
     },
     {
+      "name": "@dicebear/core",
+      "reason": "agent faces: the prototype's DiceBear Notionists (MIT)",
+      "dev": false
+    },
+    {
+      "name": "@dicebear/notionists",
+      "reason": "agent faces: the Notionists style (MIT code, CC0 art)",
+      "dev": false
+    },
+    {
       "name": "react-dom",
       "reason": "web renderer and server-render tests",
       "dev": false

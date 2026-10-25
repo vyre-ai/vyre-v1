@@ -1,5 +1,5 @@
 // ui/Avatar: the one face for a person, an agent, the assistant, an automation or a group (replaces every letter tile).
-// People: a marble seeded by the name, or their photo. Agents: a pixel face on a soft tint, seeded by the name. The assistant is the Vyre mark.
+// People: a marble seeded by the name, or their photo. Agents: a DiceBear Notionists face on a soft tint, seeded by the name (as the prototype). Spaces: a letter on a tint. The assistant is the Vyre mark.
 // Automations and groups get a line glyph on the neutral tile. Radius is 30% for everything but people, who are round (as the prototype's tile.a and tile.p).
 // Web draws inline svg; native has no svg here, so it shows the letters on the face's tint until a native icon set lands.
 
@@ -7,15 +7,22 @@ import { createElement, memo } from "react";
 import type { ReactElement } from "react";
 import { Image, Platform, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
-import { hueOf, initialsOf, marbleInner, pixelInner } from "./faces.ts";
+import { faceTint, hueOf, initialsOf, marbleInner } from "./faces.ts";
+import { notionistsSvg } from "./notionists.ts";
 import type { AvatarKind, AvatarProps } from "./props.ts";
 
 export type { AvatarKind, AvatarProps } from "./props.ts";
-export { hash, hueOf, initialsOf, marbleInner, pixelInner, pixelSpec, marbleSpec } from "./faces.ts";
+export { faceTint, hash, hueOf, initialsOf, marbleInner, marbleSpec } from "./faces.ts";
+export { notionistsSvg } from "./notionists.ts";
 
 export const AVATAR_DEFAULT_SIZE = 18;
 
 const web = Platform.OS === "web";
+
+/** The face svg at the caller's size: DiceBear writes width and height 64 on the root. */
+function sized(markup: string, size: number): string {
+  return markup.replace(/^<svg([^>]*)>/, (_m, attrs: string) => `<svg${attrs.replace(/\s(width|height)="[^"]*"/g, "")} width="${size}" height="${size}">`);
+}
 
 function webProps(props: Record<string, unknown>): Record<string, unknown> {
   return web ? props : {};
@@ -55,7 +62,9 @@ export const Avatar = memo(function Avatar({ name, kind: kindProp, size = AVATAR
   } else if (kind === "person") {
     face = web ? svg(marbleInner(name), size, "0 0 80 80") : <NativeLetters name={name} size={size} person tint={`hsl(${hueOf(name)}, 45%, 70%)`} />;
   } else if (kind === "agent") {
-    face = web ? svg(pixelInner(name), size, "0 0 12 12", { shapeRendering: "crispEdges" }) : <NativeLetters name={name} size={size} tint={`hsl(${hueOf(name)}, 55%, 86%)`} />;
+    face = web ? createElement("span", { style: { display: "block", width: size, height: size, lineHeight: 0 }, dangerouslySetInnerHTML: { __html: sized(notionistsSvg(name), size) } }) : <NativeLetters name={name} size={size} tint={`#${faceTint(name)}`} />;
+  } else if (kind === "space") {
+    face = <NativeLetters name={name} size={size} tint={`hsla(${hueOf(name)}, 60%, 50%, 0.18)`} ink={`hsl(${hueOf(name)}, 55%, 46%)`} />;
   } else if (kind === "assistant") {
     const s = Math.round(size * 0.78);
     face = web ? svg(VYRE_MARK, s, "0 0 24 24", { className: "vmark" }) : <Text style={{ color: "var(--ink)" as string, fontWeight: "700", fontSize: Math.round(size * 0.5) }}>V</Text>;
@@ -82,10 +91,10 @@ function dotSize(size: number): ViewStyle {
   return { width: d, height: d, borderRadius: d / 2 };
 }
 
-function NativeLetters({ name, size, person = false, tint }: { name: string; size: number; person?: boolean; tint: string }): ReactElement {
+function NativeLetters({ name, size, person = false, tint, ink = "#1F1F23" }: { name: string; size: number; person?: boolean; tint: string; ink?: string }): ReactElement {
   return (
     <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center", backgroundColor: tint }}>
-      <Text style={{ color: "#1F1F23", fontWeight: "600", fontSize: Math.max(9, Math.round(size * 0.48)) }}>{initialsOf(name, size, person)}</Text>
+      <Text style={{ color: ink, fontWeight: "600", fontSize: Math.max(9, Math.round(size * 0.48)) }}>{initialsOf(name, size, person)}</Text>
     </View>
   );
 }

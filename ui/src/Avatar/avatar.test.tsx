@@ -1,8 +1,9 @@
-// ui/Avatar: people get a marble, agents a pixel face, the assistant the Vyre mark, automations and groups a glyph; one face per name, everywhere.
+// ui/Avatar: people get a marble, agents a Notionists face, the assistant the Vyre mark, automations and groups a glyph; one face per name, everywhere.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Avatar, hash, kindOf, marbleSpec, pixelInner, pixelSpec, initialsOf } from "./index.tsx";
+import { Avatar, faceTint, hash, hueOf, kindOf, marbleSpec, initialsOf, notionistsSvg } from "./index.tsx";
+import { hslHex } from "./faces.ts";
 
 test("the hash is the prototype's, so a name seeds the same face as the prototype draws", () => {
   assert.equal(hash("Maya Chen"), 1260685739);
@@ -33,27 +34,34 @@ test("the same name draws the same face and different names draw different ones"
   assert.notEqual(p1, p2);
 });
 
-test("an agent is a pixel face on a soft tint, with a 30 percent radius", () => {
-  const spec = pixelSpec("Scheduler");
-  assert.match(spec.tint, /^hsl\(\d+ 55% 86%\)$/);
+test("an agent is a DiceBear Notionists face on a soft tint, with a 30 percent radius", () => {
+  assert.equal(faceTint("Scheduler"), hslHex(hueOf("Scheduler"), 55, 86));
+  assert.match(faceTint("Scheduler"), /^[0-9a-f]{6}$/);
   const html = renderToStaticMarkup(<Avatar name="Scheduler" kind="agent" size={20} />);
   assert.match(html, /data-avatar="agent"/);
-  assert.match(html, /viewBox="0 0 12 12"/);
-  assert.match(html, /shape-rendering="crispEdges"/);
-  assert.ok(html.includes(`fill="${spec.tint}"`), "the tint fills the ground");
-  assert.ok(html.includes(`fill="${spec.skin}"`), "the head is skin coloured");
+  assert.match(html, /<svg[^>]* width="20" height="20"/, "drawn at the size it is given");
+  assert.match(html, /viewBox="0 0 64 64"/);
+  assert.ok(html.toLowerCase().includes(`#${faceTint("Scheduler")}`) || html.toLowerCase().includes(faceTint("Scheduler")), "the tint fills the ground");
   assert.match(html, /border-top-left-radius:30%/);
-  assert.ok((html.match(/<rect /g) ?? []).length >= 6, "a head, hair, eyes and a mouth are drawn");
 });
 
-test("a pixel face is eight pixels wide and sits inside the 12 pixel ground", () => {
-  for (const name of ["Scheduler", "Proofer", "Intake", "Billing", "Research", "Docs", "Scout", "Ines", "Theo"]) {
-    const svg = pixelInner(name);
-    for (const m of svg.matchAll(/<rect x="(-?\d+)" y="(-?\d+)" width="(\d+)" height="(\d+)"/g)) {
-      const [x, y, w, h] = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])];
-      assert.ok(x >= 0 && y >= 0 && x + w <= 12 && y + h <= 12, `${name}: ${m[0]} stays on the ground`);
-    }
-  }
+test("the prototype's hslHex turns hue, saturation and lightness into hex", () => {
+  assert.equal(hslHex(0, 100, 50), "ff0000");
+  assert.equal(hslHex(120, 100, 50), "00ff00");
+  assert.equal(hslHex(240, 100, 50), "0000ff");
+  assert.equal(hslHex(0, 0, 100), "ffffff");
+});
+
+test("one agent name draws one face, and two names draw two", () => {
+  assert.equal(notionistsSvg("Scheduler"), notionistsSvg("Scheduler"));
+  assert.notEqual(notionistsSvg("Scheduler"), notionistsSvg("Proofer"));
+});
+
+test("a Space is a letter on a tint, not a face", () => {
+  const html = renderToStaticMarkup(<Avatar name="Northwind" kind="space" size={20} />);
+  assert.match(html, /data-avatar="space"/);
+  assert.match(html, />N</);
+  assert.doesNotMatch(html, /<svg/);
 });
 
 test("the assistant is the Vyre mark on the neutral tile, whether asked for by kind or by name", () => {
