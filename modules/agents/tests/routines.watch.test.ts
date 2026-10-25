@@ -61,6 +61,19 @@ test("a watcher needs its channel, and only a watcher may name one; a schedule n
   assert.equal((await call(hn, "agents.routines.list", { agentId: id })).routines.length, 0, "nothing was saved");
 });
 
+test("a watcher on a channel its owner cannot read is refused with permission.no_grant and never saved", async () => {
+  const { hn, id } = await setup();
+  hn.allowOnly((_a, res) => !(res.type === "channel" && res.id === "chn_secret"));
+  const code = await failure(() => h["agents.routine.save"]!(hn.ctx, { agentId: id, title: "Spy", kind: "watch", watch: { on: "message", channelId: "chn_secret" }, prompt: "Read.", idempotencyKey: "sec1" }));
+  assert.equal(code, "permission.no_grant");
+  assert.equal((await call(hn, "agents.routines.list", { agentId: id })).routines.length, 0);
+  // a channel they can read is fine, and changing an existing watcher to the secret channel is refused too
+  const ok = (await watch(hn, id)).routine;
+  const move = await failure(() => h["agents.routine.save"]!(hn.ctx, { agentId: id, routineId: ok.routineId, title: "Greet new leads", kind: "watch", watch: { on: "message", channelId: "chn_secret" }, prompt: "Say hello.", idempotencyKey: "sec2" }));
+  assert.equal(move, "permission.no_grant");
+  assert.equal((await call(hn, "agents.routines.list", { agentId: id })).routines[0].watch.channelId, "chn_leads", "the watcher still listens where it did");
+});
+
 test("a new message in the watched channel starts one run under the routine owner; other channels, the agent itself and routine messages do not", async () => {
   const { hn, id } = await setup();
   const started: any[] = [];
@@ -72,6 +85,8 @@ test("a new message in the watched channel starts one run under the routine owne
   const first = msg();
   assert.deepEqual(await fire(hn, first), ["run_a1"]);
   assert.deepEqual([started[0].kind, started[0].owner, started[0].name], ["routine", DANA, "Greet new leads"]);
+  assert.deepEqual([started[0].threadId, started[0].trigger], ["thr_leads", { messageId: first.payload.messageId, threadId: "thr_leads", channelId: "chn_leads" }], "the run carries the message, thread and channel that woke it");
+  assert.deepEqual(contractErrors("runs.start", "in", started[0]), []);
   assert.deepEqual(hn.named("agent.routine_run_started")[0]!.payload, { agentId: id, routineId: routine.routineId, runId: "run_a1", ownerId: DANA, requestedBy: `watch:${first.payload.messageId}` });
   assert.deepEqual(assertEventsConform(hn), []);
   assert.deepEqual(await fire(hn, msg({ threadId: "thr_elsewhere" })), [], "another channel");

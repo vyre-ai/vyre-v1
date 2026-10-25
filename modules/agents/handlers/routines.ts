@@ -32,6 +32,10 @@ export async function routineSave(ctx: AgentsCtx, input: { agentId: string; rout
   const watcher = input.kind === "watch";
   if (watcher) {
     if (!input.watch || !input.watch.channelId.startsWith("chn_")) raise(ctx, "validation.bad_input", "A watcher needs the channel it watches.", { field: "watch" });
+    // the owner of a watcher can read the channel it watches, or the run it starts would carry words they may not see
+    if (ctx.authorize({ perm: null, level: "view" }, { type: "channel", id: input.watch.channelId }).effect !== "allow") {
+      raise(ctx, "permission.no_grant", "You cannot read that channel, so a watcher cannot listen to it.", { channelId: input.watch.channelId });
+    }
   } else {
     if (input.watch !== undefined) raise(ctx, "validation.bad_input", "Only a watcher names a channel to watch.", { field: "watch" });
     if (input.cron === undefined || parseCron(input.cron) === null) raise(ctx, "validation.bad_input", 'The schedule needs five fields, like "0 9 * * 1-5" (minute, hour, day of the month, month, day of the week).', { cron: input.cron });
@@ -413,7 +417,8 @@ export async function onMessageReceived(ctx: AgentsCtx, event: { payload: { mess
     const agent = r ? agentBy(ctx.db, r.agentId) : null;
     if (!r || !agent || !r.enabled || agent.paused) continue;
     if ((p.author.kind === "agent" && p.author.id === r.agentId) || p.via !== undefined) continue;   // no loop: an agent's own words and routine messages do not wake a watcher
-    const started = await call<{ runId: string }>(ctx, "runs.start", { kind: "routine", name: r.title, owner: r.ownerId }, { idempotencyKey: `watch:${r.id}:${p.messageId}` });
+    // the run carries what woke it, so the agent answers that message in that thread
+    const started = await call<{ runId: string }>(ctx, "runs.start", { kind: "routine", name: r.title, owner: r.ownerId, threadId: p.threadId, trigger: { messageId: p.messageId, threadId: p.threadId, channelId: channel } }, { idempotencyKey: `watch:${r.id}:${p.messageId}` });
     ctx.db.run("UPDATE agents_routine SET lastRunAt = ?, updatedAt = ? WHERE id = ?", ctx.now(), ctx.now(), r.id);
     ctx.emit("agent.routine_run_started", agent.id, { agentId: agent.id, routineId: r.id, runId: started.runId, ownerId: r.ownerId, requestedBy: `watch:${p.messageId}` });
     fired.push(started.runId);

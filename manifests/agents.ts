@@ -153,6 +153,7 @@ export default defineManifest({
         kind: t.opt(t.enm('schedule', 'watch')), watch: t.opt(t.obj({ on: t.enm('message'), channelId: id.channel })),
       },
       out: { routine: routineRow }, make: ['agent', '/agentId'], perm: 'agents.schedule', emits: ['agent.routine_changed'], tool: 'agents', idem: 'key',
+      errors: ['permission.no_grant'],
     }),
     write('agents.routine.delete', 'Delete a routine', {
       in: { ...target, routineId: t.id('rtn') }, out: { deleted: t.bool() }, on: ['agent', '/agentId'], perm: 'agents.schedule', emits: ['agent.routine_changed'], tool: 'agents',
