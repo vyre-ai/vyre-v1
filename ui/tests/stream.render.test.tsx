@@ -315,7 +315,9 @@ test("layout_shift: an image, an avatar and a skeleton have their size before an
   const av = renderToStaticMarkup(<AvatarSlot label="Intake" />);
   assert.match(av, new RegExp(`width:${AVATAR_SIZE}px`));
   assert.match(av, new RegExp(`height:${AVATAR_SIZE}px`));
-  assert.match(av, />I</);
+  assert.match(av, /data-testid="avatar-Intake"/, "the slot holds the shared face of the author, not a letter");
+  assert.match(av, /data-avatar="agent"/);
+  assert.doesNotMatch(av, />I</);
   const sk = renderToStaticMarkup(<SkeletonMessage lines={3} />);
   assert.match(sk, new RegExp(`height:${messageHeight(3)}px`));
   assert.equal(messageHeight(3), HEADER_HEIGHT + 3 * BODY_LINE);

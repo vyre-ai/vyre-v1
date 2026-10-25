@@ -67,6 +67,7 @@ export function createSample(variant: Variant = "working", o: { online?: boolean
     },
     "computers.recording.delete": () => { recording = null; return { deleted: true }; },
     "computers.screen.click": () => ({ ok: true }),
+    "computers.screen.scroll": () => ({ ok: true }),
     "computers.screen.type": () => ({ ok: true }),
     "computers.screen.key": () => ({ ok: true }),
   };

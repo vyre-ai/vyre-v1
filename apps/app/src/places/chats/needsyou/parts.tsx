@@ -3,6 +3,7 @@
 import { createElement, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 
 const PATHS = {
   check: ["M3 8.500l3 3 7-7"],
@@ -29,20 +30,11 @@ export function Icon({ name, size = 15, color = "var(--ink-3)", width = 1.4 }: {
   return createElement("svg", { viewBox: "0 0 16 16", width: size, height: size, "aria-hidden": true, style: { display: "block", flex: "none", stroke: color, strokeWidth: name === "more" ? 2.4 : width, strokeLinecap: "round", strokeLinejoin: "round" } }, ...paths);
 }
 
-function hash(s: string): number {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
-  return h;
-}
-
-/** An agent is a rounded square, a person a circle; the colour comes from the name, mixed into the surface so it reads in every skin. */
+/** An agent is a pixel face on a soft tint, a person a round marble: the shared Avatar. */
 export function Face({ name, kind = "agent", size = 18 }: { name: string; kind?: "agent" | "person"; size?: number }): ReactElement {
-  const hue = (hash(name) % 12) * 30;
   return (
     <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0, flexGrow: 0 }}>
-      <View style={{ width: size, height: size, borderRadius: kind === "person" ? size : Math.round(size * 0.3), backgroundColor: `hsla(${hue}, 65%, 52%, 0.22)` as string, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ color: `hsl(${hue}, 55%, 46%)` as string, fontSize: Math.max(9, Math.round(size * 0.5)), fontWeight: "600" }}>{(name.trim()[0] ?? "?").toUpperCase()}</Text>
-      </View>
+      <Avatar name={name} kind={kind} size={size} />
     </View>
   );
 }

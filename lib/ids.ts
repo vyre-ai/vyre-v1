@@ -34,3 +34,11 @@ export function timeOf(id: string): number | null {
   const u = String(id).slice(-36);
   return isUuid(u) ? parseInt(u.replace(/-/g, "").slice(0, 12), 16) : null;
 }
+
+/**
+ * Record ids follow the contract (manifests/_common.ts id.record, `rec_` then lowercase alphanumerics): `rec_` plus the 32 hex digits of a time-ordered uuid.
+ * This is the one place a record id is minted or checked; the kernel record store accepts nothing else (P-H_14). Contacts are records, so they use the same prefix (id.contact is `rec`).
+ */
+export const RECORD_ID = /^rec_[0-9a-f]{32}$/;
+export const mintRecordId = (now: number = Date.now(), rand?: (n: number) => Uint8Array): string => `rec_${mintUuid(now, rand).replaceAll("-", "")}`;
+export const isRecordId = (s: unknown): boolean => typeof s === "string" && RECORD_ID.test(s);

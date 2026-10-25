@@ -3,11 +3,12 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 
 export type View = "contact" | "thread" | "calls";
 export type Channel = "email" | "sms" | "call";
-/** What the sidebar has selected. Mailbox and number are one inbox each; Following and Campaigns are lists over all inboxes. */
+/** What the sidebar has selected. Mailbox and number are one inbox each; Starred, Following and Campaigns are lists over all inboxes. */
 export type Scope =
   | { kind: "all" }
   | { kind: "mailbox"; id: string }
   | { kind: "number"; id: string }
+  | { kind: "starred" }
   | { kind: "follow" }
   | { kind: "camp" };
 export type MainView = "list" | "calendar";
@@ -84,6 +85,8 @@ export interface Entry {
   inboxIds: readonly string[];
   needsMatch: boolean;
   followed: boolean;
+  /** The caller's own star on the conversation (the row's starred flag; absent on the row means not starred). */
+  starred: boolean;
   campaign: boolean;
   missed: boolean;
   /** The conversation to open (contact view), the thread or the call. */
@@ -101,7 +104,7 @@ export function inboxName(id: string | undefined, mailboxes: readonly Mailbox[])
 export function contactEntry(r: ContactRow, mailboxes: readonly Mailbox[]): Entry {
   return {
     key: r.id, kind: "contact", name: r.displayName || r.address, snippet: r.lastPreview, at: r.lastMessageAt, unread: r.unreadCount, channel: r.lastChannel,
-    via: inboxName(r.mailboxIds[0], mailboxes), inboxIds: r.mailboxIds, needsMatch: r.needsMatch, followed: r.followed, campaign: r.campaignId !== undefined,
+    via: inboxName(r.mailboxIds[0], mailboxes), inboxIds: r.mailboxIds, needsMatch: r.needsMatch, followed: r.followed, starred: r.starred === true, campaign: r.campaignId !== undefined,
     missed: false, openId: r.id, ...(r.contactId ? { contactId: r.contactId } : {}),
   };
 }
@@ -110,7 +113,7 @@ export function threadEntry(t: ThreadRow, mailboxes: readonly Mailbox[], names: 
   const who = (t.contactId ? names.get(t.contactId) : undefined) ?? t.participants[0] ?? "Unknown";
   return {
     key: t.threadId, kind: "thread", name: who, snippet: t.subject ?? "", at: t.lastAt, unread: t.unread, channel: t.channel, via: inboxName(t.mailboxId, mailboxes),
-    inboxIds: t.mailboxId ? [t.mailboxId] : [], needsMatch: false, followed: false, campaign: false, missed: false, openId: t.threadId, ...(t.contactId ? { contactId: t.contactId } : {}),
+    inboxIds: t.mailboxId ? [t.mailboxId] : [], needsMatch: false, followed: false, starred: false, campaign: false, missed: false, openId: t.threadId, ...(t.contactId ? { contactId: t.contactId } : {}),
   };
 }
 
@@ -129,7 +132,7 @@ export function callEntry(c: CallRow, names: ReadonlyMap<string, string>): Entry
   if (c.summary) bits.push(c.summary);
   return {
     key: c.id, kind: "call", name: (c.contactId ? names.get(c.contactId) : undefined) ?? other, snippet: bits.join(" · "), at: c.startedAt, unread: missed ? 1 : 0,
-    channel: "call", via: c.numberId, inboxIds: [c.numberId], needsMatch: c.contactId === undefined, followed: false, campaign: false, missed, openId: c.id, ...(c.contactId ? { contactId: c.contactId } : {}),
+    channel: "call", via: c.numberId, inboxIds: [c.numberId], needsMatch: c.contactId === undefined, followed: false, starred: false, campaign: false, missed, openId: c.id, ...(c.contactId ? { contactId: c.contactId } : {}),
   };
 }
 
@@ -144,6 +147,7 @@ export function narrow(entries: readonly Entry[], s: InboxState): Entry[] {
   for (const e of entries) {
     if (s.channels.length > 0 && !(s.channels as readonly string[]).includes(e.channel === "meeting" ? "call" : e.channel)) continue;
     if (s.inboxes.length > 0 && !e.inboxIds.some((id) => s.inboxes.includes(id))) continue;
+    if (s.scope.kind === "starred" && !e.starred) continue;
     if (s.scope.kind === "follow" && !e.followed) continue;
     if (s.scope.kind === "camp" && !e.campaign) continue;
     out.push(e);
@@ -158,6 +162,7 @@ export function narrow(entries: readonly Entry[], s: InboxState): Entry[] {
 export function scopeTitle(scope: Scope, mailboxes: readonly Mailbox[]): string {
   switch (scope.kind) {
     case "all": return "All inboxes";
+    case "starred": return "Starred";
     case "follow": return "Following";
     case "camp": return "Campaigns";
     case "mailbox": return inboxName(scope.id, mailboxes);

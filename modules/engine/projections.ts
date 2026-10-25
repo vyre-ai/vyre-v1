@@ -5,7 +5,6 @@
 import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
-import type { ErrorCode, EventName } from "../../packages/contracts/src/types.ts";
 import type { TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import { LEASE_TTL_MS } from "../../agent/src/turn-engine/lease.ts";
 import type { LeaseRow, LeaseStore } from "../../agent/src/turn-engine/lease.ts";
@@ -20,6 +19,8 @@ export interface Db {
   run(sql: string, ...args: unknown[]): { changes: number };
 }
 
+type ErrorCode = Parameters<typeof fail>[0];
+
 /** The part of the host Ctx these handlers read. A test passes a small object; the host passes the full Ctx. */
 export interface EngineCtx {
   space: string;
@@ -28,7 +29,7 @@ export interface EngineCtx {
   trace: { traceId: string };
   now(): number;
   db: Db;
-  emit(name: EventName, subject: string, payload: unknown): unknown;
+  emit(name: `${string}.${string}`, subject: string, payload: unknown): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
   authorize(action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): { effect: "allow" | "deny" | "hold" };
   log: { warn(msg: string, attrs?: Record<string, unknown>): void };

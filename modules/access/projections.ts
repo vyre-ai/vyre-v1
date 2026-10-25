@@ -4,6 +4,7 @@
 import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
 import { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
+import { isElevatedRole } from "../../kernel/src/authorize/snapshot.ts";
 import type { Expr, GrantRow, Policy, PrincipalRow } from "../../kernel/src/authorize/index.ts";
 
 type ProviderPolicy = Extract<Policy, { kind: "provider_label" }>;
@@ -105,7 +106,6 @@ const CLEARANCE: Record<(typeof ROLE_NAMES)[number], Label> = {
 const AGENT_OK: Record<(typeof ROLE_NAMES)[number], boolean> = {
   owner: false, admin: false, developer: true, member: true, guest: true,
 };
-const ELEVATED = new Set(["owner", "admin", "rol_owner", "rol_admin"]);
 const OPS = new Set(["eq", "ne", "lt", "lte", "gt", "gte", "in", "owner_me", "and", "or"]);
 const TABLES = [
   "access_meta", "access_roles", "access_groups", "access_principals", "access_assignments",
@@ -287,7 +287,7 @@ export class AccessStore {
       const p = this.principals.get(holder);
       for (const roleId of roles) {
         const role = this.roles.get(roleId);
-        if (p?.kind === "agent" && (ELEVATED.has(roleId) || role?.name === "Owner" || role?.name === "Admin" || role?.assignableToAgents === false)) continue;
+        if (p?.kind === "agent" && (isElevatedRole(roleId, role?.name) || role?.assignableToAgents === false)) continue;
         snap.addPrincipalRole({ holder, role: roleId });
       }
     }
@@ -343,7 +343,7 @@ export class AccessStore {
       if (rid === skip) continue;
       const role = this.roles.get(rid);
       if (!role) continue;
-      if (p?.kind === "agent" && (ELEVATED.has(rid) || !role.assignableToAgents)) continue;
+      if (p?.kind === "agent" && (isElevatedRole(rid, role.name) || !role.assignableToAgents)) continue;
       for (const k of role.permissions) out.add(k);
     }
     return out;
