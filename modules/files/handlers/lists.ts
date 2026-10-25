@@ -69,6 +69,11 @@ function kindOf(ctx: Ctx, o: Record<string, unknown>): string | undefined {
   return kind;
 }
 
+/** How many items Shared with me holds for the caller: the count on the files.tree root. */
+export async function sharedCount(ctx: Ctx): Promise<number> {
+  return (await sharedWithMe(ctx, { limit: 1 })).total;
+}
+
 async function sharedWithMe(ctx: Ctx, input: unknown): Promise<ListOut> {
   ensureReady(ctx);
   const o = rec(ctx, input);
