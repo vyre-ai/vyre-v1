@@ -10,7 +10,7 @@ export default defineManifest({
     rtype('commission', 'Commission', 'Commissions', 'palette', [
       field('title', 'text', 'Title', { required: true }),
       field('client', 'text', 'Client'),
-      field('status', 'status', 'Status'),
+      field('status', 'status', 'Status', { options: { stages: [{ key: 'brief', title: 'Brief' }, { key: 'concept', title: 'Concept' }, { key: 'review', title: 'In review' }, { key: 'delivered', title: 'Delivered' }] } }),
       field('due', 'datetime', 'Due'),
     ], { statusField: 'status', group: 'Studio' }),
   ],

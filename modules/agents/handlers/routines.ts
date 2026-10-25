@@ -11,6 +11,7 @@ import {
 import type { AgentRec, AgentsCtx, FolderOut, RoutineRec, SuggestionRec } from "../projections.ts";
 
 type Row = Record<string, unknown>;
+const str = (v: unknown): string => (typeof v === "string" ? v : String(v ?? ""));
 const by = (ctx: AgentsCtx): string => ctx.actingFor ?? ctx.principal.id;
 
 // ---- routines -------------------------------------------------------------------------------------------------------------------------------------------
@@ -19,39 +20,53 @@ export async function routinesList(ctx: AgentsCtx, input: { agentId: string }) {
   const a = visible(ctx, input.agentId);
   // Nobody else sees a routine, whatever they may do with the agent: the rows are the asker's own.
   const rows = (ctx.db.all("SELECT * FROM agents_routine WHERE agentId = ? AND ownerId = ? ORDER BY createdAt, id", a.id, askerOf(ctx)) as Row[]);
-  return { routines: rows.map((r) => routineOut(routineOf(r))) };
+  return { routines: rows.map((r) => routineOut(routineBy(ctx.db, str(r["id"])) ?? routineOf(r))) };
 }
 
-export async function routineSave(ctx: AgentsCtx, input: { agentId: string; routineId?: string; title: string; cron: string; prompt: string; channelId?: string; enabled?: boolean; idempotencyKey?: string }) {
+export async function routineSave(ctx: AgentsCtx, input: { agentId: string; routineId?: string; title: string; cron?: string; prompt: string; channelId?: string; enabled?: boolean; kind?: "schedule" | "watch"; watch?: { on: "message"; channelId: string }; idempotencyKey?: string }) {
   ensure(ctx.db);
   const agent = agentBy(ctx.db, input.agentId);
   if (!agent || !canSee(ctx, agent)) raise(ctx, "validation.bad_input", "That agent does not exist.");
   const title = input.title.trim();
   if (title === "" || title.length > 120) raise(ctx, "validation.bad_input", "Give the routine a title of up to 120 characters.");
-  if (parseCron(input.cron) === null) raise(ctx, "validation.bad_input", 'The schedule needs five fields, like "0 9 * * 1-5" (minute, hour, day of the month, month, day of the week).', { cron: input.cron });
+  const watcher = input.kind === "watch";
+  if (watcher) {
+    if (!input.watch || !input.watch.channelId.startsWith("chn_")) raise(ctx, "validation.bad_input", "A watcher needs the channel it watches.", { field: "watch" });
+    // the owner of a watcher can read the channel it watches, or the run it starts would carry words they may not see
+    if (ctx.authorize({ perm: null, level: "view" }, { type: "channel", id: input.watch.channelId }).effect !== "allow") {
+      raise(ctx, "permission.no_grant", "You cannot read that channel, so a watcher cannot listen to it.", { channelId: input.watch.channelId });
+    }
+  } else {
+    if (input.watch !== undefined) raise(ctx, "validation.bad_input", "Only a watcher names a channel to watch.", { field: "watch" });
+    if (input.cron === undefined || parseCron(input.cron) === null) raise(ctx, "validation.bad_input", 'The schedule needs five fields, like "0 9 * * 1-5" (minute, hour, day of the month, month, day of the week).', { cron: input.cron });
+  }
   if (input.prompt.trim() === "" || input.prompt.length > MAX_PROMPT) raise(ctx, "validation.bad_input", `The routine needs a prompt of up to ${MAX_PROMPT} characters.`);
   if (input.channelId !== undefined && !input.channelId.startsWith("chn_")) raise(ctx, "validation.bad_input", "That is not a channel.", { channelId: input.channelId });
   const owner = askerOf(ctx);
   const now = ctx.now();
   const enabled = input.enabled !== false;
-  const next = enabled ? nextRun(input.cron, now) : null;
+  const cron = watcher ? "" : (input.cron as string).trim();
+  const next = enabled && !watcher ? nextRun(cron, now) : null;   // a watcher has no next time: it runs when a message arrives
+  let id: string;
   if (input.routineId !== undefined) {
     // Someone else's routine is answered like one that does not exist.
     const old = routineBy(ctx.db, input.routineId);
     if (!old || old.ownerId !== owner || old.agentId !== agent.id) raise(ctx, "validation.bad_input", "That routine does not exist.");
     ctx.db.run(
       "UPDATE agents_routine SET title = ?, cron = ?, prompt = ?, channelId = ?, enabled = ?, nextRunAt = ?, updatedAt = ? WHERE id = ?",
-      title, input.cron.trim(), input.prompt, input.channelId ?? null, enabled ? 1 : 0, next, now, old.id,
+      title, cron, input.prompt, input.channelId ?? null, enabled ? 1 : 0, next, now, old.id,
     );
-    ctx.emit("agent.routine_changed", agent.id, { agentId: agent.id, routineId: old.id, op: "updated" });
-    return { routine: routineOut(routineBy(ctx.db, old.id) as RoutineRec) };
+    id = old.id;
+  } else {
+    id = mintId("rtn", now);
+    ctx.db.run(
+      "INSERT INTO agents_routine (id, agentId, ownerId, title, cron, prompt, channelId, enabled, nextRunAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      id, agent.id, owner, title, cron, input.prompt, input.channelId ?? null, enabled ? 1 : 0, next, now, now,
+    );
   }
-  const id = mintId("rtn", now);
-  ctx.db.run(
-    "INSERT INTO agents_routine (id, agentId, ownerId, title, cron, prompt, channelId, enabled, nextRunAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, agent.id, owner, title, input.cron.trim(), input.prompt, input.channelId ?? null, enabled ? 1 : 0, next, now, now,
-  );
-  ctx.emit("agent.routine_changed", agent.id, { agentId: agent.id, routineId: id, op: "created" });
+  ctx.db.run("DELETE FROM agents_routine_watch WHERE routineId = ?", id);
+  if (watcher) ctx.db.run("INSERT INTO agents_routine_watch (routineId, channelId) VALUES (?, ?)", id, input.watch!.channelId);
+  ctx.emit("agent.routine_changed", agent.id, { agentId: agent.id, routineId: id, op: input.routineId !== undefined ? "updated" : "created" });
   return { routine: routineOut(routineBy(ctx.db, id) as RoutineRec) };
 }
 
@@ -61,6 +76,7 @@ export async function routineDelete(ctx: AgentsCtx, input: { agentId: string; ro
   const r = routineBy(ctx.db, input.routineId);
   if (!agent || !canSee(ctx, agent) || !r || r.agentId !== agent.id || r.ownerId !== askerOf(ctx)) raise(ctx, "validation.not_found", "That routine does not exist.");
   ctx.db.run("DELETE FROM agents_routine WHERE id = ?", r.id);
+  ctx.db.run("DELETE FROM agents_routine_watch WHERE routineId = ?", r.id);
   ctx.emit("agent.routine_changed", agent.id, { agentId: agent.id, routineId: r.id, op: "deleted" });
   return { deleted: true };
 }
@@ -382,3 +398,30 @@ export async function builtinSkillsList(_ctx: AgentsCtx, _input: Record<string, 
   return { skills: BUILTIN_SKILLS.map((s) => ({ ...s })) };
 }
 
+
+// ---- watchers ----
+
+/** A message was posted: every enabled watcher on that thread's channel starts one run under its owner. A message the watcher's own agent wrote, or one an agent wrote on a routine, never fires it. */
+export async function onMessageReceived(ctx: AgentsCtx, event: { payload: { messageId: string; threadId: string; author: { kind: string; id: string }; via?: string } }): Promise<string[]> {
+  ensure(ctx.db);
+  const p = event.payload;
+  const watchers = ctx.db.all("SELECT routineId, channelId FROM agents_routine_watch") as Row[];
+  if (watchers.length === 0) return [];
+  const t = await tolerant<{ thread?: { channelId?: string } }>(ctx, "threads.get", { threadId: p.threadId }, {});
+  const channel = t.thread?.channelId;
+  if (!channel) return [];
+  const fired: string[] = [];
+  for (const w of watchers) {
+    if (str(w["channelId"]) !== channel) continue;
+    const r = routineBy(ctx.db, str(w["routineId"]));
+    const agent = r ? agentBy(ctx.db, r.agentId) : null;
+    if (!r || !agent || !r.enabled || agent.paused) continue;
+    if ((p.author.kind === "agent" && p.author.id === r.agentId) || p.via !== undefined) continue;   // no loop: an agent's own words and routine messages do not wake a watcher
+    // the run carries what woke it, so the agent answers that message in that thread
+    const started = await call<{ runId: string }>(ctx, "runs.start", { kind: "routine", name: r.title, owner: r.ownerId, threadId: p.threadId, trigger: { messageId: p.messageId, threadId: p.threadId, channelId: channel } }, { idempotencyKey: `watch:${r.id}:${p.messageId}` });
+    ctx.db.run("UPDATE agents_routine SET lastRunAt = ?, updatedAt = ? WHERE id = ?", ctx.now(), ctx.now(), r.id);
+    ctx.emit("agent.routine_run_started", agent.id, { agentId: agent.id, routineId: r.id, runId: started.runId, ownerId: r.ownerId, requestedBy: `watch:${p.messageId}` });
+    fired.push(started.runId);
+  }
+  return fired;
+}
