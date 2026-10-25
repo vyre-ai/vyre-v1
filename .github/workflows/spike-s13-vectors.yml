@@ -1,0 +1,22 @@
+# Spike S13 on the perf runners (ruling 46): brute-force cosine over 200,000 vectors under 60 ms, and the real embedding model at 100 chunks per second or better.
+# Path mapping: the packet owns spikes/s13/**; GitHub only reads workflows from .github/workflows, so this one new file lives here (as spike-s12-desktop does).
+name: spike-s13-vectors
+on:
+  workflow_dispatch:
+  push:
+    branches: ["build/P-L1_15"]
+    paths: ["spikes/s13/**", "modules/search/projections.ts", ".github/workflows/spike-s13-vectors.yml"]
+jobs:
+  vectors:
+    runs-on: [self-hosted, linux, v1-perf]
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/deps
+      - name: Model cache (one download per runner host, checked by sha256)
+        run: echo "VYRE_MODEL_CACHE=/var/lib/ci-run/model-cache/751bff37182d3f1213fa05d7196b954e230abad9" >> "$GITHUB_ENV"
+      - name: Kernel budget (60 ms over 200k vectors) and embedder budget (100 chunks per second)
+        run: node spikes/s13/bench.ts all 2>&1 | tee s13-bench.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: s13-bench, path: s13-bench.txt, retention-days: 30 }
