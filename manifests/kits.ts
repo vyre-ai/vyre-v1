@@ -12,7 +12,7 @@ const target = { kitId: id.kit };
 export default defineManifest({
   id: 'kits',
   title: 'Kits',
-  owner: 'L8',
+  owner: 'L10',
   events: [
     ev('kit.installed', 'A Kit was installed', { p: { kitId: id.kit, version: t.str() }, subject: ['kit', '/kitId'] }),
     ev('kit.updated', 'A Kit was updated', { p: { kitId: id.kit, from: t.str(), to: t.str() }, subject: ['kit', '/kitId'] }),
