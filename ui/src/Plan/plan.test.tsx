@@ -3,7 +3,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
-  Plan, applyMoves, arrowTarget, cascade, clickSelect, dragChanges, fmtDay, geomOf, isLate, itemOf, layoutOf, nudgeChanges, orderOf, reassign, roundedPath, setStatus, taskOf, toDay, toIso,
+  Plan, applyMoves, applySlipMoves, arrowTarget, blankTask, calendarWeeks, cascade, clickSelect, dragChanges, fmtDay, geomOf, isLate, itemOf, layoutOf, linkItems, moveToStage, nudgeChanges, orderOf, reassign, removeItems,
+  DatePicker, dueChanges, pickMonth, roundedPath, setStatus, slipText, taskOf, toDay, toIso, unlinkItems,
 } from "./index.tsx";
 import type { PlanTask } from "./index.tsx";
 
@@ -104,9 +105,9 @@ test("done and reassign change the list and say so", () => {
   assert.equal(setStatus(items, ["d"], "done"), null);
   assert.equal(setStatus(items, ["a"], "review")?.text, "A set to in review");
   const r = reassign(items, ["c"], { name: "Docs", kind: "agent" });
-  assert.equal(r?.text, "C assigned to Docs");
+  assert.equal(r?.text, "Docs is now on C");
   assert.equal(r?.items.find((x) => x.id === "c")?.who?.name, "Docs");
-  assert.equal(reassign(items, ["c"], null)?.text, "C unassigned");
+  assert.equal(reassign(items, ["c"], null)?.text, "Cleared C");
 });
 
 test("click selects one, Cmd toggles, Shift takes the range", () => {
@@ -146,4 +147,103 @@ test("the chart draws a bar per task, a diamond for the milestone, the stages, t
   assert.ok(html.includes('data-avatar="person"') && html.includes('data-avatar="agent"'), "assignee faces");
   assert.ok(html.includes('data-status="review"'), "a task waiting on review is marked");
   assert.ok(html.includes('data-testid="plan-today"') && html.includes('data-testid="plan-filter"'));
+});
+
+test("a link makes one task follow another and pushes it later when it starts too early; a loop or a repeat is refused", () => {
+  const r = linkItems(items, "d", "a", uid);
+  assert.ok(r, "d can come before a");
+  assert.deepEqual(r?.items.find((x) => x.id === "a")?.deps, ["d"]);
+  assert.equal(r?.text, "A now follows D");
+  assert.ok(r?.slip, "a starts before d ends, so a and what follows it move");
+  assert.equal(r?.slip?.why, "A now follows D.");
+  assert.equal(linkItems(items, "a", "b", uid), null, "b already follows a");
+  assert.equal(linkItems(items, "c", "a", uid), null, "a loop: c waits on b which waits on a");
+  assert.equal(linkItems(items, "a", "a", uid), null);
+});
+
+test("removing a link and deleting tasks leave nothing waiting on what is gone", () => {
+  assert.deepEqual(unlinkItems(items, "a", "b")?.items.find((x) => x.id === "b")?.deps, []);
+  assert.equal(unlinkItems(items, "a", "b")?.text, "Removed the link from A to B");
+  assert.equal(unlinkItems(items, "d", "b"), null);
+  const r = removeItems(items, ["b"]);
+  assert.equal(r?.text, "Deleted B");
+  assert.deepEqual(r?.items.find((x) => x.id === "c")?.deps, []);
+  assert.equal(removeItems(items, ["zzz"]), null);
+  assert.equal(removeItems(items, ["a", "d"])?.text, "Deleted 2 tasks");
+});
+
+test("a card dropped on another stage moves there; the same stage is nothing", () => {
+  assert.equal(moveToStage(items, ["a"], "s2", "Build")?.text, "Moved A to Build");
+  assert.equal(moveToStage(items, ["a"], "s2", "Build")?.items.find((x) => x.id === "a")?.stage, "s2");
+  assert.equal(moveToStage(items, ["a"], "s1", "Plan"), null);
+});
+
+test("a new task is New task, today for three days, in the stage it was added to", () => {
+  const t = blankTask("s2", toDay(TODAY), "x1");
+  assert.deepEqual([t.title, t.stage, t.start, t.end, t.status], ["New task", "s2", "2026-10-24", "2026-10-26", "todo"]);
+});
+
+test("the slip card says what slipped and what moves, and applying it moves exactly those", () => {
+  const r = applyMoves(items, [{ id: "b", s: toDay("2026-10-24"), e: toDay("2026-10-30") }], uid);
+  const sl = r?.slip;
+  assert.ok(sl);
+  const t = slipText(r?.items ?? [], sl!);
+  assert.equal(t.title, "B slipped 3 days");
+  assert.match(t.body, /^1 later task moves; the Saturday kickoff still holds\./);
+  assert.match(t.body, /would end/);
+  const applied = applySlipMoves(r?.items ?? [], sl!);
+  assert.equal(applied.items.find((x) => x.id === "c")?.s, toDay("2026-10-31"));
+  assert.equal(applied.text, "Moved 1 later task after B slipped");
+});
+
+test("the calendar is Monday-first weeks of the month with each task as a bar across its days, in lanes that never overlap", () => {
+  const weeks = calendarWeeks(items, toDay(TODAY), 9);
+  assert.equal(weeks[0]?.days.length, 7);
+  assert.equal(new Date((weeks[0] as { start: number }).start * 86_400_000).getUTCDay(), 1, "a week starts on Monday");
+  assert.ok(weeks.every((w) => w.days.length === 7));
+  const week = weeks.find((w) => w.days.some((d) => d.today)) as { segs: { item: { id: string }; col: number; len: number; lane: number }[] };
+  const b = week.segs.find((s) => s.item.id === "b");
+  assert.ok(b && b.len >= 1);
+  for (const x of week.segs) for (const y of week.segs) if (x !== y && x.lane === y.lane) assert.ok(x.col + x.len <= y.col || y.col + y.len <= x.col, "same lane, no overlap");
+  assert.ok(weeks.some((w) => w.days.some((d) => d.other)), "the days of the next and last month are drawn quieter");
+});
+
+test("every view draws the tasks: board by stage, list with who and reviewer, calendar by month", () => {
+  const board = renderToStaticMarkup(<Plan today={TODAY} stages={STAGES} tasks={TASKS} view="board" />);
+  assert.ok(board.includes('data-testid="plan-board"') && board.includes('data-testid="plan-col-s1"') && board.includes('data-testid="plan-col-s2"') && board.includes('data-testid="plan-card-a"'));
+  const list = renderToStaticMarkup(<Plan today={TODAY} stages={STAGES} tasks={TASKS} view="list" />);
+  assert.ok(list.includes('data-testid="plan-list"') && list.includes('data-testid="plan-listrow-b"') && list.includes('data-testid="plan-reviewer-b"') && list.includes(">Reviewer<"));
+  const cal = renderToStaticMarkup(<Plan today={TODAY} stages={STAGES} tasks={TASKS} view="calendar" />);
+  assert.ok(cal.includes('data-testid="plan-calendar"') && cal.includes(">October<") && cal.includes('data-testid="plan-cal-b"'));
+  assert.ok(cal.includes('data-testid="plan-cal-prev"') && cal.includes('data-testid="plan-cal-next"'));
+});
+
+test("the toolbar has the view switcher and New task; a host can take either away", () => {
+  const full = renderToStaticMarkup(<Plan today={TODAY} stages={STAGES} tasks={TASKS} />);
+  assert.ok(full.includes('data-testid="plan-view"') && full.includes('data-testid="plan-add"') && full.includes(">Timeline<"));
+  const bare = renderToStaticMarkup(<Plan today={TODAY} stages={STAGES} tasks={TASKS} fixedView canAdd={false} />);
+  assert.ok(!bare.includes('data-testid="plan-view"') && !bare.includes('data-testid="plan-add"') && !bare.includes('data-testid="plan-add-s1"'));
+});
+
+test("the due-date picker: Monday-first month with the picked day and today marked; the arrows wrap through the year", () => {
+  const m = pickMonth(toDay("2026-10-27"), toDay(TODAY), 0);
+  assert.equal(m.title, "October");
+  assert.equal(m.year, 2026);
+  assert.equal(m.days.length, 31);
+  assert.equal(m.lead, 3, "1 Oct 2026 is a Thursday: Monday, Tuesday, Wednesday are blank");
+  assert.deepEqual(m.days.filter((d) => d.on).map((d) => d.label), [27]);
+  assert.deepEqual(m.days.filter((d) => d.today).map((d) => d.label), [24]);
+  assert.equal(pickMonth(toDay("2026-10-27"), toDay(TODAY), 3).title, "January");
+  assert.equal(pickMonth(toDay("2026-01-15"), toDay(TODAY), -1).title, "December");
+});
+
+test("picking a due day moves the task to end that day and keeps its length; a pinned date stays", () => {
+  assert.deepEqual(dueChanges(items, ["b"], toDay("2026-11-02")), [{ id: "b", s: toDay("2026-10-30"), e: toDay("2026-11-02") }]);
+  assert.deepEqual(dueChanges(items, ["m"], toDay("2026-11-02")), []);
+  assert.equal(applyMoves(items, dueChanges(items, ["b"], toDay("2026-11-02")), uid)?.text, "B moved 6 days later");
+});
+
+test("the picker draws the month, its arrows and a button per day", () => {
+  const html = renderToStaticMarkup(<DatePicker at={{ x: 10, y: 10, cur: toDay("2026-10-27"), ids: ["b"] }} today={toDay(TODAY)} onPick={() => undefined} onClose={() => undefined} />);
+  assert.ok(html.includes("October 2026") && html.includes('data-testid="plan-dp-27"') && html.includes('data-testid="plan-dp-prev"') && html.includes('data-testid="plan-dp-next"'));
 });

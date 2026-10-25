@@ -23,6 +23,8 @@ export interface PlanTask {
   /** ISO date; a milestone has none. */
   end?: string;
   assigned?: PlanWho | null;
+  reviewer?: PlanWho | null;
+  approver?: PlanWho | null;
   status?: PlanStatus;
   /** Free text the host shows ("2d"). */
   effort?: string;
@@ -32,9 +34,22 @@ export interface PlanTask {
   fixed?: boolean;
 }
 
+export type PlanView = "timeline" | "board" | "list" | "calendar";
+
 export interface PlanProps {
   /** Today, ISO. */
   today: string;
+  /** The view it opens in (default timeline); the toolbar changes it and `viewKey` remembers the pick. */
+  view?: PlanView;
+  /** Where the view pick is remembered (the browser's localStorage under "vyre-ui:plan:<key>:view"). Without it nothing is remembered. */
+  viewKey?: string;
+  onViewChange?: (view: PlanView) => void;
+  /** Adds the New task button and the stage "+" buttons. Return the task to add, or nothing to let the Plan make one ("New task", today to two days on, in that stage). */
+  onAddTask?: (stageId: string | null) => PlanTask | undefined;
+  /** Hides the view switcher (a place that fixes the view). */
+  fixedView?: boolean;
+  /** Shows New task and the stage "+" buttons (default true). Home creates tasks in its own header and turns it off. */
+  canAdd?: boolean;
   stages: readonly PlanStage[];
   tasks: readonly PlanTask[];
   /** Everyone a task can be reassigned to. Without it the menu has no Reassign. */
@@ -42,8 +57,8 @@ export interface PlanProps {
   /** Called with the whole list and a sentence saying what changed, after every edit (drag, nudge, done, reassign, apply a slip, undo). */
   onChange?: (tasks: PlanTask[], reason: string) => void;
   onOpenTask?: (task: PlanTask) => void;
-  /** Adds Delete to the menu and Cmd-Backspace. */
-  onDelete?: (ids: readonly string[]) => void;
+  /** Delete in the menu and Cmd-Backspace remove tasks and tell the host through onChange (default true). Home keeps its tasks and turns it off. */
+  canDelete?: boolean;
   /** Height of the chart in px; the chart scrolls inside it. */
   height?: number;
   testID?: string;
