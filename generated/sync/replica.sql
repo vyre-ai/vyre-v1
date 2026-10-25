@@ -923,8 +923,8 @@ CREATE TABLE IF NOT EXISTS "rt_client_plan" (
   "holds" INTEGER NOT NULL DEFAULT 0,
   "client" TEXT,
   "stage" TEXT,
-  "trustName" TEXT,
-  "taxId" TEXT,
+  "trust_name" TEXT,
+  "tax_id" TEXT,
   "signed" TEXT
 );
 CREATE TABLE IF NOT EXISTS "rt_client_plan__fm" (
@@ -1104,7 +1104,7 @@ CREATE TABLE IF NOT EXISTS "rt_lead" (
   "email" TEXT,
   "phone" TEXT,
   "stage" TEXT,
-  "practiceArea" TEXT
+  "practice_area" TEXT
 );
 CREATE TABLE IF NOT EXISTS "rt_lead__fm" (
   "id" TEXT NOT NULL,

@@ -2989,7 +2989,7 @@ export const syncEntities: SyncEntityConfig[] = [
       "maxLabel": "confidential",
       "protectedFields": [
         "stage",
-        "taxId"
+        "tax_id"
       ],
       "text": []
     },
@@ -3004,12 +3004,12 @@ export const syncEntities: SyncEntityConfig[] = [
         "label": null,
         "required": false
       },
-      "trustName": {
+      "trust_name": {
         "type": "text",
         "label": null,
         "required": false
       },
-      "taxId": {
+      "tax_id": {
         "type": "sealed",
         "label": "restricted",
         "required": false
@@ -3438,7 +3438,7 @@ export const syncEntities: SyncEntityConfig[] = [
         "label": null,
         "required": false
       },
-      "practiceArea": {
+      "practice_area": {
         "type": "choice",
         "label": null,
         "required": false
