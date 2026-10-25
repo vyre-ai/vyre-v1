@@ -202,27 +202,25 @@ export function Value({ text, accent = false, testID }: { text: string; accent?:
 
 /** Two or three equal modes in one quiet control (density). The chosen one is raised. */
 export function Segmented({ value, options, onChange, label, testID }: { value: string; options: readonly { value: string; label: string }[]; onChange(v: string): void; label: string; testID?: string }): ReactElement {
-  return (
-    <View accessibilityRole="radiogroup" accessibilityLabel={label} testID={testID} style={s.seg}>
-      {options.map((o) => {
-        const on = o.value === value;
-        return (
-          <Pressable
-            key={o.value} accessibilityRole="radio" accessibilityState={{ checked: on }} aria-checked={on} accessibilityLabel={o.label} testID={testID ? `${testID}-${o.value}` : undefined} onPress={() => onChange(o.value)}
-            style={[s.segItem, on && s.segOn, pointer]}
-          >
-            <Text style={[s.segText, on && { color: "var(--ink)" as string, fontWeight: "500" }]}>{o.label}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
+  const items: ReactElement[] = [];
+  for (const o of options) {
+    const on = o.value === value;
+    items.push(
+      <Pressable
+        key={o.value} accessibilityRole="radio" accessibilityState={{ checked: on }} aria-checked={on} accessibilityLabel={o.label} testID={testID ? `${testID}-${o.value}` : undefined} onPress={() => onChange(o.value)}
+        style={[s.segItem, on && s.segOn, pointer]}
+      >
+        <Text style={[s.segText, on && { color: "var(--ink)" as string, fontWeight: "500" }]}>{o.label}</Text>
+      </Pressable>,
+    );
+  }
+  return <View accessibilityRole="radiogroup" accessibilityLabel={label} testID={testID} style={s.seg}>{items}</View>;
 }
 
 /** A stepped slider with a small A at each end and the value after it; arrow keys move it by one step, a tap on the track picks the nearest step. */
 export function Slider({ value, min, max, step, onChange, label, format, testID }: { value: number; min: number; max: number; step: number; onChange(n: number): void; label: string; format?: (n: number) => string; testID?: string }): ReactElement {
-  const stops: number[] = [];
-  for (let n = min; n <= max; n += step) stops.push(n);
+  const hits: ReactElement[] = [];
+  for (let n = min; n <= max; n += step) hits.push(<Pressable key={n} accessibilityLabel={`${label} ${format ? format(n) : n}`} onPress={() => onChange(n)} style={[{ flex: 1, height: 22 }, pointer]} />);
   const ratio = (value - min) / Math.max(1, max - min);
   const move = (d: number): void => { const n = Math.max(min, Math.min(max, value + d * step)); if (n !== value) onChange(n); };
   return (
@@ -235,9 +233,7 @@ export function Slider({ value, min, max, step, onChange, label, format, testID 
       >
         <View style={s.sliderLine} />
         <View style={[s.sliderThumb, { left: `${Math.round(ratio * 100)}%` as unknown as number }]} />
-        <View style={s.sliderHits}>
-          {stops.map((n) => <Pressable key={n} accessibilityLabel={`${label} ${format ? format(n) : n}`} onPress={() => onChange(n)} style={[{ flex: 1, height: 22 }, pointer]} />)}
-        </View>
+        <View style={s.sliderHits}>{hits}</View>
       </View>
       <Text style={s.aBig} aria-hidden>A</Text>
       <Text style={s.sliderVal} testID={testID ? `${testID}-value` : undefined}>{format ? format(value) : String(value)}</Text>

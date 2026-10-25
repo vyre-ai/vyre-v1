@@ -10,7 +10,7 @@ import type { SettingsData, SpaceSecurity, SpaceTile } from "./data.tsx";
 import type { SettingRow } from "./model.ts";
 import { useChange } from "./rows.tsx";
 import { useSaved } from "./saved.tsx";
-import { Choice, Field, Glyph, Mark, Section, SettingsRow, SmallButton, Value, pointer } from "./ui.tsx";
+import { Choice, Field, Glyph, Mark, Section, SettingsRow, SmallButton, Value, pointer, webOnly } from "./ui.tsx";
 import type { PageProps } from "./pages-a.tsx";
 
 const rowOf = (rows: readonly SettingRow[], key: string): SettingRow | undefined => rows.find((r) => r.key === key);
@@ -62,11 +62,13 @@ export function SignInPage(): ReactElement {
     });
   }
   const sec = data.security;
+  const cards: ReactElement[] = [];
+  if (sec) for (const sp of data.spaces) { const info = sec.spaces[sp.id]; if (info) cards.push(<SpaceSecurityCard key={sp.id} space={sp} info={info} />); }
   return (
     <>
       <Everywhere text="Same in every Space" />
       {sec ? <AccountCard sec={sec} /> : null}
-      {sec ? data.spaces.map((sp) => (sec.spaces[sp.id] ? <SpaceSecurityCard key={sp.id} space={sp} info={sec.spaces[sp.id]!} /> : null)) : null}
+      {cards}
       <Section title="Devices and computers">
         {list}
         {others > 0 ? <SettingsRow id="revoke-others" label="Sign out of every other device" danger onPress={() => void data.call("devices.revoke_others", {}).then(() => saved.saved("Signed out of the others")).catch(fail)} control={<Glyph name="chevR" size={13} />} /> : null}
@@ -143,14 +145,14 @@ function SkinPreview({ skinId, space }: { skinId: string; space: string }): Reac
   const shown = skinId === "system" ? (ambient === "dark" ? "graphite" : "paper") : skinId;
   const sk = skins.find((x) => x.id === shown) ?? skins.find((x) => x.id === "paper")!;
   const p = sk.palette;
+  const navItems: ReactElement[] = [];
+  for (const n of ["Home", "Chats", "Projects", "Files"]) navItems.push(<View key={n} style={[a.pvItem, n === "Chats" && { backgroundColor: p.me }]}><Text style={[a.pvItemText, { color: n === "Chats" ? p.ink : p.ink2 }]}>{n}</Text></View>);
   return (
     <View style={a.pvStage} testID="skin-preview" accessibilityLabel={`Preview of ${sk.name}`}>
       <View style={[a.pvWin, { backgroundColor: p.win, borderColor: p.me }]}>
         <View style={[a.pvSide, { backgroundColor: p.side }]}>
           <View style={a.pvSpace}><View style={[a.pvDot, { backgroundColor: p.accent }]} /><Text numberOfLines={1} style={[a.pvSpaceText, { color: p.ink }]}>{space}</Text></View>
-          {["Home", "Chats", "Projects", "Files"].map((n) => (
-            <View key={n} style={[a.pvItem, n === "Chats" && { backgroundColor: p.me }]}><Text style={[a.pvItemText, { color: n === "Chats" ? p.ink : p.ink2 }]}>{n}</Text></View>
-          ))}
+          {navItems}
         </View>
         <View style={a.pvMain}>
           <Text style={[a.pvTitle, { color: p.ink }]}>Weekly report</Text>
@@ -222,7 +224,7 @@ export function AppearancePage({ rows, found }: PageProps): ReactElement {
       <Everywhere text="Everything here is the same in every Space except the skin" />
       <RegistrySections page="appearance" rows={rows} found={found} />
       {skinRow ? (
-        <>
+        <View testID="row-appearance.skin" {...webOnly({ dataSet: { sid: "appearance.skin" } })} style={found === "appearance.skin" ? a.foundBlock : undefined}>
           <Text accessibilityRole="header" style={a.heading}>Skin</Text>
           <SkinPreview skinId={shown} space={data.space.name} />
           <Text style={a.group}>System</Text>
@@ -232,7 +234,7 @@ export function AppearancePage({ rows, found }: PageProps): ReactElement {
           <Text style={a.group}>Light</Text>
           <View style={a.grid} testID="skins-light">{tiles("light")}</View>
           <Text style={a.foot} testID="skin-foot">{`Just for you, in ${data.space.name}`}</Text>
-        </>
+        </View>
       ) : null}
       <Section title="Kit">
         <SettingsRow
@@ -351,6 +353,7 @@ const a = StyleSheet.create({
   swDot: { position: "absolute", right: 6, bottom: 6, width: 8, height: 8, borderRadius: 4 },
   tileName: { fontSize: 13.5, color: "var(--ink)" as string },
   tileNote: { fontSize: 12, color: "var(--ink-3)" as string },
+  foundBlock: { backgroundColor: "var(--accent-wash)" as string, borderRadius: 12 },
   heading: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string, marginTop: 26, marginBottom: 8, paddingHorizontal: 2 },
   foot: { fontSize: 12, color: "var(--ink-3)" as string, marginTop: 14, paddingHorizontal: 2 },
   pvStage: { borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--sunk)" as string, paddingVertical: 20, alignItems: "center" },
