@@ -1,5 +1,6 @@
 // Budget server_write: records create through the module, 200 ops/s, p95 under 10 ms.
 import test from "node:test";
+import { appendFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
 import { mintUuid } from "../../../lib/ids.ts";
@@ -39,6 +40,8 @@ test("server_write p95 under 10 ms at 200 records creates per second", async () 
   const rec = openRecords({ space: "sp_perf" });
   const r = await drive(rec.store as never, "n");
   console.log(line("server_write", r));
+  // a passing test prints nothing in the shard log, so the numbers also go to the job summary when CI gives one
+  if (process.env["GITHUB_STEP_SUMMARY"]) appendFileSync(process.env["GITHUB_STEP_SUMMARY"], `${line("server_write", r)}\n${line("server_write kernel only", base)}\n`);
   const p95 = pct(r.lat, 0.95);
   assert.ok(200 / r.wall >= 150, `the pacer kept up (${(200 / r.wall).toFixed(0)}/s)`);
   assert.ok(p95 < 10, `p95 ${p95.toFixed(2)} ms must be under 10 ms (${line("server_write", r)}; ${line("kernel only", base)})`);
@@ -48,4 +51,4 @@ test("server_write p95 under 10 ms at 200 records creates per second", async () 
 // run 1
 // run 2
 // run 3
-// run 4
+// run 5
