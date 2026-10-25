@@ -99,5 +99,24 @@ test("the header shows the shared Ask control when given", () => {
   const ask: ViewerViewProps["ask"] = { place: "files", context: { kind: "file", id: "f", title: "Offer.png", access: "edit" }, agents: [{ id: "a", name: "Assistant", assistant: true }], onAsk: () => undefined };
   const html = renderToStaticMarkup(<Viewer fileId="f" title="Offer.png" kind="image" ask={ask} />);
   assert.match(html, /Ask/);
-  assert.ok(html.includes('data-testid="vw-find-input"'));
+  assert.ok(html.includes('data-testid="vw-find-btn"') && !html.includes('data-testid="vw-find-input"'), "the find box opens from its button");
+  assert.ok(renderToStaticMarkup(<Viewer fileId="f" title="Offer.png" kind="image" find="x" />).includes('data-testid="vw-find-input"'), "a find query opens the box");
+});
+
+test("the header shows the file tile, its path line, Find, Details, History and More; csv and plan add View and Edit with the saved version", () => {
+  const html = renderToStaticMarkup(<Viewer fileId="c" title="competitors.csv" kind="csv" kindLabel="CSV" subtitle="Agents / Research · Yesterday 4:40 pm" saved={3} sheet={SHEET} />);
+  for (const id of ["vw-tile", "vw-sub", "vw-find-btn", "vw-info", "vw-history", "vw-more", "vw-mode", "vw-mode-view", "vw-mode-edit", "vw-saved"]) assert.ok(html.includes(`data-testid="${id}"`), id);
+  assert.match(html, /v3/);
+  assert.ok(!renderToStaticMarkup(<Viewer fileId="f" title="x.png" kind="image" />).includes('data-testid="vw-mode"'), "no View and Edit on an image");
+  const edit = renderToStaticMarkup(<Viewer fileId="c" title="c.csv" kind="csv" sheet={SHEET} edit />);
+  assert.ok(edit.includes('data-testid="vw-hint"'), "Edit mode shows how to edit a cell");
+  assert.ok(!renderToStaticMarkup(<Viewer fileId="c" title="c.csv" kind="csv" sheet={SHEET} />).includes('data-testid="vw-hint"'), "View mode has no hint");
+});
+
+test("markup shows Ask <agent> once something is marked, red numbered boxes with their note beside the pin, and the sibling strip", () => {
+  const marked = renderToStaticMarkup(<Viewer fileId="f" title="a.png" kind="image" boxes={BOXES} agentName="Research" siblings={[{ id: "a", title: "one" }, { id: "b", title: "two" }]} current="b" />);
+  assert.ok(marked.includes('data-testid="vw-ask-markup"') && marked.includes("Ask Research"));
+  assert.ok(marked.includes('data-testid="vw-bubble-1"') && marked.includes("Is this offer still live?"));
+  assert.ok(marked.includes('data-testid="vw-sib-a"') && marked.includes('data-testid="vw-sib-b"'));
+  assert.ok(!renderToStaticMarkup(<Viewer fileId="f" title="a.png" kind="image" agentName="Research" />).includes('data-testid="vw-ask-markup"'), "nothing marked, no Ask");
 });

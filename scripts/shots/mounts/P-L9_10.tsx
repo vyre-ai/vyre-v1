@@ -27,7 +27,8 @@ const PLAN: readonly DocBlock[] = [
   { id: "p2", tag: "li", text: "Run the conflict check before the consult" },
   { id: "p3", tag: "li", text: "Send the engagement letter" },
 ];
-const SHEET = { cols: ["Client", "Source", "Fee", "Status"], rows: [["Elena Rivera", "Maya Chen", "$0", "Signed"], ["Omar Haddad", "Referral", "$1,200", "Consult"], ["Ana Ortiz", "Website", "$900", "Intake"], ["Lee Park", "Referral", "$1,500", "Signed"]] } as const;
+const SHEET = { cols: ["Firm", "Consult", "Free first", "Miles", "Source"], rows: [["Harlow & Price", "$300", "No", "4.2", "harlowprice.example"], ["Grant Legal", "$0", "30 min", "6.8", "grantlegal.example"], ["Meyer Law", "$250", "No", "3.1", "meyerlaw.example"], ["Ortega Partners", "$200", "No", "11.5", "ortegapartners.example"], ["Lane & Co", "n/a", "Call", "9.0", "laneco.example"], ["Whitfield Law", "$250", "No", "14.2", "whitfieldlaw.example"], ["Brook Legal", "$0", "Yes", "8.4", "brooklegal.example"], ["Carver & Diaz", "$275", "No", "5.9", "carverdiaz.example"], ["North Street Law", "$0", "Yes", "7.7", "northstreet.example"]] } as const;
+const SIBS = [{ id: "i1", title: "grant-fees" }, { id: "i2", title: "grant-fees 2" }, { id: "i3", title: "grant-fees 3" }];
 
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
@@ -39,11 +40,11 @@ export default function Mount(): ReactNode {
   const ask = { place: "files", context: { kind: "file", id: "f1", title: "File", access: "edit" as const }, agents: [{ id: "asst", name: "Assistant", assistant: true }, { id: "docs", name: "Docs", role: "Reviews and drafts documents" }], onAsk: () => undefined };
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
-      {kind === "image" ? <Viewer fileId="img2" title="offer-banner.png" kind="image" boxes={BOXES} strokes={STROKES} find={find} ask={ask} {...(tool === "draw" || tool === "comment" ? { tool } : {})} /> : null}
-      {kind === "md" ? <Viewer fileId="n-fee" title="Referral fee.md" kind="document" blocks={MD} find={find} ask={ask} /> : null}
-      {kind === "code" ? <Viewer fileId="bl-py" title="fee.py" kind="document" blocks={CODE} find={find} ask={ask} /> : null}
-      {kind === "csv" ? <Viewer fileId="csv1" title="clients.csv" kind="csv" sheet={SHEET} find={find} ask={ask} /> : null}
-      {kind === "plan" ? <Viewer fileId="plan1" title="Intake plan" kind="plan" editing blocks={PLAN} find={find} ask={ask} /> : null}
+      {kind === "image" ? <Viewer fileId="img2" title="grant-fees.png" kind="image" kindLabel="PNG" subtitle="Agents / Research / downloads · Research · Yesterday 4:31 pm" agentName="Research" siblings={SIBS} current="i2" boxes={BOXES} strokes={STROKES} find={find} ask={ask} {...(tool === "draw" || tool === "comment" ? { tool } : {})} /> : null}
+      {kind === "md" ? <Viewer fileId="n-fee" title="Referral fee.md" kind="document" kindLabel="MD" subtitle="Knowledge / Notes" blocks={MD} find={find} ask={ask} /> : null}
+      {kind === "code" ? <Viewer fileId="bl-py" title="fee.py" kind="document" kindLabel="PY" subtitle="Agents / Billing" blocks={CODE} find={find} ask={ask} /> : null}
+      {kind === "csv" ? <Viewer fileId="csv1" title="competitors.csv" kind="csv" kindLabel="CSV" subtitle="Agents / Research / work / done / pricing · Research · Yesterday 4:40 pm" saved={3} edit sheet={SHEET} find={find} ask={ask} /> : null}
+      {kind === "plan" ? <Viewer fileId="plan1" title="Intake plan" kind="plan" kindLabel="PLAN" saved={3} editing blocks={PLAN} find={find} ask={ask} /> : null}
     </View>
   );
 }

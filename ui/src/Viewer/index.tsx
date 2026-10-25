@@ -113,6 +113,9 @@ const ICON = {
   find: `${SVG}<circle cx="7" cy="7" r="4"/><path d="M10 10l3.500 3.500"/></svg>`,
   up: `${SVG}<path d="M4 10l4-4 4 4"/></svg>`,
   down: `${SVG}<path d="M4 6l4 4 4-4"/></svg>`,
+  info: `${SVG}<circle cx="8" cy="8" r="5.500"/><path d="M8 7.500V11M8 5.200v.1"/></svg>`,
+  history: `${SVG}<path d="M2.500 8a5.500 5.500 0 105.500-5.500A5.500 5.500 0 004 4.500M2 2.500v2.500h2.500M8 5v3l2 1.200"/></svg>`,
+  more: `${SVG}<path d="M3.500 8h.1M8 8h.1M12.500 8h.1"/></svg>`,
 } as const;
 
 /* ---------- the view ---------- */
@@ -128,6 +131,23 @@ export interface ViewerViewProps extends ViewerProps {
   /** CSV. */
   sheet?: Sheet;
   zoom?: number;
+  /** The file's tile letters ("PNG", "CSV"), and the line under its name (path and when it changed). */
+  kindLabel?: string;
+  subtitle?: string;
+  /** The agent that reads the markup: the markup bar offers "Ask <agent>" once something is marked. */
+  agentName?: string;
+  onAskMarkup?: (boxes: readonly MarkupBox[]) => void;
+  /** Other images in the same folder, shown as a strip under the picture. */
+  siblings?: readonly { id: string; title: string }[];
+  current?: string;
+  onSibling?: (id: string) => void;
+  /** CSV and plan: View or Edit, and the saved version shown beside it. */
+  edit?: boolean;
+  saved?: number;
+  onEditMode?: (edit: boolean) => void;
+  onInfo?: () => void;
+  onHistory?: () => void;
+  onMore?: () => void;
   onBoxes?: (boxes: readonly MarkupBox[]) => void;
   onStrokes?: (strokes: readonly Stroke[]) => void;
   onEdit?: (blocks: readonly DocBlock[]) => void;
@@ -168,6 +188,8 @@ function Tool(p: { label: string; icon: string; on?: boolean; onPress: () => voi
 export function Viewer(props: ViewerViewProps): ReactElement {
   const [find, setFind] = useState(props.find ?? "");
   const [cur, setCur] = useState(0);
+  const [findOpen, setFindOpen] = useState((props.find ?? "") !== "");
+  const [editMode, setEditMode] = useState(props.edit === true);
   const [tool, setTool] = useState<MarkupTool | null>(props.tool ?? null);
   const [zoom, setZoom] = useState(props.zoom ?? 1);
   const [boxes, setBoxes] = useState<readonly MarkupBox[]>(props.boxes ?? []);
@@ -192,22 +214,32 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const changeBlocks = (next: readonly DocBlock[]): void => { setBlocks(next); props.onEdit?.(next); };
   const pick = (t: MarkupTool): void => setTool((x) => (x === t ? null : t));
 
+  const iconBtn = (label: string, icon: string, testID: string, onPress?: () => void, on = false): ReactElement => (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: on }} testID={testID} onPress={onPress}
+      style={({ hovered }: { hovered?: boolean }) => [s.iconBtn, on && s.toolOn, hovered === true && s.toolOver]}><MenuIcon icon={icon} /></Pressable>
+  );
   const bar = (
     <View style={s.bar} testID="vw-bar">
-      <Text style={s.title} numberOfLines={1}>{viewerLabel(props)}</Text>
-      <View style={s.grow} />
-      <View style={s.findBox} testID="vw-find">
-        <MenuIcon icon={ICON.find} />
-        <TextInput accessibilityLabel="Find in file" testID="vw-find-input" value={find} placeholder="Find in file" placeholderTextColor="var(--ink-4)" style={s.findInput}
-          onChangeText={(t) => { setFind(t); setCur(0); props.onFind?.(t); }} onSubmitEditing={() => setCur((c) => c + 1)} />
-        {find !== "" ? <Text style={s.count} testID="vw-count">{hits.length === 0 ? "No matches" : `${at + 1} of ${hits.length}`}</Text> : null}
-        {hits.length > 1 ? (
-          <>
-            <Pressable accessibilityRole="button" accessibilityLabel="Previous match" testID="vw-prev" onPress={() => setCur((c) => (c - 1 + hits.length) % hits.length)}><MenuIcon icon={ICON.up} /></Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Next match" testID="vw-next" onPress={() => setCur((c) => c + 1)}><MenuIcon icon={ICON.down} /></Pressable>
-          </>
-        ) : null}
+      {props.kindLabel !== undefined ? <View style={s.tile} testID="vw-tile"><Text style={s.tileText}>{props.kindLabel}</Text></View> : null}
+      <View style={s.titleCol}>
+        <Text style={s.title} numberOfLines={1}>{viewerLabel(props)}</Text>
+        {props.subtitle !== undefined ? <Text style={s.sub} numberOfLines={1} testID="vw-sub">{props.subtitle}</Text> : null}
       </View>
+      <View style={s.grow} />
+      {findOpen ? (
+        <View style={s.findBox} testID="vw-find">
+          <MenuIcon icon={ICON.find} />
+          <TextInput autoFocus={props.find === undefined} accessibilityLabel="Find in file" testID="vw-find-input" value={find} placeholder="Find in file" placeholderTextColor="var(--ink-4)" style={s.findInput}
+            onChangeText={(t) => { setFind(t); setCur(0); props.onFind?.(t); }} onSubmitEditing={() => setCur((c) => c + 1)} />
+          {find !== "" ? <Text style={s.count} testID="vw-count">{hits.length === 0 ? "No matches" : `${at + 1} of ${hits.length}`}</Text> : null}
+          {hits.length > 1 ? (
+            <>
+              <Pressable accessibilityRole="button" accessibilityLabel="Previous match" testID="vw-prev" onPress={() => setCur((c) => (c - 1 + hits.length) % hits.length)}><MenuIcon icon={ICON.up} /></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Next match" testID="vw-next" onPress={() => setCur((c) => c + 1)}><MenuIcon icon={ICON.down} /></Pressable>
+            </>
+          ) : null}
+        </View>
+      ) : null}
       {props.kind === "image" ? (
         <View style={s.zoom} testID="vw-zoom">
           <Pressable accessibilityRole="button" accessibilityLabel="Zoom out" testID="vw-zoom-out" onPress={() => setZ(stepZoom(zoom, -1))}><Text style={s.zoomText}>{"−"}</Text></Pressable>
@@ -215,7 +247,24 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           <Pressable accessibilityRole="button" accessibilityLabel="Zoom in" testID="vw-zoom-in" onPress={() => setZ(stepZoom(zoom, 1))}><Text style={s.zoomText}>{"+"}</Text></Pressable>
         </View>
       ) : null}
+      {props.kind === "csv" || props.kind === "plan" ? (
+        <View style={s.modeRow} testID="vw-mode">
+          {props.saved !== undefined ? <Text style={s.saved} testID="vw-saved">{`✓ v${props.saved}`}</Text> : null}
+          <View style={s.seg} accessibilityRole="tablist">
+            {each(["View", "Edit"] as const, (m) => (
+              <Pressable key={m} accessibilityRole="tab" accessibilityState={{ selected: (m === "Edit") === editMode }} testID={`vw-mode-${m.toLowerCase()}`}
+                onPress={() => { setEditMode(m === "Edit"); props.onEditMode?.(m === "Edit"); }} style={[s.segBtn, (m === "Edit") === editMode && s.segOn]}>
+                <Text style={[s.segText, (m === "Edit") === editMode && s.segTextOn]}>{m}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
+      {iconBtn("Find in file", ICON.find, "vw-find-btn", () => setFindOpen((o) => !o), findOpen)}
+      {iconBtn("Details", ICON.info, "vw-info", props.onInfo)}
+      {iconBtn("History", ICON.history, "vw-history", props.onHistory)}
       {props.ask !== undefined ? <AskButton {...props.ask} compact /> : null}
+      {iconBtn("More", ICON.more, "vw-more", props.onMore)}
     </View>
   );
 
@@ -225,6 +274,11 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       <Tool label="Comment on an area" icon={ICON.area} on={tool === "comment"} onPress={() => pick("comment")} testID="vw-tool-comment" />
       <View style={s.grow} />
       {boxes.length + strokes.length > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Clear markup" testID="vw-clear" onPress={() => { changeBoxes([]); changeStrokes([]); setNote(null); }}><Text style={s.toolText}>Clear</Text></Pressable> : null}
+      {boxes.length + strokes.length > 0 ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={`Ask ${props.agentName ?? "the agent"}`} testID="vw-ask-markup" onPress={() => props.onAskMarkup?.(boxes)} style={s.askMark}>
+          <Text style={s.askMarkText}>{`Ask ${props.agentName ?? "the agent"}`}</Text>
+        </Pressable>
+      ) : null}
     </View>
   ) : null;
 
@@ -241,7 +295,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
 
   const image = (
     <ScrollView style={s.scroll} contentContainerStyle={s.imgWrap} testID="vw-image">
-      <View style={[s.stageBox, { width: IMAGE_W * zoom * 0.6, height: IMAGE_H * zoom * 0.6 }]} testID="vw-stage"
+      <View style={[s.stageBox, { width: `${Math.min(100, 100 * zoom)}%`, aspectRatio: IMAGE_W / IMAGE_H }]} testID="vw-stage"
         onLayout={(e) => { stage.current = { w: e.nativeEvent.layout.width / zoom, h: e.nativeEvent.layout.height / zoom }; }}
         onStartShouldSetResponder={() => tool !== null} onResponderGrant={(e) => pointer("down", e)} onResponderMove={(e) => pointer("move", e)} onResponderRelease={(e) => pointer("up", e)}>
         <View style={s.picture}><Text style={s.pictureText}>{props.title}</Text></View>
@@ -249,6 +303,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
         {each(boxes, (b, i) => (
           <View key={b.id} testID={`vw-box-${b.id}`} pointerEvents="none" style={[s.box, { left: `${b.x * 100}%`, top: `${b.y * 100}%`, width: `${b.w * 100}%`, height: `${b.h * 100}%` }]}>
             <View style={s.pin} testID={`vw-pin-${i + 1}`} {...web({ "data-anchor": `${b.x.toFixed(3)},${b.y.toFixed(3)}` })}><Text style={s.pinText}>{i + 1}</Text></View>
+            {b.text !== "" ? <View style={s.bubble} testID={`vw-bubble-${i + 1}`}><Text style={s.bubbleText} numberOfLines={1}>{b.text}</Text></View> : null}
           </View>
         ))}
         {drag !== null ? (() => { const d = boxFrom(drag.a, drag.b); return d === null ? null : <View pointerEvents="none" style={[s.box, s.boxLive, { left: `${d.x * 100}%`, top: `${d.y * 100}%`, width: `${d.w * 100}%`, height: `${d.h * 100}%` }]} />; })() : null}
@@ -266,6 +321,14 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       ) : null}
     </ScrollView>
   );
+  const strip = props.kind === "image" && (props.siblings?.length ?? 0) > 0 ? (
+    <View style={s.strip} testID="vw-siblings">
+      {each(props.siblings ?? [], (sb) => (
+        <Pressable key={sb.id} accessibilityRole="button" accessibilityLabel={sb.title} accessibilityState={{ selected: sb.id === props.current }} testID={`vw-sib-${sb.id}`}
+          onPress={() => props.onSibling?.(sb.id)} style={[s.thumb, sb.id === props.current && s.thumbOn]}><Text style={s.thumbText} numberOfLines={1}>{sb.title}</Text></Pressable>
+      ))}
+    </View>
+  ) : null;
 
   const docBody = (
     <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
@@ -288,7 +351,9 @@ export function Viewer(props: ViewerViewProps): ReactElement {
     </ScrollView>
   );
 
-  const sheet = props.sheet;
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const base = props.sheet;
+  const sheet = useMemo<Sheet | undefined>(() => (base === undefined ? undefined : { cols: base.cols, rows: base.rows.map((r, ri) => r.map((v, ci) => edits[`${ri}:${ci}`] ?? v)) }), [base, edits]);
   const rows = useMemo(() => (sheet === undefined ? [] : sort === null ? sheet.rows : sortRows(sheet.rows, sort.col, sort.dir)), [sheet, sort]);
   const table = sheet === undefined ? null : (
     <View style={s.fill}>
@@ -312,7 +377,9 @@ export function Viewer(props: ViewerViewProps): ReactElement {
                 return (
                   <Pressable key={ci} accessibilityRole="button" accessibilityState={{ selected: on }} testID={`vw-cell-${ri}-${ci}`} onPress={() => setCell({ r: ri, c: ci })}
                     style={[s.tdCell, on && s.tdOn, m && s.mark1]}>
-                    <Text style={[s.td, isNum(v) && s.numCell]}>{v}</Text>
+                    {on && editMode ? <TextInput autoFocus accessibilityLabel={`Edit cell ${ri + 1}, ${sheet.cols[ci] ?? ""}`} testID="vw-cell-input" value={v} style={[s.td, s.cellInput, isNum(v) && s.numCell]}
+                      onChangeText={(x) => setEdits((e) => ({ ...e, [`${ri}:${ci}`]: x }))} />
+                      : <Text style={[s.td, isNum(v) && s.numCell]}>{v}</Text>}
                   </Pressable>
                 );
               })}
@@ -320,7 +387,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           ))}
         </View>
       </ScrollView>
-      <Text style={s.foot} testID="vw-foot">{sheetFoot(sheet, cell === null ? null : cell.c)}</Text>
+      <View style={s.footRow}><Text style={s.footText} testID="vw-foot">{sheetFoot(sheet, cell === null ? null : cell.c)}</Text>{editMode ? <Text style={s.footText} testID="vw-hint">Click a cell, then type or press Enter to edit · Tab moves right</Text> : null}</View>
     </View>
   );
 
@@ -335,6 +402,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       {bar}
       {markBar}
       <View style={s.fill}>{body}</View>
+      {strip}
     </View>
   );
 }
@@ -346,6 +414,29 @@ const s = StyleSheet.create({
   scroll: { flex: 1 },
   bar: { height: 44, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   title: { color: "var(--ink)" as string, fontSize: 13.5, fontWeight: "600", flexShrink: 1 },
+  titleCol: { minWidth: 0, flexShrink: 1 },
+  sub: { color: "var(--ink-3)" as string, fontSize: 11.5 },
+  tile: { width: 28, height: 28, borderRadius: 6, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center" },
+  tileText: { color: "var(--ink-3)" as string, fontSize: 8.5, fontWeight: "700" },
+  iconBtn: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
+  modeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  saved: { color: "var(--ok)" as string, fontSize: 12 },
+  seg: { flexDirection: "row", padding: 2, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  segBtn: { paddingHorizontal: 10, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  segOn: { backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
+  segText: { color: "var(--ink-3)" as string, fontSize: 12.5, fontWeight: "500" },
+  segTextOn: { color: "var(--ink)" as string },
+  askMark: { height: 28, paddingHorizontal: 12, borderRadius: 8, backgroundColor: "var(--ink)" as string, alignItems: "center", justifyContent: "center" },
+  askMarkText: { color: "var(--win)" as string, fontSize: 12.5, fontWeight: "600" },
+  bubble: { position: "absolute", top: -12, right: -4, transform: [{ translateX: "100%" as unknown as number }], backgroundColor: "var(--win)" as string, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: "var(--line)" as string, maxWidth: 220 },
+  bubbleText: { color: "var(--ink)" as string, fontSize: 12 },
+  strip: { flexDirection: "row", gap: 8, padding: 8, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  thumb: { width: 64, height: 40, borderRadius: 6, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center", padding: 3 },
+  thumbOn: { borderColor: "var(--accent)" as string, borderWidth: 2 },
+  thumbText: { color: "var(--ink-3)" as string, fontSize: 9 },
+  cellInput: { padding: 0, margin: 0 },
+  footRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  footText: { color: "var(--ink-3)" as string, fontSize: 12 },
   findBox: { flexDirection: "row", alignItems: "center", gap: 6, height: 30, paddingHorizontal: 8, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
   findInput: { width: 140, color: "var(--ink)" as string, fontSize: 13, padding: 0 },
   count: { color: "var(--ink-3)" as string, fontSize: 11.5 },
@@ -361,9 +452,9 @@ const s = StyleSheet.create({
   picture: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "var(--raised)" as string },
   pictureText: { color: "var(--ink-4)" as string, fontSize: 13 },
   strokeMark: { position: "absolute", left: 0, top: 0, width: 1, height: 1 },
-  box: { position: "absolute", borderWidth: 2, borderColor: "var(--accent)" as string, borderRadius: 6 },
+  box: { position: "absolute", borderWidth: 2, borderColor: "#E5483A", backgroundColor: "rgba(229,72,58,0.12)", borderRadius: 6 },
   boxLive: { borderStyle: "dashed" },
-  pin: { position: "absolute", left: -12, top: -12, width: 24, height: 24, borderRadius: 12, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
+  pin: { position: "absolute", left: -12, top: -12, width: 24, height: 24, borderRadius: 12, backgroundColor: "#E5483A", alignItems: "center", justifyContent: "center" },
   pinText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
   noteBox: { width: "100%", maxWidth: 480, borderRadius: 10, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string, padding: 10 },
   noteInput: { color: "var(--ink)" as string, fontSize: 13, padding: 0 },
@@ -382,10 +473,10 @@ const s = StyleSheet.create({
   sheetWrap: { padding: 14 },
   tr: { flexDirection: "row" },
   th: { color: "var(--ink-3)" as string, fontSize: 12, fontWeight: "600", paddingVertical: 6 },
-  thCell: { width: 150, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  thCell: { width: 150, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string, backgroundColor: "var(--sunk)" as string },
   rn: { width: 36, textAlign: "right", paddingRight: 8, color: "var(--ink-4)" as string },
   td: { color: "var(--ink)" as string, fontSize: 13, paddingVertical: 7 },
-  tdCell: { width: 150, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  tdCell: { width: 150, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
   tdOn: { borderWidth: 2, borderColor: "var(--accent)" as string },
   numCell: { textAlign: "right" },
   foot: { color: "var(--ink-3)" as string, fontSize: 12, paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
