@@ -3,25 +3,25 @@
     {
       "id": "P-L9f_07-accept-invite",
       "route": "/m/P-L9f_07?view=s1&space=northwind",
-      "proto": "join,s1,{skin}",
+      "proto": "join,at:s1,{skin}",
       "note": "AcceptInvite, the welcome step: app icon, name and photo, grouped inset lists, the Back / dots / Continue bar. Northwind."
     },
     {
       "id": "P-L9f_07-accept-invite-harbor",
       "route": "/m/P-L9f_07?view=s1&space=harbor",
-      "proto": "join,s1,harbor,{skin}",
+      "proto": "join,at:s1,space:harbor,{skin}",
       "note": "The same step in Harbor Studio (its own agents and projects)."
     },
     {
       "id": "P-L9f_07-sign-in",
       "route": "/m/P-L9f_07?view=signin&space=northwind",
-      "proto": "join,signin,{skin}",
+      "proto": "join,at:signin,{skin}",
       "note": "SignIn: username at the Space address, password, and Or continue with single sign-on and GitHub. Northwind. The prototype's passkey row is a GitHub row here: passkeys are not in v1."
     },
     {
       "id": "P-L9f_07-sign-in-harbor",
       "route": "/m/P-L9f_07?view=signin&space=harbor",
-      "proto": "join,signin,harbor,{skin}",
+      "proto": "join,at:signin,space:harbor,{skin}",
       "note": "The same page in Harbor Studio (one SSO provider)."
     },
     {
@@ -33,49 +33,49 @@
     {
       "id": "P-L9f_07-account",
       "route": "/m/P-L9f_07?view=s2&space=northwind",
-      "proto": "join,s2,{skin}",
+      "proto": "join,at:s2,{skin}",
       "note": "Your sign-in: username with the Space address, password, confirm, strength meter."
     },
     {
       "id": "P-L9f_07-device",
       "route": "/m/P-L9f_07?view=s3&space=northwind",
-      "proto": "join,s3,{skin}",
+      "proto": "join,at:s3,{skin}",
       "note": "This device: name, trust switch and the recovery code row."
     },
     {
       "id": "P-L9f_07-recovery",
       "route": "/m/P-L9f_07?view=rec&space=northwind",
-      "proto": "join,rec,{skin}",
+      "proto": "join,at:rec,{skin}",
       "note": "The recovery code sheet over the device step."
     },
     {
       "id": "P-L9f_07-connect-ai",
       "route": "/m/P-L9f_07?view=ai&space=northwind",
-      "proto": "join,ai,{skin}",
+      "proto": "join,at:ai,{skin}",
       "note": "ConnectAI: three ways to give the assistant an account, or Not now."
     },
     {
       "id": "P-L9f_07-setup",
       "route": "/m/P-L9f_07?view=setup&space=northwind",
-      "proto": "join,setup,hold,{skin}",
+      "proto": "join,at:setup,{skin}",
       "note": "Setting up: progress and the current line, frozen part way."
     },
     {
       "id": "P-L9f_07-done",
       "route": "/m/P-L9f_07?view=done&space=northwind",
-      "proto": "join,done,{skin}",
+      "proto": "join,at:done,{skin}",
       "note": "You're all set, with the Open button."
     },
     {
       "id": "P-L9f_07-expired",
       "route": "/m/P-L9f_07?view=expired&space=northwind",
-      "proto": "join,expired,{skin}",
+      "proto": "join,at:expired,{skin}",
       "note": "An expired invite: who to ask, with their address."
     },
     {
       "id": "P-L9f_07-totp",
       "route": "/m/P-L9f_07?view=totp&space=northwind",
-      "proto": "join,totp,{skin}",
+      "proto": "join,at:totp,{skin}",
       "note": "The second factor: a six digit code."
     },
     {
