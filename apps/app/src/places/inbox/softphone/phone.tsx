@@ -25,6 +25,12 @@ export interface InboxPhone {
   view(): SoftphoneViewProps;
   /** A conversation that is open says so; while it is the caller's, the floating dock keeps out of the way and the conversation shows the call. Returns the release. */
   claim(c: ConversationKey): () => void;
+  /** The running call as a title-bar pill: who and the clock, or null when there is no live call or its conversation is the open one. */
+  pill(): { name: string; secs: number } | null;
+  /** The title bar shows the pill; the floating dock keeps out of the way while it does. Returns the release. */
+  holdPill(): () => void;
+  /** Open the conversation of the person the call is with. */
+  openCall(): void;
   /** True when the open conversation is the one this call is with. */
   isClaimed(): boolean;
   /** Seconds, notes: the Call pane's own text for this call. */
@@ -76,13 +82,20 @@ export function InboxPhoneDock({ device, targets = NO_TARGETS, children, placeme
   const [state, setState] = useState<PhoneState>(IDLE_STATE);
   const [claims, setClaims] = useState<readonly ConversationKey[]>([]);
   const [notes, setNotes] = useState("");
+  const [pills, setPills] = useState(0);
   const opened = useRef<string>("");
 
-  const controller = useMemo<PhoneController>(() => createPhoneController(device, phoneHooks(
+  // an incoming call arrives with the id the server opened for it (the voice webhook): keep it so hangup, hold and record reach the server
+  const watched = useMemo<PhoneDeviceLike>(() => ({
+    connect: (o) => device.connect(o),
+    destroy: () => device.destroy(),
+    on: (ev, h) => device.on(ev, (c) => { if (c.parameters.CallSid) call.current.id = c.parameters.CallSid; h(c); }),
+  }), [device]);
+  const controller = useMemo<PhoneController>(() => createPhoneController(watched, phoneHooks(
     (cap, input) => data.call(cap, input),
     { numberId: () => live.current.from, callId: () => call.current.id, setCallId: (id) => { call.current.id = id; }, contactId: () => call.current.contactId },
     { targets, onHungUp: (c: CallOut) => { setSaved(savedLine(live.current.rows.find((r) => r.contactId === c.contactId)?.displayName)); setSummary(c.summary); } },
-  )), [device, data, targets]);
+  )), [watched, data, targets]);
 
   useEffect(() => { setState(controller.state()); return controller.subscribe(setState); }, [controller]);
   useEffect(() => () => controller.destroy(), [controller]);
@@ -157,12 +170,15 @@ export function InboxPhoneDock({ device, targets = NO_TARGETS, children, placeme
     view: () => latest.current.view,
     claim(c) { setClaims((cs) => [...cs, c]); return () => setClaims((cs) => cs.filter((x) => x !== c)); },
     isClaimed: () => latest.current.claimed,
+    pill: () => (latest.current.claimed || (state.phase !== "live" && state.phase !== "held") ? null : { name: latest.current.view.caller?.name ?? latest.current.view.caller?.number ?? state.peer, secs: state.secs }),
+    holdPill() { setPills((n) => n + 1); return () => setPills((n) => n - 1); },
+    openCall() { const r = rowOf(state.peer, caller?.recordId); if (r) data.nav.openConversation(r.id); },
     notes: () => latest.current.notes,
     setNotes,
   // a new object whenever the call, the claims or the notes change, so a conversation that reads the call re-renders with it
-  }), [controller, state, claimed, claims, notes, saved, summary]);
+  }), [controller, state, claimed, claims, notes, saved, summary, pills]); // eslint-disable-line react-hooks/exhaustive-deps
   // while the conversation is open the call lives in its header; the floating dock is for the dialer, an incoming ring and a call whose conversation is not open
-  const floating = dockFloats(claimed, state.phase);
+  const floating = dockFloats(claimed, state.phase) && !(pills > 0 && (state.phase === "live" || state.phase === "held"));
   return (
     <Ctx.Provider value={api}>
       {children}

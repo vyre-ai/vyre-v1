@@ -2,10 +2,10 @@
   "targets": [
     {
       "id": "P-L9c_05-call-live",
-      "route": "/m/P-L9c_05?c=marcus&phase=live",
-      "proto": "inbox,at:callaway,{skin}",
+      "route": "/m/P-L9c_05?c=elena&phase=live",
+      "proto": "inbox,at:calllive,{skin}",
       "waitFor": "[data-testid='softphone-bar']",
-      "note": "A call answered from the caller's number: the caller's conversation is open with the call bar in its header (face, name, clock, mute, hold, keypad, transfer, record, end) and the Call tab of the side pane (Notes for this call, Last interactions, Open tasks, Open record). The prototype side is its callaway state, which opens the conversation with the live call."
+      "note": "A call answered from the caller's number: the caller's conversation (Elena) is open with the call bar in its header (face, name, clock, mute, hold, keypad, transfer, record, end) and the Call pane (tabs Call and Record, Notes for this call, Last interactions, Open tasks, Open record). The prototype side is its calllive state."
     },
     {
       "id": "P-L9c_05-call-ended",
@@ -13,14 +13,14 @@
       "proto": "inbox,at:callend,{skin}",
       "waitFor": "[data-testid='softphone-ended']",
       "protoSettleMs": 5000,
-      "note": "After the call: the header holds the ended card with where the call was saved and Log a task, over the conversation."
+      "note": "After the call: a full-width strip under the conversation header with Call ended, the clock, where it was saved and Log a task; the call is in the thread as an Incoming call with player, summary and Transcript."
     },
     {
       "id": "P-L9c_05-call-elsewhere",
-      "route": "/m/P-L9c_05?where=list&c=marcus",
-      "proto": "inbox,at:calllive,{skin}",
-      "waitFor": "[data-testid='softphone-bar']",
-      "note": "The same call while another screen is open (the Unmatched list): the floating dock is the only call surface."
+      "route": "/m/P-L9c_05?c=marcus&r=elena&phase=live",
+      "proto": "inbox,at:callaway,{skin}",
+      "waitFor": "[data-testid='call-title-pill']",
+      "note": "The same call while another conversation is open (Marcus): the running call is a green pill with the caller's name and the clock in the title bar, and the call bar and pane stay with the caller's own conversation. The prototype side is its callaway state."
     }
   ]
 }

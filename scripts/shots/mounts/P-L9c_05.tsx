@@ -5,7 +5,8 @@ import { useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { InboxDataProvider, InboxSidebar, InboxStateProvider } from "../../../apps/app/src/places/inbox/sidebar/index.ts";
-import { InboxPhoneDock } from "../../../apps/app/src/places/inbox/softphone/index.ts";
+import { TitleBar } from "../../../apps/app/src/shell/titlebar/TitleBar.tsx";
+import { CallTitlePill, InboxPhoneDock } from "../../../apps/app/src/places/inbox/softphone/index.ts";
 import { InboxUnmatched } from "../../../apps/app/src/places/inbox/unmatched/index.ts";
 import { CallConversation } from "../../../apps/app/src/places/inbox/callpane/index.ts";
 import { createUnmatchedSample } from "../../../apps/app/src/places/inbox/unmatched/sample.ts";
@@ -20,25 +21,33 @@ const TASKS = { elena: [{ title: "Send the lease draft", due: "Today" }, { title
 export default function Mount(): ReactNode {
   const q = useMemo(() => new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""), []);
   const sample = useMemo(() => createUnmatchedSample(), []);
-  const who = (q.get("c") === "marcus" ? "marcus" : "elena") as "elena" | "marcus";
+  const who = (q.get("c") === "marcus" ? "marcus" : "elena") as "elena" | "marcus"; // whose conversation is open
+  const caller = (q.get("r") === "marcus" ? "marcus" : q.get("r") === "elena" ? "elena" : who) as "elena" | "marcus"; // who rings
   const contactId = who === "marcus" ? "ct_marcus" : "ct_elena";
   const list = q.get("where") === "list";
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < 720;
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
-    timers.push(setTimeout(() => { sample.device.ring(PHONE_OF[who]!); }, 400));
+    timers.push(setTimeout(() => { sample.device.ring(PHONE_OF[caller]!); }, 400));
     timers.push(setTimeout(() => click("softphone-answer"), 800));
-    if (q.get("phase") === "ended") timers.push(setTimeout(() => click("softphone-hangup"), 1500));
+    if (q.get("phase") === "ended") timers.push(setTimeout(() => click("softphone-hangup"), 3000));
     return () => { for (const t of timers) clearTimeout(t); };
-  }, [q, sample, who]);
+  }, [q, sample, caller]);
   return (
     <InboxDataProvider value={sample.data}>
       <InboxStateProvider initial={{}}>
         <InboxPhoneDock device={sample.device} placement="dock">
+          <View style={{ flex: 1, minHeight: 0 }}>
+          {/* the shell's title bar; the running call is the pill beside the title (the shell places CallTitlePill the same way) */}
+          <View style={{ position: "relative" }}>
+            <TitleBar title="Vyre · Northwind · Inbox" status={null} onUndo={() => undefined} online waiting={0} onOpenWaiting={() => undefined} onSearch={() => undefined} skin="system" onSkin={() => undefined} compact={phone} />
+            <View style={{ position: "absolute", left: phone ? 8 : 24, top: 6 }}><CallTitlePill /></View>
+          </View>
           <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
             {phone ? null : <View style={{ width: 240 }}><InboxSidebar /></View>}
             {list ? <InboxUnmatched /> : <CallConversation conversationId={who} contactId={contactId} tasks={TASKS[who]} />}
+          </View>
           </View>
         </InboxPhoneDock>
       </InboxStateProvider>

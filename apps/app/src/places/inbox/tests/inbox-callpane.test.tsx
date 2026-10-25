@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import { InboxDataProvider, InboxStateProvider } from "../sidebar/index.ts";
-import { InboxPhoneContext, dockFloats } from "../softphone/index.ts";
+import { CallTitlePill, InboxPhoneContext, dockFloats } from "../softphone/index.ts";
 import type { InboxPhone } from "../softphone/index.ts";
 import { CallConversation, callIsWith, cardOf, lastInteractions, showsCall } from "../callpane/index.ts";
 import { createUnmatchedSample } from "../unmatched/sample.ts";
@@ -53,7 +53,7 @@ function withCall(phase: string, peer: string, child: ReactElement, opts: { note
       caller: peer.endsWith("0126") ? { name: "Dana Whitfield", number: peer, recordId: "ct_dana" } : { name: "Elena Rivera", number: peer, recordId: "ct_elena" }, placement: "inline",
       ...(phase === "ended" ? { endedNote: "Saved to Elena Rivera's conversation", endedSecs: 134, summary: "Elena sends the lease Thursday." } : {}),
     }),
-    claim() { claimed++; return () => { claimed--; }; }, isClaimed: () => claimed > 0, notes: () => opts.notes ?? "", setNotes() {},
+    claim() { claimed++; return () => { claimed--; }; }, isClaimed: () => claimed > 0, pill: () => (claimed > 0 || (phase !== "live" && phase !== "held") ? null : { name: "Elena Rivera", secs: 134 }), holdPill: () => () => undefined, openCall() {}, notes: () => opts.notes ?? "", setNotes() {},
   };
   return renderToStaticMarkup(<InboxDataProvider value={s.data}><InboxStateProvider initial={{}}><InboxPhoneContext.Provider value={phone}>{child}</InboxPhoneContext.Provider></InboxStateProvider></InboxDataProvider>).replaceAll("<!-- -->", "");
 }
@@ -75,7 +75,8 @@ test("a live call with this person puts the call bar in the conversation header 
 test("a held call shows Resume, and an ended call shows the saved-to line with Log a task in the header", () => {
   assert.ok(withCall("held", "+1 415 555 0161", elena).includes("On hold"));
   const ended = withCall("ended", "+1 415 555 0161", elena);
-  assert.ok(ended.includes('data-testid="softphone-ended"') && ended.includes("Saved to Elena Rivera&#x27;s conversation") && ended.includes('data-testid="softphone-log-task"'));
+  assert.ok(ended.includes('data-testid="call-ended-strip"') && ended.includes("Call ended · 02:14") && ended.includes("Saved to Elena Rivera&#x27;s conversation") && ended.includes('data-testid="call-strip-log-task"'), "a full-width strip with Log a task");
+  assert.ok(!ended.includes('data-testid="softphone-ended"'), "not the floating card");
 });
 
 test("a call with someone else, or no call, adds nothing to this conversation", () => {
@@ -83,6 +84,20 @@ test("a call with someone else, or no call, adds nothing to this conversation", 
   assert.ok(!other.includes('data-testid="call-header"') && !other.includes('data-testid="softphone-pane"'), "a call with Dana is not Elena's");
   assert.ok(other.includes("Lease documents for Thursday"), "the conversation still draws");
   assert.ok(!withCall("idle", "", elena).includes('data-testid="call-header"'));
+});
+
+test("the Call pane has the Call and Record tabs and a close", () => {
+  const out = withCall("live", "+1 415 555 0161", elena);
+  assert.ok(out.includes("Call") && out.includes("Record"), "tabs");
+});
+
+test("a live call whose conversation is not open is a green pill with the name and clock", () => {
+  const s = createUnmatchedSample();
+  const phone: InboxPhone = { dial() {}, toggle() {}, state: () => stateOf("live", "+1 415 555 0161"), view: () => ({}) as never, claim: () => () => undefined, isClaimed: () => false, pill: () => ({ name: "Elena Rivera", secs: 32 }), holdPill: () => () => undefined, openCall() {}, notes: () => "", setNotes() {} };
+  const out = renderToStaticMarkup(<InboxDataProvider value={s.data}><InboxPhoneContext.Provider value={phone}><CallTitlePill /></InboxPhoneContext.Provider></InboxDataProvider>).replaceAll("<!-- -->", "");
+  assert.ok(out.includes('data-testid="call-title-pill"') && out.includes("Elena Rivera 00:32"));
+  const none = renderToStaticMarkup(<InboxPhoneContext.Provider value={{ ...phone, pill: () => null }}><CallTitlePill /></InboxPhoneContext.Provider>);
+  assert.equal(none, "", "nothing when the call is shown in its own conversation");
 });
 
 test("the floating dock is for the dialer, a ring and a call whose conversation is not open", () => {

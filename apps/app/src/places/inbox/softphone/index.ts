@@ -3,3 +3,4 @@ export { InboxPhoneContext, InboxPhoneDock, SOFTPHONE_SCREEN, dockFloats, usePho
 export type { ConversationKey, InboxPhone, InboxPhoneProps, PhoneTarget } from "./phone.tsx";
 export { callerOf, numbersOf, phoneHooks, prettyNumber, sameNumber, savedLine, suggestionsFor } from "./model.ts";
 export type { CallOut, CallsOut, NumbersOut, PhoneIds } from "./model.ts";
+export { CallTitlePill } from "./pill.tsx";
