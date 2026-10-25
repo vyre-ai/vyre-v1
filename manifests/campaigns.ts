@@ -14,7 +14,7 @@ export default defineManifest({
   owner: 'L8',
   events: [
     ev('campaign.launched', 'A campaign was launched after approval', { p: { campaignId: id.campaign, audienceCount: t.int() }, subject: ['campaign', '/campaignId'], trigger: { title: 'A campaign is launched' }, replay: 'stub' }),
-    ev('campaign.replied', 'A contact replied to a campaign', { p: { campaignId: id.campaign, recordId: id.record, messageId: id.message }, subject: ['campaign', '/campaignId'], trigger: { title: 'A campaign gets a reply', fields: ['/campaignId'] }, notify: 'campaign.reply' }),
+    ev('campaign.replied', 'A contact replied to a campaign', { p: { campaignId: id.campaign, recordId: id.record, messageId: t.id('eml') }, subject: ['campaign', '/campaignId'], trigger: { title: 'A campaign gets a reply', fields: ['/campaignId'] }, notify: 'campaign.reply' }),
     ev('campaign.unsubscribed', 'A contact unsubscribed', { p: { campaignId: id.campaign, recordId: id.record }, subject: ['campaign', '/campaignId'] }),
     ev('campaign.paused', 'A campaign paused', { p: { campaignId: id.campaign, reason: t.str() }, subject: ['campaign', '/campaignId'] }),
     ev('campaign.completed', 'A campaign finished', { p: { campaignId: id.campaign }, subject: ['campaign', '/campaignId'] }),
