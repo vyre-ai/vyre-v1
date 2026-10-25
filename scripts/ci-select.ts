@@ -1,7 +1,7 @@
 // Test selection for CI (ARCH 10.2, 10.6). Wraps the import-graph walk in scripts/ci-select.mjs and adds the manifest edge:
 // a change under manifests/ selects the generated contract tests for that module and every consumer of its generated outputs.
 // Rules kept from the walk: a changed or added test file always runs; a changed code file reached by no test is "uncovered" and fails.
-//   node scripts/ci-select.ts <base-ref> [--matrix [--max N] [--perf-always]]   prints {"all","files","why","uncovered","edges"}; exit 1 when a code file is uncovered
+//   node scripts/ci-select.ts <base-ref> [--matrix [--max N] [--perf-always | --perf-only | --no-perf]]   prints {"all","files","why","uncovered","edges"}; exit 1 when a code file is uncovered
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -154,7 +154,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === self) {
     const timings = JSON.parse(fs.readFileSync(path.join(repo, "test/timings.json"), "utf8"));
     const slow = JSON.parse(fs.readFileSync(path.join(repo, "test/slow.json"), "utf8"));
     const perf = new Set<string>(slow.filter((e: { perf?: boolean }) => e.perf === true).map((e: { file: string }) => e.file));
-    const files = dropUnaffectedPerf(picked, changedPaths, perf, tracked, (f) => fs.readFileSync(path.join(repo, f), "utf8"), process.argv.includes("--perf-always"));
+    // Ruling 55: --perf-only is every perf file (the hourly perf run); --no-perf drops them (the full main run); otherwise a perf file runs only when its code changed.
+    const picked2 = process.argv.includes("--perf-only") ? [...perf].filter((f) => tracked.has(f)) : process.argv.includes("--no-perf") ? picked.filter((f) => !perf.has(f)) : picked;
+    const files = dropUnaffectedPerf(picked2, changedPaths, perf, tracked, (f) => fs.readFileSync(path.join(repo, f), "utf8"), process.argv.includes("--perf-always"));
     console.log(JSON.stringify({ ...result, matrix: toMatrix(shardFiles(files, timings, slow, maxArg ? { max: maxArg } : {})) }));
   } else console.log(JSON.stringify(result));
   if (!result.all && result.uncovered.length) { for (const f of result.uncovered) console.error(`no test covers ${f}`); process.exit(1); }

@@ -73,3 +73,9 @@ test("check.yml: select, golden and contracts have no needs so they run in paral
     assert.doesNotMatch(m![1], /\n    needs:/, `${j} must not wait on another job`);
   }
 });
+
+test("the hourly perf run has its own 30 minute budget (ruling 55)", () => {
+  assert.equal(LIMIT_MIN.perf, 30);
+  assert.equal(checkBudget("perf", 29 * 60).ok, true);
+  assert.equal(checkBudget("perf", 31 * 60).ok, false);
+});
