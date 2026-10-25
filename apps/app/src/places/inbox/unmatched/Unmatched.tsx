@@ -38,6 +38,13 @@ export function matchMenuEntries(suggestions: readonly Suggestion[], on: { match
   return out;
 }
 
+/** Where a menu opened from a button goes: under the button, whatever pointer or keyboard opened it (a press with no coordinates still lands in the same place). */
+function anchorOf(e: unknown): { x: number; y: number } {
+  const t = ((e as { currentTarget?: unknown; target?: unknown }).currentTarget ?? (e as { target?: unknown }).target) as { getBoundingClientRect?: () => { left: number; bottom: number } } | undefined;
+  const r = t?.getBoundingClientRect?.();
+  return r ? { x: r.left, y: r.bottom + 4 } : pointOf(e);
+}
+
 function Line({ u, selected, now, offsetMin, onPress, onMatch }: { u: Unmatched; selected: boolean; now: number; offsetMin: number; onPress(): void; onMatch(x: number, y: number): void }): ReactElement {
   return (
     <View testID={`unmatched-${u.id}`} style={s.slot} {...menuTrigger(onMatch)}>
@@ -49,7 +56,7 @@ function Line({ u, selected, now, offsetMin, onPress, onMatch }: { u: Unmatched;
         </View>
         <View style={s.right}>
           <Text style={[s.time, u.unreadCount > 0 && s.timeUnread]}>{listTime(u.lastMessageAt, now, offsetMin)}</Text>
-          <Pressable accessibilityRole="link" accessibilityLabel="Match to a record" testID={`match-${u.id}`} onPress={(e) => { const p = pointOf(e); onMatch(p.x, p.y); }} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}>
+          <Pressable accessibilityRole="link" accessibilityLabel="Match to a record" testID={`match-${u.id}`} onPress={(e) => { const p = anchorOf(e); onMatch(p.x, p.y); }} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}>
             <Glyph name="link" size={12} color="var(--accent)" /><Text style={s.btnText}>Match to a record</Text>
           </Pressable>
         </View>

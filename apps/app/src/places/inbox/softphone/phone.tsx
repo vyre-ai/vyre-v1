@@ -38,7 +38,9 @@ export interface InboxPhoneProps {
 }
 
 /** The provider and the dock in one: children may call `usePhone()`. */
-export function InboxPhoneDock({ device, targets = [], children, placement = "dock" }: InboxPhoneProps): ReactElement {
+const NO_TARGETS: readonly PhoneTarget[] = [];
+
+export function InboxPhoneDock({ device, targets = NO_TARGETS, children, placement = "dock" }: InboxPhoneProps): ReactElement {
   const data = useInboxData();
   const numbersQ = useScreenQuery<NumbersOut>(SOFTPHONE_SCREEN, "numbers");
   const callsQ = useScreenQuery<CallsOut>(SOFTPHONE_SCREEN, "calls");
