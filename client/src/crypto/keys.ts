@@ -71,6 +71,31 @@ const concat = (...parts: Uint8Array[]): Uint8Array => {
 /** Best effort: overwrite a key buffer when done with it. */
 export const wipe = (b: Uint8Array): void => { b.fill(0); };
 
+// ---- support
+
+export const UNSUPPORTED_MESSAGE = "This browser can't protect your keys. Update it, or open Vyre in a current Chrome, Safari or Firefox.";
+let supported: Promise<boolean> | null = null;
+
+/** Does this browser have what the bundle needs: WebCrypto with AES-GCM and X25519? Probes by using them, once. Native builds that lack X25519 will need a polyfill. */
+export function isSupported(subtle: SubtleCrypto | undefined = globalThis.crypto?.subtle): Promise<boolean> {
+  if (subtle === globalThis.crypto?.subtle && supported) return supported;
+  const probe = (async (): Promise<boolean> => {
+    if (!subtle) return false;
+    try {
+      await subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt"]);
+      await subtle.generateKey({ name: "X25519" }, true, ["deriveBits"]);
+      return true;
+    } catch { return false; }
+  })();
+  if (subtle === globalThis.crypto?.subtle) supported = probe;
+  return probe;
+}
+
+/** Call at sign-up and sign-in before anything else: a clear message for an old browser, instead of a failure deep inside key derivation. Every bundle function calls it too. */
+export async function assertSupported(subtle?: SubtleCrypto): Promise<void> {
+  if (!(await isSupported(subtle ?? globalThis.crypto?.subtle))) throw new KeyError("unavailable", UNSUPPORTED_MESSAGE);
+}
+
 // ---- primitives
 
 /** The key a secret and a salt derive: Argon2id, 32 bytes. */
@@ -148,6 +173,7 @@ const fresh = (o: Options): Options => ({ ...(o.argon ? { argon: o.argon } : {})
 
 /** Sign-up: a new person key, its two wraps, and a new X25519 pair with the private half sealed under the person key. */
 export async function makeBundle(password: string, recoveryCode: string, o: Options = {}): Promise<MadeBundle> {
+  await assertSupported();
   const rand = o.rand ?? randomBytes;
   const personKey = rand(KEY_BYTES);
   const pair = await newPair();
@@ -175,11 +201,13 @@ async function finish(personKey: Uint8Array, bundle: KeyBundle): Promise<OpenedB
 
 /** Sign-in: the password opens the person key, which opens the private key; the public key must match it. A wrong password is KeyError bad_secret. */
 export async function openBundle(password: string, bundle: KeyBundle, o: Options = {}): Promise<OpenedBundle> {
+  await assertSupported();
   return finish(await openWithSecret(password, bundle.personKeyByPassword, "password", o), bundle);
 }
 
 /** Recovery: the recovery code opens the same person key. */
 export async function openWithRecovery(recoveryCode: string, bundle: KeyBundle, o: Options = {}): Promise<OpenedBundle> {
+  await assertSupported();
   return finish(await openWithSecret(recoveryCode, bundle.personKeyByRecovery, "recovery", o), bundle);
 }
 

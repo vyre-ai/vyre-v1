@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
-  ARGON, KeyError, KEY_BYTES, NONCE_BYTES, SALT_BYTES, VERSION, fromBase64, makeBundle, openBundle, openWithRecovery, parse, rewrap, seal, stretch, toBase64,
+  ARGON, KeyError, UNSUPPORTED_MESSAGE, assertSupported, isSupported, KEY_BYTES, NONCE_BYTES, SALT_BYTES, VERSION, fromBase64, makeBundle, openBundle, openWithRecovery, parse, rewrap, seal, stretch, toBase64,
 } from "../../src/crypto/keys.ts";
 import type { ArgonParams, KeyBundle } from "../../src/crypto/keys.ts";
 
@@ -126,4 +126,17 @@ test("nothing secret reaches storage, logs or the bundle's wire form", async () 
   } finally {
     spied.forEach((k, i) => { console[k] = saved[i]!; });
   }
+});
+
+test("a browser without X25519 or AES-GCM gets one clear message at sign-up and sign-in, not a failure inside key derivation", async () => {
+  assert.equal(await isSupported(), true, "Node 24 WebCrypto has both");
+  const lacking = (missing: string): SubtleCrypto => ({
+    generateKey: async (alg: { name: string }) => { if (alg.name === missing) throw new DOMException("not supported", "NotSupportedError"); return {} as CryptoKey; },
+  }) as unknown as SubtleCrypto;
+  assert.equal(await isSupported(lacking("X25519")), false);
+  assert.equal(await isSupported(lacking("AES-GCM")), false);
+  assert.equal(await isSupported(undefined), true, "the default is this runtime's subtle");
+  const e = await expectKeyError("unavailable", () => assertSupported(lacking("X25519")));
+  assert.equal(e.message, UNSUPPORTED_MESSAGE);
+  assert.match(UNSUPPORTED_MESSAGE, /can't protect your keys.*Update/);
 });
