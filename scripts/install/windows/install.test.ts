@@ -1,5 +1,7 @@
 // Windows device installer (P-L10_11, spec 3.13, 4.14, lead ruling Q6): the checks that need no Windows machine. The PowerShell tests (install.test.ps1) run here when
 // `pwsh` is on the machine (in CI, where it is downloaded when missing, they must run); elsewhere they are skipped by name; the decision they prove (WSL2, else the Space server) is also read from the script text.
+// @reads /scripts/install/windows/install.ps1
+// @reads /scripts/install/windows/install.test.ps1
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
