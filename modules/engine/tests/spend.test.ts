@@ -274,6 +274,8 @@ test("record_usage keeps the Vault item a turn ran on, usage.query filters by it
   await recordUsage(h.ctx, { turnId: t1, tokensIn: 1, tokensOut: 1, costMicros: 1, itemId: "vit_bbbbbbbbbbbb" });
   assert.deepEqual(h.db.all("SELECT item_id FROM engine_usage_item"), [{ item_id: "vit_aaaaaaaaaaaa" }], "the first key seen for a turn stays");
   h.db.run("INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", "trn_other", THREAD, "agt_docs", "usr_sam", "gpt-5", 1_760_000_000_000, 7, 7, 1);
+  // Worked out from the inputs, not read off a run: record_usage adds each call to the turn's row (ON CONFLICT ... tokens_in + excluded.tokens_in), so t1 holds (10 + 1) in and (5 + 1) out,
+  // 11 + 6 = 17 tokens. trn_other is a different turn on a different key and is not counted.
   const onKey = usageQuery(h.ctx, { by: "agent", itemId: "vit_aaaaaaaaaaaa" });
   assert.deepEqual(onKey.rows.map((r) => [r.key, r.totals.turns, r.totals.tokensIn + r.totals.tokensOut]), [[AGENT, 1, 17]], "only the turns on that key");
   assert.equal(usageQuery(h.ctx, { by: "agent", itemId: "vit_nokeyatall00" }).totals.turns, 0);
