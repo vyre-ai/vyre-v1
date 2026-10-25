@@ -37,6 +37,36 @@
         "selector": "[data-testid=\"records-scroll\"]:has([data-testid=\"rec-cl_20\"])"
       },
       "note": "100,014 clients: the scroll probe (budget scroll, 16.7 ms) and its layout shift, which must be under 0.05."
+    },
+    {
+      "id": "P-L9d_01b-records-100k-name-only",
+      "route": "/m/P-L9d_01b?type=clients&rows=100000&hide=status,owner,value,stage,due,company,email,phone,rating,active,source,notes",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='rec-cl_20']",
+      "scroll": {
+        "selector": "[data-testid=\"records-scroll\"]:has([data-testid=\"rec-cl_20\"])"
+      },
+      "note": "Diagnostic for the scroll budget: the same 100,014 rows with columns hidden (name-only)."
+    },
+    {
+      "id": "P-L9d_01b-records-100k-no-person",
+      "route": "/m/P-L9d_01b?type=clients&rows=100000&hide=owner",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='rec-cl_20']",
+      "scroll": {
+        "selector": "[data-testid=\"records-scroll\"]:has([data-testid=\"rec-cl_20\"])"
+      },
+      "note": "Diagnostic for the scroll budget: the same 100,014 rows with columns hidden (no-person)."
+    },
+    {
+      "id": "P-L9d_01b-records-100k-no-choice",
+      "route": "/m/P-L9d_01b?type=clients&rows=100000&hide=status,source,stage",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='rec-cl_20']",
+      "scroll": {
+        "selector": "[data-testid=\"records-scroll\"]:has([data-testid=\"rec-cl_20\"])"
+      },
+      "note": "Diagnostic for the scroll budget: the same 100,014 rows with columns hidden (no-choice)."
     }
   ]
 }

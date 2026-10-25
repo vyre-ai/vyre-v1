@@ -1,11 +1,13 @@
 // Mount for P-L9d_01b: the Records table with the view-kind switch in its header, over the Northwind sample Space (or Harbor Studio with ?space=harbor).
 // ?type=projects|clients  ?kind=table|board|gallery|list  ?rows=100000 (the long table the scroll and layout shift probes run over)  ?menu=kind opens the kind menu on load
+// ?hide=owner,status hides those columns of the table (to find which cells cost frames in the scroll probe).
 // ?ls=1 draws the layout shifts the page has had (when, how much, which element, from where to where) over the corner, so the cause of a shift can be read from a screenshot.
 // The page reads its query after it is live (the static export keeps the markup it was rendered with).
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Text, View, useWindowDimensions } from "react-native";
 import { RecordsDataProvider, RecordsSidebar, RecordsStateProvider } from "../../../apps/app/src/places/records/sidebar/index.ts";
+import { TableView } from "../../../apps/app/src/places/records/table/index.ts";
 import { RecordViews } from "../../../apps/app/src/places/records/views-a/index.ts";
 import { createViewsSample, harbor, northwind } from "../../../apps/app/src/places/records/views-a/sample.ts";
 
@@ -58,7 +60,7 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
       <RecordsStateProvider initial={initial}>
         <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
           {phone ? null : <View style={{ width: 240 }}><RecordsSidebar /></View>}
-          <RecordViews kind={q.get("kind") ?? "table"} />
+          {q.get("hide") !== null ? <TableView view={{ hidden: (q.get("hide") as string).split(",").filter(Boolean) }} /> : <RecordViews kind={q.get("kind") ?? "table"} />}
         </View>
         {q.get("ls") === "1" ? <Shifts /> : null}
       </RecordsStateProvider>
