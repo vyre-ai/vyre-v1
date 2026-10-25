@@ -1,11 +1,12 @@
 // Host gate for a Personal Space (P-H_19, spec 2.1): invoke asks the Personal gate before anything else, so a team-only capability is refused with permission.needs_team in a Personal Space
-// and answered normally once the Space is a Team Space. The gate here is the shape of the sync module's createPersonalHost(...).gate (host may not import it): it throws the same VyreErr.
+// and answered normally once the Space is a Team Space. The matrix is personalMatrix (host/src/invoke.ts), which the daemon builds from the registry's teamOnly rows and the Space kind.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AccessSnapshot, authorize } from "../../kernel/src/authorize/index.ts";
-import { createInvoke, indexCapabilities } from "../src/invoke.ts";
+import { createInvoke, indexCapabilities, personalMatrix } from "../src/invoke.ts";
+import { loadConfig } from "../src/daemon/config.ts";
 import type { CtxSeed, InvokeDeps } from "../src/invoke.ts";
-import { HostError, VyreErr } from "../src/routes/errors.ts";
+import { HostError } from "../src/routes/errors.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 
 const cap = (name: string): CapabilityDef => ({
@@ -13,11 +14,8 @@ const cap = (name: string): CapabilityDef => ({
   risk: "low", effects: "write", emits: [], idempotency: "natural", surfaces: {}, examples: [],
 } as unknown as CapabilityDef);
 
-const TEAM_ONLY = new Set(["terminal.open"]);
 let kind: "personal" | "team" = "personal";
-const gate = (c: string, traceId: string): void => {
-  if (kind === "personal" && TEAM_ONLY.has(c)) throw new VyreErr({ code: "permission.needs_team", message: `Needs a Team Space. ${c} works in a Team Space.`, retryable: false, traceId, next: [{ kind: "open_settings", label: "Create or join a Team Space" }], details: { capability: c } });
-};
+const gate = personalMatrix({ kind: () => kind, caps: [{ name: "terminal.open", teamOnly: true }, { name: "records.update" }] }).gate;
 
 function world() {
   const s = new AccessSnapshot();
@@ -63,4 +61,11 @@ test("the same team-only call is served once the Space is a Team Space", async (
   const r = await w.invoke("terminal.open", { id: "rec_1" }, seed);
   assert.equal(r.status, "ok");
   assert.deepEqual(w.ran, ["terminal.open"]);
+});
+
+test("the Space kind comes from --space-kind or VYRE_SPACE_KIND; anything else is refused; absent means a Team Space", () => {
+  assert.equal(loadConfig(["--space-kind", "personal"], {}).spaceKind, "personal");
+  assert.equal(loadConfig([], { VYRE_SPACE_KIND: "team" }).spaceKind, "team");
+  assert.equal(loadConfig([], {}).spaceKind, undefined);
+  assert.throws(() => loadConfig(["--space-kind", "solo"], {}), /personal or team/);
 });

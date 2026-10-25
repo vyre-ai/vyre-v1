@@ -143,6 +143,21 @@ export function createRateLimiter(): NonNullable<InvokeDeps["rate"]> {
   };
 }
 
+/**
+ * The Personal Space matrix as an invoke gate (spec 2.1): in a Personal Space a capability whose manifest says `teamOnly` is refused with `permission.needs_team`. Same rule and wording as
+ * the sync module's createPersonalHost(...).gate (host never imports a module, so the daemon builds this one from the registry's rows and the Space kind).
+ */
+export function personalMatrix(o: { kind: () => "personal" | "team"; caps: Iterable<{ name: string; teamOnly?: boolean }> }): NonNullable<InvokeDeps["personal"]> {
+  const teamOnly = new Set<string>();
+  for (const c of o.caps) if (c.teamOnly === true) teamOnly.add(c.name);
+  return {
+    gate(cap, traceId) {
+      if (o.kind() !== "personal" || !teamOnly.has(cap)) return;
+      throw fail("permission.needs_team", traceId, { message: `Needs a Team Space. ${cap} works in a Team Space; create or join one to use it.`, details: { capability: cap }, next: [{ kind: "open_settings", label: "Create or join a Team Space" }] });
+    },
+  };
+}
+
 export type Invoke = (cap: string, input: unknown, seed: CtxSeed) => Promise<InvokeResult>;
 
 export function createInvoke(deps: InvokeDeps): Invoke {
