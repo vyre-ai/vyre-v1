@@ -40,7 +40,7 @@ jobs:
           fi
           if [ -n "$base" ]; then echo "select: affected since last green main $base"; echo "full=false" >> "$GITHUB_OUTPUT"
           else echo "select: whole suite ($EVENT)"; echo "full=true" >> "$GITHUB_OUTPUT"; fi
-          node scripts/ci-select.ts "$base" --matrix --max 8 > select.json
+          node scripts/ci-select.ts "$base" --matrix --max 8 --perf-always > select.json
           node -e 'const r=JSON.parse(require("fs").readFileSync("select.json","utf8"));const n=r.matrix.include.length;console.log("select: "+n+" jobs; "+(r.all?"everything":r.files.length+" affected files"));const o=process.env.GITHUB_OUTPUT;require("fs").appendFileSync(o,"has_tests="+(n>0)+"\nmatrix="+JSON.stringify(n>0?r.matrix:{include:[{name:"none",files:"",slow:"false"}]})+"\n")'
   shards:
     name: ${{ matrix.name }}
