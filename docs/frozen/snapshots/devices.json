@@ -1,0 +1,27 @@
+{
+  "module": "devices",
+  "capabilities": {
+    "devices.epoch@1": "66708cbd42e2afa4fffdd7415c7fc17b2ed289a71f975ae9d885829cc8d8183e",
+    "devices.epoch_bump@1": "a9e92bef557d99b7d5b95181e076970cd71f0071397714d9eddc6c491104088c",
+    "devices.get@1": "ce99c557e333491001bd0dfd44663907e55732cb61277f5e9ed9d71e90bf42c4",
+    "devices.list@1": "9bb3f96f7e10850b9bab8b70ffbb060aba1f66a54cd8fdc9dd8582f12ed7d8ce",
+    "devices.mine@1": "fbf27966d167cc295c6474a15ffa08642e8d776b34ab5313ec67df86b228c899",
+    "devices.purge_ack@1": "1a90714ac4803ec7a60c74c28bb0666da74db1f3fd22f2aa02f646b2428077b3",
+    "devices.register@1": "5e10ef4a1ada0eac34d3bc25c19c3e23a34a2a389c4375008acc0c122cb0a1d6",
+    "devices.rename@1": "567905385a6f0f43f4d1474db39e62c2ff88c743276c66164d724cba858c5652",
+    "devices.revoke@1": "ccbd779f446504470158da7c68f306dd82ce3be9cdfc9124db4ecf2ba7d9d7e9",
+    "devices.revoke_others@1": "4648c9aacd6c0d8cf31912ff5a9ffe9f301fe82c28ce9646e05d37b9ffbd8610",
+    "devices.rotate_space_key@1": "0bd6b032c89d6310e918a9281ac0d73fbfdbebc533d4dbacc652bb7408007666",
+    "devices.sessions.list@1": "9b62a00752a4930c908c155aacfeeda91e546a1b6c224d810a60c8410de6fd58",
+    "devices.sessions.revoke@1": "baee8a3de5526bb736abdcccff17e6718cec2ef8eae48bccd1c08aa10fe2b3bb",
+    "devices.touch@1": "54a277cc065164c3f30bf7211b4cf87a8982393f9b04ba756827b5d5d98fbb2a"
+  },
+  "events": {
+    "device.purged": "300e9b45b47f1c4e0ea0b5526be0b0dd2f57af11adff3c70a3c9b9b06c2f4b5c",
+    "device.registered": "cf84caf8c03f0ead1a547f23bf36eb466e19f60ad60cfa4ca3429bdf7c36a0bb",
+    "device.revoked": "dbbde0be1fe669ea065a20414b20531d8e90dbb858711f1b3a0e937f19d1ea4a",
+    "epoch.bumped": "efd956b98b3adb2b2d0de050eb2d289b62506f49eb0a93e25aaad67596928716",
+    "session.revoked": "48c9f7d3760830961f53d30906935cab04fa9f7e624423f6bead013ac3b1471e",
+    "session.started": "94547ce61ab3941ab59c2c5f452148643a8bd16a30252c05bd6b23e7c7b6003f"
+  }
+}
