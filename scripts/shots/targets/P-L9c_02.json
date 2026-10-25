@@ -3,28 +3,28 @@
     {
       "id": "P-L9c_02-contacttab-thread",
       "route": "/m/P-L9c_02",
-      "proto": "inbox,contact:elena,{skin}",
+      "proto": "inbox,at:contact:elena,{skin}",
       "waitFor": "[data-testid='email:m_lease']",
       "note": "A contact's tab in the Northwind sample Space: Elena Rivera's whole history in reading order with day separators, the lease email with its quoted text folded, attachments and record chip, text bubbles, a call with its player and summary, a campaign step as a quiet line, the agent's draft with its Gate line, and the composer on Email with the inbox picker. The prototype side is its Inbox with Elena's contact tab open."
     },
     {
       "id": "P-L9c_02-contacttab-texts",
       "route": "/m/P-L9c_02?c=marcus",
-      "proto": "inbox,contact:marcus,{skin}",
+      "proto": "inbox,at:contact:marcus,{skin}",
       "waitFor": "[data-testid='bubble:mt2']",
       "note": "A text conversation (Marcus Pruitt): bubbles from both sides with the number under them and the composer on Text, sending from the number the thread came in on."
     },
     {
       "id": "P-L9c_02-contacttab-call",
       "route": "/m/P-L9c_02?open=transcript",
-      "proto": "inbox,contact:elena,{skin}",
+      "proto": "inbox,at:contact:elena,{skin}",
       "waitFor": "[data-testid='transcript:c_elena']",
       "note": "The same conversation with the call's transcript and the lease email's quoted text opened. The prototype side is the same tab with its folded parts; the opened parts are compared with its Show quoted text and Transcript styles."
     },
     {
       "id": "P-L9c_02-contacttab-harbor",
       "route": "/m/P-L9c_02?space=harbor&c=kai",
-      "proto": "inbox,harbor,contact:kai,{skin}",
+      "proto": "inbox,space:harbor,at:contact:kai,{skin}",
       "waitFor": "[data-testid='email:km1']",
       "note": "The Harbor Studio space: Kai Moreno's one email and the composer with a single mailbox and no Text."
     }
