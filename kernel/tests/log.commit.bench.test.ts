@@ -15,8 +15,13 @@ const ev = (i: number): NewEvent => ({
 const pct = (xs: number[], p: number) => { const s = [...xs].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.ceil(p * s.length) - 1)]!; };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-test("group commit at 200 ops/s: p95 append latency under 10 ms", async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-bench-"));
+// Ruling 55: the budget gates the code path with the store on tmpfs (/dev/shm; os.tmpdir() where there is none, such as a Mac), so a shared cloud volume's fsync latency cannot fail it.
+// The same run on the runner's own disk is printed (not gated) as the "disk" figure.
+const SHM = (() => { try { fs.accessSync("/dev/shm", fs.constants.W_OK); return "/dev/shm"; } catch { return null; } })();
+const GATED_BASE = SHM ?? os.tmpdir();
+
+async function groupCommit(base: string) {
+  const dir = fs.mkdtempSync(path.join(base, "vyre-bench-"));
   const log = await LogClient.open({ path: path.join(dir, "events.db"), space: "sp_1" });
   try {
     await Promise.all(Array.from({ length: 40 }, (_, i) => log.append(ev(i)))); // warm the worker, the WAL and the statement cache
@@ -32,11 +37,25 @@ test("group commit at 200 ops/s: p95 append latency under 10 ms", async () => {
     await Promise.all(pending);
     const wall = (performance.now() - t0) / 1000;
     const p50 = pct(lat, 0.5), p95 = pct(lat, 0.95), p99 = pct(lat, 0.99);
-    console.log(`server_write: ${N} appends in ${wall.toFixed(2)} s (${(N / wall).toFixed(0)}/s), p50 ${p50.toFixed(2)} ms, p95 ${p95.toFixed(2)} ms, p99 ${p99.toFixed(2)} ms, max ${Math.max(...lat).toFixed(2)} ms`);
-    assert.ok(N / wall >= 150, `the pacer kept up (${(N / wall).toFixed(0)}/s)`);
-    assert.ok(p95 < 10, `p95 ${p95.toFixed(2)} ms must be under 10 ms`);
-    assert.equal((await log.verify()).ok, true);
-  } finally { await log.close(); }
+    const line = `${N} appends in ${wall.toFixed(2)} s (${(N / wall).toFixed(0)}/s), p50 ${p50.toFixed(2)} ms, p95 ${p95.toFixed(2)} ms, p99 ${p99.toFixed(2)} ms, max ${Math.max(...lat).toFixed(2)} ms`;
+    return { rate: N / wall, p95, line, verified: (await log.verify()).ok };
+  } finally { await log.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+test("group commit at 200 ops/s: p95 append latency under 10 ms", async () => {
+  const r = await groupCommit(GATED_BASE);
+  console.log(`server_write (${GATED_BASE}): ${r.line}`);
+  assert.ok(r.rate >= 150, `the pacer kept up (${r.rate.toFixed(0)}/s)`);
+  assert.ok(r.p95 < 10, `p95 ${r.p95.toFixed(2)} ms must be under 10 ms`);
+  assert.equal(r.verified, true);
+});
+
+test("runner-disk fsync figure for the same load (printed, not gated)", async () => {
+  const r = await groupCommit(os.tmpdir());
+  console.log(`server_write disk (${os.tmpdir()}): ${r.line}`);
+  console.log("METRIC " + JSON.stringify({ name: "server_write_disk_p95", p95_ms: Number(r.p95.toFixed(2)), gated: false }));
+  assert.ok(r.rate >= 100, `the pacer kept up on disk (${r.rate.toFixed(0)}/s)`);
+  assert.equal(r.verified, true);
 });
 
 test("burst: 5000 appends at once commit in 64-event transactions and verify", async () => {

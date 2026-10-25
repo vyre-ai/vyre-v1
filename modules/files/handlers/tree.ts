@@ -9,6 +9,7 @@ import type { Ctx, Sealed } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { mintUuid } from "../../../lib/ids.ts";
 import { dropRecent, touchRecent } from "../projections.ts";
+import { sharedCount } from "./lists.ts";
 
 export const TRASH_MS = 30 * 24 * 60 * 60 * 1000;
 export const MAX_INLINE = 256 * 1024;
@@ -628,7 +629,13 @@ async function filesTree(ctx: Ctx): Promise<{ roots: { key: string; title: strin
   const roots: { key: string; title: string; kind: "folder" | "virtual"; folderId?: string; count: number }[] = [];
   for (const root of TREE_ROOTS) {
     if (root.kind === "virtual") {
-      const count = root.key === "recent" ? recentCount(ctx) : root.key === "trash" ? trashTop(ctx).files.length + trashTop(ctx).folders.length : 0;
+      let count = 0;
+      if (root.key === "recent") count = recentCount(ctx);
+      else if (root.key === "trash") count = trashTop(ctx).files.length + trashTop(ctx).folders.length;
+      else if (root.key === "shared") {
+        // what access lists for the caller; a badge never takes the whole tree down, so an access failure is a warning and a zero
+        try { count = await sharedCount(ctx); } catch (e) { ctx.log.warn("files: could not count Shared with me", { error: e instanceof Error ? e.message : String(e) }); }
+      }
       roots.push({ key: root.key, title: root.title, kind: "virtual", count });
       continue;
     }

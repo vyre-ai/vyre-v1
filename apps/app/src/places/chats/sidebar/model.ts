@@ -127,7 +127,7 @@ export function needsKind(item: NeedsItem): { label: string; tone: "accent" | "w
 export type Entry =
   | { key: string; type: "head"; section: SectionKey; label: string; count?: number; open: boolean }
   | { key: string; type: "need"; item: NeedsItem }
-  | { key: string; type: "face"; agent: Agent; digit?: number; working: boolean }
+  | { key: string; type: "face"; agent: Agent; digit?: number; working: boolean; waiting: boolean }
   | { key: string; type: "more"; label: string; to: "agents" | "unread" }
   | { key: string; type: "group"; label: string }
   | { key: string; type: "chat"; row: ChatRow }
@@ -140,6 +140,8 @@ export interface SidebarInput {
   needsTotal: number;
   faces: readonly Agent[];
   workingAgents: ReadonlySet<string>;
+  /** agents with something waiting on the person (any open Needs you item they raised, not only the top three); the face says "Waiting on you" */
+  waitingAgents?: ReadonlySet<string>;
   groups: readonly Group[];
   channels: readonly Channel[];
   filter: Filter;
@@ -156,7 +158,7 @@ export function splitChannels(channels: readonly Channel[]): { plain: Channel[];
   return { plain: live.filter((c) => !isProject(c)), projects: live.filter(isProject) };
 }
 
-/** The flat list, top to bottom, exactly as spec 3.2 orders it: Needs you (only when something waits), Starred faces, Recent, Channels. */
+/** The flat list, top to bottom, as spec 3.2 orders it after ruling 45 (the prototype wins on layout and order): Needs you (only when something waits), Agents, Channels with Projects, then Chats. */
 export function buildEntries(i: SidebarInput): Entry[] {
   const out: Entry[] = [];
   const open = (s: SectionKey): boolean => !i.closed.has(s);
@@ -169,17 +171,7 @@ export function buildEntries(i: SidebarInput): Entry[] {
     const digits = faceDigits(i.faces);
     for (const a of i.faces) {
       const d = digits.get(a.agentId);
-      out.push({ key: `f:${a.agentId}`, type: "face", agent: a, ...(d !== undefined ? { digit: d } : {}), working: i.workingAgents.has(a.agentId) });
-    }
-    out.push({ key: "f:all", type: "more", label: "All agents", to: "agents" });
-  }
-  out.push({ key: "h:recent", type: "head", section: "recent", label: "Chats", open: open("recent") });
-  if (open("recent")) {
-    const rows = i.groups.reduce((n, g) => n + g.rows.length, 0);
-    if (!rows) out.push({ key: "e:recent", type: "empty", text: i.filter === "all" ? "No chats yet" : "Nothing here" });
-    for (const g of i.groups) {
-      out.push({ key: `g:${g.key}`, type: "group", label: g.label });
-      for (const r of g.rows) out.push({ key: `c:${r.threadId}`, type: "chat", row: r });
+      out.push({ key: `f:${a.agentId}`, type: "face", agent: a, ...(d !== undefined ? { digit: d } : {}), working: i.workingAgents.has(a.agentId), waiting: i.waitingAgents?.has(a.agentId) === true });
     }
   }
   const { plain, projects } = splitChannels(i.channels);
@@ -191,6 +183,15 @@ export function buildEntries(i: SidebarInput): Entry[] {
         out.push({ key: "g:projects", type: "group", label: "Projects" });
         for (const c of projects) out.push({ key: `ch:${c.channelId}`, type: "channel", channel: c, project: true });
       }
+    }
+  }
+  out.push({ key: "h:recent", type: "head", section: "recent", label: "Chats", open: open("recent") });
+  if (open("recent")) {
+    const rows = i.groups.reduce((n, g) => n + g.rows.length, 0);
+    if (!rows) out.push({ key: "e:recent", type: "empty", text: i.filter === "all" ? "No chats yet" : "Nothing here" });
+    for (const g of i.groups) {
+      out.push({ key: `g:${g.key}`, type: "group", label: g.label });
+      for (const r of g.rows) out.push({ key: `c:${r.threadId}`, type: "chat", row: r });
     }
   }
   return out;
@@ -220,4 +221,10 @@ export function newLocalRow(who: string, kind: "person" | "agent", now: number):
 /** One idempotency key per local row, so a retry after a dropped answer starts the same chat. */
 export function startKey(row: ChatRow): string {
   return `chat.start:${row.threadId}`;
+}
+
+/** The agents behind open Needs you items: each one's face says "Waiting on you" (prototype Agents section). */
+export function waitingAgents(all: readonly NeedsItem[], assistantId?: string): Set<string> {
+  // The assistant is your own: its requests are in Needs you, but its face never says "Waiting on you" (prototype).
+  return new Set(all.filter((n) => n.task.createdBy !== assistantId).map((n) => n.task.createdBy));
 }
