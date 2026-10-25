@@ -1,6 +1,6 @@
 // P-L5_LIVE (rulings 31, 32): the L5 modules that are done are live on a booted daemon. host/modules.json has them live, no L5 module is reported as not set up, the Stripe, Twilio and GitHub
 // host seams are wired, and one read and one write capability per module answer through the gateway with a real token. A member without connectors.manage is refused.
-telephony, meetings and zoom are not in this list: their packets (P-L5_07, P-L5_10) have not landed, so they stay stub (comment on the packet).
+// telephony, meetings and zoom are not in this list: their packets (P-L5_07, P-L5_10) have not landed, so they stay stub (comment on the packet).
 // Path mapping: the packet owns __live__/L5; this test sits in host/tests because it boots the daemon.
 import test from "node:test";
 import assert from "node:assert/strict";

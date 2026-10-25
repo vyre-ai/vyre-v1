@@ -31,7 +31,9 @@ export function filler(ctx: VaultCtx) {
 
 /** The wrap key of the signed-in owner, or a refusal. */
 async function ownerWrap(ctx: VaultCtx, owner: string): Promise<Buffer> {
-  if (ctx.principal.id !== owner || ctx.principal.kind !== "person") return denied(ctx, "A Mine item belongs to one person. Only they can read or change it.");
+  // the owner themselves, or a turn run for them: the key exists only on a node where they unlocked it (ruling 62), so another person's turn never reaches it
+  const theirs = (ctx.principal.id === owner && ctx.principal.kind === "person") || ctx.actingFor === owner;
+  if (!theirs) return denied(ctx, "A Mine item belongs to one person. Only they can read or change it.");
   const key = await currentKeyPort()?.personKey(owner);
   if (!key) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your vault key is locked. Sign in again to open your Mine items." });
   return wrapKeyFromPersonKey(key);

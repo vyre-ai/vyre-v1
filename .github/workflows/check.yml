@@ -47,6 +47,7 @@ jobs:
         env:
           FILES: ${{ matrix.files }}
           SLOW: ${{ matrix.slow }}
+          VYRE_PERF_RUN: ${{ matrix.runner == 'v1-perf' && '1' || '' }}   # perf files run only on the pinned perf host (test-run skips them elsewhere)
         run: |
           if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else NC=""; [ "$RUNNER_ENVIRONMENT" = "github-hosted" ] && NC="--no-cache"; node scripts/test-run.mjs --files $FILES $NC; fi  # a hosted VM never reads a shared pass cache
   gates:
@@ -200,7 +201,7 @@ jobs:
         run: |
           git fetch -q origin main
           base="$(git merge-base origin/main HEAD)"
-          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|modules/computers/|images/person-sandbox/|images/agent-computer/|agent/tests/sandbox\.(net\.)?heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
+          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|modules/computers/|modules/engine/(sandbox|tests/(sandbox|cli))|images/person-sandbox/|images/agent-computer/|agent/tests/sandbox\.(net\.)?heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
       - name: Install bubblewrap and tmux when the runner does not have them
         if: steps.scope.outputs.changed == 'true'
         run: |
@@ -232,7 +233,7 @@ jobs:
         if: steps.scope.outputs.changed == 'true'
         env:
           VYRE_HEAVY_DOCKER: "1"
-        run: node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts
+        run: node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts modules/engine/tests/sandbox.heavy.test.ts modules/engine/tests/cli.heavy.test.ts
       - name: The network wall, none skipped (agent/tests/sandbox.net.heavy.test.ts)
         if: always() && steps.scope.outputs.changed == 'true'
         env:
