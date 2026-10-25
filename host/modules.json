@@ -249,7 +249,7 @@
     {
       "id": "reports-client",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "resend",

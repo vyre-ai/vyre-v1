@@ -1,4 +1,4 @@
-// P-L7b_LIVE (rulings 27, 31, 32): lane L7b is live. A booted daemon on the seeded `core` Space reports no L7b module as not set up, every L7b module but the two with a gap is live in host/modules.json, and
+// P-L7b_LIVE (rulings 27, 31, 32): lane L7b is live. A booted daemon on the seeded `core` Space reports no L7b module as not set up, every L7b module but updates is live in host/modules.json, and
 // each one answers a read and a write through the gateway with a real token; a member without the permission is refused. backup's source is the host's own (host/src/seams/backup.ts).
 // Path mapping: the packet owns __live__/L7b; this test sits in host/tests because it boots the daemon.
 import test from "node:test";
@@ -14,8 +14,8 @@ import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 
 const L7B = ["backup", "console-assistant", "console-views", "health", "logs", "network", "reports-client", "updates"];
-// updates and reports-client stay stubs: the daemon builds no release key, feed or installer for updates, and no reports.vyre.run client or replay sandbox for reports-client (gap on P-L7b_LIVE)
-const GAP = ["reports-client", "updates"];
+// updates stays a stub until the release key, feed and installer exist (P-L11_11). reports-client is live with every capability deferred (ruling 60, docs/deferred.md).
+const GAP = ["updates"];
 const OWNER_TOKEN = "tok-usr_olivia";
 const MEMBER_TOKEN = "tok-usr_noah";
 
@@ -67,7 +67,7 @@ const ok = async (d: { url: string }, token: string, cap: string, body: Record<s
   return (JSON.parse(text) as { data: unknown }).data;
 };
 
-test("l7b live: every L7b module but the two with a gap is live in host/modules.json", () => {
+test("l7b live: every L7b module but updates is live in host/modules.json", () => {
   const file = JSON.parse(fs.readFileSync(new URL("../modules.json", import.meta.url), "utf8")) as { modules: { id: string; owner: string; status: string }[] };
   const mine = file.modules.filter((m) => m.owner === "L7b").map((m) => m.id).sort();
   assert.deepEqual(mine, [...L7B].sort());
@@ -102,6 +102,12 @@ test("l7b live: each module answers a read and a write through the gateway as th
       ["backup.config_set", { target: { kind: "local", path: target }, schedule: "0 3 * * *", enabled: true }],
     ];
     for (const [cap, body] of writes) await ok(d, OWNER_TOKEN, cap, body);
+
+    // Report a problem is deferred (ruling 60): registered, live, and it refuses with the shared message
+    const deferred = await post(d, OWNER_TOKEN, "reports.list", {});
+    const deferredBody = (await deferred.json()) as { error?: { code?: string; message?: string } };
+    assert.equal(deferredBody.error?.code, "internal.unavailable");
+    assert.equal(deferredBody.error?.message, "Not in this version yet");
 
     // the Console assistant needs an AI account behind it; a fresh Space has none, and the live handler says so (a typed precondition error, not a stub answer)
     const opened = await post(d, OWNER_TOKEN, "console.assistant_open", { page: "access.roles" });
