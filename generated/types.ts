@@ -1382,13 +1382,18 @@ export type AgentsRoutineDelegateOut = {
     routineId: string;
     agentId: string;
     title: string;
-    cron: string;
+    cron?: string;
     prompt: string;
     channelId?: string;
     enabled: boolean;
     ownerId: string;
     lastRunAt?: number;
     nextRunAt?: number;
+    kind?: "schedule" | "watch";
+    watch?: {
+      on: "message";
+      channelId: string;
+    };
   };
   previousOwnerId: string;
 };
@@ -1409,13 +1414,18 @@ export type AgentsRoutineRunNowOut = {
     routineId: string;
     agentId: string;
     title: string;
-    cron: string;
+    cron?: string;
     prompt: string;
     channelId?: string;
     enabled: boolean;
     ownerId: string;
     lastRunAt?: number;
     nextRunAt?: number;
+    kind?: "schedule" | "watch";
+    watch?: {
+      on: "message";
+      channelId: string;
+    };
   };
   runId: string;
 };
@@ -1423,10 +1433,15 @@ export type AgentsRoutineSaveIn = {
   agentId: string;
   routineId?: string;
   title: string;
-  cron: string;
+  cron?: string;
   prompt: string;
   channelId?: string;
   enabled?: boolean;
+  kind?: "schedule" | "watch";
+  watch?: {
+    on: "message";
+    channelId: string;
+  };
   idempotencyKey: string;
 };
 export type AgentsRoutineSaveOut = {
@@ -1434,13 +1449,18 @@ export type AgentsRoutineSaveOut = {
     routineId: string;
     agentId: string;
     title: string;
-    cron: string;
+    cron?: string;
     prompt: string;
     channelId?: string;
     enabled: boolean;
     ownerId: string;
     lastRunAt?: number;
     nextRunAt?: number;
+    kind?: "schedule" | "watch";
+    watch?: {
+      on: "message";
+      channelId: string;
+    };
   };
 };
 export type AgentsRoutinesListIn = {
@@ -1451,13 +1471,18 @@ export type AgentsRoutinesListOut = {
       routineId: string;
       agentId: string;
       title: string;
-      cron: string;
+      cron?: string;
       prompt: string;
       channelId?: string;
       enabled: boolean;
       ownerId: string;
       lastRunAt?: number;
       nextRunAt?: number;
+      kind?: "schedule" | "watch";
+      watch?: {
+        on: "message";
+        channelId: string;
+      };
     }>;
 };
 export type AgentsSnapshotTakeIn = {
@@ -4731,6 +4756,8 @@ export type ChatAsksOfOut = {
         }>;
       createdAt: number;
       closedAt?: number;
+      replyCount?: number;
+      lastMessageAt?: number;
       path?: Array<{
           title: string;
           threadId: string;
@@ -4835,6 +4862,8 @@ export type ChatHandoffOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -4881,6 +4910,8 @@ export type ChatHelperStartOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -5015,6 +5046,8 @@ export type ChatOpenAsChatOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -5290,6 +5323,8 @@ export type ChatStartOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -5330,6 +5365,8 @@ export type ChatThreadOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -13604,6 +13641,13 @@ export type KitsInstallSheetOut = {
     networkDomains: Array<string>;
     vaultNames: Array<string>;
     scripts: number;
+    problems: Array<{
+        item: string;
+        step: "apply" | "undo";
+        cap: string;
+        input: Record<string, unknown>;
+        message: string;
+      }>;
   };
 };
 export type KitsListIn = {
@@ -15411,6 +15455,7 @@ export type MemoryCountsOut = {
   current: number;
   proposed: number;
   fromMe: number;
+  autoMerged: number;
 };
 export type MemoryEraseIn = {
   factIds?: Array<string>;
@@ -15766,6 +15811,16 @@ export type MemoryMaintainOut = {
   merged: number;
   closed: number;
   maps: number;
+};
+export type MemoryMapGetIn = {
+  agentId: string;
+};
+export type MemoryMapGetOut = {
+  map?: {
+    body: string;
+    lines: number;
+    updatedAt: number;
+  };
 };
 export type MemoryNotesListIn = {
   agentId?: string;
@@ -18739,6 +18794,11 @@ export type RunsFinishOut = {
     threadId?: string;
     traceId: string;
     summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
   };
 };
 export type RunsGetIn = {
@@ -18767,6 +18827,11 @@ export type RunsGetOut = {
     threadId?: string;
     traceId: string;
     summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
   };
 };
 export type RunsListIn = {
@@ -18805,6 +18870,11 @@ export type RunsListOut = {
       threadId?: string;
       traceId: string;
       summary?: string;
+      trigger?: {
+        messageId: string;
+        threadId: string;
+        channelId?: string;
+      };
     }>;
   next?: string;
   total?: number;
@@ -18838,6 +18908,11 @@ export type RunsMarkWaitingOut = {
     threadId?: string;
     traceId: string;
     summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
   };
 };
 export type RunsPreviewUndoIn = {
@@ -18885,6 +18960,11 @@ export type RunsRecordKeyOut = {
     threadId?: string;
     traceId: string;
     summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
   };
 };
 export type RunsRecordStepIn = {
@@ -18939,6 +19019,11 @@ export type RunsResumeOut = {
     threadId?: string;
     traceId: string;
     summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
   };
 };
 export type RunsRetryIn = {
@@ -18961,6 +19046,11 @@ export type RunsStartIn = {
   threadId?: string;
   keyUsed?: string;
   modelUsed?: string;
+  trigger?: {
+    messageId: string;
+    threadId: string;
+    channelId?: string;
+  };
   idempotencyKey: string;
 };
 export type RunsStartOut = {
@@ -19025,6 +19115,11 @@ export type RunsStopOut = {
     threadId?: string;
     traceId: string;
     summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
   };
 };
 export type RunsUndoIn = {
@@ -24240,6 +24335,8 @@ export type ThreadsAddAgentOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -24279,6 +24376,8 @@ export type ThreadsCloseOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -24318,6 +24417,8 @@ export type ThreadsGetOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -24362,6 +24463,8 @@ export type ThreadsListOut = {
         }>;
       createdAt: number;
       closedAt?: number;
+      replyCount?: number;
+      lastMessageAt?: number;
       path?: Array<{
           title: string;
           threadId: string;
@@ -24444,6 +24547,8 @@ export type ThreadsMembersAddOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -24484,6 +24589,8 @@ export type ThreadsMembersRemoveOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -24524,6 +24631,8 @@ export type ThreadsRemoveAgentOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -24563,6 +24672,8 @@ export type ThreadsReopenOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -24603,6 +24714,8 @@ export type ThreadsSetFolderOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -24643,6 +24756,8 @@ export type ThreadsSetPlanModeOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -24683,6 +24798,8 @@ export type ThreadsUpdateOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -27038,6 +27155,7 @@ export interface CapMap {
   "memory.layout.get": { in: MemoryLayoutGetIn; out: MemoryLayoutGetOut };
   "memory.layout.save": { in: MemoryLayoutSaveIn; out: MemoryLayoutSaveOut };
   "memory.maintain": { in: MemoryMaintainIn; out: MemoryMaintainOut };
+  "memory.map.get": { in: MemoryMapGetIn; out: MemoryMapGetOut };
   "memory.notes.list": { in: MemoryNotesListIn; out: MemoryNotesListOut };
   "memory.pointer": { in: MemoryPointerIn; out: MemoryPointerOut };
   "memory.promote": { in: MemoryPromoteIn; out: MemoryPromoteOut };
@@ -28914,8 +29032,8 @@ export type ItemMovedPayload = {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
-  fromFolderId?: string;
-  toFolderId?: string;
+  fromFolderId?: string | string;
+  toFolderId?: string | string;
 };
 export type JourneyCompletedPayload = {
   journeyId: string;

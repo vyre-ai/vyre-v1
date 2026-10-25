@@ -32,7 +32,7 @@ jobs:
     name: ${{ matrix.name }}
     needs: select
     if: needs.select.outputs.count != '0'
-    runs-on: ${{ matrix.runner == 'hosted' && 'ubuntu-latest' || fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
+    runs-on: ${{ fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -65,7 +65,7 @@ jobs:
         run: |
           lane=""
           case "$BRANCH" in
-            build/P-CI_02|build/P-CI_08|build/P-CI_27|build/P-CI_31|build/P-CI_34|build/P-CI_37|build/P-CI_38) lane=lead ;;   # contract steward: changes the contract types and the frozen hashes (ruling 25, 27)
+            build/P-CI_02|build/P-CI_08|build/P-CI_27|build/P-CI_31|build/P-CI_34|build/P-CI_37|build/P-CI_38|build/P-CI_35|build/P-CI_39|build/P-CI_36) lane=lead ;;   # contract steward: changes the contract types and the frozen hashes (ruling 25, 27)
             build/P-CI_*|build/P-CI-*) lane=L11 ;;
             build/P-CC_*|build/P-PR_*) lane=lead ;;
             *) lane="$(echo "$BRANCH" | sed -nE 's#^build/P-(L[0-9]+[a-z]?)_[0-9]+[a-z]?(-.*)?$#\1#p')"
@@ -201,7 +201,7 @@ jobs:
         run: |
           git fetch -q origin main
           base="$(git merge-base origin/main HEAD)"
-          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|modules/computers/|images/person-sandbox/|agent/tests/sandbox\.(net\.)?heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
+          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|modules/computers/|images/person-sandbox/|images/agent-computer/|agent/tests/sandbox\.(net\.)?heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
       - name: Install bubblewrap and tmux when the runner does not have them
         if: steps.scope.outputs.changed == 'true'
         run: |
@@ -251,10 +251,23 @@ jobs:
           node --test --test-force-exit --test-timeout=600000 --test-reporter=spec modules/computers/tests/lifecycle.heavy.test.ts modules/computers/tests/tools.heavy.test.ts 2>&1 | tee computers-heavy.out
           grep -E "^ℹ skipped 0$" computers-heavy.out
           grep -E "^ℹ pass 2$" computers-heavy.out
+      - name: Agent computer S9 on real Docker, none skipped (sandbox/computer/stream.heavy.test.ts)
+        if: always() && steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+        run: |
+          set -o pipefail
+          # Vyre for Chrome has no build step (apps/chrome/package.json): the extension is its manifest and src folder, assembled as it ships and copied by the heavy test into a copy of the image's build context (the runners have no buildx).
+          rm -rf "$RUNNER_TEMP/vyre-chrome-ext" && mkdir -p "$RUNNER_TEMP/vyre-chrome-ext"
+          cp apps/chrome/manifest.json "$RUNNER_TEMP/vyre-chrome-ext/" && cp -r apps/chrome/src "$RUNNER_TEMP/vyre-chrome-ext/src"
+          export VYRE_CHROME_EXT_DIR="$RUNNER_TEMP/vyre-chrome-ext"
+          node --test --test-force-exit --test-timeout=1500000 --test-reporter=spec sandbox/computer/stream.heavy.test.ts 2>&1 | tee s9-heavy.out
+          grep -E "^ℹ skipped 0$" s9-heavy.out
+          grep -E "METRIC s9" s9-heavy.out
   chrome-real:
     # P-L10_06b: the Chrome extension's agent tools against a real Chromium page. VYRE_REQUIRE_CHROME=1 turns a missing Chromium into a failure (a skip is not a pass), so a green job means the
     # three real-page tests ran. Chromium comes from playwright-core the way scripts/shots does (cached by playwright after the first run); CHROME_BIN points the test at it. Gates `check`.
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, v1]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
