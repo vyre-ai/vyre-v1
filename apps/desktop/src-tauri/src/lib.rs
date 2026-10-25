@@ -3,11 +3,13 @@
 //   1. runs the vyred device daemon as a sidecar and tells the page where it listens (sidecar.rs),
 //   2. registers the vyre:// scheme and passes links to the page (links.rs, commands.rs),
 //   3. registers the global shortcut CommandOrControl+Shift+V to bring the window forward,
-//   4. keeps one instance: a second launch (or a link on Windows and Linux) focuses the first.
+//   4. keeps one instance: a second launch (or a link on Windows and Linux) focuses the first,
+//   5. native features for the page: tray icon, OS notifications whose click opens the thread, file and folder dialog, Needs you badge (native.rs).
 // No keychain: the replica key is wrapped in IndexedDB by the page, so an ad-hoc signed Mac app works (ARCH 5.10).
 
 mod commands;
 mod links;
+mod native;
 mod sidecar;
 
 use commands::AppState;
@@ -88,6 +90,8 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
@@ -105,8 +109,21 @@ pub fn run() {
                 }
             }
         })
-        .manage(AppState { sidecar: shared.clone(), pending: Mutex::new(None), page_listening: AtomicBool::new(false) })
-        .invoke_handler(tauri::generate_handler![commands::desktop_info, commands::take_pending_link, commands::page_report])
+        .on_window_event(|window, event| {
+            // A banner was shown a moment ago and the window comes forward: open what the banner was about (native.rs).
+            if let tauri::WindowEvent::Focused(true) = event {
+                native::on_focus(window.app_handle());
+            }
+        })
+        .manage(AppState { sidecar: shared.clone(), pending: Mutex::new(None), page_listening: AtomicBool::new(false), native: native::NativeState::default() })
+        .invoke_handler(tauri::generate_handler![
+            commands::desktop_info,
+            commands::take_pending_link,
+            commands::page_report,
+            native::notify,
+            native::pick_paths,
+            native::set_badge
+        ])
         .setup(move |app| {
             let handle = app.handle().clone();
 
@@ -145,6 +162,9 @@ pub fn run() {
             });
 
             let state = app.state::<AppState>();
+            if let Err(e) = native::setup_tray(&handle, &state.native) {
+                eprintln!("tray not created: {e}");
+            }
             sidecar::start(&handle, &state.sidecar, 0);
             Ok(())
         })

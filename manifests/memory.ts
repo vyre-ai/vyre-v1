@@ -48,7 +48,7 @@ export default defineManifest({
       out: { hits: t.arr(hit), tookMs: t.int() }, label: 'filter', tool: 'memory', mcpName: 'memory_search', agent: { planMode: 'allowed' }, cli: 'vyre memory search',
     }),
     read('memory.read_note', 'Read one memory note as Markdown', {
-      in: { noteId: id.note }, out: { note: noteRow, markdown: t.str() }, on: ['file', '/noteId'], label: 'check', tool: 'memory', mcpName: 'read_note', agent: { planMode: 'allowed' },
+      in: { noteId: id.note }, out: { note: noteRow, markdown: t.str() }, on: ['note', '/noteId'], label: 'check', tool: 'memory', mcpName: 'read_note', agent: { planMode: 'allowed' },
     }),
     read('memory.facts_as_of', 'Facts that were true on a date (valid_from and valid_to), for "what did it believe on 3 March"', {
       in: { date: t.ts(), agentId: t.opt(id.agent), layer: t.opt(layer), q: t.opt(t.str()), ...pageIn }, out: { facts: t.arr(factRow), ...pageOut },
@@ -145,10 +145,10 @@ export default defineManifest({
     }),
     // ---- history and subject lookup
     read('memory.versions', 'List versions of a shared memory note (One History)', {
-      in: { noteId: id.note }, out: { versions: t.arr(versionRow) }, on: ['file', '/noteId'], tool: 'memory',
+      in: { noteId: id.note }, out: { versions: t.arr(versionRow) }, on: ['note', '/noteId'], tool: 'memory',
     }),
     write('memory.restore_version', 'Restore a shared memory note to an earlier version (owners and admins)', {
-      in: { noteId: id.note, versionId: id.version }, out: { note: noteRow }, on: ['file', '/noteId'], level: 'manage', emits: ['memory.note_restored'], tool: 'memory', agent: { planMode: 'blocked' },
+      in: { noteId: id.note, versionId: id.version }, out: { note: noteRow }, on: ['note', '/noteId'], level: 'manage', emits: ['memory.note_restored'], tool: 'memory', agent: { planMode: 'blocked' },
     }),
     read('memory.find_by_subject', 'Find every fact and note about one subject (a contact, company or person) for erase and export', {
       in: { subject: t.str({ description: 'Record id, person id or free text identifier' }), ...pageIn }, out: { facts: t.arr(factRow), notes: t.arr(noteRow), ...pageOut },

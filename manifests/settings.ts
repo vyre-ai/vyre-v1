@@ -13,6 +13,8 @@ const settingRow = t.obj({
   key: t.str({ examples: ['profile.timezone'] }), scope, page: t.str({ examples: ['profile'] }), title: t.str(), value: t.json(), default: t.json(),
   source: t.enm('default', 'space', 'person'), floorable: t.bool(), floor: t.opt(t.json()),
 });
+// a real key in the examples of the capabilities that take one (the generated examples read the schema's first example); event payloads stay as frozen
+const key = t.str({ examples: ['appearance.mode'] });
 const copyFields = t.enm('photo', 'name', 'handle', 'timezone', 'hours', 'contact');
 const kitChoice = t.obj({ space: t.nullable(id.kit), person: t.nullable(id.kit), effective: id.kit });
 
@@ -31,18 +33,18 @@ export default defineManifest({
       ...V, in: {}, out: { pages: t.arr(t.obj({ key: t.str(), title: t.str(), group: t.enm('space', 'everywhere'), rows: t.int({ minimum: 0 }) })) }, tool: 'meta',
     }),
     read('settings.list', 'Rows of one page (or all) with the value that applies to me', { ...V, in: { page: t.opt(t.str()), scope: t.opt(scope) }, out: { rows: t.arr(settingRow) }, tool: 'meta' }),
-    read('settings.get', 'One setting with its value, default and floor', { ...V, in: { key: t.str() }, out: { row: settingRow }, tool: 'meta' }),
+    read('settings.get', 'One setting with its value, default and floor', { ...V, in: { key }, out: { row: settingRow }, tool: 'meta' }),
     write('settings.set', 'Change one of my settings; saves as made and returns the previous value so Undo is one call', {
-      ...V, in: { key: t.str(), value: t.json() }, out: { row: settingRow, previous: t.json() }, emits: ['settings.changed'], tool: 'meta', offline: 'queue', errors: ['validation.field_locked'],
+      ...V, in: { key, value: t.json() }, out: { row: settingRow, previous: t.json() }, emits: ['settings.changed'], tool: 'meta', offline: 'queue', errors: ['validation.field_locked'],
     }),
-    write('settings.reset', 'Put one of my settings back to the Space default', { ...V, in: { key: t.str() }, out: { row: settingRow }, emits: ['settings.changed'], tool: 'meta', offline: 'queue' }),
+    write('settings.reset', 'Put one of my settings back to the Space default', { ...V, in: { key }, out: { row: settingRow }, emits: ['settings.changed'], tool: 'meta', offline: 'queue' }),
     write('settings.set_space', 'Change a Space-wide setting (the permission of the row decides who may; policy.manage by default)', {
-      ...V, in: { key: t.str(), value: t.json() }, out: { row: settingRow, previous: t.json() }, perm: 'policy.manage', emits: ['settings.changed'], audit: 'always', tool: 'engineer', errors: ['validation.field_locked'],
+      ...V, in: { key, value: t.json() }, out: { row: settingRow, previous: t.json() }, perm: 'policy.manage', emits: ['settings.changed'], audit: 'always', tool: 'engineer', errors: ['validation.field_locked'],
     }),
-    write('settings.reset_space', 'Put a Space-wide setting back to its shipped default', { ...V, in: { key: t.str() }, out: { row: settingRow }, perm: 'policy.manage', emits: ['settings.changed'], audit: 'always', tool: 'engineer' }),
+    write('settings.reset_space', 'Put a Space-wide setting back to its shipped default', { ...V, in: { key }, out: { row: settingRow }, perm: 'policy.manage', emits: ['settings.changed'], audit: 'always', tool: 'engineer' }),
     read('settings.search', 'Find settings rows by words (Cmd-F)', { ...V, in: { q: t.str() }, out: { rows: t.arr(t.obj({ key: t.str(), page: t.str(), title: t.str(), score: t.num() })) }, tool: 'meta' }),
     write('settings.floor_set', 'Owner floor: set the least strict value anyone in the Space may choose for a floorable setting', {
-      ...V, in: { key: t.str(), floor: t.json() }, out: { row: settingRow }, perm: 'policy.manage', emits: ['settings.floor_changed'], audit: 'always', risk: 'high', tool: 'engineer', team: true,
+      ...V, in: { key, floor: t.json() }, out: { row: settingRow }, perm: 'policy.manage', emits: ['settings.floor_changed'], audit: 'always', risk: 'high', tool: 'engineer', team: true,
     }),
 
     // ---- Copy from another Space
@@ -81,6 +83,9 @@ export default defineManifest({
     setting('profile.contact', 'person', 'profile', 'Contact', t.obj({ email: t.opt(t.str()), phone: t.opt(t.str()) }), {}),
     setting('appearance.skin', 'person', 'appearance', 'Skin', t.str(), 'classic'),
     setting('appearance.mode', 'person', 'appearance', 'Light or dark', t.enm('system', 'light', 'dark'), 'system'),
+    setting('appearance.density', 'person', 'appearance', 'Density', t.enm('comfortable', 'compact'), 'comfortable'),
+    setting('appearance.text_size', 'person', 'appearance', 'Text size (percent)', t.int({ minimum: 90, maximum: 120 }), 100),
+    setting('appearance.reduce_motion', 'person', 'appearance', 'Reduce motion', t.bool(), false),
     setting('keyboard.overrides', 'person', 'keyboard', 'Shortcuts', t.rec(t.str()), {}),
     setting('kit.person_choice', 'person', 'appearance', 'My Kit', t.nullable(id.kit), null),
     setting('kit.space_choice', 'space', 'spaces', 'Space Kit', t.nullable(id.kit), null),
