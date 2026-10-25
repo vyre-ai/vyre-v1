@@ -39,3 +39,44 @@ export function resolveVaultItem(db: { all(sql: string, ...a: unknown[]): unknow
   } catch { /* the vault has no tables yet: nothing to find */ }
   return null;
 }
+
+/**
+ * providers.test (the vault module has no network of its own): reach the provider with the key and list the models it offers. The key is used for this one request and not kept; an error message never
+ * carries it. Providers without a public model list answer that they cannot be tested from here.
+ */
+export function createProviderProbe(fetchFn: typeof globalThis.fetch = globalThis.fetch) {
+  const LISTS: Record<string, (key: string) => { url: string; headers: Record<string, string>; pick: (j: unknown) => string[] }> = {
+    anthropic: (k) => ({ url: "https://api.anthropic.com/v1/models", headers: { "x-api-key": k, "anthropic-version": "2023-06-01" }, pick: ids("data", "id") }),
+    openai: (k) => ({ url: "https://api.openai.com/v1/models", headers: { authorization: `Bearer ${k}` }, pick: ids("data", "id") }),
+    openrouter: (k) => ({ url: "https://openrouter.ai/api/v1/auth/key", headers: { authorization: `Bearer ${k}` }, pick: () => [] }),
+    xai: (k) => ({ url: "https://api.x.ai/v1/models", headers: { authorization: `Bearer ${k}` }, pick: ids("data", "id") }),
+    google: (k) => ({ url: `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(k)}`, headers: {}, pick: ids("models", "name") }),
+  };
+  function ids(list: string, key: string) {
+    return (j: unknown): string[] => {
+      const rows = (j as Record<string, unknown> | null)?.[list];
+      return Array.isArray(rows) ? rows.map((r) => String((r as Record<string, unknown>)[key] ?? "")).filter(Boolean) : [];
+    };
+  }
+  return async (p: { providerKey: string; connection: string; apiKey?: string; address?: string }): Promise<{ ok: boolean; models: string[]; detail?: string }> => {
+    let url: string, headers: Record<string, string> = {}, pick: (j: unknown) => string[] = ids("data", "id");
+    if (p.connection === "local_model") {
+      if (!p.address) return { ok: false, models: [], detail: "This local model has no address." };
+      url = `${p.address.replace(/\/$/, "")}/v1/models`;
+      if (p.apiKey) headers = { authorization: `Bearer ${p.apiKey}` };
+    } else {
+      const make = LISTS[p.providerKey];
+      if (!make) return { ok: false, models: [], detail: "This provider cannot be tested from here." };
+      if (!p.apiKey) return { ok: false, models: [], detail: "There is no key to test." };
+      ({ url, headers, pick } = make(p.apiKey));
+    }
+    try {
+      const r = await fetchFn(url, { headers, redirect: "error", signal: AbortSignal.timeout(10_000) });
+      if (r.status === 401 || r.status === 403) return { ok: false, models: [], detail: "The provider did not accept this key." };
+      if (!r.ok) return { ok: false, models: [], detail: `The provider answered ${r.status}.` };
+      return { ok: true, models: pick(await r.json()) };
+    } catch {
+      return { ok: false, models: [], detail: "The provider could not be reached." };
+    }
+  };
+}

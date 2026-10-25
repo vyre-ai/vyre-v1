@@ -1,18 +1,21 @@
-// vault (lane L7a): items, sharing, folders, use by name, fill, env injection and .env exports. Import, generate, health, providers, policy, site rules and the rest of folders are deferred (ruling 60, docs/deferred.md): their handlers refuse.
+// vault (lane L7a): items, sharing, folders, use by name, fill, env injection and .env exports. AI providers (list, add, remove, test, sign-in) are real. Import, generate, health, policy, site rules and the rest of folders are deferred (ruling 60, docs/deferred.md): their handlers refuse.
 // The host registers its half once at boot: setFiller (the vault service's own key) and setKeyPort (the signed-in owner's person key, for Mine items), see handlers/crypto.ts.
 import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
 import * as u from "./handlers/use.ts";
+import * as pr from "./handlers/providers.ts";
 import { Filler, setFiller } from "./handlers/crypto.ts";
 import { deferredHandlers } from "../../host/src/routes/deferred.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 
 export { setFiller, setKeyPort, Filler } from "./handlers/index.ts";
+export { CATALOG } from "./handlers/providers.ts";
+export type { ProviderProbe } from "./handlers/providers.ts";
 export { configureVault, secretPort, scrub, leaks, forms, exportPull } from "./handlers/use.ts";
 export type { VaultHost, FillSink } from "./handlers/use.ts";
 
 /** Capabilities whose packet is deferred (ruling 60, docs/deferred.md). */
-export const DEFERRED = ["providers.add", "providers.catalog", "providers.list", "providers.remove", "providers.set_space_use", "providers.subscription_complete", "providers.subscription_start", "providers.test", "vault.folders.delete", "vault.folders.update", "vault.generate", "vault.health", "vault.import", "vault.import_parse", "vault.items.export_mine", "vault.items.match", "vault.policy.get", "vault.policy.set", "vault.site_rules.list", "vault.site_rules.set"] as const;
+export const DEFERRED = ["vault.folders.delete", "vault.folders.update", "vault.generate", "vault.health", "vault.import", "vault.import_parse", "vault.items.export_mine", "vault.items.match", "vault.policy.get", "vault.policy.set", "vault.site_rules.list", "vault.site_rules.set"] as const;
 export type { KeyPort } from "./handlers/index.ts";
 
 export const handlers: Record<string, Handler> = {
@@ -38,6 +41,14 @@ export const handlers: Record<string, Handler> = {
   "vault.exports.list": (ctx, i) => u.exportsList(ctx, i),
   "vault.exports.revoke": (ctx, i) => u.exportsRevoke(ctx, i),
   "vault.report_scrub_miss": (ctx, i) => u.reportScrubMiss(ctx, i),
+  "providers.catalog": (ctx, i) => pr.catalog(ctx, i),
+  "providers.list": (ctx, i) => pr.list(ctx, i),
+  "providers.add": (ctx, i) => pr.add(ctx, i),
+  "providers.remove": (ctx, i) => pr.remove(ctx, i),
+  "providers.set_space_use": (ctx, i) => pr.setSpaceUse(ctx, i),
+  "providers.subscription_start": (ctx, i) => pr.subscriptionStart(ctx, i),
+  "providers.subscription_complete": (ctx, i) => pr.subscriptionComplete(ctx, i),
+  "providers.test": (ctx, i) => pr.test(ctx, i),
   ...deferredHandlers(DEFERRED),
 };
 
