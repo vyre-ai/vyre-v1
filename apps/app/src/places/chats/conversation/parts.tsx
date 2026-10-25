@@ -91,17 +91,17 @@ export function FaceButton({ name, mode, working, onPress, title, testID, size =
 }
 
 /** A text button; `primary` is the one filled action (the accent), `dark` the ink-filled one the cards use, `icon` a glyph before the label. */
-export function TextButton({ label, onPress, primary = false, dark = false, icon, disabled = false, danger = false, testID }: { label: string; onPress: () => void; primary?: boolean; dark?: boolean; icon?: GlyphName; disabled?: boolean; danger?: boolean; testID?: string }): ReactElement {
+export function TextButton({ label, onPress, primary = false, dark = false, ring = false, link = false, icon, disabled = false, danger = false, testID }: { label: string; onPress: () => void; primary?: boolean; dark?: boolean; ring?: boolean; link?: boolean; icon?: GlyphName; disabled?: boolean; danger?: boolean; testID?: string }): ReactElement {
   const [over, setOver] = useState(false);
   const filled = primary || dark;
   return (
     <Pressable
       accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} testID={testID} onPress={onPress}
       onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
-      style={[s.btn, dark ? s.btnDark : primary ? s.btnPrimary : over && s.btnOver, dark && over && { opacity: 0.88 }, disabled && { opacity: 0.5 }]}
+      style={[s.btn, dark ? s.btnDark : primary ? s.btnPrimary : over && s.btnOver, dark && over && { opacity: 0.88 }, ring && s.btnRing, link && { paddingHorizontal: 4 }, disabled && { opacity: 0.5 }]}
     >
       {icon ? <Glyph name={icon} size={13} color={dark ? "var(--win)" : primary ? "var(--accent-ink)" : "var(--ink-2)"} /> : null}
-      <Text style={[s.btnText, filled && (dark ? s.btnTextDark : s.btnTextPrimary), danger && { color: "var(--danger)" as string }]}>{label}</Text>
+      <Text style={[s.btnText, filled && (dark ? s.btnTextDark : s.btnTextPrimary), link && { color: "var(--accent)" as string, fontWeight: "400" }, danger && { color: "var(--danger)" as string }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -124,7 +124,7 @@ export const s = StyleSheet.create({
   ibOver: { backgroundColor: "var(--press)" as string },
   badge: { marginLeft: 3, fontSize: 11, fontWeight: "600", color: "var(--ink-2)" as string },
   faceBtn: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  faceChip: { width: undefined, flexShrink: 1, flexDirection: "row", gap: 6, paddingLeft: 2, paddingRight: 8 } as object,
+  faceChip: { width: "auto", minWidth: 28, flexShrink: 1, flexDirection: "row", gap: 6, paddingLeft: 2, paddingRight: 8 } as object,
   faceBox: { position: "relative" },
   chipText: { flexShrink: 1, fontSize: 13, color: "var(--ink-2)" as string },
   mark: { position: "absolute", right: 1, bottom: 1, width: 9, height: 9, borderRadius: 5, borderWidth: 2, borderColor: "var(--win)" as string },
@@ -134,6 +134,7 @@ export const s = StyleSheet.create({
   btn: { height: 28, paddingHorizontal: 11, borderRadius: 8, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
   btnOver: { backgroundColor: "var(--hover)" as string },
   btnPrimary: { backgroundColor: "var(--accent)" as string },
+  btnRing: { boxShadow: "inset 0 0 0 1px var(--line-2)" } as object,
   btnDark: { backgroundColor: "var(--ink)" as string },
   btnText: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
   btnTextPrimary: { color: "var(--accent-ink)" as string },

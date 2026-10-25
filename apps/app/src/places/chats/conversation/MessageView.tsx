@@ -261,13 +261,13 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
   const [open, setOpen] = useState(false);
   return (
     <View testID={`error-${block.id}`} accessibilityRole="alert" style={st.err}>
-      <View style={st.errTop}><Glyph name="alert" size={15} color="var(--danger)" /><Text style={st.errMsg}>{e.message}</Text></View>
+      <View style={st.errTop}><Glyph name="alert" size={15} color="var(--warn)" /><Text style={st.errMsg}>{e.message}</Text></View>
       {e.cause ? <Text style={st.errCause}>{e.cause}</Text> : null}
       <View style={st.errActions}>
-        {collect(e.next, (n) => <TextButton key={n.key} label={n.label} testID={`err-next-${n.key}`} onPress={() => actions.errorNext(n.key)} />)}
-        {e.retryable && e.turnId ? <TextButton label="Retry" testID="err-retry" onPress={() => actions.retryTurn(e.turnId)} /> : null}
-        <TextButton label="What happened?" testID="err-what" onPress={() => setOpen((o) => !o)} />
-        <TextButton label="Copy trace id" testID="err-trace" onPress={() => actions.copy(e.traceId)} />
+        {collect(e.next, (n) => <TextButton link key={n.key} label={n.label} testID={`err-next-${n.key}`} onPress={() => actions.errorNext(n.key)} />)}
+        {e.retryable && e.turnId ? <TextButton link label="Retry" testID="err-retry" onPress={() => actions.retryTurn(e.turnId)} /> : null}
+        <TextButton link label="What happened?" testID="err-what" onPress={() => setOpen((o) => !o)} />
+        <TextButton link label="Copy trace id" testID="err-trace" onPress={() => actions.copy(e.traceId)} />
       </View>
       {open ? (
         <View testID="err-steps" style={st.errSteps}>
@@ -324,7 +324,7 @@ export const st = StyleSheet.create({
   cardRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: 10, paddingBottom: 10 },
   planSteps: { gap: 4, paddingHorizontal: 12, paddingBottom: 8 },
   planStep: { flexDirection: "row", alignItems: "center", gap: 8 },
-  err: { borderWidth: 1, borderColor: "var(--danger)" as string, borderRadius: 10, padding: 12, gap: 6, maxWidth: 560 },
+  err: { borderRadius: 10, padding: 12, gap: 6, maxWidth: 560, backgroundColor: "var(--sunk)" as string },
   errTop: { flexDirection: "row", alignItems: "center", gap: 8 },
   errMsg: { flexShrink: 1, fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
   errCause: { fontSize: 13, lineHeight: 19, color: "var(--ink-2)" as string },

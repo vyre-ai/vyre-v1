@@ -124,7 +124,7 @@ export function AgentFileProposal({ block, host }: { block: Block; host: BlockHo
         ) : d.canAccept ? (
           <>
             <TextButton label="Accept" dark icon="check" testID={`proposal-${id}-accept`} onPress={accept} />
-            <TextButton label="Edit" icon="edit" testID={`proposal-${id}-edit-open`} onPress={() => setEditing(true)} />
+            <TextButton label="Edit" ring icon="edit" testID={`proposal-${id}-edit-open`} onPress={() => setEditing(true)} />
             <TextButton label="Reject" icon="x" testID={`proposal-${id}-reject`} onPress={reject} />
           </>
         ) : (

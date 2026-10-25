@@ -274,7 +274,7 @@ test("the plan card is on the page: name, open comments, click to open beside th
   const out = html(s);
   const block = msgs(s).find((m) => m.messageId === "m4")!.blocks.find((b) => b.id === "pl1")!;
   assert.ok(isPlanFile(block));
-  inOrder(out, ["client-intake.pdf", 'data-testid="plancard-pl1"', "Rivera onboarding plan", "Plan · 1 open comment · click to open beside the chat"]);
+  inOrder(out, ['data-testid="plancard-pl1"', "Rivera onboarding plan", "Plan · 1 open comment · click to open beside the chat", "client-intake.pdf"]);
   assert.equal(planFileLine(2), "Plan · 2 open comments · click to open beside the chat");
 });
 

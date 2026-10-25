@@ -71,7 +71,7 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
       }),
       m("m3", me, "Book 2pm.", at(9, 30)),
       m("m4", intake, "Booked **Tuesday at 2:00** with Maya. Elena gets the invite with the form link, and I'll post in **#intake** when the form comes back.", at(9, 31), {
-        blocks: [step("s4", "Booked Tue 2:00 with Maya", "calendar.book(maya, Tue 14:00)", 3), step("s5", "Updated Elena's record", "Stage → Consult booked", 3), card("b1", "file", { name: "client-intake.pdf", sub: "PDF · 207 KB", id: "pdf1" }, "done"), card("pl1", "file", { kind: "plan", name: "Rivera onboarding plan", id: "plan1", openComments: 1 }, "done")],
+        blocks: [step("s4", "Booked Tue 2:00 with Maya", "calendar.book(maya, Tue 14:00)", 3), step("s5", "Updated Elena's record", "Stage → Consult booked", 3), card("pl1", "file", { kind: "plan", name: "Rivera onboarding plan", id: "plan1", openComments: 1 }, "done"), card("b1", "file", { name: "client-intake.pdf", sub: "PDF · 207 KB", id: "pdf1" }, "done")],
       }),
       m("m5", intake, "Maya's calendar blocks Thursday mornings, and I offered Thursday 10:00 earlier. I'd like to change my instructions so it doesn't happen again.", at(9, 34), {
         blocks: [card("b2", "changeset", {
