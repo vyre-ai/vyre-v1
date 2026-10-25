@@ -86,7 +86,7 @@ test("a new message in the watched channel starts one run under the routine owne
   assert.deepEqual(await fire(hn, first), ["run_a1"]);
   assert.deepEqual([started[0].kind, started[0].owner, started[0].name], ["routine", DANA, "Greet new leads"]);
   assert.deepEqual([started[0].threadId, started[0].trigger], ["thr_leads", { messageId: first.payload.messageId, threadId: "thr_leads", channelId: "chn_leads" }], "the run carries the message, thread and channel that woke it");
-  assert.deepEqual(contractErrors("runs.start", "in", started[0]), []);
+  assert.deepEqual(contractErrors("runs.start", "in", { ...started[0], idempotencyKey: keys[0] }), [], "what the watcher sends is a valid runs.start input");
   assert.deepEqual(hn.named("agent.routine_run_started")[0]!.payload, { agentId: id, routineId: routine.routineId, runId: "run_a1", ownerId: DANA, requestedBy: `watch:${first.payload.messageId}` });
   assert.deepEqual(assertEventsConform(hn), []);
   assert.deepEqual(await fire(hn, msg({ threadId: "thr_elsewhere" })), [], "another channel");
