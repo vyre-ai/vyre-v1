@@ -52,6 +52,7 @@ export const handlers: Record<string, Handler> = {
   "google.drive.copy_file": (ctx, i) => h.driveCopy(ctx, i),
   "google.drive.share_file": (ctx, i) => h.driveShare(ctx, i),
   "google.drive.trash_file": (ctx, i) => h.driveTrash(ctx, i),
+  "google.drive.changes_start_token": (ctx, i) => h.driveStartToken(ctx, i),
   "google.drive.list_changes": (ctx, i) => h.driveChanges(ctx, i),
   "google.drive.watch_changes": (ctx, i) => h.driveWatch(ctx, i),
   "google.drive.stop_watch": (ctx, i) => h.driveStopWatch(ctx, i),

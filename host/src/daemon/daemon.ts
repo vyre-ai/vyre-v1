@@ -17,6 +17,7 @@ import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
 import { createCtxSeal } from "../ctx/seal.ts";
 import { ScheduleQueue } from "../ctx/schedule.ts";
 import type { ScheduledCall } from "../ctx/schedule.ts";
+import { createBlobStore } from "../ctx/blobs.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
 import { createGateway, indexRoutes } from "../gateway.ts";
 import { withEventIds } from "../ids.ts";
@@ -235,7 +236,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         onError: (c, e, final) => sinkLog.warn("schedule.failed", { cap: c.cap, id: c.id, tries: c.tries + 1, final, error: e instanceof Error ? e.message : String(e) }),
       });
       queue = scheduleQueue;
-      const seal = createCtxSeal(o.sealKey ?? { key: sealKeyFile(path.join(paths.root, "seal.key")), keyId: "k1" });
+      const sealKey = o.sealKey ?? { key: sealKeyFile(path.join(paths.root, "seal.key")), keyId: "k1" };
+      const seal = createCtxSeal(sealKey);
+      const blobs = createBlobStore({ dir: path.join(paths.root, "blobs", "ctx"), key: sealKey.key, now });
 
       const invoke = createInvoke({
         caps: indexCapabilities(caps),
@@ -243,7 +246,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         validateEvent: (name, payload) => (extraEvents.has(name) ? [] : validateEvent(name, payload)),
         authorize: (r) => authorize(access.snap, r),
         handler: (cap, v) => o.extra?.handlers?.[cap] ?? loaded.handler(cap, v),
-        services: hostServices({ base: loaded.services, seal, queue: scheduleQueue }),
+        services: hostServices({ base: loaded.services, seal, queue: scheduleQueue, blobs }),
         idem, rate: createRateLimiter(), now, log: sinkLog,
         commit: withEventIds(async (b) => {
           const trace = b.events[0]?.traceId ?? ZERO_TRACE;
