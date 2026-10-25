@@ -89,13 +89,13 @@ test("l3 live: a record created through the gateway survives a daemon restart, o
   let id = "";
   try {
     assert.deepEqual((d.seams?.missing ?? []).filter((m) => m.module !== undefined && L3.includes(m.module)), [], "no L3 module is reported as not set up");
-    const applied = await post(d, "/v1/schema/apply", { ops: [{
+    const applied = await post(d, "/v1/schema/apply", { idempotencyKey: "l3-live-type", ops: [{
       op: "type.create", type: "l3_company",
       def: { title: "Company", plural: "Companies", icon: "building", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "industry", type: "text", title: "Industry" }] },
     }] });
-    assert.equal(applied.status, 200, "schema.apply answers");
-    const made = await post(d, "/v1/records/create", { type: "l3_company", fields: { name: "Acme", industry: "Law" } });
-    assert.equal(made.status, 200, "records.create answers through the live handler");
+    assert.equal(applied.status, 200, `schema.apply answers: ${await applied.clone().text()}`);
+    const made = await post(d, "/v1/records/create", { idempotencyKey: "l3-live-rec", type: "l3_company", fields: { name: "Acme", industry: "Law" } });
+    assert.equal(made.status, 200, `records.create answers through the live handler: ${await made.clone().text()}`);
     id = ((await made.json()) as { data: { record: Row } }).data.record.id;
     assert.ok(id, "the record has an id");
   } finally { await d.stop(); }
