@@ -6,7 +6,10 @@ import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_CONFLICT = ["sync", "conflicts", "records", "schema", "devices", "access", "spaces"];
-export const GAPS: Gap[] = [];
+export const GAPS: Gap[] = [
+  { packet: "PR 470 (P-L1_LIVE)", lane: "L1", what: "sync cannot boot live: sync.devices.lag, doc.close, doc.compact, doc.open, doc.update, endpoints, entities, health, hello, status have no handler" },
+  { packet: "conflicts (L1)", lane: "L1", what: "modules/conflicts has no impl.ts, so the module cannot be loaded live" },
+];
 
 const NOTE = { op: "type.create", type: "note_item", def: { title: "Note", plural: "Notes", icon: "file", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "status", type: "text", title: "Status" }] } };
 const TRACE = "4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a";

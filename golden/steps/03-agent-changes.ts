@@ -10,7 +10,9 @@ import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_CHANGES = ["files", "git", "gate", "tasks", "agents", "devices", "access", "spaces"];
-export const GAPS: Gap[] = [];
+export const GAPS: Gap[] = [
+  { packet: "PR 472 (P-L4_LIVE)", lane: "L4", what: "files migrations never create files_file, so files.list and every files tree call answer 500" },
+];
 
 export async function runChanges(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const trail = new Trail();

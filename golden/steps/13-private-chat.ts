@@ -6,7 +6,9 @@ import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_PRIVATE = ["chat", "identity", "vault", "devices", "access", "spaces"];
-export const GAPS: Gap[] = [];
+export const GAPS: Gap[] = [
+  { packet: "chat live (no open PR)", lane: "L2", what: "chat has no handlers; with it dropped, chat.post answers 404 because no thread resource exists" },
+];
 const SECRET_TEXT = "the quarterly numbers are worse than we said";
 
 export async function runPrivate(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {

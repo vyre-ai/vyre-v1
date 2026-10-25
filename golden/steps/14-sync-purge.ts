@@ -6,7 +6,10 @@ import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_PURGE = ["sync", "access", "search", "records", "schema", "devices", "spaces"];
-export const GAPS: Gap[] = [];
+export const GAPS: Gap[] = [
+  { packet: "PR 470 (P-L1_LIVE)", lane: "L1", what: "sync cannot boot live (ten handlers missing)" },
+  { packet: "P-L11_19 follow-up", lane: "L11", what: "flows boot the core seed, whose folders the access module does not know (access.share answers 404 no such resource); only the small seed is filled into access" },
+];
 
 export async function runPurge(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const trail = new Trail();
