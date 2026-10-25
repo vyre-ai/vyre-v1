@@ -57,7 +57,8 @@ test("l4 live: a booted daemon has no L4 module not set up, and a read and a wri
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
   const post = (token: string, p: string, body: unknown) =>
-    fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+    fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) })   // a call that hangs fails by name, not by the 30 s watchdog
+      .catch((e: unknown) => { throw new Error(`${p} did not answer: ${e instanceof Error ? e.message : String(e)}`); });
   // what the daemon logged for the trace of a failed call, so a 500 in CI says why
   const why = (body: string): string => {
     const traceId = /"traceId":"([0-9a-f]+)"/.exec(body)?.[1];
