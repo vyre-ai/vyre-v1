@@ -67,6 +67,7 @@ test("l4 live: a booted daemon has no L4 module not set up, and a read and a wri
     return ` | log: ${JSON.stringify(d.sink.trace(traceId).logs.map((l) => [l.msg, l.attrs]))}`;
   };
   const ok = async (p: string, body: unknown): Promise<Record<string, unknown>> => {
+    console.log(`l4 live: ${p}`);   // progress, so a hang in CI shows where it stopped
     const r = await post(OWNER, p, body);
     const text = await r.text();
     assert.equal(r.status, 200, `${p}: ${text}${why(text)}`);
@@ -99,6 +100,7 @@ test("l4 live: a booted daemon has no L4 module not set up, and a read and a wri
 
     // mounts: the list answers, and pausing a mount that does not exist is refused by the real handler (a stub would answer with its example)
     assert.ok(Array.isArray((await ok("/v1/mounts/list", {}))["mounts"]), "mounts.list answers");
+    console.log("l4 live: /v1/mounts/pause");
     const nope = await post(OWNER, "/v1/mounts/pause", { mountId: "mnt_nonexistent" });
     assert.ok(nope.status >= 400 && nope.status < 500, `mounts.pause on an unknown mount is refused, got ${nope.status}`);
 
@@ -106,5 +108,5 @@ test("l4 live: a booted daemon has no L4 module not set up, and a read and a wri
     const refused = await post(TEMP, "/v1/files/folder/create", { idempotencyKey: "l4-live-tess", parentId: personal.folderId, name: "Nope" });
     assert.equal(refused.status, 403, "a temp person cannot create folders");
     assert.equal(((await refused.json()) as { error?: { code?: string } }).error?.code, "permission.role_lacks_permission");
-  } finally { await d.stop(); }
+  } finally { console.log("l4 live: stopping"); await d.stop(); console.log("l4 live: stopped"); }
 });
