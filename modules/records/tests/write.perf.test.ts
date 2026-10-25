@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
 import { mintUuid } from "../../../lib/ids.ts";
+import { openRecordStore } from "../../../kernel/src/store/records.ts";
 import { openRecords } from "../impl.ts";
 import { ITEM } from "../fixtures/seed.ts";
 
@@ -12,24 +13,33 @@ const pct = (xs: number[], p: number) => {
   return s[Math.min(s.length - 1, Math.ceil(p * s.length) - 1)]!;
 };
 
-test("server_write p95 under 10 ms at 200 records creates per second", async () => {
-  const rec = openRecords({ space: "sp_perf" });
-  await rec.store.define({ add_types: [ITEM] });
-  for (let i = 0; i < 20; i++) await rec.store.create("item", mintUuid(), { name: `w${i}` });
+/** 200 creates at 5 ms spacing against one store; returns the latencies and the wall time. */
+async function drive(store: { create(type: string, id: string, data: Record<string, unknown>): Promise<unknown>; define(d: never): Promise<unknown> }, tag: string): Promise<{ lat: number[]; wall: number }> {
+  await store.define({ add_types: [ITEM] } as never);
+  for (let i = 0; i < 20; i++) await store.create("item", mintUuid(), { name: `w${i}` });
   const N = 200;
   const lat: number[] = [];
   const t0 = performance.now();
   for (let i = 0; i < N; i++) {
-    const due = t0 + i * 5;
-    const wait = due - performance.now();
+    const wait = t0 + i * 5 - performance.now();
     if (wait > 0) await sleep(wait);
     const sent = performance.now();
-    await rec.store.create("item", mintUuid(), { name: `n${i}` });
+    await store.create("item", mintUuid(), { name: `${tag}${i}` });
     lat.push(performance.now() - sent);
   }
-  const wall = (performance.now() - t0) / 1000;
-  const p95 = pct(lat, 0.95);
-  console.log(`server_write: ${N} creates in ${wall.toFixed(2)} s (${(N / wall).toFixed(0)}/s), p95 ${p95.toFixed(2)} ms`);
-  assert.ok(N / wall >= 150, `the pacer kept up (${(N / wall).toFixed(0)}/s)`);
+  return { lat, wall: (performance.now() - t0) / 1000 };
+}
+const line = (name: string, r: { lat: number[]; wall: number }): string =>
+  `${name}: ${r.lat.length} creates in ${r.wall.toFixed(2)} s (${(r.lat.length / r.wall).toFixed(0)}/s), p50 ${pct(r.lat, 0.5).toFixed(2)} p95 ${pct(r.lat, 0.95).toFixed(2)} p99 ${pct(r.lat, 0.99).toFixed(2)} ms`;
+
+test("server_write p95 under 10 ms at 200 records creates per second", async () => {
+  // The kernel store alone, so a slow run says whether the cost is below the module (kernel append, hash chain) or in it (clocks, row meta).
+  const base = await drive(openRecordStore({ path: ":memory:", space: "sp_perf_kernel" }).store as never, "k");
+  console.log(line("server_write kernel only", base));
+  const rec = openRecords({ space: "sp_perf" });
+  const r = await drive(rec.store as never, "n");
+  console.log(line("server_write", r));
+  const p95 = pct(r.lat, 0.95);
+  assert.ok(200 / r.wall >= 150, `the pacer kept up (${(200 / r.wall).toFixed(0)}/s)`);
   assert.ok(p95 < 10, `p95 ${p95.toFixed(2)} ms must be under 10 ms`);
 });
