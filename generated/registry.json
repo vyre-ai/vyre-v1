@@ -158747,7 +158747,10 @@
                   "http_header",
                   "browser",
                   "terminal",
-                  "file"
+                  "file",
+                  "git_credential",
+                  "container_env",
+                  "route_auth"
                 ],
                 "type": "string"
               },
@@ -166517,7 +166520,7 @@
           "web": "all"
         }
       },
-      "table": "contacts_address"
+      "table": "contacts_link_address"
     },
     {
       "acl": {
@@ -167826,7 +167829,7 @@
           "web": "none"
         }
       },
-      "table": "contacts_suppression"
+      "table": "contacts_link_suppression"
     },
     {
       "acl": {

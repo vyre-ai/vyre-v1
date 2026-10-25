@@ -56,10 +56,10 @@ test("the strip: chats this week, open tasks, runs today, spend against the limi
 test("Chats tab: what it is working on, its chats newest first, what it is linked to", () => {
   const s = createSample("owner");
   const out = html(s, "chats");
-  inOrder(out, ['data-testid="label-l-working"', "Rivera matter intake", "Follow up with Dev Rao", 'data-testid="label-l-chats"', "Rivera intake", "Weekly lead report", "Lead follow-ups", 'data-testid="label-l-linked"', "#intake"]);
+  inOrder(out, ['data-testid="label-l-working"', "Rivera matter intake", "Follow up with Dev Rao", 'data-testid="label-l-chats"', "Rivera intake", "Weekly lead report", 'data-testid="label-l-linked"', "#intake"]);
   assert.ok(has(out, 'data-testid="page-body-chats"'));
   const all = (s.replica.rows("threads") as unknown as Thread[]);
-  assert.deepEqual(chatsOf("agt_intake", all).map((t) => t.threadId), ["c1", "c5", "c9"], "chats only, newest first; threads and helpers stay in the right pane");
+  assert.deepEqual(chatsOf("agt_intake", all).map((t) => t.threadId), ["c1", "c5"], "chats only, newest first; threads and helpers stay in the right pane");
 });
 
 test("a press on Chat starts a chat with the agent and opens it; a failed start says so and opens nothing", async () => {
@@ -117,7 +117,7 @@ test("routine posts carry the label; only the routines you set are shown, and no
   const s = createSample("owner");
   const out = html(s, "settings");
   assert.ok(has(out, "Sent by Intake on a routine Omar Haddad set") && has(out, 'data-testid="routine-label-note"'));
-  inOrder(out, ['data-testid="label-l-routines"', 'data-testid="row-automation-runs"', "Morning lead sweep", "Weekly lead report", "Chase missing intake forms"]);
+  inOrder(out, ['data-testid="label-l-routines"', 'data-testid="row-automation-runs"', "Morning lead sweep", "Watch #intake for new clients", "Chase missing intake forms"]);
   const all = s.replica.rows("routines") as unknown as Routine[];
   assert.equal(all.length, 3);
   assert.equal(mineOnly(all, "usr_omar").length, 3);
@@ -131,15 +131,15 @@ test("routine posts carry the label; only the routines you set are shown, and no
 test("a routine's switch turns it on or off with an Undo; the row says when it runs and when it last ran", async () => {
   const s = createSample("owner");
   const { d, notes } = deps(s);
-  const r = (s.replica.rows("routines") as unknown as Routine[]).find((x) => x.routineId === "r4")!;
-  assert.equal(routineNote(r, s.data.clock()), "Every Friday at 09:00 · next 31 Oct");
+  const r = (s.replica.rows("routines") as unknown as Routine[]).find((x) => x.routineId === "r3")!;
+  assert.equal(routineNote(r, s.data.clock()), "Weekdays at 08:00 · next Mon 08:00");
   assert.equal(await setRoutine(d, "agt_intake", r, false), true);
-  const saved = (s.replica.rows("routines") as unknown as Routine[]).find((x) => x.routineId === "r4")!;
+  const saved = (s.replica.rows("routines") as unknown as Routine[]).find((x) => x.routineId === "r3")!;
   assert.equal(saved.enabled, false);
-  assert.equal(notes[notes.length - 1]!.text, "Weekly lead report is paused.");
+  assert.equal(notes[notes.length - 1]!.text, "Morning lead sweep is paused.");
   await notes[notes.length - 1]!.undo!();
-  assert.equal((s.replica.rows("routines") as unknown as Routine[]).find((x) => x.routineId === "r4")!.enabled, true);
-  assert.ok(has(html(s, "settings"), 'aria-label="Weekly lead report on"'));
+  assert.equal((s.replica.rows("routines") as unknown as Routine[]).find((x) => x.routineId === "r3")!.enabled, true);
+  assert.ok(has(html(s, "settings"), 'aria-label="Morning lead sweep on"'));
 });
 
 test("Settings: AGENT.md against 150 lines, agent.toml, model, account, memory, computer, limits, access and keys (names only)", () => {

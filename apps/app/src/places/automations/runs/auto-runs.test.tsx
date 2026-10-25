@@ -116,7 +116,7 @@ test("history: Needs attention comes first with the failed run and its two butto
   assert.ok(has(out, 'data-testid="retry-step-rl1"') && has(out, "Retry step") && has(out, "Copy trace id") && has(out, 'data-testid="stop-rl1"'));
   const rows = ["rl2", "rl3", "rl4", "rl5", "rl6"].map((id) => at(out, `data-testid="row-run-${id}"`));
   assert.deepEqual([...rows].sort((a, b) => a - b), rows, "newest first");
-  assert.ok(has(out, "Succeeded, 6 steps, 41 s"));
+  assert.ok(has(out, "Succeeded, 5 steps, 41 s"));
   assert.ok(has(out, ">v4<"), "a run on an older version shows it");
   assert.ok(!has(out, ">v5<"), "the current version is not repeated");
   assert.ok(!has(out, "Invoice 1044"), "other Automations' runs stay out");
@@ -155,7 +155,7 @@ test("the run chat of the failed run: the thread's compact rows, Intake's turn w
   assert.ok(has(out, "Try 1 of 3, failed. Waited 5 s.") && has(out, "Try 2 of 3, failed. Waited 5 s.") && has(out, "Try 3 of 3, failed."));
   const err = at(out, "No Twilio key");
   assert.ok(err > at(out, "Tried to text"), "the error closes the thread");
-  assert.ok(has(out, 'data-testid="retry-step"') && has(out, 'data-testid="retry-start"') && has(out, 'data-testid="copy-trace"') && has(out, 'data-testid="replay"'));
+  assert.ok(has(out, 'data-testid="retry-step"') && has(out, 'data-testid="skip-step"') && has(out, 'data-testid="edit-step"') && has(out, 'data-testid="stop-failed"') && has(out, 'data-testid="copy-trace"') && has(out, 'data-testid="replay"'));
   assert.ok(has(out, "tr_rl1"), "the trace id is on the error row");
   assert.ok(has(out, 'placeholder="Ask about this run, or tell an agent what to do"') && has(out, 'aria-label="Send"'));
   assert.ok(has(out, 'data-testid="undo-run"') && has(out, 'data-testid="replay-run"') && !has(out, 'data-testid="stop-run"'));
