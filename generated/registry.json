@@ -26204,6 +26204,134 @@
     {
       "effects": "write",
       "emits": [
+        "agent.routine_delegated",
+        "agent.routine_changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "routineId": "rtn_a1b2c3",
+            "to": {
+              "id": "example",
+              "kind": "person"
+            },
+            "undo": true
+          },
+          "name": "example",
+          "output": {
+            "previousOwnerId": "usr_a1b2c3",
+            "routine": {
+              "agentId": "agt_a1b2c3",
+              "channelId": "chn_a1b2c3",
+              "cron": "0 9 * * 1-5",
+              "enabled": true,
+              "lastRunAt": 1760000000000,
+              "nextRunAt": 1760000000000,
+              "ownerId": "usr_a1b2c3",
+              "prompt": "example",
+              "routineId": "rtn_a1b2c3",
+              "title": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "routineId": {
+            "examples": [
+              "rtn_a1b2c3"
+            ],
+            "pattern": "^rtn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "to": {
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "person",
+                  "agent"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          "undo": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "agentId",
+          "routineId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "agents",
+      "name": "agents.routine.delegate",
+      "output": {
+        "properties": {
+          "previousOwnerId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "routine": {
+            "$ref": "#/$defs/s_be45381a2d"
+          }
+        },
+        "required": [
+          "routine",
+          "previousOwnerId"
+        ],
+        "type": "object"
+      },
+      "permission": "agents.schedule",
+      "resource": {
+        "id": "/agentId",
+        "type": "agent"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Hand a routine to another person or agent (a person becomes its owner, an agent runs it); undo (no `to`) hands it back to the previous owner and agent",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
         "agent.routine_changed"
       ],
       "errors": [
@@ -26272,6 +26400,115 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Delete a routine",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "agent.routine_run_started"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "idempotencyKey": "idem_1",
+            "routineId": "rtn_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "routine": {
+              "agentId": "agt_a1b2c3",
+              "channelId": "chn_a1b2c3",
+              "cron": "0 9 * * 1-5",
+              "enabled": true,
+              "lastRunAt": 1760000000000,
+              "nextRunAt": 1760000000000,
+              "ownerId": "usr_a1b2c3",
+              "prompt": "example",
+              "routineId": "rtn_a1b2c3",
+              "title": "example"
+            },
+            "runId": "run_a1b2c3"
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "routineId": {
+            "examples": [
+              "rtn_a1b2c3"
+            ],
+            "pattern": "^rtn_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "routineId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "agents",
+      "name": "agents.routine.run_now",
+      "output": {
+        "properties": {
+          "routine": {
+            "$ref": "#/$defs/s_be45381a2d"
+          },
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "routine",
+          "runId"
+        ],
+        "type": "object"
+      },
+      "permission": "agents.schedule",
+      "resource": {
+        "id": "/agentId",
+        "type": "agent"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Run a routine now. The run starts as the routine owner, never as the caller, so its reach and its \"Sent by <agent> on a routine <person> set\" line are the owner's",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -167935,6 +168172,116 @@
         "type": "agent"
       },
       "summary": "A routine was created, changed or deleted",
+      "sv": 1,
+      "vis": "owner"
+    },
+    {
+      "module": "agents",
+      "name": "agent.routine_delegated",
+      "payload": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "from": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "routineId": {
+            "examples": [
+              "rtn_a1b2c3"
+            ],
+            "pattern": "^rtn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "to": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "undo": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "agentId",
+          "routineId",
+          "from",
+          "to",
+          "undo"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/agentId",
+        "type": "agent"
+      },
+      "summary": "A routine was handed to another owner, or handed back",
+      "sv": 1,
+      "vis": "owner"
+    },
+    {
+      "module": "agents",
+      "name": "agent.routine_run_started",
+      "payload": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ownerId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "requestedBy": {
+            "type": "string"
+          },
+          "routineId": {
+            "examples": [
+              "rtn_a1b2c3"
+            ],
+            "pattern": "^rtn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "routineId",
+          "runId",
+          "ownerId",
+          "requestedBy"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/agentId",
+        "type": "agent"
+      },
+      "summary": "A routine run started now, as the routine owner",
       "sv": 1,
       "vis": "owner"
     },

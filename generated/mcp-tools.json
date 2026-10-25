@@ -2950,6 +2950,62 @@
     },
     {
       "blocks": [],
+      "cap": "agents.routine.delegate",
+      "deferred": false,
+      "description": "Hand a routine to another person or agent (a person becomes its owner, an agent runs it); undo (no `to`) hands it back to the previous owner and agent",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "routineId": {
+            "examples": [
+              "rtn_a1b2c3"
+            ],
+            "pattern": "^rtn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "to": {
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "person",
+                  "agent"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          "undo": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "agentId",
+          "routineId"
+        ],
+        "type": "object"
+      },
+      "name": "agents_routine_delegate",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.routine.delete",
       "deferred": false,
       "description": "Delete a routine",
@@ -2978,6 +3034,48 @@
         "type": "object"
       },
       "name": "agents_routine_delete",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.routine.run_now",
+      "deferred": false,
+      "description": "Run a routine now. The run starts as the routine owner, never as the caller, so its reach and its \"Sent by <agent> on a routine <person> set\" line are the owner's",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "routineId": {
+            "examples": [
+              "rtn_a1b2c3"
+            ],
+            "pattern": "^rtn_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "routineId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "agents_routine_run_now",
       "planMode": "blocked",
       "toolset": "agents",
       "v": 1
