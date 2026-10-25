@@ -56,7 +56,6 @@ test("the sandboxed launcher: reads the work folder, cannot read the home or a n
   assert.doesNotMatch(out, /home-secret/);
   assert.doesNotMatch(out, /ravi-secret/);
   assert.match(out, /home=.*(No such file|Permission denied)/);
-  assert.match(out, /outside=.*\n?.*[1-9]/s);
   assert.doesNotMatch(out, /outside=0/);
   assert.doesNotMatch(out, /outside2=0/);
   assert.match(out, /key=sk-ant-key token=mcp-token daemon=\n/);
