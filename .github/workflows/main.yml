@@ -1,8 +1,9 @@
 name: main
 # Merge to main, budget 10 minutes (ARCH-DECISIONS 13). P-CI_06: about 30 merges an hour saturated the runners, so
 #   push            affected tests since the last green main run (plus the contracts gate); a red run re-includes its changes next time
-#   schedule        the whole suite, golden flows and perf, hourly
-#   dispatch        the whole suite, golden flows and perf (also run before a release tag)
+#   schedule        the whole suite and golden flows, hourly (perf files excluded: perf.yml runs them)
+#   dispatch        the same (also run before a release tag)
+# Ruling 55: a push runs a perf file only when its code changed; the full perf set is perf.yml, hourly and on dispatch, with its own budget.
 on:
   push:
     branches: [main]
@@ -42,13 +43,14 @@ jobs:
           fi
           if [ -n "$base" ]; then echo "select: affected since last green main $base"; echo "full=false" >> "$GITHUB_OUTPUT"
           else echo "select: whole suite ($EVENT)"; echo "full=true" >> "$GITHUB_OUTPUT"; fi
-          node scripts/ci-select.ts "$base" --matrix --max 8 --perf-always > select.json
+          NP=""; [ "$EVENT" = "push" ] || NP="--no-perf"
+          node scripts/ci-select.ts "$base" --matrix --max 8 $NP > select.json
           node -e 'const r=JSON.parse(require("fs").readFileSync("select.json","utf8"));const n=r.matrix.include.length;console.log("select: "+n+" jobs; "+(r.all?"everything":r.files.length+" affected files"));const o=process.env.GITHUB_OUTPUT;require("fs").appendFileSync(o,"has_tests="+(n>0)+"\nmatrix="+JSON.stringify(n>0?r.matrix:{include:[{name:"none",files:"",slow:"false"}]})+"\n")'
   shards:
     name: ${{ matrix.name }}
     needs: select
     if: needs.select.outputs.has_tests == 'true'
-    runs-on: ${{ matrix.runner == 'hosted' && 'ubuntu-latest' || fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
+    runs-on: ${{ fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
     timeout-minutes: 10
     strategy:
       fail-fast: false

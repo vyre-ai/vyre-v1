@@ -14,7 +14,7 @@ import type { Caller } from "./seed.ts";
 // so the fixture asks the runtime for the built-in.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 const schema = readFileSync(new URL("../../../generated/modules/runs/schema.sql", import.meta.url), "utf8");
-const migration = readFileSync(new URL("../migrations/0001_runs_engine.sql", import.meta.url), "utf8");
+const migration = ["0001_runs_engine.sql", "0003_run_trigger.sql"].map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8")).join("\n");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
 export interface Ev { name: string; subject: string; payload: Record<string, unknown>; opts?: Record<string, unknown> | undefined; id: string; traceId: string }

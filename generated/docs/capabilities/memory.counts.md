@@ -1,6 +1,6 @@
 # memory.counts
 
-Counts for the agent strip: current facts, proposed facts and facts from the caller
+Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own
 
 | | |
 |---|---|
@@ -36,6 +36,7 @@ type Out = {
   current: number;
   proposed: number;
   fromMe: number;
+  autoMerged: number;
 };
 ```
 
@@ -55,6 +56,7 @@ type Out = {
     "agentId": "agt_a1b2c3"
   },
   "output": {
+    "autoMerged": 1,
     "current": 1,
     "fromMe": 1,
     "proposed": 1
