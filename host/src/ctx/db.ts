@@ -37,8 +37,13 @@ function tokens(sql: string): Tok[] {
 }
 
 /** The tables a statement reads or writes, or an error string. Pure, so it is testable without a database. */
+/** Modules whose tables carry a shorter name than the module id (their migrations created them before the prefix rule); the module id's own prefix always applies too. */
+const PREFIX_ALIASES: Readonly<Record<string, readonly string[]>> = { "contacts-link": ["contacts_"], microsoft: ["ms_"] };
+
 export function checkSql(moduleId: string, sql: string): { ok: true; tables: string[] } | { ok: false; why: string } {
   const prefix = `${moduleId.replace(/-/g, "_")}_`;
+  const prefixes = [prefix, ...(PREFIX_ALIASES[moduleId] ?? [])];
+  const owned = (name: string): boolean => prefixes.some((p) => name.toLowerCase().startsWith(p));
   const s = strip(sql);
   if (BANNED.test(s)) return { ok: false, why: "that statement is not allowed" };
   const toks = tokens(s);
@@ -81,7 +86,7 @@ export function checkSql(moduleId: string, sql: string): { ok: true; tables: str
       j = i + 1; while (["if", "not", "exists"].includes(low(body[j]))) j++;
       const k = body.findIndex((t, x) => x > j && low(t) === "on");
       if (k > 0) { const r = target(k + 1); if (r < 0) return { ok: false, why: "schema-qualified names are not allowed" }; }
-      const idx = body[j]; if (idx?.t === "id" && !idx.v.toLowerCase().startsWith(prefix)) return { ok: false, why: `index ${idx.v} is not in ${prefix}*` };
+      const idx = body[j]; if (idx?.t === "id" && !owned(idx.v)) return { ok: false, why: `index ${idx.v} is not in ${prefix}*` };
       continue;
     }
     else if (w === "to" && low(body[i - 1]) === "rename") j = i + 1;   // ALTER TABLE a RENAME TO b: b must stay in the module too
@@ -98,7 +103,7 @@ export function checkSql(moduleId: string, sql: string): { ok: true; tables: str
       }
     }
   }
-  for (const t of tables) if (!t.toLowerCase().startsWith(prefix)) return { ok: false, why: `table ${t} is not in ${prefix}*` };
+  for (const t of tables) if (!owned(t)) return { ok: false, why: `table ${t} is not in ${prefix}*` };
   return { ok: true, tables };
 }
 
