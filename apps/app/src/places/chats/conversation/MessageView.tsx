@@ -8,7 +8,10 @@ import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { MarkdownBlocks, StreamText } from "../../../../../../ui/src/stream/index.ts";
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
+import { BlockViewA, isPartOneType } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
+import type { BlockHost } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import { Face } from "../needsyou/parts.tsx";
+import { AgentFileProposal, PlanFileCard, isPlanFile, isProposal } from "./proposal.tsx";
 import { Fold, Glyph, IconButton, TextButton } from "./parts.tsx";
 import type { GlyphName } from "./parts.tsx";
 import { bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, planSteps, questionOptions, workOf } from "./model.ts";
@@ -30,6 +33,8 @@ export interface MessageActions {
   retrySend(messageId: string): void;
   discardSend(messageId: string): void;
   showMenu(items: readonly MenuEntry[], x: number, y: number, label: string): void;
+  /** What the shared native blocks (changeset, plan, question, terminal, deploy) call: capabilities as the person, and tabs beside the chat. */
+  host: BlockHost;
 }
 
 const webProps = (props: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? props : {});
@@ -44,6 +49,8 @@ export interface MessageViewProps {
   sending?: "sending" | "failed" | undefined;
   /** Opens the work fold of this message from the start (a live one always shows its steps). */
   openWork?: boolean;
+  /** Find in chat: this message matches, or is the match the person is on. */
+  mark?: "match" | "active" | undefined;
 }
 
 export const MessageView = memo(function MessageView(props: MessageViewProps): ReactElement | null {
@@ -93,7 +100,7 @@ function useHover(): { over: boolean; focus: boolean; props: Record<string, unkn
 
 /* ---------- yours ---------- */
 
-function Mine({ item, actions, sending }: MessageViewProps & { item: Extract<Item, { kind: "me" }> }): ReactElement {
+function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extract<Item, { kind: "me" }> }): ReactElement {
   const m = item.message;
   const h = useHover();
   const [editing, setEditing] = useState(false);
@@ -105,7 +112,7 @@ function Mine({ item, actions, sending }: MessageViewProps & { item: Extract<Ite
     if (body !== "" && body !== m.body) actions.edit(m.messageId, body);
   };
   return (
-    <View testID={`msg-${m.messageId}`} accessibilityLabel={`You, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit), x, y, "Message"))} style={[st.me, item.newgroup && st.gapTop]}>
+    <View testID={`msg-${m.messageId}`} accessibilityLabel={`You, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit), x, y, "Message"))} style={[st.me, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive]}>
       <HoverBar m={m} mine a={actions} onEdit={startEdit} visible={h.over || h.focus} />
       <Text style={st.when}>{item.time}</Text>
       {editing ? (
@@ -143,7 +150,7 @@ function Mine({ item, actions, sending }: MessageViewProps & { item: Extract<Ite
 
 /* ---------- anyone else's ---------- */
 
-function Theirs({ item, actions, stream, openWork }: MessageViewProps & { item: Extract<Item, { kind: "other" }> }): ReactElement {
+function Theirs({ item, actions, stream, openWork, mark }: MessageViewProps & { item: Extract<Item, { kind: "other" }> }): ReactElement {
   const m = item.message;
   const h = useHover();
   const work = workOf(m);
@@ -153,7 +160,7 @@ function Theirs({ item, actions, stream, openWork }: MessageViewProps & { item: 
   const person = item.who.kind === "person";
   const blocks = stream ? null : bodyBlocks(m.messageId, m.body);
   return (
-    <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined), x, y, "Message"))} style={[st.msg, item.newgroup && st.gapTop]}>
+    <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined), x, y, "Message"))} style={[st.msg, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive]}>
       <HoverBar m={m} mine={false} a={actions} onEdit={() => undefined} visible={h.over || h.focus} />
       {item.newgroup ? (
         <View style={st.by}>
@@ -177,7 +184,12 @@ function Theirs({ item, actions, stream, openWork }: MessageViewProps & { item: 
         </Fold>
       ) : null}
       {stream ? <View testID={`body-${m.messageId}`} style={st.body}><StreamText store={stream} /></View> : m.body ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={blocks ?? []} /></View> : null}
-      {collect(cards, (b) => <Card key={b.id} line={cardLine(b)} actions={actions} />)}
+      {collect(cards, (b) => {
+        if (isProposal(b)) return <AgentFileProposal key={b.id} block={b} host={actions.host} />;
+        if (isPlanFile(b)) return <PlanFileCard key={b.id} block={b} onOpen={(id) => actions.openBeside("file", id)} />;
+        if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
+        return <Card key={b.id} line={cardLine(b)} actions={actions} />;
+      })}
       {collect(errors, (b) => <ErrorRowView key={b.id} block={b} actions={actions} />)}
       <Reactions m={m} a={actions} mine={false} />
       {m.pinned ? <Text testID={`pinned-${m.messageId}`} style={st.edited}>pinned</Text> : null}
@@ -273,6 +285,8 @@ export const st = StyleSheet.create({
   eventText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
   eventTime: { fontSize: 11.5, color: "var(--ink-4)" as string },
   gapTop: { marginTop: 18 },
+  found: { backgroundColor: "var(--accent-wash)" as string, borderRadius: 8 },
+  foundActive: { backgroundColor: "var(--accent-wash)" as string, borderRadius: 8, boxShadow: "inset 0 0 0 1px var(--accent)" } as object,
   me: { alignItems: "flex-end", paddingVertical: 2, marginTop: 4, position: "relative" },
   when: { position: "absolute", left: 0, top: 10, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
   whenLeft: { position: "absolute", left: -44, top: 4, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },

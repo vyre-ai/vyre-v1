@@ -60,7 +60,7 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
       m("d1", docs, "The engagement letter for Elena Rivera is drafted from the standard template with the consult fee filled in.", at(8, 50), {
         blocks: [step("s1", "Used the standard engagement letter", "templates/engagement-letter.docx", 22), card("b1", "file", { name: "rivera-engagement-letter.docx", sub: "Word · 38 KB", id: "doc1" }, "done")],
       }),
-      m("d2", docs, "", at(8, 50, 30), { blocks: [card("b2", "changeset", { title: "Review the Rivera engagement letter", sub: "Needs your review · 1 file", id: "cs2" }, "waiting")] }),
+      m("d2", docs, "", at(8, 50, 30), { blocks: [card("b2", "changeset", { changesetId: "chg_cs2", folderName: "Rivera matter", fileCount: 1, added: 38, removed: 0, state: "open" }, "waiting")] }),
     );
   } else {
     messages.push(
@@ -71,10 +71,17 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
       }),
       m("m3", me, "Book 2pm.", at(9, 30)),
       m("m4", intake, "Booked **Tuesday at 2:00** with Maya. Elena gets the invite with the form link, and I'll post in **#intake** when the form comes back.", at(9, 31), {
-        blocks: [step("s4", "Booked Tue 2:00 with Maya", "calendar.book(maya, Tue 14:00)", 3), step("s5", "Updated Elena's record", "Stage → Consult booked", 3), card("b1", "file", { name: "client-intake.pdf", sub: "PDF · 207 KB", id: "pdf1" }, "done")],
+        blocks: [step("s4", "Booked Tue 2:00 with Maya", "calendar.book(maya, Tue 14:00)", 3), step("s5", "Updated Elena's record", "Stage → Consult booked", 3), card("b1", "file", { name: "client-intake.pdf", sub: "PDF · 207 KB", id: "pdf1" }, "done"), card("pl1", "file", { kind: "plan", name: "Rivera onboarding plan", id: "plan1", openComments: 1 }, "done")],
       }),
       m("m5", intake, "Maya's calendar blocks Thursday mornings, and I offered Thursday 10:00 earlier. I'd like to change my instructions so it doesn't happen again.", at(9, 34), {
-        blocks: [card("b2", "changeset", { title: "Intake wants to change its instructions", sub: "1 file · AGENT.md", id: "cs1" }, "waiting")],
+        blocks: [card("b2", "changeset", {
+          changesetId: "chg_cs1", file: "AGENT.md", agent: "Intake", lines: 93, owner: "Maya Chen",
+          why: "Maya's calendar blocks Thursday mornings for client visits, and I offered Thursday 10:00 earlier this week. I would like to stop offering it.",
+          hunks: [
+            { sec: "## How you work", del: "4. Offer three consult times using the booking tool.", add: "4. Offer three consult times using the booking tool. Skip Thursday mornings." },
+            { sec: "## You do not", del: "", add: "- Offer Thursday morning times. Maya blocks them." },
+          ],
+        }, "waiting")],
       }),
     );
   }
@@ -109,8 +116,8 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
     messages.push(
       m("m6", me, "Plan the onboarding for the Rivera matter before you change anything.", at(9, 55)),
       m("m7", intake, "Here is the plan. Nothing changes until you approve it.", at(9, 56), {
-        blocks: [card("p1", "plan", { title: "Rivera onboarding plan", sub: "4 steps", planId: "plan_1", steps: [{ id: "a", text: "Send the engagement letter", done: true }, { id: "b", text: "Collect the retainer", done: false }, { id: "c", text: "Open the matter folder", done: false }, { id: "d", text: "Schedule the kickoff", done: false }] }, "waiting"),
-          card("q1", "question", { q: "Who signs the engagement letter?", options: [{ id: "maya", label: "Maya Chen" }, { id: "omar", label: "Omar Haddad" }] }, "waiting")],
+        blocks: [card("p1", "plan", { title: "Rivera onboarding plan", state: "proposed", threadId: "c1", planId: "plan_1", docFileId: "plan1", steps: [{ stepId: "a", text: "Send the engagement letter", state: "done" }, { stepId: "b", text: "Collect the retainer", state: "pending" }, { stepId: "c", text: "Open the matter folder", state: "pending" }, { stepId: "d", text: "Schedule the kickoff", state: "pending" }] }, "waiting"),
+          card("q1", "question", { prompt: "Who signs the engagement letter?", mode: "single", options: [{ key: "maya", label: "Maya Chen" }, { key: "omar", label: "Omar Haddad" }] }, "waiting")],
       }),
     );
     thread.planMode = true;
@@ -207,6 +214,21 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
       return { ok: true };
     },
     "engine.interrupt": () => ({ ok: true }),
+    "engine.models.list": () => ({ models: [
+      { provider: "anthropic", model: "opus", title: "Opus", driver: "claude_code", allowed: true },
+      { provider: "anthropic", model: "sonnet", title: "Sonnet", driver: "claude_code", allowed: true },
+      { provider: "anthropic", model: "haiku", title: "Haiku", driver: "claude_code", allowed: true },
+      { provider: "local", model: "llama-3.3", title: "Llama 3.3 on this computer", driver: "local", allowed: true },
+    ] }),
+    "engine.set_model": (i: { agentId?: string; model: string; provider: string }) => {
+      const cur = threadRow();
+      setThread({ agents: cur.agents.map((a) => (a.agentId === i.agentId ? { ...a, model: i.model } : a)) });
+      return { model: i.model, provider: i.provider };
+    },
+    "changesets.approve": () => ({ approved: true }),
+    "changesets.discard": () => ({ discarded: true }),
+    "changesets.request_changes": () => ({ sent: 1 }),
+    "chat.plan.reject": () => ({ ok: true }),
     "engine.stop": (i: { agentId?: string }) => { finishLive(i.agentId); return { stopped: true }; },
     "engine.stop_all": () => { finishLive(); return { stopped: true }; },
     "engine.set_mode": (i: { agentId: string; mode: "lead" | "listen" }) => {

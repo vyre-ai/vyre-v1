@@ -8,8 +8,9 @@ import { MessageView } from "./MessageView.tsx";
 import * as act from "./actions.ts";
 import {
   WINDOW, beforeCursor, byOrder, dayLabel, faces, lastMessages, leadOf, mentionsIn, mergePages, pendingMessage, queueNote, queuedCount, respondersFor, sendKind, stillPending, stopLabel,
-  swapNeeded, timeline, whoLine, workOf, workingAgents, bodyBlocks,
+  swapNeeded, timeline, whoLine, workOf, workingAgents, bodyBlocks, findMatches, matchLine, modelLabel, participants, placeholderFor, summarizeOpen, CHAT_OPEN_BUDGET_MS,
 } from "./model.ts";
+import { changeCount, editedNote, isPlanFile, isProposal, planFileLine, proposalActs, proposalData } from "./proposal.tsx";
 import type { Message, Pending, Thread } from "./model.ts";
 import { DIRECTORY, SAMPLE_NOW, createSample } from "./sample.ts";
 import type { Sample, Variant } from "./sample.ts";
@@ -27,8 +28,8 @@ const ctx = (s: Sample) => ({ meId: "usr_irfad", nameOf: s.data.nameOf, kindOf: 
 test("the page reads: header with title and faces, your bubbles, Intake's folded work, cards, the composer line", () => {
   const out = html(createSample("idle"));
   inOrder(out, ['data-testid="conversation-head"', 'data-testid="conversation-title"', 'data-testid="conversation-faces"', "New client: Elena Rivera", "Intake is on it", "Worked for 14s, 3 steps", "Tuesday has two openings", "Book 2pm.", "Worked for 6s, 2 steps", 'data-testid="composer"']);
-  assert.ok(has(out, "client-intake.pdf") && has(out, "Intake wants to change its instructions"));
-  assert.ok(has(out, "Intake will reply") && has(out, "Message Intake"));
+  assert.ok(has(out, "client-intake.pdf") && has(out, 'data-testid="proposal-b2"'));
+  assert.ok(has(out, "Intake will reply") && has(out, "Message Intake…"));
 });
 
 test("faces carry mode marks: Intake leads, Docs listens, and each face opens its mode menu", () => {
@@ -183,7 +184,7 @@ test("an error is one inline row: what, why, next, What happened, Copy trace id;
   const out = html(s);
   assert.ok(has(out, "Docs did not read fee-schedule.csv") && has(out, "Restricted data only goes to a model on your computer."));
   for (const t of ["Switch to Llama 3.3 on this computer", "Ask for access", "Retry", "What happened?", "Copy trace id"]) assert.ok(has(out, t), t);
-  assert.ok(has(out, "Review the Rivera engagement letter") && has(out, "Rivera engagement letter"));
+  assert.ok(has(out, "Changed 1 file in Rivera matter") && has(out, "Review changes") && has(out, "Rivera engagement letter"));
   await act.retryTurn(s.data, "turn_9").catch(() => undefined);
   assert.equal(s.calls[0]!.cap, "engine.turn.retry");
 });
@@ -191,13 +192,13 @@ test("an error is one inline row: what, why, next, What happened, Copy trace id;
 test("cards: a plan waits for approval and a question waits for an answer; both write", async () => {
   const s = createSample("plan");
   const out = html(s);
-  assert.ok(has(out, "Rivera onboarding plan") && has(out, 'data-testid="plan-approve-p1"') && has(out, "Send the engagement letter"));
-  assert.ok(has(out, "Who signs the engagement letter?") && has(out, 'data-testid="option-q1-maya"') && has(out, 'data-testid="option-q1-omar"'));
+  assert.ok(has(out, "Rivera onboarding plan") && has(out, 'data-testid="blk-plan-p1-approve"') && has(out, "Send the engagement letter"));
+  assert.ok(has(out, "Who signs the engagement letter?") && has(out, "Maya Chen") && has(out, "Omar Haddad"));
   await act.answerBlock(s.data, "q1", "maya");
   await act.approvePlan(s.data, "plan_1");
   await act.setPlanMode(s.data, false);
   assert.deepEqual(s.calls.map((c) => c.cap), ["chat.answer_block", "chat.approve_plan", "threads.set_plan_mode"]);
-  assert.ok(has(html(s), "Answered: maya"));
+  assert.ok(has(html(s), "You answered: maya"), "the shared question card shows the answer that was written");
 });
 
 test("message writes: edit, pin, react, thread and delete go through their capabilities and change the page", async () => {
@@ -235,4 +236,97 @@ test("work folds, day labels and timeline grouping", () => {
 const noActions = {
   copy: () => undefined, edit: () => undefined, setPinned: () => undefined, react: () => undefined, openThread: () => undefined, remove: () => undefined, openAgent: () => undefined, openBeside: () => undefined,
   answer: () => undefined, approvePlan: () => undefined, retryTurn: () => undefined, errorNext: () => undefined, retrySend: () => undefined, discardSend: () => undefined, showMenu: () => undefined,
+  host: { invoke: () => undefined, open: () => undefined },
 };
+
+/* ---------- the lead's review (changes requested): the proposal inline, the plan card, the header, the composer ---------- */
+
+test("the AGENT.md proposal is inline: the diff with Accept, Edit and Reject, not a collapsed card", () => {
+  const s = createSample("idle");
+  const out = html(s);
+  const block = msgs(s).find((m) => m.messageId === "m5")!.blocks[0]!;
+  assert.ok(isProposal(block));
+  inOrder(out, ['data-testid="proposal-b2"', "proposed by Intake", "2 changes", "Maya's calendar blocks Thursday mornings", "## How you work", "4. Offer three consult times using the booking tool.", "Skip Thursday mornings.", "## You do not", "Offer Thursday morning times", 'data-testid="proposal-b2-accept"', 'data-testid="proposal-b2-edit-open"', 'data-testid="proposal-b2-reject"']);
+  assert.ok(has(out, "Accept") && has(out, "Edit") && has(out, "Reject"));
+  assert.ok(!has(out, "Intake wants to change its instructions"), "no collapsed card");
+  assert.equal(changeCount(1), "1 change");
+});
+
+test("Accept and Reject are the changeset capabilities; an edit goes back as a request with the lines; a person who may not accept suggests", async () => {
+  const s = createSample("idle");
+  const d = proposalData(msgs(s).find((m) => m.messageId === "m5")!.blocks[0]!.data);
+  const host = { invoke: (cap: string, input: Record<string, unknown>) => s.data.call(cap, input), open: () => undefined };
+  const acts = proposalActs(host, d, "b2");
+  await acts.accept();
+  await acts.reject();
+  await acts.sendEdited(["4. Offer three times. Never Thursday mornings.", "  "]);
+  await acts.suggest();
+  assert.deepEqual(s.calls.map((c) => c.cap), ["changesets.approve", "changesets.discard", "changesets.request_changes", "changesets.request_changes"]);
+  const approve = s.calls[0]!.input as { changesetId: string; idempotencyKey: string };
+  assert.equal(approve.changesetId, "chg_cs1");
+  assert.ok(approve.idempotencyKey.startsWith("idem_b2_approve_"));
+  assert.equal((s.calls[2]!.input as { note: string }).note, editedNote("AGENT.md", ["4. Offer three times. Never Thursday mornings."]));
+  assert.ok((s.calls[3]!.input as { note: string }).note.startsWith("Suggested to Maya Chen: "));
+});
+
+test("the plan card is on the page: name, open comments, click to open beside the chat", () => {
+  const s = createSample("idle");
+  const out = html(s);
+  const block = msgs(s).find((m) => m.messageId === "m4")!.blocks.find((b) => b.id === "pl1")!;
+  assert.ok(isPlanFile(block));
+  inOrder(out, ["client-intake.pdf", 'data-testid="plancard-pl1"', "Rivera onboarding plan", "Plan · 1 open comment · click to open beside the chat"]);
+  assert.equal(planFileLine(2), "Plan · 2 open comments · click to open beside the chat");
+});
+
+test("the header has the agent chip with a face and mode mark, the participants count, search and the pane", () => {
+  const s = createSample("idle");
+  const out = html(s);
+  inOrder(out, ['data-testid="conversation-title"', 'data-testid="face-agt_intake"', ">Intake<", 'data-testid="participants-button"', 'data-testid="find-button"', 'data-testid="pane-button"', 'data-testid="more-button"']);
+  assert.ok(has(out, "3 in this thread"));
+  assert.deepEqual(participants(thread(s), s.data.nameOf).map((p) => [p.name, p.role]), [["You", "Person"], ["Intake", "Leads"], ["Docs", "Listening"]]);
+});
+
+test("find in chat: matches are ignoring case and accents, counted, and stepped", () => {
+  const s = createSample("idle");
+  const all = msgs(s);
+  assert.deepEqual(findMatches(all, "tuesday"), ["m2", "m4"]);
+  assert.deepEqual(findMatches(all, "  "), []);
+  assert.deepEqual(findMatches(all, "zzz"), []);
+  assert.equal(matchLine(2, 0, "tuesday"), "1 of 2");
+  assert.equal(matchLine(0, 0, "zzz"), "No matches");
+  assert.equal(matchLine(0, 0, ""), "");
+  assert.deepEqual(findMatches([{ ...all[0]!, body: "Café Rivera" }], "cafe"), ["m1"]);
+});
+
+test("the composer has the model chip (Opus) and the computer button; its placeholder names who answers", () => {
+  const s = createSample("idle");
+  const out = html(s);
+  assert.ok(has(out, 'data-testid="model-chip"') && has(out, "Model: Opus") && has(out, 'data-testid="computer-button"') && has(out, "Intake's computer"));
+  assert.ok(has(out, "Message Intake…"));
+  assert.equal(modelLabel("opus"), "Opus");
+  assert.equal(placeholderFor(thread(s), s.data.nameOf, true), "Queue a message for when Intake finishes…");
+  assert.ok(!has(html(createSample("nolead")), 'data-testid="model-chip"'));
+});
+
+test("switching the model lists the allowed models and sets the lead's model; the header and composer follow", async () => {
+  const s = createSample("idle");
+  const models = await act.listModels(s.data);
+  assert.deepEqual(models.map((m) => m.title), ["Opus", "Sonnet", "Haiku", "Llama 3.3 on this computer"]);
+  await act.setModel(s.data, "agt_intake", models[1]!);
+  assert.deepEqual(s.calls.map((c) => c.cap), ["engine.models.list", "engine.set_model"]);
+  assert.deepEqual(s.calls[1]!.input, { threadId: "c1", agentId: "agt_intake", provider: "anthropic", model: "sonnet" });
+  assert.ok(has(html(s), "Model: Sonnet"));
+});
+
+test("the browser chat-open probe: one warm-up discarded, the median of five against the unchanged 100 ms budget, the worst printed, exactly 50 messages", () => {
+  assert.equal(CHAT_OPEN_BUDGET_MS, 100);
+  const ok = summarizeOpen([40, 90, 55, 61, 48], 50);
+  assert.equal(ok.median, 55);
+  assert.equal(ok.worst, 90);
+  assert.equal(ok.ok, true, "a worst run over the median does not fail the median");
+  assert.equal(summarizeOpen([120, 130, 110, 140, 125], 50).ok, false, "median over the budget fails");
+  assert.equal(summarizeOpen([40, 41, 42, 43, 44], 49).ok, false, "not the last 50 messages");
+  assert.equal(summarizeOpen([40, 41, 42, 43, 44], 51).ok, false, "not the last 50 messages");
+  assert.equal(summarizeOpen([40, 41, 42], 50).ok, false, "fewer than five counted runs");
+  assert.equal(summarizeOpen([], 50).ok, false);
+});

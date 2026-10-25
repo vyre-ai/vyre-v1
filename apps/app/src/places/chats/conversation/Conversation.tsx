@@ -4,7 +4,7 @@
 // send queues for its next step and Interrupt sends it now.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { Composer } from "../../../../../../ui/src/Composer/index.tsx";
 import type { ComposerSend } from "../../../../../../ui/src/Composer/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -12,15 +12,16 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { Feed, SkeletonMessage } from "../../../../../../ui/src/stream/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import type { BlockHost } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import { Face } from "../needsyou/parts.tsx";
 import { ConversationDataProvider, useConversationData, useOnline, useOptionalConversationData, useScreenQuery } from "./data.tsx";
 import type { ConversationData } from "./data.tsx";
 import * as act from "./actions.ts";
 import { MessageView } from "./MessageView.tsx";
 import type { MessageActions } from "./MessageView.tsx";
-import { FaceButton, Glyph, IconButton, TextButton } from "./parts.tsx";
+import { FaceButton, Glyph, IconButton, TextButton, anchorOf } from "./parts.tsx";
 import {
-  WINDOW, beforeCursor, collect, faces, isClosed, lastMessages, leadOf, mentionsIn, mergePages, modeTitle, pendingMessage, placeholderFor, queueNote, queuedCount, sendKind, stillPending, stopLabel, swapNeeded,
+  WINDOW, beforeCursor, collect, faces, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, sendKind, stillPending, stopLabel, swapNeeded,
   threadKindNote, timeline, titleOf, whoLine, workingAgents,
 } from "./model.ts";
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
@@ -71,6 +72,21 @@ function ConversationView(): ReactElement {
   const [typed, setTyped] = useState("");
   const [atEnd, setAtEnd] = useState(true);
   const [jump, setJump] = useState(0);
+  const [finding, setFinding] = useState(false);
+  const [query, setQuery] = useState("");
+  const [matchAt, setMatchAt] = useState(0);
+  const narrow = useWindowDimensions().width < 640;
+
+  /* Cmd/Ctrl+F opens find in chat, as in the prototype; Escape closes it. */
+  useEffect(() => {
+    if (Platform.OS !== "web") return undefined;
+    const g = globalThis as unknown as { addEventListener?: (t: string, f: (e: { key: string; metaKey?: boolean; ctrlKey?: boolean; preventDefault: () => void }) => void) => void; removeEventListener?: (t: string, f: unknown) => void };
+    const onKey = (e: { key: string; metaKey?: boolean; ctrlKey?: boolean; preventDefault: () => void }): void => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") { e.preventDefault(); setFinding(true); }
+    };
+    g.addEventListener?.("keydown", onKey);
+    return () => g.removeEventListener?.("keydown", onKey);
+  }, []);
 
   const say = useCallback((text: string) => { setLine(text); }, []);
   /** A rejected write: say what did not happen and that it can be tried again. The page keeps what it showed. */
@@ -106,6 +122,8 @@ function ConversationView(): ReactElement {
     run(p);
   };
 
+  const matches = finding ? findMatches(win.rows, query) : [];
+  const activeId = matches.length > 0 ? matches[Math.min(matchAt, matches.length - 1)] : undefined;
   const timelineMessages = [...win.rows, ...collect(stillPending(pending, win.rows), (p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i))];
   const pendingState = new Map<string, "sending" | "failed">();
   for (const p of stillPending(pending, win.rows)) pendingState.set(`pending:${p.key}`, p.state);
@@ -117,6 +135,8 @@ function ConversationView(): ReactElement {
 
   /* ---------- menus: all open under the button that asked ---------- */
   const faceList = faces(thread, nameOf, working);
+  const leadFace = faceList.find((f) => f.mode === "lead") ?? faceList[0];
+  const otherFaces = faceList.filter((f) => f !== leadFace);
   const modeMenu = (f: FaceModel, x: number, y: number): void => {
     const items: MenuEntry[] = [
       { head: f.name },
@@ -168,6 +188,23 @@ function ConversationView(): ReactElement {
       x, y, "other", { label: "Helpers" },
     );
   };
+  const peopleMenu = (x: number, y: number): void => {
+    const list = participants(thread, nameOf);
+    menu.show(
+      [{ head: `${list.length} in this thread` } as MenuEntry, ...collect(list, (p): MenuEntry => ({ label: `${p.name} · ${p.role}`, onSelect: () => { if (p.kind === "agent") data.nav.openAgent(p.id); } }))],
+      x, y, "other", { label: "People in this thread" },
+    );
+  };
+  const modelMenu = (x: number, y: number): void => {
+    if (!lead) return;
+    void act.listModels(data).then(
+      (models) => menu.show(
+        [{ head: `Model for ${nameOf(lead.agentId)}` } as MenuEntry, ...collect(models, (m): MenuEntry => ({ label: m.title, checked: modelLabel(lead.model ?? "") === m.title, onSelect: () => { if (!m.allowed) { say(`${m.title} is not allowed here. Ask an admin for access.`); return; } void act.setModel(data, lead.agentId, m).then(() => say(`${nameOf(lead.agentId)} now answers with ${m.title}`), fail("Could not switch the model.")); } }))],
+        x, y, "other", { label: "Model" },
+      ),
+      fail("Could not list the models."),
+    );
+  };
   const moreMenu = (x: number, y: number): void => {
     const items: MenuEntry[] = [
       { label: "Plan Mode", checked: thread.planMode, onSelect: () => void act.setPlanMode(data, !thread.planMode).then(() => say(thread.planMode ? "Plan mode is off" : "Plan mode is on: the agent plans and changes nothing until you approve"), fail("Could not change plan mode.")) },
@@ -178,7 +215,12 @@ function ConversationView(): ReactElement {
   };
 
   /* ---------- the message actions, one object for every row ---------- */
+  const host: BlockHost = {
+    invoke: (cap, input) => data.call(cap, input),
+    open: (tab, input) => { const id = Object.values(input).find((v): v is string => typeof v === "string"); data.nav.openBeside(tab, id ?? ""); },
+  };
   const actions: MessageActions = {
+    host,
     copy: (t) => { data.copy(t); say("Copied"); },
     edit: (id, body) => void act.editMessage(data, id, body).catch(fail("Could not save the edit.")),
     setPinned: (id, pinned) => void act.setPinned(data, id, pinned).catch(fail("Could not pin it.")),
@@ -208,18 +250,40 @@ function ConversationView(): ReactElement {
     <View testID="conversation" accessibilityLabel={`Conversation, ${title}`} style={st.root}>
       <View testID="conversation-head" accessibilityRole="header" style={st.head}>
         <Text numberOfLines={1} testID="conversation-title" style={st.title}>{title}</Text>
+        {leadFace ? <FaceButton key={leadFace.agentId} name={leadFace.name} mode={leadFace.mode} working={leadFace.working} title={modeTitle(leadFace)} testID={`face-${leadFace.agentId}`} label={leadFace.name} size={20} onPress={(x, y) => modeMenu(leadFace, x, y)} /> : null}
         <View testID="conversation-faces" accessibilityRole="toolbar" accessibilityLabel="Agents in this thread" style={st.faces}>
-          {collect(faceList, (f) => <FaceButton key={f.agentId} name={f.name} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
-          <IconButton icon="plus" label="Add an agent" size={24} testID="add-agent" onPress={addMenu} />
+          {collect(narrow ? [] : otherFaces, (f) => <FaceButton key={f.agentId} name={f.name} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
+          {narrow ? null : <IconButton icon="plus" label="Add an agent" size={24} testID="add-agent" onPress={addMenu} />}
         </View>
-        {isWorking ? <View testID="conversation-live" style={st.live}><View style={st.liveDot} /><Text style={st.liveText}>Working</Text></View> : null}
+        {isWorking ? <View testID="conversation-live" style={st.live}><View style={st.liveDot} />{narrow ? null : <Text style={st.liveText}>Working</Text>}</View> : null}
         <View style={{ flex: 1 }} />
         {online ? null : <Text testID="conversation-offline" style={st.meta}>Offline</Text>}
         {helpers.length > 0 ? <IconButton icon="helper" label={`${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running`} badge={helpers.length} testID="helpers-button" onPress={helpersMenu} /> : null}
         {isWorking ? <IconButton icon="stop" label={stopLabel(working, nameOf)} danger testID="stop-button" onPress={stopMenu} /> : null}
+        <IconButton icon="people" label={`${thread.members.length} in this thread`} badge={thread.members.length} testID="participants-button" onPress={peopleMenu} />
+        <IconButton icon="search" label="Find in chat" active={finding} testID="find-button" onPress={() => setFinding((f) => !f)} />
         <IconButton icon="pane" label="Show or hide the pane" testID="pane-button" onPress={() => data.nav.togglePane()} />
         <IconButton icon="more" label="More" testID="more-button" onPress={moreMenu} />
       </View>
+      {finding ? (
+        <View testID="find-bar" accessibilityRole="search" style={st.find}>
+          <Glyph name="search" size={14} color="var(--ink-3)" />
+          <TextInput
+            autoFocus testID="find-input" accessibilityLabel="Find in chat" placeholder="Find in this chat" placeholderTextColor="var(--ink-4)" value={query}
+            onChangeText={(t) => { setQuery(t); setMatchAt(0); }}
+            onKeyPress={(e) => {
+              const k = (e as unknown as { nativeEvent: { key: string; shiftKey?: boolean } }).nativeEvent;
+              if (k.key === "Escape") { setFinding(false); setQuery(""); }
+              else if (k.key === "Enter" && matches.length > 0) setMatchAt((i) => (k.shiftKey ? (i - 1 + matches.length) % matches.length : (i + 1) % matches.length));
+            }}
+            style={st.findInput}
+          />
+          <Text testID="find-count" accessibilityLiveRegion="polite" style={st.meta}>{matchLine(matches.length, Math.min(matchAt, Math.max(0, matches.length - 1)), query)}</Text>
+          <IconButton icon="up" label="Previous match" size={24} testID="find-prev" onPress={() => matches.length > 0 && setMatchAt((i) => (i - 1 + matches.length) % matches.length)} />
+          <IconButton icon="chevd" label="Next match" size={24} testID="find-next" onPress={() => matches.length > 0 && setMatchAt((i) => (i + 1) % matches.length)} />
+          <IconButton icon="x" label="Close find" size={24} testID="find-close" onPress={() => { setFinding(false); setQuery(""); }} />
+        </View>
+      ) : null}
       {note ? <Text testID="conversation-note" style={st.noteLine}>{note}</Text> : null}
 
       <View style={st.feedBox}>
@@ -235,7 +299,7 @@ function ConversationView(): ReactElement {
               const key = it.key;
               const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;
               const sending = it.kind === "me" ? pendingState.get(it.message.messageId) : undefined;
-              return <MessageView key={key} item={it} actions={actions} meId={data.me.id} stream={stream} sending={sending} />;
+              return <MessageView key={key} item={it} actions={actions} meId={data.me.id} stream={stream} sending={sending} mark={markOf(it, matches, activeId)} />;
             })}
           </View>
         </Feed>
@@ -245,6 +309,7 @@ function ConversationView(): ReactElement {
           </Pressable>
         )}
       </View>
+      {activeId ? <ScrollToMessage key={`${activeId}:${matchAt}`} id={activeId} /> : null}
       {cursor !== null ? <OlderPage key={cursor} before={cursor} onPage={(page) => { setOlder((cur) => mergePages(cur, page.messages)); setOlderMore(page.hasMore); setShown((n) => n + WINDOW); setCursor(null); }} /> : null}
 
       {q ? <Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>{q}</Text> : null}
@@ -261,7 +326,8 @@ function ConversationView(): ReactElement {
       ) : (
         <View style={st.composerBox}>
           <Composer
-            testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={placeholderFor(thread, nameOf)} working={isWorking}
+            testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={placeholderFor(thread, nameOf, isWorking)} working={isWorking}
+            {...(lead ? { whoExtra: <ModelChip label={modelLabel(lead.model ?? "")} onPress={modelMenu} />, barExtra: <IconButton icon="monitor" label={`${nameOf(lead.agentId)}'s computer`} size={26} testID="computer-button" onPress={() => data.nav.openBeside("computer", lead.agentId)} /> } : {})}
             {...(lead ? { lead: nameOf(lead.agentId) } : {})} listening={collect(thread.agents.filter((a) => a.mode === "listen"), (a) => nameOf(a.agentId))}
             lists={data.lists} agentChat={thread.kind !== "channel"} onChange={setTyped}
             onSubmit={(p) => submit(p, "queue")} onInterrupt={(p) => submit(p, "interrupt")}
@@ -274,6 +340,22 @@ function ConversationView(): ReactElement {
   );
 }
 
+/** Brings the match the person is on into view. A web page scrolls its element; a phone's list follows its own rules. */
+function ScrollToMessage({ id }: { id: string }): null {
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const doc = (globalThis as unknown as { document?: { querySelector(s: string): { scrollIntoView?: (o: object) => void } | null } }).document;
+    doc?.querySelector(`[data-testid="msg-${id}"]`)?.scrollIntoView?.({ block: "center" });
+  }, [id]);
+  return null;
+}
+
+const markOf = (it: { kind: string; message?: { messageId: string } }, matches: readonly string[], active: string | undefined): "match" | "active" | undefined => {
+  const id = it.message?.messageId;
+  if (id === undefined || !matches.includes(id)) return undefined;
+  return id === active ? "active" : "match";
+};
+
 /** One page of older messages from the kept copy, read as a live query so it paints from the device and fills in as more arrives. */
 function OlderPage({ before, onPage }: { before: number; onPage: (page: MessagesOut) => void }): ReactElement | null {
   const data = useConversationData();
@@ -285,11 +367,25 @@ function OlderPage({ before, onPage }: { before: number; onPage: (page: Messages
   return null;
 }
 
+/** The model the lead answers with: its name and a chevron; a press opens the list under it. */
+function ModelChip({ label, onPress }: { label: string; onPress: (x: number, y: number) => void }): ReactElement {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={`Model: ${label}`} testID="model-chip" onPress={(e) => { const p = anchorOf(e); onPress(p.x, p.y); }} style={st.model}>
+      <Text style={st.modelText}>{label}</Text>
+      <Glyph name="chevd" size={11} color="var(--ink-3)" />
+    </Pressable>
+  );
+}
+
 const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   head: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
-  title: { flexShrink: 1, maxWidth: 320, fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },
-  faces: { flexDirection: "row", alignItems: "center", gap: 2 },
+  title: { flexShrink: 1, minWidth: 40, maxWidth: 320, fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },
+  faces: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
+  find: { height: 40, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  findInput: { flex: 1, minWidth: 0, height: 28, fontSize: 13.5, color: "var(--ink)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
+  model: { height: 22, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 6, borderRadius: 6 },
+  modelText: { fontSize: 12, fontWeight: "500", color: "var(--ink-2)" as string },
   live: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 6 },
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string },
   liveText: { fontSize: 12, color: "var(--ink-2)" as string },

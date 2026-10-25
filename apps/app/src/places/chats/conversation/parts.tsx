@@ -27,6 +27,11 @@ const PATHS = {
   term: ["M2.500 3.500h11v9h-11z", "M5 7l2 1.500L5 10", "M8.500 10.500h2.500"],
   plan: ["M3.500 2.500h9v11h-9z", "M5.500 6h5M5.500 8.500h5M5.500 11h3"],
   x: ["M4 4l8 8M12 4l-8 8"],
+  search: ["M7 11.500a4.500 4.500 0 100-9 4.500 4.500 0 000 9z", "M10.300 10.300L13.500 13.500"],
+  people: ["M6 7.500a2.300 2.300 0 100-4.600 2.300 2.300 0 000 4.600z", "M1.800 13c0-2.300 1.900-4 4.200-4s4.200 1.700 4.200 4", "M10.500 3.300a2.100 2.100 0 010 4", "M11.500 9.200c1.600.4 2.700 1.700 2.700 3.800"],
+  monitor: ["M2.500 3h11v7.500h-11z", "M6 13h4", "M8 10.500V13"],
+  chevd: ["M4 6l4 4 4-4"],
+  up: ["M8 12.500V3", "M4 7l4-4 4 4"],
 } as const;
 export type GlyphName = keyof typeof PATHS;
 
@@ -67,17 +72,20 @@ export function IconButton({ icon, label, onPress, active = false, danger = fals
 }
 
 /** A face with its mode mark: a filled dot for the agent that leads, a ring for one that listens. A press opens that agent's mode menu. */
-export function FaceButton({ name, mode, working, onPress, title, testID, size = 24 }: { name: string; mode: "lead" | "listen"; working: boolean; onPress: (x: number, y: number) => void; title: string; testID: string; size?: number }): ReactElement {
+export function FaceButton({ name, mode, working, onPress, title, testID, size = 24, label }: { name: string; mode: "lead" | "listen"; working: boolean; onPress: (x: number, y: number) => void; title: string; testID: string; size?: number; label?: string }): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Pressable
       accessibilityRole="button" accessibilityLabel={`${name}, ${mode === "lead" ? "leads" : "listening"}`} testID={testID} {...webProps({ title })}
       onPress={(e) => { const p = anchorOf(e); onPress(p.x, p.y); }}
       onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
-      style={[s.faceBtn, over && s.ibOver]}
+      style={[s.faceBtn, label !== undefined && s.faceChip, over && s.ibOver]}
     >
-      <Face name={name} size={size} />
-      <View testID={`mark-${mode}`} style={[s.mark, mode === "lead" ? s.markLead : s.markListen, working && s.markWorking]} />
+      <View style={s.faceBox}>
+        <Face name={name} size={size} />
+        <View testID={`mark-${mode}`} style={[s.mark, mode === "lead" ? s.markLead : s.markListen, working && s.markWorking]} />
+      </View>
+      {label !== undefined ? <Text numberOfLines={1} style={s.chipText}>{label}</Text> : null}
     </Pressable>
   );
 }
@@ -114,6 +122,9 @@ export const s = StyleSheet.create({
   ibOver: { backgroundColor: "var(--press)" as string },
   badge: { marginLeft: 3, fontSize: 11, fontWeight: "600", color: "var(--ink-2)" as string },
   faceBtn: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  faceChip: { width: undefined, flexShrink: 1, flexDirection: "row", gap: 6, paddingLeft: 2, paddingRight: 8 } as object,
+  faceBox: { position: "relative" },
+  chipText: { flexShrink: 1, fontSize: 13, color: "var(--ink-2)" as string },
   mark: { position: "absolute", right: 1, bottom: 1, width: 9, height: 9, borderRadius: 5, borderWidth: 2, borderColor: "var(--win)" as string },
   markLead: { backgroundColor: "var(--accent)" as string },
   markListen: { backgroundColor: "var(--win)" as string, borderColor: "var(--ink-4)" as string },

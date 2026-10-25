@@ -347,10 +347,44 @@ export function whoLine(t: Thread, nameOf: (id: string) => string): string {
   return lead ? `${nameOf(lead.agentId)} will reply` : "No agent will reply · type @ to ask one";
 }
 
-export function placeholderFor(t: Thread, nameOf: (id: string) => string): string {
+export function placeholderFor(t: Thread, nameOf: (id: string) => string, working = false): string {
   const lead = leadOf(t);
-  if (lead) return `Message ${nameOf(lead.agentId)}`;
-  return t.kind === "channel" ? `Message ${titleOf(t, nameOf)}` : "Message";
+  if (lead && working) return `Queue a message for when ${nameOf(lead.agentId)} finishes…`;
+  if (lead) return `Message ${nameOf(lead.agentId)}…`;
+  return t.kind === "channel" ? `Message ${titleOf(t, nameOf)}…` : "Message…";
+}
+
+/** The model as people say it: "opus" is Opus. Unknown ids print as they are, capitalised. */
+export function modelLabel(model: string): string {
+  if (model === "") return "Model";
+  return model.charAt(0).toUpperCase() + model.slice(1);
+}
+
+/** Find in chat: ids of the messages whose text contains the query, oldest first. Case and accents are ignored. */
+export function findMatches(messages: readonly Message[], query: string): string[] {
+  const q = fold(query.trim());
+  if (q === "") return [];
+  return collect(messages.filter((m) => !isEvent(m) && fold(m.body).includes(q)), (m) => m.messageId);
+}
+
+const fold = (s: string): string => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/** "2 of 5" while stepping through matches, "No matches" when there are none. */
+export function matchLine(n: number, at: number, query: string): string {
+  if (query.trim() === "") return "";
+  return n === 0 ? "No matches" : `${at + 1} of ${n}`;
+}
+
+export interface Participant { id: string; name: string; kind: "person" | "agent"; role: string }
+
+/** Everyone in the thread for the participants menu: people first, then agents with their mode. */
+export function participants(t: Thread, nameOf: (id: string) => string): Participant[] {
+  const out: Participant[] = [];
+  for (const m of t.members) {
+    if (m.kind === "person") out.push({ id: m.id, name: nameOf(m.id), kind: "person", role: "Person" });
+  }
+  for (const a of t.agents) out.push({ id: a.agentId, name: nameOf(a.agentId), kind: "agent", role: a.mode === "lead" ? "Leads" : "Listening" });
+  return out;
 }
 
 /** A thread that has closed takes no messages until it is reopened. */
@@ -362,6 +396,23 @@ export function threadKindNote(t: Thread, nameOf: (id: string) => string): strin
   if (t.kind === "ask") return "Ask pane";
   const starter = t.starter ? nameOf(t.starter) : "";
   return t.kind === "thread" && starter ? `Thread started by ${starter}` : "";
+}
+
+/* ---------- the chat-open budget ---------- */
+
+/** The budget: the last 50 messages of a resumed chat, rendered and laid out, in milliseconds (V1-SPEC speed budgets, chat_open). */
+export const CHAT_OPEN_BUDGET_MS = 100;
+/** Runs that count: one warm-up run is discarded before them (ruling 43). */
+export const OPEN_RUNS = 5;
+
+export interface OpenResult { runs: number[]; median: number; worst: number; budget: number; ok: boolean; messages: number }
+
+/** Median of the counted runs, the worst run, and whether the median is inside the budget with exactly the last 50 messages on the page. */
+export function summarizeOpen(runs: readonly number[], messages: number, budget = CHAT_OPEN_BUDGET_MS): OpenResult {
+  const sorted = [...runs].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)] ?? Number.POSITIVE_INFINITY;
+  const worst = sorted[sorted.length - 1] ?? Number.POSITIVE_INFINITY;
+  return { runs: [...runs], median, worst, budget, ok: messages === WINDOW && sorted.length >= OPEN_RUNS && median < budget, messages };
 }
 
 /** Builds a list from a list. Written as a function (not `.map`) so a list of JSX is plainly the composition of its parts. */
