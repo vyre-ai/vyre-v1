@@ -41,6 +41,11 @@ export function fillMerge(text: string, values: Readonly<Record<string, string>>
   return text.replace(/\{\{\s*([\w.]+)\s*(?:\|([^}]*))?\}\}/g, (_m, field: string, fallback?: string) => values?.[field] ?? fallback ?? "");
 }
 
+/** One tag per line, so the HTML mode reads as source. Text between tags is untouched. */
+export function formatHtml(markup: string): string {
+  return markup.replace(/>\s*</g, ">\n<");
+}
+
 export function newBlock(kind: EmailBlockKind, id: string): EmailBlock {
   switch (kind) {
     case "text": return { id, kind, text: "Write something." };
@@ -280,7 +285,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   useEffect(() => { if (props.preview !== undefined) setPreview(props.preview); }, [props.preview]);
 
   const snap = useMemo<EmailSnapshot>(() => ({ subject, previewText, blocks, html, plain }), [subject, previewText, blocks, html, plain]);
-  const compiled = useMemo(() => (mode === "html" && html !== "" ? html : compileEmail(blocks, { mode: "send" })), [mode, html, blocks]);
+  const compiled = useMemo(() => (mode === "html" && html !== "" ? html : formatHtml(compileEmail(blocks, { mode: "send" }))), [mode, html, blocks]);
   const plainText = plain !== "" ? plain : blocksToPlain(blocks);
   const checks = useMemo(() => runChecks({ subject, previewText, html: compiled, plain: plainText }), [subject, previewText, compiled, plainText]);
   const preHtml = useMemo(() => {

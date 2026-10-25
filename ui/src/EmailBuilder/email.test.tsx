@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   EmailBuilder, EMAIL_BLOCK_KINDS, EMAIL_MODES, EMAIL_PREVIEWS, PANE_TABS, PREVIEW_TEXT_LIMIT, SUBJECT_LIMIT,
-  blocksToPlain, splitTokens, canRedo, canUndo, compileEmail, editBlock, fillMerge, focusKey, mergeFieldsOf, mergeToken, moveBlock, newBlock, pushHistory, runChecks, stepHistory,
+  blocksToPlain, formatHtml, splitTokens, canRedo, canUndo, compileEmail, editBlock, fillMerge, focusKey, mergeFieldsOf, mergeToken, moveBlock, newBlock, pushHistory, runChecks, stepHistory,
 } from "./index.tsx";
 import type { EmailBlock, EmailBuilderViewProps, EmailDiff, EmailHistory, EmailSnapshot } from "./index.tsx";
 
@@ -161,4 +161,10 @@ test("Style pane shows the brand with Use brand; Preview pane shows the inbox ro
   assert.ok(pv.includes('data-testid="em-inbox"') && pv.includes('data-testid="em-preview-send"') && pv.includes("Maya Chen") && pv.includes("For Elena Rivera"));
   const ask = renderToStaticMarkup(<EmailBuilder {...base} paneTab="ask" askThread={[{ from: "you", text: "Warmer please" }, { from: "assistant", text: "Done" }]} />);
   assert.ok(ask.includes('data-testid="em-composer"') && ask.includes('data-testid="em-msg-0"') && ask.includes("Warmer please") && ask.includes("Done"));
+});
+
+test("HTML mode shows the compiled email one tag per line", () => {
+  assert.equal(formatHtml("<p>a</p><p>b <b>c</b></p>"), "<p>a</p>\n<p>b <b>c</b></p>");
+  const html = renderToStaticMarkup(<EmailBuilder {...base} mode="html" />);
+  assert.match(html, /<\/p>\n<p/);
 });
