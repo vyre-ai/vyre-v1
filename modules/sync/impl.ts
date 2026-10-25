@@ -6,13 +6,16 @@ import type { AccessSnapshot } from "../../kernel/src/authorize/snapshot.ts";
 import { openRecordStore } from "../../kernel/src/store/records.ts";
 import type { ProjectionHost } from "../../kernel/src/store/projection.ts";
 import type { Store } from "../../kernel/src/store/types.ts";
-import { LABEL_RANKS, ScopeCache, loadCatalog } from "../../sync/src/server/pull/index.ts";
+import { LABEL_RANKS, ScopeCache, deviceRevoked, loadCatalog } from "../../sync/src/server/pull/index.ts";
 import type { Catalog, PullDeps } from "../../sync/src/server/pull/index.ts";
 import { VyreErr } from "../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import type { PushDeps } from "../../sync/src/server/push/index.ts";
 import type { DeviceClass, PullReq, PushReq } from "../../sync/src/protocol.ts";
 import { createPullHandlers, createPushHandlers, toPullCtx } from "./handlers/index.ts";
+import { createPurgeHandlers, purgeDepsOf, toPurgeCtx } from "./handlers/purge.ts";
+import type { LiveHub } from "../../sync/src/live/index.ts";
+import type { BumpInput, ReindexInput } from "../../sync/src/purge/index.ts";
 import type { PullHandlers } from "./handlers/index.ts";
 import { syncChanges } from "./projections.ts";
 
@@ -76,6 +79,11 @@ export function useSync(h: SyncHandle | null): void { shared = h; }
 /** The host gives sync.push what only it can supply: invoke as the person, the epoch, the field clocks, history, conflicts, idempotency. */
 export function setPushDeps(d: PushDeps | null): void { pushDeps = d; }
 
+type Hub = Pick<LiveHub, "purge"> & { purgeDevice?: (person: string, device: string, epoch: number) => number };
+let hub: Hub = { purge: () => 0 };
+/** The host gives the module its live hub, so a purge also closes the sockets it concerns; until then a purge only raises the epoch (the next pull or hello answers purge). */
+export function setLiveHub(h: Hub | null): void { hub = h ?? { purge: () => 0 }; }
+
 function live(): SyncHandle {
   if (!shared) shared = openSync({ access: () => { throw new Error("sync has no access snapshot: the host calls useSync first"); } });
   return shared;
@@ -89,6 +97,10 @@ export const handlers = {
     if (!pushDeps) {
       throw new VyreErr({ code: "internal.unavailable", message: "This server is not taking pushes yet.", retryable: true, traceId: ctx.trace.traceId, next: [{ kind: "retry", label: "Try again in a moment" }] });
     }
-    return createPushHandlers(pushDeps)["sync.push"](toPullCtx(ctx), input);
+    // the host gives push what it knows; a device's own epoch row is in the sync store, so push reads revocation from there
+    return createPushHandlers({ deviceRevoked: (person, device) => deviceRevoked(live().deps.db, person, device), ...pushDeps })["sync.push"](toPullCtx(ctx), input);
   },
+  // admin calls (ARCH 5.7): the devices and access modules invoke them after a revoke, a removal or a label change
+  "sync.epoch.bump": (ctx: SessionCtx, input: BumpInput) => createPurgeHandlers(purgeDepsOf(live(), hub))["sync.epoch.bump"](toPurgeCtx(ctx), input),
+  "sync.acl.reindex": (ctx: SessionCtx, input: ReindexInput) => createPurgeHandlers(purgeDepsOf(live(), hub))["sync.acl.reindex"](toPurgeCtx(ctx), input),
 };

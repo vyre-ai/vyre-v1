@@ -19,5 +19,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "journeys.rules.set": async (ctx) => { throw new VyreErr(notImplemented("journeys.rules.set", ctx.trace)); },
   "journeys.stage_counts": async (ctx) => { throw new VyreErr(notImplemented("journeys.stage_counts", ctx.trace)); },
   "journeys.start": async (ctx) => { throw new VyreErr(notImplemented("journeys.start", ctx.trace)); },
+  "journeys.tasks": async (ctx) => { throw new VyreErr(notImplemented("journeys.tasks", ctx.trace)); },
   "journeys.versions": async (ctx) => { throw new VyreErr(notImplemented("journeys.versions", ctx.trace)); },
 };

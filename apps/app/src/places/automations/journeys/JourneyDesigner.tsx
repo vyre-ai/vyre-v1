@@ -14,12 +14,13 @@ import { each } from "../runs/each.ts";
 import { useConfigExtras } from "../config/data.tsx";
 import { Glyph } from "../config/glyphs.tsx";
 import { useJourney, useDesign } from "./data.ts";
+import { FieldsTab } from "./FieldsTab.tsx";
 import { JourneySettings } from "./JourneySettings.tsx";
 import { SLOTS, initials, addAutomation, addStage, addTask, canDeleteStage, countOf, dueWords, moveStage, moveTask, plural, removeAutomation, removeStage, removeTask, totalOver, totalRecords, updateTask } from "./model.ts";
 import type { Journey, Ref, Stage, StageCounts, Task } from "./model.ts";
 
 export interface Selection { stage: string; task?: string }
-export type DesignerTab = "stages" | "settings";
+export type DesignerTab = "stages" | "fields" | "settings";
 
 export interface JourneyDesignerProps {
   journeyId: string;
@@ -55,6 +56,8 @@ function Body({ journey: j, counts, versions, tab, setTab, sel, choose, canDesig
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set(initialFolded));
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const total = totalRecords(counts), over = totalOver(counts);
+  const fieldsOf = extras.recordFields?.(j.recordType);
+  const fieldCount = (fieldsOf?.inherited.length ?? 0) + (fieldsOf?.own.length ?? 0);
   const stages = useMemo(() => [...j.stages].sort((a, b) => a.order - b.order), [j.stages]);
   const me: Ref = { kind: "person", id: data.me.id };
 
@@ -182,9 +185,9 @@ function Body({ journey: j, counts, versions, tab, setTab, sel, choose, canDesig
         <TextButton label="Open records in Records" icon="records" primary testID="open-records" onPress={() => extras.openRecords?.(j.recordType)} />
         {ask}
       </View>
-      <SubTabs label="Journey" active={tab} onSelect={(k) => setTab(k as DesignerTab)} tabs={[{ key: "stages", label: "Stages", note: String(stages.length) }, ...(canDesign ? [{ key: "settings", label: "Settings" }] : [])]} />
+      <SubTabs label="Journey" active={tab} onSelect={(k) => setTab(k as DesignerTab)} tabs={[{ key: "stages", label: "Stages", note: String(stages.length) }, { key: "fields", label: "Fields", note: String(fieldCount) }, ...(canDesign ? [{ key: "settings", label: "Settings" }] : [])]} />
       <ScrollView style={s.scroll} contentContainerStyle={s.col} keyboardShouldPersistTaps="handled">
-        {tab === "settings" && canDesign ? <JourneySettings journey={j} versions={versions} design={d} /> : (
+        {tab === "settings" && canDesign ? <JourneySettings journey={j} versions={versions} design={d} /> : tab === "fields" ? <FieldsTab recordType={j.recordType} /> : (
           <>
             {funnel}
             <View style={s.stagesHead}>

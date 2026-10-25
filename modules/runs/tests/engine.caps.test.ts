@@ -366,3 +366,5 @@ test("status: healthy when Runs move, degraded when one has stopped moving or th
   assert.equal(s.state, "degraded", "the queued Run has waited too long");
   assert.match(s.detail, /queued/);
 });
+
+// run on the final commit

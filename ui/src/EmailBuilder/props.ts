@@ -13,7 +13,7 @@ export const EMAIL_PREVIEWS = ["desktop", "mobile", "dark"] as const;
 
 export type EmailPreview = (typeof EMAIL_PREVIEWS)[number];
 
-export const EMAIL_BLOCK_KINDS = ["text", "heading", "image", "button", "columns", "divider", "merge", "footer", "html"] as const;
+export const EMAIL_BLOCK_KINDS = ["text", "heading", "image", "button", "columns", "divider", "merge", "footer", "html", "spacer", "social", "saved"] as const;
 
 export type EmailBlockKind = (typeof EMAIL_BLOCK_KINDS)[number];
 
@@ -29,9 +29,19 @@ export interface EmailBlock {
   size?: number;
   /** Text alignment (kinds heading and footer). Default left. */
   align?: EmailAlign;
+  /** Social links (kind social): up to twelve of a known network and a web address. */
+  links?: readonly EmailSocialLink[];
+  /** Id of the saved block this block was dropped from (kind saved); children[0] is the block as it was saved. */
+  savedId?: string;
   /** Footer carries the one-click Unsubscribe and Email preferences links (kind footer). */
   unsub?: boolean;
 }
+
+export const EMAIL_SOCIAL_NETWORKS = ["facebook", "instagram", "linkedin", "x", "youtube", "tiktok", "website"] as const;
+
+export type EmailSocialNetwork = (typeof EMAIL_SOCIAL_NETWORKS)[number];
+
+export interface EmailSocialLink { network: EmailSocialNetwork; url: string }
 
 export const EMAIL_ALIGNS = ["left", "center", "right"] as const;
 
@@ -90,6 +100,20 @@ export function emailBlockHtml(block: EmailBlock): string | null {
       ? `<div style="margin-top:8px"><a href="{{unsubscribe_url}}">Unsubscribe</a> &middot; <a href="{{preferences_url}}">Email preferences</a></div>`
       : "";
     return `<div style="font:400 12px/1.6 sans-serif;text-align:${align}"><div>${text}</div>${links}</div>`;
+  }
+  if (block.kind === "spacer") {
+    const size = block.size !== undefined && block.size >= 4 ? Math.min(200, block.size) : 24;
+    return `<div style="height:${size}px;line-height:${size}px;font-size:0">&nbsp;</div>`;
+  }
+  if (block.kind === "social") {
+    const links = (block.links ?? []).filter((l) => /^(https?:\/\/|mailto:)/i.test(l.url));
+    if (links.length === 0) return "";
+    const a = links.map((l) => `<a href="${escHtml(l.url)}" style="text-decoration:none;margin:0 6px">${escHtml(l.network)}</a>`).join("");
+    return `<div style="font:400 14px/1.6 sans-serif;text-align:${block.align ?? "center"}">${a}</div>`;
+  }
+  if (block.kind === "saved") {
+    const inner = block.children?.[0];
+    return inner && inner.kind !== "saved" ? emailBlockHtml(inner) : "";
   }
   return null;
 }

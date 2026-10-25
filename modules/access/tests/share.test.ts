@@ -398,3 +398,5 @@ test("a reload from the tables gives the same folders, placement and my_access",
   await foldersUnplace(a, { resource: { type: "site", id: "sit_x" } });
   assert.equal(viaOf(r, "usr_b", "sit_x"), undefined);
 });
+
+// run on the final commit of P-CC_28

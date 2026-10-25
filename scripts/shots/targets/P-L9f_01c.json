@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "P-L9f_01c-journey-stages",
+      "route": "/m/P-L9f_01c?tab=stages",
+      "proto": "automations,at:journeys,{skin}",
+      "waitFor": "[data-testid='journey-designer']",
+      "note": "Journeys tab of the sidebar with Client onboarding open: header with the record count and late count, the Stages tab, the records-per-stage bar and the numbered stages with tasks and the automations that run on entering. The prototype side is the same Journey on its Stages tab."
+    },
+    {
+      "id": "P-L9f_01c-journey-fields",
+      "route": "/m/P-L9f_01c?tab=fields",
+      "proto": "automations,at:jfields,{skin}",
+      "waitFor": "[data-testid='journey-fields']",
+      "note": "The Fields tab of Client onboarding: the seven fields from the Projects template with the template mark, then its own four. The prototype side is the same Journey on its Fields tab (token jfields, added to the prototype copy per ruling 42)."
+    }
+  ]
+}

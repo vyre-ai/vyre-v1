@@ -25,22 +25,25 @@ export function budgetTable(json) {
   return out;
 }
 
-/** The ceiling (or floor for prefetch) a kind is judged against: the p95 row of perf/budgets.json. */
-export function budgetFor(kind, table) {
+/** Ruling 43: the median is judged against the p50 row of perf/budgets.json (limit), the worst timed run against the p95 row (worstLimit). A row without p50 falls back to its p95. */
+export function budgetFor(kind, table, size = "desktop") {
   const row = table[kind];
   if (!row || typeof row.p95 !== "number") throw new Error(`perf/budgets.json has no p95 row for ${kind}`);
-  return { limit: row.p95, sense: MIN_SENSE.has(kind) ? "min" : "max", unit: row.unit };
+  // The phone row of a budget (the "also" entry on a mid phone) is the limit for the phone size: startup is 1 s on desktop and 1.5 s on a phone (V1-SPEC).
+  const phone = size === "phone" ? (row.also ?? []).find((a) => /phone/.test(a.machine ?? "") && typeof a.p95 === "number") : undefined;
+  if (phone) return { limit: phone.p95, worstLimit: phone.p95, sense: MIN_SENSE.has(kind) ? "min" : "max", unit: row.unit };
+  return { limit: typeof row.p50 === "number" ? row.p50 : row.p95, worstLimit: row.p95, sense: MIN_SENSE.has(kind) ? "min" : "max", unit: row.unit };
 }
 
 /** The probes a target declares, resolved against the budgets. A declared budget may tighten but never loosen (no splitting or loosening, ruling 43). */
-export function parseProbes(target, table) {
+export function parseProbes(target, table, size = "desktop") {
   const decl = target.probes;
   if (decl === undefined || decl === null) return [];
   if (typeof decl !== "object" || Array.isArray(decl)) throw new Error(`${target.id}: probes must be an object keyed by kind`);
   if (!target.waitFor) throw new Error(`${target.id}: probes need the target's waitFor selector (the mount is ready when it shows)`);
   return Object.entries(decl).map(([kind, p]) => {
     if (!KINDS.includes(kind)) throw new Error(`${target.id}: unknown probe kind ${kind} (${KINDS.join(", ")})`);
-    const b = budgetFor(kind, table);
+    const b = budgetFor(kind, table, size);
     const runs = p?.runs === undefined ? DEFAULT_RUNS : p.runs;
     if (!Number.isInteger(runs) || runs < MIN_RUNS) throw new Error(`${target.id}: ${kind}.runs must be an integer of at least ${MIN_RUNS} (the first is a discarded warm-up)`);
     let limit = b.limit;
@@ -49,32 +52,33 @@ export function parseProbes(target, table) {
       if (typeof p.budget !== "number" || loose) throw new Error(`${target.id}: ${kind}.budget ${p.budget} loosens the unchanged budget ${b.limit}`);
       limit = p.budget;
     }
-    return { kind, runs, limit, sense: b.sense, unit: b.unit };
+    return { kind, runs, limit, worstLimit: b.worstLimit, sense: b.sense, unit: b.unit };
   });
 }
 
 const r1 = (n) => Math.round(n * 100) / 100;
 
 /** From every run's value (first is the warm-up): the timed samples, median, worst, and pass. A missing value is a breach. */
-export function summarize(values, { limit, sense }) {
+export function summarize(values, { limit, worstLimit, sense }) {
   const timed = values.slice(1);
   const failed = timed.some((v) => typeof v !== "number" || !Number.isFinite(v));
   const ok = timed.filter((v) => typeof v === "number" && Number.isFinite(v));
   const med = failed || !ok.length ? NaN : r1(median(ok));
   const worst = ok.length ? r1(sense === "min" ? Math.min(...ok) : Math.max(...ok)) : NaN;
-  const pass = !failed && (sense === "min" ? med >= limit : med <= limit);
+  const within = (v, lim) => (sense === "min" ? v >= lim : v <= lim);
+  const pass = !failed && within(med, limit) && (worstLimit === undefined || within(worst, worstLimit));
   const w = values[0];
   return { warmup: typeof w === "number" ? r1(w) : null, samples: ok.map(r1), median: med, worst, failed, ok: pass };
 }
 
 /** Runs every declared probe of a target. `measure(target, run)` returns the window.__probes object of one fresh mount. */
-export async function runTarget(target, table, { measure }) {
-  const probes = parseProbes(target, table);
+export async function runTarget(target, table, { measure, size = "desktop" }) {
+  const probes = parseProbes(target, table, size);
   if (!probes.length) return [];
   const runs = Math.max(...probes.map((p) => p.runs));
   const mounts = [];
   for (let i = 0; i < runs; i++) mounts.push(await measure(target, i));
-  return probes.map((p) => ({ target: target.id, kind: p.kind, limit: p.limit, sense: p.sense, unit: p.unit, runs: p.runs, ...summarize(mounts.slice(0, p.runs).map((m) => m?.[p.kind]), p) }));
+  return probes.map((p) => ({ target: target.id, kind: p.kind, limit: p.limit, worstLimit: p.worstLimit, sense: p.sense, unit: p.unit, runs: p.runs, ...summarize(mounts.slice(0, p.runs).map((m) => m?.[p.kind]), p) }));
 }
 
 export function metricLine(r) {
@@ -84,7 +88,7 @@ export function metricLine(r) {
 
 export function verdictLine(r) {
   const cmp = r.sense === "min" ? "floor" : "budget";
-  return `${r.kind} ${r.ok ? "ok" : "OVER BUDGET"} ${r.target}: median ${r.median}${r.unit === "percent" ? "%" : r.unit === "cls" ? "" : "ms"} of ${r.samples.length} (${cmp} ${r.limit}), worst ${r.worst}, warm-up ${r.warmup} discarded`;
+  return `${r.kind} ${r.ok ? "ok" : "OVER BUDGET"} ${r.target}: median ${r.median}${r.unit === "percent" ? "%" : r.unit === "cls" ? "" : "ms"} of ${r.samples.length} (${cmp} p50 ${r.limit}), worst ${r.worst} (p95 ${r.worstLimit ?? r.limit}), warm-up ${r.warmup} discarded`;
 }
 
 /** One fresh mount in a new context; waits for the target's selector and for window.__probes.ready, then returns the object. */
@@ -124,7 +128,7 @@ async function main() {
   try {
     for (const t of targets) {
       const kinds = Object.keys(t.probes);
-      const rs = await runTarget(t, table, { measure: (tg) => readMount(browser, { url: routeUrl(server.origin, tg.route, skin), selector: tg.waitFor, viewport: SIZES[size], scheme: skin === "graphite" ? "dark" : "light", throttle, kinds }) });
+      const rs = await runTarget(t, table, { size, measure: (tg) => readMount(browser, { url: routeUrl(server.origin, tg.route, skin), selector: tg.waitFor, viewport: SIZES[size], scheme: skin === "graphite" ? "dark" : "light", throttle, kinds }) });
       for (const r of rs) { console.log(metricLine(r)); console.log(`${size} x${throttle} ${verdictLine(r)}`); if (!r.ok) failed.push(`${r.target}:${r.kind}`); }
     }
   } finally { await browser.close(); server.close(); }
