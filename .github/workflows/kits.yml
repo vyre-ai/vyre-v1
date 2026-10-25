@@ -16,10 +16,12 @@ on:
       - ".github/workflows/kits.yml"
 jobs:
   kits:
-    runs-on: [self-hosted, linux, v1]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
       - name: Find the Kit tests
         id: find
         run: |
