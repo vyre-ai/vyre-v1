@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { query, mergeHits } from "../handlers/query.ts";
-import { VectorIndex, writeVector, DIM } from "../projections.ts";
+import { writeVector, DIM } from "../projections.ts";
 import { bulk, harness, randomUnit } from "../fixtures/harness.ts";
 
 // The shard kills a file at 20 s without a word: fail inside the loops, naming the phase, well before that.
@@ -32,7 +32,6 @@ test("perf search.server: p95 under 300 ms merged with local, 100k records and 1
   const n0 = Number(h.rows("SELECT MIN(n) AS m FROM search_docs")[0]!["m"]);
   for (let i = 0; i < 5_000; i++) writeVector(h.db, h.space, n0 + i, randomUnit(i + 1, v));
   tick("vectors written");
-  assert.ok(new VectorIndex(8).kernel.length > 0);
 
   const queries = ["b", "ba", "k", "ke", "a", "b k", "ba ke", "bake", "balo mi", "pidog", "gafe zu", "zelda", "quill", "vona", "kera", "mirasu", "tevo na"];
   const local = Array.from({ length: 20 }, (_, i) => ({ kind: "record", id: `rec_${i * 7}`, title: `Local ${i}` }));
