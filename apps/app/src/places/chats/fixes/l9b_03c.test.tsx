@@ -15,6 +15,13 @@ const at = (s: string, needle: string): number => {
   assert.ok(i >= 0, `expected ${needle}`);
   return i;
 };
+/** One row's markup: from its own test id to the next row's (the leading and trailing slots carry ids that end in -leading and -trailing). */
+const rowHtml = (out: string, key: string): string => {
+  const from = at(out, `data-testid="row-${key}"`);
+  const rest = out.slice(from + 10);
+  const m = /data-testid="row-(?![^"]*-(?:leading|trailing)")/.exec(rest);
+  return out.slice(from, m ? from + 10 + m.index : undefined);
+};
 const count = (s: string, needle: string): number => s.split(needle).length - 1;
 
 test("Needs you is one row with the count, and its requests sit under it", () => {
@@ -28,9 +35,7 @@ test("every agent that raised a request says Waiting on you; the others do not",
   const out = html(createSampleSidebar());
   assert.equal(count(out, "Waiting on you"), 4, "Intake, Docs, Billing and Research wait on you; the assistant never says it");
   for (const n of ["Intake", "Docs", "Billing", "Research"]) {
-    const from = at(out, `data-testid="row-f:agt_${n.toLowerCase()}"`);
-    const next = out.indexOf('data-testid="row-', from + 10);
-    assert.ok(out.slice(from, next < 0 ? undefined : next).includes("Waiting on you"), `${n} waits on you`);
+    assert.ok(rowHtml(out, `f:agt_${n.toLowerCase()}`).includes("Waiting on you"), `${n} waits on you`);
   }
   assert.ok(!has(html(createSampleSidebar(harbor)), "Waiting on you"), "Harbor has no requests");
 });
@@ -79,9 +84,7 @@ function has(s: string, needle: string): boolean { return s.includes(needle); }
 test("unread chats and channels have a bold title (Row emphasis); read ones do not", () => {
   const out = html(createSampleSidebar());
   const title = (key: string, text: string): string => {
-    const from = at(out, `data-testid="row-${key}"`);
-    const next = out.indexOf('data-testid="row-', from + 10);
-    const row = out.slice(from, next < 0 ? undefined : next);
+    const row = rowHtml(out, key);
     return row.slice(row.indexOf(`>${text}<`) - 220, row.indexOf(`>${text}<`));
   };
   assert.ok(/font-weight:\s*(600|700|bold)/.test(title("ch:intake", "intake")), "unread #intake is bold");
