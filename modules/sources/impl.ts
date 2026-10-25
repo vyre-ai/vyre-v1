@@ -45,8 +45,14 @@ let shared: SourcesHandle | null = null;
 let spaceSeam: SpaceStoreSeam | null = null;
 /** The host hands the Space store (P-H_08, ruling 31). */
 export function setSourcesSpaceStore(seam: SpaceStoreSeam | null): void { spaceSeam = seam; shared = null; }
-export const hostSeams: SeamSetters = { setSourcesSpaceStore };
-const live = (): SourcesHandle => (shared ??= openSources(spaceSeam ? { tx: spaceSeam.open().tx } : {}));
+let resolver: ((name: string) => Promise<string | undefined>) | null = null;
+const live = (): SourcesHandle => {
+  if (!shared) {
+    shared = openSources(spaceSeam ? { tx: spaceSeam.open().tx } : {});
+    if (resolver) shared.deps.secret = resolver;
+  }
+  return shared;
+};
 
 function adapt(name: keyof SourcesHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {
@@ -64,3 +70,11 @@ export const handlers = Object.fromEntries(NAMES.map((n) => [n, adapt(n)])) as R
 export { createSourcesHandlers };
 export { runSync, undoPush, retryPush, flushOutbox, confirmDeletes, resolveConflict, removedAtSource } from "./handlers/index.ts";
 export const SYNC_RUN_KIND = "connector_sync";
+
+/** The Vault resolves a webhook signing secret by item name, for one delivery only (deps.secret). */
+export function setSourcesSecretResolver(fn: ((name: string) => Promise<string | undefined>) | null): void {
+  resolver = fn;
+  if (shared) { if (fn) shared.deps.secret = fn; else delete shared.deps.secret; }
+}
+/** Where the host hands its half at boot (ruling 31): the loader reads this export and the daemon calls each setter with the driver of the same name. */
+export const hostSeams: SeamSetters = { setSourcesSecretResolver, setSourcesSpaceStore };

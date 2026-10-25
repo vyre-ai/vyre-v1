@@ -52,7 +52,7 @@ const live = (): ConnectorsHandle => {
   return shared;
 };
 /** The host hands the sync engine (modules/sources) to the live handlers: preview, undo, conflict settling, replay, confirm deletes and push need it (boundary B1 keeps this module from importing it). */
-export function setSyncEngine(e: SyncEngine): void { engine = e; if (shared) shared.deps.engine = e; }
+export function setSyncEngine(e: SyncEngine | null): void { engine = e; if (shared) { if (e) shared.deps.engine = e; else delete shared.deps.engine; } }
 
 function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {
