@@ -5,18 +5,18 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
-import { createPhoneController } from "../../../ui/src/Softphone/index.tsx";
-import { isItem } from "../../../ui/src/Menu/props.ts";
-import type { MenuItem } from "../../../ui/src/Menu/props.ts";
-import { harbor } from "../src/places/inbox/contactlist/sample.ts";
-import { InboxDataProvider, InboxStateProvider } from "../src/places/inbox/sidebar/index.ts";
-import { InboxUnmatched, matchMenuEntries, newestFirst, waitingLine } from "../src/places/inbox/unmatched/index.ts";
-import type { Suggestion, Unmatched } from "../src/places/inbox/unmatched/index.ts";
-import { createUnmatchedSample } from "../src/places/inbox/unmatched/sample.ts";
-import type { UnmatchedSample } from "../src/places/inbox/unmatched/sample.ts";
-import { InboxPhoneDock, callerOf, numbersOf, phoneHooks, prettyNumber, sameNumber, savedLine, suggestionsFor } from "../src/places/inbox/softphone/index.ts";
-import type { CallOut, CallsOut, NumbersOut } from "../src/places/inbox/softphone/index.ts";
-import type { ContactRow } from "../src/places/inbox/sidebar/model.ts";
+import { createPhoneController } from "../../../../../../ui/src/Softphone/index.tsx";
+import { isItem } from "../../../../../../ui/src/Menu/props.ts";
+import type { MenuItem } from "../../../../../../ui/src/Menu/props.ts";
+import { harbor } from "../contactlist/sample.ts";
+import { InboxDataProvider, InboxStateProvider } from "../sidebar/index.ts";
+import { InboxUnmatched, matchMenuEntries, newestFirst, waitingLine } from "../unmatched/index.ts";
+import type { Suggestion, Unmatched } from "../unmatched/index.ts";
+import { createUnmatchedSample } from "../unmatched/sample.ts";
+import type { UnmatchedSample } from "../unmatched/sample.ts";
+import { InboxPhoneDock, callerOf, numbersOf, phoneHooks, prettyNumber, sameNumber, savedLine, suggestionsFor } from "../softphone/index.ts";
+import type { CallOut, CallsOut, NumbersOut } from "../softphone/index.ts";
+import type { ContactRow } from "../sidebar/model.ts";
 
 const html = (s: UnmatchedSample, child: ReactElement): string =>
   renderToStaticMarkup(<InboxDataProvider value={s.data}><InboxStateProvider initial={{}}>{child}</InboxStateProvider></InboxDataProvider>).replaceAll("<!-- -->", "");
@@ -47,7 +47,7 @@ test("Unmatched lists the senders that match no record, newest first, each with 
 test("an empty Unmatched says there is nothing waiting, and Harbor Studio has none", () => {
   const out = html(createUnmatchedSample(harbor), <InboxUnmatched />);
   assert.ok(out.includes("Nothing waiting for a match"));
-  assert.ok(!out.includes("waiting for a match</"), "no count line");
+  assert.ok(!out.includes("unmatched-count"), "no count line");
 });
 
 test("the Match menu lists suggestions best first with their score in the count column, then the three ways out", () => {

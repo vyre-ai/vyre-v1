@@ -39,6 +39,10 @@ export function createUnmatchedSample(space: SampleSpace = northwind, o: { onlin
   const items = (): (Row & { conversationId: string })[] => replica.rows("thread_items") as unknown as (Row & { conversationId: string })[];
 
   if (space.id === "northwind") {
+    // the unmatched number texted and left a voicemail before; its messages move with a match
+    replica.put("thread_items", [
+      { conversationId: "unk", kind: "sms", id: "unk_1", at: ago(35), direction: "in", preview: "Hi, is this the Northwind office? I got a missed call from this number.", ref: { body: "Hi, is this the Northwind office? I got a missed call from this number.", via: "+1 415 555 0132", address: "+1 628 555 0194" } },
+    ] as unknown as Row[]);
     replica.put("contacts", [{
       id: "u_971", address: "+1 971 555 0182", displayName: "+1 971 555 0182", lastMessageAt: ago(210), lastChannel: "sms", lastPreview: "Hi, I found you through the intake form. Can someone call me back?",
       unreadCount: 1, needsMatch: true, followed: false, alertOnReplies: false, mailboxIds: ["+1 415 555 0132"],

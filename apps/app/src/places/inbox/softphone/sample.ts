@@ -35,7 +35,7 @@ export class FakeVoiceDevice implements PhoneDeviceLike {
   async connect(options: { params: Record<string, string> }): Promise<PhoneCallLike> {
     const call = new FakeCall({ To: options.params["To"], CallSid: options.params["CallSid"] });
     this.connected.push({ params: options.params, call });
-    queueMicrotask(() => call.fire("accept"));
+    setImmediate(() => call.fire("accept")); // after the caller has attached its handlers, as a real answer is
     return call;
   }
   on(_event: "incoming", handler: (call: PhoneCallLike) => void): void { this.incoming.push(handler); }
