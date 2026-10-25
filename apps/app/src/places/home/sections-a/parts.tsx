@@ -255,7 +255,7 @@ export const tone = {
 
 export const s = StyleSheet.create({
   section: { marginTop: 26, paddingTop: 14, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
-  sectionFirst: { marginTop: 0 },
+  sectionFirst: { marginTop: 0, paddingTop: 14, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   head: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 28, marginBottom: 4 },
   grow: { flex: 1, minWidth: 0 },
   h2: { margin: 0, fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },

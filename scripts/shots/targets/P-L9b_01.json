@@ -8,6 +8,13 @@
       "note": "Home sections A over the Northwind sample Space: Needs you top 3, My work grouped by due date with Assigned by you, Projects at risk, While you were away, Routines today. The prototype side is its Home place in the same skin."
     },
     {
+      "id": "P-L9b_01-home-northwind-lower",
+      "route": "/m/P-L9b_01?scroll=s-risk",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='s-routines']",
+      "note": "The same page scrolled to Projects at risk, While you were away and Routines today (the prototype image shows the top of its Home; the lower sections are compared by eye against its design notes)."
+    },
+    {
       "id": "P-L9b_01-home-harbor",
       "route": "/m/P-L9b_01?space=harbor",
       "proto": "home,harbor,{skin}",
