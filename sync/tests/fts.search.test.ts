@@ -133,5 +133,19 @@ test("perf search.local: p95 under 50 ms with 100k rows and 10k messages; prefix
   assert.deepEqual(idx.search("@quill").hits.map((h) => h.id), ["usr_unique"], "@ narrows to people");
   assert.deepEqual(idx.search("/quill").hits.map((h) => h.id), ["fil_unique"], "/ narrows to files");
   assert.equal(idx.search("#bake").hits.every((h) => h.kind === "chat" || h.kind === "record"), true);
+  // a record created after the rebuild is found by its first letter on a broad prefix, ahead of the 110k ranked rows, and an edited row appears once
+  put(d, "client_plan", "rec_fresh", "Bzzz freshly created record", "");
+  idx.update("client_plan", "rec_fresh");
+  for (const q of ["b", "bz", "#b", "fresh"]) assert.equal(idx.search(q).hits[0]?.id, "rec_fresh", `"${q}" finds the new record first`);
+  const was = idx.search("ba").hits.find((h) => h.entity === "client_plan");
+  assert.ok(was);
+  d.prepare("UPDATE fts SET title = ? WHERE entity = ? AND id = ?").run(["Bazooka edited title", "client_plan", was.id]);
+  idx.update("client_plan", was.id);
+  const again = idx.search("ba", { limit: 50 }).hits.filter((h) => h.id === was.id);
+  assert.equal(again.length, 1, "an edited row is in the results once");
+  assert.equal(again[0]?.title, "Bazooka edited title");
+  const t1 = performance.now();
+  idx.search("b");
+  assert.ok(performance.now() - t1 < 50, "the recent index does not slow a broad query");
   assert.ok(p95 < 50, `search.local p95 ${p95.toFixed(1)} ms is over 50 ms`);
 });

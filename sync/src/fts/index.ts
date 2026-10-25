@@ -21,6 +21,8 @@ const PRIORITY: readonly SearchKind[] = ["person", "agent", "chat", "record", "f
 const priority = (k: SearchKind): number => PRIORITY.indexOf(k);
 /** Candidates read in static-rank order before bm25 reorders them. Rare queries have fewer matches than this, so they are ranked exactly. */
 export const CANDIDATES = 400;
+/** Rows added or changed since the last rebuild live in a small second index that is always searched in full, so a just-created record is found by its first letter. */
+export const RECENT_MAX = 500;
 
 export const PREFIX_KINDS: Readonly<Record<string, readonly SearchKind[]>> = {
   "@": ["person", "agent"],
@@ -77,6 +79,13 @@ export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceCl
   driver.exec(
     "CREATE VIRTUAL TABLE IF NOT EXISTS search_idx USING fts5(title, body, entity UNINDEXED, id UNINDEXED, kind UNINDEXED, tokenize='unicode61 remove_diacritics 2', prefix='1 2 3 4')",
   );
+  driver.exec(
+    "CREATE VIRTUAL TABLE IF NOT EXISTS search_recent USING fts5(title, body, entity UNINDEXED, id UNINDEXED, kind UNINDEXED, tokenize='unicode61 remove_diacritics 2', prefix='1 2 3 4')",
+  );
+  const delRecent = driver.prepare("DELETE FROM search_recent WHERE entity = ? AND id = ?");
+  const insRecent = driver.prepare("INSERT INTO search_recent (title, body, entity, id, kind) VALUES (?, ?, ?, ?, ?)");
+  const trimRecent = driver.prepare("DELETE FROM search_recent WHERE rowid <= (SELECT max(rowid) FROM search_recent) - ?");
+  const totalRecent = driver.prepare("SELECT count(*) AS n FROM search_recent");
   const readFts = driver.prepare("SELECT title, body FROM fts WHERE entity = ? AND id = ?");
   const del = driver.prepare("DELETE FROM search_idx WHERE entity = ? AND id = ?");
   const ins = driver.prepare("INSERT INTO search_idx (title, body, entity, id, kind) VALUES (?, ?, ?, ?, ?)");
@@ -90,6 +99,7 @@ export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceCl
       let n = 0;
       driver.transaction(() => {
         driver.exec("DELETE FROM search_idx");
+        driver.exec("DELETE FROM search_recent");
         // Rows are inserted in priority order (people and agents, then chats, records, files, the rest; newest first inside an entity), so rowid order IS the static rank.
         // A search reads candidates in rowid order and stops early; that is what keeps a one-letter prefix fast.
         const names = entities.all([]).map((r) => String(r.entity)).sort((a, b) => priority(kindOf(a)) - priority(kindOf(b)) || a.localeCompare(b));
@@ -104,14 +114,20 @@ export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceCl
     update(entity, id) {
       const row = readFts.get([entity, id]);
       driver.transaction(() => {
+        // The old copy leaves the ranked index; the new one goes to the recent index, which every search reads in full.
         del.run([entity, id]);
-        if (row) ins.run([String(row.title ?? ""), String(row.body ?? ""), entity, id, kindOf(entity)]);
+        delRecent.run([entity, id]);
+        if (row) {
+          insRecent.run([String(row.title ?? ""), String(row.body ?? ""), entity, id, kindOf(entity)]);
+          trimRecent.run([RECENT_MAX]);
+        }
       });
     },
     remove(entity, id) {
       del.run([entity, id]);
+      delRecent.run([entity, id]);
     },
-    count: () => Number(total.get([])?.n ?? 0),
+    count: () => Number(total.get([])?.n ?? 0) + Number(totalRecent.get([])?.n ?? 0),
     search(query, so = {}) {
       const { prefix, rest } = splitPrefix(query);
       if (prefix === ">") return { hits: [], prefix, scope, actions: true };
@@ -127,18 +143,21 @@ export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceCl
         const seen = new Set(cand);
         for (const r of pick(match)) { if (!seen.has(r)) cand.push(r); if (cand.length >= CANDIDATES) break; }
       }
-      if (cand.length === 0) return { hits: [], prefix, scope, actions: false };
+      const limit = so.limit ?? defaultLimit;
+      const toHit = (r: Record<string, unknown>): SearchHit => ({
+        entity: String(r.entity), id: String(r.id), kind: String(r.kind) as SearchKind, title: String(r.title ?? ""), snippet: String(r.snip ?? ""), score: Number(r.score),
+      });
+      // Recent rows first: small, searched whole, ranked by bm25 among themselves.
+      const recent = driver.prepare(
+        `SELECT entity, id, kind, title, snippet(search_recent, 1, '[', ']', '…', 12) AS snip, bm25(search_recent, 8.0, 1.0) AS score FROM search_recent WHERE search_recent MATCH ?${kindSql} ORDER BY score LIMIT ?`,
+      ).all([match, ...kindArgs, limit]).map(toHit);
+      if (cand.length === 0) return { hits: recent, prefix, scope, actions: false };
       cand = cand.slice(0, CANDIDATES);
       // Stage 2: bm25 (title over body) among the candidates.
       const rows = driver.prepare(
         `SELECT entity, id, kind, title, snippet(search_idx, 1, '[', ']', '…', 12) AS snip, bm25(search_idx, 8.0, 1.0) AS score FROM search_idx WHERE search_idx MATCH ? AND rowid IN (${cand.join(",")}) ORDER BY score LIMIT ?`,
-      ).all([match, so.limit ?? defaultLimit]);
-      return {
-        hits: rows.map((r) => ({
-          entity: String(r.entity), id: String(r.id), kind: String(r.kind) as SearchKind, title: String(r.title ?? ""), snippet: String(r.snip ?? ""), score: Number(r.score),
-        })),
-        prefix, scope, actions: false,
-      };
+      ).all([match, limit]).map(toHit);
+      return { hits: [...recent, ...rows].slice(0, limit), prefix, scope, actions: false };
     },
   };
   return index;
