@@ -27,7 +27,7 @@ export default function Mount() {
     const maya = new Awareness(new Y.Doc());
     const omar = new Awareness(new Y.Doc());
     setLocalCursor(maya, { name: "Maya Chen", color: "#e8590c" }, 60);
-    setLocalCursor(omar, { name: "Omar Haddad", color: "#2f9e44" }, 150);
+    setLocalCursor(omar, { name: "Omar Haddad", color: "#2f9e44" }, 95);
     sendAwareness(maya, me);
     sendAwareness(omar, me);
     setAware(me);
