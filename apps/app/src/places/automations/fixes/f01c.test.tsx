@@ -71,6 +71,6 @@ test("sidebar: on the Journeys tab the open Journey is the selected row and the 
   const s = nw();
   const out = page(s, <AutomationsSidebar selectedJourneyId="jrn_onboard" initialTab="journeys" shared={s.shared} reasons={s.space.reasons} />);
   const row = (id: string): string => out.match(new RegExp(`<[^>]*data-testid="row-journey-${id}"[^>]*>`))?.[0] ?? "";
-  assert.match(row("jrn_onboard"), /aria-selected="true"/);
-  assert.match(row("jrn_matter"), /aria-selected="false"/);
+  assert.match(row("jrn_onboard"), /background-color:var\(--sel\)/, "the open Journey takes the quiet selected highlight");
+  assert.doesNotMatch(row("jrn_matter"), /background-color:var\(--sel\)/);
 });
