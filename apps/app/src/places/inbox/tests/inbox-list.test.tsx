@@ -238,11 +238,11 @@ test("narrowing is a function of the entries and the state alone", () => {
 test("Starred: a list under Lists, before Following, that holds the starred conversations", () => {
   const out = side();
   assert.ok(at(out, ">Lists<") < at(out, ">Starred<") && at(out, ">Starred<") < at(out, ">Following<") && at(out, ">Following<") < at(out, ">Campaigns<"));
-  assert.ok(has(out, 'data-testid="row-list:starred"') && has(out, 'data-testid="row-list:starred-leading"'), "a ui/Row with a leading glyph");
+  assert.ok(has(out, 'data-testid="row-nav:list:starred"') && has(out, 'data-testid="row-nav:list:starred-leading"'), "a ui/Row with a leading glyph");
   assert.deepEqual(lines(list({ scope: { kind: "starred" } })), ["marcus", "priya"]);
   assert.ok(has(list({ scope: { kind: "starred" } }), ">Starred<"), "the header names the list");
   assert.equal(scopeTitle({ kind: "starred" }, northwind.mailboxes), "Starred");
-  const tagOf = (out: string): string => /<[^<>]*data-testid="row-list:starred"[^<>]*>/.exec(out)?.[0] ?? "";
+  const tagOf = (out: string): string => /<[^<>]*data-testid="row-nav:list:starred"[^<>]*>/.exec(out)?.[0] ?? "";
   assert.ok(has(tagOf(side({ scope: { kind: "starred" } })), "background-color:var(--sel)"), "the row is selected when its list is showing");
   assert.ok(!has(tagOf(side()), "background-color:var(--sel)"));
 });
