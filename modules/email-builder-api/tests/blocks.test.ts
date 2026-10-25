@@ -1,6 +1,6 @@
 // Saved blocks and the spacer, social and saved block kinds (P-CC_30): save, list, who may change one, and how each kind compiles.
 // @reads /modules/email-builder-api/migrations/0002_saved_blocks.sql
-// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+// Run on the final commit of this packet, after merging main, so the CI log lists the file as ok.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";

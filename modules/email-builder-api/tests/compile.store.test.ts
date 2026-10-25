@@ -259,3 +259,5 @@ test("module: every capability the manifest names has a handler; seed and projec
   assert.equal(seed.rows.length, 0);
   assert.deepEqual([inline, consumers], [{}, {}]);
 });
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
