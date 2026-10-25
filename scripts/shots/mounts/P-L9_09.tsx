@@ -9,13 +9,21 @@ import type { EmailBlock, EmailDiff, EmailMode, EmailPreview, PaneTab } from "..
 export const title = "EmailBuilder";
 
 const BLOCKS: readonly EmailBlock[] = [
-  { id: "img", kind: "image", text: "Northwind, a fresh start" },
-  { id: "h", kind: "text", text: "It has been a while, {{first_name|there}}" },
-  { id: "t1", kind: "text", text: "Hi {{first_name|there}}, it has been a few months since we last spoke. A lot has changed at Northwind since then, and I wanted to check in on {{company|your team}} personally." },
-  { id: "t2", kind: "text", text: "If anything slipped while things were busy, we can pick it up with a short call. No prep needed on your side, and I will bring a one-page summary of where things stand." },
-  { id: "btn", kind: "button", text: "Book a 20 minute catch-up" },
-  { id: "ft", kind: "text", text: "Northwind, 410 Market Street, San Francisco, CA. You are getting this because you worked with Northwind." },
+  { id: "t0", kind: "text", text: "Hi {{first_name}}," },
+  { id: "t1", kind: "text", text: "Spring is when planning picks up, so I am checking in with a few of the firms we have talked to. How is the season shaping up at {{company}}?" },
+  { id: "t2", kind: "text", text: "If a short call helps, just reply." },
+  { id: "m1", kind: "merge", field: "owner_name", text: "owner name" },
+  { id: "ft", kind: "footer", text: "Northwind · 410 Market Street, San Francisco, CA", align: "center", unsub: true },
 ];
+const CONTACTS = [
+  { id: "c1", name: "Elena Rivera", values: { first_name: "Elena", company: "Harbor Studio", owner_name: "Maya" } },
+  { id: "c2", name: "Omar Haddad", values: { first_name: "Omar", company: "Haddad Legal", owner_name: "Maya" } },
+];
+const TEMPLATES = [
+  { id: "tp1", name: "Quick check-in", blocks: BLOCKS },
+  { id: "tp2", name: "Blank", blocks: [] as readonly EmailBlock[] },
+];
+const IDEAS = ["Quick check-in, {{first_name}}", "How is spring shaping up at {{company}}?", "A short note before the busy season", "{{first_name}}, one question about spring", "Checking in on {{company}}"];
 const DIFFS: readonly EmailDiff[] = [
   { id: "d-subject", summary: "Shorter subject: It has been a while" },
   { id: "d-body", summary: "Name the spring offer in the second paragraph" },
@@ -32,9 +40,9 @@ export default function Mount(): ReactNode {
   const preview = (["desktop", "mobile", "dark"].includes(q.get("preview") ?? "") ? q.get("preview") : "desktop") as EmailPreview;
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
-      <EmailBuilder id="em-q4" title="Q4 check-in" subject="It has been a while, {{first_name|there}}" previewText="A short note from Maya at Northwind, and one way to pick things back up."
-        mode={mode} focus={q.get("focus") === "1"} paneTab={tab} preview={preview} blocks={BLOCKS} diffs={DIFFS} version={3} mergeValues={{ first_name: "Elena", company: "Rivera Holdings" }}
-        fromName="Maya Chen · Northwind" testTo="Irfad Imtiaz" previewAs="Elena Rivera" brand={{ name: "Northwind", color: "#5B5BD6", font: "Inter" }}
+      <EmailBuilder id="em-q4" title="Q4 check-in" subject="Quick check-in, {{first_name}}" previewText=""
+        mode={mode} focus={q.get("focus") === "1"} paneTab={tab} preview={preview} blocks={BLOCKS} diffs={DIFFS} version={3} contacts={CONTACTS} templates={TEMPLATES} subjectIdeas={IDEAS} comments={[{ id: "k1", by: "Maya Chen", text: "Keep it under three lines." }]}
+        fromName="Maya Chen · Northwind" testTo="Irfad Imtiaz" brand={{ name: "Northwind", color: "#5B5BD6", font: "Inter" }}
         askThread={[{ from: "you", text: "Make it warmer and shorter, then add a P.S." }, { from: "assistant", text: "I softened the opening and made the second paragraph more reassuring. Your merge fields are untouched. I added a short P.S. above the footer." }]}
         ask={{ place: "email", context: { kind: "email", id: "em-q4", title: "Q4 check-in", access: "edit" }, agents: AGENTS, onAsk: () => undefined }} />
     </View>

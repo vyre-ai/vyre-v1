@@ -23,7 +23,7 @@ export { EMAIL_ALIGNS, EMAIL_BLOCK_KINDS, EMAIL_MODES, EMAIL_PREVIEWS, emailBloc
 /* ---------- pure logic ---------- */
 
 export const SUBJECT_LIMIT = 60;
-export const PREVIEW_TEXT_LIMIT = 110;
+export const PREVIEW_TEXT_LIMIT = 90;
 /** Below this window width the rail becomes a row and the pane sits under the editor. */
 export const NARROW_WIDTH = 760;
 export const PANE_TABS = ["style", "ask", "preview", "checks"] as const;
@@ -167,7 +167,7 @@ export function editBlock(blocks: readonly EmailBlock[], id: string, patch: Part
 }
 
 /** What undo and redo walk: one entry per edit, coalesced by the caller. */
-export interface EmailSnapshot { subject: string; previewText: string; blocks: readonly EmailBlock[]; html: string; plain: string; style?: EmailStyle }
+export interface EmailSnapshot { subject: string; previewText: string; blocks: readonly EmailBlock[]; html: string; plain: string; style?: EmailStyle; subjectB?: string | null }
 export interface EmailHistory { entries: readonly EmailSnapshot[]; at: number }
 
 export function pushHistory(h: EmailHistory, s: EmailSnapshot): EmailHistory {
@@ -185,6 +185,9 @@ export function focusKey(e: { key: string; metaKey?: boolean; ctrlKey?: boolean;
   return null;
 }
 
+const HTML_COLOR: Readonly<Record<HtmlTokenKind, { color: string }>> = {
+  plain: { color: "var(--ink)" }, punct: { color: "var(--ink-3)" }, tag: { color: "var(--accent)" }, attr: { color: "var(--warn)" }, str: { color: "var(--ok)" }, comment: { color: "var(--ink-4)" },
+};
 const BLOCK_LABEL: Readonly<Record<EmailBlockKind, string>> = { text: "Text", heading: "Heading", footer: "Footer", image: "Image", button: "Button", columns: "Columns", divider: "Divider", merge: "Merge field", html: "HTML" };
 export const blockLabel = (k: EmailBlockKind): string => BLOCK_LABEL[k];
 const MODE_LABEL: Readonly<Record<EmailMode, string>> = { visual: "Visual", html: "HTML", plain: "Plain text" };
@@ -201,6 +204,7 @@ const ICON = {
   send: `${SVG}<path d="M2 8l11-5-4 11-2.500-4.500z"/></svg>`,
   up: `${SVG}<path d="M4 9.500L8 5.500l4 4"/></svg>`,
   down: `${SVG}<path d="M4 6.500l4 4 4-4"/></svg>`,
+  moon: `${SVG}<path d="M13 9.500A5.500 5.500 0 016.500 3 5.500 5.500 0 1013 9.500z"/></svg>`,
   copy: `${SVG}<rect x="5.500" y="5.500" width="8" height="8" rx="1.500"/><path d="M10.500 5.500v-2a1 1 0 00-1-1h-6a1 1 0 00-1 1v6a1 1 0 001 1h2"/></svg>`,
   trash: `${SVG}<path d="M3 4.500h10M6.500 4.500V3h3v1.500M4.500 4.500l.5 8h6l.5-8"/></svg>`,
   text: `${SVG}<path d="M3 4.500h10M8 4.500v8M6 12.500h4"/></svg>`,
@@ -208,6 +212,8 @@ const ICON = {
   button: `${SVG}<rect x="2" y="5" width="12" height="6" rx="3"/></svg>`,
   columns: `${SVG}<rect x="2.500" y="3" width="11" height="10" rx="1.500"/><path d="M8 3v10"/></svg>`,
   divider: `${SVG}<path d="M2.500 8h11"/></svg>`,
+  templates: `${SVG}<rect x="2.500" y="2.500" width="11" height="11" rx="1.500"/><path d="M2.500 6h11M6 6v7.500"/></svg>`,
+  comment: `${SVG}<path d="M2.500 3.500h11v7h-6l-3 2.500v-2.500h-2z"/></svg>`,
   heading: `${SVG}<path d="M3.500 3v10M12.500 3v10M3.500 8h9"/></svg>`,
   footer: `${SVG}<path d="M2.500 3.500h11v9h-11zM2.500 10h11"/></svg>`,
   merge: `${SVG}<path d="M5.500 3C4 3 4 4 4 5.500S4 7 3 8c1 1 1 1.500 1 2.500S4 13 5.500 13M10.500 3C12 3 12 4 12 5.500S12 7 13 8c-1 1-1 1.500-1 2.500S12 13 10.500 13"/></svg>`,
@@ -215,6 +221,52 @@ const ICON = {
   check: `${SVG}<path d="M3.500 8.500l3 3 6-7"/></svg>`,
 } as const;
 const BLOCK_ICON: Readonly<Record<EmailBlockKind, string>> = { text: ICON.text, heading: ICON.heading, footer: ICON.footer, image: ICON.image, button: ICON.button, columns: ICON.columns, divider: ICON.divider, merge: ICON.merge, html: ICON.html };
+
+/** A person the preview can be filled for: their name and the values behind the merge fields. */
+export interface EmailContact { id: string; name: string; values: Readonly<Record<string, string>> }
+/** A starting point: the blocks (and optionally the subject) the editor takes when it is chosen. */
+export interface EmailTemplate { id: string; name: string; blocks: readonly EmailBlock[]; subject?: string }
+export interface EmailComment { id: string; by: string; text: string }
+
+export type HtmlTokenKind = "plain" | "punct" | "tag" | "attr" | "str" | "comment";
+export interface HtmlToken { text: string; kind: HtmlTokenKind }
+
+/** Splits HTML source into coloured runs: tags, attribute names, strings and comments. The runs always join back to the source. */
+export function highlightHtml(src: string): readonly HtmlToken[] {
+  const out: HtmlToken[] = [];
+  const push = (text: string, kind: HtmlTokenKind): void => { if (text !== "") out.push({ text, kind }); };
+  let at = 0;
+  for (const m of src.matchAll(/<!--[\s\S]*?-->|<![^>]*>|<\/?[A-Za-z][^>]*>/g)) {
+    const i = m.index ?? 0;
+    push(src.slice(at, i), "plain");
+    const tok = m[0];
+    at = i + tok.length;
+    if (tok.startsWith("<!--")) { push(tok, "comment"); continue; }
+    if (tok.startsWith("<!")) { push(tok, "tag"); continue; }
+    const open = /^<\/?/.exec(tok)?.[0] ?? "<";
+    const name = /^[A-Za-z][\w:-]*/.exec(tok.slice(open.length))?.[0] ?? "";
+    push(open, "punct");
+    push(name, "tag");
+    let rest = tok.slice(open.length + name.length);
+    const close = /\/?>$/.exec(rest)?.[0] ?? ">";
+    rest = rest.slice(0, rest.length - close.length);
+    let r = 0;
+    for (const a of rest.matchAll(/(\s+)([\w:-]+)(?:(=)("[^"]*"|'[^']*'|[^\s"'>]+))?/g)) {
+      push(rest.slice(r, a.index ?? 0), "plain");
+      push(a[1] ?? "", "plain");
+      push(a[2] ?? "", "attr");
+      if (a[3] !== undefined) { push(a[3], "punct"); push(a[4] ?? "", "str"); }
+      r = (a.index ?? 0) + a[0].length;
+    }
+    push(rest.slice(r), "plain");
+    push(close, "punct");
+  }
+  push(src.slice(at), "plain");
+  return out;
+}
+
+/** Five subject lines are asked for; the picker shows what the agent sent back. */
+export const SUBJECT_IDEAS = 5;
 
 /* ---------- the view ---------- */
 
@@ -258,6 +310,24 @@ export interface EmailBuilderViewProps extends EmailBuilderProps {
   testTo?: string;
   /** Name of the record the merge fields are filled from ("Elena Rivera"). */
   previewAs?: string;
+  /** People the preview can be filled for ("Preview as"). The chosen one's values fill the merge fields. */
+  contacts?: readonly EmailContact[];
+  contactId?: string;
+  onContact?: (id: string) => void;
+  /** Templates in the Templates menu. Choosing one replaces the blocks (undo brings them back). */
+  templates?: readonly EmailTemplate[];
+  onTemplate?: (id: string) => void;
+  /** Called with the current blocks when "Save as template" is chosen. */
+  onSaveTemplate?: (blocks: readonly EmailBlock[]) => void;
+  /** Comments on this email, and where a new one goes. */
+  comments?: readonly EmailComment[];
+  onComment?: (text: string) => void;
+  /** The agent's subject lines for "Suggest 5", and the call that asks for them. */
+  subjectIdeas?: readonly string[];
+  onSuggest?: () => void;
+  /** The second subject of an A/B test, when one is running. */
+  subjectB?: string;
+  onSubjectB?: (subject: string | null) => void;
   /** Starting email style (width, font, sizes, colours). */
   emailStyle?: EmailStyle;
   /** The firm's brand, shown in the Style pane. */
@@ -339,27 +409,36 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   const [selected, setSelected] = useState<string | null>(null);
   const [accepted, setAccepted] = useState<ReadonlySet<string>>(() => new Set((props.diffs ?? []).filter((d) => d.accepted === true).map((d) => d.id)));
   const [version, setVersion] = useState(props.version ?? 1);
-  const initial: EmailSnapshot = { subject: props.subject, previewText: props.previewText ?? "", blocks: props.blocks ?? [], html: props.html ?? "", plain: props.plain ?? "" };
+  const initial: EmailSnapshot = { subjectB: props.subjectB ?? null, subject: props.subject, previewText: props.previewText ?? "", blocks: props.blocks ?? [], html: props.html ?? "", plain: props.plain ?? "" };
   const [hist, setHist] = useState<EmailHistory>({ entries: [initial], at: 0 });
   const [sent, setSent] = useState(false);
   const [style, setStyle] = useState<EmailStyle>(props.emailStyle ?? DEFAULT_EMAIL_STYLE);
   const menu = useMenu();
   const fontBtn = useRef<{ measureInWindow?: (cb: (x: number, y: number, w: number, h: number) => void) => void } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const [subjectB, setSubjectB] = useState<string | null>(props.subjectB ?? null);
+  const [contactId, setContactId] = useState<string | null>(props.contactId ?? props.contacts?.[0]?.id ?? null);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [localComments, setLocalComments] = useState<readonly EmailComment[]>([]);
+  const [draftComment, setDraftComment] = useState("");
+  const refs = useRef<Record<string, { measureInWindow?: (cb: (x: number, y: number, w: number, h: number) => void) => void } | null>>({});
   const [thread, setThread] = useState<readonly AskMessage[]>(props.askThread ?? []);
 
   useEffect(() => setMode(props.mode), [props.mode]);
   useEffect(() => setFocus(props.focus === true), [props.focus]);
   useEffect(() => { if (props.preview !== undefined) setPreview(props.preview); }, [props.preview]);
 
-  const snap = useMemo<EmailSnapshot>(() => ({ subject, previewText, blocks, html, plain, style }), [subject, previewText, blocks, html, plain, style]);
+  const snap = useMemo<EmailSnapshot>(() => ({ subject, subjectB, previewText, blocks, html, plain, style }), [subject, subjectB, previewText, blocks, html, plain, style]);
   const compiled = useMemo(() => (mode === "html" && html !== "" ? html : formatHtml(compileEmail(blocks, { mode: "send", style }))), [mode, html, blocks]);
   const plainText = plain !== "" ? plain : blocksToPlain(blocks);
   const checks = useMemo(() => runChecks({ subject, previewText, html: compiled, plain: plainText }), [subject, previewText, compiled, plainText]);
+  const contact = (props.contacts ?? []).find((c) => c.id === contactId) ?? null;
+  const values = contact !== null ? contact.values : props.mergeValues;
+  const previewAs = contact !== null ? contact.name : props.previewAs;
   const preHtml = useMemo(() => {
-    const raw = mode === "html" && html !== "" ? html : compileEmail(blocks, { mode: "preview", dark: preview === "dark", values: props.mergeValues, style });
-    return mode === "html" ? fillMerge(raw, props.mergeValues) : raw;
-  }, [mode, html, blocks, preview, props.mergeValues, style]);
+    const raw = mode === "html" && html !== "" ? html : compileEmail(blocks, { mode: "preview", dark: preview === "dark", values, style });
+    return mode === "html" ? fillMerge(raw, values) : raw;
+  }, [mode, html, blocks, preview, values, style]);
 
   const commit = useCallback((next: EmailSnapshot, why: string) => {
     setHist((h) => pushHistory(h, next));
@@ -375,7 +454,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
     const h = stepHistory(hist, d);
     const e = h.entries[h.at];
     if (e === undefined || h.at === hist.at) return;
-    setHist(h); setSubject(e.subject); setPreviewText(e.previewText); setBlocks(e.blocks); setHtml(e.html); setPlain(e.plain); setStyle(e.style ?? DEFAULT_EMAIL_STYLE);
+    setHist(h); setSubject(e.subject); setSubjectB(e.subjectB ?? null); setPreviewText(e.previewText); setBlocks(e.blocks); setHtml(e.html); setPlain(e.plain); setStyle(e.style ?? DEFAULT_EMAIL_STYLE);
     onChange?.(e, d < 0 ? "Undo" : "Redo");
   };
 
@@ -395,6 +474,49 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
     setSelected(b.id);
   };
   const accept = (d: EmailDiff): void => { setAccepted((a) => new Set([...a, d.id])); onAcceptDiff?.(d.id); commit(snap, `Accepted: ${d.summary}`); };
+
+  const anchorMenu = (name: string, items: Parameters<typeof menu.show>[0]): void => {
+    const r = refs.current[name];
+    if (r?.measureInWindow !== undefined) r.measureInWindow((x, y, _w, h) => menu.show(items, x, y + h + 4, "other"));
+    else menu.show(items, 0, 0, "other");
+  };
+  const refOf = (name: string) => (r: unknown): void => { refs.current[name] = r as (typeof refs.current)[string]; };
+  const pickContact = (id: string): void => { setContactId(id); props.onContact?.(id); };
+  const contactMenu = (name: string): void => anchorMenu(name, [{ head: "Preview as" }, ...each(props.contacts ?? [], (c) => ({ label: c.name, checked: c.id === contactId, onSelect: () => pickContact(c.id) }))]);
+  const templatesMenu = (): void => anchorMenu("templates", [
+    { head: "Templates" },
+    ...each(props.templates ?? [], (tp) => ({ label: tp.name, onSelect: () => {
+      const next = { ...snap, blocks: tp.blocks, subject: tp.subject ?? subject, html: "", plain: "" };
+      setBlocks(tp.blocks); setHtml(""); setPlain(""); if (tp.subject !== undefined) setSubject(tp.subject); setSelected(null);
+      commit(next, `Applied the ${tp.name} template`); props.onTemplate?.(tp.id);
+    } })),
+    { label: "Save as template", onSelect: () => props.onSaveTemplate?.(blocks) },
+  ]);
+  const historyMenu = (): void => anchorMenu("history", [
+    { head: "Versions" },
+    ...each(hist.entries, (e, i) => ({ label: `Version ${i + 1}${i === hist.at ? " (current)" : ""}`, checked: i === hist.at, onSelect: () => {
+      setHist({ entries: hist.entries, at: i }); setSubject(e.subject); setSubjectB(e.subjectB ?? null); setPreviewText(e.previewText); setBlocks(e.blocks); setHtml(e.html); setPlain(e.plain); setStyle(e.style ?? DEFAULT_EMAIL_STYLE);
+      onChange?.(e, `Restored version ${i + 1}`);
+    } })).reverse(),
+  ]);
+  const suggest = (): void => {
+    props.onSuggest?.();
+    setTab("ask");
+    const ideas = props.subjectIdeas ?? [];
+    if (ideas.length > 0) anchorMenu("suggest", [{ head: "Subject lines" }, ...each(ideas.slice(0, SUBJECT_IDEAS), (line) => ({ label: line, onSelect: () => { setSubject(line); commit({ ...snap, subject: line }, "Picked a suggested subject"); } }))]);
+  };
+  const toggleAB = (): void => {
+    const next = subjectB === null ? subject : null;
+    setSubjectB(next); props.onSubjectB?.(next);
+    commit({ ...snap, subjectB: next }, next === null ? "Removed the A/B test" : "Started an A/B test");
+  };
+  const allComments = [...(props.comments ?? []), ...localComments];
+  const postComment = (): void => {
+    const text = draftComment.trim();
+    if (text === "") return;
+    setLocalComments((c) => [...c, { id: `lc${c.length + 1}`, by: "You", text }]);
+    setDraftComment(""); props.onComment?.(text);
+  };
 
   // Cmd-Shift-F and Escape (web only; native has no keyboard shortcut for it).
   useEffect(() => {
@@ -425,11 +547,32 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
       <Segmented value={mode} onPick={pickMode} />
       <View style={s.grow} />
       {narrow ? null : <Text style={s.stat} testID="em-version">{`Saved v${version}`}</Text>}
+      {(props.contacts?.length ?? 0) > 0 ? (
+        <Pressable ref={refOf("previewas-head")} accessibilityRole="button" accessibilityLabel="Preview as" testID="em-previewas" onPress={() => contactMenu("previewas-head")} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}>
+          <Text style={s.btnText}>{narrow ? "Preview as" : `Preview as ${previewAs ?? "…"}`}</Text><MenuIcon icon={ICON.down} />
+        </Pressable>
+      ) : null}
+      <Pressable ref={refOf("templates")} accessibilityRole="button" accessibilityLabel="Templates" testID="em-templates" onPress={templatesMenu} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}>
+        <MenuIcon icon={ICON.templates} />{narrow ? null : <Text style={s.btnText}>Templates</Text>}
+      </Pressable>
+      <Pressable ref={refOf("history")} accessibilityRole="button" accessibilityLabel="Version history" testID="em-history" onPress={historyMenu} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}><MenuIcon icon={ICON.history} /></Pressable>
+      <Btn label="Comments" icon={ICON.comment} on={commentsOpen} onPress={() => setCommentsOpen((o) => !o)} testID="em-comments" />
       <Btn label="Focus" icon={ICON.focus} onPress={() => setFocusMode(true)} testID="em-focus" />
       <Btn label="Test send" icon={ICON.send} onPress={() => { setSent(true); onTestSend?.(); }} testID="em-test-send" />
       {props.ask !== undefined ? <AskButton {...props.ask} compact={compact} /> : null}
     </View>
   );
+
+  const commentsBar = commentsOpen ? (
+    <View style={s.comments} testID="em-commentsbar">
+      {each(allComments, (c) => <Text key={c.id} style={s.commentRow} testID={`em-comment-${c.id}`}><Text style={s.commentBy}>{`${c.by}  `}</Text>{c.text}</Text>)}
+      {allComments.length === 0 ? <Text style={s.note}>No comments yet.</Text> : null}
+      <View style={s.envRow}>
+        <TextInput accessibilityLabel="Add a comment" testID="em-comment-input" value={draftComment} onChangeText={setDraftComment} onSubmitEditing={postComment} placeholder="Add a comment" placeholderTextColor="var(--ink-4)" style={s.envInput} />
+        <Btn label="Post" strong onPress={postComment} disabled={draftComment.trim() === ""} testID="em-comment-post" />
+      </View>
+    </View>
+  ) : null;
 
   const envelope = (
     <View style={s.env} testID="em-env">
@@ -437,11 +580,23 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
         <Text style={s.envLabel}>Subject</Text>
         <TextInput accessibilityLabel="Subject" testID="em-subject" value={subject} placeholder="Subject" placeholderTextColor="var(--ink-4)" style={s.envInput}
           onChangeText={(t) => { setSubject(t); commit({ ...snap, subject: t }, "Changed the subject"); }} />
+        <Pressable ref={refOf("suggest")} accessibilityRole="button" accessibilityLabel={`Suggest ${SUBJECT_IDEAS} subject lines`} testID="em-suggest" onPress={suggest} style={({ hovered }: { hovered?: boolean }) => [s.suggest, hovered === true && s.btnOver]}>
+          <Text style={s.suggestText}>{`Suggest ${SUBJECT_IDEAS}`}</Text>
+        </Pressable>
+        <Btn label="A/B test" strong on={subjectB !== null} onPress={toggleAB} testID="em-ab" />
         <Text style={[s.cnt, subject.length > SUBJECT_LIMIT && s.cntWarn]}>{`${subject.length}/${SUBJECT_LIMIT}`}</Text>
       </View>
+      {subjectB !== null ? (
+        <View style={s.envRow} testID="em-subjectb">
+          <Text style={s.envLabel}>Subject B</Text>
+          <TextInput accessibilityLabel="Subject B" testID="em-subject-b" value={subjectB} placeholder="The second subject" placeholderTextColor="var(--ink-4)" style={s.envInput}
+            onChangeText={(v) => { setSubjectB(v); props.onSubjectB?.(v); commit({ ...snap, subjectB: v }, "Changed subject B"); }} />
+          <Text style={[s.cnt, subjectB.length > SUBJECT_LIMIT && s.cntWarn]}>{`${subjectB.length}/${SUBJECT_LIMIT}`}</Text>
+        </View>
+      ) : null}
       <View style={s.envRow}>
         <Text style={s.envLabel}>Preview text</Text>
-        <TextInput accessibilityLabel="Preview text" testID="em-preview-text" value={previewText} placeholder="What inboxes show beside the subject" placeholderTextColor="var(--ink-4)" style={s.envInput}
+        <TextInput accessibilityLabel="Preview text" testID="em-preview-text" value={previewText} placeholder="The grey line after the subject in the inbox" placeholderTextColor="var(--ink-4)" style={s.envInput}
           onChangeText={(t) => { setPreviewText(t); commit({ ...snap, previewText: t }, "Changed the preview text"); }} />
         <Text style={[s.cnt, previewText.length > PREVIEW_TEXT_LIMIT && s.cntWarn]}>{`${previewText.length}/${PREVIEW_TEXT_LIMIT}`}</Text>
       </View>
@@ -488,22 +643,52 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
 
   const stage = (
     <View style={s.stage} testID="em-stage">
-      {mode === "visual" ? (
+      {tab === "preview" ? (
+        <ScrollView style={s.scroll} contentContainerStyle={s.page} testID="em-previewstage">
+          <View style={s.pvBar} testID="em-pvbar">
+            <View style={s.seg}>
+              {each(["desktop", "mobile"] as const, (p) => (
+                <Pressable key={p} accessibilityRole="tab" aria-selected={preview === p} accessibilityState={{ selected: preview === p }} testID={`em-pv-${p}`} onPress={() => pickPreview(p)} style={[s.segBtn, preview === p && s.segOn]}>
+                  <Text style={[s.segText, preview === p && s.segTextOn]}>{p === "desktop" ? "Desktop" : "Mobile"}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Btn label="Dark" icon={ICON.moon} on={preview === "dark"} strong onPress={() => pickPreview(preview === "dark" ? "desktop" : "dark")} testID="em-pv-dark" />
+            {(props.contacts?.length ?? 0) > 0 ? (
+              <Pressable ref={refOf("previewas-stage")} accessibilityRole="button" accessibilityLabel="Preview as" testID="em-previewas-stage" onPress={() => contactMenu("previewas-stage")} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}>
+                <Text style={s.btnText}>{`Preview as ${previewAs ?? "…"}`}</Text><MenuIcon icon={ICON.down} />
+              </Pressable>
+            ) : null}
+            <View style={s.grow} />
+            <Btn label="Send test" icon={ICON.send} strong onPress={() => { setSent(true); onTestSend?.(); }} testID="em-stage-send" />
+          </View>
+          <View style={s.frame}><Frame html={preHtml} width={PREVIEW_WIDTH[preview]} /></View>
+        </ScrollView>
+      ) : null}
+      {mode === "visual" && tab !== "preview" ? (
         <ScrollView style={s.scroll} contentContainerStyle={s.page}>
           <View style={[s.card, focus && s.cardFocus]} testID="em-card">
             {blocks.length === 0 ? <Text style={s.empty}>Add a block from the left, or press Ask.</Text> : each(blocks, (b) => blockView(b, 0))}
           </View>
         </ScrollView>
       ) : null}
-      {mode === "html" ? (
+      {mode === "html" && tab !== "preview" ? (
         <View style={s.split} testID="em-htmlsplit">
           <View style={s.srcCol}>
             <View style={s.srcHead}><Text style={s.srcName}>email.html</Text><View style={s.srcActs}><Text style={s.stat}>{`${compiled.split("\n").length} lines`}</Text><Btn label="Tidy" onPress={tidy} testID="em-tidy" strong /></View></View>
             <ScrollView style={s.scroll}>
               <View style={s.srcRow}>
                 <Text style={s.gutter} selectable={false} testID="em-gutter">{each(compiled.split("\n"), (_, i) => i + 1).join("\n")}</Text>
-                <TextInput multiline scrollEnabled={false} accessibilityLabel="HTML" testID="em-html" value={html !== "" ? html : compiled} spellCheck={false} autoCapitalize="none" style={s.code}
-                  onChangeText={(t) => { setHtml(t); commit({ ...snap, html: t }, "Edited the HTML"); }} />
+                <View style={s.srcBody}>
+                  {Platform.OS === "web" ? (
+                    <Text style={[s.code, s.codeShow]} testID="em-highlight" selectable={false}>
+                      {each(highlightHtml(html !== "" ? html : compiled), (tk, k) => <Text key={k} style={HTML_COLOR[tk.kind]} {...webProps({ "data-kind": tk.kind })}>{tk.text}</Text>)}
+                    </Text>
+                  ) : null}
+                  <TextInput multiline scrollEnabled={false} accessibilityLabel="HTML" testID="em-html" value={html !== "" ? html : compiled} spellCheck={false} autoCapitalize="none"
+                    style={[s.code, Platform.OS === "web" && s.codeInput]}
+                    onChangeText={(t) => { setHtml(t); commit({ ...snap, html: t }, "Edited the HTML"); }} />
+                </View>
               </View>
             </ScrollView>
             <View style={s.status} testID="em-status">
@@ -515,7 +700,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
           {narrow ? null : <View style={s.livePane}><Text style={s.srcName}>Live preview</Text><View style={s.frame}><Frame html={preHtml} width={300} /></View></View>}
         </View>
       ) : null}
-      {mode === "plain" ? (
+      {mode === "plain" && tab !== "preview" ? (
         <ScrollView style={s.scroll} contentContainerStyle={s.codeWrap}>
           <TextInput multiline accessibilityLabel="Plain text" testID="em-plain" value={plainText} style={s.plain}
             onChangeText={(t) => { setPlain(t); commit({ ...snap, plain: t }, "Edited the plain-text part"); }} />
@@ -642,24 +827,16 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
         ) : null}
         {tab === "preview" ? (
           <View testID="em-previewpane">
-            <View style={s.seg}>
-              {each(EMAIL_PREVIEWS, (p) => (
-                <Pressable key={p} accessibilityRole="tab" aria-selected={preview === p} accessibilityState={{ selected: preview === p }} testID={`em-pv-${p}`} onPress={() => pickPreview(p)} style={[s.segBtn, preview === p && s.segOn]}>
-                  <Text style={[s.segText, preview === p && s.segTextOn]}>{p === "desktop" ? "Desktop" : p === "mobile" ? "Mobile" : "Dark"}</Text>
-                </Pressable>
-              ))}
-            </View>
             <Text style={s.sec}>In the inbox</Text>
             <View style={s.inbox} testID="em-inbox">
               <View style={s.brandDot}><Text style={s.brandLetter}>{(props.fromName ?? "N").slice(0, 1)}</Text></View>
               <View style={s.grow}>
                 <Text style={s.inboxFrom} numberOfLines={1}>{props.fromName ?? "Sender"}</Text>
-                <Text style={s.inboxSub} numberOfLines={1}>{fillMerge(subject, props.mergeValues)}</Text>
+                <Text style={s.inboxSub} numberOfLines={1}>{fillMerge(subject, values)}</Text>
                 <Text style={s.note} numberOfLines={1}>{previewText === "" ? "No preview text" : previewText}</Text>
               </View>
             </View>
-            <Text style={s.note}>{`${props.previewAs !== undefined ? `For ${props.previewAs}. ` : ""}Phones cut the subject at about 40 characters.`}</Text>
-            <View style={s.frame}><Frame html={preHtml} width={Math.min(PREVIEW_WIDTH[preview], 340)} /></View>
+            <Text style={s.note}>{`${previewAs !== undefined ? `For ${previewAs}. ` : ""}Phones cut the subject at about 40 characters.`}</Text>
             <Text style={s.sec}>Send a test</Text>
             <Row id="to" title={props.testTo ?? "You"} note="To" />
             <View style={s.testRow}>
@@ -687,6 +864,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
       {...webProps({ "data-testid": "email-builder", "data-mode": mode, "data-focus": focus ? "true" : "false", "data-version": String(version), "data-preview": preview, "data-density": props.density ?? "regular" })}
       accessibilityLabel={emailLabel(props)} style={[s.root, focus && s.rootFocus]}>
       {focus ? null : head}
+      {focus ? null : commentsBar}
       {focus ? null : envelope}
       <View style={[s.main, narrow && s.mainNarrow]}>
         {focus || mode !== "visual" ? null : rail}
@@ -773,6 +951,9 @@ const s = StyleSheet.create({
   srcRow: { flexDirection: "row", paddingVertical: 12 },
   gutter: { width: 42, textAlign: "right", paddingRight: 10, color: "var(--ink-4)" as string, fontFamily: "var(--mono)" as string, fontSize: 12.5, lineHeight: 19 },
   livePane: { width: 340, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, padding: 12, alignItems: "center" },
+  srcBody: { flex: 1, minWidth: 0, position: "relative" },
+  codeShow: { minHeight: 0 },
+  codeInput: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, color: "transparent" },
   code: { flex: 1, minWidth: 0, minHeight: 480, padding: 0, backgroundColor: "transparent", color: "var(--ink)" as string, fontFamily: "var(--mono)" as string, fontSize: 12.5, lineHeight: 19 },
   plain: { width: "100%", maxWidth: 640, minHeight: 480, padding: 24, borderRadius: 10, backgroundColor: "#FFFFFF", color: "#18181A", fontFamily: "var(--mono)" as string, fontSize: 13.5, lineHeight: 21 },
   pane: { width: 380, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--win)" as string, minHeight: 0 },
@@ -797,6 +978,12 @@ const s = StyleSheet.create({
   inboxFrom: { color: "var(--ink)" as string, fontSize: 13, fontWeight: "600" },
   inboxSub: { color: "var(--ink)" as string, fontSize: 13 },
   testRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 },
+  suggest: { height: 26, paddingHorizontal: 8, borderRadius: 7, justifyContent: "center" },
+  suggestText: { color: "var(--accent)" as string, fontSize: 12.5, fontWeight: "500" },
+  comments: { paddingHorizontal: 14, paddingVertical: 8, gap: 6, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  commentRow: { color: "var(--ink)" as string, fontSize: 13, lineHeight: 19 },
+  commentBy: { color: "var(--ink-3)" as string, fontWeight: "600" },
+  pvBar: { flexDirection: "row", alignItems: "center", gap: 8, width: "100%", maxWidth: 760, marginBottom: 14 },
   hint: { position: "absolute", top: 12, right: 16, color: "var(--ink-3)" as string, fontSize: 12, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 8, backgroundColor: "var(--raised)" as string },
   toast: { position: "absolute", bottom: 16, alignSelf: "center", color: "var(--ink)" as string, fontSize: 12.5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: "var(--raised)" as string },
 });

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   EmailBuilder, EMAIL_BLOCK_KINDS, EMAIL_MODES, EMAIL_PREVIEWS, PANE_TABS, PREVIEW_TEXT_LIMIT, SUBJECT_LIMIT,
-  blocksToPlain, emailBlockHtml, hasUnsub, formatHtml, compileEmail as compile2, DEFAULT_EMAIL_STYLE, EMAIL_WIDTHS, EMAIL_FONTS, COLOR_LABEL, isHex, splitTokens, canRedo, canUndo, compileEmail, editBlock, fillMerge, focusKey, mergeFieldsOf, mergeToken, moveBlock, newBlock, pushHistory, runChecks, stepHistory,
+  blocksToPlain, highlightHtml, emailBlockHtml, hasUnsub, formatHtml, compileEmail as compile2, DEFAULT_EMAIL_STYLE, EMAIL_WIDTHS, EMAIL_FONTS, COLOR_LABEL, isHex, splitTokens, canRedo, canUndo, compileEmail, editBlock, fillMerge, focusKey, mergeFieldsOf, mergeToken, moveBlock, newBlock, pushHistory, runChecks, stepHistory,
 } from "./index.tsx";
 import type { EmailBlock, EmailBuilderViewProps, EmailDiff, EmailHistory, EmailSnapshot } from "./index.tsx";
 
@@ -216,4 +216,46 @@ test("the rail adds Heading and Footer, and a selected heading or footer shows A
   const html = renderToStaticMarkup(<EmailBuilder {...base} blocks={[{ id: "h", kind: "heading", text: "Hi", size: 28 }, { id: "f", kind: "footer", text: "Foot", unsub: true }]} />);
   for (const k of ["heading", "footer"]) assert.ok(html.includes(`data-testid="em-add-${k}"`), k);
   assert.ok(html.includes('data-testid="em-unsub-f"') && html.includes("Unsubscribe · Email preferences"));
+});
+
+const CONTACTS = [{ id: "c1", name: "Elena Rivera", values: { first_name: "Elena" } }, { id: "c2", name: "Omar Haddad", values: { first_name: "Omar" } }];
+
+test("HTML source colouring: tags, attribute names, strings and comments, and the runs always join back to the source", () => {
+  const src = '<!-- note --><a href="#x" class=\'k\' disabled>Hi <b>there</b></a>\n<br/>';
+  const toks = highlightHtml(src);
+  assert.equal(toks.map((k) => k.text).join(""), src);
+  const kinds = (k: string): string[] => toks.filter((t) => t.kind === k).map((t) => t.text);
+  assert.deepEqual(kinds("comment"), ["<!-- note -->"]);
+  assert.deepEqual(kinds("tag"), ["a", "b", "b", "a", "br"]);
+  assert.deepEqual(kinds("attr"), ["href", "class", "disabled"]);
+  assert.deepEqual(kinds("str"), ['"#x"', "'k'"]);
+  const html = renderToStaticMarkup(<EmailBuilder {...base} mode="html" />);
+  assert.ok(html.includes('data-testid="em-highlight"') && html.includes('data-kind="tag"') && html.includes('data-kind="attr"'));
+});
+
+test("the header has Preview as, Templates, Version history and Comments; Preview as lists only when there are contacts", () => {
+  const html = renderToStaticMarkup(<EmailBuilder {...base} contacts={CONTACTS} />);
+  for (const id of ["em-previewas", "em-templates", "em-history", "em-comments"]) assert.ok(html.includes(`data-testid="${id}"`), id);
+  assert.match(html, /Preview as Elena Rivera/);
+  assert.ok(!renderToStaticMarkup(<EmailBuilder {...base} />).includes('data-testid="em-previewas"'));
+  assert.ok(renderToStaticMarkup(<EmailBuilder {...base} contacts={CONTACTS} contactId="c2" />).includes("Preview as Omar Haddad"));
+});
+
+test("the subject row has Suggest 5 and A/B test; a second subject shows as Subject B; preview text starts empty with the prototype's hint and a 90 limit", () => {
+  const html = renderToStaticMarkup(<EmailBuilder {...base} previewText={undefined} />);
+  assert.ok(html.includes('data-testid="em-suggest"') && html.includes("Suggest 5") && html.includes('data-testid="em-ab"') && html.includes("A/B test"));
+  assert.ok(!html.includes('data-testid="em-subjectb"'));
+  assert.match(html, /The grey line after the subject in the inbox/);
+  assert.match(html, /0\/90/);
+  const ab = renderToStaticMarkup(<EmailBuilder {...base} subjectB="Quick note on Friday" />);
+  assert.ok(ab.includes('data-testid="em-subjectb"') && ab.includes("Quick note on Friday") && ab.includes("Subject B"));
+});
+
+test("Preview opens as the main canvas with the Desktop, Mobile, Dark and Send test toolbar; the pane keeps the inbox row and the test send; contacts fill the merge fields", () => {
+  const html = renderToStaticMarkup(<EmailBuilder {...base} subject="Hi {{first_name}}" paneTab="preview" contacts={CONTACTS} fromName="Maya" />);
+  for (const id of ["em-previewstage", "em-pvbar", "em-pv-desktop", "em-pv-mobile", "em-pv-dark", "em-stage-send", "em-previewas-stage", "em-frame", "em-inbox", "em-preview-send"]) assert.ok(html.includes(`data-testid="${id}"`), id);
+  assert.equal(html.match(/data-testid="em-pv-desktop"/g)?.length, 1, "the toolbar is not repeated in the pane");
+  assert.ok(!html.includes('data-testid="em-card"'), "the blocks card gives way to the preview");
+  assert.match(html, /Hi Elena/);
+  assert.match(renderToStaticMarkup(<EmailBuilder {...base} subject="Hi {{first_name}}" paneTab="preview" contacts={CONTACTS} contactId="c2" />), /Hi Omar/);
 });
