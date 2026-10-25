@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Conversation, ConversationLoading } from "./Conversation.tsx";
-import { MessageView } from "./MessageView.tsx";
+import { HoverBar, MessageView } from "./MessageView.tsx";
 import * as act from "./actions.ts";
 import {
   WINDOW, beforeCursor, byOrder, dayLabel, faces, lastMessages, leadOf, mentionsIn, mergePages, pendingMessage, queueNote, queuedCount, respondersFor, sendKind, stillPending, stopLabel,
@@ -212,7 +212,7 @@ test("message writes: edit, pin, react, thread and delete go through their capab
   assert.equal(tid, "t_m4");
   await act.deleteMessage(s.data, "m3");
   assert.ok(!has(html(s), "Book 4pm."));
-  assert.ok(has(html(createSample("idle")), 'data-testid="hover-m3"') && has(html(createSample("idle")), 'data-testid="act-copy-m3"') && has(html(createSample("idle")), 'data-testid="act-edit-m3"'));
+  assert.ok(has(html(createSample("idle")), 'data-testid="hover-m3"'), "every row has its toolbar");
 });
 
 test("states: offline, closed, empty frame before data, and no em dash", () => {
@@ -372,4 +372,18 @@ test("the error row offers Report a problem, which opens the shared report sheet
   off();
   assert.deepEqual(seen, [{ label: "Docs did not read fee-schedule.csv (trace tr_5e20b4)" }]);
   assert.ok(has(html(createSample("errors")), 'data-testid="err-report"'));
+});
+
+test("the hover bar draws Copy, Edit (yours only), Reply and More while the row is hovered or focused, and none of them before: fifty hidden bars were most of the first frame", () => {
+  const s = createSample("idle");
+  const m3 = msgs(s).find((m) => m.messageId === "m3")!;
+  const m4 = msgs(s).find((m) => m.messageId === "m4")!;
+  const bar = (m: Message, mine: boolean, visible: boolean): string => clean(renderToStaticMarkup(<HoverBar m={m} mine={mine} a={noActions} onEdit={() => undefined} visible={visible} />));
+  const mine = bar(m3, true, true);
+  assert.ok(has(mine, 'data-testid="act-copy-m3"') && has(mine, 'data-testid="act-edit-m3"') && has(mine, 'data-testid="act-reply-m3"') && has(mine, 'data-testid="act-more-m3"'));
+  const theirs = bar(m4, false, true);
+  assert.ok(has(theirs, 'data-testid="act-copy-m4"') && !has(theirs, 'data-testid="act-edit-m4"') && has(theirs, 'data-testid="act-more-m4"'));
+  const idle = bar(m3, true, false);
+  assert.ok(has(idle, 'data-testid="hover-m3"') && !has(idle, "act-copy-m3") && !has(idle, "<svg"));
+  assert.ok(!has(html(s), 'data-testid="act-copy-m3"'), "a resting page draws no bar buttons");
 });

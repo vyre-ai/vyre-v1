@@ -80,14 +80,15 @@ function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: () => voi
   return items;
 }
 
-function HoverBar({ m, mine, a, onEdit, visible }: { m: Message; mine: boolean; a: MessageActions; onEdit: () => void; visible: boolean }): ReactElement {
+/** The bar is drawn only while the row is hovered or has focus: fifty rows that each hold a hidden bar of buttons were most of what the first frame cost. The empty toolbar stays, so the row's size and test hook never change. */
+export function HoverBar({ m, mine, a, onEdit, visible }: { m: Message; mine: boolean; a: MessageActions; onEdit: () => void; visible: boolean }): ReactElement {
   const bar: { icon: GlyphName; label: string; run: () => void }[] = [{ icon: "copy", label: "Copy", run: () => a.copy(m.body) }];
   if (mine && m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
   bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
   return (
-    <View testID={`hover-${m.messageId}`} accessibilityRole="toolbar" accessibilityLabel="Message actions" style={[st.hover, mine ? st.hoverMine : st.hoverTheirs, { opacity: visible ? 1 : 0 }]}>
-      {collect(bar, (b) => <IconButton key={b.label} icon={b.icon} label={b.label} size={24} testID={`act-${b.label.split(" ")[0]?.toLowerCase()}-${m.messageId}`} onPress={() => b.run()} />)}
-      <IconButton icon="more" label="More" size={24} testID={`act-more-${m.messageId}`} onPress={(x, y) => a.showMenu(menuFor(m, mine, a, onEdit), x, y, "Message")} />
+    <View testID={`hover-${m.messageId}`} accessibilityRole="toolbar" accessibilityLabel="Message actions" style={[st.hover, mine ? st.hoverMine : st.hoverTheirs, { opacity: visible ? 1 : 0 }, !visible && { width: 0, borderWidth: 0 }]}>
+      {visible ? collect(bar, (b) => <IconButton key={b.label} icon={b.icon} label={b.label} size={24} testID={`act-${b.label.split(" ")[0]?.toLowerCase()}-${m.messageId}`} onPress={() => b.run()} />) : null}
+      {visible ? <IconButton icon="more" label="More" size={24} testID={`act-more-${m.messageId}`} onPress={(x, y) => a.showMenu(menuFor(m, mine, a, onEdit), x, y, "Message")} /> : null}
     </View>
   );
 }
@@ -95,7 +96,12 @@ function HoverBar({ m, mine, a, onEdit, visible }: { m: Message; mine: boolean; 
 function useHover(): { over: boolean; focus: boolean; props: Record<string, unknown> } {
   const [over, setOver] = useState(false);
   const [focus, setFocus] = useState(false);
-  return { over, focus, props: webProps({ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false), onFocus: () => setFocus(true), onBlur: () => setFocus(false) }) };
+  type Blur = { currentTarget: { contains(n: unknown): boolean }; relatedTarget: unknown };
+  return {
+    over, focus,
+    // The row takes focus so the bar can be reached from the keyboard; the bar draws while focus is on the row or inside it.
+    props: webProps({ tabIndex: 0, onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false), onFocus: () => setFocus(true), onBlur: (e: Blur) => { if (!e.currentTarget.contains(e.relatedTarget)) setFocus(false); } }),
+  };
 }
 
 /* ---------- yours ---------- */
