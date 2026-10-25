@@ -11,7 +11,8 @@ import { LOCAL_PREFIX } from "../../places/chats/sidebar/model.ts";
 import { Conversation, ConversationLoading } from "../../places/chats/conversation/Conversation.tsx";
 import { ChatRightPane } from "../../places/chats/rightpane/ChatRightPane.tsx";
 import type { Principal } from "../../places/home/sections-a/data.tsx";
-import { useOpenedId } from "../hash/context.tsx";
+import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
+import { NotFound } from "../hash/NotFound.tsx";
 import { conversationData, paneData, sidebarData } from "./chats-data.ts";
 import type { ChatsActions } from "./chats-data.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
@@ -51,6 +52,7 @@ export function ChatsLoading(): ReactElement {
 
 function ChatsView({ rt }: { rt: ShellRuntime }): ReactElement {
   const [picked, setPicked] = useState<string | null>(null);
+  const { opened } = usePlaceHash();
   const hashed = useOpenedId(["chat", "thread", "channel"], ["threadId"]);
   const [pane, setPane] = useState(false);
   const recent = useLive(useMemo(() => rt.screens.query("chats.sidebar", "recent", { filter: "all" }) as LiveQuery<RecentOut>, [rt]));
@@ -59,20 +61,22 @@ function ChatsView({ rt }: { rt: ShellRuntime }): ReactElement {
   const threadId = picked ?? hashed ?? newestThread(recent.status === "ready" ? recent.data : undefined);
 
   const actions = useMemo<ChatsActions>(() => ({
-    openThread: (id) => { if (!id.startsWith(LOCAL_PREFIX)) setPicked(id); },
+    openThread: (id) => { if (!id.startsWith(LOCAL_PREFIX)) { setPicked(id); opened({ subject: { type: "thread", id } }); } },
     togglePane: () => setPane((v) => !v),
     openAgentChat: (agentId) => {
       void rt.call("chat.start", { kind: "chat", agentIds: [agentId] }).then((out) => {
         const id = (out as { thread?: { threadId?: string } } | null)?.thread?.threadId;
-        if (id) setPicked(id);
+        if (id) { setPicked(id); opened({ subject: { type: "thread", id } }); }
       }, () => undefined);
     },
     fillComposer: () => undefined,
-  }), [rt]);
+  }), [rt, opened]);
 
   const side = useMemo(() => sidebarData(rt, actions), [rt, actions]);
   const conv = useMemo(() => (threadId ? conversationData(rt, actions, threadId, list) : null), [rt, actions, threadId, list]);
-  const thread = useLive(useMemo(() => (threadId ? (rt.screens.query("chats.conversation", "thread", { threadId }) as LiveQuery<ThreadOut>) : null), [rt, threadId]));
+  const threadQ = useMemo(() => (threadId ? (rt.screens.query("chats.conversation", "thread", { threadId }) as LiveQuery<ThreadOut>) : null), [rt, threadId]);
+  const thread = useLive(threadQ);
+  const missing = threadQ !== null && thread.status === "loading" && (rt.screens as { errorFor?: (q: LiveQuery<unknown>) => unknown }).errorFor?.(threadQ) != null;
   const lead = thread.status === "ready" ? (thread.data.thread.agents.find((a) => a.mode === "lead") ?? thread.data.thread.agents[0]) : undefined;
   const agent = lead ? { agentId: lead.agentId, name: list.find((p) => p.id === lead.agentId)?.name ?? lead.agentId } : { agentId: rt.assistant.id, name: rt.assistant.name };
   const paneCtx = useMemo(() => (threadId ? paneData(rt, actions, threadId, agent) : null), [rt, actions, threadId, agent.agentId, agent.name]); // eslint-disable-line react-hooks/exhaustive-deps -- the agent is read by id and name
@@ -81,7 +85,7 @@ function ChatsView({ rt }: { rt: ShellRuntime }): ReactElement {
   return (
     <View testID="chats-place" style={st.row}>
       <View style={st.side}><ChatsSidebar data={side} /></View>
-      <View style={st.main}>{conv ? <Conversation key={conv.threadId} data={conv} /> : <ConversationLoading />}</View>
+      <View style={st.main}>{missing ? <NotFound what="chat" /> : conv ? <Conversation key={conv.threadId} data={conv} /> : <ConversationLoading />}</View>
       {pane && paneCtx ? <View style={st.pane}><ChatRightPane data={paneCtx} open onToggle={toggle} /></View> : null}
     </View>
   );

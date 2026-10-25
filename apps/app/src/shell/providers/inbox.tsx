@@ -2,7 +2,7 @@
 // Calendar when the sidebar asks for it. The Inbox's own UI state (view, scope, filters, selection) is one reducer shared by the sidebar and the list. Before the Space's runtime
 // exists the place draws its loading frame.
 import { useEffect, useMemo, useState } from "react";
-import { useOpenedId } from "../hash/context.tsx";
+import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
 import { Calendar } from "../../places/inbox/calendar/index.ts";
@@ -49,10 +49,11 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
 }
 
 function InboxView({ rt }: { rt: ShellRuntime }): ReactElement {
+  const { opened } = usePlaceHash();
   const hashed = useOpenedId(["conversation", "call"], ["conversationId"]);
   const [picked, setOpenId] = useState<string | null>(null);
   const openId = picked ?? hashed;
-  const data = useMemo(() => inboxData(rt, setOpenId), [rt]);
+  const data = useMemo(() => inboxData(rt, (id) => { setOpenId(id); opened({ subject: { type: "conversation", id } }); }), [rt, opened]);
   return (
     <InboxDataProvider value={data}>
       <InboxStateProvider>

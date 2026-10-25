@@ -1,7 +1,7 @@
 // The Automations place in the shell (spec 3.7): the sidebar on the left, the open Automation's canvas on the right. The open Automation is this place's own state; a row opens it,
 // and any other click (a run, the Failed runs row, Connections) goes out through the shell's door. Before the Space's runtime exists the place draws its loading frame.
 import { useMemo, useState } from "react";
-import { useOpenedId } from "../hash/context.tsx";
+import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { AutomationsDataProvider } from "../../places/automations/canvas/data.tsx";
@@ -21,17 +21,18 @@ function Loading(): ReactElement {
 }
 
 function Body({ rt }: { rt: ShellRuntime }): ReactElement {
+  const { opened } = usePlaceHash();
   const hashed = useOpenedId(["automation"], ["automationId"]);
   const [picked, setOpenId] = useState<string | null>(null);
   const openId = picked ?? hashed;
   const data = useMemo(() => automationsData(rt, {
-    openAutomation: (id) => setOpenId(id),
+    openAutomation: (id) => { setOpenId(id); opened({ subject: { type: "automation", id } }); },
     openJourney: (id) => rt.open({ screen: "automations.sidebar", args: { journeyId: id } }),
     openFailedRuns: () => rt.open({ screen: "runs.failed" }),
     openRun: (runId) => rt.open({ subject: { type: "run", id: runId } }),
     ask: (id) => rt.open({ screen: "chats.conversation", args: { with: "assistant", about: id } }),
     connect: (service) => rt.open({ screen: "mail.connections", args: { service } }),
-  }), [rt]);
+  }), [rt, opened]);
   return (
     <AutomationsDataProvider value={data}>
       <View style={s.page} testID="automations-place">

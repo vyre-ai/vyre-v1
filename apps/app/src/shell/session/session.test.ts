@@ -328,3 +328,16 @@ test("places: every rail place that has a screen maps to its route id and back; 
   assert.equal(routeIdOf("join"), null);
   assert.equal(railPlaceOf("nowhere"), null);
 });
+
+test("hooks: a read that fails leaves the query loading, with the error available to the place that asked", async () => {
+  const hooks = createRemoteScreenHooks({ screens: SCREENS, read: async () => { throw new CapError({ code: "validation.not_found", message: "no", traceId: "t", status: 404 }); } });
+  const q = hooks.query("files.list", "items");
+  let told = 0;
+  q.subscribe(() => { told++; });
+  assert.equal(hooks.errorFor(q), null);
+  await wait();
+  assert.equal(q.getSnapshot().status, "loading");
+  assert.ok(hooks.errorFor(q) instanceof CapError);
+  assert.equal(told, 1, "the listener looked again once");
+  hooks.close();
+});
