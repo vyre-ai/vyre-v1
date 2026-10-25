@@ -432,6 +432,24 @@
       ]
     },
     {
+      "key": "runbook.intake_check",
+      "content": "steps",
+      "type": "runbook",
+      "title": "Check the intake pipeline",
+      "tools": [
+        "files.resolve",
+        "files.folder.create",
+        "files.create"
+      ],
+      "apply": {
+        "cap": "file.put",
+        "input": {
+          "path": "Projects/Runbooks/Law firm intake/check-the-intake-pipeline.md",
+          "content": "# Check the intake pipeline\n\nRun this when a day looks quiet. It lists the Journeys and Automations so you can see that intake is switched on.\n\n```sh\nvyre journeys list\n```\n\nIf Client intake is missing or has no records in flight, open Apps and check the contact form is published.\n\n```sh\nvyre automations list\n```\n"
+        }
+      }
+    },
+    {
       "key": "agent.intake_clerk",
       "content": "tools",
       "type": "agent",

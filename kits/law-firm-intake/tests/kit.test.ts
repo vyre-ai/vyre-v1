@@ -85,6 +85,7 @@ class Fixture {
   types: string[] = [];
   journeys: { name: string; subjectType: string }[] = [];
   forms: { name: string; recordType: string }[] = [];
+  files: string[] = [];
   answers = new Map<string, (i: Obj) => unknown>();
   constructor() {
     const on = (cap: string, f: (i: Obj) => unknown): void => { this.answers.set(cap, f); };
@@ -103,6 +104,7 @@ class Fixture {
     on("access.groups.defaults_set", (i) => { this.log.push({ name: "access.everyone_defaults_changed", payload: { grants: i["grants"].length } }); return { groupId: "grp_everyone", grants: i["grants"] }; });
     on("automations.create", (i) => { this.log.push({ name: "automation.created", payload: { name: i["name"] } }); return { automation: { name: i["name"] } }; });
     on("agents.create", (i) => { this.log.push({ name: "agent.created", payload: { name: i["name"] } }); return { agent: { name: i["name"] } }; });
+    on("file.put", (i) => { this.files.push(String(i["path"])); return { fileId: "fil_1", created: true }; });
     on("journeys.create", (i) => { this.journeys.push({ name: i["name"], subjectType: i["subjectType"] }); this.log.push({ name: "journey.created", payload: { name: i["name"] } }); return { journey: { name: i["name"] } }; });
     on("forms.create", (i) => { this.forms.push({ name: i["name"], recordType: i["recordType"] }); return { form: { name: i["name"] } }; });
   }
@@ -141,6 +143,7 @@ async function runDeclared(k: KitManifest): Promise<{ test: string; message: str
 }
 
 
+const RUNBOOK_ITEM = "runbook.intake_check";
 const KEY = "law-firm-intake";
 const TYPES = ["lead", "matter"];
 const STAGED_TYPE = "lead";
@@ -151,7 +154,7 @@ const FORM_ITEM = "form.contact";
 const FORM_KIND = "public";
 const AUTO_ITEM = "auto.new_intake";
 const AGENT_ITEM = "agent.intake_clerk";
-const SHEET_TOOLS = ["schema.apply", "schema.layout.set", "settings.set_space", "journeys.create", "forms.create", "automations.create", "tasks.create", "agents.create", "records.query", "records.create", "records.update", "forms.submissions", "journeys.move_stage"];
+const SHEET_TOOLS = ["schema.apply", "schema.layout.set", "settings.set_space", "files.create", "journeys.create", "forms.create", "automations.create", "tasks.create", "agents.create", "records.query", "records.create", "records.update", "forms.submissions", "journeys.move_stage"];
 
 /** The schema accepts field keys in lower snake case only (its field key pattern, which the layout input repeats); the manifests that name these types write some keys in camel case. */
 const snake = (key: string): string => key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
@@ -182,6 +185,7 @@ test("the install sheet lists what the Kit touches and names no network domain, 
 test("every capability a step or tool names exists, no step uses a Kit-forbidden capability, and every step input passes the generated validator", () => {
   const caps = new Map(registry.capabilities.map((c) => [c.name, c]));
   for (const { item: it, which, step } of steps(kit())) {
+    if (step.cap === "file.put") continue;   // the kits module's own file step, checked below
     assert.ok(caps.has(step.cap), `${it} ${which}: ${step.cap} is not a capability`);
     assert.deepEqual(validateInput(step.cap, 1, step.input), [], `${it} ${which}: ${step.cap} input`);
   }
@@ -191,8 +195,8 @@ test("every capability a step or tool names exists, no step uses a Kit-forbidden
 test("every write step that needs an idempotency key carries a stable one, unique across the Kit", () => {
   const keys: string[] = [];
   for (const { item: it, step } of steps(kit())) {
-    const cap = registry.capabilities.find((c) => c.name === step.cap)!;
-    if (cap.idempotency === "key") {
+    const cap = registry.capabilities.find((c) => c.name === step.cap);
+    if (cap && cap.idempotency === "key") {
       const key = step.input["idempotencyKey"];
       assert.equal(typeof key, "string", `${it}: ${step.cap} needs an idempotencyKey`);
       keys.push(key as string);
@@ -287,6 +291,22 @@ test("the Automation uses a trigger and steps that exist, with a path from the t
   assert.deepEqual(validateInput("automations.validate", 1, { definition: def }), []);
 });
 
+test("the runbook is a file step at a path under Projects/Runbooks with Markdown that has fenced sh blocks of read-only vyre commands", () => {
+  const it = item(RUNBOOK_ITEM);
+  assert.equal(it.apply!.cap, "file.put");
+  const input = it.apply!.input as { path: string; content: string };
+  const segs = input.path.split("/");
+  assert.deepEqual(segs.slice(0, 2), ["Projects", "Runbooks"]);
+  assert.ok(segs.length >= 3 && segs.length <= 8 && segs.every((s) => s !== "" && s !== ".." && s === s.trim() && !s.includes("\\")));
+  assert.ok(input.path.endsWith(".md") && input.content.length < 200_000);
+  assert.match(input.content, /^# .+/);
+  const blocks = [...input.content.matchAll(/```(sh|bash)\n([\s\S]*?)```/g)].map((m) => m[2]!.trim().split("\n"));
+  assert.ok(blocks.length >= 2, "at least two runnable blocks");
+  for (const line of blocks.flat()) assert.match(line, /^vyre (journeys|automations|schema) (list|describe)$/, "read-only commands only");
+  assert.deepEqual(it.tools, ["files.resolve", "files.folder.create", "files.create"], "the install sheet shows the calls the step makes");
+  assert.equal(it.undo, undefined, "a shipped file is not removed by a rollback");
+});
+
 test("the agent may use only capabilities that exist, lists them as the item's tools too, and denies nothing it also allows", () => {
   const it = item(AGENT_ITEM);
   const tools = (it.apply!.input["tools"] as { allowed: string[]; denied: string[] });
@@ -338,6 +358,7 @@ test("install: the Kit's steps apply in item order, each with its own input, and
   assert.equal(s.journeys[0]!.subjectType, STAGED_TYPE);
   assert.equal(s.forms.length, 1);
   assert.ok(s.types.includes(s.forms[0]!.recordType), "the form is on a type that exists by then");
+  assert.equal(s.files.length, 1, "the runbook was put");
   for (const name of ["schema.changed", "journey.created", "automation.created", "agent.created"]) assert.ok(s.log.some((e) => e.name === name), name);
 });
 

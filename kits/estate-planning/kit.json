@@ -359,6 +359,24 @@
       ]
     },
     {
+      "key": "runbook.estate_check",
+      "content": "steps",
+      "type": "runbook",
+      "title": "Check estate plans in flight",
+      "tools": [
+        "files.resolve",
+        "files.folder.create",
+        "files.create"
+      ],
+      "apply": {
+        "cap": "file.put",
+        "input": {
+          "path": "Projects/Runbooks/Estate planning/check-estate-plans.md",
+          "content": "# Check estate plans in flight\n\nRun this before the weekly review. It shows the Estate plan Journey and the record types behind it.\n\n```sh\nvyre journeys list\n```\n\nA plan that sits in Review longer than its time limit lands in the owner's Needs you; open it from there.\n\n```sh\nvyre schema describe\n```\n"
+        }
+      }
+    },
+    {
       "key": "agent.drafting_assistant",
       "content": "tools",
       "type": "agent",
