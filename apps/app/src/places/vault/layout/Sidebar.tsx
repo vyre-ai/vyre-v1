@@ -36,6 +36,16 @@ export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNe
     if (!name) { setNaming(null); return; }
     try { await onNewFolder(name); setNaming(null); setFolderError(null); } catch { setFolderError("Could not make that folder."); }
   };
+  const folderRows: ReactElement[] = [];
+  for (const f of shared) {
+    folderRows.push(
+          <View key={f.id} {...menuTrigger((x, y) => onFolderMenu(f, x, y))}>
+            <Row id={`nav-folder-${f.id}`} title={f.name} selected={selection.kind === "folder" && selection.folderId === f.id}
+              leading={<View style={[s.lead, { marginLeft: depthOf(f) * 12 }]}><Glyph name="folder" size={16} color="var(--ink-2)" /></View>} trailing={<Count n={counts.folders.get(f.id) ?? f.itemCount} />}
+              onPress={() => onSelect({ kind: "folder", folderId: f.id })} />
+          </View>
+    );
+  }
   return (
     <View style={s.side} testID="vault-sidebar" accessibilityRole="menu" accessibilityLabel="Vault sections">
       <View style={s.title}><Text accessibilityRole="header" style={s.titleText}>Vault</Text></View>
@@ -54,13 +64,7 @@ export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNe
         {canCreateShared ? <IconBtn icon="plus" label="New shared folder" onPress={() => setNaming("")} testID="new-folder" /> : null}
       </View>
       <View style={s.group} testID="vault-folders">
-        {shared.map((f) => (
-          <View key={f.id} {...menuTrigger((x, y) => onFolderMenu(f, x, y))}>
-            <Row id={`nav-folder-${f.id}`} title={f.name} selected={selection.kind === "folder" && selection.folderId === f.id}
-              leading={<View style={[s.lead, { marginLeft: depthOf(f) * 12 }]}><Glyph name="folder" size={16} color="var(--ink-2)" /></View>} trailing={<Count n={counts.folders.get(f.id) ?? f.itemCount} />}
-              onPress={() => onSelect({ kind: "folder", folderId: f.id })} />
-          </View>
-        ))}
+        {folderRows}
         {naming !== null ? (
           <View style={s.naming}>
             <Glyph name="folder" size={16} color="var(--ink-2)" />

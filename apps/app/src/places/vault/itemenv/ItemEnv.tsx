@@ -10,7 +10,7 @@ import { accessLine, agoLabel, KIND_LABEL, rotation } from "../layout/model.ts";
 import type { Folder, Item } from "../layout/model.ts";
 import { Btn, Glyph, IconBtn, LogoTile, Mono } from "../layout/parts.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { MASK } from "./env.ts";
+import { MASK, keysOf } from "./env.ts";
 import { createRevealStore } from "./reveal.ts";
 import type { RevealStore } from "./reveal.ts";
 
@@ -109,6 +109,24 @@ export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, ini
     ...(item.yourLevel === "manage" ? [SEP, { label: "Move to Trash", danger: true, onSelect: () => setConfirmDelete(true) }] : []),
   ];
 
+  const fieldLines: ReactElement[] = [];
+  for (const f of fields) {
+    fieldLines.push(
+              <FieldLine key={f.key} view={view} fieldKey={f.key} secret={f.secret} hasValue={f.hasValue} value={rv.shown.get(f.key)} canSee={canSee} online={online} busy={rv.busy}
+                onReveal={() => { void store.reveal([f.key]); }} onHide={() => store.hide([f.key])} onCopy={() => { void store.copy(f.key); }} />
+    );
+  }
+  const historyLines: ReactElement[] = [];
+  for (let i = 0; i < shownEntries.length; i++) {
+    const e = shownEntries[i]!;
+    historyLines.push(
+                <View key={`${e.at}-${i}`} style={s.hist}>
+                  <Text style={s.histText} numberOfLines={1}>{`${names.name(e.onBehalfOf ? e.onBehalfOf.id : e.actor.id)} ${VERB[e.action]}${e.field ? ` ${e.field}` : ""}${e.onBehalfOf ? ` (through ${names.name(e.actor.id)})` : ""}`}</Text>
+                  <Text style={s.histWhen}>{agoLabel(e.at, clock)}</Text>
+                </View>
+    );
+  }
+
   return (
     <View style={s.pane} testID="item-env" accessibilityLabel={item.name} {...menuTrigger((x, y) => menu.show(moreItems, x, y))}>
       {menu.element}
@@ -143,15 +161,12 @@ export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, ini
               <View style={{ flex: 1 }} />
               {fields.length > 0 && canSee ? (
                 <Btn label={rv.shown.size > 0 ? "Hide values" : "Reveal all"} icon={rv.shown.size > 0 ? "eyeOff" : "eye"} disabled={!online || rv.busy} testID="env-reveal-all"
-                  onPress={() => { if (rv.shown.size > 0) store.hide(); else void store.reveal(fields.map((f) => f.key)); }} />
+                  onPress={() => { if (rv.shown.size > 0) store.hide(); else void store.reveal(keysOf(fields)); }} />
               ) : null}
             </View>
             {view === "env" ? <Text style={s.comment} testID="env-comment">{`# ${item.name} · agents ask for ${item.handle}`}</Text> : null}
             {fields.length === 0 ? <Text style={s.empty} testID="env-empty">No fields yet. Edit the item to add one.</Text> : null}
-            {fields.map((f) => (
-              <FieldLine key={f.key} view={view} fieldKey={f.key} secret={f.secret} hasValue={f.hasValue} value={rv.shown.get(f.key)} canSee={canSee} online={online} busy={rv.busy}
-                onReveal={() => { void store.reveal([f.key]); }} onHide={() => store.hide([f.key])} onCopy={() => { void store.copy(f.key); }} />
-            ))}
+            {fieldLines}
             {rv.asking ? (
               <View style={s.agree} testID="env-agree" accessibilityRole="alert">
                 <Glyph name="eye" size={15} />
@@ -184,12 +199,7 @@ export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, ini
           <View style={s.sectionHead}><Text style={s.h2}>Recent use</Text></View>
           {hist.status !== "ready" ? <Text style={s.note}>Loading</Text> : entries.length === 0 ? <Text style={s.note} testID="history-empty">Nothing has used this item yet.</Text> : (
             <View testID="item-history">
-              {shownEntries.map((e, i) => (
-                <View key={`${e.at}-${i}`} style={s.hist}>
-                  <Text style={s.histText} numberOfLines={1}>{`${names.name(e.onBehalfOf ? e.onBehalfOf.id : e.actor.id)} ${VERB[e.action]}${e.field ? ` ${e.field}` : ""}${e.onBehalfOf ? ` (through ${names.name(e.actor.id)})` : ""}`}</Text>
-                  <Text style={s.histWhen}>{agoLabel(e.at, clock)}</Text>
-                </View>
-              ))}
+              {historyLines}
               {!showAll && entries.length > 5 ? <Btn label={`Show all ${entries.length}`} onPress={() => setShowAll(true)} testID="history-all" /> : null}
             </View>
           )}

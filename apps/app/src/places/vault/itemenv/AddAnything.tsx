@@ -5,17 +5,25 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useScreenQuery, useVaultData } from "../layout/data.tsx";
 import { handleFor } from "../layout/model.ts";
 import type { Folder } from "../layout/model.ts";
 import { Btn, Glyph, IconBtn, LogoTile, QuietLine } from "../layout/parts.tsx";
 import { Sheet } from "../layout/Sheet.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { fieldsFor, filterTemplates, mergeFields, normalizeKey, templateById, understandPaste } from "./env.ts";
+import { fieldsFor, filterTemplates, mergeFields, normalizeKey, patchAt, templateById, understandPaste } from "./env.ts";
 import type { Field, ItemKind, Template } from "./env.ts";
 import { LAYOUT_SCREEN } from "./ItemEnv.tsx";
 
 type FoldersOut = CapMap["vault.folders.list"]["out"];
+
+/** The folder picker's menu: one checked entry for where the item goes. A loop, not a map, so the JSX below holds no list-building. */
+function folderEntries(list: readonly Folder[], target: string | undefined, pick: (id: string) => void): MenuEntry[] {
+  const out: MenuEntry[] = [];
+  for (const f of list) out.push({ label: f.scope === "mine" ? `${f.name} (Mine)` : f.name, checked: f.id === target, onSelect: () => pick(f.id) });
+  return out;
+}
 
 export interface AddAnythingProps {
   onClose: () => void;
@@ -75,7 +83,7 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste }: Ad
   const generate = async (i: number): Promise<void> => {
     try {
       const out = (await data.call("vault.generate", { kind: "password", length: 24 })) as { value: string };
-      setFields((cur) => cur.map((f, j) => (j === i ? { ...f, value: out.value, secret: true } : f)));
+      setFields((cur) => patchAt(cur, i, { value: out.value, secret: true }));
     } catch { setError("Could not make a password right now."); }
   };
 
@@ -98,8 +106,34 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste }: Ad
   };
 
   const folderMenu = (x: number, y: number): void => {
-    menu.show(list.map((f) => ({ label: f.scope === "mine" ? `${f.name} (Mine)` : f.name, checked: f.id === target, onSelect: () => setFolderId(f.id) })), x, y, "other");
+    menu.show(folderEntries(list, target, setFolderId), x, y, "other");
   };
+
+  const reelTiles: ReactElement[] = [];
+  for (const t of reel) {
+    reelTiles.push(
+          <Pressable key={t.id} accessibilityRole="button" accessibilityLabel={t.name} accessibilityState={{ selected: template === t.id }} testID={`add-app-${t.id}`} onPress={() => applyTemplate(t)} style={[s.app, template === t.id && s.appOn]}>
+            {t.id === "custom" ? <View style={s.customTile}><Glyph name="plus" size={16} color="var(--ink-2)" /></View> : <LogoTile name={t.name} size={32} />}
+            <Text style={s.appName} numberOfLines={1}>{t.name}</Text>
+          </Pressable>
+    );
+  }
+  const fieldLines: ReactElement[] = [];
+  for (let i = 0; i < fields.length; i++) {
+    const f = fields[i]!;
+    fieldLines.push(
+          <View key={i} style={s.rowLine} testID={`add-row-${i}`}>
+            <TextInput value={f.key} onChangeText={(v) => setFields(patchAt(fields, i, { key: normalizeKey(v) }))} placeholder="KEY" autoCapitalize="characters" accessibilityLabel="Field name" style={[s.input, s.keyIn]} testID={`add-key-${i}`} />
+            <TextInput
+              value={f.value} onChangeText={(v) => setFields(patchAt(fields, i, { value: v }))} secureTextEntry={f.secret} placeholder="Value" autoCapitalize="none" autoCorrect={false}
+              accessibilityLabel={`Value of ${f.key || "the field"}`} style={[s.input, { flex: 1, minWidth: 0 }]} testID={`add-value-${i}`}
+            />
+            <IconBtn icon={f.secret ? "lock" : "eye"} label={f.secret ? "Secret. Make it plain" : "Plain. Make it secret"} onPress={() => setFields(patchAt(fields, i, { secret: !x.secret }))} testID={`add-secret-${i}`} />
+            {f.secret && /(PASSWORD|PIN)$/.test(f.key) ? <IconBtn icon="wand" label="Make a password" onPress={() => { void generate(i); }} testID={`add-generate-${i}`} /> : null}
+            <IconBtn icon="x" label={`Remove ${f.key || "the field"}`} onPress={() => setFields(fields.filter((_, j) => j !== i))} testID={`add-remove-${i}`} />
+          </View>
+    );
+  }
 
   return (
     <Sheet
@@ -120,12 +154,7 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste }: Ad
           onSubmitEditing={() => { const first = reel.find((t) => t.id !== "custom"); if (first && search.trim()) applyTemplate(first); }} />
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.reel} testID="add-reel" accessibilityRole="list">
-        {reel.map((t) => (
-          <Pressable key={t.id} accessibilityRole="button" accessibilityLabel={t.name} accessibilityState={{ selected: template === t.id }} testID={`add-app-${t.id}`} onPress={() => applyTemplate(t)} style={[s.app, template === t.id && s.appOn]}>
-            {t.id === "custom" ? <View style={s.customTile}><Glyph name="plus" size={16} color="var(--ink-2)" /></View> : <LogoTile name={t.name} size={32} />}
-            <Text style={s.appName} numberOfLines={1}>{t.name}</Text>
-          </Pressable>
-        ))}
+        {reelTiles}
       </ScrollView>
 
       <View style={s.pasteBox}>
@@ -147,18 +176,7 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste }: Ad
       <View style={s.field}>
         <Text style={s.label}>Fields</Text>
         {fields.length === 0 ? <Text style={s.hint} testID="add-empty">Pick an app, or paste something above. You can also add a field by hand.</Text> : null}
-        {fields.map((f, i) => (
-          <View key={i} style={s.rowLine} testID={`add-row-${i}`}>
-            <TextInput value={f.key} onChangeText={(v) => setFields(fields.map((x, j) => (j === i ? { ...x, key: normalizeKey(v) } : x)))} placeholder="KEY" autoCapitalize="characters" accessibilityLabel="Field name" style={[s.input, s.keyIn]} testID={`add-key-${i}`} />
-            <TextInput
-              value={f.value} onChangeText={(v) => setFields(fields.map((x, j) => (j === i ? { ...x, value: v } : x)))} secureTextEntry={f.secret} placeholder="Value" autoCapitalize="none" autoCorrect={false}
-              accessibilityLabel={`Value of ${f.key || "the field"}`} style={[s.input, { flex: 1, minWidth: 0 }]} testID={`add-value-${i}`}
-            />
-            <IconBtn icon={f.secret ? "lock" : "eye"} label={f.secret ? "Secret. Make it plain" : "Plain. Make it secret"} onPress={() => setFields(fields.map((x, j) => (j === i ? { ...x, secret: !x.secret } : x)))} testID={`add-secret-${i}`} />
-            {f.secret && /(PASSWORD|PIN)$/.test(f.key) ? <IconBtn icon="wand" label="Make a password" onPress={() => { void generate(i); }} testID={`add-generate-${i}`} /> : null}
-            <IconBtn icon="x" label={`Remove ${f.key || "the field"}`} onPress={() => setFields(fields.filter((_, j) => j !== i))} testID={`add-remove-${i}`} />
-          </View>
-        ))}
+        {fieldLines}
         <View style={{ alignSelf: "flex-start" }}><Btn label="Add field" icon="plus" onPress={() => setFields([...fields, { key: "", value: "", secret: true }])} testID="add-field" /></View>
       </View>
       {error ? <Text style={s.error} accessibilityRole="alert" testID="add-error">{error}</Text> : null}

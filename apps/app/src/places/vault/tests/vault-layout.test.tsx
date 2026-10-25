@@ -37,7 +37,7 @@ test("sidebar: sections in the prototype's order with counts, Requested and Heal
   const order = ["nav-requested", "nav-all", "nav-providers", "nav-keys", "nav-logins", "nav-cards", "nav-health", "nav-folder-fld_marketing", "nav-folder-fld_finance", "nav-folder-fld_ops", "nav-mine", "nav-advanced"].map((id) => at(out, `data-testid="row-${id}"`));
   assert.deepEqual([...order].sort((a, b) => a - b), order, "Requested, All, AI providers, Keys, Logins, Cards, Health, Shared folders, Mine, Advanced");
   for (const label of ["All", "AI providers", "Keys", "Logins", "Cards", "Health", "Marketing", "Finance", "Operations", "Mine", "Advanced", "Shared"]) assert.ok(has(out, label), label);
-  const nav = (id: string): string => out.slice(at(out, `data-testid="row-${id}"`), at(out, `data-testid="row-${id}"`) + 900);
+  const nav = (id: string): string => out.slice(at(out, `data-testid="row-${id}-trailing"`), at(out, `data-testid="row-${id}-trailing"`) + 400);
   assert.ok(has(nav("nav-all"), ">16<"), "16 items in All");
   assert.ok(has(nav("nav-providers"), ">3<"), "three providers");
   assert.ok(has(nav("nav-health"), ">2<"), "two items past their rotation date");

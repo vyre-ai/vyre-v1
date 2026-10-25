@@ -32,30 +32,30 @@ export function ItemList({ items, selectedId, providerOf, healthIds, clock, onSe
     last.current = { id, at: now };
     if (again) onOpen(id); else onSelect(id);
   };
+  const line = (item: Item): ReactElement => {
+    const provider = providerOf.get(item.id);
+    const look = needsLook(item, clock, healthIds);
+    return (
+      <View {...menuTrigger((x, y) => onMenu(item, x, y))} style={s.rowWrap}>
+        <Row
+          id={item.id}
+          title={item.name}
+          note={secondLine(item, provider)}
+          selected={item.id === selectedId}
+          leading={<View style={s.logo}><LogoTile name={item.name} size={30} /></View>}
+          trailing={<View style={s.trail}>{look ? <View style={s.dot} testID={`look-${item.id}`} accessibilityLabel="Worth a look" /> : null}<Text style={s.used}>{usedLabel(item.lastUsedAt, clock)}</Text></View>}
+          onPress={() => press(item.id)}
+        />
+      </View>
+    );
+  };
   return (
     <View style={s.list} testID="vault-list">
       <VirtualList
         data={items}
         rowHeight={LIST_ROW_HEIGHT}
         keyOf={(it) => it.id}
-        renderItem={(it) => {
-          const item = it as Item;
-          const provider = providerOf.get(item.id);
-          const look = needsLook(item, clock, healthIds);
-          return (
-            <View {...menuTrigger((x, y) => onMenu(item, x, y))} style={s.rowWrap}>
-              <Row
-                id={item.id}
-                title={item.name}
-                note={secondLine(item, provider)}
-                selected={item.id === selectedId}
-                leading={<View style={s.logo}><LogoTile name={item.name} size={30} /></View>}
-                trailing={<View style={s.trail}>{look ? <View style={s.dot} testID={`look-${item.id}`} accessibilityLabel="Worth a look" /> : null}<Text style={s.used}>{usedLabel(item.lastUsedAt, clock)}</Text></View>}
-                onPress={() => press(item.id)}
-              />
-            </View>
-          );
-        }}
+        renderItem={(it) => line(it as Item)}
       />
     </View>
   );

@@ -234,3 +234,18 @@ export function textToRows(text: string, current: readonly Field[]): Field[] {
   const had = new Map(current.map((f) => [f.key, f.secret] as const));
   return parseEnv(text).fields.map((f) => ({ ...f, secret: had.get(f.key) ?? f.secret }));
 }
+
+/** Row i with some fields changed. Kept here, away from the JSX, so the field editors stay plain handlers. */
+export function patchAt<T>(rows: readonly T[], i: number, patch: Partial<T>): T[] {
+  const out = rows.slice();
+  const cur = out[i];
+  if (cur !== undefined) out[i] = { ...cur, ...patch };
+  return out;
+}
+
+export const keysOf = (rows: readonly { key: string }[]): string[] => rows.map((r) => r.key);
+
+/** Rows with a typed secret flag applied by key. */
+export function withFlags<T extends { key: string; secret: boolean }>(rows: readonly T[], flags: ReadonlyMap<string, boolean>): T[] {
+  return rows.map((r) => ({ ...r, secret: flags.get(r.key) ?? r.secret }));
+}

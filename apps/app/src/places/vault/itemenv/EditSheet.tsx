@@ -7,7 +7,7 @@ import { useScreenQuery, useVaultData } from "../layout/data.tsx";
 import { Btn, Glyph, IconBtn, Mono } from "../layout/parts.tsx";
 import { Sheet } from "../layout/Sheet.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { MASK, diffEnv, diffIsEmpty, diffWords, normalizeKey, rowsToText, textToRows, updateFromText } from "./env.ts";
+import { MASK, diffEnv, diffIsEmpty, diffWords, normalizeKey, patchAt, rowsToText, textToRows, updateFromText, withFlags } from "./env.ts";
 import type { Field } from "./env.ts";
 import { ITEM_SCREEN } from "./ItemEnv.tsx";
 
@@ -49,8 +49,9 @@ function Body({ itemId, item: got, onClose, onSaved }: { itemId: string; item: G
     try {
       const up = updateFromText(current, effectiveText);
       // a typed secret flag on a changed or new row wins over the guess
-      const flag = new Map(effective.map((f) => [f.key, f.secret] as const));
-      const fieldsSet = up.fieldsSet.map((f) => ({ ...f, secret: flag.get(f.key) ?? f.secret }));
+      const flag = new Map<string, boolean>();
+      for (const f of effective) flag.set(f.key, f.secret);
+      const fieldsSet = withFlags(up.fieldsSet, flag);
       await data.call("vault.item.update", { itemId, ...(renamed ? { name: name.trim() } : {}), ...(fieldsSet.length ? { fieldsSet } : {}), ...(up.fieldsRemove.length ? { fieldsRemove: up.fieldsRemove } : {}) });
       onSaved(`Saved ${renamed ? name.trim() : got.item.name}`);
       onClose();
@@ -59,6 +60,22 @@ function Body({ itemId, item: got, onClose, onSaved }: { itemId: string; item: G
       setSaving(false);
     }
   };
+
+  const rowLines: ReactElement[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]!;
+    rowLines.push(
+            <View key={i} style={s.rowLine} testID={`edit-row-${i}`}>
+              <TextInput value={r.key} onChangeText={(v) => setRows(patchAt(rows, i, { key: normalizeKey(v) }))} accessibilityLabel="Field name" autoCapitalize="characters" style={[s.input, s.keyIn]} />
+              <TextInput
+                value={r.value} placeholder={MASK} secureTextEntry={r.secret} onChangeText={(v) => setRows(patchAt(rows, i, { value: v }))}
+                accessibilityLabel={`Value of ${r.key || "the field"}`} autoCapitalize="none" autoCorrect={false} style={[s.input, { flex: 1, minWidth: 0 }]}
+              />
+              <IconBtn icon={r.secret ? "lock" : "eye"} label={r.secret ? "Secret. Make it plain" : "Plain. Make it secret"} onPress={() => setRows(patchAt(rows, i, { secret: !x.secret }))} testID={`edit-secret-${i}`} />
+              <IconBtn icon="x" label={`Remove ${r.key || "the field"}`} onPress={() => setRows(rows.filter((_, j) => j !== i))} testID={`edit-remove-${i}`} />
+            </View>
+    );
+  }
 
   return (
     <Sheet
@@ -87,17 +104,7 @@ function Body({ itemId, item: got, onClose, onSaved }: { itemId: string; item: G
         </View>
       ) : (
         <View style={{ gap: 8 }}>
-          {rows.map((r, i) => (
-            <View key={i} style={s.rowLine} testID={`edit-row-${i}`}>
-              <TextInput value={r.key} onChangeText={(v) => setRows(rows.map((x, j) => (j === i ? { ...x, key: normalizeKey(v) } : x)))} accessibilityLabel="Field name" autoCapitalize="characters" style={[s.input, s.keyIn]} />
-              <TextInput
-                value={r.value} placeholder={MASK} secureTextEntry={r.secret} onChangeText={(v) => setRows(rows.map((x, j) => (j === i ? { ...x, value: v } : x)))}
-                accessibilityLabel={`Value of ${r.key || "the field"}`} autoCapitalize="none" autoCorrect={false} style={[s.input, { flex: 1, minWidth: 0 }]}
-              />
-              <IconBtn icon={r.secret ? "lock" : "eye"} label={r.secret ? "Secret. Make it plain" : "Plain. Make it secret"} onPress={() => setRows(rows.map((x, j) => (j === i ? { ...x, secret: !x.secret } : x)))} testID={`edit-secret-${i}`} />
-              <IconBtn icon="x" label={`Remove ${r.key || "the field"}`} onPress={() => setRows(rows.filter((_, j) => j !== i))} testID={`edit-remove-${i}`} />
-            </View>
-          ))}
+          {rowLines}
           <View style={{ alignSelf: "flex-start" }}><Btn label="Add field" icon="plus" onPress={() => setRows([...rows, { key: "", value: "", secret: true }])} testID="edit-add-field" /></View>
         </View>
       )}
