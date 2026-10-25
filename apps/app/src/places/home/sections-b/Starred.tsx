@@ -34,7 +34,9 @@ export function Starred(): ReactElement {
   const built = stars.status === "ready" ? starRows(stars.data.stars, status.status === "ready" ? status.data.rows : []) : [];
   const split = splitForSpace(built, isPersonal(extras));
   const shown = all ? split.rows : split.rows.slice(0, STARRED_LIMIT);
-  const keyList = shown.map((r) => r.key).join("|");
+  const keys: string[] = [];
+  for (const r of shown) keys.push(r.key);
+  const keyList = keys.join("|");
   useEffect(() => { sel.register(STARRED_SECTION, keyList ? keyList.split("|") : []); }, [keyList]);
 
   const deps = { call: data.call, note: line.note };
