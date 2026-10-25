@@ -1,0 +1,28 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_08-popup-working",
+      "route": "/m/P-L9b_08",
+      "proto": "chat,at:demo-agent-computer,{skin}",
+      "waitFor": "[data-testid='computer-popup']",
+      "note": "The computer popup while Intake works: the dimmed veil, the screen at about 90 percent of the window with the pill, and the four icons on the side. The prototype opens the same popup by a click on the pane's computer, which has no deep link, so its side shows the agent pane's Computer tab the popup opens from.",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_08-popup-recording",
+      "route": "/m/P-L9b_08?state=recording",
+      "proto": "chat,at:demo-agent-computer,{skin}",
+      "waitFor": "[data-testid='computer-popup']",
+      "note": "In your control and recording 23 seconds in: the red edge, the pill with the time, the capture counter under the screen, Record turned to Stop with its timer on the side. The prototype side is the pane the popup opens from (no deep link to the popup).",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_08-popup-sheet",
+      "route": "/m/P-L9b_08?state=sheet",
+      "proto": "chat,at:demo-agent-computer,{skin}",
+      "waitFor": "[data-testid='record-sheet']",
+      "note": "The sheet after Stop: what the recording holds, that secrets are masked, the four things Intake can do with it (any of them), Discard, Save Only and Send to Intake. The prototype side is the pane the popup opens from (no deep link to the sheet).",
+      "protoSettleMs": 1500
+    }
+  ]
+}
