@@ -147,3 +147,5 @@ test("the Rust unit tests pass where a Rust toolchain exists", { skip: spawnSync
   const r = spawnSync("cargo", ["test", "--lib", "--manifest-path", path.join(TAURI, "Cargo.toml")], { encoding: "utf8" });
   assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`.slice(-2000));
 });
+
+// Final run on the last commit of P-L10_03: the temporary hosted-runner workflow is gone and this file reports its own ok line.

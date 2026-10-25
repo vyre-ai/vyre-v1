@@ -134,3 +134,5 @@ test("the built shell starts, reaches its sidecar and takes a vyre:// link", { s
     app.kill();
   }
 });
+
+// Final run on the last commit of P-L10_03: the app test above runs in the desktop job (VYRE_SHELL_APP); this file reports its own ok line.
