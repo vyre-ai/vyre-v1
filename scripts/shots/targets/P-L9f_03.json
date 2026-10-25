@@ -1,0 +1,81 @@
+{
+  "targets": [
+    {
+      "id": "P-L9f_03-config-settings",
+      "route": "/m/P-L9f_03?view=settings&space=northwind",
+      "proto": "automations,at:auto-config,{skin}",
+      "waitFor": "[data-testid='settings-tab']",
+      "note": "The Automations place on Northwind with New lead follow-up (a Space Automation) and its config pane on Settings: scope with Make a personal copy, owner, access, followers, loops and the access it runs on. The canvas and sidebar are P-L9f_01's."
+    },
+    {
+      "id": "P-L9f_03-config-alerts",
+      "route": "/m/P-L9f_03?view=alerts&space=northwind",
+      "proto": "automations,at:alerts,{skin}",
+      "waitFor": "[data-testid='alerts-tab']",
+      "note": "The Alerts tab: the sentence, who, when, where, and the escalation chain (the prototype has one escalation role; the contract has a chain of steps)."
+    },
+    {
+      "id": "P-L9f_03-config-runs",
+      "route": "/m/P-L9f_03?view=runs&space=northwind",
+      "proto": "automations,at:run,{skin}",
+      "waitFor": "[data-testid='runs-tab']",
+      "note": "The Runs tab: the latest runs as the shared run row. The prototype side is the same Automation with its Runs shown."
+    },
+    {
+      "id": "P-L9f_03-config-personal",
+      "route": "/m/P-L9f_03?view=personal&space=northwind",
+      "proto": "automations,at:auto-personal,{skin}",
+      "waitFor": "[data-testid='runs-on-yours']",
+      "note": "A Personal Automation (My morning briefing): scope with Promote to Space, and the access it runs on."
+    },
+    {
+      "id": "P-L9f_03-promote",
+      "route": "/m/P-L9f_03?view=promote&space=northwind",
+      "proto": "automations,at:auto-promote,{skin}",
+      "waitFor": "[data-testid='promote-sheet']",
+      "note": "Promote to Space over a Personal Automation: what it stops using of yours, what it will run on, and the shared API key to choose for the AI step on a subscription sign-in. The prototype opens its sheet only by a click, so its side shows the same Automation's Settings before it."
+    },
+    {
+      "id": "P-L9f_03-journey-designer",
+      "route": "/m/P-L9f_03?view=journey&space=northwind",
+      "proto": "automations,at:journeys,{skin}",
+      "waitFor": "[data-testid='journey-designer']",
+      "note": "Client onboarding in the Journey designer: where the records are now, five stages with their tasks (Assigned, Reviewer, Approver, due) and the Automations that run on entering."
+    },
+    {
+      "id": "P-L9f_03-journey-stage",
+      "route": "/m/P-L9f_03?view=stage&space=northwind",
+      "proto": "automations,at:stage,{skin}",
+      "waitFor": "[data-testid='stage-pane']",
+      "note": "The Intake stage selected and its pane: when a record moves on, the time limit, who is told when it runs over, the Automations on it."
+    },
+    {
+      "id": "P-L9f_03-journey-task",
+      "route": "/m/P-L9f_03?view=task&space=northwind",
+      "proto": "automations,at:task,{skin}",
+      "waitFor": "[data-testid='task-pane']",
+      "note": "A task selected and its pane: Assigned, Reviewer, Approver, the key and backup for the agent, due after entering, required, instructions."
+    },
+    {
+      "id": "P-L9f_03-journey-migrate",
+      "route": "/m/P-L9f_03?view=migrate&space=northwind",
+      "proto": "automations,at:journeys,{skin}",
+      "waitFor": "[data-testid='migrate-sheet']",
+      "note": "Move in-flight records to the current version: each old stage with its records and where it goes, one without a match to map, nothing moved until the button is pressed. The prototype has no migration sheet (spec 2.12 adds it), so its side is the designer."
+    },
+    {
+      "id": "P-L9f_03-journey-new",
+      "route": "/m/P-L9f_03?view=new&space=northwind",
+      "proto": "automations,at:journeys,{skin}",
+      "waitFor": "[data-testid='journey-new']",
+      "note": "The New Journey type sheet. The prototype side is the designer it opens beside."
+    },
+    {
+      "id": "P-L9f_03-journey-harbor",
+      "route": "/m/P-L9f_03?view=journey&space=harbor",
+      "proto": "automations,space:harbor,{skin}",
+      "waitFor": "[data-testid='journey-designer']",
+      "note": "The same designer over Harbor Studio: one Journey, Client project, four stages. The prototype side is Harbor Studio's Automations place."
+    }
+  ]
+}
