@@ -56899,6 +56899,7 @@ textarea.inp { height: auto; min-height: 150px; padding: 11px 12px; line-height:
     const has = (t) =&gt; toks.includes(t);
     if (has("light") || has("dark")) document.documentElement.dataset.theme = has("dark") ? "dark" : "light";
     { const f0 = autos()[0]; ui.tabs = f0 ? ["a:" + f0.id] : []; ui.active = f0 ? "a:" + f0.id : null; }
+    if (has("jstatus")) { const jo = JOURNEYS[0]; ui.sTab = "jour"; ui.tabs = ["j:onb"]; ui.active = "j:onb"; jo.stages[0].tasks.forEach((x) => (x.state = "Done")); jo.stages[1].tasks[0].state = "In review"; jo.stages[1].tasks[1].needs = jo.stages[1].tasks[0].id; jo.stages[1].leave = ["welcome"]; }
     if (has("jfields") || has("jsettings")) { ui.sTab = "jour"; ui.tabs = ["j:onb"]; ui.active = "j:onb"; ui.jsub["j:onb"] = has("jfields") ? "fields" : "settings"; }
     if (has("journeys") || has("journey") || has("stage")) { ui.sTab = "jour"; ui.tabs = ["j:onb"]; ui.active = "j:onb"; if (has("stage")) { ui.jsel.onb = { g: "g2" }; ui.pane = true; } }
     if (has("automation")) ui.selStep.lead = findLeadAgentStep();

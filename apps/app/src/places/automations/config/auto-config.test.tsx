@@ -92,7 +92,7 @@ test("the Alerts tab: the sentence, Who, When, Where and the escalation chain, f
   assert.match(tag(out, "where-dm"), /aria-checked="false"/);
   assert.ok(has(out, "#sales"));
   assert.ok(has(out, 'data-testid="row-step-0"') && has(out, "The Ops leads role") && has(out, "After 4 hours") && has(out, 'data-testid="step-add"'));
-  assert.ok(has(out, "Each step tells one more person or role"));
+  assert.ok(!has(out, "Each step tells one more person or role"), "no explaining line under the chain (P-L9f_03c)");
 });
 
 test("a rule that tells after failures in a row shows the count; a Personal Automation shows only you and no chain", () => {
