@@ -22,8 +22,10 @@ const KINDS: Record<string, "person" | "agent"> = { agt_intake: "agent", agt_doc
 
 export const DIRECTORY: Candidate[] = Object.entries(NAMES).map(([id, name]) => ({ id, name, kind: KINDS[id] ?? "person" }));
 
-/** A frame scheduler that runs at once, so a streamed delta is on the page when push returns (the tests and the held screenshot need no timers). */
-const immediate: FrameScheduler = { request: (cb) => { cb(0); return 0; }, cancel: () => undefined };
+/** A frame scheduler the sample flushes by hand, so a streamed delta is on the page when push returns (the tests and the held screenshot need no timers). */
+let queued: ((time: number) => void) | null = null;
+const manual: FrameScheduler = { request: (cb) => { queued = cb; return 1; }, cancel: () => { queued = null; } };
+const flush = (): void => { const cb = queued; queued = null; cb?.(0); };
 
 const step = (id: string, title: string, sub: string, secs: number, state: "live" | "done" = "done"): MessageBlock => ({ type: "step", v: 1, id, data: { title, sub, secs }, state, traceId: `tr_${id}` });
 const card = (id: string, type: string, data: Record<string, unknown>, state?: "live" | "done" | "waiting" | "error"): MessageBlock => ({ type, v: 1, id, data, ...(state ? { state } : {}), traceId: `tr_${id}` });
@@ -229,9 +231,9 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
   };
   const connection: Connection = { get: () => (online ? "online" : "offline"), subscribe: (l) => { listeners.add(l); return () => void listeners.delete(l); } };
 
-  const stream = createStreamStore(immediate);
+  const stream = createStreamStore(manual);
   const streamText = o.streamText ?? HELD_TEXT;
-  if (variant === "streaming") stream.push(streamText);
+  if (variant === "streaming") { stream.push(streamText); flush(); }
   const liveId = "m7";
 
   const data: ConversationData = {
@@ -268,6 +270,6 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
     failNext(cap) { failing.add(cap); },
     holdPosts() { held = []; },
     releasePosts() { const h = held; held = null; for (const r of h ?? []) r(); },
-    push(delta) { stream.push(delta); },
+    push(delta) { stream.push(delta); flush(); },
   };
 }

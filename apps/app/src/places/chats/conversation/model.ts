@@ -124,7 +124,7 @@ export interface CardLine { id: string; type: string; v: number; title: string; 
 export function cardLine(b: MessageBlock): CardLine {
   const d = dataOf(b);
   const fromTemplate = isNativeBlockType(b.type) ? applyFallback(BLOCK_FALLBACKS[b.type], b.data) : "";
-  return { id: b.id, type: b.type, v: b.v, title: fromTemplate || str(d.title) || str(d.caption) || b.type.replaceAll("_", " "), sub: str(d.sub), state: b.state, data: d };
+  return { id: b.id, type: b.type, v: b.v, title: str(d.title) || fromTemplate || str(d.caption) || b.type.replaceAll("_", " "), sub: str(d.sub), state: b.state, data: d };
 }
 
 export interface QuestionOption { id: string; label: string }
