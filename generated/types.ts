@@ -6672,6 +6672,17 @@ export type ConsoleOverviewOut = {
     members: number;
     agents: number;
   };
+  machine?: {
+    cpuPercent?: number;
+    memoryUsedBytes?: number;
+    memoryTotalBytes?: number;
+    diskFreeBytes?: number;
+    diskTotalBytes?: number;
+  };
+  lastBackup?: {
+    at: number;
+    result: "verified" | "unverified";
+  };
 };
 export type ConsoleSpeedIn = {
   windowMinutes?: number;
@@ -11624,6 +11635,19 @@ export type HealthIndexDbOut = {
   state: "healthy" | "degraded" | "down";
   detail?: string;
   latencyMs?: number;
+};
+export type HealthMachineIn = Record<string, unknown>;
+export type HealthMachineOut = {
+  state: "healthy" | "degraded" | "down";
+  detail?: string;
+  latencyMs?: number;
+  machine?: {
+    cpuPercent?: number;
+    memoryUsedBytes?: number;
+    memoryTotalBytes?: number;
+    diskFreeBytes?: number;
+    diskTotalBytes?: number;
+  };
 };
 export type HealthPausedReasonsIn = Record<string, unknown>;
 export type HealthPausedReasonsOut = {
@@ -26612,6 +26636,7 @@ export interface CapMap {
   "health.events_db": { in: HealthEventsDbIn; out: HealthEventsDbOut };
   "health.history": { in: HealthHistoryIn; out: HealthHistoryOut };
   "health.index_db": { in: HealthIndexDbIn; out: HealthIndexDbOut };
+  "health.machine": { in: HealthMachineIn; out: HealthMachineOut };
   "health.paused_reasons": { in: HealthPausedReasonsIn; out: HealthPausedReasonsOut };
   "health.run": { in: HealthRunIn; out: HealthRunOut };
   "health.scheduler": { in: HealthSchedulerIn; out: HealthSchedulerOut };

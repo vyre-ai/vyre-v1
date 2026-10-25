@@ -12490,7 +12490,7 @@
       "blocks": [],
       "cap": "console.overview",
       "deferred": false,
-      "description": "Overview: health, attention items, recent admin activity, usage",
+      "description": "Overview: health, attention items, recent admin activity, usage, server CPU, memory and disk, and the last backup",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -22863,6 +22863,21 @@
         "type": "object"
       },
       "name": "health_history",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "health.machine",
+      "deferred": false,
+      "description": "Probe: CPU load, memory and disk of the server as the host last reported them (Console Overview tiles)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "health_machine",
       "planMode": "allowed",
       "toolset": "engineer",
       "v": 1

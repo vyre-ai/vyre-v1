@@ -976,6 +976,7 @@ export function stubs(ctx: CallCtx) {
       events_db: call("health.events_db"),
       history: call("health.history"),
       index_db: call("health.index_db"),
+      machine: call("health.machine"),
       paused_reasons: call("health.paused_reasons"),
       run: call("health.run"),
       scheduler: call("health.scheduler"),
