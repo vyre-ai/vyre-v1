@@ -1,6 +1,13 @@
 {
   "targets": [
     {
+      "id": "P-L9_19c-home-warmup",
+      "route": "/m/P-L9_19c",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='s-ask']",
+      "note": "Warm-up: the first page the export serves in a run paints late (its first Northwind paper desktop shot was blank), so this is shot first and the next target is the evidence."
+    },
+    {
       "id": "P-L9_19c-home-northwind",
       "route": "/m/P-L9_19c",
       "proto": "home,{skin}",
