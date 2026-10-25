@@ -264,7 +264,7 @@ export function AcceptInvite(props: AcceptInviteProps) {
   const cont = last
     ? (done ? <Button testID="open-space" label={`Open ${invite.space}`} onPress={props.onOpen} /> : <View />)
     : <Button testID="next" label="Continue" disabled={!ok} onPress={() => dispatch({ t: "next" })} />;
-  const bar = <Bar hideBack={last || state.step === 0} onBack={() => dispatch({ t: "back" })} step={last ? STEPS : state.step} steps={STEPS} cont={cont} />;
+  const bar = <Bar hideBack={last || state.step === 0} onBack={() => dispatch({ t: "back" })} step={last ? STEPS : state.step} steps={STEPS} cont={cont} centre={done} />;
 
   let body;
   if (last) body = <RunStep invite={invite} state={state} />;
