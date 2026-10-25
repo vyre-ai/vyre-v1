@@ -363,3 +363,10 @@ export function threadKindNote(t: Thread, nameOf: (id: string) => string): strin
   const starter = t.starter ? nameOf(t.starter) : "";
   return t.kind === "thread" && starter ? `Thread started by ${starter}` : "";
 }
+
+/** Builds a list from a list. Written as a function (not `.map`) so a list of JSX is plainly the composition of its parts. */
+export function collect<T, U>(list: readonly T[], fn: (item: T, index: number) => U): U[] {
+  const out: U[] = [];
+  for (const [i, x] of list.entries()) out.push(fn(x, i));
+  return out;
+}

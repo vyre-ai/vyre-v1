@@ -20,7 +20,7 @@ import { MessageView } from "./MessageView.tsx";
 import type { MessageActions } from "./MessageView.tsx";
 import { FaceButton, Glyph, IconButton, TextButton } from "./parts.tsx";
 import {
-  WINDOW, beforeCursor, faces, isClosed, lastMessages, leadOf, mentionsIn, mergePages, modeTitle, pendingMessage, placeholderFor, queueNote, queuedCount, sendKind, stillPending, stopLabel, swapNeeded,
+  WINDOW, beforeCursor, collect, faces, isClosed, lastMessages, leadOf, mentionsIn, mergePages, modeTitle, pendingMessage, placeholderFor, queueNote, queuedCount, sendKind, stillPending, stopLabel, swapNeeded,
   threadKindNote, timeline, titleOf, whoLine, workingAgents,
 } from "./model.ts";
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
@@ -79,8 +79,8 @@ function ConversationView(): ReactElement {
   /* ---------- sending: the message is on the page before chat.post answers ---------- */
   const run = useCallback((p: Pending) => {
     void act.sendMessage(data, { text: p.body, mentions: p.mentions, key: p.key, kind: p.kind, working: p.working }).then(
-      (r) => setPending((cur) => cur.map((x) => (x.key === p.key ? { ...x, messageId: r.messageId, state: "sending" as const } : x))),
-      () => { setPending((cur) => cur.map((x) => (x.key === p.key ? { ...x, state: "failed" as const } : x))); say("Not sent. Retry or discard it."); },
+      (r) => setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, messageId: r.messageId, state: "sending" as const } : x))),
+      () => { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "failed" as const } : x))); say("Not sent. Retry or discard it."); },
     );
   }, [data, say]);
 
@@ -89,7 +89,7 @@ function ConversationView(): ReactElement {
   const live = messagesQ.data.messages;
   const all = mergePages(live, older);
   const win = lastMessages(all, shown);
-  const writing = new Set(win.rows.filter((m) => { const s = data.streamOf(m.messageId); return s !== undefined && !s.getSnapshot().done; }).map((m) => m.messageId));
+  const writing = new Set(collect(win.rows.filter((m) => { const s = data.streamOf(m.messageId); return s !== undefined && !s.getSnapshot().done; }), (m) => m.messageId));
   const working = workingAgents(win.rows, writing);
   const isWorking = working.length > 0;
   const nameOf = data.nameOf;
@@ -106,7 +106,7 @@ function ConversationView(): ReactElement {
     run(p);
   };
 
-  const timelineMessages = [...win.rows, ...stillPending(pending, win.rows).map((p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i))];
+  const timelineMessages = [...win.rows, ...collect(stillPending(pending, win.rows), (p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i))];
   const pendingState = new Map<string, "sending" | "failed">();
   for (const p of stillPending(pending, win.rows)) pendingState.set(`pending:${p.key}`, p.state);
   const items = timeline(timelineMessages, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: data.clock() });
@@ -145,11 +145,11 @@ function ConversationView(): ReactElement {
     void act.setMode(data, f.agentId, mode).then(() => say(mode === "lead" ? `${f.name} now leads this thread` : `${f.name} is listening`), fail("Could not change the mode."));
   };
   const addMenu = (x: number, y: number): void => {
-    const inThread = new Set(thread.agents.map((a) => a.agentId));
+    const inThread = new Set(collect(thread.agents, (a) => a.agentId));
     const choices = data.directory.filter((c) => c.kind === "agent" && !inThread.has(c.id));
     menu.show(
       choices.length > 0
-        ? [{ head: "Add as listening" } as MenuEntry, ...choices.map((c): MenuEntry => ({ label: c.name, onSelect: () => void act.addAgent(data, c.id).then(() => say(`${c.name} is listening`), fail("Could not add it.")) }))]
+        ? [{ head: "Add as listening" } as MenuEntry, ...collect(choices, (c): MenuEntry => ({ label: c.name, onSelect: () => void act.addAgent(data, c.id).then(() => say(`${c.name} is listening`), fail("Could not add it.")) }))]
         : [{ head: "Every agent is already here" } as MenuEntry],
       x, y, "other", { label: "Add an agent" },
     );
@@ -157,14 +157,14 @@ function ConversationView(): ReactElement {
   const stopMenu = (x: number, y: number): void => {
     if (working.length === 1) { void act.stopAgent(data, working[0]).then(() => say("Stopped. The steps so far are kept."), fail("Could not stop it.")); return; }
     menu.show([
-      ...working.map((id): MenuEntry => ({ label: `Stop ${nameOf(id)}`, onSelect: () => void act.stopAgent(data, id).then(() => say(`${nameOf(id)} stopped`), fail("Could not stop it.")) })),
+      ...collect(working, (id): MenuEntry => ({ label: `Stop ${nameOf(id)}`, onSelect: () => void act.stopAgent(data, id).then(() => say(`${nameOf(id)} stopped`), fail("Could not stop it.")) })),
       { separator: true },
       { label: "Stop All", danger: true, onSelect: () => void act.stopAll(data).then(() => say("Everything stopped. The steps so far are kept."), fail("Could not stop.")) },
     ], x, y, "other", { label: "Stop" });
   };
   const helpersMenu = (x: number, y: number): void => {
     menu.show(
-      [{ head: `${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running` } as MenuEntry, ...helpers.map((h): MenuEntry => ({ label: `${h.title} · ${nameOf(h.agentId)}`, onSelect: () => data.nav.openThread(h.threadId) }))],
+      [{ head: `${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running` } as MenuEntry, ...collect(helpers, (h): MenuEntry => ({ label: `${h.title} · ${nameOf(h.agentId)}`, onSelect: () => data.nav.openThread(h.threadId) }))],
       x, y, "other", { label: "Helpers" },
     );
   };
@@ -191,7 +191,7 @@ function ConversationView(): ReactElement {
     approvePlan: (planId) => void act.approvePlan(data, planId).then(() => say("Plan approved. The steps run and tick off in the card."), fail("Could not approve the plan.")),
     retryTurn: (turnId) => void act.retryTurn(data, turnId).catch(fail("Could not retry.")),
     errorNext: (key) => say(`Choose ${key} in the model switcher or ask for access.`),
-    retrySend: (id) => { const p = pending.find((x) => `pending:${x.key}` === id); if (p) { setPending((cur) => cur.map((x) => (x.key === p.key ? { ...x, state: "sending" as const } : x))); setLine(""); run(p); } },
+    retrySend: (id) => { const p = pending.find((x) => `pending:${x.key}` === id); if (p) { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "sending" as const } : x))); setLine(""); run(p); } },
     discardSend: (id) => { setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id)); setLine(""); },
     showMenu: (entries, x, y, label) => menu.show(entries, x, y, "context", { label }),
   };
@@ -209,7 +209,7 @@ function ConversationView(): ReactElement {
       <View testID="conversation-head" accessibilityRole="header" style={st.head}>
         <Text numberOfLines={1} testID="conversation-title" style={st.title}>{title}</Text>
         <View testID="conversation-faces" accessibilityRole="toolbar" accessibilityLabel="Agents in this thread" style={st.faces}>
-          {faceList.map((f) => <FaceButton key={f.agentId} name={f.name} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
+          {collect(faceList, (f) => <FaceButton key={f.agentId} name={f.name} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
           <IconButton icon="plus" label="Add an agent" size={24} testID="add-agent" onPress={addMenu} />
         </View>
         {isWorking ? <View testID="conversation-live" style={st.live}><View style={st.liveDot} /><Text style={st.liveText}>Working</Text></View> : null}
@@ -231,7 +231,7 @@ function ConversationView(): ReactElement {
               </View>
             ) : null}
             {items.length === 0 ? <States kind="empty" icon="chat" title="Say something to start" /> : null}
-            {items.map((it) => {
+            {collect(items, (it) => {
               const key = it.key;
               const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;
               const sending = it.kind === "me" ? pendingState.get(it.message.messageId) : undefined;
@@ -262,7 +262,7 @@ function ConversationView(): ReactElement {
         <View style={st.composerBox}>
           <Composer
             testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={placeholderFor(thread, nameOf)} working={isWorking}
-            {...(lead ? { lead: nameOf(lead.agentId) } : {})} listening={thread.agents.filter((a) => a.mode === "listen").map((a) => nameOf(a.agentId))}
+            {...(lead ? { lead: nameOf(lead.agentId) } : {})} listening={collect(thread.agents.filter((a) => a.mode === "listen"), (a) => nameOf(a.agentId))}
             lists={data.lists} agentChat={thread.kind !== "channel"} onChange={setTyped}
             onSubmit={(p) => submit(p, "queue")} onInterrupt={(p) => submit(p, "interrupt")}
             onStop={() => void (working.length > 1 ? act.stopAll(data) : act.stopAgent(data, working[0])).then(() => say("Stopped. The steps so far are kept."), fail("Could not stop it."))}

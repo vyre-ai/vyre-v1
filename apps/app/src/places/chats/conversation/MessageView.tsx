@@ -11,7 +11,7 @@ import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
 import { Face } from "../needsyou/parts.tsx";
 import { Fold, Glyph, IconButton, TextButton } from "./parts.tsx";
 import type { GlyphName } from "./parts.tsx";
-import { bodyBlocks, cardLine, errorRow, isCard, isErrorBlock, planSteps, questionOptions, workOf } from "./model.ts";
+import { bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, planSteps, questionOptions, workOf } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
 
 export interface MessageActions {
@@ -79,7 +79,7 @@ function HoverBar({ m, mine, a, onEdit, visible }: { m: Message; mine: boolean; 
   bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
   return (
     <View testID={`hover-${m.messageId}`} accessibilityRole="toolbar" accessibilityLabel="Message actions" style={[st.hover, mine ? st.hoverMine : st.hoverTheirs, { opacity: visible ? 1 : 0 }]}>
-      {bar.map((b) => <IconButton key={b.label} icon={b.icon} label={b.label} size={24} testID={`act-${b.label.split(" ")[0]?.toLowerCase()}-${m.messageId}`} onPress={() => b.run()} />)}
+      {collect(bar, (b) => <IconButton key={b.label} icon={b.icon} label={b.label} size={24} testID={`act-${b.label.split(" ")[0]?.toLowerCase()}-${m.messageId}`} onPress={() => b.run()} />)}
       <IconButton icon="more" label="More" size={24} testID={`act-more-${m.messageId}`} onPress={(x, y) => a.showMenu(menuFor(m, mine, a, onEdit), x, y, "Message")} />
     </View>
   );
@@ -167,7 +167,7 @@ function Theirs({ item, actions, stream, openWork }: MessageViewProps & { item: 
       {m.via ? <Text testID={`via-${m.messageId}`} style={st.via}>{`Sent by ${item.who.name} on a routine ${m.via.routineOwner} set`}</Text> : null}
       {work ? (
         <Fold testID={`work-${m.messageId}`} label={work.live ? `Working${work.now ? ` · ${work.now}` : ""}` : work.summary} open={work.live || workOpen} live={work.live} onToggle={() => setWorkOpen((o) => !o)}>
-          {work.steps.map((l) => (
+          {collect(work.steps, (l) => (
             <View key={l.id} testID={`step-${l.id}`} style={st.step}>
               <View style={[st.stepDot, l.state === "live" && st.stepLive, l.state === "error" && st.stepError]} />
               <Text style={st.stepTitle}>{l.title}</Text>
@@ -177,8 +177,8 @@ function Theirs({ item, actions, stream, openWork }: MessageViewProps & { item: 
         </Fold>
       ) : null}
       {stream ? <View testID={`body-${m.messageId}`} style={st.body}><StreamText store={stream} /></View> : m.body ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={blocks ?? []} /></View> : null}
-      {cards.map((b) => <Card key={b.id} line={cardLine(b)} actions={actions} />)}
-      {errors.map((b) => <ErrorRowView key={b.id} block={b} actions={actions} />)}
+      {collect(cards, (b) => <Card key={b.id} line={cardLine(b)} actions={actions} />)}
+      {collect(errors, (b) => <ErrorRowView key={b.id} block={b} actions={actions} />)}
       <Reactions m={m} a={actions} mine={false} />
       {m.pinned ? <Text testID={`pinned-${m.messageId}`} style={st.edited}>pinned</Text> : null}
     </View>
@@ -189,7 +189,7 @@ function Reactions({ m, a, mine }: { m: Message; a: MessageActions; mine: boolea
   if (m.reactions.length === 0) return null;
   return (
     <View testID={`reactions-${m.messageId}`} style={[st.reactions, mine && { alignSelf: "flex-end" }]}>
-      {m.reactions.map((r) => (
+      {collect(m.reactions, (r) => (
         <Pressable key={r.emoji} accessibilityRole="button" accessibilityLabel={`${r.emoji} ${r.by.length}`} onPress={() => a.react(m.messageId, r.emoji, true)} style={st.react}>
           <Text style={st.reactText}>{`${r.emoji} ${r.by.length}`}</Text>
         </Pressable>
@@ -226,7 +226,7 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
       {opens ? <Pressable accessibilityRole="button" accessibilityLabel={`Open ${line.title}`} testID={`card-open-${line.id}`} onPress={() => actions.openBeside(line.type, openId)} style={st.cardHead}>{head}</Pressable> : <View style={st.cardHead}>{head}</View>}
       {steps.length > 0 ? (
         <View testID={`plan-steps-${line.id}`} style={st.planSteps}>
-          {steps.map((p) => (
+          {collect(steps, (p) => (
             <View key={p.id} style={st.planStep}><Glyph name={p.done ? "check" : "chev"} size={12} color={p.done ? "var(--ok)" : "var(--ink-4)"} /><Text style={[st.stepTitle, p.done && { color: "var(--ink-4)" as string }]}>{p.text}</Text></View>
           ))}
         </View>
@@ -234,7 +234,7 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
       {line.type === "plan" && waiting ? <View style={st.cardRow}><TextButton label="Approve plan" primary testID={`plan-approve-${line.id}`} onPress={() => actions.approvePlan(typeof line.data.planId === "string" ? line.data.planId : line.id)} /></View> : null}
       {line.type === "question" && waiting && options.length > 0 ? (
         <View testID={`options-${line.id}`} accessibilityRole="radiogroup" style={st.cardRow}>
-          {options.map((o) => <TextButton key={o.id} label={o.label} testID={`option-${line.id}-${o.id}`} onPress={() => actions.answer(line.id, o.id)} />)}
+          {collect(options, (o) => <TextButton key={o.id} label={o.label} testID={`option-${line.id}-${o.id}`} onPress={() => actions.answer(line.id, o.id)} />)}
         </View>
       ) : null}
       {answered !== "" ? <Text testID={`answered-${line.id}`} style={st.cardSub}>{`Answered: ${answered}`}</Text> : null}
@@ -252,14 +252,14 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
       <View style={st.errTop}><Glyph name="alert" size={15} color="var(--danger)" /><Text style={st.errMsg}>{e.message}</Text></View>
       {e.cause ? <Text style={st.errCause}>{e.cause}</Text> : null}
       <View style={st.errActions}>
-        {e.next.map((n) => <TextButton key={n.key} label={n.label} testID={`err-next-${n.key}`} onPress={() => actions.errorNext(n.key)} />)}
+        {collect(e.next, (n) => <TextButton key={n.key} label={n.label} testID={`err-next-${n.key}`} onPress={() => actions.errorNext(n.key)} />)}
         {e.retryable && e.turnId ? <TextButton label="Retry" testID="err-retry" onPress={() => actions.retryTurn(e.turnId)} /> : null}
         <TextButton label="What happened?" testID="err-what" onPress={() => setOpen((o) => !o)} />
         <TextButton label="Copy trace id" testID="err-trace" onPress={() => actions.copy(e.traceId)} />
       </View>
       {open ? (
         <View testID="err-steps" style={st.errSteps}>
-          {e.steps.map(([k, v]) => <View key={k} style={st.kv}><Text style={st.kvK}>{k}</Text><Text style={st.kvV}>{v}</Text></View>)}
+          {collect(e.steps, ([k, v]) => <View key={k} style={st.kv}><Text style={st.kvK}>{k}</Text><Text style={st.kvV}>{v}</Text></View>)}
         </View>
       ) : null}
     </View>
