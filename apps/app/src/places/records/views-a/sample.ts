@@ -25,9 +25,9 @@ const f = (key: string, type: string, title: string): FieldDef => ({ key, type, 
 function enrich(space: SampleSpace): SampleSpace {
   return {
     ...space,
-    types: space.types.map((t): TypeDef => (t.key === "projects" ? { ...t, fields: [...t.fields, f("budget", "money", "Budget"), f("cover", "files", "Cover")] } : t)),
+    types: space.types.map((t): TypeDef => (t.key === "projects" && !t.fields.some((x) => x.key === "budget") ? { ...t, fields: [...t.fields, f("budget", "money", "Budget"), f("cover", "files", "Cover")] } : t)),
     counts: { ...space.counts, projects: space.id === "northwind" ? NAMES.length : space.counts["projects"] ?? 3 },
-    views: space.id === "northwind"
+    views: space.id === "northwind" && !space.views.some((v) => v.viewId === "vw_board")
       ? [
         ...space.views,
         { viewId: "vw_board", type: "projects", kind: "board", title: "By status", shared: true, ownerId: "usr_maya", config: { lane: "status" }, updatedAt: SAMPLE_NOW },
