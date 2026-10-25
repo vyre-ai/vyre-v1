@@ -7,17 +7,18 @@
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import type { StyleProp, TextStyle } from "react-native";
 import { AskButton } from "../AskButton/index.tsx";
 import { Composer } from "../Composer/index.tsx";
 import type { AskButtonProps } from "../AskButton/index.tsx";
 import { MenuIcon, useMenu } from "../Menu/index.tsx";
 import { Row } from "../Row/index.tsx";
 import { TabStrip } from "../TabStrip/index.tsx";
-import { EMAIL_BLOCK_KINDS, EMAIL_MODES, EMAIL_PREVIEWS, emailLabel } from "./props.ts";
+import { EMAIL_ALIGNS, EMAIL_BLOCK_KINDS, EMAIL_MODES, EMAIL_PREVIEWS, emailBlockHtml, emailLabel } from "./props.ts";
 import type { EmailBlock, EmailBlockKind, EmailBuilderProps, EmailDiff, EmailMode, EmailPreview } from "./props.ts";
 
 export type { EmailBlock, EmailBlockKind, EmailBuilderProps, EmailDiff, EmailMode, EmailPreview } from "./props.ts";
-export { EMAIL_BLOCK_KINDS, EMAIL_MODES, EMAIL_PREVIEWS, emailLabel } from "./props.ts";
+export { EMAIL_ALIGNS, EMAIL_BLOCK_KINDS, EMAIL_MODES, EMAIL_PREVIEWS, emailBlockHtml, emailLabel } from "./props.ts";
 
 /* ---------- pure logic ---------- */
 
@@ -49,11 +50,13 @@ export function formatHtml(markup: string): string {
 export function newBlock(kind: EmailBlockKind, id: string): EmailBlock {
   switch (kind) {
     case "text": return { id, kind, text: "Write something." };
+    case "heading": return { id, kind, text: "Heading", size: 24, align: "left" };
     case "image": return { id, kind, text: "Image" };
     case "button": return { id, kind, text: "Open" };
     case "columns": return { id, kind, children: [{ id: `${id}-a`, kind: "text", text: "Left" }, { id: `${id}-b`, kind: "text", text: "Right" }] };
     case "divider": return { id, kind };
     case "merge": return { id, kind, field: "first_name", text: "there" };
+    case "footer": return { id, kind, text: "Your firm, 410 Market Street", align: "center", unsub: true };
     case "html": return { id, kind, text: "<p></p>" };
   }
 }
@@ -81,6 +84,12 @@ function blockHtml(b: EmailBlock, values: Readonly<Record<string, string>> | und
   const line = Math.round(st.size * 1.45);
   switch (b.kind) {
     case "text": return `<p style="margin:0 0 14px;font:${st.size}px/${line}px ${face};color:${c.text}">${values === undefined ? esc(b.text ?? "") : fillMerge(esc(b.text ?? ""), values)}</p>`;
+    case "heading":
+    case "footer": {
+      const raw = emailBlockHtml(b) ?? "";
+      const out = `<div style="margin:0 0 14px;color:${b.kind === "footer" ? c.muted : c.text};font-family:${face}">${raw}</div>`;
+      return values === undefined ? out : fillMerge(out, values);
+    }
     case "image": return `<div style="margin:0 0 14px;background:${dark ? "#2A2A2E" : "#E9E9EC"};height:140px;text-align:center;font:13px/140px ${face};color:${c.muted}">${esc(b.text ?? "Image")}</div>`;
     case "button": return `<p style="margin:0 0 14px"><a href="#" style="display:inline-block;padding:10px 18px;border-radius:${Math.min(st.radius, 12)}px;background:${c.button};color:${c.buttonText};font:600 14px ${face};text-decoration:none">${esc(b.text ?? "Open")}</a></p>`;
     case "columns": return `<table role="presentation" width="100%" style="margin:0 0 14px"><tr>${each(b.children ?? [], (k) => `<td valign="top" width="50%">${blockHtml(k, values, st, dark)}</td>`).join("")}</tr></table>`;
@@ -96,16 +105,22 @@ export function compileEmail(blocks: readonly EmailBlock[], opts: { mode?: "send
   const st = resolveStyle(opts.style, dark);
   const values = opts.mode === "preview" ? opts.values : undefined;
   const body = blocks.map((b) => blockHtml(b, values, st, dark)).join("");
-  return `<!doctype html><html><body style="margin:0;background:${st.colors.page}"><div style="max-width:${st.width}px;margin:0 auto;padding:28px ${st.padding}px;background:${st.colors.email};border-radius:${st.radius}px">${body}<p style="font:12px ${st.font},Arial,sans-serif;color:${st.colors.muted}"><a href="#unsubscribe" style="color:${st.colors.links}">Unsubscribe</a></p></div></body></html>`;
+  return `<!doctype html><html><body style="margin:0;background:${st.colors.page}"><div style="max-width:${st.width}px;margin:0 auto;padding:28px ${st.padding}px;background:${st.colors.email};border-radius:${st.radius}px">${body}${hasUnsub(blocks) ? "" : `<p style="font:12px ${st.font},Arial,sans-serif;color:${st.colors.muted}"><a href="#unsubscribe" style="color:${st.colors.links}">Unsubscribe</a></p>`}</div></body></html>`;
+}
+
+/** True when a footer block carries the unsubscribe links, so the export does not add its own line. */
+export function hasUnsub(blocks: readonly EmailBlock[]): boolean {
+  return blocks.some((b) => (b.kind === "footer" && b.unsub === true) || (b.children !== undefined && hasUnsub(b.children)));
 }
 
 /** The plain-text part a visual email falls back to. */
 export function blocksToPlain(blocks: readonly EmailBlock[]): string {
   const lines: string[] = [];
   for (const b of blocks) {
-    if (b.kind === "text" || b.kind === "button" || b.kind === "merge") lines.push(b.kind === "merge" ? mergeToken(b.field ?? "", b.text ?? "") : (b.text ?? ""));
+    if (b.kind === "text" || b.kind === "heading" || b.kind === "button" || b.kind === "merge") lines.push(b.kind === "merge" ? mergeToken(b.field ?? "", b.text ?? "") : (b.text ?? ""));
     else if (b.kind === "columns") lines.push(blocksToPlain(b.children ?? []));
     else if (b.kind === "divider") lines.push("---");
+    else if (b.kind === "footer") lines.push(b.unsub === true ? `${b.text ?? ""}\nUnsubscribe: {{unsubscribe_url}}` : (b.text ?? ""));
   }
   return lines.filter((l) => l !== "").join("\n\n");
 }
@@ -170,7 +185,7 @@ export function focusKey(e: { key: string; metaKey?: boolean; ctrlKey?: boolean;
   return null;
 }
 
-const BLOCK_LABEL: Readonly<Record<EmailBlockKind, string>> = { text: "Text", image: "Image", button: "Button", columns: "Columns", divider: "Divider", merge: "Merge field", html: "HTML" };
+const BLOCK_LABEL: Readonly<Record<EmailBlockKind, string>> = { text: "Text", heading: "Heading", footer: "Footer", image: "Image", button: "Button", columns: "Columns", divider: "Divider", merge: "Merge field", html: "HTML" };
 export const blockLabel = (k: EmailBlockKind): string => BLOCK_LABEL[k];
 const MODE_LABEL: Readonly<Record<EmailMode, string>> = { visual: "Visual", html: "HTML", plain: "Plain text" };
 export const modeLabel = (m: EmailMode): string => MODE_LABEL[m];
@@ -193,11 +208,13 @@ const ICON = {
   button: `${SVG}<rect x="2" y="5" width="12" height="6" rx="3"/></svg>`,
   columns: `${SVG}<rect x="2.500" y="3" width="11" height="10" rx="1.500"/><path d="M8 3v10"/></svg>`,
   divider: `${SVG}<path d="M2.500 8h11"/></svg>`,
+  heading: `${SVG}<path d="M3.500 3v10M12.500 3v10M3.500 8h9"/></svg>`,
+  footer: `${SVG}<path d="M2.500 3.500h11v9h-11zM2.500 10h11"/></svg>`,
   merge: `${SVG}<path d="M5.500 3C4 3 4 4 4 5.500S4 7 3 8c1 1 1 1.500 1 2.500S4 13 5.500 13M10.500 3C12 3 12 4 12 5.500S12 7 13 8c-1 1-1 1.500-1 2.500S12 13 10.500 13"/></svg>`,
   html: `${SVG}<path d="M6 4.500L2.500 8 6 11.500M10 4.500L13.500 8 10 11.500"/></svg>`,
   check: `${SVG}<path d="M3.500 8.500l3 3 6-7"/></svg>`,
 } as const;
-const BLOCK_ICON: Readonly<Record<EmailBlockKind, string>> = { text: ICON.text, image: ICON.image, button: ICON.button, columns: ICON.columns, divider: ICON.divider, merge: ICON.merge, html: ICON.html };
+const BLOCK_ICON: Readonly<Record<EmailBlockKind, string>> = { text: ICON.text, heading: ICON.heading, footer: ICON.footer, image: ICON.image, button: ICON.button, columns: ICON.columns, divider: ICON.divider, merge: ICON.merge, html: ICON.html };
 
 /* ---------- the view ---------- */
 
@@ -249,6 +266,8 @@ export interface EmailBuilderViewProps extends EmailBuilderProps {
 }
 
 /** Web-only attributes. react-native-web drops unknown props, so `data-x` becomes `dataSet.x` and `data-testid` becomes `testID`. */
+const isTextual = (k: EmailBlockKind): boolean => k === "text" || k === "heading" || k === "footer";
+
 function webProps(props: Record<string, unknown>): Record<string, unknown> {
   if (Platform.OS !== "web") return {};
   const out: Record<string, unknown> = {};
@@ -267,6 +286,13 @@ function each<T, R>(items: readonly T[], make: (item: T, index: number) => R): R
   const out: R[] = [];
   for (let i = 0; i < items.length; i++) out.push(make(items[i] as T, i));
   return out;
+}
+
+function textStyle(b: EmailBlock): StyleProp<TextStyle> {
+  const align = b.align ?? "left";
+  if (b.kind === "heading") return [s.textBlock, { fontSize: b.size ?? 24, lineHeight: Math.round((b.size ?? 24) * 1.2), fontWeight: "700", textAlign: align }];
+  if (b.kind === "footer") return [s.textBlock, { fontSize: 12, lineHeight: 19, color: "#6B6B73", textAlign: align }];
+  return s.textBlock;
 }
 
 function Btn(p: { label: string; icon?: string; on?: boolean; disabled?: boolean; onPress?: () => void; testID?: string; strong?: boolean }): ReactElement {
@@ -439,15 +465,16 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
     return (
       <Pressable key={b.id} testID={`em-block-${b.id}`} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`${blockLabel(b.kind)} block`} onPress={() => setSelected(b.id)}
         style={({ hovered }: { hovered?: boolean }) => [s.blk, (on || hovered === true) && s.blkOver, on && s.blkOn]}>
-        {b.kind === "text" && editing !== b.id ? (
-          <Text style={s.textBlock} testID={`em-text-${b.id}`} onPress={() => { setSelected(b.id); setEditing(b.id); }}>
+        {isTextual(b.kind) && editing !== b.id ? (
+          <Text style={textStyle(b)} testID={`em-text-${b.id}`} onPress={() => { setSelected(b.id); setEditing(b.id); }}>
             {each(splitTokens(b.text ?? ""), (r, i) => r.token === undefined ? r.text
               : <Text key={i} style={s.mergeTok} {...webProps({ "data-token": r.token })}>{r.text}</Text>)}
           </Text>
         ) : null}
-        {(b.kind === "text" && editing === b.id) || b.kind === "button" ? (
-          <TextInput multiline={b.kind === "text"} autoFocus={b.kind === "text"} accessibilityLabel={`${blockLabel(b.kind)} text`} value={b.text ?? ""} placeholder="Type here" placeholderTextColor="#a1a1a6"
-            style={[b.kind === "button" ? s.btnBlock : s.textBlock]} onFocus={() => setSelected(b.id)} onBlur={() => setEditing((e) => (e === b.id ? null : e))}
+        {b.kind === "footer" && b.unsub === true && editing !== b.id ? <Text style={[s.footLinks, { textAlign: b.align ?? "left" }]} testID={`em-unsub-${b.id}`}>Unsubscribe · Email preferences</Text> : null}
+        {(isTextual(b.kind) && editing === b.id) || b.kind === "button" ? (
+          <TextInput multiline={b.kind !== "button"} autoFocus={b.kind !== "button"} accessibilityLabel={`${blockLabel(b.kind)} text`} value={b.text ?? ""} placeholder="Type here" placeholderTextColor="#a1a1a6"
+            style={b.kind === "button" ? s.btnBlock : textStyle(b)} onFocus={() => setSelected(b.id)} onBlur={() => setEditing((e) => (e === b.id ? null : e))}
             onChangeText={(t) => changeBlocks(editBlock(blocks, b.id, { text: t }), "Edited text")} />
         ) : null}
         {b.kind === "image" ? <View style={s.imgBlock}><Text style={s.imgText}>{b.text ?? "Image"}</Text></View> : null}
@@ -561,6 +588,33 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
             {mergeFieldsOf(`${subject} ${compiled}`).length === 0 ? <Text style={s.note}>No merge fields yet. The Merge field block adds one.</Text>
               : each(mergeFieldsOf(`${subject} ${compiled}`), (f) => <View key={f} testID={`em-field-${f}`}><Row id={f} title={f} /></View>)}
             <Text style={s.sec}>Selected block</Text>
+            {sel !== null && (sel.kind === "heading" || sel.kind === "footer") ? (
+              <View testID="em-textopts">
+                <View style={s.ctl} testID="em-align">
+                  <Text style={s.ctlLabel}>Align</Text>
+                  <View style={s.seg}>{each(EMAIL_ALIGNS, (a) => (
+                    <Pressable key={a} accessibilityRole="tab" aria-selected={(sel.align ?? "left") === a} accessibilityState={{ selected: (sel.align ?? "left") === a }} testID={`em-align-${a}`}
+                      onPress={() => changeBlocks(editBlock(blocks, sel.id, { align: a }), `Aligned ${a}`)} style={[s.segBtn, (sel.align ?? "left") === a && s.segOn]}>
+                      <Text style={[s.segText, (sel.align ?? "left") === a && s.segTextOn]}>{a === "left" ? "Left" : a === "center" ? "Center" : "Right"}</Text>
+                    </Pressable>))}</View>
+                </View>
+                {sel.kind === "heading" ? (
+                  <View style={s.ctl} testID="em-hsize">
+                    <Text style={s.ctlLabel}>Size</Text>
+                    <View style={s.stepper}>
+                      <Btn label="Smaller heading" icon={ICON.down} disabled={(sel.size ?? 24) <= 14} onPress={() => changeBlocks(editBlock(blocks, sel.id, { size: Math.max(14, (sel.size ?? 24) - 2) }), "Smaller heading")} testID="em-hsize-less" />
+                      <Text style={s.ctlValue} testID="em-hsize-value">{String(sel.size ?? 24)}</Text>
+                      <Btn label="Larger heading" icon={ICON.up} disabled={(sel.size ?? 24) >= 48} onPress={() => changeBlocks(editBlock(blocks, sel.id, { size: Math.min(48, (sel.size ?? 24) + 2) }), "Larger heading")} testID="em-hsize-more" />
+                    </View>
+                  </View>
+                ) : (
+                  <View style={s.ctl} testID="em-unsub-opt">
+                    <Text style={s.ctlLabel}>Unsubscribe links</Text>
+                    <Btn label={sel.unsub === true ? "On" : "Off"} strong on={sel.unsub === true} onPress={() => changeBlocks(editBlock(blocks, sel.id, { unsub: sel.unsub !== true }), "Toggled the unsubscribe links")} testID="em-unsub-toggle" />
+                  </View>
+                )}
+              </View>
+            ) : null}
             <Text style={s.note}>{sel !== null ? `${blockLabel(sel.kind)}. Edit it in place; the bar above the card moves, copies or deletes it.` : "Select a block to change it."}</Text>
           </View>
         ) : null}
@@ -691,6 +745,7 @@ const s = StyleSheet.create({
   blk: { borderWidth: 1.5, borderColor: "transparent", paddingHorizontal: 20, paddingVertical: 6 },
   blkOver: { borderColor: "var(--accent-line)" as string },
   blkOn: { borderColor: "var(--accent)" as string },
+  footLinks: { color: "#5B5BD6", fontSize: 12, lineHeight: 19, textDecorationLine: "underline" },
   textBlock: { color: "#18181A", fontSize: 15, lineHeight: 22, minHeight: 22, padding: 0 },
   btnBlock: { alignSelf: "flex-start", color: "#FFFFFF", backgroundColor: "#4F46E5", fontSize: 14, fontWeight: "600", paddingHorizontal: 18, paddingVertical: 10, borderRadius: 8 },
   imgBlock: { height: 140, backgroundColor: "#E9E9EC", alignItems: "center", justifyContent: "center" },

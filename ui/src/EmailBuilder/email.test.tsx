@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   EmailBuilder, EMAIL_BLOCK_KINDS, EMAIL_MODES, EMAIL_PREVIEWS, PANE_TABS, PREVIEW_TEXT_LIMIT, SUBJECT_LIMIT,
-  blocksToPlain, formatHtml, compileEmail as compile2, DEFAULT_EMAIL_STYLE, EMAIL_WIDTHS, EMAIL_FONTS, COLOR_LABEL, isHex, splitTokens, canRedo, canUndo, compileEmail, editBlock, fillMerge, focusKey, mergeFieldsOf, mergeToken, moveBlock, newBlock, pushHistory, runChecks, stepHistory,
+  blocksToPlain, emailBlockHtml, hasUnsub, formatHtml, compileEmail as compile2, DEFAULT_EMAIL_STYLE, EMAIL_WIDTHS, EMAIL_FONTS, COLOR_LABEL, isHex, splitTokens, canRedo, canUndo, compileEmail, editBlock, fillMerge, focusKey, mergeFieldsOf, mergeToken, moveBlock, newBlock, pushHistory, runChecks, stepHistory,
 } from "./index.tsx";
 import type { EmailBlock, EmailBuilderViewProps, EmailDiff, EmailHistory, EmailSnapshot } from "./index.tsx";
 
@@ -191,4 +191,29 @@ test("the Style pane shows Width, Font, the three steppers and the seven colours
   assert.match(html, /Unsubscribe link present/);
   assert.match(html, /KB, under the 102 KB Gmail clip limit/);
   assert.match(renderToStaticMarkup(<EmailBuilder {...base} mode="html" html="<p>no footer</p>" />), /No unsubscribe link/);
+});
+
+test("heading and footer export through emailBlockHtml; a footer with unsubscribe replaces the default line and passes the check", () => {
+  const head: EmailBlock = { id: "h", kind: "heading", text: "Hello {{first_name|there}} & team", size: 30, align: "center" };
+  const foot: EmailBlock = { id: "f", kind: "footer", text: "Northwind, 410 Market Street", align: "center", unsub: true };
+  assert.match(emailBlockHtml(head) ?? "", /<h1 style="margin:0;font:700 30px\/1.2 sans-serif;text-align:center/);
+  assert.ok(compileEmail([head]).includes(emailBlockHtml(head) ?? "x"), "the export carries the shared HTML");
+  assert.match(compileEmail([head], { mode: "preview", values: { first_name: "Elena" } }), /Hello Elena &amp; team/);
+  assert.match(compileEmail([head]), /Hello \{\{first_name\|there\}\} &amp; team/, "send keeps the token");
+  assert.equal(hasUnsub([head]), false);
+  assert.equal(hasUnsub([head, foot]), true);
+  const withFoot = compileEmail([head, foot]);
+  assert.ok(withFoot.includes(emailBlockHtml(foot) ?? "x") && withFoot.includes("{{unsubscribe_url}}") && withFoot.includes("{{preferences_url}}"));
+  assert.ok(!withFoot.includes('href="#unsubscribe"'), "no second default unsubscribe line");
+  assert.ok(compileEmail([head]).includes('href="#unsubscribe"'), "without a footer block the default line stays");
+  assert.equal(runChecks({ subject: "s", previewText: "p", html: withFoot, plain: blocksToPlain([head, foot]) }).find((c) => c.id === "unsub")?.level, "ok");
+  assert.match(blocksToPlain([head, foot]), /Hello \{\{first_name\|there\}\} & team\n\nNorthwind, 410 Market Street\nUnsubscribe: \{\{unsubscribe_url\}\}/);
+  assert.equal(newBlock("heading", "x").size, 24);
+  assert.equal(newBlock("footer", "x").unsub, true);
+});
+
+test("the rail adds Heading and Footer, and a selected heading or footer shows Align, Size and the unsubscribe switch", () => {
+  const html = renderToStaticMarkup(<EmailBuilder {...base} blocks={[{ id: "h", kind: "heading", text: "Hi", size: 28 }, { id: "f", kind: "footer", text: "Foot", unsub: true }]} />);
+  for (const k of ["heading", "footer"]) assert.ok(html.includes(`data-testid="em-add-${k}"`), k);
+  assert.ok(html.includes('data-testid="em-unsub-f"') && html.includes("Unsubscribe · Email preferences"));
 });
