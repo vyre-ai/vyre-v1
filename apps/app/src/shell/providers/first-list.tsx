@@ -3,6 +3,8 @@
 import { useMemo, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { AppIcon, brandForName } from "../../../../../ui/src/AppIcon/index.tsx";
+import { Avatar } from "../../../../../ui/src/Avatar/index.tsx";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import { VirtualList } from "../../../../../ui/src/VirtualList/index.tsx";
@@ -58,8 +60,10 @@ export function listItems(out: unknown): ListItem[] {
 
 const NEVER: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "loading" }) };
 
-function initial(title: string): string {
-  return title.trim().slice(0, 1).toUpperCase();
+/** The face before a row: a person for chats and mail, the app's own mark for the Vault and Apps, the shared letter tile for anything else. */
+function lead(place: string, title: string): ReactElement {
+  if (place === "chat" || place === "mail") return <View style={styles.badge}><Avatar name={title} kind="person" size={20} /></View>;
+  return <View style={styles.badge}><AppIcon brand={place === "vault" || place === "sites" ? brandForName(title) ?? title : title} name={title} size={20} /></View>;
 }
 
 /** The frame before data arrives: the page title and rows of the real height. */
@@ -101,7 +105,7 @@ export default function FirstListPlace({ place }: { place: string }): ReactEleme
               id={`${place}:${it.key}`}
               title={it.title}
               {...(it.note ? { note: it.note } : {})}
-              leading={<View style={styles.badge}><Text style={styles.badgeText}>{initial(it.title)}</Text></View>}
+              leading={lead(place, it.title)}
               onPress={() => rt.open({ subject: { type: place, id: it.key } })}
             />
           )}
@@ -115,6 +119,5 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: "var(--win)" as string, paddingTop: 34, paddingHorizontal: 28 },
   h1: { margin: 0, marginBottom: 16, fontSize: 28, lineHeight: 34, fontWeight: "600", letterSpacing: -0.6, color: "var(--ink)" as string },
   offline: { marginBottom: 8, fontSize: 12.5, color: "var(--ink-3)" as string },
-  badge: { width: 20, height: 20, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: "var(--hover)" as string, marginRight: 8 },
-  badgeText: { fontSize: 11, fontWeight: "600", color: "var(--ink-2)" as string },
+  badge: { width: 20, height: 20, marginRight: 8 },
 });

@@ -1,0 +1,28 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_09-pane-340",
+      "route": "/m/P-L9b_09?tab=routines",
+      "proto": "chat,at:demo-agent-routines,{skin}",
+      "waitFor": "[data-testid='chats-right-pane']",
+      "note": "The right pane at its default 340 px on Routines: the strip draws Computer, Threads and the open tab with the rest behind More, nothing clipped. The prototype side is its agent pane on the same tab (it has the room to show all five).",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_09-routine-detail",
+      "route": "/m/P-L9b_09?tab=routines&routine=r3",
+      "proto": "chat,at:demo-agent-routine,{skin}",
+      "waitFor": "[data-testid='routine-top']",
+      "note": "One routine open: Run Now beside Change by Asking, then what it does, when, the details with who set it. The prototype side is the same page (hash demo-agent-routine, added to the prototype copy for this packet).",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_09-popup-in-control",
+      "route": "/m/P-L9b_09?popup=takeover",
+      "proto": "chat,at:demo-popup-take,{skin}",
+      "waitFor": "[data-testid='computer-popup']",
+      "note": "The computer popup while you are in control: the hand stays on the Take over icon (pressed look), Record appears beneath it. The prototype side is the same state (hash demo-popup-take).",
+      "protoSettleMs": 1500
+    }
+  ]
+}

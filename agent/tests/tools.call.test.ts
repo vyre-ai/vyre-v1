@@ -1,4 +1,5 @@
-// The generated catalog, tool_search and the shape of a tool call (ARCH 6.7).
+// The generated catalog, tool_search and the shape of a tool call (ARCH 6.7). The tool count follows generated/mcp-tools.json.
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { HostError, makeError } from "../../host/src/routes/errors.ts";
@@ -8,14 +9,14 @@ import { ctx, loadGenerated, makeSession, thread } from "../src/tools/harness.ts
 
 test("catalog: every generated tool joins its capability; the frozen default list is 59 real tools", () => {
   const { catalog, defaults, caps } = loadGenerated();
-  // The full catalog follows the registry (frozen by its hash in docs/frozen); count it from there, not a literal that drifts with every new capability.
-  assert.equal(new Set(catalog.all.map((t) => t.name)).size, catalog.all.length, "no duplicate tool names");
-  assert.ok(catalog.all.length > defaults.size);
+  // Every generated tool joins the catalog, so the count follows the generated file instead of a literal that each contract change breaks.
+  const generated = JSON.parse(readFileSync(new URL("../../generated/mcp-tools.json", import.meta.url), "utf8")) as { tools: unknown[] };
+  assert.equal(catalog.all.length, generated.tools.length);
   assert.equal(defaults.size, 59);
   for (const n of defaults) assert.ok(catalog.byName(n), `default tool ${n} exists`);
   for (const t of catalog.all) assert.ok(caps.has(t.cap), t.name);
   const stricter = catalog.all.filter((t) => t.effects === "outward").length;
-  assert.ok(stricter > 0, "outward tools exist and are marked");
+  assert.equal(stricter, 77);
 });
 
 test("catalog: a tool whose capability is missing, or a duplicate name, is a build error not a quiet gap", () => {
@@ -132,3 +133,4 @@ test("an unknown tool is a validation error and never reaches invoke", async () 
   assert.equal(out.kind === "error" && out.error.code, "validation.unknown_capability");
   assert.equal(calls.length, 0);
 });
+
