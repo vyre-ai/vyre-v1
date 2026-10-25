@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactElement } from "react";
 import { liveQuery } from "../../../../../client/src/index.ts";
 import type { FakeReplica } from "../../../../../client/src/index.ts";
 import { createSampleFiles } from "../../places/files/list/sample.ts";
@@ -25,7 +26,7 @@ function runtimeOver(sample: { data: { screens: ShellRuntime["screens"]; call: S
     open: (t) => void opened.push(t), openUrl: () => undefined,
   };
 }
-const html = (el: React.ReactElement): string => renderToStaticMarkup(el).replaceAll("<!-- -->", "");
+const html = (el: ReactElement): string => renderToStaticMarkup(el).replaceAll("<!-- -->", "");
 
 test("Records draws the record types in the sidebar and the open type as a table from the Space", () => {
   const rt = runtimeOver(createViewsSample());
