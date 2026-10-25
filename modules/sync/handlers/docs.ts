@@ -1,4 +1,4 @@
-// sync.doc.open, sync.doc.update, sync.doc.close and sync.doc.compact (ARCH 5.6). The logic is in sync/src/yjs; these bind it to the capability inputs and outputs and give the host the two things it must supply:
+// sync.doc.open, sync.doc.update, sync.doc.close and sync.doc.compact (ARCH 5.6). The logic is in modules/sync/docs (modules may import the allowlisted yjs, the sync layer may not: boundary B6); these bind it to the capability inputs and outputs and give the host the two things it must supply:
 // the access check for a document (checked on every call, so a revoked editor is cut off) and the owning row's text projection.
 // WIRING (ruling 35 style, outside this packet's files): re-export this file from handlers/index.ts, add the four capability names to the `handlers` map in impl.ts over
 // `createDocHandlers(docServerOf(live(), { access: snapshotDocAccess({ ... }), now }))`, add them to the key list in tests/wiring.test.ts, and in the gateway call
@@ -6,8 +6,8 @@
 // and the access module calls `docLive.revalidate()` after a grant, revoke or role change.
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
-import { createDocLive, createDocServer } from "../../../sync/src/yjs/index.ts";
-import type { CompactInput, DocAccess, DocDecision, DocDeps, DocEnc, DocLive, DocOwner, DocServer, DocVerb, OpenInput, OpenOut, UpdateInput } from "../../../sync/src/yjs/index.ts";
+import { createDocLive, createDocServer } from "../docs/index.ts";
+import type { CompactInput, DocAccess, DocDecision, DocDeps, DocEnc, DocLive, DocOwner, DocServer, DocVerb, OpenInput, OpenOut, UpdateInput } from "../docs/index.ts";
 import type { SyncHandle } from "../impl.ts";
 
 /** The caller of a document capability: the trace and the principal (a person, or an agent writing as itself). */

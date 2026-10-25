@@ -5,8 +5,7 @@
 //                      update {update, enc?, suggest?} one live edit; the server stores it and relays it to the other subscribers
 //                      awareness {update}              cursors and presence, relayed and never stored
 //   server -> client   the same four, plus sync2 {ack: seq} to the writer of an update. A frame with data.error is a refusal; with data.dropped the client must close the document and remove its local copy.
-import { randomUUID } from "node:crypto";
-import type { Frame } from "../protocol.ts";
+import type { Frame } from "../../../sync/src/protocol.ts";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import { fromB64 } from "./b64.ts";
 import type { DocServer } from "./server.ts";
@@ -40,7 +39,7 @@ function errorOf(e: unknown): { code: string; message: string } {
 export function createDocLive(server: DocServer, o: { traceId?: () => string } = {}): DocLive {
   const conns = new Map<DocPeer, Conn>();
   const subs = new Map<string, Set<Conn>>();
-  const trace = o.traceId ?? ((): string => randomUUID().replace(/-/g, ""));
+  const trace = o.traceId ?? ((): string => globalThis.crypto.randomUUID().replace(/-/g, ""));
 
   const frame = (t: DocFrameType, doc: string, data: unknown): Frame => ({ t, doc, data } as Frame);
 

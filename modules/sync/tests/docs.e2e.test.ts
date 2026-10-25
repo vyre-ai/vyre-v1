@@ -3,7 +3,7 @@
 // a device with the wrong key cannot read it; the owner's device folds it (compact) and the server never builds a snapshot, a Markdown text or a search entry.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { aesDocCrypto, baseSnapshot, docMeta, fromB64, headSeq, toB64, updatesAfter } from "../../../sync/src/yjs/index.ts";
+import { aesDocCrypto, baseSnapshot, docMeta, fromB64, headSeq, toB64, updatesAfter } from "../docs/index.ts";
 import { ADA, BO, ctx, docRig, edit } from "./docs.rig.test.ts";
 import { createDocHandlers } from "../handlers/docs.ts";
 

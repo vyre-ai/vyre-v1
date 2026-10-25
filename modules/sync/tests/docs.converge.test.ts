@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as Y from "yjs";
-import { BODY, CONTENT, baseSnapshot, buildDoc, fromB64, headSeq, memoryDocStore, toMarkdown, updatesAfter, versions } from "../../../sync/src/yjs/index.ts";
+import { BODY, CONTENT, baseSnapshot, buildDoc, fromB64, headSeq, memoryDocStore, toMarkdown, updatesAfter, versions } from "../docs/index.ts";
 import { ADA, AGENT, BO, ctx, docRig } from "./docs.rig.test.ts";
 import { createDocHandlers } from "../handlers/docs.ts";
 

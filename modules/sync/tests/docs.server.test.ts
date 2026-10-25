@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as Y from "yjs";
-import { BODY, MAX_UPDATE_BYTES, agreeSpan, attributedInsert, baseSnapshot, fromB64, headSeq, newDoc, spansOf, toB64, toMarkdown, updatesAfter, versions } from "../../../sync/src/yjs/index.ts";
+import { BODY, MAX_UPDATE_BYTES, agreeSpan, attributedInsert, baseSnapshot, fromB64, headSeq, newDoc, spansOf, toB64, toMarkdown, updatesAfter, versions } from "../docs/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/snapshot.ts";
 import { ADA, AGENT, BO, CY, NOW, TRACE, ctx, docRig, edit } from "./docs.rig.test.ts";
 import { buildAccess } from "../fixtures/world.ts";

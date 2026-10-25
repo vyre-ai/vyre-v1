@@ -5,10 +5,10 @@
 //   revoked       the server sends data.dropped: the document is closed and removed from this device (the purge path does the same for the whole Space).
 import * as Y from "yjs";
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from "y-protocols/awareness.js";
-import type { Frame } from "../protocol.ts";
-import type { SqlDriver } from "../replica/types.ts";
-import { docPrefix } from "../purge/ports.ts";
-import type { OpenDocs } from "../purge/ports.ts";
+import type { Frame } from "../../../sync/src/protocol.ts";
+import type { SqlDriver } from "../../../sync/src/replica/types.ts";
+import { docPrefix } from "../../../sync/src/purge/ports.ts";
+import type { OpenDocs } from "../../../sync/src/purge/ports.ts";
 import { fromB64, isEmptyUpdate, toB64 } from "./b64.ts";
 import { BODY, CONTENT, newDoc, toMarkdown } from "./markdown.ts";
 import type { DocEnc } from "./store.ts";
