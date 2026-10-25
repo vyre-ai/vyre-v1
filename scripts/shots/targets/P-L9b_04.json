@@ -1,0 +1,28 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_04-conversation",
+      "route": "/m/P-L9b_04",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='conversation']",
+      "note": "Rivera intake with Intake leading and Docs listening: the thread header (title, faces with mode marks, pane and menu), your bubbles, Intake's work folded to Worked for 14s, 3 steps, a file card, a changeset card waiting, and the composer with Intake will reply. The prototype side is the same chat.",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_04-streaming",
+      "route": "/m/P-L9b_04?v=streaming",
+      "proto": "chat,at:demo-stream,{skin}",
+      "waitFor": "[data-testid='body-m7']",
+      "note": "Intake is writing an answer: the markdown is on the page up to the last delta with the caret, the work above it is folded, the header shows Working with Stop, and the composer offers Interrupt. The prototype side is the same chat with a message that is streaming (hash demo-stream, added to the prototype copy for this packet).",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_04-error",
+      "route": "/m/P-L9b_04?v=errors",
+      "proto": "chat,at:chat-c4,{skin}",
+      "waitFor": "[data-testid^='error-']",
+      "note": "Docs did not read a Restricted file: the inline error row (what, why, next, What happened, Copy trace id) under its file card and the review card. The prototype side is the Rivera engagement letter chat.",
+      "protoSettleMs": 1500
+    }
+  ]
+}
