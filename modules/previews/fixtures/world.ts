@@ -85,18 +85,21 @@ export class FakeBlobs implements Blobs {
   readonly items = new Map<string, { meta: BlobMeta; bytes: Uint8Array }>();
   readonly foreign = new Set<string>();
   puts = 0;
+  /** the resource each blob was put with, by blob id */
+  readonly resources = new Map<string, { type: string; id: string } | undefined>();
   deletes: string[] = [];
   /** make put fail with this code once (quota, size) */
   failPut: string | undefined;
   private seq = 0;
 
-  async put(bytes: Uint8Array, contentType: string): Promise<BlobMeta> {
+  async put(bytes: Uint8Array, contentType: string, opts?: { resource?: { type: string; id: string } }): Promise<BlobMeta> {
     if (this.failPut) { const code = this.failPut; this.failPut = undefined; throw vyreErr(code, "The blob store refused this blob."); }
     this.puts += 1;
     this.seq += 1;
     const id = `blb_${this.seq.toString(16).padStart(32, "0")}`;
     const meta: BlobMeta = { id, contentType, size: bytes.byteLength, sha256: "0".repeat(64), createdAt: NOW };
     this.items.set(id, { meta, bytes: new Uint8Array(bytes) });
+    this.resources.set(id, opts?.resource);
     return meta;
   }
   private own(id: string): void {
