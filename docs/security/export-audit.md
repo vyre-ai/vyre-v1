@@ -9,13 +9,13 @@ Found in P-CC_35: `records.export` wrote every row of a view into the file. The 
 - `hold` is a deny. `deny` leaves the item out and counts it in a `skipped` number the caller sees; it never names the item.
 - Each capability that packs gets one test with a restricted item that proves it is absent from the file.
 
-## Capabilities that pack several items (change needed)
+## Capabilities that pack several items (fixed in this packet)
 
 | Capability | Today | Change | Files to change |
 |---|---|---|---|
-| records.export | pipeline authorizes the record type only; every row of the view is written | per-row authorize at view level; fail closed without ctx.authorize; skipped count in the output | modules/records/handlers/merge.ts, modules/records/impl.ts, modules/records/tests/export.restricted.test.ts |
+| records.export | fixed fail-closed by the steward in P-CC_35 (PR 454): per-row authorize at view level, refused without ctx.authorize | none here | (P-CC_35) |
 | files.copy | pipeline authorizes the destination folder only; the source file is copied without a view check on it | authorize view on the source file before copying; fail closed | modules/files/handlers/tree.ts, modules/files/tests/copy.restricted.test.ts |
-| backup.export_start | authorize runs only `if (ctx.authorize)` (fails open); entries are skipped by path/secret scan, not by access | require ctx.authorize; per-entry authorize for entries that map to a resource | modules/backup/handlers/run.ts, modules/backup/tests/export.restricted.test.ts |
+| backup.export_start | authorize runs only `if (ctx.authorize)` (fails open); entries are skipped by path/secret scan, not by access | require ctx.authorize; `SnapshotEntry.resource` names the item and needs a view allow. The host's `exportEntries()` must set `resource` on each entry that holds a record, file or chat | modules/backup/handlers/run.ts, modules/backup/tests/export.restricted.test.ts |
 | audit.export | audit.read permission; rows that name a resource are written without a check on that resource | per-row authorize view on the row's resource when it has one; fail closed | modules/audit/handlers/log.ts, modules/audit/tests/export.restricted.test.ts |
 
 ## Capabilities that pack several items (already safe, test to add where missing)
@@ -45,8 +45,9 @@ vault.export_env, vault.items.export_mine, vault.exports.*: stubs. When they are
 
 ## Handler files to add to owns_files
 
-modules/records/handlers/merge.ts, modules/records/impl.ts, modules/records/tests/export.restricted.test.ts
 modules/files/handlers/tree.ts, modules/files/tests/copy.restricted.test.ts
 modules/backup/handlers/run.ts, modules/backup/tests/export.restricted.test.ts
 modules/audit/handlers/log.ts, modules/audit/tests/export.restricted.test.ts
 modules/memory/tests/graph.export.restricted.test.ts
+
+Done in this packet: files.copy (tree.ts), backup.export_start (run.ts), audit.export (log.ts, projections.ts; log.test.ts passes an allow-all authorize), memory.graph_export test. Each has a restricted-item test and a no-authorize refusal test.
