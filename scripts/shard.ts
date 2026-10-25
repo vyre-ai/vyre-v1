@@ -9,6 +9,8 @@ import type { SlowEntry } from "./slow-check.ts";
 
 export const MAX_SHARDS = 24;
 export const TARGET_SEC = 25;
+// P-CI_39: shards scale with the number of selected files, not a fixed 24: GitHub caps free hosted runners at 20 concurrent jobs and the self-hosted fleet is 25, so a small change must not fan out 24 jobs.
+export const FILES_PER_SHARD = 8;
 export const FALLBACK_SEC = 3;
 // Ruling 52 (P-CI_31): 30 s, was 20 s. Cold pass caches on the new hosts and hosted runners made real 20-22 s UI files hit the old cap; CI hygiene only, speed budgets stay on v1-perf (ruling 46).
 export const FAST_CAP_SEC = 30;
@@ -47,7 +49,7 @@ export function shardFiles(files: string[], timings: Timings, slow: SlowEntry[],
   const median = medianSec(fastFiles, timings);
   const rows = fastFiles.map((f) => ({ f, sec: expectedSec(f, timings, median) })).sort((a, b) => b.sec - a.sec || (a.f < b.f ? -1 : 1));
   const totalSec = rows.reduce((n, r) => n + r.sec, 0);
-  const count = shardCount(totalSec, opts.max ?? MAX_SHARDS, opts.target ?? TARGET_SEC);
+  const count = fastFiles.length === 0 ? 0 : Math.min(opts.max ?? MAX_SHARDS, Math.max(1, Math.ceil(fastFiles.length / FILES_PER_SHARD)));
   const bins = Array.from({ length: count }, () => ({ files: [] as string[], sec: 0 }));
   for (const r of rows) {
     let best = bins[0]!;
@@ -59,11 +61,11 @@ export function shardFiles(files: string[], timings: Timings, slow: SlowEntry[],
 }
 
 /** The select job's output: plain jobs, not matrix-expanded workflows. */
-export function toMatrix(s: Shards): { include: { name: string; files: string; slow: boolean; runner: "hosted" | "v1" | "v1-perf" }[] } {
+export function toMatrix(s: Shards): { include: { name: string; files: string; slow: boolean; runner: "v1" | "v1-perf" }[] } {
   return {
     include: [
-      ...s.fast.map((b, i) => ({ name: `fast-${i + 1}`, files: b.files.join(" "), slow: false, runner: "hosted" as const })),
-      ...s.slow.map((j, i) => ({ name: `slow-${i + 1}`, files: j.file, slow: true, runner: j.perf ? ("v1-perf" as const) : j.heavy ? ("v1" as const) : ("hosted" as const) })),
+      ...s.fast.map((b, i) => ({ name: `fast-${i + 1}`, files: b.files.join(" "), slow: false, runner: "v1" as const })),
+      ...s.slow.map((j, i) => ({ name: `slow-${i + 1}`, files: j.file, slow: true, runner: j.perf ? ("v1-perf" as const) : ("v1" as const) })),
     ],
   };
 }
