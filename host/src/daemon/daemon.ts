@@ -9,7 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import { LogClient } from "../../../kernel/src/log/index.ts";
-import { registry } from "../../../generated/registry.ts";
+import { registry, registryHash } from "../../../generated/registry.ts";
 import { routes } from "../../../generated/routes.ts";
 import { validateEvent, validateInput } from "../../../generated/validators.ts";
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
@@ -40,6 +40,7 @@ import { createGateHook } from "./gate-hook.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
 import { createKitsHost } from "../seams/kits.ts";
+import { createSyncSeam } from "../seams/sync.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, wireSeams } from "../seams/index.ts";
 import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
@@ -415,6 +416,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           post: { allow: o.seams?.webhookAllow ?? (() => []), now, ...(o.seams?.postFetch ? { fetch: o.seams.postFetch } : {}) },
         }),
         ...spaceStoreDrivers(spaceStore),
+        configureSync: () => createSyncSeam({ store: spaceStore, access: () => access.snap, space: spaceId, now, registryHash, invoke: (c, i, seed) => invoke(c, i, seed), keyed: (c, v) => capIndex?.get(c, v)?.idempotency === "key", ...(cfg.address ? { endpoints: () => [{ kind: "direct" as const, url: `wss://${cfg.address}/sync/v1/live` }] } : {}) }),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
         setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open() }, now }),
         ...(o.seams?.drivers ?? {}),

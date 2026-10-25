@@ -1,8 +1,9 @@
 // P-L1_LIVE (rulings 31, 32, 53, 59): the L1 modules that have a complete handler map are live, a booted daemon on the seeded `core` Space reports none of them as not set up, and each
 // answers through the gateway with a real token: one read, one write, and a refusal for a member who lacks the permission.
 // Path mapping: the packet owns __live__/L1; this test sits in host/tests because it boots the daemon.
-// Still stub, and why (commented on the packet): sync (the daemon never constructs the sync handle, push deps or live hub; hello, status, health, endpoints, entities, devices.lag and doc.* have no entry in impl.handlers)
-// and conflicts (modules/conflicts does not exist yet: P-L1_08).
+// Still stub, and why (commented on the packet): conflicts (modules/conflicts does not exist yet: P-L1_08).
+// Sync: the daemon builds the handle through the configureSync seam (host/src/seams/sync.ts) over the Space store; the sync.changes projection is declared on that store.
+// Not wired yet (reported to the lead): the live socket still runs the daemon's own hub (host/src/ws.ts), not sync/src/live, so no hello_ok/ev frames from the sync hub.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -14,8 +15,8 @@ import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 
-const LIVE = ["search"];
-const STUB = ["sync", "conflicts"];
+const LIVE = ["search", "sync"];
+const STUB = ["conflicts"];
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 const OWNER_TOKEN = "tok-usr_olivia";
@@ -53,7 +54,7 @@ test("l1 live: a booted daemon serves search from its own handlers, reports it a
     session: (h) => {
       const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
       const who = t === OWNER_TOKEN ? "usr_olivia" : t === MEMBER_TOKEN ? "usr_noah" : null;
-      return who === null ? null : { space: "spc_core", principal: { kind: "person", id: who }, device: "l1-live" };
+      return who === null ? null : { space: "spc_core", principal: { kind: "person", id: who }, device: "dev_l1live" };
     },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
@@ -78,5 +79,28 @@ test("l1 live: a booted daemon serves search from its own handlers, reports it a
     assert.equal(refused.status, 403, "a member cannot rebuild the index");
     assert.equal(((await refused.json()) as { error?: { code?: string } }).error?.code, "permission.role_lacks_permission");
     assert.equal((await post("nope", "/v1/search/query", { q: "x" })).status, 401, "no valid token, no search");
+
+    // sync: a read, a write and a refusal, through the gateway
+    const status = await post(OWNER_TOKEN, "/v1/sync/status", {});
+    assert.equal(status.status, 200, `sync.status: ${await status.clone().text()}`);
+    const sd = ((await status.json()) as { data: { mode: string; lag: number } }).data;
+    assert.equal(sd.mode, "live");
+    const pull = await post(OWNER_TOKEN, "/sync/v1/pull", { cursor: 0, epoch: 0 });
+    assert.equal(pull.status, 200, `sync.pull: ${await pull.clone().text()}`);
+    const push = await post(OWNER_TOKEN, "/sync/v1/push", { deviceId: "dev_l1live", epoch: 0, ops: [] });
+    assert.equal(push.status, 200, `sync.push: ${await push.clone().text()}`);
+    const lag = await post(OWNER_TOKEN, "/v1/sync/devices/lag", {});
+    assert.equal(lag.status, 200, `sync.devices.lag: ${await lag.clone().text()}`);
+    assert.ok(JSON.stringify(await lag.json()).includes("dev_l1live"), "the pull above left the device's cursor");
+    const hello = await post(OWNER_TOKEN, "/sync/v1/hello", { deviceId: "dev_l1live", deviceClass: "desktop", appVersion: "1.2.3", registryHash: "x", cursor: 0, epoch: 0, replica: { entities: {} } });
+    assert.equal(hello.status, 200, `sync.hello: ${await hello.clone().text()}`);
+    assert.equal(((await hello.json()) as { data: { mode: string } }).data.mode, "update_required", "a registry hash the server does not know is update_required");
+    const ents = await post(OWNER_TOKEN, "/v1/sync/entities", {});
+    assert.equal(ents.status, 200, `sync.entities: ${await ents.clone().text()}`);
+    assert.equal((await post(OWNER_TOKEN, "/v1/sync/health", {})).status, 200, "sync.health");
+    assert.equal((await post(OWNER_TOKEN, "/v1/sync/endpoints", {})).status, 200, "sync.endpoints");
+    const lagRefused = await post(MEMBER_TOKEN, "/v1/sync/devices/lag", {});
+    assert.equal(lagRefused.status, 403, "a member cannot read every device's lag");
+    assert.equal((await post("nope", "/sync/v1/pull", { cursor: 0, epoch: 0 })).status, 401, "no token, no pull");
   } finally { await d.stop(); }
 });

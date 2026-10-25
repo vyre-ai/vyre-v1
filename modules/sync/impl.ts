@@ -18,6 +18,13 @@ import type { LiveHub } from "../../sync/src/live/index.ts";
 import type { BumpInput, ReindexInput } from "../../sync/src/purge/index.ts";
 import type { PullHandlers } from "./handlers/index.ts";
 import { syncChanges } from "./projections.ts";
+import { snapshotDocAccess, createDocHandlers, docServerOf, toDocCtx } from "./handlers/docs.ts";
+import { createInfoHandlers, docRowOf, noteCursor, pushDepsOf } from "./handlers/host.ts";
+import type { SyncHostSeam } from "./handlers/host.ts";
+import type { ProjectionHost as Host } from "../../kernel/src/store/projection.ts";
+import type { Store as KStore } from "../../kernel/src/store/types.ts";
+import type { SeamSetters } from "../../host/src/seams/index.ts";
+export type { SyncHostSeam, SyncEndpoint, SyncStoreSeam } from "./handlers/host.ts";
 
 export interface SyncOpts {
   /** The in-memory access projections (grants, roles, resources). */
@@ -31,6 +38,8 @@ export interface SyncOpts {
   /** True when the person starred or follows the row, so a phone keeps it whatever its age. */
   keep?: (person: string, entity: string, id: string) => boolean;
   catalog?: Catalog;
+  /** An already open record store (the Space's), on which the sync.changes projection was declared; omitted: the sync module opens its own at `path`. */
+  store?: { host: Host; store: KStore };
 }
 
 export interface SyncHandle {
@@ -46,7 +55,7 @@ export interface SyncHandle {
 export function openSync(o: SyncOpts): SyncHandle {
   const catalog = o.catalog ?? loadCatalog();
   const clock = o.clock ?? Date.now;
-  const opened = openRecordStore({
+  const opened = o.store ?? openRecordStore({
     path: o.path ?? ":memory:", space: o.space ?? "sp_sync",
     extra: [syncChanges((entity) => catalog.get(entity).ownerField)],
     ...(o.actor !== undefined ? { actor: o.actor } : {}),
@@ -84,23 +93,74 @@ let hub: Hub = { purge: () => 0 };
 /** The host gives the module its live hub, so a purge also closes the sockets it concerns; until then a purge only raises the epoch (the next pull or hello answers purge). */
 export function setLiveHub(h: Hub | null): void { hub = h ?? { purge: () => 0 }; }
 
+let seam: SyncHostSeam | null = null;
+let docs: ReturnType<typeof createDocHandlers> | null = null;
+let info: ReturnType<typeof createInfoHandlers> | null = null;
+/**
+ * The host's half (ruling 31/32): the Space store, the access snapshot, the clock, the registry hash and the way to run a capability as a person. Declaring the sync.changes projection on the
+ * Space store here, before it is first opened, puts every record the Space writes into the feed. Null takes it all back out.
+ */
+export function configureSync(s: SyncHostSeam | null): void {
+  seam = s; shared = null; pushDeps = null; docs = null; info = null;
+  if (s) s.store.declare([syncChanges((entity) => loadCatalog().get(entity).ownerField)]);
+}
+export const hostSeams: SeamSetters = { configureSync };
+
 function live(): SyncHandle {
-  if (!shared) shared = openSync({ access: () => { throw new Error("sync has no access snapshot: the host calls useSync first"); } });
+  if (!shared) {
+    shared = seam
+      ? openSync({ access: seam.access, clock: seam.now, store: seam.store.open() })
+      : openSync({ access: () => { throw new Error("sync has no access snapshot: the host calls useSync first"); } });
+  }
   return shared;
+}
+function pushOf(): PushDeps | null {
+  if (pushDeps) return pushDeps;
+  return seam ? (pushDeps = pushDepsOf(live().deps, seam)) : null;
+}
+function docHandlers() {
+  if (!docs) {
+    const h = live();
+    docs = createDocHandlers(docServerOf(h, { access: snapshotDocAccess({ snapshot: seam ? seam.access : () => { throw new Error("sync has no access snapshot: the host calls configureSync first"); }, rowOf: docRowOf(h.deps), now: h.deps.now }), now: h.deps.now }));
+  }
+  return docs;
+}
+function infoHandlers() {
+  if (!info) {
+    if (!seam) throw new Error("sync is not set up on this server: the host calls configureSync first");
+    info = createInfoHandlers(live().deps, seam);
+  }
+  return info;
 }
 
 export const handlers = {
-  "sync.pull": (ctx: SessionCtx, input: PullReq) => live().handlers["sync.pull"](toPullCtx(ctx), input),
+  "sync.pull": async (ctx: SessionCtx, input: PullReq) => {
+    const res = await live().handlers["sync.pull"](toPullCtx(ctx), input);
+    if (ctx.device) noteCursor(live().deps.db, ctx.principal.id, ctx.device, "desktop", (res as { next?: number }).next ?? input.cursor, live().deps.now());
+    return res;
+  },
   "sync.snapshot.begin": (ctx: SessionCtx, input: { entities?: string[]; deviceClass: DeviceClass }) => live().handlers["sync.snapshot.begin"](toPullCtx(ctx, input.deviceClass), input),
   "sync.snapshot.page": (ctx: SessionCtx, input: { entity: string; after?: string; asOf: number }) => live().handlers["sync.snapshot.page"](toPullCtx(ctx), input),
   "sync.push": (ctx: SessionCtx, input: PushReq) => {
-    if (!pushDeps) {
+    const pd = pushOf();
+    if (!pd) {
       throw new VyreErr({ code: "internal.unavailable", message: "This server is not taking pushes yet.", retryable: true, traceId: ctx.trace.traceId, next: [{ kind: "retry", label: "Try again in a moment" }] });
     }
     // the host gives push what it knows; a device's own epoch row is in the sync store, so push reads revocation from there
-    return createPushHandlers({ deviceRevoked: (person, device) => deviceRevoked(live().deps.db, person, device), ...pushDeps })["sync.push"](toPullCtx(ctx), input);
+    return createPushHandlers({ deviceRevoked: (person, device) => deviceRevoked(live().deps.db, person, device), ...pd })["sync.push"](toPullCtx(ctx), input);
   },
   // admin calls (ARCH 5.7): the devices and access modules invoke them after a revoke, a removal or a label change
   "sync.epoch.bump": (ctx: SessionCtx, input: BumpInput) => createPurgeHandlers(purgeDepsOf(live(), hub))["sync.epoch.bump"](toPurgeCtx(ctx), input),
   "sync.acl.reindex": (ctx: SessionCtx, input: ReindexInput) => createPurgeHandlers(purgeDepsOf(live(), hub))["sync.acl.reindex"](toPurgeCtx(ctx), input),
+  // the device-facing questions about sync itself, and the documents (ARCH 5.2, 5.6)
+  "sync.hello": (ctx: SessionCtx, input: never) => infoHandlers()["sync.hello"](ctx, input),
+  "sync.status": (ctx: SessionCtx, input: never) => infoHandlers()["sync.status"](ctx, input),
+  "sync.health": (_ctx: SessionCtx) => infoHandlers()["sync.health"](),
+  "sync.endpoints": (_ctx: SessionCtx) => infoHandlers()["sync.endpoints"](),
+  "sync.entities": (ctx: SessionCtx, input: never) => infoHandlers()["sync.entities"](ctx, input),
+  "sync.devices.lag": (ctx: SessionCtx, input: never) => infoHandlers()["sync.devices.lag"](ctx, input),
+  "sync.doc.open": (ctx: SessionCtx, input: never) => docHandlers()["sync.doc.open"](toDocCtx(ctx), input),
+  "sync.doc.update": (ctx: SessionCtx, input: never) => docHandlers()["sync.doc.update"](toDocCtx(ctx), input),
+  "sync.doc.close": (ctx: SessionCtx, input: never) => docHandlers()["sync.doc.close"](toDocCtx(ctx), input),
+  "sync.doc.compact": (ctx: SessionCtx, input: never) => docHandlers()["sync.doc.compact"](toDocCtx(ctx), input),
 };
