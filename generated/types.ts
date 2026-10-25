@@ -12518,6 +12518,11 @@ export type InboxListByContactOut = {
       followed: boolean;
       alertOnReplies: boolean;
       starred?: boolean;
+      organisation?: string;
+      dnd?: boolean;
+      bounced?: boolean;
+      unmatched?: boolean;
+      draftReady?: boolean;
     }>;
   showing: string;
   next?: string;
@@ -12568,6 +12573,11 @@ export type InboxMarkReadOut = {
     followed: boolean;
     alertOnReplies: boolean;
     starred?: boolean;
+    organisation?: string;
+    dnd?: boolean;
+    bounced?: boolean;
+    unmatched?: boolean;
+    draftReady?: boolean;
   };
 };
 export type InboxMatchIn = {
@@ -12593,6 +12603,11 @@ export type InboxMatchOut = {
     followed: boolean;
     alertOnReplies: boolean;
     starred?: boolean;
+    organisation?: string;
+    dnd?: boolean;
+    bounced?: boolean;
+    unmatched?: boolean;
+    draftReady?: boolean;
   };
   undoToken: string;
 };
@@ -12620,6 +12635,11 @@ export type InboxMatchNewOut = {
     followed: boolean;
     alertOnReplies: boolean;
     starred?: boolean;
+    organisation?: string;
+    dnd?: boolean;
+    bounced?: boolean;
+    unmatched?: boolean;
+    draftReady?: boolean;
   };
 };
 export type InboxMatchSuggestionsIn = {
@@ -12656,6 +12676,11 @@ export type InboxNeedsMatchOut = {
         followed: boolean;
         alertOnReplies: boolean;
         starred?: boolean;
+        organisation?: string;
+        dnd?: boolean;
+        bounced?: boolean;
+        unmatched?: boolean;
+        draftReady?: boolean;
       };
       suggestions: Array<{
           recordId: string;
@@ -12720,6 +12745,11 @@ export type InboxThreadOut = {
     followed: boolean;
     alertOnReplies: boolean;
     starred?: boolean;
+    organisation?: string;
+    dnd?: boolean;
+    bounced?: boolean;
+    unmatched?: boolean;
+    draftReady?: boolean;
   };
   items: Array<{
       kind: "email" | "sms" | "call" | "meeting" | "campaign_step" | "record_chip" | "note";
@@ -12756,6 +12786,11 @@ export type InboxUnmatchOut = {
     followed: boolean;
     alertOnReplies: boolean;
     starred?: boolean;
+    organisation?: string;
+    dnd?: boolean;
+    bounced?: boolean;
+    unmatched?: boolean;
+    draftReady?: boolean;
   };
 };
 export type InboxUnmatchedIn = {
@@ -12780,6 +12815,11 @@ export type InboxUnmatchedOut = {
       followed: boolean;
       alertOnReplies: boolean;
       starred?: boolean;
+      organisation?: string;
+      dnd?: boolean;
+      bounced?: boolean;
+      unmatched?: boolean;
+      draftReady?: boolean;
     }>;
   next?: string;
   total?: number;

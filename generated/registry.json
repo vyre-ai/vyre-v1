@@ -3349,6 +3349,126 @@
       ],
       "type": "object"
     },
+    "s_323acdeb06": {
+      "properties": {
+        "address": {
+          "description": "Email, number or handle when no contact is matched",
+          "examples": [
+            "maya@example.com"
+          ],
+          "type": "string"
+        },
+        "alertOnReplies": {
+          "type": "boolean"
+        },
+        "bounced": {
+          "type": "boolean"
+        },
+        "campaignId": {
+          "examples": [
+            "cmp_a1b2c3"
+          ],
+          "pattern": "^cmp_[a-z0-9]+$",
+          "type": "string"
+        },
+        "contactId": {
+          "examples": [
+            "rec_a1b2c3"
+          ],
+          "pattern": "^rec_[a-z0-9]+$",
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "dnd": {
+          "type": "boolean"
+        },
+        "draftReady": {
+          "type": "boolean"
+        },
+        "followed": {
+          "type": "boolean"
+        },
+        "id": {
+          "examples": [
+            "cnv_a1b2c3"
+          ],
+          "pattern": "^cnv_[a-z0-9]+$",
+          "type": "string"
+        },
+        "lastChannel": {
+          "enum": [
+            "email",
+            "sms",
+            "call",
+            "meeting"
+          ],
+          "type": "string"
+        },
+        "lastMessageAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lastPreview": {
+          "type": "string"
+        },
+        "mailboxIds": {
+          "items": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "needsMatch": {
+          "type": "boolean"
+        },
+        "organisation": {
+          "examples": [
+            "Acme Legal"
+          ],
+          "type": "string"
+        },
+        "ownerId": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "starred": {
+          "type": "boolean"
+        },
+        "unmatched": {
+          "type": "boolean"
+        },
+        "unreadCount": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "address",
+        "displayName",
+        "lastMessageAt",
+        "lastChannel",
+        "lastPreview",
+        "unreadCount",
+        "needsMatch",
+        "mailboxIds",
+        "followed",
+        "alertOnReplies"
+      ],
+      "type": "object"
+    },
     "s_332ac41b43": {
       "items": {
         "properties": {
@@ -6992,17 +7112,6 @@
       ],
       "type": "object"
     },
-    "s_611f84de8a": {
-      "properties": {
-        "conversation": {
-          "$ref": "#/$defs/s_bbe05acc1e"
-        }
-      },
-      "required": [
-        "conversation"
-      ],
-      "type": "object"
-    },
     "s_61ad3658fc": {
       "properties": {
         "person": {
@@ -8869,12 +8978,6 @@
         "issue"
       ],
       "type": "object"
-    },
-    "s_7bc0d5d531": {
-      "items": {
-        "$ref": "#/$defs/s_bbe05acc1e"
-      },
-      "type": "array"
     },
     "s_7c4e790000": {
       "items": {
@@ -11797,6 +11900,12 @@
       ],
       "type": "object"
     },
+    "s_ab4bbadc09": {
+      "items": {
+        "$ref": "#/$defs/s_323acdeb06"
+      },
+      "type": "array"
+    },
     "s_ab4d804e42": {
       "properties": {
         "event": {
@@ -12313,6 +12422,17 @@
       },
       "required": [
         "scope"
+      ],
+      "type": "object"
+    },
+    "s_b628c0cd13": {
+      "properties": {
+        "conversation": {
+          "$ref": "#/$defs/s_323acdeb06"
+        }
+      },
+      "required": [
+        "conversation"
       ],
       "type": "object"
     },
@@ -13109,108 +13229,6 @@
         "costMicros",
         "startedAt",
         "traceId"
-      ],
-      "type": "object"
-    },
-    "s_bbe05acc1e": {
-      "properties": {
-        "address": {
-          "description": "Email, number or handle when no contact is matched",
-          "examples": [
-            "maya@example.com"
-          ],
-          "type": "string"
-        },
-        "alertOnReplies": {
-          "type": "boolean"
-        },
-        "campaignId": {
-          "examples": [
-            "cmp_a1b2c3"
-          ],
-          "pattern": "^cmp_[a-z0-9]+$",
-          "type": "string"
-        },
-        "contactId": {
-          "examples": [
-            "rec_a1b2c3"
-          ],
-          "pattern": "^rec_[a-z0-9]+$",
-          "type": "string"
-        },
-        "displayName": {
-          "type": "string"
-        },
-        "followed": {
-          "type": "boolean"
-        },
-        "id": {
-          "examples": [
-            "cnv_a1b2c3"
-          ],
-          "pattern": "^cnv_[a-z0-9]+$",
-          "type": "string"
-        },
-        "lastChannel": {
-          "enum": [
-            "email",
-            "sms",
-            "call",
-            "meeting"
-          ],
-          "type": "string"
-        },
-        "lastMessageAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "lastPreview": {
-          "type": "string"
-        },
-        "mailboxIds": {
-          "items": {
-            "examples": [
-              "mbx_a1b2c3"
-            ],
-            "pattern": "^mbx_[a-z0-9]+$",
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "needsMatch": {
-          "type": "boolean"
-        },
-        "ownerId": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "pattern": "^usr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "starred": {
-          "type": "boolean"
-        },
-        "unreadCount": {
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "id",
-        "address",
-        "displayName",
-        "lastMessageAt",
-        "lastChannel",
-        "lastPreview",
-        "unreadCount",
-        "needsMatch",
-        "mailboxIds",
-        "followed",
-        "alertOnReplies"
       ],
       "type": "object"
     },
@@ -90783,9 +90801,12 @@
               {
                 "address": "maya@example.com",
                 "alertOnReplies": true,
+                "bounced": true,
                 "campaignId": "cmp_a1b2c3",
                 "contactId": "rec_a1b2c3",
                 "displayName": "example",
+                "dnd": true,
+                "draftReady": true,
                 "followed": true,
                 "id": "cnv_a1b2c3",
                 "lastChannel": "email",
@@ -90795,8 +90816,10 @@
                   "mbx_a1b2c3"
                 ],
                 "needsMatch": true,
+                "organisation": "Acme Legal",
                 "ownerId": "usr_a1b2c3",
                 "starred": true,
+                "unmatched": true,
                 "unreadCount": 1
               }
             ],
@@ -90820,7 +90843,7 @@
             "type": "string"
           },
           "rows": {
-            "$ref": "#/$defs/s_7bc0d5d531"
+            "$ref": "#/$defs/s_ab4bbadc09"
           },
           "showing": {
             "description": "Plain words for the header: what is showing",
@@ -91016,9 +91039,12 @@
             "conversation": {
               "address": "maya@example.com",
               "alertOnReplies": true,
+              "bounced": true,
               "campaignId": "cmp_a1b2c3",
               "contactId": "rec_a1b2c3",
               "displayName": "example",
+              "dnd": true,
+              "draftReady": true,
               "followed": true,
               "id": "cnv_a1b2c3",
               "lastChannel": "email",
@@ -91028,8 +91054,10 @@
                 "mbx_a1b2c3"
               ],
               "needsMatch": true,
+              "organisation": "Acme Legal",
               "ownerId": "usr_a1b2c3",
               "starred": true,
+              "unmatched": true,
               "unreadCount": 1
             }
           }
@@ -91059,7 +91087,7 @@
       "name": "inbox.mark_read",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_611f84de8a"
+        "$ref": "#/$defs/s_b628c0cd13"
       },
       "permission": null,
       "resource": {
@@ -91103,9 +91131,12 @@
             "conversation": {
               "address": "maya@example.com",
               "alertOnReplies": true,
+              "bounced": true,
               "campaignId": "cmp_a1b2c3",
               "contactId": "rec_a1b2c3",
               "displayName": "example",
+              "dnd": true,
+              "draftReady": true,
               "followed": true,
               "id": "cnv_a1b2c3",
               "lastChannel": "email",
@@ -91115,8 +91146,10 @@
                 "mbx_a1b2c3"
               ],
               "needsMatch": true,
+              "organisation": "Acme Legal",
               "ownerId": "usr_a1b2c3",
               "starred": true,
+              "unmatched": true,
               "unreadCount": 1
             },
             "undoToken": "example"
@@ -91165,7 +91198,7 @@
       "output": {
         "properties": {
           "conversation": {
-            "$ref": "#/$defs/s_bbe05acc1e"
+            "$ref": "#/$defs/s_323acdeb06"
           },
           "undoToken": {
             "type": "string"
@@ -91219,9 +91252,12 @@
             "conversation": {
               "address": "maya@example.com",
               "alertOnReplies": true,
+              "bounced": true,
               "campaignId": "cmp_a1b2c3",
               "contactId": "rec_a1b2c3",
               "displayName": "example",
+              "dnd": true,
+              "draftReady": true,
               "followed": true,
               "id": "cnv_a1b2c3",
               "lastChannel": "email",
@@ -91231,8 +91267,10 @@
                 "mbx_a1b2c3"
               ],
               "needsMatch": true,
+              "organisation": "Acme Legal",
               "ownerId": "usr_a1b2c3",
               "starred": true,
+              "unmatched": true,
               "unreadCount": 1
             },
             "recordId": "rec_a1b2c3"
@@ -91280,7 +91318,7 @@
       "output": {
         "properties": {
           "conversation": {
-            "$ref": "#/$defs/s_bbe05acc1e"
+            "$ref": "#/$defs/s_323acdeb06"
           },
           "recordId": {
             "examples": [
@@ -91412,9 +91450,12 @@
                 "conversation": {
                   "address": "maya@example.com",
                   "alertOnReplies": true,
+                  "bounced": true,
                   "campaignId": "cmp_a1b2c3",
                   "contactId": "rec_a1b2c3",
                   "displayName": "example",
+                  "dnd": true,
+                  "draftReady": true,
                   "followed": true,
                   "id": "cnv_a1b2c3",
                   "lastChannel": "email",
@@ -91424,8 +91465,10 @@
                     "mbx_a1b2c3"
                   ],
                   "needsMatch": true,
+                  "organisation": "Acme Legal",
                   "ownerId": "usr_a1b2c3",
                   "starred": true,
+                  "unmatched": true,
                   "unreadCount": 1
                 },
                 "suggestions": [
@@ -91471,7 +91514,7 @@
             "items": {
               "properties": {
                 "conversation": {
-                  "$ref": "#/$defs/s_bbe05acc1e"
+                  "$ref": "#/$defs/s_323acdeb06"
                 },
                 "suggestions": {
                   "$ref": "#/$defs/s_11fec22d98"
@@ -91779,9 +91822,12 @@
             "conversation": {
               "address": "maya@example.com",
               "alertOnReplies": true,
+              "bounced": true,
               "campaignId": "cmp_a1b2c3",
               "contactId": "rec_a1b2c3",
               "displayName": "example",
+              "dnd": true,
+              "draftReady": true,
               "followed": true,
               "id": "cnv_a1b2c3",
               "lastChannel": "email",
@@ -91791,8 +91837,10 @@
                 "mbx_a1b2c3"
               ],
               "needsMatch": true,
+              "organisation": "Acme Legal",
               "ownerId": "usr_a1b2c3",
               "starred": true,
+              "unmatched": true,
               "unreadCount": 1
             },
             "items": [
@@ -91856,7 +91904,7 @@
       "output": {
         "properties": {
           "conversation": {
-            "$ref": "#/$defs/s_bbe05acc1e"
+            "$ref": "#/$defs/s_323acdeb06"
           },
           "items": {
             "items": {
@@ -91976,9 +92024,12 @@
             "conversation": {
               "address": "maya@example.com",
               "alertOnReplies": true,
+              "bounced": true,
               "campaignId": "cmp_a1b2c3",
               "contactId": "rec_a1b2c3",
               "displayName": "example",
+              "dnd": true,
+              "draftReady": true,
               "followed": true,
               "id": "cnv_a1b2c3",
               "lastChannel": "email",
@@ -91988,8 +92039,10 @@
                 "mbx_a1b2c3"
               ],
               "needsMatch": true,
+              "organisation": "Acme Legal",
               "ownerId": "usr_a1b2c3",
               "starred": true,
+              "unmatched": true,
               "unreadCount": 1
             }
           }
@@ -92019,7 +92072,7 @@
       "name": "inbox.unmatch",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_611f84de8a"
+        "$ref": "#/$defs/s_b628c0cd13"
       },
       "permission": "records.edit",
       "resource": {
@@ -92061,9 +92114,12 @@
               {
                 "address": "maya@example.com",
                 "alertOnReplies": true,
+                "bounced": true,
                 "campaignId": "cmp_a1b2c3",
                 "contactId": "rec_a1b2c3",
                 "displayName": "example",
+                "dnd": true,
+                "draftReady": true,
                 "followed": true,
                 "id": "cnv_a1b2c3",
                 "lastChannel": "email",
@@ -92073,8 +92129,10 @@
                   "mbx_a1b2c3"
                 ],
                 "needsMatch": true,
+                "organisation": "Acme Legal",
                 "ownerId": "usr_a1b2c3",
                 "starred": true,
+                "unmatched": true,
                 "unreadCount": 1
               }
             ],
@@ -92110,7 +92168,7 @@
             "type": "string"
           },
           "rows": {
-            "$ref": "#/$defs/s_7bc0d5d531"
+            "$ref": "#/$defs/s_ab4bbadc09"
           },
           "total": {
             "type": "integer"
