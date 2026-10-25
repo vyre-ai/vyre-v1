@@ -63,7 +63,7 @@ test("the first channel comes from the prototype's hash and channel picker", () 
 });
 
 test("the extracted tables are the prototype's", () => {
-  const num = (name: string): unknown[] => vm.runInNewContext(`(${between(`const ${name} = `, ";\n", TEXT.indexOf("function seedData()") - 30000).slice(`const ${name} = `.length)})`, {}) as unknown[];
+  const num = (name: string): unknown[] => JSON.parse(JSON.stringify(vm.runInNewContext(`(${between(`const ${name} = `, ";\n", TEXT.indexOf("function seedData()") - 30000).slice(`const ${name} = `.length)})`, {}))) as unknown[];
   assert.deepEqual(PROTO_FIRST, num("FIRST"));
   assert.deepEqual(PROTO_LAST, num("LAST"));
   assert.deepEqual(PROTO_STREETS, num("STREETS"));
