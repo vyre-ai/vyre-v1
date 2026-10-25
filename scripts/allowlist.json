@@ -253,6 +253,11 @@
       "name": "playwright-core",
       "reason": "headless Chrome for screenshots and perf probes",
       "dev": true
+    },
+    {
+      "name": "sqlite-wasm-cipher",
+      "reason": "encrypted OPFS replica engine (S5); real-engine heavy test",
+      "dev": true
     }
   ],
   "notes": [
