@@ -1,4 +1,5 @@
 // Pure parts of the probes. The browser parts run in .github/workflows/shots.yml.
+// @reads /scripts/shots/theme-flash.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
 // @ts-expect-error plain .mjs helpers without types
@@ -57,4 +58,12 @@ test("theme_flash fails when the apply mark is missing", () => {
   const c = summarizeCombo([{ wrong: 0, apply_ms: -1 }, { wrong: 0, apply_ms: 5 }, { wrong: 0, apply_ms: 5 }]);
   assert.equal(c.missing, true);
   assert.equal(comboOk(c, flashBudget), false);
+});
+
+test("theme_flash: a warm-up load plus five timed loads, median of the timed ones only", async () => {
+  const { median } = await import("./theme-flash-gate.mjs");
+  const loads = [400, 22, 130, 101, 95, 99];
+  const timed = loads.slice(1);
+  assert.equal(timed.length, 5);
+  assert.equal(median(timed), 99, "the slow warm-up load is discarded; the median of five is the middle one");
 });
