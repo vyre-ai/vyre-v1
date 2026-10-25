@@ -10,7 +10,7 @@ test("fifteen entries pass, the sixteenth fails", () => {
   assert.deepEqual(checkSlow(list(MAX_ENTRIES)), []);
   const p = checkSlow(list(MAX_ENTRIES + 1));
   assert.equal(p.length, 1);
-  assert.match(p[0], /25 entries, the cap is 24/);
+  assert.match(p[0], /16 entries, the cap is 15/);
 });
 test("capSec over 120, missing owner or reason, duplicates and non-test files fail", () => {
   assert.match(checkSlow([{ ...entry(1), capSec: 121 }])[0], /capSec/);
@@ -23,4 +23,9 @@ test("capSec over 120, missing owner or reason, duplicates and non-test files fa
 test("the committed test/slow.json is valid", () => {
   const live = JSON.parse(fs.readFileSync(new URL("../test/slow.json", import.meta.url), "utf8"));
   assert.deepEqual(checkSlow(live), []);
+});
+
+test("perf entries are not counted against the cap", () => {
+  const perf = Array.from({ length: 30 }, (_, i) => ({ file: `p${i}.perf.test.ts`, capSec: 120, owner: "t", reason: "t", perf: true }));
+  assert.deepEqual(checkSlow([...list(MAX_ENTRIES), ...perf]), []);
 });
