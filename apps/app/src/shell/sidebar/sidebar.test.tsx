@@ -53,3 +53,9 @@ test("on the phone the sidebar fills the screen on the list view and has no coll
   const list = renderToStaticMarkup(<SidebarSlotProvider {...props} compact initialEntry={entry}><SidebarSlot /><SidebarBack /><SidebarExpand /></SidebarSlotProvider>);
   assert.ok(list.includes('data-testid="place-sidebar"') && !list.includes("sidebar-collapse") && !list.includes("sidebar-back") && !list.includes("sidebar-expand"));
 });
+
+test("portalInto draws nothing without a target or off the web, so a place whose slot is not ready yet shows no content", async () => {
+  const { portalInto } = await import("./portal.ts");
+  assert.equal(portalInto(null, "x"), null);
+  assert.equal(portalInto(undefined, "x"), null);
+});
