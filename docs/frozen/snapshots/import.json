@@ -1,0 +1,22 @@
+{
+  "module": "import",
+  "capabilities": {
+    "import.commit@1": "f991ca0e373c1cde0baa74a7e85c61db185fc542d56d4d07f07648193da7881d",
+    "import.discard@1": "c27ce5271fadfa7c8596571665ee8072a2678c381bfde1b27d8ae80aa52675bf",
+    "import.get@1": "15e13b4fad6340850228f9756510529f5bff48c9fb0f78ae0182ddab9b9eec0a",
+    "import.list@1": "52dd3b09292aa334b29d54596b02052b9b90d2af700e7cd08fd612f3d42e95b6",
+    "import.parse_airtable@1": "c16d48e13be5c00f40e94a009f2dc123b7cf0fddd1c8b0360c1f92f03cd0b207",
+    "import.parse_csv@1": "94bf154f67f193d94f01157111308920b66a46ee422bb688397be8612bc18746",
+    "import.parse_excel@1": "cf8bdb687214613317a60f5d373b9e10a3cd06130edd0eaa3b1df3c677bd459a",
+    "import.parse_google_sheets@1": "662edb3f2402994f8b525b6d93b708b22a64c4be48b8a0c426aa2a2c55cceb83",
+    "import.parse_notion@1": "b25039185f33baaa1d9f674381fd034639ec88a4acbe5b8ad5728e3647d1f1ee",
+    "import.preview@1": "d2203d72c019bcbeea73d5d7313f00444da3c66b383d01870a7aeab3e107aa96",
+    "import.suggest_mapping@1": "6774d1c3ac7e7de427250535f90e6f41394915005fc1e7ba1960e13f2bd9d66d",
+    "import.template@1": "74ffe14070cc47625f1ea780e600f2e6c6792a5496c7ceeae1205b98a8a8aa94"
+  },
+  "events": {
+    "import.completed": "af8f528fad05968638bc0cc2a531eba090429492ff7c7b64011f2846bb4106ec",
+    "import.failed": "0be0450781d78e5af76fbd2656465dbb277bac5bc3bdf5c1244bdbc8d8b284b4",
+    "import.started": "5a58c346ec4149f4d358469f101a43e75709bd24eae96e1ad204d255ac56726b"
+  }
+}

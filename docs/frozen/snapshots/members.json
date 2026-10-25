@@ -1,0 +1,29 @@
+{
+  "module": "members",
+  "capabilities": {
+    "members.accept@1": "5cd2b68ffb0aaa110505cabeef1b870ae27436c4557848927047f6affe92d046",
+    "members.invites.create@1": "5c478e129eac464c0105102e15fe0889f29545b90dc1157f8e177d406b18a9a9",
+    "members.invites.extend@1": "67fdc5bd78964948ec5fbeb196bff5e800a1ab925f322fa5af3754a7a71017e6",
+    "members.invites.list@1": "6931d3b24f457d36ca7aee49002d91522273c5b6e6514f8d5e2904d26a048480",
+    "members.invites.preview@1": "c96754e0a2317a0f526b1497bba2d44a83eb094c8b2a7904a28d6e9ed1386e5b",
+    "members.invites.revoke@1": "586d5c9849945923c6ae6089d8f068983795e4683d44bb195a5bad64852a2ca6",
+    "members.reactivate@1": "f9648c34438fca48da51485bd0b1e844c902d0f52dcc3b856e1621de370da965",
+    "members.remove@1": "f06287c407764057bb4ddacba4be34c32d0996f1bce8b1e2f71d183568c308a2",
+    "members.remove_preview@1": "78899097c12dbfe4034cbce949c9ef0538c319b5e438c55c1b2b691becd864e2",
+    "members.second_factor.report@1": "7313970fa7c3605c43175e5177e6d495b915697737b866775590e2520b55d33a",
+    "members.sign_in_policy.get@1": "4effb4a25e0d2b70828e3854b1d42ca121485be18c3b563126faf253dc8f3d94",
+    "members.sign_in_policy.set@1": "a39d2e248b7a4a2b6fec356e538fc8dbf7ef7db3c65dc7e7c1e9b55ecae795da",
+    "members.sso.list@1": "96138721b4b075eaf36797a0c40cbbf75e3cfd2fc6b976023deecdbe1487506d",
+    "members.sso.remove@1": "ab0283313a676a5713babba5e0681f461887cbb5b6fac1cfd9bcbd56163990ba",
+    "members.sso.set@1": "333dd039eaed9db339d12a74b7e544763488284ebe769a56157c4f628233cc6e",
+    "members.sso.test@1": "8ae15c3400bab67106aa3db8af5ae41ddcd59d51d61794704f945da977467151",
+    "members.suspend@1": "981becc12d533165fa223279c2cf8dc57e3c49b5d090789bc00d071800014ced"
+  },
+  "events": {
+    "member.invite_revoked": "c2508c884ff1a43b65c99ac9d69e7f5394f26beb9e1835f131a77ef02150f676",
+    "member.invited": "505a99c5328294ac8f7dae1be9b703834127de0c834857ecb93f1434d7f1f94b",
+    "member.joined": "15bcb529d613b16fd72802007ba317c8d3ef04f4b55f68557a7616268b60b4cb",
+    "member.removal_plan_applied": "7c3ce21c44a6a000e0179ac88d9d130686b7c8947d46610d642d8d3fa3cf28d4",
+    "member.removed": "bb9613a94c888479378ab51f7a4e93f139307e1cf76fbbaea28712c8edc00161"
+  }
+}

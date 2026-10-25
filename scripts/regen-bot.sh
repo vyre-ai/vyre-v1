@@ -11,7 +11,12 @@ cd "$(dirname "$0")/.."
 : "${BRANCH:?BRANCH is required}"
 DRY_RUN="${DRY_RUN:-0}"
 
-case "$BRANCH" in build/*) ;; *) echo "regen: refusing to run on $BRANCH (build/* only)"; exit 1;; esac
+MAIN=0
+case "$BRANCH" in
+  build/*) ;;
+  main) MAIN=1 ;;   # after every merge to main (not wired: main is behind a merge queue the bot cannot push to): rebuild generated/ and the snapshots so main is never behind its manifests
+  *) echo "regen: refusing to run on $BRANCH (build/* and main only)"; exit 1;;
+esac
 
 status() { # state description
   [ "$DRY_RUN" = "1" ] && { echo "status $1: $2"; return 0; }
@@ -28,6 +33,9 @@ status() { # state description
 
 echo "== regenerate =="
 node tools/gen/src/cli.ts
+echo "== snapshots =="
+# docs/frozen/snapshots: one small file per manifest (lib/snapshot.ts). Written here so a worker never records a hash by hand and two PRs on different manifests never conflict.
+node tools/gen/src/cli.ts --snapshots
 
 echo "== lockfile =="
 # npm never runs on the workers' Macs, so the lockfile is refreshed here whenever a package.json changed.
@@ -38,18 +46,20 @@ echo "== prototype seed =="
 if [ -f scripts/shots/gen-prototype-seed.mjs ]; then node scripts/shots/gen-prototype-seed.mjs --write; fi
 SEED=apps/app/src/fixtures/prototype-seed.generated.json
 
-if [ -n "$(git status --porcelain -- generated package-lock.json $SEED)" ]; then
+SNAP=docs/frozen/snapshots
+if [ -n "$(git status --porcelain -- generated $SNAP package-lock.json $SEED)" ]; then
   git config user.name "Irfad Imtiaz"
   git config user.email "130136633+irfad7@users.noreply.github.com"
-  gen_changed="$(git status --porcelain -- generated package-lock.json)"
+  gen_changed="$(git status --porcelain -- generated $SNAP package-lock.json)"
   seed_changed="$(git status --porcelain -- $SEED)"
-  [ -n "$gen_changed" ] && { git add -A -- generated package-lock.json; git commit -q -m "chore(gen): regenerate"; }
+  [ -n "$gen_changed" ] && { git add -A -- generated $SNAP package-lock.json; git commit -q -m "chore(gen): regenerate"; }
   [ -n "$seed_changed" ] && { git add -A -- $SEED; git commit -q -m "chore(gen): prototype seed"; }
   if [ "$DRY_RUN" = "1" ]; then
     echo "dry run: committed locally, not pushing"
   elif ! git push origin "HEAD:refs/heads/${BRANCH}"; then
     # The worker pushed again while this ran. That push starts a fresh regen run on the newer head, so stop here.
-    echo "regen: push rejected (branch moved); the newer push triggers its own regen run"
+    # On main the same happens when another merge landed first (its own run rebuilds) or when main refuses a bot push: say so loudly, the next merge's run tries again.
+    echo "regen: push rejected (branch moved or protected); the newer push triggers its own regen run"
     exit 0
   fi
   echo "regen: committed generated files ($(git rev-parse --short HEAD))"
@@ -57,14 +67,16 @@ else
   echo "regen: generated/ already matches the manifests, nothing to commit"
 fi
 
+if [ "$MAIN" = "1" ]; then echo "regen: main is rebuilt, no checks to rerun here"; exit 0; fi
 echo "== rerun checks on $(git rev-parse --short HEAD) =="
 status pending "contracts gate and affected tests running"
 fail=""
 tools/gen/check.sh || fail="contracts gate failed"
 
 if [ -z "$fail" ]; then
-  base="${BEFORE:-}"
-  if [ -z "$base" ] || echo "$base" | grep -Eq '^0+$' || ! git rev-parse --verify -q "$base" >/dev/null; then base=origin/main; fi
+  # the branch's merge-base with main, not the previous push, so every test the branch touches runs
+  git fetch -q origin main 2>/dev/null || true
+  base="$(git merge-base origin/main HEAD 2>/dev/null || echo origin/main)"
   node scripts/ci-select.ts "$base" > "${RUNNER_TEMP:-/tmp}/regen-select.json" || fail="selection failed (uncovered code)"
 fi
 

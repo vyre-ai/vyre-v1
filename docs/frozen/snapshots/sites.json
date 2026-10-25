@@ -1,0 +1,40 @@
+{
+  "module": "sites",
+  "capabilities": {
+    "sites.build@1": "40e23dcbe37bb801b0bdd1028c69f463614e672f67642f0e1e61bd0b704f6485",
+    "sites.create@1": "99403e0a998d6f75a0fde021a59fcd297e17e7d69aca2c78438bcc15532398ef",
+    "sites.delete@1": "1aed8d85d8710d8bbfbad7af4183cd1a102126a63946690aad76284444ee0f94",
+    "sites.deploy@1": "37afdee5bba5f1437fc19e5d2e43967b500b600c091141b51bd98123fe72f77e",
+    "sites.deployments@1": "0c2a9da43a0a8b35ed66f39f661104478d8fa4ac7f789bf905776711a3793841",
+    "sites.domain_set@1": "eb97d109bd39eccc60cf3ab14ad0242181a49fd15fac1ccd9e2a2cc17eb0d6e6",
+    "sites.domains_get@1": "33e46b612da61a8b9d62e600fc45fe32e4a4a3434a55144a410c8725840a6b98",
+    "sites.env_list@1": "4e01aadefd318f01c842d730f88f6781fb33ca62d6392a1edead2cba10ac5d43",
+    "sites.env_set@1": "5770fc1dc15116eb5dcbf9add2c989867ba7d806ac53b728d8378ebc618247b9",
+    "sites.get@1": "88ab7c6ff6cb0b18fcee7b6ca95ddeac4c43963f896f5e7f5a22e6a372837459",
+    "sites.list@1": "3bfc7d12fa1c076395c16479d15fd0c2e22116fa81c5be55f9e632eaf88dfb6b",
+    "sites.logs@1": "efa0dee8b21c479fdeee61ef730c86d2486f03d85b9aa3a249b1493f3ee4eaaa",
+    "sites.preview_rebuild@1": "11fcca5fc24557e1431ecc73fb15fdaf9162cb4fb2623cec037f3d0f770997e6",
+    "sites.preview_remove@1": "2cc95b490c78f2127e135493d156c724b030b54344762ca05bc2d01e134f7966",
+    "sites.previews@1": "1ecf54aafaeb6cc5872ea9b03d071d7206b9372df3c630c5e3a4dbfd1a7f1d42",
+    "sites.promote@1": "185c5e5d2e1265767b99e7ffbe1c0e7fbf4f81bd75a9f8c460f086539383ea72",
+    "sites.rollback@1": "cad1e01624ca3e4ca4d14cca355d4f33c1bb5693240b042ba8a6cf145b38d679",
+    "sites.service_identity@1": "6eda530d22a37c190681e0333babe610502ef50abf5cc5c464c91b12997bd175",
+    "sites.staging_password_set@1": "ebf1d39458ce78a00d760fc778b88ae05986455afaeaf509c950d71114b30fc8",
+    "sites.table_create@1": "49e394bbb6483b0188eb4b05b27a9f7da2ce19059f443d7cf83d8aad1afb0bd5",
+    "sites.table_promote@1": "878188ca945164c9c33bb15edfef6d96ec944ec359498f0a605c75cf70071fc3",
+    "sites.tables@1": "43d9e2957b96c059719b154c1db2955de01555563f7a509bc2edeb09606f3052",
+    "sites.update@1": "637f49a1a5ee887ac1ec72210b170e82b8c7287f7f17be7a48bca94aa2f1fd3b"
+  },
+  "events": {
+    "site.build_failed": "f26dbcbc009e864861c5dc080b329f59629e237d7f02be04e7f254f073b24269",
+    "site.created": "2399bfef5b0fc26b6497004a74f5e30c08e6d5b161731a0ae1e245ed0dc256b7",
+    "site.deployed": "2189059db8e9d71c42fe04c29267d95bfd0c6b0ac34e639f5fbdd7b337b1b33c",
+    "site.domain_changed": "5e1c7d6484180390ccf2cb6a29c7500dd206d8ed2592380a322874a639eb1c3e",
+    "site.preview_created": "3c6001a9d0725d2cf0f205edaf2a743017c9f336c6623b90084f446b3d1c73e5",
+    "site.preview_removed": "bf39ef16d22ed2d90e96029cc33e26184cc95c85f64391ea1e07c4d38c683743",
+    "site.promoted": "bddfe05ab523fea6c5fa7e007c0a97e98c937e4fa567eccce3a0aad0c269c536",
+    "site.rolled_back": "bf2ec2be48d2014de69879c1f6892c554c2a8e16d9f2e8a195e75da92618e349",
+    "site.table_created": "ebe2adb859a6eae35cd7739b082fb823e688fba607838922d1cf75b098764cf8",
+    "site.table_promoted": "0f4d32f7bf07533999c023af02548744d9c07b9408678d3751ae9ef11b9ba1ca"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "module": "email-builder-api",
+  "capabilities": {
+    "email_builder.ask_diff@1": "7704797a8075916abe0ec22f669f85295ea0f8c10c7f93514c5d6fc4c8fee0a6",
+    "email_builder.create@1": "40cf8e6de06008530fd8dfa5982bea250360e6420c05a0f172345c8bca386d89",
+    "email_builder.get@1": "baed0130e5ca45bff530675049739b11a4da3c749665d64adec0e9a71c8d84a8",
+    "email_builder.html_set@1": "d7f779031405e314974bde4cf1dbd5519f76b62f17c849df954f4c27e644f864",
+    "email_builder.list@1": "d058071b86d1e18aa45775f9555986d2ce4437d88850b3fc5a6f1259f3114aa0",
+    "email_builder.merge_fields@1": "5c85fa8adcc4ea7c9dbcf109c744add33c3cb84025d6a01ad5e5d3402ce56a5b",
+    "email_builder.render@1": "4a9880c63e9e787ef7e3996efcdb944d257195831207c1dca15f30fecccb4b5b",
+    "email_builder.restore_version@1": "f92a0e741f7f91f8f6c1343ad6b3751693b604623833cf7c374d6cd5eb30b83d",
+    "email_builder.save@1": "a94dd0baa6a9a025ffd34c915caaad7a4de943958b19bd0660627411247e480a",
+    "email_builder.saved_blocks.list@1": "1ee9749fa6c7f47beddcc085d20ddb8a350bd65c82c52cd57edba6cfc1775d82",
+    "email_builder.saved_blocks.save@1": "aee8616192e4369c3093e4c986a060cdacbc1175f12404b1813b1c9b388d738c",
+    "email_builder.send_test@1": "4fdcb0ea307d0adf53632b6d5f8b2b6e43284e7ad3f8e112e6369aad8f22724d",
+    "email_builder.snippets.delete@1": "901cde57ea9dedc5250f9a4f265de85d83a49a130bec63d72efa14e0d9f23cb2",
+    "email_builder.snippets.list@1": "c61f90cbf953fbca8c8dd6ed6b5363c66f97ccc96ef0e3915ce525beec730442",
+    "email_builder.snippets.save@1": "a3512782de36c9ce795f5b1b6a50adc5f480d3c30c316533b7067c6438d0b7b3",
+    "email_builder.versions@1": "2eaf084b73de2f2950d803e2b5b141e283b55095322c5d8cab884668f97160e4"
+  },
+  "events": {
+    "email_block.saved": "88d171a3a1d32c8e863fe31f50b8cd09b88da30365093ccc0ba68788cd25eced",
+    "email_template.saved": "896dd70893cf182ef96a8b367af8d36cf293f06f5bcc764d507e71aa9eb7f38c",
+    "email_template.test_sent": "00ae5ad69b1a82325ea8386dbf23161a045ebf0787d77561686f3e950c5d7f54"
+  }
+}
