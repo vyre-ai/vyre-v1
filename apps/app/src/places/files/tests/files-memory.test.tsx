@@ -9,8 +9,8 @@ import { MemoryDataProvider, MemoryGraph, MemoryProposed, acceptFact, exportGrap
 import type { LiveCap } from "../memory/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import {
-  ALL_LAYERS, DAY, GRAPH_LAYERS, KINDS, KIND_HUE, MAX_K, MIN_K, NODE_R, NO_FILTER, SLIDER_DAYS, WORLD, ago, asOfOf, clustersOf, dayText, degrees, fit, hit, kindColor, lands, layout, matches, neighborsOf,
-  proposedGroups, radiusOf, shown, sliderText, statText, tabOrder, toScreen, toWorld, toggled, visibleNode, zoomAt,
+  ALL_LAYERS, DAY, GRAPH_LAYERS, KINDS, KIND_HUE, NODE_R, NO_FILTER, SLIDER_DAYS, WORLD, ago, asOfOf, clustersOf, dayText, degrees, hslHex, kindColor, lands, layout, matches, neighborsOf,
+  proposedGroups, radiusOf, shown, sliderText, statText, tabOrder, toggled, visibleNode,
 } from "../memory/model.ts";
 import type { GraphOut, GNode } from "../memory/model.ts";
 import { SAMPLE_NOW, createSampleMemory, harbor, northwind } from "../memory/sample.ts";
@@ -98,27 +98,37 @@ test("the layout is the same every time, keeps what was saved and puts every nod
   assert.deepEqual(layout([], []), {});
 });
 
-test("fit holds every node with a margin; zoom keeps the point under the pointer; hits find the nearest node", () => {
+test("node sizes, colours and neighbours: a hub is bigger, a colour is a hex WebGL can read, a node's links are its neighbours", () => {
   const { nodes, edges } = shown(space(), NO_FILTER);
   const pos = layout(nodes, edges);
-  const ids = nodes.map((n) => n.nodeId);
-  const v = fit(pos, ids, 900, 560);
-  for (const id of ids) { const s = toScreen(v, pos[id]!); assert.ok(s.x >= 0 && s.x <= 900 && s.y >= 0 && s.y <= 560, `${id} is on screen`); }
-  assert.ok(v.k <= 1.4 && v.k >= MIN_K);
-  assert.deepEqual(fit({}, [], 900, 560), { x: 0, y: 0, k: 1 });
-  const one = fit({ a: { x: 500, y: 500 } }, ["a"], 900, 560);
-  assert.ok(one.k <= 1.4, "one node is not a close-up");
-  const w0 = toWorld(v, 300, 200), z = zoomAt(v, 1.5, 300, 200), w1 = toWorld(z, 300, 200);
-  assert.ok(Math.abs(w0.x - w1.x) < 1e-6 && Math.abs(w0.y - w1.y) < 1e-6);
-  assert.equal(zoomAt(v, 100, 0, 0).k, MAX_K);
-  assert.equal(zoomAt(v, 0.0001, 0, 0).k, MIN_K);
   const deg = degrees(edges);
-  const where = toScreen(v, pos["rivera"]!);
-  assert.equal(hit(nodes, pos, deg, v, where.x + 2, where.y - 2), "rivera");
-  assert.equal(hit(nodes, pos, deg, v, -50, -50), null);
   assert.ok(radiusOf(0) === NODE_R && radiusOf(100) <= NODE_R * 2 && radiusOf(9) > radiusOf(1), "a hub is bigger, up to twice the base");
   assert.deepEqual([...neighborsOf("elena", edges)].sort(), ["elena", "prep", "rivera"]);
   assert.equal(tabOrder(nodes, pos).length, nodes.length);
+  assert.equal(deg.get("vyre"), 4);
+  assert.equal(hslHex(0, 100, 50), "#ff0000");
+  assert.equal(hslHex(120, 100, 50), "#00ff00");
+  assert.equal(hslHex(240, 100, 50), "#0000ff");
+  assert.equal(hslHex(0, 0, 100), "#ffffff");
+  assert.match(hslHex(KIND_HUE.client, 62, 55), /^#[0-9a-f]{6}$/);
+});
+
+test("graph scale: five thousand notes are filtered, laid out, counted and clustered inside the speed budget before sigma draws a frame", () => {
+  const nodes: GNode[] = [];
+  for (let i = 0; i < 5000; i++) nodes.push({ nodeId: `n${i}`, kind: KINDS[i % KINDS.length]!, title: `Note ${i}`, layer: GRAPH_LAYERS[i % 3]!, cluster: `c${i % 12}` });
+  const edges = Array.from({ length: 8000 }, (_, i) => ({ from: `n${i % 5000}`, to: `n${(i * 7 + 13) % 5000}`, kind: "link" as const }));
+  const g: GraphOut = { nodes, edges, clusters: [] };
+  const t0 = performance.now();
+  const s = shown(g, { layers: new Set(["agent", "space"]), kinds: new Set(), q: "" });
+  const pos = layout(s.nodes, s.edges);
+  const deg = degrees(s.edges);
+  const clusters = clustersOf(s.nodes, s.edges);
+  const lit = matches(s.nodes, "Note 49");
+  const ms = performance.now() - t0;
+  console.log(`METRIC ${JSON.stringify({ name: "graph5k", nodes: 5000, edges: 8000, data_ms: +ms.toFixed(1), budget_ms: 250, ok: ms < 250 })}`);
+  assert.equal(Object.keys(pos).length, s.nodes.length);
+  assert.ok(deg.size > 1000 && clusters.length === 8 && lit.size > 0);
+  assert.ok(ms < 250, `the data a 5,000 note graph is drawn from took ${ms.toFixed(1)} ms`);
 });
 
 test("clusters are counted from what is drawn and named after their hub", () => {
@@ -140,8 +150,8 @@ test("screen: Intake's graph draws its notes without the personal one, each in i
   for (const id of ["vyre", "script", "hours", "elena", "rivera", "consult", "prep", "widget", "maya", "omar", "fees", "flat"]) assert.ok(has(out, `data-testid="gnode-${id}"`), id);
   assert.ok(!has(out, 'data-testid="gnode-private"') && !has(out, "private notes"), "a personal layer is never drawn");
   assert.ok(!has(out, 'data-testid="gnode-letter"'), "another agent's notes stay out of this agent's graph");
-  assert.equal(count(out, "data-edge="), 13);
-  assert.ok(has(out, 'data-kind="client"') && has(out, `fill:${kindColor("client")}`));
+  assert.ok(has(out, 'data-kind="client"') && has(out, 'role="listbox"') && has(out, 'aria-label="Notes in the graph"'), "the notes are also a listbox, because a WebGL canvas cannot be read aloud");
+  assert.ok(has(out, `data-testid="legend-client"`) && has(out, `background:${kindColor("client")}`), "one colour per kind, in the legend");
   assert.ok(has(out, ">12 notes, 13 links, 2 clusters<") && has(out, 'data-testid="cluster-Firm"') && has(out, ">Firm 8<"));
   assert.ok(has(out, ">Graph<") && has(out, ">Intake<") && has(out, 'data-testid="scope-agent"') && has(out, ">Whole Space<"));
   for (const id of ["graph-find", "graph-layers", "graph-kinds", "graph-export", "graph-slider", "zoom-in", "zoom-out", "zoom-fit"]) assert.ok(has(out, `data-testid="${id}"`), id);
@@ -157,14 +167,15 @@ test("the whole Space draws every agent's notes, still not the personal one", ()
   assert.ok(has(graph(), 'data-testid="graph-agent"'));
 });
 
-test("selecting a node lights its links, fades the others and shows its card with Open beside", () => {
+test("selecting a node marks it and the notes it links to, for the screen and for a screen reader, and shows its card with Open beside", () => {
   const out = graph({ scope: "space", selected: "elena" });
-  assert.equal(count(out, 'data-emphasis="hot"'), 2, "elena has two links");
-  assert.equal(count(out, 'data-emphasis="dim"'), count(out, "data-edge=") - 2);
-  assert.ok(has(out, 'data-selected="true"') && has(out, 'data-testid="graph-selected"') && has(out, "Elena Rivera") && has(out, "Open beside") && has(out, 'data-testid="graph-open"'));
-  assert.equal(count(out, 'data-selected="true"'), 1);
+  assert.equal(count(out, 'aria-selected="true"'), 1, "exactly the selected note says so");
+  assert.ok(has(out, 'data-testid="gnode-elena"') && has(out, 'aria-label="Elena Rivera, Clients, 2 links"'));
+  assert.equal(count(out, 'data-linked="true"'), 2, "elena links to rivera and prep");
+  assert.ok(has(out, 'data-testid="graph-selected"') && has(out, "Open beside") && has(out, 'data-testid="graph-open"'));
   const none = graph({ scope: "space" });
-  assert.equal(count(none, 'data-emphasis="hot"'), 0);
+  assert.equal(count(none, 'aria-selected="true"'), 0);
+  assert.equal(count(none, 'data-linked="true"'), 0);
   assert.ok(!has(none, 'data-testid="graph-selected"'));
 });
 
@@ -181,7 +192,7 @@ test("what the agent believed on a day: the nodes that did not exist yet are gon
 test("Find lights notes and the rest stay; an empty graph says so; a graph filtered to nothing offers to show everything", () => {
   const out = graph({ scope: "space", find: "rivera" });
   assert.equal(count(out, 'data-testid="gnode-'), 17);
-  assert.ok(has(out, 'data-testid="glabel-elena"') && has(out, "opacity:0.2"), "a match is labelled and the rest are faded");
+  assert.equal(count(out, 'data-lit="true"'), 3, "elena, rivera and the consult match");
   const empty = createSampleMemory({ ...harbor, nodes: [], edges: [] });
   const e = graph({ agentId: "agt_scout" }, empty);
   assert.ok(has(e, "No notes to draw yet") && !has(e, 'data-testid="graph-surface"'));

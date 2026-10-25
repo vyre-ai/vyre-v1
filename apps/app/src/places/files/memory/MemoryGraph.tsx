@@ -1,8 +1,7 @@
 // Files > Knowledge > Graph (spec 2.15, 3.5): the notes of an agent's memory (or of the whole Space) as a graph. Nodes are notes, people, clients, projects, sites, decisions, records and chats, one
 // colour per kind; edges are links, relations and "came from"; clusters take the name of their hub. Layers and Kinds filter it from quiet header menus with checkmarks, the time slider asks what the
 // agent believed on a day, Find lights the notes that match, and a node can be dragged: where it was left is saved for this person. Personal layers are never drawn. A click opens the note beside the graph.
-// DECISION: the surface is drawn here as SVG (nodes, links and labels) behind GraphSurface, because sigma and graphology are allowed dependencies (scripts/allowlist.json) but are in neither
-// package.json nor the lock file, and a dependency needs an install this worker cannot run. GraphSurface takes the same nodes, edges, positions and view a sigma renderer would, so it swaps in whole.
+// The surface is sigma.js over graphology (GraphSurface.tsx); this file is everything around it.
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -11,15 +10,15 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { errorText, exportGraph, saveLayout } from "./actions.ts";
 import { useLive, useMemoryData, useOptionalMemoryData } from "./data.tsx";
+import { GraphSurface } from "./GraphSurface.tsx";
+import type { SurfaceProps } from "./GraphSurface.tsx";
 import {
-  ALL_LAYERS, GRAPH_LAYERS, KINDS, KIND_LABEL, LAYER_LABEL, MAX_K, MIN_K, SLIDER_DAYS, asOfOf, clustersOf, degrees, each, fit, hit, kindColor, layout, matches, neighborsOf, radiusOf, shown, sliderText, statText, tabOrder,
-  toScreen, toWorld, toggled, zoomAt,
+  ALL_LAYERS, GRAPH_LAYERS, KINDS, KIND_LABEL, LAYER_LABEL, SLIDER_DAYS, asOfOf, clustersOf, degrees, each, kindColor, layout, matches, shown, sliderText, statText, tabOrder, toggled,
 } from "./model.ts";
-import type { GNode, GraphOut, Positions, View as Viewport } from "./model.ts";
+import type { GraphOut, Positions } from "./model.ts";
 import { Icon, QuietButton, pointOf } from "./parts.tsx";
 
 const EMPTY: GraphOut = { nodes: [], edges: [], clusters: [] };
-const DEFAULT = { w: 900, h: 560 };
 
 export interface MemoryGraphProps {
   agentId?: string;
@@ -30,92 +29,6 @@ export interface MemoryGraphProps {
   step?: number;
   /** Start with this text in Find. */
   find?: string;
-}
-
-// ---------------------------------------------------------------- the surface
-
-interface SurfaceProps {
-  nodes: readonly GNode[]; edges: GraphOut["edges"]; pos: Positions; view: Viewport; w: number; h: number;
-  sel: string | null; lit: ReadonlySet<string>; hover: string | null; deg: ReadonlyMap<string, number>;
-  onHover: (id: string | null) => void; onSelect: (id: string | null) => void; onOpen: (id: string) => void;
-  onPan: (dx: number, dy: number) => void; onZoom: (f: number, x: number, y: number) => void; onMove: (id: string, p: { x: number; y: number }) => void; onDrop: () => void;
-  onKey: (e: { key: string; shiftKey?: boolean; preventDefault?: () => void }) => void; onMenu: (id: string, x: number, y: number) => void;
-}
-
-/** Draws the graph and takes the pointer. Replaceable by a WebGL renderer with the same props. */
-function GraphSurface(p: SurfaceProps): ReactElement | null {
-  const down = useRef<{ x: number; y: number; id: string | null; moved: boolean } | null>(null);
-  if (Platform.OS !== "web") return null;
-  const near = p.sel ? neighborsOf(p.sel, p.edges) : null;
-  const labelAll = p.view.k >= 0.7 || p.nodes.length <= 14;
-  const at = (e: { clientX: number; clientY: number; currentTarget: { getBoundingClientRect(): { left: number; top: number } } }): { x: number; y: number } => {
-    const r = e.currentTarget.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
-  };
-  const kids: ReactElement[] = [];
-  for (const e of p.edges) {
-    const a = p.pos[e.from], b = p.pos[e.to];
-    if (!a || !b) continue;
-    const s = toScreen(p.view, a), t = toScreen(p.view, b);
-    const on = p.sel !== null && (e.from === p.sel || e.to === p.sel);
-    const dim = near !== null && !on;
-    kids.push(createElement("line", {
-      key: `${e.from}>${e.to}:${e.kind}`, x1: s.x, y1: s.y, x2: t.x, y2: t.y, "data-edge": `${e.from}>${e.to}`, "data-kind": e.kind, "data-emphasis": on ? "hot" : dim ? "dim" : "idle",
-      style: { stroke: on ? "var(--accent)" : "var(--ink-4)", strokeWidth: on ? 2 : 1.2, opacity: dim ? 0.15 : e.kind === "came_from" ? 0.5 : 0.85, strokeDasharray: e.kind === "came_from" ? "3 3" : undefined },
-    }));
-  }
-  for (const n of p.nodes) {
-    const q = p.pos[n.nodeId];
-    if (!q) continue;
-    const s = toScreen(p.view, q);
-    const r = radiusOf(p.deg.get(n.nodeId) ?? 0);
-    const dim = (near !== null && !near.has(n.nodeId)) || (p.lit.size > 0 && !p.lit.has(n.nodeId));
-    const on = p.sel === n.nodeId, over = p.hover === n.nodeId;
-    kids.push(createElement("circle", {
-      key: `c:${n.nodeId}`, cx: s.x, cy: s.y, r: on || over ? r + 2 : r, "data-testid": `gnode-${n.nodeId}`, "data-kind": n.kind, "data-selected": on ? "true" : "false",
-      style: { fill: kindColor(n.kind), stroke: on ? "var(--accent)" : "var(--win)", strokeWidth: on ? 3 : 2, opacity: dim ? 0.2 : 1, cursor: "pointer" },
-    }));
-    if (labelAll || on || over || p.lit.has(n.nodeId)) {
-      kids.push(createElement("text", { key: `t:${n.nodeId}`, x: s.x, y: s.y + r + 13, textAnchor: "middle", "data-testid": `glabel-${n.nodeId}`, style: { fill: "var(--ink-2)", fontSize: 11.5, opacity: dim ? 0.25 : 1, pointerEvents: "none", fontWeight: on ? 600 : 400 } }, n.title));
-    }
-  }
-  return createElement(
-    "svg",
-    {
-      width: p.w, height: p.h, tabIndex: 0, role: "img", "aria-label": "Memory graph. Tab walks the notes, Enter opens one, plus and minus zoom.", "data-testid": "graph-surface",
-      style: { display: "block", touchAction: "none", outline: "none", cursor: "grab", userSelect: "none" },
-      onPointerDown: (e: { clientX: number; clientY: number; pointerId: number; button?: number; currentTarget: { setPointerCapture?: (id: number) => void; getBoundingClientRect(): { left: number; top: number } } }) => {
-        if (e.button !== undefined && e.button !== 0) return;
-        e.currentTarget.setPointerCapture?.(e.pointerId);
-        const c = at(e);
-        down.current = { x: c.x, y: c.y, id: hit(p.nodes, p.pos, p.deg, p.view, c.x, c.y), moved: false };
-      },
-      onPointerMove: (e: { clientX: number; clientY: number; currentTarget: { getBoundingClientRect(): { left: number; top: number } } }) => {
-        const c = at(e), d = down.current;
-        if (!d) { const id = hit(p.nodes, p.pos, p.deg, p.view, c.x, c.y); if (id !== p.hover) p.onHover(id); return; }
-        if (!d.moved && Math.hypot(c.x - d.x, c.y - d.y) < 4) return;
-        d.moved = true;
-        if (d.id) p.onMove(d.id, toWorld(p.view, c.x, c.y)); else { p.onPan(c.x - d.x, c.y - d.y); d.x = c.x; d.y = c.y; }
-      },
-      onPointerUp: () => {
-        const d = down.current;
-        down.current = null;
-        if (!d) return;
-        if (d.moved && d.id) p.onDrop(); else if (!d.moved) p.onSelect(d.id);
-      },
-      onPointerLeave: () => { if (!down.current && p.hover) p.onHover(null); },
-      onDoubleClick: (e: { clientX: number; clientY: number; currentTarget: { getBoundingClientRect(): { left: number; top: number } } }) => { const c = at(e); const id = hit(p.nodes, p.pos, p.deg, p.view, c.x, c.y); if (id) p.onOpen(id); },
-      onWheel: (e: { clientX: number; clientY: number; deltaY: number; ctrlKey?: boolean; preventDefault?: () => void; currentTarget: { getBoundingClientRect(): { left: number; top: number } } }) => { const c = at(e); p.onZoom(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0016)), c.x, c.y); },
-      onContextMenu: (e: { clientX: number; clientY: number; preventDefault(): void; currentTarget: { getBoundingClientRect(): { left: number; top: number } } }) => {
-        const c = at(e), id = hit(p.nodes, p.pos, p.deg, p.view, c.x, c.y);
-        if (!id) return;
-        e.preventDefault();
-        p.onMenu(id, e.clientX, e.clientY);
-      },
-      onKeyDown: p.onKey,
-    },
-    ...kids,
-  );
 }
 
 // ---------------------------------------------------------------- the screen
@@ -130,10 +43,8 @@ function GraphBody({ agentId, scope: scope0 = "agent", selected = null, step: st
   const [q, setQ] = useState(find);
   const [step, setStep] = useState(step0);
   const [sel, setSel] = useState<string | null>(selected);
-  const [hover, setHover] = useState<string | null>(null);
-  const [view, setView] = useState<Viewport | null>(null);
   const [moved, setMoved] = useState<Positions>({});
-  const [size, setSize] = useState(DEFAULT);
+  const [command, setCommand] = useState<SurfaceProps["command"]>(null);
   const [note, setNote] = useState<string | null>(null);
   const now = data.now();
   const asOf = asOfOf(step, now);
@@ -150,15 +61,15 @@ function GraphBody({ agentId, scope: scope0 = "agent", selected = null, step: st
   const deg = useMemo(() => degrees(s.edges), [s]);
   const clusters = useMemo(() => clustersOf(s.nodes, s.edges), [s]);
   const lit = useMemo(() => matches(s.nodes, q), [s, q]);
-  const ids = useMemo(() => each(s.nodes, (n) => n.nodeId), [s]);
-  const v = view ?? fit(pos, ids, size.w, size.h);
   const selNode = sel ? s.nodes.find((n) => n.nodeId === sel) : undefined;
   const agentName = data.agents.find((a) => a.id === agent)?.name ?? "Agent";
 
   // a new picture fits the window again; a pan or zoom by the person is kept until then
   const sig = `${scope}:${agent}:${asOf ?? "now"}:${[...layers].sort().join()}:${[...kinds].sort().join()}`;
   const last = useRef(sig);
-  useEffect(() => { if (last.current !== sig) { last.current = sig; setView(null); setSel(null); setMoved({}); } }, [sig]);
+  useEffect(() => { if (last.current !== sig) { last.current = sig; setSel(null); setMoved({}); } }, [sig]);
+  const seq = useRef(0);
+  const send = (kind: "in" | "out" | "fit" | "focus", node?: string): void => { seq.current += 1; setCommand({ id: seq.current, kind, ...(node ? { node } : {}) }); };
 
   const open = (id: string): void => { const n = g.nodes.find((x) => x.nodeId === id); data.nav.openNote(id, n?.link); };
   const onKey = (e: { key: string; shiftKey?: boolean; preventDefault?: () => void }): void => {
@@ -168,12 +79,12 @@ function GraphBody({ agentId, scope: scope0 = "agent", selected = null, step: st
       e.preventDefault?.();
       const at = sel ? order.indexOf(sel) : -1;
       const next = order[(at + (e.shiftKey ? -1 : 1) + order.length) % order.length];
-      if (next) setSel(next);
+      if (next) { setSel(next); send("focus", next); }
     } else if (e.key === "Enter" && sel) { e.preventDefault?.(); open(sel); }
     else if (e.key === "Escape") setSel(null);
-    else if (e.key === "+" || e.key === "=") { e.preventDefault?.(); setView(zoomAt(v, 1.2, size.w / 2, size.h / 2)); }
-    else if (e.key === "-") { e.preventDefault?.(); setView(zoomAt(v, 1 / 1.2, size.w / 2, size.h / 2)); }
-    else if (e.key === "0") { e.preventDefault?.(); setView(null); }
+    else if (e.key === "+" || e.key === "=") { e.preventDefault?.(); send("in"); }
+    else if (e.key === "-") { e.preventDefault?.(); send("out"); }
+    else if (e.key === "0") { e.preventDefault?.(); send("fit"); }
   };
 
   const layerEntries = (): MenuEntry[] => [
@@ -190,14 +101,16 @@ function GraphBody({ agentId, scope: scope0 = "agent", selected = null, step: st
   const agentEntries = (): MenuEntry[] => [{ head: "Agent" }, ...each(data.agents, (a): MenuEntry => ({ label: a.name, checked: a.id === agent, onSelect: () => setAgent(a.id) }))];
   const nodeMenu = (id: string, x: number, y: number): void => {
     setSel(id);
-    menu.show([{ label: "Open Beside", onSelect: () => open(id) }, { label: "Focus Here", onSelect: () => setView(zoomAt({ ...v, x: size.w / 2 - (pos[id]?.x ?? 0) * v.k, y: size.h / 2 - (pos[id]?.y ?? 0) * v.k }, 1.4, size.w / 2, size.h / 2)) }], x, y);
+    menu.show([{ label: "Open Beside", onSelect: () => open(id) }, { label: "Focus Here", onSelect: () => send("focus", id) }], x, y);
   };
   const doExport = (): void => {
     setNote(null);
     exportGraph(data, scope, scope === "agent" ? agent : undefined, asOf, [...kinds]).then(() => setNote("Graph exported to Files. Personal layers are not in it.")).catch((e: unknown) => setNote(errorText(e, "Could not export the graph")));
   };
-  const drop = (): void => {
-    saveLayout(data, scope, scope === "agent" ? agent : undefined, { ...saved, ...moved }).catch((e: unknown) => setNote(errorText(e, "Could not save the layout")));
+  const drop = (id: string, p: { x: number; y: number }): void => {
+    const next = { ...saved, ...moved, [id]: p };
+    setMoved((cur) => ({ ...cur, [id]: p }));
+    saveLayout(data, scope, scope === "agent" ? agent : undefined, next).catch((e: unknown) => setNote(errorText(e, "Could not save the layout")));
   };
 
   const empty = s.nodes.length === 0;
@@ -246,20 +159,19 @@ function GraphBody({ agentId, scope: scope0 = "agent", selected = null, step: st
         {asOf !== undefined ? <Pressable accessibilityRole="button" testID="graph-now" onPress={() => setStep(SLIDER_DAYS)}><Text style={m.link}>Back to now</Text></Pressable> : null}
       </View>
       {note ? <Text style={m.note} accessibilityRole="alert" testID="graph-note">{note}</Text> : null}
-      <View style={m.wrap} onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (width > 0 && height > 0 && (width !== size.w || height !== size.h)) setSize({ w: Math.round(width), h: Math.round(height) }); }} testID="graph-wrap">
+      <View style={m.wrap} testID="graph-wrap">
         {empty ? (
           <States kind="empty" title={g.nodes.length > 0 ? "Every note is filtered out." : "No notes to draw yet"} icon="files" {...(g.nodes.length > 0 ? { action: { label: "Show everything", onPress: () => { setLayers(ALL_LAYERS); setKinds(new Set()); setQ(""); } } } : {})} />
         ) : (
           <>
             <GraphSurface
-              nodes={s.nodes} edges={s.edges} pos={pos} view={v} w={size.w} h={size.h} sel={sel} lit={lit} hover={hover} deg={deg}
-              onHover={setHover} onSelect={setSel} onOpen={open} onPan={(dx, dy) => setView({ ...v, x: v.x + dx, y: v.y + dy })} onZoom={(f, x, y) => setView(zoomAt(v, f, x, y))}
-              onMove={(id, p) => setMoved((cur) => ({ ...cur, [id]: { x: Math.round(p.x), y: Math.round(p.y) } }))} onDrop={drop} onKey={onKey} onMenu={nodeMenu}
+              nodes={s.nodes} edges={s.edges} pos={pos} deg={deg} sel={sel} lit={lit} fitKey={sig} command={command}
+              onSelect={setSel} onOpen={open} onDrop={drop} onKey={onKey} onMenu={nodeMenu}
             />
             <View style={m.zoom} testID="graph-zoom">
-              <Pressable accessibilityRole="button" accessibilityLabel="Zoom in" testID="zoom-in" disabled={v.k >= MAX_K} onPress={() => setView(zoomAt(v, 1.25, size.w / 2, size.h / 2))} style={m.zBtn}><Icon name="plus" size={14} color="var(--ink-2)" /></Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel="Zoom out" testID="zoom-out" disabled={v.k <= MIN_K} onPress={() => setView(zoomAt(v, 0.8, size.w / 2, size.h / 2))} style={m.zBtn}><Icon name="minus" size={14} color="var(--ink-2)" /></Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel="Fit to window" testID="zoom-fit" onPress={() => setView(null)} style={m.zBtn}><Icon name="fit" size={14} color="var(--ink-2)" /></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Zoom in" testID="zoom-in" onPress={() => send("in")} style={m.zBtn}><Icon name="plus" size={14} color="var(--ink-2)" /></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Zoom out" testID="zoom-out" onPress={() => send("out")} style={m.zBtn}><Icon name="minus" size={14} color="var(--ink-2)" /></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Fit to window" testID="zoom-fit" onPress={() => send("fit")} style={m.zBtn}><Icon name="fit" size={14} color="var(--ink-2)" /></Pressable>
             </View>
             {selNode ? (
               <View style={m.card} testID="graph-selected" accessibilityRole="summary">

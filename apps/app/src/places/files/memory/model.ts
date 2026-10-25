@@ -149,35 +149,7 @@ export function layout(nodes: readonly GNode[], edges: readonly GEdge[], saved: 
   return out;
 }
 
-// ---------------------------------------------------------------- view
-
-export interface View { x: number; y: number; k: number }
-export const MIN_K = 0.25, MAX_K = 3.2;
-
-/** The view that holds every node with a margin, never zoomed past 1.4 (one node is not a close-up). */
-export function fit(pos: Positions, ids: readonly string[], w: number, h: number): View {
-  if (ids.length === 0 || w <= 0 || h <= 0) return { x: 0, y: 0, k: 1 };
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const id of ids) {
-    const p = pos[id];
-    if (!p) continue;
-    x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y);
-  }
-  if (!Number.isFinite(x0)) return { x: 0, y: 0, k: 1 };
-  const pad = 56;
-  const k = Math.min(1.4, Math.max(MIN_K, Math.min((w - pad * 2) / Math.max(40, x1 - x0), (h - pad * 2) / Math.max(40, y1 - y0))));
-  return { x: w / 2 - ((x0 + x1) / 2) * k, y: h / 2 - ((y0 + y1) / 2) * k, k };
-}
-
-export const toScreen = (v: View, p: { x: number; y: number }): { x: number; y: number } => ({ x: p.x * v.k + v.x, y: p.y * v.k + v.y });
-export const toWorld = (v: View, sx: number, sy: number): { x: number; y: number } => ({ x: (sx - v.x) / v.k, y: (sy - v.y) / v.k });
-
-/** Zoom by a factor about a screen point; the world point under it stays under it. */
-export function zoomAt(v: View, f: number, sx: number, sy: number): View {
-  const k = Math.min(MAX_K, Math.max(MIN_K, v.k * f));
-  const r = k / v.k;
-  return { x: sx - (sx - v.x) * r, y: sy - (sy - v.y) * r, k };
-}
+// ---------------------------------------------------------------- nodes
 
 export const NODE_R = 7;
 /** A node's radius: bigger for a hub, up to twice the base. */
@@ -185,23 +157,22 @@ export function radiusOf(degree: number): number {
   return NODE_R + Math.min(NODE_R, Math.sqrt(degree) * 1.6);
 }
 
+/** A hue, saturation and lightness (0 to 360, 0 to 100, 0 to 100) as #rrggbb, for the WebGL surface, which does not read CSS colours. */
+export function hslHex(h: number, s: number, l: number): string {
+  const sat = s / 100, light = l / 100;
+  const a = sat * Math.min(light, 1 - light);
+  const f = (n: number): string => {
+    const k = (n + h / 30) % 12;
+    const c = light - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    return Math.round(c * 255).toString(16).padStart(2, "0");
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
 export function degrees(edges: readonly GEdge[]): Map<string, number> {
   const out = new Map<string, number>();
   for (const e of edges) { out.set(e.from, (out.get(e.from) ?? 0) + 1); out.set(e.to, (out.get(e.to) ?? 0) + 1); }
   return out;
-}
-
-/** The node under a screen point (nearest within its radius), or null. */
-export function hit(nodes: readonly GNode[], pos: Positions, deg: ReadonlyMap<string, number>, v: View, sx: number, sy: number): string | null {
-  let best: string | null = null, bestD = Infinity;
-  for (const n of nodes) {
-    const p = pos[n.nodeId];
-    if (!p) continue;
-    const s = toScreen(v, p);
-    const d = Math.hypot(s.x - sx, s.y - sy);
-    if (d <= radiusOf(deg.get(n.nodeId) ?? 0) + 3 && d < bestD) { best = n.nodeId; bestD = d; }
-  }
-  return best;
 }
 
 export function neighborsOf(id: string, edges: readonly GEdge[]): Set<string> {
