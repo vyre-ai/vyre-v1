@@ -351,7 +351,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
   // ---- Day and Week
   const allDays = allDayRows(events, days);
   const timeBody = (
-    <ScrollView ref={scroll} style={s.scroll} testID="cal-scroll">
+    <View style={s.timeWrap}>
       <View style={s.chd}>
         <View style={s.gutter} />
         {each(days, (d, i) => (
@@ -364,6 +364,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
           </View>
         ))}
       </View>
+      <ScrollView ref={scroll} style={s.scroll} testID="cal-scroll">
       <View style={s.cbody} ref={body as never}>
         <View style={s.hours}>{Array.from({ length: 23 }, (_, i) => <Text key={i} style={[s.hour, { top: (i + 1) * HH }]}>{`${(i + 1) % 12 || 12} ${i + 1 < 12 ? "AM" : "PM"}`}</Text>)}</View>
         {each(days, (d) => {
@@ -382,7 +383,8 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
           );
         })}
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 
   return (
@@ -444,6 +446,7 @@ const s = StyleSheet.create({
   slotNone: { fontSize: 12.5, color: ink("--ink-3"), paddingVertical: 4 },
   undo: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: ink("--line") },
   undoText: { fontSize: 12.5, color: ink("--ink-2") },
+  timeWrap: { flex: 1, minHeight: 0 },
   scroll: { flex: 1, minHeight: 0 },
   chd: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: ink("--line"), backgroundColor: ink("--win") },
   gutter: { width: 52 },
