@@ -20,7 +20,7 @@ function realStore(spaceId: string) {
   const observed = observeReplica(replica, changes);
   let n = 0;
   const put = (entity: string, id: string, fields: Record<string, string>): void => {
-    observed.write({ entity, id, fields, hlc: hlc(1_000 + ++n), actor: "usr_ada", origin: "mirror" });
+    observed.write({ entity, id, fields, hlc: hlc(1_000 + ++n), actor: "usr_ada", origin: "local" });
   };
   return { store, observed, put, changes, driver };
 }
@@ -124,8 +124,8 @@ test("hide, keep and batched writes reach the feed; a rejected write does not", 
   observed.hide("calendar_event", "cev_1", 9);
   assert.equal(calls, 2);
   assert.deepEqual(q.getSnapshot(), { status: "ready", data: ["b"] });
-  const rejected = observed.write({ entity: "calendar_event", id: "cev_2", fields: { title: "old" }, hlc: hlc(1), actor: "usr_ada", origin: "mirror" });
-  assert.equal(rejected.applied, false);
+  const rejected = observed.write({ entity: "calendar_event", id: "cev_1", fields: { title: "late" }, hlc: hlc(5_000), actor: "usr_ada", origin: "mirror", seq: 3 });
+  assert.deepEqual([rejected.applied, rejected.reason], [false, "hidden"]);
   assert.equal(calls, 2);
 });
 
