@@ -7625,6 +7625,7 @@ export type EngineAccountResolveOut = {
   payer: string | null;
   reason: "starter" | "steerer" | "step_key" | "backup_key" | "none";
   allowed: boolean;
+  itemId?: string;
 };
 export type EngineAccountsListIn = Record<string, unknown>;
 export type EngineAccountsListOut = {
@@ -8229,6 +8230,7 @@ export type EngineTurnRecordUsageIn = {
   tokensIn: number;
   tokensOut: number;
   costMicros: number;
+  itemId?: string;
 };
 export type EngineTurnRecordUsageOut = {
   overLimit?: "run" | "day" | "month" | "turns" | "time";
@@ -8356,6 +8358,7 @@ export type EngineUsageQueryIn = {
   to?: number;
   personId?: string;
   agentId?: string;
+  itemId?: string;
 };
 export type EngineUsageQueryOut = {
   rows: Array<{
@@ -25462,6 +25465,24 @@ export type VaultItemUpdateOut = {
     updatedAt: number;
   };
 };
+export type VaultItemUsageIn = {
+  itemId: string;
+  since?: number;
+};
+export type VaultItemUsageOut = {
+  actors: Array<{
+      actor: {
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      };
+      turns: number;
+      tokens: number;
+    }>;
+  total: {
+    turns: number;
+    tokens: number;
+  };
+};
 export type VaultItemsExportMineIn = {
   expiresIn: "1h" | "1d" | "7d";
   idempotencyKey: string;
@@ -27692,6 +27713,7 @@ export interface CapMap {
   "vault.item.restore": { in: VaultItemRestoreIn; out: VaultItemRestoreOut };
   "vault.item.reveal": { in: VaultItemRevealIn; out: VaultItemRevealOut };
   "vault.item.update": { in: VaultItemUpdateIn; out: VaultItemUpdateOut };
+  "vault.item.usage": { in: VaultItemUsageIn; out: VaultItemUsageOut };
   "vault.items.export_mine": { in: VaultItemsExportMineIn; out: VaultItemsExportMineOut };
   "vault.items.list": { in: VaultItemsListIn; out: VaultItemsListOut };
   "vault.items.match": { in: VaultItemsMatchIn; out: VaultItemsMatchOut };
