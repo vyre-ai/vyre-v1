@@ -1,4 +1,4 @@
-// Needs you (spec 3.2 flow 7, 2.8): a calm two-column inbox. The list on the left is one list sorted by urgency (blocked and due first) with a quiet kind filter; the request on
+// Needs you (spec 3.2 flow 7, 2.8): a calm two-column inbox. The list on the left is one list in the queue's order as the prototype lists it (ruling 45; urgency shows in each row's own words) with a quiet kind filter; the request on
 // the right says what it is, why, where it came from, and offers one primary action and Send back. Acting here acts at the source: approving continues the chat or run at once and
 // Send back carries the note in. A request addressed to a role is taken by its first holder; others see who has it. On a phone the two columns become two screens.
 import { useMemo, useState } from "react";

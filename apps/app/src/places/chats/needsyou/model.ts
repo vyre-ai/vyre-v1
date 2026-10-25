@@ -1,4 +1,4 @@
-// Needs you, with no renderer (spec 3.2 flow 7, 2.8): one list sorted by urgency (blocked and due first), a quiet kind filter, and the request on the right with what, why,
+// Needs you, with no renderer (spec 3.2 flow 7, 2.8): one list in the queue's order as the prototype lists it (ruling 45), a quiet kind filter, and the request on the right with what, why,
 // source, one primary action and Send back. The rules live here so the tests drive them directly.
 import type { CapMap } from "../../../../../../generated/types.ts";
 
@@ -66,7 +66,7 @@ export function filterCounts(items: readonly Item[]): Record<KindFilter, number>
   return out;
 }
 
-/* ---------- urgency ---------- */
+/* ---------- order ---------- */
 
 /**
  * One list, in the order the queue gives it (the prototype's list is the queue in the order requests arrived; ruling 45: the prototype wins). Urgency is carried by the
