@@ -32,7 +32,7 @@ test("a page address becomes an origin and a host; only web pages count", () => 
   assert.equal(pageOf("javascript:alert(1)"), null);
   assert.equal(pageOf(""), null);
   assert.equal(pageOf(undefined), null);
-  assert.equal(pageOf("https://acme.test./"), pageOf("https://acme.test/"), "a trailing dot is the same host");
+  assert.deepEqual(pageOf("https://acme.test./"), pageOf("https://acme.test/"), "a trailing dot is the same host");
 });
 
 test("only the origin is ever sent: no path, query, fragment or credentials", () => {
