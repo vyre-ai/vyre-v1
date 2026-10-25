@@ -149,6 +149,19 @@ export default defineManifest({
       out: { files: t.arr(fileRow), folders: t.arr(folderRow), ...pageOut }, tool: 'files', label: 'filter', cli: 'vyre files ls',
     }),
     read('files.recent', 'Recently opened or changed files', { in: { limit: t.opt(t.int({ minimum: 1, maximum: 200 })) }, out: { files: t.arr(fileRow) }, tool: 'files', label: 'filter' }),
+    // DECISION (ruling 24): the sidebar's Shared with me and Knowledge sections get their own lists. Both are views over the same file and folder resources; nothing is stored twice.
+    read('files.shared_with_me', 'Files and folders other people shared with the caller, newest share first (the Shared with me section of the tree)', {
+      in: { kind: t.opt(fileKind), ...pageIn }, out: { files: t.arr(fileRow), folders: t.arr(folderRow), ...pageOut }, tool: 'files', label: 'filter',
+    }),
+    read('files.knowledge', 'The Knowledge section of the tree: the knowledge folders and files the caller may read, plus the Memory and Graph entries', {
+      in: { ...pageIn },
+      out: {
+        files: t.arr(fileRow), folders: t.arr(folderRow),
+        views: t.arr(t.obj({ key: t.enm('memory', 'graph'), title: t.str(), count: t.int({ minimum: 0 }) })),
+        ...pageOut,
+      },
+      tool: 'files', label: 'filter',
+    }),
     read('files.resolve', 'Turn a tree path such as Projects/Probate GTM/plan.md into an id', {
       in: { path: t.str() }, out: { kind: t.enm('file', 'folder'), fileId: t.opt(id.file), folderId: t.opt(id.folder) }, tool: 'files', label: 'check',
     }),
@@ -191,22 +204,22 @@ export default defineManifest({
     }),
     write('files.save', 'Save a guidance file (VYRE.md, AGENT.md, agent.toml, routine prompts): snapshot first, lint, then commit as a version', {
       in: { fileId: id.file, text: t.str(), baseVersion: t.opt(t.int({ minimum: 1 })), reason: t.opt(t.str()), acceptWarnings: t.opt(t.bool()) },
-      out: { versionId: id.version, n: t.int(), lint: t.obj(lintOut), added: t.int(), removed: t.int() }, on: ['file', '/fileId'], perm: 'files.write',
-      emits: ['file.version_added', 'changeset.opened'], tool: 'files', errors: ['validation.version_conflict', 'validation.precondition_failed'],
+      out: { versionId: id.version, n: t.int(), lint: t.obj(lintOut), added: t.int(), removed: t.int(), changesetId: t.opt(id.changeset) }, on: ['file', '/fileId'], perm: 'files.write',
+      emits: ['file.version_added', 'changeset.opened', 'changeset.updated'], tool: 'files', errors: ['validation.version_conflict', 'validation.precondition_failed'],
     }),
     read('files.lint', 'Lint a guidance file: line counts against the limits, Inherits VYRE.md, Override lines, secret scan, agent.toml schema, routine prompt files, handoff names, repeated facts', {
       in: { fileId: id.file, text: t.opt(t.str()) }, out: lintOut, on: ['file', '/fileId'], tool: 'files', cli: 'vyre files lint',
     }),
-    write('files.rename', 'Rename a file', { in: { fileId: id.file, name: t.str() }, out: { file: fileRow }, on: ['file', '/fileId'], perm: 'files.write', emits: ['file.renamed'], tool: 'files', offline: 'queue', errors: ['validation.duplicate'] }),
+    write('files.rename', 'Rename a file', { in: { fileId: id.file, name: t.str() }, out: { file: fileRow, changesetId: t.opt(id.changeset) }, on: ['file', '/fileId'], perm: 'files.write', emits: ['file.renamed', 'changeset.opened', 'changeset.updated'], tool: 'files', offline: 'queue', errors: ['validation.duplicate'] }),
     write('files.move', 'Move a file to another folder (grants of the new folder apply, nothing is copied)', {
-      in: { fileId: id.file, toFolderId: id.folder, name: t.opt(t.str()) }, out: { file: fileRow }, on: ['file', '/fileId'], perm: 'files.write', emits: ['file.moved', 'file.renamed'], tool: 'files', offline: 'queue', errors: ['validation.duplicate'],
+      in: { fileId: id.file, toFolderId: id.folder, name: t.opt(t.str()) }, out: { file: fileRow, changesetId: t.opt(id.changeset) }, on: ['file', '/fileId'], perm: 'files.write', emits: ['file.moved', 'file.renamed', 'changeset.opened', 'changeset.updated'], tool: 'files', offline: 'queue', errors: ['validation.duplicate'],
     }),
     create('files.copy', 'Copy a file into a folder', {
       in: { fileId: id.file, toFolderId: id.folder, name: t.opt(t.str()) }, out: { file: fileRow }, make: ['folder', '/toFolderId'], perm: 'files.write', emits: ['file.created', 'file.version_added'], tool: 'files',
     }),
     write('files.delete', 'Move a file to Trash', {
-      in: { fileId: id.file }, out: { deleted: t.bool() }, on: ['file', '/fileId'], perm: 'files.delete', gate: { act: 'delete', when: "actor.kind != 'person'" },
-      emits: ['file.deleted'], tool: 'files', offline: 'queue', errors: ['permission.on_hold'],
+      in: { fileId: id.file }, out: { deleted: t.bool(), changesetId: t.opt(id.changeset) }, on: ['file', '/fileId'], perm: 'files.delete', gate: { act: 'delete', when: "actor.kind != 'person'" },
+      emits: ['file.deleted', 'changeset.opened', 'changeset.updated'], tool: 'files', offline: 'queue', errors: ['permission.on_hold'],
     }),
     write('files.restore', 'Bring a file back from Trash', {
       in: { fileId: id.file, toFolderId: t.opt(id.folder) }, out: { file: fileRow }, on: ['file', '/fileId'], perm: 'files.delete', emits: ['file.restored'], tool: 'files',
@@ -307,8 +320,8 @@ export default defineManifest({
     write('changesets.revert_change', 'Revert a single change (one hunk or one file) inside a changeset', {
       in: { changesetId: id.changeset, path: t.str(), hunkId: t.opt(t.str()) }, out: { fileCount: t.int() }, emits: ['changeset.updated'], tool: 'files',
     }),
-    write('changesets.review_externally', 'Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token', {
-      in: { changesetId: id.changeset, actorId: t.opt(id.actor) }, out: { actorId: id.actor, expiresAt: t.ts() }, emits: ['changeset.sent_for_review'], audit: 'always', tool: 'files',
+    write('changesets.review_externally', 'Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token; returns a one-time review link (the token is in the link, shown once, never logged)', {
+      in: { changesetId: id.changeset, actorId: t.opt(id.actor) }, out: { actorId: id.actor, reviewUrl: t.str({ pattern: '^https?://', examples: ['https://northwind.example.com/review/cs_example?token=otk_example'] }), expiresAt: t.ts() }, emits: ['changeset.sent_for_review'], audit: 'always', tool: 'files',
     }),
     read('changesets.comments.list', 'List inline comments on a changeset', { in: { changesetId: id.changeset }, out: { comments: t.arr(commentRow) }, tool: 'files', label: 'check' }),
     write('changesets.comments.add', 'Add an inline comment to a changeset with @ people and agents (an @ agent answers in the thread)', {

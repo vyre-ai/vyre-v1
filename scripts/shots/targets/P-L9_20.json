@@ -1,0 +1,19 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_20-chat-streaming",
+      "route": "/m/P-L9_20",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid=\"stream-held\"]",
+      "note": "A question and an answer that is still arriving: the heading, the paragraph with bold, the numbered list and the caret, stopped at the same character every run, in the conversation column of the Chats place (720 wide, 24 px body line). The prototype side is its Chats place with a conversation open."
+    },
+    {
+      "id": "P-L9_20-stream-under-scroll",
+      "route": "/m/P-L9_20?probe=1",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid=\"history-list\"]",
+      "scroll": { "selector": "[data-testid=\"history-list\"]" },
+      "note": "150 messages of history (images in reserved boxes) scrolled top to bottom as a hard fling while a live pane receives a 100 deltas/s markdown stream on a loop. The scroll probe prints p95 frame interval and layout shift for the whole page: stream_render and layout_shift."
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+// esign projections. Envelopes, signers and settings are written by the handlers on the call; nothing is derived from events yet.
+
+export const inline = {};
+export const consumers = {};

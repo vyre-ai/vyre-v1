@@ -7816,7 +7816,7 @@
       "blocks": [],
       "cap": "changesets.review_externally",
       "deferred": false,
-      "description": "Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token",
+      "description": "Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token; returns a one-time review link (the token is in the link, shown once, never logged)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -16548,6 +16548,30 @@
     },
     {
       "blocks": [],
+      "cap": "files.knowledge",
+      "deferred": false,
+      "description": "The Knowledge section of the tree: the knowledge folders and files the caller may read, plus the Memory and Graph entries",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "files_knowledge",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "files.lint",
       "deferred": false,
       "description": "Lint a guidance file: line counts against the limits, Inherits VYRE.md, Override lines, secret scan, agent.toml schema, routine prompt files, handoff names, repeated facts",
@@ -17206,6 +17230,48 @@
       },
       "name": "files_share_external",
       "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "files.shared_with_me",
+      "deferred": false,
+      "description": "Files and folders other people shared with the caller, newest share first (the Shared with me section of the tree)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "text",
+              "markdown",
+              "document",
+              "spreadsheet",
+              "presentation",
+              "pdf",
+              "image",
+              "video",
+              "audio",
+              "code",
+              "archive",
+              "google_native",
+              "other"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "files_shared_with_me",
+      "planMode": "allowed",
       "toolset": "files",
       "v": 1
     },
@@ -32548,7 +32614,8 @@
               "health.degraded",
               "problem.report",
               "member.joined",
-              "limit.hit"
+              "limit.hit",
+              "vault.rotation_due"
             ],
             "type": "string"
           },
@@ -35395,6 +35462,48 @@
     },
     {
       "blocks": [],
+      "cap": "records.view",
+      "deferred": false,
+      "description": "Read a saved view of a record type resolved for the table: the view definition and its rows with the saved filter, sort and group applied, a page at a time",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "viewId": {
+            "examples": [
+              "viw_a1b2c3"
+            ],
+            "pattern": "^viw_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "viewId"
+        ],
+        "type": "object"
+      },
+      "name": "records_view",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "reports.get",
       "deferred": false,
       "description": "Read one report",
@@ -36064,6 +36173,9 @@
                 "routine",
                 "campaign",
                 "deployment",
+                "connector_sync",
+                "connector_build",
+                "import",
                 "runbook",
                 "wait",
                 "terminal",
@@ -38081,6 +38193,9 @@
             "description": "Any JSON value"
           },
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -38104,6 +38219,9 @@
       "inputSchema": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -38241,6 +38359,9 @@
       "inputSchema": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -38263,6 +38384,9 @@
       "inputSchema": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -38307,6 +38431,9 @@
       "inputSchema": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           },
           "value": {
@@ -38333,6 +38460,9 @@
       "inputSchema": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           },
           "value": {
@@ -42427,6 +42557,9 @@
             },
             "type": "array"
           },
+          "decisionId": {
+            "type": "string"
+          },
           "dependsOn": {
             "items": {
               "examples": [
@@ -42490,6 +42623,9 @@
               "tsk_a1b2c3"
             ],
             "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "payloadHash": {
             "type": "string"
           },
           "recordId": {

@@ -3,7 +3,8 @@
 // The host registers its half once at boot with setGoogleHost (token mint from the Vault key, member emails, blobs): see projections.ts.
 import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
-import { codecs, consumers, inline } from "./projections.ts";
+import type { SeamSetters } from "../../host/src/seams/index.ts";
+import { codecs, consumers, inline, setGoogleHost } from "./projections.ts";
 
 export { setGoogleHost } from "./projections.ts";
 export type { GoogleHost } from "./projections.ts";
@@ -51,6 +52,7 @@ export const handlers: Record<string, Handler> = {
   "google.drive.copy_file": (ctx, i) => h.driveCopy(ctx, i),
   "google.drive.share_file": (ctx, i) => h.driveShare(ctx, i),
   "google.drive.trash_file": (ctx, i) => h.driveTrash(ctx, i),
+  "google.drive.changes_start_token": (ctx, i) => h.driveStartToken(ctx, i),
   "google.drive.list_changes": (ctx, i) => h.driveChanges(ctx, i),
   "google.drive.watch_changes": (ctx, i) => h.driveWatch(ctx, i),
   "google.drive.stop_watch": (ctx, i) => h.driveStopWatch(ctx, i),
@@ -72,3 +74,6 @@ export const handlers: Record<string, Handler> = {
 
 export const projections = { inline, consumers };
 export { codecs, inline, consumers };
+
+/** Where the host registers its Google seam at boot (ruling 31): the loader reads this export. */
+export const hostSeams: SeamSetters = { setGoogleHost };

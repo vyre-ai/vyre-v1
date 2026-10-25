@@ -8,7 +8,7 @@ import { ctx, loadGenerated, makeSession, thread } from "../src/tools/harness.ts
 
 test("catalog: every generated tool joins its capability; the frozen default list is 59 real tools", () => {
   const { catalog, defaults, caps } = loadGenerated();
-  assert.equal(catalog.all.length, 1220);
+  assert.equal(catalog.all.length, 1223);
   assert.equal(defaults.size, 59);
   for (const n of defaults) assert.ok(catalog.byName(n), `default tool ${n} exists`);
   for (const t of catalog.all) assert.ok(caps.has(t.cap), t.name);

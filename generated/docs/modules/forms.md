@@ -1,6 +1,6 @@
 # Forms and bookings (forms)
 
-Lane L8. Kind module. Status stub. Version 0.1.0.
+Lane L8. Kind module. Version 0.1.0.
 
 Requires: nothing.
 

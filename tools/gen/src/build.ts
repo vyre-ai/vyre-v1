@@ -1,4 +1,4 @@
-// Merge manifests into the registry.
+// Merge manifests into the registry. Module status is runtime state in host/modules.json and never enters the registry (ruling 25).
 import type { Manifest, Owned, Registry, RegistryModule } from '../../../packages/contracts/src/index.ts';
 import { DEFAULT_LADDER, ERROR_CODES, LEVEL_LADDERS } from '../../../packages/contracts/src/index.ts';
 import type { Loaded } from './load.ts';
@@ -25,7 +25,7 @@ export function buildRegistry(loaded: Loaded[]): Registry {
     const req = new Set(Object.keys(m.requires ?? {}));
     for (const c of refs.caps) { const o = capOwner.get(c); if (o && o !== m.id) req.add(o); }
     for (const e of refs.events) { const o = eventOwner.get(e); if (o && o !== m.id) req.add(o); }
-    return { id: m.id, version: m.version, title: m.title, kind: m.kind, owner: m.owner, status: m.status, requires: [...req].sort() };
+    return { id: m.id, version: m.version, title: m.title, kind: m.kind, owner: m.owner, requires: [...req].sort() };
   });
   return {
     registryVersion: 1,
@@ -55,3 +55,4 @@ export function buildRegistry(loaded: Loaded[]): Registry {
     errors: ERROR_CODES.map((e) => ({ code: e.code, group: e.group, http: e.http, retryable: e.retryable, summary: e.summary })).sort((a, b) => (a.code < b.code ? -1 : 1)),
   };
 }
+

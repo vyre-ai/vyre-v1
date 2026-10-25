@@ -1,0 +1,9 @@
+{
+  "value": [
+    {
+      "id": "g9",
+      "isDraft": false
+    }
+  ],
+  "@odata.deltaLink": "https://graph.microsoft.com/v1.0/users('mid')/mailFolders('sentitems')/messages/delta?$deltatoken=SD1"
+}

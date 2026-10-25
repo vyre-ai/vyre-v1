@@ -1,0 +1,7 @@
+{
+  "name": "run.vyre.bridge",
+  "description": "Vyre for Chrome talks to the Vyre app on this computer through this host.",
+  "path": "__HOST_PATH__",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://__EXTENSION_ID__/"]
+}

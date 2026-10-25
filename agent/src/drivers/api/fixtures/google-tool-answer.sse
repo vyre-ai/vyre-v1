@@ -1,0 +1,4 @@
+data: {"candidates":[{"content":{"parts":[{"text":"Found "}],"role":"model"},"index":0}],"usageMetadata":{"promptTokenCount":1050,"totalTokenCount":1051},"modelVersion":"gemini-2.5-pro"}
+
+data: {"candidates":[{"content":{"parts":[{"text":"3 leads."}],"role":"model"},"finishReason":"STOP","index":0}],"usageMetadata":{"promptTokenCount":1050,"candidatesTokenCount":6,"totalTokenCount":1056,"cachedContentTokenCount":1000},"modelVersion":"gemini-2.5-pro"}
+

@@ -1,0 +1,36 @@
+{
+  "value": [
+    {
+      "@odata.type": "#microsoft.graph.fileAttachment",
+      "id": "a1",
+      "name": "terms.pdf",
+      "contentType": "application/pdf",
+      "size": 5,
+      "isInline": false
+    },
+    {
+      "@odata.type": "#microsoft.graph.fileAttachment",
+      "id": "a2",
+      "name": "logo.png",
+      "contentType": "image/png",
+      "size": 10,
+      "isInline": true
+    },
+    {
+      "@odata.type": "#microsoft.graph.fileAttachment",
+      "id": "a3",
+      "name": "huge.zip",
+      "contentType": "application/zip",
+      "size": 99999999,
+      "isInline": false
+    },
+    {
+      "@odata.type": "#microsoft.graph.itemAttachment",
+      "id": "a4",
+      "name": "forwarded.msg",
+      "contentType": "message/rfc822",
+      "size": 50,
+      "isInline": false
+    }
+  ]
+}

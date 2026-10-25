@@ -1,10 +1,10 @@
 # Google Workspace (google)
 
-Lane L5. Kind connector. Status stub. Version 0.1.0.
+Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (59)
+## Capabilities (60)
 
 - [google.calendar.create_event](../capabilities/google.calendar.create_event.md): Create an event; Google invites the attendees
 - [google.calendar.delete_event](../capabilities/google.calendar.delete_event.md): Delete an event; Google tells the attendees
@@ -19,6 +19,7 @@ Requires: mail.
 - [google.docs.batch_update](../capabilities/google.docs.batch_update.md): Edit a Google Doc with a list of requests
 - [google.docs.create_document](../capabilities/google.docs.create_document.md): Create a Google Doc
 - [google.docs.get_document](../capabilities/google.docs.get_document.md): Read a Google Doc as structured content
+- [google.drive.changes_start_token](../capabilities/google.drive.changes_start_token.md): The Drive changes start page token, so a mount syncs incrementally from now instead of rescanning
 - [google.drive.copy_file](../capabilities/google.drive.copy_file.md): Copy a Drive file
 - [google.drive.create_folder](../capabilities/google.drive.create_folder.md): Create a Drive folder
 - [google.drive.download_file](../capabilities/google.drive.download_file.md): Download a Drive file into a blob

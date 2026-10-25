@@ -1,0 +1,6 @@
+# Caddy for the server unit. It starts empty: vyred owns every site and route and writes them through the admin API (host caddy driver, P-L7b_04), which listens on loopback only.
+# Caddy shares vyred's network namespace in compose.server.yml, so 127.0.0.1:2019 here is the address vyred's caddy probe and driver already use.
+{
+	admin 127.0.0.1:2019
+	persist_config off
+}

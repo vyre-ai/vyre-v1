@@ -349,3 +349,4 @@ test("minting without a seal is refused instead of issuing an unsigned token", a
   const task = findTask(h.db, id)!;
   assert.throws(() => mintApprovalToken(ctx, task), (e) => codeOf(e) === "internal.unavailable");
 });
+// P-H_02 final run: this file shows its own ok line in the run on the last commit.

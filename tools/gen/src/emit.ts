@@ -339,7 +339,7 @@ function emitDocs(reg: Registry, put: (p: string, c: string) => void, caps: Cap[
     const mc = reg.capabilities.filter((c) => c.module === m.id);
     const me = reg.events.filter((e) => e.module === m.id);
     put(`docs/modules/${m.id}.md`, [
-      `# ${m.title} (${m.id})`, '', `Lane ${m.owner}. Kind ${m.kind}. Status ${m.status}. Version ${m.version}.`, '',
+      `# ${m.title} (${m.id})`, '', `Lane ${m.owner}. Kind ${m.kind}. Version ${m.version}.`, '',
       `Requires: ${m.requires.length ? m.requires.join(', ') : 'nothing'}.`, '',
       `## Capabilities (${mc.length})`, '', ...mc.map((c) => `- [${c.name}](../capabilities/${slug(c.name)}${c.v > 1 ? `.v${c.v}` : ''}.md): ${c.summary}`),
       '', `## Events (${me.length})`, '', ...me.map((e) => `- [${e.name}](../events/${slug(e.name)}.md): ${e.summary}`), '',
