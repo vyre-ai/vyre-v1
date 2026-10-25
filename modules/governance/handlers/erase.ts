@@ -64,7 +64,7 @@ export async function eraseFind(ctx: GovCtx, input: { subject: unknown }) {
   ensure(ctx);
   const s = subjectOf(ctx, input.subject);
   const now = ctx.now();
-  for (const old of rowsOf(ctx.db.all(`SELECT * FROM gov_finding`))) if (num(old, "expiresAt") <= now) ctx.db.run(`DELETE FROM gov_finding WHERE "id" = ?`, str(old, "id"));
+  for (const old of rowsOf(ctx.db.all(`SELECT * FROM governance_finding`))) if (num(old, "expiresAt") <= now) ctx.db.run(`DELETE FROM governance_finding WHERE "id" = ?`, str(old, "id"));
   const items: Items = {};
   const recs = await recordsOf(ctx, s);
   for (const r of recs) {
@@ -110,7 +110,7 @@ export async function eraseFind(ctx: GovCtx, input: { subject: unknown }) {
 
   const id = newId("fnd", now);
   const expiresAt = now + DAY;
-  ctx.db.run(`INSERT INTO gov_finding ("id", "by", "at", "expiresAt", "recordIds", "items") VALUES (?, ?, ?, ?, ?, ?)`, id, ctx.principal.id, now, expiresAt, JSON.stringify(recs.map((r) => r.id)), JSON.stringify(idsOnly(items)));
+  ctx.db.run(`INSERT INTO governance_finding ("id", "by", "at", "expiresAt", "recordIds", "items") VALUES (?, ?, ?, ?, ?, ?)`, id, ctx.principal.id, now, expiresAt, JSON.stringify(recs.map((r) => r.id)), JSON.stringify(idsOnly(items)));
   const groups = [];
   for (const kind of ERASE_KINDS) {
     const its = items[kind] ?? [];
@@ -163,9 +163,9 @@ export async function eraseApply(ctx: GovCtx, input: { findingId: string; includ
   ensure(ctx);
   if (typeof input.idempotencyKey !== "string" || input.idempotencyKey === "") bad(ctx, "An idempotency key is required.");
   if (!isId("fnd", input.findingId)) bad(ctx, "The finding id is not valid.");
-  const done = first(ctx.db.all(`SELECT * FROM gov_erase WHERE "findingId" = ?`, input.findingId));
+  const done = first(ctx.db.all(`SELECT * FROM governance_erase WHERE "findingId" = ?`, input.findingId));
   if (done) return { runId: str(done, "runId") };   // the same finding again: already erased
-  const f = first(ctx.db.all(`SELECT * FROM gov_finding WHERE "id" = ?`, input.findingId));
+  const f = first(ctx.db.all(`SELECT * FROM governance_finding WHERE "id" = ?`, input.findingId));
   if (!f || num(f, "expiresAt") <= ctx.now()) return refuse(ctx, "That finding is gone or older than 24 hours. Look for the person again.");
   if (!Array.isArray(input.include) || input.include.length === 0 || input.include.some((k) => !(ERASE_KINDS as readonly string[]).includes(k))) bad(ctx, "Say which kinds to erase.");
   const kinds = [...new Set(input.include)] as EraseKind[];
@@ -194,7 +194,7 @@ export async function eraseApply(ctx: GovCtx, input: { findingId: string; includ
       for (const it of its) {
         if (kind === "memory" && it.type !== "fact") continue;   // notes are not facts: they leave with the next rotation
         await eraseOne(ctx, kind, it.type, it.id, reason);
-        ctx.db.run(`INSERT INTO gov_tombstone ("id", "kind", "subjectType", "subjectId", "at", "by", "findingId") VALUES (?, ?, ?, ?, ?, ?, ?)`, newId("tmb", ctx.now()), kind, it.type, it.id, ctx.now(), ctx.principal.id, input.findingId);
+        ctx.db.run(`INSERT INTO governance_tombstone ("id", "kind", "subjectType", "subjectId", "at", "by", "findingId") VALUES (?, ?, ?, ?, ?, ?, ?)`, newId("tmb", ctx.now()), kind, it.type, it.id, ctx.now(), ctx.principal.id, input.findingId);
         tombstones++;
       }
     }
@@ -202,7 +202,7 @@ export async function eraseApply(ctx: GovCtx, input: { findingId: string; includ
     await finishRun(ctx, runId, { code: codeOf(e) || "internal.unexpected", message: (e as { error?: { message?: string } } | null)?.error?.message ?? "The erase did not finish." });
     throw e;
   }
-  ctx.db.run(`INSERT INTO gov_erase ("findingId", "by", "at", "kinds", "tombstones", "runId") VALUES (?, ?, ?, ?, ?, ?)`, input.findingId, ctx.principal.id, ctx.now(), JSON.stringify(kinds), tombstones, runId);
+  ctx.db.run(`INSERT INTO governance_erase ("findingId", "by", "at", "kinds", "tombstones", "runId") VALUES (?, ?, ?, ?, ?, ?)`, input.findingId, ctx.principal.id, ctx.now(), JSON.stringify(kinds), tombstones, runId);
   ctx.emit("erase.completed", `entity/${input.findingId}`, { findingId: input.findingId, tombstones });
   await finishRun(ctx, runId, { summary: `${tombstones} erased${left.length ? `; no eraser yet for ${left.join(", ")}, which the next backup rotation purges` : ""}` });
   return { runId };
@@ -211,7 +211,7 @@ export async function eraseApply(ctx: GovCtx, input: { findingId: string; includ
 export async function eraseList(ctx: GovCtx, input: { cursor?: string; limit?: number }) {
   ensure(ctx);
   const { cursor, limit } = paging(ctx, obj(input));
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM gov_erase`)).sort((a, b) => num(b, "at") - num(a, "at") || str(a, "findingId").localeCompare(str(b, "findingId")));
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM governance_erase`)).sort((a, b) => num(b, "at") - num(a, "at") || str(a, "findingId").localeCompare(str(b, "findingId")));
   const p = pageOf(rows, cursor, limit);
   return { erasures: p.page.map((r) => ({ findingId: str(r, "findingId"), by: str(r, "by"), at: num(r, "at"), kinds: parseJson<string[]>(r["kinds"], []), tombstones: num(r, "tombstones") })), ...(p.next ? { next: p.next } : {}), total: p.total };
 }
@@ -221,7 +221,7 @@ export async function eraseList(ctx: GovCtx, input: { cursor?: string; limit?: n
 export async function tombstonesList(ctx: GovCtx, input: { cursor?: string; limit?: number }) {
   ensure(ctx);
   const { cursor, limit } = paging(ctx, obj(input));
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM gov_tombstone`)).sort((a, b) => num(b, "at") - num(a, "at") || str(a, "id").localeCompare(str(b, "id")));
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM governance_tombstone`)).sort((a, b) => num(b, "at") - num(a, "at") || str(a, "id").localeCompare(str(b, "id")));
   const p = pageOf(rows, cursor, limit);
   return { tombstones: p.page.map((r) => ({ id: str(r, "id"), kind: str(r, "kind"), at: num(r, "at"), by: str(r, "by") })), ...(p.next ? { next: p.next } : {}), total: p.total };
 }
@@ -229,7 +229,7 @@ export async function tombstonesList(ctx: GovCtx, input: { cursor?: string; limi
 /** After a restore: every tombstone erased again, in the order they were written, before the Space opens for traffic. Idempotent. */
 export async function tombstonesReapply(ctx: GovCtx) {
   ensure(ctx);
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM gov_tombstone`)).sort((a, b) => num(a, "at") - num(b, "at") || str(a, "id").localeCompare(str(b, "id")));
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM governance_tombstone`)).sort((a, b) => num(a, "at") - num(b, "at") || str(a, "id").localeCompare(str(b, "id")));
   for (const r of rows) await eraseOne(ctx, str(r, "kind") as EraseKind, str(r, "subjectType"), str(r, "subjectId"), "Tombstone replayed after a restore");
   ctx.emit("tombstones.reapplied", `entity/${rows.length}`, { count: rows.length });
   return { count: rows.length };

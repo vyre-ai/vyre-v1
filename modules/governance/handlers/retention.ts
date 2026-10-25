@@ -137,7 +137,7 @@ export async function holdsPlace(ctx: GovCtx, input: { target: unknown; reason: 
   else if (t.kind === "folder") await ctx.call("files.folder.get", { folderId: t.id });
   else if (t.kind === "channel") await ctx.call("channels.get", { channelId: t.id });
   if (holdRow(ctx, t.kind, t.id)) return { ok: true };   // already held: the first reason and name stand
-  ctx.db.run(`INSERT INTO gov_hold ("kind", "targetId", "reason", "by", "at") VALUES (?, ?, ?, ?, ?)`, t.kind, t.id, input.reason.trim(), ctx.principal.id, ctx.now());
+  ctx.db.run(`INSERT INTO governance_hold ("kind", "targetId", "reason", "by", "at") VALUES (?, ?, ?, ?, ?)`, t.kind, t.id, input.reason.trim(), ctx.principal.id, ctx.now());
   ctx.emit("hold.placed", `entity/${t.id}`, { target: t, reason: input.reason.trim(), by: ctx.principal.id });
   return { ok: true };
 }
@@ -146,7 +146,7 @@ export async function holdsRelease(ctx: GovCtx, input: { target: unknown }) {
   ensure(ctx);
   const t = targetOf(ctx, input.target);
   if (!holdRow(ctx, t.kind, t.id)) return missing(ctx, "That is not on hold.");
-  ctx.db.run(`DELETE FROM gov_hold WHERE "kind" = ? AND "targetId" = ?`, t.kind, t.id);
+  ctx.db.run(`DELETE FROM governance_hold WHERE "kind" = ? AND "targetId" = ?`, t.kind, t.id);
   ctx.emit("hold.released", `entity/${t.id}`, { target: t, by: ctx.principal.id });
   return { ok: true };
 }
@@ -155,7 +155,7 @@ export async function holdsList(ctx: GovCtx, input: { kind?: string; cursor?: st
   ensure(ctx);
   const { cursor, limit } = paging(ctx, obj(input));
   if (input.kind !== undefined && !(HOLD_KINDS as readonly string[]).includes(input.kind)) bad(ctx, "That kind of hold is not known.");
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM gov_hold`)).filter((r) => input.kind === undefined || str(r, "kind") === input.kind)
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM governance_hold`)).filter((r) => input.kind === undefined || str(r, "kind") === input.kind)
     .sort((a, b) => num(b, "at") - num(a, "at") || str(a, "targetId").localeCompare(str(b, "targetId")));
   const p = pageOf(rows, cursor, limit);
   const holds = [];
@@ -171,13 +171,13 @@ function jobRow(r: Row | null, kind: string): Json {
   return out;
 }
 
-const jobOf = (ctx: GovCtx, kind: string): Row | null => first(ctx.db.all(`SELECT * FROM gov_job WHERE "kind" = ?`, kind));
+const jobOf = (ctx: GovCtx, kind: string): Row | null => first(ctx.db.all(`SELECT * FROM governance_job WHERE "kind" = ?`, kind));
 
 function saveJob(ctx: GovCtx, kind: string, f: Record<string, string | number | null>): void {
-  if (jobOf(ctx, kind)) ctx.db.run(`UPDATE gov_job SET ${Object.keys(f).map((k) => `"${k}" = ?`).join(", ")} WHERE "kind" = ?`, ...Object.values(f), kind);
+  if (jobOf(ctx, kind)) ctx.db.run(`UPDATE governance_job SET ${Object.keys(f).map((k) => `"${k}" = ?`).join(", ")} WHERE "kind" = ?`, ...Object.values(f), kind);
   else {
     const all = { lastRunAt: null, nextRunAt: null, lastRemoved: null, lastSkippedOnHold: null, state: "idle", ...f };
-    ctx.db.run(`INSERT INTO gov_job ("kind", "lastRunAt", "nextRunAt", "lastRemoved", "lastSkippedOnHold", "state") VALUES (?, ?, ?, ?, ?, ?)`, kind, all.lastRunAt, all.nextRunAt, all.lastRemoved, all.lastSkippedOnHold, all.state);
+    ctx.db.run(`INSERT INTO governance_job ("kind", "lastRunAt", "nextRunAt", "lastRemoved", "lastSkippedOnHold", "state") VALUES (?, ?, ?, ?, ?, ?)`, kind, all.lastRunAt, all.nextRunAt, all.lastRemoved, all.lastSkippedOnHold, all.state);
   }
 }
 
@@ -261,7 +261,7 @@ export async function jobsRunNow(ctx: GovCtx, input: { kind: string; idempotency
 
 export async function jobsHealth(ctx: GovCtx) {
   ensure(ctx);
-  const late = rowsOf(ctx.db.all(`SELECT * FROM gov_job`)).filter((r) => str(r, "state") === "failed" || (numOrNull(r, "nextRunAt") !== null && num(r, "nextRunAt") < ctx.now() - 12 * 3_600_000));
+  const late = rowsOf(ctx.db.all(`SELECT * FROM governance_job`)).filter((r) => str(r, "state") === "failed" || (numOrNull(r, "nextRunAt") !== null && num(r, "nextRunAt") < ctx.now() - 12 * 3_600_000));
   if (late.length === 0) return { state: "healthy" as const };
   return { state: late.some((r) => str(r, "state") === "failed") ? ("down" as const) : ("degraded" as const), detail: `Late or failed: ${late.map((r) => str(r, "kind")).sort().join(", ")}. Run them from Console > Data > Retention.` };
 }
