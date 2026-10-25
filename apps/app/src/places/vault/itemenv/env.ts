@@ -249,3 +249,6 @@ export const keysOf = (rows: readonly { key: string }[]): string[] => rows.map((
 export function withFlags<T extends { key: string; secret: boolean }>(rows: readonly T[], flags: ReadonlyMap<string, boolean>): T[] {
   return rows.map((r) => ({ ...r, secret: flags.get(r.key) ?? r.secret }));
 }
+
+/** Just the three things the vault stores for a field. */
+export const plainFields = (rows: readonly Field[]): Field[] => rows.map((f) => ({ key: f.key, value: f.value, secret: f.secret }));

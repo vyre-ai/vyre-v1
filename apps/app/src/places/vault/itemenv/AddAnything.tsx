@@ -12,7 +12,7 @@ import type { Folder } from "../layout/model.ts";
 import { Btn, Glyph, IconBtn, LogoTile, QuietLine } from "../layout/parts.tsx";
 import { Sheet } from "../layout/Sheet.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { fieldsFor, filterTemplates, mergeFields, normalizeKey, patchAt, templateById, understandPaste } from "./env.ts";
+import { fieldsFor, filterTemplates, mergeFields, normalizeKey, patchAt, plainFields, templateById, understandPaste } from "./env.ts";
 import type { Field, ItemKind, Template } from "./env.ts";
 import { LAYOUT_SCREEN } from "./ItemEnv.tsx";
 
@@ -97,7 +97,7 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste }: Ad
     if (dup) { setError(`Two fields are called ${dup}. Rename one.`); return; }
     setSaving(true); setError(null);
     try {
-      const out = (await data.call("vault.item.put", { folderId: target, name: name.trim(), kind, fields: filled.map((f) => ({ key: f.key, value: f.value, secret: f.secret })), ...(templateById(template) && template !== "custom" ? { template } : {}) })) as { item: { id: string; name: string } };
+      const out = (await data.call("vault.item.put", { folderId: target, name: name.trim(), kind, fields: plainFields(filled), ...(templateById(template) && template !== "custom" ? { template } : {}) })) as { item: { id: string; name: string } };
       onAdded(out.item.id, out.item.name, target);
     } catch (e) {
       setError(e instanceof Error && /duplicate/.test(e.message) ? `There is already an item called ${name.trim()} here. Pick another name.` : "Could not save. Nothing was lost; try again.");
