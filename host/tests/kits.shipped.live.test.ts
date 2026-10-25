@@ -67,41 +67,53 @@ async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: n
   return { status: r.status, data: body.data ?? body };
 }
 
-const KITS: { key: string; types: string[]; agents: string[] }[] = [
-  { key: "default", types: ["note_board"], agents: ["Assistant"] },
-  { key: "harbor-studio", types: ["commission"], agents: ["Producer", "Art Director"] },
-];
+interface ShippedItem { key: string; type: string; recordType?: string; apply?: { cap: string; input: Record<string, unknown> } }
+/** What each shipped Kit must leave in the Space, read from its own manifest: record types, agents by name, and the files its file steps put. */
+function expectations(key: string): { types: string[]; agents: string[]; files: string[]; keys: string[] } {
+  const items = (JSON.parse(fs.readFileSync(path.join(CODE_ROOT, "kits", key, "kit.json"), "utf8")) as { items: ShippedItem[] }).items;
+  return {
+    types: items.filter((i) => i.type === "record_type").map((i) => i.recordType ?? i.key),
+    agents: items.filter((i) => i.apply?.cap === "agents.create").map((i) => String(i.apply!.input["name"])),
+    files: items.filter((i) => i.apply?.cap === "file.put").map((i) => String(i.apply!.input["path"])),
+    keys: items.map((i) => i.key).sort(),
+  };
+}
+const KEYS = ["default", "harbor-studio", "law-firm-intake", "estate-planning"];
 
-test("the shipped Default and Harbor Studio Kits install by name on a booted daemon, and their record types and agents are in the Space", async () => {
+test("the four shipped Kits install by name on a booted daemon, and their record types, agents and runbook files are in the Space", async () => {
   const dir = seededDir();
   const d = await boot(dir, codeRootWithKitsLive());
   try {
     const listed = await call(d, "kits.list", {});
     assert.equal(listed.status, 200, JSON.stringify(listed.data));
     const byKey = new Map((listed.data.kits as { key: string; kitId: string; installed: boolean }[]).map((k) => [k.key, k]));
-    for (const k of KITS) {
-      const kit = byKey.get(k.key);
-      assert.ok(kit, `${k.key} is shipped`);
-      assert.equal(kit.installed, false, `${k.key} starts uninstalled`);
+    for (const key of KEYS) {
+      const kit = byKey.get(key);
+      assert.ok(kit, `${key} is shipped`);
+      assert.equal(kit.installed, false, `${key} starts uninstalled`);
       const done = await call(d, "kits.install", { kitId: kit.kitId, accepted: true });
-      assert.equal(done.status, 200, `installing ${k.key}: ${JSON.stringify(done.data)}`);
-      assert.equal(done.data.kit.installed, true, `${k.key} reads installed`);
+      assert.equal(done.status, 200, `installing ${key}: ${JSON.stringify(done.data)}`);
+      assert.equal(done.data.kit.installed, true, `${key} reads installed`);
     }
     const types = JSON.stringify((await call(d, "schema.types.list", {})).data);
-    for (const k of KITS) for (const t of k.types) assert.ok(types.includes(`"${t}"`), `${k.key} created the record type ${t}`);
     const agents = await call(d, "agents.list", {});
     assert.equal(agents.status, 200, JSON.stringify(agents.data));
     const names = JSON.stringify(agents.data);
-    for (const k of KITS) for (const a of k.agents) assert.ok(names.includes(`"${a}"`), `${k.key} created the agent ${a}`);
-    // every item of each Kit was applied, including the group defaults (access is still a stub module, so its effect cannot be read back; the ledger shows the step ran)
-    for (const k of KITS) {
-      const manifest = JSON.parse(fs.readFileSync(path.join(CODE_ROOT, "kits", k.key, "kit.json"), "utf8")) as { items: { key: string }[] };
-      const applied = (d.db!.all("SELECT item_key FROM kits_applied WHERE kit_id = ?", byKey.get(k.key)!.kitId) as { item_key: string }[]).map((r) => r.item_key).sort();
-      assert.deepEqual(applied, manifest.items.map((i) => i.key).sort(), `${k.key}: every item was applied`);
+    for (const key of KEYS) {
+      const want = expectations(key);
+      for (const t of want.types) assert.ok(types.includes(`"${t}"`), `${key} created the record type ${t}`);
+      for (const a of want.agents) assert.ok(names.includes(`"${a}"`), `${key} created the agent ${a}`);
+      for (const f of want.files) {
+        const r = await call(d, "files.resolve", { path: f });
+        assert.equal(r.status, 200, `${key}: the runbook ${f} exists (${JSON.stringify(r.data)})`);
+        assert.equal(r.data.kind, "file", `${f} is a file`);
+      }
+      // every item was applied, the group defaults included (access is still a stub module, so its effect cannot be read back; the ledger shows the step ran)
+      const applied = (d.db!.all("SELECT item_key FROM kits_applied WHERE kit_id = ?", byKey.get(key)!.kitId) as { item_key: string }[]).map((r) => r.item_key).sort();
+      assert.deepEqual(applied, want.keys, `${key}: every item was applied`);
+      const got = await call(d, "kits.get", { kitId: byKey.get(key)!.kitId });
+      assert.equal(got.data.kit.installed, true, `${key} still reads installed`);
     }
-    for (const k of KITS) {
-      const got = await call(d, "kits.get", { kitId: byKey.get(k.key)!.kitId });
-      assert.equal(got.data.kit.installed, true, `${k.key} still reads installed`);
-    }
+    assert.ok(KEYS.some((k) => expectations(k).files.length > 0), "at least one shipped Kit ships a runbook file");
   } finally { await d.stop(); }
 });

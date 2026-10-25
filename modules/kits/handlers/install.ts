@@ -12,6 +12,7 @@ import { canonical } from "../../../lib/canonical.ts";
 import { mintUuid } from "../../../lib/ids.ts";
 import { fail as hostFail } from "../../../host/src/routes/errors.ts";
 import { stepProblems } from "./sheet.ts";
+import { checkFileStep, isFileStep, runFileStep } from "./steps.ts";
 
 export type KitChannel = "stable" | "beta";
 export type ContentType = "ui" | "structure" | "steps" | "tools";
@@ -230,6 +231,7 @@ export function checkKit(raw: unknown): { kit: KitManifest; problems: [] } | { k
     if (v === undefined) return undefined;
     if (!isObj(v) || typeof v.cap !== "string" || !CAP.test(v.cap) || (v.input !== undefined && !isObj(v.input))) { bad(path, "a step is { cap, input } with a capability name"); return undefined; }
     if (forbiddenCap(v.cap)) { bad(path, `${v.cap} cannot be used by a Kit`); return undefined; }
+    if (isFileStep(v)) { const file = checkFileStep(v.input ?? {}); if (file.problem !== null) { bad(path, file.problem); return undefined; } }
     return { cap: v.cap, input: (v.input ?? {}) as Record<string, unknown> };
   };
   const strings = (v: unknown, path: string, ok: (s: string) => boolean, what: string): string[] | undefined => {
@@ -570,6 +572,7 @@ async function preview(ctx: Ctx, input: unknown): Promise<{ changes: { kind: str
 }
 
 async function runStep(ctx: Ctx, step: KitStep): Promise<void> {
+  if (isFileStep(step)) { await runFileStep(ctx, step.input); return; }   // a file step is the Kit's own (handlers/steps.ts), not a capability
   await ctx.call(step.cap as never, step.input);
 }
 
