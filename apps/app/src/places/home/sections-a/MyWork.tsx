@@ -65,6 +65,14 @@ function Circle({ task, onDone }: { task: Task; onDone: () => void }): ReactElem
   );
 }
 
+function LayoutButton({ kind, on, onPress }: { kind: "list" | "board"; on: boolean; onPress: () => void }): ReactElement {
+  return (
+    <Pressable role="radio" aria-checked={on} aria-label={kind === "list" ? "List" : "Board"} testID={`work-view-${kind}`} onPress={onPress} style={[local.segBtn, on && local.segOn]}>
+      <Glyph name={kind} size={14} color={on ? "var(--ink)" : "var(--ink-3)"} />
+    </Pressable>
+  );
+}
+
 function NewTask({ onCreate, onCancel }: { onCreate: (title: string) => void; onCancel: () => void }): ReactElement {
   const [title, setTitle] = useState("");
   return (
@@ -151,17 +159,21 @@ export function MyWork(): ReactElement {
         <Text style={[local.groupText, g.name === "Overdue" && { color: "var(--danger)" as string }]}>{g.name}<Text style={local.groupCount}>{`  ${g.total}`}</Text></Text>
       </View>
     );
-    const rows = g.rows.map((t) => row(t, `work:${t.id}`, false));
+    const rows: ReactElement[] = [];
+    for (const t of g.rows) rows.push(row(t, `work:${t.id}`, false));
     body.push(head, ...rows);
     columns.push([head, ...rows]);
   }
   if (givenTasks.length) {
     const head = <View key="g-given" style={local.group} testID="group-given"><Text style={local.groupText}>Assigned by you<Text style={local.groupCount}>{`  ${givenTasks.length}`}</Text></Text></View>;
-    const rows = givenTasks.map((t) => row(t, `given:${t.id}`, true));
+    const rows: ReactElement[] = [];
+    for (const t of givenTasks) rows.push(row(t, `given:${t.id}`, true));
     body.push(head, ...rows);
     columns.push([head, ...rows]);
   }
 
+  const boardColumns: ReactElement[] = [];
+  for (let i = 0; i < columns.length; i++) boardColumns.push(<View key={`col-${i}`} style={local.boardCol}>{columns[i]}</View>);
   const loading = open.status === "loading";
   const total = open.status === "ready" ? open.data.counts.open : 0;
   const dueN = dueCount(tasks, clock);
@@ -171,14 +183,8 @@ export function MyWork(): ReactElement {
         {total > MY_WORK_LIMIT ? <LinkButton label={`All ${total} in My work`} onPress={() => data.nav.openMyWork()} testID="work-all" /> : null}
         <LinkButton label="+ New task" onPress={() => setAdding(true)} testID="work-new" />
         <View style={local.seg} accessibilityRole="radiogroup" accessibilityLabel="My work layout">
-          {(["list", "board"] as const).map((v) => (
-            <Pressable
-              key={v} accessibilityRole="radio" accessibilityState={{ checked: view === v }} accessibilityLabel={v === "list" ? "List" : "Board"} testID={`work-view-${v}`}
-              onPress={() => setView(v)} style={[local.segBtn, view === v && local.segOn]}
-            >
-              <Glyph name={v} size={14} color={view === v ? "var(--ink)" : "var(--ink-3)"} />
-            </Pressable>
-          ))}
+          <LayoutButton kind="list" on={view === "list"} onPress={() => setView("list")} />
+          <LayoutButton kind="board" on={view === "board"} onPress={() => setView("board")} />
         </View>
       </SectionHeader>
       {adding ? (
@@ -187,7 +193,7 @@ export function MyWork(): ReactElement {
           onCreate={(title) => { setAdding(false); void actions.createTask(title); }}
         />
       ) : null}
-      {loading ? <Skeleton rows={4} id="work" /> : body.length ? view === "board" ? <View style={local.board} testID="work-board">{columns.map((c, i) => <View key={`col-${i}`} style={local.boardCol}>{c}</View>)}</View> : <View accessibilityRole="list">{body}</View> : adding ? null : <EmptyLine id="work" text="No tasks yet" />}
+      {loading ? <Skeleton rows={4} id="work" /> : body.length ? view === "board" ? <View style={local.board} testID="work-board">{boardColumns}</View> : <View accessibilityRole="list">{body}</View> : adding ? null : <EmptyLine id="work" text="No tasks yet" />}
       {menu.element}
     </Section>
   );

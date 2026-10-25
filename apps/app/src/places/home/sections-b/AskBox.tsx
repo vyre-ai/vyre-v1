@@ -72,3 +72,6 @@ const local = StyleSheet.create({
   lockOver: { backgroundColor: "var(--hover)" as string },
   lockText: { fontSize: 13.5, color: "var(--ink-3)" as string },
 });
+
+/** The dock the page keeps at its foot (sticky on web); exported for the test. */
+export const ASK_DOCK = local.dock;

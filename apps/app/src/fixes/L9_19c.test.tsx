@@ -5,6 +5,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import { SamplePlace } from "../shell/spaces/sample.tsx";
 import { homePlace, homeVariantOf } from "../shell/spaces/sample-home.tsx";
+import { StyleSheet } from "react-native";
+import { ASK_DOCK } from "../places/home/sections-b/AskBox.tsx";
 import { statusIcon } from "../places/home/sections-a/model.ts";
 import type { PlaceContext } from "../shell/spaces/Shell.tsx";
 import { kitById } from "../shell/rail/kits.ts";
@@ -63,5 +65,7 @@ test("My work carries the list/board toggle, the review mark and the project lab
 test("Quick start and the Ask composer are the last section, docked", () => {
   const out = html("nw");
   assert.ok(at(out, 'data-testid="s-ask"') > at(out, 'data-testid="s-work"'));
-  assert.ok(out.includes("position:sticky") && out.includes("bottom:0px") || out.includes("position:sticky;bottom:0"), "sticks to the foot of the place");
+  const dock = StyleSheet.flatten(ASK_DOCK) as Record<string, unknown>;
+  assert.equal(dock["position"], "sticky", "sticks to the foot of the place");
+  assert.equal(dock["bottom"], 0);
 });
