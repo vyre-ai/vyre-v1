@@ -10,7 +10,7 @@
     {
       "id": "P-L9b_03-chats-harbor",
       "route": "/m/P-L9b_03?space=harbor",
-      "proto": "chat,harbor,{skin}",
+      "proto": "chat,space:harbor,{skin}",
       "waitFor": "[data-testid='chats-sidebar']",
       "note": "The same sidebar over the Harbor Studio sample Space (your assistant, three chats, no Needs you and no Channels)."
     }
