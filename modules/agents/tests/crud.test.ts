@@ -16,6 +16,7 @@ const call = async (hn: Harness, cap: string, input: Record<string, unknown>, ct
   assert.deepEqual(contractErrors(cap, "out", out), [], `${cap}: output`);
   return out;
 };
+const makeRaw = (hn: Harness, over: Record<string, unknown> = {}): Promise<any> => h["agents.create"]!(hn.ctx, { name: "Intake", role: "Use me when a new client form arrives.", idempotencyKey: key(), ...over });
 const make = (hn: Harness, over: Record<string, unknown> = {}): Promise<any> => call(hn, "agents.create", { name: "Intake", role: "Use me when a new client form arrives.", idempotencyKey: key(), ...over });
 
 // ---- create -----------------------------------------------------------------------------------------------------------------------------------------
@@ -54,11 +55,11 @@ test("create makes the record, Agents/<name> with the decided tree, AGENT.md and
 test("create: a name is unique among agents (kept after a delete is freed), a person owns it, limits are numbers", async () => {
   const hn = harness();
   await make(hn);
-  assert.equal(await failure(() => make(hn, { name: "  intake " })), "validation.duplicate", "case and spaces do not make another agent");
-  for (const name of ["", "a/b", "Who: me", ".hidden", "x".repeat(61), 'q"uote']) assert.equal(await failure(() => make(hn, { name })), "validation.bad_input", JSON.stringify(name));
-  assert.equal(await failure(() => make(hn, { name: "Other", ownerId: "agt_nope" })), "validation.bad_input");
-  assert.equal(await failure(() => make(hn, { name: "Other", role: "two\nlines" })), "validation.bad_input");
-  assert.equal(await failure(() => make(hn, { name: "Other", limits: { dayCostMicros: -1 } })), "validation.bad_input");
+  assert.equal(await failure(() => makeRaw(hn, { name: "  intake " })), "validation.duplicate", "case and spaces do not make another agent");
+  for (const name of ["", "a/b", "Who: me", ".hidden", "x".repeat(61), 'q"uote']) assert.equal(await failure(() => makeRaw(hn, { name })), "validation.bad_input", JSON.stringify(name));
+  assert.equal(await failure(() => makeRaw(hn, { name: "Other", ownerId: "agt_nope" })), "validation.bad_input");
+  assert.equal(await failure(() => makeRaw(hn, { name: "Other", role: "two\nlines" })), "validation.bad_input");
+  assert.equal(await failure(() => makeRaw(hn, { name: "Other", limits: { dayCostMicros: -1 } })), "validation.bad_input");
   const owned = await make(hn, { name: "Maya's", ownerId: MAYA });
   assert.equal(owned.agent.ownerId, MAYA);
   assert.equal(hn.rows("SELECT id FROM agents_agent").length, 2, "refused creations left nothing behind");
@@ -74,7 +75,7 @@ test("an agent that creates one for a person creates it as theirs; the computer 
 
 test("create-agent ends in one Approve card: the skill names one plan, and the plan lists what agents.create will make", async () => {
   // The skill is the file every agent carries (builtin_skills); it asks questions, proposes exactly one plan, and creates only after approval.
-  assert.equal((CREATE_AGENT_SKILL.match(/plan_propose/g) ?? []).length, 2, "the skill mentions the plan once to propose it and once in the step that waits for it");
+  assert.equal((CREATE_AGENT_SKILL.match(/plan_propose/g) ?? []).length, 1, "the skill proposes a plan in one place only");
   assert.match(CREATE_AGENT_SKILL, /Do not create anything yet/);
   assert.match(CREATE_AGENT_SKILL, /exactly one plan/);
   assert.match(CREATE_AGENT_SKILL, /After approval call agents\.create once/);

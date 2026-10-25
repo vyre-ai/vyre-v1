@@ -25,7 +25,8 @@ interface Scenario { cap: string; setup?: (hn: Harness) => Promise<any> | any; r
 
 let n = 0;
 const k = (): string => `k${++n}`;
-const mk = async (hn: Harness, over: Record<string, unknown> = {}) => (await h["agents.create"]!(hn.ctx, { name: "Intake", role: "Use me when a form arrives.", idempotencyKey: k(), ...over })).agent;
+const mkRaw = (hn: Harness, over: Record<string, unknown> = {}) => h["agents.create"]!(hn.ctx, { name: "Intake", role: "Use me when a form arrives.", idempotencyKey: k(), ...over });
+const mk = async (hn: Harness, over: Record<string, unknown> = {}) => (await mkRaw(hn, over)).agent;
 const withAgent = async (hn: Harness) => { const a = await mk(hn); return { id: a.agentId as string, a }; };
 const withFiles = async (hn: Harness) => {
   const { id } = await withAgent(hn);
@@ -35,9 +36,9 @@ const withFiles = async (hn: Harness) => {
 const DIFF = "@@ -9,1 +9,2 @@\n - Say what I did, in a sentence a busy person reads in five seconds.\n+- Check the name first.\n";
 
 const scenarios: Scenario[] = [
-  { cap: "agents.create", run: (hn) => mk(hn, { model: "claude-sonnet-5-5", computer: true, limits: { dayCostMicros: 1_000_000 }, tools: { allowed: ["files"], denied: [] } }) },
-  { cap: "agents.create", setup: withAgent, run: (hn) => mk(hn), expect: "validation.duplicate" },
-  { cap: "agents.create", run: (hn) => mk(hn, { name: "a/b" }), expect: "validation.bad_input" },
+  { cap: "agents.create", run: (hn) => mkRaw(hn, { model: "claude-sonnet-5-5", computer: true, limits: { dayCostMicros: 1_000_000 }, tools: { allowed: ["files"], denied: [] } }) },
+  { cap: "agents.create", setup: withAgent, run: (hn) => mkRaw(hn), expect: "validation.duplicate" },
+  { cap: "agents.create", run: (hn) => mkRaw(hn, { name: "a/b" }), expect: "validation.bad_input" },
   { cap: "agents.list", setup: withAgent, run: (hn) => h["agents.list"]!(hn.ctx, { section: "personal", status: ["awake"], limit: 10 }) },
   { cap: "agents.get", setup: withAgent, run: (hn, s) => h["agents.get"]!(hn.ctx, { agentId: s.id }) },
   { cap: "agents.get", run: (hn) => h["agents.get"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
