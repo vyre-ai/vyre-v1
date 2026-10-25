@@ -1,0 +1,25 @@
+{
+  "targets": [
+    {
+      "id": "P-UI_05-chats-faces",
+      "route": "/m/P-L9b_03",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='chats-sidebar']",
+      "note": "The real Chats sidebar over the Northwind Space with the shared Avatar: pixel faces for the starred agents, the Vyre mark for the assistant, marbles for people. The prototype side is its Chats place in the same skin. The prototype draws agent faces with DiceBear Notionists; the real side draws pixel faces in their place (the library is not in the allowlist)."
+    },
+    {
+      "id": "P-UI_05-chats-faces-harbor",
+      "route": "/m/P-L9b_03?space=harbor",
+      "proto": "chat,space:harbor,{skin}",
+      "waitFor": "[data-testid='chats-sidebar']",
+      "note": "The same sidebar over Harbor Studio with the shared Avatar. Same Notionists note."
+    },
+    {
+      "id": "P-UI_05-vault-icons",
+      "route": "/m/P-L9f_04",
+      "proto": "vault,{skin}",
+      "waitFor": "[data-testid='env-card']",
+      "note": "The real Vault list over Northwind with brand tiles from the shared AppIcon (Claude, OpenAI, Stripe, GitHub ...), next to the prototype's Vault in the same skin."
+    }
+  ]
+}

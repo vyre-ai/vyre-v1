@@ -22,7 +22,7 @@ const hoursCfg = t.obj({
   outsideHours: t.enm('voicemail', 'ring', 'reject'),
 });
 const numberRow = t.obj({
-  id: id.number, e164: phone, title: t.str(), capabilities: t.arr(t.enm('voice', 'sms', 'mms')), assigneeKind, assigneeId: t.opt(t.str()), route: routeCfg, hours: hoursCfg,
+  id: id.number, e164: phone, title: t.str(), displayName: t.opt(t.str({ description: 'The name lists and the Inbox sidebar show: the title when one is set, otherwise the number formatted for reading', examples: ['Intake line'] })), capabilities: t.arr(t.enm('voice', 'sms', 'mms')), assigneeKind, assigneeId: t.opt(t.str()), route: routeCfg, hours: hoursCfg,
   recording: recordingPolicy, a2p: t.enm('none', 'pending', 'approved', 'rejected'), state: t.enm('pending', 'active', 'released'),
 });
 const callState = t.enm('ringing', 'answered', 'voicemail', 'completed', 'missed', 'failed');

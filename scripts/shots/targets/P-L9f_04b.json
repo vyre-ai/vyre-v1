@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-L9f_04b-vault-add-search",
+      "route": "/m/P-L9f_04b?sheet=add",
+      "proto": "vault,at:add,{skin}",
+      "waitFor": "[data-testid='add-search']",
+      "note": "The Add sheet just opened, the search box focused (it takes focus on open): a 1.5 px accent ring on the whole box and no browser outline, as in the prototype's search box."
+    }
+  ]
+}

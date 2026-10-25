@@ -1,0 +1,32 @@
+{
+  "targets": [
+    {
+      "id": "P-L9c_02-contacttab-thread",
+      "route": "/m/P-L9c_02",
+      "proto": "inbox,at:contact:elena,{skin}",
+      "waitFor": "[data-testid='email:m_lease']",
+      "note": "A contact's tab in the Northwind sample Space: Elena Rivera's whole history in reading order with day separators, the lease email with its quoted text folded, attachments and record chip, text bubbles, a call with its player and summary, a campaign step as a quiet line, the agent's draft with its Gate line, and the composer on Email with the inbox picker. The prototype side is its Inbox with Elena's contact tab open."
+    },
+    {
+      "id": "P-L9c_02-contacttab-texts",
+      "route": "/m/P-L9c_02?c=marcus",
+      "proto": "inbox,at:contact:marcus,{skin}",
+      "waitFor": "[data-testid='bubble:mt2']",
+      "note": "A text conversation (Marcus Pruitt): bubbles from both sides with the number under them and the composer on Text, sending from the number the thread came in on."
+    },
+    {
+      "id": "P-L9c_02-contacttab-call",
+      "route": "/m/P-L9c_02?c=marcus&open=transcript",
+      "proto": "inbox,at:contacttx:marcus,{skin}",
+      "waitFor": "[data-testid='transcript:mc1']",
+      "note": "Marcus Pruitt's check-in meeting with its recording player, summary and the transcript opened (the prototype side opens the same transcript with the contacttx token), then his texts and the agent's text draft."
+    },
+    {
+      "id": "P-L9c_02-contacttab-harbor",
+      "route": "/m/P-L9c_02?space=harbor&c=clara",
+      "proto": "inbox,space:harbor,at:contact:clara,{skin}",
+      "waitFor": "[data-testid='email:cv1']",
+      "note": "The Harbor Studio space: Clara Voss's one email and the composer with a single mailbox and no Text."
+    }
+  ]
+}

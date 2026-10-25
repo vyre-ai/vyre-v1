@@ -33,4 +33,5 @@ export const handlers: Handlers<HandlerCtx> = {
   "records.values.pending": async (ctx) => { throw new VyreErr(notImplemented("records.values.pending", ctx.trace)); },
   "records.values.review": async (ctx) => { throw new VyreErr(notImplemented("records.values.review", ctx.trace)); },
   "records.versions": async (ctx) => { throw new VyreErr(notImplemented("records.versions", ctx.trace)); },
+  "records.view": async (ctx) => { throw new VyreErr(notImplemented("records.view", ctx.trace)); },
 };
