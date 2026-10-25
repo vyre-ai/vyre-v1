@@ -12,8 +12,9 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { useLive, useOnline, useOptionalRecordsData, useRecordsData, useScreenQuery } from "../sidebar/data.tsx";
 import { SCREENS, effectiveType, typeGroups } from "../sidebar/model.ts";
 import type { ViewRow as SavedView } from "../sidebar/model.ts";
-import { Face, Glyph, HeadButton, pointOf, typeIcon } from "../sidebar/parts.tsx";
+import { Glyph, HeadButton, pointOf, typeIcon } from "../sidebar/parts.tsx";
 import { useRecordsState } from "../sidebar/state.tsx";
+import { FaceImage } from "./FaceImage.tsx";
 import { Scroller } from "./Scroller.tsx";
 import {
   FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, SCROLL_BLOCK, chosen, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, fromSaved, groupItems, groupable, hasOptions,
@@ -43,7 +44,7 @@ function Cell({ field, row, names }: { field: FieldDef; row: RecordRow; names: (
   if (v === undefined || v === null || v === "") return null;
   if ((field.type === "choice" || field.type === "status") && typeof v === "string") return <Tag field={field} value={v} />;
   if (field.type === "checkbox") return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;
-  if (field.type === "person") return <View style={styles.person}><Face name={names(String(v))} size={18} /><Text numberOfLines={1} style={styles.cellText}>{names(String(v))}</Text></View>;
+  if (field.type === "person") return <View style={styles.person}><FaceImage name={names(String(v))} size={18} /><Text numberOfLines={1} style={styles.cellText}>{names(String(v))}</Text></View>;
   if (field.type === "rating" && typeof v === "number") return <Text style={styles.stars} accessibilityLabel={`${v} of 5`}>{"★".repeat(Math.max(0, Math.min(5, v)))}</Text>;
   return <Text numberOfLines={1} style={[styles.cellText, isNumeric(field) && styles.num, field.type === "sealed" && styles.sealed]}>{cellText(field, v, names)}</Text>;
 }
