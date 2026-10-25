@@ -4,7 +4,7 @@ Review of the merged capability registry at the F11 freeze. `packages/contracts/
 
 ## Frozen values
 
-Registry hash: 62fb88de8093aed90ecbf457846fc51caad5961eaf5bd69a751d0ec3cb1f17b6
+Registry hash: a28873c20d61309b57ef0c98295b084dfe9ebdec780f0e555f357590df569abe
 Capabilities: 1499
 Events: 602
 Registry modules: 80
@@ -34,7 +34,8 @@ Selection rule: capabilities of the lane (owner of the module) sorted by name, n
 | L6 | 163 | 17 |
 | L7a | 218 | 22 |
 | L7b | 79 | 8 |
-| L8 | 135 | 14 |
+| L8 | 120 | 12 |
+| L10 | 15 | 2 |
 
 L1: conflicts.assist, conflicts.resolve, search.recent.list, sync.endpoints
 
@@ -52,7 +53,9 @@ L7a: access.actors.create, access.groups.add_member, access.labels.set, access.r
 
 L7b: backup.config_get, backup.verify, console.nav, health.history, health.time_skew, logs.trace, network.server_remove, reports.send_to_vyre
 
-L8: bookings.availability, campaigns.launch, campaigns.stop, docusign.cancel, email_builder.ask_diff, email_builder.saved_blocks.save, esign.hook, forms.fields_set, forms.unpublish, kits.list, portal.accounts, sites.deployments, sites.preview_remove, source_rules.list
+L8: bookings.availability, campaigns.link_build, campaigns.unsubscribe, docusign.fetch_signed, email_builder.get, email_builder.snippets.delete, esign.providers, forms.link_revoke, portal.account_disable, sites.deploy, sites.preview_remove, source_rules.list
+
+L10: kits.builder_open, kits.list
 
 ## Findings from reading the sample
 
