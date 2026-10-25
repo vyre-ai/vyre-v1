@@ -89,13 +89,13 @@ export function runNow(d: PaneDeps, r: Routine): Promise<boolean> {
 
 /**
  * Give a routine to another person: it then runs with the agent's access intersected with theirs (spec 7, rule 5). Undo gives it back to the person it came from.
- * Needs `agents.routine.delegate` (agentId, routineId, ownerId), which the manifest does not have yet: asked of the contract steward on P-L9b_09.
+ * `agents.routine.delegate` takes the new owner as `to` and `undo: true` to give it back (P-CC_20); the server remembers who had it.
  */
 export function delegateRoutine(d: PaneDeps, r: Routine, ownerId: string, name: string): Promise<boolean> {
   if (ownerId === r.ownerId) return Promise.resolve(false);
   return attempt(d, "hand it over", async () => {
-    await d.call("agents.routine.delegate", { agentId: r.agentId, routineId: r.routineId, ownerId });
-    d.note(`${r.title} now belongs to ${name}`, () => attempt(d, "undo that", async () => { await d.call("agents.routine.delegate", { agentId: r.agentId, routineId: r.routineId, ownerId: r.ownerId }); }).then(() => undefined));
+    await d.call("agents.routine.delegate", { agentId: r.agentId, routineId: r.routineId, to: { kind: "person", id: ownerId } });
+    d.note(`${r.title} now belongs to ${name}`, () => attempt(d, "undo that", async () => { await d.call("agents.routine.delegate", { agentId: r.agentId, routineId: r.routineId, undo: true }); }).then(() => undefined));
   });
 }
 

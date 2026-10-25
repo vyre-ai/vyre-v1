@@ -201,6 +201,7 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     return strip(next, ["fromMe"]);
   };
   let seq = 0;
+  const delegatedFrom = new Map<string, string>();
   const writes: Record<string, (input: any) => unknown> = {
     "computers.wake": () => ({ computer: patchComputer({ state: "working", caption: "Waking up" }) }),
     "computers.sleep": () => ({ computer: patchComputer({ state: "asleep" }) }),
@@ -228,13 +229,17 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     "agents.routine.run_now": (i: { routineId: string }) => {
       const cur = rowsOf<Routine & Row>("routines").find((x) => x.routineId === i.routineId);
       if (!cur) throw new Error("no such routine");
-      replica.put("routines", [{ ...cur, lastRunAt: SAMPLE_NOW }]);
-      return { runId: `run_${++seq}` };
+      const next = { ...cur, lastRunAt: SAMPLE_NOW } as Routine & Row;
+      replica.put("routines", [next]);
+      return { routine: strip(next, []) };
     },
-    "agents.routine.delegate": (i: { routineId: string; ownerId: string }) => {
+    "agents.routine.delegate": (i: { routineId: string; to?: { kind: string; id: string }; undo?: boolean }) => {
       const cur = rowsOf<Routine & Row>("routines").find((x) => x.routineId === i.routineId);
       if (!cur) throw new Error("no such routine");
-      const next = { ...cur, ownerId: i.ownerId } as Routine & Row;
+      // the server keeps who had it before, so `undo: true` gives it back
+      const owner = i.undo === true ? (delegatedFrom.get(i.routineId) ?? cur.ownerId) : i.to?.id ?? cur.ownerId;
+      if (i.undo !== true) delegatedFrom.set(i.routineId, cur.ownerId);
+      const next = { ...cur, ownerId: owner } as Routine & Row;
       replica.put("routines", [next]);
       return { routine: strip(next, []) };
     },
