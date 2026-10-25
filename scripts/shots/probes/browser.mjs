@@ -25,11 +25,11 @@ export function budgetTable(json) {
   return out;
 }
 
-/** The ceiling (or floor for prefetch) a kind is judged against: the p95 row of perf/budgets.json. */
+/** Ruling 43: the median is judged against the p50 row of perf/budgets.json (limit), the worst timed run against the p95 row (worstLimit). A row without p50 falls back to its p95. */
 export function budgetFor(kind, table) {
   const row = table[kind];
   if (!row || typeof row.p95 !== "number") throw new Error(`perf/budgets.json has no p95 row for ${kind}`);
-  return { limit: row.p95, sense: MIN_SENSE.has(kind) ? "min" : "max", unit: row.unit };
+  return { limit: typeof row.p50 === "number" ? row.p50 : row.p95, worstLimit: row.p95, sense: MIN_SENSE.has(kind) ? "min" : "max", unit: row.unit };
 }
 
 /** The probes a target declares, resolved against the budgets. A declared budget may tighten but never loosen (no splitting or loosening, ruling 43). */
@@ -49,20 +49,21 @@ export function parseProbes(target, table) {
       if (typeof p.budget !== "number" || loose) throw new Error(`${target.id}: ${kind}.budget ${p.budget} loosens the unchanged budget ${b.limit}`);
       limit = p.budget;
     }
-    return { kind, runs, limit, sense: b.sense, unit: b.unit };
+    return { kind, runs, limit, worstLimit: b.worstLimit, sense: b.sense, unit: b.unit };
   });
 }
 
 const r1 = (n) => Math.round(n * 100) / 100;
 
 /** From every run's value (first is the warm-up): the timed samples, median, worst, and pass. A missing value is a breach. */
-export function summarize(values, { limit, sense }) {
+export function summarize(values, { limit, worstLimit, sense }) {
   const timed = values.slice(1);
   const failed = timed.some((v) => typeof v !== "number" || !Number.isFinite(v));
   const ok = timed.filter((v) => typeof v === "number" && Number.isFinite(v));
   const med = failed || !ok.length ? NaN : r1(median(ok));
   const worst = ok.length ? r1(sense === "min" ? Math.min(...ok) : Math.max(...ok)) : NaN;
-  const pass = !failed && (sense === "min" ? med >= limit : med <= limit);
+  const within = (v, lim) => (sense === "min" ? v >= lim : v <= lim);
+  const pass = !failed && within(med, limit) && (worstLimit === undefined || within(worst, worstLimit));
   const w = values[0];
   return { warmup: typeof w === "number" ? r1(w) : null, samples: ok.map(r1), median: med, worst, failed, ok: pass };
 }
@@ -74,7 +75,7 @@ export async function runTarget(target, table, { measure }) {
   const runs = Math.max(...probes.map((p) => p.runs));
   const mounts = [];
   for (let i = 0; i < runs; i++) mounts.push(await measure(target, i));
-  return probes.map((p) => ({ target: target.id, kind: p.kind, limit: p.limit, sense: p.sense, unit: p.unit, runs: p.runs, ...summarize(mounts.slice(0, p.runs).map((m) => m?.[p.kind]), p) }));
+  return probes.map((p) => ({ target: target.id, kind: p.kind, limit: p.limit, worstLimit: p.worstLimit, sense: p.sense, unit: p.unit, runs: p.runs, ...summarize(mounts.slice(0, p.runs).map((m) => m?.[p.kind]), p) }));
 }
 
 export function metricLine(r) {
@@ -84,7 +85,7 @@ export function metricLine(r) {
 
 export function verdictLine(r) {
   const cmp = r.sense === "min" ? "floor" : "budget";
-  return `${r.kind} ${r.ok ? "ok" : "OVER BUDGET"} ${r.target}: median ${r.median}${r.unit === "percent" ? "%" : r.unit === "cls" ? "" : "ms"} of ${r.samples.length} (${cmp} ${r.limit}), worst ${r.worst}, warm-up ${r.warmup} discarded`;
+  return `${r.kind} ${r.ok ? "ok" : "OVER BUDGET"} ${r.target}: median ${r.median}${r.unit === "percent" ? "%" : r.unit === "cls" ? "" : "ms"} of ${r.samples.length} (${cmp} p50 ${r.limit}), worst ${r.worst} (p95 ${r.worstLimit ?? r.limit}), warm-up ${r.warmup} discarded`;
 }
 
 /** One fresh mount in a new context; waits for the target's selector and for window.__probes.ready, then returns the object. */
