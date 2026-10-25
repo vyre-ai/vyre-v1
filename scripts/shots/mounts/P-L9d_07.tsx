@@ -13,10 +13,13 @@ export default function Mount(): ReactNode {
   const sample = useMemo(() => createSampleSchema(q.get("space") === "harbor" ? harbor : northwind, { withSynced: q.get("part") === "types" }), [q]);
   const select = q.get("select");
   const expand = q.get("expand");
+  // the static export renders the page without its query; once the page is live the map is drawn again with the selection, because a hydrated page keeps the markup it came with
+  const [live, setLive] = useState(false);
+  useEffect(() => setLive(true), []);
   return (
     <SchemaDataProvider value={sample.data}>
       <View style={{ flex: 1, minHeight: 0 }}>
-        {q.get("part") === "types" ? <RecordTypesList /> : <SchemaMap details={sample.details} selected={select} expanded={expand ? [expand] : []} />}
+        {q.get("part") === "types" ? <RecordTypesList /> : <SchemaMap key={live ? "live" : "static"} details={sample.details} selected={select} expanded={expand ? [expand] : []} />}
       </View>
     </SchemaDataProvider>
   );
