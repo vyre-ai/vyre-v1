@@ -20,9 +20,9 @@ export function inboxData(rt: ShellRuntime, openConversation: (id: string) => vo
     openThread: (threadId) => rt.open({ screen: "chats.conversation", args: { threadId } }),
     openCall: (callId) => rt.open({ subject: { type: "call", id: callId } }),
     openCalendar: () => undefined,
-    openDialer: () => rt.open({ screen: "inbox.dialer" }),
-    openMatch: (conversationId) => rt.open({ screen: "inbox.match", args: { conversationId } }),
-    compose: () => rt.open({ screen: "inbox.compose" }),
+    openDialer: () => rt.open({ screen: "telephony.softphone" }),
+    openMatch: (conversationId) => rt.open({ screen: "inbox.unmatched", args: { conversationId } }),
+    compose: () => rt.open({ screen: "mail.message-detail" }),
     connect: (kind) => rt.open({ screen: "mail.connections", args: { kind } }),
     openInboxSettings: (inboxId) => rt.open({ screen: "settings.page", args: { page: "inboxes", inboxId } }),
   };

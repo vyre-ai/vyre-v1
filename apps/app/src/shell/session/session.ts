@@ -21,6 +21,8 @@ export interface OpenSessionOptions {
   token: string;
   /** Where a click goes: the shell maps a screen or subject to a place and shows it. */
   navigate?(place: PlaceId, hash: string): void;
+  /** A click that opens something of the shell itself (the search, a new tab, the Space switcher): screens whose place is `shell`. */
+  shell?(screen: string, args: Record<string, unknown>): void;
   /** The session ended on the server (401): the shell goes back to sign-in. */
   onSignedOut?(): void;
   fetch?: typeof fetch;
@@ -176,7 +178,9 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   };
 
   const open = (t: ShellTarget): void => {
-    const place = t.screen ? railPlace(screens.get(t.screen)?.place ?? "") : null;
+    const where = t.screen ? (screens.get(t.screen)?.place ?? "") : "";
+    if (where === "shell") { if (t.screen) o.shell?.(t.screen, t.args ?? {}); return; }
+    const place = railPlace(where);
     if (place && o.navigate) o.navigate(place, targetHash(t));
   };
 

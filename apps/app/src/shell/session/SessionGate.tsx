@@ -75,7 +75,14 @@ function ShellHost({ stored, open, onSignedOut, onHub }: { stored: StoredSession
     let off = false;
     let opened: RealSession | null = null;
     setFailed(null);
-    open({ baseUrl: stored.baseUrl, token: stored.token, navigate: (p, hash) => navRef.current?.go(p, hash), onSignedOut })
+    open({ baseUrl: stored.baseUrl, token: stored.token, navigate: (p, hash) => navRef.current?.go(p, hash),
+      shell: (screen) => {
+        const h = navRef.current;
+        if (!h) return;
+        if (screen === "shell.cmdk" || screen === "shell.new-tab") h.newTab();
+        else h.flash("Switch Spaces from the tile at the top of the rail");
+      },
+      onSignedOut })
       .then((s) => {
         if (off) { s.close(); return; }
         opened = s;

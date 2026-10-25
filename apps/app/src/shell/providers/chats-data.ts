@@ -51,9 +51,9 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
     openChannel: a.openThread,
     openNeedsYou: (taskId) => rt.open({ screen: "tasks.needs-you", ...(taskId ? { args: { taskId } } : {}) }),
     openAllAgents: () => rt.open({ screen: "chats.all-agents" }),
-    openSearch: () => rt.open({ screen: "search.page" }),
+    openSearch: () => rt.open({ screen: "shell.cmdk" }),
     openSpaceSwitcher: () => rt.open({ screen: "spaces.switcher" }),
-    openNewChannel: () => rt.open({ screen: "chats.channel-new" }),
+    openNewChannel: () => rt.open({ screen: "chats.sidebar" }),
   };
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection,
@@ -88,14 +88,14 @@ export function paneData(rt: ShellRuntime, a: ChatsActions, threadId: string, ag
   const nav: RightPaneNav = {
     openThread: (id) => a.openThread(id),
     openHelper: (id) => a.openThread(id),
-    openComputer: (computerId) => rt.open({ screen: "chats.computer", args: { computerId } }),
-    openTerminal: (computerId) => rt.open({ screen: "chats.terminal", args: { computerId } }),
+    openComputer: (computerId) => rt.open({ screen: "chats.agent-computer", args: { computerId } }),
+    openTerminal: (computerId) => rt.open({ screen: "chats.terminal-tab", args: { computerId } }),
     openFile: (fileId) => rt.open({ subject: { type: "file", id: fileId } }),
     fillComposer: a.fillComposer,
     openSource: (kind, ref) => rt.open({ subject: { type: kind, id: ref } }),
     openAgentPage: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
     openRoutineFile: (agentId, title) => rt.open({ screen: "chats.agent-page", args: { agentId, routine: title } }),
-    skillFromStep: (computerId, stepId) => rt.open({ screen: "chats.computer", args: { computerId, stepId } }),
+    skillFromStep: (computerId, stepId) => rt.open({ screen: "chats.agent-computer", args: { computerId, stepId } }),
   };
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, threadId,
