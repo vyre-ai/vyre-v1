@@ -512,8 +512,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       ownerOfSpace = () => cfg.owner ?? access.owner() ?? null;
       personOf = async (h) => (await session(h))?.principal.id ?? null;
       gateway = createGateway({ invoke, caps: indexCapabilities(caps), routes: [...routes, ...(o.extra?.routes ?? [])], session,
-        // callers before sign-in (sign_in, join, username_available) and invited-not-yet-members: a service principal that is no one, so a handler that needs a person (me()) refuses and the rest rate-limits on it
-        preAuth: (caller) => ({ space: spaceId, principal: { kind: "service", id: caller } }) });
+        // callers before sign-in (the anonymous and pending capabilities): a no-one service principal named by source address, so a handler that needs a person (me()) refuses and rate limits are per address
+        preAuth: (caller, headers) => preAuthSession(spaceId, caller, headers) });
       // GET /spaces/<space>/blobs/<id> (ruling 50): a blob is served to a caller who may read the resource its module stored it for
       blobRoute = createBlobRoute({
         space: spaceId, store: blobs,
