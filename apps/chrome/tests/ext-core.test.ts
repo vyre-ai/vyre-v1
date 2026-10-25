@@ -154,10 +154,12 @@ test("the bridge rejects what it may not send, and passes pushes to handlers", a
   assert.equal(p.sent.length, 0);
   const got: unknown[] = [];
   b.onPush((m) => got.push(m));
-  void b.op("hello");
+  const hello = b.op("hello");
   p.reply({ type: "fill", ref: "w1-x", value: "v" });
   p.reply({ type: "bogus" });
   assert.deepEqual(got, [{ type: "fill", ref: "w1-x", value: "v" }]);
+  p.reply({ id: "r1", ok: true, output: {} });
+  await hello;
 });
 
 test("a missing host and a closed app are told apart, and pending calls fail at once", async () => {
