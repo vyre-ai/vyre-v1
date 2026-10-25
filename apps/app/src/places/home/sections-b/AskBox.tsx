@@ -1,5 +1,4 @@
-// Home > Quick start and the Ask box (spec 3.1): three quick-start buttons and one box that starts a chat with your assistant. It sits at the foot of the page and stays
-// in view while the sections scroll. Without an AI account the box is locked and says how to unlock it. ui/Composer is the box, so @ # / and Enter work as they do in Chats.
+// Home > Quick start and the Ask box (spec 3.1): three quick-start buttons and one box that starts a chat with your assistant. It sits at the foot of the page. Without an AI account the box is locked and says how to unlock it. ui/Composer is the box, so @ # / and Enter work as they do in Chats.
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Composer } from "../../../../../../ui/src/Composer/index.tsx";
@@ -61,7 +60,7 @@ export function AskBox(): ReactElement {
 }
 
 const local = StyleSheet.create({
-  dock: { position: "sticky" as "relative", bottom: 0, marginTop: 26, paddingTop: 6, paddingBottom: 6, backgroundColor: "var(--win)" as string },
+  dock: { marginTop: 26, paddingTop: 6, paddingBottom: 6 },
   quick: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4, marginBottom: 8 },
   quickTitle: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string, marginRight: 8 },
   askRow: { flexDirection: "row", alignItems: "flex-start", gap: 4 },
