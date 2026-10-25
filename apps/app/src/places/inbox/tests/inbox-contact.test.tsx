@@ -6,8 +6,9 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import { ContactTab, TabLoading, followMenuEntries, fromMenuEntries } from "../contacttab/index.ts";
+import { quickEntries, templateEntries } from "../contacttab/menus.ts";
 import {
-  buildFeed, canSend, choicesFor, dayLabel, deliveryNote, draftCards, emailTarget, fill, gateLine, initialDraft, pickInbox, replySubject, sendBlocker, sentNote, startChannel, textTarget,
+  buildFeed, headerOf, canSend, choicesFor, dayLabel, deliveryNote, draftCards, emailTarget, fill, gateLine, initialDraft, pickInbox, replySubject, sendBlocker, sentNote, startChannel, textTarget,
 } from "../contacttab/model.ts";
 import type { ComposerDraft, InboxChoice, SendOptions, ThreadItem, ThreadOut } from "../contacttab/model.ts";
 import { discardDraft, markRead, sendAgentDraft, sendEmail, sendText, setFollow } from "../contacttab/actions.ts";
@@ -138,11 +139,12 @@ test("screen: the composer opens on the channel of the last message and the inbo
   assert.ok(has(emailTab, 'aria-selected="true"'), "the selected channel tab exposes aria-selected");
   const smsTab = e.slice(e.lastIndexOf("<", e.indexOf('data-testid="chan-sms"')), e.indexOf(">", e.indexOf('data-testid="chan-sms"')));
   assert.ok(has(smsTab, 'aria-selected="false"'), "the other tab says it is not selected");
-  assert.ok(has(e, "Re: Lease documents for Thursday") && has(e, "Sends from Work Gmail to elena@example.test"));
+  assert.ok(has(e, "Re: Lease documents for Thursday") && !has(e, "Sends from"), "no explaining line under the composer");
+  assert.ok(has(e, "Elena Rivera") && has(e, "elena@example.test") === false, "To is the contact name chip, not the raw address");
   const fromE = at(e, 'data-testid="from-name"');
   assert.ok(e.slice(fromE, fromE + 80).includes("Work Gmail"), "From names the inbox it came in on");
   const m = tab("marcus").out;
-  assert.ok(has(m, "Sends from +1 415 555 0177 to +1 415 555 0188") && !has(m, 'data-testid="composer-recipients"'), "a text has no recipients block and goes from the number it came in on");
+  assert.ok(!has(m, "Sends from") && !has(m, 'data-testid="composer-recipients"'), "a text has no recipients block and no explaining line");
   assert.ok(has(m, 'aria-label="Text from"'));
 });
 
@@ -153,9 +155,32 @@ test("screen: a sender with no record gets the ghost face and the match link, an
   assert.ok(has(out, "+1 628 555 0194"));
 });
 
+test("screen: the header names the company and the record chip, and the feed does not repeat the chip", () => {
+  const e = tab("elena").out, m = tab("marcus").out;
+  assert.ok(has(e, "Rivera Holdings") && has(e, "Rivera matter") && has(m, "Pruitt &amp; Co."));
+  assert.ok(!has(e, 'data-testid="chip-line:hdr_elena"'));
+  assert.equal(buildFeed(threads["elena"]!, SAMPLE_NOW, 0).some((f) => f.kind === "chip" && f.item.id === "hdr_elena"), false);
+  assert.equal(headerOf(threads["elena"]!)?.company, "Rivera Holdings");
+});
+
+test("screen: a meeting that ended shows in the texts timeline with its player, summary and Transcript link", () => {
+  const m = tab("marcus").out;
+  assert.ok(has(m, 'data-testid="call:mc1"') && has(m, "Check-in: Pruitt") && has(m, 'data-testid="player:mc1"') && has(m, 'data-testid="transcript-toggle:mc1"'));
+  assert.ok(has(m, "agrees to net 15"));
+});
+
+test("screen: the composer's bottom row has templates, quick actions and Ask, and the header has a star", () => {
+  const e = tab("elena").out;
+  for (const id of ["composer-templates", "composer-quick", "composer-ask", "head-star"]) assert.ok(has(e, `data-testid="${id}"`), id);
+  assert.ok(has(e, 'aria-label="Star"'));
+  const t = templateEntries([{ t: "Thanks", body: "Thank you." }], () => undefined);
+  assert.equal(t.length, 2);
+  assert.deepEqual(quickEntries(false, { dial() {}, openRecord() {}, attach() {} }).map((x) => ("label" in x ? x.label : "")), ["Call", "Attach from Files"]);
+});
+
 test("screen: the header has Email, Text, Call, Follow and Ask; Follow is lit for a followed contact", () => {
   const { out } = tab("elena");
-  for (const id of ["head-email", "head-text", "head-call", "head-follow", "head-ask", "head-record"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  for (const id of ["head-email", "head-text", "head-call", "head-star", "head-follow", "head-ask", "head-record"]) assert.ok(has(out, `data-testid="${id}"`), id);
   assert.ok(has(out, 'aria-label="Following"'), "Elena is followed");
   assert.ok(has(tab("priya").out, 'aria-label="Follow"'));
 });

@@ -67,6 +67,16 @@ export function emailRef(i: ThreadItem): EmailRef {
   return out;
 }
 
+/** The header's company and record chip: the server marks one record_chip item `header` (its title is the chip, `company` the line beside the name). It is not a line in the feed. */
+export interface HeaderChip { title: string; recordId?: string; company?: string }
+export function headerRef(i: ThreadItem): HeaderChip | null {
+  if (i.kind !== "record_chip") return null;
+  const r = rec(i.ref);
+  if (r["header"] !== true) return null;
+  return { title: i.title ?? "Record", ...(i.recordId ? { recordId: i.recordId } : {}), ...(str(r["company"]) ? { company: str(r["company"]) as string } : {}) };
+}
+export const headerOf = (items: readonly ThreadItem[]): HeaderChip | null => { for (const i of items) { const h = headerRef(i); if (h) return h; } return null; };
+
 export function smsRef(i: ThreadItem): SmsRef {
   const r = rec(i.ref);
   return { body: str(r["body"]) ?? i.preview ?? "", ...(str(r["via"]) ? { via: str(r["via"]) as string } : {}), ...(str(r["status"]) ? { status: str(r["status"]) as string } : {}), ...(str(r["address"]) ? { address: str(r["address"]) as string } : {}) };
@@ -131,6 +141,7 @@ export function buildFeed(items: readonly ThreadItem[], now: number, offsetMin: 
   let day = "";
   let open: Extract<FeedEntry, { kind: "texts" }> | null = null;
   for (const i of sorted) {
+    if (headerRef(i)) continue;
     const label = dayLabel(i.at, now, offsetMin);
     if (label !== day) { out.push({ kind: "day", key: `day:${dayOf(i.at, offsetMin)}`, label }); day = label; open = null; }
     switch (i.kind) {

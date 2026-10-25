@@ -16,10 +16,10 @@
     },
     {
       "id": "P-L9c_02-contacttab-call",
-      "route": "/m/P-L9c_02?open=transcript",
-      "proto": "inbox,at:contact:elena,{skin}",
-      "waitFor": "[data-testid='transcript:c_elena']",
-      "note": "The same conversation with the call's transcript and the lease email's quoted text opened. The prototype side is the same tab with its folded parts; the opened parts are compared with its Show quoted text and Transcript styles."
+      "route": "/m/P-L9c_02?c=marcus&open=transcript",
+      "proto": "inbox,at:contacttx:marcus,{skin}",
+      "waitFor": "[data-testid='transcript:mc1']",
+      "note": "Marcus Pruitt's check-in meeting with its recording player, summary and the transcript opened (the prototype side opens the same transcript with the contacttx token), then his texts and the agent's text draft."
     },
     {
       "id": "P-L9c_02-contacttab-harbor",

@@ -62011,7 +62011,8 @@ kbd { font: 500 11px/16px var(--ui); color: var(--ink-3); padding: 0 4px; border
   function route() {
     let h = decodeURIComponent((location.hash || "").replace(/^#/, "")); const th = h.match(/;(dark|light)$/); if (th) { h = h.replace(/;(dark|light)$/, ""); document.documentElement.dataset.theme = th[1]; }
     const [k, ...rest] = h.split(":"), arg = rest.join(":");
-    if (k === "contact" &amp;&amp; byId(arg)) openContact(byId(arg).id);
+    if (k === "contacttx" &amp;&amp; byId(arg)) { const c = byId(arg); c.msgs.forEach((m) =&gt; { if (m.tr) m.to = true; }); openContact(c.id); }
+    else if (k === "contact" &amp;&amp; byId(arg)) openContact(byId(arg).id);
     else if (k === "compose") { const c = (arg &amp;&amp; (byEmail(arg) || byId(arg) || byName(arg))) || (arg &amp;&amp; /@/.test(arg) ? newDraftContact(arg) : lead()); openContact(c.id, { focus: true, chan: "mail" }); }
     else if (k === "isettings") { S.active = "inbox"; renderAll(); inboxSettings(arg || "tw"); }
     else if (k === "builder") { S.active = "inbox"; renderAll(); openBuilder(arg); }

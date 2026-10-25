@@ -23,6 +23,7 @@ const ELENA_QUOTE = "On Mon, Oct 20 at 4:02 PM Marcus Pruitt wrote:\n> Elena, pl
 
 export const threads: Record<string, ThreadItem[]> = {
   elena: [
+    { kind: "record_chip", id: "hdr_elena", at: ago(100000), title: "Rivera matter", recordId: "rec_rivera", ref: { header: true, company: "Rivera Holdings" } },
     { kind: "email", id: "m_intake", at: ago(4320), direction: "in", title: "Client intake form", preview: "Hi Irfad, I filled out your intake form this morning.", ref: {
       subject: "Client intake form", body: "Hi Irfad,\n\nI filled out your intake form this morning. Let me know if you need anything else from me before Thursday.\n\nElena", via: "hello@",
       attachments: [{ name: "Intake-Elena-Rivera.pdf", size: "182 KB" }], chips: [{ title: "Elena Rivera", recordId: "rec_elena" }, { title: "Lease renewal", recordId: "rec_lease" }] } },
@@ -41,6 +42,11 @@ export const threads: Record<string, ThreadItem[]> = {
       quoted: ELENA_QUOTE, via: "Work Gmail", attachments: [{ name: "Lease-draft-3.pdf", size: "412 KB" }, { name: "Floor-plan.png", size: "96 KB" }], chips: [{ title: "Lease renewal", recordId: "rec_lease" }] } },
   ],
   marcus: [
+    { kind: "record_chip", id: "hdr_marcus", at: ago(100000), title: "Pruitt & Co.", recordId: "rec_pruitt", ref: { header: true, company: "Pruitt & Co." } },
+    { kind: "meeting", id: "mc1", at: ago(1560), title: "Check-in: Pruitt & Co.", preview: "Marcus confirms invoice 1038 landed.", ref: {
+      meetingTitle: "Check-in: Pruitt & Co.", durationSec: 1476, via: "Work Google meeting", recording: true, recordingUrl: SILENT_WAV,
+      summary: "Marcus confirms invoice 1038 landed. He asks for 1041 again and agrees to net 15 on the next one.",
+      transcript: [{ who: "Marcus", text: "Invoice 1038 landed on Monday, thank you." }, { who: "Irfad", text: "Good. I will send 1041 today." }, { who: "Marcus", text: "Net 15 on the next one works for us." }] } },
     { kind: "sms", id: "mt1", at: ago(200), direction: "out", preview: "Invoice 1041 is on its way.", ref: { body: "Invoice 1041 is on its way.", via: NW_BILL, address: "+1 415 555 0188", status: "delivered" } },
     { kind: "sms", id: "mt2", at: ago(18), direction: "in", preview: "Can you resend invoice 1041? I can't find it.", ref: { body: "Can you resend invoice 1041? I can't find it.", via: NW_BILL, address: "+1 415 555 0188" } },
   ],

@@ -17,9 +17,9 @@ import { discardDraft, markRead, sendAgentDraft, sendEmail, sendText, setFollow 
 import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
 import type { IconName } from "./icons.tsx";
-import { followMenuEntries, fromMenuEntries } from "./menus.ts";
+import { followMenuEntries, fromMenuEntries, quickEntries, templateEntries } from "./menus.ts";
 import {
-  buildFeed, canSend, cannedLists, choicesFor, draftCards, initialDraft, pickInbox, sendBlocker, startChannel, textTarget,
+  buildFeed, canSend, cannedLists, choicesFor, draftCards, headerOf, initialDraft, pickInbox, sendBlocker, startChannel, textTarget,
 } from "./model.ts";
 import type { Chan, ComposerDraft, DraftCard, DraftRow, InboxChoice, SendOptions, ThreadOut } from "./model.ts";
 import { Bubbles, CallLine, DaySep, DraftBlock, EmailItem, QuietLine } from "./parts.tsx";
@@ -58,6 +58,14 @@ function HeadButton({ icon, label, on = false, testID, disabled = false, onPress
   );
 }
 
+function BarButton({ icon, label, testID, onPress }: { icon: IconName; label: string; testID: string; onPress(x: number, y: number): void }): ReactElement {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} onPress={(e) => { const p = pointOf(e); onPress(p.x, p.y); }} style={({ hovered }: { hovered?: boolean }) => [s.tool, hovered === true && s.hicOver]}>
+      <Icon name={icon} size={15} color="var(--ink-3)" />
+    </Pressable>
+  );
+}
+
 /** The frame before data arrives: the header and the composer of the right height, so nothing moves when the thread lands. */
 export function TabLoading(): ReactElement {
   return (
@@ -76,6 +84,8 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < 560;
   const scroll = useRef<ScrollView | null>(null);
+  // The star is the caller's own flag. The contract has the flag on the conversation but no writer yet, so a press holds it here until one lands (comment on the packet).
+  const [starMine, setStarMine] = useState<boolean | null>(null);
   const state = { conversationId, ...(contactId ? { contactId } : {}) };
   const thread = useScreenQuery<ThreadOut>(SCREEN, "thread", state);
   const opts = useScreenQuery<SendOptions>(SCREEN, "options", state);
@@ -169,6 +179,10 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const dial = (): void => { const n = textTo ?? (conv.address.includes("@") ? null : conv.address); if (n && props.onDial) props.onDial(n); else data.nav.openDialer(); };
 
   const lists: ComposerLists = cannedLists(conv);
+  const hdr = headerOf(items);
+  const starred = starMine ?? conv.starred === true;
+  const showTemplates = (x: number, y: number): void => menu.show(templateEntries(cannedLists(conv).templates, (body) => patch({ text: `${draft.text}${draft.text && !draft.text.endsWith("\n") ? "\n" : ""}${body}` })), x, y);
+  const showQuick = (x: number, y: number): void => menu.show(quickEntries(!!conv.contactId, { dial, openRecord: () => props.onOpenRecord?.(conv.contactId as string, hdr?.recordId), attach: () => { if (props.onAttach) props.onAttach(); else setNote("Attach from Files is not connected in this view"); } }), x, y);
   const mail = chan === "email";
   const unmatched = conv.needsMatch && !conv.contactId;
   const blocker = sendBlocker(draft, inbox, online, textTo);
@@ -180,21 +194,22 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
         <View style={s.hid}>
           {unmatched ? <Ghost size={28} /> : <Face name={conv.displayName} size={28} />}
           <Text accessibilityRole="header" aria-level={1} style={s.name} numberOfLines={1}>{conv.displayName}</Text>
-          {phone ? null : <Text style={s.co} numberOfLines={1}>{conv.address}</Text>}
+          {phone ? null : <Text style={s.co} numberOfLines={1}>{hdr?.company ?? conv.address}</Text>}
         </View>
         {unmatched ? (
           <Pressable accessibilityRole="link" accessibilityLabel="Match to a record" testID="head-match" onPress={() => data.nav.openMatch(conv.id)} style={s.mlink}>
             <Icon name="link" size={12} color="var(--accent)" /><Text style={s.mlinkText}>Match to a record</Text>
           </Pressable>
         ) : conv.contactId && !phone ? (
-          <Pressable accessibilityRole="link" accessibilityLabel="Open the record" testID="head-record" onPress={() => props.onOpenRecord?.(conv.contactId as string)} style={({ hovered }: { hovered?: boolean }) => [s.rlink, hovered === true && s.hicOver]}>
-            <Icon name="link" size={13} color="var(--ink-2)" /><Text style={s.rlinkText}>Record</Text>
+          <Pressable accessibilityRole="link" accessibilityLabel={hdr ? `Open ${hdr.title}` : "Open the record"} testID="head-record" onPress={() => props.onOpenRecord?.(conv.contactId as string, hdr?.recordId)} style={({ hovered }: { hovered?: boolean }) => [s.rlink, hovered === true && s.hicOver]}>
+            <Icon name="link" size={13} color="var(--ink-2)" /><Text style={s.rlinkText}>{hdr?.title ?? "Record"}</Text>
           </Pressable>
         ) : null}
         <View style={s.grow} />
         <HeadButton icon="mail" label="Email" testID="head-email" on={chan === "email"} disabled={!(options?.channels.includes("email") ?? false)} onPress={() => patch({ chan: "email" })} />
         <HeadButton icon="sms" label="Text" testID="head-text" on={chan === "sms"} disabled={!(options?.channels.includes("sms") ?? false)} onPress={() => patch({ chan: "sms" })} />
         <HeadButton icon="call" label="Call" testID="head-call" onPress={dial} />
+        {conv.contactId ? <HeadButton icon="star" label={starred ? "Unstar" : "Star"} testID="head-star" on={starred} onPress={() => setStarMine(!starred)} /> : null}
         {conv.contactId ? <HeadButton icon="bell" label={conv.followed ? "Following" : "Follow"} testID="head-follow" on={conv.followed} onPress={showFollow} /> : null}
         {phone ? null : <HeadButton icon="ask" label="Ask" testID="head-ask" text="Ask" onPress={() => props.onAsk?.(conv.contactId)} />}
       </View>
@@ -240,12 +255,21 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
           </View>
           <Composer
             key={`${conv.id}:${chan}`}
-            whoWillAnswer={inbox ? `Sends from ${inbox.label}${target ? ` to ${target}` : ""}` : "No inbox can send"}
+            whoWillAnswer={inbox ? "" : "No inbox can send"}
             placeholder={mail ? "Write a reply…" : "Write a text…"}
             label={mail ? "Email" : "Text"}
             value={draft.text}
             enterSends={!mail}
-            symbols={["at", "slash"]}
+            symbols={[]}
+            barExtra={(
+              <View style={s.bx}>
+                <BarButton icon="tpl" label="Templates" testID="composer-templates" onPress={showTemplates} />
+                <BarButton icon="bolt" label="Quick actions" testID="composer-quick" onPress={showQuick} />
+                <Pressable accessibilityRole="button" accessibilityLabel="Ask" testID="composer-ask" onPress={() => props.onAsk?.(conv.contactId)} style={({ hovered }: { hovered?: boolean }) => [s.askChip, hovered === true && s.hicOver]}>
+                  <Face name="intake" size={16} round={false} /><Text style={s.askText}>Ask</Text><Icon name="chevd" size={9} />
+                </Pressable>
+              </View>
+            )}
             sendsOutside={mail}
             lists={lists}
             attachments={attached}
@@ -257,7 +281,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             {...(mail ? {
               recipients: (
                 <View>
-                  <Recipients to={draft.to} cc={draft.cc} bcc={draft.bcc} me={inbox?.address ?? ""} onChange={(r) => patch({ to: r.to, cc: r.cc, bcc: r.bcc })} testID="contact-recipients" />
+                  <Recipients to={draft.to.map((a) => (a === conv.address && !unmatched ? { email: a, name: conv.displayName } : a))} cc={draft.cc} bcc={draft.bcc} me={inbox?.address ?? ""} onChange={(r) => patch({ to: r.to, cc: r.cc, bcc: r.bcc })} testID="contact-recipients" />
                   <TextInput
                     accessibilityLabel="Subject" placeholder="Subject" placeholderTextColor="var(--ink-3)" value={draft.subject} onChangeText={(t) => patch({ subject: t })} testID="contact-subject"
                     style={s.subject}
@@ -314,6 +338,10 @@ const s = StyleSheet.create({
   pickName: { fontWeight: "500", color: ink("--ink") },
   subject: { paddingTop: 8, paddingBottom: 2, fontSize: 14, fontWeight: "600", color: ink("--ink"), backgroundColor: "transparent", borderWidth: 0 },
   note: { marginTop: 8, fontSize: 12.5, color: ink("--ink-2") },
+  bx: { flexDirection: "row", alignItems: "center", gap: 2 },
+  tool: { width: 28, height: 28, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  askChip: { height: 26, paddingLeft: 5, paddingRight: 7, borderRadius: 7, flexDirection: "row", alignItems: "center", gap: 5, marginLeft: 2 },
+  askText: { fontSize: 12.5, fontWeight: "600", color: ink("--accent") },
   skFace: { width: 28, height: 28, borderRadius: 28, backgroundColor: ink("--hover"), marginRight: 10 },
   skBar: { height: 9, borderRadius: 5, backgroundColor: ink("--hover") },
   skSmall: { height: 8, width: "70%", marginTop: 8, opacity: 0.7 },
