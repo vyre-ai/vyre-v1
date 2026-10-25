@@ -32,14 +32,15 @@ const items = (menu: ReturnType<typeof matchMenuEntries>): MenuItem[] => menu.fi
 
 test("Unmatched lists the senders that match no record, newest first, each with the Match button", () => {
   const s = createUnmatchedSample();
-  assert.deepEqual(newestFirst(waiting(s)).map((r) => r.id), ["unk", "u_971"], "the newest first");
+  assert.deepEqual(newestFirst(waiting(s)).map((r) => r.id), ["unk"], "the one unmatched sender");
   const out = html(s, <InboxUnmatched />);
-  assert.ok(out.includes("Unmatched") && out.includes("2 waiting for a match"));
-  for (const id of ["unk", "u_971"]) assert.ok(out.includes(`data-testid="unmatched-${id}"`) && out.includes(`data-testid="match-${id}"`), id);
-  assert.ok(out.includes("+1 628 555 0194") && out.includes("+1 971 555 0182"), "the numbers are the names");
+  assert.ok(out.includes("Unmatched") && out.includes("1 waiting for a match"));
+  for (const id of ["unk"]) assert.ok(out.includes(`data-testid="unmatched-${id}"`) && out.includes(`data-testid="match-${id}"`), id);
+  assert.ok(out.includes("+1 628 555 0194"), "the number is the name");
   assert.ok(out.includes("Match to a record") && out.includes('data-testid="face-ghost"'), "ghost face and the button");
   assert.ok(out.includes("background-color:var(--accent-wash)"), "the accent-wash block, not a Row");
   assert.ok(!out.includes('data-testid="row-line:'), "not a ui/Row");
+  assert.ok(out.includes("Showing") && out.includes("Show all") && out.includes('data-testid="unmatched-filter"'), "the Showing line and the lit filter, as the prototype");
   assert.equal(waitingLine(0), "");
   assert.equal(waitingLine(1), "1 waiting for a match");
 });
@@ -75,12 +76,12 @@ test("a match moves the conversation to the record's person; Undo puts it back",
   assert.deepEqual(sg.map((x) => x.name), ["Hannah Cole", "Cole Dental"]);
   const out = (await s.data.call("inbox.match", { conversationId: "unk", recordId: sg[0]!.recordId, idempotencyKey: "k1" })) as { conversation: ContactRow; undoToken: string };
   assert.equal(out.conversation.id, "hannah");
-  assert.deepEqual(waiting(s).map((r) => r.id), ["u_971"], "the line left Unmatched");
+  assert.deepEqual(waiting(s).map((r) => r.id), [], "the line left Unmatched");
   assert.equal(thread(s, "unk").length, 0);
   assert.equal(thread(s, "hannah").length, hannahBefore + before, "its messages are in Hannah's conversation now");
   assert.ok(out.conversation.unreadCount >= 1, "unread counts add up");
   await s.data.call("inbox.unmatch", { conversationId: "unk", undoToken: out.undoToken });
-  assert.deepEqual(waiting(s).map((r) => r.id).sort(), ["u_971", "unk"], "Undo brings it back");
+  assert.deepEqual(waiting(s).map((r) => r.id), ["unk"], "Undo brings it back");
   assert.equal(thread(s, "hannah").length, hannahBefore);
   assert.equal(thread(s, "unk").length, before);
   await assert.rejects(() => s.data.call("inbox.unmatch", { conversationId: "unk", undoToken: out.undoToken }), /nothing to undo/, "an undo works once");
@@ -89,10 +90,10 @@ test("a match moves the conversation to the record's person; Undo puts it back",
 
 test("Create a Record turns the line into a new contact and it leaves Unmatched", async () => {
   const s = createUnmatchedSample();
-  const out = (await s.data.call("inbox.match_new", { conversationId: "u_971", type: "contact", idempotencyKey: "k2" })) as { recordId: string; conversation: ContactRow };
+  const out = (await s.data.call("inbox.match_new", { conversationId: "unk", type: "contact", idempotencyKey: "k2" })) as { recordId: string; conversation: ContactRow };
   assert.match(out.recordId, /^rec_new_/);
   assert.equal(out.conversation.needsMatch, false);
-  assert.deepEqual(waiting(s).map((r) => r.id), ["unk"]);
+  assert.deepEqual(waiting(s).map((r) => r.id), []);
 });
 
 // ---- the softphone

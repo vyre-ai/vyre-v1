@@ -20,7 +20,6 @@ const SUGGESTIONS: Record<string, Suggestion[]> = {
     { recordId: "rec_hannah", type: "contact", name: "Hannah Cole", score: 0.92, why: "Texted from a number one digit away" },
     { recordId: "rec_cole", type: "company", name: "Cole Dental", score: 0.61, why: "Same area code, a dental practice" },
   ],
-  u_971: [{ recordId: "rec_sofia", type: "contact", name: "Sofia Alvarez", score: 0.48, why: "Same area code as her email signature" }],
 };
 
 interface Undo { source: ContactRow; moved: string[]; target?: ContactRow }
@@ -38,17 +37,7 @@ export function createUnmatchedSample(space: SampleSpace = northwind, o: { onlin
   const contacts = (): ContactRow[] => replica.rows("contacts") as unknown as ContactRow[];
   const items = (): (Row & { conversationId: string })[] => replica.rows("thread_items") as unknown as (Row & { conversationId: string })[];
 
-  if (space.id === "northwind") {
-    // the unmatched number texted and left a voicemail before; its messages move with a match
-    replica.put("thread_items", [
-      { conversationId: "unk", kind: "sms", id: "unk_1", at: ago(35), direction: "in", preview: "Hi, is this the Northwind office? I got a missed call from this number.", ref: { body: "Hi, is this the Northwind office? I got a missed call from this number.", via: "+1 415 555 0132", address: "+1 628 555 0194" } },
-    ] as unknown as Row[]);
-    replica.put("contacts", [{
-      id: "u_971", address: "+1 971 555 0182", displayName: "+1 971 555 0182", lastMessageAt: ago(210), lastChannel: "sms", lastPreview: "Hi, I found you through the intake form. Can someone call me back?",
-      unreadCount: 1, needsMatch: true, followed: false, alertOnReplies: false, mailboxIds: ["+1 415 555 0132"],
-    } as unknown as Row]);
-    replica.put("thread_items", [{ conversationId: "u_971", kind: "sms", id: "u971_1", at: ago(210), direction: "in", preview: "Hi, I found you through the intake form. Can someone call me back?", ref: { body: "Hi, I found you through the intake form. Can someone call me back?", via: "+1 415 555 0132", address: "+1 971 555 0182" } } as unknown as Row]);
-  }
+  // the one unmatched sender is the prototype's (+1 628 555 0194, in the contact sample); nothing is added here
   const unmatched = (): ContactRow[] => contacts().filter((c) => c.contactId === undefined && c.needsMatch);
 
   replica.resolve("inbox.unmatched", (_t, i) => {

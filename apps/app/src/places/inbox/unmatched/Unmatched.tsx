@@ -11,7 +11,7 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useInboxData, useOnline, useOptionalInboxData, useScreenQuery } from "../sidebar/data.tsx";
 import { listTime } from "../sidebar/model.ts";
-import { Ghost, Glyph, pointOf } from "../sidebar/parts.tsx";
+import { Ghost, Glyph, IconButton, pointOf } from "../sidebar/parts.tsx";
 import { EMPTY_LINE, OFFLINE_LINE, SCREEN, createdLine, matchedLine, newestFirst, scorePercent, suggestionLabel, waitingLine } from "./model.ts";
 import type { CreateOut, MatchOut, Suggestion, Unmatched, UnmatchedOut } from "./model.ts";
 
@@ -21,6 +21,8 @@ const ROW = 62;
 const WASH = { backgroundColor: "var(--accent-wash)" };
 
 export interface UnmatchedProps {
+  /** "Show all" in the Showing line: the shell goes back to All inboxes. */
+  onShowAll?(): void;
   /** "Search Records…" in the Match menu: the shell opens Records search for this person. */
   onSearchRecords?(who: Unmatched): void;
 }
@@ -56,7 +58,7 @@ function Line({ u, selected, now, offsetMin, onPress, onMatch }: { u: Unmatched;
   );
 }
 
-function List({ onSearchRecords }: UnmatchedProps): ReactElement {
+function List({ onSearchRecords, onShowAll }: UnmatchedProps): ReactElement {
   const data = useInboxData();
   const menu = useMenu();
   const online = useOnline();
@@ -106,8 +108,16 @@ function List({ onSearchRecords }: UnmatchedProps): ReactElement {
   return (
     <View style={s.main} testID="inbox-unmatched">
       <View style={s.head}>
-        <Text accessibilityRole="header" aria-level={1} style={s.h1}>Unmatched</Text>
+        <Text accessibilityRole="header" aria-level={1} style={s.h1}>All inboxes</Text>
         {rows.length > 0 ? <Text style={s.meta} testID="unmatched-count">{waitingLine(rows.length)}</Text> : null}
+        <View style={s.grow} />
+        <IconButton icon="filter" label="Filter" on testID="unmatched-filter" onPress={() => {}} />
+        <IconButton icon="call" label="Dial" testID="unmatched-dial" onPress={() => data.nav.openDialer()} />
+      </View>
+      <View style={s.showing} testID="unmatched-showing">
+        <Text style={s.showingText}>Showing <Text style={s.showingBold}>Unmatched</Text></Text>
+        <Text style={s.sep}>{"·"}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Show all" testID="unmatched-showall" onPress={() => onShowAll?.()}><Text style={s.link}>Show all</Text></Pressable>
       </View>
       {note ? (
         <View style={s.noteLine} testID="unmatched-note">
@@ -136,6 +146,12 @@ const s = StyleSheet.create({
   main: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   h1: { margin: 0, fontSize: 14, fontWeight: "600", letterSpacing: -0.07, color: "var(--ink)" as string },
+  grow: { flex: 1 },
+  showing: { flexDirection: "row", alignItems: "center", gap: 8, height: 30, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
+  showingText: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  showingBold: { fontWeight: "600", color: "var(--ink-2)" as string },
+  sep: { fontSize: 12.5, color: "var(--ink-4)" as string },
+  link: { fontSize: 12.5, fontWeight: "600", color: "var(--accent)" as string },
   meta: { fontSize: 12.5, color: "var(--ink-3)" as string },
   noteLine: { flexDirection: "row", alignItems: "center", gap: 10, height: 30, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   noteText: { fontSize: 12.5, color: "var(--ink-3)" as string },
