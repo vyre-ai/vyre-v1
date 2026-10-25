@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
-import { codeOf, DEVICE, harness, KEYS } from "../fixtures/db.ts";
+import { codeOf, DEVICE, harness, KEYS } from "./wire.ts";
 import { SEED_PERSON } from "../fixtures/seed.ts";
 import { provisionAccount, sessionOfToken, sha } from "../projections.ts";
 

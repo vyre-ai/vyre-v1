@@ -82,7 +82,7 @@ export async function recoveryRestore(ctx: IdentityCtx, input: Device & { userna
   revokeSessions(ctx, a.person_id);
   clearFails(ctx, a);
   ctx.emit("password.reset", a.person_id, { personId: a.person_id, by: a.person_id, recovered: true });
-  return issueSession(ctx, mustAccount(ctx, a.person_id), input, "recovery");
+  return await issueSession(ctx, mustAccount(ctx, a.person_id), input, "recovery");
 }
 
 export async function resetPreview(ctx: IdentityCtx, input: { personId: string }) {
@@ -112,7 +112,7 @@ export async function resetComplete(ctx: IdentityCtx, input: Device & { resetCod
   revokeSessions(ctx, a.person_id);
   clearFails(ctx, a);
   ctx.emit("password.reset", a.person_id, { personId: a.person_id, by: "admin", recovered: false });
-  return issueSession(ctx, mustAccount(ctx, a.person_id), input, "recovery");
+  return await issueSession(ctx, mustAccount(ctx, a.person_id), input, "recovery");
 }
 
 /**
@@ -138,5 +138,5 @@ export async function acceptCreateAccount(
   await ctx.invites.accept(invite.inviteId, personId);
   ctx.emit("principal.created", personId, { principalId: personId, kind: "person" });
   ctx.emit("member.joined", personId, { personId, inviteId: invite.inviteId, role: invite.role, invitedBy: invite.invitedBy });
-  return issueSession(ctx, mustAccount(ctx, personId), input, "password");
+  return await issueSession(ctx, mustAccount(ctx, personId), input, "password");
 }

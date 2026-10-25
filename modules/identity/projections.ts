@@ -17,10 +17,14 @@ export interface IdentityCtx {
   principal?: { kind: string; id: string };
   /** The session the call arrived on, when there is one. */
   session?: { id?: string; deviceId: string };
+  /** The device the gateway resolved the call's token to (the host's ctx.device). */
+  device?: string;
   trace: { traceId: string };
   now(): number;
   db: Db;
   emit(name: string, subject: string, payload: unknown): unknown;
+  /** The host's capability call. Sign-in registers the device and its session through it (devices.register). */
+  call?(name: string, input: unknown): Promise<unknown>;
   /** GitHub OAuth code exchange, built by the host from ctx.http (egress github.com). */
   github?: Github;
   /** Roles and groups of a person, read through the access projection by the host. */
@@ -211,12 +215,26 @@ export function clearFails(ctx: IdentityCtx, a: Account): void {
 }
 
 // ---- sessions
-export function issueSession(ctx: IdentityCtx, a: Account, dev: Device, method: Method): SignInOut {
+/**
+ * The two halves of a session that live in the host: the gateway resolves a bearer token through the host's own token table to a devices_session row, so a token only works when it is minted
+ * there for a session the devices module holds. `mint` creates that token for a devices session id; `end` stops the session at the gateway (devices_session.revoked_at). The host calls
+ * configureSessionTokens once at boot. Without it sign-in refuses: a token nothing honors would sign a person in to an app that gets 401 on every call (P-SEC_05).
+ */
+export interface SessionTokens { mint(sessionId: string): string; end(sessionId: string): void }
+let sessionTokens: SessionTokens | null = null;
+export function configureSessionTokens(t: SessionTokens | null): void { sessionTokens = t; }
+
+/** Open a per-device session: devices.register makes the device and its session, the host mints the token for that session, and identity keeps the row that sign-out and reset act on. */
+export async function issueSession(ctx: IdentityCtx, a: Account, dev: Device, method: Method): Promise<SignInOut> {
+  const tid = ctx.trace.traceId;
+  if (!sessionTokens || typeof ctx.call !== "function") raise(tid, "internal.unavailable", "Sign-in cannot open a device session on this server yet.");
+  const reg = (await ctx.call("devices.register", { person: a.person_id, name: dev.deviceName, class: dev.deviceClass })) as { device?: { id?: unknown }; sessionId?: unknown };
+  const deviceId = typeof reg?.device?.id === "string" ? reg.device.id : "";
+  const sessionId = typeof reg?.sessionId === "string" ? reg.sessionId : "";
+  if (!deviceId || !sessionId) raise(tid, "internal.unexpected", "The device could not be registered.");
   clearFails(ctx, a);
   const now = ctx.now();
-  const sessionId = nid("ses");
-  const deviceId = nid("dev");
-  const token = newToken();
+  const token = sessionTokens.mint(sessionId);
   const expiresAt = now + SESSION_TTL_MS;
   ctx.db.run(
     `INSERT INTO identity_sessions (id, person_id, device_id, device_name, device_class, token_hash, method, created_at, expires_at, revoked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -225,9 +243,23 @@ export function issueSession(ctx: IdentityCtx, a: Account, dev: Device, method: 
   const keys = bundleOf(a);
   return { status: "ok", session: { sessionId, deviceId, token, expiresAt, epoch: a.epoch }, ...(keys ? { keys } : {}) };
 }
-/** Revoke every live session of a person, except one when given. */
+/** The caller's own session: the one the call names, else the live session of the device the gateway resolved the token to. */
+export function currentSessionId(ctx: IdentityCtx, personId: string): string | undefined {
+  if (ctx.session?.id) return ctx.session.id;
+  if (!ctx.device) return undefined;
+  const r = ctx.db.all(`SELECT id FROM identity_sessions WHERE device_id = ? AND person_id = ? AND revoked_at IS NULL ORDER BY created_at DESC`, ctx.device, personId)[0] as { id: string } | undefined;
+  return r?.id;
+}
+/** End one session here and at the gateway. */
+export function endSessionRow(ctx: IdentityCtx, personId: string, sessionId: string): void {
+  const got = ctx.db.run(`UPDATE identity_sessions SET revoked_at = ? WHERE id = ? AND person_id = ? AND revoked_at IS NULL`, ctx.now(), sessionId, personId);
+  if (got.changes > 0) sessionTokens?.end(sessionId);
+}
+/** Revoke every live session of a person, except one when given, here and at the gateway. */
 export function revokeSessions(ctx: IdentityCtx, personId: string, except?: string): void {
+  const live = ctx.db.all(`SELECT id FROM identity_sessions WHERE person_id = ? AND revoked_at IS NULL AND id != ?`, personId, except ?? "") as { id: string }[];
   ctx.db.run(`UPDATE identity_sessions SET revoked_at = ? WHERE person_id = ? AND revoked_at IS NULL AND id != ?`, ctx.now(), personId, except ?? "");
+  for (const r of live) sessionTokens?.end(r.id);
 }
 /** Resolve a bearer token to its live session; the host gateway calls this to build the principal. */
 export function sessionOfToken(ctx: IdentityCtx, token: string): { sessionId: string; personId: string; deviceId: string } | undefined {
