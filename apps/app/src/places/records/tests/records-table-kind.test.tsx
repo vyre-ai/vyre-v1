@@ -51,7 +51,7 @@ test("switching from the table to a board and back: the menu lists the kinds, ch
 test("a person cell draws its face as a cached image, not a blurred inline svg per row (the scroll budget)", () => {
   const out = renderToStaticMarkup(<FaceImage name="Maya Chen" size={18} />);
   assert.ok(has(out, 'data-face="image"') && has(out, 'src="data:image/svg+xml;charset=utf-8,') && has(out, 'data-testid="face-Maya Chen"'));
-  assert.ok(!has(out, "<svg") && !has(out, "feGaussianBlur"), "no inline svg, no blur filter in the row");
+  assert.ok(!has(out, "<svg") && !has(out, "<filter"), "no inline svg and no filter element in the row");
   assert.equal(marbleUri("Maya Chen"), marbleUri("Maya Chen"), "the same name gives the same address, built once");
   assert.notEqual(marbleUri("Maya Chen"), marbleUri("Omar Haddad"));
   assert.ok(decodeURIComponent(marbleUri("Maya Chen")).includes("feGaussianBlur"), "it is the shared marble artwork, blur included, rasterised once");
