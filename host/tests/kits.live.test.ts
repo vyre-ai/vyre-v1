@@ -1,6 +1,6 @@
 // P-H_13 (rulings 31 and 32): a booted daemon gives the kits module its Kit source through the generic host seam, with kits live. Nothing is faked inside the daemon:
 // the loader collects `hostSeams.setKitsHost` from modules/kits/impl.ts, the daemon wires it with host/src/seams/kits.ts, and a person installs a Kit over HTTP, whose step
-// (tasks.create, a live module) lands in the Space, and reads it back. host/modules.json still says kits is a stub (the live flip is P-CI_02, ruling 25), so this test boots
+// (schema.apply, a live module) lands in the Space, and reads it back. host/modules.json still says kits is a stub (the live flip is P-CI_02, ruling 25), so this test boots
 // from a copy of the code root whose modules.json has kits live; every other file is a symlink to the real one.
 // Kits are registered as access resources by the host (daemon.ts, setKitsHost), not by this test.
 // Path mapping: the packet owns modules/kits/impl.ts and this test; the driver sits in host/src/seams/kits.ts and is registered in host/src/daemon/daemon.ts.
@@ -21,10 +21,16 @@ const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, heade
 const tmp = (p: string): string => fs.mkdtempSync(path.join(os.tmpdir(), p));
 
 const KIT = {
-  key: "livekit", title: "Live Kit", version: "1.0.0", channel: "stable", description: "One task, to prove install and apply on a booted daemon.",
+  key: "livekit", title: "Live Kit", version: "1.0.0", channel: "stable", description: "One record type, to prove install and apply on a booted daemon.",
   items: [{
-    key: "task.welcome", content: "steps", type: "task", title: "Welcome task",
-    apply: { cap: "tasks.create", input: { title: "Welcome to the Live Kit Space", assigned: { kind: "person", id: "usr_olivia" }, idempotencyKey: "kit.livekit.task.welcome" } },
+    key: "rt.live_note", content: "structure", type: "record_type", title: "Live note", recordType: "live_note",
+    apply: {
+      cap: "schema.apply",
+      input: {
+        ops: [{ op: "type.create", type: "live_note", def: { title: "Live note", plural: "Live notes", icon: "note", group: "Notes", label: "internal", titleField: "title", fields: [{ key: "title", type: "text", title: "Title", required: true }] } }],
+        idempotencyKey: "kit.livekit.rt.live_note", reason: "Kit install",
+      },
+    },
   }],
 };
 
@@ -119,7 +125,8 @@ test("kits live: a booted daemon wires setKitsHost, reports nothing as not set u
 
     const sheet = await call(d, "kits.install_sheet", { kitId: kit.kitId });
     assert.equal(sheet.status, 200, JSON.stringify(sheet.data));
-    assert.deepEqual(sheet.data.sheet.tools, ["tasks.create"]);
+    assert.deepEqual(sheet.data.sheet.tools, ["schema.apply"]);
+    assert.deepEqual(sheet.data.sheet.recordTypes, ["live_note"]);
 
     const refused = await call(d, "kits.install", { kitId: kit.kitId });
     assert.notEqual(refused.status, 200, "an install is refused until the sheet is accepted");
@@ -132,10 +139,10 @@ test("kits live: a booted daemon wires setKitsHost, reports nothing as not set u
     const read = await call(d, "kits.get", { kitId: kit.kitId });
     assert.equal(read.data.kit.installed, true, "kits.get reads the install back");
     const applied = d.db!.all("SELECT item_key FROM kits_applied WHERE kit_id = ?", kit.kitId) as { item_key: string }[];
-    assert.deepEqual(applied.map((a) => a.item_key), ["task.welcome"], "the ledger records the applied item");
-    const tasks = await call(d, "tasks.list", { scope: "all" });
-    assert.equal(tasks.status, 200, JSON.stringify(tasks.data));
-    assert.ok(JSON.stringify(tasks.data).includes("Welcome to the Live Kit Space"), "the Kit's step created its task in the Space");
+    assert.deepEqual(applied.map((a) => a.item_key), ["rt.live_note"], "the ledger records the applied item");
+    const types = await call(d, "schema.types.list", {});
+    assert.equal(types.status, 200, JSON.stringify(types.data));
+    assert.ok(JSON.stringify(types.data).includes("live_note"), "the Kit's step created its record type in the Space");
 
     const events = await d.log!.read({ type: "kit.installed" });
     assert.equal(events.length, 1, "kit.installed was emitted once");
@@ -146,7 +153,7 @@ test("kits live: each Kit becomes one resource in the access projection, once, a
   const dir = seededDir();
   const root = codeRootWithKitsLive();
   const kitResources = async (d: Daemon): Promise<string[]> =>
-    (await d.log!.read({ type: "resource.created" })).filter((e) => (e.payload as { type?: string }).type === "kit").map((e) => (e.payload as { id: string }).id).sort();
+    (await d.log!.read({ type: "resource.created" })).map((e) => (e.payload instanceof Uint8Array ? JSON.parse(new TextDecoder().decode(e.payload)) : e.payload) as { id: string; type: string }).filter((p) => p.type === "kit").map((p) => p.id).sort();
   let first: string[] = [];
   const a = await boot(dir, root);
   try {
