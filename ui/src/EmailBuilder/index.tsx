@@ -13,6 +13,7 @@ import { Composer } from "../Composer/index.tsx";
 import type { AskButtonProps } from "../AskButton/index.tsx";
 import { MenuIcon, useMenu } from "../Menu/index.tsx";
 import { Row } from "../Row/index.tsx";
+import { MONO_VAR } from "../theme/fonts.ts";
 import { TabStrip } from "../TabStrip/index.tsx";
 import { EMAIL_ALIGNS, EMAIL_BLOCK_KINDS, EMAIL_MODES, EMAIL_PREVIEWS, emailBlockHtml, emailLabel } from "./props.ts";
 import type { EmailBlock, EmailBlockKind, EmailBuilderProps, EmailDiff, EmailMode, EmailPreview } from "./props.ts";
@@ -932,7 +933,7 @@ const s = StyleSheet.create({
   imgText: { color: "#8A8A8F", fontSize: 13 },
   divBlock: { height: 1, backgroundColor: "#E4E4E7", marginVertical: 10 },
   mergeTok: { alignSelf: "flex-start", color: "#4A4AB8", backgroundColor: "#ECEBFA", fontSize: 14, paddingHorizontal: 5, borderRadius: 5 },
-  htmlBlock: { color: "#18181A", fontFamily: "var(--mono)" as string, fontSize: 12.5 },
+  htmlBlock: { color: "#18181A", fontFamily: MONO_VAR, fontSize: 12.5 },
   cols: { flexDirection: "row", gap: 12 },
   col: { flex: 1 },
   empty: { color: "#8A8A8F", textAlign: "center", paddingVertical: 56, fontSize: 13 },
@@ -947,17 +948,17 @@ const s = StyleSheet.create({
   ctlValue: { color: "var(--ink)" as string, fontSize: 12.5, minWidth: 28, textAlign: "center" },
   stepper: { flexDirection: "row", alignItems: "center", gap: 4 },
   hexRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  hex: { width: 84, height: 28, color: "var(--ink)" as string, fontFamily: "var(--mono)" as string, fontSize: 12, paddingHorizontal: 8, borderRadius: 6, backgroundColor: "var(--sunk)" as string },
+  hex: { width: 84, height: 28, color: "var(--ink)" as string, fontFamily: MONO_VAR, fontSize: 12, paddingHorizontal: 8, borderRadius: 6, backgroundColor: "var(--sunk)" as string },
   swatch: { width: 20, height: 20, borderRadius: 6, borderWidth: 1, borderColor: "var(--line-2)" as string },
   srcName: { color: "var(--ink-3)" as string, fontSize: 12, fontWeight: "500" },
   srcRow: { flexDirection: "row", paddingVertical: 12 },
-  gutter: { width: 42, textAlign: "right", paddingRight: 10, color: "var(--ink-4)" as string, fontFamily: "var(--mono)" as string, fontSize: 12.5, lineHeight: 19 },
+  gutter: { width: 42, textAlign: "right", paddingRight: 10, color: "var(--ink-4)" as string, fontFamily: MONO_VAR, fontSize: 12.5, lineHeight: 19 },
   livePane: { width: 340, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, padding: 12, alignItems: "center" },
   srcBody: { flex: 1, minWidth: 0, position: "relative" },
   codeShow: { minHeight: 0 },
   codeInput: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, color: "transparent" },
-  code: { flex: 1, minWidth: 0, minHeight: 480, padding: 0, backgroundColor: "transparent", color: "var(--ink)" as string, fontFamily: "var(--mono)" as string, fontSize: 12.5, lineHeight: 19 },
-  plain: { width: "100%", maxWidth: 640, minHeight: 480, padding: 24, borderRadius: 10, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string, color: "var(--ink)" as string, fontFamily: "var(--mono)" as string, fontSize: 13.5, lineHeight: 21 },
+  code: { flex: 1, minWidth: 0, minHeight: 480, padding: 0, backgroundColor: "transparent", color: "var(--ink)" as string, fontFamily: MONO_VAR, fontSize: 12.5, lineHeight: 19 },
+  plain: { width: "100%", maxWidth: 640, minHeight: 480, padding: 24, borderRadius: 10, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string, color: "var(--ink)" as string, fontFamily: MONO_VAR, fontSize: 13.5, lineHeight: 21 },
   plainHint: { width: "100%", maxWidth: 640, color: "var(--ink-3)" as string, fontSize: 12.5, marginBottom: 10 },
   pane: { width: 380, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--win)" as string, minHeight: 0 },
   paneBody: { flex: 1 },
