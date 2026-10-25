@@ -46,6 +46,8 @@ export interface PlanProps {
   onViewChange?: (view: PlanView) => void;
   /** Adds the New task button and the stage "+" buttons. Return the task to add, or nothing to let the Plan make one ("New task", today to two days on, in that stage). */
   onAddTask?: (stageId: string | null) => PlanTask | undefined;
+  /** The host makes the task (a capability call) and it comes back through `tasks`: New task and the stage "+" call this instead of inserting a task locally. Wins over onAddTask. */
+  onCreate?: (stageId: string | null) => void;
   /** Hides the view switcher (a place that fixes the view). */
   fixedView?: boolean;
   /** Shows New task and the stage "+" buttons (default true). Home creates tasks in its own header and turns it off. */

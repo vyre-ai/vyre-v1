@@ -17,6 +17,8 @@ export interface VaultNav {
   /** The Automation or agent that is asking for a key. */
   openRequests(): void;
   openAgent(agentId: string): void;
+  /** Starts a new thread (or hands the task over) with an agent about an item. Without it Ask still lists the agents and does nothing. */
+  ask?(agentId: string, mode: "chat" | "do", about: { kind: string; id: string; title: string }): void;
 }
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
@@ -34,6 +36,8 @@ export interface VaultData {
   clock(): { now: number };
   /** Copies text to the clipboard. The shell may route this through the system pasteboard. */
   copy?(text: string): Promise<void> | void;
+  /** Opens the system file chooser for an export to import; resolves the stored file's id, or null when the person cancels. The shell supplies it. */
+  pickFile?(accept: string): Promise<string | null>;
 }
 
 const DataCtx = createContext<VaultData | null>(null);
@@ -62,13 +66,13 @@ export function useScreenQuery<T>(screenId: string, name: string, state: Record<
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 
-export function usePrincipals(): { name(id: string): string } {
+export function usePrincipals(): { name(id: string): string; all: readonly Principal[] } {
   const { principals } = useVaultData();
   const src = principals ?? NEVER;
   const snap = useSyncExternalStore(src.subscribe, src.getSnapshot, src.getSnapshot) as QueryState<Principal[]>;
   return useMemo(() => {
     const by = new Map((snap.status === "ready" ? snap.data : []).map((p) => [p.id, p] as const));
-    return { name: (id: string) => by.get(id)?.name ?? id };
+    return { name: (id: string) => by.get(id)?.name ?? id, all: snap.status === "ready" ? snap.data : [] };
   }, [snap]);
 }
 

@@ -12,7 +12,7 @@ import { addMenu } from "../../../../../../ui/src/ShareSheet/index.tsx";
 import { delegateRoutine, deleteRoutine, duplicateRoutine, renameRoutine, runNow, saveInstructions, setRoutine } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import { usePaneData, useScreenQuery } from "./data.tsx";
-import { ROUTINE_STARTS, changeByAsking, cronWords, lastRunLine, nextLabel, routineFile, routineNote, routinesOn, sortRoutines } from "./model.ts";
+import { ROUTINE_STARTS, changeByAsking, cronWords, isWatcher, lastRunLine, nextLabel, routineFile, routineNote, routinesOn, sortRoutines } from "./model.ts";
 import type { Routine } from "./model.ts";
 import { Face, LeadIcon, PaneList, Switch, TextButton, Tool } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
@@ -144,7 +144,7 @@ export function RoutinesTab({ deps, window, initial }: { deps: PaneDeps; window?
     entries.push({ key: "l-when", type: "label", text: "When" });
     entries.push({
       key: "when", type: "block",
-      node: <View style={st.block}><Text style={st.kvVal}>{cronWords(r.cron)}</Text><Text style={st.hint}>{r.enabled ? (r.nextRunAt !== undefined ? `Next: ${nextLabel(r.nextRunAt, clock)}` : "No run is scheduled") : "Paused. Turn it on to schedule the next run."}</Text></View>,
+      node: <View style={st.block}><Text style={st.kvVal}>{isWatcher(r) ? "On every new message in the channel" : cronWords(r.cron ?? "")}</Text><Text style={st.hint}>{r.enabled ? (r.nextRunAt !== undefined ? `Next: ${nextLabel(r.nextRunAt, clock)}` : "No run is scheduled") : "Paused. Turn it on to schedule the next run."}</Text></View>,
     });
     entries.push({ key: "l-details", type: "label", text: "Details" });
     entries.push({
@@ -164,7 +164,7 @@ export function RoutinesTab({ deps, window, initial }: { deps: PaneDeps; window?
   if (routines.length === 0) entries.push({ key: "none", type: "empty", text: `${name} has no routines yet.`, testID: "routines-empty" });
   for (const r of routines) {
     entries.push({
-      key: `r-${r.routineId}`, type: "row", title: r.title, note: routineNote(r, clock), leading: <LeadIcon name="clock" color={r.enabled ? "var(--ink-3)" : "var(--ink-4)"} />, testID: `routine-${r.routineId}`,
+      key: `r-${r.routineId}`, type: "row", title: r.title, note: routineNote(r, clock), leading: <LeadIcon name={isWatcher(r) ? "watch" : "clock"} color={r.enabled ? "var(--ink-3)" : "var(--ink-4)"} />, testID: `routine-${r.routineId}`,
       onPress: () => { setOpenId(r.routineId); setMode("view"); },
       trailing: (over) => (
         <View style={st.row}>

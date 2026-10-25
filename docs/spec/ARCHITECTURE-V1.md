@@ -665,7 +665,7 @@ Input: every `modules/*/manifest.ts`, `connectors/*/connector.toml` (compiled to
 
 | # | Output | Path | Consumed by |
 |---|---|---|---|
-| 1 | Merged registry (capabilities, events, permissions, entities, kinds) | `contracts/generated/registry.json`, `registry.ts`, `hash.txt` | host boot, sync handshake, docs, diff |
+| 1 | Merged registry (capabilities, events, permissions, entities, kinds) | `contracts/generated/registry.json`, `registry.ts` | host boot, sync handshake, docs, diff |
 | 2 | Route table and compiled validators | `host/generated/routes.ts`, `validators.ts` | gateway |
 | 3 | Handler types, one per module | `modules/*/generated/handlers.d.ts` | `impl.ts` (type-checked) |
 | 4 | Typed client: one function per capability, live query hooks for `queries` in screens | `client/generated/api.ts`, `hooks.ts` | `ui`, `apps` |

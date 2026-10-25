@@ -1,0 +1,33 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_19c-home-northwind",
+      "route": "/m/P-L9_19c",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='home-place']",
+      "note": "The shell on Home over Northwind: greeting with the date line, Needs you with Approve and Review buttons, My work groups, Quick start and the Ask box in the place. The prototype side is its Home place."
+    },
+    {
+      "id": "P-L9_19c-home-harbor",
+      "route": "/m/P-L9_19c?space=harbor",
+      "proto": "home,space:harbor,{skin}",
+      "waitFor": "[data-testid='home-place']",
+      "note": "The shell on Home over Harbor Studio (Scheduler and Proofer ask, the Moreno gallery and call sheet). The prototype side is its Home place over Harbor Studio."
+    },
+    {
+      "id": "P-L9_19c-home-personal",
+      "route": "/m/P-L9_19c?space=personal",
+      "proto": "home,space:personal,{skin}",
+      "waitFor": "[data-testid='home-place']",
+      "note": "The shell on Home over the Personal Space. The prototype side is its Home place over Personal."
+    },
+    {
+      "id": "P-L9_19c-home-plan",
+      "route": "/m/P-L9_19c?mode=plan",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='plan-root']",
+      "note": "Home with My work in Plan mode: the shared Plan timeline (bars by start and due, today line, assignee faces, stages by project). The prototype side is its Home with the Plan toggle on.",
+      "protoClick": "[data-act='mwmode'][data-m='plan']"
+    }
+  ]
+}
