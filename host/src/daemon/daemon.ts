@@ -329,11 +329,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         closers.push(() => seams?.unwire());
         const gaps = seams.missing;
         for (const m of gaps) sink.log({ space: spaceId, level: 30, msg: "seam.no_driver", place: "boot", attrs: { setter: m.setter, ...(m.module ? { module: m.module } : {}), reason: m.reason } });
-        const detail = gaps.length ? `Not set up: ${gaps.map((m) => `${m.module ?? "a module"} (${m.setter})`).join(", ")}.` : "Every module that asks the host for a driver has one.";
-        db!.run(
-          "INSERT INTO health_probe (name, state, detail, latency_ms, values_json, at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET state = excluded.state, detail = excluded.detail, latency_ms = excluded.latency_ms, values_json = excluded.values_json, at = excluded.at",
-          "module_drivers", gaps.length ? "degraded" : "healthy", detail, null, JSON.stringify({ missing: gaps.length, wired: seams.wired.length }), now(),
-        );
+        // health lists only what is missing: a Space with every driver set has no row, so the eight host probes stay the eight
+        if (gaps.length) {
+          const detail = `Not set up: ${gaps.map((m) => `${m.module ?? "a module"} (${m.setter})`).join(", ")}.`;
+          db!.run(
+            "INSERT INTO health_probe (name, state, detail, latency_ms, values_json, at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET state = excluded.state, detail = excluded.detail, latency_ms = excluded.latency_ms, values_json = excluded.values_json, at = excluded.at",
+            "module_drivers", "degraded", detail, null, JSON.stringify({ missing: gaps.length, wired: seams.wired.length }), now(),
+          );
+        } else db!.run("DELETE FROM health_probe WHERE name = ?", "module_drivers");
       }
 
       const owner = (): string => cfg.owner ?? access.owner() ?? "usr_owner";

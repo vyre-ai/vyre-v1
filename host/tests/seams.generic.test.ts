@@ -166,7 +166,7 @@ test("seams.generic: a plain boot wires every setter the module impls export, th
   try {
     assert.deepEqual(d.seams?.missing, [], "no module is left without its driver on a plain boot");
     for (const name of ["setGoogleHost", "setMsHost", "setImapSecretResolver", "setEventsHost", "setEventsDispatch"]) assert.ok(d.seams?.wired.includes(name), `${name} is wired`);
-    assert.equal(probe(d, "module_drivers")["state"], "healthy");
+    assert.deepEqual(probe(d, "module_drivers"), {}, "health lists only what is missing, so a complete boot adds no row");
     assert.ok(d.hooks!.consumers.some((c) => c.name === "notifications.fanout"), "the live notifications module's fanout consumer is registered from its exports");
   } finally { await d.stop(); }
 });
