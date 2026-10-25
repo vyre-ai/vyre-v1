@@ -28,3 +28,17 @@ test("footer exports the unsubscribe and preferences links only when unsub is on
   assert.equal(off.includes("unsubscribe_url"), false);
   assert.equal(emailBlockHtml({ id: "t1", kind: "text", text: "hi" }), null);
 });
+
+test("spacer, social and saved are frozen kinds with their HTML export", () => {
+  for (const k of ["spacer", "social", "saved"]) assert.equal(EMAIL_BLOCK_KINDS.includes(k as never), true);
+  assert.match(emailBlockHtml({ id: "s1", kind: "spacer", size: 40 }) ?? "", /height:40px/);
+  assert.match(emailBlockHtml({ id: "s2", kind: "spacer" }) ?? "", /height:24px/);
+  assert.match(emailBlockHtml({ id: "s3", kind: "spacer", size: 5000 }) ?? "", /height:200px/);
+  const so = emailBlockHtml({ id: "o1", kind: "social", align: "center", links: [{ network: "x", url: "https://x.com/acme" }, { network: "website", url: "javascript:alert(1)" }] }) ?? "";
+  assert.match(so, /href="https:\/\/x\.com\/acme"/);
+  assert.equal(so.includes("javascript"), false);
+  assert.equal(emailBlockHtml({ id: "o2", kind: "social", links: [] }), "");
+  const saved = emailBlockHtml({ id: "v1", kind: "saved", savedId: "blk_1", children: [{ id: "h", kind: "heading", text: "Hi", size: 30 }] }) ?? "";
+  assert.match(saved, /<h1 [^>]*30px/);
+  assert.equal(emailBlockHtml({ id: "v2", kind: "saved" }), "");
+});
