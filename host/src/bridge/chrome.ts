@@ -51,6 +51,7 @@ export function createChromeBridge(deps: ChromeBridgeDeps) {
   const clearTimer = deps.clearTimer ?? ((t) => clearTimeout(t as ReturnType<typeof setTimeout>));
   const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: unknown }>();
   const streams = new Set<(line: string) => void>();
+  const ends = new Set<() => void>();
   let seq = 0;
   let lastOptIn: { spaces: string[]; mode: "personal" | "computer" } | null = null;
 
@@ -137,6 +138,13 @@ export function createChromeBridge(deps: ChromeBridgeDeps) {
       });
     },
 
+    /** End every events stream (the daemon is stopping); the native host sees the end and exits. */
+    closeStreams(): void {
+      for (const end of ends) end();
+      ends.clear();
+      streams.clear();
+    },
+
     /** Every call waiting for an answer fails (the extension disconnected for good, or the daemon is stopping). */
     failAll(code = "offline", message = "The Vyre app is not reachable from this Chrome."): void {
       for (const [id, w] of pending) { clearTimer(w.timer); w.reject(new ChromeToolError(code, message)); pending.delete(id); }
@@ -154,9 +162,11 @@ export function createChromeBridge(deps: ChromeBridgeDeps) {
         if (req.method !== "GET") { res.writeHead(405); res.end(); return true; }
         res.writeHead(200, { "content-type": "application/x-ndjson", "cache-control": "no-store" });
         const write = (text: string): void => { res.write(text); };
+        const end = (): void => { try { res.end(); } catch { /* already closed */ } };
         streams.add(write);
+        ends.add(end);
         if (lastOptIn) write(line({ type: "agent.optin", ...lastOptIn }));
-        req.on("close", () => { streams.delete(write); });
+        req.on("close", () => { streams.delete(write); ends.delete(end); });
         return true;
       }
       if (req.method !== "POST") { res.writeHead(405); res.end(); return true; }
