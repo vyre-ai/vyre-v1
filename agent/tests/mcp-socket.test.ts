@@ -65,9 +65,9 @@ test("the socket is for the session's person only (0600) and closing removes it"
 });
 
 test("with a socket the engine's MCP config runs the shim as a stdio server and names the token variable, never its value", () => {
-  const cfg = JSON.parse(mcpConfigJson("http://127.0.0.1:1/mcp", { path: "/run/vyre/m.sock", shim: "/opt/vyre/shim.ts" })) as { mcpServers: { vyre: { type: string; command: string; args: string[]; env: Record<string, string> } } };
+  const cfg = JSON.parse(mcpConfigJson("http://127.0.0.1:1/mcp", { command: "node", args: ["/opt/vyre/shim.ts", "/run/vyre/m.sock"] })) as { mcpServers: { vyre: { type: string; command: string; args: string[]; env: Record<string, string> } } };
   assert.deepEqual(cfg.mcpServers.vyre, { type: "stdio", command: "node", args: ["/opt/vyre/shim.ts", "/run/vyre/m.sock"], env: { VYRE_MCP_TOKEN: "${VYRE_MCP_TOKEN}" } });
-  const argv = CLI_ADAPTERS.codex.command({ model: null, resume: null, mcpUrl: "http://x", mcpSocket: { path: "/s", shim: "/h" }, planMode: false, workFolder: null, system: null });
+  const argv = CLI_ADAPTERS.codex.command({ model: null, resume: null, mcpUrl: "http://x", mcpStdio: { command: "node", args: ["/h", "/s"] }, planMode: false, workFolder: null, system: null });
   assert.ok(argv.some((a) => a.startsWith("mcp_servers.vyre.command=")));
   assert.ok(!argv.some((a) => a.startsWith("mcp_servers.vyre.url=")));
 });

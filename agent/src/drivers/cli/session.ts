@@ -93,7 +93,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
 
   async function start(): Promise<Run> {
     const argv = a.command({
-      model: deps.model, resume: sessionId, mcpUrl: deps.endpoint.url, ...(deps.endpoint.socket ? { mcpSocket: deps.endpoint.socket } : {}), planMode: deps.planMode?.() ?? false,
+      model: deps.model, resume: sessionId, mcpUrl: deps.endpoint.url, ...(deps.endpoint.stdio ? { mcpStdio: deps.endpoint.stdio } : {}), planMode: deps.planMode?.() ?? false,
       workFolder: deps.workFolder, system: a.systemFlag ? deps.system : null,
     });
     const proc = await deps.launcher.spawn({

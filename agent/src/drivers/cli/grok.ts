@@ -17,7 +17,7 @@ export const grok: CliAdapter = {
   command(o: CommandOptions) {
     return [
       "grok", "-p", "--output-format", "stream-json", "--no-auto-update",
-      "--mcp-config", mcpConfigJson(o.mcpUrl, o.mcpSocket),
+      "--mcp-config", mcpConfigJson(o.mcpUrl, o.mcpStdio),
       ...(o.model !== null ? ["-m", o.model] : []),
       ...(o.resume !== null ? ["--resume", o.resume] : []),
     ];

@@ -115,8 +115,8 @@ export const codex: CliAdapter = {
       // Codex's own sandbox stays on inside ours: read-only unless a work folder was granted and the chat is not in plan mode.
       "-c", `sandbox_mode=${toml(o.workFolder !== null && !o.planMode ? "workspace-write" : "read-only")}`,
       // ASSUMED until the live recording: Codex's stdio server block takes command, args and env_vars (names of variables to pass on), as its HTTP block takes bearer_token_env_var.
-      ...(o.mcpSocket
-        ? ["-c", `mcp_servers.vyre.command=${toml("node")}`, "-c", `mcp_servers.vyre.args=[${toml(o.mcpSocket.shim)}, ${toml(o.mcpSocket.path)}]`, "-c", `mcp_servers.vyre.env_vars=[${toml(TOKEN_ENV)}]`]
+      ...(o.mcpStdio
+        ? ["-c", `mcp_servers.vyre.command=${toml(o.mcpStdio.command)}`, "-c", `mcp_servers.vyre.args=[${o.mcpStdio.args.map(toml).join(", ")}]`, "-c", `mcp_servers.vyre.env_vars=[${toml(TOKEN_ENV)}]`]
         : ["-c", `mcp_servers.vyre.url=${toml(o.mcpUrl)}`, "-c", `mcp_servers.vyre.bearer_token_env_var=${toml(TOKEN_ENV)}`]),
       ...(o.model !== null ? ["-m", o.model] : []),
       ...(o.resume !== null ? ["resume", o.resume] : []),

@@ -34,8 +34,8 @@ export interface Launcher { spawn(spec: LaunchSpec): Promise<CliProcess> }
 export interface McpEndpoint {
   url: string;
   token: string;
-  /** Inside a sandbox the loopback port is out of reach: the engine runs `node <shim> <path>` as its MCP server and the shim talks to this unix socket (agent/src/mcp/socket.ts). `url` is then unused. */
-  socket?: { path: string; shim: string };
+  /** Inside a sandbox the loopback port is out of reach: the engine runs this command as its MCP server (a stdio shim that talks to the session's socket). `url` is then unused. */
+  stdio?: { command: string; args: readonly string[] };
 }
 
 export interface CommandOptions {
@@ -43,8 +43,8 @@ export interface CommandOptions {
   /** The engine's own session id to continue, from a checkpoint. */
   resume: string | null;
   mcpUrl: string;
-  /** Set when the engine reaches Vyre through the sandbox's socket and stdio shim instead of the URL. */
-  mcpSocket?: { path: string; shim: string };
+  /** Set when the engine reaches Vyre through a stdio shim (sandbox socket) instead of the URL. */
+  mcpStdio?: { command: string; args: readonly string[] };
   planMode: boolean;
   /** A granted work folder: the CLI's own file tools come on and it works there. Null on a chat that runs Vyre tools only. */
   workFolder: string | null;
