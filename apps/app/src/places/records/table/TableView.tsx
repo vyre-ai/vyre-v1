@@ -1,7 +1,7 @@
 // Records > table (spec 3.4, 2.9): a type's records as a sheet. 100,000 rows open under 100 ms because the table never holds more than a window: it asks the local copy for 200 rows at
 // a time and draws only the rows and the columns that meet the screen, with the title column and the row numbers held at the left. The count in the foot is the cached count(*).
 // Filter, Sort, Group, Fields and Colour are quiet buttons in the header; each opens a menu with checkmarks and counts. Click a header to sort; Enter or Space opens the record.
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createElement, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
@@ -155,20 +155,48 @@ const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): 
   );
 });
 
+// The scrolling cells are plain elements, not React Native views and texts: a scroll mounts a few rows a frame, and 13 cells of a row as View and Text each cost several times a plain div. The
+// 100,000-row scroll probe was 66.7 ms at p95 with every column and 16.8 ms with the name column alone, so the cost is the cells. Same looks as the cell styles below.
+const P = { boxSizing: "border-box", display: "flex", alignItems: "center", flex: "none", height: "100%", padding: "0 10px", overflow: "hidden" } as const;
+const CELL_TEXT = { fontSize: 13, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 } as const;
+const CELL_NUM = { ...CELL_TEXT, fontVariantNumeric: "tabular-nums", textAlign: "right" } as const;
+const CELL_SEALED = { ...CELL_TEXT, color: "var(--ink-3)", letterSpacing: 1 } as const;
+const CELL_STARS = { fontSize: 12, color: "var(--warn)", letterSpacing: 1, whiteSpace: "nowrap" } as const;
+const CELL_PERSON = { display: "flex", alignItems: "center", gap: 7, minWidth: 0 } as const;
+const GHOST = { height: 9, width: "55%", borderRadius: 5, backgroundColor: "var(--hover)" } as const;
+
+function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string): ReactElement | null {
+  const v = row.fields[field.key];
+  if (v === undefined || v === null || v === "") return null;
+  if ((field.type === "choice" || field.type === "status") && typeof v === "string") {
+    const opt = optionsOf(field).find((o) => o.key === v);
+    const hue = opt?.color && /^\d+$/.test(opt.color) ? Number(opt.color) : hueOf(v);
+    return createElement("span", { style: { boxSizing: "border-box", display: "inline-flex", alignItems: "center", height: 20, padding: "0 8px", borderRadius: 6, maxWidth: "100%", overflow: "hidden", backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)` } },
+      createElement("span", { style: { fontSize: 12, fontWeight: 500, color: `hsl(${hue}, 55%, 40%)`, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, opt?.title ?? v));
+  }
+  if (field.type === "checkbox") return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;
+  if (field.type === "person") return createElement("span", { style: CELL_PERSON }, <Face name={names(String(v))} size={18} />, createElement("span", { style: CELL_TEXT }, names(String(v))));
+  if (field.type === "rating" && typeof v === "number") return createElement("span", { style: CELL_STARS, "aria-label": `${v} of 5` }, "\u2605".repeat(Math.max(0, Math.min(5, v))));
+  return createElement("span", { style: field.type === "sealed" ? CELL_SEALED : isNumeric(field) ? CELL_NUM : CELL_TEXT }, cellText(field, v, names));
+}
+
 const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: number; cols: readonly Column[]; from: number; to: number; pad: number }): ReactElement {
   const { row, n, y, left, width, cols, from, to, pad, names, onTap, onHot } = p;
   const bg = bgOf(p);
-  const handlers = { onClick: () => { if (row) onTap(row.id); }, onMouseEnter: () => onHot(row ? row.id : null), onMouseLeave: () => onHot(null) };
   const cells: ReactElement[] = [];
   for (let i = from; i < to; i++) {
     const c = cols[i]!;
-    cells.push(<View key={c.field.key} style={[styles.td, { width: c.width }, isNumeric(c.field) && styles.tdNum]}>{row ? <Cell field={c.field} row={row} names={names} /> : <View style={styles.ghostBar} />}</View>);
+    cells.push(createElement("div", { key: c.field.key, style: isNumeric(c.field) ? { ...CELL_BOX, width: c.width, justifyContent: "flex-end" } : { ...CELL_BOX, width: c.width } }, row ? webCell(c.field, row, names) : createElement("div", { style: GHOST })));
   }
-  return (
-    <View testID={row ? `recb-${row.id}` : `recb-pending-${n}`} style={[styles.tr, { top: y, left, width, backgroundColor: bg }]} {...(handlers as object)}>
-      {pad > 0 ? <View style={{ width: pad }} /> : null}
-      {cells}
-    </View>
+  return createElement(
+    "div",
+    {
+      "data-testid": row ? `recb-${row.id}` : `recb-pending-${n}`,
+      onClick: () => { if (row) onTap(row.id); }, onMouseEnter: () => onHot(row ? row.id : null), onMouseLeave: () => onHot(null),
+      style: { position: "absolute", boxSizing: "border-box", display: "flex", alignItems: "center", top: y, left, width, height: ROW_H, borderBottom: "1px solid var(--line)", backgroundColor: bg },
+    },
+    pad > 0 ? createElement("div", { key: "pad", style: { width: pad, flex: "none" } }) : null,
+    ...cells,
   );
 });
 

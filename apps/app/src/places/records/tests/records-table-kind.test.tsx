@@ -46,3 +46,10 @@ test("switching from the table to a board and back: the menu lists the kinds, ch
   assert.deepEqual(asked, ["board", "table"]);
   assert.ok(has(render(<RecordViews kind="board" />), 'data-testid="records-board"') && has(render(<RecordViews kind="table" />), 'data-testid="records-table"'), "and each opens as its own screen");
 });
+
+test("the scrolling cells of a row are plain elements with the same test ids and words (the scroll budget)", () => {
+  const out = render(<TableView type="clients" />, "clients");
+  assert.ok(has(out, 'data-testid="recb-'), "each row's scrolling part is there");
+  assert.ok(has(out, 'data-testid="rec-'), "and its frozen part");
+  assert.ok(has(out, "Active") || has(out, "Lead"), "a choice cell shows its option's words");
+});
