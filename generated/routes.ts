@@ -11483,6 +11483,25 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/google/drive/changes_start_token",
+    "cap": "google.drive.changes_start_token",
+    "v": 1,
+    "module": "google",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/google/drive/copy_file",
     "cap": "google.drive.copy_file",
     "v": 1,
