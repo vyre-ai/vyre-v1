@@ -3,7 +3,7 @@
 // switch repaints with no re-render.
 import { createElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
@@ -87,7 +87,7 @@ export function Tool({ icon, label, onPress, active = false, testID }: { icon: I
 /** The on/off switch of a routine. */
 export function Switch({ on, label, onPress, testID }: { on: boolean; label: string; onPress: () => void; testID?: string }): ReactElement {
   return (
-    <Pressable role="switch" aria-label={label} aria-checked={on} onPress={onPress} testID={testID} style={[s.switchTrack, on && s.switchOn]}>
+    <Pressable role="switch" aria-label={label} aria-checked={on} onPress={onPress} testID={testID} style={[s.switchTrack, on && SWITCH_ON]}>
       <View style={[s.switchKnob, on && s.switchKnobOn]} />
     </Pressable>
   );
@@ -132,7 +132,8 @@ function Hot({ children }: { children: (over: boolean) => ReactElement }): React
   return <View {...{ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) }}>{children(over)}</View>;
 }
 
-export function PaneList({ entries, window, testID }: { entries: readonly Entry[]; window?: VirtualWindow; testID?: string }): ReactElement {
+/** `plain` draws every entry in one scrolling column instead of a windowed list: for a short list whose rows are boxes of varying height (Memory), where measured windowing leaves gaps. */
+export function PaneList({ entries, window, testID, plain = false }: { entries: readonly Entry[]; window?: VirtualWindow; testID?: string; plain?: boolean }): ReactElement {
   const menu = useMenu();
   const render = (e: Entry): ReactElement => {
     switch (e.type) {
@@ -161,6 +162,16 @@ export function PaneList({ entries, window, testID }: { entries: readonly Entry[
       }
     }
   };
+  if (plain) {
+    const rows: ReactElement[] = [];
+    for (const e of entries) rows.push(<View key={e.key}>{render(e)}</View>);
+    return (
+      <View testID={testID ?? "pane-list"} style={s.list}>
+        <ScrollView style={{ flex: 1 }}>{rows}</ScrollView>
+        {menu.element}
+      </View>
+    );
+  }
   return (
     <View testID={testID ?? "pane-list"} style={s.list}>
       <VirtualList data={entries} rowHeight="measure" keyOf={(e) => e.key} renderItem={render} {...(window ? { window } : {})} />
@@ -169,13 +180,15 @@ export function PaneList({ entries, window, testID }: { entries: readonly Entry[
   );
 }
 
+// A plain object (not a StyleSheet id) so the painted token is visible in the element's inline style, as ui/Row does.
+const SWITCH_ON = { backgroundColor: "var(--ok)" };
+
 export const s = StyleSheet.create({
   pulse: { position: "absolute", left: -3, top: -3, borderWidth: 1.5, borderColor: "var(--accent)" as string, opacity: 0.55 },
   lead: { width: 18, height: 18, alignItems: "center", justifyContent: "center" },
   tool: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   toolOver: { backgroundColor: "var(--press)" as string },
   switchTrack: { width: 28, height: 16, borderRadius: 8, backgroundColor: "var(--line-2)" as string, justifyContent: "center", paddingHorizontal: 2 },
-  switchOn: { backgroundColor: "var(--accent)" as string },
   switchKnob: { width: 12, height: 12, borderRadius: 6, backgroundColor: "var(--win)" as string },
   switchKnobOn: { alignSelf: "flex-end" },
   btn: { height: 26, paddingHorizontal: 10, borderRadius: 7, alignItems: "center", justifyContent: "center", flexDirection: "row" },

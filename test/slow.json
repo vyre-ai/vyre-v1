@@ -47,5 +47,6 @@
   {"file": "modules/chat/tests/post.seq.test.ts", "capSec": 120, "owner": "L2", "reason": "holds a ms speed assertion; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
   {"file": "sync/tests/device.engine.heavy.test.ts", "capSec": 120, "owner": "L1", "reason": "holds a ms speed assertion; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
   {"file": "ui/src/Composer/composer.test.tsx", "capSec": 120, "owner": "L9", "reason": "holds a ms speed assertion; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
-  {"file": "ui/tests/stream.render.test.tsx", "capSec": 120, "owner": "L9", "reason": "holds a ms speed assertion; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true}
+  {"file": "ui/tests/stream.render.test.tsx", "capSec": 120, "owner": "L9", "reason": "holds a ms speed assertion; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
+  {"file": "perf/server/server.test.ts", "capSec": 120, "owner": "L11", "reason": "server probes against the speed budgets; full scale (VYRE_PERF_FULL=1) in the hourly perf run on v1-perf (ruling 46)", "perf": true}
 ]
