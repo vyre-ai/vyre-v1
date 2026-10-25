@@ -35,7 +35,7 @@ test("notes list by agent, area and layer, and a person's own notes show for the
   const omarCtx = asPerson(h, { kind: "person", id: "usr_omar" }, { respond });
   assert.equal((await notesList(omarCtx.ctx, { layer: "person" })).notes.length, 0);
   h.deny("folder:fld_intake");
-  assert.equal((await notesList(h.ctx, { agentId: "agt_intake" })).notes.length, 0);
+  assert.deepEqual((await notesList(h.ctx, { agentId: "agt_intake" })).notes.map((n) => n.layer), ["person"], "only the person's own note is left when the agent's folder is closed");
 });
 
 test("a note is read through Files, only where the layer is visible", async () => {

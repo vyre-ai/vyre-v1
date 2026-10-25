@@ -73,6 +73,8 @@ export function harness(o: HarnessOptions = {}) {
       called.push({ cap, input: body });
       const r = respond[cap];
       if (r) return r(body);
+      if (cap === "agents.get") return { agent: { folderId: `fld_${String(body["agentId"]).replace(/^agt_/, "")}`, ownerId: "usr_boss" } };
+      if (cap === "projects.get") return { project: { folderId: `fld_${String(body["projectId"]).replace(/^prj_/, "")}`, lead: "usr_lead" } };
       if (cap === "settings.get") return { row: settings[String(body["key"])] === undefined ? undefined : { value: settings[String(body["key"])] } };
       if (cap === "tasks.create") return { task: { id: `tsk_prom${++tasks}` } };
       if (cap === "tasks.transition") return { task: { id: String(body["taskId"]) } };

@@ -85,7 +85,7 @@ test("reject keeps the request on record with a note, closes the task, and leave
   assert.deepEqual(res, { ok: true });
   assert.equal(h.rows("SELECT status, note, decided_by FROM memory_promotions")[0]?.["status"], "rejected");
   assert.equal(h.rows("SELECT note FROM memory_promotions")[0]?.["note"], "too specific");
-  assert.equal(h.named("memory.promotion_rejected").length, 1);
+  assert.equal(boss.named("memory.promotion_rejected").length, 1);
   assert.deepEqual(boss.calls("tasks.transition")[0]?.input["to"], "canceled");
   assert.equal(h.rows("SELECT id FROM memory_facts WHERE layer = 'agent'").length, 0);
   await assert.rejects(() => promotionReject(boss.ctx, { promotionId: out.promotionId }), (e) => codeOf(e) === "validation.bad_input");
