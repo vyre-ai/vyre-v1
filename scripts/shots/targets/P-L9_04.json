@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_04-composer",
+      "route": "/m/P-L9_04",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid=\"composer-who\"]",
+      "note": "ui/Composer in a conversation column, idle, with the who-will-reply line (Intake will reply), the paperclip, @, # and / buttons, the model and where-it-runs buttons from the place, and the up-arrow send, against the composer of the prototype Chats place. Paper and graphite, 1280 and 390 wide."
+    }
+  ]
+}
