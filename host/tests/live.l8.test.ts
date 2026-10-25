@@ -84,27 +84,33 @@ test("l8 live: a booted daemon wires forms and campaigns and reports no live L8 
   } finally { await d.stop(); }
 });
 
-test("l8 live: each live module answers a read and a write through the gateway as the owner, and a member is refused", async () => {
-  const dir = seededDir();
-  const d = await boot(dir);
-  try {
-    for (const [cap, body] of [["forms.list", {}], ["campaigns.list", {}], ["email_builder.list", {}], ["esign.providers", {}], ["esign.list", {}], ["templates.list", {}]] as const) await ok(d, OWNER_TOKEN, cap, body);
-    const form = (await ok(d, OWNER_TOKEN, "forms.create", { name: "Intake", recordType: "contact", kind: "public" })) as { form: { formId: string } };
-    assert.ok(form.form, "the form is created");
-    await ok(d, OWNER_TOKEN, "campaigns.create", { name: "Welcome", kind: "sequence" });
-    await ok(d, OWNER_TOKEN, "email_builder.create", { name: "Welcome email", mode: "blocks" });
-    await ok(d, OWNER_TOKEN, "esign.provider_set", { provider: "documenso" });
-    const listed = (await ok(d, OWNER_TOKEN, "forms.list", {})) as { forms: unknown[] };
-    assert.ok(listed.forms.length >= 1, "the form is listed");
-    // Sites is deferred (ruling 60): registered, live, and it refuses with the shared message
-    const deferred = await post(d, OWNER_TOKEN, "sites.list", {});
-    const body = (await deferred.json()) as { error?: { code?: string; message?: string } };
-    assert.equal(body.error?.code, "internal.unavailable");
-    assert.equal(body.error?.message, "Not in this version yet");
-    // refusals: a member holds none of these permissions
-    for (const [cap, body] of [["forms.create", { name: "No", recordType: "contact", kind: "public" }], ["campaigns.create", { name: "No", kind: "sequence" }], ["esign.provider_set", { provider: "documenso" }]] as const) {
-      const r = await post(d, MEMBER_TOKEN, cap, body);
-      assert.equal(r.status, 403, `${cap} refuses a member`);
-    }
-  } finally { await d.stop(); }
+// One booted daemon for the calls below, one test per step so a slow or stuck call is named in the run output.
+let shared: Daemon | null = null;
+test("l8 live: boot a daemon on the seeded Space", async () => { shared = await boot(seededDir()); });
+const live = (): Daemon => { assert.ok(shared, "the daemon booted"); return shared; };
+
+test("l8 live: the owner reads forms, campaigns, email designs, esign and templates", async () => {
+  for (const [cap, body] of [["forms.list", {}], ["campaigns.list", {}], ["email_builder.list", {}], ["esign.providers", {}], ["esign.list", {}], ["templates.list", {}]] as const) await ok(live(), OWNER_TOKEN, cap, body);
 });
+test("l8 live: the owner creates a form and it is listed", async () => {
+  const form = (await ok(live(), OWNER_TOKEN, "forms.create", { name: "Intake", recordType: "contact", kind: "public" })) as { form: unknown };
+  assert.ok(form.form, "the form is created");
+  const listed = (await ok(live(), OWNER_TOKEN, "forms.list", {})) as { forms: unknown[] };
+  assert.ok(listed.forms.length >= 1, "the form is listed");
+});
+test("l8 live: the owner creates a campaign", async () => { await ok(live(), OWNER_TOKEN, "campaigns.create", { name: "Welcome", kind: "sequence" }); });
+test("l8 live: the owner creates an email design", async () => { await ok(live(), OWNER_TOKEN, "email_builder.create", { name: "Welcome email", mode: "blocks" }); });
+test("l8 live: the owner sets the default e-sign provider", async () => { await ok(live(), OWNER_TOKEN, "esign.provider_set", { provider: "documenso" }); });
+test("l8 live: Sites is deferred (ruling 60): registered, live, and it refuses with the shared message", async () => {
+  const r = await post(live(), OWNER_TOKEN, "sites.list", {});
+  const body = (await r.json()) as { error?: { code?: string; message?: string } };
+  assert.equal(body.error?.code, "internal.unavailable");
+  assert.equal(body.error?.message, "Not in this version yet");
+});
+test("l8 live: a member holds none of these permissions and is refused", async () => {
+  for (const [cap, body] of [["forms.create", { name: "No", recordType: "contact", kind: "public" }], ["campaigns.create", { name: "No", kind: "sequence" }], ["esign.provider_set", { provider: "documenso" }]] as const) {
+    const r = await post(live(), MEMBER_TOKEN, cap, body);
+    assert.equal(r.status, 403, `${cap} refuses a member`);
+  }
+});
+test("l8 live: stop the daemon", async () => { await shared?.stop(); });
