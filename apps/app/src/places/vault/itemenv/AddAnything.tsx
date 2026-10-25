@@ -67,7 +67,7 @@ export function startDraft(initialPaste?: string, initialApp?: string): { draft:
   let status: { text: string; undo: Snapshot } | null = null;
   const t = initialApp ? templateById(initialApp) : undefined;
   if (t) draft = { name: t.id === "custom" ? "" : t.name, kind: t.kind, template: t.id, fields: templateFields(t) };
-  if (initialPaste) {
+  if (initialPaste?.trim()) {
     const u = understandPaste(initialPaste);
     if (u.shape === "none" || u.fields.length === 0) status = { text: u.note || "Nothing to read in that paste", undo: draft };
     else {
