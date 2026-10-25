@@ -4,7 +4,7 @@
 //   identity.invites    peek and accept, run by the members module through its host calls (members.invite_peek, members.invite_accept), so identity never touches members tables
 //   identity.losses     what a reset would lose: Mine vault items counted from the vault table (chat and memory counts follow when those modules count their private rows)
 //   members.factors     second factors per person: TOTP when identity holds a secret for them
-//   members.owned       NOT built yet: nothing is reported as owned, so the removal wizard offers no transfers (listed as a gap on P-L7_LIVE)
+//   members.owned      routines, agents, automations and Mine vault items, through those modules' host calls; records, files, channels, projects, mailbox connections, private chats and memory report nothing yet
 //   spaces.directory    the role name shown in the switcher
 //   spaces.attention    NOT built yet: zero (the Home counts come from tasks and inbox)
 import type { AccessSnapshot } from "../../../kernel/src/authorize/snapshot.ts";
@@ -28,6 +28,23 @@ export function createPeopleExtras(d: PeopleDeps): (module: string) => Record<st
     },
     roleName(personId: string) { return d.access().info(personId)?.roleNames.split(", ")[0] ?? "member"; },
   };
+  // the removal wizard: each owning module answers for its own kinds through its host calls (<module>.owned_by, <module>.reassign_owned); a module that is not live has no host call and owns nothing here
+  const OWNERS: Record<string, string> = { routines: "agents", agents: "agents", automations: "automations", vault_mine: "vault" };
+  const owned = {
+    async of(personId: string) {
+      const out: Record<string, { count: number; sample: unknown[] }> = {};
+      for (const module of new Set(Object.values(OWNERS))) {
+        try { Object.assign(out, (await d.call(`${module}.owned_by`, { person: personId })) as object); } catch { /* module not live */ }
+      }
+      return out;
+    },
+    holds: () => 0,
+    async apply(personId: string, kind: string, action: string, to?: string) {
+      const module = OWNERS[kind];
+      if (!module) return 0;
+      try { return Number(await d.call(`${module}.reassign_owned`, { person: personId, kind, action, ...(to ? { to } : {}) })); } catch { return 0; }
+    },
+  };
   const extras: Record<string, Record<string, unknown>> = {
     identity: {
       directory,
@@ -39,7 +56,7 @@ export function createPeopleExtras(d: PeopleDeps): (module: string) => Record<st
     },
     members: {
       factors: { of: (personId: string) => (count(d.db, `SELECT count(*) AS n FROM identity_accounts WHERE person_id = ? AND totp_secret IS NOT NULL`, personId) > 0 ? ["totp"] : []) },
-      owned: { of: () => ({}), holds: () => 0, apply: () => Promise.resolve(0) },
+      owned,
     },
     spaces: { directory, attention: { of: () => ({ needsYou: 0, unread: 0 }) } },
   };
