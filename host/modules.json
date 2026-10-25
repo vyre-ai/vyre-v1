@@ -79,7 +79,7 @@
     {
       "id": "documents",
       "owner": "L4",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "email-builder-api",
@@ -244,7 +244,7 @@
     {
       "id": "records",
       "owner": "L3",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "reports-client",

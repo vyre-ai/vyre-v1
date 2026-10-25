@@ -132,7 +132,7 @@ function Sidebar(): ReactElement {
     );
   }
 
-  const list = (key: "follow" | "camp", label: string, glyph: IconName, f: (r: ContactRow) => boolean): ReactElement => (
+  const list = (key: "starred" | "follow" | "camp", label: string, glyph: IconName, f: (r: ContactRow) => boolean): ReactElement => (
     <SideRow key={key} id={`list:${key}`} title={label} selected={scoped({ kind: key })} count={unreadOf(f)} glyph={<Glyph name={glyph} />} onPress={() => pick({ kind: key })} />
   );
 
@@ -169,6 +169,7 @@ function Sidebar(): ReactElement {
         {sections}
         <SectionHead id="lists" label="Lists" closed={closed("lists")} onToggle={() => dispatch({ type: "section", key: "lists" })} />
         {closed("lists") ? null : [
+          list("starred", "Starred", "star", (r) => r.starred === true),
           list("follow", "Following", "bell", (r) => r.followed),
           list("camp", "Campaigns", "flag", (r) => r.campaignId !== undefined),
         ]}

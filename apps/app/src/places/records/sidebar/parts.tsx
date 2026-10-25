@@ -2,6 +2,7 @@
 import { createElement } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 
 /** 16 px viewBox stroke icons, from the prototype's Records. */
 export const ICON = {
@@ -55,33 +56,34 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)", width }: { name
   );
 }
 
-export function hash(s: string): number {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
-  return h;
-}
-
-/** A person is a circle; the colour comes from the name, mixed into the surface so it reads in every skin. */
+/** A person is a round marble seeded by the name: the shared Avatar. */
 export function Face({ name, size = 20 }: { name: string; size?: number }): ReactElement {
-  const hue = (hash(name) % 12) * 30;
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  let text = (words[0]?.[0] ?? "?").toUpperCase();
-  if (size >= 24) {
-    text = "";
-    for (const w of words.slice(0, 2)) text += (w[0] ?? "").toUpperCase();
-  }
   return (
-    <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, borderRadius: size, backgroundColor: `hsla(${hue}, 65%, 52%, 0.22)` as string, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ color: `hsl(${hue}, 55%, 46%)` as string, fontSize: Math.max(9, Math.round(size * 0.48)), fontWeight: "600" }}>{text}</Text>
+    <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0 }}>
+      <Avatar name={name} kind="person" size={size} />
     </View>
   );
 }
 
-/** Where a press landed, so a menu opens under the pointer. A press without coordinates (the keyboard) opens at the top left of the window. */
+/**
+ * Where a menu opens for a press: under the pointer when the press has one, otherwise under the button that was pressed (its left edge, its bottom). A press from the keyboard or from
+ * code has no pointer position, and the menu must land in the same place as it does for a click (brief rule 26).
+ */
 export function pointOf(e: unknown): { x: number; y: number } {
-  const n = (e as { nativeEvent?: { pageX?: number; pageY?: number } }).nativeEvent;
+  const ev = e as { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: Anchor; target?: Anchor };
   const ok = (v: number | undefined): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
-  return { x: ok(n?.pageX), y: ok(n?.pageY) };
+  const x = ok(ev.nativeEvent?.pageX), y = ok(ev.nativeEvent?.pageY);
+  if (x !== 0 || y !== 0) return { x, y };
+  const box = (ev.currentTarget ?? ev.target)?.getBoundingClientRect?.();
+  return box ? { x: box.left, y: box.bottom } : { x, y };
+}
+interface Anchor { getBoundingClientRect?: () => { left: number; bottom: number } }
+
+/** Where a menu opened from a button goes: under the button's left edge, whether it was pressed, clicked from code or opened by the keyboard (rule 26). Falls back to the press point. */
+export function anchorOf(e: unknown): { x: number; y: number } {
+  const box = (e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.();
+  if (box && Number.isFinite(box.left) && Number.isFinite(box.bottom)) return { x: box.left, y: box.bottom + 4 };
+  return pointOf(e);
 }
 
 /** A quiet header button: an icon, a label that drops away on a phone, and what it applies ("Sort", "Name"). Lit when something is applied. */
@@ -94,7 +96,7 @@ export function HeadButton({ icon, label, detail, on = false, testID, onPress, b
       accessibilityLabel={detail ? `${label}, ${detail}` : label}
       accessibilityState={{ selected: on }}
       testID={testID}
-      onPress={(e) => { const p = pointOf(e); onPress(p.x, p.y); }}
+      onPress={(e) => { const p = anchorOf(e); onPress(p.x, p.y); }}
       style={({ hovered }: { hovered?: boolean }) => [s.hb, hovered === true && s.hbOver]}
     >
       <Glyph name={icon} size={14} color={on ? "var(--accent)" : "var(--ink-2)"} />

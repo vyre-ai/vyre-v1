@@ -1,7 +1,9 @@
 // Reserved sizes (ARCH 9, "No layout shift"): a thing that arrives later (an image, an avatar, the text of a message) has its box before it arrives, the size of the final content, so nothing
 // below it moves when it lands. Images carry their width and height; an avatar is a fixed square; a skeleton is exactly the lines the text will take.
 import { memo } from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, View } from "react-native";
+import { Avatar } from "../Avatar/index.tsx";
+import type { AvatarKind } from "../Avatar/index.tsx";
 
 /** Body text of a message: 15 px on a 24 px line (the prototype's `.m .body`). A skeleton line and a text line are the same height. */
 export const BODY_SIZE = 15;
@@ -33,19 +35,19 @@ export const ReservedImage = memo(function ReservedImage({ uri, width, height, l
 });
 
 export interface AvatarSlotProps {
+  /** The author's name: the face is drawn from it, so there is nothing to wait for. */
   label: string;
   size?: number;
-  /** Background of the tile. Default `--sunk`. */
-  color?: string;
+  /** An agent by default (a stream is an agent's answer). */
+  kind?: AvatarKind;
   testID?: string;
 }
 
-/** A square of a fixed size with the first letter in it: the same box whether or not the picture has arrived. */
-export const AvatarSlot = memo(function AvatarSlot({ label, size = AVATAR_SIZE, color, testID }: AvatarSlotProps) {
-  const initial = Array.from(label.trim())[0]?.toUpperCase() ?? "";
+/** A square of a fixed size with the author's shared face in it: the same box whether or not anything has arrived. */
+export const AvatarSlot = memo(function AvatarSlot({ label, size = AVATAR_SIZE, kind = "agent", testID }: AvatarSlotProps) {
   return (
-    <View testID={testID} accessibilityLabel={label} style={[styles.avatar, { width: size, height: size, borderRadius: Math.round(size * 0.3), backgroundColor: color ?? "var(--sunk)" }]}>
-      <Text style={[styles.initial, { fontSize: Math.max(9, Math.round(size * 0.5)), lineHeight: size }]}>{initial}</Text>
+    <View testID={testID} style={[styles.avatar, { width: size, height: size }]}>
+      <Avatar name={label} kind={kind} size={size} />
     </View>
   );
 });
@@ -84,8 +86,7 @@ export const SkeletonMessage = memo(function SkeletonMessage({ lines = 3, withHe
 const styles = StyleSheet.create({
   imageBox: { width: "100%", overflow: "hidden", backgroundColor: "var(--sunk)" as string },
   imageFill: { width: "100%", height: "100%" },
-  avatar: { alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" },
-  initial: { color: "var(--ink-2)" as string, fontWeight: "600", textAlign: "center" },
+  avatar: { alignItems: "center", justifyContent: "center", flexShrink: 0 },
   skelHeader: { height: HEADER_HEIGHT, flexDirection: "row", alignItems: "flex-start", gap: 8 },
   skelAvatar: { borderRadius: 6, backgroundColor: "var(--sunk)" as string },
   skelLine: { height: BODY_LINE, justifyContent: "center" },

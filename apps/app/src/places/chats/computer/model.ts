@@ -151,6 +151,8 @@ export function keyInput(e: KeyLike): KeyInput | null {
 
 /** Two presses this close together are one double-click. */
 export const DOUBLE_MS = 350;
+/** Wheel turns this close together are sent as one scroll. */
+export const SCROLL_MS = 40;
 
 export function stateWord(c: Computer): string {
   switch (c.state) {
