@@ -13,6 +13,8 @@ on:
       - 'package.json'
       - '**/package.json'
       - 'tools/gen/**'
+      - 'scripts/shots/prototype/vyre-v1.html'
+      - 'scripts/shots/gen-prototype-seed.mjs'
       - '.github/workflows/regen.yml'
       - 'scripts/regen-bot.sh'
 concurrency:
