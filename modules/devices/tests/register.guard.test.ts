@@ -5,7 +5,7 @@ import { handlers } from "../impl.ts";
 import { codeOf, harness } from "../fixtures/db.ts";
 
 const input = { person: "usr_victim", name: "Attacker's laptop", class: "desktop" as const };
-const count = (h: ReturnType<typeof harness>, table: string): number => h.rows(`SELECT * FROM ${table}`).length;
+const count = (h: ReturnType<typeof harness>, table: string): number => h.raw.rows(table).length;
 
 test("a member, an admin and an agent cannot register a device or get a session for anyone", async () => {
   const h = harness();
