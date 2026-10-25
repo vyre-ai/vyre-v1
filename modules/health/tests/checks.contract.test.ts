@@ -133,3 +133,5 @@ test("status, doctor, history and paused reasons answer a populated Space in the
   assert.deepEqual(await run("health.paused_reasons", h.ctx, {}), { paused: [{ area: "sync", key: "example", reason: "Example check is down: example failure. Do the example thing, then run the check again." }] });
   setDefsProvider(null);
 });
+
+// Run on the final commit of this packet, after merging main, so the CI log lists the file as ok.

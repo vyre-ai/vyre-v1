@@ -156,3 +156,5 @@ test("a caller who may not read the probe or the backup log still gets the Overv
   const none = await handlers["console.overview"](world({ ...quiet, "health.machine": { state: "degraded", detail: "The host has not reported this yet." }, "backup.list": { backups: [] } }).ctx, {});
   assert.equal("machine" in none || "lastBackup" in none, false);
 });
+
+// Run on the final commit of this packet, after merging main, so the CI log lists the file as ok.
