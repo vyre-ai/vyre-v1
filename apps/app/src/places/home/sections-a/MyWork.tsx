@@ -209,7 +209,7 @@ export function MyWork(): ReactElement {
           onCreate={(title) => { setAdding(false); void actions.createTask(title); }}
         />
       ) : null}
-      {loading ? <Skeleton rows={4} id="work" /> : body.length ? view === "plan" ? <View style={local.plan} testID="work-plan"><Plan today={planToday} stages={planStageList} tasks={planTaskList} people={planPeople} height={340} view="timeline" fixedView canAdd={false} canDelete={false} onChange={onPlanChange} onOpenTask={(t) => data.nav.openTask(t.id)} /></View> : <View accessibilityRole="list">{body}</View> : adding ? null : <EmptyLine id="work" text="No tasks yet" />}
+      {loading ? <Skeleton rows={4} id="work" /> : body.length ? view === "plan" ? <View style={local.plan} testID="work-plan"><Plan today={planToday} stages={planStageList} tasks={planTaskList} people={planPeople} height={340} view="timeline" canAdd={false} canDelete={false} onChange={onPlanChange} onOpenTask={(t) => data.nav.openTask(t.id)} /></View> : <View accessibilityRole="list">{body}</View> : adding ? null : <EmptyLine id="work" text="No tasks yet" />}
       {menu.element}
     </Section>
   );
