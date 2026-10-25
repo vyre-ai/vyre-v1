@@ -65,4 +65,4 @@ Credential files: memory-backed, mode 0600, shredded on stop ("credentials live 
 
 ## Sign-off status
 
-The probes exist and run in the `l2-heavy` job. This document does not record a pass: the lead must link the green `l2-heavy` run for the probes above, and the launcher wrap (Finding 1) must land and pass its test before CLI engines are enabled on a host. Until then a CLI engine may run only through a sandboxed launcher; the unwrapped `createLocalLauncher` is for tests.
+Probes run (l2-heavy job of the check run on PR 465, head b29bbff2, https://github.com/vyre-ai/vyre-v1/actions/runs/40241908175/job/121315473579): `sandbox.heavy.test.ts` 27 pass, `sandbox.net.heavy.test.ts` 12 pass, 0 fail, 0 skipped. All ten probes above are blocked, with the two known gaps asserted as gaps (Finding 2 and 3). The sandboxed launcher test from Finding 1 ("the sandboxed launcher: reads the work folder, cannot read the home or a neighbour, cannot write outside, sees the key and the token and nothing else of the daemon") is ok in the same job. The unwrapped `createLocalLauncher` stays for tests only; a CLI engine on a host runs through the sandboxed launcher.
