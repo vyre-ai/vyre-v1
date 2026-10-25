@@ -2,7 +2,7 @@
 // `reset: "purge"`), and the existing purge client wipes the replica. A phone that cannot reach its host keeps its replica until it can: revocation is a message, and there is nobody to carry it.
 // The person is still active in their own Space, so unsent changes are kept as a Rejected archive they can copy out.
 import { createPurgeClient } from "../purge/client.ts";
-import type { PurgeClient } from "../purge/client.ts";
+import type { PurgeClient, PurgeClientOpts } from "../purge/client.ts";
 import type { PurgeOpts } from "../purge/purge.ts";
 
 export interface PhonePurgeOpts {
@@ -10,8 +10,10 @@ export interface PhonePurgeOpts {
   purge: Omit<PurgeOpts, "reason" | "epoch" | "personActive">;
   /** The epoch this phone last took part in, so an old frame is ignored. */
   currentEpoch?: () => number;
+  /** The acknowledgement after the wipe (see PurgeClientOpts.around). */
+  around?: PurgeClientOpts["around"];
 }
 
 export function createPhonePurge(o: PhonePurgeOpts): PurgeClient {
-  return createPurgeClient({ purge: o.purge, personActive: () => true, ...(o.currentEpoch ? { currentEpoch: o.currentEpoch } : {}) });
+  return createPurgeClient({ purge: o.purge, personActive: () => true, ...(o.currentEpoch ? { currentEpoch: o.currentEpoch } : {}), ...(o.around ? { around: o.around } : {}) });
 }
