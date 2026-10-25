@@ -117,7 +117,7 @@ test("SlotRow is a Row with leading and trailing slots inside the painted row", 
   assert.match(html, /background-color:var\(--sel\)/);
   assert.match(html, /data-testid="row-a-leading"/);
   assert.match(html, /data-testid="row-a-trailing"/);
-  assert.ok(html.indexOf(">L<") < html.indexOf("Clients") && html.indexOf("Clients") < html.indexOf(">T<"));
+  assert.ok(html.indexOf(">L<") < html.indexOf(">Clients<") && html.indexOf(">Clients<") < html.indexOf(">T<"));
   assert.match(html, /height:28px/);
   assert.doesNotMatch(html, /position:absolute/, "no overlay");
 });
