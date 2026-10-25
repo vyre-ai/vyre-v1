@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   EmailBuilder, EMAIL_BLOCK_KINDS, EMAIL_MODES, EMAIL_PREVIEWS, PANE_TABS, PREVIEW_TEXT_LIMIT, SUBJECT_LIMIT,
-  blocksToPlain, formatHtml, splitTokens, canRedo, canUndo, compileEmail, editBlock, fillMerge, focusKey, mergeFieldsOf, mergeToken, moveBlock, newBlock, pushHistory, runChecks, stepHistory,
+  blocksToPlain, formatHtml, compileEmail as compile2, DEFAULT_EMAIL_STYLE, EMAIL_WIDTHS, EMAIL_FONTS, COLOR_LABEL, isHex, splitTokens, canRedo, canUndo, compileEmail, editBlock, fillMerge, focusKey, mergeFieldsOf, mergeToken, moveBlock, newBlock, pushHistory, runChecks, stepHistory,
 } from "./index.tsx";
 import type { EmailBlock, EmailBuilderViewProps, EmailDiff, EmailHistory, EmailSnapshot } from "./index.tsx";
 
@@ -167,4 +167,28 @@ test("HTML mode shows the compiled email one tag per line", () => {
   assert.equal(formatHtml("<p>a</p><p>b <b>c</b></p>"), "<p>a</p>\n<p>b <b>c</b></p>");
   const html = renderToStaticMarkup(<EmailBuilder {...base} mode="html" />);
   assert.match(html, /<\/p>\n<p/);
+});
+
+test("the email style drives the compiled HTML: width, font, text size, padding, radius and the seven colours", () => {
+  const st = { ...DEFAULT_EMAIL_STYLE, width: 480, font: "Georgia", size: 18, padding: 20, radius: 4, colors: { ...DEFAULT_EMAIL_STYLE.colors, page: "#010203", email: "#0A0B0C", text: "#111111", muted: "#222222", links: "#333333", button: "#444444", buttonText: "#555555" } };
+  const html = compile2(BLOCKS, { style: st });
+  for (const part of ["max-width:480px", "padding:28px 20px", "border-radius:4px", "background:#010203", "background:#0A0B0C", "Georgia,Arial", "font:18px/26px", "color:#111111", "background:#444444", "color:#555555", "color:#333333", "color:#222222"]) assert.ok(html.includes(part), part);
+  assert.ok(compile2(BLOCKS).includes("max-width:600px") && compile2(BLOCKS).includes("#5B5BD6"), "the default style is Northwind");
+  const dark = compile2(BLOCKS, { style: st, dark: true });
+  assert.ok(dark.includes("background:#121214") && dark.includes("color:#EDEDEF") && dark.includes("background:#444444"), "Dark swaps page, email and text, keeps the button");
+  assert.deepEqual([...EMAIL_WIDTHS], [480, 560, 600, 640, 700]);
+  assert.ok(EMAIL_FONTS.includes("Inter") && isHex("#5B5BD6") && !isHex("5B5BD6") && !isHex("#5B5"));
+  assert.equal(Object.keys(COLOR_LABEL).length, 7);
+});
+
+test("the Style pane shows Width, Font, the three steppers and the seven colours; HTML mode has Tidy and the status strip", () => {
+  const style = renderToStaticMarkup(<EmailBuilder {...base} />);
+  for (const id of ["em-width", "em-width-600", "em-font", "em-size", "em-padding", "em-radius", "em-colours", "em-hex-page", "em-hex-buttonText"]) assert.ok(style.includes(`data-testid="${id}"`), id);
+  assert.match(tag(style, "em-width-600"), /aria-selected="true"/);
+  assert.match(tag(renderToStaticMarkup(<EmailBuilder {...base} emailStyle={{ ...DEFAULT_EMAIL_STYLE, width: 480 }} />), "em-width-480"), /aria-selected="true"/);
+  const html = renderToStaticMarkup(<EmailBuilder {...base} mode="html" />);
+  assert.ok(html.includes('data-testid="em-tidy"') && html.includes('data-testid="em-status"'));
+  assert.match(html, /Unsubscribe link present/);
+  assert.match(html, /KB, under the 102 KB Gmail clip limit/);
+  assert.match(renderToStaticMarkup(<EmailBuilder {...base} mode="html" html="<p>no footer</p>" />), /No unsubscribe link/);
 });

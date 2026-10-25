@@ -10,7 +10,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, use
 import { AskButton } from "../AskButton/index.tsx";
 import { Composer } from "../Composer/index.tsx";
 import type { AskButtonProps } from "../AskButton/index.tsx";
-import { MenuIcon } from "../Menu/index.tsx";
+import { MenuIcon, useMenu } from "../Menu/index.tsx";
 import { Row } from "../Row/index.tsx";
 import { TabStrip } from "../TabStrip/index.tsx";
 import { EMAIL_BLOCK_KINDS, EMAIL_MODES, EMAIL_PREVIEWS, emailLabel } from "./props.ts";
@@ -58,25 +58,45 @@ export function newBlock(kind: EmailBlockKind, id: string): EmailBlock {
   }
 }
 
-function blockHtml(b: EmailBlock, values: Readonly<Record<string, string>> | undefined, dark: boolean): string {
-  const ink = dark ? "#EDEDEF" : "#18181A";
+export const EMAIL_WIDTHS = [480, 560, 600, 640, 700] as const;
+export const EMAIL_FONTS = ["Inter", "Arial", "Helvetica", "Georgia", "Verdana"] as const;
+export interface EmailColors { page: string; email: string; text: string; muted: string; links: string; button: string; buttonText: string }
+export interface EmailStyle { width: number; font: string; size: number; padding: number; radius: number; colors: EmailColors }
+export const DEFAULT_EMAIL_STYLE: EmailStyle = {
+  width: 600, font: "Inter", size: 16, padding: 32, radius: 12,
+  colors: { page: "#F4F4F5", email: "#FFFFFF", text: "#18181A", muted: "#6B6B73", links: "#5B5BD6", button: "#5B5BD6", buttonText: "#FFFFFF" },
+};
+export const COLOR_LABEL: Readonly<Record<keyof EmailColors, string>> = { page: "Page", email: "Email", text: "Text", muted: "Muted text", links: "Links", button: "Button", buttonText: "Button text" };
+export const isHex = (v: string): boolean => /^#[0-9a-fA-F]{6}$/.test(v);
+
+/** Applies the Dark frame: it swaps the page, email, text and muted colours, never the brand colours. */
+function resolveStyle(style: EmailStyle | undefined, dark: boolean): EmailStyle {
+  const s = style ?? DEFAULT_EMAIL_STYLE;
+  return dark ? { ...s, colors: { ...s.colors, page: "#121214", email: "#1B1B1E", text: "#EDEDEF", muted: "#8A8A8F" } } : s;
+}
+
+function blockHtml(b: EmailBlock, values: Readonly<Record<string, string>> | undefined, st: EmailStyle, dark: boolean): string {
+  const c = st.colors;
+  const face = `${st.font},Arial,sans-serif`;
+  const line = Math.round(st.size * 1.45);
   switch (b.kind) {
-    case "text": return `<p style="margin:0 0 14px;font:15px/22px Inter,Arial,sans-serif;color:${ink}">${fillMerge(esc(b.text ?? ""), values)}</p>`;
-    case "image": return `<div style="margin:0 0 14px;background:${dark ? "#2A2A2E" : "#E9E9EC"};height:140px;text-align:center;font:13px/140px Arial,sans-serif;color:#8A8A8F">${esc(b.text ?? "Image")}</div>`;
-    case "button": return `<p style="margin:0 0 14px"><a href="#" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#4F46E5;color:#fff;font:600 14px Arial,sans-serif;text-decoration:none">${esc(b.text ?? "Open")}</a></p>`;
-    case "columns": return `<table role="presentation" width="100%" style="margin:0 0 14px"><tr>${(b.children ?? []).map((c) => `<td valign="top" width="50%">${blockHtml(c, values, dark)}</td>`).join("")}</tr></table>`;
+    case "text": return `<p style="margin:0 0 14px;font:${st.size}px/${line}px ${face};color:${c.text}">${fillMerge(esc(b.text ?? ""), values)}</p>`;
+    case "image": return `<div style="margin:0 0 14px;background:${dark ? "#2A2A2E" : "#E9E9EC"};height:140px;text-align:center;font:13px/140px ${face};color:${c.muted}">${esc(b.text ?? "Image")}</div>`;
+    case "button": return `<p style="margin:0 0 14px"><a href="#" style="display:inline-block;padding:10px 18px;border-radius:${Math.min(st.radius, 12)}px;background:${c.button};color:${c.buttonText};font:600 14px ${face};text-decoration:none">${esc(b.text ?? "Open")}</a></p>`;
+    case "columns": return `<table role="presentation" width="100%" style="margin:0 0 14px"><tr>${(b.children ?? []).map((k) => `<td valign="top" width="50%">${blockHtml(k, values, st, dark)}</td>`).join("")}</tr></table>`;
     case "divider": return `<hr style="border:0;border-top:1px solid ${dark ? "#3A3A40" : "#E4E4E7"};margin:18px 0">`;
-    case "merge": return `<span style="font:15px/22px Arial,sans-serif;color:${ink}">${esc(values?.[b.field ?? ""] ?? b.text ?? "")}</span>`;
+    case "merge": return `<span style="font:${st.size}px/${line}px ${face};color:${c.text}">${esc(values?.[b.field ?? ""] ?? b.text ?? "")}</span>`;
     case "html": return b.text ?? "";
   }
 }
 
 /** The email as HTML: `send` keeps merge tokens for the sender, `preview` fills them from the record. */
-export function compileEmail(blocks: readonly EmailBlock[], opts: { mode?: "send" | "preview"; dark?: boolean; values?: Readonly<Record<string, string>> } = {}): string {
+export function compileEmail(blocks: readonly EmailBlock[], opts: { mode?: "send" | "preview"; dark?: boolean; values?: Readonly<Record<string, string>>; style?: EmailStyle } = {}): string {
   const dark = opts.dark === true;
+  const st = resolveStyle(opts.style, dark);
   const values = opts.mode === "preview" ? opts.values : undefined;
-  const body = blocks.map((b) => blockHtml(b, values, dark)).join("");
-  return `<!doctype html><html><body style="margin:0;background:${dark ? "#121214" : "#F4F4F5"}"><div style="max-width:600px;margin:0 auto;padding:28px 24px;background:${dark ? "#1B1B1E" : "#FFFFFF"}">${body}<p style="font:12px Arial,sans-serif;color:#8A8A8F"><a href="#unsubscribe" style="color:#8A8A8F">Unsubscribe</a></p></div></body></html>`;
+  const body = blocks.map((b) => blockHtml(b, values, st, dark)).join("");
+  return `<!doctype html><html><body style="margin:0;background:${st.colors.page}"><div style="max-width:${st.width}px;margin:0 auto;padding:28px ${st.padding}px;background:${st.colors.email};border-radius:${st.radius}px">${body}<p style="font:12px ${st.font},Arial,sans-serif;color:${st.colors.muted}"><a href="#unsubscribe" style="color:${st.colors.links}">Unsubscribe</a></p></div></body></html>`;
 }
 
 /** The plain-text part a visual email falls back to. */
@@ -132,7 +152,7 @@ export function editBlock(blocks: readonly EmailBlock[], id: string, patch: Part
 }
 
 /** What undo and redo walk: one entry per edit, coalesced by the caller. */
-export interface EmailSnapshot { subject: string; previewText: string; blocks: readonly EmailBlock[]; html: string; plain: string }
+export interface EmailSnapshot { subject: string; previewText: string; blocks: readonly EmailBlock[]; html: string; plain: string; style?: EmailStyle }
 export interface EmailHistory { entries: readonly EmailSnapshot[]; at: number }
 
 export function pushHistory(h: EmailHistory, s: EmailSnapshot): EmailHistory {
@@ -221,6 +241,8 @@ export interface EmailBuilderViewProps extends EmailBuilderProps {
   testTo?: string;
   /** Name of the record the merge fields are filled from ("Elena Rivera"). */
   previewAs?: string;
+  /** Starting email style (width, font, sizes, colours). */
+  emailStyle?: EmailStyle;
   /** The firm's brand, shown in the Style pane. */
   brand?: EmailBrand;
   onUseBrand?: () => void;
@@ -277,6 +299,9 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   const initial: EmailSnapshot = { subject: props.subject, previewText: props.previewText ?? "", blocks: props.blocks ?? [], html: props.html ?? "", plain: props.plain ?? "" };
   const [hist, setHist] = useState<EmailHistory>({ entries: [initial], at: 0 });
   const [sent, setSent] = useState(false);
+  const [style, setStyle] = useState<EmailStyle>(props.emailStyle ?? DEFAULT_EMAIL_STYLE);
+  const menu = useMenu();
+  const fontBtn = useRef<{ measureInWindow?: (cb: (x: number, y: number, w: number, h: number) => void) => void } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [thread, setThread] = useState<readonly AskMessage[]>(props.askThread ?? []);
 
@@ -284,14 +309,14 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   useEffect(() => setFocus(props.focus === true), [props.focus]);
   useEffect(() => { if (props.preview !== undefined) setPreview(props.preview); }, [props.preview]);
 
-  const snap = useMemo<EmailSnapshot>(() => ({ subject, previewText, blocks, html, plain }), [subject, previewText, blocks, html, plain]);
-  const compiled = useMemo(() => (mode === "html" && html !== "" ? html : formatHtml(compileEmail(blocks, { mode: "send" }))), [mode, html, blocks]);
+  const snap = useMemo<EmailSnapshot>(() => ({ subject, previewText, blocks, html, plain, style }), [subject, previewText, blocks, html, plain, style]);
+  const compiled = useMemo(() => (mode === "html" && html !== "" ? html : formatHtml(compileEmail(blocks, { mode: "send", style }))), [mode, html, blocks]);
   const plainText = plain !== "" ? plain : blocksToPlain(blocks);
   const checks = useMemo(() => runChecks({ subject, previewText, html: compiled, plain: plainText }), [subject, previewText, compiled, plainText]);
   const preHtml = useMemo(() => {
-    const raw = mode === "html" && html !== "" ? html : compileEmail(blocks, { mode: "preview", dark: preview === "dark", values: props.mergeValues });
+    const raw = mode === "html" && html !== "" ? html : compileEmail(blocks, { mode: "preview", dark: preview === "dark", values: props.mergeValues, style });
     return mode === "html" ? fillMerge(raw, props.mergeValues) : raw;
-  }, [mode, html, blocks, preview, props.mergeValues]);
+  }, [mode, html, blocks, preview, props.mergeValues, style]);
 
   const commit = useCallback((next: EmailSnapshot, why: string) => {
     setHist((h) => pushHistory(h, next));
@@ -307,10 +332,17 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
     const h = stepHistory(hist, d);
     const e = h.entries[h.at];
     if (e === undefined || h.at === hist.at) return;
-    setHist(h); setSubject(e.subject); setPreviewText(e.previewText); setBlocks(e.blocks); setHtml(e.html); setPlain(e.plain);
+    setHist(h); setSubject(e.subject); setPreviewText(e.previewText); setBlocks(e.blocks); setHtml(e.html); setPlain(e.plain); setStyle(e.style ?? DEFAULT_EMAIL_STYLE);
     onChange?.(e, d < 0 ? "Undo" : "Redo");
   };
 
+  const changeStyle = (patch: Partial<EmailStyle>, why: string): void => { const next = { ...style, ...patch }; setStyle(next); commit({ ...snap, style: next }, why); };
+  const changeColor = (k: keyof EmailColors, v: string): void => { if (isHex(v)) changeStyle({ colors: { ...style.colors, [k]: v.toUpperCase() } }, `Changed ${COLOR_LABEL[k].toLowerCase()} colour`); };
+  const tidy = (): void => { const next = formatHtml(html !== "" ? html : compiled); setHtml(next); commit({ ...snap, html: next }, "Tidied the HTML"); };
+  const pickFont = (): void => {
+    const open = (x: number, y: number): void => menu.show(EMAIL_FONTS.map((f) => ({ label: f, checked: style.font === f, onSelect: () => changeStyle({ font: f }, `Changed the font to ${f}`) })), x, y, "menu");
+    if (fontBtn.current?.measureInWindow !== undefined) fontBtn.current.measureInWindow((x, y, _w, h) => open(x, y + h + 4)); else open(0, 0);
+  };
   const changeBlocks = (next: readonly EmailBlock[], why: string): void => { setBlocks(next); commit({ ...snap, blocks: next }, why); };
   const add = (kind: EmailBlockKind): void => {
     const b = newBlock(kind, makeId());
@@ -338,6 +370,8 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   const narrow = winW < NARROW_WIDTH;
   const compact = props.density === "compact" || narrow;
   const diffs = props.diffs ?? [];
+  const unsub = checks.find((c) => c.id === "unsub") ?? { level: "bad" as CheckLevel };
+  const sizeKb = (compiled.length / 1024).toFixed(1);
   const sel = blocks.find((b) => b.id === selected) ?? null;
 
   const head = (
@@ -420,7 +454,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
       {mode === "html" ? (
         <View style={s.split} testID="em-htmlsplit">
           <View style={s.srcCol}>
-            <View style={s.srcHead}><Text style={s.srcName}>email.html</Text><Text style={s.stat}>{`${compiled.split("\n").length} lines`}</Text></View>
+            <View style={s.srcHead}><Text style={s.srcName}>email.html</Text><View style={s.srcActs}><Text style={s.stat}>{`${compiled.split("\n").length} lines`}</Text><Btn label="Tidy" onPress={tidy} testID="em-tidy" strong /></View></View>
             <ScrollView style={s.scroll}>
               <View style={s.srcRow}>
                 <Text style={s.gutter} selectable={false} testID="em-gutter">{compiled.split("\n").map((_, i) => i + 1).join("\n")}</Text>
@@ -428,6 +462,11 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
                   onChangeText={(t) => { setHtml(t); commit({ ...snap, html: t }, "Edited the HTML"); }} />
               </View>
             </ScrollView>
+            <View style={s.status} testID="em-status">
+              <View style={[s.dot, unsub.level === "ok" ? s.dotOk : s.dotBad]} />
+              <Text style={s.stat}>{unsub.level === "ok" ? "Unsubscribe link present" : "No unsubscribe link"}</Text>
+              <Text style={s.stat}>{`${sizeKb} KB, ${compiled.length < 102 * 1024 ? "under" : "over"} the 102 KB Gmail clip limit`}</Text>
+            </View>
           </View>
           {narrow ? null : <View style={s.livePane}><Text style={s.srcName}>Live preview</Text><View style={s.frame}><Frame html={preHtml} width={300} /></View></View>}
         </View>
@@ -464,6 +503,43 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
                   trailing={<Btn label="Use brand" strong onPress={() => props.onUseBrand?.()} testID="em-use-brand" />} />
               </View>
             ) : null}
+            <Text style={s.sec}>Email</Text>
+            <View style={s.ctl} testID="em-width">
+              <Text style={s.ctlLabel}>Width</Text>
+              <View style={s.seg}>{EMAIL_WIDTHS.map((w) => (
+                <Pressable key={w} accessibilityRole="tab" accessibilityState={{ selected: style.width === w }} testID={`em-width-${w}`} onPress={() => changeStyle({ width: w }, `Set the width to ${w}`)} style={[s.segBtn, style.width === w && s.segOn]}>
+                  <Text style={[s.segText, style.width === w && s.segTextOn]}>{String(w)}</Text>
+                </Pressable>))}</View>
+            </View>
+            <View style={s.ctl}>
+              <Text style={s.ctlLabel}>Font</Text>
+              <Pressable ref={(r) => { fontBtn.current = r as unknown as typeof fontBtn.current; }} accessibilityRole="button" accessibilityLabel="Font" testID="em-font" onPress={pickFont} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}>
+                <Text style={s.btnText}>{style.font}</Text><MenuIcon icon={ICON.down} />
+              </Pressable>
+            </View>
+            {([["size", "Text size", 12, 22], ["padding", "Side padding", 8, 56], ["radius", "Corner radius", 0, 24]] as const).map(([k, label, lo, hi]) => (
+              <View key={k} style={s.ctl} testID={`em-${k}`}>
+                <Text style={s.ctlLabel}>{label}</Text>
+                <View style={s.stepper}>
+                  <Btn label={`Less ${label.toLowerCase()}`} icon={ICON.down} disabled={style[k] <= lo} onPress={() => changeStyle({ [k]: Math.max(lo, style[k] - (k === "padding" ? 4 : 1)) }, `Changed ${label.toLowerCase()}`)} testID={`em-${k}-less`} />
+                  <Text style={s.ctlValue} testID={`em-${k}-value`}>{String(style[k])}</Text>
+                  <Btn label={`More ${label.toLowerCase()}`} icon={ICON.up} disabled={style[k] >= hi} onPress={() => changeStyle({ [k]: Math.min(hi, style[k] + (k === "padding" ? 4 : 1)) }, `Changed ${label.toLowerCase()}`)} testID={`em-${k}-more`} />
+                </View>
+              </View>
+            ))}
+            <Text style={s.sec}>Colours</Text>
+            <View testID="em-colours">
+              {(Object.keys(COLOR_LABEL) as (keyof EmailColors)[]).map((k) => (
+                <View key={k} style={s.ctl} testID={`em-colour-${k}`}>
+                  <Text style={s.ctlLabel}>{COLOR_LABEL[k]}</Text>
+                  <View style={s.hexRow}>
+                    <TextInput accessibilityLabel={`${COLOR_LABEL[k]} colour`} testID={`em-hex-${k}`} defaultValue={style.colors[k]} autoCapitalize="characters" maxLength={7} spellCheck={false} style={s.hex}
+                      onChangeText={(v) => changeColor(k, v)} />
+                    <View style={[s.swatch, { backgroundColor: style.colors[k] }]} />
+                  </View>
+                </View>
+              ))}
+            </View>
             <Text style={s.sec}>Merge fields</Text>
             {mergeFieldsOf(`${subject} ${compiled}`).length === 0 ? <Text style={s.note}>No merge fields yet. The Merge field block adds one.</Text>
               : mergeFieldsOf(`${subject} ${compiled}`).map((f) => <View key={f} testID={`em-field-${f}`}><Row id={f} title={f} /></View>)}
@@ -550,6 +626,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
         {focus ? null : pane}
       </View>
       {focus ? <Text style={s.hint} testID="em-focus-hint">Focus mode. Esc or Shift-Cmd-F to leave.</Text> : null}
+      {menu.element}
       {sent ? <Text style={s.toast} testID="em-sent">Test email sent to you.</Text> : null}
     </View>
   );
@@ -611,6 +688,15 @@ const s = StyleSheet.create({
   split: { flex: 1, flexDirection: "row", minHeight: 0 },
   srcCol: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
   srcHead: { height: 34, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  srcActs: { flexDirection: "row", alignItems: "center", gap: 10 },
+  status: { flexDirection: "row", alignItems: "center", gap: 10, height: 30, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  ctl: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 34 },
+  ctlLabel: { color: "var(--ink-2)" as string, fontSize: 12.5 },
+  ctlValue: { color: "var(--ink)" as string, fontSize: 12.5, minWidth: 28, textAlign: "center" },
+  stepper: { flexDirection: "row", alignItems: "center", gap: 4 },
+  hexRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  hex: { width: 84, height: 28, color: "var(--ink)" as string, fontFamily: "var(--mono)" as string, fontSize: 12, paddingHorizontal: 8, borderRadius: 6, backgroundColor: "var(--sunk)" as string },
+  swatch: { width: 20, height: 20, borderRadius: 6, borderWidth: 1, borderColor: "var(--line-2)" as string },
   srcName: { color: "var(--ink-3)" as string, fontSize: 12, fontWeight: "500" },
   srcRow: { flexDirection: "row", paddingVertical: 12 },
   gutter: { width: 42, textAlign: "right", paddingRight: 10, color: "var(--ink-4)" as string, fontFamily: "var(--mono)" as string, fontSize: 12.5, lineHeight: 19 },
