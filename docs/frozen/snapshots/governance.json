@@ -1,0 +1,28 @@
+{
+  "module": "governance",
+  "capabilities": {
+    "governance.erase.apply@1": "44178ecdf6c78efcc23e10802106fb71eb6549de8a75a00dfb59b2946b781b10",
+    "governance.erase.find@1": "5774168314dfdc49e8e8adc2973dcaa1743e2125931fe49a548d6ea6d15fff8d",
+    "governance.erase.list@1": "b61ac33fb5d3447c0cbaca1cf6ce9b95937ba0285a6cce74b6c205af40e14058",
+    "governance.holds.list@1": "89b5092a4d8f8966b04a1941b4ad279d6b11499c4673ff1751968edae929dec2",
+    "governance.holds.place@1": "508d14b682c41b067b5ea7d6534f86e1f1a45c2b5fca1e9765db1256bb3410d6",
+    "governance.holds.release@1": "aaf613e8a6a0ab12a730f7eb3a68affa87c538e6ae11919ef41468933d3efd48",
+    "governance.jobs.list@1": "c77ef76cab1be29cce71d3d050a62773f1e3dca7eb6f2f8d5010b0fbf9107804",
+    "governance.jobs.run_now@1": "366b43ce3638b4e9ad6cb59458ad723a817a82b1145b15ddf0c4b8feaa2f38cf",
+    "governance.jobs.tick@1": "0fd4405e53007731d8cf25d477e15b27c1a87f311cc3e3a3bf897fa67336c077",
+    "governance.jobs_health@1": "48282f7de64f7fa49be8f8ba9579514abf2c71277b98f9a318fae66bdde62eed",
+    "governance.retention.get@1": "a924a9209c1403648d8e860f8614e18034ecdd21ba9e2a0b0d8a34377d3ff316",
+    "governance.retention.reset@1": "752a516b261a91f079c586a9651be2eeef9b9de4690e821c9670f9aed75976b1",
+    "governance.retention.set@1": "841c3a0c89c8721aa602891572a5c2e98b81938f7f524758a2651c1cde87d218",
+    "governance.tombstones.list@1": "afcbc0bfc774d7293c1f6525d3c2ab343538d051c64aeb6d742126eaf6b90882",
+    "governance.tombstones.reapply@1": "825820959cbf471e80b1e7f92a60c348d13e418d3b1e62c3976c23fae3af7d61"
+  },
+  "events": {
+    "erase.completed": "842a6ee1f4172fc6cdafb8c509a8e3937cc0ead6b37bf0a91fa0a051f78c464e",
+    "erase.started": "ea67eb1531b0cd9641f21c7b3242855da58992218cdafc6882a151b6f8006e77",
+    "hold.placed": "b427816770bcc6f7bef063c32b14e95bce0e81fecd567ec2f8beeeef34293413",
+    "hold.released": "0dc86460c106b1090301be3fca6c41d2534bf60d17c21afe75e99e71b4503a90",
+    "retention.purged": "864d5cba7629062b31db1ffd15fdd5682307841c964fc9f5eb26fdd8ecf71ce9",
+    "tombstones.reapplied": "d9f7b601cdb36cd488334fc4530dff3e2b896c254ad292ecd56b5a590c73acf0"
+  }
+}

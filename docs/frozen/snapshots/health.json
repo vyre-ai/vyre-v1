@@ -1,0 +1,29 @@
+{
+  "module": "health",
+  "capabilities": {
+    "health.caddy@1": "b4da0e48c794c330240d99b8961c30bf6990118cbe29d14dd46cc894228ea0c1",
+    "health.disk_encrypted@1": "d1405d0ae7ef75dfe864db74b9527f5faae8d67d992ea975292bc749ff37ce34",
+    "health.disk_space@1": "811a9c83f0d73c84fe3d9ad5e5146610083e2573591345b3a87ee7ca7d46fdb7",
+    "health.docker@1": "ee5bff7b9a4088ab5b406a941920bcfb889e7269fe8e07053d7fad7c27f4126c",
+    "health.doctor@1": "3a156258d3534cea0b66e0f27978270d5de684ee32f2b2bd211ed046c33c2911",
+    "health.events_db@1": "da89f2bed49f7cb5eff4440f466688d923ffe5a0b433a28dcc4454ac2906a8c2",
+    "health.history@1": "a99892df164d7a50855f82cd1d7d4ce6307d0093e93aadfb48a6f6da382f5269",
+    "health.index_db@1": "ea6ba2a251efed53eb949933e246ad09c00529f8714406a1b9cfdf1c6dfd66af",
+    "health.machine@1": "95c01a3a276c693d6b345bd2483b4695900fcb28af2e2815655a5e280e598a01",
+    "health.paused_reasons@1": "87d79e74416bf11d67b59246bfc1f2fe17f09381bdcf274218ae23950ec7f200",
+    "health.run@1": "33b9e35c5fbc36d3d46c58403d53d3e4bb8d93a404a3047a7975cd31260d798f",
+    "health.scheduler@1": "2f3150d3fa2d0a2ab84e73747e37089d45da0424683ea4945031855243fd790e",
+    "health.service_restart@1": "74263bc07c82b67a2b23fbd2fddf75d0c42684a32ff322521544af5452a9d4c9",
+    "health.services@1": "5b9a770c5e74fea6cdb0487c9d6657cf92dbb3487a40cb9bd5aae12e40a29d1a",
+    "health.status@1": "5186514e9c63a51225e252a435aa10e29cdceac024a07ecdfadc506b79c60bb2",
+    "health.support_bundle@1": "c7b975affe977da76838070a6a33ab6a739b8c1a406b765a28d5419b508ac344",
+    "health.time_skew@1": "b619cd19ced86b13b49eb696a9964316f34f3b232ef47813d900fe485567e4c2"
+  },
+  "events": {
+    "health.changed": "777a53aeb2d43d1c747e29eba745c9a673ad6a82a9de7442a7e1c0d936941714",
+    "health.paused": "2dd53e29cdc7f60bedd819ab76f6027310623b45d71ca2013ed6f0073dd64cb9",
+    "health.resumed": "b4d13de084273e63214d31d79b877ae8c5c68d888aaf26bb475739b139b895e2",
+    "service.restarted": "18a4d4b781717fd9c9bf5efd5436eda40315797c3e5eaa006c1ee3146372f072",
+    "support_bundle.created": "a73cae3c668f2f706385fb2291ccad7ec20abda25b223aeffc5e8d7f927f8fe2"
+  }
+}
