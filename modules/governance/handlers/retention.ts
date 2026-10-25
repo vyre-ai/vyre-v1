@@ -27,7 +27,7 @@ async function overridesOf(ctx: GovCtx): Promise<Record<string, string>> {
 }
 
 async function saveOverrides(ctx: GovCtx, next: Record<string, string>): Promise<void> {
-  await ctx.call("settings.set", { key: "retention.overrides", value: next });
+  await ctx.call("settings.set_space", { key: "retention.overrides", value: next });
 }
 
 function kindOf(ctx: GovCtx, v: unknown): Kind {
