@@ -45,7 +45,10 @@ import { createKitsHost } from "../seams/kits.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { createLocalKeyRoute } from "../routes/local-key.ts";
 import { createKeyring } from "../seams/keyring.ts";
-import { sessionLive } from "./session.ts";
+import { createPeopleExtras, githubOAuthFromEnv } from "../seams/people.ts";
+import type { GithubOAuth } from "../seams/people.ts";
+import { createSpaceAdmin } from "../seams/spaceadmin.ts";
+import { preAuthSession } from "./preauth.ts";
 import { createProviderProbe, createVaultService, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, wireSeams } from "../seams/index.ts";
@@ -53,7 +56,7 @@ import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, W
 import { createLiveHub } from "../ws.ts";
 import type { LiveHub } from "../ws.ts";
 import { createAccess } from "./access.ts";
-import { ADMIN_DEVICE, createSessionResolver } from "./session.ts";
+import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
 import { createResourceRegistrar } from "../gateway/resources.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
@@ -98,6 +101,8 @@ function sealKeyFile(file: string): string {
 }
 
 export interface DaemonOptions {
+  /** GitHub sign-in (default: VYRE_GH_OAUTH_CLIENT_ID and VYRE_GH_OAUTH_CLIENT_SECRET from the environment; null: not set up) */
+  githubOAuth?: GithubOAuth | null;
   config: DaemonConfig;
   codeRoot?: string;
   platform?: Platform;
@@ -288,6 +293,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // the Vault the connector seams read from: the vault module's own port once it is live and configured, else a refusal
       let vaultImpl: (VaultPort & { pullExport?(exportId: string, token: string): string }) | null = null;
       const vaultPort: VaultPort = { secret: (h, sp) => (vaultImpl ?? refusingVault).secret(h, sp), signRs256: (h, sp, d) => (vaultImpl ?? refusingVault).signRs256(h, sp, d) };
+      let peopleExtras: ReturnType<typeof createPeopleExtras> | null = null;   // set once the hook runner exists
       let invokeRef: Invoke = () => Promise.reject(new Error("the invoke pipeline is not ready"));
       const hookRunner = createHookRunner({
         space, now, db, hooks: o.hooks ?? [...loaded.moduleExports].map(([id, ns]) => collectHooks(id, ns)),
@@ -372,6 +378,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const h = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
           // The one internal call a module may make with the host's own authority: devices -> sync.epoch.bump (a device was revoked, its replica must purge). The person revoking their own
           // device holds no sync grant, and a revoke that cannot purge would leave the copy on the device. Nothing else is widened: every other ctx.call keeps the caller's authority.
+          const mod = h ? (capIndex?.get(cap)?.module ?? "") : "";
+          if (h && peopleExtras?.(mod, {})) return ((ctx, input) => h({ ...ctx, ...peopleExtras!(mod, ctx) } as typeof ctx, input)) as Handler;
           if (!h || !cap.startsWith("devices.")) return h;
           const wrapped: Handler = (ctx, input) => h({ ...ctx, call: (name, callInput, opts) => (name === "sync.epoch.bump" ? system(name, callInput) : ctx.call(name, callInput, opts)) } as typeof ctx, input);
           return wrapped;
@@ -413,6 +421,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       await hookRunner.start();
       // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
       const spaceLog = log;
+      peopleExtras = createPeopleExtras({ access: () => access.snap, db: db!, call: (n, i, as) => hookRunner.call(n, i, as), keyring, github: o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env) });
       const system = (cap: string, input: unknown): Promise<unknown> =>
         invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
       // the Space record store the L3 data modules share (P-H_08): one file in the data directory, opened by the first module that needs it, closed at shutdown
@@ -437,6 +446,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           },
         }),
         setEventsDispatch: () => system,
+        // identity opens a device session at sign-in: the token is minted here for that devices session, and ending a session stops it at the gateway (P-SEC_05)
+        setSessionTokens: () => ({
+          mint: (sessionId: string) => issueSessionToken(db!, sessionId, now),
+          end: (sessionId: string) => { db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", now(), sessionId); },
+        }),
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
         setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
         // the import module reads an Airtable or Notion key from the Vault by handle, for one call
@@ -448,9 +462,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // the git module: working trees under the data directory; a GitHub token arrives only through ctx.vault.fill (git_credential), which waits on the Vault module (w12a, P-L7_LIVE)
         setGitHost: () => ({ treesDir: path.join(paths.root, "trees"), takeCredential: () => undefined }),
         ...spaceStoreDrivers(spaceStore),
+        configureSpaceAdmin: () => createSpaceAdmin({ access: () => access.snap, owner: () => cfg.owner ?? access.owner() ?? "usr_owner", space: spaceId, db: db!, system, headSeq: () => headSeq }),
         setVaultKeyPort: () => ({ personKey: async (personId: string) => keyring.get(personId) }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
-        configureVault: () => ({ sinks: o.seams?.vaultSinks ?? {}, db: db!, probe: createProviderProbe({ own: ownNode, ...(o.seams?.fetch ? {} : {}) }), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
+        configureVault: () => ({ sinks: o.seams?.vaultSinks ?? {}, db: db!, probe: createProviderProbe({ own: ownNode }), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
         setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open() }, now }),
         ...(o.seams?.drivers ?? {}),
@@ -481,6 +496,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         } else db!.run("DELETE FROM health_probe WHERE name = ?", "module_drivers");
       }
 
+      // the Space\'s profile row, once: its name from the event that made the Space, and where people reach it
+      if (loaded.serving.get("identity") === "live") {
+        const made = (await spaceLog.read({ after: 0, limit: 200 })).find((e) => e.type === "space.created");
+        const name = made ? ((JSON.parse(new TextDecoder().decode(made.payload)) as { name?: string }).name ?? spaceId) : spaceId;
+        await hookRunner.call("identity.ensure_space", { name, github: (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env)) !== null }).catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "identity.space_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+      }
+      if (loaded.serving.get("spaces") === "live") {
+        const made = (await spaceLog.read({ after: 0, limit: 200 })).find((e) => e.type === "space.created");
+        const name = made ? ((JSON.parse(new TextDecoder().decode(made.payload)) as { name?: string }).name ?? spaceId) : spaceId;
+        await hookRunner.call("spaces.ensure_profile", { name, kind: "team", address: cfg.address }).catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "spaces.profile_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+      }
       await projectionRunner.start();   // after the seams: the events module needs its dispatcher and host ports before the first event reaches webhooks_out
 
       // The schema module seeds the record types the manifests declare once, as a write of its own, so no read has to (P-L3_17). Each declared type is also a resource in the access
@@ -515,7 +541,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         const device = token ? sessions.resolve(token) : null;
         return { person: who.principal.id, ...(device ? { sessionId: device.sessionId } : {}) };
       };
-      gateway = createGateway({ invoke, caps: indexCapabilities(caps), routes: [...routes, ...(o.extra?.routes ?? [])], session });
+      gateway = createGateway({ invoke, caps: indexCapabilities(caps), routes: [...routes, ...(o.extra?.routes ?? [])], session,
+        // callers before sign-in (the anonymous and pending capabilities): a no-one service principal named by source address, so a handler that needs a person (me()) refuses and rate limits are per address
+        preAuth: (caller, headers) => preAuthSession(spaceId, caller, headers) });
       // GET /spaces/<space>/blobs/<id> (ruling 50): a blob is served to a caller who may read the resource its module stored it for
       blobRoute = createBlobRoute({
         space: spaceId, store: blobs,

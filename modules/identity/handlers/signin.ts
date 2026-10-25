@@ -1,7 +1,7 @@
 // Sign-in, second factor, GitHub, pairing, sessions and the TOTP factor (spec 3.13, 2.25). Passkeys are deferred (fork F-A); SSO is reserved.
 import type { Account, Device, IdentityCtx, SignInOut } from "../projections.ts";
 import {
-  ENROL_TTL_MS, PAIR_TTL_MS, accountById, accountByName, burnVerify, checkVerifier, issueSession, lockedFor, matchTotp, me, newChallenge,
+  ENROL_TTL_MS, PAIR_TTL_MS, accountById, accountByName, burnVerify, checkVerifier, currentSessionId, endSessionRow, issueSession, lockedFor, matchTotp, me, newChallenge,
   newTotpSecret, nid, noteFail, normCode, pairCode, putCode, raise, spendCode, USERNAME,
 } from "../projections.ts";
 
@@ -28,9 +28,9 @@ export async function usernameAvailable(ctx: IdentityCtx, input: { username: str
 }
 
 /** After the first factor: a second factor is owed when the person has TOTP set. */
-function afterFirstFactor(ctx: IdentityCtx, a: Account, dev: Device, method: "password" | "github"): SignInOut {
+async function afterFirstFactor(ctx: IdentityCtx, a: Account, dev: Device, method: "password" | "github"): Promise<SignInOut> {
   if (a.totp_secret) return { status: "second_factor_required", challengeId: newChallenge(ctx, a.person_id, method) };
-  return issueSession(ctx, a, dev, method);
+  return await issueSession(ctx, a, dev, method);
 }
 
 /** Check a TOTP code and burn its step so it cannot be replayed. */
@@ -64,9 +64,9 @@ export async function signIn(ctx: IdentityCtx, input: Device & { username: strin
       noteFail(ctx, a, name, "bad_code");
       raise(ctx.trace.traceId, "auth.invalid_code");
     }
-    return issueSession(ctx, a, input, "password");
+    return await issueSession(ctx, a, input, "password");
   }
-  return afterFirstFactor(ctx, a, input, "password");
+  return await afterFirstFactor(ctx, a, input, "password");
 }
 
 export async function verifySecondFactor(ctx: IdentityCtx, input: Device & { challengeId: string; code: string }): Promise<SignInOut> {
@@ -86,11 +86,11 @@ export async function verifySecondFactor(ctx: IdentityCtx, input: Device & { cha
     raise(ctx.trace.traceId, "auth.invalid_code");
   }
   ctx.db.run(`UPDATE identity_challenges SET used_at = ? WHERE id = ?`, ctx.now(), c.id);
-  return issueSession(ctx, a, input, c.method);
+  return await issueSession(ctx, a, input, c.method);
 }
 
 export async function githubSignIn(ctx: IdentityCtx, input: Device & { code: string }): Promise<SignInOut> {
-  if (!ctx.github) raise(ctx.trace.traceId, "internal.unavailable", "GitHub sign-in is not set up for this Space");
+  if (!ctx.github) raise(ctx.trace.traceId, "internal.unavailable", "GitHub sign-in isn't set up on this server");
   const space = ctx.db.all(`SELECT github FROM identity_space WHERE id = ?`, ctx.space)[0] as { github: number } | undefined;
   if (!space || space.github !== 1) raise(ctx.trace.traceId, "validation.unsupported", "GitHub sign-in is off for this Space");
   const gh = await ctx.github.resolve(input.code).catch(() => undefined);
@@ -107,7 +107,7 @@ export async function githubSignIn(ctx: IdentityCtx, input: Device & { code: str
     noteFail(ctx, a, a.username, "locked");
     raise(ctx.trace.traceId, "auth.bad_credentials");
   }
-  return afterFirstFactor(ctx, a, input, "github");
+  return await afterFirstFactor(ctx, a, input, "github");
 }
 
 export async function ssoSignIn(ctx: IdentityCtx, _input: Device & { provider: string; code: string; state: string }): Promise<SignInOut> {
@@ -116,9 +116,10 @@ export async function ssoSignIn(ctx: IdentityCtx, _input: Device & { provider: s
 
 export async function signOut(ctx: IdentityCtx, input: { sessionId?: string }) {
   const a = me(ctx);
-  const target = input.sessionId ?? ctx.session?.id;
+  const target = input.sessionId ?? currentSessionId(ctx, a.person_id);
   if (!target) return ok;
-  ctx.db.run(`UPDATE identity_sessions SET revoked_at = ? WHERE id = ? AND person_id = ? AND revoked_at IS NULL`, ctx.now(), target, a.person_id);
+  endSessionRow(ctx, a.person_id, target);
+  ctx.keyring?.clear(a.person_id);   // signing out locks their Mine items on this node (ruling 62)
   return ok;
 }
 
@@ -130,7 +131,7 @@ export async function whoami(ctx: IdentityCtx, _input: Record<string, never>) {
     name: a.name,
     roles: dir.roles,
     groups: dir.groups,
-    ...(ctx.session ? { deviceId: ctx.session.deviceId } : {}),
+    ...((ctx.session?.deviceId ?? ctx.device) ? { deviceId: (ctx.session?.deviceId ?? ctx.device) as string } : {}),
     epoch: a.epoch,
     spaceId: ctx.space,
   };
@@ -155,7 +156,7 @@ export async function pairRedeem(ctx: IdentityCtx, input: Device & { code: strin
   const a = accountById(ctx, spent.personId);
   if (!a) raise(ctx.trace.traceId, "auth.invalid_code");
   // a code opens a session on a trusted device, so no second factor is asked; the code itself came from a signed-in device
-  return issueSession(ctx, a, input, "pair");
+  return await issueSession(ctx, a, input, "pair");
 }
 
 // ---- TOTP
@@ -207,7 +208,7 @@ export async function passkeyRemove(ctx: IdentityCtx, _input: { name: string }):
 // ---- GitHub link
 export async function githubLink(ctx: IdentityCtx, input: { code: string }) {
   const a = me(ctx);
-  if (!ctx.github) raise(ctx.trace.traceId, "internal.unavailable", "GitHub is not set up for this Space");
+  if (!ctx.github) raise(ctx.trace.traceId, "internal.unavailable", "GitHub sign-in isn't set up on this server");
   const gh = await ctx.github.resolve(input.code).catch(() => undefined);
   if (!gh) raise(ctx.trace.traceId, "auth.invalid_code");
   const other = ctx.db.all(`SELECT person_id FROM identity_accounts WHERE github_id = ?`, gh.id)[0] as { person_id: string } | undefined;
