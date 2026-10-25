@@ -69,7 +69,15 @@ export function createSamplePage(space: PageSpace = northwind, o: { fail?: strin
   const own = (r: RecordRow): Row => ({ ...r, id: r.id }) as unknown as Row;
   replica.put("records:clients", [0, 1, 2].map((i) => own(client(i))));
   replica.put("records:projects", [0, 1, 2].map((i) => own(project(i))));
-  replica.put("history", []);
+  // what happened to Elena Rivera so far, oldest first (the Activity tab reads it newest first)
+  const seeded: { field: string; value: unknown; actor: string; reason?: string; ago: number }[] = [
+    { field: "name", value: "Elena Rivera", actor: "usr_maya", reason: "Created", ago: 40 * DAY },
+    { field: "status", value: "lead", actor: "usr_maya", ago: 39 * DAY },
+    { field: "company", value: "Rivera Holdings", actor: "usr_omar", ago: 30 * DAY },
+    { field: "status", value: "active", actor: "usr_maya", reason: "Signed the retainer", ago: 12 * DAY },
+    { field: "due", value: SAMPLE_NOW + 6 * DAY, actor: "agt_docs", reason: "Moved the next step", ago: 2 * DAY },
+  ];
+  replica.put("history", seeded.map((e, n) => ({ id: `h_seed${n}`, recordId: "cl_0", field: e.field, value: e.value, hlc: `${SAMPLE_NOW - e.ago}:0`, actor: e.actor, ...(e.reason ? { reason: e.reason } : {}) })) as unknown as Row[]);
   replica.put("versions", [{ id: "cl_0:1", recordId: "cl_0", versionId: "ver_1", n: 1, by: "usr_maya", at: SAMPLE_NOW - 40 * DAY, reason: "Created" }, { id: "cl_0:2", recordId: "cl_0", versionId: "ver_2", n: 2, by: "usr_maya", at: SAMPLE_NOW - 12 * DAY, reason: "Signed the retainer" }, { id: "cl_0:3", recordId: "cl_0", versionId: "ver_3", n: 3, by: "usr_irfad", at: SAMPLE_NOW - 2 * DAY, reason: "Moved the next step" }] as unknown as Row[]);
   replica.put("facts", [{ id: "f1", factId: "f1", layer: "project", ownerRef: "usr_maya", text: "Elena prefers email over phone calls", validFrom: SAMPLE_NOW - 10 * DAY, learnedAt: SAMPLE_NOW - 3 * 3_600_000, sourceKind: "channel", sourceRef: "ch_rivera", sourceLink: "/chats/ch_rivera", status: "current", subject: "cl_0" }] as unknown as Row[]);
   const typeOf = (k: string): TypeDef | undefined => space.types.find((t) => t.key === k);

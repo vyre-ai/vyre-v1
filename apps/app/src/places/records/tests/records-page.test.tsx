@@ -208,8 +208,9 @@ test("screen: the page has the title, the ring, the sections, the relation cards
 
 test("screen: on a wide window the sheet is two columns and the right pane starts on Activity", () => {
   const out = page(createSamplePage());
-  assert.ok(has(out, 'data-testid="record-pane"') && has(out, 'data-testid="pane-activity"') === false && has(out, "Nothing has changed yet."));
+  assert.ok(has(out, 'data-testid="record-pane"') && has(out, 'data-testid="pane-activity"') && has(out, "Maya Chen set status to Active") && !has(out, "Nothing has changed yet."));
   for (const t of ["Activity", "Comments", "Chat", "Files", "Memory", "History"]) assert.ok(has(out, `>${t}<`), t);
+  assert.ok(has(page(createSamplePage(), undefined, "clients", "cl_1"), "Nothing has changed yet."), "a record nobody has touched says so");
   const shut = page(createSamplePage(), { pane: false });
   assert.ok(!has(shut, 'data-testid="record-pane"') && has(shut, 'data-testid="toggle-pane"'));
 });

@@ -57,7 +57,7 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
   const space = q.get("space") === "harbor" ? harbor : northwind;
   const sample = useMemo(() => createSamplePage(space), [space]);
   const start = useMemo<RecordPageStart>(() => ({
-    ...(q.get("map") === "1" ? { map: true } : {}), ...(q.get("pane") === "0" ? { pane: false } : q.get("pane") === "1" ? { pane: true } : {}), ...(q.get("tab") ? { tab: q.get("tab") as PaneKey } : {}),
+    ...(q.get("map") === "1" ? { map: true } : {}), ...(q.get("pane") === "0" ? { pane: false } : q.get("pane") === "1" ? { pane: true } : {}), tab: (q.get("tab") ?? "activity") as PaneKey,
     ...(q.get("all") === "1" ? { all: true } : {}), ...(q.get("edit") ? { edit: { key: q.get("edit") as string, text: q.get("text") ?? "" } } : {}),
   }), [q]);
   if (q.get("probe") === "navigate") return <Navigate type={q.get("type") ?? "clients"} id={q.get("id") ?? "cl_0"} />;

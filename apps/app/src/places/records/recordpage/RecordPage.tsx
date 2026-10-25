@@ -2,7 +2,7 @@
 // sections laid out by the type (two columns on a wide window), every one edited where it stands: click, type, press Enter or leave, and exactly one records.update is written, with Undo inline and no Save
 // button. Relations are cards with a peek on hover; a `[[Title]]` in text is a link to that record; the relationships two hops out can be drawn as a map. The right pane has Activity, Comments, Chat,
 // Files, Memory and History (the shared History tab). Each person folds sections and keeps fields visible for themselves; the type's layout is the admin's.
-import { createElement, useRef, useState } from "react";
+import { createElement, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { HistoryTab } from "../../../../../../ui/src/HistoryTab/index.tsx";
@@ -224,6 +224,14 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const [tab, setTab] = useState<PaneKey>(start.tab ?? "activity");
   const [map, setMap] = useState(start.map === true);
   const busy = useRef(false);
+  // the right pane (its three reads and its rows) comes after the first paint on a screen; a server render or a test has no frames, so it is there at once
+  const [late, setLate] = useState(typeof window === "undefined" || start.pane !== undefined || start.tab !== undefined);
+  useEffect(() => {
+    if (late) return;
+    let b = 0;
+    const a = requestAnimationFrame(() => { b = requestAnimationFrame(() => setLate(true)); });
+    return () => { cancelAnimationFrame(a); cancelAnimationFrame(b); };
+  }, [late]);
   const menu = useMenu();
   const def = dq.status === "ready" ? dq.data.types.find((t) => t.key === type) : undefined;
   const row = rq.status === "ready" ? (rq.data.record as RecordRow | undefined) : undefined;
@@ -325,7 +333,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
           {body}
           {all ? <Pressable accessibilityRole="button" testID="hide-empty" onPress={() => setAll(false)}><Text style={p.more}>Hide empty fields</Text></Pressable> : null}
         </ScrollView>
-        {paneOpen ? <Pane type={type} row={row} def={def} tab={tab} onTab={setTab} /> : null}
+        {paneOpen && late ? <Pane type={type} row={row} def={def} tab={tab} onTab={setTab} /> : null}
       </View>
       {menu.element}
     </View>
