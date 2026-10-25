@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-L9f_04d-vault-item",
+      "route": "/m/P-L9f_04d",
+      "proto": "vault,{skin}",
+      "waitFor": "[data-testid='row-who:you']",
+      "note": "GoHighLevel open: the Ask control and Edit in the header, the fields with Add field under them, and Who can use it with You as Owner (Manage) first, then Maya and Omar, the agents Intake and Research, and the Weekly lead report Automation with Use, each with its face."
+    }
+  ]
+}
