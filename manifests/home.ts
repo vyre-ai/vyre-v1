@@ -88,6 +88,7 @@ export default defineManifest({
     screen('home.checklist', 'home', 'ui:Checklist', {
       q: { checklist: ['home.checklist', {}, true] }, a: { dismiss: ['home.dismiss_checklist', {}] }, empty: 'All set',
     }),
+    // Today, Starred and Ask (Home lower sections), read by the P-L9b_02 hooks.
     screen('home.today-starred-ask', 'home', 'ui:TodayStarredAsk', {
       q: {
         events: ['calendar.list_events', { from: '/state/from', to: '/state/to' }, true],
