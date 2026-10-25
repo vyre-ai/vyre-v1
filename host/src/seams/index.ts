@@ -10,12 +10,17 @@ import { createImapSecretResolver } from "./imap.ts";
 import type { ImapSecretResolver } from "./imap.ts";
 import { createMailgunHost, createResendHost } from "./mail-providers.ts";
 import type { MailgunHostSeam, ResendHostSeam } from "./mail-providers.ts";
+import { createGithubHost, createStripeHost, createTwilioHost } from "./comms.ts";
+import type { GithubHostSeam, StripeHostSeam, TwilioHostSeam } from "./comms.ts";
+import type { FillerPort } from "./filler.ts";
 import { createMsHost } from "./microsoft.ts";
 import { createSourcesSecretResolver } from "./sources.ts";
 import type { SourcesSecretResolver } from "./sources.ts";
 import type { MsHostSeam, MsSeamDeps } from "./microsoft.ts";
 import type { FetchedResponse, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort } from "./ports.ts";
 
+export { createGithubHost, createStripeHost, createTwilioHost };
+export type { GithubHostSeam, StripeHostSeam, TwilioHostSeam, FillerPort };
 export { createGoogleHost, createImapSecretResolver, createMailgunHost, createMsHost, createResendHost, createSourcesSecretResolver };
 export type { FetchedResponse, GoogleHostSeam, MailgunHostSeam, ResendHostSeam, GoogleSeamDeps, ImapSecretResolver, MsHostSeam, SourcesSecretResolver, MsSeamDeps, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort };
 
@@ -40,6 +45,10 @@ export interface SeamSetters {
   /** the Space sending backends (P-L5_05): key, files, downloads; Mailgun also uploads and the public address */
   setResendHost?: ((h: ResendHostSeam | null) => void) | undefined;
   setMailgunHost?: ((h: MailgunHostSeam | null) => void) | undefined;
+  /** Stripe, Twilio and GitHub (P-L5_LIVE): the keys, the downloads, the App JWT and the filler handle */
+  setStripeHost?: ((h: StripeHostSeam | null) => void) | undefined;
+  setTwilioHost?: ((h: TwilioHostSeam | null) => void) | undefined;
+  setGithubHost?: ((h: GithubHostSeam | null) => void) | undefined;
   [name: string]: ((driver: never) => void) | undefined;
 }
 
@@ -55,6 +64,8 @@ export interface SeamDeps {
   publicUrl?: ((space: string) => Promise<string>) | undefined;
   /** drivers by setter name, added to (and overriding) the built-in registry: the daemon supplies the ones that need its own state */
   drivers?: Record<string, SeamDriver>;
+  /** holds a GitHub installation token behind a handle until the Vault filler delivers it to git; omitted: GitHub cannot hand git a token */
+  filler?: FillerPort | undefined;
   /** which module exported each setter, for the report of what is missing */
   owners?: ReadonlyMap<string, string>;
 }
@@ -89,6 +100,9 @@ export const BUILTIN_DRIVERS: Readonly<Record<string, SeamDriver>> = Object.free
   setSourcesSecretResolver: (d: SeamDriverDeps) => createSourcesSecretResolver(d.vault, d.space),
   setResendHost: (d: SeamDriverDeps) => createResendHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
   setMailgunHost: (d: SeamDriverDeps) => createMailgunHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
+  setStripeHost: (d: SeamDriverDeps) => createStripeHost({ vault: d.vault }),
+  setTwilioHost: (d: SeamDriverDeps) => createTwilioHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, publicUrl: d.publicUrl }),
+  setGithubHost: (d: SeamDriverDeps) => createGithubHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, filler: d.filler, publicUrl: d.publicUrl }),
 });
 
 const LEGACY: Readonly<Record<string, keyof WiredSeams["state"]>> = Object.freeze({

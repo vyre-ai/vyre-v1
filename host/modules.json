@@ -29,7 +29,7 @@
     {
       "id": "calendar",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "campaigns",
@@ -69,7 +69,7 @@
     {
       "id": "contacts-link",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "devices",
@@ -124,12 +124,12 @@
     {
       "id": "github",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "google",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "governance",
@@ -159,7 +159,7 @@
     {
       "id": "inbox",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "journeys",
@@ -179,7 +179,7 @@
     {
       "id": "mail",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "mailgun",
@@ -209,7 +209,7 @@
     {
       "id": "microsoft",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "mounts",
@@ -309,7 +309,7 @@
     {
       "id": "stripe",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "sync",
@@ -339,7 +339,7 @@
     {
       "id": "twilio",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "updates",
