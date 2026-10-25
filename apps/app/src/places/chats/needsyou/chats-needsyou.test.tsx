@@ -187,9 +187,6 @@ test("sorting keeps the queue's order as the prototype lists it (ruling 45) and 
   const given = [mk("ready-old", "ready", { updatedAt: 1 }), mk("gone", "ready", { state: "canceled" }), mk("late", "overdue", { due: 3 }), mk("blocked", "ready", { blocked: true, updatedAt: 99 }), mk("today", "due_today", { due: 5 })];
   assert.deepEqual(sortItems(given).map((i) => i.task.id), ["ready-old", "late", "blocked", "today", "gone"]);
 });
-  const sorted = sortItems([mk("ready-old", "ready", { updatedAt: 1 }), mk("ready-new", "ready", { updatedAt: 9 }), mk("today", "due_today", { due: 5 }), mk("late", "overdue", { due: 3 }), mk("blocker", "blocking", { updatedAt: 50 }), mk("blocked", "ready", { blocked: true, updatedAt: 99 })]);
-  assert.deepEqual(sorted.map((i) => i.task.id), ["blocked", "blocker", "late", "today", "ready-new", "ready-old"]);
-});
 
 test("selection moves with the arrows, stops at the ends, and after an act goes to the next row, else the one before", () => {
   const s = createSample();
