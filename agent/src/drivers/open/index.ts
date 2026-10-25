@@ -6,3 +6,5 @@ export { createFillAuthorizer } from "./fill-authorizer.ts";
 export type { FillAuthorizerDeps } from "./fill-authorizer.ts";
 export { API_AUTH, cliCredential } from "./credentials.ts";
 export type { CliCredential, CredentialKind } from "./credentials.ts";
+export { createApiTools } from "./api-tools.ts";
+export type { ApiTools, ApiToolsDeps } from "./api-tools.ts";

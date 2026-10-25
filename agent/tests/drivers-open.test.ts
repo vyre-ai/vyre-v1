@@ -11,6 +11,9 @@ import { createSessionOpener } from "../src/drivers/open/index.ts";
 import type { McpPort, OpenAccount, SessionOpener, SessionOpenerDeps } from "../src/drivers/open/index.ts";
 import { ctx, chunked, fakeClock, fakeFetch, fixture } from "../src/drivers/api/testing.ts";
 import { createTurnEngine } from "../src/turn-engine/index.ts";
+import type { ToolRunner } from "../src/turn-engine/index.ts";
+import { createApiTools } from "../src/drivers/open/index.ts";
+import { makeSession } from "../src/tools/harness.ts";
 import type { EngineAgent, SessionSpec, TurnRow } from "../src/turn-engine/index.ts";
 import type { Lookup, ValueSource } from "../src/vault-use/index.ts";
 
@@ -51,7 +54,7 @@ interface Rig {
   used: unknown[];
 }
 
-function rig(over: Partial<SessionOpenerDeps> = {}): Rig {
+function rig(over: Partial<SessionOpenerDeps> = {}, callTool?: ToolRunner): Rig {
   const r = { launches: [] as string[][], envs: [] as Array<Readonly<Record<string, string>>>, pids: [] as number[], minted: [] as Rig["minted"], closed: [] as string[], misses: [] as unknown[], used: [] as unknown[] };
   const local = createLocalLauncher({ wrap: (argv) => { r.launches.push([...argv]); return [process.execPath, FAKE_CLI, ...argv]; }, baseEnv: { PATH: process.env["PATH"] ?? "" } });
   const launcher: Launcher = {
@@ -80,6 +83,7 @@ function rig(over: Partial<SessionOpenerDeps> = {}): Rig {
   // The engine's side of the contract: the account the accounts module resolved, and the turn's ids, ride on the spec.
   const engine = createTurnEngine({
     holder: "host:s",
+    ...(callTool ? { callTool } : {}),
     openSession: (spec: SessionSpec) => {
       const account = spec.agent.accountRef === undefined ? undefined : ACCOUNTS[spec.agent.accountRef];
       return opener.openSession({ ...spec, ...(account ? { account } : {}), turnId: "turn_1", traceId: TRACE } as SessionSpec);
@@ -244,5 +248,38 @@ test("an API-key account runs on the HTTP driver; the key is in the request head
   assert.equal(g.minted.length, 0, "and needs no loopback MCP session");
   assert.ok(!everything(g, ["T1"]).includes(API_KEY));
   assert.deepEqual(g.used, [[{ handle: "#Team_Anthropic_Key", itemId: "vit_api" }]]);
+  await g.opener.close();
+});
+
+function toolRig(rules?: { deny?: string[] }) {
+  const t = makeSession();
+  const name = [...t.loaded.defaults].find((n) => { const d = t.loaded.catalog.byName(n); return d !== undefined && d.effects === "read" && d.local === "none" && n !== "tool_search"; });
+  assert.ok(name, "the default tool set has a plain read tool");
+  const tools = createApiTools({ session: t.session, space: "spc_1", system: () => [{ text: "You are Intake.", stable: true }], ...(rules ? { rules: () => rules } : {}) });
+  const f = fakeFetch((_r, n) => ({ chunks: chunked(fixture(n === 0 ? "anthropic-tool" : "anthropic-tool-answer").replaceAll("records_list", name), 64) }));
+  const g = rig({ fetch: f.fetch, clock: fakeClock(), apiContext: tools.context }, tools.runner);
+  return { g, f, name, invokes: t.calls };
+}
+
+test("an API-key turn is offered the agent's tools, runs a call as the agent for the asker, and gives the model the result", async () => {
+  const { g, f, name, invokes } = toolRig();
+  const { turn, reply } = await ask(g, "who are my newest leads?", agent("#Team_Anthropic_Key", { model: "claude-sonnet-5-5" }));
+  assert.equal(turn.state, "completed");
+  assert.equal(reply, "Let me look.Found 3 leads.");
+  assert.ok(((f.requests[0]?.body as { tools?: Array<{ name: string }> }).tools ?? []).some((x) => x.name === name), "the tool was advertised");
+  assert.equal(invokes.length, 1);
+  assert.deepEqual({ principal: invokes[0]?.principal, actingFor: invokes[0]?.actingFor }, { principal: "intake", actingFor: "dana" });
+  assert.equal(f.requests.length, 2, "the result went back to the model");
+  assert.ok(g.engine.events("T1").some((e) => e.type === "turn.block" && e.kind === "tool_call"), "the call shows as a tool block");
+  await g.opener.close();
+});
+
+test("a tool the agent may not use is refused in the pipeline's words and never invoked; the turn goes on", async () => {
+  const probe = toolRig();
+  const { g, f, invokes } = toolRig({ deny: [probe.name] });
+  const { turn } = await ask(g, "who are my newest leads?", agent("#Team_Anthropic_Key", { model: "claude-sonnet-5-5" }));
+  assert.equal(turn.state, "completed");
+  assert.equal(invokes.length, 0);
+  assert.match(JSON.stringify(f.requests[1]?.body), /agent_denied/);
   await g.opener.close();
 });
