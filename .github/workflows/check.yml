@@ -164,7 +164,7 @@ jobs:
         if: steps.scope.outputs.changed == 'true'
         env:
           VYRE_HEAVY_DOCKER: "1"
-        run: node --test --test-timeout=900000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts
+        run: node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts
   check:
     needs: [select, shards, gates]
     if: always()
