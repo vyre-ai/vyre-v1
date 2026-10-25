@@ -1,4 +1,4 @@
-// The seed fixtures every mount reads: the prototype's Northwind, Harbor Studio and Personal Spaces, and the resolvers that turn an id into the name a person sees.
+// The seed fixtures every mount reads (Northwind, Harbor Studio, Personal; the data is read from the prototype): the prototype's Northwind, Harbor Studio and Personal Spaces, and the resolvers that turn an id into the name a person sees.
 // A raw id (usr_maya, agt_scheduler) is never shown: nameOf falls back to a readable word, never to the id.
 
 import { harbor } from "./harbor.ts";
