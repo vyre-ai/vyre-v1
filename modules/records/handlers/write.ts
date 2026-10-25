@@ -54,7 +54,7 @@ const NEXT: Record<NextStep["kind"], string> = {
   reconnect: "Reconnect", edit_input: "Fix the input", wait: "Wait a moment", contact_admin: "Contact an admin", report: "Report a problem",
 };
 
-function fail(ctx: WriteCtx, code: ErrorCode, message: string, details?: Record<string, unknown>): never {
+export function fail(ctx: WriteCtx, code: ErrorCode, message: string, details?: Record<string, unknown>): never {
   const def = ERROR_CODES.find((e) => e.code === code) ?? ERROR_CODES.find((e) => e.code === "internal.unexpected");
   if (!def) throw new Error("error catalogue is empty");
   const error: VyreError = {

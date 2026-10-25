@@ -707,6 +707,43 @@ async function revertChange(ctx: Ctx, input: unknown): Promise<{ fileCount: numb
   return { fileCount: count };
 }
 
+/**
+ * P-CC_21: a person edits a proposed change in place. Lines startLine..startLine+removeLines-1 of the staged text are replaced by `lines`; the proposer (the changeset's author) stays as it was and the
+ * editor is recorded on the changeset.edited event. The change keeps its recorded base, so Approve still merges it three ways and still goes through its own Gate (nothing here approves).
+ */
+async function edit(ctx: Ctx, input: unknown): Promise<{ fileCount: number; added: number; removed: number; proposedBy: string; editedBy: string }> {
+  const o = record(ctx, input);
+  const cs = mustChangeset(ctx, reqStr(ctx, o, "changesetId"));
+  if (!isOpen(cs)) fail(ctx, "validation.precondition_failed", "Only an open changeset can be edited.");
+  if (ctx.authorize({ perm: "files.write", level: "edit" }, { type: "folder", id: String(cs.folder_id) }).effect !== "allow") fail(ctx, "permission.no_grant", "Editing needs edit access to this folder.");
+  if (stages(ctx)) fail(ctx, "permission.no_grant", "An agent changes a proposal by staging a new write; a person edits it here.");
+  const path = reqStr(ctx, o, "path");
+  const startLine = o["startLine"], removeLines = o["removeLines"], put = o["lines"];
+  if (typeof startLine !== "number" || !Number.isInteger(startLine) || startLine < 1) return fail(ctx, "validation.bad_input", "The start line is not valid.", { field: "startLine" });
+  if (typeof removeLines !== "number" || !Number.isInteger(removeLines) || removeLines < 0) return fail(ctx, "validation.bad_input", "The number of lines to replace is not valid.", { field: "removeLines" });
+  if (!Array.isArray(put) || put.some((l) => typeof l !== "string")) return fail(ctx, "validation.bad_input", "The new lines are not valid.", { field: "lines" });
+  const e = entryOf(ctx, String(cs.id), path);
+  if (isNull(e.content)) return fail(ctx, "validation.precondition_failed", "A deleted file has no lines to edit.");
+  const { base, staged } = await sidesOf(ctx, e);
+  const text = staged === undefined ? undefined : textOfBytes(staged);
+  if (text === undefined) return fail(ctx, "validation.precondition_failed", "Only a text file can be edited line by line.");
+  const before = splitLines(text);
+  if (startLine - 1 + removeLines > before.length) return fail(ctx, "validation.bad_input", "Those lines are not in the file.", { field: "startLine", lines: before.length });
+  const next = before.slice();
+  next.splice(startLine - 1, removeLines, ...(put as string[]));
+  const bytes = enc.encode(joinLines(next, text.endsWith("\n")));
+  const id = String(cs.id);
+  const counts = lineCounts(base, bytes);
+  ctx.db.run(
+    "UPDATE files_changeset_file SET content = ?, size = ?, added_lines = ?, removed_lines = ?, conflict = ?, updated_at = ? WHERE changeset_id = ? AND path = ?",
+    seal(ctx, id, bytes), bytes.byteLength, counts.added, counts.removed, 0, ctx.now(), id, path,
+  );
+  touch(ctx, cs);
+  const count = filesOf(ctx, id).length;
+  ctx.emit("changeset.edited", `folder/${String(cs.folder_id)}`, { changesetId: id, folderId: String(cs.folder_id), path, proposedBy: String(cs.author), by: ctx.principal.id, fileCount: count });
+  return { fileCount: count, added: counts.added, removed: counts.removed, proposedBy: String(cs.author), editedBy: ctx.principal.id };
+}
+
 // ---- outside review and comments ----
 
 const REVIEW_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -784,6 +821,7 @@ export const changesetHandlers = {
   "changesets.request_changes": (ctx: Ctx, input: unknown) => requestChanges(ctx, input),
   "changesets.discard": (ctx: Ctx, input: unknown) => discard(ctx, input),
   "changesets.revert_change": (ctx: Ctx, input: unknown) => revertChange(ctx, input),
+  "changesets.edit": (ctx: Ctx, input: unknown) => edit(ctx, input),
   "changesets.review_externally": (ctx: Ctx, input: unknown) => reviewExternally(ctx, input),
   "changesets.comments.list": (ctx: Ctx, input: unknown) => commentsList(ctx, input),
   "changesets.comments.add": (ctx: Ctx, input: unknown) => commentsAdd(ctx, input),

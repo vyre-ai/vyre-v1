@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat, engine, mcp, memory, runs, terminal.
 
-## Capabilities (30)
+## Capabilities (32)
 
 - [agents.builtin_skills.list](../capabilities/agents.builtin_skills.list.md): Skills every agent carries, led by "Working in Vyre": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces
 - [agents.config.get](../capabilities/agents.config.get.md): Parsed agent.toml and AGENT.md metadata as the next run will see them, with the last good version and any error
@@ -20,8 +20,10 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [agents.restore_version](../capabilities/agents.restore_version.md): Restore AGENT.md or agent.toml to an earlier version
 - [agents.resume](../capabilities/agents.resume.md): Resume a paused agent
 - [agents.role_line.set](../capabilities/agents.role_line.set.md): Edit the role line in place: saves the description of agent.toml with an inline Undo; read-only without Edit
+- [agents.routine.delegate](../capabilities/agents.routine.delegate.md): Hand a routine to another person or agent (a person becomes its owner, an agent runs it); undo (no `to`) hands it back to the previous owner and agent
 - [agents.routine.delete](../capabilities/agents.routine.delete.md): Delete a routine
-- [agents.routine.save](../capabilities/agents.routine.save.md): Create or change a routine; messages it causes carry "Sent by <agent> on a routine <person> set"
+- [agents.routine.run_now](../capabilities/agents.routine.run_now.md): Run a routine now. The run starts as the routine owner, never as the caller, so its reach and its "Sent by <agent> on a routine <person> set" line are the owner's
+- [agents.routine.save](../capabilities/agents.routine.save.md): Create or change a routine, a schedule (cron) or a watcher (kind watch: runs on each new message in a channel); messages it causes carry "Sent by <agent> on a routine <person> set"
 - [agents.routines.list](../capabilities/agents.routines.list.md): Routines of an agent (schedules set by the owner)
 - [agents.snapshot.take](../capabilities/agents.snapshot.take.md): Take the file snapshot a run uses; changes to the files apply between runs
 - [agents.status](../capabilities/agents.status.md): Live status of an agent: Awake (idle 2 minutes), Working, Asleep or Paused with reason and who
@@ -37,7 +39,7 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [agents.versions](../capabilities/agents.versions.md): List versions of an agent definition (AGENT.md, agent.toml) for rollback
 - [agents.visibility.set](../capabilities/agents.visibility.set.md): Admin toggle "All in the Space" for agent lists (logged)
 
-## Events (11)
+## Events (13)
 
 - [agent.config_changed](../events/agent.config_changed.md): AGENT.md, agent.toml or the agent record changed (a new version was saved)
 - [agent.config_error](../events/agent.config_error.md): An agent.toml failed validation; the last good version keeps running
@@ -47,6 +49,8 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [agent.restored](../events/agent.restored.md): An agent came back from Trash
 - [agent.resumed](../events/agent.resumed.md): An agent was resumed
 - [agent.routine_changed](../events/agent.routine_changed.md): A routine was created, changed or deleted
+- [agent.routine_delegated](../events/agent.routine_delegated.md): A routine was handed to another owner, or handed back
+- [agent.routine_run_started](../events/agent.routine_run_started.md): A routine run started now, as the routine owner
 - [agent.suggestion_proposed](../events/agent.suggestion_proposed.md): A change to an agent was suggested
 - [agent.suggestion_resolved](../events/agent.suggestion_resolved.md): A suggestion was accepted or dismissed
 - [agent.template_applied](../events/agent.template_applied.md): The Agent template was applied

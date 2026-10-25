@@ -30,6 +30,11 @@
       "dev": false
     },
     {
+      "name": "hash-wasm",
+      "reason": "Argon2id in WASM for the client person key bundle (client/src/crypto/keys.ts only); browsers have no node:crypto argon2. MIT, no dependencies",
+      "dev": false
+    },
+    {
       "name": "@noble/curves",
       "reason": "signatures and key agreement",
       "dev": false
@@ -265,8 +270,38 @@
       "dev": true
     },
     {
+      "name": "@tiptap/*",
+      "reason": "rich editor (core, pm, starter-kit, collaboration, collaboration-cursor)",
+      "dev": false
+    },
+    {
+      "name": "y-prosemirror",
+      "reason": "binds the Yjs fragment to ProseMirror for TipTap collaboration",
+      "dev": false
+    },
+    {
+      "name": "react-native-webview",
+      "reason": "phone rich editor runs in a WebView (risk R6)",
+      "dev": false
+    },
+    {
       "name": "sqlite-wasm-cipher",
       "reason": "encrypted OPFS replica engine (S5); real-engine heavy test",
+      "dev": true
+    },
+    {
+      "name": "onnxruntime-node",
+      "reason": "the host embeds with the native runtime, all-MiniLM-L6-v2 quantized ONNX, rulings 47 and 54, S13",
+      "dev": true
+    },
+    {
+      "name": "onnxruntime-web",
+      "reason": "clients embed on WASM, same model, ruling 47",
+      "dev": true
+    },
+    {
+      "name": "wabt",
+      "reason": "assembles the readable vector kernel WAT on the runner, ruling 47",
       "dev": true
     }
   ],

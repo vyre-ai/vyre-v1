@@ -7,7 +7,12 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { PassThrough } from "node:stream";
 import { createAgentControl } from "../src/agent/index.js";
+import { createDecoder, encode } from "../src/worker/framing.js";
+import { runHost } from "../src/worker/native/host.js";
+import { HOST_NAME } from "../src/worker/protocol.js";
+import { createChromeBridge } from "../../../lib/chrome-bridge.ts";
 
 const OUT = process.env["VYRE_SHOT_DIR"] ?? path.join(os.tmpdir(), "vyre-chrome-agent-shots");
 const SECRET = "hunter2-Pa55";
@@ -148,7 +153,13 @@ function refOf(tree: string, what: string) {
   return /\[ref=(e\d+)\]/.exec(line!)![1]!;
 }
 
-test("the chrome_* tools drive a real page: read, press, type, hold, send, mask", { skip: !found && "no Chromium on this machine" }, async () => {
+// With VYRE_REQUIRE_CHROME=1 (the CI job that proves the real-Chrome path) a missing Chromium fails here instead of skipping the three tests below, so a green run means they ran.
+const mustRun = process.env["VYRE_REQUIRE_CHROME"] === "1";
+test("Chromium is available when this run must drive a real Chrome", { skip: !mustRun && "VYRE_REQUIRE_CHROME is not 1" }, () => {
+  assert.ok(found, "VYRE_REQUIRE_CHROME=1 but no Chromium was found (set CHROME_BIN or install playwright's chromium)");
+});
+
+test("the chrome_* tools drive a real page: read, press, type, hold, send, mask", { skip: !found && !mustRun && "no Chromium on this machine" }, async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const srv = await serve();
   const browser = await found!.chromium.launch({ executablePath: found!.exe, args: ["--no-sandbox", "--disable-gpu"] });
@@ -212,7 +223,11 @@ test("the chrome_* tools drive a real page: read, press, type, hold, send, mask"
     assert.deepEqual((await r.call("chrome_status")).held.sort(), [held.heldId, heldPay.heldId].sort());
     const sent = await r.call("chrome_send", { heldId: held.heldId });
     assert.equal(sent.sent, true);
+    // chrome_send returns when the click is made; the form POST can still be in flight, so wait for it to arrive, then see that no second one follows
+    for (let waited = 0; srv.counts.contacts < 1 && waited < 3000; waited += 50) await new Promise((res) => setTimeout(res, 50));
     assert.equal(srv.counts.contacts, 1, "sent exactly once");
+    await new Promise((res) => setTimeout(res, 500));
+    assert.equal(srv.counts.contacts, 1, "and no second send follows");
     await assert.rejects(r.call("chrome_send", { heldId: held.heldId }), (e: any) => e.code === "held_gone");
     assert.equal(srv.counts.contacts, 1);
 
@@ -259,7 +274,7 @@ test("the chrome_* tools drive a real page: read, press, type, hold, send, mask"
   } finally { await r.close(); await browser.close(); await srv.close(); }
 });
 
-test("the frame, the bar and the named cursor, in a light and a dark page, then Stop, Esc and idle", { skip: !found && "no Chromium on this machine" }, async () => {
+test("the frame, the bar and the named cursor, in a light and a dark page, then Stop, Esc and idle", { skip: !found && !mustRun && "no Chromium on this machine" }, async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const srv = await serve();
   const browser = await found!.chromium.launch({ executablePath: found!.exe, args: ["--no-sandbox", "--disable-gpu"] });
@@ -311,4 +326,47 @@ test("the frame, the bar and the named cursor, in a light and a dark page, then 
       assert.ok(await idle.overlayState(), "the next call brings it back");
     } finally { await idle.close(); }
   } finally { await browser.close(); await srv.close(); }
+});
+
+test("one chrome_* tool call goes from the daemon bridge through the native host and the extension's own transport into a real Chrome page, and the page's answer comes back", { skip: !found && !mustRun && "no Chromium on this machine" }, async () => {
+  const srv = await serve();
+  const browser = await found!.chromium.launch({ executablePath: found!.exe, args: ["--no-sandbox", "--disable-gpu"] });
+  const r = await rig(browser, "light");
+  // the daemon's bridge on loopback (the booted daemon serves the same one: host/tests/chrome-bridge.live.test.ts)
+  const bridge = createChromeBridge({ token: "tok-real" });
+  const daemon = http.createServer((req, res) => { if (!bridge.handle(req, res)) { res.writeHead(404); res.end(); } });
+  await new Promise<void>((res) => daemon.listen(0, "127.0.0.1", () => res()));
+  // the real native host between Chrome (framed stdio) and the daemon; the extension's transport talks to it through connectNative
+  const stdin = new PassThrough();
+  const decoder = createDecoder();
+  const onMessage: ((m: unknown) => void)[] = [];
+  const stdout = { write: (b: Buffer) => { for (const f of decoder.push(b)) for (const h of onMessage) h(f); return true; } };
+  const hostDone = runHost({ stdin, stdout, daemon: { url: `http://127.0.0.1:${(daemon.address() as { port: number }).port}`, token: "tok-real" } });
+  r.ext.runtime.connectNative = (name: string) => {
+    assert.equal(name, HOST_NAME);
+    return { postMessage: (m: unknown) => { stdin.write(encode(m)); }, disconnect: () => {}, onMessage: { addListener: (f: (m: unknown) => void) => onMessage.push(f) }, onDisconnect: { addListener: () => {} } };
+  };
+  const control = createAgentControl(r.ext, { activeSpace: async () => "spc_a", settleMs: 120 });
+  const wait = async (f: () => boolean) => { for (let i = 0; i < 300 && !f(); i++) await new Promise((x) => setTimeout(x, 20)); assert.ok(f(), "condition reached"); };
+  try {
+    await r.page.goto(`${srv.url}/`);
+    control.connect();
+    await wait(() => bridge.connected === 1);
+    bridge.optIn(["spc_a"], "computer");
+    await wait(() => control.optedIn.includes("spc_a"));
+    const snap = (await bridge.callTool({ tool: "chrome_snapshot", agent: { id: "agt_intake", name: "Intake" }, space: "spc_a" })) as { ok: boolean; title: string; tree: string };
+    assert.equal(snap.title, "Acme Portal", "the real page's title came back through the whole chain");
+    assert.match(snap.tree, /button "Sign in"/);
+    await assert.rejects(bridge.callTool({ tool: "chrome_act", input: { ref: "e999", action: "click" }, agent: { id: "agt_intake", name: "Intake" }, space: "spc_a" }), (e: any) => e.code === "unknown_ref", "a failure comes back with the extension's own code");
+    await assert.rejects(bridge.callTool({ tool: "chrome_snapshot", agent: { id: "agt_other", name: "Other" }, space: "spc_b" }), (e: any) => e.code === "wrong_space");
+  } finally {
+    stdin.end();
+    await hostDone;
+    bridge.failAll();
+    bridge.closeStreams();
+    await new Promise<void>((res) => daemon.close(() => res()));
+    await r.close();
+    await browser.close();
+    await srv.close();
+  }
 });

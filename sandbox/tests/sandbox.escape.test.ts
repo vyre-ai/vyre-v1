@@ -4,8 +4,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  SYSTEM_READ, SandboxError, bwrapCommand, seatbeltCommand, confinementProbe, containerConfig, createEgressProxy, networkName, reviewContainerConfig, sbplString, seatbeltProfile, startDockerSandbox, validateSpec, within,
+  SYSTEM_READ, SandboxError, seatbeltCommand, confinementProbe, containerConfig, createEgressProxy, networkName, reviewContainerConfig, sbplString, seatbeltProfile, validateSpec, within,
 } from "../src/index.ts";
+import { bwrapCommand } from "../src/bwrap.ts";
+import { startDockerSandbox } from "../src/docker.ts";
 import type { ContainerConfig, ProxyHandle, Sandbox } from "../src/index.ts";
 import { ROOTS, echoServer, fakeDocker, rawExchange, rng, spec } from "./helpers.ts";
 
@@ -201,7 +203,8 @@ test("the Seatbelt profile denies by default, writes only in the rw folders and 
   assert.equal(lines[0], "(version 1)");
   assert.equal(lines[1], "(deny default)");
   const networkRules = lines.filter((l) => /network/.test(l) && l.startsWith("(allow"));
-  assert.deepEqual(networkRules, ['(allow network-outbound (remote ip "localhost:4040"))']);
+  // The proxy's loopback port, and (ruling 61) unix sockets under the scratch folder only: that is how the engine's MCP shim reaches Vyre without any network path to the daemon.
+  assert.deepEqual(networkRules, ['(allow network-outbound (remote unix-socket (subpath "/srv/vyre/scratch/dana/s1")))', '(allow network-outbound (remote ip "localhost:4040"))']);
   const writes = lines.filter((l) => /^\(allow file-read\* file-write\*/.test(l));
   assert.deepEqual(writes, ['(allow file-read* file-write* (subpath "/srv/vyre/people/dana/site"))', '(allow file-read* file-write* (subpath "/srv/vyre/scratch/dana/s1"))']);
   assert.ok(lines.includes('(allow file-read* (subpath "/srv/vyre/people/dana/reference"))'), "the read-only folder is read only");

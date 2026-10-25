@@ -89,7 +89,7 @@
     {
       "id": "engine",
       "owner": "L2",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "esign",
@@ -168,8 +168,8 @@
     },
     {
       "id": "kits",
-      "owner": "L8",
-      "status": "stub"
+      "owner": "L10",
+      "status": "live"
     },
     {
       "id": "logs",

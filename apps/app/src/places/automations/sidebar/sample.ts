@@ -4,6 +4,7 @@
 import { createFakeReplica, createScreenHooks, liveQuery } from "../../../../../../client/src/index.ts";
 import type { FakeReplica, LiveQuery, Row, ScreenHooks } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
+import { namesFor, nameOf } from "../../../fixtures/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { AutomationsData, AutomationsNav } from "../canvas/data.tsx";
 import { check, type Automation, type Definition, type Issue, type KeyChoice } from "../canvas/model.ts";
@@ -77,7 +78,7 @@ export interface SampleSpace {
 
 export const northwind: SampleSpace = {
   id: "northwind", name: "Northwind", me: { id: "usr_irfad", name: "Irfad Imtiaz" },
-  names: { usr_irfad: "Irfad Imtiaz", usr_maya: "Maya Chen", usr_omar: "Omar Haddad", usr_lena: "Lena Ortiz", agt_intake: "Intake", agt_billing: "Billing", agt_assistant: "Assistant", key_claude: "Your Claude sign-in", key_nw_openai: "Northwind OpenAI key" },
+  names: namesFor("northwind", { key_claude: "Your Claude sign-in", key_nw_openai: "Northwind OpenAI key" }),
   keys: [{ id: "key_claude", name: "Your Claude sign-in", kind: "subscription" }, { id: "key_nw_openai", name: "Northwind OpenAI key", kind: "api" }],
   groups: [
     { id: "agr_daily", name: "Daily", count: 1, order: 0 }, { id: "agr_money", name: "Money", count: 1, order: 1 }, { id: "agr_maya", name: "Maya's reports", count: 1, order: 2 },
@@ -109,7 +110,7 @@ export const northwind: SampleSpace = {
 
 export const harbor: SampleSpace = {
   id: "harbor", name: "Harbor Studio", me: { id: "usr_june", name: "June Okafor" },
-  names: { usr_june: "June Okafor", usr_ines: "Ines Costa", agt_assistant: "Assistant", agt_scheduler: "Scheduler", key_claude: "Your Claude sign-in" },
+  names: namesFor("harbor", { key_claude: "Your Claude sign-in" }),
   keys: [{ id: "key_claude", name: "Your Claude sign-in", kind: "subscription" }],
   groups: [{ id: "agr_studio", name: "Studio", count: 2, order: 0 }],
   specs: [
@@ -262,7 +263,7 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
       return w(input);
     },
     me: space.me,
-    name: (id) => space.names[id] ?? id,
+    name: (id) => space.names[id] ?? nameOf(space.id, id),
     keys: space.keys,
     nav,
     clock: () => ({ now: SAMPLE_NOW }),

@@ -2950,6 +2950,62 @@
     },
     {
       "blocks": [],
+      "cap": "agents.routine.delegate",
+      "deferred": false,
+      "description": "Hand a routine to another person or agent (a person becomes its owner, an agent runs it); undo (no `to`) hands it back to the previous owner and agent",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "routineId": {
+            "examples": [
+              "rtn_a1b2c3"
+            ],
+            "pattern": "^rtn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "to": {
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "person",
+                  "agent"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          "undo": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "agentId",
+          "routineId"
+        ],
+        "type": "object"
+      },
+      "name": "agents_routine_delegate",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.routine.delete",
       "deferred": false,
       "description": "Delete a routine",
@@ -2984,9 +3040,51 @@
     },
     {
       "blocks": [],
+      "cap": "agents.routine.run_now",
+      "deferred": false,
+      "description": "Run a routine now. The run starts as the routine owner, never as the caller, so its reach and its \"Sent by <agent> on a routine <person> set\" line are the owner's",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "routineId": {
+            "examples": [
+              "rtn_a1b2c3"
+            ],
+            "pattern": "^rtn_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "routineId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "agents_routine_run_now",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.routine.save",
       "deferred": false,
-      "description": "Create or change a routine; messages it causes carry \"Sent by <agent> on a routine <person> set\"",
+      "description": "Create or change a routine, a schedule (cron) or a watcher (kind watch: runs on each new message in a channel); messages it causes carry \"Sent by <agent> on a routine <person> set\"",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -3020,6 +3118,13 @@
             "minLength": 1,
             "type": "string"
           },
+          "kind": {
+            "enum": [
+              "schedule",
+              "watch"
+            ],
+            "type": "string"
+          },
           "prompt": {
             "type": "string"
           },
@@ -3032,12 +3137,33 @@
           },
           "title": {
             "type": "string"
+          },
+          "watch": {
+            "properties": {
+              "channelId": {
+                "examples": [
+                  "chn_a1b2c3"
+                ],
+                "pattern": "^chn_[a-z0-9]+$",
+                "type": "string"
+              },
+              "on": {
+                "enum": [
+                  "message"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "on",
+              "channelId"
+            ],
+            "type": "object"
           }
         },
         "required": [
           "agentId",
           "title",
-          "cron",
           "prompt",
           "idempotencyKey"
         ],
@@ -7677,6 +7803,53 @@
         "type": "object"
       },
       "name": "changesets_discard",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "changesets.edit",
+      "deferred": false,
+      "description": "Edit a proposed change in place before accepting it: replace a run of lines in one staged file. The proposer stays recorded and so does the editor; Approve still goes through its own Gate",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "changesetId": {
+            "examples": [
+              "chg_a1b2c3"
+            ],
+            "pattern": "^chg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "path": {
+            "type": "string"
+          },
+          "removeLines": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "startLine": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "changesetId",
+          "path",
+          "startLine",
+          "removeLines",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "name": "changesets_edit",
       "planMode": "blocked",
       "toolset": "files",
       "v": 1
@@ -12490,7 +12663,7 @@
       "blocks": [],
       "cap": "console.overview",
       "deferred": false,
-      "description": "Overview: health, attention items, recent admin activity, usage",
+      "description": "Overview: health, attention items, recent admin activity, usage, server CPU, memory and disk, and the last backup",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -13912,12 +14085,17 @@
                     "type": {
                       "enum": [
                         "text",
+                        "heading",
                         "image",
                         "button",
                         "columns",
                         "divider",
                         "merge",
-                        "html"
+                        "footer",
+                        "html",
+                        "spacer",
+                        "social",
+                        "saved"
                       ],
                       "type": "string"
                     }
@@ -13980,6 +14158,84 @@
         "type": "object"
       },
       "name": "email_builder_save",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "email_builder.saved_blocks.list",
+      "deferred": false,
+      "description": "List saved blocks: mine and the ones shared with the Space, to drop into a design",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "email_builder_saved_blocks_list",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "email_builder.saved_blocks.save",
+      "deferred": false,
+      "description": "Save a block for reuse, or change one of mine; only the person who saved it can change it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "block": {
+            "properties": {
+              "props": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": {
+                "enum": [
+                  "text",
+                  "heading",
+                  "image",
+                  "button",
+                  "columns",
+                  "divider",
+                  "merge",
+                  "footer",
+                  "html",
+                  "spacer",
+                  "social",
+                  "saved"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "props"
+            ],
+            "type": "object"
+          },
+          "blockId": {
+            "examples": [
+              "blk_a1b2c3"
+            ],
+            "pattern": "^blk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "shared": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "block"
+        ],
+        "type": "object"
+      },
+      "name": "email_builder_saved_blocks_save",
       "planMode": "blocked",
       "toolset": "inbox",
       "v": 1
@@ -22869,6 +23125,21 @@
     },
     {
       "blocks": [],
+      "cap": "health.machine",
+      "deferred": false,
+      "description": "Probe: CPU load, memory and disk of the server as the host last reported them (Console Overview tiles)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "health_machine",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "health.run",
       "deferred": false,
       "description": "Run one health check or all of them now",
@@ -24513,6 +24784,17 @@
                   "pattern": "^[a-z][a-z0-9_]*$",
                   "type": "string"
                 },
+                "onLeaving": {
+                  "description": "Automations that run when a record leaves the stage",
+                  "items": {
+                    "examples": [
+                      "aut_a1b2c3"
+                    ],
+                    "pattern": "^aut_[a-z0-9]+$",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
                 "order": {
                   "minimum": 0,
                   "type": "integer"
@@ -24823,6 +25105,17 @@
                   ],
                   "pattern": "^[a-z][a-z0-9_]*$",
                   "type": "string"
+                },
+                "onLeaving": {
+                  "description": "Automations that run when a record leaves the stage",
+                  "items": {
+                    "examples": [
+                      "aut_a1b2c3"
+                    ],
+                    "pattern": "^aut_[a-z0-9]+$",
+                    "type": "string"
+                  },
+                  "type": "array"
                 },
                 "order": {
                   "minimum": 0,
@@ -25428,6 +25721,39 @@
     },
     {
       "blocks": [],
+      "cap": "journeys.tasks",
+      "deferred": false,
+      "description": "The tasks of one Journey record by stage, each with its state (todo, in review, blocked, done)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "stage": {
+            "examples": [
+              "intake"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "journeys_tasks",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "journeys.versions",
       "deferred": false,
       "description": "List versions of a Journey definition",
@@ -25643,7 +25969,7 @@
       "blocks": [],
       "cap": "kits.install_sheet",
       "deferred": false,
-      "description": "The install sheet: tools, record types, network domains, vault names",
+      "description": "The install sheet: tools, record types, network domains, vault names, scripts, and the steps the sheet check found broken",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -28981,7 +29307,7 @@
       "blocks": [],
       "cap": "memory.counts",
       "deferred": false,
-      "description": "Counts for the agent strip: current facts, proposed facts and facts from the caller",
+      "description": "Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -29526,6 +29852,32 @@
       },
       "name": "memory_layout_save",
       "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.map.get",
+      "deferred": false,
+      "description": "The MAP.md block of an agent as the nightly job last wrote it (agent layer only, never personal memory); absent before the first night",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_map_get",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -32182,6 +32534,73 @@
     },
     {
       "blocks": [],
+      "cap": "notifications.kind.set_level",
+      "deferred": false,
+      "description": "Set how one kind of notification reaches me: its level and which of desktop, phone and email carry it. Give a level, channels, or both; channels alone pick the level (desktop or phone interrupt, otherwise badge). Approval reminders and owned incidents never go below Interrupt",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "channels": {
+            "items": {
+              "enum": [
+                "desktop",
+                "phone",
+                "email"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "approval.requested",
+              "approval.backstop",
+              "dm",
+              "mention",
+              "call.incoming",
+              "agent.blocked",
+              "incident.owned",
+              "task.assigned",
+              "reply.followed",
+              "agent.task_finished",
+              "campaign.reply",
+              "digest.away",
+              "mention.thread",
+              "run.failed",
+              "conflict.needs_you",
+              "access.requested",
+              "access.decided",
+              "sync.attention",
+              "health.degraded",
+              "problem.report",
+              "member.joined",
+              "limit.hit",
+              "vault.rotation_due"
+            ],
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "interrupt",
+              "badge",
+              "digest"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "name": "notifications_kind_set_level",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "notifications.kinds.list",
       "deferred": false,
       "description": "The notification kinds with level and place, for the settings page",
@@ -34624,7 +35043,7 @@
       "blocks": [],
       "cap": "records.export",
       "deferred": false,
-      "description": "Export rows as CSV or Excel (permissioned)",
+      "description": "Export rows as CSV or Excel (permissioned), the whole view or only the picked recordIds",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -34655,6 +35074,18 @@
           "offset": {
             "minimum": 0,
             "type": "integer"
+          },
+          "recordIds": {
+            "description": "Export only these rows (a hand-picked selection), in the order of the view; a row the caller may not read is left out",
+            "items": {
+              "examples": [
+                "rec_a1b2c3"
+              ],
+              "pattern": "^rec_[a-z0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 5000,
+            "type": "array"
           },
           "sort": {
             "items": {
@@ -46297,7 +46728,10 @@
                   "http_header",
                   "browser",
                   "terminal",
-                  "file"
+                  "file",
+                  "git_credential",
+                  "container_env",
+                  "route_auth"
                 ],
                 "type": "string"
               },

@@ -5,6 +5,7 @@
 //           the Chrome bridge register as supervised services (`options.services`) when their lanes land.
 // Nothing here knows a module's internals: module code only ever sees the ctx the loader builds.
 import fs from "node:fs";
+import type http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { authorize } from "../../../kernel/src/authorize/index.ts";
@@ -18,6 +19,7 @@ import { createCtxSeal } from "../ctx/seal.ts";
 import { ScheduleQueue } from "../ctx/schedule.ts";
 import type { ScheduledCall } from "../ctx/schedule.ts";
 import { createBlobStore } from "../ctx/blobs.ts";
+import { createBlobRoute } from "../routes/blobs.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
 import { createGateway, indexRoutes } from "../gateway.ts";
 import { withEventIds } from "../ids.ts";
@@ -35,13 +37,23 @@ import type { FetchFn, ProbeName, ProbeResult } from "../platform/probes.ts";
 import { Scheduler } from "../scheduler/index.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
+import { createGateHook } from "./gate-hook.ts";
+import { withGateNesting } from "./gate-nesting.ts";
+import { createEngineHost } from "../seams/engine.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
+import { createKitsHost } from "../seams/kits.ts";
+import { createVaultExportRoute } from "../routes/vault-export.ts";
+import { createLocalKeyRoute } from "../routes/local-key.ts";
+import { createKeyring } from "../seams/keyring.ts";
+import { sessionLive } from "./session.ts";
+import { createProviderProbe, createVaultService, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, wireSeams } from "../seams/index.ts";
 import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
 import { createLiveHub } from "../ws.ts";
 import type { LiveHub } from "../ws.ts";
 import { createAccess } from "./access.ts";
+import { ADMIN_DEVICE, createSessionResolver } from "./session.ts";
 import { createResourceRegistrar } from "../gateway/resources.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
@@ -56,6 +68,8 @@ import { alive, clearInfo, ensureAdminToken, ensureDirs, pathsFor, readInfo, wri
 import type { DaemonConfig, DaemonPaths, Role } from "./config.ts";
 import { migrate } from "./hosttables.ts";
 import { requestListener } from "./http.ts";
+import { createChromeBridge } from "../bridge/chrome.ts";
+import type { ChromeBridge } from "../bridge/chrome.ts";
 import { coerceQuery } from "./query.ts";
 import type { PropSchema } from "./query.ts";
 import { openDb, readLogMeta } from "./sqlite.ts";
@@ -109,7 +123,13 @@ export interface DaemonOptions {
     /** the domains a signed webhook may reach; omitted: none */
     webhookAllow?: () => readonly string[];
     postFetch?: PostFetch;
+    /** where a vault value may be filled, by kind (git_credential, container_env, env...): each receives the value for one call and must not keep or log it */
+    vaultSinks?: Record<string, (f: { value: string; ref: string; handle: string; field: string; itemId: string }) => Promise<void> | void>;
   } & Partial<Omit<SeamDeps, "vault" | "drivers" | "owners">>;
+  /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
+  engineSandbox?: unknown;
+  /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
+  engineCli?: unknown;
   /** replace the consumers and periodic jobs read from the live modules' exports (tests) */
   hooks?: ModuleHooks[];
   /** The key behind ctx.seal. Omitted: a random 32-byte key kept in <data dir>/seal.key (0600). */
@@ -119,7 +139,7 @@ export interface DaemonOptions {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   /** intervals in ms; tests shorten them */
-  intervals?: { tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number };
+  intervals?: { tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number; sweep?: number };
 }
 
 export interface Daemon {
@@ -147,6 +167,8 @@ export interface Daemon {
   runProbes(names?: readonly ProbeName[]): Promise<Partial<Record<ProbeName, ProbeResult>>>;
   /** do every open restart and network command now */
   pollCommands(): Promise<number>;
+  /** The Chrome bridge behind /chrome-bridge/v1/*: agent tool calls to the extension, and the extension's requests (apps/chrome native host) */
+  chromeBridge: ChromeBridge;
   stop(): Promise<void>;
 }
 
@@ -178,6 +200,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const token = ensureAdminToken(paths);
   const sink = new LogSink({ path: paths.logs, now, secrets: () => [token] });
   const closers: (() => Promise<void> | void)[] = [() => sink.close()];
+  const chromeBridge = createChromeBridge({ token, onEvent: (e) => sink.log({ space: "-", level: 20, msg: "chrome.agent_event", place: "chrome-bridge", attrs: { event: e.event, agent: typeof e["agent"] === "string" ? e["agent"] : "" } }) });
+  closers.push(() => { chromeBridge.failAll(); chromeBridge.closeStreams(); });
   const fetchFn: FetchFn | null = o.fetch ?? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null);
 
   let space: string | null = cfg.space ?? (hasSpace ? readLogMeta(paths.events, "space") : null);
@@ -197,6 +221,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let capIndex: ReturnType<typeof indexCapabilities> | null = null;
   let boundPort = cfg.port;
   let gateway: ReturnType<typeof createGateway> | null = null;
+  let blobRoute: ReturnType<typeof createBlobRoute> | null = null;
+  // GET /exports/<id>?token= (P-L7_16): the vault module checks the token; until it is configured every pull is refused
+  let pullVaultExport: (exportId: string, token: string) => string = () => { throw new Error("the Vault is not live on this server"); };
+  const exportRoute = createVaultExportRoute({ pull: (id, t) => pullVaultExport(id, t) });
+  // Ruling 62: the person's own key, handed over by their client on their own node (POST /local/vault/key/unlock, loopback only), held in memory only. A device-role daemon is the computer of whoever signs in on it;
+  // a Space server holds the key of its owner alone.
+  let ownerOfSpace: () => string | null = () => cfg.owner;
+  let callerOf: (h: http.IncomingHttpHeaders) => Promise<{ person: string; sessionId?: string } | null> = () => Promise.resolve(null);
+  const ownNode = (p: string): boolean => cfg.roles.includes("device") || p === ownerOfSpace();
+  const keyring = createKeyring({ allowed: ownNode, live: (id) => (db ? sessionLive(db, id) : false) });
+  closers.push(() => keyring.clearAll());
+  const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: ownNode });
   let headSeq = 0;
   const access = createAccess();
 
@@ -249,6 +285,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const loaded = await loadHost({ registry: reg, modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")), routes, importer: fileImporter(codeRoot), seamImporter: fileSeamImporter(codeRoot), exportsImporter: fileExportsImporter(codeRoot), db, ...(o.http ? { fetch: o.http } : {}) });
       const registryCaps = registry.capabilities as unknown as CapabilityDef[];
       // consumers and periodic jobs the live modules export (ruling 32): each runs through the invoke pipeline as a host-only capability that may emit what its module's capabilities emit
+      // the Vault the connector seams read from: the vault module's own port once it is live and configured, else a refusal
+      let vaultImpl: (VaultPort & { pullExport?(exportId: string, token: string): string }) | null = null;
+      const vaultPort: VaultPort = { secret: (h, sp) => (vaultImpl ?? refusingVault).secret(h, sp), signRs256: (h, sp, d) => (vaultImpl ?? refusingVault).signRs256(h, sp, d) };
       let invokeRef: Invoke = () => Promise.reject(new Error("the invoke pipeline is not ready"));
       const hookRunner = createHookRunner({
         space, now, db, hooks: o.hooks ?? [...loaded.moduleExports].map(([id, ns]) => collectHooks(id, ns)),
@@ -305,14 +344,40 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const seal = createCtxSeal(sealKey);
       const blobs = createBlobStore({ dir: path.join(paths.root, "blobs", "ctx"), key: sealKey.key, now });
 
+      // The Gate hook, only once the Gate module is live (a stub answers with examples, which must never decide a send). Its questions and parked calls run as the Space itself.
+      const gate = loaded.serving.get("gate") === "live"
+        ? withGateNesting(createGateHook({
+          call: async (cap, input) => {
+            const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: owner() }, origin: "gate" });
+            if (r.status === "held") throw fail("internal.unavailable", r.traceId, { message: "Approvals are not available right now." });
+            return r.output;
+          },
+          unseal: (s) => seal.unseal(s), now,
+          hold: (id) => {
+            const r = db?.all("SELECT state, principal_kind, principal_id, acting_for, run_id, thread_id, payload_hash FROM gate_holds WHERE id = ?", id)[0] as
+              { state: string; principal_kind: string; principal_id: string; acting_for: string | null; run_id: string | null; thread_id: string | null; payload_hash: string } | undefined;
+            return r ? { state: r.state, principalKind: r.principal_kind, principalId: r.principal_id, actingFor: r.acting_for ?? undefined, run: r.run_id ?? undefined, thread: r.thread_id ?? undefined, payloadHash: r.payload_hash } : null;
+          },
+        }))
+        : undefined;
+
       const invoke = createInvoke({
         caps: indexCapabilities(caps),
         validateInput: (cap, v, input) => (extraCaps.has(cap) ? [] : validateInput(cap, v, input)),
         validateEvent: (name, payload) => (extraEvents.has(name) ? [] : validateEvent(name, payload)),
         authorize: (r) => authorize(access.snap, r),
-        handler: (cap, v) => o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v),
-        services: hostServices({ base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs }),
+        resolveItem: (type, kind, value) => resolveVaultItem(db!, type, kind, value),
+        handler: (cap, v) => {
+          const h = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
+          // The one internal call a module may make with the host's own authority: devices -> sync.epoch.bump (a device was revoked, its replica must purge). The person revoking their own
+          // device holds no sync grant, and a revoke that cannot purge would leave the copy on the device. Nothing else is widened: every other ctx.call keeps the caller's authority.
+          if (!h || !cap.startsWith("devices.")) return h;
+          const wrapped: Handler = (ctx, input) => h({ ...ctx, call: (name, callInput, opts) => (name === "sync.epoch.bump" ? system(name, callInput) : ctx.call(name, callInput, opts)) } as typeof ctx, input);
+          return wrapped;
+        },
+        services: hostServices({ base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs, vault: (seed) => createVaultService((c, i, sd) => invokeRef(c, i, sd), spaceId, seed) }),
         idem, rate: createRateLimiter(), now, log: sinkLog,
+        ...(gate ? { gate } : {}),
         // P-H_16: an object a call creates is a resource in the same commit, so it is authorizable at once
         resources: createResourceRegistrar({ events: registry.events, exists: (id) => access.snap.resource(id) !== undefined }),
         commit: withEventIds(async (b) => {
@@ -355,7 +420,24 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       dispatchSystem = system;
       const hostDrivers: Record<string, SeamDriver> = {
         setPushPort: () => createPushPort(o.seams?.push),
+        // A Kit is a resource in the access projection (type "kit") so that the capabilities on it can be authorized. The module cannot create resources, so the host does: one
+        // resource.created per Kit, with an id made from the Kit's own, so the same Kit is the same event after a reboot (the log refuses a duplicate id) and the fold is the same.
+        setKitsHost: () => createKitsHost({
+          root: codeRoot,
+          resources: {
+            ensure: async (kitId) => {
+              const r = await spaceLog.appendResult({
+                id: `evt_res_${kitId}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: kitId,
+                payload: { id: kitId, type: "kit", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 },
+              });
+              if (!r.ok) throw new Error(`could not register the Kit: ${r.message}`);
+              if (!r.duplicate) { access.fold(r.event); headSeq = Math.max(headSeq, r.event.seq); }
+            },
+          },
+        }),
         setEventsDispatch: () => system,
+        // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
+        setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
         // the import module reads an Airtable or Notion key from the Vault by handle, for one call
         setImportHost: (d) => ({ secret: (_ctx: unknown, handle: string) => d.vault.secret(handle.startsWith("#") ? handle : `#${handle}`, d.space) }),
         setEventsHost: () => createEventsHost({
@@ -363,6 +445,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           post: { allow: o.seams?.webhookAllow ?? (() => []), now, ...(o.seams?.postFetch ? { fetch: o.seams.postFetch } : {}) },
         }),
         ...spaceStoreDrivers(spaceStore),
+        setVaultKeyPort: () => ({ personKey: async (personId: string) => keyring.get(personId) }),
+        setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
+        configureVault: () => ({ sinks: o.seams?.vaultSinks ?? {}, db: db!, probe: createProviderProbe({ own: ownNode, ...(o.seams?.fetch ? {} : {}) }), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
         setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open() }, now }),
         ...(o.seams?.drivers ?? {}),
@@ -371,7 +456,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (Object.keys(setters).length) {
         const none = (what: string) => () => Promise.reject(new Error(`${what} is not available on this server yet.`));
         seams = wireSeams(setters, {
-          vault: o.vault ?? refusingVault, space: spaceId,
+          vault: o.vault ?? vaultPort, space: spaceId,
           files: o.seams?.files ?? { read: none("Space files") },
           blobs: o.seams?.blobs ?? { put: none("The blob store") },
           members: o.seams?.members ?? { emails: none("The member list") },
@@ -395,21 +480,51 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       await projectionRunner.start();   // after the seams: the events module needs its dispatcher and host ports before the first event reaches webhooks_out
 
+      // The schema module seeds the record types the manifests declare once, as a write of its own, so no read has to (P-L3_17). Each declared type is also a resource in the access
+      // projection (type "record_type"), held by the Space owner, because capabilities on a type (schema.layout.set, views, grants) are authorized against it and a seeded type emits no event
+      // that would register it. The set comes from the manifests, so it is folded into the snapshot at every start and not written to the log: a new Space still starts with an empty log.
+      const startSchema = loaded.moduleExports.get("schema")?.["startSchema"] as (() => Promise<void>) | undefined;
+      if (startSchema) {
+        // started, not awaited: boot does not wait for the seed (most starts never touch schema), and every schema call waits for it, so none sees a half-seeded Space
+        const seeding = startSchema().catch((e: unknown) => { sink.log({ space: spaceId, level: 50, msg: "schema.seed_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }); });
+        closers.push(() => seeding);
+        for (const rt of registry.recordTypes) {
+          access.fold({ type: "resource.created", payload: { id: rt.key, type: "record_type", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 } });
+        }
+      }
+
       const owner = (): string => cfg.owner ?? access.owner() ?? "usr_owner";
-      const session: GatewayDeps["session"] = o.session ?? ((headers) => {
-        const t = bearer(headers["authorization"]);
-        if (!t || !sameToken(t, token)) return null;
-        return { space: spaceId, principal: { kind: "person", id: owner() }, device: headers["x-vyre-device"] ?? "local-admin" };
-      });
+      // Identity comes from the bearer token alone (host/src/daemon/session.ts): a device session row gives the person and the device; the x-vyre-device header and ?device= are ignored.
+      // The single admin token is the owner bootstrap path only (ensureAdminToken): it acts as the owner on the fixed device `local-admin`.
+      const sessions = createSessionResolver({ db: db!, space: spaceId });
+      const identify = (t: string | null): { space: string; principal: { kind: "person"; id: string }; device: string } | null => {
+        if (!t) return null;
+        if (sameToken(t, token)) return { space: spaceId, principal: { kind: "person", id: owner() }, device: ADMIN_DEVICE };
+        const s = sessions.resolve(t);
+        return s ? { space: s.space, principal: { kind: "person", id: s.person }, device: s.device } : null;
+      };
+      const session: GatewayDeps["session"] = o.session ?? ((headers) => identify(bearer(headers["authorization"])));
+      ownerOfSpace = () => cfg.owner ?? access.owner() ?? null;
+      callerOf = async (h) => {
+        const who = await session(h);
+        if (!who) return null;
+        const token = bearer(h["authorization"]);
+        const device = token ? sessions.resolve(token) : null;
+        return { person: who.principal.id, ...(device ? { sessionId: device.sessionId } : {}) };
+      };
       gateway = createGateway({ invoke, caps: indexCapabilities(caps), routes: [...routes, ...(o.extra?.routes ?? [])], session });
+      // GET /spaces/<space>/blobs/<id> (ruling 50): a blob is served to a caller who may read the resource its module stored it for
+      blobRoute = createBlobRoute({
+        space: spaceId, store: blobs,
+        session: async (h) => { const s = await session(h); return s ? { space: s.space, principal: s.principal, ...(s.actingFor ? { actingFor: s.actingFor } : {}) } : null; },
+        allow: (c, r) => authorize(access.snap, { principal: c.principal.id, ...(c.actingFor ? { actingFor: c.actingFor } : {}), action: { perm: null, level: "view" }, resource: { type: r.type, id: r.id } }).effect === "allow",
+      });
       routeIndex = indexRoutes([...routes, ...(o.extra?.routes ?? [])]);   // a duplicate route is a boot error, not a first-request error
       capIndex = indexCapabilities(caps);
 
       const mkHub = (): LiveHub => createLiveHub({
         session: (h, url) => {
-          const t = bearer(h["authorization"]) ?? url.searchParams.get("token");
-          if (!t || !sameToken(t, token)) return null;
-          return { space: spaceId, principal: { kind: "person", id: owner() }, device: url.searchParams.get("device") ?? "local-admin" };
+          return identify(bearer(h["authorization"]) ?? url.searchParams.get("token"));
         },
         invoke, sink,
         eventsSince: (_s, cursor) => (recent.length && recent[0]!.seq <= cursor + 1 ? recent.filter((e) => e.seq > cursor) : []),
@@ -481,6 +596,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
   const fast = o.intervals?.fast ?? 15_000, slow = o.intervals?.slow ?? 60_000;
   const group = (names: ProbeName[]): ProbeName[] => names.filter((n) => relevant.includes(n));
+  // a signed-out person's key leaves memory within the interval, not whenever someone next reads it
+  scheduler.add({ name: "keyring.sweep", schedule: { everyMs: o.intervals?.sweep ?? 30_000 }, run: () => { keyring.sweep(); } });
   scheduler.add({ name: "probes.fast", schedule: { everyMs: fast }, run: async () => { await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"])); } });
   scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"])); reportNetwork(); } });
   scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"])); } });
@@ -514,10 +631,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     hub = h;
     const server = h.server;
     server.removeAllListeners("request");
-    server.on("request", requestListener({
+    const listener = requestListener({
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
-    }));
+    });
+    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || exportRoute.handle(req, res) || localKeyRoute.handle(req, res)) return; listener(req, res); });
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error): void => reject(err);
       server.once("error", onError);
@@ -555,7 +673,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
   let stopped = false;
   return {
-    url: `http://${cfg.host}:${boundPort}`, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log,
+    url: `http://${cfg.host}:${boundPort}`, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge,
     runProbes, pollCommands: runCommands,
     async stop() {
       if (stopped) return;

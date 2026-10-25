@@ -5,7 +5,7 @@ name: shots
 on:
   push:
     branches-ignore: [main]
-    paths: ["scripts/shots/**", "ui/**", "apps/app/**", "budgets.json", ".github/workflows/shots.yml"]
+    paths: ["scripts/shots/**", "ui/**", "apps/app/**", "client/**", "host/**", "modules/**", "budgets.json", ".github/workflows/shots.yml"]
   workflow_dispatch:
     inputs:
       lockfile:
@@ -18,10 +18,12 @@ concurrency:
 jobs:
   lockfile:
     if: github.event_name == 'workflow_dispatch' && inputs.lockfile == 'true' || contains(github.event.head_commit.message, '[lockfile]')
-    runs-on: [self-hosted, linux, v1]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
       - name: Resolve the dependency tree into package-lock.json
         run: node scripts/shots/lockfile.mjs
       - uses: actions/upload-artifact@v4
@@ -30,8 +32,8 @@ jobs:
           path: package-lock.json
           retention-days: 7
   shots:
-    # Self-hosted again: hosted Actions minutes hit the account spending limit (25 Oct). Back to hosted once billing allows.
-    runs-on: [self-hosted, linux, v1]
+    # GitHub-hosted again: the repo is public, hosted minutes are free (25 Oct). The 120 s export budget is a wall-time report here, never a speed gate (ruling 46).
+    runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +46,56 @@ jobs:
           T=all
           case "$BRANCH" in build/P-*) T="${BRANCH#build/}" ;; esac
           # Self-hosted runners share load with the test shards; the 120 s export budget is measured on hosted runners (ruling 40: CI wall time is reported, not gating, while saturated).
-          node scripts/shots/shots.mjs --target "$T" --out shots-out --max-export-s 600
+          node scripts/shots/shots.mjs --target "$T" --out shots-out --max-export-s 600 --no-probes
+      - name: Real app end to end against the production export (apps/app/tests/real-app.e2e.test.ts)
+        # Runs the built app in Chromium against a booted daemon. Needs the production web export from the step above; skipped until the test is on the branch.
+        run: |
+          set -o pipefail
+          T=apps/app/tests/real-app.e2e.test.ts
+          if [ ! -f "$T" ] || [ ! -d scripts/shots/app/dist ]; then echo "real-app e2e: test or export dir not present, skipped"; exit 0; fi
+          npx playwright-core install chromium
+          CHROME_BIN="$(node -e 'import("playwright-core").then((p) => console.log((p.chromium ?? p.default.chromium).executablePath()))')"
+          test -x "$CHROME_BIN"
+          export CHROME_BIN VYRE_APP_DIST="$PWD/scripts/shots/app/dist" VYRE_REQUIRE_CHROME=1
+          node scripts/test-run.ts --slow --no-cache --files "$T" 2>&1 | tee real-app-e2e.out
+          grep -q "^ok .*real-app.e2e.test.ts" real-app-e2e.out
+      - name: Real app capture against the production export (scripts/shots/real-app.mjs, P-APP_03)
+        run: |
+          if [ -f scripts/shots/real-app.mjs ] && [ -d scripts/shots/app/dist ]; then
+            node scripts/shots/real-app.mjs --dist scripts/shots/app/dist --out shots-out/real-app
+          else echo "real-app capture: script or export dir not present, skipped"; fi
+      - name: No prototype seed in the production web bundle (P-UI_06b)
+        run: |
+          # skipped until scripts/shots/no-seed-in-bundle.mjs is on the branch (it lands with P-UI_06b)
+          if [ -f scripts/shots/no-seed-in-bundle.mjs ] && [ -d scripts/shots/app/dist ]; then node scripts/shots/no-seed-in-bundle.mjs scripts/shots/app/dist; else echo "no-seed-in-bundle: script or export dir not present, skipped"; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-app
+          path: shots-out/real-app
+          retention-days: 14
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shots
+          path: shots-out
+          retention-days: 14
+          if-no-files-found: ignore
+  perf:
+    # Ruling 46: speed budgets are measured only here, on the two v1-perf runners (runner 14 on each CI server, cores 6-7 to themselves; the other runners share cores 0-5).
+    runs-on: [self-hosted, linux, v1-perf]
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/deps
+      - name: Export the web build and run the scroll probe (no screenshots)
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          T=all
+          case "$BRANCH" in build/P-*) T="${BRANCH#build/}" ;; esac
+          node scripts/shots/shots.mjs --target "$T" --out perf-out --max-export-s 600 --probes-only
       - name: theme_flash probe (zero wrong frames)
         run: node scripts/shots/theme-flash.mjs --skip-export
       - name: Browser perf probes (ruling 43, warm-up discarded, median of 5, worst printed) desktop 1x and phone 4x CPU
@@ -56,10 +107,3 @@ jobs:
           node scripts/shots/probes/open.mjs --target "$T"
           node scripts/shots/probes/browser.mjs --target "$T" --size desktop
           node scripts/shots/probes/browser.mjs --target "$T" --size phone
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: shots
-          path: shots-out
-          retention-days: 14
-          if-no-files-found: ignore

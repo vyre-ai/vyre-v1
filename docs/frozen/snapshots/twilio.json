@@ -1,0 +1,32 @@
+{
+  "module": "twilio",
+  "capabilities": {
+    "twilio.a2p.attach_number@1": "0ca0b51a016dfc9427290ed5617cfe11746338e8129aa901f9a8cf7e1a2e0f59",
+    "twilio.a2p.create_brand@1": "05a1fb3519f361947ff457c092800d3f4f6d639b3d9c434d53a3e6e19211d520",
+    "twilio.a2p.create_campaign@1": "cc3bc1dd0159cb9447464829d942b6703cb278d6ffccf64ce48039e006c30c61",
+    "twilio.a2p.status@1": "721914c267e6c6124a81c8d1ced966185bafa626a6160ee22cf0fa7e69817888",
+    "twilio.access_token@1": "4716c2e6b20a6368cbaf39119b85dd010348ec8c16b0da5985fc1b137b234db3",
+    "twilio.call.create@1": "6df25ea59d64433efcf5dec31bb4e547c69374d0106da858166f8bebd62b3267",
+    "twilio.call.get@1": "925e4b8a903fc6fac58e205a9b2144c3734493ca5afed0e9038573f37f62458a",
+    "twilio.call.update@1": "989da96bdf316be105e0293eb9aeb19184ac123d772bab91bb30f8876ba2bf33",
+    "twilio.health@1": "fd2621f6483bce88cf13d9eae90b6a2877ed48efd17a961f05b5be2588732171",
+    "twilio.number.buy@1": "17e8022708c3abf235cf818d3881de8cc4602c8697c935e1aa4cc18b3e502517",
+    "twilio.number.configure@1": "4b11edee8a66403e78d2ee3e215158d3ea1f0eb4b6da3fb6824939368d33fb33",
+    "twilio.number.list_owned@1": "e9b83ec3f0c2e26d9b7fa19dab308a79ab5a455f34e02afaf2a849f1cdf5baf2",
+    "twilio.number.release@1": "a9a5da1cd438c8ab5a137863a8e440a206cd009cbcaa121a6973cf398b93ecef",
+    "twilio.number.search@1": "c6f011796d3b3d8ead56bb1557a8ad71433a269e2646ff35758b31e147743ad0",
+    "twilio.receive_webhook@1": "a41f103169ec8df8bbf0c532466b5a055292c573ddb6838fe83a90b3c81e5477",
+    "twilio.recording.delete@1": "17b7ffe5026f7bc5dc0a26fb67ec781d82bdbe73f24c779a6d479544c93f32a7",
+    "twilio.recording.download@1": "84709fed3164a9a180e9e3f6add8b8d9eec2324808239add0083e30d09ae1ae1",
+    "twilio.recording.start@1": "770377f63da2a393d3b0a849f0b55f071077dc433b37bb44d5081bd84c61929d",
+    "twilio.recording.stop@1": "6d66e42737360bdd27f198af88c0f59a0c750c24a21607e0182fdb302debe011",
+    "twilio.sms.send@1": "bd9b6a0c9fc89be9d35de2f162e143da40d7e55eb2c2855a9e56516a48e7ac7a",
+    "twilio.twiml_app.ensure@1": "dccafd43f5d34a4054efbfcced0c9c1297df04e8dbc3830711d493fb979605a7"
+  },
+  "events": {
+    "twilio.recording_received": "9f8a7ec9c644ea3b6b8b6723f8b73f8389f271fdcf81d7300d37aac98109f5bb",
+    "twilio.sms_received": "d4517600abea7f511f39f325f78395b4a846b91868b5af70e9697c48881200c8",
+    "twilio.status_received": "23a6f93090d3d865b8a5f69eaaa6eee766a4a361befb85c59071e5eb45067db7",
+    "twilio.voice_received": "1d469dcc9817b5e505b4ed4e7809dcf70670e114e7c253588a39354a1fff81d7"
+  }
+}

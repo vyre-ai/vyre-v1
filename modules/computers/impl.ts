@@ -1,5 +1,5 @@
 // computers module entry (lane L2). The host loads the generated stubs while host/modules.json says `status: 'stub'` and this file once it says `live` (ruling 25). The handler table holds the
-// lifecycle, recording, screenshot, live view and timeline capabilities (P-L2_16); the Chrome, Screen and Files tools of the agent computer stay on their stubs until their packets land.
+// lifecycle, recording, screenshot, live view and timeline capabilities (P-L2_16); the 35 Chrome, Screen and Files tools are in handlers/tools (P-L2_16b) and run through the `tool` action below.
 //
 // Also here: the Docker host. One container `vyre-comp-<id>` per agent computer from images/agent-computer, a named volume for the profile disk, and `agentd` inside, which this adapter talks to
 // by running its control program in the container (`docker exec <container> /opt/agentd/ctl <action> '<json>'`, one JSON object on stdout, a non-zero exit is an error). The module itself never
@@ -16,10 +16,14 @@
 //   record_stop   { recordingId }             -> { events: <jsonl>, har: <har json>, durationMs }   (the video is written to work/recordings/<id>/video.mp4)
 //   sessions      {}                          -> { sessions: [{ site, signedInAs?, since, lastSeen }] }
 //   sign_out      { site }                    -> { ok }
+//   tool          { tool, args, timeoutMs }   -> the tool's output, plus optional { used, frame, caption } (handlers/tools/common.ts has the whole contract; a refusal is a JSON
+//                                                {code, message} on stderr with a non-zero exit)
 import type { Handler } from "../../host/src/invoke.ts";
 import { tarFiles } from "../../sandbox/src/tar.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
 import { handlers as table } from "./handlers/index.ts";
+import { ToolError } from "./handlers/tools/common.ts";
+import type { ToolAnswer, ToolCode, ToolHost } from "./handlers/tools/common.ts";
 import type { ComputerHost, HostKind, Probe, RecordResult, SessionInfo } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
@@ -128,7 +132,21 @@ export function reviewComputerConfig(c: ContainerConfig): string[] {
 
 const decode64 = (b64: string): Uint8Array => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 
-export function createDockerComputerHost(o: DockerHostOptions): ComputerHost {
+/** One tool call is one argument of `docker exec`; the kernel allows 128 KB for it. */
+const MAX_TOOL_ARG = 125_000;
+const TOOL_CODES: readonly string[] = ["timeout", "paused", "not_found", "bad_input", "held", "unavailable"];
+
+/** The refusal agentd printed: {"code","message"} on its last stderr line. Anything else is an unavailable computer with the first words of what it said. */
+export function toolErrorOf(stderr: string, exitCode: number | null): ToolError {
+  const last = stderr.trim().split("\n").pop() ?? "";
+  try {
+    const j = JSON.parse(last) as { code?: unknown; message?: unknown };
+    if (typeof j.code === "string" && TOOL_CODES.includes(j.code)) return new ToolError(j.code as ToolCode, typeof j.message === "string" ? j.message : "The tool failed.");
+  } catch { /* not JSON */ }
+  return new ToolError("unavailable", `agentd tool failed (${exitCode ?? "no exit code"}): ${stderr.trim().slice(0, 200)}`);
+}
+
+export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & ToolHost {
   const prefix = o.prefix ?? "vyre-comp-";
   const ctlPath = o.ctl ?? AGENTD_CTL;
   const sleep = o.sleep ?? realSleep;
@@ -142,7 +160,7 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost {
     try { return JSON.parse(text) as T; } catch { throw new Error(`agentd ${action} answered with something that is not JSON`); }
   }
 
-  const host: ComputerHost = {
+  const host: ComputerHost & ToolHost = {
     kind: o.kind ?? "server",
     async create(a) {
       const name = nameOf(a.computerId);
@@ -238,6 +256,23 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost {
     },
     async sessions(computerId) { return (await ctl<{ sessions?: SessionInfo[] }>(computerId, "sessions")).sessions ?? []; },
     async signOut(a) { return (await ctl<{ ok?: boolean }>(a.computerId, "sign_out", { site: a.site })).ok === true; },
+    async tool(a) {
+      const body = JSON.stringify({ tool: a.tool, args: a.args, timeoutMs: a.timeoutMs });
+      if (body.length > MAX_TOOL_ARG) throw new ToolError("bad_input", "That call is too large to send to the computer.");
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const late = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new ToolError("timeout", `The computer did not finish ${a.tool} in time.`)), a.timeoutMs + 5_000); });
+      let r: Awaited<ReturnType<DockerApi["exec"]>>;
+      try {
+        r = await Promise.race([o.api.exec(nameOf(a.computerId), { cmd: [ctlPath, "tool", body], env: [], ...(o.user ? { user: `${o.user.uid}:${o.user.gid}` } : {}) }), late]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+      if (r.exitCode !== 0) throw toolErrorOf(r.stderr, r.exitCode);
+      let answer: unknown;
+      try { answer = JSON.parse(r.stdout.trim() || "{}"); } catch { throw new ToolError("unavailable", "agentd answered the tool with something that is not JSON"); }
+      if (typeof answer !== "object" || answer === null || Array.isArray(answer)) throw new ToolError("unavailable", "agentd answered the tool with something that is not an object");
+      return answer as ToolAnswer;
+    },
     async health() {
       const t0 = Date.now();
       const ok = await o.api.ping();

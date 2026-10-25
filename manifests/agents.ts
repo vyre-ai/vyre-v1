@@ -25,8 +25,11 @@ const agentRow = t.obj({
   createdAt: t.ts(), lastActiveAt: t.opt(t.ts()),
 });
 const routineRow = t.obj({
-  routineId: t.id('rtn'), agentId: id.agent, title: t.str(), cron: t.str({ examples: ['0 9 * * 1-5'] }), prompt: t.str(), channelId: t.opt(id.channel), enabled: t.bool(),
+  routineId: t.id('rtn'), agentId: id.agent, title: t.str(), cron: t.opt(t.str({ examples: ['0 9 * * 1-5'], description: 'The schedule of a schedule routine; a watcher has none' })), prompt: t.str(), channelId: t.opt(id.channel), enabled: t.bool(),
   ownerId: id.user, lastRunAt: t.opt(t.ts()), nextRunAt: t.opt(t.ts()),
+  // kind absent means schedule; a watcher runs when something happens (a new message in watch.channelId), not at a time
+  kind: t.opt(t.enm('schedule', 'watch')),
+  watch: t.opt(t.obj({ on: t.enm('message'), channelId: id.channel })),
 });
 const suggestionRow = t.obj({
   suggestionId: t.id('sug'), agentId: id.agent, kind: t.enm('agent_md', 'template'), file: t.str({ examples: ['AGENT.md'] }), diff: t.str(), reason: t.opt(t.str()),
@@ -144,12 +147,25 @@ export default defineManifest({
     read('agents.routines.list', 'Routines of an agent (schedules set by the owner)', {
       in: target, out: { routines: t.arr(routineRow) }, on: ['agent', '/agentId'], tool: 'agents', label: 'filter',
     }),
-    create('agents.routine.save', 'Create or change a routine; messages it causes carry "Sent by <agent> on a routine <person> set"', {
-      in: { ...target, routineId: t.opt(t.id('rtn')), title: t.str(), cron: t.str({ examples: ['0 9 * * 1-5'] }), prompt: t.str(), channelId: t.opt(id.channel), enabled: t.opt(t.bool()) },
+    create('agents.routine.save', 'Create or change a routine, a schedule (cron) or a watcher (kind watch: runs on each new message in a channel); messages it causes carry "Sent by <agent> on a routine <person> set"', {
+      in: {
+        ...target, routineId: t.opt(t.id('rtn')), title: t.str(), cron: t.opt(t.str({ examples: ['0 9 * * 1-5'] })), prompt: t.str(), channelId: t.opt(id.channel), enabled: t.opt(t.bool()),
+        kind: t.opt(t.enm('schedule', 'watch')), watch: t.opt(t.obj({ on: t.enm('message'), channelId: id.channel })),
+      },
       out: { routine: routineRow }, make: ['agent', '/agentId'], perm: 'agents.schedule', emits: ['agent.routine_changed'], tool: 'agents', idem: 'key',
+      errors: ['permission.no_grant'],
     }),
     write('agents.routine.delete', 'Delete a routine', {
       in: { ...target, routineId: t.id('rtn') }, out: { deleted: t.bool() }, on: ['agent', '/agentId'], perm: 'agents.schedule', emits: ['agent.routine_changed'], tool: 'agents',
+    }),
+    write('agents.routine.run_now', 'Run a routine now. The run starts as the routine owner, never as the caller, so its reach and its "Sent by <agent> on a routine <person> set" line are the owner\'s', {
+      in: { ...target, routineId: t.id('rtn') }, out: { routine: routineRow, runId: id.run }, on: ['agent', '/agentId'], perm: 'agents.schedule',
+      emits: ['agent.routine_run_started'], tool: 'agents', idem: 'key', errors: ['validation.not_found', 'validation.precondition_failed'],
+    }),
+    write('agents.routine.delegate', 'Hand a routine to another person or agent (a person becomes its owner, an agent runs it); undo (no `to`) hands it back to the previous owner and agent', {
+      in: { ...target, routineId: t.id('rtn'), to: t.opt(t.obj({ kind: t.enm('person', 'agent'), id: t.str() })), undo: t.opt(t.bool()) },
+      out: { routine: routineRow, previousOwnerId: id.user }, on: ['agent', '/agentId'], perm: 'agents.schedule',
+      emits: ['agent.routine_delegated', 'agent.routine_changed'], tool: 'agents', errors: ['validation.not_found', 'validation.bad_input', 'validation.precondition_failed'],
     }),
     // ---- suggestions and the Agent template
     read('agents.suggestions.list', 'Open suggestions for an agent: AGENT.md diffs from the agent and template suggestions', {
@@ -194,6 +210,8 @@ export default defineManifest({
     }),
     ev('agent.config_error', 'An agent.toml failed validation; the last good version keeps running', { p: { agentId: id.agent, message: t.str(), line: t.opt(t.int()) }, subject: ['agent', '/agentId'] }),
     ev('agent.routine_changed', 'A routine was created, changed or deleted', { p: { agentId: id.agent, routineId: t.id('rtn'), op: t.enm('created', 'updated', 'deleted') }, subject: ['agent', '/agentId'], vis: 'owner' }),
+    ev('agent.routine_run_started', 'A routine run started now, as the routine owner', { p: { agentId: id.agent, routineId: t.id('rtn'), runId: id.run, ownerId: id.user, requestedBy: t.str() }, subject: ['agent', '/agentId'], vis: 'owner' }),
+    ev('agent.routine_delegated', 'A routine was handed to another owner, or handed back', { p: { agentId: id.agent, routineId: t.id('rtn'), from: id.user, to: id.user, undo: t.bool() }, subject: ['agent', '/agentId'], vis: 'owner' }),
     ev('agent.suggestion_proposed', 'A change to an agent was suggested', { p: { suggestionId: t.id('sug'), agentId: id.agent, kind: t.str(), by: t.str() }, subject: ['agent', '/agentId'], vis: 'participants' }),
     ev('agent.suggestion_resolved', 'A suggestion was accepted or dismissed', { p: { suggestionId: t.id('sug'), agentId: id.agent, accepted: t.bool(), by: t.str() }, subject: ['agent', '/agentId'], vis: 'participants' }),
     ev('agent.template_applied', 'The Agent template was applied', { p: { scope: t.str(), agents: t.int(), suggestions: t.int(), by: t.str() }, subject: ['entity', '/scope'] }),
