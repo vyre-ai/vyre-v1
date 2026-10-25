@@ -19,7 +19,7 @@ type FilesOut = CapMap["files.list"]["out"];
 export const FILES_SCREEN = "files.list";
 
 /** Folders the tree shows in this order (the prototype's), the rest alphabetical after; Vyre owns logs and chats, so they carry a lock. */
-export const FOLDER_ORDER: readonly string[] = ["memory", "skills", "routines", "knowledge", "inbox", "work", "downloads", "logs", "chats"];
+export const FOLDER_ORDER: readonly string[] = ["notes", "proposed", "recipes", "journal", "memory", "skills", "routines", "knowledge", "inbox", "work", "downloads", "logs", "chats"];
 export const VYRE_OWNED: ReadonlySet<string> = new Set(["logs", "chats"]);
 /** Open when the tab first draws. */
 const OPEN_AT_START: ReadonlySet<string> = new Set(["memory", "routines"]);

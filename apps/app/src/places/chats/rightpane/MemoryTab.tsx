@@ -184,11 +184,12 @@ export function MemoryTab({ deps, spaceName, window }: { deps: PaneDeps; spaceNa
 /** A proposed fact as a card (the prototype draws them boxed); right-click gives the same Accept and Reject as the buttons. */
 function PressableCard({ title, menu: items, testID, children }: { title: string; menu: MenuEntry[]; testID: string; children: ReactElement[] }): ReactElement {
   const m = useMenu();
-  return <View testID={testID} style={st.card} {...menuTrigger((x, y) => m.show(items, x, y, "context", { label: title }))}>{children}{m.element}</View>;
+  // The outer View carries the spacing as padding: the list measures a row without its margins, so margins would overlap the next row.
+  return <View style={st.cardOuter}><View testID={testID} style={st.card} {...menuTrigger((x, y) => m.show(items, x, y, "context", { label: title }))}>{children}{m.element}</View></View>;
 }
 
 const st = StyleSheet.create({
-  map: { marginHorizontal: 8, marginTop: 8, gap: 8 },
+  map: { paddingHorizontal: 8, paddingTop: 8, paddingBottom: 4, gap: 8 },
   mapHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   mapIcon: { width: 30, height: 30, borderRadius: 8, borderWidth: 1, borderColor: "var(--line)" as string, alignItems: "center", justifyContent: "center", backgroundColor: "var(--raised)" as string },
   mapName: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
@@ -197,7 +198,8 @@ const st = StyleSheet.create({
   mapRow: { flexDirection: "row", gap: 8 },
   mapKey: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11.5, color: "var(--accent)" as string, flexShrink: 0 },
   mapText: { flex: 1, minWidth: 0, fontSize: 12, color: "var(--ink-2)" as string },
-  card: { marginHorizontal: 8, marginVertical: 3, padding: 10, gap: 6, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
+  cardOuter: { paddingHorizontal: 8, paddingVertical: 3 },
+  card: { padding: 10, gap: 6, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
   cardText: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },
   cardFoot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   srcLink: { color: "var(--accent)" as string },
