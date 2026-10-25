@@ -88,5 +88,17 @@ export default defineManifest({
     screen('home.checklist', 'home', 'ui:Checklist', {
       q: { checklist: ['home.checklist', {}, true] }, a: { dismiss: ['home.dismiss_checklist', {}] }, empty: 'All set',
     }),
+    screen('home.today-starred-ask', 'home', 'ui:TodayStarredAsk', {
+      q: {
+        events: ['calendar.list_events', { from: '/state/from', to: '/state/to' }, true],
+        stars: ['stars.list', {}, true],
+        terminals: ['terminal.status', { terminalIds: '/state/terminalIds' }, true],
+      },
+      a: {
+        unstar: ['stars.toggle', { resource: '/state/resource', on: '/state/on' }],
+        ask: ['chat.start', { kind: '/state/kind', agentIds: '/state/agentIds', first: '/state/first', idempotencyKey: '/state/idempotencyKey' }],
+      },
+      empty: 'Nothing on today',
+    }),
   ],
 });
