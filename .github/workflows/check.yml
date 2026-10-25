@@ -239,6 +239,10 @@ jobs:
           VYRE_HEAVY_DOCKER: "1"
         run: |
           set -o pipefail
+          # Vyre for Chrome has no build step (apps/chrome/package.json): the extension is its manifest and src folder, assembled as it ships and passed to the image as the ext build context.
+          rm -rf "$RUNNER_TEMP/vyre-chrome-ext" && mkdir -p "$RUNNER_TEMP/vyre-chrome-ext"
+          cp apps/chrome/manifest.json "$RUNNER_TEMP/vyre-chrome-ext/" && cp -r apps/chrome/src "$RUNNER_TEMP/vyre-chrome-ext/src"
+          export VYRE_CHROME_EXT_DIR="$RUNNER_TEMP/vyre-chrome-ext"
           node --test --test-force-exit --test-timeout=1500000 --test-reporter=spec sandbox/computer/stream.heavy.test.ts 2>&1 | tee s9-heavy.out
           grep -E "^ℹ skipped 0$" s9-heavy.out
           grep -E "METRIC s9" s9-heavy.out

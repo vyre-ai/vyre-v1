@@ -8,8 +8,7 @@
 //   sessions      { sessions: [{ site, since, lastSeen }] }                 sign_out    { site } -> { ok }
 //   tool          { tool, args, timeoutMs } -> the tool's answer
 //
-// Not done in this build, said so rather than faked: WebRTC for the live view (only if MJPEG misses S9). #Handle.field is filled from the Vault values folder (vault.ts); with no folder or no value it is
-// refused and nothing is typed. Vyre for Chrome is loaded from /opt/vyre-chrome when the image was built with the `ext` context.
+// Not done in this build, said so rather than faked: WebRTC for the live view (only if MJPEG misses S9). #Handle.field is filled from the host over its channel (vault.ts, set by configure fillUrl and fillToken); nothing is written to disk. Vyre for Chrome is loaded from /opt/vyre-chrome when the image was built with the `ext` context.
 import { spawn } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { createServer as createNetServer } from "node:net";
@@ -19,7 +18,7 @@ import { AgentError, badInput, notFound, paused, unavailable, within } from "./e
 import { launchChrome } from "./chrome.ts";
 import type { ChromeState } from "./chrome.ts";
 import { fileTools } from "./files.ts";
-import { fillArgs, scrubUsed } from "./vault.ts";
+import { fillArgs, scrubUsed, setFiller } from "./vault.ts";
 import { createFrameHub } from "./frames.ts";
 import { createRecorder } from "./record.ts";
 import { screenTools } from "./screen.ts";
@@ -112,7 +111,7 @@ async function runTool(args: Args): Promise<Args> {
   if (state.takeover && name !== "chrome_status" && name !== "chrome_stop") throw paused("A person has the controls. The tools wait until they give them back.");
   // Only the tools that type or fill take #Handle.field: a CSS selector such as #main.content in a script is not one.
   const typing = name === "screen_type" || name === "chrome_type" || name === "chrome_fill" || name === "chrome_act";
-  const filled = typing ? fillArgs(a) : { args: a, used: [] };
+  const filled = typing ? await fillArgs(a) : { args: a, used: [] };
   state.busy += 1;
   try {
     const raw = await within(ms, name, async () => {
@@ -136,11 +135,13 @@ async function dispatch(action: string, a: Args): Promise<Args> {
     case "status": {
       const tabs = await chrome.tabs();
       const last = hub.lastFrameAt();
-      return { tabs: tabs.length, busy: state.busy > 0, ...(state.caption ? { caption: state.caption } : {}), ...(last ? { lastFrameAt: last } : {}), diskBytes: await du(PROFILE) };
+      return { tabs: tabs.length, busy: state.busy > 0, ...(state.caption ? { caption: state.caption } : {}), ...(last ? { lastFrameAt: last } : {}), diskBytes: await du(PROFILE), extension: await chrome.extension() };
     }
     case "configure": {
       const n = a["tabLimit"];
       if (typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= 200) state.tabLimit = n;
+      // The host's channel for Vault fill: held in memory only, set again on every start.
+      if (typeof a["fillUrl"] === "string" && typeof a["fillToken"] === "string") setFiller(a["fillUrl"], a["fillToken"], env["VYRE_COMPUTER_ID"] ?? "");
       return {};
     }
     case "takeover": {

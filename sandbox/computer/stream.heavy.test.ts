@@ -11,6 +11,7 @@
 import test, { after, before } from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { createServer } from "node:http";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -103,7 +104,9 @@ const p95 = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.min(xs.
 before(async () => {
   if (!ON) return;
   assert.equal(await api.ping(), true, "the Docker daemon answers");
-  const built = await runHost("docker", ["build", "-t", IMAGE, "images/agent-computer"], 1_200_000);
+  const ext = process.env["VYRE_CHROME_EXT_DIR"];
+  assert.ok(ext && fs.existsSync(path.join(ext, "manifest.json")), "VYRE_CHROME_EXT_DIR names the Vyre for Chrome folder (apps/chrome manifest.json and src): the agent computer ships with it");
+  const built = await runHost("docker", ["build", "-t", IMAGE, "--build-context", `ext=${ext}`, "images/agent-computer"], 1_200_000);
   assert.equal(built.code, 0, `building ${IMAGE} failed: ${built.out.slice(-1500)}`);
   fs.chmodSync(filesRoot, 0o777);
   await api.containerCreate(NAME, config());
@@ -143,6 +146,15 @@ test("@heavy agent computer: the container is inside its profile and agentd answ
   const shot = await ctl<{ png: string; width: number; height: number }>("screenshot");
   assert.deepEqual([shot.width, shot.height], [1280, 800]);
   assert.equal(Buffer.from(shot.png, "base64").subarray(1, 4).toString("latin1"), "PNG");
+
+  // Vyre for Chrome is part of the computer's browser: the image has it, Chromium was started with it, and its worker is running.
+  assert.equal((await exec(["test", "-f", "/opt/vyre-chrome/manifest.json"])).exitCode, 0, "the extension is baked into the image");
+  const flag = await exec(["sh", "-c", "ps -eo args | grep -c -- '--load-extension=/opt/vyre-chrome'"]);
+  assert.ok(Number(flag.stdout.trim()) >= 1, "Chromium was started with --load-extension");
+  let ext = { configured: false, workers: 0 };
+  for (let i = 0; i < 40 && ext.workers < 1; i++) { ext = (await ctl<{ extension: { configured: boolean; workers: number } }>("status")).extension; if (ext.workers < 1) await sleep(500); }
+  assert.deepEqual(ext.configured, true);
+  assert.ok(ext.workers >= 1, "the extension's service worker is running in the browser");
 
   const who = await exec(["id", "-u"]);
   assert.equal(who.stdout.trim(), "10001");
@@ -310,18 +322,48 @@ test("@heavy agent computer: a Vault handle is refused while no filler is attach
   assert.match(typed.refused?.message ?? "", /Vault/);
 
   const opened = await tool("chrome_open", { url: "about:blank" });
-  // Vault fill: the values are in a tmpfs folder the host fills for a turn. A page field takes the value, the answer never carries it, and a handle with no value types nothing.
-  await exec(["sh", "-c", "mkdir -p /tmp/vault && printf 's3cret-pw-0042' > /tmp/vault/Dana_Portal.password && printf 'vit_hv1' > /tmp/vault/Dana_Portal.password.item"]);
-  await tool("chrome_eval", { tabId: opened["tabId"], expression: `document.body.innerHTML = '<input id="pw" type="password" aria-label="Password">'; "ok"` });
-  const form = String((await tool("chrome_snapshot", { tabId: opened["tabId"] }))["tree"]);
-  const pwRef = /\[ref=(e\d+)\]/.exec(form)?.[1] ?? "";
-  const filledOut = await tool("chrome_fill", { tabId: opened["tabId"], fields: [{ ref: pwRef, value: "#Dana_Portal.password" }] });
-  assert.equal(filledOut["filled"], 1);
-  assert.deepEqual(filledOut["used"], [{ handle: "#Dana_Portal.password", itemId: "vit_hv1", value: "s3cret-pw-0042" }], "agentd reports what it used so the host can scrub it");
-  assert.equal((await tool("chrome_eval", { tabId: opened["tabId"], expression: "document.getElementById('pw').value.length" }))["result"], 14);
-  assert.equal(JSON.stringify(await tool("chrome_snapshot", { tabId: opened["tabId"] })).includes("s3cret-pw-0042"), false, "the page tree never shows the value");
-  assert.equal((await tool("chrome_fill", { tabId: opened["tabId"], fields: [{ ref: pwRef, value: "#Dana_Portal.nothere" }] })).refused?.code, "not_found");
-  await exec(["rm", "-rf", "/tmp/vault"]);
+  // Vault fill: agentd asks the host for one field at fill time, over the host's channel, and keeps nothing. The host here is a stub that checks the token, the item and logs each use.
+  const inspectRes = await http({ method: "GET", path: `/containers/${NAME}/json` });
+  const gateway = (JSON.parse(new TextDecoder().decode(inspectRes.body)) as { NetworkSettings: { Gateway: string } }).NetworkSettings.Gateway;
+  const TOKEN = "t".repeat(40);
+  const uses: string[] = [];
+  const stub = createServer((req, res) => {
+    let body = "";
+    req.on("data", (c) => { body += c; });
+    req.on("end", () => {
+      if (req.headers["authorization"] !== `Bearer ${TOKEN}`) { res.writeHead(401).end("{}"); return; }
+      const { handle, field } = JSON.parse(body) as { handle: string; field: string };
+      uses.push(`${handle}.${field}`);
+      if (handle === "Dana_Portal" && field === "password") res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ value: "s3cret-pw-0042", itemId: "vit_hv1" }));
+      else if (handle === "Other_Secret") res.writeHead(403, { "content-type": "application/json" }).end(JSON.stringify({ code: "forbidden" }));
+      else res.writeHead(404).end("{}");
+    });
+  });
+  await new Promise<void>((r) => stub.listen(0, "0.0.0.0", () => r()));
+  try {
+    const port = (stub.address() as { port: number }).port;
+    assert.deepEqual(await ctl("configure", { tabLimit: 4, fillUrl: `http://${gateway}:${port}/fill`, fillToken: TOKEN }), {});
+    await tool("chrome_eval", { tabId: opened["tabId"], expression: `document.body.innerHTML = '<input id="pw" type="password" aria-label="Password">'; "ok"` });
+    const form = String((await tool("chrome_snapshot", { tabId: opened["tabId"] }))["tree"]);
+    const pwRef = /\[ref=(e\d+)\]/.exec(form)?.[1] ?? "";
+    const filledOut = await tool("chrome_fill", { tabId: opened["tabId"], fields: [{ ref: pwRef, value: "#Dana_Portal.password" }] });
+    assert.equal(filledOut["filled"], 1);
+    assert.deepEqual(filledOut["used"], [{ handle: "#Dana_Portal.password", itemId: "vit_hv1", value: "s3cret-pw-0042" }], "agentd reports what it used so the host can scrub it");
+    assert.deepEqual(uses, ["Dana_Portal.password"], "the host was asked once, for one field");
+    assert.equal((await tool("chrome_eval", { tabId: opened["tabId"], expression: "document.getElementById('pw').value.length" }))["result"], 14);
+    assert.equal(JSON.stringify(await tool("chrome_snapshot", { tabId: opened["tabId"] })).includes("s3cret-pw-0042"), false, "the page tree never shows the value");
+    // nothing on disk: not in /tmp, not on the profile disk, not in the home folder
+    const grep = await exec(["sh", "-c", "grep -rIl s3cret-pw-0042 /tmp /home/agent 2>/dev/null | grep -v '^/home/agent/Chrome' | head -3"]);
+    assert.equal(grep.stdout.trim(), "", `the value was written to disk: ${grep.stdout}`);
+    // the refusals: a handle with no value, an item this agent may not use, a wrong channel token
+    assert.equal((await tool("chrome_fill", { tabId: opened["tabId"], fields: [{ ref: pwRef, value: "#Dana_Portal.nothere" }] })).refused?.code, "not_found");
+    const denied = await tool("chrome_fill", { tabId: opened["tabId"], fields: [{ ref: pwRef, value: "#Other_Secret.key" }] });
+    assert.equal(denied.refused?.code, "bad_input");
+    assert.match(denied.refused?.message ?? "", /may not use/);
+    assert.equal((await tool("chrome_eval", { tabId: opened["tabId"], expression: "document.getElementById('pw').value.length" }))["result"], 14, "nothing more was typed");
+    assert.deepEqual(await ctl("configure", { fillUrl: `http://${gateway}:${port}/fill`, fillToken: "u".repeat(40) }), {});
+    assert.equal((await tool("screen_type", { text: "#Dana_Portal.password" })).refused?.code, "unavailable", "a host that does not recognise the channel gives nothing");
+  } finally { stub.close(); }
   await tool("chrome_eval", { tabId: opened["tabId"], expression: `document.body.innerHTML = '<button id="b" onclick="document.title=\\'sent\\'">Send message</button><button id="c" onclick="document.title=\\'saved\\'">Save draft</button>'; "ok"` });
   const snap = await tool("chrome_snapshot", { tabId: opened["tabId"] });
   const tree = String(snap["tree"]);
