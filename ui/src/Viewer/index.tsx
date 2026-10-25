@@ -27,6 +27,32 @@ export interface ViewerDetails {
   rows: readonly (readonly [string, string])[];
   sections?: readonly { title: string; count?: number; items: readonly { id: string; title: string; note?: string }[] }[];
 }
+/** The memory graph the Viewer reads links from: the nodes and edges `memory.graph` returns, as the viewer may see them. */
+export interface GraphNode { nodeId: string; title: string; kind?: string; link?: string }
+export interface GraphEdge { from: string; to: string; kind: "link" | "relation" | "came_from" }
+export interface ViewerGraph { nodes: readonly GraphNode[]; edges: readonly GraphEdge[] }
+export interface LinkRow { id: string; title: string; note?: string }
+
+/** What a note links to ("Links to") and what links to it ("Linked from"), from the graph's `link` edges. Each node once, in graph order; nodes the viewer cannot see are not in the graph, so they never show. */
+export function linksOf(graph: ViewerGraph, nodeId: string): { to: readonly LinkRow[]; from: readonly LinkRow[] } {
+  const byId = new Map<string, GraphNode>();
+  for (const n of graph.nodes) byId.set(n.nodeId, n);
+  const row = (id: string): LinkRow | null => { const n = byId.get(id); return n === undefined || id === nodeId ? null : { id: n.nodeId, title: n.title, ...(n.link !== undefined ? { note: n.link } : {}) }; };
+  const pick = (want: "to" | "from"): LinkRow[] => {
+    const seen = new Set<string>();
+    const out: LinkRow[] = [];
+    for (const e of graph.edges) {
+      if (e.kind !== "link") continue;
+      const other = want === "to" ? (e.from === nodeId ? e.to : null) : (e.to === nodeId ? e.from : null);
+      if (other === null || seen.has(other)) continue;
+      const r = row(other);
+      if (r !== null) { seen.add(other); out.push(r); }
+    }
+    return out;
+  };
+  return { to: pick("to"), from: pick("from") };
+}
+
 export interface Sheet { cols: readonly string[]; rows: readonly (readonly string[])[] }
 
 /** The text a person sees: **bold** and [[link]] markers removed. Find reads this, so a match is always something on screen. */
@@ -155,6 +181,10 @@ export interface ViewerViewProps extends ViewerProps {
   /** CSV. */
   sheet?: Sheet;
   zoom?: number;
+  /** The memory graph and this file's node in it: Links to and Linked from come from here. */
+  graph?: ViewerGraph;
+  nodeId?: string;
+  onOpenLink?: (nodeId: string) => void;
   /** The Details panel (the info button): path, kind, size and the file's links. */
   details?: ViewerDetails;
   detailsOpen?: boolean;
@@ -236,6 +266,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const hits = useMemo(() => findMatches(texts, find), [texts, find]);
   const at = hits.length === 0 ? 0 : cur % hits.length;
   const pins: readonly ViewerPin[] = props.pins ?? each(boxes, (b, i) => ({ id: b.id, n: i + 1, text: b.text }));
+  const links = useMemo(() => (props.graph !== undefined && props.nodeId !== undefined ? linksOf(props.graph, props.nodeId) : { to: [] as readonly LinkRow[], from: [] as readonly LinkRow[] }), [props.graph, props.nodeId]);
   const editing = props.editing === true || ((props.kind === "document" || props.kind === "plan") && editMode);
 
   const setZ = (z: number): void => { setZoom(z); props.onZoom?.(z); };
@@ -398,6 +429,12 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           );
         })}
         {blocks.length === 0 ? <Text style={s.empty}>This file is empty.</Text> : null}
+        {links.from.length > 0 ? (
+          <View style={s.linked} testID="vw-linkedfrom">
+            <Text style={s.detailSec}>{`Linked from · ${links.from.length}`}</Text>
+            {each(links.from, (l) => <Row key={l.id} id={`lf-${l.id}`} title={l.title} {...(l.note !== undefined ? { note: l.note } : {})} onPress={() => props.onOpenLink?.(l.id)} />)}
+          </View>
+        ) : null}
       </View>
     </ScrollView>
   );
@@ -454,18 +491,18 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       {markBar}
       <View style={s.main}>
         <View style={s.fill}>{body}</View>
-        {detailsOpen && props.details !== undefined ? (
+        {detailsOpen && (props.details !== undefined || links.to.length + links.from.length > 0) ? (
           <View style={s.details} testID="vw-details">
             <View style={s.detailsHead}>
               <Text style={s.detailsTitle}>Details</Text>
               <Pressable accessibilityRole="button" accessibilityLabel="Close details" testID="vw-details-close" onPress={() => setDetailsOpen(false)}><Text style={s.zoomText}>{"×"}</Text></Pressable>
             </View>
             <ScrollView style={s.scroll} contentContainerStyle={s.detailsBody}>
-              {each(props.details.rows, ([k, v]) => <View key={k} style={s.metaRow} testID={`vw-detail-${k}`}><Text style={s.metaKey}>{k}</Text><Text style={s.metaVal}>{v}</Text></View>)}
-              {each(props.details.sections ?? [], (sec) => (
+              {each(props.details?.rows ?? [], ([k, v]) => <View key={k} style={s.metaRow} testID={`vw-detail-${k}`}><Text style={s.metaKey}>{k}</Text><Text style={s.metaVal}>{v}</Text></View>)}
+              {each([...(props.details?.sections ?? []), ...(links.to.length > 0 ? [{ title: "Links to", count: links.to.length, items: links.to }] : []), ...(links.from.length > 0 ? [{ title: "Linked from", count: links.from.length, items: links.from }] : [])], (sec) => (
                 <View key={sec.title} testID={`vw-detail-section-${sec.title}`}>
                   <Text style={s.detailSec}>{sec.count !== undefined ? `${sec.title}  ${sec.count}` : sec.title}</Text>
-                  {each(sec.items, (it) => <Row key={it.id} id={`d-${it.id}`} title={it.title} {...(it.note !== undefined ? { note: it.note } : {})} />)}
+                  {each(sec.items, (it) => <Row key={it.id} id={`d-${it.id}`} title={it.title} {...(it.note !== undefined ? { note: it.note } : {})} onPress={() => props.onOpenLink?.(it.id)} />)}
                 </View>
               ))}
             </ScrollView>
@@ -545,6 +582,7 @@ const s = StyleSheet.create({
   bold: { fontWeight: "700" },
   link: { color: "var(--accent)" as string },
   handle: { position: "absolute", right: -7, top: -7, width: 14, height: 14, borderRadius: 7, backgroundColor: "#E5483A", borderWidth: 2, borderColor: "#FFFFFF" },
+  linked: { marginTop: 22, paddingTop: 6, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   doc: { width: "100%", maxWidth: 720, gap: 10 },
   block: { color: "var(--ink)" as string, fontSize: 15, lineHeight: 23, padding: 0 },
   h1: { fontSize: 24, lineHeight: 30, fontWeight: "700" },

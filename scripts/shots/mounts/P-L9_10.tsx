@@ -22,11 +22,24 @@ const MD: readonly DocBlock[] = [
   { id: "l4", tag: "li", text: "[[Maya Chen]]" },
   { id: "l5", tag: "li", text: "[[Elena Rivera]]" },
 ];
+const GRAPH = {
+  nodes: [
+    { nodeId: "n-fee", title: "Consult fee", kind: "note" },
+    { nodeId: "n-land", title: "Pricing landscape", kind: "note" }, { nodeId: "n-maya", title: "Maya Chen", kind: "person" }, { nodeId: "n-elena", title: "Elena Rivera", kind: "client" },
+    { nodeId: "i1", title: "Intake memory map", kind: "note", link: "Agents / Intake / memory" }, { nodeId: "i2", title: "Elena Rivera engagement", kind: "project", link: "Projects / Rivera engagement" },
+    { nodeId: "i3", title: "Referral policy", kind: "decision", link: "Agents / Billing / memory" }, { nodeId: "i4", title: "Quote template", kind: "note", link: "Agents / Intake / memory" },
+    { nodeId: "i5", title: "First call script", kind: "note", link: "Agents / Intake / memory" }, { nodeId: "i6", title: "Q4 billing", kind: "project", link: "Projects / Q4 billing" },
+    { nodeId: "i7", title: "Pricing review", kind: "chat", link: "Chats" },
+  ],
+  edges: [
+    { from: "n-fee", to: "n-land", kind: "link" }, { from: "n-fee", to: "n-maya", kind: "link" }, { from: "n-fee", to: "n-elena", kind: "link" },
+    ...["i1", "i2", "i3", "i4", "i5", "i6", "i7"].map((id) => ({ from: id, to: "n-fee", kind: "link" as const })),
+  ],
+} as const;
 const DETAILS = {
   rows: [["Path", "Agents / Intake / memory / notes"], ["Kind", "Note"], ["Size", "471 B"], ["Modified", "Oct 22 at 5:40 pm"], ["Made by", "Intake"], ["Version", "v1"]] as const,
   sections: [
     { title: "Remembered facts", count: 3, items: [{ id: "f1", title: "The standard consult fee is $200.", note: "Closed off Oct 8 · from you" }, { id: "f2", title: "The standard consult fee is $250.", note: "Learned Oct 8 · from you" }, { id: "f3", title: "Referrals from partner firms get the first consult free.", note: "Learned Oct 20 · from you" }] },
-    { title: "Links to", count: 3, items: [{ id: "k1", title: "Pricing landscape" }, { id: "k2", title: "Maya Chen" }, { id: "k3", title: "Elena Rivera" }] },
   ],
 };
 const CODE: readonly DocBlock[] = [
@@ -56,7 +69,7 @@ export default function Mount(): ReactNode {
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
       {kind === "image" ? <Viewer fileId="img2" title="grant-fees.png" src={IMG_SRC} kind="image" kindLabel="PNG" subtitle="Agents / Research / downloads · Research · Yesterday 4:31 pm" agentName="Research" siblings={SIBS} current="i2" boxes={BOXES} strokes={STROKES} find={find} ask={ask} {...(tool === "draw" || tool === "comment" ? { tool } : {})} /> : null}
-      {kind === "md" ? <Viewer fileId="n-fee" title="consult-fee.md" kind="document" kindLabel="MD" subtitle="Agents / Intake / memory / notes · Intake · Oct 22" details={DETAILS} detailsOpen blocks={MD} find={find} ask={ask} /> : null}
+      {kind === "md" ? <Viewer fileId="n-fee" title="consult-fee.md" kind="document" kindLabel="MD" subtitle="Agents / Intake / memory / notes · Intake · Oct 22" details={DETAILS} detailsOpen graph={GRAPH} nodeId="n-fee" blocks={MD} find={find} ask={ask} /> : null}
       {kind === "code" ? <Viewer fileId="bl-py" title="fee.py" kind="document" kindLabel="PY" subtitle="Agents / Billing" blocks={CODE} find={find} ask={ask} /> : null}
       {kind === "csv" ? <Viewer fileId="csv1" title="competitors.csv" kind="csv" kindLabel="CSV" subtitle="Agents / Research / work / done / pricing · Research · Yesterday 4:40 pm" saved={3} edit initialCell={{ r: 2, c: 1 }} sheet={SHEET} find={find} ask={ask} /> : null}
       {kind === "plan" ? <Viewer fileId="plan1" title="Intake plan" kind="plan" kindLabel="PLAN" saved={3} editing blocks={PLAN} find={find} ask={ask} /> : null}

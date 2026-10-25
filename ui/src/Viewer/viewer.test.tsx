@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Viewer, stripInline, inlineRuns, ZOOM_MAX, ZOOM_MIN, boxFrom, clampZoom, findMatches, markRuns, pinAt, sheetFoot, sortRows, stepZoom, toUnit, VIEWER_KINDS, MARKUP_TOOLS } from "./index.tsx";
+import { Viewer, linksOf, stripInline, inlineRuns, ZOOM_MAX, ZOOM_MIN, boxFrom, clampZoom, findMatches, markRuns, pinAt, sheetFoot, sortRows, stepZoom, toUnit, VIEWER_KINDS, MARKUP_TOOLS } from "./index.tsx";
 import type { DocBlock, MarkupBox, ViewerViewProps } from "./index.tsx";
 
 const BOXES: readonly MarkupBox[] = [{ id: "b1", x: 0.08, y: 0.32, w: 0.44, h: 0.32, text: "Is this offer still live?" }, { id: "b2", x: 0.6, y: 0.2, w: 0.2, h: 0.2, text: "Crop here" }];
@@ -159,4 +159,23 @@ test("a document has View and Edit, and Edit makes its blocks editable; code fil
   const strokes = [{ points: [[0.1, 0.1], [0.2, 0.2]] as const }];
   const img = renderToStaticMarkup(<Viewer fileId="f" title="a.png" kind="image" strokes={strokes} />);
   assert.ok(img.includes('data-testid="vw-strokes"') && img.includes("<polyline") && img.includes('points="0.1,0.1 0.2,0.2"'));
+});
+
+test("Links to and Linked from come from the graph's link edges, once each, only for nodes the graph holds", () => {
+  const graph = {
+    nodes: [{ nodeId: "me", title: "Consult fee" }, { nodeId: "a", title: "A", link: "Agents / A" }, { nodeId: "b", title: "B" }, { nodeId: "c", title: "C" }],
+    edges: [
+      { from: "me", to: "a", kind: "link" as const }, { from: "me", to: "a", kind: "link" as const }, { from: "b", to: "me", kind: "link" as const },
+      { from: "c", to: "me", kind: "relation" as const }, { from: "ghost", to: "me", kind: "link" as const }, { from: "me", to: "me", kind: "link" as const },
+    ],
+  };
+  const r = linksOf(graph, "me");
+  assert.deepEqual(r.to, [{ id: "a", title: "A", note: "Agents / A" }]);
+  assert.deepEqual(r.from, [{ id: "b", title: "B" }]);
+  assert.deepEqual(linksOf(graph, "nope"), { to: [], from: [] });
+  const blocks: DocBlock[] = [{ id: "h", tag: "h1", text: "Consult fee" }];
+  const html = renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" blocks={blocks} graph={graph} nodeId="me" detailsOpen />);
+  assert.ok(html.includes('data-testid="vw-linkedfrom"') && html.includes("Linked from · 1") && html.includes('data-testid="row-lf-b"'));
+  for (const id of ["vw-detail-section-Links to", "vw-detail-section-Linked from"]) assert.ok(html.includes(`data-testid="${id}"`), id);
+  assert.ok(!renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" blocks={blocks} />).includes("vw-linkedfrom"), "no graph, no section");
 });
