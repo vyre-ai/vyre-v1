@@ -28,7 +28,7 @@ export const SMALL_SOURCES: readonly string[] = [...CORE_SOURCES, fileURLToPath(
 /** The modules the seed is built with. A test that boots the seed may flip more. */
 export const SMALL_LIVE: readonly string[] = ["records", "schema", "contacts-link", "agents", "files", "access", "devices", "spaces"];
 /** The files of a Space's data directory that make up the seed (the rest is per boot: pid, info, logs, admin token). */
-const KEEP = ["events.db", "modules.db", "seal.key", "small.json"];
+const KEEP = ["events.db", "modules.db", "space.db", "seal.key", "small.json"];
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 
@@ -148,7 +148,7 @@ async function build(into: string): Promise<void> {
     store.close();
   }
   fs.writeFileSync(path.join(into, "small.json"), JSON.stringify({ gaps, agentsByModule: madeByModule }));
-  for (const f of ["modules.db", "events.db"]) {
+  for (const f of ["modules.db", "events.db", "space.db"]) {
     const file = path.join(into, f);
     if (!fs.existsSync(file)) continue;
     const db = new DatabaseSync(file);
