@@ -34,7 +34,7 @@ export interface OpenSessionOptions {
   /** The live socket's dialer and clock, injectable for tests. */
   dial?: Dial;
   scheduler?: Scheduler;
-  /** The contract hash this build was made with (sent in hello); default EXPO_PUBLIC_VYRE_REGISTRY_HASH, set at export. */
+  /** The contract hash this build was made with (sent in hello). */
   registryHash?: string;
   /** Re-read period while the live link is down. */
   pollMs?: number;
@@ -147,8 +147,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     token: () => token,
     deviceId: who.deviceId ?? "web",
     epoch: who.epoch,
-    // Expo inlines exactly this expression at export (the CI export sets it from generated/registry.json); it must stay a literal process.env read.
-    registryHash: o.registryHash ?? process.env.EXPO_PUBLIC_VYRE_REGISTRY_HASH ?? "",
+    registryHash: o.registryHash ?? "",
     onChange: refresh,
     onPurge: () => { if (token !== null) { token = null; o.onSignedOut?.(); } },
     onStatus: (s) => { live = s; if (s === "live") everLive = true; tell(); },
