@@ -115,6 +115,17 @@ export function TextButton({ label, onPress, primary = false, disabled = false, 
   );
 }
 
+/** The quiet line at the foot of the pane, with Undo where the change can be taken back. */
+export function Notice({ text, onUndo, onClose }: { text: string; onUndo?: () => void; onClose: () => void }): ReactElement {
+  return (
+    <View testID="pane-notice" accessibilityRole="alert" style={s.notice}>
+      <Text numberOfLines={2} style={s.noticeText}>{text}</Text>
+      {onUndo ? <TextButton label="Undo" onPress={onUndo} testID="notice-undo" /> : null}
+      <Tool icon="x" label="Dismiss" onPress={onClose} testID="notice-close" />
+    </View>
+  );
+}
+
 /* ---------- the list ---------- */
 
 export type Entry =
@@ -162,17 +173,6 @@ export function PaneList({ entries, window, testID }: { entries: readonly Entry[
     <View testID={testID ?? "pane-list"} style={s.list}>
       <VirtualList data={entries} rowHeight="measure" keyOf={(e) => e.key} renderItem={render} {...(window ? { window } : {})} />
       {menu.element}
-    </View>
-  );
-}
-
-/** The quiet line at the foot of the pane, with Undo where the change can be taken back. */
-export function Notice({ text, onUndo, onClose }: { text: string; onUndo?: () => void; onClose: () => void }): ReactElement {
-  return (
-    <View testID="pane-notice" accessibilityRole="alert" style={s.notice}>
-      <Text numberOfLines={2} style={s.noticeText}>{text}</Text>
-      {onUndo ? <TextButton label="Undo" onPress={onUndo} testID="notice-undo" /> : null}
-      <Tool icon="x" label="Dismiss" onPress={onClose} testID="notice-close" />
     </View>
   );
 }
