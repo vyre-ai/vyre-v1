@@ -19,7 +19,7 @@ Start a chat or an Ask pane with one or more agents, or a direct message with on
 | HTTP | POST /v1/chat/start |
 | MCP tool | chat_start (chats) |
 | CLI | vyre chat start |
-| Emits | thread.started, agent.engaged, message.received |
+| Emits | thread.started, agent.engaged, message.received, message.direct |
 
 ## Input
 

@@ -1,6 +1,6 @@
 # site.table_created
 
-A site table (site-scoped record type) was created
+A site table (site-scoped record type) was created; fields carries its columns so the record type can be made from the event alone
 
 | | |
 |---|---|
@@ -20,5 +20,10 @@ A site table (site-scoped record type) was created
 type Payload = {
   siteId: string;
   type: string;
+  fields?: Array<{
+      key: string;
+      type: string;
+      title: string;
+    }>;
 };
 ```

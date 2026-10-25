@@ -10,7 +10,7 @@ List versions of a shared memory note (One History)
 | Permission | grant only |
 | Grant level | view |
 | Risk | low |
-| Resource | file (/noteId) |
+| Resource | note (/noteId) |
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |

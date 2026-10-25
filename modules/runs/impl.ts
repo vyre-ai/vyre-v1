@@ -6,3 +6,4 @@ export { handlers };
 export { backoffMs, drive, finishRun, interrupted, markWaiting, parseDuration, recoverRuns, resumeRun, sweepWaits, wake, NO_RETRY } from "./handlers/engine.ts";
 export type { DriveOptions, DriveResult, Executor, PlanStep, RetryPolicy, StepCall, StepResult } from "./handlers/engine.ts";
 export { planUndo, ruleFor, RULES } from "./handlers/undo.ts";
+export * from "./handlers/alerts.ts";

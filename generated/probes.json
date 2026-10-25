@@ -738,6 +738,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.home.today-starred-ask",
+      "place": "home",
+      "screen": "home.today-starred-ask"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.inbox.contact-list",
       "place": "inbox",
       "screen": "inbox.contact-list"
