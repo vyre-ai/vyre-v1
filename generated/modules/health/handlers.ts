@@ -13,6 +13,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "health.events_db": Handler<"health.events_db", X>;
   "health.history": Handler<"health.history", X>;
   "health.index_db": Handler<"health.index_db", X>;
+  "health.machine": Handler<"health.machine", X>;
   "health.paused_reasons": Handler<"health.paused_reasons", X>;
   "health.run": Handler<"health.run", X>;
   "health.scheduler": Handler<"health.scheduler", X>;
