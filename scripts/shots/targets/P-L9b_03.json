@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_03-chats-northwind",
+      "route": "/m/P-L9b_03",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='chats-sidebar']",
+      "note": "The Chats sidebar over the Northwind sample Space: Space and search, Needs you, Starred agent faces, Chats grouped Starred/Today/Yesterday/Earlier, Channels with Projects. The prototype side is its Chats place in the same skin."
+    },
+    {
+      "id": "P-L9b_03-chats-harbor",
+      "route": "/m/P-L9b_03?space=harbor",
+      "proto": "chats,space:personal,{skin}",
+      "waitFor": "[data-testid='chats-sidebar']",
+      "note": "The same sidebar over the Harbor Studio sample Space (a personal Space: your assistant, three chats, no Needs you and no Channels)."
+    }
+  ]
+}
