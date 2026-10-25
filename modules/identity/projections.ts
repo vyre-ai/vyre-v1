@@ -228,7 +228,7 @@ export function configureSessionTokens(t: SessionTokens | null): void { sessionT
 export async function issueSession(ctx: IdentityCtx, a: Account, dev: Device, method: Method): Promise<SignInOut> {
   const tid = ctx.trace.traceId;
   if (!sessionTokens || typeof ctx.call !== "function") raise(tid, "internal.unavailable", "Sign-in cannot open a device session on this server yet.");
-  const reg = (await ctx.call("devices.register", { person: a.person_id, name: dev.deviceName, class: dev.deviceClass })) as { device?: { id?: unknown }; sessionId?: unknown };
+  const reg = (await ctx.call("devices.register", { person: a.person_id, name: dev.deviceName, class: dev.deviceClass, idempotencyKey: nid("reg") })) as { device?: { id?: unknown }; sessionId?: unknown };
   const deviceId = typeof reg?.device?.id === "string" ? reg.device.id : "";
   const sessionId = typeof reg?.sessionId === "string" ? reg.sessionId : "";
   if (!deviceId || !sessionId) raise(tid, "internal.unexpected", "The device could not be registered.");
