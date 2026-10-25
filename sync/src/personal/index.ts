@@ -117,3 +117,6 @@ export function placeAgentTurn(kind: SpaceKind, presence: Presence): { where: "h
 export function personalEndpoints(o: { direct?: string; relay: string }): Array<{ kind: "direct" | "relay"; url: string }> {
   return [...(o.direct ? [{ kind: "direct" as const, url: o.direct }] : []), { kind: "relay" as const, url: o.relay }];
 }
+
+export { createPhonePurge } from "./revoke.ts";
+export type { PhonePurgeOpts } from "./revoke.ts";

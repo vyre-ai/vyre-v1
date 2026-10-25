@@ -11,8 +11,9 @@ import { createNodeDriver, openReplica } from "../../../sync/src/replica/index.t
 import type { ReplicaStore, SqlValue } from "../../../sync/src/replica/index.ts";
 import { createOutbox, memoryOutboxStore } from "../../../sync/src/outbox/index.ts";
 import type { Outbox } from "../../../sync/src/outbox/index.ts";
-import { HOST_OFF_CHAT_LINE, HOST_OFF_LINE, NEEDS_TEAM_LINE, deviceView, personalEndpoints, placeAgentTurn, refuseTeamOnly, teamOnlySet } from "../../../sync/src/personal/index.ts";
+import { createPhonePurge, HOST_OFF_CHAT_LINE, HOST_OFF_LINE, NEEDS_TEAM_LINE, deviceView, personalEndpoints, placeAgentTurn, refuseTeamOnly, teamOnlySet } from "../../../sync/src/personal/index.ts";
 import type { Change, PushReq } from "../../../sync/src/protocol.ts";
+import { createPurgeHandlers, purgeDepsOf } from "../handlers/purge.ts";
 import { createPushHandlers } from "../handlers/push.ts";
 import { createPersonalHost } from "../handlers/personal.ts";
 import type { PullCtx } from "../handlers/index.ts";
@@ -105,7 +106,7 @@ function scene() {
   let t = NOW;
   const ob: Outbox = createOutbox({ store: memoryOutboxStore(), deviceId: "dev_phone", now: () => t, newTraceId: () => TRACE });
   const phone = {
-    store, ob, cursor: 0,
+    store, ob, cursor: 0, driver,
     seen: new Map<string, number>(),
     ctx: { trace: { traceId: TRACE }, principal: ADA, deviceId: "dev_phone", deviceClass: "phone" } as PullCtx,
     advance(ms: number) { t += ms; },
@@ -117,7 +118,7 @@ function scene() {
     for (const [f, cell] of Object.entries(c.fields)) phone.seen.set(`${c.entity}|${c.id}|${f}`, (cell as unknown as { seq: number }).seq);
   };
   return {
-    rig, host, relay, phone,
+    rig, host, relay, phone, driver,
     /** The phone pulls through the relay until it is caught up. */
     async pull(): Promise<void> {
       for (let i = 0; i < 50; i++) {
@@ -213,4 +214,37 @@ test("the same op sent twice after a lost answer is applied once", async () => {
   assert.equal(s.phone.ob.pending(), 0);
   assert.equal(s.rig.applied.size, 1, "one application for one op id");
   assert.equal(s.rig.value(ENT, "c1", "stage"), "won");
+});
+
+test("the host revokes the phone: while the host is off nothing changes, and on the phone's next contact the replica is wiped", async () => {
+  const s = scene();
+  s.rig.seed(ENT, "c1", row("Ann"));
+  await s.pull();
+  assert.equal(read(s, "c1", "name"), "Ann");
+  const admin = createPurgeHandlers(purgeDepsOf(s.rig.s, { purge: () => 0 }));
+  const wiped: string[] = [];
+  const phonePurge = createPhonePurge({ purge: { driver: s.driver, store: s.phone.store, keychain: { removeAll: () => { wiped.push("keychain"); } }, folder: { wipe: () => { wiped.push("folder"); } } } });
+
+  // the person revokes the phone at the host while the host is off for the phone
+  s.relay.hostOff();
+  const bump = await admin["sync.epoch.bump"]({ trace: { traceId: TRACE }, principal: ADA }, { personId: ADA, reason: "device_revoked", deviceId: "dev_phone" });
+  assert.equal(bump.epoch, 1);
+  assert.equal(phonePurge.purged(), false, "nobody can carry the news to the phone");
+  assert.equal(read(s, "c1", "name"), "Ann", "the phone still has its replica until it reaches the host");
+
+  // the host is back: the phone's next pull says purge, and only this device is told
+  s.relay.hostOn();
+  const other = await s.relay.handlers["sync.pull"]({ ...s.phone.ctx, deviceId: "dev_laptop", deviceClass: "desktop" } as never, { cursor: 0, epoch: 0 } as never) as { reset?: string };
+  assert.equal(other.reset, undefined, "the person's other devices keep their data");
+  const res = await s.relay.handlers["sync.pull"](s.phone.ctx as never, { cursor: s.phone.cursor, epoch: 0 } as never) as { reset?: "purge"; epoch: number };
+  assert.equal(res.reset, "purge");
+  const report = await phonePurge.onPull(res);
+  assert.ok(report, "the purge ran");
+  assert.deepEqual(report!.errors, []);
+  assert.equal(report!.reason, "revoked");
+  assert.equal(report!.personActive, true, "the person is still in their Personal Space");
+  assert.ok(report!.tables > 0);
+  assert.deepEqual(wiped.sort(), ["folder", "keychain"]);
+  assert.equal(phonePurge.purged(), true);
+  assert.equal(await phonePurge.onPull(res), null, "the same epoch is handled once");
 });
