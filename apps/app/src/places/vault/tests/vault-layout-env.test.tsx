@@ -2,9 +2,9 @@
 // update input, the masked .env block, and the list rules (dates, second line, handles, arrow steps). No renderer.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MASK, diffEnv, diffWords, filterTemplates, fieldsFor, formatEnv, guessSecret, mergeFields, normalizeKey, parseEnv, rowsToText, templateById, textToRows, understandPaste, updateFromText } from "../src/places/vault/itemenv/env.ts";
-import { accessLine, agoLabel, countItems, handleFor, secondLine, stepIndex, usedLabel, visibleItems } from "../src/places/vault/layout/model.ts";
-import type { Item } from "../src/places/vault/layout/model.ts";
+import { MASK, diffEnv, diffWords, filterTemplates, fieldsFor, formatEnv, guessSecret, mergeFields, normalizeKey, parseEnv, rowsToText, templateById, textToRows, understandPaste, updateFromText } from "../itemenv/env.ts";
+import { accessLine, agoLabel, countItems, handleFor, secondLine, stepIndex, usedLabel, visibleItems } from "../layout/model.ts";
+import type { Item } from "../layout/model.ts";
 
 const item = (o: Partial<Item> & { id: string; name: string }): Item => ({
   kind: "api_key", folderId: "fld_a", owner: "usr_a", scope: "shared", fieldKeys: [], handle: `#S_${o.name}`, spaceOnly: false, injectIntoDeployments: false, yourLevel: "manage", label: 0, createdAt: 0, updatedAt: 0, ...o,

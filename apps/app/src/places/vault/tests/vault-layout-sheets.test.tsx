@@ -4,10 +4,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { Dimensions } from "react-native";
 import { renderToStaticMarkup } from "react-dom/server";
-import Vault from "../src/places/vault/layout/index.tsx";
-import { createSampleVault, northwind } from "../src/places/vault/layout/sample.ts";
-import type { SampleVault } from "../src/places/vault/layout/sample.ts";
-import { TEMPLATES, MASK, understandPaste, mergeFields, fieldsFor, templateById } from "../src/places/vault/itemenv/env.ts";
+import Vault from "../layout/index.tsx";
+import { createSampleVault, northwind } from "../layout/sample.ts";
+import type { SampleVault } from "../layout/sample.ts";
+import { TEMPLATES, MASK, understandPaste, mergeFields, fieldsFor, templateById } from "../itemenv/env.ts";
 
 Dimensions.set({ window: { width: 1280, height: 800, scale: 1, fontScale: 1 }, screen: { width: 1280, height: 800, scale: 1, fontScale: 1 } });
 const html = (v: SampleVault, props: Record<string, unknown>): string => renderToStaticMarkup(<Vault data={v.data} {...props} />).replaceAll("<!-- -->", "");
