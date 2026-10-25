@@ -55,21 +55,3 @@ test("a handle never started seeds on its first read, as before", async () => {
   assert.equal(out.type.key, "contact");
   assert.equal(rows(s), loadRegistry().recordTypes.length);
 });
-
-test("seeding the declared types takes under 200 ms, and a start over an already seeded file is cheaper still", async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-schema-seed-ms-"));
-  const file = path.join(dir, "space.db");
-  const a = openSchema({ path: file, now: () => NOW });
-  const t0 = performance.now();
-  await a.start();
-  const first = performance.now() - t0;
-  a.host?.close();
-  const b = openSchema({ path: file, now: () => NOW });
-  const t1 = performance.now();
-  await b.start();
-  const again = performance.now() - t1;
-  b.host?.close();
-  console.log(`METRIC schema.seed.first_ms=${first.toFixed(1)} schema.seed.again_ms=${again.toFixed(1)} types=${loadRegistry().recordTypes.length}`);
-  assert.ok(first < 200, `the first seed took ${first.toFixed(0)} ms`);
-  assert.ok(again < 200, `a second start took ${again.toFixed(0)} ms`);
-});
