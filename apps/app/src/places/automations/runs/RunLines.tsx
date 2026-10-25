@@ -14,7 +14,8 @@ import { Face, QuietButton, pointer, webOnly } from "./parts.tsx";
 export interface LineActions {
   /** Retry from the step the error row names (or the failed step in the log). */
   retryStep(): void;
-  retryStart(): void;
+  skipStep(): void;
+  editStep(step: string | undefined): void;
   stopRun(): void;
   copyTrace(): void;
   replayMenu(x: number, y: number): void;
@@ -104,7 +105,7 @@ export function RunLines({ run, lines, name, me, actions, canRetry, openThoughts
             </View>
             {run.status === "waiting" && l.taskId ? (
               <View style={c.waitb}>
-                <QuietButton label="Approve" icon="check" tone="accent" testID="approve" onPress={() => actions.decide(l.taskId!, "approve")} />
+                <QuietButton label="Approve" icon="check" tone="filled" testID="approve" onPress={() => actions.decide(l.taskId!, "approve")} />
                 <QuietButton label="Decline" testID="decline" onPress={() => actions.decide(l.taskId!, "reject")} />
               </View>
             ) : null}
@@ -121,12 +122,14 @@ export function RunLines({ run, lines, name, me, actions, canRetry, openThoughts
               {run.status === "failed" && canRetry && l.id === lastError ? (
                 <View style={c.acts}>
                   <QuietButton label="Retry step" icon="retry" tone="accent" testID="retry-step" onPress={actions.retryStep} />
-                  <QuietButton label="Retry from the start" testID="retry-start" onPress={actions.retryStart} />
+                  <QuietButton label="Skip step" testID="skip-step" onPress={actions.skipStep} />
+                  <QuietButton label="Stop" tone="danger" testID="stop-failed" onPress={actions.stopRun} />
                 </View>
               ) : null}
               <View style={c.errx}>
                 <Text style={c.mono}>{run.traceId}</Text>
                 <QuietButton label="Copy trace id" testID="copy-trace" onPress={actions.copyTrace} />
+                <QuietButton label="Edit step" testID="edit-step" onPress={() => actions.editStep(l.step)} />
                 <QuietButton label="Replay" testID="replay" onPress={(e) => { const p = pressPoint(e); actions.replayMenu(p.x, p.y); }} />
               </View>
             </View>

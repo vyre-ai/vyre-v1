@@ -1,10 +1,13 @@
 // Home > Quick start and the Ask box (spec 3.1): three quick-start buttons and one box that starts a chat with your assistant. It sits at the foot of the page. Without an AI account the box is locked and says how to unlock it. ui/Composer is the box, so @ # / and Enter work as they do in Chats.
+import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import type { ViewStyle } from "react-native";
+import { AskButton } from "../../../../../../ui/src/AskButton/index.tsx";
+import type { AskAgent } from "../../../../../../ui/src/AskButton/index.tsx";
 import { Composer } from "../../../../../../ui/src/Composer/index.tsx";
 import type { ComposerSend } from "../../../../../../ui/src/Composer/index.tsx";
 import { useHomeData, useHomeLine, usePrincipals } from "../sections-a/data.tsx";
-import { Face } from "../sections-a/parts.tsx";
 import { startAsk } from "./actions.ts";
 import { useExtras } from "./data.tsx";
 import { ASK_LOCKED, ASK_PLACEHOLDER, askText } from "./model.ts";
@@ -18,10 +21,19 @@ export function AskBox(): ReactElement {
   const locked = !extras.aiConnected;
   const assistant = extras.assistant;
 
+  // the agent that answers is picked in the pill beside the box (the shared AskButton), the Space assistant until another is picked
+  const agents = useMemo<AskAgent[]>(() => {
+    const list: AskAgent[] = [];
+    for (const x of people.list) if (x.kind === "agent") list.push({ id: x.id, name: x.name, ...(x.id === assistant.id ? { assistant: true } : {}) });
+    return list.some((x) => x.id === assistant.id) ? list : [{ id: assistant.id, name: assistant.name, assistant: true }, ...list];
+  }, [people.list, assistant.id, assistant.name]);
+  const [pickedId, setPickedId] = useState(assistant.id);
+  const picked = agents.find((x) => x.id === pickedId) ?? agents[0] ?? { id: assistant.id, name: assistant.name, assistant: true };
+
   const send = (p: ComposerSend): void => {
     const text = askText(p.text);
     if (text === null) return;
-    void startAsk({ call: data.call, note: line.note }, assistant.id, text, data.clock().now).then((thread) => {
+    void startAsk({ call: data.call, note: line.note }, picked.id, text, data.clock().now).then((thread) => {
       if (thread !== null) data.nav.openSubject({ type: "thread", id: thread });
     });
   };
@@ -35,7 +47,19 @@ export function AskBox(): ReactElement {
         <QuickButton label="Upload a file" icon="up" testID="quick-upload" onPress={() => extras.go("upload")} />
       </View>
       <View style={local.askRow}>
-        <View style={local.face}><Face name={people.byId(assistant.id)?.name ?? assistant.name} kind="agent" size={22} /></View>
+        <View style={local.pill}>
+          {locked ? null : (
+            <AskButton
+              place="home"
+              testID="ask-agent"
+              context={{ kind: "home", id: "home", title: "Home", access: "use" }}
+              agents={agents}
+              suggested={assistant.id}
+              onPick={(a) => setPickedId(a.id)}
+              onAsk={(a) => data.nav.openSubject({ type: "agent", id: a.id })}
+            />
+          )}
+        </View>
         <View style={local.box}>
           {locked ? (
             <Pressable accessibilityRole="button" accessibilityLabel={ASK_LOCKED} onPress={() => extras.go("ai")} testID="ask-locked" style={({ hovered }: { hovered?: boolean }) => [local.lock, hovered === true && local.lockOver]}>
@@ -45,10 +69,12 @@ export function AskBox(): ReactElement {
           ) : (
             <Composer
               testID="ask-box"
-              whoWillAnswer={`${assistant.name} will reply`}
+              whoWillAnswer={`${picked.name} will reply`}
+              hideWho
+              symbols={["at", "hash"]}
               placeholder={ASK_PLACEHOLDER}
               label="Ask your assistant"
-              lead={assistant.name}
+              lead={picked.name}
               density="compact"
               onSubmit={send}
             />
@@ -60,13 +86,17 @@ export function AskBox(): ReactElement {
 }
 
 const local = StyleSheet.create({
-  dock: { marginTop: 26, paddingTop: 6, paddingBottom: 6 },
+  // docked: it stays at the foot of the place while the page scrolls under it, as the prototype draws it
+  dock: { marginTop: 26, paddingTop: 6, paddingBottom: 6, ...(Platform.OS === "web" ? ({ position: "sticky", bottom: 0, zIndex: 4, backgroundColor: "var(--win)" } as unknown as ViewStyle) : {}) },
   quick: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4, marginBottom: 8 },
   quickTitle: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string, marginRight: 8 },
   askRow: { flexDirection: "row", alignItems: "flex-start", gap: 4 },
-  face: { height: 30, justifyContent: "center", paddingLeft: 4 },
+  pill: { minHeight: 30, justifyContent: "center", paddingLeft: 4, paddingTop: 6 },
   box: { flex: 1, minWidth: 0 },
   lock: { height: 40, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
   lockOver: { backgroundColor: "var(--hover)" as string },
   lockText: { fontSize: 13.5, color: "var(--ink-3)" as string },
 });
+
+/** The dock the page keeps at its foot (sticky on web); exported for the test. */
+export const ASK_DOCK = local.dock;

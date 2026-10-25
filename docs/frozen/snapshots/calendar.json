@@ -1,0 +1,32 @@
+{
+  "module": "calendar",
+  "capabilities": {
+    "calendar.availability@1": "5033567176638de283346d7657e5703301726176d2b56b625670b7769774842f",
+    "calendar.create_calendar@1": "eb033ab1693fb1da3cbd541df79a5e66c81273c40a5baf4b33400e007a832728",
+    "calendar.create_event@1": "d32f9d31079525ddd9dd567fad316c35dbb1cbf0b17985068af88a3dee24b69e",
+    "calendar.delete_calendar@1": "436a7d3d816888649c34288bf6f228efa4caf1d083391c3323e27076d7c8cb76",
+    "calendar.delete_event@1": "1330f9ca30527415a2941222ef0759d385af9e0d6ca0431688b97a57e171903f",
+    "calendar.duplicate_event@1": "aef1399d527ba10d71e5cd64acc1126f5ed58ffd20dff334f64e5c64c1284c56",
+    "calendar.find_time@1": "1e6dc1931744d5b7d7edb5902732500f1fec72b506fa2d6b6f645afce556a880",
+    "calendar.get_event@1": "6c1cf8b37fb81c049c2aec5990acc10431668acac304a5b0c9d2501c60a0dce5",
+    "calendar.health@1": "15e2299bd40b3f0b10013b236be3399f21dee860684e260ca8039889d630b4e6",
+    "calendar.ingest_event@1": "50677be8074c61fcf06fbdb132b148e7e876fc71e34f0c3f9112a7a1af604123",
+    "calendar.link_record@1": "96a7f6c440f6e68e2a9f3cd66f5efa49c33f622095223e39e49e6393c7e09afb",
+    "calendar.list_calendars@1": "bb86840b839b9e8f75abab84967d8183f30191ab28b9c6511b9df8f9c8a93136",
+    "calendar.list_events@1": "04f40052b05e107ecfcc7ca53b373f5561cfe1008ed8b01b7065a5d3d6911ef4",
+    "calendar.move_to_calendar@1": "d77aefe252a907be99ca9cd42ebfd3fb45e22fe14641893f6756867f4af2abc6",
+    "calendar.respond@1": "dc496e1a827fd48b91322faf81c80f2242c88535fb57f4ec4b2844e341256e3e",
+    "calendar.restore_event@1": "d873c27cd7dc2ddc93e6927251826012bd4c1496a2b556766e53b44298431b78",
+    "calendar.sync_now@1": "587d66140abaf1b5c522f37748025300d127c7341f1f0ba0c8404e97149c8de6",
+    "calendar.update_calendar@1": "326d4f09e597e5412c5a07fe4d6eeb500e1f2e5d81e7368ffb5a251612c752a4",
+    "calendar.update_event@1": "72117baeb67ce34cf3e1fb84ac80d8330227be19068df2c81ecba26343a8e388"
+  },
+  "events": {
+    "calendar.synced": "22bed12f81c21f039a491eb285dcf55988f9c87e62e1e3588966aad0ca66b498",
+    "calendar_event.created": "1137efc0c179ee65973aca31fe1729f08e1cc786efaf9c6d81113291676fa3d1",
+    "calendar_event.deleted": "e4b254dec6b8e873ba058ec602d60999cfd4dcd9c5b9163db38363cf28ac66d0",
+    "calendar_event.response_changed": "308310be53508eb1124ff50ed0b34996d0786a2a7e75179093b58a743b25c6d0",
+    "calendar_event.restored": "cc387c69e391c103c8c49ae083886377c7aeb3c5e971a3ead676695293b79c3c",
+    "calendar_event.updated": "b9d99af5d7dc180f97eb696e8d5e11a12ce2fdc11a2de97485f4cb5d33dbe543"
+  }
+}
