@@ -6,7 +6,7 @@
 
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { AskButton } from "../AskButton/index.tsx";
 import type { AskButtonProps } from "../AskButton/index.tsx";
 import { MenuIcon } from "../Menu/index.tsx";
@@ -22,6 +22,8 @@ export { EMAIL_BLOCK_KINDS, EMAIL_MODES, EMAIL_PREVIEWS, emailLabel } from "./pr
 
 export const SUBJECT_LIMIT = 60;
 export const PREVIEW_TEXT_LIMIT = 110;
+/** Below this window width the rail becomes a row and the pane sits under the editor. */
+export const NARROW_WIDTH = 760;
 export const PANE_TABS = ["style", "ask", "preview", "checks"] as const;
 export type PaneTab = (typeof PANE_TABS)[number];
 export const PREVIEW_WIDTH: Readonly<Record<EmailPreview, number>> = { desktop: 600, mobile: 375, dark: 600 };
@@ -294,7 +296,9 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
     return () => document.removeEventListener("keydown", on);
   }, [focus, setFocusMode]);
 
-  const compact = props.density === "compact";
+  const { width: winW } = useWindowDimensions();
+  const narrow = winW < NARROW_WIDTH;
+  const compact = props.density === "compact" || narrow;
   const diffs = props.diffs ?? [];
   const sel = blocks.find((b) => b.id === selected) ?? null;
 
@@ -302,10 +306,10 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
     <View style={s.head} testID="em-head">
       <Btn label="Undo" icon={ICON.undo} disabled={!canUndo(hist)} onPress={() => restore(-1)} testID="em-undo" />
       <Btn label="Redo" icon={ICON.redo} disabled={!canRedo(hist)} onPress={() => restore(1)} testID="em-redo" />
-      <View style={s.sep} />
+      {narrow ? null : <View style={s.sep} />}
       <Segmented value={mode} onPick={pickMode} />
       <View style={s.grow} />
-      <Text style={s.stat} testID="em-version">{`Saved v${version}`}</Text>
+      {narrow ? null : <Text style={s.stat} testID="em-version">{`Saved v${version}`}</Text>}
       <Btn label="Focus" icon={ICON.focus} onPress={() => setFocusMode(true)} testID="em-focus" />
       <Btn label="Test send" icon={ICON.send} onPress={() => { setSent(true); onTestSend?.(); }} testID="em-test-send" />
       {props.ask !== undefined ? <AskButton {...props.ask} compact={compact} /> : null}
@@ -330,7 +334,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   );
 
   const rail = (
-    <View style={s.rail} testID="em-rail" accessibilityLabel="Blocks">
+    <View style={[s.rail, narrow && s.railNarrow]} testID="em-rail" accessibilityLabel="Blocks">
       {EMAIL_BLOCK_KINDS.map((k) => (
         <Pressable key={k} accessibilityRole="button" accessibilityLabel={`Add ${blockLabel(k)}`} testID={`em-add-${k}`} onPress={() => add(k)}
           style={({ hovered }: { hovered?: boolean }) => [s.railBtn, hovered === true && s.btnOver]}>
@@ -394,7 +398,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   ) : null;
 
   const pane = (
-    <View style={s.pane} testID="em-pane">
+    <View style={[s.pane, narrow && s.paneNarrow]} testID="em-pane">
       <TabStrip tabs={PANE_TABS.map((k) => ({ key: k, title: TAB_TITLE[k] }))} active={tab} onSelect={(k) => setTab(k as PaneTab)} />
       <ScrollView style={s.paneBody} contentContainerStyle={s.paneContent}>
         {tab === "style" ? (
@@ -450,7 +454,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
       accessibilityLabel={emailLabel(props)} style={[s.root, focus && s.rootFocus]}>
       {focus ? null : head}
       {focus ? null : envelope}
-      <View style={s.main}>
+      <View style={[s.main, narrow && s.mainNarrow]}>
         {focus || mode !== "visual" ? null : rail}
         <View style={s.stageCol}>
           {blockBar}
@@ -491,6 +495,9 @@ const s = StyleSheet.create({
   cntWarn: { color: "var(--warn)" as string },
   main: { flex: 1, minHeight: 0, flexDirection: "row" },
   rail: { width: 62, borderRightWidth: 1, borderRightColor: "var(--line)" as string, paddingVertical: 8, paddingHorizontal: 6, gap: 2 },
+  railNarrow: { width: "100%", flexDirection: "row", borderRightWidth: 0, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, paddingVertical: 4, flexWrap: "wrap" },
+  mainNarrow: { flexDirection: "column" },
+  paneNarrow: { width: "100%", height: 300, borderLeftWidth: 0, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   railBtn: { height: 46, borderRadius: 8, alignItems: "center", justifyContent: "center", gap: 3 },
   railText: { color: "var(--ink-3)" as string, fontSize: 10.5, fontWeight: "500" },
   stageCol: { flex: 1, minWidth: 0, minHeight: 0, backgroundColor: "var(--sunk)" as string },

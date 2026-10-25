@@ -56932,6 +56932,8 @@ textarea.inp { height: auto; min-height: 150px; padding: 11px 12px; line-height:
     { const cid = (x) =&gt; (x === "reactivate" ? "react" : x), c1 = arg("campaign"), c2 = arg("recipients"), m1 = arg("mailbox"); let h = null;
       if (c1) h = "campaign:" + cid(c1); else if (c2) h = "campaign:" + cid(c2) + "/recipients"; else if (m1) h = "sending/mailbox:" + m1;
       else if (has("recipients")) h = "campaign:q4/recipients"; else if (has("email")) h = "campaign:q4/email"; else if (has("paths-camp")) h = "campaign:q4/step"; else if (has("sending")) h = "sending/mailbox:mb2"; else if (has("launch")) h = "campaign:react/launch"; else if (has("campaigns") || has("campaign")) h = "campaigns";
+      const EMT = ["email-html", "email-plain", "email-focus", "email-ask", "email-preview", "email-checks"].find(has);
+      if (EMT) { h = "campaign:q4/email"; setTimeout(() =&gt; { const q = (x) =&gt; document.querySelector(x); const tab = (n) =&gt; { const b = [...document.querySelectorAll(".vy-em-pane button, .vy-em-pane [role=tab]")].find((y) =&gt; y.textContent.trim() === n); if (b) b.click(); }; if (EMT === "email-html") q('[data-mode="html"]').click(); else if (EMT === "email-plain") q('[data-mode="text"]').click(); else if (EMT === "email-focus") q('[data-a="focus"]').click(); else tab({ "email-ask": "Ask", "email-preview": "Preview", "email-checks": "Checks" }[EMT]); }, 1500); }
       if (h) { setTimeout(() =&gt; toApps(h), 60); } }
     if (has("jview")) { designerOn = false; ui.sTab = "jour"; ui.tabs = ["j:onb"]; ui.active = "j:onb"; }
     if (has("empty")) { ui.space = "Irfad"; ui.tabs = []; ui.active = null; }
