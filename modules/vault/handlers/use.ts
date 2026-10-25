@@ -29,6 +29,8 @@ export interface FillSink { (f: { value: string; ref: string; handle: string; fi
 export interface SecretPort {
   secret(handle: string, space: string): Promise<string>;
   signRs256(handle: string, space: string, data: string): Promise<string>;
+  /** The .env text of an export link, once (the route at /exports/<id>?token= calls this; the link is the credential). Throws for every refusal. */
+  pullExport(exportId: string, token: string): string;
 }
 export interface VaultHost {
   sinks: Readonly<Record<string, FillSink>>;
@@ -62,7 +64,13 @@ export function secretPort(db: VaultDb): SecretPort {
     if (!hit) throw new Error(`Name a field after ${handle}.`);
     return hit.value;
   };
+  const edge = (): VaultCtx => ({
+    space: "", principal: { kind: "service", id: "svc_host" }, trace: { traceId: "0".repeat(32) }, now: Date.now, db,
+    emit: () => null, call: () => Promise.reject(new Error("the export route makes no calls")), authorize: () => ({ effect: "deny", reason: "edge", decisionId: "edge" }),
+    log: { info: () => undefined, warn: () => undefined },
+  });
   return {
+    pullExport: (exportId, token) => exportPull(edge(), { exportId, token }),
     secret: async (handle) => read(handle),
     signRs256: async (handle, _space, data) => {
       const raw = read(handle);
