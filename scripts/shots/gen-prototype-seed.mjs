@@ -34,6 +34,9 @@ function stubs(space) {
   return {
     VyreUI: ui, window: win, parent: win, self: win, location: { hash: "", search: "" }, navigator: { clipboard: loose(), userAgent: "node" },
     document: loose(), matchMedia: win.matchMedia, localStorage: win.localStorage, setTimeout: () => 0, clearTimeout() {}, requestAnimationFrame: () => 0,
+    addEventListener() {}, removeEventListener() {}, dispatchEvent() {}, getComputedStyle: () => loose(), setInterval: () => 0, clearInterval() {}, queueMicrotask() {},
+    ...Object.fromEntries(["CSS", "performance", "crypto", "Event", "CustomEvent", "KeyboardEvent", "MouseEvent", "MutationObserver", "ResizeObserver", "IntersectionObserver", "URL", "URLSearchParams", "Blob", "FileReader", "Image", "DOMParser", "fetch", "Audio", "Worker", "history", "screen", "sessionStorage", "indexedDB", "TextEncoder", "TextDecoder", "atob", "btoa", "structuredClone", "HTMLElement", "Node"].map((k) => [k, loose()])),
+    innerWidth: 1280, innerHeight: 800, devicePixelRatio: 1,
     console: { log() {}, warn() {}, error() {} }, Intl, Date, Math, JSON, Object, Array, Map, Set, Promise, RegExp, String, Number, Symbol, Error,
   };
 }
