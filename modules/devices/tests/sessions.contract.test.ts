@@ -70,3 +70,4 @@ for (const cap of caps) {
   });
 }
 // sync.epoch.bump on revoke: see the last test of sessions.test.ts
+// touched so the selector runs it with the host revoke test
