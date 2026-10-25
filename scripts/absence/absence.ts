@@ -11,6 +11,8 @@ export interface AbsenceRule {
   reason: string;
   /** Matches a repo path (forward slashes). A tracked source file that matches is a violation. */
   path: RegExp;
+  /** Files under this path are outside the rule (both their own path and their imports). */
+  except?: RegExp;
   /** Matches an import specifier. An import that matches is a violation. */
   spec: RegExp;
 }
@@ -67,6 +69,8 @@ export const RULES: readonly AbsenceRule[] = [
     id: "autofill",
     reason: "Phone AutoFill providers are not in v1 (owner, 24 Oct); the phone Vault reads and copies",
     path: word("autofill", "auto-fill-provider", "credential-provider"),
+    // Phone providers only: the Chrome extension's Vault fill (apps/chrome/) is in v1 (owner, 24 Oct).
+    except: /^apps\/chrome\//,
     spec: specWord("autofill", "auto-fill-provider", "credential-provider") ,
   },
   {
@@ -110,6 +114,7 @@ export function checkAbsence(files: readonly SourceFile[], rules: readonly Absen
   for (const file of files) {
     if (!inScope(file.path)) continue;
     for (const rule of rules) {
+      if (rule.except?.test(file.path)) continue;
       if (rule.path.test(file.path)) found.push({ rule: rule.id, file: file.path, kind: "path", detail: file.path, reason: rule.reason });
       if (file.text === undefined || !SOURCE.test(file.path)) continue;
       for (const spec of importSpecifiers(file.text)) {
