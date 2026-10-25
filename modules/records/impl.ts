@@ -12,6 +12,12 @@ import type { ProjectionHost } from "../../kernel/src/store/projection.ts";
 import { createQueryHandlers, createRecordsHandlers, mapError, RecordsError, toRow } from "./handlers/index.ts";
 import type { QueryHandlers, RecordRow, WriteCtx, WriteHandlers } from "./handlers/index.ts";
 import { fieldMetaTable, historyText, recordsFieldMeta } from "./projections.ts";
+import { createHistoryHandlers } from "./handlers/history.ts";
+import type { HistoryHandlers } from "./handlers/history.ts";
+import { createMergeHandlers } from "./handlers/merge.ts";
+import type { MergeHandlers } from "./handlers/merge.ts";
+import { createSiteTableHandlers } from "./handlers/site-tables.ts";
+import type { SiteTableEvent, SiteTableHandlers } from "./handlers/site-tables.ts";
 
 export interface FieldWrite {
   value: unknown;
@@ -269,8 +275,26 @@ function live(): RecordsHandle {
   return shared;
 }
 
+// The rest of the live map (P-L3_LIVE): history, versions and holds (handlers/history.ts), merge, bulk upsert and export (handlers/merge.ts), both built once over the live handle.
+// DECISION: reveal has no `unseal` and export no `putFile` until the host hands this module the Vault and the Files port (a host seam); until then they refuse, they do not guess.
+type LiveHistory = Omit<HistoryHandlers, "records.history">;
+let extra: { history: LiveHistory; merge: MergeHandlers; sites: SiteTableHandlers } | null = null;
+function more(): NonNullable<typeof extra> {
+  if (!extra) {
+    const h = live();
+    extra = {
+      history: createHistoryHandlers({ tx: h.host.tx, store: h.store, writes: h.handlers, readLog: (q) => h.host.store.read(q) }),
+      merge: createMergeHandlers({ store: h.store, tx: h.host.tx }),
+      sites: createSiteTableHandlers({ store: h.store }),
+    };
+  }
+  return extra;
+}
+
+export type LiveRecordsHandlers = RecordsHandlers & LiveHistory & MergeHandlers;
+
 /** Loader entry. The module stays stub until its manifest flips to live, which is when the host reads this. */
-export const handlers: RecordsHandlers = {
+export const handlers: LiveRecordsHandlers = {
   "records.create": (ctx, input) => live().handlers["records.create"](ctx, input),
   "records.update": (ctx, input) => live().handlers["records.update"](ctx, input),
   "records.delete": (ctx, input) => live().handlers["records.delete"](ctx, input),
@@ -280,6 +304,27 @@ export const handlers: RecordsHandlers = {
   "records.counts": (ctx, input) => live().handlers["records.counts"](ctx, input),
   "records.get": (ctx, input) => live().handlers["records.get"](ctx, input),
   "records.history": (ctx, input) => live().handlers["records.history"](ctx, input),
+  "records.as_of": (ctx, input) => more().history["records.as_of"](ctx, input),
+  "records.versions": (ctx, input) => more().history["records.versions"](ctx, input),
+  "records.restore_version": (ctx, input) => more().history["records.restore_version"](ctx, input),
+  "records.hold": (ctx, input) => more().history["records.hold"](ctx, input),
+  "records.release_hold": (ctx, input) => more().history["records.release_hold"](ctx, input),
+  "records.reveal": (ctx, input) => more().history["records.reveal"](ctx, input),
+  "records.merge": (ctx, input) => more().merge["records.merge"](ctx, input),
+  "records.bulk_upsert": (ctx, input) => more().merge["records.bulk_upsert"](ctx, input),
+  "records.export": (ctx, input) => more().merge["records.export"](ctx, input),
+};
+
+/** The site tables (P-L3_ST): the sites module announces a table, this module makes the record type. The host runs it once per event after commit (ruling 32). */
+export const consumers = {
+  "records.site_tables": {
+    on: ["site.table_created", "site.table_promoted"],
+    async run(_ctx: unknown, event: { name: string; payload: Record<string, unknown> }): Promise<void> {
+      const ev = event.payload as unknown as SiteTableEvent;
+      if (event.name === "site.table_created") await more().sites.created(ev);
+      else await more().sites.promoted(ev);
+    },
+  },
 };
 
 export { RecordsError } from "./handlers/index.ts";
