@@ -311,9 +311,35 @@ test("the note header shows the file mark, name, path line, version and View and
   assert.match(html, /aria-label="View"/);
   assert.match(html, /aria-label="Edit"/);
   assert.match(html, /aria-label="Version history"/);
+  assert.match(html, /aria-label="Details"/);
+  assert.match(html, /aria-label="Edit"/);
   for (const c of TOOLBAR) assert.ok(TOOL_ICONS[c.id] !== undefined && TOOL_ICONS[c.id]?.startsWith("<svg"), `${c.id} has a drawn icon`);
   const bold = html.slice(html.indexOf('data-testid="richeditor-tool-bold"'));
   assert.match(bold.slice(0, 600), /<svg/);
   const first = renderToStaticMarkup(<RichEditor {...base} mode="read" markdown="x" header={{ name: "n.md", meta: "m", version: 1 }} />);
   assert.doesNotMatch(first, /richeditor-version/, "no saved mark on the first version");
+});
+
+test("the header carries the shared Ask control and a Details toggle that shows pressed", () => {
+  const ask = { place: "files", context: { kind: "file", id: "f1", title: "n.md", access: "edit" as const }, agents: [{ id: "a", name: "Assistant", assistant: true }, { id: "d", name: "Docs" }], suggested: "d", onAsk: () => undefined };
+  const html = renderToStaticMarkup(<RichEditor {...base} mode="edit" markdown="x" header={{ name: "n.md", meta: "m", ask, detailsOpen: true }} />);
+  assert.match(html, /data-testid="ask"/);
+  assert.match(html, /Docs/);
+  assert.match(html, /aria-selected="true"/, "Details is pressed while its column is open");
+});
+
+test("a collaborator's name flag floats above the line at the caret instead of sitting in the text", () => {
+  const doc = new Y.Doc();
+  importMarkdown(doc, "Hello world");
+  const aw = new Awareness(doc);
+  const peer = new Awareness(new Y.Doc());
+  try {
+    setLocalCursor(peer, { name: "Maya Chen", color: "#e8590c" }, 5);
+    sendAwareness(peer, aw);
+    const html = renderToStaticMarkup(<RichEditor {...base} mode="edit" markdown="" doc={doc} awareness={aw} />);
+    const caret = html.slice(html.indexOf('data-testid="richeditor-cursor-'));
+    assert.match(caret.slice(0, 700), /bottom:18px/, "the flag box is placed above the caret");
+    assert.match(html, /Hello/);
+    assert.match(html, / world/);
+  } finally { aw.destroy(); peer.destroy(); }
 });

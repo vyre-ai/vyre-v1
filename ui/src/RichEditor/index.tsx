@@ -8,6 +8,8 @@
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { AskButton } from "../AskButton/index.tsx";
+import type { AskButtonProps } from "../AskButton/index.tsx";
 import { MenuIcon } from "../Menu/index.tsx";
 import { bridgeHtml, connectBridge } from "./bridge.ts";
 import type { BridgeEnd } from "./bridge.ts";
@@ -205,11 +207,14 @@ function runNodes(runs: readonly Run[], keyBase: string, base: object): ReactEle
   return nodes;
 }
 
-/** A thin caret in the person's colour with a small name flag, both inline so they move with the text. */
+/** A thin caret in the person's colour; the small name flag floats above the line at the caret, so it never covers text. */
 function caretNodes(cursor: RemoteCursor, keyBase: string): ReactElement[] {
   return [
-    <Text key={`${keyBase}-c`} testID={`richeditor-cursor-${cursor.clientId}`} style={{ borderLeftWidth: 2, borderLeftColor: cursor.color, marginLeft: -1, marginRight: -1, fontSize: 1 }}>{"\u200b"}</Text>,
-    <Text key={`${keyBase}-n`} accessibilityLabel={`${cursor.name}'s cursor`} style={[styles.flag, { backgroundColor: cursor.color }]}>{cursor.name}</Text>,
+    <View key={`${keyBase}-c`} testID={`richeditor-cursor-${cursor.clientId}`} style={[styles.caret, { backgroundColor: cursor.color }]}>
+      <View style={styles.flagBox}>
+        <Text accessibilityLabel={`${cursor.name}'s cursor`} style={[styles.flag, { backgroundColor: cursor.color }]}>{cursor.name}</Text>
+      </View>
+    </View>,
   ];
 }
 
@@ -240,14 +245,11 @@ function NoteHeaderBar({ h, mode }: { h: NoteHeader; mode: RichEditorMode }): Re
       </Pressable>,
     );
   }
-  const icons: ReactElement[] = [];
-  for (const [id, label] of [["find", "Find in file"], ["info", "Details"], ["history", "Version history"], ["more", "More"]] as const) {
-    icons.push(
-      <Pressable key={id} accessibilityRole="button" accessibilityLabel={label} testID={`richeditor-head-${id}`} style={({ hovered }: Hover) => [styles.headIcon, hovered === true && styles.toolHover]}>
-        <ToolIcon id={id} glyph={"\u00b7"} color="var(--ink-2)" />
-      </Pressable>,
-    );
-  }
+  const iconButton = (id: "find" | "info" | "history" | "more", label: string, on: boolean, onPress?: () => void): ReactElement => (
+    <Pressable key={id} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: on }} onPress={onPress} testID={`richeditor-head-${id}`} style={({ hovered }: Hover) => [styles.headIcon, hovered === true && styles.toolHover, on && styles.toolOn]}>
+      <ToolIcon id={id} glyph={"\u00b7"} color={on ? "var(--accent)" : "var(--ink-2)"} />
+    </Pressable>
+  );
   return (
     <View style={styles.head} testID="richeditor-header">
       <View style={styles.mark}><Text style={styles.markText}>{h.mark ?? "MD"}</Text></View>
@@ -260,7 +262,11 @@ function NoteHeaderBar({ h, mode }: { h: NoteHeader; mode: RichEditorMode }): Re
         <View style={styles.saved} testID="richeditor-version"><ToolIcon id="check" glyph={"\u2713"} color="var(--ok)" /><Text style={styles.savedText}>{`v${h.version}`}</Text></View>
       ) : null}
       <View accessibilityRole="radiogroup" accessibilityLabel="View or edit" style={styles.seg}>{seg}</View>
-      {icons}
+      {iconButton("find", "Find in file", false)}
+      {iconButton("info", "Details", h.detailsOpen === true, h.onDetails)}
+      {iconButton("history", "Version history", false)}
+      {h.ask !== undefined ? <AskButton {...h.ask} /> : null}
+      {iconButton("more", "More", false)}
     </View>
   );
 }
@@ -324,6 +330,11 @@ export interface NoteHeader {
   /** Version number; the saved check shows from the second. */
   version?: number;
   onView?: (view: "view" | "edit") => void;
+  /** The shared Ask control (agent chip and dropdown of every agent). */
+  ask?: AskButtonProps;
+  /** The Details column toggle: pressed while the column is open. */
+  detailsOpen?: boolean;
+  onDetails?: () => void;
 }
 
 export interface RichEditorViewProps extends RichEditorProps {
@@ -531,6 +542,8 @@ const styles = StyleSheet.create({
   list: { marginBottom: 8 },
   li: { flexDirection: "row", gap: 8 },
   bullet: { color: "var(--ink-3)" as string, fontSize: 15, lineHeight: 24, width: 20, textAlign: "right" },
+  caret: { width: 2, height: 18, marginHorizontal: -1, overflow: "visible" },
+  flagBox: { position: "absolute", left: 0, bottom: 18, flexDirection: "row", width: 220, zIndex: 3 },
   flag: { color: "#fff", fontSize: 9.5, lineHeight: 12, fontWeight: "600", paddingHorizontal: 4, borderRadius: 3, overflow: "hidden" },
 });
 
