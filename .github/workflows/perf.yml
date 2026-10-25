@@ -42,6 +42,7 @@ jobs:
       - name: Run the perf file (budgets unchanged)
         env:
           FILES: ${{ matrix.files }}
+          VYRE_PERF_FULL: "1"   # the hourly run measures the full-scale server probes (perf/server/server.test.ts)
         run: node scripts/test-run.ts --slow --files $FILES
   budget-perf:
     permissions: { contents: read, actions: read }
