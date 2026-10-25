@@ -54,3 +54,9 @@ test("the Get started card has no Hide link (the prototype has none): it goes wh
   const out = html("personal");
   assert.ok(!has(out, ">Hide<") && !has(out, 'data-testid="first-hide"'));
 });
+
+test("the Ask pill (the shared AskButton) sits beside the locked composer, with Quick start above it", () => {
+  const out = html("personal");
+  assert.ok(has(out, 'data-testid="ask-agent"') && has(out, 'data-testid="ask-locked"'));
+  assert.ok(out.indexOf('data-testid="quick-project"') < out.indexOf('data-testid="ask-agent"') && out.indexOf('data-testid="ask-agent"') < out.indexOf('data-testid="ask-locked"'));
+});
