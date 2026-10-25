@@ -349,12 +349,12 @@
     {
       "id": "vault",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "vault-requests",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "zoom",
