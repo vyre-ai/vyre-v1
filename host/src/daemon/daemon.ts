@@ -447,6 +447,19 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       await projectionRunner.start();   // after the seams: the events module needs its dispatcher and host ports before the first event reaches webhooks_out
 
+      // The schema module seeds the record types the manifests declare once, as a write of its own, so no read has to (P-L3_17). Each declared type is also a resource in the access
+      // projection (type "record_type"), held by the Space owner, because capabilities on a type (schema.layout.set, views, grants) are authorized against it and a seeded type emits no event
+      // that would register it. The set comes from the manifests, so it is folded into the snapshot at every start and not written to the log: a new Space still starts with an empty log.
+      const startSchema = loaded.moduleExports.get("schema")?.["startSchema"] as (() => Promise<void>) | undefined;
+      if (startSchema) {
+        // started, not awaited: boot does not wait for the seed (most starts never touch schema), and every schema call waits for it, so none sees a half-seeded Space
+        const seeding = startSchema().catch((e: unknown) => { sink.log({ space: spaceId, level: 50, msg: "schema.seed_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }); });
+        closers.push(() => seeding);
+        for (const rt of registry.recordTypes) {
+          access.fold({ type: "resource.created", payload: { id: rt.key, type: "record_type", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 } });
+        }
+      }
+
       const owner = (): string => cfg.owner ?? access.owner() ?? "usr_owner";
       // Identity comes from the bearer token alone (host/src/daemon/session.ts): a device session row gives the person and the device; the x-vyre-device header and ?device= are ignored.
       // The single admin token is the owner bootstrap path only (ensureAdminToken): it acts as the owner on the fixed device `local-admin`.
