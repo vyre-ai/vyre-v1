@@ -11,7 +11,10 @@ import path from "node:path";
 import { createLocalLauncher } from "../../../agent/src/drivers/cli/launcher.ts";
 import { startNetWall } from "../../../sandbox/src/index.ts";
 import type { NetWall } from "../../../sandbox/src/index.ts";
-import { sandboxWrap, workFolder } from "../sandbox.ts";
+import http from "node:http";
+import type { AddressInfo } from "node:net";
+import { openMcpBridge } from "../mcp-bridge.ts";
+import { scratchFolder, sandboxWrap, workFolder } from "../sandbox.ts";
 
 const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
 const skip: string | false = ON ? false : "needs VYRE_HEAVY_DOCKER=1";
@@ -22,14 +25,15 @@ const HOME_SECRET = path.join(os.homedir(), `.vyre-engine-hv-${process.pid}`);
 let wall: NetWall | undefined;
 after(async () => { await wall?.close(); fs.rmSync(HOME_SECRET, { force: true }); fs.rmSync(data, { recursive: true, force: true }); });
 
-async function run(script: string, env: Record<string, string>, thread = "thr_1"): Promise<{ out: string; code: number | null }> {
+async function run(script: string, env: Record<string, string>, thread = "thr_1", argv?: string[], stdin?: string): Promise<{ out: string; code: number | null }> {
   assert.equal(spawnSync("bwrap", ["--version"]).status, 0, "bwrap is not installed");
   wall ??= await startNetWall({ allow: ["api.anthropic.com"] });
   const cwd = workFolder(data, "usr_dana", thread);
   for (const d of [path.join(data, "work"), path.join(data, "work", "usr_dana"), cwd, path.join(data, "scratch")]) fs.chmodSync(d, 0o777);
   const plan = { sandbox: { kind: "bwrap" as const, wallDir: wall.dir }, dataDir: data, egressHosts: ["api.anthropic.com"] };
   const launcher = createLocalLauncher({ wrap: sandboxWrap(plan), baseEnv: { PATH: process.env["PATH"] ?? "/usr/bin:/bin" } });
-  const p = await launcher.spawn({ argv: ["/bin/sh", "-c", script], cwd, env });
+  const p = await launcher.spawn({ argv: argv ?? ["/bin/sh", "-c", script], cwd, env });
+  if (stdin !== undefined) { await p.write(stdin); p.endInput(); }
   let out = "";
   for await (const c of p.stdout) out += typeof c === "string" ? c : Buffer.from(c).toString("utf8");
   const { code } = await p.exited;
@@ -61,4 +65,34 @@ test("the sandboxed launcher: reads the work folder, cannot read the home or a n
   assert.match(out, /key=sk-ant-key token=mcp-token daemon=\n/);
   assert.doesNotMatch(out, /daemon-secret/);
   assert.match(out, new RegExp(`pwd=${workFolder(data, "usr_dana", "thr_1")}`));
+});
+
+test("MCP behind the wall (ruling 61): the CLI calls one tool over the socket shim, the token is checked, and a private address is still unreachable", { skip }, async () => {
+  const seen: string[] = [];
+  const mcp = http.createServer((q, r) => {
+    let b = ""; q.on("data", (d) => (b += d));
+    q.on("end", () => {
+      seen.push(`${q.headers["authorization"]} ${b}`);
+      r.writeHead(200, { "content-type": "application/json" });
+      r.end(JSON.stringify({ jsonrpc: "2.0", id: 7, result: { content: [{ type: "text", text: "pong-from-vyre" }] } }));
+    });
+  });
+  await new Promise<void>((ok) => mcp.listen(0, "127.0.0.1", ok));
+  const port = (mcp.address() as AddressInfo).port;
+  const bridge = await openMcpBridge({ url: `http://127.0.0.1:${port}/mcp`, token: "session-token" }, { scratch: scratchFolder(data, "usr_dana") });
+  try {
+    const call = JSON.stringify({ jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "ping", arguments: {} } }) + "\n";
+    const shim = await run("", { VYRE_MCP_TOKEN: "session-token" }, "thr_1", [bridge.stdio.command, ...bridge.stdio.args], call);
+    assert.match(shim.out, /pong-from-vyre/);
+    assert.equal(seen.length, 1);
+    assert.match(seen[0]!, /^Bearer session-token /);
+    const wrong = await run("", { VYRE_MCP_TOKEN: "wrong" }, "thr_1", [bridge.stdio.command, ...bridge.stdio.args], call);
+    assert.doesNotMatch(wrong.out, /pong-from-vyre/);
+    assert.equal(seen.length, 1, "a wrong token reaches nothing");
+    const direct = await run(`node -e 'require("net").connect(${port},"127.0.0.1").on("connect",()=>{console.log("REACHED");process.exit(0)}).on("error",(e)=>{console.log("blocked "+e.code);process.exit(0)})' 2>&1 || true`, {}, "thr_1");
+    assert.doesNotMatch(direct.out, /REACHED/, "the daemon's loopback is not reachable from inside");
+  } finally {
+    await bridge.close();
+    mcp.close();
+  }
 });
