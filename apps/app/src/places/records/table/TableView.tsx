@@ -168,7 +168,9 @@ const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): 
 
 // The scrolling cells are plain elements, not React Native views and texts: a scroll mounts a few rows a frame, and 13 cells of a row as View and Text each cost several times a plain div. The
 // 100,000-row scroll probe was 66.7 ms at p95 with every column and 16.8 ms with the name column alone, so the cost is the cells. Same looks as the cell styles below.
-const CELL_BOX = { boxSizing: "border-box", display: "flex", alignItems: "center", flex: "none", height: "100%", padding: "0 10px", overflow: "hidden", contain: "layout style paint" } as const;
+// No overflow or contain on a cell: each one is a clip in the paint property tree, and 13 of them a row put Layerize at 5.9 ms a frame in the perf trace (run 40219986248, 3.6 s over 606 frames).
+// The text inside clips itself with its own ellipsis and the row clips what is left.
+const CELL_BOX = { boxSizing: "border-box", display: "flex", alignItems: "center", flex: "none", height: "100%", padding: "0 10px", minWidth: 0 } as const;
 const CELL_TEXT = { fontSize: 13, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 } as const;
 const CELL_NUM = { ...CELL_TEXT, fontVariantNumeric: "tabular-nums", textAlign: "right" } as const;
 const CELL_SEALED = { ...CELL_TEXT, color: "var(--ink-3)", letterSpacing: 1 } as const;
