@@ -13,6 +13,7 @@ import type { ShellHub } from "../spaces/hub.ts";
 import { Shell } from "../spaces/Shell.tsx";
 import type { PlaceContext } from "../spaces/Shell.tsx";
 import { CapError, createCapCaller } from "./caps.ts";
+import { formatHash } from "../hash/hash.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
 import { openRealSession } from "./session.ts";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
@@ -106,7 +107,7 @@ function ShellHost({ stored, open, onSignedOut, onHub }: { stored: StoredSession
 
   const renderPlace = (ctx: PlaceContext): ReactElement => failed !== null && session === null
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
-    : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} />;
+    : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} hash={ctx.hash} opened={(t) => { const next = formatHash(t); if (next !== ctx.hash) hub.go(ctx.place, next); }} />;
   return <Shell hub={hub} renderPlace={renderPlace} />;
 }
 

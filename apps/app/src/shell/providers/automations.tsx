@@ -1,6 +1,7 @@
 // The Automations place in the shell (spec 3.7): the sidebar on the left, the open Automation's canvas on the right. The open Automation is this place's own state; a row opens it,
 // and any other click (a run, the Failed runs row, Connections) goes out through the shell's door. Before the Space's runtime exists the place draws its loading frame.
 import { useMemo, useState } from "react";
+import { useOpenedId } from "../hash/context.tsx";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { AutomationsDataProvider } from "../../places/automations/canvas/data.tsx";
@@ -20,7 +21,9 @@ function Loading(): ReactElement {
 }
 
 function Body({ rt }: { rt: ShellRuntime }): ReactElement {
-  const [openId, setOpenId] = useState<string | null>(null);
+  const hashed = useOpenedId(["automation"], ["automationId"]);
+  const [picked, setOpenId] = useState<string | null>(null);
+  const openId = picked ?? hashed;
   const data = useMemo(() => automationsData(rt, {
     openAutomation: (id) => setOpenId(id),
     openJourney: (id) => rt.open({ screen: "automations.sidebar", args: { journeyId: id } }),

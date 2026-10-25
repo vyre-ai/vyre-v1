@@ -11,6 +11,7 @@ import { LOCAL_PREFIX } from "../../places/chats/sidebar/model.ts";
 import { Conversation, ConversationLoading } from "../../places/chats/conversation/Conversation.tsx";
 import { ChatRightPane } from "../../places/chats/rightpane/ChatRightPane.tsx";
 import type { Principal } from "../../places/home/sections-a/data.tsx";
+import { useOpenedId } from "../hash/context.tsx";
 import { conversationData, paneData, sidebarData } from "./chats-data.ts";
 import type { ChatsActions } from "./chats-data.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
@@ -50,11 +51,12 @@ export function ChatsLoading(): ReactElement {
 
 function ChatsView({ rt }: { rt: ShellRuntime }): ReactElement {
   const [picked, setPicked] = useState<string | null>(null);
+  const hashed = useOpenedId(["chat", "thread", "channel"], ["threadId"]);
   const [pane, setPane] = useState(false);
   const recent = useLive(useMemo(() => rt.screens.query("chats.sidebar", "recent", { filter: "all" }) as LiveQuery<RecentOut>, [rt]));
   const principals = useLive<Principal[]>(rt.principals);
   const list = principals.status === "ready" ? principals.data : NO_PEOPLE;
-  const threadId = picked ?? newestThread(recent.status === "ready" ? recent.data : undefined);
+  const threadId = picked ?? hashed ?? newestThread(recent.status === "ready" ? recent.data : undefined);
 
   const actions = useMemo<ChatsActions>(() => ({
     openThread: (id) => { if (!id.startsWith(LOCAL_PREFIX)) setPicked(id); },

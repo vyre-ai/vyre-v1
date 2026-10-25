@@ -5,6 +5,7 @@ import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
 import type { ScreenIndexEntry } from "../../../../../generated/screens.ts";
 import type { CapMap } from "../../../../../generated/types.ts";
 import type { Principal } from "../../places/home/sections-a/data.tsx";
+import { formatHash, placeForSubject } from "../hash/hash.ts";
 import type { ShellRuntime, ShellTarget } from "../providers/runtime.tsx";
 import type { PlaceId } from "../rail/kits.ts";
 import type { SpaceDef } from "../spaces/model.ts";
@@ -56,14 +57,8 @@ type Out<C extends keyof CapMap> = CapMap[C]["out"];
 const RAIL_PLACES: readonly PlaceId[] = ["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings", "console"];
 const railPlace = (p: string): PlaceId | null => (RAIL_PLACES as readonly string[]).includes(p) ? (p as PlaceId) : null;
 
-/** The hash a place opens its item from: `screen=<id>&k=v&subject=<type>:<id>`. */
-export function targetHash(t: ShellTarget): string {
-  const p = new URLSearchParams();
-  if (t.screen) p.set("screen", t.screen);
-  if (t.subject) p.set("subject", `${t.subject.type}:${t.subject.id}`);
-  for (const [k, v] of Object.entries(t.args ?? {})) if (v !== undefined && v !== null) p.set(k, typeof v === "string" ? v : JSON.stringify(v));
-  return p.toString();
-}
+/** The hash a place opens its item from (see ../hash/hash.ts). */
+export const targetHash = (t: ShellTarget): string => formatHash(t);
 
 /** A live query computed from other live queries; its snapshot is the same object until one of its sources changes. */
 export function derived<T>(sources: readonly LiveQuery<unknown>[], make: (snaps: readonly QueryState<unknown>[]) => QueryState<T>): LiveQuery<T> {
@@ -178,7 +173,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   };
 
   const open = (t: ShellTarget): void => {
-    const where = t.screen ? (screens.get(t.screen)?.place ?? "") : "";
+    const where = t.screen ? (screens.get(t.screen)?.place ?? "") : (t.subject ? (placeForSubject(t.subject.type) ?? "") : "");
     if (where === "shell") { if (t.screen) o.shell?.(t.screen, t.args ?? {}); return; }
     const place = railPlace(where);
     if (place && o.navigate) o.navigate(place, targetHash(t));

@@ -2,6 +2,8 @@
 // Before the runtime exists (the session is still opening) the place draws its own loading frame, the size of the page. `app.usable` is marked once the place module has drawn.
 import { Suspense, lazy, useEffect } from "react";
 import type { ComponentType, LazyExoticComponent, ReactElement } from "react";
+import { PlaceHashProvider } from "../hash/context.tsx";
+import type { PlaceHash } from "../hash/context.tsx";
 import { mark } from "../../startup/marks.ts";
 import { webUiStateStore } from "../../startup/persisted.ts";
 import { loaderFor } from "../../startup/places.ts";
@@ -10,6 +12,7 @@ import { ShellRuntimeProvider } from "../providers/runtime.tsx";
 import type { ShellRuntime } from "../providers/runtime.tsx";
 import type { PlaceId } from "../rail/kits.ts";
 
+const noop = (): void => undefined;
 type PlaceComponent = LazyExoticComponent<ComponentType<{ place: string }>>;
 const lazies = new Map<string, PlaceComponent>();
 
@@ -42,15 +45,17 @@ function Usable({ place }: { place: string }): null {
   return null;
 }
 
-export function PlaceHost({ place, runtime }: { place: PlaceId; runtime: ShellRuntime | null }): ReactElement | null {
+export function PlaceHost({ place, runtime, hash = "", opened }: { place: PlaceId; runtime: ShellRuntime | null; hash?: string; opened?: PlaceHash["opened"] }): ReactElement | null {
   const routeId = routeIdOf(place);
   if (!routeId) return null;
   const Place = lazyFor(routeId);
   const body = (
-    <Suspense fallback={null}>
-      <Place place={routeId} />
-      <Usable place={routeId} />
-    </Suspense>
+    <PlaceHashProvider hash={hash} opened={opened ?? noop}>
+      <Suspense fallback={null}>
+        <Place place={routeId} />
+        <Usable place={routeId} />
+      </Suspense>
+    </PlaceHashProvider>
   );
   return runtime ? <ShellRuntimeProvider value={runtime}>{body}</ShellRuntimeProvider> : body;
 }

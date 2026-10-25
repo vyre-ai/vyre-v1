@@ -282,7 +282,9 @@ test("session: opening a target maps the screen to its rail place and passes the
   const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => ROUTES, screens: async () => SCREENS, socket: (u) => new FakeSocket(u), navigate: (p, h) => opened.push([p, h]), pollMs: 1_000_000 });
   s.runtime.open({ screen: "files.list", args: { upload: true } });
   s.runtime.open({ screen: "nowhere.screen" });
-  assert.deepEqual(opened, [["files", "screen=files.list&upload=true"]]);
+  s.runtime.open({ subject: { type: "record", id: "rec_1" } });
+  s.runtime.open({ subject: { type: "spaceship", id: "x" } });
+  assert.deepEqual(opened, [["files", "screen=files.list&upload=true"], ["records", "subject=record%3Arec_1"]]);
   const shellOpened: string[] = [];
   const s2 = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => ROUTES, screens: async () => new Map([["shell.cmdk", { ...SCREENS.get("files.list")!, id: "shell.cmdk", place: "shell" }]]), socket: (u) => new FakeSocket(u), shell: (sc) => shellOpened.push(sc), pollMs: 1_000_000 });
   s2.runtime.open({ screen: "shell.cmdk" });
