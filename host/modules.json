@@ -324,7 +324,7 @@
     {
       "id": "telephony",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "templates",
