@@ -197,6 +197,8 @@ export default defineManifest({
       { meetingId: id.record, source: t.str() }),
     trigger('journey_stage_entered', 'A Journey record enters a stage', { event: 'journey.stage_entered' },
       { journeyId: id.journey, recordId: id.record, stage: t.str(), previousStage: t.opt(t.str()), manual: t.bool() }),
+    trigger('journey_stage_left', 'A Journey record leaves a stage', { event: 'journey.stage_exited' },
+      { journeyId: id.journey, recordId: id.record, stage: t.str(), toStage: t.opt(t.str()) }),
     trigger('campaign_reply', 'A campaign gets a reply', { event: 'campaign.replied' },
       { campaignId: id.campaign, recordId: id.record, messageId: id.message }),
     trigger('button', 'A button is pressed', { button: true },

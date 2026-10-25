@@ -8,7 +8,7 @@
 import { registry } from "../../../generated/registry.ts";
 import {
   HOUR, allJourneys, breachOf, byOrder, clean, countInFlight, emitJ, findBySubject, findByKey, findJourney, getJourney, getRecord, inFlight, listVersions, markDeleted, me, newId, out, page,
-  raise, saveBreach, saveJourney, saveRecord, saveTaskLink, saveVersion, stagesOf, taskLinks,
+  allTaskLinks, findRecord, raise, saveBreach, saveJourney, saveRecord, saveTaskLink, saveVersion, stagesOf, taskLinks,
 } from "../projections.ts";
 import type { Journey, JourneysCtx, JRecord, Stage, StartRule } from "../projections.ts";
 
@@ -250,6 +250,19 @@ async function closeStageTasks(ctx: JourneysCtx, rec: JRecord): Promise<void> {
   }
 }
 
+/** Run the Automations the stage lists for leaving it. Like entering, a failure to start one does not stop the move. */
+async function onLeave(ctx: JourneysCtx, j: Journey, rec: JRecord, stage: Stage | undefined, to: Stage, manual: boolean, eventId: string): Promise<void> {
+  if (!ctx.call || !stage?.onLeaving?.length) return;
+  for (const aid of stage.onLeaving) {
+    try {
+      await ctx.call("automations.fire", clean({
+        automationId: aid, trigger: "journey_stage_left", eventId, depth: 0, origin: `journey:${j.id}`,
+        payload: clean({ journeyId: j.id, recordId: rec.recordId, stage: stage.key, toStage: to.key }), idempotencyKey: `jrn-leave:${rec.recordId}:${stage.key}:${aid}:${rec.enteredAt}`,
+      }));
+    } catch { /* an Automation that cannot start does not stop the Journey */ }
+  }
+}
+
 /** Move a record from its stage to another: leave, write the record, enter, run the stage's tasks and Automations. */
 export async function moveTo(ctx: JourneysCtx, j: Journey, rec: JRecord, to: Stage, o: { manual: boolean; reason?: string; stages: readonly Stage[] }): Promise<Moved> {
   const from = rec.stage;
@@ -260,7 +273,8 @@ export async function moveTo(ctx: JourneysCtx, j: Journey, rec: JRecord, to: Sta
   if (ctx.call) await ctx.call("records.update", { type: j.recordType, recordId: rec.recordId, patch: { stage: to.key, entered_at: now } });
   await closeStageTasks(ctx, rec);
   saveRecord(ctx.db, next);
-  emitJ(ctx, "journey.stage_exited", `record/${rec.recordId}`, { journeyId: j.id, recordId: rec.recordId, stage: from, toStage: to.key });
+  const leftId = emitJ(ctx, "journey.stage_exited", `record/${rec.recordId}`, { journeyId: j.id, recordId: rec.recordId, stage: from, toStage: to.key });
+  await onLeave(ctx, j, rec, o.stages.find((s) => s.key === from), to, o.manual, leftId);
   const evId = emitJ(ctx, "journey.stage_entered", `record/${rec.recordId}`, { journeyId: j.id, recordId: rec.recordId, stage: to.key, previousStage: from, version: next.version, manual: o.manual, reason: o.reason });
   await onEnter(ctx, j, next, to, from, o.manual, evId);
   return { record: next, completed: !!to.final };
@@ -409,4 +423,32 @@ export async function checkLimits(ctx: JourneysCtx): Promise<unknown> {
     }
   }
   return { breached };
+}
+
+// ---- the tasks of one record, with their state
+
+/** The state the designer shows for a task: todo (todo, doing), in review (in review, awaiting approval), blocked, done. A withdrawn (canceled) task is not listed. */
+function journeyTaskState(t: { state?: string; blocked?: boolean }): "todo" | "in_review" | "blocked" | "done" | undefined {
+  if (t.state === "canceled") return undefined;
+  if (t.state === "done") return "done";
+  if (t.blocked === true) return "blocked";
+  return t.state === "in_review" || t.state === "awaiting_approval" ? "in_review" : "todo";
+}
+
+export async function tasksOf(ctx: JourneysCtx, input: In): Promise<unknown> {
+  const recordId = String(input.recordId);
+  const rec = findRecord(ctx.db, recordId);
+  if (!rec) raise(ctx, "validation.not_found", "That record is not in a Journey.", { reason: "not_in_journey" });
+  const stage = input.stage === undefined ? undefined : String(input.stage);
+  const out: Record<string, unknown>[] = [];
+  for (const l of allTaskLinks(ctx.db, recordId, stage)) {
+    if (!ctx.call) break;
+    try {
+      const t = ((await ctx.call("tasks.get", { taskId: l.taskId })) as { task?: { title?: string; state?: string; blocked?: boolean; assigned?: unknown } }).task;
+      const state = t ? journeyTaskState(t) : undefined;
+      if (!t || !state) continue;
+      out.push(clean({ stage: l.stage, taskKey: l.taskKey, taskId: l.taskId, title: t.title ?? l.taskKey, state, required: l.required, assigned: t.assigned }));
+    } catch { /* a task that cannot be read is not listed */ }
+  }
+  return { tasks: out };
 }
