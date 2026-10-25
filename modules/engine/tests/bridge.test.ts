@@ -47,7 +47,7 @@ function setup(opts: { agents?: Array<{ agentId: string; mode: "lead" | "listen"
   async function say(body: string, mentions: Array<{ kind: "agent" | "person"; id: string }> = [], id = `msg_p${chat.length + 1}`) {
     chat.push({ messageId: id, threadId: T, threadSeq: chat.length + 1, author: { kind: "person", id: "usr_dana" }, body, blocks: [], mentions, depth: 0 });
     const result = await bridge.onEvent(ctx, { name: "message.received", payload: { messageId: id, threadId: T, author: { kind: "person", id: "usr_dana" }, mentions, depth: 0 } });
-    await engine.idle(T);
+    if (result.receivedAs) await engine.idle(T);   // a skipped message opened no thread
     await bridge.flush();
     return { id, result };
   }
