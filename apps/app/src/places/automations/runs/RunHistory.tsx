@@ -31,6 +31,8 @@ export interface RunHistoryProps {
 
 type Item = { k: "lab"; id: string; text: string } | { k: "att"; run: Run } | { k: "run"; run: Run };
 const ITEM_HEIGHT = 44;
+/** A Needs attention row: the title and note, then its actions on a line of their own. Fixed, so nothing shifts. */
+const ATT_HEIGHT = 84;
 const keyOfItem = (it: Item): string => (it.k === "lab" ? it.id : it.run.id);
 
 export function RunHistory({ subject, scope = subject ? "subject" : "mine", currentVersion, selectedRunId = null, initialFilter = "all" }: RunHistoryProps): ReactElement {
@@ -62,10 +64,10 @@ export function RunHistory({ subject, scope = subject ? "subject" : "mine", curr
     if (e.key === "ArrowDown" || e.key === "ArrowUp") { if (moveRowFocus(e.currentTarget, e.target, e.key === "ArrowDown" ? 1 : -1)) e.preventDefault?.(); }
   };
 
-  const render = (it: Item): ReactElement => {
-    if (it.k === "lab") return <View style={h.lab}><Text accessibilityRole="header" style={h.labText}>{it.text}</Text></View>;
-    if (it.k === "att") {
-      const r = it.run;
+  const attention = items.filter((it): it is Extract<Item, { k: "att" }> => it.k === "att");
+  const listed = items.filter((it) => it.k !== "att" && !(it.k === "lab" && it.id === "lab-attention"));
+  const attRows: ReactElement[] = [];
+  const renderAtt = (r: Run): ReactElement => {
       return (
         <View {...webOnly({ dataSet: { row: `att:${r.id}` } })} style={h.attWrap}>
           <Row
@@ -76,7 +78,11 @@ export function RunHistory({ subject, scope = subject ? "subject" : "mine", curr
           <View style={h.acts}><QuietButton label="Retry step" icon="retry" tone="accent" testID={`retry-step-${r.id}`} onPress={() => void actions.retryStep(r)} /><QuietButton label="Copy trace id" testID={`copy-trace-${r.id}`} title={r.traceId} onPress={() => actions.copy(r.traceId, "the trace id")} /><QuietButton label="Skip step" testID={`skip-step-${r.id}`} onPress={() => void actions.skipStep(r)} /><QuietButton label="Stop" tone="danger" testID={`stop-${r.id}`} onPress={() => void actions.stop(r)} /></View>
         </View>
       );
-    }
+  };
+  for (const it of attention) attRows.push(<View key={it.run.id} style={{ height: ATT_HEIGHT }}>{renderAtt(it.run)}</View>);
+  const render = (it: Item): ReactElement => {
+    if (it.k === "lab") return <View style={h.lab}><Text accessibilityRole="header" style={h.labText}>{it.text}</Text></View>;
+    if (it.k === "att") return renderAtt(it.run);
     return (
       <RunRow
         run={it.run} now={now} rowKey={it.run.id} selected={selectedRunId === it.run.id} open={needsAttention(it.run, handled)} {...(currentVersion !== undefined ? { currentVersion } : {})}
@@ -105,7 +111,10 @@ export function RunHistory({ subject, scope = subject ? "subject" : "mine", curr
         ) : items.length === 0 ? (
           <View style={h.blank} testID="run-history-empty"><Text style={h.blankText}>{filter === "all" ? "No runs yet. Run a test to see one." : "Nothing matches."}</Text></View>
         ) : (
-          <VirtualList data={items} rowHeight="measure" keyOf={keyOfItem} renderItem={render} />
+          <>
+            {attention.length ? <View testID="run-attention"><View style={h.lab}><Text accessibilityRole="header" style={h.labText}>Needs attention</Text></View>{attRows}</View> : null}
+            <VirtualList data={listed} rowHeight={ITEM_HEIGHT} keyOf={keyOfItem} renderItem={render} />
+          </>
         )}
       </View>
       {actions.note ? <Text style={h.note} accessibilityLiveRegion="polite" testID="run-note">{actions.note}</Text> : null}
