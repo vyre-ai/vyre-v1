@@ -1,0 +1,46 @@
+{
+  "targets": [
+    {
+      "id": "P-L9d_03-timeline",
+      "route": "/m/P-L9d_03?kind=timeline&type=tasks",
+      "proto": "records,timeline,{skin}",
+      "waitFor": "[data-testid='bar-tasks_1']",
+      "note": "The Tasks timeline of project Rivera engagement: bars in bands by status, a line for today, weekends tinted. The prototype side is its Projects timeline (the shared plan) in the same skin; it draws stages as bands and shows dependency arrows, which come with the Projects Plan packet."
+    },
+    {
+      "id": "P-L9d_03-calendar",
+      "route": "/m/P-L9d_03?kind=calendar&type=projects",
+      "proto": "records,calendar,{skin}",
+      "waitFor": "[data-testid='cal-grid']",
+      "note": "October 2025 with the projects on their due dates, chips tinted by status, today lit. The prototype side is its Meetings calendar in the same skin."
+    },
+    {
+      "id": "P-L9d_03-charts",
+      "route": "/m/P-L9d_03?kind=charts&type=projects",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='chart-bars']",
+      "note": "Projects counted by status, one bar per option, the total under the chart. The prototype has no charts view, so its side is the Records place at the same type; the chart is compared with the view spec (2.9)."
+    },
+    {
+      "id": "P-L9d_03-charts-sum",
+      "route": "/m/P-L9d_03?kind=charts&type=locations",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='chart-bars']",
+      "note": "Locations counted by kind. The prototype has no charts view (see the first chart target)."
+    },
+    {
+      "id": "P-L9d_03-map",
+      "route": "/m/P-L9d_03?kind=map&type=locations",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='map-canvas']",
+      "note": "Eight places on a plain grid fitted to the pins, with the list beside them. The prototype has no map view, so its side is the Records place; the map is compared with the view spec (2.9)."
+    },
+    {
+      "id": "P-L9d_03-timeline-harbor",
+      "route": "/m/P-L9d_03?kind=timeline&type=projects&space=harbor",
+      "proto": "records,harbor,timeline,{skin}",
+      "waitFor": "[data-testid='records-timeline']",
+      "note": "The Harbor Studio projects on a timeline."
+    }
+  ]
+}

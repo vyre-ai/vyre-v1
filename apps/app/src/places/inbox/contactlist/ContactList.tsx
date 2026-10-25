@@ -35,29 +35,29 @@ export function viewMenuEntries(state: InboxState, pick: (v: ViewKind) => void):
   return [{ head: "View" }, ...views.map((v) => ({ label: VIEW_LABEL[v], checked: state.view === v, onSelect: () => pick(v) }))];
 }
 
-/** The filter menu: Channel, Inbox and Matching, each with how many lines it holds and a checkmark when it narrows the list. */
+/** The filter menu: Channel, Inbox and Matching, each with how many lines it holds (in the Menu's count column, never in the label) and a checkmark when it narrows the list. */
 export function filterMenuEntries(
   state: InboxState,
   all: readonly ContactRow[],
   mailboxes: readonly Mailbox[],
   on: { channel(c: Channel): void; inbox(id: string): void; needsMatch(): void },
 ): MenuEntry[] {
-  const count = (label: string, n: number): string => `${label} (${n})`;
   const byChannel = (c: Channel): number => all.reduce((n, r) => n + ((r.lastChannel === c || (c === "call" && r.lastChannel === "meeting")) ? 1 : 0), 0);
   const entries: MenuEntry[] = [{ head: "Channel" }];
-  for (const c of CHANNELS) entries.push({ label: count(CHANNEL_LABEL[c], byChannel(c)), checked: state.channels.includes(c), onSelect: () => on.channel(c) });
+  for (const c of CHANNELS) entries.push({ label: CHANNEL_LABEL[c], count: byChannel(c), checked: state.channels.includes(c), onSelect: () => on.channel(c) });
   entries.push({ separator: true }, { head: "Inbox" });
-  for (const m of mailboxes) entries.push({ label: count(m.title, all.reduce((n, r) => n + (r.mailboxIds.includes(m.id) ? 1 : 0), 0)), checked: state.inboxes.includes(m.id), onSelect: () => on.inbox(m.id) });
+  for (const m of mailboxes) entries.push({ label: m.title, count: all.reduce((n, r) => n + (r.mailboxIds.includes(m.id) ? 1 : 0), 0), checked: state.inboxes.includes(m.id), onSelect: () => on.inbox(m.id) });
   entries.push({ separator: true }, { head: "Matching" });
-  entries.push({ label: count("Needs a match", all.reduce((n, r) => n + (r.needsMatch ? 1 : 0), 0)), checked: state.needsMatch, onSelect: on.needsMatch });
+  entries.push({ label: "Needs a match", count: all.reduce((n, r) => n + (r.needsMatch ? 1 : 0), 0), checked: state.needsMatch, onSelect: on.needsMatch });
   return entries;
 }
 
 /** The line's menu: open, read or unread, follow, and the match link when the sender is not matched. */
-export function lineMenuEntries(e: Entry, h: { open(): void; read(read: boolean): void; follow(follow: boolean): void; match(): void }): MenuEntry[] {
+export function lineMenuEntries(e: Entry, h: { open(): void; read(read: boolean): void; follow(follow: boolean): void; star(on: boolean): void; match(): void }): MenuEntry[] {
   const out: MenuEntry[] = [{ label: "Open", onSelect: h.open }];
   if (e.kind === "contact") out.push({ label: e.unread > 0 ? "Mark as Read" : "Mark as Unread", onSelect: () => h.read(e.unread > 0) });
   if (e.kind === "contact" && e.contactId) out.push({ label: e.followed ? "Unfollow" : "Follow", onSelect: () => h.follow(!e.followed) });
+  if (e.kind === "contact" && e.contactId) out.push({ label: e.starred ? "Unstar" : "Star", onSelect: () => h.star(!e.starred) });
   if (e.needsMatch && e.kind !== "call") out.push({ separator: true }, { label: "Match to a record…", onSelect: h.match });
   return out;
 }
@@ -72,6 +72,7 @@ function Meta({ e, now, offsetMin, narrow: slim }: { e: Entry; now: number; offs
         </Pressable>
       ) : null}
       <View style={styles.timeLine}>
+        {e.starred ? <View testID={`star-${e.key}`} accessibilityLabel="Starred"><Glyph name="star" size={12} fill /></View> : null}
         {e.unread > 0 ? <View testID={`unread-${e.key}`} accessibilityLabel="Unread" style={styles.udot} /> : null}
         <Text style={[styles.time, e.unread > 0 && styles.timeUnread]}>{listTime(e.at, now, offsetMin)}</Text>
       </View>
@@ -146,6 +147,8 @@ function List(): ReactElement {
       open: () => openEntry(e),
       read: (read) => call("inbox.mark_read", { conversationId: e.openId, read }),
       follow: (follow) => { if (e.contactId) call("inbox.follow_set", { contactId: e.contactId, follow }); },
+      // the contract has no conversation resource type: a person is starred through their record, as Follow goes through the contact
+      star: (on) => { if (e.contactId) call("stars.toggle", { resource: { type: "record", id: e.contactId }, on }); },
       match: () => data.nav.openMatch(e.openId),
     }), x, y);
   };

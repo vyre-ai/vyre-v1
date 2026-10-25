@@ -10,6 +10,7 @@ import { createElement, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ViewStyle } from "react-native";
+import { Avatar } from "../Avatar/index.tsx";
 import { useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 import { SOFTPHONE_MODES, softphoneLabel } from "./props.ts";
@@ -451,17 +452,11 @@ function Glyph({ name, size = 16, color }: { name: keyof typeof IC; size?: numbe
 
 type Hover = { hovered?: boolean };
 
-const hue = (s: string): number => {
-  let h = 0;
-  for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360;
-  return h;
-};
-
 function Tile({ name, size = 26, unknown = false }: { name: string; size?: number; unknown?: boolean }): ReactElement {
-  const bg = unknown ? "var(--sel-strong)" : `hsl(${hue(name)} 30% 50%)`;
+  if (!unknown) return <Avatar name={name} kind="person" size={size} />;
   return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg as string, alignItems: "center", justifyContent: "center" }}>
-      {unknown ? <Glyph name="user" size={Math.round(size * 0.5)} color="var(--ink-3)" /> : <Text style={{ color: "#fff", fontSize: size * 0.42, fontWeight: "600" }}>{name.trim().charAt(0).toUpperCase() || "?"}</Text>}
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: "var(--sel-strong)" as string, alignItems: "center", justifyContent: "center" }}>
+      <Glyph name="user" size={Math.round(size * 0.5)} color="var(--ink-3)" />
     </View>
   );
 }

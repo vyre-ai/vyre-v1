@@ -375,7 +375,7 @@ test("daemon.boot: the seams are wired from the Vault port at boot and taken out
   };
   const d = await bootWiring(dir, seams);
   try {
-    assert.deepEqual(d.seams?.state, { google: "wired", microsoft: "absent", imap: "wired", sources: "absent" });
+    assert.deepEqual(d.seams?.state, { google: "wired", microsoft: "absent", imap: "wired", sources: "absent", resend: "absent", mailgun: "absent" });
     assert.ok(set["google"] && set["imap"]);
   } finally { await d.stop(); }
   assert.equal(set["google"], null);

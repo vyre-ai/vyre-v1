@@ -3,6 +3,8 @@
 // name at call time, the request is built from the action template, egress is checked against the connector's declared domains before ctx.http is touched, the rate limit is applied,
 // the answer becomes an output through a JSON pointer, and EVERY string that leaves (output, error, log, dry-run preview) has the secret values scrubbed out of it.
 // The replay harness runs the same path against recorded responses, so a connector that passes its tests behaves the same live.
+import { objectsOf } from "./get.ts";
+import type { ObjectActions } from "./get.ts";
 import { canonical } from "../../../lib/canonical.ts";
 import { ensureTables, mintShort, nowOf, pointerGet, refuse, scrubber, secretsIn, seedBuiltins, takeToken, checkEgress, fillString, fillValue, clone, PAGE } from "../projections.ts";
 import type { ActionDef, ConnectionDb, ConnectorDef, ConnectorState, ConnectorsCtx, ConnectorsDeps, Mode, Scope, TestCase } from "../projections.ts";
@@ -10,6 +12,7 @@ import type { ActionDef, ConnectionDb, ConnectorDef, ConnectorState, ConnectorsC
 export interface ConnectorRow {
   key: string; title: string; mode: Mode; scope: Scope; builtin: boolean; version: string; state: ConnectorState; domains: string[]; secrets: { name: string; description: string }[];
   connections: number; syncedTypes: string[]; actions: string[]; sources: string[];
+  objects?: Record<string, ObjectActions>;
 }
 export interface TestResult { passed: number; failed: number; cases: { name: string; ok: boolean; message?: string }[] }
 
@@ -291,6 +294,7 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       key: r.key, title: r.title, mode: r.mode, scope: r.scope, builtin: r.builtin === 1, version: r.version, state: r.state, domains: def.domains, secrets: def.secrets,
       connections: tx.get<{ n: number }>("SELECT count(*) AS n FROM cn_connections WHERE connector = ?", r.key)?.n ?? 0,
       syncedTypes: def.syncedTypes ?? [], actions: def.actions.map((a) => a.name), sources: def.sources ?? [],
+      ...(objectsOf(def) ? { objects: objectsOf(def)! } : {}),
     };
   };
   const draftOf = async (ctx: ConnectorsCtx, key: string, draftId?: string): Promise<{ row: DraftDb; def: ConnectorDef }> => {

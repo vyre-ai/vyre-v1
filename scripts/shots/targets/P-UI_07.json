@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "P-UI_07-table-filter-menu",
+      "route": "/m/P-L9d_01?menu=filter",
+      "proto": "records,filtermenu,{skin}",
+      "waitFor": "#vyre-overlay-root [data-testid='menu']",
+      "note": "The Records Filter menu, now drawn in the root overlay layer: the wait selector only matches a menu inside #vyre-overlay-root, and the menu sits over the sticky header, frozen column and rows. The prototype side is its Records table with the Filter menu open."
+    },
+    {
+      "id": "P-UI_07-table-sort-menu",
+      "route": "/m/P-L9d_01?menu=sort",
+      "proto": "records,sortmenu,{skin}",
+      "waitFor": "#vyre-overlay-root [data-testid='menu']",
+      "note": "The Records Sort menu in the overlay layer. The prototype side is its Records table with the Sort menu open."
+    }
+  ]
+}

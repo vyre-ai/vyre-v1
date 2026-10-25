@@ -1,0 +1,36 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_05-agentpage-chats",
+      "route": "/m/P-L9b_05?tab=chats",
+      "proto": "chat,at:demo-agent-threads,{skin}",
+      "waitFor": "[data-testid='agent-page']",
+      "note": "The agent page on Chats: Intake's photo, name and status, the role line, Chat and Automation runs, the strip of what it did this week (chats, open tasks, runs, spend against its limit, memory facts, proposed facts), the tabs, then what it is working on, its chats and what it is linked to. The prototype has no page of its own: its side is the agent pane on the Threads tab, the same agent and the same chats.",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_05-agentpage-memory",
+      "route": "/m/P-L9b_05?tab=memory",
+      "proto": "chat,at:demo-agent-memory,{skin}",
+      "waitFor": "[data-testid='agent-page']",
+      "note": "The agent page on Memory: the three proposed facts waiting on Accept or Reject, then what Intake knows. The prototype side is the agent pane on its Memory tab.",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_05-agentpage-settings",
+      "route": "/m/P-L9b_05?tab=settings",
+      "proto": "chat,at:demo-agent-settings,{skin}",
+      "waitFor": "[data-testid='agent-page']",
+      "note": "The agent page on Settings: AGENT.md with its line count against 150, agent.toml, the changes Intake suggests with Accept and Dismiss, model, limits, access and keys, the routines you set with their on/off switches and the line their posts carry, Pause and Move to Trash. The prototype side is the agent pane on its Settings tab.",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_05-agentpage-viewer",
+      "route": "/m/P-L9b_05?tab=settings&v=viewer",
+      "proto": "chat,at:demo-agent-settings,{skin}",
+      "waitFor": "[data-testid='agent-page']",
+      "note": "The same page seen by a person who may not change the agent: the role line is read-only (a lock shows on hover), no Pause or Trash, suggestions are not theirs to accept, and the routines are not theirs to see. The prototype side is the agent pane on its Settings tab.",
+      "protoSettleMs": 1500
+    }
+  ]
+}
