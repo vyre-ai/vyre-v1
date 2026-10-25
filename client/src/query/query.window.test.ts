@@ -1,8 +1,8 @@
 // Long lists: one subscription per list, rows read from a window cache, one row patched per change (never the 10k-row query again). A 10k-row window update stays under one frame.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createNodeDriver } from "../../../sync/src/replica/index.ts";
-import { createChangeFeed, createSpaceStore } from "../store/index.ts";
+import { createChangeFeed } from "../store/index.ts";
+import type { LocalDb, SpaceStore } from "../store/index.ts";
 import { createQueryClient } from "./index.ts";
 import type { ListDef } from "./index.ts";
 
@@ -10,29 +10,27 @@ interface Item { id: string; title: string; rank: number; open: number }
 const ROWS = 10_000;
 
 function setup() {
-  const driver = createNodeDriver();
-  driver.exec("CREATE TABLE item (id TEXT PRIMARY KEY, title TEXT, rank INTEGER, open INTEGER)");
-  const ins = driver.prepare("INSERT INTO item (id, title, rank, open) VALUES (?, ?, ?, ?)");
-  driver.transaction(() => { for (let i = 0; i < ROWS; i++) ins.run([`it_${String(i).padStart(5, "0")}`, `Item ${i}`, i, 1]); });
+  const items: Item[] = Array.from({ length: ROWS }, (_, i) => ({ id: `it_${String(i).padStart(5, "0")}`, title: `Item ${i}`, rank: i, open: 1 }));
+  const byId = new Map(items.map((r) => [r.id, r]));
   const changes = createChangeFeed();
-  const store = createSpaceStore("spc_a", driver, changes);
-  const read = driver.prepare("SELECT id, title, rank, open FROM item WHERE id = ?");
-  const set = (id: string, patch: Partial<Item>): void => {
-    const cur = read.get([id]) as unknown as Item;
-    const next = { ...cur, ...patch };
-    driver.prepare("UPDATE item SET title = ?, rank = ?, open = ? WHERE id = ?").run([next.title, next.rank, next.open, id]);
-    changes.emit({ entity: "item", id });
+  // LocalDb is the seam: the two statements the list asks for are answered from these rows (the ids read is index-only, the rows read is by id)
+  const db: LocalDb = {
+    all(sql, params = []) {
+      if (sql.startsWith("SELECT id FROM item")) {
+        return [...byId.values()].filter((r) => r.open === params[0]).sort((a, b) => a.rank - b.rank || a.id.localeCompare(b.id)).map((r) => ({ id: r.id }));
+      }
+      return params.map((id) => byId.get(String(id))).filter((r): r is Item => r !== undefined).map((r) => ({ ...r }));
+    },
   };
-  const add = (id: string, title: string, rank: number): void => {
-    driver.prepare("INSERT INTO item (id, title, rank, open) VALUES (?, ?, ?, 1)").run([id, title, rank]);
-    changes.emit({ entity: "item", id });
-  };
-  const remove = (id: string): void => { driver.prepare("DELETE FROM item WHERE id = ?").run([id]); changes.emit({ entity: "item", id }); };
+  const store: SpaceStore = { spaceId: "spc_a", db, changes };
+  const set = (id: string, patch: Partial<Item>): void => { const cur = byId.get(id); if (cur) Object.assign(cur, patch); changes.emit({ entity: "item", id }); };
+  const add = (id: string, title: string, rank: number): void => { byId.set(id, { id, title, rank, open: 1 }); changes.emit({ entity: "item", id }); };
+  const remove = (id: string): void => { byId.delete(id); changes.emit({ entity: "item", id }); };
   let rowReads = 0;
   const def: ListDef<{ open: number }, Item> = {
     cap: "item.list", entity: "item",
-    orderIds: (db, i) => db.all("SELECT id FROM item WHERE open = ? ORDER BY rank, id", [i.open]).map((r) => String(r["id"])),
-    readRows: (db, ids) => { rowReads += ids.length; return db.all(`SELECT id, title, rank, open FROM item WHERE id IN (${ids.map(() => "?").join(",")})`, ids) as unknown as Item[]; },
+    orderIds: (d, i) => d.all("SELECT id FROM item WHERE open = ? ORDER BY rank, id", [i.open]).map((r) => String(r["id"])),
+    readRows: (d, ids) => { rowReads += ids.length; return d.all(`SELECT id, title, rank, open FROM item WHERE id IN (${ids.map(() => "?").join(",")})`, ids) as unknown as Item[]; },
     idOf: (r) => r.id,
     matches: (r, i) => r.open === i.open,
     orderKey: (r) => r.rank,

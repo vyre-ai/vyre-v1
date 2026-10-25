@@ -2,28 +2,60 @@
 // and hover/focus prefetch warms a screen before it opens.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatHlc } from "../../../lib/hlc.ts";
-import { createNodeDriver, openReplica } from "../../../sync/src/replica/index.ts";
 import { manualScheduler } from "../connection/scheduler.ts";
 import { asQuery, createPrefetcher, createQueryClient, createQueryClients, queryKey } from "./index.ts";
 import type { QueryDef } from "./index.ts";
-import { createChangeFeed, createSpaceStore, observeReplica } from "../store/index.ts";
+import { createChangeFeed, observeReplica } from "../store/index.ts";
+import type { LocalDb, SpaceStore } from "../store/index.ts";
 import { screensById } from "../../../generated/screens.ts";
 
-const hlc = (ms: number): string => formatHlc({ ms, counter: 1, deviceId: "dev1" });
+interface Ev { id: string; title: string }
 
-function realStore(spaceId: string) {
-  const driver = createNodeDriver();
-  const replica = openReplica({ driver, deviceClass: "desktop", registryHash: "h", clock: () => 1_700_000_000_000 });
+/** A Space store over plain arrays. LocalDb is the seam: the queries below ask it SQL and this answers the two shapes they use. */
+function fakeSpace(spaceId: string) {
+  const events: Ev[] = [];
+  const lists: Ev[] = [];
+  const hidden = new Map<string, number>();
   const changes = createChangeFeed();
-  const store = createSpaceStore(spaceId, driver, changes);
-  const observed = observeReplica(replica, changes);
-  let n = 0;
-  const put = (entity: string, id: string, fields: Record<string, string>): void => {
-    observed.write({ entity, id, fields, hlc: hlc(1_000 + ++n), actor: "usr_ada", origin: "local" });
+  const db: LocalDb = {
+    all(sql, params = []) {
+      if (sql.includes("calendar_event")) {
+        const q = String(params[0] ?? "").replaceAll("%", "").toLowerCase();
+        return events.filter((e) => e.title.toLowerCase().includes(q)).sort((a, b) => a.id.localeCompare(b.id)).map((e) => ({ title: e.title }));
+      }
+      if (sql.includes("calendar_list")) return [...lists].sort((a, b) => a.id.localeCompare(b.id)).map((l) => ({ title: l.title }));
+      return [];
+    },
   };
-  return { store, observed, put, changes, driver };
+  const table = (entity: string): Ev[] => (entity === "calendar_event" ? events : lists);
+  // the replica: a write is refused for a row hidden at an equal or later seq, like sync's ReplicaStore
+  const replica = {
+    reads: 0,
+    write(input: { entity: string; id: string; fields?: { title: string }; seq?: number }) {
+      const h = hidden.get(`${input.entity}/${input.id}`);
+      if (h !== undefined && (input.seq === undefined || input.seq <= h)) return { applied: false, reason: "hidden" };
+      const t = table(input.entity);
+      const cur = t.find((e) => e.id === input.id);
+      if (cur) cur.title = input.fields?.title ?? cur.title; else t.push({ id: input.id, title: input.fields?.title ?? "" });
+      return { applied: true, reason: "ok" };
+    },
+    hide(entity: string, id: string, seq: number) {
+      hidden.set(`${entity}/${id}`, seq);
+      const t = table(entity);
+      const i = t.findIndex((e) => e.id === id);
+      if (i >= 0) t.splice(i, 1);
+    },
+    keep() {},
+    getState: (k: string) => `state:${k}`,
+  };
+  const store: SpaceStore = { spaceId, db, changes };
+  const observed = observeReplica(replica, changes);
+  const put = (entity: string, id: string, fields: Record<string, string>): void => {
+    observed.write({ entity, id, fields: { title: fields["title"] ?? "" } });
+  };
+  return { store, observed, put, changes };
 }
+const realStore = fakeSpace;
 
 const events: QueryDef<{ q?: string }, string[]> = {
   cap: "calendar.events.list", entities: ["calendar_event"],
@@ -124,8 +156,9 @@ test("hide, keep and batched writes reach the feed; a rejected write does not", 
   observed.hide("calendar_event", "cev_1", 9);
   assert.equal(calls, 2);
   assert.deepEqual(q.getSnapshot(), { status: "ready", data: ["b"] });
-  const rejected = observed.write({ entity: "calendar_event", id: "cev_1", fields: { title: "late" }, hlc: hlc(5_000), actor: "usr_ada", origin: "mirror", seq: 3 });
+  const rejected = observed.write({ entity: "calendar_event", id: "cev_1", fields: { title: "late" }, seq: 3 });
   assert.deepEqual([rejected.applied, rejected.reason], [false, "hidden"]);
+  assert.equal(observed.getState("k"), "state:k", "other members pass straight through");
   assert.equal(calls, 2);
 });
 

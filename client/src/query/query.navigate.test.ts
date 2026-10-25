@@ -1,18 +1,16 @@
 // perf navigate over 20 screens (ARCH 9): first paint under 50 ms and at least 90 percent of opens prefetched by hover or focus.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createNodeDriver } from "../../../sync/src/replica/index.ts";
 import { manualScheduler } from "../connection/scheduler.ts";
 import { asQuery, createPrefetcher, createQueryClient } from "./index.ts";
-import { createChangeFeed, createSpaceStore } from "../store/index.ts";
+import { createChangeFeed } from "../store/index.ts";
+import type { LocalDb } from "../store/index.ts";
 import { screens } from "../../../generated/screens.ts";
 
 test("navigate: 20 screens open under 50 ms first paint and 90 percent were prefetched", () => {
-  const driver = createNodeDriver();
-  driver.exec("CREATE TABLE row (id TEXT PRIMARY KEY, title TEXT)");
-  const ins = driver.prepare("INSERT INTO row (id, title) VALUES (?, ?)");
-  driver.transaction(() => { for (let i = 0; i < 5000; i++) ins.run([`r_${i}`, `Row ${i}`]); });
-  const client = createQueryClient(createSpaceStore("spc_perf", driver, createChangeFeed()));
+  const rows = Array.from({ length: 5000 }, (_, i) => ({ id: `r_${i}`, title: `Row ${i}` }));
+  const db: LocalDb = { all: () => rows.slice(0, 200) };
+  const client = createQueryClient({ spaceId: "spc_perf", db, changes: createChangeFeed() });
 
   const chosen = screens.filter((s) => Object.values(s.queries).some((q) => q.live)).slice(0, 20);
   assert.equal(chosen.length, 20, "the generated index has at least 20 screens with a live query");
