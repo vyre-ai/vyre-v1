@@ -1,9 +1,11 @@
 // A row with swipe actions (spec 3.11): drag it left and its actions show behind it (Star, Mark read, Archive), drag back or tap an action. The same actions are reachable without a
-// swipe: right-click or long-press opens them, and Esc closes. The gesture is the platform's PanResponder, so it works the same on a phone and in the web build. (The brief names
+// swipe: right-click or long-press opens them in the shared menu. The gesture is the platform's PanResponder, so it works the same on a phone and in the web build. (The brief names
 // react-native-gesture-handler; it is not on the dependency allowlist, so this waits for the lead to add it. The pure rules are in shell/model.ts and do not change.)
 import { useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
+import { menuTrigger, useMenu } from "../../../../../ui/src/Menu/index.tsx";
+import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 import { swipeOffset, swipeRest } from "../shell/model.ts";
 
 export interface SwipeAction { key: string; label: string; tone?: "accent" | "warn" | "plain"; onPress: () => void }
@@ -12,6 +14,7 @@ const ACTION_W = 76;
 
 export function SwipeRow({ actions, children, testID }: { actions: readonly SwipeAction[]; children: ReactNode; testID?: string }): ReactElement {
   const width = actions.length * ACTION_W;
+  const menu = useMenu();
   const [offset, setOffset] = useState(0);
   const openRef = useRef(false);
   const settle = (rest: "open" | "closed"): void => { openRef.current = rest === "open"; setOffset(rest === "open" ? -width : 0); };
@@ -30,9 +33,13 @@ export function SwipeRow({ actions, children, testID }: { actions: readonly Swip
       </Pressable>,
     );
   }
+  // Right-click or long-press gives the same actions as the swipe, through the shared menu.
+  const entries: MenuEntry[] = [];
+  for (const a of actions) entries.push({ label: a.label, onSelect: a.onPress });
   return (
-    <View testID={testID} style={st.wrap} {...{ onContextMenu: (e: { preventDefault?: () => void }) => { e.preventDefault?.(); settle(openRef.current ? "closed" : "open"); } }}>
+    <View testID={testID} style={st.wrap} {...menuTrigger((x, y) => menu.show(entries, x, y, "context", { label: "Row actions" }))}>
       <View testID="swipe-actions" style={[st.actions, { width }]}>{buttons}</View>
+      {menu.element}
       <View testID="swipe-front" style={[st.front, { transform: [{ translateX: offset }] }]} {...pan.panHandlers}>{children}</View>
     </View>
   );
