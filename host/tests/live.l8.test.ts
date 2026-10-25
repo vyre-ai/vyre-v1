@@ -14,8 +14,8 @@ import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 
 const L8 = ["campaigns", "email-builder-api", "esign", "forms", "portal", "sites", "templates"];
-// sites stays a stub: the daemon builds no Docker runtime, Caddy router or DNS check for it; portal stays a stub: its mailer needs mail.send and a system sender mailbox (mail is a stub). Gaps on P-L8_LIVE.
-const GAP = ["portal", "sites"];
+// sites is live with every capability deferred (ruling 60, docs/deferred.md); portal stays a stub until mail is live: its mailer needs mail.send and a system sender mailbox (mail is a stub). Gaps on P-L8_LIVE.
+const GAP = ["portal"];
 const OWNER_TOKEN = "tok-usr_olivia";
 const MEMBER_TOKEN = "tok-usr_noah";
 
@@ -67,7 +67,7 @@ const ok = async (d: { url: string }, token: string, cap: string, body: Record<s
   return (JSON.parse(text) as { data: unknown }).data;
 };
 
-test("l8 live: every L8 module but the two with a gap is live in host/modules.json", () => {
+test("l8 live: every L8 module but portal is live in host/modules.json", () => {
   const file = JSON.parse(fs.readFileSync(new URL("../modules.json", import.meta.url), "utf8")) as { modules: { id: string; owner: string; status: string }[] };
   const mine = file.modules.filter((m) => m.owner === "L8").map((m) => m.id).sort();
   assert.deepEqual(mine, [...L8].sort());
@@ -96,6 +96,11 @@ test("l8 live: each live module answers a read and a write through the gateway a
     await ok(d, OWNER_TOKEN, "esign.provider_set", { provider: "documenso" });
     const listed = (await ok(d, OWNER_TOKEN, "forms.list", {})) as { forms: unknown[] };
     assert.ok(listed.forms.length >= 1, "the form is listed");
+    // Sites is deferred (ruling 60): registered, live, and it refuses with the shared message
+    const deferred = await post(d, OWNER_TOKEN, "sites.list", {});
+    const body = (await deferred.json()) as { error?: { code?: string; message?: string } };
+    assert.equal(body.error?.code, "internal.unavailable");
+    assert.equal(body.error?.message, "Not in this version yet");
     // refusals: a member holds none of these permissions
     for (const [cap, body] of [["forms.create", { name: "No", recordType: "contact", kind: "public" }], ["campaigns.create", { name: "No", kind: "sequence" }], ["esign.provider_set", { provider: "documenso" }]] as const) {
       const r = await post(d, MEMBER_TOKEN, cap, body);
