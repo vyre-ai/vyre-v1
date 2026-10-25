@@ -5,12 +5,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { openCipherOpfs, rekeyCipherOpfs, createReplicaKeyVault, memoryKeyBox, openDeviceReplica } from "../src/device/index.ts";
 import type { McModule } from "../src/device/index.ts";
 
 const SPIKE = path.join(fileURLToPath(new URL("../../spikes/sync-c/", import.meta.url)));
-await import(pathToFileURL(path.join(SPIKE, "ensure-deps.mjs")).href);
+await import("../../spikes/sync-c/ensure-deps.mjs");
+const req = createRequire(import.meta.url);
 
 interface Cipher { default: (opts?: { wasmBinary: Uint8Array }) => Promise<RealSqlite3> }
 interface RealSqlite3 extends McModule { capi: McModule["capi"] & { sqlite3_js_db_export(ptr: unknown): Uint8Array }; }
@@ -21,7 +23,8 @@ async function loadEngine(): Promise<RealSqlite3> {
   const root = (pkg.exports as Record<string, unknown> | undefined)?.["."];
   const pick = (v: unknown): string | undefined => (typeof v === "string" ? v : v && typeof v === "object" ? pick((v as Record<string, unknown>)["import"] ?? (v as Record<string, unknown>)["default"]) : undefined);
   const entry = pick(root) ?? pkg.module ?? pkg.main ?? "index.mjs";
-  const mod = (await import(pathToFileURL(path.join(dir, entry)).href)) as Cipher;
+  // require(esm): the boundary check allows no computed import(); this module has no top-level await
+  const mod = req(path.join(dir, entry)) as Cipher;
   // Node has no fetch for file URLs: hand the module its wasm bytes.
   const find = (d: string): string | null => {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {

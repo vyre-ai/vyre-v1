@@ -76,7 +76,8 @@ export function openCipherOpfs(o: CipherOpfsOpen): SqlDriver {
   } catch (e) {
     try { db.close(); } catch { /* already closed */ }
     if (e instanceof ReplicaError) throw e;
-    throw new ReplicaError("wrong_key", "the replica key does not open this database");
+    // the engine's own words (no key material in them) tell a wrong key from a setup fault
+    throw new ReplicaError("wrong_key", `the replica key does not open this database (${e instanceof Error ? e.message : String(e)})`);
   }
   const cache = new Map<string, McStatement>();
   const stmt = (sql: string): McStatement => {
