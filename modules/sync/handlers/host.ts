@@ -1,6 +1,5 @@
 // What the host gives the sync module at boot (ruling 31/32 seam `configureSync`) and the handlers that need it: the push ports over the sync store, hello, status, health, endpoints, entities,
 // devices.lag and the document capabilities. The store is the Space's one record store (the sync.changes projection is declared on it before it opens), so rows the records module writes are in the feed.
-import { createHash } from "node:crypto";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/snapshot.ts";
 import type { InlineProjection, ProjectionHost, Tx } from "../../../kernel/src/store/projection.ts";
 import type { Store } from "../../../kernel/src/store/types.ts";
@@ -37,6 +36,17 @@ export interface SyncHostSeam {
   endpoints?(): SyncEndpoint[];
   /** Fingerprint of the Space key, for the pairing screen. */
   fingerprint?(): string;
+}
+
+/** A stable 24 hex digit name for (op, field), from three FNV-1a passes with different seeds: the same retried op always parks under the same id (modules take no crypto, B3). */
+function fnv(text: string): string {
+  let out = "";
+  for (const seed of [0x811c9dc5, 0x01000193, 0x9e3779b9]) {
+    let h = seed >>> 0;
+    for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    out += h.toString(16).padStart(8, "0");
+  }
+  return out;
 }
 
 const DDL = `
@@ -82,7 +92,7 @@ export function pushDepsOf(deps: PullDeps, seam: SyncHostSeam): PushDeps {
     },
     openConflict(c) {
       if (seam.conflicts) return seam.conflicts.open(c);
-      const id = `cfl_${createHash("sha256").update(`${c.opId}\u0000${c.field}`).digest("hex").slice(0, 24)}`;
+      const id = `cfl_${fnv(`${c.opId}\u0000${c.field}`)}`;
       db.run("INSERT OR IGNORE INTO sync_conflict (id, entity, row_id, field, op_id, ours, theirs, base, state, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)",
         id, c.entity, c.id, c.field, c.opId, JSON.stringify(c.ours ?? null), JSON.stringify(c.theirs ?? null), c.base, deps.now());
       return id;
