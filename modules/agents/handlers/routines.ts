@@ -65,6 +65,62 @@ export async function routineDelete(ctx: AgentsCtx, input: { agentId: string; ro
   return { deleted: true };
 }
 
+// P-CC_20 (path mapping: the packet owns manifests/agents.ts; the handlers for its two capabilities live here, and the delegation table is appended to migrations/0001_agents.sql).
+/** Run now: one run starts at once under the routine OWNER, never the caller. The schedule is not moved; only lastRunAt is. */
+export async function routineRunNow(ctx: AgentsCtx, input: { agentId: string; routineId: string; idempotencyKey?: string }) {
+  ensure(ctx.db);
+  const agent = agentBy(ctx.db, input.agentId);
+  const r = routineBy(ctx.db, input.routineId);
+  if (!agent || !canSee(ctx, agent) || !r || r.agentId !== agent.id) raise(ctx, "validation.not_found", "That routine does not exist.");
+  if (agent.paused) raise(ctx, "validation.precondition_failed", "This agent is paused: resume it before running a routine.");
+  const started = await call<{ runId: string }>(ctx, "runs.start", { kind: "routine", name: r.title, owner: r.ownerId }, { idempotencyKey: input.idempotencyKey ?? `routine-run-now:${r.id}:${ctx.now()}` });
+  ctx.db.run("UPDATE agents_routine SET lastRunAt = ?, updatedAt = ? WHERE id = ?", ctx.now(), ctx.now(), r.id);
+  ctx.emit("agent.routine_run_started", agent.id, { agentId: agent.id, routineId: r.id, runId: started.runId, ownerId: r.ownerId, requestedBy: by(ctx) });
+  return { routine: routineOut(routineBy(ctx.db, r.id) as RoutineRec), runId: started.runId };
+}
+
+/** Delegate: the owner hands a routine to another person (they become its owner) or another agent (it runs on that agent); `undo` hands it back. */
+export async function routineDelegate(ctx: AgentsCtx, input: { agentId: string; routineId: string; to?: { kind: "person" | "agent"; id: string }; undo?: boolean }) {
+  ensure(ctx.db);
+  const agent = agentBy(ctx.db, input.agentId);
+  const r = routineBy(ctx.db, input.routineId);
+  if (!agent || !canSee(ctx, agent) || !r || r.agentId !== agent.id || r.ownerId !== askerOf(ctx)) raise(ctx, "validation.not_found", "That routine does not exist.");
+  const now = ctx.now();
+  if (input.undo === true) {
+    if (input.to !== undefined) raise(ctx, "validation.bad_input", "Undo takes no new owner: it hands the routine back.");
+    const d = (ctx.db.all("SELECT * FROM agents_routine_delegation WHERE routineId = ?", r.id) as Row[])[0];
+    if (!d) raise(ctx, "validation.precondition_failed", "This routine has not been handed on, so there is nothing to undo.");
+    const fromOwner = String(d["fromOwnerId"]);
+    const fromAgent = String(d["fromAgentId"]);
+    ctx.db.run("UPDATE agents_routine SET ownerId = ?, agentId = ?, updatedAt = ? WHERE id = ?", fromOwner, fromAgent, now, r.id);
+    ctx.db.run("DELETE FROM agents_routine_delegation WHERE routineId = ?", r.id);
+    ctx.emit("agent.routine_delegated", fromAgent, { agentId: fromAgent, routineId: r.id, from: r.ownerId, to: fromOwner, undo: true });
+    ctx.emit("agent.routine_changed", fromAgent, { agentId: fromAgent, routineId: r.id, op: "updated" });
+    return { routine: routineOut(routineBy(ctx.db, r.id) as RoutineRec), previousOwnerId: r.ownerId };
+  }
+  const to = input.to;
+  if (!to || to.id.trim() === "") raise(ctx, "validation.bad_input", "Say who gets the routine.");
+  let ownerId = r.ownerId;
+  let agentId = r.agentId;
+  if (to.kind === "person") {
+    if (to.id === r.ownerId) raise(ctx, "validation.bad_input", "You already own this routine.");
+    ownerId = to.id;
+  } else {
+    const target = agentBy(ctx.db, to.id);
+    if (!target || !canSee(ctx, target)) raise(ctx, "validation.not_found", "That agent does not exist.");
+    if (target.id === r.agentId) raise(ctx, "validation.bad_input", "The routine already runs on that agent.");
+    agentId = target.id;
+  }
+  // a second hand-over keeps the ORIGINAL owner and agent, so one Undo always goes all the way back
+  const prior = (ctx.db.all("SELECT * FROM agents_routine_delegation WHERE routineId = ?", r.id) as Row[])[0];
+  ctx.db.run("INSERT OR REPLACE INTO agents_routine_delegation (routineId, fromOwnerId, fromAgentId, toKind, toId, at) VALUES (?, ?, ?, ?, ?, ?)",
+    r.id, prior ? String(prior["fromOwnerId"]) : r.ownerId, prior ? String(prior["fromAgentId"]) : r.agentId, to.kind, to.id, now);
+  ctx.db.run("UPDATE agents_routine SET ownerId = ?, agentId = ?, updatedAt = ? WHERE id = ?", ownerId, agentId, now, r.id);
+  ctx.emit("agent.routine_delegated", agentId, { agentId, routineId: r.id, from: r.ownerId, to: ownerId, undo: false });
+  ctx.emit("agent.routine_changed", agentId, { agentId, routineId: r.id, op: "updated" });
+  return { routine: routineOut(routineBy(ctx.db, r.id) as RoutineRec), previousOwnerId: r.ownerId };
+}
+
 // ---- suggestions ---------------------------------------------------------------------------------------------------------------------------------------------
 
 /** A diff that gives an agent more room: a line that overrides VYRE.md. Only an admin accepts one. */

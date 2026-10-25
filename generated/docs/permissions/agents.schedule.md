@@ -14,5 +14,7 @@ Area: agents. Risk: medium. Applies to: agent.
 
 ## Capabilities that need it
 
+- agents.routine.delegate
 - agents.routine.delete
+- agents.routine.run_now
 - agents.routine.save

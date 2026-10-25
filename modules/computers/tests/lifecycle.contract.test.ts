@@ -1,5 +1,5 @@
 // The twenty-three lifecycle, recording, screenshot, live view and timeline capabilities of P-L2_16 against the frozen contract (ARCH 12.4): the handler table holds only frozen computers
-// capabilities, each example input is valid, and every error a handler raises is one its capability declares. The Chrome, Screen and Files tools are later packets.
+// capabilities, each example input is valid, and every error a handler raises is one its capability declares. The 35 Chrome, Screen and Files tools are tools.contract.test.ts (P-L2_16b).
 import test from "node:test";
 import assert from "node:assert/strict";
 import { registry } from "../../../generated/registry.ts";
@@ -16,10 +16,10 @@ const OURS = [
   "computers.recording.process", "computers.recording.delete", "computers.screenshot", "computers.stream", "computers.timeline", "computers.timeline_step", "computers.skill_from_step",
 ];
 
-test("the handler table holds exactly the twenty-three capabilities of this packet, all frozen computers capabilities", () => {
+test("the handler table holds the twenty-three lifecycle capabilities and the 35 tools: all 58 frozen computers capabilities, nothing else", () => {
   assert.equal(mine.length, 58);
-  assert.deepEqual(Object.keys(h).sort(), [...OURS].sort());
-  for (const name of OURS) assert.ok(mine.some((c) => c.name === name), name);
+  assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
+  for (const name of OURS) assert.ok(h[name], name);
 });
 
 test("each example input is a valid input", () => {

@@ -84,8 +84,7 @@ export async function release(ctx: GateCtx, input: In): Promise<unknown> {
   let result: unknown;
   try {
     result = await ctx.call(h.capName, h.input, {
-      approval: token, idempotencyKey: h.id,
-      as: { principal: h.principal, actingFor: h.actingFor, run: h.runId, thread: h.threadId },
+      approvalToken: token, idempotencyKey: h.id, onBehalfOf: h.principal.id,
     });
   } catch (e) {
     const msg = cut(String((e as { error?: { message?: string }; message?: string })?.error?.message ?? (e as Error)?.message ?? "The send failed."), 200);
