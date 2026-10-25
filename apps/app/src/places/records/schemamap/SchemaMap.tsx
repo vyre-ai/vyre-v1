@@ -296,7 +296,7 @@ function Card({ node, rect, rows, selected, lit, dim, expanded, onHover, onPress
       onHoverOut={() => onHover(false)}
       testID={`schema-card-${node.type}`}
       style={[st.card, { left: rect.x, top: rect.y, width: rect.w }, selected ? st.cardSel : lit ? st.cardLit : null, dim && st.cardDim]}
-      {...webProps({ dataSet: { card: node.type } })}
+      {...webProps({ dataSet: { card: node.type, selected: selected ? "true" : "false" } })}
       {...menuTrigger(onMenu)}
     >
       <View style={st.cardHead}>
