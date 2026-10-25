@@ -14,7 +14,7 @@ import { BridgeFailure, BRIDGE_OPS, CAPABILITIES, HOST_NAME, parseIncoming, requ
 import { createStore, KEYS, StoreRefusal } from "../src/worker/store.js";
 import { createBridge } from "../src/worker/bridge.js";
 import { createDecoder, encode, MAX_MESSAGE } from "../src/worker/framing.js";
-import { keyAction, letterOf, move, rowMenu, viewOf } from "../src/popup/popup-model.js";
+import { keyAction, letterOf, MENU_KEY, move, rowMenu, viewOf } from "../src/popup/popup-model.js";
 import { callerOk, dataDirs, findDaemon, runHost } from "../src/worker/native/host.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -368,7 +368,8 @@ test("keys: arrows wrap, Enter fills, Cmd-Enter signs in, slash asks, Escape clo
   assert.equal(keyAction({ key: "Enter" }, out), "fill");
   assert.equal(keyAction({ key: "Enter", meta: true }, out), "fillSignIn");
   assert.equal(keyAction({ key: "/" }, out), "focusAsk");
-  assert.equal(keyAction({ key: "ContextMenu" }, out), "menu");
+  assert.equal(keyAction({ key: MENU_KEY }, out), "menu");
+  assert.equal(MENU_KEY, "ContextMenu");
   assert.equal(keyAction({ key: "F10", shift: true }, out), "menu");
   assert.equal(keyAction({ key: "Escape" }, out), "close");
   assert.equal(keyAction({ key: "Escape" }, { inInput: false, menuOpen: true }), "none", "Escape closes the menu first");
