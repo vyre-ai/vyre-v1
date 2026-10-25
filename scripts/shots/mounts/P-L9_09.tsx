@@ -34,7 +34,6 @@ export default function Mount(): ReactNode {
     <View style={{ flex: 1, minHeight: 0 }}>
       <EmailBuilder id="em-q4" title="Q4 check-in" subject="It has been a while, {{first_name|there}}" previewText="A short note from Maya at Northwind, and one way to pick things back up."
         mode={mode} focus={q.get("focus") === "1"} paneTab={tab} preview={preview} blocks={BLOCKS} diffs={DIFFS} version={3} mergeValues={{ first_name: "Elena", company: "Rivera Holdings" }}
-        html={mode === "html" ? "<table width=\"100%\"><tr><td><h1>It has been a while</h1><p>Hi Elena,</p></td></tr></table>" : ""}
         ask={{ place: "email", context: { kind: "email", id: "em-q4", title: "Q4 check-in", access: "edit" }, agents: AGENTS, onAsk: () => undefined }} />
     </View>
   );

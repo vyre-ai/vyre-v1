@@ -374,10 +374,19 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
         </ScrollView>
       ) : null}
       {mode === "html" ? (
-        <ScrollView style={s.scroll} contentContainerStyle={s.codeWrap}>
-          <TextInput multiline accessibilityLabel="HTML" testID="em-html" value={html !== "" ? html : compiled} spellCheck={false} autoCapitalize="none" style={s.code}
-            onChangeText={(t) => { setHtml(t); commit({ ...snap, html: t }, "Edited the HTML"); }} />
-        </ScrollView>
+        <View style={s.split} testID="em-htmlsplit">
+          <View style={s.srcCol}>
+            <View style={s.srcHead}><Text style={s.srcName}>email.html</Text><Text style={s.stat}>{`${compiled.split("\n").length} lines`}</Text></View>
+            <ScrollView style={s.scroll}>
+              <View style={s.srcRow}>
+                <Text style={s.gutter} selectable={false} testID="em-gutter">{compiled.split("\n").map((_, i) => i + 1).join("\n")}</Text>
+                <TextInput multiline scrollEnabled={false} accessibilityLabel="HTML" testID="em-html" value={html !== "" ? html : compiled} spellCheck={false} autoCapitalize="none" style={s.code}
+                  onChangeText={(t) => { setHtml(t); commit({ ...snap, html: t }, "Edited the HTML"); }} />
+              </View>
+            </ScrollView>
+          </View>
+          {narrow ? null : <View style={s.livePane}><Text style={s.srcName}>Live preview</Text><View style={s.frame}><Frame html={preHtml} width={300} /></View></View>}
+        </View>
       ) : null}
       {mode === "plain" ? (
         <ScrollView style={s.scroll} contentContainerStyle={s.codeWrap}>
@@ -521,7 +530,14 @@ const s = StyleSheet.create({
   col: { flex: 1 },
   empty: { color: "#8A8A8F", textAlign: "center", paddingVertical: 56, fontSize: 13 },
   codeWrap: { padding: 24, alignItems: "center" },
-  code: { width: "100%", maxWidth: 760, minHeight: 480, padding: 20, borderRadius: 10, backgroundColor: "var(--win)" as string, color: "var(--ink)" as string, fontFamily: "var(--mono)" as string, fontSize: 12.5, lineHeight: 19 },
+  split: { flex: 1, flexDirection: "row", minHeight: 0 },
+  srcCol: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
+  srcHead: { height: 34, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  srcName: { color: "var(--ink-3)" as string, fontSize: 12, fontWeight: "500" },
+  srcRow: { flexDirection: "row", paddingVertical: 12 },
+  gutter: { width: 42, textAlign: "right", paddingRight: 10, color: "var(--ink-4)" as string, fontFamily: "var(--mono)" as string, fontSize: 12.5, lineHeight: 19 },
+  livePane: { width: 340, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, padding: 12, alignItems: "center" },
+  code: { flex: 1, minWidth: 0, minHeight: 480, padding: 0, backgroundColor: "transparent", color: "var(--ink)" as string, fontFamily: "var(--mono)" as string, fontSize: 12.5, lineHeight: 19 },
   plain: { width: "100%", maxWidth: 640, minHeight: 480, padding: 24, borderRadius: 10, backgroundColor: "#FFFFFF", color: "#18181A", fontFamily: "var(--mono)" as string, fontSize: 13.5, lineHeight: 21 },
   pane: { width: 380, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--win)" as string, minHeight: 0 },
   paneBody: { flex: 1 },
