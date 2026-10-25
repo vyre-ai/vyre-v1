@@ -34,6 +34,8 @@ interface ScrollNode {
   clientHeight: number;
 }
 
+/** A scrollbar that takes room (Windows, Linux) must not arrive late and push the text sideways: its place is kept from the first frame. */
+const GUTTER = Platform.OS === "web" ? ({ scrollbarGutter: "stable" } as object) : null;
 const NO_SUBSCRIBE = (): (() => void) => () => undefined;
 const NO_VERSION = (): number => 0;
 
@@ -64,7 +66,7 @@ export function Feed({ children, followKey, store, follow = true, testID = "stre
   }, [followKey, version, follow]);
 
   return (
-    <ScrollView ref={ref} testID={testID} accessibilityLabel={away ? "Conversation, scrolled up" : "Conversation"} onScroll={onScroll} scrollEventThrottle={16} style={{ flex: 1 }} contentContainerStyle={contentStyle}>
+    <ScrollView ref={ref} testID={testID} accessibilityLabel={away ? "Conversation, scrolled up" : "Conversation"} onScroll={onScroll} scrollEventThrottle={16} style={[{ flex: 1 }, GUTTER]} contentContainerStyle={contentStyle}>
       {children}
     </ScrollView>
   );

@@ -125,7 +125,7 @@ const HEADING = {
   6: { fontSize: BODY_SIZE, lineHeight: BODY_LINE },
 } as const;
 
-const MONO = "var(--mono)";
+const MONO = '"JetBrains Mono", ui-monospace, Menlo, monospace';
 
 const styles = StyleSheet.create({
   root: { width: "100%" },
