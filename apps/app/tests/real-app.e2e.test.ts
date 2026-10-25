@@ -4,10 +4,10 @@
 //   4 Chats: send a message and it appears                          5 Records: open a table            6 Files: open a file
 // A step whose module is still a stub in host/modules.json is reported as TODO with the packet that makes it live; it is never faked and never counted as a pass. Step 2 is the owner bootstrap
 // token (the same door the CLI and the Console use) until the seeded Space carries a member with a password (golden flow 02); it is labelled as such in the output.
-// Needs a Chromium (CHROME_BIN, or playwright-core's own) and a web export (VYRE_APP_DIST, else the test exports one). VYRE_REQUIRE_CHROME=1 turns a missing Chromium into a failure.
+// Needs a Chromium (CHROME_BIN, or playwright-core's own) and a web export (VYRE_APP_DIST; without it the test skips with a message). VYRE_REQUIRE_CHROME=1 turns a missing Chromium into a failure.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { execSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
@@ -18,7 +18,6 @@ import { fileURLToPath } from "node:url";
 import { CORE_SPACE, bootCore } from "../../../fixtures/seed/core/index.ts";
 
 const REPO = fileURLToPath(new URL("../../..", import.meta.url));
-const APP = path.join(REPO, "apps/app");
 
 /** Which module each step needs, and the packet that flips it (docs/lanes: L7 identity/spaces, L2 chat, L3 records, L4 files). */
 export const STEP_NEEDS: Record<string, { modules: string[]; packet: string }> = {
@@ -111,11 +110,7 @@ async function bootSpace(): Promise<Space> {
 }
 
 function exportApp(): string {
-  const given = process.env["VYRE_APP_DIST"];
-  if (given) return given;
-  const out = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-app-dist-"));
-  execSync(`npx expo export --platform web --output-dir ${out}`, { cwd: APP, stdio: "inherit", timeout: 100_000, env: { ...process.env, CI: "1", EXPO_NO_TELEMETRY: "1" } });
-  return out;
+  return process.env["VYRE_APP_DIST"] ?? "";
 }
 
 test("the pure parts: a step is TODO with its packet when a module it needs is a stub, and passes through when all are live", () => {
@@ -128,6 +123,10 @@ test("the pure parts: a step is TODO with its packet when a module it needs is a
 });
 
 test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records and Files from the seeded Space", async (t) => {
+  if (!process.env["VYRE_APP_DIST"]) {
+    t.skip("VYRE_APP_DIST is not set: the shots job runs this test after the production export (PR 491)");
+    return;
+  }
   const pw = await import("playwright-core");
   const chromium = pw.chromium ?? (pw as unknown as { default: typeof pw }).default.chromium;
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();
