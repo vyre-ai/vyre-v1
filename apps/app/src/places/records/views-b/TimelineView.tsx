@@ -139,12 +139,12 @@ export function TimelineView({ ctx }: { ctx: ViewCtx }): ReactElement {
     }
   }
   const height = y + 12;
-  const names: ReactElement[] = [];
+  const nameCells: ReactElement[] = [];
   {
     let ny = HEAD_H + 6;
     for (const band of bands) {
-      if (band.title) { names.push(<View key={`nb-${band.key}`} style={[c.nameBand, { top: ny }]}><Text style={c.bandText}>{`${band.title}  ${doneOfTotal(band.bars.filter((x) => isDoneRow(x.row, def.statusField ?? laneFieldOf(def, ctx.saved)?.key)).length, band.bars.length)}`}</Text></View>); ny += BAND_H; }
-      for (const b of band.bars) { names.push(<View key={`n-${b.id}`} style={[c.nameRow, { top: ny }]}><View style={c.ring} /><Text numberOfLines={1} style={c.nameText}>{label(b)}</Text></View>); ny += ROW_H; }
+      if (band.title) { nameCells.push(<View key={`nb-${band.key}`} style={[c.nameBand, { top: ny }]}><Text style={c.bandText}>{`${band.title}  ${doneOfTotal(band.bars.filter((x) => isDoneRow(x.row, def.statusField ?? laneFieldOf(def, ctx.saved)?.key)).length, band.bars.length)}`}</Text></View>); ny += BAND_H; }
+      for (const b of band.bars) { nameCells.push(<View key={`n-${b.id}`} style={[c.nameRow, { top: ny }]}><View style={c.ring} /><Text numberOfLines={1} style={c.nameText}>{label(b)}</Text></View>); ny += ROW_H; }
     }
   }
   const ticks: ReactElement[] = [];
@@ -177,7 +177,7 @@ export function TimelineView({ ctx }: { ctx: ViewCtx }): ReactElement {
       ) : (
         <ScrollView style={c.scroll} testID="timeline-scroll">
           <ScrollView horizontal ref={hscroll as never} contentContainerStyle={{ width: width + NAME_W, height }}>
-            <View style={[c.names, { height }]} testID="timeline-names">{names}</View>
+            <View style={[c.names, { height }]} testID="timeline-names">{nameCells}</View>
             <View style={{ width, height }} testID="timeline-canvas" accessibilityLabel={`${bars.length} bars, ${days} days`}>
               {ticks}
               <View style={[c.headLine, { top: HEAD_H, width }]} />
