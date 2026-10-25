@@ -101,7 +101,7 @@ test("an edit in place saves against the version it started from and returns the
 });
 
 test("a CSV reads as a sheet, quoted cells and all, and is not edited in place; a missing file says so", async () => {
-  const sheet = parseCsv('Name,Note\n"Rivera, E",said ""yes""\nChen,ok\n');
+  const sheet = parseCsv('Name,Note\n"Rivera, E","said ""yes"""\nChen,ok\n');
   assert.deepEqual(sheet.cols, ["Name", "Note"]);
   assert.deepEqual(sheet.rows, [["Rivera, E", 'said "yes"'], ["Chen", "ok"]]);
   const s = createSampleViewer();

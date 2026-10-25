@@ -30,7 +30,7 @@ export function kindLabel(name: string): string {
   return dot > 0 && dot < name.length - 1 ? name.slice(dot + 1).toUpperCase().slice(0, 4) : "FILE";
 }
 
-/** Text to blocks: markdown headings and list items keep their weight, code files are one block per line, anything else is a paragraph per line. Blank lines are dropped on screen and kept by `blocksToText`. */
+/** Text to blocks: markdown headings and list items keep their weight, code files are one block per line, anything else is a paragraph per line. Blank lines are not blocks, so a save writes one line per block. */
 export function textToBlocks(text: string, kind: FileKind): DocBlock[] {
   const out: DocBlock[] = [];
   const lines = text.split("\n");
@@ -52,12 +52,11 @@ export function blocksToText(blocks: readonly DocBlock[], kind: FileKind): strin
   const lines: string[] = [];
   for (const b of blocks) {
     if (kind === "code" || b.tag === "code") lines.push(b.text);
-    else if (b.tag === "h1") lines.push(`# ${b.text}`, "");
-    else if (b.tag === "h2") lines.push(`## ${b.text}`, "");
+    else if (b.tag === "h1") lines.push(`# ${b.text}`);
+    else if (b.tag === "h2") lines.push(`## ${b.text}`);
     else if (b.tag === "li") lines.push(`- ${b.text}`);
-    else lines.push(b.text, "");
+    else lines.push(b.text);
   }
-  while (lines.length && lines[lines.length - 1] === "") lines.pop();
   return `${lines.join("\n")}\n`;
 }
 
