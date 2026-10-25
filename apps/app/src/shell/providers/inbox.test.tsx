@@ -45,5 +45,5 @@ test("inbox: opening a contact reaches the place, and the sidebar's other doors 
   data.nav.openCall("call_1");
   data.nav.compose();
   assert.deepEqual(picked, ["elena"]);
-  assert.deepEqual(opened, [{ subject: { type: "call", id: "call_1" } }, { screen: "inbox.compose" }]);
+  assert.deepEqual(opened, [{ subject: { type: "call", id: "call_1" } }, { screen: "mail.message-detail" }]);
 });

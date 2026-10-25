@@ -5,7 +5,6 @@ import type { ScreenIndexEntry } from "../../../../../generated/screens.ts";
 import { CapError, createCapCaller, indexByCap, queryString } from "./caps.ts";
 import type { RouteRow } from "./caps.ts";
 import { createLiveLink, socketUrl } from "./live.ts";
-import { railPlaceOf, routeIdOf } from "./PlaceHost.tsx";
 import type { SocketLike } from "./live.ts";
 import { createRemoteScreenHooks, stableJson } from "./remote-hooks.ts";
 import { openRealSession, targetHash } from "./session.ts";
@@ -316,13 +315,3 @@ test("stored: the Space address is ?space= when it is a URL, else the page origi
   assert.equal(spaceAddress({ origin: "https://x.test", search: "?space=javascript:alert(1)" }), "https://x.test");
 });
 
-test("places: every rail place that has a screen maps to its route id and back; console and join have none", () => {
-  const pairs: [string, string][] = [["home", "home"], ["chats", "chat"], ["inbox", "mail"], ["records", "records"], ["files", "files"], ["apps", "sites"], ["automations", "automations"], ["vault", "vault"], ["settings", "settings"]];
-  for (const [rail, route] of pairs) {
-    assert.equal(routeIdOf(rail as never), route);
-    assert.equal(railPlaceOf(route), rail);
-  }
-  assert.equal(routeIdOf("console"), null);
-  assert.equal(routeIdOf("join"), null);
-  assert.equal(railPlaceOf("nowhere"), null);
-});

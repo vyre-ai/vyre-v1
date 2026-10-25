@@ -105,10 +105,10 @@ test("before the Space's runtime exists a place draws its loading frame, never a
 
 test("a place whose list is empty says so with the shared empty state", async () => {
   const { rt, sample } = runtimeFor("northwind", true);
-  (sample.replica as unknown as Loose).resolve("files.list", () => ({ files: [] }));
-  const out = await mount("files", rt);
-  assert.ok(out.includes("No files here yet."));
-  assert.ok(!out.includes("Rivera engagement letter.docx"));
+  (sample.replica as unknown as Loose).resolve("sites.list", () => ({ sites: [] }));
+  const out = await mount("sites", rt);
+  assert.ok(out.includes("No sites or apps yet."));
+  assert.ok(!out.includes("Northwind website"));
   assert.deepEqual(listItems({ files: [] }), []);
 });
 
