@@ -7,7 +7,7 @@ import path from "node:path";
 import { CHANNEL_KINDS, buildEntries, manifestFor, readFeed } from "./channels.ts";
 import type { ChannelRelease, FeedEntry } from "./channels.ts";
 import { lineage, newestStable, nextPatchTag } from "./lineage.ts";
-import { SIGNATURE_PREFIX, publicKeyBytes, signManifest, verifyManifest } from "./sign.ts";
+import { SIGNATURE_PREFIX, keyId, publicKeyBytes, publicKeyHexOf, signManifest, verifyManifest } from "./sign.ts";
 import { bump, releaseCounter, versionProblems } from "./version.ts";
 
 const keys = (): { pem: string; pub: string } => {
@@ -102,4 +102,13 @@ test("the server channel entry is the manifest the server reads; artifact names 
   assert.deepEqual(doc, { v: 1, channel: "beta", server: { version: "1.0.0-rc.1", tarball: "vyre.tgz", sha256: "a".repeat(64), notes: "n", security: true }, apps: { mac: "1.0.0" } });
   assert.throws(() => manifestFor("server", "stable", { ...rel("1.0.0"), tarball: "../x" }));
   assert.throws(() => manifestFor("server", "stable", { ...rel("1.0.0"), sha256: "xyz" }));
+});
+
+test("the public half derived from the signing key is the one that verifies, and the key id is stable and short", () => {
+  const k = keys();
+  assert.equal(publicKeyHexOf(k.pem), k.pub);
+  assert.match(keyId(k.pub), /^[0-9a-f]{16}$/);
+  assert.equal(keyId(k.pub), keyId(k.pub));
+  assert.notEqual(keyId(keys().pub), keyId(k.pub));
+  assert.ok(!publicKeyHexOf(k.pem).includes("PRIVATE"));
 });

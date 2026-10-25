@@ -2,6 +2,7 @@
 //   node scripts/release/cli.ts counter <version>
 //   node scripts/release/cli.ts bump <version> | --check
 //   node scripts/release/cli.ts lineage <sha> <tag>
+//   VYRE_SIGNING_KEY=<pkcs8 pem> node scripts/release/cli.ts pubkey [outfile]    prints the public half (hex) and its key id; with outfile writes {"publicKey","keyId"} for compiling into the servers
 //   VYRE_SIGNING_KEY=<pkcs8 pem> node scripts/release/cli.ts sign <dir> <channel> <pinned-public-key-hex>
 //     dir holds releases.json ({ app?, server?, kits?, extension? } of { version, tarball, sha256 }); writes <dir>/feed.json with one signed entry per channel present.
 import { execFileSync } from "node:child_process";
@@ -11,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { UPDATE_CHANNELS, buildEntries } from "./channels.ts";
 import type { Releases, UpdateChannel } from "./channels.ts";
 import { lineage, newestStable } from "./lineage.ts";
-import { SIGNING_KEY_ENV } from "./sign.ts";
+import { SIGNING_KEY_ENV, keyId, publicKeyHexOf } from "./sign.ts";
 import { bump, releaseCounter, versionProblems } from "./version.ts";
 
 const run = (a: string[]): string => execFileSync(a[0] ?? "", a.slice(1), { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
@@ -35,6 +36,14 @@ function main(argv: string[]): number {
         const problems = lineage({ tag: b, prev, prevIsAncestor: prev !== null && isAncestor(`refs/tags/${prev}`, a), onHotfixBranch: isAncestor(a, `origin/hotfix/${b}`) });
         for (const p of problems) console.error(`release-lineage: ${p}`);
         return problems.length > 0 ? 1 : 0;
+      }
+      case "pubkey": {
+        const pem = process.env[SIGNING_KEY_ENV] ?? "";
+        if (pem === "") { console.error(`${SIGNING_KEY_ENV} is only set in the release environment`); return 2; }
+        const publicKey = publicKeyHexOf(pem);
+        if (a !== undefined) fs.writeFileSync(a, `${JSON.stringify({ publicKey, keyId: keyId(publicKey) }, null, 2)}\n`);
+        console.log(`${publicKey} ${keyId(publicKey)}`);
+        return 0;
       }
       case "sign": {
         const pem = process.env[SIGNING_KEY_ENV] ?? "";

@@ -36,3 +36,14 @@ export function signManifest(manifest: string, privateKeyPem: string, pinnedPubl
   if (!verifyManifest(manifest, sig, pinnedPublicKey)) throw new Error("the signing key is not the pinned release key: nothing was signed");
   return sig;
 }
+
+/** The public half of a signing key, as 64 hex characters: what gets compiled into the servers (the updates module's releaseKey) and printed once by the release job. Never the private half. */
+export function publicKeyHexOf(privateKeyPem: string): string {
+  const der = crypto.createPublicKey(crypto.createPrivateKey(privateKeyPem)).export({ type: "spki", format: "der" });
+  return Buffer.from(der.subarray(SPKI_ED25519_PREFIX.length)).toString("hex");
+}
+
+/** A short id for a public key (first 16 hex of its sha256), for logs and the feed, so a key change is visible without printing the key. */
+export function keyId(publicKeyHex: string): string {
+  return crypto.createHash("sha256").update(Buffer.from(publicKeyHex, "hex")).digest("hex").slice(0, 16);
+}
