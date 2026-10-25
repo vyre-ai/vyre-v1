@@ -38193,6 +38193,9 @@
             "description": "Any JSON value"
           },
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -38216,6 +38219,9 @@
       "inputSchema": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -38353,6 +38359,9 @@
       "inputSchema": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -38375,6 +38384,9 @@
       "inputSchema": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -38419,6 +38431,9 @@
       "inputSchema": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           },
           "value": {
@@ -38445,6 +38460,9 @@
       "inputSchema": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           },
           "value": {

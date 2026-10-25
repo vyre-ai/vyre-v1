@@ -132764,7 +132764,7 @@
         {
           "input": {
             "floor": {},
-            "key": "example"
+            "key": "appearance.mode"
           },
           "name": "example",
           "output": {
@@ -132789,6 +132789,9 @@
             "description": "Any JSON value"
           },
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -132832,7 +132835,7 @@
       "examples": [
         {
           "input": {
-            "key": "example"
+            "key": "appearance.mode"
           },
           "name": "example",
           "output": {
@@ -132854,6 +132857,9 @@
       "input": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -133251,7 +133257,7 @@
       "examples": [
         {
           "input": {
-            "key": "example"
+            "key": "appearance.mode"
           },
           "name": "example",
           "output": {
@@ -133273,6 +133279,9 @@
       "input": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -133319,7 +133328,7 @@
       "examples": [
         {
           "input": {
-            "key": "example"
+            "key": "appearance.mode"
           },
           "name": "example",
           "output": {
@@ -133341,6 +133350,9 @@
       "input": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -133476,7 +133488,7 @@
       "examples": [
         {
           "input": {
-            "key": "example",
+            "key": "appearance.mode",
             "value": {}
           },
           "name": "example",
@@ -133500,6 +133512,9 @@
       "input": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           },
           "value": {
@@ -133551,7 +133566,7 @@
       "examples": [
         {
           "input": {
-            "key": "example",
+            "key": "appearance.mode",
             "value": {}
           },
           "name": "example",
@@ -133575,6 +133590,9 @@
       "input": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           },
           "value": {
@@ -205580,6 +205598,21 @@
       "title": "Agent template propagation"
     },
     {
+      "default": "comfortable",
+      "key": "appearance.density",
+      "module": "settings",
+      "page": "appearance",
+      "schema": {
+        "enum": [
+          "comfortable",
+          "compact"
+        ],
+        "type": "string"
+      },
+      "scope": "person",
+      "title": "Density"
+    },
+    {
       "default": "system",
       "key": "appearance.mode",
       "module": "settings",
@@ -205596,6 +205629,17 @@
       "title": "Light or dark"
     },
     {
+      "default": false,
+      "key": "appearance.reduce_motion",
+      "module": "settings",
+      "page": "appearance",
+      "schema": {
+        "type": "boolean"
+      },
+      "scope": "person",
+      "title": "Reduce motion"
+    },
+    {
       "default": "classic",
       "key": "appearance.skin",
       "module": "settings",
@@ -205605,6 +205649,19 @@
       },
       "scope": "person",
       "title": "Skin"
+    },
+    {
+      "default": 100,
+      "key": "appearance.text_size",
+      "module": "settings",
+      "page": "appearance",
+      "schema": {
+        "maximum": 120,
+        "minimum": 90,
+        "type": "integer"
+      },
+      "scope": "person",
+      "title": "Text size (percent)"
     },
     {
       "default": {
