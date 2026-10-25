@@ -4,6 +4,7 @@
 import { ScrollViewStyleReset, useServerDocumentContext } from "expo-router/html";
 import type { PropsWithChildren } from "react";
 import { bootScript } from "../src/startup/boot.ts";
+import { rootFontCss } from "@vyre/ui/theme/fonts";
 
 export default function Root({ children }: PropsWithChildren) {
   const { htmlAttributes, bodyAttributes, headNodes, bodyNodes } = useServerDocumentContext();
@@ -15,6 +16,7 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
         <script dangerouslySetInnerHTML={{ __html: bootScript() }} />
         <ScrollViewStyleReset />
+        <style id="vyre-root-font" dangerouslySetInnerHTML={{ __html: rootFontCss() }} />
         {headNodes}
       </head>
       <body {...bodyAttributes}>
