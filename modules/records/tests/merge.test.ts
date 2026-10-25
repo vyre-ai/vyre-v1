@@ -382,4 +382,25 @@ test("export a hand-picked selection: only the picked rows in the view's order; 
   assert.equal(await exp({ recordIds: [a, b, c], filter: { field: "qty", op: "gt", value: 1 } }), "\ufeffName\r\nBravo\r\nCharlie\r\n", "the pick narrows the view, it does not widen it");
   assert.equal(await exp({}), "\ufeffName\r\nAlpha\r\nBravo\r\nCharlie\r\n", "without a pick it is the whole view");
 });
+
+test("export never writes a row the caller may not read, picked or not: the pick narrows what the caller can already see (P-CC_35)", async () => {
+  const k = await kit([SHEET]);
+  const open1 = mintRecordId(), secret = mintRecordId(), open2 = mintRecordId();
+  await k.rec.store.create("sheet", open1, { name: "Alpha", qty: 1 });
+  await k.rec.store.create("sheet", secret, { name: "Secret", qty: 2 });   // exists in the table
+  await k.rec.store.create("sheet", open2, { name: "Charlie", qty: 3 });
+  const asked: string[] = [];
+  const reader = { ...k.ctx, authorize: (_a: unknown, res: { type: string; id: string | null }) => { asked.push(String(res.id)); return res.id === secret ? { effect: "deny" as const, reason: "label restricted is above your clearance" } : { effect: "allow" as const, reason: "ok" }; } };
+  const exp = async (input: Record<string, unknown>): Promise<string> => {
+    await k.h["records.export"](reader as never, { type: "sheet", format: "csv", fields: ["name"], sort: [{ field: "name", dir: "asc" }], ...input } as never);
+    return decode(k.files.at(-1)!.bytes);
+  };
+  assert.equal(await exp({ recordIds: [open1, secret, open2] }), "\ufeffName\r\nAlpha\r\nCharlie\r\n", "the secret row was picked and is not in the file");
+  assert.equal(await exp({ recordIds: [secret] }), "\ufeffName\r\n", "picking only what you cannot read exports nothing");
+  assert.equal(await exp({}), "\ufeffName\r\nAlpha\r\nCharlie\r\n", "the whole view leaves it out as well");
+  assert.ok(asked.includes(secret), "the decision was asked for that record");
+  const held = { ...k.ctx, authorize: () => ({ effect: "hold" as const, reason: "needs approval" }) };
+  await k.h["records.export"](held as never, { type: "sheet", format: "csv", fields: ["name"] } as never);
+  assert.equal(decode(k.files.at(-1)!.bytes), "\ufeffName\r\n", "a held decision is not an allow");
+});
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.

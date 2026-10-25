@@ -32,7 +32,11 @@ export const MAX_UPSERT_ROWS = 10_000;
 export const XLSX_MAX_ROWS = 1_048_576;
 
 export type MergeCtx = Pick<WriteCtx, "trace" | "emit"> & { actor?: string };
-export type ExportCtx = Pick<WriteCtx, "trace"> & { actor?: string };
+export type ExportCtx = Pick<WriteCtx, "trace"> & {
+  actor?: string;
+  /** The host decision for the caller on one record. An export writes a file, which the row filter on the way out cannot reach, so the rows are checked here (the label against the clearance lives in it). */
+  authorize?: (action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }) => { effect: "allow" | "deny" | "hold"; reason?: string };
+};
 
 export interface MergeDeps {
   store: Store;
@@ -546,6 +550,8 @@ async function exportRows(deps: MergeDeps, ctx: ExportCtx, input: { type: string
     const res = runQuery(tx, input.type, { ...first, ...(cursor ? { cursor } : {}) });
     for (const r of res.rows) {
       if (picked !== null && !picked.has(r.id)) continue;
+      // only what the caller may read goes into the file, picked or not
+      if (ctx.authorize && ctx.authorize({ perm: null, level: "view" }, { type: "record", id: r.id }).effect !== "allow") continue;
       if (rows.length >= want) break;
       if (rows.length >= cap) bad(ctx, "Excel holds at most 1,048,575 data rows: export CSV or narrow the view");
       rows.push(r.fields);
