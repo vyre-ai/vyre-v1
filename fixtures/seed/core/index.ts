@@ -19,7 +19,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, "../../..");
 /** The files whose content defines the seed. */
 export const CORE_SOURCES: readonly string[] = [path.join(HERE, "recipe.ts"), path.join(HERE, "access.ts"), path.join(REPO, "kernel/src/grants/roles.ts"), path.join(REPO, "kernel/src/authorize/roles.ts"), path.join(REPO, "manifests/permissions.ts")];
-export const registryHash = (): string => createHash("sha256").update(fs.readFileSync(path.join(REPO, "generated/registry.json"))).digest("hex");
+let memo: string | undefined;
+export const registryHash = (): string => (memo ??= createHash("sha256").update(fs.readFileSync(path.join(REPO, "generated/registry.json"))).digest("hex"));
 
 /** The wall time the template is built at, so the same recipe makes the same envelopes. */
 const TEMPLATE_TIME = 1_790_000_000_000;

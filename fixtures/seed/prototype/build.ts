@@ -38,7 +38,8 @@ const KEYS = {
 
 /** The files whose content defines the template. */
 export const PROTO_SOURCES: readonly string[] = [path.join(HERE, "seed.ts"), path.join(HERE, "build.ts")];
-export const registryHash = (): string => crypto.createHash("sha256").update(fs.readFileSync(path.join(REPO, "generated/registry.json"))).digest("hex");
+let memo: string | undefined;
+export const registryHash = (): string => (memo ??= crypto.createHash("sha256").update(fs.readFileSync(path.join(REPO, "generated/registry.json"))).digest("hex"));
 
 export interface BootOptions { cache?: string; scratch?: string; sources?: readonly string[]; registry?: string }
 export interface PrototypeSpace extends SeedIds {
