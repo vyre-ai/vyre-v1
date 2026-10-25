@@ -63,6 +63,8 @@ type Out = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -106,6 +108,7 @@ type Out = {
       "createdAt": 1760000000000,
       "folderId": "fld_a1b2c3",
       "kind": "chat",
+      "lastMessageAt": 1760000000000,
       "listed": true,
       "members": [
         {
@@ -123,6 +126,7 @@ type Out = {
       ],
       "planMode": true,
       "recordId": "rec_a1b2c3",
+      "replyCount": 1,
       "scopeId": "example",
       "scopeType": "record",
       "starter": "example",
