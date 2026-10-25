@@ -11,8 +11,13 @@ export default defineManifest({
   title: 'Console views',
   owner: 'L7b',
   capabilities: [
-    read('console.overview', 'Overview: health, attention items, recent admin activity, usage', {
-      out: { health: state, attention: t.arr(attention), activity: t.arr(t.obj({ at: t.ts(), actor: t.str(), action: t.str(), resource: t.opt(t.str()) })), usage: t.obj({ turnsToday: t.int(), costMicrosMonth: t.int(), members: t.int(), agents: t.int() }) },
+    read('console.overview', 'Overview: health, attention items, recent admin activity, usage, server CPU, memory and disk, and the last backup', {
+      out: { health: state, attention: t.arr(attention), activity: t.arr(t.obj({ at: t.ts(), actor: t.str(), action: t.str(), resource: t.opt(t.str()) })), usage: t.obj({ turnsToday: t.int(), costMicrosMonth: t.int(), members: t.int(), agents: t.int() }),
+        machine: t.opt(t.obj({
+          cpuPercent: t.opt(t.num({ minimum: 0, maximum: 100 })), memoryUsedBytes: t.opt(t.int({ minimum: 0 })), memoryTotalBytes: t.opt(t.int({ minimum: 0 })),
+          diskFreeBytes: t.opt(t.int({ minimum: 0 })), diskTotalBytes: t.opt(t.int({ minimum: 0 })),
+        })),
+        lastBackup: t.opt(t.obj({ at: t.ts(), result: t.enm('verified', 'unverified') })) },
       perm: 'console.access', tool: 'engineer',
     }),
     read('console.attention', 'Attention items: failing checks, expiring certificates, failed runs, stuck updates, hit limits', { out: { items: t.arr(attention) }, perm: 'console.access', tool: 'engineer' }),
