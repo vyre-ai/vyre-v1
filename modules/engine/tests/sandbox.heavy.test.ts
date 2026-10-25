@@ -9,8 +9,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createLocalLauncher } from "../../../agent/src/drivers/cli/launcher.ts";
-import { startNetWall } from "../../../sandbox/src/index.ts";
-import type { NetWall } from "../../../sandbox/src/index.ts";
+import { defaultSandbox } from "../sandbox-default.ts";
+import type { DefaultSandbox } from "../sandbox-default.ts";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { openMcpBridge } from "../mcp-bridge.ts";
@@ -22,15 +22,17 @@ const skip: string | false = ON ? false : "needs VYRE_HEAVY_DOCKER=1";
 const data = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-engine-hv-")));
 fs.chmodSync(data, 0o755);
 const HOME_SECRET = path.join(os.homedir(), `.vyre-engine-hv-${process.pid}`);
-let wall: NetWall | undefined;
-after(async () => { await wall?.close(); fs.rmSync(HOME_SECRET, { force: true }); fs.rmSync(data, { recursive: true, force: true }); });
+let dflt: DefaultSandbox | undefined;
+after(async () => { await dflt?.close(); fs.rmSync(HOME_SECRET, { force: true }); fs.rmSync(data, { recursive: true, force: true }); });
 
 async function run(script: string, env: Record<string, string>, thread = "thr_1", argv?: string[], stdin?: string): Promise<{ out: string; code: number | null }> {
   assert.equal(spawnSync("bwrap", ["--version"]).status, 0, "bwrap is not installed");
-  wall ??= await startNetWall({ allow: ["api.anthropic.com"] });
+  // the plan a daemon builds for itself on this platform: bwrap with the network wall
+  dflt ??= await defaultSandbox({ dataDir: data });
+  assert.equal(dflt.plan.sandbox.kind, "bwrap", "the default plan on a Linux runner is bwrap");
   const cwd = workFolder(data, "usr_dana", thread);
   for (const d of [path.join(data, "work"), path.join(data, "work", "usr_dana"), cwd, path.join(data, "scratch")]) fs.chmodSync(d, 0o777);
-  const plan = { sandbox: { kind: "bwrap" as const, wallDir: wall.dir }, dataDir: data, egressHosts: ["api.anthropic.com"] };
+  const plan = dflt.plan;
   const launcher = createLocalLauncher({ wrap: sandboxWrap(plan), baseEnv: { PATH: process.env["PATH"] ?? "/usr/bin:/bin" } });
   const p = await launcher.spawn({ argv: argv ?? ["/bin/sh", "-c", script], cwd, env });
   if (stdin !== undefined) { await p.write(stdin); p.endInput(); }
