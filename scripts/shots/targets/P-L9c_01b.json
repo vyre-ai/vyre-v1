@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "P-L9c_01b-inbox-starred",
+      "route": "/m/P-L9c_01b?scope=starred",
+      "proto": "inbox,at:scope:star,{skin}",
+      "waitFor": "[data-testid='row-line:marcus']",
+      "note": "The Starred list: the sidebar row Starred under Lists is selected, the header says Starred, and the starred conversations show with a star mark. The prototype side opens its Inbox on the same list (the scope token added for ruling 42)."
+    },
+    {
+      "id": "P-L9c_01b-inbox-filter-menu",
+      "route": "/m/P-L9c_01b?menu=filter",
+      "proto": "inbox,at:menu:filter,{skin}",
+      "waitFor": "[data-testid='menu']",
+      "note": "The filter menu open: Channel, Inbox and Matching, each count in the right-aligned count column and not in the label. The prototype side opens its own filter menu (menu:filter route)."
+    }
+  ]
+}

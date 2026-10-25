@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { PaneDeps } from "./actions.ts";
@@ -16,7 +17,7 @@ import { FilesTab } from "./FilesTab.tsx";
 import { MemoryTab } from "./MemoryTab.tsx";
 import { RoutinesTab } from "./RoutinesTab.tsx";
 import { ThreadsTab, AGENT_PAGE_SCREEN } from "./ThreadsTab.tsx";
-import { DEFAULT_TAB, PANE_KEY, TABS, isTabKey } from "./model.ts";
+import { DEFAULT_TAB, MORE_KEY, PANE_KEY, PANE_WIDTH_GUESS, TABS, fitTabs, isTabKey } from "./model.ts";
 import type { TabKey } from "./model.ts";
 import { Face, Notice, Tool } from "./parts.tsx";
 
@@ -34,6 +35,10 @@ export interface ChatRightPaneProps {
   onTab?: (tab: TabKey) => void;
   /** Pins which rows are drawn (tests and screenshots draw them all); the shell leaves it out and the lists window by scroll. */
   window?: VirtualWindow;
+  /** Pins the width the tab strip is fitted to (tests and screenshots); the shell leaves it out and the pane measures itself. */
+  paneWidth?: number;
+  /** Opens one routine on the Routines tab (tests and screenshots). */
+  openRoutine?: string;
 }
 
 export const NOTICE_MS = 8000;
@@ -56,7 +61,7 @@ export function ChatRightPaneLoading({ open, onToggle }: { open: boolean; onTogg
   );
 }
 
-function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window }: ChatRightPaneProps): ReactElement {
+function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, paneWidth, openRoutine }: ChatRightPaneProps): ReactElement {
   const data = usePaneData();
   const online = useOnline();
   const menu = useMenu();
@@ -64,6 +69,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window }
   const narrow = win.width > 0 && win.width < NARROW;
   const [own, setOwn] = useState<TabKey>(initialTab ?? DEFAULT_TAB);
   const tab = controlled ?? own;
+  const [paneW, setPaneW] = useState(PANE_WIDTH_GUESS);
   const [notice, setNotice] = useState<{ text: string; undo?: () => Promise<void> | void } | null>(null);
   const deps: PaneDeps = useMemo(() => ({
     call: data.call,
@@ -77,7 +83,16 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window }
 
   const agentQ = useScreenQuery<AgentOut>(AGENT_PAGE_SCREEN, "agent", { agentId: data.agent.agentId });
   const agent = agentQ.status === "ready" ? agentQ.data.agent : null;
+  const fitted = useMemo(() => fitTabs(TABS, tab, paneWidth ?? (narrow ? win.width : paneW)), [tab, narrow, win.width, paneW, paneWidth]);
+  const strip = fitted.hidden.length === 0 ? TABS : [...fitted.shown, { key: MORE_KEY, title: "More" }];
   const select = (key: string): void => {
+    if (key === MORE_KEY) {
+      // The strip does not say where it was pressed; the menu opens under the header, near the pane's left edge.
+      const rest: MenuEntry[] = [];
+      for (const t of fitted.hidden) rest.push({ label: t.title, onSelect: () => select(t.key) });
+      menu.show(rest, Math.max(0, win.width - (paneWidth ?? paneW) + 40), 40, "other");
+      return;
+    }
     if (!isTabKey(key)) return;
     setOwn(key);
     onTab?.(key);
@@ -90,8 +105,8 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window }
   };
 
   return (
-    <SidePane paneKey={PANE_KEY} toggle={{ open, onPress: onToggle }} title={data.agent.name} tabs={TABS} activeTab={tab} onSelectTab={select} {...(narrow ? { max: 1, defaultWidth: win.width } : {})}>
-      <View testID="chats-right-pane" style={st.root}>
+    <SidePane paneKey={PANE_KEY} toggle={{ open, onPress: onToggle }} title={data.agent.name} tabs={strip} activeTab={tab} onSelectTab={select} {...(narrow ? { max: 1, defaultWidth: win.width } : {})}>
+      <View testID="chats-right-pane" style={st.root} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}>
         <View testID="pane-agent" style={st.who}>
           <Face name={data.agent.name} size={30} pulse={agent?.status === "working"} />
           <View style={st.whoText}>
@@ -106,7 +121,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window }
           {tab === "threads" ? <ThreadsTab deps={deps} {...(window ? { window } : {})} /> : null}
           {tab === "files" ? <FilesTab deps={deps} folderId={agent?.folderId ?? ""} {...(window ? { window } : {})} /> : null}
           {tab === "memory" ? <MemoryTab deps={deps} spaceName={data.space.name} {...(window ? { window } : {})} /> : null}
-          {tab === "routines" ? <RoutinesTab deps={deps} {...(window ? { window } : {})} /> : null}
+          {tab === "routines" ? <RoutinesTab deps={deps} {...(window ? { window } : {})} {...(openRoutine ? { initial: { routineId: openRoutine } } : {})} /> : null}
         </View>
         {notice ? <Notice text={notice.text} onClose={() => setNotice(null)} {...(notice.undo ? { onUndo: () => { const u = notice.undo; setNotice(null); void u?.(); } } : {})} /> : null}
         {menu.element}

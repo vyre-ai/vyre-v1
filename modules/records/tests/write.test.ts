@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { conformance } from "../../../kernel/conformance/suite.ts";
-import { mintUuid } from "../../../lib/ids.ts";
+import { mintRecordId } from "../../../lib/ids.ts";
 import { formatHlc } from "../../../lib/hlc.ts";
 import { openRecords } from "../impl.ts";
 import { ITEM, LEDGER } from "../fixtures/seed.ts";
@@ -24,7 +24,7 @@ const ctx = { trace: { traceId: "0123456789abcdef0123456789abcdef" }, emit: (_n:
 test("field clocks: baseSeq applies, a stale older clock loses, assistant keeps the current value", async () => {
   const rec = openRecords({ space: "sp_clk" });
   await rec.store.define({ add_types: [ITEM] });
-  const id = mintUuid();
+  const id = mintRecordId();
   await rec.store.create("item", id, { name: "A", qty: 1, status: "open", code: "c1" });
   const first = rec.clocks("item", id);
   assert.deepEqual(first.map((c) => c.field).sort(), ["code", "name", "qty", "status"]);
@@ -70,7 +70,7 @@ test("field clocks: baseSeq applies, a stale older clock loses, assistant keeps 
 test("write-once refuses a second value and the version stays", async () => {
   const rec = openRecords({ space: "sp_once" });
   await rec.store.define({ add_types: [ITEM] });
-  const id = mintUuid();
+  const id = mintRecordId();
   const row = await rec.store.create("item", id, { name: "A", code: "c1" });
   await assert.rejects(() => rec.mergeFields("item", id, { code: { value: "c2", hlc: hlc(4_000, "dev_a"), baseSeq: 1 } }, "usr_dana"), code("invalid"));
   await assert.rejects(() => rec.store.update("item", id, { code: "c2" }, row.version), code("invalid"));
@@ -106,14 +106,14 @@ test("delete and restore bump the version; a protected type and a hold cannot be
   assert.equal(back.record.deletedAt, undefined);
   assert.equal(back.record.fields.name, "T");
 
-  const ledger = await rec.store.create("ledger", mintUuid(), { name: "L" });
+  const ledger = await rec.store.create("ledger", mintRecordId(), { name: "L" });
   await assert.rejects(() => rec.store.remove("ledger", ledger.id, 1), code("invalid"));
   await assert.rejects(() => rec.handlers["records.delete"](ctx, { type: "ledger", recordId: ledger.id }), vcode("validation.field_locked"));
   assert.equal((await rec.store.get("ledger", ledger.id))?.data.name, "L");
   await assert.rejects(() => rec.store.define({ remove_types: ["ledger"] }), code("invalid"));
   assert.equal((await rec.store.types()).some((t) => t.name === "ledger"), true);
 
-  const held = await rec.store.create("item", mintUuid(), { name: "H" });
+  const held = await rec.store.create("item", mintRecordId(), { name: "H" });
   rec.host.tx.run("UPDATE records_row_meta SET holds = 1 WHERE type = ? AND id = ?", "item", held.id);
   await assert.rejects(() => rec.store.remove("item", held.id, 1), code("invalid"));
   await assert.rejects(() => rec.handlers["records.delete"](ctx, { type: "item", recordId: held.id }), vcode("permission.on_hold"));

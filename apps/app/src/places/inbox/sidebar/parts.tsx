@@ -2,6 +2,7 @@
 import { createElement } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 
 /** 16 px viewBox stroke icons, from the prototype's Inbox. */
 export const ICON = {
@@ -12,6 +13,7 @@ export const ICON = {
   thread: ["M3 4h10M3 8h10M3 12h6"],
   mix: ["M2.5 5h11M2.5 8h11M2.5 11h11"],
   cal: ["M4.5 3.5h7a2 2 0 012 2v6a2 2 0 01-2 2h-7a2 2 0 01-2-2v-6a2 2 0 012-2z", "M2.5 6.5h11M5.5 2v3M10.5 2v3"],
+  star: ["M8 2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.2 4.4 13.1l.7-4L2.2 6.3l4-.6z"],
   bell: ["M4 11V7.4a4 4 0 018 0V11l1.2 1.6H2.8z", "M6.4 14a1.7 1.7 0 003.2 0"],
   flag: ["M3.5 14V2.5M3.5 3h8l-1.7 2.6L11.5 8h-8"],
   lock: ["M5 7h6a1 1 0 011 1v4.5a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1z", "M5.5 7V5a2.5 2.5 0 015 0v2"],
@@ -28,10 +30,10 @@ export const ICON = {
 export type IconName = keyof typeof ICON;
 
 /** One stroke icon. Web only (an SVG); other platforms draw nothing until their own icon set lands. */
-export function Glyph({ name, size = 15, color = "var(--ink-3)" }: { name: IconName; size?: number; color?: string }): ReactElement | null {
+export function Glyph({ name, size = 15, color = "var(--ink-3)", fill = false }: { name: IconName; size?: number; color?: string; fill?: boolean }): ReactElement | null {
   if (Platform.OS !== "web") return null;
   const paths: ReactElement[] = [];
-  for (const d of ICON[name]) paths.push(createElement("path", { key: d, d, fill: "none" }));
+  for (const d of ICON[name]) paths.push(createElement("path", { key: d, d, fill: fill ? color : "none" }));
   return createElement(
     "svg",
     { viewBox: "0 0 16 16", width: size, height: size, "aria-hidden": true, style: { display: "block", flex: "none", stroke: color, strokeWidth: name === "more" ? 2.4 : 1.4, strokeLinecap: "round", strokeLinejoin: "round" } },
@@ -39,32 +41,11 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)" }: { name: IconN
   );
 }
 
-export function hash(s: string): number {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
-  return h;
-}
-
-export function initialsOf(name: string, size: number): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (size >= 24) {
-    let out = "";
-    for (const w of words.slice(0, 2)) out += (w[0] ?? "").toUpperCase();
-    return out || "?";
-  }
-  return (words[0]?.[0] ?? "?").toUpperCase();
-}
-
-/** A person is a circle; the colour comes from the name, mixed into the surface so it reads in every skin. */
+/** A person is a round marble seeded by the name (a square-cornered pixel face when `round` is off): the shared Avatar. */
 export function Face({ name, size = 36, round = true }: { name: string; size?: number; round?: boolean }): ReactElement {
-  const hue = (hash(name) % 12) * 30;
   return (
-    <View
-      aria-hidden
-      testID={`face-${name}`}
-      style={{ width: size, height: size, borderRadius: round ? size : Math.round(size * 0.3), backgroundColor: `hsla(${hue}, 65%, 52%, 0.22)` as string, alignItems: "center", justifyContent: "center" }}
-    >
-      <Text style={{ color: `hsl(${hue}, 55%, 46%)` as string, fontSize: Math.max(9, Math.round(size * 0.4)), fontWeight: "600", letterSpacing: -0.1 }}>{initialsOf(name, size)}</Text>
+    <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0 }}>
+      <Avatar name={name} kind={round ? "person" : "agent"} size={size} />
     </View>
   );
 }
