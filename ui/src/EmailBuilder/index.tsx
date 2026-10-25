@@ -212,6 +212,7 @@ const ICON = {
   button: `${SVG}<rect x="2" y="5" width="12" height="6" rx="3"/></svg>`,
   columns: `${SVG}<rect x="2.500" y="3" width="11" height="10" rx="1.500"/><path d="M8 3v10"/></svg>`,
   divider: `${SVG}<path d="M2.500 8h11"/></svg>`,
+  history: `${SVG}<path d="M2.500 8a5.500 5.500 0 105.500-5.500A5.500 5.500 0 004 4.500M2 2.500v2.500h2.500M8 5v3l2 1.200"/></svg>`,
   templates: `${SVG}<rect x="2.500" y="2.500" width="11" height="11" rx="1.500"/><path d="M2.500 6h11M6 6v7.500"/></svg>`,
   comment: `${SVG}<path d="M2.500 3.500h11v7h-6l-3 2.500v-2.500h-2z"/></svg>`,
   heading: `${SVG}<path d="M3.500 3v10M12.500 3v10M3.500 8h9"/></svg>`,

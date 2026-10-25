@@ -1,5 +1,6 @@
 // ui/EmailBuilder: edit, compile, test send, accept one of three suggested diffs (spec 2.19, 3.6). The pure rules (compile, checks, history, focus keys)
 // are tested directly; the view is rendered to markup in each mode, focus state and pane tab. Browser behaviour (clicks, typing) is the shots mount and the golden flow.
+// @reads ../../../scripts/shots/mounts/P-L9_09.tsx
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -8,7 +9,6 @@ import {
   blocksToPlain, highlightHtml, emailBlockHtml, hasUnsub, formatHtml, compileEmail as compile2, DEFAULT_EMAIL_STYLE, EMAIL_WIDTHS, EMAIL_FONTS, COLOR_LABEL, isHex, splitTokens, canRedo, canUndo, compileEmail, editBlock, fillMerge, focusKey, mergeFieldsOf, mergeToken, moveBlock, newBlock, pushHistory, runChecks, stepHistory,
 } from "./index.tsx";
 import type { EmailBlock, EmailBuilderViewProps, EmailDiff, EmailHistory, EmailSnapshot } from "./index.tsx";
-import Mount, { title as mountTitle } from "../../../scripts/shots/mounts/P-L9_09.tsx";
 
 const BLOCKS: readonly EmailBlock[] = [
   { id: "t1", kind: "text", text: "Hi, thanks for your time on Friday." },
@@ -259,9 +259,4 @@ test("Preview opens as the main canvas with the Desktop, Mobile, Dark and Send t
   assert.ok(!html.includes('data-testid="em-card"'), "the blocks card gives way to the preview");
   assert.match(html, /Hi Elena/);
   assert.match(renderToStaticMarkup(<EmailBuilder {...base} subject="Hi {{first_name}}" paneTab="preview" contacts={CONTACTS} contactId="c2" />), /Hi Omar/);
-});
-
-test("the shots mount renders without throwing (its query is read after mount) and names itself", () => {
-  assert.equal(mountTitle, "EmailBuilder");
-  assert.doesNotThrow(() => renderToStaticMarkup(<Mount />));
 });
