@@ -22,8 +22,8 @@ export const PANE_WIDTH_GUESS = 340;
 export const HEADER_CHROME = 80;
 const GLYPH_W = 6.8;
 const TAB_CHROME = 20;
-/** What a tab in ui/TabStrip adds around its text: 10 + 6 padding, 1 + 1 border, the 7 px gap and the 18 px close slot. The text itself is measured on screen. */
-export const TAB_EXTRA = 43;
+/** What a tab in ui/TabStrip adds around its text: 10 + 6 padding, 1 + 1 border, the 7 px gap, the 18 px close slot and the 2 px between tabs (measured off the 390 px shots). The text itself is measured on screen. */
+export const TAB_EXTRA = 45;
 /** The room one tab takes in the shared strip (12.5 px type, 10 + 6 padding, 2 gap). */
 export function tabWidth(title: string): number {
   return tabW(title);

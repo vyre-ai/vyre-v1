@@ -55,9 +55,9 @@ test("Run now and Delegate call the P-CC_20 capabilities with their real inputs"
 
 test("the fit folds by measured widths: wider real text folds sooner, narrower text keeps more", () => {
   const width = 358;
-  const est = fitTabs(PAGE_TABS, "chats", width, { chrome: 12 });
-  const wide = fitTabs(PAGE_TABS, "chats", width, { chrome: 12, widthOf: () => 110 });
-  const narrow = fitTabs(PAGE_TABS, "chats", width, { chrome: 12, widthOf: () => 40 });
+  const est = fitTabs(PAGE_TABS, "chats", width, { chrome: 52 });
+  const wide = fitTabs(PAGE_TABS, "chats", width, { chrome: 52, widthOf: () => 110 });
+  const narrow = fitTabs(PAGE_TABS, "chats", width, { chrome: 52, widthOf: () => 40 });
   assert.ok(wide.shown.length < est.shown.length || est.hidden.length > 0);
   assert.equal(narrow.hidden.length, 0, "five 40 px tabs fit 346 px");
   assert.ok(wide.shown.some((t) => t.key === "chats") && wide.hidden.length > 0);

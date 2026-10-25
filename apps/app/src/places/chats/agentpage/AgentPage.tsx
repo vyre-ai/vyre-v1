@@ -42,8 +42,8 @@ export interface AgentPageProps {
 export const NOTICE_MS = 8000;
 /** Below this window width the header stacks and the strip wraps. */
 export const NARROW = 640;
-/** ui/TabStrip pads its tab row 6 px each side; the page strip has no toggle or options button, so this is all the chrome the fit subtracts. */
-const STRIP_PADDING = 12;
+/** What the strip keeps besides tabs: its 6 px padding each side and the options button (26 px) with its gap, rounded up. */
+const STRIP_PADDING = 52;
 
 export function AgentPage(props: AgentPageProps): ReactElement {
   const ctx = useOptionalAgentPageData();
