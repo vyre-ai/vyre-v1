@@ -13,6 +13,7 @@ import type { PlaceId } from "../rail/kits.ts";
 import type { ShellHub } from "../spaces/hub.ts";
 import { Shell } from "../spaces/Shell.tsx";
 import type { PlaceContext } from "../spaces/Shell.tsx";
+import { dropKeyOnOwnNode, holdKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
 import { CapError, createCapCaller } from "./caps.ts";
 import { formatHash } from "../hash/hash.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
@@ -41,6 +42,15 @@ type Phase = { kind: "signin" } | { kind: "shell"; stored: StoredSession };
 const noHub = (): void => undefined;
 const hostOf = (baseUrl: string): string => baseUrl.replace(/^https?:\/\//, "").split(":")[0] ?? baseUrl;
 
+/** Opens the person key with the password and gives it to this computer's own daemon. The key lives only in this function; a Space on another machine never gets it, and a failure leaves sign-in working with personal keys locked. */
+async function unlockOwnKey(baseUrl: string, token: string, password: string, keys: { personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string }): Promise<void> {
+  try {
+    const { openBundle, wipe } = await import("../../../../../client/src/crypto/keys.ts");
+    const opened = await openBundle(password, { ...keys, personKeyByRecovery: keys.personKeyByRecovery ?? "" });
+    try { await holdKeyOnOwnNode(baseUrl, token, opened.personKey); } finally { wipe(opened.personKey); wipe(opened.privateKey); }
+  } catch { /* personal keys stay locked; signing in does not depend on them */ }
+}
+
 function SignInScreen({ baseUrl, onSignedIn }: { baseUrl: string; onSignedIn: (s: StoredSession) => void }): ReactElement {
   useEffect(() => { mark("app.usable"); }, []);
   const invite: JoinInvite = useMemo(() => ({ space: hostOf(baseUrl), host: hostOf(baseUrl), by: "", role: "", sso: [], github: false, adminKey: false }), [baseUrl]);
@@ -48,10 +58,11 @@ function SignInScreen({ baseUrl, onSignedIn }: { baseUrl: string; onSignedIn: (s
   const signIn = useCallback(async (v: { username: string; password: string; code?: string }): Promise<"ok" | "second_factor_required"> => {
     const out = (await anonymous("identity.sign_in", {
       username: v.username, password: v.password, deviceName: "Web browser", deviceClass: "web", ...(v.code ? { totp: v.code } : {}),
-    })) as { status: "ok" | "second_factor_required"; session?: { token: string } };
+    })) as { status: "ok" | "second_factor_required"; session?: { token: string }; keys?: { personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string } };
     if (out.status === "second_factor_required") return "second_factor_required";
     const token = out.session?.token;
     if (!token) throw new Error("The Space did not return a session. Try again.");
+    if (out.keys) await unlockOwnKey(baseUrl, token, v.password, out.keys);
     const real = await openRealSession({ baseUrl, token });
     const stored: StoredSession = { baseUrl, token, def: real.def, personId: real.me.id };
     real.close();
@@ -116,7 +127,13 @@ function ShellHost({ stored, open, onSignedOut, onHub }: { stored: StoredSession
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
     : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} hash={ctx.hash} opened={(t) => { const next = formatHash(t); if (next !== ctx.hash) hub.go(ctx.place, next); }} />;
   if (phone) return <PhoneHost session={session} needsYou={stored.def.counts.chats ?? 0} registerGo={registerGo} />;
-  return <Shell hub={hub} renderPlace={renderPlace} />;
+  const onSpaceAction = (a: string): void => {
+    if (a !== "sign-out") return;
+    void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined);
+    void session?.call("identity.sign_out", {}).catch(() => undefined);
+    onSignedOut();
+  };
+  return <Shell hub={hub} renderPlace={renderPlace} onSpaceAction={onSpaceAction} />;
 }
 
 export function SessionGate(props: SessionGateProps): ReactElement {
