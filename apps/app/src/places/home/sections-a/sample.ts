@@ -30,8 +30,13 @@ export interface SampleSpace {
   routines: Routine[];
 }
 
+/** How many days each sample task takes, so the Plan timeline draws bars of different lengths (the prototype's tasks have a start as well as a due date). */
+const EFFORT_DAYS: Readonly<Record<string, number>> = {
+  tsk_t1: 4, tsk_t2: 3, tsk_t3: 2, tsk_t4: 2, tsk_t5: 3, tsk_t6: 4, tsk_t7: 3, tsk_t8: 2, tsk_t9: 5, tsk_t10: 6, tsk_t11: 5, tsk_t12: 3, tsk_t13: 10, tsk_t14: 5, tsk_t15: 3, tsk_t16: 4,
+  tsk_h1: 3, tsk_h2: 2, tsk_h3: 4, tsk_h4: 3, tsk_h5: 2,
+};
 const task = (id: string, o: Partial<Task> & { title: string; kind: Task["kind"]; assigned: Ref; due?: number; recordId?: string }): Task => ({
-  id, state: "todo", blocked: false, blocks: [], actions: [], fileIds: [], dependsOn: [], followers: [], workingNotes: {}, reviewLoops: 0,
+  id, state: "todo", ...(EFFORT_DAYS[id] === undefined ? {} : { effort: EFFORT_DAYS[id] }), blocked: false, blocks: [], actions: [], fileIds: [], dependsOn: [], followers: [], workingNotes: {}, reviewLoops: 0,
   createdBy: "usr_irfad", createdAt: at(10, 20, 9), updatedAt: at(10, 23, 9), ...o,
 } as Task);
 
@@ -52,7 +57,7 @@ const unblock = [{ key: "unblock", label: "Unblock" }];
 
 export const northwind: SampleSpace = {
   id: "northwind", name: "Northwind", me: people[0]!, principals: people,
-  records: { rec_rivera: "Rivera matter", rec_pruitt: "Pruitt engagement", rec_atp1: "Harlow & Price", rec_q4: "Q4 billing", rec_hiring: "Hiring: operations lead", rec_offsite: "Q4 offsite", rec_web: "Website relaunch" },
+  records: { rec_rivera: "Rivera matter", rec_pruitt: "Pruitt engagement", rec_atp1: "ATP · Harlow & Price", rec_q4: "Q4 billing", rec_hiring: "Hiring: operations lead", rec_offsite: "Q4 offsite", rec_web: "Website relaunch" },
   tasks: [
     task("tsk_t1", { title: "Send the retainer reminder to Marcus Pruitt", kind: "work", state: "doing", assigned: P("usr_irfad"), due: at(10, 22), recordId: "rec_pruitt" }),
     task("tsk_t2", { title: "Review the Harlow & Price worksheet", kind: "review", assigned: A("agt_research"), reviewer: P("usr_irfad"), due: at(10, 23), recordId: "rec_atp1" }),
@@ -228,14 +233,15 @@ export function createSampleHome(space: SampleSpace = northwind, o: { online?: b
 
   const writes: Record<string, (input: any) => unknown> = {
     "tasks.act": (i: { taskId: string; action: string }) => patchTask(i.taskId, { state: "done" }) && { task: taskRows().find((t) => t.id === i.taskId) },
+    "tasks.update": (i: { taskId: string; due?: number | null; effort?: number | null }) => ({ task: patchTask(i.taskId, { ...(i.due == null ? {} : { due: i.due }), ...(i.effort == null ? {} : { effort: i.effort }) }) }),
     "tasks.transition": (i: { taskId: string; to: Task["state"] }) => ({ task: patchTask(i.taskId, { state: i.to, blocked: false }) }),
     "tasks.assign": (i: { taskId: string; slot: "assigned" | "reviewer" | "approver"; to: Ref | null }) => {
       const patch: Partial<Task> = i.slot === "assigned" ? { assigned: i.to as Ref } : i.slot === "reviewer" ? { reviewer: i.to ?? undefined } as Partial<Task> : { approver: i.to ?? undefined } as Partial<Task>;
       return { task: patchTask(i.taskId, patch) };
     },
-    "tasks.create": (i: { kind: Task["kind"]; title: string; assigned: Ref }) => {
+    "tasks.create": (i: { kind: Task["kind"]; title: string; assigned: Ref; recordId?: string; due?: number; effort?: number }) => {
       const id = `tsk_new${replica.rows("tasks").length + 1}`;
-      replica.put("tasks", [{ ...task(id, { title: i.title, kind: i.kind, assigned: i.assigned, due: SAMPLE_NOW + DAY, createdBy: me }), createdAt: SAMPLE_NOW, updatedAt: SAMPLE_NOW } as TaskRow]);
+      replica.put("tasks", [{ ...task(id, { title: i.title, kind: i.kind, assigned: i.assigned, due: i.due ?? SAMPLE_NOW + DAY, ...(i.recordId ? { recordId: i.recordId } : {}), ...(i.effort !== undefined ? { effort: i.effort } : {}), createdBy: me }), createdAt: SAMPLE_NOW, updatedAt: SAMPLE_NOW } as TaskRow]);
       return { task: taskRows().find((t) => t.id === id) };
     },
     "home.mark_digest_seen": (i: { digestId: string }) => {

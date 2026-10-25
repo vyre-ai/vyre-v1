@@ -63,13 +63,16 @@ export const northwind: SampleSpace = {
     { id: "vit_opencode", name: "OpenCode Go key", kind: "api_key", folder: "fld_mine", scope: "mine", usedAgo: h(6), fields: [["OPENCODE_API_KEY", "oc-fake-fake-fake-fake-fake-fake-12", true]] },
     { id: "vit_pg", name: "Postgres · Northwind prod", kind: "env", folder: "fld_ops", scope: "shared", usedAgo: h(6), fields: [["DATABASE_URL", "postgres://app:s3cretPw@db.northwind.example:5432/prod", true]] },
     { id: "vit_twilio", name: "Twilio · Support line", kind: "api_key", folder: "fld_ops", scope: "shared", usedAgo: h(15), fields: [["TWILIO_ACCOUNT_SID", "AC0123456789abcdef0123456789abcdef", false], ["TWILIO_AUTH_TOKEN", "fakefakefakefakefakefakefakefake", true]] },
-    { id: "vit_anthropic", name: "Anthropic API key", kind: "api_key", folder: "fld_marketing", scope: "shared", usedAgo: h(20), fields: [["ANTHROPIC_API_KEY", "sk-ant-api03-fake-fake-fake-fake", true]] },
+    { id: "vit_anthropic", name: "OpenAI key", kind: "api_key", folder: "fld_marketing", scope: "shared", usedAgo: h(30), fields: [["OPENAI_API_KEY", "sk-proj-fake-fake-fake-fake", true]] },
     { id: "vit_visa", name: "Northwind Visa", kind: "card", folder: "fld_finance", scope: "shared", usedAgo: h(30), level: "view", fields: [["CARD_NUMBER", "4111111111111111", true], ["EXPIRY", "09/28", false], ["CVV", "123", true]] },
     { id: "vit_github", name: "GitHub", kind: "login", folder: "fld_mine", scope: "mine", usedAgo: h(40), fields: [["USERNAME", "irfad7", false], ["PASSWORD", "Gh9$kLp3xQw8", true]] },
     { id: "vit_resend", name: "Resend", kind: "api_key", folder: "fld_ops", scope: "shared", usedAgo: 5 * DAY_MS, fields: [["RESEND_API_KEY", "re_fakefakefakefakefake", true]] },
     { id: "vit_wifi", name: "Office Wi-Fi", kind: "note", folder: "fld_finance", scope: "shared", usedAgo: 40 * DAY_MS, fields: [["NOTE", "Northwind-Guest / harbor-lights-42", true]] },
   ],
   history: [
+    { item: "vit_claude", actor: { kind: "agent", id: "agt_intake" }, action: "used", field: "CLAUDE_SETUP_TOKEN", ago: m(42) },
+    { item: "vit_claude", actor: { kind: "agent", id: "agt_intake" }, action: "used", field: "CLAUDE_SETUP_TOKEN", ago: h(3) },
+    { item: "vit_claude", actor: { kind: "agent", id: "agt_research" }, action: "used", field: "CLAUDE_SETUP_TOKEN", ago: h(5) },
     { item: "vit_ghl", actor: { kind: "agent", id: "agt_intake" }, action: "used", field: "GHL_PIT", ago: m(14) },
     { item: "vit_ghl", actor: { kind: "agent", id: "agt_research" }, action: "used", field: "GHL_PIT", ago: h(2) },
     { item: "vit_ghl", actor: { kind: "service", id: "aut_weekly" }, onBehalfOf: { kind: "person", id: "usr_irfad" }, action: "used", field: "GHL_PIT", ago: h(26) },
@@ -82,7 +85,7 @@ export const northwind: SampleSpace = {
   providers: [
     { id: "prv_claude", key: "claude-code", name: "Claude", connection: "subscription", via: "Sign in with Claude Max", scope: "mine", item: "vit_claude", agents: ["agt_intake", "agt_research"], tokens: 4_200_000, cents: 0, engine: "claude-code" },
     { id: "prv_opencode", key: "opencode-go", name: "OpenCode Go", connection: "api_key", via: "API key", scope: "mine", item: "vit_opencode", agents: ["agt_billing"], tokens: 900_000, cents: 740, engine: "opencode" },
-    { id: "prv_anthropic", key: "anthropic", name: "Anthropic", connection: "api_key", via: "API key #Northwind_Anthropic", scope: "shared", item: "vit_anthropic", agents: ["agt_intake"], tokens: 1_100_000, cents: 1320, engine: "claude-code" },
+    { id: "prv_anthropic", key: "openai", name: "OpenAI", connection: "api_key", via: "API key #Northwind_OpenAI", scope: "shared", item: "vit_anthropic", agents: ["agt_intake"], tokens: 1_100_000, cents: 1320, engine: "claude-code" },
   ],
   requests: [{ id: "req_twilio", name: "Twilio", forAutomation: "New lead follow-up", agoMin: 120 }],
   grants: {

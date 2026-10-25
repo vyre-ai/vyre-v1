@@ -22,7 +22,9 @@ function tallyOf(u: Json | null): Tally {
 }
 
 /** The MCP server block the CLI is started with. The token is the environment variable's, expanded by the CLI: the command line holds only its name. */
-export function mcpConfigJson(url: string): string {
+export function mcpConfigJson(url: string, stdio?: { command: string; args: readonly string[] }): string {
+  // Through a sandbox's socket the CLI starts the shim as a stdio server; the token reaches it by name from the environment, as with the URL form.
+  if (stdio) return JSON.stringify({ mcpServers: { vyre: { type: "stdio", command: stdio.command, args: [...stdio.args], env: { [TOKEN_ENV]: "${" + TOKEN_ENV + "}" } } } });
   return JSON.stringify({ mcpServers: { vyre: { type: "http", url, headers: { Authorization: "Bearer ${" + TOKEN_ENV + "}" } } } });
 }
 
@@ -157,7 +159,7 @@ export const claudeCode: CliAdapter = {
     const allowed = ["mcp__vyre__*", ...(o.workFolder !== null ? WORK_FOLDER_TOOLS : [])];
     return [
       "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
-      "--mcp-config", mcpConfigJson(o.mcpUrl), "--strict-mcp-config",
+      "--mcp-config", mcpConfigJson(o.mcpUrl, o.mcpStdio), "--strict-mcp-config",
       "--permission-mode", o.planMode ? "plan" : "default",
       "--allowedTools", ...allowed,
       // A chat on the person's computer runs Vyre's tools only: the CLI's own tools are switched off unless a work folder was granted.

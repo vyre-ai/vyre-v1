@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "P-L9f_02c-runs-failed",
+      "route": "/m/P-L9f_02c?view=failed",
+      "proto": "automations,at:run,{skin}",
+      "waitFor": "[data-testid='run-graph']",
+      "note": "Runs tab of New lead follow-up: Needs attention row with Retry step, Copy trace id, Skip step and Stop; the step graph column beside the list; the failed run in the side pane under the Details, Settings, Alerts, Runs and Run tabs, its error row with Retry step, Skip step, Stop and Copy trace id, Edit step, Replay. The prototype side is the same run."
+    },
+    {
+      "id": "P-L9f_02c-runs-waiting",
+      "route": "/m/P-L9f_02c?view=waiting",
+      "proto": "automations,at:waiting,{skin}",
+      "waitFor": "[data-testid='run-graph']",
+      "note": "Runs tab of Invoice reminders: the queued run (Invoice 1046) above the run waiting on Maya, then the earlier Friday runs; the filled Approve beside Decline in the side pane. The prototype side is the same waiting run."
+    }
+  ]
+}

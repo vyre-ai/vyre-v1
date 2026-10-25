@@ -15,6 +15,11 @@ import { ALL, countItems, sameSelection, visibleItems } from "./model.ts";
 import type { Folder, Health, Item, Provider, Selection } from "./model.ts";
 import { Glyph, IconBtn, QuietLine } from "./parts.tsx";
 import { Sidebar } from "./Sidebar.tsx";
+import { HealthView } from "../health/index.ts";
+import { ImportSheet } from "../import/index.ts";
+import type { Source } from "../import/index.ts";
+import { AddProvider, ProviderPage, ProviderPanel } from "../providers/index.ts";
+import type { ConnectionKind } from "../providers/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 
 export { VaultDataProvider } from "./data.tsx";
@@ -56,6 +61,8 @@ function Page({ initial, sheet, view }: { initial?: Selection | undefined; sheet
   const [detailOpen, setDetailOpen] = useState(false);
   const [adding, setAdding] = useState<{ paste?: string; app?: string } | null>(sheet?.add ?? null);
   const [editing, setEditing] = useState<string | null>(sheet?.edit ?? null);
+  const [addingProvider, setAddingProvider] = useState<boolean>(sheet?.addProvider !== undefined);
+  const [importing, setImporting] = useState<boolean>(sheet?.importFrom !== undefined);
   const [addField, setAddField] = useState(false);
   const [lastFolder, setLastFolder] = useState<string | undefined>(undefined);
   const [askDelete, setAskDelete] = useState(0);
@@ -172,7 +179,8 @@ function Page({ initial, sheet, view }: { initial?: Selection | undefined; sheet
         </Pressable>
       )}
       <View style={{ flex: 1 }} />
-      <IconBtn icon="plus" label="Add an item" onPress={() => setAdding({})} testID="add-item" color="var(--ink-2)" />
+      <IconBtn icon="more" label="More" onPress={(e) => { const r = rectOf(e); menu.show([{ label: "Add an AI provider…", onSelect: () => setAddingProvider(true) }, { label: "Import from another manager…", onSelect: () => setImporting(true) }], r.x - 160, r.y, "other"); }} testID="vault-more" color="var(--ink-2)" />
+      <IconBtn icon="plus" label={selection.kind === "providers" ? "Add an AI provider" : "Add an item"} onPress={() => (selection.kind === "providers" ? setAddingProvider(true) : setAdding({}))} testID="add-item" color="var(--ink-2)" />
     </View>
   );
 
@@ -186,7 +194,9 @@ function Page({ initial, sheet, view }: { initial?: Selection | undefined; sheet
           <Text style={s.kbd}>⌘F</Text>
         </View>
       </View>
-      {loading ? <ListSkeleton /> : visible.length === 0 ? (
+      {!loading && selection.kind === "health" && health.status === "ready" && visible.length > 0 ? (
+        <HealthView health={health.data} selectedId={effectiveId} onSelect={(id) => { setSelectedId(id); if (!twoPane) setDetailOpen(true); }} />
+      ) : loading ? <ListSkeleton /> : visible.length === 0 ? (
         <View style={s.empty} testID="vault-empty">
           {all.length === 0
             ? <States kind="empty" title="Your vault is empty" icon="files" action={{ label: "Add an item", onPress: () => setAdding({}) }} />
@@ -200,8 +210,13 @@ function Page({ initial, sheet, view }: { initial?: Selection | undefined; sheet
     </View>
   );
 
+  const providerHere = effectiveId ? providerOf.get(effectiveId) : undefined;
   const detail = effectiveId ? (
-    <ItemEnv key={effectiveId} itemId={effectiveId} askDelete={askDelete} initialMode={view} onEdit={() => { setAddField(false); setEditing(effectiveId); }} onAddField={() => { setAddField(true); setEditing(effectiveId); }} onGone={() => { setSelectedId(null); setDetailOpen(false); }} onNote={showNote} onBack={twoPane ? undefined : () => setDetailOpen(false)} />
+    <View style={{ flex: 1, minHeight: 0 }}>
+      {providerHere?.connection === "subscription" ? <ProviderPage key={providerHere.id} provider={providerHere} handle={all.find((i) => i.id === providerHere.itemId)?.handle ?? ""} onNote={showNote} /> : null}
+      {providerHere && providerHere.connection !== "subscription" ? <ProviderPanel key={providerHere.id} provider={providerHere} onNote={showNote} onRemoved={() => { setSelectedId(null); setDetailOpen(false); }} /> : null}
+      {providerHere?.connection === "subscription" ? null : <ItemEnv key={effectiveId} itemId={effectiveId} askDelete={askDelete} initialMode={view} onEdit={() => { setAddField(false); setEditing(effectiveId); }} onAddField={() => { setAddField(true); setEditing(effectiveId); }} onGone={() => { setSelectedId(null); setDetailOpen(false); }} onNote={showNote} onBack={twoPane ? undefined : () => setDetailOpen(false)} />}
+    </View>
   ) : <NoItem text={loading ? "" : visible.length === 0 ? "" : "Select an item to see its fields"} />;
 
   return (
@@ -221,6 +236,13 @@ function Page({ initial, sheet, view }: { initial?: Selection | undefined; sheet
           }}
         />
       ) : null}
+      {addingProvider ? (
+        <AddProvider
+          {...(typeof sheet?.addProvider === "object" ? { initial: sheet.addProvider } : {})} onClose={() => setAddingProvider(false)}
+          onAdded={(p) => { setSelection({ kind: "providers" }); setSelectedId(p.itemId); showNote(`Connected ${p.name}`); }}
+        />
+      ) : null}
+      {importing ? <ImportSheet folders={folderList.filter((f) => f.yourLevel === "edit" || f.yourLevel === "manage")} {...(typeof sheet?.importFrom === "string" ? { initialSource: sheet.importFrom } : {})} onClose={() => setImporting(false)} onDone={(t) => showNote(t)} /> : null}
       {editing ? <EditSheet itemId={editing} addField={addField} onClose={() => { setEditing(null); setAddField(false); }} onSaved={(text) => showNote(text)} /> : null}
     </View>
   );
@@ -256,7 +278,13 @@ export function VaultLoading(): ReactElement {
   );
 }
 
-export interface InitialSheet { add?: { paste?: string; app?: string }; edit?: string }
+export interface InitialSheet {
+  add?: { paste?: string; app?: string }; edit?: string;
+  /** The Add an AI provider sheet is open; with a pick it starts on that provider and way of connecting. */
+  addProvider?: { providerKey: string; connection: ConnectionKind } | true;
+  /** The Import sheet is open; with a source it starts on that one. */
+  importFrom?: Source | true;
+}
 
 export interface VaultProps {
   /** Overrides what the shell provided (the screenshot mounts and tests pass their own). */

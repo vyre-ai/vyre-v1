@@ -31,6 +31,8 @@ export interface SchemaHandle {
   handlers: SchemaHandlers;
   /** Make sure the manifests' record types exist (idempotent). */
   ready(): Promise<void>;
+  /** Seed the manifests' record types once, now, as a write of its own; reads after it never seed (P-L3_17). The host calls it at start. */
+  start(): Promise<void>;
 }
 
 export function openSchema(o: {
@@ -51,7 +53,7 @@ export function openSchema(o: {
     ...(o.now ? { now: o.now } : {}), ...(o.readFile ? { readFile: o.readFile } : {}), ...(o.publicBase ? { publicBase: o.publicBase } : {}),
   };
   ensureTables(tx);
-  return { deps, store, tx, ...(host ? { host } : {}), handlers: createSchemaHandlers(deps), ready: () => seedManifestTypes(deps) };
+  return { deps, store, tx, ...(host ? { host } : {}), handlers: createSchemaHandlers(deps), ready: () => seedManifestTypes(deps), start: () => (deps.started ??= seedManifestTypes(deps)) };
 }
 
 /**
@@ -98,6 +100,12 @@ const live = (): SchemaHandle => {
   }
   return shared;
 };
+
+/**
+ * Called by the host once at start, after the Space store is wired: seeds the manifest-declared record types in a write of their own, so no read path has to (a read can run in a
+ * transaction that is rolled back, which lost the seed and left a Kit's later schema.layout.set on its declared type answering not found).
+ */
+export async function startSchema(): Promise<void> { await live().start(); }
 
 function adapt(name: keyof SchemaHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {
