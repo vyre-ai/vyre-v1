@@ -41,5 +41,8 @@ test("server_write p95 under 10 ms at 200 records creates per second", async () 
   console.log(line("server_write", r));
   const p95 = pct(r.lat, 0.95);
   assert.ok(200 / r.wall >= 150, `the pacer kept up (${(200 / r.wall).toFixed(0)}/s)`);
-  assert.ok(p95 < 10, `p95 ${p95.toFixed(2)} ms must be under 10 ms`);
+  assert.ok(p95 < 10, `p95 ${p95.toFixed(2)} ms must be under 10 ms (${line("server_write", r)}; ${line("kernel only", base)})`);
+  // Headroom: the budget is 10 ms, the runner must stay well inside it.
+  assert.ok(p95 < 7, `p95 ${p95.toFixed(2)} ms leaves too little headroom (${line("server_write", r)}; ${line("kernel only", base)})`);
 });
+// run 1
