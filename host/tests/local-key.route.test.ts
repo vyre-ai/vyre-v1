@@ -7,7 +7,7 @@ import { createLocalKeyRoute } from "../src/routes/local-key.ts";
 
 async function rig(allowed: (p: string) => boolean = () => true) {
   const keyring = createKeyring({ allowed });
-  const route = createLocalKeyRoute({ person: (h) => (h["authorization"] === "Bearer tok-a" ? "usr_a" : null), keyring, allowed });
+  const route = createLocalKeyRoute({ caller: (h) => (h["authorization"] === "Bearer tok-a" ? { person: "usr_a", sessionId: "ses_a" } : null), keyring, allowed });
   const server = http.createServer((req, res) => { if (!route.handle(req, res)) { res.writeHead(404); res.end(); } });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const port = (server.address() as { port: number }).port;

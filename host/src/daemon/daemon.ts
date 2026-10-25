@@ -44,6 +44,7 @@ import { createKitsHost } from "../seams/kits.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { createLocalKeyRoute } from "../routes/local-key.ts";
 import { createKeyring } from "../seams/keyring.ts";
+import { sessionLive } from "./session.ts";
 import { createProviderProbe, createVaultService, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, wireSeams } from "../seams/index.ts";
@@ -222,11 +223,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // Ruling 62: the person's own key, handed over by their client on their own node (POST /local/vault/key/unlock, loopback only), held in memory only. A device-role daemon is the computer of whoever signs in on it;
   // a Space server holds the key of its owner alone.
   let ownerOfSpace: () => string | null = () => cfg.owner;
-  let personOf: (h: http.IncomingHttpHeaders) => Promise<string | null> | string | null = () => null;
+  let callerOf: (h: http.IncomingHttpHeaders) => Promise<{ person: string; sessionId?: string } | null> = () => Promise.resolve(null);
   const ownNode = (p: string): boolean => cfg.roles.includes("device") || p === ownerOfSpace();
-  const keyring = createKeyring({ allowed: ownNode });
+  const keyring = createKeyring({ allowed: ownNode, live: (id) => (db ? sessionLive(db, id) : false) });
   closers.push(() => keyring.clearAll());
-  const localKeyRoute = createLocalKeyRoute({ person: (h) => personOf(h), keyring, allowed: ownNode });
+  const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: ownNode });
   let headSeq = 0;
   const access = createAccess();
 
@@ -439,7 +440,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         ...spaceStoreDrivers(spaceStore),
         setVaultKeyPort: () => ({ personKey: async (personId: string) => keyring.get(personId) }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
-        configureVault: () => ({ sinks: o.seams?.vaultSinks ?? {}, db: db!, probe: createProviderProbe(), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
+        configureVault: () => ({ sinks: o.seams?.vaultSinks ?? {}, db: db!, probe: createProviderProbe({ own: ownNode, ...(o.seams?.fetch ? {} : {}) }), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
         setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open() }, now }),
         ...(o.seams?.drivers ?? {}),
@@ -484,7 +485,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       const session: GatewayDeps["session"] = o.session ?? ((headers) => identify(bearer(headers["authorization"])));
       ownerOfSpace = () => cfg.owner ?? access.owner() ?? null;
-      personOf = async (h) => (await session(h))?.principal.id ?? null;
+      callerOf = async (h) => {
+        const who = await session(h);
+        if (!who) return null;
+        const token = bearer(h["authorization"]);
+        const device = token ? sessions.resolve(token) : null;
+        return { person: who.principal.id, ...(device ? { sessionId: device.sessionId } : {}) };
+      };
       gateway = createGateway({ invoke, caps: indexCapabilities(caps), routes: [...routes, ...(o.extra?.routes ?? [])], session });
       // GET /spaces/<space>/blobs/<id> (ruling 50): a blob is served to a caller who may read the resource its module stored it for
       blobRoute = createBlobRoute({

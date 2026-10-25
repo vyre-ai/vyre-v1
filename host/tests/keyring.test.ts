@@ -27,3 +27,34 @@ test("clear and clearAll take the key out and zero it", () => {
   k.clearAll();
   assert.equal(k.get("usr_b"), null);
 });
+
+test("a key unlocked by a session lives while any session that unlocked it is signed in, then is wiped on the next read", () => {
+  const alive = new Set(["ses_a", "ses_b"]);
+  const k = createKeyring({ allowed: () => true, live: (id) => alive.has(id) });
+  k.hold("usr_a", key(6), "ses_a");
+  k.hold("usr_a", key(6), "ses_b");
+  assert.deepEqual(k.get("usr_a"), key(6));
+  alive.delete("ses_a");
+  assert.deepEqual(k.get("usr_a"), key(6), "the other session is still signed in");
+  alive.delete("ses_b");
+  assert.equal(k.get("usr_a"), null, "the last session ended: the key is gone");
+  assert.equal(k.get("usr_a"), null);
+});
+
+test("a key handed over without a session (the local admin) stays until lock", () => {
+  const k = createKeyring({ allowed: () => true, live: () => false });
+  k.hold("usr_a", key(8));
+  assert.deepEqual(k.get("usr_a"), key(8));
+  k.hold("usr_a", key(8), "ses_x");
+  assert.deepEqual(k.get("usr_a"), key(8), "adding a session does not make it expire");
+  k.clear("usr_a");
+  assert.equal(k.get("usr_a"), null);
+});
+
+test("get hands out a copy: changing it changes nothing inside", () => {
+  const k = createKeyring({ allowed: () => true });
+  k.hold("usr_a", key(3));
+  const copy = k.get("usr_a")!;
+  copy.fill(0);
+  assert.deepEqual(k.get("usr_a"), key(3));
+});

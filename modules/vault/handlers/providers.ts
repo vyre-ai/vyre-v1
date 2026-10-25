@@ -28,7 +28,7 @@ export const CATALOG: readonly CatalogEntry[] = [
 const entry = (key: unknown): CatalogEntry | undefined => CATALOG.find((c) => c.key === key);
 
 /** What the host does with a key to see whether the provider takes it (omitted: the module cannot say). */
-export interface ProviderProbe { (p: { providerKey: string; connection: string; apiKey?: string; address?: string }): Promise<{ ok: boolean; models: string[]; detail?: string }> }
+export interface ProviderProbe { (p: { providerKey: string; connection: string; caller: string; apiKey?: string; address?: string }): Promise<{ ok: boolean; models: string[]; detail?: string }> }
 
 const providersSql = readFileSync(new URL("../migrations/0003_providers.sql", import.meta.url), "utf8");
 const ready = new WeakSet<object>();
@@ -209,7 +209,7 @@ export async function test(ctx: VaultCtx, input: { providerId: string }) {
   const fields = await openFields(ctx, item);
   const value = (k: string): string | undefined => fields.find((f) => f.key === k)?.value;
   try {
-    const r = await probe({ providerKey: str(p, "providerKey"), connection: str(p, "connection"), ...(value("api_key") ? { apiKey: value("api_key")! } : {}), ...(value("address") ? { address: value("address")! } : {}) });
+    const r = await probe({ providerKey: str(p, "providerKey"), connection: str(p, "connection"), caller: me(ctx), ...(value("api_key") ? { apiKey: value("api_key")! } : {}), ...(value("address") ? { address: value("address")! } : {}) });
     return done(r.ok, r.models, r.detail);
   } catch (e) {
     return done(false, [], e instanceof Error ? e.message.replace(/sk-[A-Za-z0-9_-]+/g, "[key]").slice(0, 200) : "The provider did not answer.");

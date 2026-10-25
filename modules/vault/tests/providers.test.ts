@@ -81,7 +81,7 @@ test("providers.test reaches the provider only through the host, shows the model
   const good = out(await p.test(h.ctx, { providerId: String(row.id) }));
   assert.deepEqual(contractErrors("providers.test", "out", good), []);
   assert.deepEqual([good.ok, good.models], [true, ["claude-sonnet-5-5"]]);
-  assert.deepEqual(seen, [{ providerKey: "anthropic", connection: "api_key", apiKey: SECRET }]);
+  assert.deepEqual(seen, [{ providerKey: "anthropic", connection: "api_key", caller: MAYA, apiKey: SECRET }]);
   answer = { ok: false, models: [], detail: "The provider did not accept this key." };
   assert.equal(out(await p.test(h.ctx, { providerId: String(row.id) })).ok, false);
   assert.equal(out((out(await p.list(h.ctx, {})).providers as Json[])[0]).state, "failing");
@@ -98,7 +98,7 @@ test("a local model is added by address and tested with it", async () => {
   const seen: unknown[] = [];
   u.configureVault({ sinks: {}, probe: async (q) => { seen.push(q); return { ok: true, models: ["llama3"] }; } });
   assert.equal(out(await p.test(h.ctx, { providerId: String(row.id) })).ok, true);
-  assert.deepEqual(seen, [{ providerKey: "local", connection: "local_model", address: "http://localhost:11434" }]);
+  assert.deepEqual(seen, [{ providerKey: "local", connection: "local_model", caller: MAYA, address: "http://localhost:11434" }]);
   u.configureVault(null);
   h.cleanup();
 });

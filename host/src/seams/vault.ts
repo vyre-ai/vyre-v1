@@ -1,6 +1,8 @@
 // ctx.vault for module code (ruling 31/32, ARCH 6.11): `use(handle)` names a handle and `fill(handle, into)` asks the vault module to put the value in a place, through the same invoke pipeline as any
 // caller, so authorize (Use level), audit and the history row are the normal ones and the value never passes through the module that asked. The places (git_credential, container_env, route_auth, env...)
 // are sinks the host registers per kind in DaemonOptions.seams.vaultSinks; a kind with no sink is refused by the vault module ("no place to fill").
+import dns from "node:dns/promises";
+import net from "node:net";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { CtxSeed, InvokeResult } from "../invoke.ts";
 import { fail } from "../routes/errors.ts";
@@ -40,11 +42,57 @@ export function resolveVaultItem(db: { all(sql: string, ...a: unknown[]): unknow
   return null;
 }
 
+/** An address the probe may not reach (SSRF): link-local always (cloud metadata is 169.254.169.254); loopback, private, unique-local and unspecified unless this is the caller's own computer. */
+export function blockedAddress(ip: string, own: boolean): string | null {
+  const v4 = (a: number, b: number): string | null => {
+    if (a === 169 && b === 254) return "a link-local address";
+    if (own) return null;
+    if (a === 127) return "a loopback address";
+    if (a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)) return "a private network address";
+    if (a === 0) return "an unspecified address";
+    if (a === 100 && b >= 64 && b <= 127) return "a shared network address";
+    return null;
+  };
+  if (net.isIPv4(ip)) { const [a, b] = ip.split(".").map(Number); return v4(a!, b!); }
+  if (net.isIPv6(ip)) {
+    const low = ip.toLowerCase();
+    const mapped = /^::ffff:(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(low);
+    if (mapped) return v4(Number(mapped[1]), Number(mapped[2]));
+    const first = parseInt(low.split(":")[0] || "0", 16);
+    if ((first & 0xffc0) === 0xfe80) return "a link-local address";
+    if (own) return null;
+    if (low === "::1") return "a loopback address";
+    if (low === "::") return "an unspecified address";
+    if ((first & 0xfe00) === 0xfc00) return "a private network address";
+    return null;
+  }
+  return "not an address";
+}
+
+/** Where a local model may be reached from this node: http or https, and every address its name resolves to allowed (a name that resolves to a refused address is refused whole). Null is fine; a string is why not. */
+export async function refuseModelAddress(address: string, own: boolean, resolve: (host: string) => Promise<string[]> = async (h) => (await dns.lookup(h, { all: true })).map((r) => r.address)): Promise<string | null> {
+  let u: URL;
+  try { u = new URL(address); } catch { return "That is not an address."; }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return "A local model is reached over http or https.";
+  const host = u.hostname.replace(/^\[|\]$/g, "");
+  let ips: string[];
+  try { ips = net.isIP(host) ? [host] : await resolve(host); } catch { return "That address could not be found."; }
+  if (!ips.length) return "That address could not be found.";
+  for (const ip of ips) {
+    const why = blockedAddress(ip, own);
+    if (why) return own ? "That address is not allowed." : `A local model on this server cannot be ${why}.`;
+  }
+  return null;
+}
+
 /**
- * providers.test (the vault module has no network of its own): reach the provider with the key and list the models it offers. The key is used for this one request and not kept; an error message never
- * carries it. Providers without a public model list answer that they cannot be tested from here.
+ * providers.test (the vault module has no network of its own): reach the provider with the key and list the models it offers. The key is used for this one request and not kept; an error never carries it.
+ * A local model address comes from the caller, so it is checked first (refuseModelAddress): never link-local, and on a node that is not the caller's own never loopback or private either.
+ * `own(person)` is the same rule as the key's: this is the caller's own computer. Redirects are errors. (The name is resolved to check it and again to connect; a name that changes between the two is
+ * the one gap, so a Space server also keeps the model address out of the reply.)
  */
-export function createProviderProbe(fetchFn: typeof globalThis.fetch = globalThis.fetch) {
+export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: (personId: string) => boolean; resolve?: (host: string) => Promise<string[]> } = {}) {
+  const fetchFn = o.fetch ?? globalThis.fetch;
   const LISTS: Record<string, (key: string) => { url: string; headers: Record<string, string>; pick: (j: unknown) => string[] }> = {
     anthropic: (k) => ({ url: "https://api.anthropic.com/v1/models", headers: { "x-api-key": k, "anthropic-version": "2023-06-01" }, pick: ids("data", "id") }),
     openai: (k) => ({ url: "https://api.openai.com/v1/models", headers: { authorization: `Bearer ${k}` }, pick: ids("data", "id") }),
@@ -58,10 +106,12 @@ export function createProviderProbe(fetchFn: typeof globalThis.fetch = globalThi
       return Array.isArray(rows) ? rows.map((r) => String((r as Record<string, unknown>)[key] ?? "")).filter(Boolean) : [];
     };
   }
-  return async (p: { providerKey: string; connection: string; apiKey?: string; address?: string }): Promise<{ ok: boolean; models: string[]; detail?: string }> => {
+  return async (p: { providerKey: string; connection: string; caller: string; apiKey?: string; address?: string }): Promise<{ ok: boolean; models: string[]; detail?: string }> => {
     let url: string, headers: Record<string, string> = {}, pick: (j: unknown) => string[] = ids("data", "id");
     if (p.connection === "local_model") {
       if (!p.address) return { ok: false, models: [], detail: "This local model has no address." };
+      const why = await refuseModelAddress(p.address, o.own ? o.own(p.caller) : false, o.resolve);
+      if (why) return { ok: false, models: [], detail: why };
       url = `${p.address.replace(/\/$/, "")}/v1/models`;
       if (p.apiKey) headers = { authorization: `Bearer ${p.apiKey}` };
     } else {

@@ -12,19 +12,22 @@ import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
+import { issueSessionToken } from "../src/daemon/session.ts";
 import { fileURLToPath } from "node:url";
 
 /** A code root that is this repo with the vault live: every top-level entry a symlink, host/ rebuilt around an edited modules.json (the vault flips in P-L7_LIVE). */
-function codeRootWithVaultLive(): string {
+function codeRootLive(ids: string[]): string {
   const repo = fileURLToPath(new URL("../..", import.meta.url));
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-coderoot-"));
   for (const name of fs.readdirSync(repo)) if (name !== ".git" && name !== "host") fs.symlinkSync(path.join(repo, name), path.join(root, name));
   fs.mkdirSync(path.join(root, "host"));
   for (const name of fs.readdirSync(path.join(repo, "host"))) if (name !== "modules.json") fs.symlinkSync(path.join(repo, "host", name), path.join(root, "host", name));
   const list = JSON.parse(fs.readFileSync(path.join(repo, "host/modules.json"), "utf8")) as { modules: { id: string; status: string }[] };
-  const v = list.modules.find((m) => m.id === "vault");
-  assert.ok(v, "host/modules.json lists vault");
-  v.status = "live";
+  for (const id of ids) {
+    const m = list.modules.find((x) => x.id === id);
+    assert.ok(m, `host/modules.json lists ${id}`);
+    m.status = "live";
+  }
   fs.writeFileSync(path.join(root, "host/modules.json"), JSON.stringify(list));
   return root;
 }
@@ -41,7 +44,7 @@ test("vault key (ruling 62): unlock opens the person's Mine provider for their t
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
   fs.copyFileSync(core.file, path.join(dir, "events.db"));
   core.close();
-  const codeRoot = codeRootWithVaultLive();
+  const codeRoot = codeRootLive(["vault"]);
   const boot = (extra: string[] = []) => startDaemon({
     codeRoot,
     config: loadConfig(["--data-dir", dir, "--port", "0", ...extra], {}, "1.2.3"),
@@ -113,4 +116,62 @@ test("vault key (ruling 62): unlock opens the person's Mine provider for their t
     const refused = await fetch(`${server.url}/local/vault/key/unlock`, { method: "POST", headers: { authorization: `Bearer ${OTHER}`, "content-type": "application/json" }, body: JSON.stringify({ key: personKey.toString("base64") }) });
     assert.equal(refused.status, 403, "a node that is not theirs does not take their key");
   } finally { await server.stop(); }
+});
+
+test("vault key (ruling 62): the key lives only as long as the sessions that unlocked it: a revoked session, a revoked device and the last sign-out each lock it", async () => {
+  const core = bootCore();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-vault-key-sessions-"));
+  core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
+  fs.copyFileSync(core.file, path.join(dir, "events.db"));
+  core.close();
+  const d = await startDaemon({
+    codeRoot: codeRootLive(["vault", "devices"]),
+    config: loadConfig(["--data-dir", dir, "--port", "0", "--role", "space,device"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux", hostname: "vault-key-sessions", free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
+  });
+  const PERSON = "usr_olivia";
+  const now = Date.now();
+  const device = (id: string): { token: string; session: string } => {
+    d.db!.run(`INSERT INTO devices_device (id, person, name, class, epoch, lastSeenAt, location, revokedAt, version, updated_at, deleted_at) VALUES (?, ?, ?, 'desktop', 0, ?, NULL, NULL, 0, ?, NULL)`, id, PERSON, id, now, now);
+    d.db!.run(`INSERT INTO devices_session (id, person, kind, principal_kind, device_id, started_at, last_seen_at, location, revoked_at) VALUES (?, ?, 'device', 'person', ?, ?, ?, NULL, NULL)`, `ses_${id}`, PERSON, id, now, now);
+    return { token: issueSessionToken(d.db!, `ses_${id}`), session: `ses_${id}` };
+  };
+  const post = async (token: string, p: string, body: unknown) => {
+    const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+    return { status: r.status, text: await r.text() };
+  };
+  const key = crypto.randomBytes(32).toString("base64");
+  const unlock = (t: string) => post(t, "/local/vault/key/unlock", { key });
+  const fill = (t: string) => post(t, "/v1/vault/fill", { handle: "#Anthropic.api_key", target: { kind: "env", ref: "x" }, returnValue: true });
+  const locked = (r: { text: string }) => (JSON.parse(r.text) as { error?: { code?: string } }).error?.code === "auth.unauthenticated";
+  try {
+    const a = device("dev_aaaaaa"), b = device("dev_bbbbbb"), c = device("dev_cccccc");
+    assert.equal((await unlock(a.token)).status, 204);
+    assert.equal((await unlock(b.token)).status, 204);
+    const added = await post(a.token, "/v1/providers/add", { providerKey: "anthropic", connection: "api_key", scope: "mine", apiKey: "sk-ant-sessions", idempotencyKey: "vks-1" });
+    assert.equal(added.status, 200, added.text);
+    assert.equal((await fill(a.token)).status, 200);
+
+    // one session ends (sign-out and a password change both end sessions this way): the other session that unlocked it keeps it open
+    d.db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ?", now, a.session);
+    assert.equal((await fill(b.token)).status, 200, "the other session is still signed in");
+    // the device is revoked: its session no longer counts
+    d.db!.run("UPDATE devices_device SET revokedAt = ? WHERE id = ?", now, "dev_bbbbbb");
+    assert.ok(locked(await fill(c.token)), "a session that never unlocked it cannot use it, and the last unlocking session is gone: " + (await fill(c.token)).text);
+    // a fresh session unlocks it again; ending it locks it again
+    assert.equal((await unlock(c.token)).status, 204);
+    assert.equal((await fill(c.token)).status, 200);
+    d.db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ?", now, c.session);
+    const d2 = device("dev_dddddd");
+    assert.ok(locked(await fill(d2.token)), "the last session that unlocked it ended: locked");
+  } finally { await d.stop(); }
 });
