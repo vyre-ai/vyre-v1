@@ -12,7 +12,8 @@ import type { SpaceDef } from "../spaces/model.ts";
 import { CapError, createCapCaller } from "./caps.ts";
 import type { CapCall, RouteRow } from "./caps.ts";
 import { createLiveLink } from "./live.ts";
-import type { LiveLink, LiveStatus, SocketFactory } from "./live.ts";
+import type { LiveLink, LiveStatus } from "./live.ts";
+import type { Dial, Scheduler } from "../../../../../client/src/connection/index.ts";
 import { PLACE_QUERIES, WARM_ORDER } from "./prefetch.ts";
 import { createRemoteScreenHooks } from "./remote-hooks.ts";
 import type { RemoteHooks } from "./remote-hooks.ts";
@@ -30,7 +31,11 @@ export interface OpenSessionOptions {
   fetch?: typeof fetch;
   routes?: () => Promise<readonly RouteRow[]>;
   screens?: () => Promise<ReadonlyMap<string, ScreenIndexEntry>>;
-  socket?: SocketFactory;
+  /** The live socket's dialer and clock, injectable for tests. */
+  dial?: Dial;
+  scheduler?: Scheduler;
+  /** The contract hash this build was made with (sent in hello). */
+  registryHash?: string;
   /** Re-read period while the live link is down. */
   pollMs?: number;
   /** When the idle warm-up starts after the Space opens (ms); default 1500. */
@@ -140,9 +145,14 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const link: LiveLink = createLiveLink({
     baseUrl: o.baseUrl,
     token: () => token,
+    deviceId: who.deviceId ?? "web",
+    epoch: who.epoch,
+    registryHash: o.registryHash ?? "",
     onChange: refresh,
+    onPurge: () => { if (token !== null) { token = null; o.onSignedOut?.(); } },
     onStatus: (s) => { live = s; if (s === "live") everLive = true; tell(); },
-    ...(o.socket ? { socket: o.socket } : {}),
+    ...(o.dial ? { dial: o.dial } : {}),
+    ...(o.scheduler ? { scheduler: o.scheduler } : {}),
   });
   link.start();
   const poll = setInterval(() => { if (!closed && live !== "live" && hooks.watching() > 0) hooks.invalidate(); }, o.pollMs ?? 5000);

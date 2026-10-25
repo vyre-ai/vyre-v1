@@ -126,13 +126,13 @@ function ShellHost({ stored, open, onSignedOut, onHub }: { stored: StoredSession
   const renderPlace = (ctx: PlaceContext): ReactElement => failed !== null && session === null
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
     : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} hash={ctx.hash} opened={(t) => { const next = formatHash(t); if (next !== ctx.hash) hub.go(ctx.place, next); }} />;
-  if (phone) return <PhoneHost session={session} needsYou={stored.def.counts.chats ?? 0} registerGo={registerGo} />;
-  const onSpaceAction = (a: string): void => {
-    if (a !== "sign-out") return;
+  const signOut = (): void => {
     void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined);
     void session?.call("identity.sign_out", {}).catch(() => undefined);
     onSignedOut();
   };
+  const onSpaceAction = (a: string): void => { if (a === "sign-out") signOut(); };
+  if (phone) return <PhoneHost session={session} needsYou={stored.def.counts.chats ?? 0} registerGo={registerGo} onSignOut={signOut} />;
   return <Shell hub={hub} renderPlace={renderPlace} onSpaceAction={onSpaceAction} />;
 }
 

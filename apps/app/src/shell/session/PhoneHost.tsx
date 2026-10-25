@@ -3,6 +3,8 @@
 // have a list and a detail (Chats) draw one at a time under their compact width.
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
+import { View } from "react-native";
+import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { MobileShell, YouScreen } from "../../mobile/shell/index.ts";
 import type { Entry, MobileNav } from "../../mobile/shell/index.ts";
 import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
@@ -19,11 +21,14 @@ function useLive<T>(q: LiveQuery<T> | null): QueryState<T> {
   return useSyncExternalStore(live.subscribe, live.getSnapshot, live.getSnapshot);
 }
 
-function You({ session, nav }: { session: RealSession; nav: MobileNav }): ReactElement {
+function You({ session, nav, onSignOut }: { session: RealSession; nav: MobileNav; onSignOut(): void }): ReactElement {
   const work = useLive(session.hooks.capQuery<CapMap["tasks.my_work"]["out"]>("tasks.my_work", {}));
   const stars = useLive(session.hooks.capQuery<CapMap["stars.list"]["out"]>("stars.list", {}));
   return (
-    <YouScreen nav={nav} data={{ name: session.me.name, space: session.def.name, workOpen: work.status === "ready" ? work.data.tasks.length : 0, starred: stars.status === "ready" ? stars.data.stars.length : 0 }} />
+    <View style={{ flex: 1 }}>
+      <YouScreen nav={nav} data={{ name: session.me.name, space: session.def.name, workOpen: work.status === "ready" ? work.data.tasks.length : 0, starred: stars.status === "ready" ? stars.data.stars.length : 0 }} />
+      <Row id="you-sign-out" title="Sign out" note={`Of ${session.def.name} on this device`} onPress={onSignOut} />
+    </View>
   );
 }
 
@@ -33,9 +38,11 @@ export interface PhoneHostProps {
   needsYou: number;
   /** The shell's one door for opening a place and hash (rt.open): the host hands it the function that moves the phone's history. */
   registerGo(go: ((place: PlaceId, hash: string) => void) | null): void;
+  /** Sign out of this Space on this device: lock the key on this computer, end the session, return to sign-in. */
+  onSignOut(): void;
 }
 
-export function PhoneHost({ session, needsYou, registerGo }: PhoneHostProps): ReactElement {
+export function PhoneHost({ session, needsYou, registerGo, onSignOut }: PhoneHostProps): ReactElement {
   const navRef = useRef<MobileNav | null>(null);
 
   const go = useCallback((place: PlaceId, hash: string): void => {
@@ -49,7 +56,7 @@ export function PhoneHost({ session, needsYou, registerGo }: PhoneHostProps): Re
 
   const render = (e: Entry, nav: MobileNav): ReactNode => {
     navRef.current = nav;
-    if (e.screen === "you") return session ? <You session={session} nav={nav} /> : null;
+    if (e.screen === "you") return session ? <You session={session} nav={nav} onSignOut={onSignOut} /> : null;
     const where = placeOf(e);
     if (!where) return null;
     const opened: PlaceHash["opened"] = (t) => {
