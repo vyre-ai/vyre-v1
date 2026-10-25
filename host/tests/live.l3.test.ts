@@ -1,6 +1,6 @@
 // P-L3_LIVE (rulings 31 and 32): a booted daemon on the seeded `core` Space reports no L3 module as not set up, the L3 modules that are live answer through the gateway, and the two
 // gaps that keep L3 from being all live are named here so a later packet removes them on purpose:
-//   records     stays `stub`: 11 capabilities have no handler (modules/records/tests/live.test.ts lists them; follow-up P-L3_REC2).
+//   records     is live since P-L3_REC2: all 29 capabilities have a handler, and the site table and value proposal consumers are registered.
 //   connectors  is live, but its sync engine is not wired (P-H_09): preview, confirm_deletes, resolve_conflict, replay_conflict, undo_push and connectors.push refuse until then.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -14,7 +14,7 @@ import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 
 const L3 = ["connectors", "import", "projects", "records", "schema", "sources"];
-const LIVE = ["connectors", "import", "projects", "schema", "sources"];
+const LIVE = ["connectors", "import", "projects", "records", "schema", "sources"];
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 
@@ -27,7 +27,7 @@ function seededDir(): string {
   return dir;
 }
 
-test("l3 live: host/modules.json has the five complete modules live and records still stub", () => {
+test("l3 live: host/modules.json has all six L3 modules live", () => {
   const file = JSON.parse(fs.readFileSync(new URL("../modules.json", import.meta.url), "utf8")) as { modules: { id: string; owner: string; status: string }[] };
   const mine = file.modules.filter((m) => m.owner === "L3");
   assert.deepEqual(mine.map((m) => m.id).sort(), [...L3].sort());
@@ -54,6 +54,8 @@ test("l3 live: a booted daemon has a driver for every L3 module, and the live on
     assert.deepEqual(notSetUp, [], "no L3 module is reported as not set up");
     const row = (d.db!.all("SELECT detail FROM health_probe WHERE name = ?", "module_drivers")[0] ?? { detail: "" }) as { detail: string };
     for (const id of L3) assert.ok(!new RegExp(`\\b${id}\\b \\(`).test(row.detail), `health does not list ${id} as not set up`);
+    const consumers = d.hooks!.consumers.map((c) => c.name);
+    for (const name of ["records.site_tables", "records.value_source"]) assert.ok(consumers.includes(name), `${name} is registered`);
     const wired = d.seams?.wired ?? [];
     for (const setter of ["setSourcesSecretResolver", "setImportHost"]) assert.ok(wired.includes(setter), `${setter} is wired`);
 
