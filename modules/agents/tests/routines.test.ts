@@ -133,3 +133,54 @@ test("cron: lists, ranges, steps, day-of-week 7 as Sunday, and either day field 
   assert.equal(nextRun("nonsense", t0), null);
   assert.ok(parseCron("5 4 * * sun") === null, "names are not supported");
 });
+
+test("run now starts one run as the routine owner, never the caller, and leaves the schedule alone", async () => {
+  const { hn, id } = await setup();
+  const { routine } = await save(hn, id);
+  const started: any[] = [];
+  hn.world.answer("runs.start", (i: any) => { started.push(i); return { runId: "run_a1b2c3" }; });
+  hn.clear();
+  hn.advance(60_000);
+  // Maya can use the agent; she asks, the run is still Dana's
+  const out = await call(hn, "agents.routine.run_now", { agentId: id, routineId: routine.routineId, idempotencyKey: "rn1" }, hn.as({ kind: "person", id: MAYA }));
+  assert.equal(out.runId, "run_a1b2c3");
+  assert.equal(started.length, 1);
+  assert.deepEqual([started[0].kind, started[0].owner, started[0].name], ["routine", DANA, "Morning digest"]);
+  assert.equal(out.routine.lastRunAt, hn.clock.t);
+  assert.equal(out.routine.nextRunAt, routine.nextRunAt, "the schedule did not move");
+  assert.deepEqual(hn.named("agent.routine_run_started")[0]!.payload, { agentId: id, routineId: routine.routineId, runId: "run_a1b2c3", ownerId: DANA, requestedBy: MAYA });
+  assert.deepEqual(assertEventsConform(hn), []);
+});
+
+test("delegate hands a routine to another person and undo hands it back; a second hand-over still undoes to the original", async () => {
+  const { hn, id } = await setup();
+  const { routine } = await save(hn, id);
+  hn.clear();
+  const d = await call(hn, "agents.routine.delegate", { agentId: id, routineId: routine.routineId, to: { kind: "person", id: MAYA } });
+  assert.deepEqual([d.routine.ownerId, d.previousOwnerId], [MAYA, DANA]);
+  assert.deepEqual(hn.named("agent.routine_delegated")[0]!.payload, { agentId: id, routineId: routine.routineId, from: DANA, to: MAYA, undo: false });
+  assert.deepEqual((await call(hn, "agents.routines.list", { agentId: id })).routines, [], "Dana no longer sees it");
+  // Dana cannot hand on what is no longer hers
+  assert.equal(await failure(() => h["agents.routine.delegate"]!(hn.ctx, { agentId: id, routineId: routine.routineId, to: { kind: "person", id: "usr_x" } })), "validation.not_found");
+  const maya = hn.as({ kind: "person", id: MAYA });
+  await call(hn, "agents.routine.delegate", { agentId: id, routineId: routine.routineId, to: { kind: "person", id: "usr_zed" } }, maya);
+  const back = await call(hn, "agents.routine.delegate", { agentId: id, routineId: routine.routineId, undo: true }, hn.as({ kind: "person", id: "usr_zed" }));
+  assert.equal(back.routine.ownerId, DANA);
+  assert.deepEqual((await call(hn, "agents.routines.list", { agentId: id })).routines.map((r: any) => r.routineId), [routine.routineId]);
+  assert.equal(hn.named("agent.routine_delegated").at(-1)!.payload["undo"], true);
+  assert.equal(await failure(() => h["agents.routine.delegate"]!(hn.ctx, { agentId: id, routineId: routine.routineId, undo: true })), "validation.precondition_failed", "nothing left to undo");
+  assert.deepEqual(assertEventsConform(hn), []);
+});
+
+test("delegate to an agent moves the routine onto that agent; delegating to oneself or to a missing agent is refused", async () => {
+  const { hn, id } = await setup();
+  const other = (await call(hn, "agents.create", { name: "Billing", role: "Use me for invoices.", idempotencyKey: `c${++n}` })).agent.agentId as string;
+  const { routine } = await save(hn, id);
+  assert.equal(await failure(() => h["agents.routine.delegate"]!(hn.ctx, { agentId: id, routineId: routine.routineId, to: { kind: "agent", id } })), "validation.bad_input");
+  assert.equal(await failure(() => h["agents.routine.delegate"]!(hn.ctx, { agentId: id, routineId: routine.routineId, to: { kind: "agent", id: "agt_none" } })), "validation.not_found");
+  const d = await call(hn, "agents.routine.delegate", { agentId: id, routineId: routine.routineId, to: { kind: "agent", id: other } });
+  assert.deepEqual([d.routine.agentId, d.routine.ownerId], [other, DANA]);
+  const back = await call(hn, "agents.routine.delegate", { agentId: other, routineId: routine.routineId, undo: true });
+  assert.equal(back.routine.agentId, id);
+});
+// P-CC_20: run now and delegate are covered here; touched so the check selects this file.

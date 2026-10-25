@@ -265,6 +265,21 @@
       "dev": true
     },
     {
+      "name": "@tiptap/*",
+      "reason": "rich editor (core, pm, starter-kit, collaboration, collaboration-cursor)",
+      "dev": false
+    },
+    {
+      "name": "y-prosemirror",
+      "reason": "binds the Yjs fragment to ProseMirror for TipTap collaboration",
+      "dev": false
+    },
+    {
+      "name": "react-native-webview",
+      "reason": "phone rich editor runs in a WebView (risk R6)",
+      "dev": false
+    },
+    {
       "name": "sqlite-wasm-cipher",
       "reason": "encrypted OPFS replica engine (S5); real-engine heavy test",
       "dev": true

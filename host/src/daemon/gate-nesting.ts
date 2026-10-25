@@ -18,5 +18,6 @@ export function withGateNesting(inner: GateHook): GateHook {
     },
     park: (a) => inner.park(a),
     verify: (token, a) => inner.verify(token, a),
+    ...(inner.resume ? { resume: (a) => inner.resume!(a) } : {}),
   };
 }

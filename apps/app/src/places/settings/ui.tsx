@@ -200,6 +200,47 @@ export function Value({ text, accent = false, testID }: { text: string; accent?:
   return <Text numberOfLines={1} testID={testID} style={[s.value, accent && { color: "var(--accent)" as string }]}>{text}</Text>;
 }
 
+/** Two or three equal modes in one quiet control (density). The chosen one is raised. */
+export function Segmented({ value, options, onChange, label, testID }: { value: string; options: readonly { value: string; label: string }[]; onChange(v: string): void; label: string; testID?: string }): ReactElement {
+  const items: ReactElement[] = [];
+  for (const o of options) {
+    const on = o.value === value;
+    items.push(
+      <Pressable
+        key={o.value} accessibilityRole="radio" accessibilityState={{ checked: on }} aria-checked={on} accessibilityLabel={o.label} testID={testID ? `${testID}-${o.value}` : undefined} onPress={() => onChange(o.value)}
+        style={[s.segItem, on && s.segOn, pointer]}
+      >
+        <Text style={[s.segText, on && { color: "var(--ink)" as string, fontWeight: "500" }]}>{o.label}</Text>
+      </Pressable>,
+    );
+  }
+  return <View accessibilityRole="radiogroup" accessibilityLabel={label} testID={testID} style={s.seg}>{items}</View>;
+}
+
+/** A stepped slider with a small A at each end and the value after it; arrow keys move it by one step, a tap on the track picks the nearest step. */
+export function Slider({ value, min, max, step, onChange, label, format, testID }: { value: number; min: number; max: number; step: number; onChange(n: number): void; label: string; format?: (n: number) => string; testID?: string }): ReactElement {
+  const hits: ReactElement[] = [];
+  for (let n = min; n <= max; n += step) hits.push(<Pressable key={n} accessibilityLabel={`${label} ${format ? format(n) : n}`} onPress={() => onChange(n)} style={[{ flex: 1, height: 22 }, pointer]} />);
+  const ratio = (value - min) / Math.max(1, max - min);
+  const move = (d: number): void => { const n = Math.max(min, Math.min(max, value + d * step)); if (n !== value) onChange(n); };
+  return (
+    <View style={s.sliderWrap}>
+      <Text style={[s.aSmall]} aria-hidden>A</Text>
+      <View
+        accessibilityRole="adjustable" accessibilityLabel={label} accessibilityValue={{ min, max, now: value, text: format ? format(value) : String(value) }} testID={testID} focusable
+        {...webOnly({ tabIndex: 0, role: "slider", "aria-valuemin": min, "aria-valuemax": max, "aria-valuenow": value, "aria-label": label, onKeyDown: (e: KeyEventLike) => { if (e.key === "ArrowRight" || e.key === "ArrowUp") { e.preventDefault?.(); move(1); } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") { e.preventDefault?.(); move(-1); } } })}
+        style={s.sliderTrack}
+      >
+        <View style={s.sliderLine} />
+        <View style={[s.sliderThumb, { left: `${Math.round(ratio * 100)}%` as unknown as number }]} />
+        <View style={s.sliderHits}>{hits}</View>
+      </View>
+      <Text style={s.aBig} aria-hidden>A</Text>
+      <Text style={s.sliderVal} testID={testID ? `${testID}-value` : undefined}>{format ? format(value) : String(value)}</Text>
+    </View>
+  );
+}
+
 /** A small round mark with a letter: a Space or a person. */
 export function Mark({ name, size = 22, square = true }: { name: string; size?: number; square?: boolean }): ReactElement {
   let h = 5381;
@@ -238,6 +279,18 @@ export const s = StyleSheet.create({
   small: { height: 28, paddingHorizontal: 11, borderRadius: 7, borderWidth: 1, borderColor: "var(--line)" as string, alignItems: "center", justifyContent: "center" },
   smallText: { fontSize: 13, color: "var(--ink)" as string },
   value: { fontSize: 13, color: "var(--ink-3)" as string },
+  seg: { flexDirection: "row", padding: 2, gap: 2, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  segItem: { height: 26, paddingHorizontal: 12, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  segOn: { backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
+  segText: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  sliderWrap: { flexDirection: "row", alignItems: "center", gap: 8 },
+  aSmall: { fontSize: 11, color: "var(--ink-3)" as string },
+  aBig: { fontSize: 16, color: "var(--ink-3)" as string },
+  sliderTrack: { width: 170, height: 22, justifyContent: "center" },
+  sliderLine: { height: 3, borderRadius: 2, backgroundColor: "var(--press)" as string },
+  sliderThumb: { position: "absolute", top: 3, width: 16, height: 16, marginLeft: -8, borderRadius: 8, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
+  sliderHits: { position: "absolute", left: 0, right: 0, top: 0, flexDirection: "row" },
+  sliderVal: { fontSize: 13, color: "var(--ink-3)" as string, minWidth: 40, textAlign: "right" },
 });
 
 /** The small leading mark of a nav row: an icon, 16 px, in the quiet ink. */

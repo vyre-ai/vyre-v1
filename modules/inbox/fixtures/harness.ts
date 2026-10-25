@@ -21,6 +21,13 @@ export interface Contact {
   /** unsure matches: a sender on this domain is offered, never filed */
   domain?: string;
   owner?: string;
+  /** the company record this contact belongs to */
+  company?: string;
+  /** Do not contact is set */
+  dnd?: boolean;
+  deliverability?: "good" | "risky" | "bounced" | "complained";
+  /** a draft reply waits for this contact */
+  draft?: boolean;
 }
 export interface Emitted { name: string; subject: string; payload: Record<string, unknown>; vis?: string | undefined }
 export interface Called { cap: string; input: Record<string, unknown> }
@@ -55,7 +62,8 @@ export function harness(opts: HarnessOptions = {}) {
   let meetingsFail = false;
 
   const record = (c: Contact) => ({
-    id: c.id, type: c.type, version: 1, label: 0, fields: { name: c.name, ...(c.emails[0] ? { email: c.emails[0] } : {}), ...(c.phones[0] ? { phone: c.phones[0] } : {}) },
+    id: c.id, type: c.type, version: 1, label: 0, fields: { name: c.name, ...(c.emails[0] ? { email: c.emails[0] } : {}), ...(c.phones[0] ? { phone: c.phones[0] } : {}),
+      ...(c.company ? { company: c.company } : {}), ...(c.dnd ? { pref_do_not_contact: true } : {}), ...(c.deliverability ? { deliverability: c.deliverability } : {}) },
     createdAt: NOW, updatedAt: NOW, holds: 0,
   });
   const candidate = (c: Contact, via: "address" | "phone" | "name", score: number) => ({ recordId: c.id, type: c.type, name: c.name, via, score });
@@ -147,6 +155,10 @@ export function harness(opts: HarnessOptions = {}) {
           const m = mail.get(String(body.messageId));
           if (!m || mailGetFails) throw fail("validation.not_found", trace);
           return { message: { id: m.id, threadId: m.threadId, subject: m.subject, from: { address: m.from }, to: m.to.map((address) => ({ address })), cc: (m.cc ?? []).map((address) => ({ address })) }, attachments: [] };
+        }
+        case "mail.drafts.list": {
+          const c = typeof body.contactId === "string" ? contacts.get(body.contactId) : undefined;
+          return { drafts: c?.draft ? [{ id: "eml_draft1", status: "draft" }] : [] };
         }
         case "mail.mailbox.list": return { mailboxes };
         case "telephony.number.list": return { numbers };

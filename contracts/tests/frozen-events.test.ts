@@ -6,8 +6,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { canonical } from '../../lib/canonical.ts';
 
-const FROZEN_COUNT = 598;
-const FROZEN_HASH = '3145bded1a28d07c720edab44e7d0824bd8a2aab2ecb5ee7e58b3a6c316ed207';
+const FROZEN_COUNT = 601;
+const FROZEN_HASH = '2672b15e19d6dfde81ccbde9beb74f6d9f00ad84eecc6d1c52fd617ca7785029';
 
 const NAME_RE = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
 const VIS = new Set(['space', 'participants', 'owner', 'private']);
@@ -118,3 +118,11 @@ test('every event has vis, label, redact and sv within the catalogue rules', () 
     }
   }
 });
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.

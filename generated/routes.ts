@@ -1434,6 +1434,25 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/agents/routine/delegate",
+    "cap": "agents.routine.delegate",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": "agents.schedule",
+    "level": "edit",
+    "resource": {
+      "type": "agent",
+      "id": "/agentId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/agents/routine/delete",
     "cap": "agents.routine.delete",
     "v": 1,
@@ -1446,6 +1465,25 @@ export const routes: Route[] = [
       "id": "/agentId"
     },
     "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/agents/routine/run_now",
+    "cap": "agents.routine.run_now",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": "agents.schedule",
+    "level": "edit",
+    "resource": {
+      "type": "agent",
+      "id": "/agentId"
+    },
+    "idempotency": "key",
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
@@ -3513,6 +3551,24 @@ export const routes: Route[] = [
     "method": "POST",
     "path": "/v1/changesets/discard",
     "cap": "changesets.discard",
+    "v": 1,
+    "module": "files",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/changesets/edit",
+    "cap": "changesets.edit",
     "v": 1,
     "module": "files",
     "effects": "write",
@@ -12781,6 +12837,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/health/machine",
+    "cap": "health.machine",
+    "v": 1,
+    "module": "health",
+    "effects": "read",
+    "permission": "console.access",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/health/paused_reasons",
     "cap": "health.paused_reasons",
     "v": 1,
@@ -14382,6 +14456,25 @@ export const routes: Route[] = [
     },
     "idempotency": "key",
     "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/journeys/tasks",
+    "cap": "journeys.tasks",
+    "v": 1,
+    "module": "journeys",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "record",
+      "id": "/recordId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -18523,6 +18616,24 @@ export const routes: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/notifications/kind/set_level",
+    "cap": "notifications.kind.set_level",
+    "v": 1,
+    "module": "notifications",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
     "teamOnly": false,
     "gate": null
   },

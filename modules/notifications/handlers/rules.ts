@@ -8,6 +8,7 @@ import {
 } from "../projections.ts";
 import type { Delegate, Hours, KindDef, Level, NotifCtx, ResourceRef, Row, Target } from "../projections.ts";
 import { deliverPush, pushPort } from "./push.ts";
+import { levelOverride, readChoice } from "./kinds.ts";
 
 const RANK: Record<Level, number> = { digest: 0, badge: 1, interrupt: 2 };
 /** In the contract's kind enum: a kind outside it can be neither sent nor listed. */
@@ -20,7 +21,7 @@ type Outcome = "interrupt" | "badge" | "digest" | "dropped_muted" | "capped";
 
 /** The level a notification lands at: the kind's own, lowered by away and working hours. */
 function levelFor(ctx: NotifCtx, def: KindDef, person: string, urgent: boolean): Level {
-  let level = def.level;
+  let level = levelOverride(ctx.db, person, def);   // my own choice for this kind (notifications.kind.set_level), else the shipped level
   if (level !== "interrupt") return level;
   if (readAway(ctx.db, person, ctx.now()) && def.key !== "call.incoming") return "digest";   // while away only calls interrupt
   if (def.respectHours && !urgent && !withinHours(readRules(ctx.db, person).workingHours, ctx.now())) return "badge";
@@ -164,8 +165,14 @@ export async function markSeen(ctx: NotifCtx, input: { notificationIds?: string[
   return { marked: ids.length };
 }
 
-export async function kindsList(): Promise<{ kinds: { key: string; level: string; place: string; title: string; respectHours: boolean }[] }> {
-  return { kinds: LISTED.map((k) => ({ key: k.key, level: k.level, place: k.place, title: k.title, respectHours: k.respectHours })) };
+export async function kindsList(ctx: NotifCtx): Promise<{ kinds: Record<string, unknown>[] }> {
+  const me = meOf(ctx);
+  return {
+    kinds: LISTED.map((k) => {
+      const mine = readChoice(ctx.db, me, k.key);
+      return { key: k.key, level: k.level, place: k.place, title: k.title, respectHours: k.respectHours, ...(mine ? { mine } : {}) };
+    }),
+  };
 }
 
 export async function digestCollect(ctx: NotifCtx, input: { person: string; since: number; until?: number }): Promise<{ items: Record<string, unknown>[] }> {

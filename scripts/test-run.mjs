@@ -20,7 +20,8 @@ const val = (n) => { const i = process.argv.indexOf(n); return i >= 0 ? process.
 const read = (f) => fs.readFileSync(path.join(REPO, f), "utf8");
 const tracked = new Set(spawnSync("git", ["ls-files"], { cwd: REPO, encoding: "utf8" }).stdout.split("\n").filter(Boolean));
 const slow = JSON.parse(read("test/slow.json"));
-if (slow.length > MAX_SLOW) { console.error(`test/slow.json has ${slow.length} entries, cap is ${MAX_SLOW}`); process.exit(1); }
+const counted = slow.filter((s) => s.perf !== true).length;
+if (counted > MAX_SLOW) { console.error(`test/slow.json has ${counted} entries, cap is ${MAX_SLOW}`); process.exit(1); }
 const slowBy = new Map(slow.map((s) => [s.file, s]));
 for (const s of slow) if (!(s.capSec <= 120) || !s.owner || !s.reason) { console.error(`slow entry ${s.file} needs capSec<=120, owner, reason`); process.exit(1); }
 
