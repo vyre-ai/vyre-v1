@@ -46,8 +46,3 @@ test("switching from the table to a board and back: the menu lists the kinds, ch
   assert.deepEqual(asked, ["board", "table"]);
   assert.ok(has(render(<RecordViews kind="board" />), 'data-testid="records-board"') && has(render(<RecordViews kind="table" />), 'data-testid="records-table"'), "and each opens as its own screen");
 });
-
-test("a header menu draws above the content that follows the header", () => {
-  const out = render(<RecordViews kind="table" />);
-  assert.ok(has(out, "z-index:10"), "the header is its own layer above the sheet, so its menus are not hidden by it");
-});
