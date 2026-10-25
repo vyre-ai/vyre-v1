@@ -2,13 +2,13 @@
 // and hover/focus prefetch warms a screen before it opens.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatHlc } from "../../lib/hlc.ts";
-import { createNodeDriver, openReplica } from "../../sync/src/replica/index.ts";
-import { manualScheduler } from "../src/connection/scheduler.ts";
-import { asQuery, createPrefetcher, createQueryClient, createQueryClients, queryKey } from "../src/query/index.ts";
-import type { QueryDef } from "../src/query/index.ts";
-import { createChangeFeed, createSpaceStore, observeReplica } from "../src/store/index.ts";
-import { screensById } from "../../generated/screens.ts";
+import { formatHlc } from "../../../lib/hlc.ts";
+import { createNodeDriver, openReplica } from "../../../sync/src/replica/index.ts";
+import { manualScheduler } from "../connection/scheduler.ts";
+import { asQuery, createPrefetcher, createQueryClient, createQueryClients, queryKey } from "./index.ts";
+import type { QueryDef } from "./index.ts";
+import { createChangeFeed, createSpaceStore, observeReplica } from "../store/index.ts";
+import { screensById } from "../../../generated/screens.ts";
 
 const hlc = (ms: number): string => formatHlc({ ms, counter: 1, deviceId: "dev1" });
 

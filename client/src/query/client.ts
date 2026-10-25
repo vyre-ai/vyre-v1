@@ -105,7 +105,11 @@ export function createQueryClient(store: SpaceStore, o: { maxEntries?: number; w
     cache = new Map<string, R>();
     version = 0;
     snap: ListWindow<R>;
-    constructor(readonly def: ListDef<unknown, R>, readonly input: unknown) {
+    readonly def: ListDef<unknown, R>;
+    readonly input: unknown;
+    constructor(def: ListDef<unknown, R>, input: unknown) {
+      this.def = def;
+      this.input = input;
       this.rebuild(false);
       this.snap = this.windowOf();
     }

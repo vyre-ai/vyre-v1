@@ -1,11 +1,11 @@
 // perf navigate over 20 screens (ARCH 9): first paint under 50 ms and at least 90 percent of opens prefetched by hover or focus.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createNodeDriver } from "../../sync/src/replica/index.ts";
-import { manualScheduler } from "../src/connection/scheduler.ts";
-import { asQuery, createPrefetcher, createQueryClient } from "../src/query/index.ts";
-import { createChangeFeed, createSpaceStore } from "../src/store/index.ts";
-import { screens } from "../../generated/screens.ts";
+import { createNodeDriver } from "../../../sync/src/replica/index.ts";
+import { manualScheduler } from "../connection/scheduler.ts";
+import { asQuery, createPrefetcher, createQueryClient } from "./index.ts";
+import { createChangeFeed, createSpaceStore } from "../store/index.ts";
+import { screens } from "../../../generated/screens.ts";
 
 test("navigate: 20 screens open under 50 ms first paint and 90 percent were prefetched", () => {
   const driver = createNodeDriver();

@@ -1,10 +1,10 @@
 // Long lists: one subscription per list, rows read from a window cache, one row patched per change (never the 10k-row query again). A 10k-row window update stays under one frame.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createNodeDriver } from "../../sync/src/replica/index.ts";
-import { createChangeFeed, createSpaceStore } from "../src/store/index.ts";
-import { createQueryClient } from "../src/query/index.ts";
-import type { ListDef } from "../src/query/index.ts";
+import { createNodeDriver } from "../../../sync/src/replica/index.ts";
+import { createChangeFeed, createSpaceStore } from "../store/index.ts";
+import { createQueryClient } from "./index.ts";
+import type { ListDef } from "./index.ts";
 
 interface Item { id: string; title: string; rank: number; open: number }
 const ROWS = 10_000;
@@ -40,7 +40,7 @@ function setup() {
   return { store, changes, def, set, add, remove, reads: () => rowReads };
 }
 
-const win = (q: ReturnType<ReturnType<typeof createQueryClient>["list"]>) => { const s = q.getSnapshot(); assert.equal(s.status, "ready"); return (s as { data: ReturnType<typeof Object> }).data as unknown as import("../src/query/index.ts").ListWindow<Item>; };
+const win = (q: ReturnType<ReturnType<typeof createQueryClient>["list"]>) => { const s = q.getSnapshot(); assert.equal(s.status, "ready"); return (s as { data: ReturnType<typeof Object> }).data as unknown as import("./index.ts").ListWindow<Item>; };
 
 test("only the window on screen is read, and scrolling reads the next rows once", () => {
   const t = setup();
