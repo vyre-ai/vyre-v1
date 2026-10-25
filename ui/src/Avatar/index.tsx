@@ -8,7 +8,7 @@ import type { ReactElement } from "react";
 import { Image, Platform, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
 import { faceTint, hueOf, initialsOf, marbleInner } from "./faces.ts";
-import { cachedFace, currentSkin, faceKey, requestFace, wrapSvg } from "./cache.ts";
+import { cachedFace, currentSkin, faceKey, marbleBitmap, requestFace } from "./cache.ts";
 import { notionistsSvg } from "./notionists.ts";
 import type { AvatarKind, AvatarProps } from "./props.ts";
 
@@ -56,10 +56,10 @@ export const Avatar = memo(function Avatar({ name, kind: kindProp, size = AVATAR
   const drawn = web && ((kind === "person" && !photo) || kind === "agent");
   const key = faceKey(name, kind, size, currentSkin());
   const [, bump] = useState(0);
-  const bitmap = drawn ? cachedFace(key) : undefined;
+  const bitmap = !drawn ? undefined : kind === "person" ? marbleBitmap(key, name, size) : cachedFace(key);
   useEffect(() => {
-    if (!drawn || cachedFace(key) !== undefined) return;
-    requestFace(key, kind === "person" ? wrapSvg(marbleInner(name), "0 0 80 80", size) : sized(notionistsSvg(name), size), size, () => bump((n) => n + 1));
+    if (!drawn || kind === "person" || cachedFace(key) !== undefined) return;
+    requestFace(key, sized(notionistsSvg(name), size), size, () => bump((n) => n + 1));
   }, [drawn, key, kind, name, size]);
   const id = testID ?? `avatar-${name}`;
   const round = kind === "person";

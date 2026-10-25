@@ -39,14 +39,17 @@ export function marbleSpec(name: string): MarbleSpec {
   };
 }
 
+export const MARBLE_PATH_1 = "M32.4 59.4L50.4 70.5h22.1v-71H33.7l-7.2 13.9 19 27.1-13.1 18.9z";
+export const MARBLE_PATH_2 = "M22.2 24L0 46.8l14.1 38.1L78 86l-3.1-59.3-22.4 4 13 20.2-23.4 27.4L22.2 24z";
+
 /** The marble as svg markup; the caller wraps it (width, height, viewBox 0 0 80 80). */
 export function marbleInner(name: string): string {
   const m = marbleSpec(name);
   return (
     `<mask id="${m.id}m" maskUnits="userSpaceOnUse" x="0" y="0" width="80" height="80"><rect width="80" height="80" rx="160" fill="#fff"/></mask>` +
     `<g mask="url(#${m.id}m)"><rect width="80" height="80" fill="${m.base}"/>` +
-    `<path filter="url(#${m.id}f)" d="M32.4 59.4L50.4 70.5h22.1v-71H33.7l-7.2 13.9 19 27.1-13.1 18.9z" fill="${m.c1}" transform="translate(${m.t1.x} ${m.t1.y}) rotate(${m.t1.rot} 40 40) scale(1.2)"/>` +
-    `<path filter="url(#${m.id}f)" style="mix-blend-mode:overlay" d="M22.2 24L0 46.8l14.1 38.1L78 86l-3.1-59.3-22.4 4 13 20.2-23.4 27.4L22.2 24z" fill="${m.c2}" transform="translate(${m.t2.x} ${m.t2.y}) rotate(${m.t2.rot} 40 40) scale(1.2)"/></g>` +
+    `<path filter="url(#${m.id}f)" d="${MARBLE_PATH_1}" fill="${m.c1}" transform="translate(${m.t1.x} ${m.t1.y}) rotate(${m.t1.rot} 40 40) scale(1.2)"/>` +
+    `<path filter="url(#${m.id}f)" style="mix-blend-mode:overlay" d="${MARBLE_PATH_2}" fill="${m.c2}" transform="translate(${m.t2.x} ${m.t2.y}) rotate(${m.t2.rot} 40 40) scale(1.2)"/></g>` +
     `<defs><filter id="${m.id}f" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="7"/></filter></defs>`
   );
 }
