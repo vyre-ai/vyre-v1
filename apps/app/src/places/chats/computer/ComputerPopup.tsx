@@ -41,6 +41,15 @@ export function ComputerPopupLoading(): ReactElement {
   return <View testID="popup-loading" accessibilityLabel="Loading" style={st.veil}><View style={st.stage}><View style={st.win} /></View></View>;
 }
 
+interface DomEvent {
+  clientX?: number;
+  clientY?: number;
+  deltaX?: number;
+  deltaY?: number;
+  currentTarget?: { getBoundingClientRect?: () => { left: number; top: number } };
+  preventDefault?: () => void;
+}
+
 interface Sheet { recording: Recording; capture: Capture; secs: number }
 
 function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
@@ -119,13 +128,34 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
       }
     }
   };
-  const icons: Record<string, IconName> = { take: c.state === "takeover" ? "giveback" : "hand", record: rec ? "recstop" : "recdot", chat: "bubble", close: "x" };
+  const icons: Record<string, IconName> = { take: "hand", record: rec ? "recstop" : "recdot", chat: "bubble", close: "x" };
   const railNodes: ReactElement[] = [];
   for (const r of rail) railNodes.push(<RailButton key={r.key} label={r.label} tip={r.tip} icon={icons[r.key] ?? "x"} on={r.on} disabled={r.disabled} danger={r.key === "record"} {...(r.timer ? { timer: r.timer } : {})} onPress={() => press(r.key)} testID={`rail-${r.key}`} />);
 
   const screenPress = (e: { nativeEvent?: { locationX?: number; locationY?: number } }): void => {
     if (c.state !== "takeover") { if (c.state === "asleep") void wake(deps, c.computerId, name); return; }
     void forwarder.press(e.nativeEvent?.locationX ?? 0, e.nativeEvent?.locationY ?? 0, box.current, data.clock().now);
+  };
+
+  // Right click and the wheel exist only on the web, where they arrive as DOM events on the screen. They go to the agent's desktop only while you are in control; the browser's own
+  // menu and page scroll never open over the screen.
+  const domPoint = (e: DomEvent): { x: number; y: number } => {
+    const r = e.currentTarget?.getBoundingClientRect?.();
+    return { x: (e.clientX ?? 0) - (r?.left ?? 0), y: (e.clientY ?? 0) - (r?.top ?? 0) };
+  };
+  const screenWeb: Record<string, unknown> = Platform.OS !== "web" ? {} : {
+    onContextMenu: (e: DomEvent) => {
+      if (c.state !== "takeover") return;
+      e.preventDefault?.();
+      const p = domPoint(e);
+      void forwarder.press(p.x, p.y, box.current, data.clock().now, "right");
+    },
+    onWheel: (e: DomEvent) => {
+      if (c.state !== "takeover") return;
+      e.preventDefault?.();
+      const p = domPoint(e);
+      void forwarder.scroll(p.x, p.y, box.current, e.deltaX ?? 0, e.deltaY ?? 0);
+    },
   };
 
   const parts = captureParts(rec ? capture : NO_CAPTURE);
@@ -146,6 +176,7 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
             accessibilityRole="button" accessibilityLabel={c.state === "asleep" ? `Wake ${name}'s computer` : `${name}'s computer`} testID="popup-screen" onPress={screenPress} disabled={!online && c.state === "takeover"}
             onLayout={(e) => { box.current = { width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height }; }}
             style={st.screen}
+            {...screenWeb}
           >
             <Desk kind={view.screen} caption="Elena Rivera, referred by Maya" />
             {stream && stream.transport === "mjpeg" ? <Image testID="popup-stream" accessibilityLabel="Live view" source={{ uri: `${stream.url}?ticket=${stream.ticket}` }} resizeMode="contain" style={st.stream} /> : null}
