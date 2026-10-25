@@ -23,7 +23,7 @@
 | Task kinds | 6 |
 | Notification kinds | 23 |
 | Import sources | 9 |
-| Settings | 89 |
+| Settings | 92 |
 | Retention defaults | 10 |
 | Lists | 10 |
 | Error codes | 44 |
