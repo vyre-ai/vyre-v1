@@ -5,7 +5,6 @@
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
-import crypto from "node:crypto";
 
 /** The program the CLI starts. Plain Node, no imports beyond the standard library. argv[2] is the socket; the token comes from VYRE_MCP_TOKEN. */
 export const SHIM_SOURCE = `import net from "node:net";
@@ -45,7 +44,7 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
   fs.mkdirSync(o.scratch, { recursive: true });
   const shim = path.join(o.scratch, "mcp-shim.mjs");
   fs.writeFileSync(shim, SHIM_SOURCE, { mode: 0o644 });
-  const socket = path.join(o.scratch, `mcp-${crypto.randomBytes(6).toString("hex")}.sock`);
+  const socket = path.join(o.scratch, `mcp-${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("")}.sock`);
   if (Buffer.byteLength(socket) > MAX_SOCKET_PATH) throw new Error(`the MCP socket path is too long for a unix socket: ${socket.length} characters`);
   const live = new Set<net.Socket>();
   const server = net.createServer({ allowHalfOpen: true }, (c) => {

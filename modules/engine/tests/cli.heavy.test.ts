@@ -12,7 +12,6 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AddressInfo } from "node:net";
 import { hostSeams } from "../impl.ts";
 import { handlers } from "../impl.ts";
 import { closeDefaultSandbox, ensureRuntime } from "../runtime.ts";
@@ -57,7 +56,7 @@ test("a message to an agent on a Claude Code account streams a reply into the ch
       source: { lookup: async (handle) => (handle === "#Dana_Claude.setup_token" ? { kind: "value", itemId: "vit_claude", value: "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ", spaceOnly: false, injectIntoDeployments: false } : { kind: "unknown" }) },
       reportMiss: () => undefined,
       mcp: {
-        mint: async () => ({ sessionId: "ses_1", sessionToken: "vys_token_1_0123456789abcdef0123456789", url: `http://127.0.0.1:${(mcp.address() as AddressInfo).port}/mcp`, expiresAt: 9_999_999_999_999 }),
+        mint: async () => ({ sessionId: "ses_1", sessionToken: "vys_token_1_0123456789abcdef0123456789", url: `http://127.0.0.1:${(mcp.address() as { port: number }).port}/mcp`, expiresAt: 9_999_999_999_999 }),
         close: async () => undefined,
       },
     },

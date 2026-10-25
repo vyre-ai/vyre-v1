@@ -69,12 +69,6 @@ async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: n
   return { status: r.status, data: body.data ?? body };
 }
 
-async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: number; data: any }> {   // eslint-disable-line @typescript-eslint/no-explicit-any
-  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(input) });
-  const body = (await r.json()) as { data?: unknown; error?: unknown };
-  return { status: r.status, data: body.data ?? body };
-}
-
 test("engine live: a booted daemon wires setEngineHost with the data directory, and the first engine call builds and binds the runtime", async () => {
   const dir = seededDir();
   const d = await boot(dir, codeRootWithEngineLive());

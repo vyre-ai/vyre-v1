@@ -12,7 +12,6 @@ import { createLocalLauncher } from "../../../agent/src/drivers/cli/launcher.ts"
 import { defaultSandbox } from "../sandbox-default.ts";
 import type { DefaultSandbox } from "../sandbox-default.ts";
 import http from "node:http";
-import type { AddressInfo } from "node:net";
 import { openMcpBridge } from "../mcp-bridge.ts";
 import { scratchFolder, sandboxWrap, workFolder } from "../sandbox.ts";
 
@@ -31,7 +30,8 @@ async function run(script: string, env: Record<string, string>, thread = "thr_1"
   dflt ??= await defaultSandbox({ dataDir: data });
   assert.equal(dflt.plan.sandbox.kind, "bwrap", "the default plan on a Linux runner is bwrap");
   const cwd = workFolder(data, "usr_dana", thread);
-  for (const d of [path.join(data, "work"), path.join(data, "work", "usr_dana"), cwd, path.join(data, "scratch")]) fs.chmodSync(d, 0o777);
+  scratchFolder(data, "usr_dana");
+  for (const d of [path.join(data, "work"), path.join(data, "work", "usr_dana"), cwd, path.join(data, "scratch"), path.join(data, "scratch", "usr_dana")]) fs.chmodSync(d, 0o777);
   const plan = dflt.plan;
   const launcher = createLocalLauncher({ wrap: sandboxWrap(plan), baseEnv: { PATH: process.env["PATH"] ?? "/usr/bin:/bin" } });
   const p = await launcher.spawn({ argv: argv ?? ["/bin/sh", "-c", script], cwd, env });
@@ -80,7 +80,7 @@ test("MCP behind the wall (ruling 61): the CLI calls one tool over the socket sh
     });
   });
   await new Promise<void>((ok) => mcp.listen(0, "127.0.0.1", ok));
-  const port = (mcp.address() as AddressInfo).port;
+  const port = (mcp.address() as { port: number }).port;
   const bridge = await openMcpBridge({ url: `http://127.0.0.1:${port}/mcp`, token: "session-token" }, { scratch: scratchFolder(data, "usr_dana") });
   try {
     const call = JSON.stringify({ jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "ping", arguments: {} } }) + "\n";

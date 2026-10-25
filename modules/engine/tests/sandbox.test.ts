@@ -19,9 +19,10 @@ test("a person's thread gets its own folder under the Space data directory; ids 
   assert.ok(fs.statSync(a).isDirectory());
   assert.notEqual(a, workFolder(data, "usr_dana", "thr_2"));
   assert.notEqual(a, workFolder(data, "usr_ravi", "thr_1"));
+  // every character outside letters, digits, underscore and dash becomes an underscore, so no id can name a parent folder or a separator
   const odd = workFolder(data, "usr/../dana", "..%2f");
-  assert.ok(odd.startsWith(path.join(data, "work") + path.sep));
-  assert.throws(() => workFolder(data, "..", "thr_1"), /cannot name a folder/);
+  assert.equal(odd, path.join(data, "work", "usr____dana", "___2f"));
+  assert.equal(workFolder(data, "..", "thr_1"), path.join(data, "work", "__", "thr_1"));
   assert.throws(() => workFolder(data, "usr_dana", ""), /cannot name a folder/);
 });
 
