@@ -61,14 +61,15 @@ const BANNER: &str = r#"(function () {
   window.__vyreBanner = true;
   var box = document.createElement("div");
   box.style.cssText = "position:fixed;left:16px;bottom:16px;z-index:2147483647;padding:10px 14px;border-radius:10px;background:#161616;color:#f4f1ea;font:14px/1.4 -apple-system,Segoe UI,sans-serif;white-space:pre";
-  box.textContent = "Vyre desktop shell
-sidecar: starting";
-  document.body.appendChild(box);
+  box.textContent = "Vyre desktop shell\nsidecar: starting";
+  // The page hydrates after load and can replace what we added, so keep the label attached.
+  function attach() { if (document.body && !box.isConnected) document.body.appendChild(box); }
+  attach();
+  setInterval(attach, 300);
   function tick() {
     inv("desktop_info").then(function (i) {
       var s = i.sidecar;
-      box.textContent = "Vyre desktop shell " + i.version + " (" + i.platform + " " + i.arch + ")
-sidecar: " + s.phase + (s.url ? " at " + s.url : "") + (s.version ? ", vyred " + s.version : "");
+      box.textContent = "Vyre desktop shell " + i.version + " (" + i.platform + " " + i.arch + ")\nsidecar: " + s.phase + (s.url ? " at " + s.url : "") + (s.version ? ", vyred " + s.version : "");
       if (s.phase !== "ready") setTimeout(tick, 400);
     }, function () { setTimeout(tick, 800); });
   }
