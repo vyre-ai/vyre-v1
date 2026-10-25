@@ -21,6 +21,8 @@ export interface ListDef<I, R> {
   /** Rows for these ids, any order. Missing ids are simply absent. */
   readRows(db: LocalDb, ids: readonly string[]): R[];
   idOf(row: R): string;
+  /** A value that changes whenever the row's content does (the row's version). Absent: rows are compared by content. A row read again with the same version is the same object as before. */
+  versionOf?(row: R): unknown;
   /** Does the row belong in this list? Absent: any change to an unknown id re-reads the ids. */
   matches?(row: R, input: I): boolean;
   /** The part of a row that decides its position. Absent: any change to a listed row re-reads the ids. */

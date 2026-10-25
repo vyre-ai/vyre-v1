@@ -131,3 +131,43 @@ test("lists of different Spaces and inputs are separate entries", () => {
   assert.equal(win(b).count, 0);
   assert.equal(client.stats().entries, 2);
 });
+
+test("an unchanged row keeps the same object across window moves, eviction and a new subscription; a changed row is a new object and its neighbours stay", () => {
+  const t = setup();
+  const client = createQueryClient(t.store, { windowRows: 300 });
+  const q = client.list(t.def, { open: 1 });
+  const w = win(q);
+  const first = w.rows(0, 100);
+  for (let s = 100; s < 3_000; s += 100) w.rows(s, s + 100); // far past the cache: the first rows are evicted
+  const again = win(q).rows(0, 100);
+  assert.equal(again.length, 100);
+  for (let i = 0; i < 100; i++) assert.equal(again[i], first[i], `row ${i} is the object it was`);
+  // a second client of the same list (a screen opened again) gets the same objects too
+  const q2 = client.list(t.def, { open: 1 });
+  const other = win(q2).rows(0, 100);
+  for (let i = 0; i < 100; i++) assert.equal(other[i], first[i]);
+  // one row changes: it is a new object, the other 99 are untouched
+  const unsub = q.subscribe(() => {});
+  t.set(first[7]!.id, { title: "Item 7, edited" });
+  const after = win(q).rows(0, 100);
+  assert.notEqual(after[7], first[7]);
+  assert.equal(after[7]!.title, "Item 7, edited");
+  for (let i = 0; i < 100; i++) if (i !== 7) assert.equal(after[i], first[i], `row ${i} kept its identity through the edit`);
+  unsub();
+});
+
+test("with versionOf a row is the same object while its version holds, even if other content differs; a new version is a new object", () => {
+  const t = setup();
+  let version = 1;
+  const def: ListDef<{ open: number }, Item> = { ...t.def, cap: "item.list.v", versionOf: () => version };
+  const client = createQueryClient(t.store, { windowRows: 150 });
+  const w = win(client.list(def, { open: 1 }));
+  const a = w.rows(0, 100);
+  for (let s = 100; s < 1_000; s += 100) w.rows(s, s + 100);
+  assert.equal(win(client.list(def, { open: 1 })).rows(0, 1)[0], a[0]);
+  version = 2;
+  for (let s = 100; s < 1_000; s += 100) w.rows(s, s + 100);
+  const b = win(client.list(def, { open: 1 })).rows(0, 1)[0];
+  assert.notEqual(b, a[0], "a new version is a new object");
+  assert.deepEqual(b, a[0], "with the same content");
+});

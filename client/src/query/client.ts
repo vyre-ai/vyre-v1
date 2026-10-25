@@ -97,6 +97,21 @@ export function createQueryClient(store: SpaceStore, o: { maxEntries?: number; w
     });
   }
 
+  // Row identity (structural sharing): a row read again with unchanged content is handed back as the object the consumers already hold, so a memoised row does not render again when its
+  // window is read again after eviction, a rebuild or a new subscription. The map holds weak references, so it never keeps a row alive that nothing draws.
+  const known = new Map<string, WeakRef<object>>();
+  function intern<R>(def: ListDef<unknown, R>, row: R): R {
+    const key = `${store.spaceId}\u0000${def.entity}\u0000${def.idOf(row)}`;
+    const old = known.get(key)?.deref() as R | undefined;
+    if (old !== undefined) {
+      const same = def.versionOf ? Object.is(def.versionOf(old), def.versionOf(row)) : JSON.stringify(old) === JSON.stringify(row);
+      if (same) return old;
+    }
+    known.set(key, new WeakRef(row as unknown as object));
+    if (known.size > 100_000) for (const [k, ref] of known) if (ref.deref() === undefined) known.delete(k);
+    return row;
+  }
+
   type LEntry<R> = Entry & { win: ListState<R> };
 
   class ListState<R> {
@@ -130,7 +145,7 @@ export function createQueryClient(store: SpaceStore, o: { maxEntries?: number; w
           const missing = want.filter((id) => !this.cache.has(id));
           if (missing.length) {
             stats.listRowReads += missing.length;
-            for (const r of this.def.readRows(store.db, missing)) this.cache.set(this.def.idOf(r), r);
+            for (const r of this.def.readRows(store.db, missing)) this.cache.set(this.def.idOf(r), intern(this.def, r));
             if (this.cache.size > keep) {
               const near = new Set(want);
               for (const id of [...this.cache.keys()]) { if (this.cache.size <= keep) break; if (!near.has(id)) this.cache.delete(id); }
@@ -154,7 +169,7 @@ export function createQueryClient(store: SpaceStore, o: { maxEntries?: number; w
           if (this.def.orderKey) {
             if (prev === undefined || JSON.stringify(this.def.orderKey(prev)) !== JSON.stringify(this.def.orderKey(row))) reorder = true;
           } else reorder = true;
-          if (prev !== undefined) this.cache.set(c.id, row);
+          if (prev !== undefined) this.cache.set(c.id, intern(this.def, row));
           changed = true;
         } else {
           const [row] = this.def.readRows(store.db, [c.id]);
