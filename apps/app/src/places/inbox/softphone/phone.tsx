@@ -72,6 +72,7 @@ export function InboxPhoneDock({ device, targets = NO_TARGETS, children, placeme
   const call = useRef<{ id?: string; contactId?: string }>({});
   const [typed, setTyped] = useState("");
   const [saved, setSaved] = useState<string | undefined>(undefined);
+  const [summary, setSummary] = useState<string | undefined>(undefined);
   const [state, setState] = useState<PhoneState>(IDLE_STATE);
   const [claims, setClaims] = useState<readonly ConversationKey[]>([]);
   const [notes, setNotes] = useState("");
@@ -80,7 +81,7 @@ export function InboxPhoneDock({ device, targets = NO_TARGETS, children, placeme
   const controller = useMemo<PhoneController>(() => createPhoneController(device, phoneHooks(
     (cap, input) => data.call(cap, input),
     { numberId: () => live.current.from, callId: () => call.current.id, setCallId: (id) => { call.current.id = id; }, contactId: () => call.current.contactId },
-    { targets, onHungUp: (c: CallOut) => setSaved(savedLine(live.current.rows.find((r) => r.contactId === c.contactId)?.displayName)) },
+    { targets, onHungUp: (c: CallOut) => { setSaved(savedLine(live.current.rows.find((r) => r.contactId === c.contactId)?.displayName)); setSummary(c.summary); } },
   )), [device, data, targets]);
 
   useEffect(() => { setState(controller.state()); return controller.subscribe(setState); }, [controller]);
@@ -96,7 +97,7 @@ export function InboxPhoneDock({ device, targets = NO_TARGETS, children, placeme
     if (state.phase === "ended" && state.ended?.reason === "remote" && call.current.id && saved === undefined) {
       void data.call("telephony.hangup", { callId: call.current.id }).then((out) => setSaved(savedLine(live.current.rows.find((r) => r.contactId === (out as { call: CallOut }).call.contactId)?.displayName)));
     }
-    if (state.phase === "idle") { call.current = {}; setSaved(undefined); }
+    if (state.phase === "idle") { call.current = {}; setSaved(undefined); setSummary(undefined); }
   }, [state.phase, state.ended, data, saved]);
 
   useSoftphoneShortcut(useCallback(() => controller.dispatch({ type: "toggle_dialer" }), [controller]));
@@ -117,6 +118,7 @@ export function InboxPhoneDock({ device, targets = NO_TARGETS, children, placeme
     secs: state.secs,
     connecting: state.phase === "calling",
     ...(state.phase === "ended" && saved !== undefined ? { endedNote: saved } : {}),
+    ...(state.phase === "ended" && summary !== undefined ? { summary } : {}),
     ...(state.ended ? { endedSecs: state.ended.secs } : {}),
     notes,
     onOpen: () => controller.dispatch({ type: "open_dialer" }),

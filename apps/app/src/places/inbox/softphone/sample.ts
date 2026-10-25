@@ -96,7 +96,7 @@ export function withTelephony<T extends ContactTabSample>(base: T): PhoneSample<
       const call = calls().find((c) => c["id"] === i.callId);
       if (!call) throw new Error(`no such call ${i.callId}`);
       if (call["state"] === "completed") return { call };
-      const done = { ...call, state: "completed", answeredAt: SAMPLE_NOW, endedAt: SAMPLE_NOW + 12_000, durationSec: 12 };
+      const done = { ...call, state: "completed", answeredAt: SAMPLE_NOW, endedAt: SAMPLE_NOW + 12_000, durationSec: 12, summary: "A short call, saved to the conversation." };
       replica.put("calls", [done as unknown as Row]);
       const to = String(call["to"]);
       let who = typeof call["contactId"] === "string" ? contacts().find((c) => c.contactId === call["contactId"]) : find(to);

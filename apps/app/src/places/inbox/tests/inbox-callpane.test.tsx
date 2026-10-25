@@ -49,7 +49,8 @@ function withCall(phase: string, peer: string, child: ReactElement, opts: { note
     dial() {}, toggle() {}, state: () => stateOf(phase, peer),
     view: () => ({
       open: true, mode: phase === "held" ? "held" : phase === "ended" ? "ended" : "live", numbers: [{ id: "n1", label: "Irfad", num: "+1 415 555 0132" }], secs: 134, recording: false, held: phase === "held", muted: false,
-      caller: { name: "Elena Rivera", number: peer, recordId: "ct_elena" }, placement: "inline", ...(phase === "ended" ? { endedNote: "Saved to Elena Rivera's conversation", endedSecs: 134 } : {}),
+      caller: peer.endsWith("0126") ? { name: "Dana Whitfield", number: peer, recordId: "ct_dana" } : { name: "Elena Rivera", number: peer, recordId: "ct_elena" }, placement: "inline",
+      ...(phase === "ended" ? { endedNote: "Saved to Elena Rivera's conversation", endedSecs: 134, summary: "Elena sends the lease Thursday." } : {}),
     }),
     claim() { claimed++; return () => { claimed--; }; }, isClaimed: () => claimed > 0, notes: () => opts.notes ?? "", setNotes() {},
   };
