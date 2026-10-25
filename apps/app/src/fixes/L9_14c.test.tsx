@@ -48,6 +48,7 @@ test("the sample shell shows the Chats place on Chats and the sample rows everyw
   const ctx = (place: string): PlaceContext => ({ spaceId: "nw", spaceName: "Northwind", kind: "team", place, hash: "", epoch: 0, kit: { id: "team", places: [], top: [], start: "chats" } } as unknown as PlaceContext);
   const chats = renderToStaticMarkup(chatsPlace(ctx("chats")) as never).replaceAll("<!-- -->", "");
   assert.ok(has(chats, 'data-testid="chats-place"') && has(chats, "Send 12 invoices"));
-  const files = renderToStaticMarkup(chatsPlace(ctx("files")) as never);
-  assert.ok(!has(files, 'data-testid="chats-place"'));
+  // Any other place falls back to the sample place (rendered inside a hub in the shell); here only what it returns is looked at: not the Chats place.
+  const other = chatsPlace(ctx("files")) as { type?: unknown };
+  assert.notEqual(other.type, (chatsPlace(ctx("chats")) as { type?: unknown }).type, "the other places are not the Chats place");
 });
