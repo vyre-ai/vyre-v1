@@ -31,7 +31,7 @@ export function ProjectsAtRisk(): ReactElement | null {
       <HRow key={r.id} rowKey={`risk:${r.id}`} label={`${r.title}, ${r.why}`} onOpen={open} onMenu={(x, y) => menu.show([{ label: "Open", onSelect: open }], x, y, "context", { label: r.title })}>
         <View style={[local.dot, { backgroundColor: (r.health === "block" ? "var(--danger)" : "var(--warn)") as string }]} testID={`risk-dot-${r.health}`} />
         <RowText title={r.title} trailingTitle={<Text style={local.type}>{`  ${r.type}`}</Text>} sub={r.why} />
-        {r.lead ? <Face name={r.lead} kind={p.byId(r.lead)?.kind ?? "person"} size={20} /> : null}
+        {r.lead ? <Face name={p.name(r.lead)} kind={p.byId(r.lead)?.kind ?? "person"} size={20} /> : null}
         <Text style={local.due}>{r.due ?? ""}</Text>
       </HRow>,
     );
