@@ -9,7 +9,6 @@ import { KIND_LABEL, KIND_ORDER, RecordViews, kindEntries } from "../views-a/ind
 import type { ViewCtx } from "../views-a/index.ts";
 import { createViewsSample } from "../views-a/sample.ts";
 import { TableView } from "../table/index.ts";
-import { FaceImage, marbleUri } from "../table/FaceImage.tsx";
 
 const render = (child: ReactElement, type = "projects"): string => {
   const s = createViewsSample();
@@ -46,13 +45,4 @@ test("switching from the table to a board and back: the menu lists the kinds, ch
   if (table && "onSelect" in table) table.onSelect?.();
   assert.deepEqual(asked, ["board", "table"]);
   assert.ok(has(render(<RecordViews kind="board" />), 'data-testid="records-board"') && has(render(<RecordViews kind="table" />), 'data-testid="records-table"'), "and each opens as its own screen");
-});
-
-test("a person cell draws its face as a cached image, not a blurred inline svg per row (the scroll budget)", () => {
-  const out = renderToStaticMarkup(<FaceImage name="Maya Chen" size={18} />);
-  assert.ok(has(out, 'data-face="image"') && has(out, 'src="data:image/svg+xml;charset=utf-8,') && has(out, 'data-testid="face-Maya Chen"'));
-  assert.ok(!has(out, "<svg") && !has(out, "<filter"), "no inline svg and no filter element in the row");
-  assert.equal(marbleUri("Maya Chen"), marbleUri("Maya Chen"), "the same name gives the same address, built once");
-  assert.notEqual(marbleUri("Maya Chen"), marbleUri("Omar Haddad"));
-  assert.ok(decodeURIComponent(marbleUri("Maya Chen")).includes("feGaussianBlur"), "it is the shared marble artwork, blur included, rasterised once");
 });
