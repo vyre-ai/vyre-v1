@@ -47,7 +47,11 @@ export function hash(s: string): number {
 
 export function initialsOf(name: string, size: number): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
-  if (size >= 24) return words.slice(0, 2).map((w) => (w[0] ?? "").toUpperCase()).join("") || "?";
+  if (size >= 24) {
+    let out = "";
+    for (const w of words.slice(0, 2)) out += (w[0] ?? "").toUpperCase();
+    return out || "?";
+  }
   return (words[0]?.[0] ?? "?").toUpperCase();
 }
 

@@ -133,6 +133,7 @@ function List(): ReactElement {
     return narrow(out, state);
   }, [q, view, mailboxes, names, state]);
 
+  const c = data.clock();
   const call = (cap: string, input: unknown): void => { void data.call(cap, input); };
   const openEntry = (e: Entry): void => {
     if (e.kind === "contact") data.nav.openConversation(e.openId);
@@ -148,6 +149,26 @@ function List(): ReactElement {
       match: () => data.nav.openMatch(e.openId),
     }), x, y);
   };
+
+  const renderLine = (e: Entry): ReactElement => (
+    <View {...menuTrigger((x, y) => lineMenu(e, x, y))}>
+      <Row
+        id={`line:${e.key}`}
+        title={e.name}
+        note={e.snippet || "No preview"}
+        selected={state.selected === e.key}
+        leading={<View style={styles.face}>{pinned(e) ? <Ghost size={32} /> : <Face name={e.name} size={32} />}</View>}
+        trailing={<Meta e={e} now={c.now} offsetMin={c.offsetMin} narrow={slim} />}
+        onPress={() => {
+          const now = Date.now();
+          const dbl = sel.current.key === e.key && now - sel.current.at < DOUBLE_MS;
+          sel.current = { key: e.key, at: now };
+          dispatch({ type: "select", key: e.key });
+          if (dbl) openEntry(e);
+        }}
+      />
+    </View>
+  );
 
   const showFilter = (x: number, y: number, s: InboxState): void => {
     const again = (): void => setReopen({ x, y });
@@ -177,7 +198,6 @@ function List(): ReactElement {
     }
   };
 
-  const c = data.clock();
   const meta = state.scope.kind === "all" ? unreadMeta(entries) : "";
   const showing = showingNames(state, mailboxes);
   const filtered = isFiltering(state) || state.query.trim() !== "";
@@ -214,30 +234,7 @@ function List(): ReactElement {
         <States kind="empty" title={filtered ? "Nothing matches these filters." : view === "calls" ? "No calls yet." : "Nothing here"} icon="inbox" {...(filtered ? { action: { label: "Show all", onPress: () => dispatch({ type: "showAll" }) } } : {})} />
       ) : (
         <View style={styles.listBox} {...({ onKeyDown } as object)}>
-          <VirtualList
-            data={entries}
-            rowHeight={44}
-            keyOf={(e) => e.key}
-            renderItem={(e) => (
-              <View {...menuTrigger((x, y) => lineMenu(e, x, y))}>
-                <Row
-                  id={`line:${e.key}`}
-                  title={e.name}
-                  note={e.snippet || "No preview"}
-                  selected={state.selected === e.key}
-                  leading={<View style={styles.face}>{pinned(e) ? <Ghost size={32} /> : <Face name={e.name} size={32} />}</View>}
-                  trailing={<Meta e={e} now={c.now} offsetMin={c.offsetMin} narrow={slim} />}
-                  onPress={() => {
-                    const now = Date.now();
-                    const dbl = sel.current.key === e.key && now - sel.current.at < DOUBLE_MS;
-                    sel.current = { key: e.key, at: now };
-                    dispatch({ type: "select", key: e.key });
-                    if (dbl) openEntry(e);
-                  }}
-                />
-              </View>
-            )}
-          />
+          <VirtualList data={entries} rowHeight={44} keyOf={(e) => e.key} renderItem={renderLine} />
         </View>
       )}
       {menu.element}

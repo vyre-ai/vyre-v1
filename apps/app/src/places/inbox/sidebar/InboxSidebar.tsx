@@ -9,7 +9,7 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useInboxData, useOptionalInboxData, useScreenQuery } from "./data.tsx";
-import { SCREENS, navGroups, sameScope } from "./model.ts";
+import { SCREENS, calendarIds, navGroups, sameScope } from "./model.ts";
 import type { ContactRow, NavInbox, Scope, View as ViewKind } from "./model.ts";
 import { Glyph, IconButton, Unread } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
@@ -96,7 +96,7 @@ function Sidebar(): ReactElement {
   };
   const calendarMenu = (id: string, x: number, y: number): void => {
     menu.show([
-      { label: "Show Only This", onSelect: () => dispatch({ type: "calendarOnly", id, all: calendars.map((c) => c.id) }) },
+      { label: "Show Only This", onSelect: () => dispatch({ type: "calendarOnly", id, all: calendarIds(calendars) }) },
       { label: "Show All Calendars", onSelect: () => { for (const hidden of state.hiddenCalendars) dispatch({ type: "calendarVisible", id: hidden }); } },
     ], x, y);
   };
@@ -116,6 +116,20 @@ function Sidebar(): ReactElement {
         />,
       );
     }
+  }
+
+  const calendarRows: ReactElement[] = [];
+  for (const c of calendars) {
+    const off = state.hiddenCalendars.includes(c.id);
+    calendarRows.push(
+      <SideRow
+        key={c.id} id={`cal:${c.id}`} title={c.title} selected={false} dim={off}
+        glyph={<View testID={`cal-dot-${c.id}`} style={[styles.dot, { backgroundColor: c.color }]} />}
+        trailing={c.personal ? <Glyph name="lock" size={12} /> : null}
+        onPress={() => dispatch({ type: "calendarVisible", id: c.id })}
+        onMenu={(x, y) => calendarMenu(c.id, x, y)}
+      />,
+    );
   }
 
   const list = (key: "follow" | "camp", label: string, glyph: IconName, f: (r: ContactRow) => boolean): ReactElement => (
@@ -159,18 +173,7 @@ function Sidebar(): ReactElement {
           list("camp", "Campaigns", "flag", (r) => r.campaignId !== undefined),
         ]}
         {calendars.length > 0 ? <SectionHead id="cals" label="Calendars" closed={closed("cals")} onToggle={() => dispatch({ type: "section", key: "cals" })} /> : null}
-        {closed("cals") ? null : calendars.map((c) => {
-          const off = state.hiddenCalendars.includes(c.id);
-          return (
-            <SideRow
-              key={c.id} id={`cal:${c.id}`} title={c.title} selected={false} dim={off}
-              glyph={<View testID={`cal-dot-${c.id}`} style={[styles.dot, { backgroundColor: c.color }]} />}
-              trailing={c.personal ? <Glyph name="lock" size={12} /> : null}
-              onPress={() => dispatch({ type: "calendarVisible", id: c.id })}
-              onMenu={(x, y) => calendarMenu(c.id, x, y)}
-            />
-          );
-        })}
+        {closed("cals") ? null : calendarRows}
       </ScrollView>
       <View style={styles.foot}>
         <Pressable accessibilityRole="button" accessibilityLabel="Open the dialer" testID="inbox-dialer" onPress={() => data.nav.openDialer()} style={({ hovered }: { hovered?: boolean }) => [styles.dialer, hovered === true && styles.dialerOver]}>

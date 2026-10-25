@@ -226,6 +226,10 @@ export function navGroups(mailboxes: readonly Mailbox[], counts: Counts | null):
   return groups.filter((g) => g.items.length > 0);
 }
 
+export function calendarIds(calendars: readonly CalendarRow[]): string[] {
+  return calendars.map((c) => c.id);
+}
+
 export function sameScope(a: Scope, b: Scope): boolean {
   if (a.kind !== b.kind) return false;
   return "id" in a && "id" in b ? a.id === b.id : true;
