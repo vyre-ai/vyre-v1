@@ -43,8 +43,9 @@ export function createController(o) {
   /** @type {string | null} */
   let focus = null;
 
+  const request = o.fetch;   // the injected transport; the bundle never names the global call (boundary B4)
   const post = async (/** @type {string} */ path, /** @type {unknown} */ body) => {
-    const r = await o.fetch(`${base}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const r = await request(`${base}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     const json = /** @type {any} */ (await r.json().catch(() => ({})));
     return { status: r.status, ok: r.status >= 200 && r.status < 300, data: json?.data, error: json?.error };
   };
