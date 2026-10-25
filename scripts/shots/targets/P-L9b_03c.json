@@ -1,0 +1,20 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_03c-chats-northwind",
+      "route": "/m/P-L9b_03c",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='chats-sidebar']",
+      "note": "The Chats list over Northwind: Needs you as one row with the count and its requests beneath, Agents with Waiting on you on Intake, Billing, Research and Docs, dim channels with the unread count on #intake, real faces. The prototype side is its Chats place in the same skin. Channels sit above Chats as in the prototype (ruling 45).",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_03c-chats-harbor",
+      "route": "/m/P-L9b_03c?space=harbor",
+      "proto": "chat,space:harbor,{skin}",
+      "waitFor": "[data-testid='chats-sidebar']",
+      "note": "The same list over Harbor Studio: the assistant, three chats, no Needs you, no Channels, nobody waiting on you.",
+      "protoSettleMs": 1500
+    }
+  ]
+}

@@ -7,16 +7,33 @@ inputs:
 outputs:
   hit:
     description: "true when the set was already on the host"
-    value: ${{ steps.deps.outputs.hit }}
+    value: ${{ steps.deps.outputs.hit || steps.deps-hosted.outputs.hit }}
   key:
     description: Lockfile hash the set is stored under
-    value: ${{ steps.deps.outputs.key }}
+    value: ${{ steps.deps.outputs.key || steps.deps-hosted.outputs.key }}
   ms:
     description: Milliseconds the step took
-    value: ${{ steps.deps.outputs.ms }}
+    value: ${{ steps.deps.outputs.ms || steps.deps-hosted.outputs.ms }}
 runs:
   using: composite
   steps:
+    # GitHub-hosted runners (P-CI_31): Node 24, and the node_modules set cached under RUNNER_TEMP keyed by the lockfiles. Self-hosted runners keep their host-local cache and their own node.
+    - if: runner.environment == 'github-hosted'
+      uses: actions/setup-node@v4
+      with:
+        node-version: 24
+    - if: runner.environment == 'github-hosted'
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/deps-cache
+        key: deps-${{ runner.os }}-${{ hashFiles('package-lock.json', '**/package.json') }}
     - id: deps
+      if: runner.environment != 'github-hosted'
       shell: bash
+      run: bash "${{ github.workspace }}/scripts/ci-deps.sh" "${{ inputs.workspace }}"
+    - id: deps-hosted
+      if: runner.environment == 'github-hosted'
+      shell: bash
+      env:
+        VYRE_DEPS_CACHE: ${{ runner.temp }}/deps-cache
       run: bash "${{ github.workspace }}/scripts/ci-deps.sh" "${{ inputs.workspace }}"

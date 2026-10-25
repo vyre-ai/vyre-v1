@@ -17,7 +17,8 @@ import {
   CARD_W, MINI_H, MINI_W, cardDim, cardHeight, edgeGeometry, emphasis, fieldRows, fitView, hueOf, layout, miniGo, miniModel, moreCount, neighbor, panBy, shownCount, summary, zoomAt,
 } from "./model.ts";
 import type { EdgeGeometry, FieldRow, MapEdge, MapNode, Rect, TypeDetail, View as Viewport } from "./model.ts";
-import { TypeTile, sx, webProps } from "./parts.tsx";
+import { FieldsPane } from "./FieldsPane.tsx";
+import { TypeGlyph, sx, webProps } from "./parts.tsx";
 
 type MapOut = CapMap["schema.map"]["out"];
 
@@ -174,6 +175,7 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
       <Card
         key={n.type}
         node={n}
+        meta={details.get(n.type)}
         rect={r}
         rows={rowsOf.get(n.type) as FieldRow[]}
         selected={sel === n.type}
@@ -204,6 +206,7 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
           <Text style={st.consoleText}>Edit in the Console</Text>
         </Pressable>
       </View>
+      <View style={st.body}>
       <View
         ref={canvas as never}
         style={st.canvas}
@@ -226,6 +229,21 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
           <Ctl glyph="expand" label="Fit to screen" onPress={fit} testID="schema-fit" second />
         </View>
         <Minimap mini={mini} sel={sel} onGo={(mx, my) => setView(miniGo(mini, mx, my, v, dim.width, dim.height))} />
+      </View>
+      {sel !== null && titles.has(sel) ? (
+        <FieldsPane
+          type={sel}
+          title={titleOf(sel)}
+          icon={details.get(sel)?.icon}
+          syncedFrom={details.get(sel)?.syncedFrom}
+          rowCount={nodes.find((n) => n.type === sel)?.rowCount ?? 0}
+          rows={rowsOf.get(sel) as FieldRow[]}
+          titleField={details.get(sel)?.titleField}
+          onClose={() => setSel(null)}
+          onOpen={() => open(sel)}
+          onConsole={() => data.nav.openConsole(sel)}
+        />
+      ) : null}
       </View>
       {menu.element}
     </View>
@@ -260,6 +278,7 @@ function Edges({ geometry, hot }: { geometry: readonly EdgeGeometry[]; hot: stri
 
 interface CardProps {
   node: MapNode;
+  meta: TypeDetail | undefined;
   rect: Rect;
   rows: readonly FieldRow[];
   selected: boolean;
@@ -272,7 +291,7 @@ interface CardProps {
   onMenu(x: number, y: number): void;
 }
 
-function Card({ node, rect, rows, selected, lit, dim, expanded, onHover, onPress, onToggle, onMenu }: CardProps): ReactElement {
+function Card({ node, meta, rect, rows, selected, lit, dim, expanded, onHover, onPress, onToggle, onMenu }: CardProps): ReactElement {
   const shown = shownCount(rows.length, expanded);
   const fieldViews: ReactElement[] = [];
   for (let i = 0; i < shown; i++) {
@@ -301,7 +320,7 @@ function Card({ node, rect, rows, selected, lit, dim, expanded, onHover, onPress
       {...menuTrigger(onMenu)}
     >
       <View style={st.cardHead}>
-        <TypeTile type={node.type} title={node.title} size={22} />
+        <TypeGlyph type={node.type} icon={meta?.icon} syncedFrom={meta?.syncedFrom} size={22} />
         <Text numberOfLines={1} style={st.cardTitle}>{node.title}</Text>
         <Text style={st.count} testID={`schema-count-${node.type}`}>{String(node.rowCount)}</Text>
       </View>
@@ -348,6 +367,7 @@ function Minimap({ mini, sel, onGo }: { mini: ReturnType<typeof miniModel>; sel:
 
 const st = StyleSheet.create({
   page: { flex: 1, minHeight: 0 },
+  body: { flex: 1, minHeight: 0, flexDirection: "row" },
   head: { height: 44, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14 },
   crumb: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
   sl: { fontSize: 13.5, color: "var(--ink-4)" as string },
