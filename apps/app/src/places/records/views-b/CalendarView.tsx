@@ -90,7 +90,7 @@ export function CalendarView({ ctx }: { ctx: ViewCtx }): ReactElement {
         </View>
       );
       return Platform.OS === "web"
-        ? createElement("div", { key: cell.key, style: { flex: 1, minWidth: 0 }, onDragOver: (e: { preventDefault(): void }) => e.preventDefault(), onDrop: (e: { preventDefault(): void }) => { e.preventDefault(); drop(cell.ms); } }, body)
+        ? createElement("div", { key: cell.key, style: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }, onDragOver: (e: { preventDefault(): void }) => e.preventDefault(), onDrop: (e: { preventDefault(): void }) => { e.preventDefault(); drop(cell.ms); } }, body)
         : <View key={cell.key} style={{ flex: 1 }}>{body}</View>;
     });
     weeks.push(<View key={w} style={c.week}>{cells}</View>);
