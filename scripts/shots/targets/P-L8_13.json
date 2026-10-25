@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-L8_13-public-form",
+      "route": "/m/P-L8_13",
+      "proto": "forms,{skin}",
+      "waitFor": "[data-testid='form-embed']",
+      "note": "The public form on its second step (a shown deadline field, help text, Back and Next). The prototype has no public form page, so the side is its Forms screen in the same skin; the form takes the Space skin (Paper for Northwind, Dusk for Harbor Studio)."
+    }
+  ]
+}
