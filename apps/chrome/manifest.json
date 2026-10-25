@@ -19,6 +19,7 @@
     "type": "module"
   },
   "permissions": ["storage", "activeTab", "scripting", "nativeMessaging"],
+  "optional_permissions": ["debugger"],
   "host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
   "content_scripts": [
     {

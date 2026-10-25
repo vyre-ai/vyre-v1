@@ -16,6 +16,8 @@ import { createBridge } from "../src/worker/bridge.js";
 import { createDecoder, encode, MAX_MESSAGE } from "../src/worker/framing.js";
 import { keyAction, letterOf, MENU_KEY, move, rowMenu, viewOf } from "../src/popup/popup-model.js";
 import { callerOk, dataDirs, findDaemon, runHost } from "../src/worker/native/host.js";
+import { parseCommand } from "../src/agent/protocol.js";
+import { ChromeToolError, createChromeBridge } from "../../../lib/chrome-bridge.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const REPO = path.resolve(ROOT, "..", "..");
@@ -384,7 +386,9 @@ test("the manifest asks for the smallest set of powers and one content script gr
   const m = JSON.parse(read("manifest.json"));
   assert.equal(m.manifest_version, 3);
   assert.deepEqual([...m.permissions].sort(), ["activeTab", "nativeMessaging", "scripting", "storage"]);
-  assert.ok(!m.permissions.includes("debugger"), "agent control arrives with P-L10_06, not here");
+  assert.ok(!m.permissions.includes("debugger"), "the debugger is never held by default: Chrome asks the person when they open Chrome to an agent");
+  assert.deepEqual(m.optional_permissions, ["debugger"], "agent control over chrome.debugger is an optional permission, and the only one");
+  assert.match(read("src/worker/index.js"), /^import "\.\.\/agent\/index\.js";$/m, "the worker loads the agent tools");
   assert.ok(!m.permissions.includes("webRequest") && !m.permissions.includes("cookies") && !m.permissions.includes("tabs"));
   assert.deepEqual(m.host_permissions, ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"]);
   assert.equal(m.background.service_worker, "src/worker/index.js");
@@ -442,3 +446,116 @@ test("the sign-in fields are found by what they are for, and a search box is not
 });
 
 // Final run on the last commit of P-L10_05: this file reports its own ok line (third pass after the lint fix).
+
+// ---------- the daemon's Chrome bridge, end to end through the native messaging host ----------
+
+/** The daemon bridge on a loopback port, the real native host between it and a fake Chrome (framed stdio), and a way to read what Chrome receives. */
+async function rig(deps: Partial<Parameters<typeof createChromeBridge>[0]> = {}) {
+  const bridge = createChromeBridge({ token: "tok-bridge", ...deps });
+  const server = http.createServer((req, res) => { if (!bridge.handle(req, res)) { res.writeHead(404); res.end(); } });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+  const port = (server.address() as { port: number }).port;
+  const stdin = new PassThrough();
+  const frames: any[] = [];
+  const decoder = createDecoder();
+  const stdout = { write: (b: Buffer) => { for (const f of decoder.push(b)) frames.push(f); return true; } };
+  const done = runHost({ stdin, stdout, daemon: { url: `http://127.0.0.1:${port}`, token: "tok-bridge" } });
+  const until = async (f: () => boolean) => { for (let i = 0; i < 200 && !f(); i++) await new Promise((r) => setTimeout(r, 10)); };
+  await until(() => bridge.connected === 1);
+  return {
+    bridge, frames, port, until,
+    chrome: (m: unknown) => stdin.write(encode(m)),
+    async close() { stdin.end(); await done; bridge.failAll(); await new Promise<void>((r) => server.close(() => r())); },
+  };
+}
+
+test("an agent tool goes app -> bridge -> host -> Chrome as a command the extension accepts, and its result comes back the same way", async () => {
+  const r = await rig();
+  try {
+    const call = r.bridge.callTool({ tool: "chrome_snapshot", input: { format: "text" }, agent: { id: "agt_intake", name: "Intake" }, space: "spc_acme" });
+    await r.until(() => r.frames.some((f) => f.type === "agent.call"));
+    const cmd = r.frames.find((f) => f.type === "agent.call");
+    const parsed = parseCommand(cmd);
+    assert.ok(parsed && parsed.type === "agent.call", "the extension's own parser accepts the command");
+    assert.deepEqual([parsed.tool, parsed.input, parsed.agent, parsed.space], ["chrome_snapshot", { format: "text" }, { id: "agt_intake", name: "Intake" }, "spc_acme"]);
+    r.chrome({ id: "a1", type: "bridge", op: "agent.result", input: { callId: cmd.id, ok: true, output: { title: "Acme Portal" } } });
+    assert.deepEqual(await call, { title: "Acme Portal" });
+    await r.until(() => r.frames.some((f) => f.id === "a1"));
+    assert.deepEqual(r.frames.find((f) => f.id === "a1"), { id: "a1", ok: true, output: {} }, "the extension is acknowledged");
+  } finally { await r.close(); }
+});
+
+test("a failed tool rejects with the extension's code and words; a result for a call nobody waits for is acknowledged and dropped", async () => {
+  const r = await rig();
+  try {
+    const call = r.bridge.callTool({ tool: "chrome_act", input: { ref: "e9", action: "click" }, agent: { id: "agt_intake", name: "Intake" }, space: "spc_acme" });
+    await r.until(() => r.frames.some((f) => f.type === "agent.call"));
+    const id = r.frames.find((f) => f.type === "agent.call").id;
+    r.chrome({ id: "a2", type: "bridge", op: "agent.result", input: { callId: id, ok: false, error: { code: "unknown_ref", message: "That ref is not on the page." } } });
+    await assert.rejects(call, (e: any) => e instanceof ChromeToolError && e.code === "unknown_ref" && /not on the page/.test(e.message));
+    r.chrome({ id: "a3", type: "bridge", op: "agent.result", input: { callId: "ac_999", ok: true, output: {} } });
+    await r.until(() => r.frames.some((f) => f.id === "a3"));
+    assert.equal(r.frames.find((f) => f.id === "a3").ok, true);
+  } finally { await r.close(); }
+});
+
+test("with no extension connected a tool fails at once as offline; with one that never answers it times out; a name that is not a Chrome tool is refused", async () => {
+  const lonely = createChromeBridge({ token: "t" });
+  await assert.rejects(lonely.callTool({ tool: "chrome_snapshot", agent: { id: "agt_a", name: "A" }, space: "s" }), (e: any) => e.code === "offline");
+  await assert.rejects(lonely.callTool({ tool: "records.create", agent: { id: "agt_a", name: "A" }, space: "s" }), (e: any) => e.code === "unknown_tool");
+  const r = await rig({ timeoutMs: 60 });
+  try {
+    await assert.rejects(r.bridge.callTool({ tool: "chrome_wait", agent: { id: "agt_a", name: "A" }, space: "s" }), (e: any) => e.code === "timeout");
+  } finally { await r.close(); }
+});
+
+test("agent events reach the logger under the agent; the opt-in is pushed to the extension and again to one that connects later", async () => {
+  const events: any[] = [];
+  const r = await rig({ onEvent: (e) => events.push(e) });
+  try {
+    r.chrome({ id: "a4", type: "bridge", op: "agent.event", input: { event: "driving", agent: "agt_intake", tabId: "t1" } });
+    await r.until(() => events.length === 1);
+    assert.equal(events[0].event, "driving");
+    assert.equal(events[0].agent, "agt_intake");
+    r.bridge.optIn(["spc_acme"], "personal");
+    await r.until(() => r.frames.some((f) => f.type === "agent.optin"));
+    assert.deepEqual(parseCommand(r.frames.find((f) => f.type === "agent.optin")), { type: "agent.optin", spaces: ["spc_acme"], mode: "personal" });
+  } finally { await r.close(); }
+  const b = createChromeBridge({ token: "t" });
+  b.optIn(["spc_x"], "computer");
+  const server = http.createServer((req, res) => { b.handle(req, res); });
+  await new Promise<void>((res) => server.listen(0, "127.0.0.1", () => res()));
+  const port = (server.address() as { port: number }).port;
+  const got = await new Promise<string>((resolve) => {
+    http.get({ port, host: "127.0.0.1", path: "/chrome-bridge/v1/events", headers: { authorization: "Bearer t" } }, (res) => { res.setEncoding("utf8"); res.once("data", (d) => { resolve(d); res.destroy(); }); });
+  });
+  assert.deepEqual(JSON.parse(got.trim()), { type: "agent.optin", spaces: ["spc_x"], mode: "computer" }, "an extension that connects later is told what is already opened");
+  await new Promise<void>((res) => server.close(() => res()));
+});
+
+test("operations the bridge does not own go to the host's handlers; without them it says not_available; requests need the admin token", async () => {
+  const seen: any[] = [];
+  const r = await rig({
+    op: async (op, input) => { seen.push(["op", op, input]); return { spaces: [] }; },
+    invoke: async (cap, input, extra) => { seen.push(["invoke", cap, input, extra]); if (cap === "vault.use") throw { error: { code: "locked", message: "Your vault is locked." } }; return { items: [] }; },
+  });
+  try {
+    r.chrome({ id: "h1", type: "bridge", op: "hello", input: {} });
+    r.chrome({ id: "h2", type: "invoke", capability: "vault.items.match", input: { url: "https://acme.test" }, agent: "agt_intake", space: "spc_acme" });
+    r.chrome({ id: "h3", type: "invoke", capability: "vault.use", input: { item: "vit_1" } });
+    await r.until(() => ["h1", "h2", "h3"].every((id) => r.frames.some((f) => f.id === id)));
+    assert.deepEqual(r.frames.find((f) => f.id === "h1"), { id: "h1", ok: true, output: { spaces: [] } });
+    assert.deepEqual(seen[1], ["invoke", "vault.items.match", { url: "https://acme.test" }, { agent: "agt_intake", space: "spc_acme" }]);
+    assert.deepEqual(r.frames.find((f) => f.id === "h3").error, { code: "locked", message: "Your vault is locked." });
+    const denied = await fetch(`http://127.0.0.1:${r.port}/chrome-bridge/v1/rpc`, { method: "POST", headers: { authorization: "Bearer wrong" }, body: "{}" });
+    assert.equal(denied.status, 401);
+    const none = await fetch(`http://127.0.0.1:${r.port}/chrome-bridge/v1/events`);
+    assert.equal(none.status, 401);
+  } finally { await r.close(); }
+  const bare = await rig();
+  try {
+    bare.chrome({ id: "n1", type: "bridge", op: "hello", input: {} });
+    await bare.until(() => bare.frames.some((f) => f.id === "n1"));
+    assert.equal(bare.frames.find((f) => f.id === "n1").error.code, "not_available");
+  } finally { await bare.close(); }
+});

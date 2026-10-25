@@ -1815,7 +1815,7 @@
     {
       "deferred": false,
       "name": "console_overview",
-      "summary": "Overview: health, attention items, recent admin activity, usage",
+      "summary": "Overview: health, attention items, recent admin activity, usage, server CPU, memory and disk, and the last backup",
       "toolset": "engineer"
     },
     {
@@ -3418,6 +3418,12 @@
       "deferred": false,
       "name": "health_history",
       "summary": "Samples of a health check over time",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "health_machine",
+      "summary": "Probe: CPU load, memory and disk of the server as the host last reported them (Console Overview tiles)",
       "toolset": "engineer"
     },
     {
