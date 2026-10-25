@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import { SamplePlace } from "../shell/spaces/sample.tsx";
 import { homePlace, homeVariantOf } from "../shell/spaces/sample-home.tsx";
+import { statusIcon } from "../places/home/sections-a/model.ts";
 import type { PlaceContext } from "../shell/spaces/Shell.tsx";
 import { kitById } from "../shell/rail/kits.ts";
 
@@ -47,4 +48,20 @@ test("every other place keeps its sample rows", () => {
     assert.equal(el.type, SamplePlace, place);
     assert.equal(el.props.ctx.place, place);
   }
+});
+
+test("My work carries the list/board toggle, the review mark and the project label as the prototype", () => {
+  const out = html("nw");
+  assert.ok(out.includes('data-testid="work-view-list"') && out.includes('data-testid="work-view-board"'), "the layout toggle");
+  assert.ok(out.includes('aria-checked="true"'), "one layout is on");
+  assert.ok(out.includes("ATP · Harlow &amp; Price") || out.includes("ATP · Harlow & Price"), "the project label is the whole name");
+  assert.equal(statusIcon({ state: "todo", blocked: false, kind: "review" }), "review");
+  assert.equal(statusIcon({ state: "todo", blocked: false, kind: "approve" }), "review");
+  assert.equal(statusIcon({ state: "todo", blocked: false, kind: "work" }), "todo");
+});
+
+test("Quick start and the Ask composer are the last section, docked", () => {
+  const out = html("nw");
+  assert.ok(at(out, 'data-testid="s-ask"') > at(out, 'data-testid="s-work"'));
+  assert.ok(out.includes("position:sticky") && out.includes("bottom:0px") || out.includes("position:sticky;bottom:0"), "sticks to the foot of the place");
 });
