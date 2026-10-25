@@ -3,18 +3,21 @@
 // be reached keeps the frame and says so with Try again; it never shows another Space's rows.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, useWindowDimensions } from "react-native";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import { JoinFlow } from "../../join/JoinFlow.tsx";
 import type { JoinInvite } from "../../join/logic.ts";
 import { mark } from "../../startup/marks.ts";
 import { createShellHub } from "../spaces/hub.ts";
+import type { PlaceId } from "../rail/kits.ts";
 import type { ShellHub } from "../spaces/hub.ts";
 import { Shell } from "../spaces/Shell.tsx";
 import type { PlaceContext } from "../spaces/Shell.tsx";
 import { CapError, createCapCaller } from "./caps.ts";
 import { formatHash } from "../hash/hash.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
+import { PhoneHost } from "./PhoneHost.tsx";
+import { PHONE_BELOW } from "./phone.ts";
 import { openRealSession } from "./session.ts";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
 import { clearStored, readStored, spaceAddress, writeStored } from "./stored.ts";
@@ -61,6 +64,10 @@ function SignInScreen({ baseUrl, onSignedIn }: { baseUrl: string; onSignedIn: (s
 
 function ShellHost({ stored, open, onSignedOut, onHub }: { stored: StoredSession; open: NonNullable<SessionGateProps["open"]>; onSignedOut: () => void; onHub: (h: ShellHub | null) => void }): ReactElement {
   const navRef = useRef<ShellHub | null>(null);
+  const phoneGo = useRef<((p: PlaceId, hash: string) => void) | null>(null);
+  const width = useWindowDimensions().width;
+  const phone = width > 0 && width < PHONE_BELOW;
+  const registerGo = useCallback((go: ((p: PlaceId, hash: string) => void) | null) => { phoneGo.current = go; }, []);
   const hub = useMemo(() => {
     const h = createShellHub({ spaces: [{ ...stored.def, starred: true }], openId: stored.def.spaceId, personId: stored.personId, deviceId: "web", storage: tabsStorage() });
     navRef.current = h;
@@ -76,7 +83,7 @@ function ShellHost({ stored, open, onSignedOut, onHub }: { stored: StoredSession
     let off = false;
     let opened: RealSession | null = null;
     setFailed(null);
-    open({ baseUrl: stored.baseUrl, token: stored.token, navigate: (p, hash) => navRef.current?.go(p, hash),
+    open({ baseUrl: stored.baseUrl, token: stored.token, navigate: (p, hash) => { if (phoneGo.current) phoneGo.current(p, hash); else navRef.current?.go(p, hash); },
       shell: (screen) => {
         const h = navRef.current;
         if (!h) return;
@@ -108,6 +115,7 @@ function ShellHost({ stored, open, onSignedOut, onHub }: { stored: StoredSession
   const renderPlace = (ctx: PlaceContext): ReactElement => failed !== null && session === null
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
     : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} hash={ctx.hash} opened={(t) => { const next = formatHash(t); if (next !== ctx.hash) hub.go(ctx.place, next); }} />;
+  if (phone) return <PhoneHost session={session} needsYou={stored.def.counts.chats ?? 0} registerGo={registerGo} />;
   return <Shell hub={hub} renderPlace={renderPlace} />;
 }
 

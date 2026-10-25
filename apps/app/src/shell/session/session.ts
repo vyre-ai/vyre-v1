@@ -13,6 +13,7 @@ import { CapError, createCapCaller } from "./caps.ts";
 import type { CapCall, RouteRow } from "./caps.ts";
 import { createLiveLink } from "./live.ts";
 import type { LiveLink, LiveStatus, SocketFactory } from "./live.ts";
+import { PLACE_QUERIES, WARM_ORDER } from "./prefetch.ts";
 import { createRemoteScreenHooks } from "./remote-hooks.ts";
 import type { RemoteHooks } from "./remote-hooks.ts";
 
@@ -32,6 +33,8 @@ export interface OpenSessionOptions {
   socket?: SocketFactory;
   /** Re-read period while the live link is down. */
   pollMs?: number;
+  /** When the idle warm-up starts after the Space opens (ms); default 1500. */
+  warmAfterMs?: number;
   now?: () => number;
   openUrl?(url: string): void;
 }
@@ -44,6 +47,8 @@ export interface RealSession {
   readonly runtime: ShellRuntime;
   call: CapCall;
   liveStatus(): LiveStatus;
+  /** Warm a place's first queries (pointer-enter or focus on its rail item or tab). */
+  prefetchPlace(place: PlaceId): void;
   /** Re-read everything on screen now. */
   refresh(): void;
   close(): void;
@@ -142,6 +147,16 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   link.start();
   const poll = setInterval(() => { if (!closed && live !== "live" && hooks.watching() > 0) hooks.invalidate(); }, o.pollMs ?? 5000);
 
+  const prefetchPlace = (place: PlaceId): void => {
+    if (closed) return;
+    for (const w of PLACE_QUERIES[place] ?? []) {
+      try { hooks.prefetch(w.screen, w.query, w.state ?? {}); } catch { /* a screen the registry lacks is not worth failing a hover for */ }
+    }
+  };
+  // Idle warm-up: once the Space is open, read each place's first list one after another so the first visit paints from the session's cache.
+  const warmTimers: ReturnType<typeof setTimeout>[] = [];
+  WARM_ORDER.forEach((place, i) => { warmTimers.push(setTimeout(() => prefetchPlace(place), o.warmAfterMs === undefined ? 1500 + i * 250 : o.warmAfterMs + i * 250)); });
+
   const connections = hooks.capQuery<Out<"connections.list">>("connections.list", {});
   const principalsList = hooks.capQuery<Out<"access.principals.list">>("access.principals.list", {});
   const groupsList = hooks.capQuery<Out<"access.groups.list">>("access.groups.list", {});
@@ -221,11 +236,13 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   return {
     def, baseUrl: o.baseUrl, me, hooks, runtime, call,
     liveStatus: () => live,
+    prefetchPlace,
     refresh,
     close() {
       if (closed) return;
       closed = true;
       clearInterval(poll);
+      for (const t of warmTimers) clearTimeout(t);
       if (refreshTimer !== null) clearTimeout(refreshTimer);
       link.stop();
       for (const off of keep) off();

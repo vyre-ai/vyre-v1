@@ -329,3 +329,30 @@ test("hooks: a read that fails leaves the query loading, with the error availabl
   assert.equal(told, 1, "the listener looked again once");
   hooks.close();
 });
+
+test("hooks: pointers outside /state read from the state's own section, so a place hands over its route", async () => {
+  const seen: Record<string, unknown>[] = [];
+  const screens = new Map<string, ScreenIndexEntry>([["a.canvas", { ...screen({ automation: { cap: "automations.get", input: { automationId: "/route/automationId", q: "/state/q", gone: "/draft/none" }, live: true } }), id: "a.canvas" }]]);
+  const hooks = createRemoteScreenHooks({ screens, read: async (_c, input) => { seen.push(input); return {}; } });
+  hooks.query("a.canvas", "automation", { q: "x", route: { automationId: "aut_1" } }).subscribe(() => undefined);
+  await wait();
+  assert.deepEqual(seen, [{ automationId: "aut_1", q: "x" }]);
+  hooks.close();
+});
+
+test("hooks: prefetch reads a live query once with nobody watching, and the first watcher finds the answer", async () => {
+  let reads = 0;
+  const hooks = createRemoteScreenHooks({ screens: SCREENS, read: async () => { reads++; return { items: [] }; } });
+  hooks.prefetch("files.list", "items", { folder: "root" });
+  hooks.prefetch("files.list", "items", { folder: "root" });
+  hooks.prefetch("files.list", "once");
+  hooks.prefetch("nope", "items");
+  await wait();
+  assert.equal(reads, 1);
+  const q = hooks.query("files.list", "items", { folder: "root" });
+  assert.equal(q.getSnapshot().status, "ready", "ready on the first read, no loading frame");
+  q.subscribe(() => undefined);
+  await wait();
+  assert.equal(reads, 1, "watching a warmed query does not read it again");
+  hooks.close();
+});

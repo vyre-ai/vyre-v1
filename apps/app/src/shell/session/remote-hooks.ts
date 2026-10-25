@@ -2,9 +2,25 @@
 // A LiveQuery shows `loading` until the first answer, then `ready` with the data; it keeps showing the last answer while it refreshes, and its snapshot changes only when the
 // data does (useSyncExternalStore needs that). `invalidate()` re-reads every query someone is watching; queries nobody watches are marked stale and re-read when watched again.
 // This stands in for the SQLite replica's per-capability readers until they land: a place never knows the difference, because the type is the same.
-import { resolveInput } from "../../../../../client/src/index.ts";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../client/src/index.ts";
 import type { ScreenIndexEntry } from "../../../../../generated/screens.ts";
+
+/**
+ * A screen query's input pointers against the screen state. `/state/k` is `state.k`; any other namespace a screen declares (`/route/k`, `/draft/k`, `/filter/k`, `/query/k`, `/scope/k`,
+ * `/selected/k`, `/hit/k`) is `state[ns][k]`, which is how a place hands over its route and its drafts. A missing key is left out, not sent as undefined.
+ */
+export function resolvePointers(pointers: Record<string, string>, state: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, p] of Object.entries(pointers)) {
+    const m = /^\/([a-z]+)\/(.+)$/.exec(p);
+    if (!m) continue;
+    const ns = m[1] ?? "", key = m[2] ?? "";
+    const holder = ns === "state" ? state : state[ns];
+    const v = holder !== null && typeof holder === "object" ? (holder as Record<string, unknown>)[key] : undefined;
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
+}
 
 export interface RemoteHooksOptions {
   screens: ReadonlyMap<string, ScreenIndexEntry>;
@@ -21,6 +37,8 @@ export interface RemoteHooks extends ScreenHooks {
   invalidate(): void;
   /** The error of the last read of this query, or null (a missing or forbidden item never becomes `ready`). */
   errorFor(q: LiveQuery<unknown>): unknown;
+  /** Warm a screen query: read it now with nobody watching, so the first draw of the place finds the answer. */
+  prefetch(screenId: string, name: string, state?: Record<string, unknown>): void;
   /** How many queries are being watched right now. */
   watching(): number;
   close(): void;
@@ -109,7 +127,7 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
       const q = screen.queries[name];
       if (!q) throw new Error(`screen ${screenId} has no query ${name}`);
       if (!q.live) throw new Error(`query ${screenId}.${name} is not live`);
-      return entryFor(q.cap, resolveInput(q.input, state)).live;
+      return entryFor(q.cap, resolvePointers(q.input, state)).live;
     },
     capQuery<T>(cap: string, input: Record<string, unknown> = {}): LiveQuery<T> {
       return entryFor(cap, input).live as LiveQuery<T>;
@@ -119,6 +137,13 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
         if (e.listeners.size > 0) fetchEntry(e);
         else e.stale = true;
       }
+    },
+    prefetch(screenId, name, state = {}) {
+      const screen = opts.screens.get(screenId);
+      const q = screen?.queries[name];
+      if (!q || !q.live) return;
+      const e = entryFor(q.cap, resolvePointers(q.input, state));
+      if (e.snap.status === "loading" && !e.inflight) fetchEntry(e);
     },
     errorFor: (q) => byLive.get(q)?.error ?? null,
     watching() {

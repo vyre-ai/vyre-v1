@@ -3,7 +3,7 @@
 // place draws its loading frame (sidebar rows and a conversation skeleton), the size of the real one.
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, useWindowDimensions } from "react-native";
 import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { ChatsSidebar, ChatsSidebarLoading } from "../../places/chats/sidebar/ChatsSidebar.tsx";
@@ -21,6 +21,8 @@ import type { ShellRuntime } from "./runtime.tsx";
 type RecentOut = CapMap["chat.recent"]["out"];
 type ThreadOut = CapMap["threads.get"]["out"];
 
+/** Below this width the place shows one thing at a time: the list of chats, or the open chat (the phone shell opens the chat on top of the list). */
+export const COMPACT_BELOW = 700;
 export const SIDEBAR_W = 264;
 export const PANE_W = 340;
 
@@ -82,6 +84,15 @@ function ChatsView({ rt }: { rt: ShellRuntime }): ReactElement {
   const paneCtx = useMemo(() => (threadId ? paneData(rt, actions, threadId, agent) : null), [rt, actions, threadId, agent.agentId, agent.name]); // eslint-disable-line react-hooks/exhaustive-deps -- the agent is read by id and name
 
   const toggle = useCallback(() => setPane((v) => !v), []);
+  const compact = useWindowDimensions().width < COMPACT_BELOW;
+  if (compact) {
+    const chosen = picked ?? hashed;
+    return (
+      <View testID="chats-place" style={st.row}>
+        <View style={st.main}>{!chosen ? <ChatsSidebar data={side} /> : missing ? <NotFound what="chat" /> : conv ? <Conversation key={conv.threadId} data={conv} /> : <ConversationLoading />}</View>
+      </View>
+    );
+  }
   return (
     <View testID="chats-place" style={st.row}>
       <View style={st.side}><ChatsSidebar data={side} /></View>
