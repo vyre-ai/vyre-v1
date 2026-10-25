@@ -6,10 +6,16 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { OUT, runSeed } from "../../../../scripts/shots/gen-prototype-seed.mjs";
 
-const committed = (): Record<string, { files: { N: Record<string, { name: string; dir: boolean }>; HOME_ID: string }; records: { TY: Record<string, { rows?: unknown[]; n: string }> } }> => {
+const committed = (): ReturnType<typeof runSeed> => {
   assert.ok(fs.existsSync(OUT), `run node scripts/shots/gen-prototype-seed.mjs --write (the CI regen job does) to write ${fileURLToPath(new URL(`file://${OUT}`))}`);
   return JSON.parse(fs.readFileSync(OUT, "utf8"));
 };
+
+test("the generator runs the prototype's seed code for all three Spaces", () => {
+  const out = runSeed();
+  assert.deepEqual(Object.keys(out), ["nw", "hb", "me"]);
+  assert.ok(Object.keys(out["nw"]!.files.N).length > 20 && out["nw"]!.records.TY["clients"]);
+});
 
 test("the committed seed is exactly what the prototype's own code builds now", () => {
   assert.deepEqual(committed(), runSeed());
