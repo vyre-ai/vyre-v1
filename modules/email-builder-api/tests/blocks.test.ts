@@ -1,4 +1,5 @@
 // Saved blocks and the spacer, social and saved block kinds (P-CC_30): save, list, who may change one, and how each kind compiles.
+// @reads /modules/email-builder-api/migrations/0001_email_builder.sql
 // @reads /modules/email-builder-api/migrations/0002_saved_blocks.sql
 // Run on the final commit of this packet, after merging main, so the CI log lists the file as ok.
 import test from "node:test";

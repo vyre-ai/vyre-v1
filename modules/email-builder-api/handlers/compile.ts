@@ -852,7 +852,7 @@ function savedOut(r: Row): SavedBlockOut {
 }
 
 async function savedBlocksList(ctx: Ctx, _input: unknown): Promise<{ blocks: SavedBlockOut[] }> {
-  const rows = many(ctx, "SELECT * FROM email_builder_block")
+  const rows = many(ctx, "SELECT * FROM email_builder_api_block")
     .filter((r) => r.owner === ctx.principal.id || r.shared === 1)
     .sort((a, b) => str(a.name).localeCompare(str(b.name)) || str(a.id).localeCompare(str(b.id)));
   return { blocks: rows.map(savedOut) };
@@ -867,7 +867,7 @@ async function savedBlocksSave(ctx: Ctx, input: unknown): Promise<{ block: Saved
   const sharedIn = o.shared;
   if (sharedIn !== undefined && sharedIn !== null && typeof sharedIn !== "boolean") fail(ctx, "validation.bad_input", "Shared is true or false.", { field: "shared" });
   const blockId = optStr(ctx, o, "blockId");
-  const existing = blockId === undefined ? undefined : one(ctx, "SELECT * FROM email_builder_block WHERE id = ?", blockId);
+  const existing = blockId === undefined ? undefined : one(ctx, "SELECT * FROM email_builder_api_block WHERE id = ?", blockId);
   if (blockId !== undefined && (!existing || (existing.owner !== ctx.principal.id && existing.shared !== 1))) fail(ctx, "validation.not_found", "That saved block does not exist.");
   if (existing && existing.owner !== ctx.principal.id) fail(ctx, "permission.no_grant", "Only the person who saved a block can change it.");
   const shared = sharedIn === true ? 1 : sharedIn === false ? 0 : existing ? num(existing.shared) : 0;
@@ -875,10 +875,10 @@ async function savedBlocksSave(ctx: Ctx, input: unknown): Promise<{ block: Saved
   const id = existing ? str(existing.id) : nid(ctx, "blk");
   const json = JSON.stringify(block);
   if (json.length > MAX_HTML) fail(ctx, "validation.too_large", "A saved block is at most 1 MB.", { field: "block" });
-  if (existing) ctx.db.run("UPDATE email_builder_block SET name = ?, block = ?, shared = ?, updated_at = ? WHERE id = ?", name, json, shared, now, id);
-  else ctx.db.run("INSERT INTO email_builder_block (id, owner, name, block, shared, updated_at) VALUES (?, ?, ?, ?, ?, ?)", id, ctx.principal.id, name, json, shared, now);
+  if (existing) ctx.db.run("UPDATE email_builder_api_block SET name = ?, block = ?, shared = ?, updated_at = ? WHERE id = ?", name, json, shared, now, id);
+  else ctx.db.run("INSERT INTO email_builder_api_block (id, owner, name, block, shared, updated_at) VALUES (?, ?, ?, ?, ?, ?)", id, ctx.principal.id, name, json, shared, now);
   ctx.emit("email_block.saved", `entity/${id}`, { blockId: id, shared: shared === 1 }, { vis: "owner" });
-  return { block: savedOut(one(ctx, "SELECT * FROM email_builder_block WHERE id = ?", id) ?? {}) };
+  return { block: savedOut(one(ctx, "SELECT * FROM email_builder_api_block WHERE id = ?", id) ?? {}) };
 }
 
 export const compileHandlers = {
