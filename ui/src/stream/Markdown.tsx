@@ -44,7 +44,7 @@ function inlineNodes(items: readonly Inline[], onLink?: (href: string) => void):
  * shift; a character is part of the text it follows, so adding it and moving it change no element's position (perf layout_shift stays 0). It is a plain bar of the text face: a glyph from
  * another font (a block character) makes the line a pixel or two taller and every block that loses it shifts the one below.
  */
-export const CARET = "|";
+export const CARET = " |";
 
 export interface BlockViewProps {
   block: Block;
