@@ -1,3 +1,4 @@
+// @reads /modules/zoom/impl.ts
 // The Zoom connector (P-L5_10; spec 2.18; ARCH 8, 8.3): Server-to-Server OAuth, meetings, cloud recordings and transcripts, and the /hooks/zoom events, replayed against recorded Zoom bodies (no socket is opened).
 // Meetings, files and runs are scripted capabilities, each call checked against its frozen contract.
 // @reads /modules/zoom/migrations/0001_zoom.sql

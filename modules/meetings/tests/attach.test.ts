@@ -1,3 +1,4 @@
+// @reads /modules/meetings/impl.ts
 // Recordings, transcripts and summaries of a Meeting (P-L5_10; spec 2.18 Meetings, Meeting sources in v1; ARCH 8.3): a Zoom recording is pulled into the meeting's Files folder and its transcript stored on the
 // Meeting, where the Inbox conversation reads it; Meet, Teams and uploads attach a file already in Files; no bot ever joins a call; the summary hook starts a Run and a task and set_summary closes it.
 // Zoom, records, files, runs and tasks are scripted capabilities, each call checked against its frozen contract.
