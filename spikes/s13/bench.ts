@@ -37,7 +37,7 @@ async function kernels(): Promise<void> {
   say(`${same ? "PASS" : "FAIL"} the two kernels return the same 20 neighbours`);
   if (!same) failed = true;
   say(`worst wasm run ${Math.max(...w).toFixed(1)} ms; js median ${median(j).toFixed(1)} ms`);
-  // note: VectorIndex copies into the kernel's staging area chunk by chunk (it does not allocate from the kernel yet), so this is the staged path
+  // VectorIndex stores its vectors in the kernel's memory (VectorKernel.alloc), so the VectorIndex.top time above is the production path
   const own = wasm.alloc(N * DIM);
   for (let i = 0; i < N; i++) own.set(unit(i + 1, v), i * DIM);
   const out = new Float32Array(N);
@@ -46,7 +46,7 @@ async function kernels(): Promise<void> {
   for (let i = 0; i < 5; i++) { const t0 = performance.now(); wasm.score(own, 0, N, q, out); z.push(performance.now() - t0); }
   say(`wasm-simd, vectors in the kernel's own memory (zero copy), scoring only: ${z.map((x) => x.toFixed(1)).join(", ")} ms`);
   budget("cosine over 200k vectors, median of 5, vectors in the kernel's memory", median(z), 60, true);
-  budget("cosine over 200k vectors through VectorIndex.top, median of 5", median(w), 60, true);
+  budget("cosine over 200k vectors through VectorIndex.top (the production path), median of 5", median(w), 60, true);
 }
 
 async function embedder(): Promise<void> {

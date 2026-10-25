@@ -195,7 +195,12 @@ export async function embed(texts: readonly string[]): Promise<Float32Array[]> {
 
 // The scan kernel is one interface so a faster one can replace the plain JavaScript version without touching the index (P-L1_15 brings a SIMD kernel and proves the 200k-vector budget).
 /** Scores `count` vectors of `DIM` floats laid end to end in `data` from float index `from` against the unit query `q`: out[i] = dot(vector i, q). */
-export interface VectorKernel { readonly name: string; score(data: Float32Array, from: number, count: number, q: Float32Array, out: Float32Array): void }
+export interface VectorKernel {
+  readonly name: string;
+  /** Optional: a float array of `floats` entries in memory the kernel can read where it lies (WebAssembly memory), so scoring it copies nothing. VectorIndex stores its vectors there when offered. */
+  alloc?(floats: number): Float32Array;
+  score(data: Float32Array, from: number, count: number, q: Float32Array, out: Float32Array): void;
+}
 
 /** Eight independent accumulators keep the multiply-adds from waiting on each other. */
 export const jsKernel: VectorKernel = {
@@ -232,8 +237,16 @@ export class VectorIndex {
     this.use = use;
     this.cap = capacity;
     this.ids = new Int32Array(capacity);
-    this.f32 = new Float32Array(capacity * DIM);
+    this.f32 = this.fresh(capacity);
   }
+
+  private fresh(capacity: number): Float32Array {
+    const k = this.use ?? kernel;
+    return k.alloc ? k.alloc(capacity * DIM) : new Float32Array(capacity * DIM);
+  }
+
+  /** The array the vectors are stored in (its first `size * DIM` floats are in use). */
+  vectors(): Float32Array { return this.f32; }
 
   /** Which kernel scans. */
   get kernel(): string { return (this.use ?? kernel).name; }
@@ -243,7 +256,7 @@ export class VectorIndex {
     const ids = new Int32Array(cap);
     ids.set(this.ids.subarray(0, this.size));
     this.ids = ids;
-    const d = new Float32Array(cap * DIM);
+    const d = this.fresh(cap);
     d.set(this.f32.subarray(0, this.size * DIM));
     this.f32 = d;
     this.cap = cap;

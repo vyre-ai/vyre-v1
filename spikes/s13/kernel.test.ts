@@ -65,6 +65,8 @@ test("a VectorIndex given the kernel returns the same neighbours as the plain on
   const fast = new VectorIndex(64, k);
   const slow = new VectorIndex(64);
   assert.equal(fast.kernel, "wasm-simd");
+  assert.ok(k.owns(fast.vectors()), "the index keeps its vectors in the kernel's memory");
+  assert.ok(!k.owns(slow.vectors()));
   for (let i = 0; i < 6_000; i++) { const v = unit(i + 1); fast.set(i + 1, v); slow.set(i + 1, v); }
   for (const s of [7, 99, 31337]) {
     const q = unit(s);

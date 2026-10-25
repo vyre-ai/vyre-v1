@@ -28,6 +28,8 @@ export interface WasmKernel extends VectorKernel {
   /** A float array of `floats` entries in the kernel's own memory: scoring it needs no copy. Its size is fixed. */
   alloc(floats: number): Float32Array;
   readonly bytes: number;
+  /** True when the array lives in this kernel's memory. */
+  owns(data: Float32Array): boolean;
 }
 
 export async function loadWasmKernel(bytes?: Uint8Array): Promise<WasmKernel | null> {
@@ -58,6 +60,7 @@ export async function loadWasmKernel(bytes?: Uint8Array): Promise<WasmKernel | n
   return {
     name: "wasm-simd",
     bytes: code.length,
+    owns: (data) => owned.has(data.buffer as ArrayBuffer),
     alloc(floats) {
       const k = make(floats);
       const view = k.f32.subarray(DATA_OFF / 4, DATA_OFF / 4 + floats);
