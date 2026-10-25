@@ -3,7 +3,7 @@
 // Type filters live in one header menu with checkmarks and counts (no pill row). Right-click on a result: Open, Open in New Tab, Copy Link.
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Menu, MenuIcon, menuTrigger } from "../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
@@ -103,7 +103,6 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
   const state = useCmdKState(controller);
   const [menu, setMenu] = useState<{ items: MenuEntry[]; x: number; y: number } | null>(null);
   const input = useRef<unknown>(null);
-  const { height } = useWindowDimensions();
 
   useEffect(() => {
     if (autoFocus && Platform.OS === "web") (input.current as { focus?: () => void } | null)?.focus?.();
@@ -149,7 +148,8 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
   };
 
   const line = scopeLine(state);
-  const listMax = inline ? undefined : Math.min(380, Math.max(160, height - 220));
+  // Sized by CSS on the web so it follows the window with no measuring; a fixed cap on native.
+  const listMax = inline ? undefined : ((Platform.OS === "web" ? "min(380px, calc(100vh - 220px))" : 380) as unknown as number);
   return (
     <View testID="cmdk" style={[styles.card, inline ? styles.cardInline : null]} accessibilityLabel={inline ? "Open anything" : "Command palette"} {...webOnly({ role: inline ? "search" : "dialog" })}>
       <View style={styles.head}>
@@ -238,12 +238,11 @@ export function CmdK({ data, initialQuery = "", platform = "mac", onClose, onTim
   const opts = useMemo<CmdKOptions>(() => ({ ...(onClose ? { onClose } : {}), ...(onTiming ? { onTiming } : {}) }), [onClose, onTiming]);
   const ctl = useCmdK(data, opts, initialQuery);
   const state = useCmdKState(ctl);
-  const { width } = useWindowDimensions();
   if (!state.open) return null;
   return (
     <View testID="cmdk-veil" style={styles.veil}>
       <Pressable accessibilityLabel="Close search" onPress={() => ctl.close()} style={StyleSheet.absoluteFill} />
-      <View style={{ width: Math.min(600, width - 32) }}>
+      <View style={styles.sheet}>
         <CmdKBody controller={ctl} platform={platform} />
       </View>
     </View>
@@ -260,6 +259,7 @@ const FIXED = (Platform.OS === "web" ? "fixed" : "absolute") as unknown as "abso
 
 const styles = StyleSheet.create({
   veil: { position: FIXED, top: 0, left: 0, right: 0, bottom: 0, zIndex: 70, backgroundColor: "rgba(10,10,12,0.22)", alignItems: "center", paddingTop: (Platform.OS === "web" ? "14vh" : 72) as unknown as number },
+  sheet: { width: "100%", maxWidth: 632, paddingHorizontal: 16 },
   card: { width: "100%", backgroundColor: "var(--raised)", borderRadius: 14, overflow: "hidden", boxShadow: "var(--sh-pop), 0 30px 60px -20px rgba(0,0,0,0.35)" } as object,
   cardInline: { maxWidth: 600, alignSelf: "center", borderRadius: 14 },
   head: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "var(--line)" },
