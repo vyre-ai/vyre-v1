@@ -30315,7 +30315,7 @@ body.vp-dragging, body.vp-dragging * { user-select: none !important; cursor: gra
     }
     const id = host.dataset.id, T = TY[typeOf(id)], st = stagesOf(typeOf(id)), stages = st.map((n) =&gt; ({ id: n, name: n })), rows = rel("tasks", "project", id), key = "plan:" + typeOf(id);
     const toP = (t) =&gt; ({ id: t.id, stage: st.includes(t.stage) ? t.stage : st[0], kind: "task", title: t.title, start: addDays(t.due, -3), end: t.due, assigned: whoOf(t.assignee), reviewer: whoOf(t.reviewer), approver: whoOf(t.approver), status: t.done ? "done" : PST[t.status] || "todo", effort: "3h" });
-    ui.planI = VyreUI.plan(host, { key, stages, tasks: rows.map(toP), people, today: TODAY, view: "timeline", face: (w, z) =&gt; ptile(w &amp;&amp; w.name, z || 20),
+    ui.planI = VyreUI.plan(host, { key, stages, tasks: rows.map(toP), people, today: TODAY, view: ui.planViewTok || "timeline", face: (w, z) =&gt; ptile(w &amp;&amp; w.name, z || 20),
       onOpenTask: (t) =&gt; openSide(t.id),
       onAddTask: (sid) =&gt; { const n = mkTask("New task", "Maya Chen", "To do"); n.project = [id]; n.stage = sid || stageFor(id, false, n.id); relDirty(); return toP(n); },
       onChange: (list, why) =&gt; { list.forEach((t) =&gt; { const r = rowOf(t.id); if (!r) return; r.due = t.end || r.due; r.stage = t.stage; r.assignee = t.assigned ? t.assigned.name : null; r.reviewer = t.reviewer ? t.reviewer.name : null; r.approver = t.approver ? t.approver.name : null; r.status = PSR[t.status] || r.status; r.done = t.status === "done"; if (t.title) r.title = t.title; }); touch(); logAct(id, { k: "p", who: "You", text: "changed the plan" + (why ? ": " + esc(String(why)) : ""), raw: 1 }); renderPane(); } });
@@ -32501,8 +32501,8 @@ function fitHead() {
     { const hm = (location.hash || "").match(/^#(form|forms|campaigns?|sites?)(?::([\w-]+))?(?=$|[;,])/i); if (hm) { const k = hm[1].toLowerCase(); setTimeout(() =&gt; openApps(k === "form" ? "form:" + (hm[2] || "intake") : k), 0); } }
     const tableOf = (tid, view) =&gt; { ui.sel = { k: "table", t: tid }; if (view) pickView(tid, view); };
     if (T.has("record") || T.has("peek") || T.has("askmenu") || T.has("reveal") || T.has("calc") || T.has("comments") || T.has("chat") || T.has("memory") || T.has("review")) { ui.sel = { k: "record", id: "c0" }; ui.pane = true; ui.ptab = "ctx"; }
-    if (T.has("projectplan")) { ui.pjtab = { p0: "plan" }; }
-    if (T.has("project") || T.has("projectplan") || T.has("pj")) { ui.sel = { k: "record", id: "p0" }; ui.pane = false; if (!ui.mtabs.includes("p0")) ui.mtabs.push("p0"); }
+    if (T.has("projectplan") || T.has("plantimeline") || T.has("planboard") || T.has("planlist") || T.has("plancalendar")) { ui.pjtab = { p0: "plan" }; ui.planViewTok = T.has("planboard") ? "board" : T.has("planlist") ? "list" : T.has("plancalendar") ? "calendar" : "timeline"; }
+    if (T.has("project") || T.has("projectplan") || T.has("plantimeline") || T.has("planboard") || T.has("planlist") || T.has("plancalendar") || T.has("pj")) { ui.sel = { k: "record", id: "p0" }; ui.pane = false; if (!ui.mtabs.includes("p0")) ui.mtabs.push("p0"); }
     if (T.has("sitetables")) ui.sel = { k: "table", t: "sitebookings" };
     if (T.has("task")) { ui.sel = { k: "record", id: "c0" }; ui.pane = true; ui.ptab = "ctx"; ui.ctab = "comments"; }
     if (T.has("sources")) ui.sel = { k: "sources", t: T.has("invoices") ? "invoices" : T.has("clients") ? "clients" : "meetings" };

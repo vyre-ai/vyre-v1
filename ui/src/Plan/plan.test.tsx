@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   Plan, applyMoves, applySlipMoves, arrowTarget, blankTask, calendarWeeks, cascade, clickSelect, dragChanges, fmtDay, geomOf, isLate, itemOf, layoutOf, linkItems, moveToStage, nudgeChanges, orderOf, reassign, removeItems,
-  roundedPath, setStatus, slipText, taskOf, toDay, toIso, unlinkItems,
+  DatePicker, dueChanges, pickMonth, roundedPath, setStatus, slipText, taskOf, toDay, toIso, unlinkItems,
 } from "./index.tsx";
 import type { PlanTask } from "./index.tsx";
 
@@ -223,4 +223,27 @@ test("the toolbar has the view switcher and New task; a host can take either awa
   assert.ok(full.includes('data-testid="plan-view"') && full.includes('data-testid="plan-add"') && full.includes(">Timeline<"));
   const bare = renderToStaticMarkup(<Plan today={TODAY} stages={STAGES} tasks={TASKS} fixedView canAdd={false} />);
   assert.ok(!bare.includes('data-testid="plan-view"') && !bare.includes('data-testid="plan-add"') && !bare.includes('data-testid="plan-add-s1"'));
+});
+
+test("the due-date picker: Monday-first month with the picked day and today marked; the arrows wrap through the year", () => {
+  const m = pickMonth(toDay("2026-10-27"), toDay(TODAY), 0);
+  assert.equal(m.title, "October");
+  assert.equal(m.year, 2026);
+  assert.equal(m.days.length, 31);
+  assert.equal(m.lead, 3, "1 Oct 2026 is a Thursday: Monday, Tuesday, Wednesday are blank");
+  assert.deepEqual(m.days.filter((d) => d.on).map((d) => d.label), [27]);
+  assert.deepEqual(m.days.filter((d) => d.today).map((d) => d.label), [24]);
+  assert.equal(pickMonth(toDay("2026-10-27"), toDay(TODAY), 3).title, "January");
+  assert.equal(pickMonth(toDay("2026-01-15"), toDay(TODAY), -1).title, "December");
+});
+
+test("picking a due day moves the task to end that day and keeps its length; a pinned date stays", () => {
+  assert.deepEqual(dueChanges(items, ["b"], toDay("2026-11-02")), [{ id: "b", s: toDay("2026-10-30"), e: toDay("2026-11-02") }]);
+  assert.deepEqual(dueChanges(items, ["m"], toDay("2026-11-02")), []);
+  assert.equal(applyMoves(items, dueChanges(items, ["b"], toDay("2026-11-02")), uid)?.text, "B moved 6 days later");
+});
+
+test("the picker draws the month, its arrows and a button per day", () => {
+  const html = renderToStaticMarkup(<DatePicker at={{ x: 10, y: 10, cur: toDay("2026-10-27"), ids: ["b"] }} today={toDay(TODAY)} onPick={() => undefined} onClose={() => undefined} />);
+  assert.ok(html.includes("October 2026") && html.includes('data-testid="plan-dp-27"') && html.includes('data-testid="plan-dp-prev"') && html.includes('data-testid="plan-dp-next"'));
 });

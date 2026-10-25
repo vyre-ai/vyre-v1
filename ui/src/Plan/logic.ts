@@ -339,3 +339,26 @@ export function calendarWeeks(items: readonly Item[], today: number, month: numb
   }
   return weeks;
 }
+
+/* ---------- the due-date picker ---------- */
+
+export interface PickDay { day: number; label: number; on: boolean; today: boolean; weekend: boolean }
+export interface PickMonth { year: number; month: number; title: string; /** Blank cells before the 1st (Monday first). */ lead: number; days: PickDay[] }
+
+/** One month for the picker: Monday-first, with the picked day and today marked. `step` moves the month (wraps through the year). */
+export function pickMonth(cur: number, today: number, step: number): PickMonth {
+  const year = new Date(cur * DAY_MS).getUTCFullYear();
+  const month = (((monthOf(cur) + step) % 12) + 12) % 12;
+  const first = Math.floor(Date.UTC(year, month, 1) / DAY_MS);
+  const n = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const days: PickDay[] = [];
+  for (let d = 1; d <= n; d++) { const v = first + d - 1; days.push({ day: v, label: d, on: v === cur, today: v === today, weekend: isWeekend(v) }); }
+  return { year, month, title: MONL[month] as string, lead: (weekday(first) + 6) % 7, days };
+}
+
+/** Pick a new due day: the task moves so it ends that day and keeps its length. A milestone just moves. */
+export function dueChanges(items: readonly Item[], ids: readonly string[], day: number): Change[] {
+  const out: Change[] = [];
+  for (const x of items) if (ids.includes(x.id) && !x.fixed) out.push({ id: x.id, s: day - (x.e - x.s), e: day });
+  return out;
+}

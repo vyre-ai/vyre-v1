@@ -11,9 +11,11 @@ import { useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 import { boardView } from "./board.tsx";
 import { calendarView } from "./calendar.tsx";
+import { DatePicker } from "./datepicker.tsx";
+import type { PickerState } from "./datepicker.tsx";
 import { listView } from "./list.tsx";
 import {
-  FILTER_LABEL, LABEL_W, ROW_H, applyMoves, applySlipMoves, arrowTarget, blankTask, clickSelect, dragChanges, fmtDay, geomOf, itemOf, layoutOf, linkItems, monthOf, moveToStage, nudgeChanges, orderOf, passes,
+  FILTER_LABEL, LABEL_W, ROW_H, applyMoves, applySlipMoves, arrowTarget, blankTask, clickSelect, dragChanges, dueChanges, fmtDay, geomOf, itemOf, layoutOf, linkItems, monthOf, moveToStage, nudgeChanges, orderOf, passes,
   reassign, removeItems, setStatus, slipText, taskOf, toDay, unlinkItems,
 } from "./logic.ts";
 import type { Change, DragMode, Item, PlanFilter, Slip, WhoSlot } from "./logic.ts";
@@ -25,6 +27,7 @@ import type { PlanProps, PlanStatus, PlanTask, PlanView, PlanWho } from "./types
 export type { PlanProps, PlanStage, PlanStatus, PlanTask, PlanView, PlanWho } from "./types.ts";
 export * from "./logic.ts";
 export { roundedPath } from "./timeline.tsx";
+export { DatePicker } from "./datepicker.tsx";
 
 const web = Platform.OS === "web";
 const VIEWS: readonly PlanView[] = ["timeline", "board", "list", "calendar"];
@@ -66,6 +69,7 @@ export function Plan(props: PlanProps): ReactElement {
   const [band, setBand] = useState<PlanCtx["band"]>(null);
   const [naming, setNaming] = useState<string | null>(null);
   const [calMonth, setCalMonth] = useState<number>(monthOf(today));
+  const [picker, setPicker] = useState<PickerState | null>(null);
   const [width, setWidth] = useState(900);
   const drag = useRef<DragState | null>(null);
   const cards = useRef<string[]>([]);
@@ -183,6 +187,7 @@ export function Plan(props: PlanProps): ReactElement {
     const entries: MenuEntry[] = [];
     if (!multi && props.onOpenTask) entries.push({ label: "Open", icon: "open", onSelect: () => open(id) });
     entries.push({ label: allDone ? "Reopen" : "Mark Done", icon: "check", onSelect: () => toggleDone(ids) });
+    if (!t.fixed) entries.push({ label: multi ? "Due Date…" : t.milestone ? "Date…" : "Due Date…", icon: "clock", onSelect: () => setPicker({ x, y, cur: t.e, ids }) });
     if ((props.people?.length ?? 0) > 0) entries.push({ label: "Reassign…", icon: "edit", onSelect: () => assignMenu(ids, x, y, "who", multi ? null : t.who) });
     if (!multi && !t.milestone) entries.push({ label: t.status === "review" ? "Cancel Review" : "Request Review", icon: "eye", onSelect: () => doStatus(ids, t.status === "review" ? "doing" : "review") });
     if (!multi && t.milestone) entries.push({ label: t.fixed ? "Unpin Date" : "Pin Date", icon: "flag", onSelect: () => commit(items.map((q) => (q.id === id ? { ...q, fixed: !q.fixed } : q)), `${t.title} ${t.fixed ? "can move again" : `is pinned to ${fmtDay(t.s)}`}`) });
@@ -338,6 +343,7 @@ export function Plan(props: PlanProps): ReactElement {
         items.length === 0 ? h("div", { "data-testid": "plan-empty", style: { padding: "28px 0", textAlign: "center", color: "var(--ink-3)", fontSize: 13 } }, "No tasks yet.") : views[view],
         line ? h("div", { role: "status", "data-testid": "plan-line", style: { display: "flex", alignItems: "center", gap: 8, padding: "6px 2px 0", fontSize: 12.5, color: "var(--ink-2)" } }, line, undo.length > 0 ? h("button", { type: "button", "data-testid": "plan-undo", onClick: () => { undoLast(); }, style: { ...RESET, color: "var(--accent)", fontSize: 12.5 } }, "Undo") : null) : null)}
       {menu.element}
+      {picker ? <DatePicker at={picker} today={today} onClose={() => setPicker(null)} onPick={(d) => { const ids = picker.ids; setPicker(null); doMoves(dueChanges(items, ids, d)); }} /> : null}
     </View>
   );
 }
