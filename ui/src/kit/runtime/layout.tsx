@@ -22,8 +22,8 @@ export interface LayoutRuntime {
 
 const BODY: TextStyle = { color: "var(--ink)", fontSize: 14 };
 const TEXT_STYLES: Readonly<Record<string, TextStyle>> = {
-  title: { color: "var(--ink)", fontSize: 20, fontWeight: "600" },
-  heading: { color: "var(--ink)", fontSize: 15, fontWeight: "600" },
+  title: { color: "var(--ink)", fontSize: 20, fontWeight: "600", paddingHorizontal: 12, paddingVertical: 8 },
+  heading: { color: "var(--ink)", fontSize: 15, fontWeight: "600", paddingHorizontal: 12, paddingVertical: 8 },
   body: BODY,
   muted: { color: "var(--ink-3)", fontSize: 13 },
   caption: { color: "var(--ink-4)", fontSize: 12 },
