@@ -22,8 +22,9 @@ const GMAIL_CLIP = 102 * 1024;
 
 export type Mode = "blocks" | "html" | "plain";
 export type Variant = "desktop" | "mobile" | "dark" | "plain";
-export type BlockType = "text" | "image" | "button" | "columns" | "divider" | "merge" | "html";
-const BLOCK_TYPES: readonly string[] = ["text", "image", "button", "columns", "divider", "merge", "html"];
+export type BlockType = "text" | "heading" | "image" | "button" | "columns" | "divider" | "merge" | "footer" | "html" | "spacer" | "social" | "saved";
+export const BLOCK_TYPES: readonly string[] = ["text", "heading", "image", "button", "columns", "divider", "merge", "footer", "html", "spacer", "social", "saved"];
+export const SOCIAL_NETWORKS: readonly string[] = ["facebook", "instagram", "linkedin", "x", "youtube", "tiktok", "website"];
 
 export interface Block { type: BlockType; props: Record<string, unknown> }
 
@@ -292,6 +293,16 @@ function checkBlocks(ctx: Ctx, list: unknown, depth: number, count: { n: number 
     count.n += 1;
     if (count.n > MAX_BLOCKS) fail(ctx, "validation.too_large", `A design holds at most ${MAX_BLOCKS} blocks.`, { field: path });
     if (!isBlock(b)) fail(ctx, "validation.bad_input", "A block needs a known type and props.", { field: `${path}/${i}` });
+    if (b.type === "saved") {
+      const snap = b.props.block;
+      if (snap !== undefined && (!isBlock(snap) || snap.type === "saved")) fail(ctx, "validation.bad_input", "A saved block holds one block that is not itself a saved block.", { field: `${path}/${i}/props/block` });
+    }
+    if (b.type === "social") {
+      const links = b.props.links;
+      if (links !== undefined && (!Array.isArray(links) || links.length > 12 || !links.every((l) => typeof l === "object" && l !== null && SOCIAL_NETWORKS.includes(str((l as Row).network)) && typeof (l as Row).url === "string"))) {
+        fail(ctx, "validation.bad_input", "Social links are up to twelve of a known network and a web address.", { field: `${path}/${i}/props/links` });
+      }
+    }
     if (b.type === "columns") {
       if (depth >= MAX_DEPTH) fail(ctx, "validation.bad_input", `Columns nest at most ${MAX_DEPTH} deep.`, { field: `${path}/${i}` });
       const cols = b.props.cols;
@@ -341,6 +352,8 @@ function cell(inner: string, type: string, top: number, bottom: number, side: nu
   return `<tr><td data-b="${type}" class="px" style="padding:${top}px ${side}px ${bottom}px">${inner}</td></tr>`;
 }
 
+const socialLabel = (n: string): string => (n === "x" ? "X" : n === "linkedin" ? "LinkedIn" : n === "youtube" ? "YouTube" : n === "tiktok" ? "TikTok" : n.charAt(0).toUpperCase() + n.slice(1));
+
 function blockHtml(b: Block, side: number): string {
   const p = b.props;
   switch (b.type) {
@@ -362,6 +375,27 @@ function blockHtml(b: Block, side: number): string {
       const full = p.full === true;
       return `<div style="text-align:${align(p.align)}"><table role="presentation" cellpadding="0" cellspacing="0" ${full ? 'width="100%" ' : ""}style="display:${full ? "table" : "inline-table"};border-collapse:separate"><tr><td style="background:${bg};border-radius:${radius}px;text-align:center"><a href="${esc(safeUrl(p.href))}" style="display:inline-block;padding:12px 24px;font:600 16px/1.2 ${FONT};color:${ink};text-decoration:none">${esc(p.label ?? "Open")}</a></td></tr></table></div>`;
     }
+    case "heading": {
+      const body = typeof p.html === "string" ? cleanInline(p.html) : esc(str(p.text));
+      return `<h1 class="ink" style="margin:0;font:700 ${clamp(p.size, 12, 64, 24)}px/1.2 ${FONT};color:${color(p.color, INK)};text-align:${align(p.align)};letter-spacing:-.01em">${body}</h1>`;
+    }
+    case "spacer": {
+      const h = clamp(p.size, 4, 200, 24);
+      return `<div style="height:${h}px;line-height:${h}px;font-size:0">&nbsp;</div>`;
+    }
+    case "social": {
+      const links = (Array.isArray(p.links) ? (p.links as Row[]) : []).filter((l) => SOCIAL_NETWORKS.includes(str(l.network)) && safeUrl(l.url) !== "");
+      if (!links.length) return "";
+      const a = links.map((l) => `<a href="${esc(safeUrl(l.url))}" style="color:${LINK};text-decoration:none;margin:0 6px">${esc(socialLabel(str(l.network)))}</a>`).join("");
+      return `<div style="font:400 14px/1.6 ${FONT};text-align:${align(p.align === undefined ? "center" : p.align)}">${a}</div>`;
+    }
+    case "footer": {
+      const body = typeof p.html === "string" ? cleanInline(p.html) : esc(str(p.text));
+      const links = p.unsub === true ? `<div style="margin-top:8px"><a href="{{unsubscribe_url}}" style="color:${MUTED};text-decoration:underline">Unsubscribe</a> &middot; <a href="{{preferences_url}}" style="color:${MUTED};text-decoration:underline">Email preferences</a></div>` : "";
+      return `<div class="mut" style="font:400 12px/1.6 ${FONT};color:${MUTED};text-align:${align(p.align === undefined ? "center" : p.align)}"><div>${body}</div>${links}</div>`;
+    }
+    case "saved":
+      return isBlock(p.block) && p.block.type !== "saved" ? blockHtml(p.block, side) : "";
     case "divider":
       return `<div class="line" style="border-top:${clamp(p.thickness, 1, 8, 1)}px solid ${color(p.color, "#E4E4E7")};height:0;line-height:0;font-size:0">&nbsp;</div>`;
     case "merge": {
@@ -393,7 +427,9 @@ function blockHtml(b: Block, side: number): string {
   }
 }
 
-const PAD: Record<BlockType, [number, number]> = { text: [8, 8], image: [0, 8], button: [16, 16], columns: [8, 8], divider: [16, 16], merge: [8, 8], html: [8, 8] };
+const PAD: Record<BlockType, [number, number]> = {
+  text: [8, 8], heading: [16, 8], image: [0, 8], button: [16, 16], columns: [8, 8], divider: [16, 16], merge: [8, 8], footer: [16, 16], html: [8, 8], spacer: [0, 0], social: [8, 8], saved: [0, 0],
+};
 
 const CSS_BASE = `body{margin:0;padding:0;-webkit-text-size-adjust:100%}a{color:${LINK}}img{border:0;-ms-interpolation-mode:bicubic}table{border-collapse:collapse}`;
 const CSS_MOBILE = `.card{width:100%!important}.px{padding-left:16px!important;padding-right:16px!important}.col{display:block!important;width:100%!important;padding:0!important}`;
@@ -437,7 +473,12 @@ export function compileText(doc: EmailDoc, o: { values?: Record<string, string> 
     const out: string[] = [];
     const walk = (b: Block): void => {
       const p = b.props;
-      if (b.type === "text") out.push(typeof p.html === "string" ? htmlToText(cleanInline(p.html)) : str(p.text));
+      if (b.type === "text" || b.type === "heading") out.push(typeof p.html === "string" ? htmlToText(cleanInline(p.html)) : str(p.text));
+      else if (b.type === "footer") {
+        out.push(typeof p.html === "string" ? htmlToText(cleanInline(p.html)) : str(p.text));
+        if (p.unsub === true) out.push("Unsubscribe: {{unsubscribe_url}}\nManage preferences: {{preferences_url}}");
+      } else if (b.type === "social") out.push((Array.isArray(p.links) ? (p.links as Row[]) : []).filter((l) => SOCIAL_NETWORKS.includes(str(l.network))).map((l) => `${socialLabel(str(l.network))}: ${safeUrl(l.url)}`).join("\n"));
+      else if (b.type === "saved") { if (isBlock(p.block) && p.block.type !== "saved") walk(p.block); }
       else if (b.type === "button") out.push(`${str(p.label) || "Open"}: ${safeUrl(p.href)}`);
       else if (b.type === "divider") out.push("-----");
       else if (b.type === "image") { if (str(p.alt).trim()) out.push(`[${str(p.alt).trim()}]`); }
@@ -800,6 +841,46 @@ async function snippetsDelete(ctx: Ctx, input: unknown): Promise<{ deleted: bool
   return { deleted: true };
 }
 
+// ---- saved blocks -----------------------------------------------------------------------------------------------------
+
+interface SavedBlockOut { blockId: string; name: string; block: Block; shared: boolean; updatedAt: number }
+
+function savedOut(r: Row): SavedBlockOut {
+  let block: Block = { type: "text", props: {} };
+  try { const v: unknown = JSON.parse(str(r.block)); if (isBlock(v)) block = v; } catch { /* a damaged row reads as an empty text block */ }
+  return { blockId: str(r.id), name: str(r.name), block, shared: r.shared === 1 || r.shared === true, updatedAt: num(r.updated_at) };
+}
+
+async function savedBlocksList(ctx: Ctx, _input: unknown): Promise<{ blocks: SavedBlockOut[] }> {
+  const rows = many(ctx, "SELECT * FROM email_builder_api_block")
+    .filter((r) => r.owner === ctx.principal.id || r.shared === 1)
+    .sort((a, b) => str(a.name).localeCompare(str(b.name)) || str(a.id).localeCompare(str(b.id)));
+  return { blocks: rows.map(savedOut) };
+}
+
+async function savedBlocksSave(ctx: Ctx, input: unknown): Promise<{ block: SavedBlockOut }> {
+  const o = rec(ctx, input);
+  const name = cleanName(ctx, reqStr(ctx, o, "name"), "saved block");
+  const blocks = checkBlocks(ctx, [o.block], 0, { n: 0 }, "/block");
+  const block = blocks[0]!;
+  if (block.type === "saved") fail(ctx, "validation.bad_input", "A saved block cannot be another saved block.", { field: "block" });
+  const sharedIn = o.shared;
+  if (sharedIn !== undefined && sharedIn !== null && typeof sharedIn !== "boolean") fail(ctx, "validation.bad_input", "Shared is true or false.", { field: "shared" });
+  const blockId = optStr(ctx, o, "blockId");
+  const existing = blockId === undefined ? undefined : one(ctx, "SELECT * FROM email_builder_api_block WHERE id = ?", blockId);
+  if (blockId !== undefined && (!existing || (existing.owner !== ctx.principal.id && existing.shared !== 1))) fail(ctx, "validation.not_found", "That saved block does not exist.");
+  if (existing && existing.owner !== ctx.principal.id) fail(ctx, "permission.no_grant", "Only the person who saved a block can change it.");
+  const shared = sharedIn === true ? 1 : sharedIn === false ? 0 : existing ? num(existing.shared) : 0;
+  const now = ctx.now();
+  const id = existing ? str(existing.id) : nid(ctx, "blk");
+  const json = JSON.stringify(block);
+  if (json.length > MAX_HTML) fail(ctx, "validation.too_large", "A saved block is at most 1 MB.", { field: "block" });
+  if (existing) ctx.db.run("UPDATE email_builder_api_block SET name = ?, block = ?, shared = ?, updated_at = ? WHERE id = ?", name, json, shared, now, id);
+  else ctx.db.run("INSERT INTO email_builder_api_block (id, owner, name, block, shared, updated_at) VALUES (?, ?, ?, ?, ?, ?)", id, ctx.principal.id, name, json, shared, now);
+  ctx.emit("email_block.saved", `entity/${id}`, { blockId: id, shared: shared === 1 }, { vis: "owner" });
+  return { block: savedOut(one(ctx, "SELECT * FROM email_builder_api_block WHERE id = ?", id) ?? {}) };
+}
+
 export const compileHandlers = {
   "email_builder.create": (ctx: Ctx, input: unknown) => create(ctx, input),
   "email_builder.get": (ctx: Ctx, input: unknown) => get(ctx, input),
@@ -815,4 +896,6 @@ export const compileHandlers = {
   "email_builder.snippets.list": (ctx: Ctx, input: unknown) => snippetsList(ctx, input),
   "email_builder.snippets.save": (ctx: Ctx, input: unknown) => snippetsSave(ctx, input),
   "email_builder.snippets.delete": (ctx: Ctx, input: unknown) => snippetsDelete(ctx, input),
+  "email_builder.saved_blocks.list": (ctx: Ctx, input: unknown) => savedBlocksList(ctx, input),
+  "email_builder.saved_blocks.save": (ctx: Ctx, input: unknown) => savedBlocksSave(ctx, input),
 };

@@ -8,7 +8,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   select:
-    runs-on: [self-hosted, linux, v1]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       matrix: ${{ steps.sel.outputs.matrix }}
@@ -16,6 +16,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
       - name: Select affected tests and shard them
         id: sel
         env:
@@ -30,27 +32,32 @@ jobs:
     name: ${{ matrix.name }}
     needs: select
     if: needs.select.outputs.count != '0'
-    runs-on: ${{ fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
-    timeout-minutes: 5
+    runs-on: ${{ (matrix.runner == 'v1-perf' || matrix.slow == true) && fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) || 'ubuntu-latest' }}
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+      - name: Exclusive disk for a perf job (waits for the Docker-heavy jobs on this host)
+        if: matrix.runner == 'v1-perf'
+        run: bash scripts/ci-iolock.sh exclusive
       - uses: ./.github/actions/deps
       - name: Run the shard (20 s file cap, pass cache by import hash)
         env:
           FILES: ${{ matrix.files }}
           SLOW: ${{ matrix.slow }}
         run: |
-          if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else node scripts/test-run.mjs --files $FILES; fi
+          if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else NC=""; [ "$RUNNER_ENVIRONMENT" = "github-hosted" ] && NC="--no-cache"; node scripts/test-run.mjs --files $FILES $NC; fi  # a hosted VM never reads a shared pass cache
   gates:
     # P-CI_03: ownership, boundaries, lint and typecheck run on every push, so evidence that claims them is verified here.
-    runs-on: [self-hosted, linux, v1]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
       - name: Lane from the branch name (build/P-L7_04 is L7a, build/P-L7b_05 is L7b, L9 is L9a, P-CI is L11, P-CC and P-PR are the lead's)
         id: lane
         env:
@@ -58,7 +65,7 @@ jobs:
         run: |
           lane=""
           case "$BRANCH" in
-            build/P-CI_02|build/P-CI_08|build/P-CI_27) lane=lead ;;   # contract steward: changes the contract types and the frozen hashes (ruling 25, 27)
+            build/P-CI_02|build/P-CI_08|build/P-CI_27|build/P-CI_31) lane=lead ;;   # contract steward: changes the contract types and the frozen hashes (ruling 25, 27)
             build/P-CI_*|build/P-CI-*) lane=L11 ;;
             build/P-CC_*|build/P-PR_*) lane=lead ;;
             *) lane="$(echo "$BRANCH" | sed -nE 's#^build/P-(L[0-9]+[a-z]?)_[0-9]+[a-z]?(-.*)?$#\1#p')"
@@ -119,6 +126,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      - name: Disk lock (heavy jobs share the disk, perf jobs run alone on it)
+        run: bash scripts/ci-iolock.sh shared
       - name: Did images/ or a heavy test change on this branch?
         id: scope
         run: |
@@ -143,7 +152,11 @@ jobs:
       - name: Pull the base images the site builders use (the test pulls nothing itself)
         if: steps.scope.outputs.changed == 'true'
         run: |
-          for img in node:24-alpine python:3.13-slim caddy:2-alpine; do docker pull -q "$img"; done
+          # pinned by digest, then tagged with the name the builders ask for
+          pull() { docker pull -q "$1@$2" && docker tag "$1@$2" "$1:$3"; }
+          pull node sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 24-alpine
+          pull python sha256:d98cc29d3266e535dd9da1099688d9cb3ca4753813571e071763d17725460962 3.13-slim
+          pull caddy sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f 2-alpine
       - name: Site builders on real Docker (modules/sites/tests/builders.heavy.test.ts)
         if: always() && steps.scope.outputs.changed == 'true'
         env:
@@ -154,11 +167,14 @@ jobs:
         if: always() && steps.scope.outputs.changed == 'true'
         run: |
           v=v2.40.3
-          case "$(uname -m)" in x86_64) a=x86_64 ;; aarch64) a=aarch64 ;; *) echo "unsupported arch"; exit 1 ;; esac
+          case "$(uname -m)" in
+            x86_64) a=x86_64; sum=dba9d98e1ba5bfe11d88c99b9bd32fc4a0624a30fafe68eea34d61a3e42fd372 ;;
+            aarch64) a=aarch64; sum=d26373b19e89160546d15407516cc59f453030d9bc5b43ba7faf16f7b4980137 ;;
+            *) echo "unsupported arch"; exit 1 ;;
+          esac
           d="$RUNNER_TEMP/compose"; mkdir -p "$d"
           curl -fsSL -o "$d/docker-compose" "https://github.com/docker/compose/releases/download/$v/docker-compose-linux-$a"
-          curl -fsSL -o "$d/sum" "https://github.com/docker/compose/releases/download/$v/docker-compose-linux-$a.sha256"
-          (cd "$d" && echo "$(cut -d' ' -f1 sum)  docker-compose" | sha256sum -c -)
+          echo "$sum  $d/docker-compose" | sha256sum -c -
           chmod +x "$d/docker-compose"; "$d/docker-compose" version
           echo "bin=$d/docker-compose" >> "$GITHUB_OUTPUT"
       - name: Documenso e-sign against the pinned container (modules/esign/tests/documenso.heavy.test.ts)
@@ -178,6 +194,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      - name: Disk lock (heavy jobs share the disk, perf jobs run alone on it)
+        run: bash scripts/ci-iolock.sh shared
       - name: Did the sandbox, the terminal module, the person-sandbox image or the heavy tests change on this branch?
         id: scope
         run: |
@@ -240,6 +258,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Disk lock (heavy jobs share the disk, perf jobs run alone on it)
+        run: bash scripts/ci-iolock.sh shared
       - uses: ./.github/actions/deps
       - name: Chromium (playwright-core, cached on the runner)
         run: |
@@ -273,7 +293,7 @@ jobs:
           [ "$CHROME" = "success" ] || { echo "chrome-real (the extension against a real Chromium): $CHROME"; exit 1; }
           case "$SHARDS" in success|skipped) ;; *) echo "shards: $SHARDS"; exit 1;; esac
   golden:
-    runs-on: [self-hosted, linux, v1]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -281,11 +301,13 @@ jobs:
       - name: Golden flows (needs/pending mode lands with scripts/golden.ts, P-PR_63)
         run: npm run golden
   contracts:
-    runs-on: [self-hosted, linux, v1]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
       - name: Did contracts change?
         id: scope
         env:

@@ -1,0 +1,2 @@
+{"type":"system","subtype":"init","cwd":"/work","session_id":"{{SESSION}}","tools":[],"mcp_servers":[{"name":"vyre","status":"connected"}],"model":"claude-sonnet-5-5","permissionMode":"default"}
+{"type":"result","subtype":"error_max_turns","is_error":true,"num_turns":25,"session_id":"{{SESSION}}","usage":{"input_tokens":900,"output_tokens":120}}

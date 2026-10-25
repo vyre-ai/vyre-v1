@@ -1,0 +1,3 @@
+{"type":"system","subtype":"init","cwd":"/work","session_id":"{{SESSION}}","tools":["mcp__vyre__schema_describe"],"mcp_servers":[{"name":"vyre","status":"connected"}],"model":"claude-sonnet-5-5","permissionMode":"default"}
+{"type":"assistant","message":{"id":"msg_09","type":"message","role":"assistant","model":"claude-sonnet-5-5","content":[{"type":"thinking","thinking":"Short answer."},{"type":"text","text":"Whole message, no deltas."}],"stop_reason":"end_turn","usage":{"input_tokens":8,"output_tokens":5}},"session_id":"{{SESSION}}"}
+{"type":"result","subtype":"success","is_error":false,"num_turns":1,"result":"Whole message, no deltas.","session_id":"{{SESSION}}","usage":{"input_tokens":8,"output_tokens":5}}
