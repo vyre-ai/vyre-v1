@@ -10,6 +10,7 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-na
 import type { TextStyle, ViewStyle } from "react-native";
 import type { Block } from "../../kit/types.ts";
 import { menuTrigger, useMenu } from "../../Menu/index.tsx";
+import { Row } from "../../Row/index.tsx";
 import type { MenuEntry } from "../../Menu/index.tsx";
 import {
   BLOCK_SPECS_A,
@@ -176,6 +177,9 @@ export function TerminalBlock({ block, host }: BlockViewProps): ReactElement {
   );
   const shown = d.commands.slice(-3);
   const lines = tailLines(d.tail);
+  const screen: ReactNode[] = [];
+  for (const [i, c] of shown.entries()) screen.push(<Text key={`c${c.startedAt}-${i}`} style={styles.termDim}>{`$ ${c.command}`}</Text>);
+  for (const [i, line] of lines.entries()) screen.push(<Text key={`l${i}`} style={styles.termLine}>{line === "" ? " " : line}</Text>);
   const totalMs = d.commands.reduce((sum, c) => sum + (c.durationMs ?? 0), 0);
   return (
     <Card type="terminal" block={block} testID={`blk-terminal-${block.id}`} menu={menu}>
@@ -192,12 +196,7 @@ export function TerminalBlock({ block, host }: BlockViewProps): ReactElement {
       />
       <Text style={styles.sub}>{terminalTitle(d.commands.length, d.hostTitle)}{totalMs > 0 ? ` · ${durationLabel(totalMs)}` : ""}</Text>
       <View testID={`blk-terminal-${block.id}-screen`} style={styles.term}>
-        {shown.map((c, i) => (
-          <Text key={`${c.startedAt}-${i}`} style={styles.termDim}>{`$ ${c.command}`}</Text>
-        ))}
-        {lines.map((line, i) => (
-          <Text key={i} style={styles.termLine}>{line === "" ? " " : line}</Text>
-        ))}
+        {screen}
       </View>
       <View style={styles.acts}>
         <Text testID={`blk-terminal-${block.id}-exit`} style={[styles.sub, styles.grow]}>{d.state === "running" ? "Running" : d.state === "idle" && d.exitCode === null ? "Idle" : exitLabel(d.exitCode)}</Text>
@@ -272,6 +271,21 @@ export function QuestionBlock({ block, host }: BlockViewProps): ReactElement {
     else setPicked((p) => togglePick(d.mode, p, key));
   };
   const menu = useCallback(() => baseMenu(host, "question", block, [], () => undefined), [host, block]);
+  const optionRows: ReactNode[] = [];
+  for (const o of d.options) {
+    const on = picked.includes(o.key);
+    optionRows.push(
+      <Row
+        key={o.key}
+        id={`blk-question-${block.id}-opt-${o.key}`}
+        title={o.label}
+        {...(o.detail !== undefined ? { note: o.detail } : {})}
+        selected={on}
+        leading={<Text style={styles.optMark}>{d.mode === "multi" ? (on ? "☑" : "☐") : on ? "●" : "○"}</Text>}
+        onPress={() => choose(o.key)}
+      />,
+    );
+  }
   return (
     <Card type="question" block={block} testID={`blk-question-${block.id}`} menu={menu}>
       <Head testID={`blk-question-${block.id}`} title={d.prompt} />
@@ -281,26 +295,7 @@ export function QuestionBlock({ block, host }: BlockViewProps): ReactElement {
         <>
           {d.mode !== "free" ? (
             <View accessibilityRole="radiogroup" style={styles.opts}>
-              {d.options.map((o) => {
-                const on = picked.includes(o.key);
-                return (
-                  <Pressable
-                    key={o.key}
-                    accessibilityRole={d.mode === "multi" ? "checkbox" : "radio"}
-                    accessibilityLabel={o.label}
-                    accessibilityState={{ checked: on }}
-                    onPress={() => choose(o.key)}
-                    testID={`blk-question-${block.id}-opt-${o.key}`}
-                    style={({ hovered }: { hovered?: boolean }) => [styles.opt, hovered === true && HOVER, on && SELECTED]}
-                  >
-                    <Text style={styles.optMark}>{d.mode === "multi" ? (on ? "☑" : "☐") : on ? "●" : "○"}</Text>
-                    <View style={styles.grow}>
-                      <Text style={styles.optLabel}>{o.label}</Text>
-                      {o.detail ? <Text style={styles.sub}>{o.detail}</Text> : null}
-                    </View>
-                  </Pressable>
-                );
-              })}
+              {optionRows}
             </View>
           ) : null}
           {d.mode === "free" || d.allowOther ? (
@@ -363,13 +358,10 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
       return next;
     });
   const steps: PlanStepData[] = d.steps;
-  return (
-    <Card type="plan" block={block} testID={`blk-plan-${block.id}`} menu={menu}>
-      <Head testID={`blk-plan-${block.id}`} title={planTitle(d.title, steps.length)} tag={waiting ? "Plan mode on" : undefined} onPress={d.hasDoc ? () => void openTab(host, "plan", block.data) : undefined} />
-      <View style={styles.steps}>
-        {steps.map((s, i) => {
-          const gone = removed.has(s.stepId);
-          return (
+  const stepRows: ReactNode[] = [];
+  for (const [i, s] of steps.entries()) {
+    const gone = removed.has(s.stepId);
+    stepRows.push(
             <View key={s.stepId} style={styles.step} testID={`blk-plan-${block.id}-step-${i}`}>
               <Text style={styles.stepMark}>{waiting ? `${i + 1}.` : STEP_MARK[s.state]}</Text>
               {editing && waiting ? (
@@ -390,8 +382,13 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
                 </View>
               )}
             </View>
-          );
-        })}
+    );
+  }
+  return (
+    <Card type="plan" block={block} testID={`blk-plan-${block.id}`} menu={menu}>
+      <Head testID={`blk-plan-${block.id}`} title={planTitle(d.title, steps.length)} tag={waiting ? "Plan mode on" : undefined} onPress={d.hasDoc ? () => void openTab(host, "plan", block.data) : undefined} />
+      <View style={styles.steps}>
+        {stepRows}
       </View>
       {waiting ? (
         <View style={styles.acts}>
@@ -434,6 +431,8 @@ export function DeployBlock({ block, host }: BlockViewProps): ReactElement {
   );
   const dot = d.state === "ready" ? "var(--ok)" : d.state === "failed" ? "var(--danger)" : d.state === "stopped" ? "var(--ink-4)" : "var(--warn)";
   const checks = checksLine(d.checks);
+  const failedChecks: ReactNode[] = [];
+  for (const c of d.checks) if (!c.ok) failedChecks.push(<Text key={c.name} style={[styles.sub, styles.bad]}>{`${c.name} failed`}</Text>);
   return (
     <Card type="deploy" block={block} testID={`blk-deploy-${block.id}`} menu={menu}>
       <Head testID={`blk-deploy-${block.id}`} title={deployLine(d.env, d.state)} onPress={() => void openTab(host, "deploy", block.data)} />
@@ -443,9 +442,7 @@ export function DeployBlock({ block, host }: BlockViewProps): ReactElement {
       </View>
       {d.checks.some((c) => !c.ok) ? (
         <View style={styles.steps}>
-          {d.checks.filter((c) => !c.ok).map((c) => (
-            <Text key={c.name} style={[styles.sub, styles.bad]}>{`${c.name} failed`}</Text>
-          ))}
+          {failedChecks}
         </View>
       ) : null}
       <View style={styles.acts}>
@@ -494,6 +491,15 @@ export function MountBlock({ block, host }: BlockViewProps): ReactElement {
 export function RecordCardBlock({ block, host }: BlockViewProps): ReactElement {
   const d = recordCardData(block.data);
   const fields = visibleFields(d.fields, 4);
+  const fieldViews: ReactNode[] = [];
+  for (const f of fields) {
+    fieldViews.push(
+      <View key={f.key} style={styles.field}>
+        <Text numberOfLines={1} style={styles.fieldKey}>{f.title}</Text>
+        <Text numberOfLines={1} style={styles.fieldVal}>{f.text}</Text>
+      </View>,
+    );
+  }
   const go = (): void => void openTab(host, "record_card", block.data);
   const menu = useCallback(() => baseMenu(host, "record_card", block, [], () => undefined), [host, block]);
   const { element, show } = useMenu();
@@ -516,12 +522,7 @@ export function RecordCardBlock({ block, host }: BlockViewProps): ReactElement {
         {d.summary ? <Text numberOfLines={2} style={styles.sub}>{d.summary}</Text> : null}
         {fields.length > 0 ? (
           <View style={styles.fields}>
-            {fields.map((f) => (
-              <View key={f.key} style={styles.field}>
-                <Text numberOfLines={1} style={styles.fieldKey}>{f.title}</Text>
-                <Text numberOfLines={1} style={styles.fieldVal}>{f.text}</Text>
-              </View>
-            ))}
+            {fieldViews}
           </View>
         ) : null}
       </Pressable>
