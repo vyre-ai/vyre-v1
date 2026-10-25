@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
-import { PROTO_CHN, PROTO_CHW, PROTO_CITIES, PROTO_FIRST, PROTO_HAND, PROTO_LAST, PROTO_NEXTS, PROTO_SPACE_TYPES, PROTO_STREETS, PROTO_TEAM, PROTO_TYPES } from "./prototype-data.ts";
+import { PROTO_CHN, PROTO_CHW, PROTO_CITIES, PROTO_FIRST, PROTO_HAND, PROTO_LAST, PROTO_NEXTS, PROTO_SPACE_TYPES, PROTO_STREETS, PROTO_TEAM, PROTO_TYPES, PROTO_INBOXES, PROTO_CONTACTS, PROTO_TEMPLATES, PROTO_SNIPPETS } from "./prototype-data.ts";
 import { PROTO_CLIENT_COUNT, pickChannel, protoClients, protoHash, protoWork } from "./prototype-clients.ts";
 
 const FILE = fileURLToPath(new URL("../../../../scripts/shots/prototype/vyre-v1.html", import.meta.url));
@@ -150,4 +150,18 @@ test("the record types and schema (fields, widths, options with their hues, roll
   const clients = PROTO_TYPES["clients"] as { fields: { id: string; t: string; o?: unknown[] }[] };
   assert.ok(["name", "status", "owner", "fit", "since", "taxId", "bank", "summary", "health"].every((id) => clients.fields.some((f) => f.id === id)));
   assert.deepEqual(clients.fields.find((f) => f.id === "status")?.o, [["Lead", 220], ["Consult booked", 270], ["Active", 145], ["On hold", 35], ["Closed", null]]);
+});
+
+test("the inbox (its inboxes, the contacts with every message, the templates and the snippets) is what the prototype's own helpers build", () => {
+  const block = between("const INBOXES = [", "const byId0", 0);
+  const ran = JSON.parse(JSON.stringify(vm.runInNewContext(`${block}\n({ INBOXES, CONTACTS });`, {}))) as { INBOXES: unknown[]; CONTACTS: Record<string, unknown>[] };
+  assert.deepEqual(PROTO_INBOXES, ran.INBOXES);
+  assert.deepEqual(PROTO_CONTACTS, ran.CONTACTS);
+  const tail = between("const TEMPLATES = [", "/* ---------- state ---------- */", TEXT.indexOf("const INBOXES = ["));
+  const t = JSON.parse(JSON.stringify(vm.runInNewContext(`${tail}\n({ TEMPLATES, SNIPPETS });`, {}))) as { TEMPLATES: unknown[]; SNIPPETS: unknown[] };
+  assert.deepEqual(PROTO_TEMPLATES, t.TEMPLATES);
+  assert.deepEqual(PROTO_SNIPPETS, t.SNIPPETS);
+  const ids = (PROTO_CONTACTS as { msgs: { id: string }[] }[]).flatMap((c) => c.msgs.map((m) => m.id));
+  assert.equal(new Set(ids).size, ids.length, "message ids run m1, m2 ... with no repeat");
+  assert.ok(PROTO_CONTACTS.length >= 8 && PROTO_INBOXES.length === 7);
 });

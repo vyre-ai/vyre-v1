@@ -1409,6 +1409,785 @@ export const PROTO_TYPES: Readonly<Record<string, unknown>> = {
  }
 };
 
+export const PROTO_INBOXES: readonly unknown[] = [
+ {
+  "id": "work",
+  "name": "Work Gmail",
+  "addr": "irfad@northwind.example",
+  "grp": "mine",
+  "ch": "mail",
+  "prov": "Gmail"
+ },
+ {
+  "id": "pers",
+  "name": "Personal",
+  "addr": "irfad.imtiaz@mail.example",
+  "grp": "mine",
+  "ch": "mail",
+  "priv": true,
+  "prov": "Gmail"
+ },
+ {
+  "id": "tw",
+  "name": "+1 415 555 0132",
+  "addr": "+1 415 555 0132",
+  "grp": "mine",
+  "ch": "sms",
+  "note": "Assigned to Irfad"
+ },
+ {
+  "id": "hello",
+  "name": "hello@",
+  "addr": "hello@northwind.example",
+  "grp": "shared",
+  "ch": "mail",
+  "note": "Shared with members"
+ },
+ {
+  "id": "support",
+  "name": "support@",
+  "addr": "support@northwind.example",
+  "grp": "shared",
+  "ch": "mail",
+  "note": "Shared with members"
+ },
+ {
+  "id": "intake",
+  "name": "intake@",
+  "addr": "intake@northwind.example",
+  "grp": "agent",
+  "ch": "mail",
+  "agent": "Intake"
+ },
+ {
+  "id": "bnum",
+  "name": "Billing's number",
+  "addr": "+1 415 555 0177",
+  "grp": "agent",
+  "ch": "sms",
+  "agent": "Billing"
+ }
+];
+
+export const PROTO_CONTACTS: readonly unknown[] = [
+ {
+  "id": "elena",
+  "name": "Elena Rivera",
+  "co": "Rivera Holdings",
+  "email": "elena@riveraholdings.example",
+  "phone": "+1 415 555 0161",
+  "rec": "Rivera matter",
+  "owner": "Irfad Imtiaz",
+  "follow": true,
+  "sug": "Intake",
+  "tasks": [
+   {
+    "t": "Review lease draft v3",
+    "due": "Thu"
+   },
+   {
+    "t": "Countersign engagement letter",
+    "due": "Fri"
+   }
+  ],
+  "msgs": [
+   {
+    "id": "m1",
+    "t": "mail",
+    "dir": "in",
+    "inb": "hello",
+    "a": 4320,
+    "subj": "Client intake form",
+    "body": "Hi, here is the completed intake form and the signed engagement letter. Let me know if anything is missing.\n\nElena",
+    "to": [
+     "hello@northwind.example",
+     "maya@northwind.example"
+    ],
+    "cc": [
+     "marcus@webbgroup.example",
+     "lena@northwind.example",
+     "irfad@northwind.example"
+    ],
+    "att": [
+     [
+      "client-intake.pdf",
+      "184 KB"
+     ]
+    ],
+    "chips": [
+     "Rivera matter"
+    ],
+    "q": "On Mon, Oct 19, Intake wrote:\n> Please send the intake form and a signed copy of the engagement letter when you can."
+   },
+   {
+    "id": "m2",
+    "t": "mail",
+    "dir": "out",
+    "inb": "work",
+    "a": 4200,
+    "subj": "Re: Client intake form",
+    "body": "Thank you, Elena. We have everything. Lena Ortiz will reach out about the lease review this week.\n\nIrfad",
+    "q": "On Mon, Oct 19, Elena Rivera wrote:\n> Hi, here is the completed intake form and the signed engagement letter."
+   },
+   {
+    "id": "m3",
+    "t": "step",
+    "dir": "out",
+    "inb": "intake",
+    "a": 3000,
+    "text": "Welcome series, step 2 sent",
+    "camp": "Welcome series",
+    "agent": "Intake"
+   },
+   {
+    "id": "m4",
+    "t": "call",
+    "dir": "in",
+    "inb": "tw",
+    "a": 2900,
+    "dur": "4:12",
+    "rec": true,
+    "sum": "Elena sends the lease Thursday. She wants Lena Ortiz on the review and asked about fees for a second property.",
+    "tr": [
+     [
+      "Elena",
+      "Hi Irfad, I wanted to confirm the lease goes to you on Thursday."
+     ],
+     [
+      "You",
+      "Yes, send it over. Lena will review it the same day."
+     ],
+     [
+      "Elena",
+      "Good. Is there a separate fee for the second property?"
+     ],
+     [
+      "You",
+      "I will put that in writing today."
+     ]
+    ]
+   },
+   {
+    "id": "m5",
+    "t": "sms",
+    "dir": "in",
+    "inb": "tw",
+    "a": 2870,
+    "body": "Thanks for the call. I'll send the lease Thursday."
+   },
+   {
+    "id": "m6",
+    "t": "sms",
+    "dir": "out",
+    "inb": "tw",
+    "a": 2860,
+    "body": "Perfect. We'll watch for it."
+   },
+   {
+    "id": "m7",
+    "t": "mail",
+    "dir": "in",
+    "inb": "work",
+    "a": 25,
+    "subj": "Lease documents for Thursday",
+    "body": "Hi Irfad,\n\nAttached is draft 3 of the lease. Marcus at the property company asked for a reply by Friday, so Thursday works if you can fit it in. Invoice 1042 is also attached for your records.\n\nElena",
+    "unread": true,
+    "att": [
+     [
+      "lease-draft-v3.pdf",
+      "412 KB"
+     ],
+     [
+      "invoice-1042.pdf",
+      "58 KB"
+     ]
+    ],
+    "chips": [
+     "Rivera matter",
+     "Invoice 1042"
+    ],
+    "q": "On Fri, Oct 23, Irfad Imtiaz wrote:\n> Thursday works. Send the latest draft and we will start the review.\n>\n> Irfad"
+   }
+  ]
+ },
+ {
+  "id": "marcus",
+  "name": "Marcus Pruitt",
+  "co": "Pruitt & Co.",
+  "email": "marcus@pruittco.example",
+  "phone": "+1 312 555 0148",
+  "rec": "Pruitt & Co.",
+  "owner": "Omar Haddad",
+  "follow": false,
+  "sug": "Billing",
+  "tasks": [
+   {
+    "t": "Reconcile invoice 1041",
+    "due": "Today"
+   }
+  ],
+  "msgs": [
+   {
+    "id": "m8",
+    "t": "mail",
+    "dir": "out",
+    "inb": "work",
+    "a": 9000,
+    "subj": "Invoice 1038",
+    "body": "Hi Marcus, invoice 1038 for September is attached. Net 15.\n\nIrfad",
+    "att": [
+     [
+      "invoice-1038.pdf",
+      "61 KB"
+     ]
+    ],
+    "chips": [
+     "Invoice 1038"
+    ]
+   },
+   {
+    "id": "m9",
+    "t": "mail",
+    "dir": "in",
+    "inb": "work",
+    "a": 8600,
+    "subj": "Re: Invoice 1038",
+    "body": "Paid on the 12th by wire. Can you confirm it landed?\n\nMarcus",
+    "q": "On Mon, Oct 12, Irfad Imtiaz wrote:\n> Hi Marcus, invoice 1038 for September is attached. Net 15."
+   },
+   {
+    "id": "m10",
+    "t": "sms",
+    "dir": "in",
+    "inb": "bnum",
+    "a": 18,
+    "body": "Can you resend invoice 1041? I can't find it.",
+    "unread": true
+   },
+   {
+    "id": "m11",
+    "t": "draft",
+    "dir": "out",
+    "inb": "bnum",
+    "a": 15,
+    "ch": "sms",
+    "agent": "Billing",
+    "body": "Hi Marcus, resending invoice 1041 now. It is also in your portal under Billing. Anything else you need?"
+   }
+  ]
+ },
+ {
+  "id": "priya",
+  "name": "Priya Nair",
+  "co": "Nair Studio",
+  "email": "priya@nairstudio.example",
+  "phone": "+1 646 555 0119",
+  "rec": "Nair Studio",
+  "owner": "Maya Chen",
+  "follow": false,
+  "sug": "Intake",
+  "tasks": [
+   {
+    "t": "Book spring review",
+    "due": "Tue"
+   }
+  ],
+  "msgs": [
+   {
+    "id": "m12",
+    "t": "mail",
+    "dir": "out",
+    "inb": "work",
+    "a": 7200,
+    "subj": "Brand refresh proposal",
+    "body": "Hi Priya, the proposal is attached. Scope, timeline and fees are on pages 2 to 4.\n\nIrfad",
+    "att": [
+     [
+      "brand-refresh-proposal.pdf",
+      "1.2 MB"
+     ]
+    ],
+    "chips": [
+     "Nair Studio"
+    ]
+   },
+   {
+    "id": "m13",
+    "t": "mail",
+    "dir": "in",
+    "inb": "work",
+    "a": 7000,
+    "subj": "Re: Brand refresh proposal",
+    "body": "Thanks. We are aligned on scope. Pausing until the spring budget is set.\n\nPriya",
+    "q": "On Thu, Oct 19, Irfad Imtiaz wrote:\n> Hi Priya, the proposal is attached."
+   },
+   {
+    "id": "m14",
+    "t": "mail",
+    "dir": "out",
+    "inb": "intake",
+    "a": 6000,
+    "subj": "Spring check-in",
+    "body": "Hi Priya, a quick check-in from Northwind. Is a spring review still useful for Nair Studio?",
+    "camp": "Spring check-in",
+    "agent": "Intake"
+   },
+   {
+    "id": "m15",
+    "t": "step",
+    "dir": "out",
+    "inb": "intake",
+    "a": 5990,
+    "text": "Spring check-in, step 1 sent",
+    "camp": "Spring check-in",
+    "agent": "Intake"
+   },
+   {
+    "id": "m16",
+    "t": "mail",
+    "dir": "in",
+    "inb": "intake",
+    "a": 70,
+    "subj": "Re: Spring check-in",
+    "body": "Yes, we would like to book a review for next week. Tuesday morning works best.\n\nPriya",
+    "unread": true,
+    "camp": "Spring check-in",
+    "chips": [
+     "Nair Studio"
+    ],
+    "q": "On Mon, Oct 19, Intake wrote:\n> Hi Priya, a quick check-in from Northwind. Is a spring review still useful for Nair Studio?"
+   },
+   {
+    "id": "m17",
+    "t": "draft",
+    "dir": "out",
+    "inb": "intake",
+    "a": 60,
+    "ch": "mail",
+    "agent": "Intake",
+    "subj": "Re: Spring check-in",
+    "body": "Hi Priya, Tuesday at 10:00 works. I sent a calendar invite and the agenda. Maya Chen will join.\n\nIntake, for Northwind"
+   }
+  ]
+ },
+ {
+  "id": "dana",
+  "name": "Dana Whitfield",
+  "co": "Whitfield Group",
+  "email": "dana@whitfieldgroup.example",
+  "phone": "+1 917 555 0126",
+  "rec": "Whitfield Group",
+  "owner": "Irfad Imtiaz",
+  "follow": false,
+  "sug": "Assistant",
+  "tasks": [
+   {
+    "t": "Send renewal quote",
+    "due": "Today"
+   }
+  ],
+  "msgs": [
+   {
+    "id": "m18",
+    "t": "sms",
+    "dir": "out",
+    "inb": "tw",
+    "a": 3000,
+    "body": "Hi Dana, the renewal quote is coming Monday."
+   },
+   {
+    "id": "m19",
+    "t": "vm",
+    "dir": "in",
+    "inb": "tw",
+    "a": 95,
+    "unread": true,
+    "dur": "0:42",
+    "sum": "Dana asks about the renewal quote and wants a call back before 3 pm.",
+    "tr": [
+     [
+      "Dana",
+      "Hi Irfad, it is Dana at Whitfield. Calling about the renewal quote. Give me a ring back before three if you can."
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "id": "tomas",
+  "name": "Tomas Berg",
+  "co": "Berg Logistics",
+  "email": "tomas@berglogistics.example",
+  "phone": "+1 213 555 0173",
+  "rec": "Berg Logistics",
+  "owner": "Omar Haddad",
+  "follow": false,
+  "sug": "Assistant",
+  "tasks": [],
+  "msgs": [
+   {
+    "id": "m20",
+    "t": "mail",
+    "dir": "in",
+    "inb": "support",
+    "a": 260,
+    "subj": "Login link not working",
+    "body": "Hi, the login link in my email says it expired. Can you send a new one?\n\nTomas"
+   },
+   {
+    "id": "m21",
+    "t": "mail",
+    "dir": "out",
+    "inb": "support",
+    "a": 240,
+    "subj": "Re: Login link not working",
+    "body": "Hi Tomas, I sent a fresh link. It works for 24 hours.\n\nOmar, Northwind Support",
+    "q": "On Sat, Oct 24, Tomas Berg wrote:\n> Hi, the login link in my email says it expired."
+   },
+   {
+    "id": "m22",
+    "t": "mail",
+    "dir": "in",
+    "inb": "support",
+    "a": 120,
+    "subj": "Re: Login link not working",
+    "body": "Thanks, but I still see an error after I click it. Screenshot attached.\n\nTomas",
+    "unread": true,
+    "att": [
+     [
+      "error-screenshot.png",
+      "96 KB"
+     ]
+    ],
+    "q": "On Sat, Oct 24, Omar Haddad wrote:\n> Hi Tomas, I sent a fresh link. It works for 24 hours."
+   }
+  ]
+ },
+ {
+  "id": "hannah",
+  "name": "Hannah Cole",
+  "co": "Cole Dental",
+  "email": "hannah@coledental.example",
+  "phone": "+1 408 555 0102",
+  "rec": "Cole Dental",
+  "owner": "Lena Ortiz",
+  "follow": true,
+  "sug": "Assistant",
+  "tasks": [],
+  "msgs": [
+   {
+    "id": "m23",
+    "t": "sms",
+    "dir": "in",
+    "inb": "tw",
+    "a": 1500,
+    "body": "Running 10 min late for our 2pm"
+   },
+   {
+    "id": "m24",
+    "t": "call",
+    "dir": "in",
+    "inb": "tw",
+    "a": 1480,
+    "dur": "0:00",
+    "missed": true
+   },
+   {
+    "id": "m25",
+    "t": "sms",
+    "dir": "out",
+    "inb": "tw",
+    "a": 1470,
+    "body": "No problem. See you then."
+   }
+  ]
+ },
+ {
+  "id": "wei",
+  "name": "Wei Zhang",
+  "co": "Zhang Imports",
+  "email": "wei@zhangimports.example",
+  "phone": "+1 510 555 0150",
+  "rec": "Zhang Imports",
+  "owner": "Maya Chen",
+  "follow": false,
+  "sug": "Research",
+  "tasks": [],
+  "msgs": [
+   {
+    "id": "m26",
+    "t": "mail",
+    "dir": "in",
+    "inb": "hello",
+    "a": 330,
+    "subj": "Partnership inquiry",
+    "body": "Hello,\n\nWe import specialty goods and are looking for a firm to support our contracts and compliance work across three states. A colleague at Pruitt & Co. suggested we write to you. Could we set up a short call this week?\n\nBest,\nWei Zhang",
+    "unread": true
+   }
+  ]
+ },
+ {
+  "id": "grace",
+  "name": "Grace Mbeki",
+  "co": "Mbeki Design",
+  "email": "grace@mbekidesign.example",
+  "phone": "+1 206 555 0188",
+  "rec": "Mbeki Design",
+  "owner": "Irfad Imtiaz",
+  "follow": false,
+  "sug": "Assistant",
+  "tasks": [],
+  "msgs": [
+   {
+    "id": "m27",
+    "t": "mail",
+    "dir": "in",
+    "inb": "pers",
+    "a": 600,
+    "subj": "Dinner on Friday?",
+    "body": "Are you free Friday at 7? The new place on Valencia has a table."
+   },
+   {
+    "id": "m28",
+    "t": "mail",
+    "dir": "out",
+    "inb": "pers",
+    "a": 560,
+    "subj": "Re: Dinner on Friday?",
+    "body": "Yes. Send the address and I will be there.",
+    "q": "On Sat, Oct 24, Grace Mbeki wrote:\n> Are you free Friday at 7?"
+   }
+  ]
+ },
+ {
+  "id": "jonas",
+  "name": "Jonas Keller",
+  "co": "Keller Bakery",
+  "email": "jonas@kellerbakery.example",
+  "phone": "+1 415 555 0175",
+  "rec": "Keller Bakery",
+  "owner": "Sam Patel",
+  "follow": false,
+  "sug": "Intake",
+  "tasks": [
+   {
+    "t": "Check back in June",
+    "due": "Jun 1"
+   }
+  ],
+  "msgs": [
+   {
+    "id": "m29",
+    "t": "mail",
+    "dir": "out",
+    "inb": "intake",
+    "a": 4400,
+    "subj": "Spring check-in",
+    "body": "Hi Jonas, a quick check-in from Northwind. Is a spring review still useful for Keller Bakery?",
+    "camp": "Spring check-in",
+    "agent": "Intake"
+   },
+   {
+    "id": "m30",
+    "t": "mail",
+    "dir": "in",
+    "inb": "intake",
+    "a": 1300,
+    "subj": "Re: Spring check-in",
+    "body": "Not right now, but check back with me in June.\n\nJonas",
+    "camp": "Spring check-in",
+    "chips": [
+     "Keller Bakery"
+    ],
+    "q": "On Mon, Oct 19, Intake wrote:\n> Hi Jonas, a quick check-in from Northwind."
+   }
+  ]
+ },
+ {
+  "id": "sofia",
+  "name": "Sofia Alvarez",
+  "co": "Alvarez Design",
+  "email": "sofia@alvarezdesign.example",
+  "phone": "+1 305 555 0166",
+  "rec": "Alvarez Design",
+  "owner": "Maya Chen",
+  "follow": false,
+  "sug": "Docs",
+  "tasks": [],
+  "msgs": [
+   {
+    "id": "m31",
+    "t": "mail",
+    "dir": "in",
+    "inb": "work",
+    "a": 2200,
+    "subj": "Updated NDA",
+    "body": "Hi Irfad, our side signed. The countersigned NDA is attached.\n\nSofia",
+    "att": [
+     [
+      "nda-signed.pdf",
+      "142 KB"
+     ]
+    ],
+    "chips": [
+     "Alvarez Design"
+    ]
+   },
+   {
+    "id": "m32",
+    "t": "mail",
+    "dir": "out",
+    "inb": "work",
+    "a": 2100,
+    "subj": "Re: Updated NDA",
+    "body": "Received, thank you Sofia. It is filed.\n\nIrfad",
+    "q": "On Thu, Oct 22, Sofia Alvarez wrote:\n> Hi Irfad, our side signed."
+   }
+  ]
+ },
+ {
+  "id": "nina",
+  "name": "Nina Petrova",
+  "co": "Petrova Studio",
+  "email": "nina@petrovastudio.example",
+  "phone": "+1 718 555 0121",
+  "rec": "Petrova Studio",
+  "owner": "Irfad Imtiaz",
+  "follow": true,
+  "sug": "Assistant",
+  "tasks": [],
+  "msgs": [
+   {
+    "id": "m33",
+    "t": "sms",
+    "dir": "out",
+    "inb": "tw",
+    "a": 5000,
+    "body": "Hi Nina, your files are in the shared folder."
+   },
+   {
+    "id": "m34",
+    "t": "sms",
+    "dir": "in",
+    "inb": "tw",
+    "a": 4980,
+    "body": "Got it, thanks!"
+   }
+  ]
+ },
+ {
+  "id": "ben",
+  "name": "Ben Okafor",
+  "co": "Unsure match",
+  "email": "ben.okafor@okaforco.example",
+  "phone": "",
+  "rec": "",
+  "owner": "",
+  "follow": false,
+  "unsure": true,
+  "sug": "Intake",
+  "tasks": [],
+  "cands": [
+   {
+    "name": "Ben Okafor",
+    "co": "Okafor Legal",
+    "pct": 70
+   },
+   {
+    "name": "Ben Okafor",
+    "co": "Okafor Plumbing",
+    "pct": 55
+   }
+  ],
+  "msgs": [
+   {
+    "id": "m35",
+    "t": "mail",
+    "dir": "in",
+    "inb": "hello",
+    "a": 900,
+    "subj": "Question about onboarding",
+    "body": "Hi, I filled out your form yesterday. What happens next, and how long does onboarding take?\n\nBen",
+    "unread": true
+   }
+  ]
+ },
+ {
+  "id": "unk",
+  "name": "+1 628 555 0194",
+  "co": "",
+  "email": "",
+  "phone": "+1 628 555 0194",
+  "rec": "",
+  "owner": "",
+  "follow": false,
+  "unk": true,
+  "sug": "Assistant",
+  "tasks": [],
+  "cands": [
+   {
+    "name": "Hannah Cole",
+    "co": "Cole Dental",
+    "pct": 62,
+    "target": "hannah"
+   }
+  ],
+  "msgs": [
+   {
+    "id": "m36",
+    "t": "sms",
+    "dir": "in",
+    "inb": "tw",
+    "a": 35,
+    "body": "Hi, is this the Northwind office? I got a missed call from this number.",
+    "unread": true
+   }
+  ]
+ }
+];
+
+export const PROTO_TEMPLATES: readonly unknown[] = [
+ [
+  "Intro and next steps",
+  "Hi {first},\n\nThanks for reaching out. Here is what happens next: we review your details, send a short plan within two business days, and set a call to go over it.\n\n",
+  "Next steps"
+ ],
+ [
+  "Resend an invoice",
+  "Hi {first}, resending the invoice now. It is also in your portal under Billing.",
+  "Your invoice"
+ ],
+ [
+  "Meeting follow-up",
+  "Hi {first},\n\nThanks for your time today. Notes and the next steps are below. Tell me if I missed anything.\n\n",
+  "Notes from our meeting"
+ ],
+ [
+  "Out of office",
+  "Hi {first}, I am out until Monday and will reply then. For anything urgent, write to support@northwind.example.",
+  "Out of office"
+ ]
+];
+
+export const PROTO_SNIPPETS: readonly unknown[] = [
+ [
+  "Booking link",
+  "https://northwind.example/book"
+ ],
+ [
+  "Office hours",
+  "Our office hours are Monday to Friday, 9 am to 5 pm Pacific."
+ ],
+ [
+  "Portal link",
+  "https://portal.northwind.example"
+ ],
+ [
+  "Phone",
+  "+1 415 555 0132"
+ ]
+];
+
 export const PROTO_SPACE_TYPES: Readonly<Record<string, { meta: { title: string; one: string; primary: string }; fields: readonly { id: string; name: string; type: string; width: number; options?: readonly (readonly [string, number | null])[]; kind?: string; to?: string }[]; rows: readonly Record<string, unknown>[] }>> = {
  "pcontacts": {
   "meta": {
