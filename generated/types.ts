@@ -4116,6 +4116,20 @@ export type ChangesetsDiscardIn = {
 export type ChangesetsDiscardOut = {
   discarded: boolean;
 };
+export type ChangesetsEditIn = {
+  changesetId: string;
+  path: string;
+  startLine: number;
+  removeLines: number;
+  lines: Array<string>;
+};
+export type ChangesetsEditOut = {
+  fileCount: number;
+  added: number;
+  removed: number;
+  proposedBy: string;
+  editedBy: string;
+};
 export type ChangesetsGetIn = {
   changesetId: string;
 };
@@ -26156,6 +26170,7 @@ export interface CapMap {
   "changesets.comments.list": { in: ChangesetsCommentsListIn; out: ChangesetsCommentsListOut };
   "changesets.diff": { in: ChangesetsDiffIn; out: ChangesetsDiffOut };
   "changesets.discard": { in: ChangesetsDiscardIn; out: ChangesetsDiscardOut };
+  "changesets.edit": { in: ChangesetsEditIn; out: ChangesetsEditOut };
   "changesets.get": { in: ChangesetsGetIn; out: ChangesetsGetOut };
   "changesets.list": { in: ChangesetsListIn; out: ChangesetsListOut };
   "changesets.request_changes": { in: ChangesetsRequestChangesIn; out: ChangesetsRequestChangesOut };
@@ -27912,6 +27927,14 @@ export type ChangesetDiscardedPayload = {
   changesetId: string;
   folderId: string;
   by: string;
+};
+export type ChangesetEditedPayload = {
+  changesetId: string;
+  folderId: string;
+  path: string;
+  proposedBy: string;
+  by: string;
+  fileCount: number;
 };
 export type ChangesetOpenedPayload = {
   changesetId: string;
@@ -30801,6 +30824,7 @@ export interface EventMap {
   "changeset.approved": ChangesetApprovedPayload;
   "changeset.changes_requested": ChangesetChangesRequestedPayload;
   "changeset.discarded": ChangesetDiscardedPayload;
+  "changeset.edited": ChangesetEditedPayload;
   "changeset.opened": ChangesetOpenedPayload;
   "changeset.sent_for_review": ChangesetSentForReviewPayload;
   "changeset.updated": ChangesetUpdatedPayload;

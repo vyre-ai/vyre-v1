@@ -26,7 +26,7 @@ import type { FetchFn } from "../src/platform/probes.ts";
 
 const KEY = { key: "gate-test-seal-key-0123456789abcdef", keyId: "k1" };
 const MAILBOX = "mbx_hello";
-const TASK = "tsk_a1b2c3";   // the id the (stub) tasks module answers with
+const TASK = "tsk_a1b2c3";   // a seeded task resource for the access grants; each hold opens its own real task (heldTask)
 const AGENT = "agt_scout";
 const OLIVIA = "usr_olivia";
 const SANA = "usr_sana";   // a member
@@ -111,9 +111,12 @@ const holds = (d: Daemon): { id: string; state: string; decision_id: string; pay
   d.db!.all("SELECT id, state, decision_id, payload_hash, cap_name, principal_id FROM gate_holds ORDER BY created_at") as never;
 
 /** The token tasks.act mints when a person approves: sealed claims bound to the task, the hold, the decision and the payload hash. */
-function approvalFor(h: { id: string; decision_id: string; payload_hash: string }, by = OLIVIA): string {
+/** The task the hold opened, from the 202 answer: the live tasks module mints real ids, so tests never assume one. */
+const heldTask = async (r: Response): Promise<string> => ((await r.json()) as { data: { taskId: string } }).data.taskId;
+
+function approvalFor(h: { id: string; decision_id: string; payload_hash: string }, task: string, by = OLIVIA): string {
   const sealed = createCtxSeal(KEY).seal(
-    new TextEncoder().encode(JSON.stringify({ v: 1, task: TASK, hold: h.id, decision: h.decision_id, hash: h.payload_hash, by, forPerson: null, device: null, exp: Date.now() + 600_000 })), "tasks.approval");
+    new TextEncoder().encode(JSON.stringify({ v: 1, task, hold: h.id, decision: h.decision_id, hash: h.payload_hash, by, forPerson: null, device: null, exp: Date.now() + 600_000 })), "tasks.approval");
   return `apv_${Buffer.from(JSON.stringify(sealed)).toString("base64url")}`;
 }
 
@@ -124,7 +127,8 @@ test("daemon.gate: an agent's send is held once, and the provider is not reached
     const r = await call(d, "/v1/mail/send", SEND("idem-agent-1"), "agent");
     assert.equal(r.status, 202, JSON.stringify(await r.clone().json()));
     const body = (await r.json()) as { data: { status: string; taskId: string } };
-    assert.deepEqual([body.data.status, body.data.taskId], ["held", TASK]);
+    assert.equal(body.data.status, "held");
+    assert.match(body.data.taskId, /^tsk_[0-9a-z]+$/, "the hold opened a real task");
     const h = holds(d);
     assert.equal(h.length, 1, "exactly one hold");
     assert.deepEqual([h[0]!.state, h[0]!.cap_name, h[0]!.principal_id], ["held", "mail.send", AGENT]);
@@ -138,8 +142,9 @@ test("daemon.gate: once a person approves, the send goes out once and its provid
   try {
     const first = await call(d, "/v1/mail/send", SEND("idem-agent-2"), "agent");
     assert.equal(first.status, 202);
+    const task = await heldTask(first);
     const [hold] = holds(d);
-    const released = await call(d, "/v1/gate/release", { holdId: hold!.id, taskId: TASK, approvalToken: approvalFor(hold!) });
+    const released = await call(d, "/v1/gate/release", { holdId: hold!.id, taskId: task, approvalToken: approvalFor(hold!, task) });
     assert.equal(released.status, 200, JSON.stringify(await released.clone().json()));
     const { data } = (await released.json()) as { data: { result: { status: string; providerId: string } } };
     assert.deepEqual([data.result.status, data.result.providerId], ["sent", "re_1"]);
@@ -166,10 +171,10 @@ test("daemon.gate: an approval minted for another payload releases nothing", asy
   const net = resend();
   const d = await boot(seededDir(), net);
   try {
-    await call(d, "/v1/mail/send", SEND("idem-agent-3"), "agent");
+    const task = await heldTask(await call(d, "/v1/mail/send", SEND("idem-agent-3"), "agent"));
     const [hold] = holds(d);
-    const wrong = approvalFor({ id: hold!.id, decision_id: hold!.decision_id, payload_hash: "0".repeat(64) });
-    const r = await call(d, "/v1/gate/release", { holdId: hold!.id, taskId: TASK, approvalToken: wrong });
+    const wrong = approvalFor({ id: hold!.id, decision_id: hold!.decision_id, payload_hash: "0".repeat(64) }, task);
+    const r = await call(d, "/v1/gate/release", { holdId: hold!.id, taskId: task, approvalToken: wrong });
     assert.notEqual(r.status, 200);
     assert.equal(net.emails.length, 0, "nothing was sent");
     assert.equal(holds(d)[0]!.state, "held");
@@ -183,9 +188,10 @@ test("daemon.gate: an agent acting for a member, approved by the owner, resumes 
     ranAs.length = 0;
     const first = await call(d, "/v1/mail/send", SEND("idem-agent-5"), "agent", SANA);
     assert.equal(first.status, 202, JSON.stringify(await first.clone().json()));
+    const task = await heldTask(first);
     const [hold] = holds(d);
     assert.equal((d.db!.all("SELECT acting_for FROM gate_holds WHERE id = ?", hold!.id)[0] as { acting_for: string }).acting_for, SANA, "the row keeps whom the agent acted for");
-    const released = await call(d, "/v1/gate/release", { holdId: hold!.id, taskId: TASK, approvalToken: approvalFor(hold!) });   // Olivia, the owner, approves
+    const released = await call(d, "/v1/gate/release", { holdId: hold!.id, taskId: task, approvalToken: approvalFor(hold!, task) });   // Olivia, the owner, approves
     assert.equal(released.status, 200, JSON.stringify(await released.clone().json()));
     assert.deepEqual(ranAs, [{ cap: "mail.send", principal: AGENT, actingFor: SANA, run: undefined }], "the resumed send ran as the asker, not as the approver");
     assert.equal(net.emails.length, 1);
@@ -196,10 +202,10 @@ test("daemon.gate: a hold whose stored caller was changed after it was parked do
   const net = resend();
   const d = await boot(seededDir(), net);
   try {
-    await call(d, "/v1/mail/send", SEND("idem-agent-6"), "agent", SANA);
+    const task = await heldTask(await call(d, "/v1/mail/send", SEND("idem-agent-6"), "agent", SANA));
     const [hold] = holds(d);
     d.db!.run("UPDATE gate_holds SET acting_for = ? WHERE id = ?", OLIVIA, hold!.id);   // an attempt to make the agent act for the owner
-    const r = await call(d, "/v1/gate/release", { holdId: hold!.id, taskId: TASK, approvalToken: approvalFor(hold!) });
+    const r = await call(d, "/v1/gate/release", { holdId: hold!.id, taskId: task, approvalToken: approvalFor(hold!, task) });
     assert.notEqual(r.status, 200);
     assert.equal(net.emails.length, 0);
   } finally { await d.stop(); }

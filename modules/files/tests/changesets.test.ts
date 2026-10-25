@@ -567,3 +567,33 @@ test("approve applies a staged move ('<folderId>/<name>' in new_name) through fi
 });
 
 // Run on the final commit together with agent-stage.test.ts (P-L4_04b).
+
+test("edit: a person replaces lines of a proposal in place, both people stay recorded, and Approve applies the edited lines", async () => {
+  const { k, ctx, agent, plan } = await setup();
+  const w = await handlers["files.write"](agent, { fileId: plan, content: { text: lines(10, { 2: "agent line 2", 5: "agent line 5" }) } });
+  const cs = w.changesetId!;
+  const res = await handlers["changesets.edit"](ctx, { changesetId: cs, path: "plan.txt", startLine: 2, removeLines: 1, lines: ["person line 2", "inserted by the person"] });
+  assert.deepEqual([res.proposedBy, res.editedBy, res.fileCount], ["agt_intake", ctx.principal.id, 1]);
+  assert.deepEqual(eventsOf(k.events, "changeset.edited").map((e) => { const p = e as { proposedBy: string; by: string; path: string }; return [p.proposedBy, p.by, p.path]; }), [["agt_intake", ctx.principal.id, "plan.txt"]]);
+  const d = await handlers["changesets.diff"](ctx, { changesetId: cs, path: "plan.txt" });
+  const added = d.hunks.flatMap((h) => h.lines).filter((l) => l.op === "add").map((l) => l.text);
+  assert.deepEqual(added, ["person line 2", "inserted by the person", "agent line 5"]);
+  assert.equal((await handlers["changesets.approve"](ctx, { changesetId: cs })).approved, true);
+  const text = await textOf(ctx, plan);
+  assert.ok(text.includes("person line 2\ninserted by the person\n") && text.includes("agent line 5") && !text.includes("agent line 2"));
+});
+
+test("edit: a caller without edit access, an agent, a bad range, a closed changeset and an unknown path are refused", async () => {
+  const { ctx, agent, plan } = await setup();
+  const cs = (await handlers["files.write"](agent, { fileId: plan, content: { text: lines(10, { 2: "x" }) } })).changesetId!;
+  const edit = (c: Ctx, over: Record<string, unknown> = {}) => handlers["changesets.edit"](c, { changesetId: cs, path: "plan.txt", startLine: 1, removeLines: 1, lines: ["y"], ...over });
+  const denied: Ctx = { ...ctx, authorize: () => ({ effect: "deny", reason: "test", decisionId: "dec_no" }) };
+  await expectCode("permission.no_grant", () => edit(denied));
+  await expectCode("permission.no_grant", () => edit(agent));
+  await expectCode("validation.bad_input", () => edit(ctx, { startLine: 11, removeLines: 5 }));
+  await expectCode("validation.bad_input", () => edit(ctx, { startLine: 0 }));
+  await expectCode("validation.not_found", () => edit(ctx, { path: "nope.txt" }));
+  await handlers["changesets.discard"](ctx, { changesetId: cs });
+  await expectCode("validation.precondition_failed", () => edit(ctx));
+});
+// P-CC_21: changesets.edit is covered by the last two tests above.
