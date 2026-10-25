@@ -8,7 +8,11 @@ import https from "node:https";
 import tls from "node:tls";
 import { createRelay } from "../server.js";
 import net from "node:net";
-import { makeCa, issueOnSpace, fingerprint, startSpace, startBox, visit, tlsRecords, until } from "./kit.js";
+import { X509Certificate } from "node:crypto";
+import { makeCa, issueOnSpace, startSpace, startBox, visit, tlsRecords, until } from "./kit.js";
+
+/** The SHA-256 fingerprint Node reports for a certificate. @param {string} pem */
+const fingerprint = pem => new X509Certificate(pem).fingerprint256;
 
 const A = "documents.harlow.example.test", B = "forms.juniper.example.test";
 const SECRET_IN = "CLIENT-PRIVILEGED-MARKER-7731", SECRET_OUT = "SPACE-REPLY-MARKER-9912";

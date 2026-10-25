@@ -9,7 +9,6 @@ import os from "node:os";
 import path from "node:path";
 import net from "node:net";
 import https from "node:https";
-import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { newRouteKey, routeId, authMessage, signRoute } from "../wire.js";
 
@@ -40,9 +39,6 @@ export function issueOnSpace(ca, names) {
     return { cert: fs.readFileSync(path.join(work, "space.pem"), "utf8"), key: fs.readFileSync(path.join(work, "space.key"), "utf8") };
   } finally { fs.rmSync(work, { recursive: true, force: true }); }
 }
-
-/** The SHA-256 fingerprint Node reports for a certificate. @param {string} pem */
-export const fingerprint = pem => new crypto.X509Certificate(pem).fingerprint256;
 
 /**
  * A Space's public face: an HTTPS server that holds the certificate. `swap` replaces the certificate in place (a renewal).

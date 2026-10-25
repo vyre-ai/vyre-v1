@@ -9,7 +9,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRelay } from "../server.js";
-import { makeCa, issueOnSpace, fingerprint, startSpace, startBox, visit, until } from "./kit.js";
+import { X509Certificate } from "node:crypto";
+import { makeCa, issueOnSpace, startSpace, startBox, visit, until } from "./kit.js";
+
+/** The SHA-256 fingerprint Node reports for a certificate. @param {string} pem */
+const fingerprint = pem => new X509Certificate(pem).fingerprint256;
 
 const HOST = "forms.harlow.example.test";
 
