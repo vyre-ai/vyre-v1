@@ -1,0 +1,12 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_02c-home-personal",
+      "route": "/m/P-L9b_02c",
+      "proto": "home,space:personal,{skin}",
+      "waitFor": "[data-testid='s-ask']",
+      "note": "Personal Space Home: subtitle Your Personal Space, on this computer only; Get started with four rows (0 of 4); no empty sections; Quick start and the locked Ask box at the foot. The prototype side is its Personal Space Home.",
+      "protoSettleMs": 1500
+    }
+  ]
+}

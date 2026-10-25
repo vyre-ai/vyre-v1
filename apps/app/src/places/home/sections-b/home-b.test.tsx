@@ -12,7 +12,7 @@ import type { SampleHomeB } from "./sample.ts";
 
 const html = (h: SampleHomeB): string => {
   const { top, bottom } = homeBSlots(h.extras);
-  return renderToStaticMarkup(<Home data={h.data} top={top} bottom={bottom} />).replaceAll("<!-- -->", "");
+  return renderToStaticMarkup(<Home data={h.data} top={top} bottom={bottom} personal={h.extras.space.kind === "personal"} />).replaceAll("<!-- -->", "");
 };
 const at = (s: string, needle: string): number => {
   const i = s.indexOf(needle);
@@ -160,7 +160,7 @@ test("Personal Space: no Today without a calendar, no project row, and the assis
   const out = html(createSampleHomeB("personal"));
   assert.ok(!has(out, 'data-testid="s-today"'), "Today needs a connected calendar");
   assert.ok(has(out, 'data-testid="s-first"') && !has(out, "Open your first project"));
-  assert.ok(has(out, ">0 of 5<"));
+  assert.ok(has(out, ">0 of 4<"));
   assert.ok(has(out, 'data-testid="ask-locked"'));
   assert.ok(has(out, "Next to your name in Personal"));
 });

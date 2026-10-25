@@ -128,8 +128,10 @@ test("Home in a Personal Space draws only the personal variant: checklist, Starr
   assert.ok(out.includes('data-testid="home-place"'));
   assert.ok(out.includes("Good morning, Irfad"));
   assert.ok(out.includes('data-testid="s-first"'), "the first-run checklist");
-  assert.ok(out.includes('data-testid="s-starred"') && out.includes('data-testid="s-ask"'));
+  assert.ok(out.includes('data-testid="s-ask"'));
+  assert.ok(!out.includes('data-testid="s-starred"'), "an empty Starred is not drawn in a Personal Space");
   assert.ok(!out.includes('data-testid="s-today"'), "Today needs a connected calendar");
+  assert.ok(out.includes("Your Personal Space, on this computer only"), "the subtitle says where the Space lives");
   for (const id of ["s-needs", "s-work", "s-risk", "s-away", "s-routines"]) assert.ok(!out.includes(`data-testid="${id}"`), `${id} is not in a Personal Space`);
   assert.ok(!out.includes("Needs you") && !out.includes("My work"));
   const withCalendar = await mount("home", runtimeFor("personal", false, { calendarConnected: true }).rt);
