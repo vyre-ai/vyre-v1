@@ -20,7 +20,7 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [agents.restore_version](../capabilities/agents.restore_version.md): Restore AGENT.md or agent.toml to an earlier version
 - [agents.resume](../capabilities/agents.resume.md): Resume a paused agent
 - [agents.role_line.set](../capabilities/agents.role_line.set.md): Edit the role line in place: saves the description of agent.toml with an inline Undo; read-only without Edit
-- [agents.routine.delegate](../capabilities/agents.routine.delegate.md): Hand a routine to another person or agent (they become its owner and runs go out as them); undo hands it back to the previous owner
+- [agents.routine.delegate](../capabilities/agents.routine.delegate.md): Hand a routine to another person or agent (a person becomes its owner, an agent runs it); undo (no `to`) hands it back to the previous owner and agent
 - [agents.routine.delete](../capabilities/agents.routine.delete.md): Delete a routine
 - [agents.routine.run_now](../capabilities/agents.routine.run_now.md): Run a routine now. The run starts as the routine owner, never as the caller, so its reach and its "Sent by <agent> on a routine <person> set" line are the owner's
 - [agents.routine.save](../capabilities/agents.routine.save.md): Create or change a routine; messages it causes carry "Sent by <agent> on a routine <person> set"

@@ -1,6 +1,6 @@
 # agents.routine.delegate
 
-Hand a routine to another person or agent (they become its owner and runs go out as them); undo hands it back to the previous owner
+Hand a routine to another person or agent (a person becomes its owner, an agent runs it); undo (no `to`) hands it back to the previous owner and agent
 
 | | |
 |---|---|
