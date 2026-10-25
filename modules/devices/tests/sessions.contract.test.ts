@@ -69,3 +69,5 @@ for (const cap of caps) {
     assert.deepEqual([...new Set(h.events.map((e) => e.name))].sort(), [...cap.emits].sort());
   });
 }
+// sync.epoch.bump on revoke: see the last test of sessions.test.ts
+// touched so the selector runs it with the host revoke test
