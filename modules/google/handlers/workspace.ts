@@ -516,6 +516,14 @@ export async function driveChanges(ctx: GoogleCtx, a: Act & { pageToken: string;
   return out;
 }
 
+export async function driveStartToken(ctx: GoogleCtx, a: Act & { driveId?: string }) {
+  const r = await g(ctx, a, "google.drive.changes_start_token", "drive", {
+    url: `${DRIVE}/changes/startPageToken`,
+    query: { ...(a.driveId ? { driveId: a.driveId } : {}), ...shared },
+  });
+  return { startPageToken: text(r.startPageToken) ?? "" };
+}
+
 export async function driveWatch(ctx: GoogleCtx, a: Act & { pageToken: string; channelId: string; address: string; driveId?: string }) {
   return watchReply(await g(ctx, a, "google.drive.watch_changes", "drive", {
     method: "POST", url: `${DRIVE}/changes/watch`, query: { pageToken: a.pageToken, ...(a.driveId ? { driveId: a.driveId } : {}), includeItemsFromAllDrives: true, ...shared },
