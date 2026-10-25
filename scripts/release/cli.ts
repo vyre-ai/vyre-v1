@@ -20,7 +20,7 @@ import { bump, releaseCounter, versionProblems } from "./version.ts";
 const run = (a: string[]): string => execFileSync(a[0] ?? "", a.slice(1), { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 const isAncestor = (x: string, y: string): boolean => { try { execFileSync("git", ["merge-base", "--is-ancestor", x, y], { stdio: "ignore" }); return true; } catch { return false; } };
 
-function main(argv: string[]): number {
+export function main(argv: string[]): number {
   const [cmd, a, b, c] = argv;
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
   try {

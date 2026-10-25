@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { main } from "./cli.ts";
 import { CHANNEL_KINDS, buildEntries, manifestFor, readFeed } from "./channels.ts";
 import type { ChannelRelease, FeedEntry } from "./channels.ts";
 import { assetsFor, feedBase } from "./feed.ts";
@@ -125,4 +126,35 @@ test("release assets carry the names the installer and the updater read, and the
   assert.equal((JSON.parse(manifest) as { server: { tarball: string } }).server.tarball, "vyre.tgz", "relative to the feed base, as the installer expects");
   assert.equal(feedBase("stable"), "https://github.com/vyre-ai/vyre-v1/releases/latest/download/");
   assert.equal(feedBase("beta"), "https://github.com/vyre-ai/vyre-v1/releases/download/channel-beta/");
+});
+
+test("the command line: counter, pubkey, sign and assets work end to end in a directory, and a missing key or a bad channel is refused", () => {
+  const k = keys();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rel-"));
+  const log = console.log, err = console.error;
+  const out: string[] = [];
+  console.log = (...a: unknown[]) => { out.push(a.join(" ")); };
+  console.error = () => undefined;
+  const saved = process.env["VYRE_SIGNING_KEY"];
+  try {
+    assert.equal(main(["counter", "0.3.0"]), 0);
+    assert.equal(out.at(-1), "300099");
+    assert.equal(main(["counter", "nope"]), 1);
+    assert.equal(main(["nothing"]), 2);
+    delete process.env["VYRE_SIGNING_KEY"];
+    assert.equal(main(["pubkey"]), 2, "no key outside the release environment");
+    process.env["VYRE_SIGNING_KEY"] = k.pem;
+    assert.equal(main(["pubkey", path.join(dir, "key.json")]), 0);
+    assert.equal((JSON.parse(fs.readFileSync(path.join(dir, "key.json"), "utf8")) as { publicKey: string }).publicKey, k.pub);
+    fs.writeFileSync(path.join(dir, "releases.json"), JSON.stringify({ server: rel("1.2.0") }));
+    assert.equal(main(["sign", dir, "nightly-x", k.pub]), 2);
+    assert.equal(main(["sign", dir, "stable", k.pub]), 0);
+    assert.equal(main(["assets", dir]), 0);
+    const manifest = fs.readFileSync(path.join(dir, "stable.json"), "utf8");
+    assert.equal(verifyManifest(manifest, fs.readFileSync(path.join(dir, "stable.json.sig"), "utf8"), k.pub), true);
+    assert.equal(main(["sign", dir, "stable", keys().pub]), 1, "a key that is not the pinned one signs nothing");
+  } finally {
+    console.log = log; console.error = err;
+    if (saved === undefined) delete process.env["VYRE_SIGNING_KEY"]; else process.env["VYRE_SIGNING_KEY"] = saved;
+  }
 });
