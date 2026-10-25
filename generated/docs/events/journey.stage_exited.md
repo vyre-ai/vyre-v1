@@ -10,7 +10,7 @@ A Journey record left a stage
 | Visibility | space |
 | Label | subject |
 | Replay | pure |
-| Automation trigger | no |
+| Automation trigger | A Journey record leaves a stage |
 | Notification | none |
 | Retention | default |
 

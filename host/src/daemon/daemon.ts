@@ -38,6 +38,7 @@ import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts"
 import { createGateHook } from "./gate-hook.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
+import { createKitsHost } from "../seams/kits.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, wireSeams } from "../seams/index.ts";
 import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
@@ -58,6 +59,8 @@ import { alive, clearInfo, ensureAdminToken, ensureDirs, pathsFor, readInfo, wri
 import type { DaemonConfig, DaemonPaths, Role } from "./config.ts";
 import { migrate } from "./hosttables.ts";
 import { requestListener } from "./http.ts";
+import { createChromeBridge } from "../bridge/chrome.ts";
+import type { ChromeBridge } from "../bridge/chrome.ts";
 import { coerceQuery } from "./query.ts";
 import type { PropSchema } from "./query.ts";
 import { openDb, readLogMeta } from "./sqlite.ts";
@@ -149,6 +152,8 @@ export interface Daemon {
   runProbes(names?: readonly ProbeName[]): Promise<Partial<Record<ProbeName, ProbeResult>>>;
   /** do every open restart and network command now */
   pollCommands(): Promise<number>;
+  /** The Chrome bridge behind /chrome-bridge/v1/*: agent tool calls to the extension, and the extension's requests (apps/chrome native host) */
+  chromeBridge: ChromeBridge;
   stop(): Promise<void>;
 }
 
@@ -180,6 +185,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const token = ensureAdminToken(paths);
   const sink = new LogSink({ path: paths.logs, now, secrets: () => [token] });
   const closers: (() => Promise<void> | void)[] = [() => sink.close()];
+  const chromeBridge = createChromeBridge({ token, onEvent: (e) => sink.log({ space: "-", level: 20, msg: "chrome.agent_event", place: "chrome-bridge", attrs: { event: e.event, agent: typeof e["agent"] === "string" ? e["agent"] : "" } }) });
+  closers.push(() => { chromeBridge.failAll(); chromeBridge.closeStreams(); });
   const fetchFn: FetchFn | null = o.fetch ?? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null);
 
   let space: string | null = cfg.space ?? (hasSpace ? readLogMeta(paths.events, "space") : null);
@@ -375,6 +382,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       dispatchSystem = system;
       const hostDrivers: Record<string, SeamDriver> = {
         setPushPort: () => createPushPort(o.seams?.push),
+        // A Kit is a resource in the access projection (type "kit") so that the capabilities on it can be authorized. The module cannot create resources, so the host does: one
+        // resource.created per Kit, with an id made from the Kit's own, so the same Kit is the same event after a reboot (the log refuses a duplicate id) and the fold is the same.
+        setKitsHost: () => createKitsHost({
+          root: codeRoot,
+          resources: {
+            ensure: async (kitId) => {
+              const r = await spaceLog.appendResult({
+                id: `evt_res_${kitId}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: kitId,
+                payload: { id: kitId, type: "kit", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 },
+              });
+              if (!r.ok) throw new Error(`could not register the Kit: ${r.message}`);
+              if (!r.duplicate) { access.fold(r.event); headSeq = Math.max(headSeq, r.event.seq); }
+            },
+          },
+        }),
         setEventsDispatch: () => system,
         // the import module reads an Airtable or Notion key from the Vault by handle, for one call
         setImportHost: (d) => ({ secret: (_ctx: unknown, handle: string) => d.vault.secret(handle.startsWith("#") ? handle : `#${handle}`, d.space) }),
@@ -534,10 +556,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     hub = h;
     const server = h.server;
     server.removeAllListeners("request");
-    server.on("request", requestListener({
+    const listener = requestListener({
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
-    }));
+    });
+    server.on("request", (req, res) => { if (!chromeBridge.handle(req, res)) listener(req, res); });
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error): void => reject(err);
       server.once("error", onError);
@@ -575,7 +598,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
   let stopped = false;
   return {
-    url: `http://${cfg.host}:${boundPort}`, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log,
+    url: `http://${cfg.host}:${boundPort}`, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge,
     runProbes, pollCommands: runCommands,
     async stop() {
       if (stopped) return;

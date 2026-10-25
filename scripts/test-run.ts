@@ -32,10 +32,15 @@ export function breakdown(out: string, top = 5): { name: string; ms: number }[] 
 /** Runs one test file in its own node process. Fails (overCap) if it runs past capMs, even when every test passed. */
 export function runFile(file: string, opts: { cwd?: string; capMs?: number } = {}): Promise<RunResult> {
   // A runner started from inside `node --test` must not inherit its test context, or the child file runs as a subtest.
-  const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
+  const env: NodeJS.ProcessEnv = { ...process.env }; delete env.NODE_TEST_CONTEXT;
+  // Ruling 21 (same rule as test-run.mjs): .tsx files, and .ts files that opt in with `// @tsx`, run through the tsx loader with react-native mapped to react-native-web.
+  const cwd0 = opts.cwd ?? process.cwd();
+  const tsx = file.endsWith(".tsx") || (() => { try { return /^\s*\/\/\s*@tsx\b/m.test(fs.readFileSync(path.resolve(cwd0, file), "utf8")); } catch { return false; } })();
+  if (tsx) env.TSX_TSCONFIG_PATH = path.join(cwd0, "tsconfig.base.json");
+  const loader = tsx ? ["--import", "tsx", "--import", path.join(cwd0, "scripts/shots/rn-alias.mjs")] : [];
   const capMs = opts.capMs ?? DEFAULT_CAP_MS, cwd = opts.cwd ?? process.cwd(), t0 = Date.now();
   return new Promise((resolve) => {
-    const p = spawn(process.execPath, ["--test", "--test-reporter=spec", `--test-timeout=${capMs}`, file], { cwd, stdio: ["ignore", "pipe", "pipe"], env });
+    const p = spawn(process.execPath, [...loader, "--test", "--test-reporter=spec", `--test-timeout=${capMs}`, file], { cwd, stdio: ["ignore", "pipe", "pipe"], env });
     let out = "", overCap = false;
     p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (out += d));
     const dog = setTimeout(() => { overCap = true; p.kill("SIGKILL"); }, capMs);
@@ -64,6 +69,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   const slow: SlowEntry[] = JSON.parse(fs.readFileSync(path.join(repo, "test/slow.json"), "utf8"));
   const files = process.argv.slice(process.argv.indexOf("--files") + 1).filter((a) => !a.startsWith("--") && a !== val("--jobs"));
   const picked = files.filter((f) => (arg("--slow") ? slow.some((s) => s.file === f) : !slow.some((s) => s.file === f)));
+  if (picked.some((f) => f.endsWith(".tsx") || /^\s*\/\/\s*@tsx\b/m.test(fs.readFileSync(path.join(repo, f), "utf8")))) await (await import("./shots/ensure-deps.mjs")).ensureDeps(repo);
   const jobs = Number(val("--jobs")) || Math.max(2, Math.floor(os.cpus().length / 2));
   const queue = [...picked], results: RunResult[] = [];
   await Promise.all(Array.from({ length: Math.min(jobs, queue.length) }, async () => { while (queue.length) { const f = queue.shift()!; results.push(await runFile(f, { cwd: repo, capMs: capFor(f, slow) })); } }));

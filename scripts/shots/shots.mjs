@@ -17,7 +17,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url)), REPO = path.resolve(H
 const args = parseArgs(process.argv.slice(2));
 const appDir = path.resolve(REPO, args.app || "scripts/shots/app");
 const out = path.resolve(REPO, args.out || "shots-out");
-const skins = (args.skins || SKINS.join(",")).split(",");
+// --probes-only shoots nothing and runs the scroll probe; --no-probes shoots and skips it (ruling 46: speed is measured on the pinned v1-perf runners).
+const skins = args["probes-only"] ? [] : (args.skins || SKINS.join(",")).split(",");
 const sizes = (args.sizes || Object.keys(SIZES).join(",")).split(",").map((n) => [n, SIZES[n]]);
 const maxExport = Number(args["max-export-s"] || MAX_EXPORT_S);
 const want = args.target || "all";
@@ -78,7 +79,7 @@ try {
     console.log(`shot ${t.id} ${skin} ${sizeName}`);
   }
   // Scroll probe (ruling 29): a target with "scroll": { "selector": "<css>" } is scrolled top to bottom and its p95 frame interval checked.
-  for (const t of targets) if (t.scroll) {
+  for (const t of targets) if (t.scroll && !args["no-probes"]) {
     const ctx = await browser.newContext({ viewport: SIZES.desktop, deviceScaleFactor: 1, reducedMotion: "no-preference" });
     const page = await ctx.newPage();
     await page.goto(routeUrl(real.origin, t.route, "paper"), { waitUntil: "load", timeout: 60000 });
@@ -95,6 +96,6 @@ if (exportSeconds > maxExport) { console.error(`web export took ${exportSeconds.
 console.log(`${rows.length} side-by-side images in ${out}`);
 
 // Startup probe on the real app (budget startup). Skipped when a single target or no apps/app is asked for.
-if (want === "all" && !args["skip-startup"] && fs.existsSync(path.join(REPO, "apps/app/app.json"))) {
+if (want === "all" && !args["skip-startup"] && !args["no-probes"] && fs.existsSync(path.join(REPO, "apps/app/app.json"))) {
   execSync("node scripts/shots/probes/startup.mjs", { cwd: REPO, stdio: "inherit" });
 }
