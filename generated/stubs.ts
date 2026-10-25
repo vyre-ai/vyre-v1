@@ -1514,6 +1514,7 @@ export function stubs(ctx: CallCtx) {
         review: call("records.values.review"),
       },
       versions: call("records.versions"),
+      view: call("records.view"),
     },
     reports: {
       get: call("reports.get"),

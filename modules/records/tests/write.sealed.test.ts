@@ -1,7 +1,7 @@
 // @reads /modules/records/migrations/0001_init.sql
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mintUuid } from "../../../lib/ids.ts";
+import { mintRecordId } from "../../../lib/ids.ts";
 import { openRecords } from "../impl.ts";
 import type { ProjectionHost } from "../../../kernel/src/store/projection.ts";
 import { PERSON } from "../fixtures/seed.ts";
@@ -28,10 +28,10 @@ test("sealed plaintext is refused and never written to the log, events, history 
     trace: { traceId: "0123456789abcdef0123456789abcdef" },
     emit: (_n: string, _s: string, payload: Record<string, unknown>) => { emitted.push(payload); },
   };
-  const id = mintUuid();
+  const id = mintRecordId();
   await assert.rejects(() => rec.store.create("person", id, { name: "A", ssn: SECRET }), code("sealed_value_refused"));
   await assert.rejects(() => rec.handlers["records.create"](ctx, { type: "person", fields: { name: "A", ssn: SECRET }, idempotencyKey: "bad" }), vcode("validation.bad_input"));
-  await assert.rejects(() => rec.store.create("person", mintUuid(), { name: "A", ssn: { sealed: "ssn", ref: SECRET, present: true } }), code("sealed_value_refused"));
+  await assert.rejects(() => rec.store.create("person", mintRecordId(), { name: "A", ssn: { sealed: "ssn", ref: SECRET, present: true } }), code("sealed_value_refused"));
 
   const ok = await rec.handlers["records.create"](ctx, {
     type: "person",

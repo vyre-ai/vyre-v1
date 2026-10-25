@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { menuEntries } from "../Menu/index.tsx";
 import { isItem, isReportItem, isSeparator } from "../Menu/props.ts";
-import { FOLDER_SECTIONS, FolderTree, SlotRow, canManageFolder, folderMenu, frozenFolderTreeProps, indentFor, moveCursor, visibleSections } from "./index.tsx";
+import { FOLDER_SECTIONS, FolderTree, SlotRow, canManageFolder, folderMenu, frozenFolderTreeProps, moveCursor, visibleSections } from "./index.tsx";
 import type { FolderNode } from "./index.tsx";
 
 const node = (over: Partial<FolderNode> & Pick<FolderNode, "id" | "name">): FolderNode => ({ parentId: null, count: 0, scope: "space", section: "space", via: "space", open: false, ...over });
@@ -112,14 +112,14 @@ test("menu choices call the handlers", () => {
   assert.deepEqual(seen, ["toggle p1 false", "new personal p1", "share p1", "rename p1", "move p1", "delete p1"]);
 });
 
-test("SlotRow keeps the Row's whole-row paint and indents the title past the leading control", () => {
-  assert.equal(indentFor(0), "");
-  assert.equal(indentFor(30).length, 4);
+test("SlotRow is a Row with leading and trailing slots inside the painted row", () => {
   const html = renderToStaticMarkup(<SlotRow id="a" title="Clients" selected leadWidth={30} lead={<span>L</span>} trail={<span>T</span>} />);
   assert.match(html, /background-color:var\(--sel\)/);
-  assert.match(html, / {4}Clients/);
-  assert.ok(html.indexOf(">L<") > html.indexOf("Clients") || html.indexOf(">L<") > 0);
+  assert.match(html, /data-testid="row-a-leading"/);
+  assert.match(html, /data-testid="row-a-trailing"/);
+  assert.ok(html.indexOf(">L<") < html.indexOf(">Clients<") && html.indexOf(">Clients<") < html.indexOf(">T<"));
   assert.match(html, /height:28px/);
+  assert.doesNotMatch(html, /position:absolute/, "no overlay");
 });
 
 // Run on the final commit of P-L9_06 (lead request: every named test shows ok).

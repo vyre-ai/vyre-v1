@@ -26,7 +26,7 @@ export function levelIncludes(type: ResourceType, have: Level, need: Level): boo
 export const RESOURCE_TYPE_LIST: readonly ResourceType[] = [
   'space', 'record_type', 'record', 'project', 'folder', 'file', 'channel', 'thread', 'inbox', 'mailbox',
   'vault_folder', 'vault_item', 'automation_group', 'automation', 'agent', 'connector', 'connection',
-  'site', 'form', 'campaign', 'kit', 'terminal', 'computer', 'task', 'run', 'number', 'domain', 'calendar',
+  'site', 'form', 'campaign', 'kit', 'terminal', 'computer', 'task', 'run', 'number', 'domain', 'calendar', 'note',
 ];
 type Missing = Exclude<ResourceType, (typeof RESOURCE_TYPE_LIST)[number]>;
 export const resourceTypeListIsComplete: [Missing] extends [never] ? true : never = true;

@@ -1,0 +1,47 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_08-softphone-dialer",
+      "route": "/m/P-L9_08?part=dialer",
+      "proto": "inbox,phonedial,{skin}",
+      "waitFor": "[data-testid=\"softphone-dialer\"]",
+      "note": "ui/Softphone dialer (from number, input, 12 keys with letters, round Call) against the prototype Inbox with its dialer popover open (token phonedial)."
+    },
+    {
+      "id": "P-L9_08-softphone-incoming",
+      "route": "/m/P-L9_08?part=incoming",
+      "proto": "inbox,phonein,{skin}",
+      "waitFor": "[data-testid=\"softphone-incoming\"]",
+      "note": "ui/Softphone incoming sheet (caller, company, number it came in on, Decline and Accept) against the prototype Inbox with an incoming call (token phonein)."
+    },
+    {
+      "id": "P-L9_08-softphone-live",
+      "route": "/m/P-L9_08?part=live",
+      "proto": "inbox,phonecall,{skin}",
+      "waitFor": "[data-testid=\"softphone-bar\"]",
+      "note": "ui/Softphone call bar (mute, hold, keypad, transfer, record, hang up) with the Call tab (notes, last interactions, open tasks, record link) against the prototype Inbox with a live call to Elena (token phonecall)."
+    },
+    {
+      "id": "P-L9_08-softphone-ended",
+      "route": "/m/P-L9_08?part=ended",
+      "proto": "inbox,phonecall,phoneend,{skin}",
+      "protoSettleMs": 9000,
+      "waitFor": "[data-testid=\"softphone-ended\"]",
+      "note": "ui/Softphone after-call card (duration, summary, transcript, Log a task, Open record) against the prototype Inbox after the call to Elena ends (tokens phonecall and phoneend)."
+    },
+    {
+      "id": "P-L9_08-terminal",
+      "route": "/m/P-L9_08?part=terminal",
+      "proto": "chat,at:terminal,{skin}",
+      "waitFor": "[data-testid=\"terminal-scroll\"]",
+      "note": "ui/Terminal on the agent computer (host chip, scrollback with colours, prompt line, Clear) against the prototype Chats terminal tab."
+    },
+    {
+      "id": "P-L9_08-terminal-locked",
+      "route": "/m/P-L9_08?part=locked",
+      "proto": "chat,at:terminal-locked,{skin}",
+      "waitFor": "[data-testid=\"terminal-locked\"]",
+      "note": "ui/Terminal locked server shell (Ask for access, no prompt) against the prototype Chats terminal tab on the Space server without server.services."
+    }
+  ]
+}

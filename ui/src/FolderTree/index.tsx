@@ -2,7 +2,7 @@
 // Folders show counts; a folder's sharing covers everything placed in it. Every folder row is a ui/Row, so hover and selection paint the whole row.
 // Right-click (or the row's menu key) opens the folder menu; the menu ends with Report a problem, added by ui/Menu.
 // Keyboard: Up and Down move, Right opens, Left closes, Enter selects, F2 renames, Delete removes. Drop an item on a folder to move it there.
-// SlotRow puts a leading and a trailing control on top of a Row without breaking whole-row hover; ShareSheet reuses it.
+// SlotRow is a Row with its leading and trailing slots (ruling 36), plus the menu and drop handlers; ShareSheet reuses it.
 // Colours are skin tokens (CSS variables on web), so a skin switch repaints with no re-render.
 
 import { createElement, useMemo, useState } from "react";
@@ -131,11 +131,6 @@ export function folderMenu(node: FolderNode, open: boolean, hasChildren: boolean
 
 /* ---------- SlotRow: a Row with a leading and a trailing control ---------- */
 
-/** Leading figure spaces that push the Row's title past a leading control of this width. */
-export function indentFor(px: number): string {
-  return " ".repeat(Math.max(0, Math.ceil(px / 7.5)));
-}
-
 export interface SlotRowProps {
   id: string;
   title: string;
@@ -143,7 +138,7 @@ export interface SlotRowProps {
   selected?: boolean;
   /** Painted like a hover (a keyboard cursor). */
   cursor?: boolean;
-  /** Width of the leading slot in px. The title is indented past it. */
+  /** Width of the leading slot in px; the title starts after it. */
   leadWidth?: number;
   lead?: ReactNode;
   trail?: ReactNode;
@@ -158,28 +153,26 @@ export interface SlotRowProps {
 const webProps = (props: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? props : {});
 const OVER = { backgroundColor: "var(--accent-wash)" };
 
-/** The whole wrapper tracks hover, so the highlight stays on while the pointer is over the trailing controls. */
+/** A ui/Row using its leading and trailing slots (ruling 36). The wrapper only carries the right-click menu, the drop handlers and the drop highlight; ShareSheet reuses it. */
 export function SlotRow(props: SlotRowProps): ReactElement {
-  const [hover, setHover] = useState(false);
-  const note = props.note;
-  const height = note ? 44 : 28;
   const menu = props.onMenu === undefined ? {} : menuTrigger(props.onMenu);
+  const lead = props.lead ? <View style={{ width: props.leadWidth, flexDirection: "row", alignItems: "center" }}>{props.lead}</View> : undefined;
   return (
     <View
-      style={[styles.slot, { height }, props.over === true && OVER]}
+      style={[styles.slot, props.over === true && OVER]}
       {...menu}
-      {...webProps({ onMouseEnter: () => setHover(true), onMouseLeave: () => setHover(false), ...(props.dom ?? {}) })}
+      {...webProps(props.dom ?? {})}
     >
       <Row
         id={props.id}
-        title={`${indentFor(props.leadWidth ?? 0)}${props.title}`}
-        {...(note === undefined ? {} : { note: `${indentFor(props.leadWidth ?? 0)}${note}` })}
+        title={props.title}
+        {...(props.note === undefined ? {} : { note: props.note })}
         selected={props.selected === true}
-        hovered={hover || props.cursor === true}
+        hovered={props.cursor === true}
+        {...(lead === undefined ? {} : { leading: lead })}
+        {...(props.trail ? { trailing: props.trail } : {})}
         {...(props.onPress === undefined ? {} : { onPress: props.onPress })}
       />
-      {props.lead ? <View pointerEvents="box-none" style={styles.lead}>{props.lead}</View> : null}
-      {props.trail ? <View pointerEvents="box-none" style={styles.trail}>{props.trail}</View> : null}
     </View>
   );
 }
@@ -359,8 +352,6 @@ const styles = StyleSheet.create({
   chev: { width: CHEVRON_PX, height: 22, alignItems: "center", justifyContent: "center", borderRadius: 5 },
   chevHover: { backgroundColor: "var(--press)" as string },
   nativeChevron: { color: "var(--ink-4)" as string, fontSize: 10 },
-  count: { color: "var(--ink-4)" as string, fontSize: 11.5, paddingRight: 8, fontVariant: ["tabular-nums"] },
-  slot: { position: "relative", width: "100%", borderRadius: 6 },
-  lead: { position: "absolute", left: 8, top: 0, bottom: 0, justifyContent: "center" },
-  trail: { position: "absolute", right: 0, top: 0, bottom: 0, justifyContent: "center", flexDirection: "row", alignItems: "center" },
+  count: { color: "var(--ink-4)" as string, fontSize: 11.5, fontVariant: ["tabular-nums"] },
+  slot: { width: "100%", borderRadius: 6 },
 });
