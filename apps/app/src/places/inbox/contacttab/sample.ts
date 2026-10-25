@@ -59,6 +59,7 @@ const PHONES: Record<string, string> = { elena: "+1 415 555 0161", marcus: "+1 4
 
 export interface DraftSeed { id: string; contactId: string; agentId: string; mailboxId: string; subject: string; body: string; to: string }
 export const draftSeeds: DraftSeed[] = [
+  { id: "dr_marcus", contactId: "ct_marcus", agentId: "agt_billing", mailboxId: NW_BILL, subject: "", body: "Hi Marcus, resending invoice 1041 now. It is also in your portal under Billing. Anything else you need?", to: "+1 415 555 0188" },
   { id: "dr_elena", contactId: "ct_elena", agentId: "agt_intake", mailboxId: "mbx_work", subject: "Re: Lease documents for Thursday", body: "Hi Elena,\n\nThanks for draft 3. I will read it tonight and reply to Marcus by Friday morning.\n\nIrfad", to: "elena@example.test" },
 ];
 
@@ -70,7 +71,7 @@ export interface ContactTabSample extends SampleInbox {
 }
 
 const draftRow = (d: DraftSeed): DraftRow => ({
-  id: d.id, mailboxId: d.mailboxId, inboxIds: [d.mailboxId], threadId: "thr_lease", direction: "out", status: "draft", from: { address: "irfad@northwind.example" }, to: [{ address: d.to, contactId: d.contactId }], cc: [],
+  id: d.id, mailboxId: d.mailboxId, inboxIds: [d.mailboxId], threadId: d.to.includes("@") ? "thr_lease" : "thr_1041", direction: "out", status: "draft", from: { address: "irfad@northwind.example" }, to: [{ address: d.to, contactId: d.contactId }], cc: [],
   subject: d.subject, snippet: d.body, sentAt: ago(10), contactId: d.contactId, isPrivate: false, draftedByAgent: d.agentId,
 });
 

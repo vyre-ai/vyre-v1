@@ -105,8 +105,29 @@ test("screen: an agent's draft shows who drafted it, the inbox it sends from, th
   assert.ok(has(out, "Gate: Intake sends from Work Gmail after you approve") && has(out, 'data-testid="gate:dr_elena"'));
   for (const b of ["draft-send:dr_elena", "draft-edit:dr_elena", "draft-discard:dr_elena"]) assert.ok(has(out, `data-testid="${b}"`), b);
   assert.ok(has(out, "Thanks for draft 3. I will read it tonight"));
-  assert.ok(!has(tab("marcus").out, 'data-testid="draft:'), "no draft, no card");
+  assert.ok(!has(tab("priya").out, 'data-testid="draft:'), "no draft, no card");
   assert.equal(gateLine("Intake", "Work Gmail"), "Gate: Intake sends from Work Gmail after you approve");
+});
+
+test("screen: an agent's text draft says it drafted a text, shows the number and its Gate line, and has no subject", () => {
+  const { out } = tab("marcus");
+  assert.ok(has(out, 'data-testid="draft:dr_marcus"') && has(out, "drafted a text") && !has(out, "drafted a reply"));
+  assert.ok(has(out, "Gate: Billing sends from +1 415 555 0177 after you approve") && has(out, 'data-testid="gate:dr_marcus"'));
+  for (const b of ["draft-send:dr_marcus", "draft-edit:dr_marcus", "draft-discard:dr_marcus"]) assert.ok(has(out, `data-testid="${b}"`), b);
+  assert.ok(has(out, "resending invoice 1041 now"));
+});
+
+test("an agent's text draft goes out through telephony.send_sms from its number, and then it is gone", async () => {
+  const s = createContactTabSample();
+  const th = thread(s, "marcus");
+  const [card] = draftCards((s.replica.run("mail.drafts.list", { contactId: "ct_marcus" })!.data).drafts, titles(northwind), new Map());
+  assert.ok(card);
+  assert.equal(card.channel, "sms");
+  assert.equal(card.agent, "agt_billing");
+  const note = await sendAgentDraft(s.data, card, th.conversation, "Resent.", "", "key-9");
+  assert.deepEqual(s.sent[0], { cap: "telephony.send_sms", input: { numberId: "+1 415 555 0177", to: "+1 415 555 0188", body: "Resent.", contactId: "ct_marcus", idempotencyKey: "key-9" } });
+  assert.ok(note.length > 0);
+  assert.equal((s.replica.run("mail.drafts.list", { contactId: "ct_marcus" })!.data).drafts.length, 0, "sent: the draft is cleared");
 });
 
 test("screen: the composer opens on the channel of the last message and the inbox the thread came in on", () => {

@@ -19,10 +19,15 @@ export default function Mount(): ReactNode {
   useEffect(() => {
     if (q.get("mail") === "held") sample.mailStatus.next = "held";
     if (q.get("open") !== "transcript") return;
+    // opened parts make the feed taller: stay at the newest end so the agent's draft with Send, Edit and Discard is in view, as it is on opening
     const g = globalThis as { document?: { querySelector(s: string): { click?: () => void } | null } };
     const t = setTimeout(() => {
       g.document?.querySelector('[data-testid="transcript-toggle:c_elena"]')?.click?.();
       g.document?.querySelector('[data-testid="quote-toggle:m_lease"]')?.click?.();
+      setTimeout(() => {
+        const feed = (globalThis as { document?: { querySelector(s: string): { scrollTop: number; scrollHeight: number } | null } }).document?.querySelector('[data-testid="contact-feed"]');
+        if (feed) feed.scrollTop = feed.scrollHeight;
+      }, 150);
     }, 400);
     return () => clearTimeout(t);
   }, [q, sample]);

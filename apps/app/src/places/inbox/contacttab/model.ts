@@ -296,8 +296,10 @@ export function draftCards(drafts: readonly DraftRow[], titles: ReadonlyMap<stri
   const out: DraftCard[] = [];
   for (const d of drafts) {
     if (d.status !== "draft" || !d.draftedByAgent) continue;
+    // a draft addressed to a phone number (no @) is a text: it has no subject and sends from a number
+    const text = d.to.length > 0 && d.to.every((t) => !t.address.includes("@"));
     out.push({
-      id: d.id, agent: agentNames.get(d.draftedByAgent) ?? d.draftedByAgent, channel: "email", subject: d.subject, body: d.snippet, via: titles.get(d.mailboxId) ?? d.mailboxId, mailboxId: d.mailboxId, ...(d.contactId ? { contactId: d.contactId } : {}), to: d.to.map((t) => t.address),
+      id: d.id, agent: agentNames.get(d.draftedByAgent) ?? d.draftedByAgent, channel: text ? "sms" : "email", subject: text ? "" : d.subject, body: d.snippet, via: titles.get(d.mailboxId) ?? d.mailboxId, mailboxId: d.mailboxId, ...(d.contactId ? { contactId: d.contactId } : {}), to: d.to.map((t) => t.address),
     });
   }
   return out;

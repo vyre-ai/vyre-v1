@@ -19,6 +19,12 @@ export async function sendText(data: InboxData, d: ComposerDraft, inbox: InboxCh
 
 /** Send on an agent's draft is the person's approval: the draft goes out as written (or as edited) from the inbox the agent chose, and the draft is cleared. */
 export async function sendAgentDraft(data: InboxData, card: DraftCard, conv: Conversation, text: string, subject: string, key: string = newKey()): Promise<string> {
+  if (card.channel === "sms") {
+    const to = card.to[0] ?? "";
+    const sms = (await data.call("telephony.send_sms", { numberId: card.mailboxId, to, body: text, ...(conv.contactId ? { contactId: conv.contactId } : {}), idempotencyKey: key })) as CapMap["telephony.send_sms"]["out"];
+    await discardDraft(data, card.id);
+    return sentNote(sms.status, card.via);
+  }
   const inbox: InboxChoice = { id: card.mailboxId, kind: "mailbox", address: card.via, label: card.via, isDefault: false };
   const d: ComposerDraft = { chan: "email", from: { email: inbox.id, sms: null }, to: card.to, cc: [], bcc: [], subject, text, draftId: card.id };
   const out = (await data.call("mail.send", mailInput(d, inbox, conv, key))) as CapMap["mail.send"]["out"];

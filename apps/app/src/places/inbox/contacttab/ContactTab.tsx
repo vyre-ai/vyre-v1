@@ -103,8 +103,9 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const agents = useMemo(() => {
     const m = new Map<string, string>();
     if (boxes.status === "ready") for (const b of boxes.data.mailboxes) if (b.agentId) m.set(b.agentId, agentName(b.agentId));
+    if (drafts.status === "ready") for (const d of drafts.data.drafts) if (d.draftedByAgent && !m.has(d.draftedByAgent)) m.set(d.draftedByAgent, agentName(d.draftedByAgent));
     return m;
-  }, [boxes]);
+  }, [boxes, drafts]);
   const feed = useMemo(() => buildFeed(items, clock.now, clock.offsetMin), [items, clock.now, clock.offsetMin]);
   const cards = useMemo<DraftCard[]>(() => (drafts.status === "ready" ? draftCards(drafts.data.drafts, titles, agents) : []), [drafts, titles, agents]);
 
@@ -154,7 +155,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
       if (over.draftId === card.id) setOver((o) => ({ ...o, text: "", draftId: null }));
     } catch (e) { setDraftNotes((n) => ({ ...n, [card.id]: fail(e) })); }
   });
-  const draftEdit = (card: DraftCard): void => { patch({ chan: "email", draftId: card.id, text: card.body, subject: card.subject, to: card.to, from: { email: card.mailboxId, sms: null } }); };
+  const draftEdit = (card: DraftCard): void => { patch({ chan: card.channel, draftId: card.id, text: card.body, subject: card.subject, to: card.channel === "sms" ? [] : card.to, from: card.channel === "sms" ? { email: null, sms: card.mailboxId } : { email: card.mailboxId, sms: null } }); };
   const draftDiscard = (card: DraftCard): Promise<void> => withBusy(card.id, async () => {
     try { await discardDraft(data, card.id); if (over.draftId === card.id) setOver((o) => ({ ...o, text: "", draftId: null })); } catch (e) { setDraftNotes((n) => ({ ...n, [card.id]: fail(e) })); }
   });

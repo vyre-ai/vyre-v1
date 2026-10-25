@@ -200,7 +200,7 @@ export function DraftBlock({ d, note, busy, onSend, onEdit, onDiscard }: { d: Dr
     <View style={s.dr} testID={`draft:${d.id}`}>
       <View style={s.dh}>
         <Face name={d.agent} size={20} round={false} />
-        <Text style={s.dhText}><Text style={s.dhName}>{d.agent}</Text> drafted a reply</Text>
+        <Text style={s.dhText}><Text style={s.dhName}>{d.agent}</Text> drafted a {d.channel === "sms" ? "text" : "reply"}</Text>
         <View style={s.grow} />
         <Via name={d.via} />
       </View>
