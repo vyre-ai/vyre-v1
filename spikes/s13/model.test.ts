@@ -1,4 +1,4 @@
-// S13: the pinned model files and the tokenizer, without the network and without the model: a download whose hash differs is refused and never stored, a cached file is trusted only by hash,
+// S13 (blank chunks skipped before the embedder, ruling 58): the pinned model files and the tokenizer, without the network and without the model: a download whose hash differs is refused and never stored, a cached file is trusted only by hash,
 // and WordPiece splits as BERT does. The real model runs in bench.ts on the perf runners.
 import test from "node:test";
 import assert from "node:assert/strict";
