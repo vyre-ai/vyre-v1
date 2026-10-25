@@ -176,11 +176,12 @@ export function seatLabel(t: Task, me: string): "Review" | "Approve" | null {
 }
 
 export type StatusIcon = "todo" | "doing" | "review" | "blocked" | "done";
-export function statusIcon(t: Pick<Task, "state" | "blocked">): StatusIcon {
+export function statusIcon(t: Pick<Task, "state" | "blocked"> & { kind?: Task["kind"] }): StatusIcon {
   if (t.state === "done") return "done";
   if (t.blocked) return "blocked";
   if (t.state === "doing") return "doing";
-  if (t.state === "in_review" || t.state === "awaiting_approval") return "review";
+  // a task I am asked to review or approve wears the review mark whatever state it is in (the prototype's check-circle)
+  if (t.state === "in_review" || t.state === "awaiting_approval" || t.kind === "review" || t.kind === "approve") return "review";
   return "todo";
 }
 

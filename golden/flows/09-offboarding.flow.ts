@@ -6,5 +6,5 @@ export default defineFlow({
   name: "offboarding",
   title: "Offboarding",
   needs: ["members", "devices", "access", "tasks"],
-  events: ["member.removal_plan_applied", "member.removed", "device.purged", "session.revoked"],
+  events: ["session.revoked", "member.removal_plan_applied", "member.removed", "device.purged"],
 });

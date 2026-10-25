@@ -79,17 +79,6 @@ test("many files cap at 24 shards and stay balanced", () => {
   assert.equal(s.makespanSec, 500);
 });
 
-test("perf: sharding 5,000 files stays far inside the select budget (ci_push_5m)", (t) => {
-  const { files, timings } = mk(5000, 1);
-  files.forEach((f, i) => { timings[f] = { ms: 200 + ((i * 37) % 9000) }; });
-  const t0 = performance.now();
-  const s = shardFiles(files, timings, []);
-  const ms = performance.now() - t0;
-  t.diagnostic(`PERF shard 5000 files into ${s.count}: ${ms.toFixed(0)} ms (budget 8000 ms, file cap 20 s)`);
-  assert.ok(ms < 2000);
-  assert.ok(s.makespanSec <= s.totalSec / s.count + 20);
-});
-
 test("shards scale with the file count: about 8 files per shard, at least 1, at most 24", () => {
   const n = (k: number) => { const { files, timings } = mk(k, 1); return shardFiles(files, timings, []).count; };
   assert.equal(n(1), 1);

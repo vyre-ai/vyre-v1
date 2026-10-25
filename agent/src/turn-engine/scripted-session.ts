@@ -24,6 +24,8 @@ export interface ScriptedProvider {
   openSession: OpenSession;
   /** Every session opened. */
   sessions: ScriptedSession[];
+  /** The spec each session was opened with, in order. */
+  specs: SessionSpec[];
   /** Total send() calls across sessions: the number of provider calls made. */
   sends(): number;
 }
@@ -32,8 +34,10 @@ const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r
 
 export function scriptedProvider(opts: ScriptedOptions): ScriptedProvider {
   const sessions: ScriptedSession[] = [];
+  const specs: SessionSpec[] = [];
   let sendCount = 0;
   const openSession: OpenSession = async (spec) => {
+    specs.push(spec);
     const sleep = opts.sleep ?? realSleep;
     const inputs: TurnInput[] = [];
     const injected: StoredMessage[] = [];
@@ -70,5 +74,5 @@ export function scriptedProvider(opts: ScriptedOptions): ScriptedProvider {
     sessions.push(session);
     return session;
   };
-  return { openSession, sessions, sends: () => sendCount };
+  return { openSession, sessions, specs, sends: () => sendCount };
 }

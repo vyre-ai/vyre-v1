@@ -1,0 +1,20 @@
+{
+  "module": "esign",
+  "capabilities": {
+    "esign.cancel@1": "8a3276427acf9010cc5b82d3b426cb359226203d554d624530749bd9eff00f26",
+    "esign.fetch_signed@1": "4d517a819744e3d29fcd6e0a2b3fe3bbe8e5bab9a663ec599961951dfead2be4",
+    "esign.health@1": "fd51b5da3d2fd9916da73f7599c0b7d2e2fac69e3646193799d8a0fd11e8465f",
+    "esign.hook@1": "04fca96926cb76867579f7f5c69d5d68b2c2b4367e17eb32b5bdf3581e02abe7",
+    "esign.list@1": "61e23d9eb486f2f9562eebb336f23df37a110097e201466f26326df22a6a33d7",
+    "esign.provider_set@1": "ac06089019368c13e4ff5d7c838913e68b1dffc895f50b9367f182901369dafa",
+    "esign.providers@1": "5aeebf9b2ee17de258a4cc1c1be72b9c8680fbfd4ddff79e15718325fc183554",
+    "esign.send@1": "51c3040179bc37ab613e82aaa1e925ee05b57e2c7a57d77cd364d20708b8091c",
+    "esign.status@1": "a43366861db6e8e1c08eb80ee11f73d2ec0bdb276d251453324576fd51f6124e"
+  },
+  "events": {
+    "signature.declined": "6944a2b2e530acd044a7ac92b822cc3b3987c6eb25e112ac520d0f719a6b2665",
+    "signature.sent": "543c75cb20ecf3ea5b67f3378915e459109c352e9b4b9be3661aa48ea117c570",
+    "signature.signed": "7887867fe02ed5dbbf7bf0592ba27a1643259900777acbb983d31dd1168173cc",
+    "signature.viewed": "80fcb789aef5ff6f21c2a6bea865e90641778c5c12f9c0de9f5803d73f164f7d"
+  }
+}
