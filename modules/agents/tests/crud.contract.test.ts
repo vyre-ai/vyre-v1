@@ -11,8 +11,8 @@ import type { Harness } from "../fixtures/harness.ts";
 const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
-test("the handler table covers exactly the 30 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 30);
+test("the handler table covers exactly the 32 capabilities of the agents manifest", () => {
+  assert.equal(mine.length, 32);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
@@ -84,6 +84,20 @@ const scenarios: Scenario[] = [
   {
     cap: "agents.routine.delete", setup: async (hn) => { const s = await withAgent(hn); const r = (await h["agents.routine.save"]!(hn.ctx, { agentId: s.id, title: "D", cron: "0 9 * * *", prompt: "p", idempotencyKey: k() })).routine; hn.clear(); return { ...s, r }; },
     run: (hn, s) => h["agents.routine.delete"]!(hn.ctx, { agentId: s.id, routineId: s.r.routineId }),
+  },
+  {
+    cap: "agents.routine.run_now", setup: async (hn) => { const s = await withAgent(hn); const r = (await h["agents.routine.save"]!(hn.ctx, { agentId: s.id, title: "D", cron: "0 9 * * *", prompt: "p", idempotencyKey: k() })).routine; hn.world.answer("runs.start", () => ({ runId: "run_a1b2c3" })); hn.clear(); return { ...s, r }; },
+    run: (hn, s) => h["agents.routine.run_now"]!(hn.ctx, { agentId: s.id, routineId: s.r.routineId, idempotencyKey: k() }),
+  },
+  { cap: "agents.routine.run_now", setup: withAgent, run: (hn, s) => h["agents.routine.run_now"]!(hn.ctx, { agentId: s.id, routineId: "rtn_none", idempotencyKey: k() }), expect: "validation.not_found" },
+  {
+    cap: "agents.routine.delegate", setup: async (hn) => { const s = await withAgent(hn); const r = (await h["agents.routine.save"]!(hn.ctx, { agentId: s.id, title: "D", cron: "0 9 * * *", prompt: "p", idempotencyKey: k() })).routine; hn.clear(); return { ...s, r }; },
+    run: (hn, s) => h["agents.routine.delegate"]!(hn.ctx, { agentId: s.id, routineId: s.r.routineId, to: { kind: "person", id: "usr_maya" } }),
+  },
+  { cap: "agents.routine.delegate", setup: withAgent, run: (hn, s) => h["agents.routine.delegate"]!(hn.ctx, { agentId: s.id, routineId: "rtn_none", to: { kind: "person", id: "usr_maya" } }), expect: "validation.not_found" },
+  {
+    cap: "agents.routine.delegate", setup: async (hn) => { const s = await withAgent(hn); const r = (await h["agents.routine.save"]!(hn.ctx, { agentId: s.id, title: "D", cron: "0 9 * * *", prompt: "p", idempotencyKey: k() })).routine; hn.clear(); return { ...s, r }; },
+    run: (hn, s) => h["agents.routine.delegate"]!(hn.ctx, { agentId: s.id, routineId: s.r.routineId, undo: true }), expect: "validation.precondition_failed",
   },
   { cap: "agents.routine.delete", setup: withAgent, run: (hn, s) => h["agents.routine.delete"]!(hn.ctx, { agentId: s.id, routineId: "rtn_none" }), expect: "validation.not_found" },
   { cap: "agents.suggestions.list", setup: withAgent, run: (hn, s) => h["agents.suggestions.list"]!(hn.ctx, { agentId: s.id, kind: "agent_md", state: ["open"], limit: 5 }) },
