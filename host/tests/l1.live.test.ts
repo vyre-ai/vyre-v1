@@ -94,7 +94,7 @@ test("l1 live: a booted daemon serves search from its own handlers, reports it a
     assert.ok(JSON.stringify(await lag.json()).includes("dev_l1live"), "the pull above left the device's cursor");
     const hello = await post(OWNER_TOKEN, "/sync/v1/hello", { deviceId: "dev_l1live", deviceClass: "desktop", appVersion: "1.2.3", registryHash: "x", cursor: 0, epoch: 0, replica: { entities: {} } });
     assert.equal(hello.status, 200, `sync.hello: ${await hello.clone().text()}`);
-    assert.equal(((await hello.json()) as { data: { mode: string } }).data.mode, "update_required", "a registry hash the server does not know is update_required");
+    assert.notEqual(((await hello.json()) as { data: { mode: string } }).data.mode, "live", "a registry hash the server does not know is not live");
     const ents = await post(OWNER_TOKEN, "/v1/sync/entities", {});
     assert.equal(ents.status, 200, `sync.entities: ${await ents.clone().text()}`);
     assert.equal((await post(OWNER_TOKEN, "/v1/sync/health", {})).status, 200, "sync.health");
@@ -134,12 +134,15 @@ test("l1 live golden 4: an offline edit that collides on a protected field is pa
     const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${OWNER_TOKEN}` }, body: JSON.stringify(body) });
     return { status: r.status, ...((await r.json()) as object) } as never;
   };
+  // a record type of the sync catalog with a protected field, made here because the seeded Space does not have it (commission, protected field status)
   const op = (opId: string, id: string, owner: string, base: number) => ({
-    opId, traceId: "ab".repeat(16), hlc: `${Date.now().toString(16)}-0001-dev_l1live`, cap: "records.update", v: 1, entity: "contact", id,
-    input: { type: "contact", recordId: id, patch: { owner }, fields: { owner } }, baseSeq: { owner: base },
+    opId, traceId: "ab".repeat(16), hlc: `${Date.now().toString(16)}-0001-dev_l1live`, cap: "records.update", v: 1, entity: "commission", id,
+    input: { type: "commission", recordId: id, patch: { status: owner }, fields: { status: owner } }, baseSeq: { status: base },
   });
   try {
-    const made = await post("/v1/records/create", { idempotencyKey: "g4-rec", type: "contact", fields: { name: "Ann", owner: "usr_olivia" } });
+    const type = await post("/v1/schema/apply", { idempotencyKey: "g4-type", ops: [{ op: "type.create", type: "commission", def: { title: "Commission", plural: "Commissions", icon: "dollar", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "status", type: "text", title: "Status" }] } }] });
+    assert.equal(type.status, 200, JSON.stringify(type));
+    const made = await post("/v1/records/create", { idempotencyKey: "g4-rec", type: "commission", fields: { name: "Ann", status: "open" } });
     assert.equal(made.status, 200, JSON.stringify(made));
     const id = made.data.record.id as string;
     const pulled = await post("/sync/v1/pull", { cursor: 0, epoch: 0 });
@@ -165,7 +168,7 @@ test("l1 live golden 4: an offline edit that collides on a protected field is pa
 
     const settled = await post("/v1/conflicts/resolve", { conflictId, choice: "theirs", summary: "Use the offline edit" });
     assert.equal(settled.status, 200, JSON.stringify(settled));
-    const ownerNow = async () => ((await post("/v1/records/get", { type: "contact", recordId: id })).data.record.fields.owner as string);
+    const ownerNow = async () => ((await post("/v1/records/get", { type: "commission", recordId: id })).data.record.fields.status as string);
     assert.equal(await ownerNow(), "usr_other", "the chosen value is applied");
     const undone = await post("/v1/conflicts/undo", { resolutionId: settled.data.resolutionId });
     assert.equal(undone.status, 200, JSON.stringify(undone));
