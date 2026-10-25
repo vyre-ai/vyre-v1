@@ -53,6 +53,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "files.share": async (ctx) => { throw new VyreErr(notImplemented("files.share", ctx.trace)); },
   "files.share_external": async (ctx) => { throw new VyreErr(notImplemented("files.share_external", ctx.trace)); },
   "files.shared_with_me": async (ctx) => { throw new VyreErr(notImplemented("files.shared_with_me", ctx.trace)); },
+  "files.star": async (ctx) => { throw new VyreErr(notImplemented("files.star", ctx.trace)); },
   "files.trash.empty": async (ctx) => { throw new VyreErr(notImplemented("files.trash.empty", ctx.trace)); },
   "files.trash.list": async (ctx) => { throw new VyreErr(notImplemented("files.trash.list", ctx.trace)); },
   "files.tree": async (ctx) => { throw new VyreErr(notImplemented("files.tree", ctx.trace)); },

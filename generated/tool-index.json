@@ -2594,6 +2594,12 @@
     },
     {
       "deferred": false,
+      "name": "files_star",
+      "summary": "Star a file or take the star off; a star is mine alone",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
       "name": "files_trash_empty",
       "summary": "Delete everything in Trash that the caller may delete",
       "toolset": "files"

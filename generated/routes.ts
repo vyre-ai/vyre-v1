@@ -9701,6 +9701,25 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/files/star",
+    "cap": "files.star",
+    "v": 1,
+    "module": "files",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/files/trash/empty",
     "cap": "files.trash.empty",
     "v": 1,
