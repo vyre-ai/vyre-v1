@@ -76,10 +76,10 @@ function BarEl({ bar, from, y, label, hue, onOpen, onCommit }: {
       style: { position: "absolute", left: x, top: y, height: BAR_H, width: w, cursor: "grab", touchAction: "none" },
     },
     createElement("div", { "data-testid": `bar-body-${bar.id}`, onPointerDown: hold("move"), style: { position: "absolute", inset: 0, borderRadius: 7, background: `hsl(${hue}, 60%, 52%)`, boxShadow: "var(--sh-1)", overflow: "hidden", display: "flex", alignItems: "center", paddingLeft: 8 } },
-      inside ? createElement("span", { style: { color: "#fff", fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", pointerEvents: "none" } }, label) : null),
+      inside ? createElement("span", { style: { fontFamily: "inherit", color: "#fff", fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", pointerEvents: "none" } }, label) : null),
     createElement("div", { "data-testid": `bar-start-${bar.id}`, onPointerDown: hold("start"), style: { position: "absolute", left: 0, top: 0, bottom: 0, width: 6, cursor: "ew-resize" } }),
     createElement("div", { "data-testid": `bar-end-${bar.id}`, onPointerDown: hold("end"), style: { position: "absolute", right: 0, top: 0, bottom: 0, width: 6, cursor: "ew-resize" } }),
-    inside ? null : createElement("span", { style: { position: "absolute", left: w + 6, top: 4, fontSize: 12, color: "var(--ink-2)", whiteSpace: "nowrap", pointerEvents: "none" } }, label),
+    inside ? null : createElement("span", { style: { fontFamily: "inherit", position: "absolute", left: w + 6, top: 4, fontSize: 12, color: "var(--ink-2)", whiteSpace: "nowrap", pointerEvents: "none" } }, label),
   );
 }
 
