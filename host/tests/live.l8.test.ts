@@ -89,9 +89,9 @@ let shared: Daemon | null = null;
 test("l8 live: boot a daemon on the seeded Space", async () => { shared = await boot(seededDir()); });
 const live = (): Daemon => { assert.ok(shared, "the daemon booted"); return shared; };
 
-test("l8 live: the owner reads forms, campaigns, email designs, esign and templates", async () => {
-  for (const [cap, body] of [["forms.list", {}], ["campaigns.list", {}], ["email_builder.list", {}], ["esign.providers", {}], ["esign.list", {}], ["templates.list", {}]] as const) await ok(live(), OWNER_TOKEN, cap, body);
-});
+for (const cap of ["forms.list", "campaigns.list", "email_builder.list", "esign.providers", "esign.list", "templates.list"]) {
+  test(`l8 live: the owner reads ${cap}`, async () => { await ok(live(), OWNER_TOKEN, cap, {}); });
+}
 test("l8 live: the owner creates a form and it is listed", async () => {
   const form = (await ok(live(), OWNER_TOKEN, "forms.create", { name: "Intake", recordType: "contact", kind: "public" })) as { form: unknown };
   assert.ok(form.form, "the form is created");
