@@ -35043,7 +35043,7 @@
       "blocks": [],
       "cap": "records.export",
       "deferred": false,
-      "description": "Export rows as CSV or Excel (permissioned)",
+      "description": "Export rows as CSV or Excel (permissioned), the whole view or only the picked recordIds",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -35074,6 +35074,18 @@
           "offset": {
             "minimum": 0,
             "type": "integer"
+          },
+          "recordIds": {
+            "description": "Export only these rows (a hand-picked selection), in the order of the view; a row the caller may not read is left out",
+            "items": {
+              "examples": [
+                "rec_a1b2c3"
+              ],
+              "pattern": "^rec_[a-z0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 5000,
+            "type": "array"
           },
           "sort": {
             "items": {
