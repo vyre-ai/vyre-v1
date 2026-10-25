@@ -8,6 +8,7 @@ import { createPushHandlers } from "../handlers/push.ts";
 import { createPurgeHandlers, purgeDepsOf } from "../handlers/purge.ts";
 import { ADA, NOW } from "../fixtures/world.ts";
 import { ctx as pushCtx, hl, patchOp, pushRig } from "./push.rig.test.ts";
+import { memoryLink } from "../../../client/src/connection/index.ts";
 import { liveRig, settle } from "./live.rig.test.ts";
 
 const TRACE = "0123456789abcdef0123456789abcdef";
@@ -74,18 +75,33 @@ test("a revoked device's push applies nothing, whatever epoch it presents; the o
   assert.equal(rig.value("contact", "c1", "stage"), "won");
 });
 
-test("a revoked device's hello is answered purge, whatever epoch it says, and its live socket is closed; the other device goes live", async () => {
+test("a revoked device's hello learns nothing: it is told to purge and the socket closes as auth.device_revoked, with no hello_ok; the other device goes live", async () => {
   const rig = liveRig();
   rig.row("c1");
   const purge = createPurgeHandlers(purgeDepsOf(rig.r.s, rig.hub));
   await purge["sync.epoch.bump"](admin, { personId: ADA, reason: "device_revoked", deviceId: "dev_phone" });
+  const link = memoryLink();
+  const closed: string[] = [];
+  link.client.onClose((r) => closed.push(r));
+  link.client.onFrame(() => {});
+  const session = rig.hub.accept(link.server, { person: ADA, device: "dev_phone", deviceClass: "desktop" });
+  // whatever epoch it claims
+  for (const epoch of [0, 1, 99]) link.client.send({ t: "hello", hello: { deviceId: "dev_phone", deviceClass: "desktop", appVersion: "1.0.0", registryHash: "h1", cursor: 0, epoch, replica: { entities: {} } } });
+  await settle();
+  const frames = link.sent.server.map((x) => JSON.parse(x) as { t: string; epoch?: number });
+  assert.deepEqual(frames.map((f) => f.t), ["purge"], "only a purge frame: no hello_ok, no head, no clock, no entity list, no rows");
+  assert.equal(frames[0]!.epoch, 1);
+  assert.deepEqual(closed, ["auth.device_revoked"]);
+  assert.equal(session.mode(), "purge");
+  assert.equal(rig.hub.sessionsOf(ADA, "dev_phone"), 0);
+
   const phone = rig.client(ADA, "dev_phone");
   const laptop = rig.client(ADA, "dev_laptop");
   phone.conn.start();
   laptop.conn.start();
   await settle();
   assert.deepEqual(phone.st.ids, [], "the revoked device is sent no rows");
-  assert.notEqual(phone.conn.status(), "live", "and is not live");
+  assert.notEqual(phone.conn.status(), "live");
   assert.deepEqual(laptop.st.ids.map((x) => x.split("@")[0]), ["c1"], "the other device is live and has its row");
   assert.equal(laptop.conn.status(), "live");
   phone.conn.stop();

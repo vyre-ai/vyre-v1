@@ -31,7 +31,7 @@ function entityVersions(d: PullDeps): Record<string, number> {
 }
 
 export function createSyncLiveHub(deps: PullDeps, o: LiveOpts): LiveHub {
-  return createLiveHub({
+  const hub = createLiveHub({
     clock: o.clock,
     ...(o.heartbeatMs !== undefined ? { heartbeatMs: o.heartbeatMs } : {}),
     ...(o.deadMs !== undefined ? { deadMs: o.deadMs } : {}),
@@ -41,8 +41,7 @@ export function createSyncLiveHub(deps: PullDeps, o: LiveOpts): LiveHub {
     pull: (who: LiveWho, req) => pullChanges(deps, who, req),
     state: (who: LiveWho): ServerState => ({
       serverVersion: o.serverVersion ?? "1.0.0",
-      // a revoked device is always behind: the largest epoch there is, so its hello is answered purge whatever epoch it says it holds
-      epoch: deviceRevoked(deps.db, who.person, who.device) ? Number.MAX_SAFE_INTEGER : deviceEpochOf(deps.db, who.person, who.device),
+      epoch: deviceEpochOf(deps.db, who.person, who.device),
       head: headSeq(deps.db),
       serverHlc: deps.hlc(),
       registryHash: o.registryHash,
@@ -52,4 +51,14 @@ export function createSyncLiveHub(deps: PullDeps, o: LiveOpts): LiveHub {
       ...(o.breakingEntities ? { breakingEntities: o.breakingEntities } : {}),
     }),
   });
+  // A revoked device learns nothing: no hello_ok (no head, no clock, no entity list). It is told to purge, then the socket closes as auth.device_revoked.
+  return {
+    ...hub,
+    accept(t, who) {
+      if (!deviceRevoked(deps.db, who.person, who.device)) return hub.accept(t, who);
+      t.send({ t: "purge", epoch: deviceEpochOf(deps.db, who.person, who.device) });
+      t.close("auth.device_revoked");
+      return { who, mode: () => "purge", sent: () => 0, acked: () => 0, close: () => {} };
+    },
+  };
 }
