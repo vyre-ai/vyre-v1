@@ -1,0 +1,32 @@
+{
+  "targets": [
+    {
+      "id": "P-L9f_06c-search-density",
+      "route": "/m/P-L9f_06?page=profile&space=northwind&q=density",
+      "proto": "settings,at:search-density,{skin}",
+      "waitFor": "[data-testid='search-count']",
+      "note": "Settings search for density: the Search page with the count and the row with its page at the right; the page list stays at the left."
+    },
+    {
+      "id": "P-L9f_06c-appearance",
+      "route": "/m/P-L9f_06?page=appearance&space=northwind",
+      "proto": "settings,at:appearance,{skin}",
+      "waitFor": "[data-testid='skin-preview']",
+      "note": "Appearance: Density, Text size, Reduce motion, then the Skin preview with System, Dark and Light."
+    },
+    {
+      "id": "P-L9f_06c-notifications",
+      "route": "/m/P-L9f_06?page=notifications&space=northwind",
+      "proto": "settings,at:notifications,{skin}",
+      "waitFor": "[data-testid='notify-me-on']",
+      "note": "Notifications: Notify me on, one row per kind with how it arrives."
+    },
+    {
+      "id": "P-L9f_06c-signin",
+      "route": "/m/P-L9f_06?page=signin&space=northwind",
+      "proto": "settings,at:signin,{skin}",
+      "waitFor": "[data-testid='security-northwind']",
+      "note": "Sign-in and devices: Password and GitHub, then one security card per Space, then the devices."
+    }
+  ]
+}
