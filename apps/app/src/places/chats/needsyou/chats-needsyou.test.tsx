@@ -43,9 +43,9 @@ const item = (s: Sample, id: string): Item => {
   return x;
 };
 
-test("one list sorted by urgency: blocked first, then due today, then the rest newest first; no groups", () => {
+test("one list in the queue's order as the prototype lists it (ruling 45), withdrawn last; no groups", () => {
   const out = html(createSample());
-  inOrder(out, ['data-testid="row-need-n7"', 'data-testid="row-need-n3"', 'data-testid="row-need-n1"', 'data-testid="row-need-n6"', 'data-testid="row-need-n4"', 'data-testid="row-need-n2"', 'data-testid="row-need-n5"']);
+  inOrder(out, ['data-testid="row-need-n1"', 'data-testid="row-need-n2"', 'data-testid="row-need-n3"', 'data-testid="row-need-n4"', 'data-testid="row-need-n5"', 'data-testid="row-need-n6"', 'data-testid="row-need-n7"']);
   assert.ok(!has(out, 'data-testid="group-'), "no groups");
   assert.ok(has(out, 'data-testid="needs-count"') && has(out, ">7<") && has(out, ">Needs you<"));
   assert.ok(has(out, 'data-testid="needs-filter"'), "the filter is a quiet icon, not a row of chips");
@@ -54,9 +54,9 @@ test("one list sorted by urgency: blocked first, then due today, then the rest n
 test("two columns: the list, then the open request; the first row is open and painted as selected", () => {
   const out = html(createSample());
   inOrder(out, ['data-testid="needs-list"', 'data-testid="needs-detail"']);
-  assert.ok(has(tagOf(out, "row-need-n7"), "background-color:var(--sel)"));
+  assert.ok(has(tagOf(out, "row-need-n1"), "background-color:var(--sel)"));
   assert.ok(!has(tagOf(out, "row-need-n3"), "background-color:var(--sel)"));
-  assert.ok(has(out, "Month-end export is waiting on a sign-in") && has(out, "Needs unblocking"));
+  assert.ok(has(out, "Month-end export is waiting on a sign-in") && has(out, "Needs your approval"));
 });
 
 test("a request: what it is, why, who made it, where it came from, with one primary action and Send back", () => {
