@@ -7,7 +7,7 @@ import type { ReactElement } from "react";
 import { RecordsDataProvider, RecordsSidebar, RecordsStateProvider, SidebarLoading, compact, effectiveType, reduce, sortedViews, typeGroups, INITIAL_STATE } from "../sidebar/index.ts";
 import type { RecordsState } from "../sidebar/index.ts";
 import {
-  GUTTER, PLAIN, ROW_H, TableLoading, TableView, cellText, chosen, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, isEdited,
+  FLING_OVERSCAN, GUTTER, PLAIN, ROW_H, TableLoading, TableView, cellText, chosen, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, isEdited,
   optionsOf, queryOffset, querySpec, rowWindow, setSort, toSaved, toggleHidden, toggleOption, totalWidth,
 } from "../table/index.ts";
 import type { RecordRow, TableViewState } from "../table/index.ts";
@@ -96,6 +96,7 @@ test("column windowing: only the columns that meet the screen are drawn, the tit
 
 test("the row window follows the scroll and the query asks for 200 rows on a 100 row grid", () => {
   assert.deepEqual(rowWindow(0, 600, 100_000), { first: 0, last: Math.ceil(600 / ROW_H) + 6 });
+  assert.deepEqual(rowWindow(34 * 5000, 600, 100_000, FLING_OVERSCAN), { first: 5000 - FLING_OVERSCAN, last: 5000 + Math.ceil(600 / ROW_H) + FLING_OVERSCAN }, "a fling never outruns the drawn rows");
   assert.deepEqual(rowWindow(34 * 5000, 600, 100_000), { first: 5000 - 6, last: 5000 + Math.ceil(600 / ROW_H) + 6 });
   assert.equal(rowWindow(0, 600, 3).last, 3, "never past the last row");
   assert.equal(queryOffset(0, 100_000), 0);
@@ -127,8 +128,10 @@ test("table100k: a 100,000 row Space opens by asking for a window, and the foot 
   assert.ok(renderMs < 1000, `drawing the window took ${renderMs.toFixed(1)} ms`);
   assert.ok(has(out, "100,014 clients"));
   assert.ok(has(out, `height:${100_014 * ROW_H}px`), "the body reserves the full height so scrolling never shifts the layout");
+  assert.equal(out.split("position:sticky").length - 1 <= 8, true, "no sticky element per row: the frozen left is one layer, so a scroll does not re-resolve a sticky offset for every drawn row");
+  assert.ok(has(out, 'data-testid="records-frozen"'), "the row numbers and titles sit in one frozen layer");
   const drawn = recs(out).length;
-  assert.ok(drawn > 10 && drawn < 40, `draws a window of ${drawn} rows, not 100,014`);
+  assert.ok(drawn > 10 && drawn <= 40, `draws a window of ${drawn} rows, not 100,014`);
   const deep = s.data.live("records.query", querySpec("clients", PLAIN, "name", queryOffset(60_000, 100_014))).getSnapshot();
   assert.equal(deep.status, "ready");
   assert.equal((deep as { data: { rows: unknown[] } }).data.rows.length, 200, "a deep window is 200 rows");

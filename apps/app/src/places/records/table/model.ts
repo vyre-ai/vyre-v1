@@ -15,6 +15,9 @@ export const WINDOW = 200;
 /** A grouped table loads this many rows at once so the groups are whole. */
 export const GROUP_LIMIT = 1000;
 const OVERSCAN = 6;
+/** The rows drawn beyond the screen above and below while scrolling, and the rows the scroll position is rounded to: a fast fling (120 px a frame) never outruns the drawn rows, and a render happens every few frames, not every frame. */
+export const FLING_OVERSCAN = 20;
+export const SCROLL_BLOCK = 8;
 
 // ---------------------------------------------------------------- columns
 
@@ -65,9 +68,9 @@ export function columnWindow(cols: readonly Column[], scrollLeft: number, viewpo
 // ---------------------------------------------------------------- rows
 
 /** The rows to draw for a vertical scroll. */
-export function rowWindow(scrollTop: number, viewport: number, total: number): { first: number; last: number } {
-  const first = Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN);
-  const last = Math.min(total, Math.ceil((scrollTop + viewport) / ROW_H) + OVERSCAN);
+export function rowWindow(scrollTop: number, viewport: number, total: number, overscan: number = OVERSCAN): { first: number; last: number } {
+  const first = Math.max(0, Math.floor(scrollTop / ROW_H) - overscan);
+  const last = Math.min(total, Math.ceil((scrollTop + viewport) / ROW_H) + overscan);
   return { first, last };
 }
 
