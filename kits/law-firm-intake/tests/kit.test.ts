@@ -153,6 +153,8 @@ const AUTO_ITEM = "auto.new_intake";
 const AGENT_ITEM = "agent.intake_clerk";
 const SHEET_TOOLS = ["schema.apply", "schema.layout.set", "settings.set_space", "journeys.create", "forms.create", "automations.create", "tasks.create", "agents.create", "records.query", "records.create", "records.update", "forms.submissions", "journeys.move_stage"];
 
+/** The schema accepts field keys in lower snake case only (its field key pattern, which the layout input repeats); the manifests that name these types write some keys in camel case. */
+const snake = (key: string): string => key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 const typeOps = (): Obj[] => steps(kit()).flatMap((s) => (s.step.cap === "schema.apply" ? (s.step.input["ops"] as Obj[]) : [])).filter((o) => o["op"] === "type.create");
 const item = (key: string): Item => kit().items.find((i) => i.key === key)!;
 const stepInput = (key: string): Obj => item(key).apply!.input;
@@ -210,8 +212,9 @@ test("the record types match what the manifest declares: title, plural, icon, gr
     const declared = registry.recordTypes.find((r) => r.key === op["type"] && r.module === KEY) as Obj | undefined;
     assert.ok(declared, `the manifest declares ${op["type"]}`);
     const d = op["def"] as Obj;
-    for (const k of ["title", "plural", "icon", "group", "titleField", "statusField", "ownerField", "label"] as const) assert.equal(d[k], declared[k], `${op["type"]}.${k}`);
-    assert.deepEqual((d["fields"] as Obj[]).map((f) => [f["key"], f["type"]]), (declared["fields"] as Obj[]).map((f) => [f["key"], f["type"]]), `${op["type"]} fields`);
+    for (const k of ["title", "plural", "icon", "group", "label"] as const) assert.equal(d[k], declared[k], `${op["type"]}.${k}`);
+    for (const k of ["titleField", "statusField", "ownerField"] as const) assert.equal(d[k], declared[k] === undefined ? undefined : snake(declared[k] as string), `${op["type"]}.${k}`);
+    assert.deepEqual((d["fields"] as Obj[]).map((f) => [f["key"], f["type"]]), (declared["fields"] as Obj[]).map((f) => [snake(f["key"] as string), f["type"]]), `${op["type"]} fields`);
     const keys = (d["fields"] as Obj[]).map((f) => f["key"]);
     for (const k of ["titleField", "statusField", "ownerField"] as const) if (d[k] !== undefined) assert.ok(keys.includes(d[k]), `${op["type"]}.${k} is one of its fields`);
   }

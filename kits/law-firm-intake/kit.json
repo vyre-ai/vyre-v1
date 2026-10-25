@@ -71,7 +71,7 @@
                     }
                   },
                   {
-                    "key": "practiceArea",
+                    "key": "practice_area",
                     "type": "choice",
                     "title": "Practice area"
                   },
@@ -202,7 +202,7 @@
               "key": "case",
               "title": "The case",
               "fields": [
-                "practiceArea",
+                "practice_area",
                 "stage",
                 "owner"
               ]

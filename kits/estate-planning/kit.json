@@ -67,12 +67,12 @@
                     }
                   },
                   {
-                    "key": "trustName",
+                    "key": "trust_name",
                     "type": "text",
                     "title": "Trust name"
                   },
                   {
-                    "key": "taxId",
+                    "key": "tax_id",
                     "type": "sealed",
                     "title": "Tax ID",
                     "label": "restricted"
@@ -123,14 +123,14 @@
               "fields": [
                 "client",
                 "stage",
-                "trustName"
+                "trust_name"
               ]
             },
             {
               "key": "documents",
               "title": "Documents",
               "fields": [
-                "taxId",
+                "tax_id",
                 "signed"
               ]
             }

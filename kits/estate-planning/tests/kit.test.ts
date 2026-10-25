@@ -153,6 +153,8 @@ const AUTO_ITEM = "auto.questionnaire_in";
 const AGENT_ITEM = "agent.drafting_assistant";
 const SHEET_TOOLS = ["schema.apply", "schema.layout.set", "journeys.create", "forms.create", "automations.create", "tasks.create", "records.update", "agents.create", "records.query", "files.read", "esign.send"];
 
+/** The schema accepts field keys in lower snake case only (its field key pattern, which the layout input repeats); the manifests that name these types write some keys in camel case. */
+const snake = (key: string): string => key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 const typeOps = (): Obj[] => steps(kit()).flatMap((s) => (s.step.cap === "schema.apply" ? (s.step.input["ops"] as Obj[]) : [])).filter((o) => o["op"] === "type.create");
 const item = (key: string): Item => kit().items.find((i) => i.key === key)!;
 const stepInput = (key: string): Obj => item(key).apply!.input;
@@ -210,8 +212,9 @@ test("the record types match what the manifest declares: title, plural, icon, gr
     const declared = registry.recordTypes.find((r) => r.key === op["type"] && r.module === KEY) as Obj | undefined;
     assert.ok(declared, `the manifest declares ${op["type"]}`);
     const d = op["def"] as Obj;
-    for (const k of ["title", "plural", "icon", "group", "titleField", "statusField", "ownerField", "label"] as const) assert.equal(d[k], declared[k], `${op["type"]}.${k}`);
-    assert.deepEqual((d["fields"] as Obj[]).map((f) => [f["key"], f["type"]]), (declared["fields"] as Obj[]).map((f) => [f["key"], f["type"]]), `${op["type"]} fields`);
+    for (const k of ["title", "plural", "icon", "group", "label"] as const) assert.equal(d[k], declared[k], `${op["type"]}.${k}`);
+    for (const k of ["titleField", "statusField", "ownerField"] as const) assert.equal(d[k], declared[k] === undefined ? undefined : snake(declared[k] as string), `${op["type"]}.${k}`);
+    assert.deepEqual((d["fields"] as Obj[]).map((f) => [f["key"], f["type"]]), (declared["fields"] as Obj[]).map((f) => [snake(f["key"] as string), f["type"]]), `${op["type"]} fields`);
     const keys = (d["fields"] as Obj[]).map((f) => f["key"]);
     for (const k of ["titleField", "statusField", "ownerField"] as const) if (d[k] !== undefined) assert.ok(keys.includes(d[k]), `${op["type"]}.${k} is one of its fields`);
   }
@@ -296,13 +299,13 @@ test("the agent may use only capabilities that exist, lists them as the item's t
 
 test("the Tax ID is a sealed field with the restricted label, the type is confidential, and no seed or layout step reads it into anything else", () => {
   const plan = typeOps().find((o) => o["type"] === "client_plan")!;
-  const taxId = ((plan["def"] as Obj)["fields"] as Obj[]).find((f) => f["key"] === "taxId")!;
+  const taxId = ((plan["def"] as Obj)["fields"] as Obj[]).find((f) => f["key"] === "tax_id")!;
   assert.equal(taxId["type"], "sealed");
   assert.equal(taxId["label"], "restricted");
   assert.equal((plan["def"] as Obj)["label"], "confidential");
-  for (const s of seed) assert.equal("taxId" in (s.input["fields"] as Obj), false);
+  for (const s of seed) assert.equal("tax_id" in (s.input["fields"] as Obj), false);
   const text = JSON.stringify(kit().items.filter((i) => i.type !== "record_type" && i.type !== "layout"));
-  assert.equal(/taxId|tax id/i.test(text), false, "no Automation, form or agent text mentions the Tax ID");
+  assert.equal(/tax_?id|tax id/i.test(text), false, "no Automation, form or agent text mentions the Tax ID");
 });
 
 test("the estate Journey runs intake, drafting, review, signing, funding and complete; review has a time limit; signing has a signature task; the client plan stages match", () => {
