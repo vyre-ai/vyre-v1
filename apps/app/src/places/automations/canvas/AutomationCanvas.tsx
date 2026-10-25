@@ -316,12 +316,14 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const inspect = panel && sel !== null && (selected !== null || trigSel);
   // Runs tab: the step graph sits beside the run list, read only, at the size that fits its column, lit by the run being shown
   const still: CardHandlers = { onSelect: () => undefined, onOpen: () => undefined, onMenu: () => undefined, onAdd: () => undefined, onKey: () => undefined };
+  const graphCards: ReactElement[] = [];
+  for (const card of lay.cards) if (card.type === "step") graphCards.push(<StepCard key={card.id} card={card} selected={false} hovered={false} handlers={still} agent={agentOf(card)} onHover={() => undefined} />);
   const runGraph = tab === "runs" && tabBodies.runs ? (
     <View style={s.graphCol} testID="run-graph" accessibilityLabel="Steps of the run" onLayout={(e: LayoutChangeEvent) => setGraphView({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
       <View pointerEvents="none" style={{ flex: 1 }}>
         <Surface lay={lay} zoom={graphView.w > 0 ? fitScale(lay, graphView.w, graphView.h) : 0.4} view={graphView}>
           <TriggerCard card={lay.cards[0]!} triggers={def.triggers} selected={false} hovered={false} onHover={() => undefined} handlers={still} selectedIndex={null} onSelectTrigger={() => undefined} onOpenTrigger={() => undefined} onAddTrigger={() => undefined} onTriggerMenu={() => undefined} describe={describe} />
-          {lay.cards.filter((c) => c.type === "step").map((card) => <StepCard key={card.id} card={card} selected={false} hovered={false} handlers={still} agent={agentOf(card)} onHover={() => undefined} />)}
+          {graphCards}
         </Surface>
       </View>
     </View>
