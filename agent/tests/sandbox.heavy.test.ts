@@ -299,9 +299,10 @@ test("docker: the process cannot start more processes than its limit", { skip },
   await dockerUp();
   const small = await startDockerSandbox(danaSpec(`vyre-sbx-hv${suffix}c`, { limits: { cpus: 1, memoryMb: 256, pids: 32 } }), { api, roots: roots("dana", danaRoot), egress });
   try {
-    const r = await sh(small, "for i in $(seq 1 100); do sleep 20 >/dev/null 2>&1 & done; sleep 1; echo started $(ps -eo args | grep -c '^sleep 20')", 30_000);
-    const started = Number(/started (\d+)/.exec(r.stdout)?.[1] ?? "NaN");
-    assert.ok(started > 0 && started <= 32, `at most 32 processes ran: ${r.stdout}${r.stderr}`);
+    // 100 short sleeps in a sandbox that may hold 32 processes: the shell runs out of process slots and says so; the container and the host carry on.
+    const r = await sh(small, "for i in $(seq 1 100); do sleep 3 >/dev/null 2>&1 & done; wait", 30_000);
+    assert.match(`${r.stdout}${r.stderr}`, /Cannot fork|Resource temporarily unavailable|fork/i, `the process limit was reached: ${ok(r)}`);
+    await new Promise((resolve) => setTimeout(resolve, 4500));
     assert.equal((await sh(small, "echo still-alive")).stdout.trim(), "still-alive", "the sandbox survives its own fork storm");
   } finally { await small.stop(); }
 });

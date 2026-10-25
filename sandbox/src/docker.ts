@@ -11,7 +11,7 @@ import { createEgressProxy } from "./egress.ts";
 import type { EgressOptions } from "./egress.ts";
 import { validateSpec } from "./policy.ts";
 import type { PolicyOptions } from "./policy.ts";
-import { tarFiles, tarPath } from "./tar.ts";
+import { tarPath } from "./tar.ts";
 import { DEFAULT_LIMITS, SandboxError } from "./types.ts";
 import type { CredentialFile, ExecResult, ExecSpec, Roots, Sandbox, SandboxSpec } from "./types.ts";
 
@@ -362,13 +362,18 @@ export async function startDockerSandbox(spec: SandboxSpec, deps: DockerSandboxD
       },
       async putCredentials(files: readonly CredentialFile[]): Promise<void> {
         if (stopped) throw new SandboxError("sandbox.stopped", "the sandbox is stopped");
-        const uid = spec.user?.uid ?? UID;
-        const gid = spec.user?.gid ?? UID;
         for (const f of files) { tarPath(f.path); if (!SAFE_PATH_IN_HOME.test(f.path)) throw new SandboxError("sandbox.policy", `not a path credentials may go to: ${f.path.slice(0, 60)}`); }
-        // Straight into the home tmpfs: the archive is built in memory and goes to the container, so the file is never on the host's disk.
-        await api.putArchive(cid, HOME, tarFiles(files.map((f) => ({ path: f.path, data: f.data, mode: 0o600, uid, gid, mtime: Math.floor(now() / 1000) }))));
+        // The Engine refuses PUT /archive on a container whose root is read-only, even into a tmpfs (found against a real Docker 29: "container rootfs is marked read-only"). So each file is written by a
+        // short exec as the sandbox user: the bytes travel base64 in that exec's environment (not its arguments), umask 077 makes the folders 0700 and the file 0600, and the home is the RAM tmpfs.
+        for (const f of files) {
+          const r = await api.exec(cid, {
+            cmd: ["sh", "-c", 'umask 077; mkdir -p "$(dirname "$VYRE_CRED_PATH")" && printf %s "$VYRE_CRED_DATA" | base64 -d > "$VYRE_CRED_PATH" && chmod 600 "$VYRE_CRED_PATH"'],
+            env: [`VYRE_CRED_PATH=${HOME}/${f.path}`, `VYRE_CRED_DATA=${Buffer.from(f.data).toString("base64")}`],
+          });
+          if (r.exitCode !== 0) throw new SandboxError("sandbox.docker", `credential upload failed: ${r.stderr.slice(0, 100)}`);
+          credPaths.add(`${HOME}/${f.path}`);
+        }
         hasCreds = true;
-        for (const f of files) credPaths.add(`${HOME}/${f.path}`);
       },
       async wipeCredentials(): Promise<void> {
         if (!stopped) await wipe();
