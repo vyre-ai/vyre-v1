@@ -1,3 +1,4 @@
+// @reads ../../../../../../scripts/shots/mounts/P-L9d_03.tsx
 // Records views, part B: Calendar, Timeline, Map and Charts. The month grid and the day a record falls on, a record dropped on another day, bars that move and resize with their dates written
 // through records.update or, for a task of a project, through the plan with a cascade to Apply or Keep, pins fitted to a plain grid, and bars counted under a field's values.
 import test from "node:test";
