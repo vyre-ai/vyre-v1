@@ -64,7 +64,7 @@ type Out = {
   "name": "example",
   "input": {
     "floor": {},
-    "key": "example"
+    "key": "appearance.mode"
   },
   "output": {
     "row": {

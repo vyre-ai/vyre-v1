@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_14-shell-northwind",
+      "route": "/m/P-L9_14",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='shell-place']",
+      "note": "The shell over the Northwind sample Space: title bar (Vyre, Space and place, sync chip, Search, skin), the rail with the Space tile and the Team Kit's places, the main tab strip and the open place. The prototype side is its Chats place in the same skin; its Comment and Notes buttons are review tools, not product."
+    },
+    {
+      "id": "P-L9_14-shell-harbor",
+      "route": "/m/P-L9_14?space=harbor",
+      "proto": "chat,space:harbor,{skin}",
+      "waitFor": "[data-testid='shell-place']",
+      "note": "The shell over Harbor Studio: its own Kit (a shorter rail), its own tabs and its own rows. The prototype side switches to Harbor Studio with space:harbor."
+    }
+  ]
+}

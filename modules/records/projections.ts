@@ -37,7 +37,15 @@ const META = `CREATE TABLE IF NOT EXISTS records_row_meta (
   PRIMARY KEY (type, id)
 )`;
 
+/** Clock tables already created on a connection: the DDL is parsed once, not on every append. Dropped names are forgotten. */
+const made = new WeakMap<object, Set<string>>();
+const forget = (tx: Tx, type?: string): void => { const s = made.get(tx); if (!s) return; if (type === undefined) s.clear(); else s.delete(type); };
+
 function ensureFm(tx: Tx, type: string): void {
+  let have = made.get(tx);
+  if (!have) { have = new Set(); made.set(tx, have); }
+  if (have.has(type)) return;
+  have.add(type);
   tx.exec(`CREATE TABLE IF NOT EXISTS "${fieldMetaTable(type)}" (
     id TEXT NOT NULL,
     field TEXT NOT NULL,
@@ -49,6 +57,7 @@ function ensureFm(tx: Tx, type: string): void {
 }
 
 function dropFm(tx: Tx): void {
+  forget(tx);
   const rows = tx.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'rt\\_%\\_\\_fm' ESCAPE '\\'");
   for (const row of rows) {
     if (!/^rt_[a-z0-9_]+__fm$/.test(row.name)) continue;
@@ -99,6 +108,7 @@ export const recordsFieldMeta: InlineProjection = {
       for (const d of p.set ?? []) if (typeof d?.name === "string" && TYPE_NAME.test(d.name)) ensureFm(tx, d.name);
       for (const name of p.removed ?? []) {
         if (typeof name !== "string" || !TYPE_NAME.test(name)) continue;
+        forget(tx, name);
         tx.exec(`DROP TABLE IF EXISTS "${fieldMetaTable(name)}"`);
         tx.run("DELETE FROM records_field_history WHERE type = ?", name);
         tx.run("DELETE FROM records_row_meta WHERE type = ?", name);
@@ -110,11 +120,12 @@ export const recordsFieldMeta: InlineProjection = {
       ensureFm(tx, p.type);
       const table = fieldMetaTable(p.type);
       const data = asRecord(p.data);
-      for (const field of Object.keys(data)) {
-        tx.run(
-          `INSERT INTO "${table}" (id, field, hlc, actor, seq) VALUES (?, ?, ?, ?, 1) ON CONFLICT(id, field) DO UPDATE SET hlc = excluded.hlc, actor = excluded.actor, seq = excluded.seq`,
-          p.id, field, e.hlc, e.actor,
-        );
+      const names = Object.keys(data);
+      if (names.length) {
+        // One statement for every field of the row; the text depends only on the field count, so the statement cache hits.
+        const marks = names.map(() => "(?, ?, ?, ?, 1)").join(", ");
+        const args = names.flatMap((field) => [p.id, field, e.hlc, e.actor]);
+        tx.run(`INSERT INTO "${table}" (id, field, hlc, actor, seq) VALUES ${marks} ON CONFLICT(id, field) DO UPDATE SET hlc = excluded.hlc, actor = excluded.actor, seq = excluded.seq`, ...args);
       }
       tx.run(
         "INSERT INTO records_row_meta (type, id, owner, label, holds) VALUES (?, ?, ?, 0, 0) ON CONFLICT(type, id) DO NOTHING",

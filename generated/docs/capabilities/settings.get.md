@@ -60,7 +60,7 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "key": "example"
+    "key": "appearance.mode"
   },
   "output": {
     "row": {
