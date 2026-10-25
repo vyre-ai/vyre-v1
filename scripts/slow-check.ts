@@ -24,7 +24,7 @@ export function checkSlow(entries: unknown): string[] {
     if (typeof e.file !== "string" || !TEST_FILE.test(e.file)) problems.push(`${at}: file must name a test file`);
     else if (seen.has(e.file)) problems.push(`${at}: listed twice`);
     else seen.add(e.file);
-    if (!Number.isInteger(e.capSec) || e.capSec <= 20 || e.capSec > MAX_CAP_SEC) problems.push(`${at}: capSec must be an integer from 21 to ${MAX_CAP_SEC}`);
+    if (!Number.isInteger(e.capSec) || e.capSec <= 30 || e.capSec > MAX_CAP_SEC) problems.push(`${at}: capSec must be an integer from 31 to ${MAX_CAP_SEC}`);
     if (typeof e.owner !== "string" || !e.owner.trim()) problems.push(`${at}: owner is required`);
     if (typeof e.reason !== "string" || !e.reason.trim()) problems.push(`${at}: reason is required`);
     if (e.heavy !== undefined && typeof e.heavy !== "boolean") problems.push(`${at}: heavy must be a boolean`);

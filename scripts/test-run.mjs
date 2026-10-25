@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Runs one `node --test` process per test file, in parallel, each under a hard cap (20 s, or capSec from test/slow.json, max 120).
+// Runs one `node --test` process per test file, in parallel, each under a hard cap (30 s, or capSec from test/slow.json, max 120).
 // Files listed in test/slow.json run only with --slow. A pass is cached on the runner by import-closure hash; failures never are.
 //   node scripts/test-run.mjs --all | --affected [base] | --files a b c   [--shard i/n] [--slow] [--no-cache] [--jobs N]
 import fs from "node:fs";
@@ -57,7 +57,7 @@ if (files.some(needsTsx)) await ensureDeps(REPO);
 const nocache = (f) => /^\s*\/\/\s*@nocache/m.test(read(f));
 
 const run = (f) => new Promise((resolve) => {
-  const cap = (slowBy.get(f)?.capSec ?? 20) * 1000, t0 = Date.now();
+  const cap = (slowBy.get(f)?.capSec ?? 30) * 1000 /* ruling 52: 30 s fast cap, was 20 */, t0 = Date.now();
   const key = useCache && !nocache(f) ? cacheKey(f, fwd, read, env) : null;
   const marker = key && path.join(cacheDir, key);
   if (marker && fs.existsSync(marker)) return resolve({ f, ok: true, cached: true, ms: 0 });
