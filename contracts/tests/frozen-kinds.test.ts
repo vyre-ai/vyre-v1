@@ -184,3 +184,5 @@ test('task kinds and retention classes are the closed sets their modules own', (
   ]);
   for (const r of retention) assert.equal(r.module, 'governance', r.key);
 });
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.

@@ -50,3 +50,5 @@ test("refused: nothing to set, unknown kind, digest with channels, desktop at ba
   await refused(h.call("notifications.kind.set_level", { kind: "approval.backstop", level: "digest" }, me), "validation.precondition_failed");
   assert.equal(h.events.length, 0);
 });
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.

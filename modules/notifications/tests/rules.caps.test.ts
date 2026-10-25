@@ -221,3 +221,5 @@ test("digest.collect: digest-level rows of a period for a person, oldest first, 
   assert.equal((await h.call("notifications.digest.collect", { person: alice.id, since: NOW - 1, until: NOW }, sender)).items.length, 1, "until is inclusive");
   await refused(h.call("notifications.digest.collect", { person: alice.id, since: 0 }, as(bob)), "permission.no_grant");
 });
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
