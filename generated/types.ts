@@ -6367,6 +6367,13 @@ export type ConnectorsGetOut = {
     syncedTypes: Array<string>;
     actions: Array<string>;
     sources: Array<string>;
+    objects?: Record<string, {
+        list?: string;
+        listAfter?: string;
+        create?: string;
+        update?: string;
+        delete?: string;
+      }>;
   };
 };
 export type ConnectorsHealthIn = Record<string, unknown>;
@@ -6410,6 +6417,13 @@ export type ConnectorsListOut = {
       syncedTypes: Array<string>;
       actions: Array<string>;
       sources: Array<string>;
+      objects?: Record<string, {
+          list?: string;
+          listAfter?: string;
+          create?: string;
+          update?: string;
+          delete?: string;
+        }>;
     }>;
   next?: string;
   total?: number;
