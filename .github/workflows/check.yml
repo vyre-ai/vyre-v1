@@ -65,7 +65,7 @@ jobs:
         run: |
           lane=""
           case "$BRANCH" in
-            build/P-CI_02|build/P-CI_08|build/P-CI_27|build/P-CI_31|build/P-CI_34|build/P-CI_37|build/P-CI_38|build/P-CI_35|build/P-CI_39) lane=lead ;;   # contract steward: changes the contract types and the frozen hashes (ruling 25, 27)
+            build/P-CI_02|build/P-CI_08|build/P-CI_27|build/P-CI_31|build/P-CI_34|build/P-CI_37|build/P-CI_38|build/P-CI_35|build/P-CI_39|build/P-CI_36) lane=lead ;;   # contract steward: changes the contract types and the frozen hashes (ruling 25, 27)
             build/P-CI_*|build/P-CI-*) lane=L11 ;;
             build/P-CC_*|build/P-PR_*) lane=lead ;;
             *) lane="$(echo "$BRANCH" | sed -nE 's#^build/P-(L[0-9]+[a-z]?)_[0-9]+[a-z]?(-.*)?$#\1#p')"
@@ -201,7 +201,7 @@ jobs:
         run: |
           git fetch -q origin main
           base="$(git merge-base origin/main HEAD)"
-          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|modules/computers/|images/person-sandbox/|agent/tests/sandbox\.(net\.)?heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
+          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|modules/computers/|images/person-sandbox/|images/agent-computer/|agent/tests/sandbox\.(net\.)?heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
       - name: Install bubblewrap and tmux when the runner does not have them
         if: steps.scope.outputs.changed == 'true'
         run: |
