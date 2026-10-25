@@ -43,7 +43,7 @@ for (const [name, encode] of Object.entries(ENCODERS)) {
 test("scrub leaves ordinary text and short values alone", () => {
   assert.deepEqual(scrub("nothing secret here", [{ handle: "#a", value: "sk-live-12345" }]), { text: "nothing secret here", replaced: 0 });
   assert.deepEqual(scrub("the cat sat", [{ handle: "#a", value: "cat" }]), { text: "the cat sat", replaced: 0 });
-  assert.deepEqual(forms("ab"), [], "a value under four characters has no forms to look for");
+  assert.deepEqual(scrub("a ab ab", [{ handle: "#a", value: "ab" }]), { text: "a ab ab", replaced: 0 }, "a value under four characters is left alone");
 });
 
 test("two secrets in one stream both go, longest form first", () => {
