@@ -40,6 +40,8 @@ export interface TestCase {
 export interface ConnectorDef {
   key: string; title: string; mode: Mode; scope: Scope; version: string; auth: AuthDef; domains: string[]; secrets: { name: string; description: string }[];
   actions: ActionDef[]; sources?: string[]; syncedTypes?: string[]; health?: string; rate?: { rps: number; burst: number }; tests?: TestCase[]; builtin?: boolean;
+  /** Per-object action names for the sync engine (P-CC_19); a name left out keeps the convention. */
+  objects?: Record<string, { list?: string; listAfter?: string; create?: string; update?: string; delete?: string }>;
 }
 
 export interface ConnectionDb {

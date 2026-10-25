@@ -225,6 +225,19 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
       replica.put("routines", [{ id, ...next }]);
       return { routine: next };
     },
+    "agents.routine.run_now": (i: { routineId: string }) => {
+      const cur = rowsOf<Routine & Row>("routines").find((x) => x.routineId === i.routineId);
+      if (!cur) throw new Error("no such routine");
+      replica.put("routines", [{ ...cur, lastRunAt: SAMPLE_NOW }]);
+      return { runId: `run_${++seq}` };
+    },
+    "agents.routine.delegate": (i: { routineId: string; ownerId: string }) => {
+      const cur = rowsOf<Routine & Row>("routines").find((x) => x.routineId === i.routineId);
+      if (!cur) throw new Error("no such routine");
+      const next = { ...cur, ownerId: i.ownerId } as Routine & Row;
+      replica.put("routines", [next]);
+      return { routine: strip(next, []) };
+    },
     "agents.routine.delete": (i: { routineId: string }) => { replica.remove("routines", [i.routineId]); return { deleted: true }; },
   };
 
@@ -257,6 +270,11 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     space: { name: personal ? "Personal" : "Northwind", personal },
     nav,
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
+    people: [
+      { id: "usr_omar", name: "Omar Haddad", sub: "Owner" },
+      { id: "usr_irfad", name: "Irfad Imtiaz", sub: "Admin" },
+      { id: "usr_maya", name: "Maya Chen", sub: "Intake lead" },
+    ],
   };
   return {
     data, replica, calls, opened, composer,
