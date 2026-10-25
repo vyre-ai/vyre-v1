@@ -53,6 +53,8 @@ export interface SpaceSource {
   restore(snapshot: SpaceSnapshot, tombstones: Tombstone[], mode: "scratch" | "live"): Promise<ApplyResult>;
   /** What the owner may take with them: records, files, shared chats. The host never includes private chats or personal memory; this module enforces that again. */
   exportEntries(): Promise<SnapshotEntry[]>;
+  /** The person who owns the Space, from the access layer; only they may take a full export. A source that cannot say refuses every export (fail closed). */
+  owner?(): Promise<string>;
   /** The secret values this Space holds (vault items, keys, tokens), so an export can prove none of them is inside. */
   secretValues(): Promise<string[]>;
 }
@@ -744,10 +746,12 @@ function contains(hay: Uint8Array, needle: string): boolean {
 export async function export_start(ctx: BackupCtx, _input: Record<string, unknown>) {
   const d = need(ctx);
   const runId = ctx.run ?? mint("run");
-  if (ctx.authorize) {
-    const decision = ctx.authorize({ perm: "records.export", level: "manage" }, { type: "space", id: null });
-    if (decision.effect !== "allow") return failWith(ctx.trace.traceId, "permission.role_lacks_permission", "A full export needs the Space-wide export permission.");
-  }
+  // A full export is complete or it does not happen: it is never filtered per item (a silently partial export is its own harm). So it is the Space owner's alone, who holds every clearance (P-SEC_07).
+  // Fail closed: no authorize, a deny, a hold, or any other person (an admin included) is refused and nothing is packed.
+  const refused = (): never => failWith(ctx.trace.traceId, "permission.no_grant", "Only the Space owner can take a full export.");
+  if (typeof ctx.authorize !== "function") return refused();
+  if (ctx.authorize({ perm: "records.export", level: "manage" }, { type: "space", id: null }).effect !== "allow") return refused();
+  if (ctx.principal.kind !== "person" || ctx.principal.id !== (await d.source.owner?.())) return refused();
   const at = ctx.now();
   const secrets = (await d.source.secretValues()).filter((s) => s.length >= 6);
   const keep: SnapshotEntry[] = [];

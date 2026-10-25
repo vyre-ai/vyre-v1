@@ -1,7 +1,7 @@
 // Right pane > Memory (spec 3.2, 4.13): what the agent knows, each fact with when it holds, when it was learned and where it came from. Proposed facts wait on top for Accept or
 // Reject (with Undo). Click a fact to read it whole, then Correct it (the old one is kept, marked replaced, with you as the source of the new one) or Remove it. The filter menu
 // narrows to facts from you and can include the replaced ones. Everything reads from the kept copy.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -11,15 +11,19 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { accept, copyText, correct, reject, removeFact } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import { usePaneData, useScreenQuery } from "./data.tsx";
-import { CURRENT, factNote, isDefaultFilter, showingLine, sourceName, splitFacts, statusFor, dayMonth } from "./model.ts";
-import type { Fact, MemoryFilter } from "./model.ts";
+import { CURRENT, MAP_LIMIT, factNote, isDefaultFilter, learnedWhen, parseMap, showingLine, sourceLabel, sourceName, splitFacts, statusFor } from "./model.ts";
+import type { Fact, MapIndex, MemoryFilter } from "./model.ts";
 import { Icon, LeadIcon, PaneList, TextButton, Tool } from "./parts.tsx";
+import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import type { Entry } from "./parts.tsx";
 
 type FactsOut = CapMap["memory.facts.list"]["out"];
 type CountsOut = CapMap["memory.counts"]["out"];
 
 export const MEMORY_SCREEN = "chats.agent-memory";
+const CHATS_SCREEN = "chats.agent-page";
+type ThreadsOut = CapMap["threads.list"]["out"];
+type MapOut = CapMap["memory.map.get"]["out"];
 
 export function MemoryTab({ deps, spaceName, window }: { deps: PaneDeps; spaceName: string; window?: VirtualWindow }): ReactElement {
   const data = usePaneData();
@@ -34,6 +38,20 @@ export function MemoryTab({ deps, spaceName, window }: { deps: PaneDeps; spaceNa
   const known = useScreenQuery<FactsOut>(MEMORY_SCREEN, "facts", { agentId, layer: "agent", status: statusFor(filter), ...(filter.fromMe ? { fromMe: true } : {}) });
   const waiting = useScreenQuery<FactsOut>(MEMORY_SCREEN, "facts", { agentId, layer: "agent", status: ["proposed"] });
   const counts = useScreenQuery<CountsOut>(MEMORY_SCREEN, "counts", { agentId });
+  const chats = useScreenQuery<ThreadsOut>(CHATS_SCREEN, "chats", {});
+  const chatTitle = (id: string): string | undefined => (chats.status === "ready" ? chats.data.threads.find((t) => t.threadId === id)?.title : undefined);
+  // MAP.md, the index every chat loads: its own capability (memory.map.get), read once per agent.
+  const [map, setMap] = useState<MapIndex | null>(null);
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const out = (await data.call("memory.map.get", { agentId })) as MapOut;
+        if (live) setMap(out.map ? parseMap(out.map.body, out.map.lines) : null);
+      } catch { if (live) setMap(null); }
+    })();
+    return () => { live = false; };
+  }, [agentId, data]);
 
   if (known.status === "loading" || waiting.status === "loading") {
     return <View testID="memory-loading" accessibilityLabel="Loading" style={st.sk}><View style={st.skBar} /><View style={[st.skBar, { width: "70%" }]} /><View style={st.skBar} /></View>;
@@ -60,20 +78,46 @@ export function MemoryTab({ deps, spaceName, window }: { deps: PaneDeps; spaceNa
   ];
 
   const entries: Entry[] = [];
+  if (map) {
+    const keyRows: ReactElement[] = [];
+    for (const r of map.rows) keyRows.push(<View key={r.key} style={st.mapRow}><Text style={st.mapKey} numberOfLines={1}>{r.key}</Text><Text style={st.mapText} numberOfLines={1}>{r.text}</Text></View>);
+    entries.push({
+      key: "map", type: "block",
+      node: (
+        <View testID="memory-map" style={st.map}>
+          <View style={st.mapHead}>
+            <View style={st.mapIcon}><Icon name="doc" size={14} /></View>
+            <View style={{ flex: 1, minWidth: 0 }}><Text style={st.mapName}>MAP.md</Text><Text style={st.hint}>Loaded in every chat</Text></View>
+            <Text testID="map-count" style={st.mapCount}>{`${map.lines} / ${MAP_LIMIT}`}</Text>
+          </View>
+          <View testID="map-keys" style={st.mapKeys}>{keyRows}</View>
+        </View>
+      ),
+    });
+  }
   if (proposed.length > 0) {
     entries.push({ key: "l-proposed", type: "label", text: `Proposed · ${proposed.length}`, right: "Accept or reject" });
     for (const f of proposed) {
+      const from = sourceLabel(f, chatTitle);
       entries.push({
-        key: `p-${f.factId}`, type: "row", title: f.text, note: `from ${sourceName(f.sourceKind)} · ${dayMonth(f.learnedAt, clock)}`, leading: <LeadIcon name="plus" />, testID: `proposed-${f.factId}`,
-        trailing: (over) => (over ? (
-          <View style={st.acts}>
-            <Tool icon="check" label="Accept" onPress={() => void accept(deps, f)} testID={`accept-${f.factId}`} />
-            <Tool icon="x" label="Reject" onPress={() => void reject(deps, f)} testID={`reject-${f.factId}`} />
-          </View>
-        ) : null),
-        menu: [{ label: "Accept", onSelect: () => void accept(deps, f) }, { label: "Reject", onSelect: () => void reject(deps, f) }, { separator: true }, { label: "Show Source", onSelect: () => source(f) }],
+        key: `p-${f.factId}`, type: "block",
+        node: (
+          <PressableCard testID={`proposed-${f.factId}`} menu={[{ label: "Accept", onSelect: () => void accept(deps, f) }, { label: "Reject", onSelect: () => void reject(deps, f) }, { separator: true }, { label: "Show Source", onSelect: () => source(f) }]} title={f.text}>
+            <Text style={st.cardText}>{f.text}</Text>
+            <View style={st.cardFoot}>
+              <Text style={st.hint}>from <Text onPress={() => source(f)} style={st.srcLink} testID={`proposed-source-${f.factId}`}>{from}</Text>{` · ${learnedWhen(f.learnedAt, clock)}`}</Text>
+              <View style={st.acts}>
+                <Tool icon="check" label="Accept" onPress={() => void accept(deps, f)} testID={`accept-${f.factId}`} />
+                <Tool icon="x" label="Reject" onPress={() => void reject(deps, f)} testID={`reject-${f.factId}`} />
+              </View>
+            </View>
+          </PressableCard>
+        ),
       });
     }
+  }
+  if (counts.status === "ready" && counts.data.autoMerged > 0 && isDefaultFilter(filter)) {
+    entries.push({ key: "auto", type: "block", node: <View testID="memory-auto" style={st.auto}><Text style={st.hint}>{`${counts.data.autoMerged} low-risk ${counts.data.autoMerged === 1 ? "fact" : "facts"} merged on their own`}</Text></View> });
   }
   entries.push({
     key: "h-known", type: "block",
@@ -133,10 +177,32 @@ export function MemoryTab({ deps, spaceName, window }: { deps: PaneDeps; spaceNa
       });
     }
   }
-  return <View style={st.fill}><PaneList entries={entries} {...(window ? { window } : {})} testID="memory-list" />{menu.element}</View>;
+  return <View style={st.fill}><PaneList plain entries={entries} {...(window ? { window } : {})} testID="memory-list" />{menu.element}</View>;
+}
+
+/** A proposed fact as a card (the prototype draws them boxed); right-click gives the same Accept and Reject as the buttons. */
+function PressableCard({ title, menu: items, testID, children }: { title: string; menu: MenuEntry[]; testID: string; children: ReactElement[] }): ReactElement {
+  const m = useMenu();
+  // The outer View carries the spacing as padding: the list measures a row without its margins, so margins would overlap the next row.
+  return <View style={st.cardOuter}><View testID={testID} style={st.card} {...menuTrigger((x, y) => m.show(items, x, y, "context", { label: title }))}>{children}{m.element}</View></View>;
 }
 
 const st = StyleSheet.create({
+  map: { paddingHorizontal: 8, paddingTop: 8, paddingBottom: 4, gap: 8 },
+  mapHead: { flexDirection: "row", alignItems: "center", gap: 10 },
+  mapIcon: { width: 30, height: 30, borderRadius: 8, borderWidth: 1, borderColor: "var(--line)" as string, alignItems: "center", justifyContent: "center", backgroundColor: "var(--raised)" as string },
+  mapName: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
+  mapCount: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
+  mapKeys: { borderRadius: 8, backgroundColor: "var(--sunk)" as string, paddingHorizontal: 10, paddingVertical: 8, gap: 6 },
+  mapRow: { flexDirection: "row", gap: 8 },
+  mapKey: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11.5, color: "var(--accent)" as string, flexShrink: 0 },
+  mapText: { flex: 1, minWidth: 0, fontSize: 12, color: "var(--ink-2)" as string },
+  cardOuter: { paddingHorizontal: 8, paddingVertical: 3 },
+  auto: { paddingHorizontal: 10, paddingVertical: 6 },
+  card: { padding: 10, gap: 6, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
+  cardText: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },
+  cardFoot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  srcLink: { color: "var(--accent)" as string },
   fill: { flex: 1, minHeight: 0 },
   sk: { padding: 8, gap: 12 },
   skBar: { height: 12, borderRadius: 6, backgroundColor: "var(--sunk)" as string },

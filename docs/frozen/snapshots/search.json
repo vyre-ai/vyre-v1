@@ -1,0 +1,18 @@
+{
+  "module": "search",
+  "capabilities": {
+    "search.actions.list@1": "0ed5c573188c36f7b733b4dfb026a3fe40af57e2427da58761509b02ba8babce",
+    "search.embed.run@1": "1b0b70fb1465beaa68547278e7fc89f8ca658c9f78d31fa16aebab5534656615",
+    "search.health@1": "414368c1820b7060f0247e48977d485acca69e6d70531db62d06c2f11e145c0a",
+    "search.index.apply@1": "44197825e6f1602f22a2f630e2ebb3dcbba723e8bff0c338b3efdc488677db63",
+    "search.index.rebuild@1": "51d16532ca837066a12fcba45aac3d2358e1ed46506af3ef4abe0aff756843b5",
+    "search.index.stats@1": "5d5ce77524df26b6f77725c03025524ba5ddb529ae7f2640a247039d0ed3a45e",
+    "search.query@1": "44192ddedbfbf4df11a580f2da5918f9bb5df763f6aa59b26780b7464b7d7811",
+    "search.recent.list@1": "6f2a7ef714bba853dfe48260bed180be8feb39bd406fc56c1f90de09f914a86f",
+    "search.recent.record@1": "8a27ab651f52429346c3eda9e6fcb821775af66d35cbc0a7e4fa98777ff121a9",
+    "search.related@1": "7419f902d17ff95f0e123b3d6f220e6f03417be33dc7a80c284985bd4bbe70f3"
+  },
+  "events": {
+    "search.reindexed": "9337ab987e7969298735166a1afaf2705bae0aa16d9efd59a7e3a981101e4f03"
+  }
+}

@@ -30,6 +30,11 @@
       "dev": false
     },
     {
+      "name": "hash-wasm",
+      "reason": "Argon2id in WASM for the client person key bundle (client/src/crypto/keys.ts only); browsers have no node:crypto argon2. MIT, no dependencies",
+      "dev": false
+    },
+    {
       "name": "@noble/curves",
       "reason": "signatures and key agreement",
       "dev": false
