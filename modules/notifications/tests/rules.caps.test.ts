@@ -17,7 +17,7 @@ async function refused(p: Promise<unknown>, code: string): Promise<void> {
 
 test("every capability in the contract has a real handler", () => {
   const want = registry.capabilities.filter((c) => c.module === "notifications").map((c) => c.name).sort();
-  assert.equal(want.length, 19);
+  assert.equal(want.length, 20);
   assert.deepEqual(Object.keys(handlers).sort(), want);
 });
 
