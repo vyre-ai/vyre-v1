@@ -1084,6 +1084,7 @@ export function stubs(ctx: CallCtx) {
       },
       stage_counts: call("journeys.stage_counts"),
       start: call("journeys.start"),
+      tasks: call("journeys.tasks"),
       versions: call("journeys.versions"),
     },
     kits: {
