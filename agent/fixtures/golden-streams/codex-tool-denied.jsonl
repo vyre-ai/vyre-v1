@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"{{SESSION}}"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_0","type":"mcp_tool_call","server":"vyre","tool":"schema_describe","arguments":{},"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_0","type":"mcp_tool_call","server":"vyre","tool":"schema_describe","arguments":{},"error":{"message":"This agent may not use that tool."},"status":"failed"}}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"I could not use that tool."}}
+{"type":"turn.completed","usage":{"input_tokens":2400,"cached_input_tokens":2000,"output_tokens":40}}

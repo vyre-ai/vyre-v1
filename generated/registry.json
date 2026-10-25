@@ -1397,17 +1397,6 @@
       ],
       "type": "object"
     },
-    "s_14f6a8c95f": {
-      "properties": {
-        "journey": {
-          "$ref": "#/$defs/s_3b7eca5922"
-        }
-      },
-      "required": [
-        "journey"
-      ],
-      "type": "object"
-    },
     "s_157c2c9b95": {
       "properties": {
         "kitId": {
@@ -1689,6 +1678,12 @@
           "dir"
         ],
         "type": "object"
+      },
+      "type": "array"
+    },
+    "s_1a0d5dc1ad": {
+      "items": {
+        "$ref": "#/$defs/s_4ae4009732"
       },
       "type": "array"
     },
@@ -2652,6 +2647,17 @@
       ],
       "type": "object"
     },
+    "s_25dfda5e35": {
+      "properties": {
+        "journey": {
+          "$ref": "#/$defs/s_df187904ca"
+        }
+      },
+      "required": [
+        "journey"
+      ],
+      "type": "object"
+    },
     "s_2795589129": {
       "properties": {
         "conflict": {
@@ -3349,6 +3355,126 @@
       ],
       "type": "object"
     },
+    "s_323acdeb06": {
+      "properties": {
+        "address": {
+          "description": "Email, number or handle when no contact is matched",
+          "examples": [
+            "maya@example.com"
+          ],
+          "type": "string"
+        },
+        "alertOnReplies": {
+          "type": "boolean"
+        },
+        "bounced": {
+          "type": "boolean"
+        },
+        "campaignId": {
+          "examples": [
+            "cmp_a1b2c3"
+          ],
+          "pattern": "^cmp_[a-z0-9]+$",
+          "type": "string"
+        },
+        "contactId": {
+          "examples": [
+            "rec_a1b2c3"
+          ],
+          "pattern": "^rec_[a-z0-9]+$",
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "dnd": {
+          "type": "boolean"
+        },
+        "draftReady": {
+          "type": "boolean"
+        },
+        "followed": {
+          "type": "boolean"
+        },
+        "id": {
+          "examples": [
+            "cnv_a1b2c3"
+          ],
+          "pattern": "^cnv_[a-z0-9]+$",
+          "type": "string"
+        },
+        "lastChannel": {
+          "enum": [
+            "email",
+            "sms",
+            "call",
+            "meeting"
+          ],
+          "type": "string"
+        },
+        "lastMessageAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lastPreview": {
+          "type": "string"
+        },
+        "mailboxIds": {
+          "items": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "needsMatch": {
+          "type": "boolean"
+        },
+        "organisation": {
+          "examples": [
+            "Acme Legal"
+          ],
+          "type": "string"
+        },
+        "ownerId": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "starred": {
+          "type": "boolean"
+        },
+        "unmatched": {
+          "type": "boolean"
+        },
+        "unreadCount": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "address",
+        "displayName",
+        "lastMessageAt",
+        "lastChannel",
+        "lastPreview",
+        "unreadCount",
+        "needsMatch",
+        "mailboxIds",
+        "followed",
+        "alertOnReplies"
+      ],
+      "type": "object"
+    },
     "s_332ac41b43": {
       "items": {
         "properties": {
@@ -3402,71 +3528,6 @@
         "type": "object"
       },
       "type": "array"
-    },
-    "s_348b49ae03": {
-      "properties": {
-        "blocks": {
-          "items": {
-            "properties": {
-              "props": {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              "type": {
-                "enum": [
-                  "text",
-                  "image",
-                  "button",
-                  "columns",
-                  "divider",
-                  "merge",
-                  "html"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "type",
-              "props"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "emailId": {
-          "examples": [
-            "eml_a1b2c3"
-          ],
-          "pattern": "^eml_[a-z0-9]+$",
-          "type": "string"
-        },
-        "html": {
-          "type": "string"
-        },
-        "mode": {
-          "enum": [
-            "blocks",
-            "html",
-            "plain"
-          ],
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "plain": {
-          "type": "string"
-        },
-        "subject": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "emailId",
-        "name",
-        "mode"
-      ],
-      "type": "object"
     },
     "s_3550bb561b": {
       "items": {
@@ -4237,83 +4298,6 @@
         "actor",
         "at",
         "state"
-      ],
-      "type": "object"
-    },
-    "s_3b7eca5922": {
-      "properties": {
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "jrn_a1b2c3"
-          ],
-          "pattern": "^jrn_[a-z0-9]+$",
-          "type": "string"
-        },
-        "inFlight": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "name": {
-          "type": "string"
-        },
-        "recordType": {
-          "examples": [
-            "contact"
-          ],
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "type": "string"
-        },
-        "stages": {
-          "$ref": "#/$defs/s_514842fb1f"
-        },
-        "startAutomationId": {
-          "examples": [
-            "aut_a1b2c3"
-          ],
-          "pattern": "^aut_[a-z0-9]+$",
-          "type": "string"
-        },
-        "startRule": {
-          "$ref": "#/$defs/s_25d70fcceb"
-        },
-        "subjectType": {
-          "examples": [
-            "contact"
-          ],
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "type": "string"
-        },
-        "updatedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "version": {
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "subjectType",
-        "recordType",
-        "version",
-        "stages",
-        "inFlight",
-        "createdAt",
-        "updatedAt"
       ],
       "type": "object"
     },
@@ -5239,6 +5223,143 @@
       ],
       "type": "object"
     },
+    "s_4ae4009732": {
+      "properties": {
+        "automations": {
+          "description": "Automations that run when a record enters the stage",
+          "items": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "exit": {
+          "properties": {
+            "manualOnly": {
+              "type": "boolean"
+            },
+            "requireTasks": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "requireTasks"
+          ],
+          "type": "object"
+        },
+        "final": {
+          "type": "boolean"
+        },
+        "key": {
+          "examples": [
+            "intake"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        "onLeaving": {
+          "description": "Automations that run when a record leaves the stage",
+          "items": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "order": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tasks": {
+          "items": {
+            "properties": {
+              "approver": {
+                "$ref": "#/$defs/s_f05a3f77df"
+              },
+              "assigned": {
+                "$ref": "#/$defs/s_f05a3f77df"
+              },
+              "backupKeyId": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "doneByAutomation": {
+                "examples": [
+                  "aut_a1b2c3"
+                ],
+                "pattern": "^aut_[a-z0-9]+$",
+                "type": "string"
+              },
+              "dueAfterHours": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "key": {
+                "examples": [
+                  "collect_documents"
+                ],
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "type": "string"
+              },
+              "keyId": {
+                "description": "Inference key for an agent task",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "work",
+                  "approve",
+                  "review",
+                  "answer",
+                  "unblock",
+                  "signature"
+                ],
+                "type": "string"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "reviewer": {
+                "$ref": "#/$defs/s_f05a3f77df"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "title",
+              "assigned",
+              "required"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "timeLimit": {
+          "$ref": "#/$defs/s_d3f43ff5d3"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "order",
+        "exit",
+        "tasks",
+        "automations"
+      ],
+      "type": "object"
+    },
     "s_4bcc467032": {
       "properties": {
         "affects": {
@@ -5942,12 +6063,6 @@
       ],
       "type": "object"
     },
-    "s_514842fb1f": {
-      "items": {
-        "$ref": "#/$defs/s_b91fd91453"
-      },
-      "type": "array"
-    },
     "s_51b3ec7c59": {
       "properties": {
         "agentId": {
@@ -6402,6 +6517,49 @@
       },
       "type": "array"
     },
+    "s_573e287a45": {
+      "properties": {
+        "blocks": {
+          "items": {
+            "$ref": "#/$defs/s_65cbb13876"
+          },
+          "type": "array"
+        },
+        "emailId": {
+          "examples": [
+            "eml_a1b2c3"
+          ],
+          "pattern": "^eml_[a-z0-9]+$",
+          "type": "string"
+        },
+        "html": {
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "blocks",
+            "html",
+            "plain"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "plain": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "emailId",
+        "name",
+        "mode"
+      ],
+      "type": "object"
+    },
     "s_574cc4b511": {
       "properties": {
         "cursor": {
@@ -6684,17 +6842,6 @@
       },
       "required": [
         "resource"
-      ],
-      "type": "object"
-    },
-    "s_5b2af5e779": {
-      "properties": {
-        "email": {
-          "$ref": "#/$defs/s_348b49ae03"
-        }
-      },
-      "required": [
-        "email"
       ],
       "type": "object"
     },
@@ -6989,17 +7136,6 @@
         "openedAt",
         "items",
         "decided"
-      ],
-      "type": "object"
-    },
-    "s_611f84de8a": {
-      "properties": {
-        "conversation": {
-          "$ref": "#/$defs/s_bbe05acc1e"
-        }
-      },
-      "required": [
-        "conversation"
       ],
       "type": "object"
     },
@@ -7691,6 +7827,36 @@
       "required": [
         "templateId",
         "kind"
+      ],
+      "type": "object"
+    },
+    "s_65cbb13876": {
+      "properties": {
+        "props": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "type": {
+          "enum": [
+            "text",
+            "heading",
+            "image",
+            "button",
+            "columns",
+            "divider",
+            "merge",
+            "footer",
+            "html",
+            "spacer",
+            "social",
+            "saved"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "props"
       ],
       "type": "object"
     },
@@ -8540,6 +8706,17 @@
       ],
       "type": "object"
     },
+    "s_78845cba60": {
+      "properties": {
+        "email": {
+          "$ref": "#/$defs/s_573e287a45"
+        }
+      },
+      "required": [
+        "email"
+      ],
+      "type": "object"
+    },
     "s_78de507bd6": {
       "properties": {
         "fileId": {
@@ -8869,12 +9046,6 @@
         "issue"
       ],
       "type": "object"
-    },
-    "s_7bc0d5d531": {
-      "items": {
-        "$ref": "#/$defs/s_bbe05acc1e"
-      },
-      "type": "array"
     },
     "s_7c4e790000": {
       "items": {
@@ -11797,6 +11968,12 @@
       ],
       "type": "object"
     },
+    "s_ab4bbadc09": {
+      "items": {
+        "$ref": "#/$defs/s_323acdeb06"
+      },
+      "type": "array"
+    },
     "s_ab4d804e42": {
       "properties": {
         "event": {
@@ -12316,6 +12493,17 @@
       ],
       "type": "object"
     },
+    "s_b628c0cd13": {
+      "properties": {
+        "conversation": {
+          "$ref": "#/$defs/s_323acdeb06"
+        }
+      },
+      "required": [
+        "conversation"
+      ],
+      "type": "object"
+    },
     "s_b63b62aeb6": {
       "properties": {
         "folder": {
@@ -12569,132 +12757,6 @@
           "type": "string"
         }
       },
-      "type": "object"
-    },
-    "s_b91fd91453": {
-      "properties": {
-        "automations": {
-          "description": "Automations that run when a record enters the stage",
-          "items": {
-            "examples": [
-              "aut_a1b2c3"
-            ],
-            "pattern": "^aut_[a-z0-9]+$",
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "exit": {
-          "properties": {
-            "manualOnly": {
-              "type": "boolean"
-            },
-            "requireTasks": {
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "requireTasks"
-          ],
-          "type": "object"
-        },
-        "final": {
-          "type": "boolean"
-        },
-        "key": {
-          "examples": [
-            "intake"
-          ],
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "type": "string"
-        },
-        "order": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "tasks": {
-          "items": {
-            "properties": {
-              "approver": {
-                "$ref": "#/$defs/s_f05a3f77df"
-              },
-              "assigned": {
-                "$ref": "#/$defs/s_f05a3f77df"
-              },
-              "backupKeyId": {
-                "type": "string"
-              },
-              "description": {
-                "type": "string"
-              },
-              "doneByAutomation": {
-                "examples": [
-                  "aut_a1b2c3"
-                ],
-                "pattern": "^aut_[a-z0-9]+$",
-                "type": "string"
-              },
-              "dueAfterHours": {
-                "minimum": 1,
-                "type": "integer"
-              },
-              "key": {
-                "examples": [
-                  "collect_documents"
-                ],
-                "pattern": "^[a-z][a-z0-9_]*$",
-                "type": "string"
-              },
-              "keyId": {
-                "description": "Inference key for an agent task",
-                "type": "string"
-              },
-              "kind": {
-                "enum": [
-                  "work",
-                  "approve",
-                  "review",
-                  "answer",
-                  "unblock",
-                  "signature"
-                ],
-                "type": "string"
-              },
-              "required": {
-                "type": "boolean"
-              },
-              "reviewer": {
-                "$ref": "#/$defs/s_f05a3f77df"
-              },
-              "title": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "key",
-              "title",
-              "assigned",
-              "required"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "timeLimit": {
-          "$ref": "#/$defs/s_d3f43ff5d3"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "key",
-        "title",
-        "order",
-        "exit",
-        "tasks",
-        "automations"
-      ],
       "type": "object"
     },
     "s_b92225d0bc": {
@@ -13109,108 +13171,6 @@
         "costMicros",
         "startedAt",
         "traceId"
-      ],
-      "type": "object"
-    },
-    "s_bbe05acc1e": {
-      "properties": {
-        "address": {
-          "description": "Email, number or handle when no contact is matched",
-          "examples": [
-            "maya@example.com"
-          ],
-          "type": "string"
-        },
-        "alertOnReplies": {
-          "type": "boolean"
-        },
-        "campaignId": {
-          "examples": [
-            "cmp_a1b2c3"
-          ],
-          "pattern": "^cmp_[a-z0-9]+$",
-          "type": "string"
-        },
-        "contactId": {
-          "examples": [
-            "rec_a1b2c3"
-          ],
-          "pattern": "^rec_[a-z0-9]+$",
-          "type": "string"
-        },
-        "displayName": {
-          "type": "string"
-        },
-        "followed": {
-          "type": "boolean"
-        },
-        "id": {
-          "examples": [
-            "cnv_a1b2c3"
-          ],
-          "pattern": "^cnv_[a-z0-9]+$",
-          "type": "string"
-        },
-        "lastChannel": {
-          "enum": [
-            "email",
-            "sms",
-            "call",
-            "meeting"
-          ],
-          "type": "string"
-        },
-        "lastMessageAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "lastPreview": {
-          "type": "string"
-        },
-        "mailboxIds": {
-          "items": {
-            "examples": [
-              "mbx_a1b2c3"
-            ],
-            "pattern": "^mbx_[a-z0-9]+$",
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "needsMatch": {
-          "type": "boolean"
-        },
-        "ownerId": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "pattern": "^usr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "starred": {
-          "type": "boolean"
-        },
-        "unreadCount": {
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "id",
-        "address",
-        "displayName",
-        "lastMessageAt",
-        "lastChannel",
-        "lastPreview",
-        "unreadCount",
-        "needsMatch",
-        "mailboxIds",
-        "followed",
-        "alertOnReplies"
       ],
       "type": "object"
     },
@@ -14671,6 +14631,32 @@
       ],
       "type": "object"
     },
+    "s_d06586147f": {
+      "properties": {
+        "cpuPercent": {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        },
+        "diskFreeBytes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "diskTotalBytes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "memoryTotalBytes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "memoryUsedBytes": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "s_d09bc4ad3a": {
       "properties": {
         "resolutionId": {
@@ -15521,6 +15507,119 @@
         "when",
         "route",
         "enabled"
+      ],
+      "type": "object"
+    },
+    "s_dec3308fa1": {
+      "properties": {
+        "block": {
+          "$ref": "#/$defs/s_65cbb13876"
+        },
+        "blockId": {
+          "examples": [
+            "blk_a1b2c3"
+          ],
+          "pattern": "^blk_[a-z0-9]+$",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "shared": {
+          "type": "boolean"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "blockId",
+        "name",
+        "block",
+        "shared",
+        "updatedAt"
+      ],
+      "type": "object"
+    },
+    "s_df187904ca": {
+      "properties": {
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "jrn_a1b2c3"
+          ],
+          "pattern": "^jrn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "inFlight": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "recordType": {
+          "examples": [
+            "contact"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        "stages": {
+          "$ref": "#/$defs/s_1a0d5dc1ad"
+        },
+        "startAutomationId": {
+          "examples": [
+            "aut_a1b2c3"
+          ],
+          "pattern": "^aut_[a-z0-9]+$",
+          "type": "string"
+        },
+        "startRule": {
+          "$ref": "#/$defs/s_25d70fcceb"
+        },
+        "subjectType": {
+          "examples": [
+            "contact"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "version": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "subjectType",
+        "recordType",
+        "version",
+        "stages",
+        "inFlight",
+        "createdAt",
+        "updatedAt"
       ],
       "type": "object"
     },
@@ -53786,6 +53885,17 @@
               }
             ],
             "health": "healthy",
+            "lastBackup": {
+              "at": 1760000000000,
+              "result": "verified"
+            },
+            "machine": {
+              "cpuPercent": 1,
+              "diskFreeBytes": 1,
+              "diskTotalBytes": 1,
+              "memoryTotalBytes": 1,
+              "memoryUsedBytes": 1
+            },
             "usage": {
               "agents": 1,
               "costMicrosMonth": 1,
@@ -53818,6 +53928,33 @@
               "down"
             ],
             "type": "string"
+          },
+          "lastBackup": {
+            "properties": {
+              "at": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              "result": {
+                "enum": [
+                  "verified",
+                  "unverified"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "result"
+            ],
+            "type": "object"
+          },
+          "machine": {
+            "$ref": "#/$defs/s_d06586147f"
           },
           "usage": {
             "properties": {
@@ -53857,7 +53994,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "Overview: health, attention items, recent admin activity, usage",
+      "summary": "Overview: health, attention items, recent admin activity, usage, server CPU, memory and disk, and the last backup",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -58625,7 +58762,7 @@
       "module": "email-builder-api",
       "name": "email_builder.create",
       "output": {
-        "$ref": "#/$defs/s_5b2af5e779"
+        "$ref": "#/$defs/s_78845cba60"
       },
       "permission": null,
       "resource": {
@@ -58697,7 +58834,7 @@
       "module": "email-builder-api",
       "name": "email_builder.get",
       "output": {
-        "$ref": "#/$defs/s_5b2af5e779"
+        "$ref": "#/$defs/s_78845cba60"
       },
       "permission": null,
       "resource": {
@@ -59091,7 +59228,7 @@
       "module": "email-builder-api",
       "name": "email_builder.restore_version",
       "output": {
-        "$ref": "#/$defs/s_5b2af5e779"
+        "$ref": "#/$defs/s_78845cba60"
       },
       "permission": null,
       "resource": {
@@ -59148,7 +59285,7 @@
       "input": {
         "properties": {
           "email": {
-            "$ref": "#/$defs/s_348b49ae03"
+            "$ref": "#/$defs/s_573e287a45"
           },
           "emailId": {
             "examples": [
@@ -59186,6 +59323,166 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Autosave a design; each save is a version",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "inbox"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "blocks": [
+              {
+                "block": {
+                  "props": {},
+                  "type": "text"
+                },
+                "blockId": "blk_a1b2c3",
+                "name": "example",
+                "shared": true,
+                "updatedAt": 1760000000000
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "email-builder-api",
+      "name": "email_builder.saved_blocks.list",
+      "output": {
+        "properties": {
+          "blocks": {
+            "items": {
+              "$ref": "#/$defs/s_dec3308fa1"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "blocks"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "List saved blocks: mine and the ones shared with the Space, to drop into a design",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "inbox"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "email_block.saved"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "block": {
+              "props": {},
+              "type": "text"
+            },
+            "blockId": "blk_a1b2c3",
+            "name": "example",
+            "shared": true
+          },
+          "name": "example",
+          "output": {
+            "block": {
+              "block": {
+                "props": {},
+                "type": "text"
+              },
+              "blockId": "blk_a1b2c3",
+              "name": "example",
+              "shared": true,
+              "updatedAt": 1760000000000
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "block": {
+            "$ref": "#/$defs/s_65cbb13876"
+          },
+          "blockId": {
+            "examples": [
+              "blk_a1b2c3"
+            ],
+            "pattern": "^blk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "shared": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "block"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "email-builder-api",
+      "name": "email_builder.saved_blocks.save",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "block": {
+            "$ref": "#/$defs/s_dec3308fa1"
+          }
+        },
+        "required": [
+          "block"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Save a block for reuse, or change one of mine; only the person who saved it can change it",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -85492,6 +85789,82 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "detail": "example",
+            "latencyMs": 1,
+            "machine": {
+              "cpuPercent": 1,
+              "diskFreeBytes": 1,
+              "diskTotalBytes": 1,
+              "memoryTotalBytes": 1,
+              "memoryUsedBytes": 1
+            },
+            "state": "healthy"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "health",
+      "name": "health.machine",
+      "output": {
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "latencyMs": {
+            "type": "integer"
+          },
+          "machine": {
+            "$ref": "#/$defs/s_d06586147f"
+          },
+          "state": {
+            "enum": [
+              "healthy",
+              "degraded",
+              "down"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "permission": "console.access",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Probe: CPU load, memory and disk of the server as the host last reported them (Console Overview tiles)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
         "validation.bad_input"
       ],
       "examples": [
@@ -91137,9 +91510,12 @@
               {
                 "address": "maya@example.com",
                 "alertOnReplies": true,
+                "bounced": true,
                 "campaignId": "cmp_a1b2c3",
                 "contactId": "rec_a1b2c3",
                 "displayName": "example",
+                "dnd": true,
+                "draftReady": true,
                 "followed": true,
                 "id": "cnv_a1b2c3",
                 "lastChannel": "email",
@@ -91149,8 +91525,10 @@
                   "mbx_a1b2c3"
                 ],
                 "needsMatch": true,
+                "organisation": "Acme Legal",
                 "ownerId": "usr_a1b2c3",
                 "starred": true,
+                "unmatched": true,
                 "unreadCount": 1
               }
             ],
@@ -91174,7 +91552,7 @@
             "type": "string"
           },
           "rows": {
-            "$ref": "#/$defs/s_7bc0d5d531"
+            "$ref": "#/$defs/s_ab4bbadc09"
           },
           "showing": {
             "description": "Plain words for the header: what is showing",
@@ -91370,9 +91748,12 @@
             "conversation": {
               "address": "maya@example.com",
               "alertOnReplies": true,
+              "bounced": true,
               "campaignId": "cmp_a1b2c3",
               "contactId": "rec_a1b2c3",
               "displayName": "example",
+              "dnd": true,
+              "draftReady": true,
               "followed": true,
               "id": "cnv_a1b2c3",
               "lastChannel": "email",
@@ -91382,8 +91763,10 @@
                 "mbx_a1b2c3"
               ],
               "needsMatch": true,
+              "organisation": "Acme Legal",
               "ownerId": "usr_a1b2c3",
               "starred": true,
+              "unmatched": true,
               "unreadCount": 1
             }
           }
@@ -91413,7 +91796,7 @@
       "name": "inbox.mark_read",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_611f84de8a"
+        "$ref": "#/$defs/s_b628c0cd13"
       },
       "permission": null,
       "resource": {
@@ -91457,9 +91840,12 @@
             "conversation": {
               "address": "maya@example.com",
               "alertOnReplies": true,
+              "bounced": true,
               "campaignId": "cmp_a1b2c3",
               "contactId": "rec_a1b2c3",
               "displayName": "example",
+              "dnd": true,
+              "draftReady": true,
               "followed": true,
               "id": "cnv_a1b2c3",
               "lastChannel": "email",
@@ -91469,8 +91855,10 @@
                 "mbx_a1b2c3"
               ],
               "needsMatch": true,
+              "organisation": "Acme Legal",
               "ownerId": "usr_a1b2c3",
               "starred": true,
+              "unmatched": true,
               "unreadCount": 1
             },
             "undoToken": "example"
@@ -91519,7 +91907,7 @@
       "output": {
         "properties": {
           "conversation": {
-            "$ref": "#/$defs/s_bbe05acc1e"
+            "$ref": "#/$defs/s_323acdeb06"
           },
           "undoToken": {
             "type": "string"
@@ -91573,9 +91961,12 @@
             "conversation": {
               "address": "maya@example.com",
               "alertOnReplies": true,
+              "bounced": true,
               "campaignId": "cmp_a1b2c3",
               "contactId": "rec_a1b2c3",
               "displayName": "example",
+              "dnd": true,
+              "draftReady": true,
               "followed": true,
               "id": "cnv_a1b2c3",
               "lastChannel": "email",
@@ -91585,8 +91976,10 @@
                 "mbx_a1b2c3"
               ],
               "needsMatch": true,
+              "organisation": "Acme Legal",
               "ownerId": "usr_a1b2c3",
               "starred": true,
+              "unmatched": true,
               "unreadCount": 1
             },
             "recordId": "rec_a1b2c3"
@@ -91634,7 +92027,7 @@
       "output": {
         "properties": {
           "conversation": {
-            "$ref": "#/$defs/s_bbe05acc1e"
+            "$ref": "#/$defs/s_323acdeb06"
           },
           "recordId": {
             "examples": [
@@ -91766,9 +92159,12 @@
                 "conversation": {
                   "address": "maya@example.com",
                   "alertOnReplies": true,
+                  "bounced": true,
                   "campaignId": "cmp_a1b2c3",
                   "contactId": "rec_a1b2c3",
                   "displayName": "example",
+                  "dnd": true,
+                  "draftReady": true,
                   "followed": true,
                   "id": "cnv_a1b2c3",
                   "lastChannel": "email",
@@ -91778,8 +92174,10 @@
                     "mbx_a1b2c3"
                   ],
                   "needsMatch": true,
+                  "organisation": "Acme Legal",
                   "ownerId": "usr_a1b2c3",
                   "starred": true,
+                  "unmatched": true,
                   "unreadCount": 1
                 },
                 "suggestions": [
@@ -91825,7 +92223,7 @@
             "items": {
               "properties": {
                 "conversation": {
-                  "$ref": "#/$defs/s_bbe05acc1e"
+                  "$ref": "#/$defs/s_323acdeb06"
                 },
                 "suggestions": {
                   "$ref": "#/$defs/s_11fec22d98"
@@ -92133,9 +92531,12 @@
             "conversation": {
               "address": "maya@example.com",
               "alertOnReplies": true,
+              "bounced": true,
               "campaignId": "cmp_a1b2c3",
               "contactId": "rec_a1b2c3",
               "displayName": "example",
+              "dnd": true,
+              "draftReady": true,
               "followed": true,
               "id": "cnv_a1b2c3",
               "lastChannel": "email",
@@ -92145,8 +92546,10 @@
                 "mbx_a1b2c3"
               ],
               "needsMatch": true,
+              "organisation": "Acme Legal",
               "ownerId": "usr_a1b2c3",
               "starred": true,
+              "unmatched": true,
               "unreadCount": 1
             },
             "items": [
@@ -92210,7 +92613,7 @@
       "output": {
         "properties": {
           "conversation": {
-            "$ref": "#/$defs/s_bbe05acc1e"
+            "$ref": "#/$defs/s_323acdeb06"
           },
           "items": {
             "items": {
@@ -92330,9 +92733,12 @@
             "conversation": {
               "address": "maya@example.com",
               "alertOnReplies": true,
+              "bounced": true,
               "campaignId": "cmp_a1b2c3",
               "contactId": "rec_a1b2c3",
               "displayName": "example",
+              "dnd": true,
+              "draftReady": true,
               "followed": true,
               "id": "cnv_a1b2c3",
               "lastChannel": "email",
@@ -92342,8 +92748,10 @@
                 "mbx_a1b2c3"
               ],
               "needsMatch": true,
+              "organisation": "Acme Legal",
               "ownerId": "usr_a1b2c3",
               "starred": true,
+              "unmatched": true,
               "unreadCount": 1
             }
           }
@@ -92373,7 +92781,7 @@
       "name": "inbox.unmatch",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_611f84de8a"
+        "$ref": "#/$defs/s_b628c0cd13"
       },
       "permission": "records.edit",
       "resource": {
@@ -92415,9 +92823,12 @@
               {
                 "address": "maya@example.com",
                 "alertOnReplies": true,
+                "bounced": true,
                 "campaignId": "cmp_a1b2c3",
                 "contactId": "rec_a1b2c3",
                 "displayName": "example",
+                "dnd": true,
+                "draftReady": true,
                 "followed": true,
                 "id": "cnv_a1b2c3",
                 "lastChannel": "email",
@@ -92427,8 +92838,10 @@
                   "mbx_a1b2c3"
                 ],
                 "needsMatch": true,
+                "organisation": "Acme Legal",
                 "ownerId": "usr_a1b2c3",
                 "starred": true,
+                "unmatched": true,
                 "unreadCount": 1
               }
             ],
@@ -92464,7 +92877,7 @@
             "type": "string"
           },
           "rows": {
-            "$ref": "#/$defs/s_7bc0d5d531"
+            "$ref": "#/$defs/s_ab4bbadc09"
           },
           "total": {
             "type": "integer"
@@ -92743,6 +93156,9 @@
                 },
                 "final": true,
                 "key": "intake",
+                "onLeaving": [
+                  "aut_a1b2c3"
+                ],
                 "order": 1,
                 "tasks": [
                   {
@@ -92805,6 +93221,9 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "onLeaving": [
+                    "aut_a1b2c3"
+                  ],
                   "order": 1,
                   "tasks": [
                     {
@@ -92869,7 +93288,7 @@
             "type": "string"
           },
           "stages": {
-            "$ref": "#/$defs/s_514842fb1f"
+            "$ref": "#/$defs/s_1a0d5dc1ad"
           },
           "startRule": {
             "$ref": "#/$defs/s_25d70fcceb"
@@ -92893,7 +93312,7 @@
       "module": "journeys",
       "name": "journeys.create",
       "output": {
-        "$ref": "#/$defs/s_14f6a8c95f"
+        "$ref": "#/$defs/s_25dfda5e35"
       },
       "permission": "journeys.manage",
       "resource": {
@@ -93019,6 +93438,9 @@
                 },
                 "final": true,
                 "key": "intake",
+                "onLeaving": [
+                  "aut_a1b2c3"
+                ],
                 "order": 1,
                 "tasks": [
                   {
@@ -93080,6 +93502,9 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "onLeaving": [
+                    "aut_a1b2c3"
+                  ],
                   "order": 1,
                   "tasks": [
                     {
@@ -93148,7 +93573,7 @@
           },
           "stages": {
             "items": {
-              "$ref": "#/$defs/s_b91fd91453"
+              "$ref": "#/$defs/s_4ae4009732"
             },
             "minItems": 1,
             "type": "array"
@@ -93176,7 +93601,7 @@
       "output": {
         "properties": {
           "journey": {
-            "$ref": "#/$defs/s_3b7eca5922"
+            "$ref": "#/$defs/s_df187904ca"
           },
           "startAutomationId": {
             "examples": [
@@ -93239,6 +93664,9 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "onLeaving": [
+                    "aut_a1b2c3"
+                  ],
                   "order": 1,
                   "tasks": [
                     {
@@ -93309,7 +93737,7 @@
       "module": "journeys",
       "name": "journeys.get",
       "output": {
-        "$ref": "#/$defs/s_14f6a8c95f"
+        "$ref": "#/$defs/s_25dfda5e35"
       },
       "permission": null,
       "resource": {
@@ -93866,6 +94294,9 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "onLeaving": [
+                    "aut_a1b2c3"
+                  ],
                   "order": 1,
                   "tasks": [
                     {
@@ -93940,7 +94371,7 @@
       "module": "journeys",
       "name": "journeys.rename",
       "output": {
-        "$ref": "#/$defs/s_14f6a8c95f"
+        "$ref": "#/$defs/s_25dfda5e35"
       },
       "permission": "journeys.manage",
       "resource": {
@@ -94005,6 +94436,9 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "onLeaving": [
+                    "aut_a1b2c3"
+                  ],
                   "order": 1,
                   "tasks": [
                     {
@@ -94106,7 +94540,7 @@
       "module": "journeys",
       "name": "journeys.rules.set",
       "output": {
-        "$ref": "#/$defs/s_14f6a8c95f"
+        "$ref": "#/$defs/s_25dfda5e35"
       },
       "permission": "journeys.manage",
       "resource": {
@@ -94306,6 +94740,143 @@
           "toolset": "automations"
         },
         "outboundWebhook": true
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "recordId": "rec_a1b2c3",
+            "stage": "intake"
+          },
+          "name": "example",
+          "output": {
+            "tasks": [
+              {
+                "assigned": {
+                  "id": "usr_a1b2c3",
+                  "kind": "person"
+                },
+                "required": true,
+                "stage": "intake",
+                "state": "todo",
+                "taskId": "tsk_a1b2c3",
+                "taskKey": "example",
+                "title": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "stage": {
+            "examples": [
+              "intake"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "journeys",
+      "name": "journeys.tasks",
+      "output": {
+        "properties": {
+          "tasks": {
+            "items": {
+              "properties": {
+                "assigned": {
+                  "$ref": "#/$defs/s_f05a3f77df"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "stage": {
+                  "examples": [
+                    "intake"
+                  ],
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "type": "string"
+                },
+                "state": {
+                  "enum": [
+                    "todo",
+                    "in_review",
+                    "blocked",
+                    "done"
+                  ],
+                  "type": "string"
+                },
+                "taskId": {
+                  "examples": [
+                    "tsk_a1b2c3"
+                  ],
+                  "pattern": "^tsk_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "taskKey": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "stage",
+                "taskKey",
+                "taskId",
+                "title",
+                "state",
+                "required"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "tasks"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/recordId",
+        "type": "record"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The tasks of one Journey record by stage, each with its state (todo, in review, blocked, done)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
       },
       "v": 1
     },
@@ -115969,6 +116540,120 @@
       "v": 1
     },
     {
+      "effects": "write",
+      "emits": [
+        "notification.rules_changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "channels": [
+              "desktop"
+            ],
+            "kind": "approval.requested",
+            "level": "interrupt"
+          },
+          "name": "example",
+          "output": {
+            "channels": [
+              "desktop"
+            ],
+            "kind": "approval.requested",
+            "level": "interrupt"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "channels": {
+            "items": {
+              "enum": [
+                "desktop",
+                "phone",
+                "email"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "type": "array"
+          },
+          "kind": {
+            "$ref": "#/$defs/s_0766030a72"
+          },
+          "level": {
+            "enum": [
+              "interrupt",
+              "badge",
+              "digest"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "notifications",
+      "name": "notifications.kind.set_level",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "channels": {
+            "items": {
+              "enum": [
+                "desktop",
+                "phone",
+                "email"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "$ref": "#/$defs/s_0766030a72"
+          },
+          "level": {
+            "enum": [
+              "interrupt",
+              "badge",
+              "digest"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "level",
+          "channels"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Set how one kind of notification reaches me: its level and which of desktop, phone and email carry it. Give a level, channels, or both; channels alone pick the level (desktop or phone interrupt, otherwise badge). Approval reminders and owned incidents never go below Interrupt",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "meta"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -115986,6 +116671,12 @@
               {
                 "key": "approval.requested",
                 "level": "interrupt",
+                "mine": {
+                  "channels": [
+                    "desktop"
+                  ],
+                  "level": "interrupt"
+                },
                 "place": "home",
                 "respectHours": true,
                 "title": "example"
@@ -116017,6 +116708,34 @@
                     "digest"
                   ],
                   "type": "string"
+                },
+                "mine": {
+                  "properties": {
+                    "channels": {
+                      "items": {
+                        "enum": [
+                          "desktop",
+                          "phone",
+                          "email"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "level": {
+                      "enum": [
+                        "interrupt",
+                        "badge",
+                        "digest"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "level",
+                    "channels"
+                  ],
+                  "type": "object"
                 },
                 "place": {
                   "enum": [
@@ -173015,6 +173734,37 @@
     },
     {
       "module": "email-builder-api",
+      "name": "email_block.saved",
+      "payload": {
+        "properties": {
+          "blockId": {
+            "examples": [
+              "blk_a1b2c3"
+            ],
+            "pattern": "^blk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "shared": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "blockId",
+          "shared"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/blockId",
+        "type": "entity"
+      },
+      "summary": "A block was saved for reuse in email designs",
+      "sv": 1,
+      "vis": "owner"
+    },
+    {
+      "module": "email-builder-api",
       "name": "email_template.saved",
       "payload": {
         "$ref": "#/$defs/s_cb6eb7675e"
@@ -176506,6 +177256,13 @@
       },
       "summary": "A Journey record left a stage",
       "sv": 1,
+      "trigger": {
+        "fields": [
+          "/journeyId",
+          "/stage"
+        ],
+        "title": "A Journey record leaves a stage"
+      },
       "vis": "space"
     },
     {
@@ -207146,6 +207903,17 @@
       "title": "Members excluded from the Microsoft connection"
     },
     {
+      "default": false,
+      "key": "notifications.alert_replies",
+      "module": "notifications",
+      "page": "Notifications",
+      "schema": {
+        "type": "boolean"
+      },
+      "scope": "person",
+      "title": "Alert me on replies"
+    },
+    {
       "default": true,
       "key": "notifications.email_backstop",
       "module": "notifications",
@@ -207155,6 +207923,27 @@
       },
       "scope": "person",
       "title": "Email me once if an approval waits 4 hours"
+    },
+    {
+      "default": null,
+      "key": "notifications.hand_needs_you_to",
+      "module": "notifications",
+      "page": "Notifications",
+      "schema": {
+        "anyOf": [
+          {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "scope": "person",
+      "title": "While you are away, hand Needs you to (a person; none leaves it with you)"
     },
     {
       "default": 5,
@@ -207168,6 +207957,61 @@
       },
       "scope": "space",
       "title": "Minutes idle on the computer before pushes go to the phone"
+    },
+    {
+      "default": {
+        "from": "22:00",
+        "needs": true,
+        "on": false,
+        "to": "07:00"
+      },
+      "key": "notifications.quiet_hours",
+      "module": "notifications",
+      "page": "Notifications",
+      "schema": {
+        "properties": {
+          "from": {
+            "examples": [
+              "22:00"
+            ],
+            "pattern": "^[0-2][0-9]:[0-5][0-9]$",
+            "type": "string"
+          },
+          "needs": {
+            "type": "boolean"
+          },
+          "on": {
+            "type": "boolean"
+          },
+          "to": {
+            "examples": [
+              "07:00"
+            ],
+            "pattern": "^[0-2][0-9]:[0-5][0-9]$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "on",
+          "from",
+          "to",
+          "needs"
+        ],
+        "type": "object"
+      },
+      "scope": "person",
+      "title": "Quiet hours: no sounds or pushes between the two times; Needs you may come through"
+    },
+    {
+      "default": false,
+      "key": "notifications.routines_all",
+      "module": "notifications",
+      "page": "Notifications",
+      "schema": {
+        "type": "boolean"
+      },
+      "scope": "person",
+      "title": "Also tell me when routines succeed (failures always)"
     },
     {
       "default": {
@@ -210079,6 +210923,52 @@
         "event": "journey.stage_entered"
       },
       "title": "A Journey record enters a stage"
+    },
+    {
+      "allowSelfTrigger": false,
+      "key": "journey_stage_left",
+      "module": "automations",
+      "payload": {
+        "properties": {
+          "journeyId": {
+            "examples": [
+              "jrn_a1b2c3"
+            ],
+            "pattern": "^jrn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "toStage": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "journeyId",
+          "recordId",
+          "stage"
+        ],
+        "type": "object"
+      },
+      "personalOk": true,
+      "sample": {
+        "journeyId": "jrn_a1b2c3",
+        "recordId": "rec_a1b2c3",
+        "stage": "example",
+        "toStage": "example"
+      },
+      "source": {
+        "event": "journey.stage_exited"
+      },
+      "title": "A Journey record leaves a stage"
     },
     {
       "allowSelfTrigger": false,

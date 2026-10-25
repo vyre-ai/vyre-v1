@@ -4,7 +4,7 @@ export type { Catalog, ProfileMode, ServerEntity } from "./catalog.ts";
 export { pullError } from "./errors.ts";
 export { SEALED_FIELD, foldEvent, mapEvent } from "./fold.ts";
 export type { Cell, Cells, OwnerFieldOf, RowChange, RowOp } from "./fold.ts";
-export { Seen, epochOf, headSeq, pullChanges, wireFields } from "./pull.ts";
+export { Seen, deviceEpochOf, deviceRevoked, epochOf, headSeq, pullChanges, wireFields } from "./pull.ts";
 export type { PullDeps } from "./pull.ts";
 export { ScopeCache, Viewer, Window } from "./scope.ts";
 export type { EntityScope, RowRec, Who } from "./scope.ts";

@@ -2,7 +2,7 @@
 // and it enforces the primary keys and NOT NULL columns the migration declares.
 // Supported SQL: SELECT * FROM t [WHERE c = ? | c IS NULL | c IS NOT NULL [AND ...]], INSERT INTO t (cols) VALUES (?, ...), UPDATE t SET c = ?, ... [WHERE ...], DELETE FROM t [WHERE ...].
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,8 +17,10 @@ interface TableDef {
 
 const here = dirname(fileURLToPath(import.meta.url));
 
+/** Every migration in file order, as the host runs them; a table created again later replaces the earlier definition. */
 export function readMigration(): string {
-  return readFileSync(join(here, "../migrations/0001_previews_core.sql"), "utf8");
+  const dir = join(here, "../migrations");
+  return readdirSync(dir).filter((f) => f.endsWith(".sql")).sort().map((f) => readFileSync(join(dir, f), "utf8")).join("\n");
 }
 
 function parseDefault(text: string): unknown {
