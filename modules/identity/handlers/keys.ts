@@ -3,7 +3,7 @@
 import type { Device, IdentityCtx, KeyBundle, SignInOut } from "../projections.ts";
 import {
   MIN_SECRET, RESET_TTL_MS, USERNAME, nid, provisionAccount, randomBytes, validBundle, accountById, accountByName, bundleOf, burnVerify, checkVerifier, issueSession, lockedFor, makeVerifier, me, mustAccount, noteFail, raise,
-  revokeSessions, setKeys, spendCode, putCode, clearFails,
+  revokeSessions, setKeys, spendCode, putCode, clearFails, LOCK_AFTER,
 } from "../projections.ts";
 
 const ok = { ok: true } as const;
@@ -73,6 +73,8 @@ export async function recoveryRestore(ctx: IdentityCtx, input: Device & { userna
   }
   if (input.recoveryProof !== a.recovery_hash) {
     noteFail(ctx, a, name, "bad_code");
+    // the recovery code is burned after LOCK_AFTER wrong tries, whoever made them: it guards the person's keys, and a new one is saved from a signed-in device
+    if (a.fails + 1 >= LOCK_AFTER) ctx.db.run(`UPDATE identity_accounts SET recovery_hash = NULL WHERE person_id = ?`, a.person_id);
     raise(ctx.trace.traceId, "auth.invalid_code");
   }
   checkNewSecret(ctx, input.newPassword);

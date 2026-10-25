@@ -307,3 +307,31 @@ test("l7 live ruling 62: a signed-in member unlocks their key from their own cli
     }
   } finally { await d.stop(); }
 });
+
+test("l7 live: sign-in is rate limited per source address: one address using up its tries leaves another untouched", async () => {
+  const dir = seededDir();
+  const d = await startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "team.example.com"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux", hostname: "l7-rate", free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
+  });
+  // the test's socket is loopback, like a reverse proxy on this machine, so x-forwarded-for names the client
+  const signIn = async (from: string): Promise<number> => (await fetch(`${d.url}/v1/identity/sign_in`, {
+    method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": from },
+    body: JSON.stringify({ username: "nobody", password: "wrong password here", deviceName: "Mac", deviceClass: "desktop" }),
+  })).status;
+  try {
+    for (let i = 0; i < 10; i++) assert.notEqual(await signIn("203.0.113.9"), 429, `try ${i + 1} from the first address`);
+    assert.equal(await signIn("203.0.113.9"), 429, "the eleventh try from one address is limited");
+    assert.notEqual(await signIn("198.51.100.4"), 429, "another address has its own bucket");
+    assert.equal(await signIn("203.0.113.9"), 429, "and the first is still limited");
+  } finally { await d.stop(); }
+});

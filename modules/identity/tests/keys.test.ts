@@ -168,3 +168,17 @@ test("invites.accept_create_account (ruling 23): creates the person, stores keys
   await assert.rejects(handlers["invites.accept_create_account"](ctx, { ...input, displayName: "Again" }), (e) => codeOf(e) === "validation.duplicate");
   assert.equal((await handlers["identity.sign_in"](h.anon, { username: "omar", password: input.password, ...DEVICE })).status, "ok");
 });
+
+test("a recovery code is burned after five wrong tries, whoever made them: the right proof then fails too", async () => {
+  const h = await world();
+  const { ctx } = await signedIn(h);
+  await handlers["identity.keys_put"](ctx, { keys: KEYS, reason: "first_device" });
+  const wrap = "cmVjb3ZlcnktY2lwaGVydGV4dA==";
+  await handlers["identity.recovery_save"](ctx, { personKeyByRecovery: wrap });
+  const fresh = { ...KEYS, personKeyByPassword: "cmUtd3JhcHBlZC1ieS1uZXc=", personKeyByRecovery: wrap };
+  for (let i = 0; i < 5; i++) {
+    await assert.rejects(handlers["identity.recovery_restore"](h.anon, { username: P.username, recoveryProof: `wrong-${i}`, newPassword: NEW_PASSWORD, keys: fresh, ...DEVICE }), (e) => codeOf(e) === "auth.invalid_code");
+  }
+  assert.equal((await handlers["identity.reset_preview"](ctx, { personId: P.personId })).hasRecoveryCode, false, "the code is gone");
+  await assert.rejects(handlers["identity.recovery_restore"](h.anon, { username: P.username, recoveryProof: sha(wrap), newPassword: NEW_PASSWORD, keys: fresh, ...DEVICE }), (e) => codeOf(e) === "auth.invalid_code", "the right proof no longer works");
+});
