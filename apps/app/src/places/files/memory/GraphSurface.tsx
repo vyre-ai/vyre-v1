@@ -33,6 +33,12 @@ export interface SurfaceProps {
   narrow?: boolean;
 }
 
+/** The family the root font set on this host (canvas text cannot inherit it, so it is read once from the computed style). */
+function family(el: Element): string {
+  const css = (globalThis as { getComputedStyle?: (e: Element) => { fontFamily: string } }).getComputedStyle?.(el).fontFamily;
+  return css && css.trim() ? css : "sans-serif";
+}
+
 /** A colour from the skin as a value WebGL can use (#rrggbb or rgba), whatever form the token is written in. */
 function resolve(el: Element, token: string, fallback: string): string {
   const css = (globalThis as { getComputedStyle?: (e: Element) => { getPropertyValue(p: string): string } }).getComputedStyle?.(el).getPropertyValue(token).trim();
@@ -45,7 +51,7 @@ function resolve(el: Element, token: string, fallback: string): string {
   return ctx.fillStyle;
 }
 
-interface Live { sel: string | null; hover: string | null; lit: ReadonlySet<string>; near: ReadonlySet<string> | null; hubs: ReadonlySet<string>; ink: string; ink3: string; line: string; faint: string; accent: string; edgeInk: string }
+interface Live { sel: string | null; hover: string | null; lit: ReadonlySet<string>; near: ReadonlySet<string> | null; hubs: ReadonlySet<string>; ink: string; ink3: string; line: string; faint: string; accent: string; edgeInk: string; font: string }
 
 /** How many of the most linked notes keep their name on screen when nothing is selected. */
 const HUBS = 12;
@@ -56,7 +62,7 @@ export function GraphSurface(p: SurfaceProps): ReactElement | null {
   const el = useRef<HTMLElement | null>(null);
   const sigma = useRef<Sigma | null>(null);
   const graph = useRef<Graph | null>(null);
-  const live = useRef<Live>({ sel: null, hover: null, lit: new Set(), near: null, hubs: new Set(), ink: "#555555", ink3: "#777777", line: "#cccccc", faint: "#aaaaaa", accent: "#5b50e8", edgeInk: "#a1a1aa" });
+  const live = useRef<Live>({ sel: null, hover: null, lit: new Set(), near: null, hubs: new Set(), ink: "#555555", ink3: "#777777", line: "#cccccc", faint: "#aaaaaa", accent: "#5b50e8", edgeInk: "#a1a1aa", font: "sans-serif" });
   const props = useRef(p);
   props.current = p;
   const [failed, setFailed] = useState<string | null>(null);
@@ -76,7 +82,7 @@ export function GraphSurface(p: SurfaceProps): ReactElement | null {
         const g = new gr.default();
         graph.current = g;
         const r = new sg.default(g, node, {
-          renderEdgeLabels: false, labelRenderedSizeThreshold: 8, labelSize: 12, labelWeight: "500", zIndex: true, minCameraRatio: 0.08, maxCameraRatio: 4, allowInvalidContainer: true,
+          renderEdgeLabels: false, labelRenderedSizeThreshold: 8, labelSize: 12, labelWeight: "500", labelFont: family(node), zIndex: true, minCameraRatio: 0.08, maxCameraRatio: 4, allowInvalidContainer: true,
           nodeReducer: (id, d) => {
             const s = live.current;
             const dim = (s.near !== null && !s.near.has(id)) || (s.lit.size > 0 && !s.lit.has(id));
@@ -156,6 +162,7 @@ export function GraphSurface(p: SurfaceProps): ReactElement | null {
     }
     for (const e of p.edges) if (g.hasNode(e.from) && g.hasNode(e.to) && !g.hasEdge(e.from, e.to)) g.addEdge(e.from, e.to, { size: e.kind === "came_from" ? 0.8 : 1.3, kind: e.kind });
     live.current.hubs = new Set([...p.nodes].sort((a, b) => (p.deg.get(b.nodeId) ?? 0) - (p.deg.get(a.nodeId) ?? 0) || a.title.localeCompare(b.title)).slice(0, HUBS).filter((n) => (p.deg.get(n.nodeId) ?? 0) > 0).map((n) => n.nodeId));
+    live.current.font = family(node);
     live.current.ink = resolve(node, "--ink-2", "#555555");
     live.current.ink3 = resolve(node, "--ink-3", "#777777");
     live.current.line = resolve(node, "--line", "#cccccc");
@@ -268,7 +275,7 @@ function drawHalos(cv: HTMLCanvasElement, r: Sigma, g: Graph, live: Live): void 
     c.fillStyle = grd;
     c.beginPath(); c.arc(cx, cy, rad, 0, Math.PI * 2); c.fill();
     c.strokeStyle = live.line; c.globalAlpha = 0.55; c.lineWidth = 1; c.setLineDash([2, 5]); c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
-    c.font = "600 11.5px system-ui, sans-serif"; c.fillStyle = live.ink3; c.textAlign = "center";
+    c.font = `600 11.5px ${live.font}`; c.fillStyle = live.ink3; c.textAlign = "center";
     c.fillText(name, cx, Math.max(14, cy - rad - 7));
   }
 }

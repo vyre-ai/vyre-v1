@@ -143,7 +143,7 @@ function GraphBody({ agentId, scope: scope0 = "agent", selected = null, step: st
         <View style={m.find}>
           <Icon name="find" size={13} color="var(--ink-3)" />
           {web
-            ? createElement("input", { value: q, placeholder: "Find a note", "aria-label": "Find a note", "data-testid": "graph-find", onChange: (e: { target: { value: string } }) => setQ(e.target.value), style: { border: 0, outline: 0, background: "transparent", color: "var(--ink)", font: "inherit", fontFamily: "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif", fontSize: 13, width: 130 } })
+            ? createElement("input", { value: q, placeholder: "Find a note", "aria-label": "Find a note", "data-testid": "graph-find", onChange: (e: { target: { value: string } }) => setQ(e.target.value), style: { border: 0, outline: 0, background: "transparent", color: "var(--ink)", font: "inherit", fontSize: 13, width: 130 } })
             : null}
         </View>
         <QuietButton icon="layers" label="Layers" lit={layers.size < GRAPH_LAYERS.length} testID="graph-layers" onPress={(x, y) => menu.show(layerEntries(), x, y)} />
