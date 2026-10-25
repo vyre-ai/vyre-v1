@@ -79,7 +79,7 @@ test("on a phone a starred thread outlives the 200-row window, and a starred or 
   st.toggleStar(old, true);
   for (let i = 0; i < 205; i++) {
     const id = `thr_${String(i).padStart(3, "0")}`;
-    store.write({ entity: "thread", id, fields: { title: id, createdAt: NOW + i * 1000 }, hlc: hlc(), actor: ME, origin: "mirror" });
+    store.write({ entity: "thread", id, fields: { title: id, createdAt: NOW + i * 1000, updated_at: NOW + i * 1000 }, hlc: hlc(), actor: ME, origin: "mirror" });
   }
   assert.ok(store.read("thread", "thr_000"), "the oldest thread is starred and stays");
   assert.equal(store.read("thread", "thr_001"), null, "an unstarred old thread was trimmed");
