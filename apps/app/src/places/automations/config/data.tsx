@@ -13,8 +13,14 @@ export interface ConfigDirectory {
   /** Automations that can run when a record enters a Journey stage. */
   automations: readonly DirEntry[];
 }
+export type FieldType = "person" | "rel" | "date" | "choice" | "num" | "text" | "check" | "file" | "formula";
+export interface FieldEntry { name: string; type: FieldType }
+/** The fields of a Journey's record type: those it inherits from the template it was made from, and those of its own. */
+export interface RecordFields { template: string; inherited: readonly FieldEntry[]; own: readonly FieldEntry[] }
 export interface ConfigExtras {
   directory: ConfigDirectory;
+  /** The fields of a record type (a Journey's records), for the Fields tab. Without it the tab says there are none. */
+  recordFields?(recordType: string): RecordFields;
   /** Opens the Automation's folder in Files. */
   openFiles?(path: string): void;
   /** Opens the Automation's run history in the main view. */
