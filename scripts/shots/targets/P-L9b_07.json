@@ -1,0 +1,44 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_07-pane-computer",
+      "route": "/m/P-L9b_07?tab=computer",
+      "proto": "chat,at:demo-agent-computer,{skin}",
+      "waitFor": "[data-testid='chats-right-pane']",
+      "note": "The right pane on Computer while Intake works: the live screen with its caption, the five steps of the session, the sites it is signed in to. The prototype side is its agent pane on the same tab in the same skin.",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_07-pane-threads",
+      "route": "/m/P-L9b_07?tab=threads",
+      "proto": "chat,at:demo-agent-threads,{skin}",
+      "waitFor": "[data-testid='chats-right-pane']",
+      "note": "Threads: the threads Intake worked in, its helpers (the running one first) and its own chats, the open chat selected. The prototype side is its Threads tab.",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_07-pane-files",
+      "route": "/m/P-L9b_07?tab=files",
+      "proto": "chat,at:demo-agent-files,{skin}",
+      "waitFor": "[data-testid='chats-right-pane']",
+      "note": "Files: Intake's own folder, folders first, then AGENT.md and agent.toml, with the footer line. The prototype side is its Files tab (a tree; the real one walks folder by folder).",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_07-pane-memory",
+      "route": "/m/P-L9b_07?tab=memory",
+      "proto": "chat,at:demo-agent-memory,{skin}",
+      "waitFor": "[data-testid='chats-right-pane']",
+      "note": "Memory: three proposed facts waiting on Accept or Reject, then what Intake knows with when, learned and source. The prototype side is its Memory tab (it also lists the MAP.md index, which lives in the agent page).",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_07-pane-routines",
+      "route": "/m/P-L9b_07?tab=routines",
+      "proto": "chat,at:demo-agent-routines,{skin}",
+      "waitFor": "[data-testid='chats-right-pane']",
+      "note": "Routines: schedule and next run on each, the on/off switches, one paused, and the three sentence starters. The prototype side is its Routines tab.",
+      "protoSettleMs": 1500
+    }
+  ]
+}

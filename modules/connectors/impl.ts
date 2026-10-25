@@ -39,7 +39,9 @@ type HostCtx = Omit<ConnectorsCtx, "actor"> & { principal?: { id: string } };
 let shared: ConnectorsHandle | null = null;
 const live = (): ConnectorsHandle => (shared ??= openConnectors());
 /** The host hands the sync engine (modules/sources) to the live handlers: preview, undo, conflict settling, replay, confirm deletes and push need it (boundary B1 keeps this module from importing it). */
-export function setSyncEngine(engine: SyncEngine): void { live().deps.engine = engine; }
+export function setSyncEngine(engine: SyncEngine | null): void { if (engine) live().deps.engine = engine; else delete live().deps.engine; }
+// NOT exported as `hostSeams` yet: the daemon has no driver that builds the engine from modules/sources (two Stores per binding), and a setter without a driver shows in health as not set up.
+// Until that host packet (P-H_09) lands, sync_types.preview/confirm_deletes/resolve_conflict/replay_conflict/undo_push and connectors.push answer internal.unavailable, which is the module's own refusal.
 
 function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {
