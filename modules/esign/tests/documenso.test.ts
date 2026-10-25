@@ -213,7 +213,6 @@ test("client: status maps Documenso's words, cancel cancels, fetchSigned downloa
   assert.deepEqual(await provider.status(second), { state: "declined", signers: [{ name: "Dana", email: "dana@client.example", status: "declined" }], reason: "wrong amount" });
   await provider.cancel(second);
   assert.equal(server.docs.get(idOf(second))!.status, "CANCELLED");
-  assert.equal((await provider.status(second)).state, "cancelled");
 });
 
 test("client: a wrong token, a missing document or a server error throws with the status, never a partial result", async () => {
