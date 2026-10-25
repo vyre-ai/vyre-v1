@@ -1,5 +1,5 @@
-// P-SEC_07: the owner export packs many items into one zip, and the read filter cannot reach a file's contents. Every entry that names an item needs an explicit view allow from ctx.authorize;
-// a deny or a hold leaves it out, and a context with no authorize refuses the whole export.
+// P-SEC_07: a full export is complete or it does not happen (a silently partial export is its own harm), so it is never filtered per item. It is the Space owner's alone: an admin who is not the owner,
+// a member, a caller whose authorize says no or hold, and a context with no authorize at all are refused with permission.no_grant, and nothing is packed or saved.
 // @reads ../migrations/0001_init.sql
 
 import test, { afterEach } from "node:test";
@@ -9,40 +9,46 @@ import { world } from "../fixtures/world.ts";
 import { configureBackup, handlers } from "../handlers/index.ts";
 import type { BackupCtx } from "../handlers/run.ts";
 
-const enc = new TextEncoder();
-const dec = new TextDecoder();
 type Fn = (ctx: BackupCtx, input: never) => Promise<unknown>;
 const exportStart = (ctx: BackupCtx): Promise<unknown> => (handlers as unknown as Record<string, Fn>)["backup.export_start"]!(ctx, {} as never);
+const refusal = async (ctx: BackupCtx): Promise<string> => {
+  try { await exportStart(ctx); } catch (e) { assert.ok(e instanceof VyreErr); return e.error.code; }
+  return "none";
+};
 
 afterEach(() => configureBackup(null));
 
-test("backup.export_start: an entry whose item the caller cannot view is absent from the zip, and is counted as left out", async () => {
+test("backup.export_start: the owner is allowed and the zip is complete", async () => {
   const w = world();
   configureBackup(w.drivers);
-  w.space.extraExport.push(
-    { path: "files/visible.txt", bytes: enc.encode("visible plan"), resource: { type: "file", id: "fil_open" } },
-    { path: "files/restricted.txt", bytes: enc.encode("restricted merger terms"), resource: { type: "file", id: "fil_secret" } },
-    { path: "files/held.txt", bytes: enc.encode("held until approved"), resource: { type: "file", id: "fil_held" } },
-  );
-  const full = w.ctx.authorize;
-  w.ctx.authorize = ((a: { perm: string | null; level: string }, r: { type: string; id: string | null }) => {
-    if (r.id === "fil_secret") return { effect: "deny", reason: "restricted", decisionId: "dec_s" };
-    if (r.id === "fil_held") return { effect: "hold", reason: "approval", decisionId: "dec_h" };
-    return (full as (a: unknown, r: unknown) => unknown)(a, r);
-  }) as unknown as BackupCtx["authorize"];
-  w.allowExport(true);
-  await exportStart(w.ctx);
-  const text = dec.decode(w.saved[0]!.bytes);
-  assert.ok(text.includes("visible plan"), "the item the caller may view is in the zip");
-  assert.ok(!text.includes("restricted merger terms") && !text.includes("restricted.txt"), "the restricted item is absent");
-  assert.ok(!text.includes("held until approved") && !text.includes("held.txt"), "a hold is a deny");
-  assert.equal(w.raw.rows("backup_export")[0]!["skipped"], 2);
+  await w.space.append("contact/ada", "Ada Lovelace");
+  w.space.blobs.set("fil_1", "the engagement letter");
+  const out = await exportStart(w.ctx) as { runId: string };
+  assert.equal(out.runId, "run_testrun1");
+  const text = new TextDecoder().decode(w.saved[0]!.bytes);
+  assert.ok(text.includes("Ada Lovelace") && text.includes("the engagement letter"), "nothing the owner holds was filtered out");
 });
 
-test("backup.export_start: a context with no authorize refuses and packs nothing (fail closed)", async () => {
+test("backup.export_start: an admin who is not the owner, and a member, are refused and nothing is saved", async () => {
+  for (const who of ["usr_admin", "usr_member"]) {
+    const w = world({ principal: who });
+    configureBackup(w.drivers);
+    assert.equal(await refusal(w.ctx), "permission.no_grant", who);
+    assert.deepEqual(w.saved, [], who);
+  }
+});
+
+test("backup.export_start: a deny or a hold from authorize, and a context with no authorize, are refused (fail closed)", async () => {
+  for (const effect of ["deny", "hold"] as const) {
+    const w = world();
+    configureBackup(w.drivers);
+    w.ctx.authorize = (() => ({ effect, reason: "test", decisionId: "dec_x" })) as unknown as BackupCtx["authorize"];
+    assert.equal(await refusal(w.ctx), "permission.no_grant", effect);
+    assert.deepEqual(w.saved, []);
+  }
   const w = world();
   configureBackup(w.drivers);
   (w.ctx as { authorize?: unknown }).authorize = undefined;
-  try { await exportStart(w.ctx); assert.fail("expected a refusal"); } catch (e) { assert.ok(e instanceof VyreErr); assert.equal(e.error.code, "permission.role_lacks_permission"); }
+  assert.equal(await refusal(w.ctx), "permission.no_grant");
   assert.deepEqual(w.saved, []);
 });
