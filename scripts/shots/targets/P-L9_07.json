@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_07-history-diff",
+      "route": "/m/P-L9_07?part=history",
+      "proto": "files,at:versions,{skin}",
+      "waitFor": "[data-testid='history-tab']",
+      "note": "The version screen: the DiffTab of AGENT.md with the changed line and its word marks, beside the HistoryTab in the right pane with five versions (v5 Current, v4 selected). The prototype image is the same Files screen opened at at:versions."
+    },
+    {
+      "id": "P-L9_07-object-page",
+      "route": "/m/P-L9_07?part=object",
+      "proto": "console,at:people~omar,{skin}",
+      "waitFor": "[data-testid='object-header']",
+      "note": "An object page the way the Console draws a person: breadcrumb, header with status and actions, tabs with counts, a body of rows. The prototype image is the Console People page for Omar Haddad."
+    }
+  ]
+}
