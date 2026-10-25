@@ -152,13 +152,14 @@ function names(ctx: GithubCtx, v: unknown, what: string): string[] {
 
 export async function prCreate(ctx: GithubCtx, input: { repo: string; head: string; base: string; title: string; body?: string; draft?: boolean }): Promise<{ pullRequest: PrOut }> {
   ensure(ctx);
-  const t = await target(ctx, input.repo);
+  repoPath(ctx, input.repo);
   const body: Json = { head: nonEmpty(ctx, input.head, "The head branch", 255), base: nonEmpty(ctx, input.base, "The base branch", 255), title: nonEmpty(ctx, input.title, "The title", 256) };
   if (input.body !== undefined) body.body = text(input.body);
   if (input.draft !== undefined) {
     if (typeof input.draft !== "boolean") bad(ctx, "Draft is true or false.");
     body.draft = input.draft;
   }
+  const t = await target(ctx, input.repo);
   const pr = await api(ctx, { method: "POST", path: `${t.path}/pulls`, auth: t.auth, body });
   return { pullRequest: mapPr(pr, t.repo, "none") };
 }
@@ -168,7 +169,7 @@ export async function prUpdate(
 ): Promise<{ pullRequest: PrOut }> {
   ensure(ctx);
   const n = numberOf(ctx, input.number);
-  const t = await target(ctx, input.repo);
+  repoPath(ctx, input.repo);
   const pull: Json = {};
   if (input.title !== undefined) pull.title = nonEmpty(ctx, input.title, "The title", 256);
   if (input.body !== undefined) pull.body = text(input.body);
@@ -177,6 +178,7 @@ export async function prUpdate(
   if (input.labels !== undefined) issue.labels = names(ctx, input.labels, "Labels");
   if (input.assignees !== undefined) issue.assignees = names(ctx, input.assignees, "Assignees");
   if (!Object.keys(pull).length && !Object.keys(issue).length) bad(ctx, "Give something to change.");
+  const t = await target(ctx, input.repo);
   if (Object.keys(pull).length) await api(ctx, { method: "PATCH", path: `${t.path}/pulls/${n}`, auth: t.auth, body: pull });
   if (Object.keys(issue).length) await api(ctx, { method: "PATCH", path: `${t.path}/issues/${n}`, auth: t.auth, body: issue });
   return prGet(ctx, { repo: input.repo, number: n });
@@ -185,8 +187,9 @@ export async function prUpdate(
 export async function prComment(ctx: GithubCtx, input: { repo: string; number: number; body: string }): Promise<{ commentId: number }> {
   ensure(ctx);
   const n = numberOf(ctx, input.number);
+  const body = nonEmpty(ctx, input.body, "The comment", 65_536);
   const t = await target(ctx, input.repo);
-  const c = await api(ctx, { method: "POST", path: `${t.path}/issues/${n}/comments`, auth: t.auth, body: { body: nonEmpty(ctx, input.body, "The comment", 65_536) } });
+  const c = await api(ctx, { method: "POST", path: `${t.path}/issues/${n}/comments`, auth: t.auth, body: { body } });
   return { commentId: commentId(ctx, c) };
 }
 
@@ -253,11 +256,12 @@ export async function issueCreate(
   ctx: GithubCtx, input: { repo: string; title: string; body?: string; labels?: string[]; assignees?: string[] },
 ): Promise<{ issue: IssueOut }> {
   ensure(ctx);
-  const t = await target(ctx, input.repo);
+  repoPath(ctx, input.repo);
   const body: Json = { title: nonEmpty(ctx, input.title, "The title", 256) };
   if (input.body !== undefined) body.body = text(input.body);
   if (input.labels !== undefined) body.labels = names(ctx, input.labels, "Labels");
   if (input.assignees !== undefined) body.assignees = names(ctx, input.assignees, "Assignees");
+  const t = await target(ctx, input.repo);
   return { issue: mapIssue(await api(ctx, { method: "POST", path: `${t.path}/issues`, auth: t.auth, body }), t.repo) };
 }
 
@@ -266,21 +270,23 @@ export async function issueUpdate(
 ): Promise<{ issue: IssueOut }> {
   ensure(ctx);
   const n = numberOf(ctx, input.number);
-  const t = await target(ctx, input.repo);
+  repoPath(ctx, input.repo);
   const body: Json = {};
   if (input.title !== undefined) body.title = nonEmpty(ctx, input.title, "The title", 256);
   if (input.body !== undefined) body.body = text(input.body);
   if (input.labels !== undefined) body.labels = names(ctx, input.labels, "Labels");
   if (input.assignees !== undefined) body.assignees = names(ctx, input.assignees, "Assignees");
   if (!Object.keys(body).length) bad(ctx, "Give something to change.");
+  const t = await target(ctx, input.repo);
   return { issue: mapIssue(await api(ctx, { method: "PATCH", path: `${t.path}/issues/${n}`, auth: t.auth, body }), t.repo) };
 }
 
 export async function issueComment(ctx: GithubCtx, input: { repo: string; number: number; body: string }): Promise<{ commentId: number }> {
   ensure(ctx);
   const n = numberOf(ctx, input.number);
+  const body = nonEmpty(ctx, input.body, "The comment", 65_536);
   const t = await target(ctx, input.repo);
-  const c = await api(ctx, { method: "POST", path: `${t.path}/issues/${n}/comments`, auth: t.auth, body: { body: nonEmpty(ctx, input.body, "The comment", 65_536) } });
+  const c = await api(ctx, { method: "POST", path: `${t.path}/issues/${n}/comments`, auth: t.auth, body: { body } });
   return { commentId: commentId(ctx, c) };
 }
 
