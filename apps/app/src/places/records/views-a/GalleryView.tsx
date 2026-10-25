@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { useLive, useRecordsData } from "../sidebar/data.tsx";
 import { Face } from "../sidebar/parts.tsx";
@@ -18,9 +19,8 @@ import type { ViewCtx } from "./view.tsx";
 
 const shadow = (v: string): ViewStyle => (Platform.OS === "web" ? ({ boxShadow: v } as ViewStyle) : {});
 
-function GalleryCard({ ctx, row, width, hidden, selected, onSelect }: { ctx: ViewCtx; row: RecordRow; width: number; hidden: readonly string[]; selected: boolean; onSelect: (id: string) => void }): ReactElement {
+function GalleryCard({ ctx, row, width, hidden, selected, onSelect, show }: { ctx: ViewCtx; row: RecordRow; width: number; hidden: readonly string[]; selected: boolean; onSelect: (id: string) => void; show: (items: readonly MenuEntry[], x: number, y: number) => void }): ReactElement {
   const data = useRecordsData();
-  const menu = useMenu();
   const names = data.nameOf;
   const { def } = ctx;
   const tf = def.fields.find((f) => f.key === def.titleField);
@@ -32,7 +32,7 @@ function GalleryCard({ ctx, row, width, hidden, selected, onSelect }: { ctx: Vie
   const who = def.fields.find((f) => f.type === "person");
   const person = who ? row.fields[who.key] : undefined;
   const meta = cardFields(def, hidden, badge?.key ?? null, 3);
-  const trig = menuTrigger((x, y) => { onSelect(row.id); menu.show([{ label: "Open", onSelect: () => data.nav.openRecord(row.id) }], x, y); });
+  const trig = menuTrigger((x, y) => { onSelect(row.id); show([{ label: "Open", onSelect: () => data.nav.openRecord(row.id) }], x, y); });
   return (
     <>
       <Pressable
@@ -49,7 +49,6 @@ function GalleryCard({ ctx, row, width, hidden, selected, onSelect }: { ctx: Vie
           <View style={g.meta}>{each(meta, (f) => <Value key={f.key} field={f} row={row} names={names} />)}</View>
         </View>
       </Pressable>
-      {menu.element}
     </>
   );
 }
@@ -57,6 +56,7 @@ function GalleryCard({ ctx, row, width, hidden, selected, onSelect }: { ctx: Vie
 export function GalleryView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const data = useRecordsData();
   const st = useViewState(ctx);
+  const menu = useMenu();
   const [limit, setLimit] = useState(GALLERY_PAGE);
   const [selected, setSelected] = useState<string | null>(null);
   const [box, setBox] = useState({ w: 1000 });
@@ -88,7 +88,7 @@ export function GalleryView({ ctx }: { ctx: ViewCtx }): ReactElement {
         ) : (
           <ScrollView style={g.scroll} contentContainerStyle={g.grid} testID="records-scroll">
             <View style={g.wrap} testID="gallery-grid" accessibilityLabel={`${count} cards`}>
-              {each(rows, (r) => <GalleryCard key={r.id} ctx={ctx} row={r} width={cardW} hidden={st.v.hidden} selected={selected === r.id} onSelect={setSelected} />)}
+              {each(rows, (r) => <GalleryCard key={r.id} ctx={ctx} row={r} width={cardW} hidden={st.v.hidden} selected={selected === r.id} onSelect={setSelected} show={menu.show} />)}
             </View>
             {count > rows.length ? (
               <Pressable accessibilityRole="button" testID="gallery-more" onPress={() => setLimit(limit + GALLERY_PAGE)} style={({ hovered }: { hovered?: boolean }) => [g.more, hovered === true && g.moreOver]}>
@@ -99,6 +99,7 @@ export function GalleryView({ ctx }: { ctx: ViewCtx }): ReactElement {
           </ScrollView>
         )}
       </View>
+      {menu.element}
     </View>
   );
 }

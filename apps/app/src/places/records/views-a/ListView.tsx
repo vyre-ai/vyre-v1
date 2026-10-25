@@ -58,7 +58,6 @@ export function ListView({ ctx }: { ctx: ViewCtx }): ReactElement {
   return (
     <View style={l.main} testID="records-list" accessibilityLabel={`${def.plural} list`}>
       <ViewHead ctx={ctx} st={st} sort />
-      {menu.element}
       <View style={l.sheet}>
         {count === 0 && rows.length === 0 ? (
           <States kind="empty" title={st.v.clauses.length > 0 || st.v.find ? "Nothing matches these filters." : `No ${def.plural.toLowerCase()} yet.`} icon="records" />
@@ -77,6 +76,7 @@ export function ListView({ ctx }: { ctx: ViewCtx }): ReactElement {
         )}
       </View>
       <View style={l.foot}><Text style={l.footText} testID="records-count">{`${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()}`}</Text></View>
+      {menu.element}
     </View>
   );
 }
