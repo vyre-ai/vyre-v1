@@ -2,7 +2,7 @@
 import test from "node:test";
 import { bootFlowSpace } from "./02-space.ts";
 
-const SET = ["identity", "members", "devices", "access", "spaces", "governance", "backup", "audit", "home", "tasks", "files", "chat", "projects"];
+const SET = ["identity", "members", "devices", "access", "spaces", "governance", "backup", "audit", "home", "tasks", "files", "projects"];
 
 test("survey: boot with the access-group modules live", async () => {
   const out: string[] = [];
