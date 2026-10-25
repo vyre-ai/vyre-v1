@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { parseProbes, summarize, runTarget, budgetTable, metricLine, verdictLine } from "./browser.mjs";
 
 const table = budgetTable({ budgets: [
-  { id: "navigate", p50: 50, p95: 100, unit: "ms" }, { id: "prefetch", p95: 90, unit: "percent" }, { id: "layout_shift", p95: 0, unit: "cls" }, { id: "chat_open", p95: 100, unit: "ms" },
+  { id: "navigate", p50: 50, p95: 100, unit: "ms" }, { id: "startup", p50: 1000, p95: 1000, unit: "ms", also: [{ metric: "app.usable", p95: 1500, machine: "mid phone" }] }, { id: "prefetch", p95: 90, unit: "percent" }, { id: "layout_shift", p95: 0, unit: "cls" }, { id: "chat_open", p95: 100, unit: "ms" },
 ] });
 const target = (probes: unknown) => ({ id: "P-X_01-nav", route: "/m/P-X_01", waitFor: "[data-testid=x]", probes });
 
@@ -63,4 +63,12 @@ test("ruling 43: a median of 60 ms fails a 50/100 budget, and a worst run over p
   const nav = parseProbes(target({ navigate: {} }), table)[0];
   assert.equal(nav.limit, 50);
   assert.equal(nav.worstLimit, 100);
+});
+
+test("startup is 1000 ms on desktop and 1500 ms on a phone (V1-SPEC)", () => {
+  assert.equal(parseProbes(target({ startup: {} }), table, "desktop")[0].limit, 1000);
+  const phone = parseProbes(target({ startup: {} }), table, "phone")[0];
+  assert.equal(phone.limit, 1500);
+  assert.equal(summarize([0, 1400, 1400, 1400, 1400, 1400], phone).ok, true);
+  assert.equal(summarize([0, 1600, 1600, 1600, 1600, 1600], phone).ok, false);
 });

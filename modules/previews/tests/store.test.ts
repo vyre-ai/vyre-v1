@@ -131,6 +131,8 @@ test("making an image again replaces its blob: the old one is deleted, none is l
   const one = await putImage(w.ctx, fileId, 1, m);
   const two = await putImage(w.ctx, fileId, 1, { ...m, bytes: png(9, 9), width: 9, height: 9 });
   assert.notEqual(one.id, two.id);
+  assert.deepEqual(w.blobs.resources.get(one.id), { type: "file", id: fileId }, "the blob is put with its file as the resource");
+  assert.deepEqual(w.blobs.resources.get(two.id), { type: "file", id: fileId });
   assert.equal(w.blobs.items.has(one.id), false);
   assert.equal(findImage(w.ctx, fileId, 1, "thumb", "m", 0)?.["blob_id"], two.id);
   assert.equal(findImage(w.ctx, fileId, 1, "thumb", "m", 0)?.["width"], 9);
@@ -207,3 +209,5 @@ test("refusals: a blob over the limit leaves the cached preview whole; a missing
   await expectCode("permission.no_grant", () => sweepGc(w.ctx));
   assert.equal(w.rows("previews_gc").length, 1);
 }));
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
