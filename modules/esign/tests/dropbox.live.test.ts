@@ -80,7 +80,9 @@ async function boot(dir: string, codeRoot: string): Promise<Daemon> {
 }
 
 async function post(d: Daemon, token: string | null, cap: string, body: unknown): Promise<{ status: number; body: any }> {   // eslint-disable-line @typescript-eslint/no-explicit-any
-  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, {
+  // the inbound webhook has its own public route (the manifest's http path); every other call is /v1/<module>/<name>
+  const path = cap === "esign.hook" ? "/hooks/esign" : `/v1/${cap.replaceAll(".", "/")}`;
+  const r = await fetch(`${d.url}${path}`, {
     method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body),
   });
   return { status: r.status, body: await r.json().catch(() => ({})) };
