@@ -1,4 +1,4 @@
-// ui/Avatar: the one face for a person, an agent, the assistant, an automation or a group (replaces every letter tile).
+// ui/Avatar: the one face for a person, an agent, the assistant, an automation, a group or a Space (replaces every letter tile).
 // People: a marble seeded by the name, or their photo. Agents: a DiceBear Notionists face on a soft tint, seeded by the name (as the prototype). Spaces: a letter on a tint. The assistant is the Vyre mark.
 // Automations and groups get a line glyph on the neutral tile. Radius is 30% for everything but people, who are round (as the prototype's tile.a and tile.p).
 // Web draws inline svg; native has no svg here, so it shows the letters on the face's tint until a native icon set lands.
