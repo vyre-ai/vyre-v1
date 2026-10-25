@@ -5,8 +5,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
-import { PROTO_CHN, PROTO_CHW, PROTO_CITIES, PROTO_FIRST, PROTO_HAND, PROTO_LAST, PROTO_NEXTS, PROTO_SPACE_TYPES, PROTO_STREETS, PROTO_TEAM } from "./prototype-data.ts";
-import { PROTO_CLIENT_COUNT, pickChannel, protoClients, protoHash } from "./prototype-clients.ts";
+import { PROTO_CHN, PROTO_CHW, PROTO_CITIES, PROTO_FIRST, PROTO_HAND, PROTO_LAST, PROTO_NEXTS, PROTO_SPACE_TYPES, PROTO_STREETS, PROTO_TEAM, PROTO_TYPES, PROTO_INBOXES, PROTO_CONTACTS, PROTO_TEMPLATES, PROTO_SNIPPETS, PROTO_JOURNEYS } from "./prototype-data.ts";
+import { PROTO_CLIENT_COUNT, pickChannel, protoClients, protoHash, protoWork } from "./prototype-clients.ts";
 
 const FILE = fileURLToPath(new URL("../../../../scripts/shots/prototype/vyre-v1.html", import.meta.url));
 const unescape = (s: string): string => s.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", '"').replaceAll("&#39;", "'").replaceAll("&amp;", "&");
@@ -22,9 +22,10 @@ function between(from: string, to: string, after = 0): string {
 }
 
 interface Drawn { name: string; status: string; owner: string; fit: number | null; since: string; source: string }
+interface Ran { clients: Drawn[]; projects: Record<string, unknown>[]; invoices: Record<string, unknown>[]; meetings: Record<string, unknown>[]; tasks: Record<string, unknown>[] }
 
-/** Run the prototype's seedData up to the end of its clients loop and hand back D.clients. */
-function runPrototypeClients(): Drawn[] {
+/** Run the prototype's whole seedData (clients, projects, invoices, meetings, tasks) and hand back D. */
+function runPrototypeSeed(): Ran {
   const schema = TEXT.indexOf("/* ---------- schema ---------- */");
   const prelude = [
     between("const pad = ", "\n", schema - 4000), between("const TODAY = ", "\n", schema - 4000), between("const pd = ", "\n", schema - 4000),
@@ -34,13 +35,20 @@ function runPrototypeClients(): Drawn[] {
   const seed = TEXT.indexOf("function seedData()", schema);
   const mul = between("function mulberry32", "\n", schema);
   const consts = between("const FIRST = ", "function seedData()", schema);
-  const head = TEXT.slice(seed, TEXT.indexOf("const P = (title, client, stage", seed));
-  // the one change later prototype code makes to these rows: the Pruitt client is renamed (its line is cut out of the prototype too)
-  const rename = between("const pr = D.clients.find", "pr.email", seed);
-  assert.match(rename, /pr\.name = "Marcus Pruitt";/);
-  const code = `${prelude}\n${mul}\n${consts}\n${head}\n}\nseedData();\n${rename}\nD.clients;`;
-  const out = vm.runInNewContext(code, {}) as Record<string, unknown>[];
-  return out.map((r) => ({ name: r["name"] as string, status: r["status"] as string, owner: r["owner"] as string, fit: (r["fit"] as number | null) ?? null, since: r["since"] as string, source: r["source"] as string }));
+  const end = TEXT.indexOf("for (const k in D) TY[k].rows = D[k];", seed);
+  assert.ok(end > seed, "the prototype's seedData ends with the rows");
+  const body = TEXT.slice(seed, end);
+  const code = `${prelude}\n${mul}\n${consts}\nconst TY = { clients: {}, projects: {}, invoices: {}, meetings: {}, tasks: {} };\n${body}\n}\nseedData();\nD;`;
+  return JSON.parse(JSON.stringify(vm.runInNewContext(code, {}))) as Ran;
+}
+
+function runPrototypeClients(): Drawn[] {
+  const ran = runPrototypeSeed();
+  // the one change later prototype code makes to these rows: the drawn "Oscar Pruitt" (else row 7) becomes Marcus Pruitt; its own line says so
+  assert.match(between("const pr = D.clients.find", "pr.email", TEXT.indexOf("function seedData()")), /pr\.name = "Marcus Pruitt";/);
+  const pr = ran.clients.find((r) => r.name === "Oscar Pruitt") ?? (ran.clients[6] as Drawn);
+  pr.name = "Marcus Pruitt";
+  return ran.clients.map((r) => ({ name: r["name"], status: r["status"], owner: r["owner"], fit: (r["fit"] as number | null) ?? null, since: r["since"], source: r["source"] }));
 }
 
 test("all 1,240 Northwind clients are what the prototype's own seed code draws", () => {
@@ -86,4 +94,84 @@ test("Harbor Studio and Personal rows are the prototype's seedSpaces rows", () =
   }
   assert.deepEqual(PROTO_SPACE_TYPES["hclients"]?.rows.map((r) => r["name"]), ["Kestrel Coffee", "Tidewater Books", "Alder Pottery"]);
   assert.deepEqual(PROTO_SPACE_TYPES["hjobs"]?.rows.map((r) => r["title"]), ["Menu redesign", "Shop front signage", "Launch poster set"]);
+});
+
+/** The text of the bracketed literal that opens at `start`, strings and template strings respected. */
+function balancedAt(src: string, start: number): string {
+  let depth = 0, i = start, q: string | null = null;
+  for (;; i++) {
+    const c = src[i] as string;
+    if (q) { if (c === "\\") i++; else if (c === q) q = null; continue; }
+    if (c === '"' || c === "'" || c === "`") q = c;
+    else if (c === "(" || c === "{" || c === "[") depth++;
+    else if (c === ")" || c === "}" || c === "]") { depth--; if (depth === 0) return src.slice(start, i + 1); }
+  }
+}
+
+test("the chat seed of all three Spaces is what the prototype's own seed and seedFor draw, flags included", async () => {
+  const { PROTO_CHAT } = await import("./prototype-chat.ts");
+  const i = TEXT.indexOf('  const seed = () => ({\n    space: "nw"');
+  assert.ok(i > 0, "the prototype has the chat seed");
+  const lit = balancedAt(TEXT, TEXT.indexOf("({", i));
+  const f = TEXT.indexOf("  function seedFor(sp) {", i);
+  const end = TEXT.indexOf("\n  }\n", f) + 4;
+  const code = `const SPID = { team: "nw", personal: "me", harbor: "hb" };\nconst seed = () => ${lit};\n${TEXT.slice(f, end)}\n({ nw: seedFor("team"), hb: seedFor("harbor"), me: seedFor("personal") })`;
+  const ran = JSON.parse(JSON.stringify(vm.runInNewContext(code, { window: {} })));
+  // the prototype sets b.space to the Space's short id; so does the extractor
+  assert.deepEqual(PROTO_CHAT, ran);
+  const ch = (PROTO_CHAT["nw"] as { channels: { n: string; project?: boolean; followed?: boolean; starred?: boolean }[] }).channels;
+  assert.deepEqual(ch.map((c) => [c.n, c.project === true, c.followed === true, c.starred === true]), [["intake", false, false, false], ["billing", false, false, false], ["pruitt-matter", true, true, false], ["atp-q4", true, false, false], ["rivera-matter", false, false, false]], "the followed project channel is the one the sidebar shows");
+  assert.equal((PROTO_CHAT["nw"] as { needs: unknown[] }).needs.length, 8);
+  assert.equal((PROTO_CHAT["hb"] as { needs: unknown[] }).needs.length, 2);
+  assert.equal((PROTO_CHAT["me"] as { chats: unknown[] }).chats.length, 3);
+});
+
+test("the projects, invoices, meetings and tasks are what the prototype's own seedData draws, all of them", () => {
+  const ran = runPrototypeSeed();
+  const w = protoWork();
+  const pick = (rows: Record<string, unknown>[], keys: string[]): Record<string, unknown>[] => rows.map((r) => Object.fromEntries(keys.map((k) => [k, r[k]])));
+  const one = (v: unknown): unknown => (Array.isArray(v) ? (v[0] ?? null) : v);
+  assert.equal(w.projects.length, 380);
+  assert.equal(w.invoices.length, 2120);
+  assert.equal(w.meetings.length, 650);
+  assert.equal(w.tasks.length, 920);
+  assert.deepEqual(w.projects.map((p) => ({ ...p })), pick(ran.projects, ["id", "title", "stage", "lead", "start", "due", "budget", "tags"]).map((r, i) => ({ id: r["id"], title: r["title"], client: one((ran.projects[i] as Record<string, unknown>)["client"]), stage: r["stage"], lead: r["lead"], start: r["start"], due: r["due"], budget: r["budget"], tags: r["tags"] })));
+  assert.deepEqual(w.invoices.map((x) => ({ ...x })), ran.invoices.map((r) => ({ id: r["id"], no: r["no"], client: one(r["client"]), project: one(r["project"]), amount: r["amount"], status: r["status"], issued: r["issued"], due: r["due"], method: r["method"] })));
+  assert.deepEqual(w.meetings.map((x) => ({ ...x })), ran.meetings.map((r) => ({ id: r["id"], title: r["title"], when: r["when"], client: one(r["client"]), host: r["host"], kind: r["kind"], done: r["done"], notes: r["notes"] })));
+  assert.deepEqual(w.tasks.map((x) => ({ ...x })), ran.tasks.map((r) => ({ id: r["id"], title: r["title"], project: one(r["project"]), assignee: r["assignee"], status: r["status"], due: r["due"], done: r["done"] })));
+});
+
+test("the record types and schema (fields, widths, options with their hues, rollup and formula paths) are what the prototype's TY block builds", () => {
+  const schema = TEXT.indexOf("/* ---------- schema ---------- */");
+  const block = between("const F = (id, n, t, w, x)", "const TYPE_ORDER", schema);
+  const ran = JSON.parse(JSON.stringify(vm.runInNewContext(`${block}\nTY;`, {})));
+  assert.deepEqual(PROTO_TYPES, ran);
+  assert.deepEqual(Object.keys(PROTO_TYPES), ["clients", "projects", "invoices", "meetings", "tasks"]);
+  const clients = PROTO_TYPES["clients"] as { fields: { id: string; t: string; o?: unknown[] }[] };
+  assert.ok(["name", "status", "owner", "fit", "since", "taxId", "bank", "summary", "health"].every((id) => clients.fields.some((f) => f.id === id)));
+  assert.deepEqual(clients.fields.find((f) => f.id === "status")?.o, [["Lead", 220], ["Consult booked", 270], ["Active", 145], ["On hold", 35], ["Closed", null]]);
+});
+
+test("the inbox (its inboxes, the contacts with every message, the templates and the snippets) is what the prototype's own helpers build", () => {
+  const block = between("const INBOXES = [", "const byId0", 0);
+  const ran = JSON.parse(JSON.stringify(vm.runInNewContext(`${block}\n({ INBOXES, CONTACTS });`, {}))) as { INBOXES: unknown[]; CONTACTS: Record<string, unknown>[] };
+  assert.deepEqual(PROTO_INBOXES, ran.INBOXES);
+  assert.deepEqual(PROTO_CONTACTS, ran.CONTACTS);
+  const tail = between("const TEMPLATES = [", "/* ---------- state ---------- */", TEXT.indexOf("const INBOXES = ["));
+  const t = JSON.parse(JSON.stringify(vm.runInNewContext(`${tail}\n({ TEMPLATES, SNIPPETS });`, {}))) as { TEMPLATES: unknown[]; SNIPPETS: unknown[] };
+  assert.deepEqual(PROTO_TEMPLATES, t.TEMPLATES);
+  assert.deepEqual(PROTO_SNIPPETS, t.SNIPPETS);
+  const ids = (PROTO_CONTACTS as { msgs: { id: string }[] }[]).flatMap((c) => c.msgs.map((m) => m.id));
+  assert.equal(new Set(ids).size, ids.length, "message ids run m1, m2 ... with no repeat");
+  assert.ok(PROTO_CONTACTS.length >= 8 && PROTO_INBOXES.length === 7);
+});
+
+test("the Journeys (stages, tasks, owner fields) are what the prototype's JOURNEYS literal builds, task ids numbered from 101", () => {
+  const j = TEXT.indexOf("const JOURNEYS = [");
+  assert.ok(j > 0);
+  const literal = balancedAt(TEXT, TEXT.indexOf("[", j));
+  const mtLine = between("const mt = ", "\n", j - 3000);
+  const ran = JSON.parse(JSON.stringify(vm.runInNewContext(`let uidN = 100; const uid = (p) => (p || "x") + ++uidN;\n${mtLine}\nconst JOURNEYS = ${literal};\nJOURNEYS;`, {})));
+  assert.deepEqual(PROTO_JOURNEYS, ran);
+  assert.ok((PROTO_JOURNEYS as { id: string; stages: unknown[] }[]).length >= 2 && (PROTO_JOURNEYS as { stages: unknown[] }[]).every((x) => x.stages.length > 0));
 });

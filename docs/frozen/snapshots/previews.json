@@ -1,0 +1,15 @@
+{
+  "module": "previews",
+  "capabilities": {
+    "previews.get@1": "4ca83f6d8b14fec3514828167d64d954f317c1f60e9649a97bc897f3d93344aa",
+    "previews.health@1": "f2a372727e3c2751f579f9f27a3e5c5af14edd26ed3339bdc3cacfa9d9bbdf26",
+    "previews.pages@1": "48029563ac452414c7d0ee1d44e2cfc833a1e85923a12d6a981c5c26a31ba6e2",
+    "previews.render@1": "2efa9f15d80e1320ba740da4c0138de7fdadd399c4b8f9cd8c939686da1d6dfd",
+    "previews.text@1": "c4c62ad6a709cf3ba2dadbd82587a784e230a38fa3aa318d6961d13c77c78eaf",
+    "previews.thumbnails@1": "fcce274484bb33beabc0791dc3e6d7b41af7a5b70e7d06d29f005d192aa97ce4"
+  },
+  "events": {
+    "preview.failed": "e2e9e377f6d6cf7e3a39033e1713977effbfebc43b83f596d0c22e6227c8345a",
+    "preview.ready": "564ad53112a6db442fceadc075b517ad490d9d0de5260b60f58bfb693ffbf0fe"
+  }
+}

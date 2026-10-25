@@ -51,11 +51,11 @@ export function resume(d: PageDeps, agentId: string, name: string): Promise<bool
   });
 }
 
-export function setRoutine(d: PageDeps, agentId: string, r: { routineId: string; title: string; cron: string; prompt: string; channelId?: string }, enabled: boolean): Promise<boolean> {
+export function setRoutine(d: PageDeps, agentId: string, r: { routineId: string; title: string; cron?: string; kind?: "schedule" | "watch"; watch?: { on: "message"; channelId: string }; prompt: string; channelId?: string }, enabled: boolean): Promise<boolean> {
   return attempt(d, `${enabled ? "turn on" : "pause"} the routine`, async () => {
-    await d.call("agents.routine.save", { agentId, routineId: r.routineId, idempotencyKey: key("routine", r.routineId), title: r.title, cron: r.cron, prompt: r.prompt, enabled, ...(r.channelId ? { channelId: r.channelId } : {}) } satisfies CapMap["agents.routine.save"]["in"]);
+    await d.call("agents.routine.save", { agentId, routineId: r.routineId, idempotencyKey: key("routine", r.routineId), title: r.title, ...(r.cron !== undefined ? { cron: r.cron } : {}), ...(r.kind !== undefined ? { kind: r.kind } : {}), ...(r.watch !== undefined ? { watch: r.watch } : {}), prompt: r.prompt, enabled, ...(r.channelId ? { channelId: r.channelId } : {}) } satisfies CapMap["agents.routine.save"]["in"]);
     d.note(enabled ? `${r.title} is on.` : `${r.title} is paused.`, async () => {
-      await d.call("agents.routine.save", { agentId, routineId: r.routineId, idempotencyKey: key("routine", r.routineId), title: r.title, cron: r.cron, prompt: r.prompt, enabled: !enabled, ...(r.channelId ? { channelId: r.channelId } : {}) } satisfies CapMap["agents.routine.save"]["in"]);
+      await d.call("agents.routine.save", { agentId, routineId: r.routineId, idempotencyKey: key("routine", r.routineId), title: r.title, ...(r.cron !== undefined ? { cron: r.cron } : {}), ...(r.kind !== undefined ? { kind: r.kind } : {}), ...(r.watch !== undefined ? { watch: r.watch } : {}), prompt: r.prompt, enabled: !enabled, ...(r.channelId ? { channelId: r.channelId } : {}) } satisfies CapMap["agents.routine.save"]["in"]);
     });
   });
 }

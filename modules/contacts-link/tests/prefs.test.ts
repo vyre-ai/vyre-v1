@@ -17,7 +17,7 @@ async function refused(p: Promise<unknown>, code: string): Promise<void> {
 
 function seedSuppression(h: Harness, o: { id: string; channel?: string; address: string; reason: string; contactId?: string; at?: number; deleted?: boolean }): void {
   h.ctx.db.run(
-    `INSERT INTO contacts_suppression (id, channel, address, reason, source, "contactId", "addedAt", "addedBy", note, version, updated_at, deleted_at)
+    `INSERT INTO contacts_link_suppression (id, channel, address, reason, source, "contactId", "addedAt", "addedBy", note, version, updated_at, deleted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     o.id, o.channel ?? "email", o.address, o.reason, "test", o.contactId ?? null, o.at ?? NOW, "usr_maya01", null, 1, NOW, o.deleted ? NOW : null,
   );

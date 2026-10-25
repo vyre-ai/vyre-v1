@@ -353,7 +353,7 @@ export interface CapabilityDef {
   };
   examples: { name: string; input: unknown; output: unknown }[];            // >= 1; drives contract tests and docs
   forbids?: { name: string; as: RoleName | 'guest-no-grant'; input: unknown; error: ErrorCode }[];  // permission matrix tests
-  teamOnly?: boolean;                  // refused with `space.needs_team` in a Personal Space (spec 2.1 matrix); the screen shows 'Needs a Team Space'
+  teamOnly?: boolean;                  // refused with `permission.needs_team` in a Personal Space (spec 2.1 matrix); the screen shows 'Needs a Team Space'
   since: Semver;
 }
 export type Toolset =
@@ -665,7 +665,7 @@ Input: every `modules/*/manifest.ts`, `connectors/*/connector.toml` (compiled to
 
 | # | Output | Path | Consumed by |
 |---|---|---|---|
-| 1 | Merged registry (capabilities, events, permissions, entities, kinds) | `contracts/generated/registry.json`, `registry.ts`, `hash.txt` | host boot, sync handshake, docs, diff |
+| 1 | Merged registry (capabilities, events, permissions, entities, kinds) | `contracts/generated/registry.json`, `registry.ts` | host boot, sync handshake, docs, diff |
 | 2 | Route table and compiled validators | `host/generated/routes.ts`, `validators.ts` | gateway |
 | 3 | Handler types, one per module | `modules/*/generated/handlers.d.ts` | `impl.ts` (type-checked) |
 | 4 | Typed client: one function per capability, live query hooks for `queries` in screens | `client/generated/api.ts`, `hooks.ts` | `ui`, `apps` |
@@ -1773,7 +1773,7 @@ Golden flows, each a file in `golden/` using `createTestSpace` and fake provider
 12. permission matrix (every built-in role against the permission catalogue and "View as"; extended with a folder share, a move out of a shared folder, a revoke, an Ask for access request that is approved then retried, and a view-only Ask thread that never calls above `view`)
 13. private chat E2E (server cannot read; runtime-wrapped key opt-in)
 14. sync revocation purge (replica diff equals fresh snapshot, FTS and docs gone)
-15. Personal Space via the relay (host device offline then back, phone replica converges, `teamOnly` capabilities refused with `space.needs_team`, revocation purge on the phone)
+15. Personal Space via the relay (host device offline then back, phone replica converges, `teamOnly` capabilities refused with `permission.needs_team`, revocation purge on the phone)
 
 Each flow runs in-process in 5 to 25 s; the full set runs in parallel across runners in under 90 s wall. Flows touching Docker, Chrome or relay have `@heavy` variants in the heavy lane.
 
