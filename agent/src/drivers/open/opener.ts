@@ -45,6 +45,11 @@ export interface SessionOpenerDeps {
   /** Starts a CLI engine process (sandbox-wrapped on the host). The key reaches it only through the fill. */
   launcher: Launcher;
   mcp: McpPort;
+  /**
+   * Sandboxed engines (ruling 61): called after the MCP session is minted; returns the stdio command the engine runs as its Vyre MCP server (a shim that talks to a socket bind-mounted into the
+   * sandbox) and how to close the bridge. The token stays in the process environment (VYRE_MCP_TOKEN); the shim sends it on each request. Omitted: the engine uses the loopback URL.
+   */
+  mcpBridge?(m: { url: string; token: string }, spec: OpenerSpec): Promise<{ stdio: { command: string; args: string[] }; close(): Promise<void> }>;
   /** The system prompt and tool list an API driver sends for a turn. */
   apiContext: SessionDeps["context"];
   /** Where the process runs, for the Vault's place rules. Default "host". */
@@ -82,15 +87,22 @@ export function createSessionOpener(d: SessionOpenerDeps): SessionOpener {
   const used = (spec: OpenerSpec) => (u: readonly Used[]): void => d.onUsed?.({ spec, used: u });
   /** token to MCP session id, so closing a session revokes exactly its token. */
   const minted = new Map<string, string>();
+  const sockets = new Map<string, () => Promise<void>>();
 
   async function mcpFor(spec: OpenerSpec): Promise<McpEndpoint> {
     const m = await d.mcp.mint({ principal: spec.agent.id, actingFor: spec.asker, threadId: spec.threadId, traceId: spec.traceId ?? spec.turnId ?? spec.threadId });
     minted.set(m.sessionToken, m.sessionId);
-    return { url: m.url, token: m.sessionToken };
+    if (!d.mcpBridge) return { url: m.url, token: m.sessionToken };
+    const bridge = await d.mcpBridge({ url: m.url, token: m.sessionToken }, spec);
+    sockets.set(m.sessionToken, bridge.close);
+    return { url: m.url, token: m.sessionToken, stdio: bridge.stdio };
   }
   async function mcpRevoke(endpoint: McpEndpoint): Promise<void> {
     const id = minted.get(endpoint.token);
     minted.delete(endpoint.token);
+    const closeSocket = sockets.get(endpoint.token);
+    sockets.delete(endpoint.token);
+    await closeSocket?.().catch(() => undefined);
     if (id !== undefined) await d.mcp.close(id).catch(() => undefined);   // best effort: the token also expires by itself
   }
 
