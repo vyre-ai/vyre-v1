@@ -1397,17 +1397,6 @@
       ],
       "type": "object"
     },
-    "s_14f6a8c95f": {
-      "properties": {
-        "journey": {
-          "$ref": "#/$defs/s_3b7eca5922"
-        }
-      },
-      "required": [
-        "journey"
-      ],
-      "type": "object"
-    },
     "s_157c2c9b95": {
       "properties": {
         "kitId": {
@@ -1689,6 +1678,12 @@
           "dir"
         ],
         "type": "object"
+      },
+      "type": "array"
+    },
+    "s_1a0d5dc1ad": {
+      "items": {
+        "$ref": "#/$defs/s_4ae4009732"
       },
       "type": "array"
     },
@@ -2649,6 +2644,17 @@
       "required": [
         "event",
         "enabled"
+      ],
+      "type": "object"
+    },
+    "s_25dfda5e35": {
+      "properties": {
+        "journey": {
+          "$ref": "#/$defs/s_df187904ca"
+        }
+      },
+      "required": [
+        "journey"
       ],
       "type": "object"
     },
@@ -4360,83 +4366,6 @@
       ],
       "type": "object"
     },
-    "s_3b7eca5922": {
-      "properties": {
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "jrn_a1b2c3"
-          ],
-          "pattern": "^jrn_[a-z0-9]+$",
-          "type": "string"
-        },
-        "inFlight": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "name": {
-          "type": "string"
-        },
-        "recordType": {
-          "examples": [
-            "contact"
-          ],
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "type": "string"
-        },
-        "stages": {
-          "$ref": "#/$defs/s_514842fb1f"
-        },
-        "startAutomationId": {
-          "examples": [
-            "aut_a1b2c3"
-          ],
-          "pattern": "^aut_[a-z0-9]+$",
-          "type": "string"
-        },
-        "startRule": {
-          "$ref": "#/$defs/s_25d70fcceb"
-        },
-        "subjectType": {
-          "examples": [
-            "contact"
-          ],
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "type": "string"
-        },
-        "updatedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "version": {
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "subjectType",
-        "recordType",
-        "version",
-        "stages",
-        "inFlight",
-        "createdAt",
-        "updatedAt"
-      ],
-      "type": "object"
-    },
     "s_3c36137cdc": {
       "properties": {
         "next": {
@@ -5359,6 +5288,143 @@
       ],
       "type": "object"
     },
+    "s_4ae4009732": {
+      "properties": {
+        "automations": {
+          "description": "Automations that run when a record enters the stage",
+          "items": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "exit": {
+          "properties": {
+            "manualOnly": {
+              "type": "boolean"
+            },
+            "requireTasks": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "requireTasks"
+          ],
+          "type": "object"
+        },
+        "final": {
+          "type": "boolean"
+        },
+        "key": {
+          "examples": [
+            "intake"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        "onLeaving": {
+          "description": "Automations that run when a record leaves the stage",
+          "items": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "order": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tasks": {
+          "items": {
+            "properties": {
+              "approver": {
+                "$ref": "#/$defs/s_f05a3f77df"
+              },
+              "assigned": {
+                "$ref": "#/$defs/s_f05a3f77df"
+              },
+              "backupKeyId": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "doneByAutomation": {
+                "examples": [
+                  "aut_a1b2c3"
+                ],
+                "pattern": "^aut_[a-z0-9]+$",
+                "type": "string"
+              },
+              "dueAfterHours": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "key": {
+                "examples": [
+                  "collect_documents"
+                ],
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "type": "string"
+              },
+              "keyId": {
+                "description": "Inference key for an agent task",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "work",
+                  "approve",
+                  "review",
+                  "answer",
+                  "unblock",
+                  "signature"
+                ],
+                "type": "string"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "reviewer": {
+                "$ref": "#/$defs/s_f05a3f77df"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "title",
+              "assigned",
+              "required"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "timeLimit": {
+          "$ref": "#/$defs/s_d3f43ff5d3"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "order",
+        "exit",
+        "tasks",
+        "automations"
+      ],
+      "type": "object"
+    },
     "s_4bcc467032": {
       "properties": {
         "affects": {
@@ -6061,12 +6127,6 @@
         "outsideHours"
       ],
       "type": "object"
-    },
-    "s_514842fb1f": {
-      "items": {
-        "$ref": "#/$defs/s_b91fd91453"
-      },
-      "type": "array"
     },
     "s_51b3ec7c59": {
       "properties": {
@@ -12691,132 +12751,6 @@
       },
       "type": "object"
     },
-    "s_b91fd91453": {
-      "properties": {
-        "automations": {
-          "description": "Automations that run when a record enters the stage",
-          "items": {
-            "examples": [
-              "aut_a1b2c3"
-            ],
-            "pattern": "^aut_[a-z0-9]+$",
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "exit": {
-          "properties": {
-            "manualOnly": {
-              "type": "boolean"
-            },
-            "requireTasks": {
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "requireTasks"
-          ],
-          "type": "object"
-        },
-        "final": {
-          "type": "boolean"
-        },
-        "key": {
-          "examples": [
-            "intake"
-          ],
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "type": "string"
-        },
-        "order": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "tasks": {
-          "items": {
-            "properties": {
-              "approver": {
-                "$ref": "#/$defs/s_f05a3f77df"
-              },
-              "assigned": {
-                "$ref": "#/$defs/s_f05a3f77df"
-              },
-              "backupKeyId": {
-                "type": "string"
-              },
-              "description": {
-                "type": "string"
-              },
-              "doneByAutomation": {
-                "examples": [
-                  "aut_a1b2c3"
-                ],
-                "pattern": "^aut_[a-z0-9]+$",
-                "type": "string"
-              },
-              "dueAfterHours": {
-                "minimum": 1,
-                "type": "integer"
-              },
-              "key": {
-                "examples": [
-                  "collect_documents"
-                ],
-                "pattern": "^[a-z][a-z0-9_]*$",
-                "type": "string"
-              },
-              "keyId": {
-                "description": "Inference key for an agent task",
-                "type": "string"
-              },
-              "kind": {
-                "enum": [
-                  "work",
-                  "approve",
-                  "review",
-                  "answer",
-                  "unblock",
-                  "signature"
-                ],
-                "type": "string"
-              },
-              "required": {
-                "type": "boolean"
-              },
-              "reviewer": {
-                "$ref": "#/$defs/s_f05a3f77df"
-              },
-              "title": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "key",
-              "title",
-              "assigned",
-              "required"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "timeLimit": {
-          "$ref": "#/$defs/s_d3f43ff5d3"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "key",
-        "title",
-        "order",
-        "exit",
-        "tasks",
-        "automations"
-      ],
-      "type": "object"
-    },
     "s_b92225d0bc": {
       "properties": {
         "follower": {
@@ -15565,6 +15499,83 @@
         "when",
         "route",
         "enabled"
+      ],
+      "type": "object"
+    },
+    "s_df187904ca": {
+      "properties": {
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "jrn_a1b2c3"
+          ],
+          "pattern": "^jrn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "inFlight": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "recordType": {
+          "examples": [
+            "contact"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        "stages": {
+          "$ref": "#/$defs/s_1a0d5dc1ad"
+        },
+        "startAutomationId": {
+          "examples": [
+            "aut_a1b2c3"
+          ],
+          "pattern": "^aut_[a-z0-9]+$",
+          "type": "string"
+        },
+        "startRule": {
+          "$ref": "#/$defs/s_25d70fcceb"
+        },
+        "subjectType": {
+          "examples": [
+            "contact"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "version": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "subjectType",
+        "recordType",
+        "version",
+        "stages",
+        "inFlight",
+        "createdAt",
+        "updatedAt"
       ],
       "type": "object"
     },
@@ -92941,6 +92952,9 @@
                 },
                 "final": true,
                 "key": "intake",
+                "onLeaving": [
+                  "aut_a1b2c3"
+                ],
                 "order": 1,
                 "tasks": [
                   {
@@ -93003,6 +93017,9 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "onLeaving": [
+                    "aut_a1b2c3"
+                  ],
                   "order": 1,
                   "tasks": [
                     {
@@ -93067,7 +93084,7 @@
             "type": "string"
           },
           "stages": {
-            "$ref": "#/$defs/s_514842fb1f"
+            "$ref": "#/$defs/s_1a0d5dc1ad"
           },
           "startRule": {
             "$ref": "#/$defs/s_25d70fcceb"
@@ -93091,7 +93108,7 @@
       "module": "journeys",
       "name": "journeys.create",
       "output": {
-        "$ref": "#/$defs/s_14f6a8c95f"
+        "$ref": "#/$defs/s_25dfda5e35"
       },
       "permission": "journeys.manage",
       "resource": {
@@ -93217,6 +93234,9 @@
                 },
                 "final": true,
                 "key": "intake",
+                "onLeaving": [
+                  "aut_a1b2c3"
+                ],
                 "order": 1,
                 "tasks": [
                   {
@@ -93278,6 +93298,9 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "onLeaving": [
+                    "aut_a1b2c3"
+                  ],
                   "order": 1,
                   "tasks": [
                     {
@@ -93346,7 +93369,7 @@
           },
           "stages": {
             "items": {
-              "$ref": "#/$defs/s_b91fd91453"
+              "$ref": "#/$defs/s_4ae4009732"
             },
             "minItems": 1,
             "type": "array"
@@ -93374,7 +93397,7 @@
       "output": {
         "properties": {
           "journey": {
-            "$ref": "#/$defs/s_3b7eca5922"
+            "$ref": "#/$defs/s_df187904ca"
           },
           "startAutomationId": {
             "examples": [
@@ -93437,6 +93460,9 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "onLeaving": [
+                    "aut_a1b2c3"
+                  ],
                   "order": 1,
                   "tasks": [
                     {
@@ -93507,7 +93533,7 @@
       "module": "journeys",
       "name": "journeys.get",
       "output": {
-        "$ref": "#/$defs/s_14f6a8c95f"
+        "$ref": "#/$defs/s_25dfda5e35"
       },
       "permission": null,
       "resource": {
@@ -94064,6 +94090,9 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "onLeaving": [
+                    "aut_a1b2c3"
+                  ],
                   "order": 1,
                   "tasks": [
                     {
@@ -94138,7 +94167,7 @@
       "module": "journeys",
       "name": "journeys.rename",
       "output": {
-        "$ref": "#/$defs/s_14f6a8c95f"
+        "$ref": "#/$defs/s_25dfda5e35"
       },
       "permission": "journeys.manage",
       "resource": {
@@ -94203,6 +94232,9 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "onLeaving": [
+                    "aut_a1b2c3"
+                  ],
                   "order": 1,
                   "tasks": [
                     {
@@ -94304,7 +94336,7 @@
       "module": "journeys",
       "name": "journeys.rules.set",
       "output": {
-        "$ref": "#/$defs/s_14f6a8c95f"
+        "$ref": "#/$defs/s_25dfda5e35"
       },
       "permission": "journeys.manage",
       "resource": {
@@ -94504,6 +94536,143 @@
           "toolset": "automations"
         },
         "outboundWebhook": true
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "recordId": "rec_a1b2c3",
+            "stage": "intake"
+          },
+          "name": "example",
+          "output": {
+            "tasks": [
+              {
+                "assigned": {
+                  "id": "usr_a1b2c3",
+                  "kind": "person"
+                },
+                "required": true,
+                "stage": "intake",
+                "state": "todo",
+                "taskId": "tsk_a1b2c3",
+                "taskKey": "example",
+                "title": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "stage": {
+            "examples": [
+              "intake"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "journeys",
+      "name": "journeys.tasks",
+      "output": {
+        "properties": {
+          "tasks": {
+            "items": {
+              "properties": {
+                "assigned": {
+                  "$ref": "#/$defs/s_f05a3f77df"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "stage": {
+                  "examples": [
+                    "intake"
+                  ],
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "type": "string"
+                },
+                "state": {
+                  "enum": [
+                    "todo",
+                    "in_review",
+                    "blocked",
+                    "done"
+                  ],
+                  "type": "string"
+                },
+                "taskId": {
+                  "examples": [
+                    "tsk_a1b2c3"
+                  ],
+                  "pattern": "^tsk_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "taskKey": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "stage",
+                "taskKey",
+                "taskId",
+                "title",
+                "state",
+                "required"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "tasks"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/recordId",
+        "type": "record"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The tasks of one Journey record by stage, each with its state (todo, in review, blocked, done)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
       },
       "v": 1
     },
@@ -176852,6 +177021,13 @@
       },
       "summary": "A Journey record left a stage",
       "sv": 1,
+      "trigger": {
+        "fields": [
+          "/journeyId",
+          "/stage"
+        ],
+        "title": "A Journey record leaves a stage"
+      },
       "vis": "space"
     },
     {
@@ -210512,6 +210688,52 @@
         "event": "journey.stage_entered"
       },
       "title": "A Journey record enters a stage"
+    },
+    {
+      "allowSelfTrigger": false,
+      "key": "journey_stage_left",
+      "module": "automations",
+      "payload": {
+        "properties": {
+          "journeyId": {
+            "examples": [
+              "jrn_a1b2c3"
+            ],
+            "pattern": "^jrn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "toStage": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "journeyId",
+          "recordId",
+          "stage"
+        ],
+        "type": "object"
+      },
+      "personalOk": true,
+      "sample": {
+        "journeyId": "jrn_a1b2c3",
+        "recordId": "rec_a1b2c3",
+        "stage": "example",
+        "toStage": "example"
+      },
+      "source": {
+        "event": "journey.stage_exited"
+      },
+      "title": "A Journey record leaves a stage"
     },
     {
       "allowSelfTrigger": false,
