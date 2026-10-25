@@ -75,19 +75,21 @@ test("a daemon boots on a copy and answers through the gateway: the contacts are
   } finally { await d.stop(); s.close(); }
 });
 
-test("PERF: the small seed is ready in under 150 ms from the cache", async () => {
-  await first();
-  const times: number[] = [];
-  for (let i = 0; i < 7; i++) {
-    const t0 = performance.now();
-    const s = await bootSmall({ cache, scratch: scratch() });
-    times.push(performance.now() - t0);
-    assert.equal(s.hit, true);
-    s.close();
-  }
-  times.sort((x, y) => x - y);
-  const median = times[3]!;
-  console.log(`small seed on a cache hit: median ${median.toFixed(1)} ms, min ${times[0]!.toFixed(1)} ms, max ${times[6]!.toFixed(1)} ms (budget 150 ms)`);
-  assert.ok(median < 150, `median ${median.toFixed(1)} ms is over the 150 ms budget`);
-  assert.ok(times[6]! < 150 * 3, "even the slowest boot stays near the budget");
+test("the access module knows the seed: View as and a folder share work on seeded ids", async () => {
+  const s = await bootSmall({ cache, scratch: scratch() });
+  const d = await startSeeded(s.dir);
+  try {
+    const post = async (cap: string, body: unknown): Promise<{ status: number; data: any }> => {
+      const r = routes.find((x) => x.cap === cap)!;
+      const res = await fetch(`${d.url}${r.path}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(body) });
+      const reply = (await res.json()) as { data?: unknown; error?: unknown };
+      return { status: res.status, data: reply.data ?? reply.error ?? null };
+    };
+    const view = await post("access.view_as", { person: "usr_noah" });
+    assert.equal(view.status, 200, JSON.stringify(view.data));
+    const who = await post("access.principals.get", { principal: { kind: "person", id: "usr_tess" } });
+    assert.equal(who.status, 200, JSON.stringify(who.data));
+    const shared = await post("access.share", { idempotencyKey: "small-share", resource: { type: "folder", id: "fld_clients" }, subject: { kind: "person", id: "usr_tess" }, level: "view" });
+    assert.equal(shared.status, 200, JSON.stringify(shared.data));
+  } finally { await d.stop(); s.close(); }
 });

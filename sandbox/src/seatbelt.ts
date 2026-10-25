@@ -47,6 +47,8 @@ export function seatbeltProfile(checked: Checked, o: SeatbeltOptions): string {
   ];
   for (const m of checked.mounts) lines.push(m.mode === "rw" ? `(allow file-read* file-write* (subpath ${sbplString(m.host)}))` : `(allow file-read* (subpath ${sbplString(m.host)}))`);
   if (checked.scratch !== undefined) lines.push(`(allow file-read* file-write* (subpath ${sbplString(checked.scratch)}))`);
+  // A unix socket in the scratch folder is how the engine reaches Vyre's MCP endpoint from inside (ruling 61): no network hole, one path.
+  if (checked.scratch !== undefined) lines.push(";; unix sockets in the scratch folder only", `(allow network-outbound (remote unix-socket (subpath ${sbplString(checked.scratch)})))`);
   lines.push(
     ";; the only way out: the egress proxy, on loopback",
     `(allow network-outbound (remote ip ${sbplString(`localhost:${o.proxyPort}`)}))`,
