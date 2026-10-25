@@ -1,0 +1,12 @@
+{
+  "targets": [
+    {
+      "id": "P-L11_02-probe-sample",
+      "route": "/m/P-L11_02",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='probe-ready']",
+      "probes": { "navigate": {}, "prefetch": {}, "layout_shift": {} },
+      "note": "Not a UI packet: a one-line screen that writes window.__probes so the browser probe runner (scripts/shots/probes/browser.mjs) is exercised end to end in CI. Screens switch their own targets to probes as they land (P-L9d_04 navigate, P-L9b_04 chat_open)."
+    }
+  ]
+}
