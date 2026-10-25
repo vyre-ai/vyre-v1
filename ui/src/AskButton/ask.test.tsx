@@ -4,11 +4,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
-  ASSISTANT_NOTE,
   AskButton,
   AskPicker,
   RECENT_KEY,
-  SUGGESTED_NOTE,
   aboutLine,
   agentIndices,
   clampPanel,
@@ -110,7 +108,7 @@ test("the picker lists every agent in the prototype's order: Suggested, Recent, 
   assert.equal(entries.find((e) => e.kind === "agent" && e.label === "Billing")?.current, true, "the shown agent carries the check");
   assert.equal(entries.find((e) => e.label === "Docs")?.current, false);
   assert.equal(entries.find((e) => e.label === "Billing")?.note, "Invoices and payment follow-up", "the role is the quiet line");
-  assert.equal(entries.find((e) => e.kind === "agent" && e.label === "Assistant")?.note, ASSISTANT_NOTE);
+  assert.equal(entries.find((e) => e.kind === "agent" && e.label === "Assistant")?.note, "", "no filler line under the assistant");
 });
 
 test("with no suggestion and no history the picker is the assistant then the rest", () => {
@@ -118,10 +116,10 @@ test("with no suggestion and no history the picker is the assistant then the res
   assert.deepEqual(names(entries), ["# Assistant", "Assistant", "# Agents", "Billing", "Intake", "Docs"]);
 });
 
-test("a suggested agent without a role says why it is listed; the suggested assistant is not listed twice", () => {
+test("a role-less suggested agent has one line; the suggested assistant is not listed twice", () => {
   const bare: AskAgent = { id: "bare", name: "Bare" };
   const first = pickerEntries({ agents: [ASSISTANT, bare], current: bare, suggested: bare, recents: [] });
-  assert.equal(first.find((e) => e.label === "Bare")?.note, SUGGESTED_NOTE);
+  assert.equal(first.find((e) => e.label === "Bare")?.note, "", "a role-less agent has no second line");
   const asst = pickerEntries({ agents: AGENTS, current: ASSISTANT, suggested: ASSISTANT, recents: [] });
   assert.equal(asst.filter((e) => e.label === "Assistant").length, 1);
   assert.equal(asst.filter((e) => e.kind === "agent").length, AGENTS.length);

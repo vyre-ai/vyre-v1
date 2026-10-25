@@ -153,7 +153,7 @@ export function pickerEntries(input: PickerInput): PickerEntry[] {
   if (query !== "") {
     return input.agents
       .filter((agent) => `${agent.name} ${agent.role ?? ""}`.toLowerCase().includes(query))
-      .map((agent) => entry(agent, agent === assistant ? ASSISTANT_NOTE : ""));
+      .map((agent) => entry(agent, ""));
   }
   const recent: AskAgent[] = [];
   for (const id of input.recents) {
@@ -167,13 +167,13 @@ export function pickerEntries(input: PickerInput): PickerEntry[] {
   const rest = input.agents.filter((agent) => agent !== assistant && agent !== input.suggested && !recent.includes(agent));
   const out: PickerEntry[] = [];
   if (input.suggested !== null) {
-    out.push({ kind: "head", label: "Suggested" }, entry(input.suggested, SUGGESTED_NOTE));
+    out.push({ kind: "head", label: "Suggested" }, entry(input.suggested, ""));
   }
   if (recent.length > 0) {
     out.push({ kind: "head", label: "Recent" }, ...recent.map((agent) => entry(agent, "")));
   }
   if (assistant !== null && assistant !== input.suggested) {
-    out.push({ kind: "head", label: "Assistant" }, entry(assistant, ASSISTANT_NOTE));
+    out.push({ kind: "head", label: "Assistant" }, entry(assistant, ""));
   }
   if (rest.length > 0) {
     out.push({ kind: "head", label: "Agents" }, ...rest.map((agent) => entry(agent, "")));

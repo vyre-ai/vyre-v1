@@ -163,7 +163,7 @@ function listen(): void {
 /* ---------- the picker ---------- */
 
 const PANEL_W = 280;
-const PANEL_H = 320;
+const PANEL_H = 340;
 
 export interface PickerProps {
   entries: ReturnType<typeof pickerEntries>;
@@ -435,7 +435,7 @@ const CHEVRON = '<svg viewBox="0 0 10 10" width="10" height="10" fill="none" str
 /* ---------- styles ---------- */
 
 const styles = StyleSheet.create({
-  host: { flexShrink: 0, alignSelf: "flex-start" },
+  host: { flexShrink: 0, alignSelf: "center" },
   split: { flexDirection: "row", height: 30, borderRadius: 8, backgroundColor: "var(--accent-wash)" as string, overflow: "hidden" },
   main: { flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 5, paddingRight: 11 },
   mainCompact: { paddingRight: 5 },
