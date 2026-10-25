@@ -16,6 +16,7 @@ HTTP 422. Retryable: no.
 - automations.promote
 - automations.set_enabled
 - changesets.approve
+- changesets.edit
 - chat.answer_block
 - chat.approve_plan
 - chat.handoff
@@ -30,4 +31,3 @@ HTTP 422. Retryable: no.
 - console.diff_apply
 - contacts.suppression.remove
 - documents.fill
-- engine.set_model

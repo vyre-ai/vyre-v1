@@ -3529,6 +3529,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/changesets/edit",
+    "cap": "changesets.edit",
+    "v": 1,
+    "module": "files",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/changesets/get",
     "cap": "changesets.get",
     "v": 1,

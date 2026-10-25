@@ -37780,6 +37780,123 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "changeset.edited"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "changesetId": "chg_a1b2c3",
+            "lines": [
+              "example"
+            ],
+            "path": "example",
+            "removeLines": 1,
+            "startLine": 1
+          },
+          "name": "example",
+          "output": {
+            "added": 1,
+            "editedBy": "example",
+            "fileCount": 1,
+            "proposedBy": "example",
+            "removed": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "changesetId": {
+            "examples": [
+              "chg_a1b2c3"
+            ],
+            "pattern": "^chg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "path": {
+            "type": "string"
+          },
+          "removeLines": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "startLine": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "changesetId",
+          "path",
+          "startLine",
+          "removeLines",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "files",
+      "name": "changesets.edit",
+      "output": {
+        "properties": {
+          "added": {
+            "type": "integer"
+          },
+          "editedBy": {
+            "type": "string"
+          },
+          "fileCount": {
+            "type": "integer"
+          },
+          "proposedBy": {
+            "type": "string"
+          },
+          "removed": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fileCount",
+          "added",
+          "removed",
+          "proposedBy",
+          "editedBy"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Edit a proposed change in place before accepting it: replace a run of lines in one staged file. The proposer stays recorded and so does the editor; Approve still goes through its own Gate",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -170098,6 +170215,57 @@
         "type": "folder"
       },
       "summary": "A changeset was discarded",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "files",
+      "name": "changeset.edited",
+      "payload": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "changesetId": {
+            "examples": [
+              "chg_a1b2c3"
+            ],
+            "pattern": "^chg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fileCount": {
+            "type": "integer"
+          },
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "proposedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "changesetId",
+          "folderId",
+          "path",
+          "proposedBy",
+          "by",
+          "fileCount"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/folderId",
+        "type": "folder"
+      },
+      "summary": "A person edited a proposed change in place before accepting it",
       "sv": 1,
       "vis": "space"
     },

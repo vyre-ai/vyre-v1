@@ -7683,6 +7683,53 @@
     },
     {
       "blocks": [],
+      "cap": "changesets.edit",
+      "deferred": false,
+      "description": "Edit a proposed change in place before accepting it: replace a run of lines in one staged file. The proposer stays recorded and so does the editor; Approve still goes through its own Gate",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "changesetId": {
+            "examples": [
+              "chg_a1b2c3"
+            ],
+            "pattern": "^chg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "path": {
+            "type": "string"
+          },
+          "removeLines": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "startLine": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "changesetId",
+          "path",
+          "startLine",
+          "removeLines",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "name": "changesets_edit",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "changesets.get",
       "deferred": false,
       "description": "Read a changeset with its file list and counts",

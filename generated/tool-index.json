@@ -992,6 +992,12 @@
     },
     {
       "deferred": false,
+      "name": "changesets_edit",
+      "summary": "Edit a proposed change in place before accepting it: replace a run of lines in one staged file. The proposer stays recorded and so does the editor; Approve still goes through its own Gate",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
       "name": "changesets_get",
       "summary": "Read a changeset with its file list and counts",
       "toolset": "files"

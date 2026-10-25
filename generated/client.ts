@@ -268,6 +268,7 @@ export function createClient(transport: Transport) {
       },
       diff: call("changesets.diff", 1),
       discard: call("changesets.discard", 1),
+      edit: call("changesets.edit", 1),
       get: call("changesets.get", 1),
       list: call("changesets.list", 1),
       request_changes: call("changesets.request_changes", 1),
