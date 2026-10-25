@@ -132,3 +132,4 @@ test("l3 live: through the gateway a record survives a daemon restart, and a mem
     assert.equal(again.status, 403, "still refused after the restart");
   } finally { await d.stop(); }
 });
+// P-L3_LIVE2: the Space above is the frozen seed exactly as it is (no event added here); the integration of P-H_14 to P-H_17 is proven by this file.
