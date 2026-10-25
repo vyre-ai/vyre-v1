@@ -42,7 +42,8 @@ export interface CalendarProps {
 const GRID = HH * 24;
 const FALLBACK = "#5B5BD6";
 const colorOf = (cals: readonly CalendarRow[], id: string): string => cals.find((c) => c.id === id)?.color ?? FALLBACK;
-const tint = (color: string, pct: number): string => `color-mix(in srgb, ${color} ${pct}%, var(--win))`;
+// mixed with transparent, as the busy stripes are: the grid shows through and the fill renders in both skins
+const tint = (color: string, pct: number): string => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
 
 /** Pointer position helpers for the web; a DOM event is not an RN event, so read what is there. */
 interface PointerLike { clientX: number; clientY: number; button?: number; preventDefault?(): void; stopPropagation?(): void; currentTarget?: { getBoundingClientRect?: () => { left: number; top: number; width: number; height: number } } }
