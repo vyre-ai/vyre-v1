@@ -99,10 +99,14 @@ test("l7b live: each module answers a read and a write through the gateway as th
       ["logs.settings_set", { level: "info" }],
       ["health.run", {}],
       ["network.server_join_code", {}],
-      ["console.assistant_open", { page: "access.roles" }],
       ["backup.config_set", { target: { kind: "local", path: target }, schedule: "0 3 * * *", enabled: true }],
     ];
     for (const [cap, body] of writes) await ok(d, OWNER_TOKEN, cap, body);
+
+    // the Console assistant needs an AI account behind it; a fresh Space has none, and the live handler says so (a typed precondition error, not a stub answer)
+    const opened = await post(d, OWNER_TOKEN, "console.assistant_open", { page: "access.roles" });
+    const openedBody = (await opened.json()) as { error?: { code?: string } };
+    assert.equal(openedBody.error?.code, "validation.precondition_failed", "console.assistant_open answers that the assistant is not set up");
 
     // the backup source is the host's: a run writes an archive to the target, and the list shows it
     await ok(d, OWNER_TOKEN, "backup.run", {});
