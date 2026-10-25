@@ -4,7 +4,8 @@
 // which is a separate packet; until then a chat on an API key answers in words only.
 import { createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
 import { SandboxError } from "../../sandbox/src/index.ts";
-import { sandboxWrap, workFolder } from "./sandbox.ts";
+import { openMcpBridge } from "./mcp-bridge.ts";
+import { sandboxWrap, scratchFolder, workFolder } from "./sandbox.ts";
 import type { SandboxPlan } from "./sandbox.ts";
 import { createSessionOpener } from "../../agent/src/drivers/open/index.ts";
 import type { McpPort, SessionOpener } from "../../agent/src/drivers/open/index.ts";
@@ -41,6 +42,8 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     launcher: h.sandbox
       ? createLocalLauncher({ wrap: sandboxWrap(h.sandbox) })
       : { spawn: () => Promise.reject(new SandboxError("sandbox.unavailable", "no sandbox is set up for CLI engines on this computer")) },
+    // Behind the wall the engine cannot reach the daemon's loopback: its MCP config starts a stdio shim that talks to a unix socket in the person's scratch folder (ruling 61).
+    ...(h.sandbox ? { mcpBridge: (m: { url: string; token: string }, spec: { asker: string }) => openMcpBridge(m, { scratch: scratchFolder(h.sandbox!.dataDir, spec.asker) }) } : {}),
     ...(h.sandbox ? { cli: { workFolder: (spec) => workFolder(h.sandbox!.dataDir, spec.asker, spec.threadId) } } : {}),
     apiContext: async (spec) => ({ system: [{ text: await role(spec), stable: true }], tools: [] }),
   });
