@@ -497,9 +497,9 @@ function VersionsList({ versions, current, onRestore }: { versions: VersionsOut[
 
 const s = StyleSheet.create({
   frame: { flex: 1, backgroundColor: "var(--win)" as string, minWidth: 0 },
-  head: { height: 64, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 20 },
+  head: { minHeight: 64, flexDirection: "row", flexWrap: "wrap", alignItems: "center", rowGap: 4, columnGap: 10, paddingHorizontal: 20, paddingVertical: 8 },
   tile: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  titleBox: { flexShrink: 1, minWidth: 0 },
+  titleBox: { flexShrink: 1, minWidth: 140 },
   title: { fontSize: 15.5, lineHeight: 22, fontWeight: "600", color: "var(--ink)" as string },
   titleInput: { fontSize: 15.5, fontWeight: "600", height: 30, minWidth: 200, color: "var(--ink)" as string, borderRadius: 7, borderWidth: 1, borderColor: "var(--accent)" as string, paddingHorizontal: 8 },
   kind: { flexDirection: "row", alignItems: "center", gap: 5, marginLeft: 2 },

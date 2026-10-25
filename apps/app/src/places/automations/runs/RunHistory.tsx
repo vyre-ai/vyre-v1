@@ -67,13 +67,13 @@ export function RunHistory({ subject, scope = subject ? "subject" : "mine", curr
     if (it.k === "att") {
       const r = it.run;
       return (
-        <View {...webOnly({ dataSet: { row: `att:${r.id}` } })}>
+        <View {...webOnly({ dataSet: { row: `att:${r.id}` } })} style={h.attWrap}>
           <Row
             id={`attention-${r.id}`} title={runTitle(r)} note={`${metaLine(r)} · ${ago(r.startedAt, now)}`} selected={selectedRunId === r.id}
             onPress={() => data.nav.openRunSide(r.id)}
             leading={<StatusMark status="failed" />}
-            trailing={<View style={h.acts}><QuietButton label="Retry step" icon="retry" tone="accent" testID={`retry-step-${r.id}`} onPress={() => void actions.retryStep(r)} /><QuietButton label="Copy trace id" testID={`copy-trace-${r.id}`} title={r.traceId} onPress={() => actions.copy(r.traceId, "the trace id")} /><QuietButton label="Skip step" testID={`skip-step-${r.id}`} onPress={() => void actions.skipStep(r)} /><QuietButton label="Stop" tone="danger" testID={`stop-${r.id}`} onPress={() => void actions.stop(r)} /></View>}
           />
+          <View style={h.acts}><QuietButton label="Retry step" icon="retry" tone="accent" testID={`retry-step-${r.id}`} onPress={() => void actions.retryStep(r)} /><QuietButton label="Copy trace id" testID={`copy-trace-${r.id}`} title={r.traceId} onPress={() => actions.copy(r.traceId, "the trace id")} /><QuietButton label="Skip step" testID={`skip-step-${r.id}`} onPress={() => void actions.skipStep(r)} /><QuietButton label="Stop" tone="danger" testID={`stop-${r.id}`} onPress={() => void actions.stop(r)} /></View>
         </View>
       );
     }
@@ -105,7 +105,7 @@ export function RunHistory({ subject, scope = subject ? "subject" : "mine", curr
         ) : items.length === 0 ? (
           <View style={h.blank} testID="run-history-empty"><Text style={h.blankText}>{filter === "all" ? "No runs yet. Run a test to see one." : "Nothing matches."}</Text></View>
         ) : (
-          <VirtualList data={items} rowHeight={ITEM_HEIGHT} keyOf={keyOfItem} renderItem={render} />
+          <VirtualList data={items} rowHeight="measure" keyOf={keyOfItem} renderItem={render} />
         )}
       </View>
       {actions.note ? <Text style={h.note} accessibilityLiveRegion="polite" testID="run-note">{actions.note}</Text> : null}
@@ -120,7 +120,8 @@ export const h = StyleSheet.create({
   title: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   lab: { height: ITEM_HEIGHT, justifyContent: "flex-end", paddingBottom: 6, paddingHorizontal: 2 },
   labText: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
-  acts: { flexDirection: "row", alignItems: "center", gap: 2 },
+  acts: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 2, paddingLeft: 38, paddingBottom: 6 },
+  attWrap: { width: "100%" },
   showing: { height: 28, flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10, paddingHorizontal: 2 },
   showText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   showB: { fontWeight: "600", color: "var(--ink)" as string },
