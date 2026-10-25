@@ -170,6 +170,77 @@ jobs:
       - name: Containers left behind
         if: always() && steps.scope.outputs.changed == 'true'
         run: docker ps -a --filter "name=vyre" --format '{{.Names}} {{.Status}}' || true
+  installer-docker:
+    # P-L10_09b: the Linux installer proven on a Docker host. It runs on our self-hosted runners (Docker 29, the runner user is in the docker group) because GitHub-hosted runners are blocked
+    # by the account spending limit (ruling 29, 25 Oct); the lead approved this edit for P-H_12 and P-L10_09b. Runners are shared, so: one such job at a time (the compose unit publishes 80, 443 and
+    # 8420 on the host), and the last step removes every container, volume, image and temp directory the job made, even when it failed.
+    # Part 1 is scripts/install/linux/install.heavy.test.sh (signed channel, refusals, install, update, rollback, uninstall). Part 2 builds the real vyred image and drives the same installer
+    # with the real compose unit: first boot, doctor green, the sign-in endpoint, restart, uninstall, purge. Every check must print "ok"; a skip is not a pass. Not part of the `check` gate.
+    runs-on: [self-hosted, linux, v1]
+    concurrency:
+      group: installer-docker-host-ports
+      cancel-in-progress: false
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Did the installer, the vyred image or this job change on this branch?
+        id: scope
+        run: |
+          git fetch -q origin main
+          base="$(git merge-base origin/main HEAD)"
+          if [ "${{ github.ref_name }}" = main ] || git diff --name-only --no-renames "$base"...HEAD -- scripts/install/ images/vyred/ .github/workflows/check.yml | grep -q .; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the installer proofs cover changed"; fi
+      - name: Docker Compose (the self-hosted runners have no compose plugin; a pinned standalone binary, checksum-checked, in this job's temp directory)
+        if: steps.scope.outputs.changed == 'true'
+        run: |
+          v=v2.29.7; arch="$(uname -m)"; f="docker-compose-linux-$arch"
+          curl -fsSL -o "$RUNNER_TEMP/$f" "https://github.com/docker/compose/releases/download/$v/$f"
+          curl -fsSL -o "$RUNNER_TEMP/$f.sha256" "https://github.com/docker/compose/releases/download/$v/$f.sha256"
+          (cd "$RUNNER_TEMP" && sha256sum -c "$f.sha256")
+          chmod +x "$RUNNER_TEMP/$f"
+          echo "VYRE_COMPOSE_BIN=$RUNNER_TEMP/$f" >> "$GITHUB_ENV"
+      - name: The host
+        if: steps.scope.outputs.changed == 'true'
+        run: |
+          docker version --format 'docker {{.Server.Version}}'; "$VYRE_COMPOSE_BIN" version; openssl version; df -h / | tail -n 1
+          ss -ltn | grep -E ':(80|443|8420) ' && { echo "a port the compose unit publishes is already in use on this runner"; exit 1; } || echo "ports 80, 443 and 8420 are free"
+      - name: Installer on a fresh host, stand-in server (install.heavy.test.sh)
+        if: steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+        run: |
+          set -o pipefail
+          sh scripts/install/linux/install.heavy.test.sh 2>&1 | tee installer-heavy.out
+          grep -q '^# pass 15 fail 0$' installer-heavy.out
+          ! grep -qi 'skipped' installer-heavy.out
+          [ "$(grep -c '^ok ' installer-heavy.out)" = 15 ]
+      - name: Installer against the real vyred image and compose unit (install.real.heavy.test.sh)
+        if: always() && steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+        run: |
+          set -o pipefail
+          sh scripts/install/tests/install.real.heavy.test.sh 2>&1 | tee installer-real.out
+          grep -q '^# pass 8 fail 0$' installer-real.out
+          ! grep -qi 'skipped' installer-real.out
+          [ "$(grep -c '^ok ' installer-real.out)" = 8 ]
+      - name: Remove what this job made (containers, volumes, images, temp directories; shared runner)
+        if: always() && steps.scope.outputs.changed == 'true'
+        run: |
+          docker ps -a --format '{{.ID}} {{.Names}}' | awk '$2 ~ /^(vyreinst|vyrereal)/ {print $1}' | xargs -r docker rm -f >/dev/null 2>&1 || true
+          docker volume ls -q --filter "name=vyreinst" | xargs -r docker volume rm -f >/dev/null 2>&1 || true
+          docker volume ls -q --filter "name=vyrereal" | xargs -r docker volume rm -f >/dev/null 2>&1 || true
+          docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' | grep -E '^(localhost:[0-9]+/vyred|vyreinst|vyrereal)' | awk '{print $2}' | sort -u | xargs -r docker rmi -f >/dev/null 2>&1 || true
+          rm -rf /tmp/vyre-install-* 2>/dev/null || sudo -n rm -rf /tmp/vyre-install-* 2>/dev/null || true
+          echo "left on this runner:"; docker ps -a --format '{{.Names}} {{.Status}}' | grep -E 'vyreinst|vyrereal' || echo "no containers"
+          docker volume ls --format '{{.Name}}' | grep -E 'vyreinst|vyrereal' || echo "no volumes"
+          ls /tmp | grep -E 'vyre-install' || echo "no temp directories"
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.scope.outputs.changed == 'true'
+        with:
+          name: installer-heavy
+          path: installer-*.out
+          if-no-files-found: ignore
   l2-heavy:
     # P-L2_HEAVY (security sign-off, spec S8): real Docker, real bubblewrap and real tmux against the sandbox and the terminal module; P-L2_16b adds the agent computers module (lifecycle and the 35 tools). The tests skip unless VYRE_HEAVY_DOCKER=1 and, with it on,
     # fail instead of skipping when Docker, the image, bwrap or tmux is missing, so a green job means the proofs ran. Not part of the `check` gate below: it reports its own result on the run.
