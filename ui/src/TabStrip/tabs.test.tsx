@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { TAB_STRIP_HEIGHT, TabStrip, foldTabs, moreEntries, MORE_BUTTON_W, TAB_ESTIMATE_W, OVERFLOW_GAP, afterClose, closableKeys, reorderKeys, stepKey, tabMenuEntries } from "./index.tsx";
+import { TAB_STRIP_HEIGHT, TabStrip, foldTabs, isMeasured, moreEntries, MORE_BUTTON_W, TAB_ESTIMATE_W, OVERFLOW_GAP, afterClose, closableKeys, reorderKeys, stepKey, tabMenuEntries } from "./index.tsx";
 import type { TabSpec } from "./index.tsx";
 import { isItem, isSeparator } from "../Menu/props.ts";
 
@@ -163,4 +163,14 @@ test("overflow='more' renders the same strip (nothing folds before it is measure
   const plain = renderToStaticMarkup(<TabStrip tabs={MANY} active="a" />);
   for (const t of MANY) assert.ok(more.includes(`tab-${t.key}`) && plain.includes(`tab-${t.key}`), t.key);
   assert.ok(!more.includes("tab-strip-folded") && !plain.includes("tab-strip-folded"));
+});
+
+test("the strip is hidden but laid out until it has a width and every tab is measured, so folding never shifts what is on screen", () => {
+  assert.equal(isMeasured(MANY, W100, 0), false, "no width yet");
+  assert.equal(isMeasured(MANY, { home: 100 }, 500), false, "tabs not all measured");
+  assert.equal(isMeasured(MANY, W100, 500), true);
+  assert.equal(isMeasured([], {}, 500), true, "no tabs, nothing to wait for");
+  const first = renderToStaticMarkup(<TabStrip tabs={MANY} active="a" overflow="more" />);
+  assert.match(first, /visibility:hidden/, "the first frame is laid out but hidden");
+  assert.ok(!renderToStaticMarkup(<TabStrip tabs={MANY} active="a" />).includes("visibility:hidden"), "the scrolling strip is never hidden");
 });

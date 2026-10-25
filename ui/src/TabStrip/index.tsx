@@ -34,6 +34,13 @@ export const ICON_BUTTON_W = 26;
 export const MORE_BUTTON_W = 72;
 export const TAB_ESTIMATE_W = 120;
 
+/** True once the strip may be shown: it has a width and every tab has been measured. Until then it is laid out but hidden, so nothing shifts when it first folds. */
+export function isMeasured(tabs: readonly TabSpec[], widths: Readonly<Record<string, number>>, boxW: number): boolean {
+  if (boxW <= 0) return false;
+  for (const tab of tabs) if (widths[tab.key] === undefined) return false;
+  return true;
+}
+
 export interface Fold { visible: string[]; folded: string[] }
 
 /**
@@ -208,6 +215,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
   const widths = useRef<Record<string, number>>({});
   const [boxW, setBoxW] = useState(0);
   const [measured, setMeasured] = useState(0);
+  const ready = useRef(false);
   const moreRef = useRef<unknown>(null);
   const folding = props.overflow === "more";
   const [drag, setDrag] = useState<{ from: string; over: string | null } | null>(null);
@@ -275,6 +283,8 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
   const reserved = OVERFLOW_PAD + ICON_BUTTON_W + OVERFLOW_GAP + (onPlus === undefined ? 0 : ICON_BUTTON_W + OVERFLOW_GAP);
   const fold: Fold = folding ? foldTabs(tabs, widths.current, active, boxW - reserved) : { visible: tabs.map((x) => x.key), folded: [] };
   void measured;
+  if (folding && !ready.current && isMeasured(tabs, widths.current, boxW)) ready.current = true;
+  const hidden = folding && !ready.current;
   const shown = new Set(fold.visible);
   const openMore = (): void => {
     const entries = moreEntries(tabs, fold.folded, active, select);
@@ -312,7 +322,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
 
   const current = activeTab(props);
   return (
-    <View style={styles.strip} testID="tab-strip" onLayout={(event) => { if (folding) setBoxW(event.nativeEvent.layout.width); }} {...webProps({ onPointerLeave: () => setDrag(null), onPointerUp: finishDrag })}>
+    <View style={[styles.strip, hidden ? styles.unmeasured : null]} testID="tab-strip" onLayout={(event) => { if (folding) setBoxW(event.nativeEvent.layout.width); }} {...webProps({ onPointerLeave: () => setDrag(null), onPointerUp: finishDrag })}>
       <ScrollView
         ref={(node) => { scroller.current = node as unknown as typeof scroller.current; }}
         horizontal
@@ -457,6 +467,7 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1, alignItems: "flex-end", paddingHorizontal: 6, gap: 2 },
   tabs: { flexDirection: "row", alignItems: "flex-end", gap: 2 },
   spacer: { flexGrow: 1 },
+  unmeasured: Platform.OS === "web" ? ({ visibility: "hidden" } as ViewStyle) : { opacity: 0 },
   foldBtn: { flexDirection: "row", alignItems: "center", gap: 4, height: 26, marginBottom: 4, paddingHorizontal: 8, borderRadius: 7 },
   foldText: { color: "var(--ink-3)" as string, fontSize: 12.5 },
   tab: {
