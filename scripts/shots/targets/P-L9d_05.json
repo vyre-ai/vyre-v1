@@ -1,0 +1,7 @@
+{
+  "targets": [
+    { "id": "P-L9d_05-overview", "route": "/m/P-L9d_05?tab=overview", "proto": "projects,at:overview-rivera,{skin}", "waitFor": "[data-testid='project-overview']", "note": "The Overview tab of Rivera engagement: status, lead and due under the name, the strip, the goal and update, the next milestones, late and waiting, people. The prototype side is its Overview tab." },
+    { "id": "P-L9d_05-plan", "route": "/m/P-L9d_05?tab=plan", "proto": "projects,at:plan-rivera,{skin}", "waitFor": "[data-testid='project-plan']", "note": "The Plan tab on the shared Plan, timeline view: stages as bands, bars, milestones, today line, dependency arrows. The prototype side is its Plan tab, timeline." },
+    { "id": "P-L9d_05-chat", "route": "/m/P-L9d_05?tab=chat", "proto": "projects,at:project-rivera,{skin}", "waitFor": "[data-testid='project-chat']", "note": "The Chat tab: the one project chat is the channel, each thread with its arrow-out mark. The prototype side is the project page; its chat tab opens the channel in Chats." }
+  ]
+}
