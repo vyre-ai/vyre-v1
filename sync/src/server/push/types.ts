@@ -59,6 +59,8 @@ export interface PushDeps {
   hlc(): string;
   /** The person's sync epoch; a device below it is revoked. */
   epochOf(person: string): number | Promise<number>;
+  /** True when the host revoked this device (its own epoch row). A revoked device is refused whatever epoch it presents. */
+  deviceRevoked?(person: string, device: string): boolean | Promise<boolean>;
   /** Run the capability as the person. Throws a VyreErr when it is refused. */
   invoke(call: InvokeCall): Promise<InvokeResult>;
   /** Current clock of every field of a row (`field_meta`). Empty for a row the server does not have. */

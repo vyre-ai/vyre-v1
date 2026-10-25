@@ -37,7 +37,7 @@ export const KNOWLEDGE_CHILDREN: { key: string; title: string }[] = [
   { key: "graph", title: "Graph" },
 ];
 
-const KINDS = new Set([
+export const KINDS = new Set([
   "text", "markdown", "document", "spreadsheet", "presentation", "pdf", "image", "video", "audio", "code", "archive", "google_native", "other",
 ]);
 
@@ -58,7 +58,7 @@ const NEXT: Record<NextStep["kind"], string> = {
 
 type Row = Record<string, unknown>;
 
-interface FileOut {
+export interface FileOut {
   fileId: string;
   folderId: string;
   name: string;
@@ -79,7 +79,7 @@ interface FileOut {
   conflict?: boolean;
 }
 
-interface FolderOut {
+export interface FolderOut {
   folderId: string;
   parentId?: string;
   name: string;
@@ -102,7 +102,7 @@ type Content =
   | { kind: "base64"; base64: string }
   | { kind: "blob"; blobId: string };
 
-function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<string, unknown>): never {
+export function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<string, unknown>): never {
   const def = ERROR_CODES.find((e) => e.code === code) ?? ERROR_CODES.find((e) => e.code === "internal.unexpected");
   if (!def) throw new Error("error catalogue is empty");
   const error: VyreError = {
@@ -116,13 +116,13 @@ function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<stri
   throw new VyreErr(error);
 }
 
-function num(v: unknown): number {
+export function num(v: unknown): number {
   if (typeof v === "number" && Number.isFinite(v)) return v;
   if (typeof v === "string" && v !== "" && Number.isFinite(Number(v))) return Number(v);
   return 0;
 }
 
-function isNull(v: unknown): boolean {
+export function isNull(v: unknown): boolean {
   return v === null || v === undefined;
 }
 
@@ -130,22 +130,22 @@ function flag(v: unknown): boolean {
   return v === true || v === 1 || v === "1";
 }
 
-function one(ctx: Ctx, sql: string, ...args: unknown[]): Row | undefined {
+export function one(ctx: Ctx, sql: string, ...args: unknown[]): Row | undefined {
   const rows = ctx.db.all(sql, ...args) as Row[];
   return rows[0];
 }
 
-function many(ctx: Ctx, sql: string, ...args: unknown[]): Row[] {
+export function many(ctx: Ctx, sql: string, ...args: unknown[]): Row[] {
   return ctx.db.all(sql, ...args) as Row[];
 }
 
-function rec(ctx: Ctx, input: unknown): Record<string, unknown> {
+export function rec(ctx: Ctx, input: unknown): Record<string, unknown> {
   if (input === undefined || input === null) return {};
   if (typeof input !== "object" || Array.isArray(input)) fail(ctx, "validation.bad_input", "The input is not valid.");
   return input as Record<string, unknown>;
 }
 
-function optStr(ctx: Ctx, o: Record<string, unknown>, key: string): string | undefined {
+export function optStr(ctx: Ctx, o: Record<string, unknown>, key: string): string | undefined {
   const v = o[key];
   if (v === undefined || v === null) return undefined;
   if (typeof v !== "string") fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
@@ -165,7 +165,7 @@ function optBool(ctx: Ctx, o: Record<string, unknown>, key: string): boolean | u
   return v;
 }
 
-function optInt(ctx: Ctx, o: Record<string, unknown>, key: string): number | undefined {
+export function optInt(ctx: Ctx, o: Record<string, unknown>, key: string): number | undefined {
   const v = o[key];
   if (v === undefined || v === null) return undefined;
   if (typeof v !== "number" || !Number.isInteger(v)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
@@ -297,7 +297,7 @@ function childCounts(ctx: Ctx, folderId: string): { fileCount: number; folderCou
   return { fileCount: files.length, folderCount: folders.length };
 }
 
-function fileOut(row: Row): FileOut {
+export function fileOut(row: Row): FileOut {
   const out: FileOut = {
     fileId: String(row.id),
     folderId: String(row.folder_id),
@@ -377,7 +377,7 @@ function subjectOf(ctx: Ctx, row: Row): Subject {
   return { kind: "space" };
 }
 
-function folderOut(ctx: Ctx, row: Row): FolderOut {
+export function folderOut(ctx: Ctx, row: Row): FolderOut {
   const counts = childCounts(ctx, String(row.id));
   const out: FolderOut = {
     folderId: String(row.id),
@@ -460,7 +460,7 @@ function ensurePersonal(ctx: Ctx): Row {
   return mustFolder(ctx, id);
 }
 
-function ensureReady(ctx: Ctx): void {
+export function ensureReady(ctx: Ctx): void {
   ensureSpaceRoots(ctx);
   ensurePersonal(ctx);
 }
@@ -608,7 +608,7 @@ function noteOpen(ctx: Ctx, fileId: string): void {
   touchRecent(ctx.db, fileId, ctx.principal.id, ctx.now());
 }
 
-function pageArgs(ctx: Ctx, o: Record<string, unknown>, fallback: number): { offset: number; limit: number } {
+export function pageArgs(ctx: Ctx, o: Record<string, unknown>, fallback: number): { offset: number; limit: number } {
   const limit = optInt(ctx, o, "limit") ?? fallback;
   if (limit < 1 || limit > 500) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "limit" });
   const cursor = optStr(ctx, o, "cursor");
@@ -617,7 +617,7 @@ function pageArgs(ctx: Ctx, o: Record<string, unknown>, fallback: number): { off
   return { offset: Number(cursor), limit };
 }
 
-function slicePage<T>(rows: T[], offset: number, limit: number): { rows: T[]; total: number; next?: string } {
+export function slicePage<T>(rows: T[], offset: number, limit: number): { rows: T[]; total: number; next?: string } {
   const total = rows.length;
   const page = rows.slice(offset, offset + limit);
   const out: { rows: T[]; total: number; next?: string } = { rows: page, total };

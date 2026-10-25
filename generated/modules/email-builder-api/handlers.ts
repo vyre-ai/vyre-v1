@@ -14,6 +14,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "email_builder.render": Handler<"email_builder.render", X>;
   "email_builder.restore_version": Handler<"email_builder.restore_version", X>;
   "email_builder.save": Handler<"email_builder.save", X>;
+  "email_builder.saved_blocks.list": Handler<"email_builder.saved_blocks.list", X>;
+  "email_builder.saved_blocks.save": Handler<"email_builder.saved_blocks.save", X>;
   "email_builder.send_test": Handler<"email_builder.send_test", X>;
   "email_builder.snippets.delete": Handler<"email_builder.snippets.delete", X>;
   "email_builder.snippets.list": Handler<"email_builder.snippets.list", X>;

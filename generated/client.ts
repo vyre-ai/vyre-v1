@@ -108,7 +108,9 @@ export function createClient(transport: Transport) {
         set: call("agents.role_line.set", 1),
       },
       routine: {
+        delegate: call("agents.routine.delegate", 1),
         delete: call("agents.routine.delete", 1),
+        run_now: call("agents.routine.run_now", 1),
         save: call("agents.routine.save", 1),
       },
       routines: {
@@ -268,6 +270,7 @@ export function createClient(transport: Transport) {
       },
       diff: call("changesets.diff", 1),
       discard: call("changesets.discard", 1),
+      edit: call("changesets.edit", 1),
       get: call("changesets.get", 1),
       list: call("changesets.list", 1),
       request_changes: call("changesets.request_changes", 1),
@@ -575,6 +578,10 @@ export function createClient(transport: Transport) {
       render: call("email_builder.render", 1),
       restore_version: call("email_builder.restore_version", 1),
       save: call("email_builder.save", 1),
+      saved_blocks: {
+        list: call("email_builder.saved_blocks.list", 1),
+        save: call("email_builder.saved_blocks.save", 1),
+      },
       send_test: call("email_builder.send_test", 1),
       snippets: {
         delete: call("email_builder.snippets.delete", 1),
@@ -977,6 +984,7 @@ export function createClient(transport: Transport) {
       events_db: call("health.events_db", 1),
       history: call("health.history", 1),
       index_db: call("health.index_db", 1),
+      machine: call("health.machine", 1),
       paused_reasons: call("health.paused_reasons", 1),
       run: call("health.run", 1),
       scheduler: call("health.scheduler", 1),
@@ -1081,6 +1089,7 @@ export function createClient(transport: Transport) {
       },
       stage_counts: call("journeys.stage_counts", 1),
       start: call("journeys.start", 1),
+      tasks: call("journeys.tasks", 1),
       versions: call("journeys.versions", 1),
     },
     kits: {
@@ -1403,6 +1412,9 @@ export function createClient(transport: Transport) {
       },
       digest: {
         collect: call("notifications.digest.collect", 1),
+      },
+      kind: {
+        set_level: call("notifications.kind.set_level", 1),
       },
       kinds: {
         list: call("notifications.kinds.list", 1),

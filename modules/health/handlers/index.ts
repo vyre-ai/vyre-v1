@@ -1,7 +1,7 @@
 // Capability handlers for health (spec 4.18, ARCH 7.10). Checks and probes live in checks.ts, services and the support bundle in services.ts.
 // Reading health is open to console.access; restarting a service needs server.services at manage level and is audited by the invoke pipeline.
 
-import { doctor, failWith, historyOf, loadDefs, pausedOf, readProbe, reasonFor, runChecks, statusOf } from "./checks.ts";
+import { doctor, failWith, historyOf, loadDefs, pausedOf, readMachine, readProbe, reasonFor, runChecks, statusOf } from "./checks.ts";
 import type { HealthCtx } from "./checks.ts";
 import { listServices, restartService, supportBundle } from "./services.ts";
 
@@ -71,5 +71,6 @@ export const handlers = {
   "health.docker": probe("docker"),
   "health.caddy": probe("caddy"),
   "health.disk_space": probe("disk_space"),
+  "health.machine": async (ctx: HealthCtx, _input: Record<string, unknown>) => readMachine(ctx),
   "health.time_skew": probe("time_skew"),
 };

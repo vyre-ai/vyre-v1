@@ -37,6 +37,10 @@ type Out = {
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
       respectHours: boolean;
+      mine?: {
+        level: "interrupt" | "badge" | "digest";
+        channels: Array<"desktop" | "phone" | "email">;
+      };
     }>;
 };
 ```
@@ -59,6 +63,12 @@ type Out = {
       {
         "key": "approval.requested",
         "level": "interrupt",
+        "mine": {
+          "channels": [
+            "desktop"
+          ],
+          "level": "interrupt"
+        },
         "place": "home",
         "respectHours": true,
         "title": "example"

@@ -1,9 +1,9 @@
-// Handler table of the agents module: all 30 capabilities of manifests/agents.ts. The record, lifecycle, configuration and versions are in crud.ts; routines, suggestions, the Agent template and
+// Handler table of the agents module: all 32 capabilities of manifests/agents.ts. The record, lifecycle, configuration and versions are in crud.ts; routines, suggestions, the Agent template and
 // Vyre's own text are in routines.ts.
 import {
   configGet, configValidate, create, get, limitsGet, list, pause, remove, restore, restoreVersion, resume, roleLineSet, snapshotTake, status, summary, update, versions, visibilitySet,
 } from "./crud.ts";
-import { builtinSkillsList, guideGet, routineDelete, routineSave, routinesList, suggestionAccept, suggestionDismiss, suggestionPropose, suggestionsList, templateApply, templateGet, templatePreview } from "./routines.ts";
+import { builtinSkillsList, guideGet, routineDelegate, routineDelete, routineRunNow, routineSave, routinesList, suggestionAccept, suggestionDismiss, suggestionPropose, suggestionsList, templateApply, templateGet, templatePreview } from "./routines.ts";
 
 export const handlers = {
   "agents.list": list,
@@ -27,6 +27,8 @@ export const handlers = {
   "agents.routines.list": routinesList,
   "agents.routine.save": routineSave,
   "agents.routine.delete": routineDelete,
+  "agents.routine.run_now": routineRunNow,
+  "agents.routine.delegate": routineDelegate,
   "agents.suggestions.list": suggestionsList,
   "agents.suggestion.propose": suggestionPropose,
   "agents.suggestion.accept": suggestionAccept,
