@@ -133,11 +133,11 @@ test("@heavy computers: provision, wake, take over, record, give back, sleep, wa
   // take over: agentd was told who, and the state says so
   const taken = await takeOver(h.ctx, { computerId: id });
   assert.equal(taken.computer.state, "takeover");
-  assert.equal((await run(name, ["cat", `${STATE}/takeover`])).stdout, "usr_dana", "agentd was told whose hands are on the desktop");
+  assert.deepEqual(JSON.parse((await run(name, ["cat", `${STATE}/takeover`])).stdout), { personId: "usr_dana" }, "agentd was told whose hands are on the desktop");
 
   // record: files appear on the host's disk, masked
   const rec = await recordStart(h.ctx, { computerId: id });
-  assert.equal((await run(name, ["cat", `${STATE}/recording`])).stdout, rec.recordingId);
+  assert.deepEqual(JSON.parse((await run(name, ["cat", `${STATE}/recording`])).stdout), { recordingId: rec.recordingId });
   const done = await recordStop(h.ctx, { computerId: id });
   assert.equal(done.recording.durationMs, 1500);
   const dir = path.join(filesRoot, done.recording.folderPath);
