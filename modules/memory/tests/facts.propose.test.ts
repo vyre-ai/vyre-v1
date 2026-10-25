@@ -266,7 +266,7 @@ test("memory.map.get returns the MAP.md block the nightly job wrote, nothing bef
   assert.ok(!String(got.map?.body).includes("private tea"), "personal memory never goes in the map");
   assert.equal(got.map?.updatedAt, NOW);
   assert.ok((got.map?.lines ?? 0) > 0 && (got.map?.lines ?? 999) < 200);
-  h.deny("agent:agt_intake");
+  h.deny("folder:fld_intake");   // the agent's folder decides who may see its memory
   await assert.rejects(mapGet(h.ctx, { agentId: "agt_intake" }), (e) => codeOf(e) === "permission.no_grant");
 });
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.

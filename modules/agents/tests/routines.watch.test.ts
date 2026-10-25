@@ -48,7 +48,7 @@ test("a watcher is saved with no schedule, listed as a watcher, and never gets a
 
 test("a watcher needs its channel, and only a watcher may name one; a schedule needs its cron", async () => {
   const { hn, id } = await setup();
-  const bad = async (over: Record<string, unknown>) => { try { await watch(hn, id, over); } catch (e) { return failure(e); } return "none"; };
+  const bad = (over: Record<string, unknown>) => failure(() => watch(hn, id, over));
   assert.equal(await bad({ watch: undefined }), "validation.bad_input");
   assert.equal(await bad({ watch: { on: "message", channelId: "usr_nope" } }), "validation.bad_input");
   assert.equal(await bad({ kind: "schedule", cron: "0 9 * * *" }), "validation.bad_input", "a schedule routine that names a watch is refused");

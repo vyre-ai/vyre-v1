@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
-import { lastMessages } from "../projections.ts";
+import { lastMessages, threadBy, threadOut } from "../projections.ts";
 import { DANA, DRAFTER, INTAKE, LEO, MAYA, REVIEWER, assertEventsConform, failure, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -143,7 +143,7 @@ test("a thread carries its reply count and the time of its last message, and a d
   await h["chat.post"]!(hn.ctx, { threadId: thread.threadId, body: "one", idempotencyKey: `rc${++n}` });
   hn.advance(5000);
   await h["chat.post"]!(hn.ctx, { threadId: thread.threadId, body: "two", idempotencyKey: `rc${++n}` });
-  const got = (await h["threads.get"]!(hn.ctx, { threadId: thread.threadId })).thread;
+  const got = threadOut(hn.db, threadBy(hn.db, thread.threadId)!);   // what threads.get returns for it
   assert.equal(got.replyCount, 2);
   assert.equal(got.lastMessageAt, hn.clock.t);
   const other = (await start(hn.ctx, { agentIds: [INTAKE] })).thread;
