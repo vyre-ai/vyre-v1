@@ -53,8 +53,8 @@ export interface SpaceSource {
   restore(snapshot: SpaceSnapshot, tombstones: Tombstone[], mode: "scratch" | "live"): Promise<ApplyResult>;
   /** What the owner may take with them: records, files, shared chats. The host never includes private chats or personal memory; this module enforces that again. */
   exportEntries(): Promise<SnapshotEntry[]>;
-  /** The person who owns the Space; only they may take a full export. */
-  owner(): Promise<string>;
+  /** The person who owns the Space, from the access layer; only they may take a full export. A source that cannot say refuses every export (fail closed). */
+  owner?(): Promise<string>;
   /** The secret values this Space holds (vault items, keys, tokens), so an export can prove none of them is inside. */
   secretValues(): Promise<string[]>;
 }
@@ -751,7 +751,7 @@ export async function export_start(ctx: BackupCtx, _input: Record<string, unknow
   const refused = (): never => failWith(ctx.trace.traceId, "permission.no_grant", "Only the Space owner can take a full export.");
   if (typeof ctx.authorize !== "function") return refused();
   if (ctx.authorize({ perm: "records.export", level: "manage" }, { type: "space", id: null }).effect !== "allow") return refused();
-  if (ctx.principal.kind !== "person" || ctx.principal.id !== (await d.source.owner())) return refused();
+  if (ctx.principal.kind !== "person" || ctx.principal.id !== (await d.source.owner?.())) return refused();
   const at = ctx.now();
   const secrets = (await d.source.secretValues()).filter((s) => s.length >= 6);
   const keep: SnapshotEntry[] = [];

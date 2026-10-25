@@ -52,3 +52,10 @@ test("backup.export_start: a deny or a hold from authorize, and a context with n
   assert.equal(await refusal(w.ctx), "permission.no_grant");
   assert.deepEqual(w.saved, []);
 });
+
+test("backup.export_start: a source that cannot say who owns the Space refuses every export, the owner included (fail closed)", async () => {
+  const w = world();
+  configureBackup({ ...w.drivers, source: Object.create(w.space, { owner: { value: undefined } }) });
+  assert.equal(await refusal(w.ctx), "permission.no_grant");
+  assert.deepEqual(w.saved, []);
+});
