@@ -79,7 +79,7 @@ async function embedder(): Promise<void> {
   say(`onnxruntime-node loaded the model in ${(performance.now() - t0).toFixed(0)} ms`);
   const hostV = await host(fixed);
   let worst = 1;
-  fixed.forEach((_, i) => { const cos = dot(hostV[i]!, webV[i]!); if (cos < worst) worst = cos; });
+  fixed.forEach((t, i) => { const cos = dot(hostV[i]!, webV[i]!); say(`  parity text ${i} (${JSON.stringify(t.slice(0, 40))}, ${t.length} chars): cosine ${cos.toFixed(6)}`); if (cos < worst) worst = cos; });
   say(`${worst > 0.999 ? "PASS" : "FAIL"} host vectors match web vectors within 1e-3 cosine on the fixed set: worst cosine ${worst.toFixed(6)} over ${fixed.length} texts`);
   if (!(worst > 0.999)) failed = true;
   const rates = await rate(host);
