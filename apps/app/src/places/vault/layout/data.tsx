@@ -36,6 +36,8 @@ export interface VaultData {
   clock(): { now: number };
   /** Copies text to the clipboard. The shell may route this through the system pasteboard. */
   copy?(text: string): Promise<void> | void;
+  /** Opens the system file chooser for an export to import; resolves the stored file's id, or null when the person cancels. The shell supplies it. */
+  pickFile?(accept: string): Promise<string | null>;
 }
 
 const DataCtx = createContext<VaultData | null>(null);
