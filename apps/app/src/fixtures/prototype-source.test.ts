@@ -35,7 +35,10 @@ function runPrototypeClients(): Drawn[] {
   const mul = between("function mulberry32", "\n", schema);
   const consts = between("const FIRST = ", "function seedData()", schema);
   const head = TEXT.slice(seed, TEXT.indexOf("const P = (title, client, stage", seed));
-  const code = `${prelude}\n${mul}\n${consts}\n${head}\n}\nseedData();\nD.clients;`;
+  // the one change later prototype code makes to these rows: the Pruitt client is renamed (its line is cut out of the prototype too)
+  const rename = between("const pr = D.clients.find", "pr.email", seed);
+  assert.match(rename, /pr\.name = "Marcus Pruitt";/);
+  const code = `${prelude}\n${mul}\n${consts}\n${head}\n}\nseedData();\n${rename}\nD.clients;`;
   const out = vm.runInNewContext(code, {}) as Record<string, unknown>[];
   return out.map((r) => ({ name: r["name"] as string, status: r["status"] as string, owner: r["owner"] as string, fit: (r["fit"] as number | null) ?? null, since: r["since"] as string, source: r["source"] as string }));
 }

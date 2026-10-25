@@ -108,6 +108,9 @@ export function protoClients(): readonly ProtoClient[] {
     const c2 = protoHash(`${id}c`) % 100 < 55 ? c1 : pickChannel(u2);
     out.push({ id, ...r, fch: i === 0 ? "Referral" : c1, lch: i === 0 ? "Email" : c2 });
   }
+  // the prototype's Records place renames the drawn "Oscar Pruitt" (else row 7) to the Pruitt client the other places talk about
+  const pruitt = out.find((c) => c.name === "Oscar Pruitt") ?? (out[6] as ProtoClient);
+  pruitt.name = "Marcus Pruitt";
   cached = out;
   return out;
 }
