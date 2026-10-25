@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS email_builder_api_email (
   name TEXT NOT NULL,
   mode TEXT NOT NULL,
   owner TEXT NOT NULL,
+  folder_id TEXT,
   subject TEXT,
   blocks TEXT,
   html TEXT,

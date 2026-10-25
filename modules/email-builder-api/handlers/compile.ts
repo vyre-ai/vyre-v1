@@ -318,6 +318,7 @@ function checkBlocks(ctx: Ctx, list: unknown, depth: number, count: { n: number 
 export function validateDoc(ctx: Ctx, input: unknown): EmailDoc {
   const o = rec(ctx, input);
   const mode = reqStr(ctx, o, "mode");
+  const folderId = typeof o.folderId === "string" && o.folderId.length > 0 ? o.folderId : null;
   if (mode !== "blocks" && mode !== "html" && mode !== "plain") fail(ctx, "validation.bad_input", "The mode is blocks, html or plain.", { field: "mode" });
   const doc: EmailDoc = { emailId: reqStr(ctx, o, "emailId"), name: cleanName(ctx, reqStr(ctx, o, "name"), "design"), mode };
   const subject = optStr(ctx, o, "subject");
@@ -653,8 +654,8 @@ async function create(ctx: Ctx, input: unknown): Promise<{ email: EmailDoc }> {
   if (mode === "html") doc.html = "";
   if (mode === "plain") doc.plain = "";
   ctx.db.run(
-    "INSERT INTO email_builder_api_email (id, name, mode, owner, subject, blocks, html, plain, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, name, mode, ctx.principal.id, null, doc.blocks === undefined ? null : JSON.stringify(doc.blocks), doc.html ?? null, doc.plain ?? null, 1, now, now,
+    "INSERT INTO email_builder_api_email (id, name, mode, owner, folder_id, subject, blocks, html, plain, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    id, name, mode, ctx.principal.id, folderId, null, doc.blocks === undefined ? null : JSON.stringify(doc.blocks), doc.html ?? null, doc.plain ?? null, 1, now, now,
   );
   ctx.db.run("INSERT INTO email_builder_api_version (email_id, version, doc, at, author) VALUES (?, ?, ?, ?, ?)", id, 1, snapshot(doc), now, ctx.principal.id);
   return { email: doc };
