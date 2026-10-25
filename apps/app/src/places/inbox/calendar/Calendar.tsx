@@ -261,7 +261,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
       <View style={s.grow} />
       <View style={s.seg} accessibilityRole="tablist">
         {each(["day", "week", "month"] as const, (m) => (
-          <Pressable key={m} accessibilityRole="tab" accessibilityLabel={m === "day" ? "Day" : m === "week" ? "Week" : "Month"} accessibilityState={{ selected: mode === m }} testID={`cal-mode-${m}`} onPress={() => dispatch({ type: "mode", mode: m })} style={({ hovered }: { hovered?: boolean }) => [s.segBtn, mode === m && s.segOn, hovered === true && mode !== m && s.hicOver]}>
+          <Pressable key={m} accessibilityRole="tab" accessibilityLabel={m === "day" ? "Day" : m === "week" ? "Week" : "Month"} accessibilityState={{ selected: mode === m }} aria-selected={mode === m} testID={`cal-mode-${m}`} onPress={() => dispatch({ type: "mode", mode: m })} style={({ hovered }: { hovered?: boolean }) => [s.segBtn, mode === m && s.segOn, hovered === true && mode !== m && s.hicOver]}>
             <Text style={[s.segText, mode === m && s.segTextOn]}>{m === "day" ? "Day" : m === "week" ? "Week" : "Month"}</Text>
           </Pressable>
         ))}
