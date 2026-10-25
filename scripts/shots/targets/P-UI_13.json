@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-UI_13-overflow",
+      "route": "/m/P-UI_13",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='tab-strip']",
+      "note": "The shared tab strip with eight tabs and overflow=more: on a phone the strip folds what does not fit into an 'N more' button and keeps the active tab (Settings) visible; on a computer all tabs fit. The prototype side is its Chats screen for the strip's look; the folding itself has no prototype frame."
+    }
+  ]
+}
