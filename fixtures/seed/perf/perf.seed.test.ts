@@ -8,6 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import { PERF_LIVE, PERF_SIZES, bootPerf, contactRows, extraEvents } from "./build.ts";
 import { startSeeded } from "../small/build.ts";
 import { PERF_TARGET } from "./recipe.ts";
+import { seedPerf } from "../../../scripts/seed-perf.ts";
 
 const scratch = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "perf-seed-test-"));
 const cache = scratch();
@@ -50,4 +51,14 @@ test("a second boot is a cache hit and a daemon starts on the copy", async () =>
     const res = await fetch(`${d.url}/healthz`);
     assert.equal(res.status, 200);
   } finally { await d.stop(); b.close(); }
+});
+
+test("scripts/seed-perf.ts: builds then finds the template, and refuses an unknown scale", async () => {
+  const dir = scratch();
+  const one = await seedPerf(["--scale", "ci", "--cache", dir]);
+  const two = await seedPerf(["--scale", "ci", "--cache", dir]);
+  assert.deepEqual([one.hit, two.hit], [false, true]);
+  assert.equal(one.key, two.key);
+  assert.equal(one.sizes.contacts, PERF_SIZES.ci.contacts);
+  await assert.rejects(() => seedPerf(["--scale", "huge"]), /unknown scale huge/);
 });
