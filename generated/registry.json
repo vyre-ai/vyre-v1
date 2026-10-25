@@ -38723,7 +38723,9 @@
       "effects": "write",
       "emits": [
         "channel.created",
-        "thread.started"
+        "thread.started",
+        "channel.agent_added",
+        "channel.member_added"
       ],
       "errors": [
         "internal.unexpected",
@@ -40147,7 +40149,8 @@
       "effects": "write",
       "emits": [
         "plan.approved",
-        "block.answered"
+        "block.answered",
+        "thread.plan_mode_changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -42660,7 +42663,8 @@
       "emits": [
         "thread.started",
         "agent.engaged",
-        "message.received"
+        "message.received",
+        "message.direct"
       ],
       "errors": [
         "internal.unexpected",
@@ -153532,7 +153536,9 @@
       "effects": "write",
       "emits": [
         "channel.created",
-        "thread.promoted"
+        "thread.promoted",
+        "channel.agent_added",
+        "channel.member_added"
       ],
       "errors": [
         "internal.unexpected",

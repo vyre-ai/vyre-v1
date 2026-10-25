@@ -19,7 +19,7 @@ Approve a plan, optionally with edits; clears plan mode for those steps and the 
 | HTTP | POST /v1/chat/approve_plan |
 | MCP tool | chat_approve_plan (chats) |
 | CLI | none |
-| Emits | plan.approved, block.answered |
+| Emits | plan.approved, block.answered, thread.plan_mode_changed |
 
 ## Input
 
