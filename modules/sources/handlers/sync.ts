@@ -8,7 +8,7 @@
 // 10 percent or 50 records pauses and waits for confirmDeletes. Local writes go to the RecordStore directly and are announced with quiet: true unless runAutomations is set.
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 import { canonical } from "../../../lib/canonical.ts";
-import { mintUuid } from "../../../lib/ids.ts";
+import { mintRecordId } from "../../../lib/ids.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import type { Store, StoredRecord } from "../../../kernel/src/store/types.ts";
 import { ensureTables, mintShort, same } from "../projections.ts";
@@ -252,7 +252,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
     d.emit?.(name, `record/${id}`, { recordId: id, type: b.type, ...payload, ...(quiet ? { quiet: true } : {}) });
   };
   for (const c of creates) {
-    const id = mintUuid(now(d));
+    const id = mintRecordId(now(d));
     const rec = await d.local.create(b.type, id, c.data);
     saveLink(d.tx, b.syncTypeId, { localId: id, remoteId: c.remote.id, base: c.base, removedAt: null });
     announce("record.created", id, { fields: { ...rec.data } });
@@ -333,7 +333,7 @@ export async function flushOutbox(d: SyncDeps, b: SyncBinding): Promise<number> 
         const already = Object.keys(values).every((k) => same(cur.data[k], values[k]));
         if (!already) await d.remote.update(b.remote, remoteId!, values, cur.version);
       } else if (row.op === "create") {
-        const made = await d.remote.create(b.remote, mintUuid(now(d)), values);
+        const made = await d.remote.create(b.remote, mintRecordId(now(d)), values);
         remoteId = made.id;
       } else {
         const cur = await d.remote.get(b.remote, remoteId!);
