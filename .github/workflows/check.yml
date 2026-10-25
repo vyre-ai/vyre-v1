@@ -170,6 +170,57 @@ jobs:
       - name: Containers left behind
         if: always() && steps.scope.outputs.changed == 'true'
         run: docker ps -a --filter "name=vyre" --format '{{.Names}} {{.Status}}' || true
+  installer-docker:
+    # P-L10_09b: the Linux installer proven on a fresh Docker host. GitHub-hosted on purpose: the VM is new for every run, so nothing is left over and port 8420, 80 and 443 are free.
+    # Part 1 is scripts/install/linux/install.heavy.test.sh (signed channel, refusals, install, update, rollback, uninstall). Part 2 builds the real vyred image and drives the same installer
+    # with the real compose unit: first boot, doctor green, the sign-in endpoint, restart, uninstall, purge. Every check must print "ok"; a skip is not a pass. Not part of the `check` gate.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Did the installer, the vyred image or this job change on this branch?
+        id: scope
+        run: |
+          git fetch -q origin main
+          base="$(git merge-base origin/main HEAD)"
+          if [ "${{ github.ref_name }}" = main ] || git diff --name-only --no-renames "$base"...HEAD -- scripts/install/ images/vyred/ .github/workflows/check.yml | grep -q .; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the installer proofs cover changed"; fi
+      - name: The host
+        if: steps.scope.outputs.changed == 'true'
+        run: |
+          docker version --format 'docker {{.Server.Version}}'; docker compose version; openssl version; df -h / | tail -n 1
+      - name: Installer on a fresh host, stand-in server (install.heavy.test.sh)
+        if: steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+        run: |
+          set -o pipefail
+          sh scripts/install/linux/install.heavy.test.sh 2>&1 | tee installer-heavy.out
+          grep -q '^# pass 15 fail 0$' installer-heavy.out
+          ! grep -qi 'skipped' installer-heavy.out
+          [ "$(grep -c '^ok ' installer-heavy.out)" = 15 ]
+      - name: Installer against the real vyred image and compose unit (install.real.heavy.test.sh)
+        if: always() && steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+        run: |
+          set -o pipefail
+          sh scripts/install/tests/install.real.heavy.test.sh 2>&1 | tee installer-real.out
+          grep -q '^# pass 7 fail 0$' installer-real.out
+          ! grep -qi 'skipped' installer-real.out
+          [ "$(grep -c '^ok ' installer-real.out)" = 7 ]
+      - name: Nothing left behind
+        if: always() && steps.scope.outputs.changed == 'true'
+        run: |
+          docker ps -a --format '{{.Names}} {{.Status}}'
+          docker volume ls --format '{{.Name}}'
+          ls /tmp | grep -E 'vyre-install' || echo "no temp directories left"
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.scope.outputs.changed == 'true'
+        with:
+          name: installer-heavy
+          path: installer-*.out
+          if-no-files-found: ignore
   l2-heavy:
     # P-L2_HEAVY (security sign-off, spec S8): real Docker, real bubblewrap and real tmux against the sandbox and the terminal module. The tests skip unless VYRE_HEAVY_DOCKER=1 and, with it on,
     # fail instead of skipping when Docker, the image, bwrap or tmux is missing, so a green job means the proofs ran. Not part of the `check` gate below: it reports its own result on the run.
