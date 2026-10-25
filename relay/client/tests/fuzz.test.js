@@ -84,6 +84,8 @@ test("relay fuzz: junk where the box's handshake reply belongs fails the dial an
     const side = dial({ send: b => sent.push(b), close: (code, reason) => closes.push({ code, reason }) }, { crypto, s: k.device, box: k.box.publicKey, route: ROUTE, hello: { v: 1 } });
     side.ready.catch(() => {});
     await settle();
+    // dial() sends asynchronously: wait for the first handshake message instead of trusting one settle
+    for (let waited = 0; sent.length < 1 && waited < 2000; waited += 20) await new Promise(res => setTimeout(res, 20));
     assert.equal(sent.length, 1, "the first handshake message goes out");
     assert.doesNotThrow(() => side.receive(r.bytes(r.pick([0, 1, 31, 32, 47, 48, 49, 100, 200]))));
     await assert.rejects(side.ready, /not the box in the QR code/);

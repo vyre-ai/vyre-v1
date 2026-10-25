@@ -1,0 +1,18 @@
+{
+  "module": "home",
+  "capabilities": {
+    "home.activity@1": "c7f5eef343619e26536f7fb0a36f2b9daa8b27786c556e0e2b689c5198370935",
+    "home.at_risk@1": "bb7b22d587f3d9416834dd74bb55338890929dee0da14db01f967f58d79f2184",
+    "home.checklist@1": "401f110aee6bc486c17c2a57396bc629db834848de2ec5bfe55aa8d9c39b5e18",
+    "home.digest@1": "0bff2188a3698223a148dab5554f7941946dbb1bf5954a8b2068133c906b367d",
+    "home.dismiss_checklist@1": "3c78fc6bc2df9838199c5e73b51de192cc3965c438fbea9e7893f4ae66a7d87f",
+    "home.mark_digest_seen@1": "ca86c86836967f9f364b3baccd0bc83cc28aabfc9c675043ee8fcb20d8abec72",
+    "home.routines_today@1": "c3ba8d916092accd70410fdc58414994143b14c900b390af09c54eb404f04508",
+    "home.write_digest@1": "487831c5bc6e6d8fe4f8c5fae936b01a817e4677416d1e6bf2fefffd195829be"
+  },
+  "events": {
+    "checklist.dismissed": "d8758e32f620692cd36ca70bd8fce9c851135e81060b212eb1d392aa46621064",
+    "digest.seen": "bf3da27c464182318ab52b83ec120dd6242b5e06357ae5feb70366c5ceaaa896",
+    "digest.written": "44de5d590a189213238519198264afd79383cbf7b90b4cc779a5421bc9644ab6"
+  }
+}

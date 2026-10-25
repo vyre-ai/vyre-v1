@@ -123103,6 +123103,9 @@
             "group": "example",
             "limit": 1,
             "offset": 1,
+            "recordIds": [
+              "rec_a1b2c3"
+            ],
             "sort": [
               {
                 "dir": "asc",
@@ -123147,6 +123150,18 @@
           "offset": {
             "minimum": 0,
             "type": "integer"
+          },
+          "recordIds": {
+            "description": "Export only these rows (a hand-picked selection), in the order of the view; a row the caller may not read is left out",
+            "items": {
+              "examples": [
+                "rec_a1b2c3"
+              ],
+              "pattern": "^rec_[a-z0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 5000,
+            "type": "array"
           },
           "sort": {
             "items": {
@@ -123210,7 +123225,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Export rows as CSV or Excel (permissioned)",
+      "summary": "Export rows as CSV or Excel (permissioned), the whole view or only the picked recordIds",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -143224,6 +143239,7 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "permission.role_lacks_permission",
         "validation.bad_input"
       ],
       "examples": [
@@ -143274,7 +143290,7 @@
         ],
         "type": "object"
       },
-      "level": "edit",
+      "level": "manage",
       "module": "sync",
       "name": "sync.epoch.bump",
       "output": {
@@ -143288,7 +143304,7 @@
         ],
         "type": "object"
       },
-      "permission": null,
+      "permission": "access.manage",
       "resource": {
         "type": "space"
       },
@@ -158731,7 +158747,10 @@
                   "http_header",
                   "browser",
                   "terminal",
-                  "file"
+                  "file",
+                  "git_credential",
+                  "container_env",
+                  "route_auth"
                 ],
                 "type": "string"
               },
@@ -166501,7 +166520,7 @@
           "web": "all"
         }
       },
-      "table": "contacts_address"
+      "table": "contacts_link_address"
     },
     {
       "acl": {
@@ -167810,7 +167829,7 @@
           "web": "none"
         }
       },
-      "table": "contacts_suppression"
+      "table": "contacts_link_suppression"
     },
     {
       "acl": {
