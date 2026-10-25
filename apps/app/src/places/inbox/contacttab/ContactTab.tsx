@@ -23,6 +23,7 @@ import {
 } from "./model.ts";
 import type { Chan, ComposerDraft, DraftCard, DraftRow, InboxChoice, SendOptions, ThreadOut } from "./model.ts";
 import { Bubbles, CallLine, DaySep, DraftBlock, EmailItem, QuietLine } from "./parts.tsx";
+import { usePhone } from "../softphone/phone.tsx";
 
 export const SCREEN = "inbox.contact-tab";
 type MailboxesOut = { mailboxes: Mailbox[] };
@@ -100,6 +101,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const [busy, setBusy] = useState<readonly string[]>([]);
   const [attached, setAttached] = useState<readonly { name: string }[]>([]);
 
+  const phone = usePhone();
   const conv = thread.status === "ready" ? thread.data.conversation : null;
   const items = thread.status === "ready" ? thread.data.items : [];
   const options = opts.status === "ready" ? opts.data : null;
@@ -176,7 +178,8 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
     menu.show(followMenuEntries(conv.followed, conv.alertOnReplies, { follow: (f) => void setFollow(data, id, f), alert: (a) => void setFollow(data, id, true, a) }), x, y);
   };
   const showFrom = (x: number, y: number): void => menu.show(fromMenuEntries(choices, inbox?.id ?? null, conv.mailboxIds, (id) => patch({ from: { ...draft.from, [chan]: id } })), x, y);
-  const dial = (): void => { const n = textTo ?? (conv.address.includes("@") ? null : conv.address); if (n && props.onDial) props.onDial(n); else data.nav.openDialer(); };
+  // the dock (when one is mounted, see `phone` above) places the call and saves it to this conversation; otherwise the app's own handler, else the shell opens the dialer
+  const dial = (): void => { const n = textTo ?? (conv.address.includes("@") ? null : conv.address); if (n && props.onDial) props.onDial(n); else if (n && phone) phone.dial(n, conv.contactId); else data.nav.openDialer(); };
 
   const lists: ComposerLists = cannedLists(conv);
   const hdr = headerOf(items);
