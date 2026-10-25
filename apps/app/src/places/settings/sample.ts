@@ -4,7 +4,7 @@
 import { createFakeReplica, createScreenHooks, liveQuery } from "../../../../../client/src/index.ts";
 import type { FakeReplica, LiveQuery, Row, ScreenHooks } from "../../../../../client/src/index.ts";
 import { screensById } from "../../../../../generated/screens.ts";
-import { namesFor } from "../../fixtures/index.ts";
+import { namesFor, nameOf } from "../../fixtures/index.ts";
 import type { CapMap } from "../../../../../generated/types.ts";
 import type { SettingsData, SettingsNav, SpaceTile } from "./data.tsx";
 import { searchRows } from "./model.ts";
@@ -222,7 +222,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
       throw new Error(`no handler for ${cap}`);
     },
     peek: (cap, input) => replica.run(cap as keyof CapMap, input as never)?.data,
-    me: space.me, space: { id: space.id, name: space.name }, spaces: space.spaces, name: (id) => space.names[id] ?? id, nav, clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
+    me: space.me, space: { id: space.id, name: space.name }, spaces: space.spaces, name: (id) => space.names[id] ?? nameOf(space.id, id), nav, clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
   };
   return { data, replica, space, calls, opened, previews, failNext: (cap) => void failing.add(cap) };
 }

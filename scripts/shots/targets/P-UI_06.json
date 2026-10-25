@@ -1,0 +1,32 @@
+{
+  "targets": [
+    {
+      "id": "P-UI_06-records-harbor",
+      "route": "/m/P-L9d_01?space=harbor",
+      "proto": "records,harbor,{skin}",
+      "waitFor": "[data-testid='records-count']",
+      "note": "Records over Harbor Studio: the Owner column names Harbor's own people (June Okafor, Ines Costa, Theo Lindqvist), never a Northwind teammate or a raw id. The prototype side is its Records place over Harbor Studio."
+    },
+    {
+      "id": "P-UI_06-files-harbor",
+      "route": "/m/P-L9e_01?space=harbor",
+      "proto": "files,harbor,{skin}",
+      "waitFor": "[data-testid='files-count']",
+      "note": "Files over Harbor Studio with the owners resolved to names (June Okafor, Ines Costa). The prototype side is its Files place over Harbor Studio."
+    },
+    {
+      "id": "P-UI_06-needs-harbor",
+      "route": "/m/P-L9b_06?v=harbor",
+      "proto": "chat,needs,space:harbor,{skin}",
+      "waitFor": "[data-testid='needs-you']",
+      "note": "Needs you over Harbor Studio: Scheduler and Proofer ask, the Moreno gallery and the Saturday call sheet. The prototype side is its Needs you list over Harbor Studio."
+    },
+    {
+      "id": "P-UI_06-records-northwind",
+      "route": "/m/P-L9d_01",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='records-count']",
+      "note": "Records over Northwind with owners from the shared fixtures (Irfad Imtiaz, Maya Chen, Omar Haddad, Lena Ortiz, Sam Patel)."
+    }
+  ]
+}
