@@ -42,8 +42,9 @@ export function weights(dist) {
   walk(dist);
   const by = new Map();
   for (const m of maps) {
-    const map = JSON.parse(fs.readFileSync(m, "utf8"));
-    (map.sources || []).forEach((src, i) => {
+    const top = JSON.parse(fs.readFileSync(m, "utf8"));
+    // an indexed map (Metro) keeps its sources in sections
+    for (const map of top.sections ? top.sections.map((x) => x.map) : [top]) (map.sources || []).forEach((src, i) => {
       const len = (map.sourcesContent && map.sourcesContent[i] ? map.sourcesContent[i].length : 0);
       const nm = /node_modules\/((?:@[^/]+\/)?[^/]+)/.exec(src);
       const key = nm ? nm[1] : (/^(?:\.\.\/)*(?:[^/]*\/)?((?:apps|ui|client|lib|kernel|host|agent|generated|contracts|manifest)\/[^/]+(?:\/[^/]+)?)/.exec(src)?.[1] ?? "other");
