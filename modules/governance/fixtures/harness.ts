@@ -149,7 +149,10 @@ export function harness() {
       for (const f of (i["factIds"] as string[]) ?? []) world.erasedFacts.push(f);
       return { erased: ((i["factIds"] as string[]) ?? []).length };
     },
-    "access.principals.get": (i) => ({ principal: { id: i["principalId"], kind: "person", name: "Someone", roles: world.roles.get(String(i["principalId"])) ?? [], groups: [], status: "active", createdAt: NOW } }),
+    "access.principals.get": (i) => {
+      const id = String((i["principal"] as Rec)["id"]);
+      return { principal: { id, kind: "person", name: "Someone", roles: world.roles.get(id) ?? [], groups: [], status: "active", createdAt: NOW } };
+    },
     "runs.start": (i) => {
       const runId = `run_gov${(++seq).toString(36)}`;
       world.runs.set(runId, { status: "running" });

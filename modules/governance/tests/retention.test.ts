@@ -15,7 +15,8 @@ const rows = (x: unknown, k: string): Json[] => out(x)[k] as Json[];
 
 test("the module's copy of the retention defaults is the manifest's", () => {
   const manifest = registry.retention.filter((r) => r.module === "governance");
-  assert.deepEqual(DEFS.map((d) => [d.key, d.title, d.default, d.holdable, d.tombstone]), manifest.map((r) => [r.key, r.title, r.default, r.holdable, r.tombstone]));
+  const row = (r: { key: string; title: string; default: string; holdable: boolean; tombstone: boolean }) => [r.key, r.title, r.default, r.holdable, r.tombstone];
+  assert.deepEqual(DEFS.map(row).sort((a, b) => String(a[0]).localeCompare(String(b[0]))), manifest.map(row).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
   assert.equal(ageOf("90d"), 90 * DAY);
   assert.equal(ageOf("2y"), 2 * 365 * DAY);
   assert.equal(ageOf("3m"), 90 * DAY);

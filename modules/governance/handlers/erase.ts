@@ -155,7 +155,7 @@ async function eraseOne(ctx: GovCtx, kind: EraseKind, subjectType: string, subje
 }
 
 async function ownerRole(ctx: GovCtx): Promise<boolean> {
-  const p = obj(obj(await ctx.call("access.principals.get", { principalId: ctx.principal.id }))["principal"]);
+  const p = obj(obj(await ctx.call("access.principals.get", { principal: { kind: ctx.principal.kind, id: ctx.principal.id } }))["principal"]);
   return list(p["roles"]).includes("rol_owner");
 }
 
