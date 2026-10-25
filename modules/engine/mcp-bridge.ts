@@ -48,7 +48,7 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
   const socket = path.join(o.scratch, `mcp-${crypto.randomBytes(6).toString("hex")}.sock`);
   if (Buffer.byteLength(socket) > MAX_SOCKET_PATH) throw new Error(`the MCP socket path is too long for a unix socket: ${socket.length} characters`);
   const live = new Set<net.Socket>();
-  const server = net.createServer((c) => {
+  const server = net.createServer({ allowHalfOpen: true }, (c) => {
     live.add(c);
     c.once("close", () => live.delete(c));
     c.on("error", () => c.destroy());
@@ -56,6 +56,11 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
     let buf = "";
     let authed = false;
     let sessionId: string | undefined;
+    // The shim ends its side when stdin ends; replies still owed are written before this side ends.
+    let pending = 0;
+    let ended = false;
+    const settle = (): void => { if (ended && pending === 0 && !c.destroyed) c.end(); };
+    c.once("end", () => { ended = true; settle(); });
     c.on("data", (chunk: string) => {
       buf += chunk;
       let i: number;
@@ -70,6 +75,7 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
           authed = true;
           continue;
         }
+        pending++;
         void (async () => {
           try {
             const r = await doFetch(m.url, {
@@ -82,6 +88,9 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
             for (const out of replyLines(r.headers.get("content-type") ?? "", await r.text())) if (!c.destroyed) c.write(`${out}\n`);
           } catch {
             if (!c.destroyed) c.write(`${JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32603, message: "The Vyre endpoint could not be reached." } })}\n`);
+          } finally {
+            pending--;
+            settle();
           }
         })();
       }
