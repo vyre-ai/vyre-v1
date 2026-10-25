@@ -469,9 +469,10 @@ test("a file with a collided staged change in an open changeset carries the conf
   const fileId = made.file.fileId;
   db.run("INSERT INTO files_changeset (id, state) VALUES (?, ?)", "chg_1", "open");
   db.run("INSERT INTO files_changeset_file (changeset_id, path, file_id, conflict) VALUES (?, ?, ?, ?)", "chg_1", "c.md", fileId, 1);
-  assert.equal((await handlers["files.get"](ctx, { fileId })).file.conflict, true);
+  // each call has its own ctx in the host (flags are read once per call), so the test asks with a fresh one
+  assert.equal((await handlers["files.get"]({ ...ctx }, { fileId })).file.conflict, true);
   db.run("UPDATE files_changeset SET state = ? WHERE id = ?", "approved", "chg_1");
-  assert.equal((await handlers["files.get"](ctx, { fileId })).file.conflict, false, "a settled changeset holds no conflict");
+  assert.equal((await handlers["files.get"]({ ...ctx }, { fileId })).file.conflict, false, "a settled changeset holds no conflict");
 });
 
 test("folders and tree roots say whether they belong to an agent, a project or the Space, with the id", async () => {
