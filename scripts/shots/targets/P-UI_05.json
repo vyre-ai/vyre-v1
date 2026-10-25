@@ -1,0 +1,20 @@
+{
+  "targets": [
+    {
+      "id": "P-UI_05-faces",
+      "route": "/m/P-UI_05",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='row-Maya Chen']",
+      "note": "People, agents, a group and an automation as the shared Avatar draws them: marbles for people, pixel faces for agents, the Vyre mark for the assistant, glyph tiles for the rest. The prototype side is its Chats sidebar in the same skin; the prototype draws agent faces with DiceBear Notionists where the real side draws pixel faces (the library is not in the allowlist for this packet).",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-UI_05-icons",
+      "route": "/m/P-UI_05?screen=vault",
+      "proto": "vault,{skin}",
+      "waitFor": "[data-testid='row-claude']",
+      "note": "The Northwind Vault items with their brand tiles from the shared AppIcon set. The prototype side is its Vault list in the same skin.",
+      "protoSettleMs": 1500
+    }
+  ]
+}

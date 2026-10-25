@@ -4,6 +4,7 @@ import { Children, cloneElement, createContext, createElement, isValidElement, u
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
+import { Avatar } from "../../../../ui/src/Avatar/index.tsx";
 import { FONT, MONO, paletteOf, useJoinMode } from "./palette.ts";
 import type { JoinMode, JoinPalette } from "./palette.ts";
 
@@ -172,15 +173,12 @@ export function Chevron({ color }: { color: string }) {
   return createElement("svg", { viewBox: "0 0 16 16", width: 14, height: 14, "aria-hidden": true, "data-icon": "chevron", fill: "none", stroke: color, strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round", style: { flex: "none" } }, createElement("path", { d: "M6 3.5L10.5 8 6 12.5" }));
 }
 
-/** A small colour tile with the first letter, for agents; faces replace it when the avatar module is ready. */
-const TILE_COLORS = ["#6C57E6", "#2F80ED", "#0E9F6E", "#D97706", "#DB2777", "#0891B2"];
-export function LetterTile({ name, size = 24 }: { name: string; size?: number }) {
+/** An agent's face in a stack: the shared pixel face, ringed in the group colour so overlapping faces stay apart. */
+export function AgentFace({ name, size = 24 }: { name: string; size?: number }) {
   const { p } = useJoin();
-  let h = 0;
-  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return (
-    <View accessibilityLabel={name} style={{ width: size, height: size, borderRadius: 8, backgroundColor: TILE_COLORS[h % TILE_COLORS.length], alignItems: "center", justifyContent: "center", ...shadow(`0 0 0 2px ${p.grp}`) }}>
-      <Text style={{ fontFamily: FONT, color: "#fff", fontSize: Math.round(size * 0.5), fontWeight: "600" }}>{name.slice(0, 1).toUpperCase()}</Text>
+    <View accessibilityLabel={name} style={{ width: size, height: size, borderRadius: Math.round(size * 0.3), ...shadow(`0 0 0 2px ${p.grp}`) }}>
+      <Avatar name={name} kind="agent" size={size} />
     </View>
   );
 }
