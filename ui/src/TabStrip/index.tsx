@@ -41,6 +41,13 @@ export function isMeasured(tabs: readonly TabSpec[], widths: Readonly<Record<str
   return true;
 }
 
+/** The keys of the tabs, in order. */
+export function keysOf(tabs: readonly TabSpec[]): string[] {
+  const out: string[] = [];
+  for (const tab of tabs) out.push(tab.key);
+  return out;
+}
+
 export interface Fold { visible: string[]; folded: string[] }
 
 /**
@@ -281,7 +288,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
   };
 
   const reserved = OVERFLOW_PAD + ICON_BUTTON_W + OVERFLOW_GAP + (onPlus === undefined ? 0 : ICON_BUTTON_W + OVERFLOW_GAP);
-  const fold: Fold = folding ? foldTabs(tabs, widths.current, active, boxW - reserved) : { visible: tabs.map((x) => x.key), folded: [] };
+  const fold: Fold = folding ? foldTabs(tabs, widths.current, active, boxW - reserved) : { visible: keysOf(tabs), folded: [] };
   void measured;
   if (folding && !ready.current && isMeasured(tabs, widths.current, boxW)) ready.current = true;
   const hidden = folding && !ready.current;
