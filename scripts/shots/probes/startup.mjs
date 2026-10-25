@@ -7,7 +7,7 @@ import path from "node:path";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ensureDeps, ensureChromium } from "../ensure-deps.mjs";
-import { parseArgs } from "../lib.mjs";
+import { parseArgs, gotoSafe } from "../lib.mjs";
 import { serve } from "../serve.mjs";
 
 export const STARTUP_MS_DESKTOP = 1000;
@@ -44,7 +44,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       page.on("pageerror", (e) => console.log(`pageerror ${e.message}`));
       page.on("response", (r) => { if (r.status() >= 400) console.log(`http ${r.status()} ${r.url()}`); });
       for (const kind of ["cold", "warm"]) {
-        await page.goto(server.origin + (args.route || "/home"), { waitUntil: "load" });
+        await gotoSafe(page, server.origin + (args.route || "/home"), { waitUntil: "load" });
         await page.waitForFunction(() => performance.getEntriesByName("app.usable").length > 0, null, { timeout: 15000 }).catch(() => {});
         const marks = await marksOf(page);
         const ms = startupMs(marks);

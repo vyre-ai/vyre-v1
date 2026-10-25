@@ -11,7 +11,7 @@ import path from "node:path";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ensureDeps, ensureChromium } from "./ensure-deps.mjs";
-import { parseArgs, routeUrl, countWrongFrames, budgetOf } from "./lib.mjs";
+import { parseArgs, routeUrl, countWrongFrames, budgetOf, gotoSafe } from "./lib.mjs";
 import { serve } from "./serve.mjs";
 import { summarizeCombo, comboOk } from "./probes/theme-flash-gate.mjs";
 
@@ -53,7 +53,7 @@ try {
         const tick = () => { window.__frames.push(sample()); if (++n < 30) requestAnimationFrame(tick); };
         requestAnimationFrame(tick);
       });
-      await page.goto(routeUrl(server.origin, args.route || "/", s.id, mode), { waitUntil: "load" });
+      await gotoSafe(page, routeUrl(server.origin, args.route || "/", s.id, mode), { waitUntil: "load" });
       await page.waitForTimeout(700);
       const { frames, applyAt } = await page.evaluate(() => ({ frames: window.__frames, applyAt: window.__VYRE_THEME_AT__ === undefined ? -1 : window.__VYRE_THEME_AT__ - (performance.getEntriesByType("navigation")[0]?.responseStart ?? 0) }));
       samples.push({ wrong: countWrongFrames(frames, expected), apply_ms: Math.round(applyAt * 10) / 10, frames: frames.length });
