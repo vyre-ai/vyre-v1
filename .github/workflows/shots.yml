@@ -67,7 +67,14 @@ jobs:
         run: |
           T=all
           case "$BRANCH" in build/P-*) T="${BRANCH#build/}" ;; esac
-          node scripts/shots/shots.mjs --target "$T" --out perf-out --max-export-s 600 --probes-only
+          node scripts/shots/shots.mjs --target "$T" --out perf-out --max-export-s 600 --probes-only --trace
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf-traces
+          path: perf-out/traces
+          retention-days: 7
+          if-no-files-found: ignore
       - name: theme_flash probe (zero wrong frames)
         run: node scripts/shots/theme-flash.mjs --skip-export
       - name: Browser perf probes (ruling 43, warm-up discarded, median of 5, worst printed) desktop 1x and phone 4x CPU
