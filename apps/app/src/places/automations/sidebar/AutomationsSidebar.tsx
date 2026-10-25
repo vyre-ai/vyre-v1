@@ -186,7 +186,7 @@ export function AutomationsSidebar({ selectedId = null, initialTab = "automation
     journeyRows.push(<Row key={j.id} id={`journey-${j.id}`} title={j.name} note={journeyNote(j)} leading={<View style={sb.lead}><Glyph name="journey" size={15} color="var(--ink-3)" /></View>} onPress={() => data.nav.openJourney(j.id)} />);
   }
 
-  const tabs = [{ key: "automations", label: "Automations", note: String(autos.length) }, { key: "journeys", label: "Journeys" }];
+  const tabs = [{ key: "automations", label: "Automations", note: String(autos.length) }, { key: "journeys", label: "Journeys", note: String(journeys.length) }];
   return (
     <View testID="automations-sidebar" accessibilityLabel="Automations" style={sb.frame} {...webOnly({ onKeyDown: onKey })}>
       <SubTabs tabs={tabs} active={tab} onSelect={(k) => setTab(k as SidebarTab)} label="Automations and Journeys" />

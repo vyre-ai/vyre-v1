@@ -1,4 +1,4 @@
-// The Automation canvas model (spec 3.7, 2.12; ARCH 7.7), from kernel/flows/canvas.js of 0.6 reworked for the v1 definition (triggers + nodes with next/branches).
+// The Automation canvas model (spec 3.7, 2.12; ARCH 7.7; its tests are model.test.ts), from kernel/flows/canvas.js of 0.6 reworked for the v1 definition (triggers + nodes with next/branches).
 // Everything here is data in, data out: the layout of a definition into cards and connectors, the lane a run took, the edits a person makes (add, remove, move, rename),
 // and the local check that mirrors `automations.validate`, so errors show inline while someone builds, before the server answers.
 import type { CapMap } from "../../../../../../generated/types.ts";
