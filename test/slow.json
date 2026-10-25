@@ -35,5 +35,6 @@
   {"file": "spikes/sync-c/s6.reactive.test.ts", "capSec": 120, "owner": "CI", "reason": "holds a ms speed assertion; node speed numbers count only from the v1-perf runners (ruling 46)", "perf": true},
   {"file": "spikes/sync-a/s1.snapshot.test.ts", "capSec": 120, "owner": "CI", "reason": "holds a ms speed assertion; node speed numbers count only from the v1-perf runners (ruling 46)", "perf": true},
   {"file": "modules/sync/tests/pull.snapshot.test.ts", "capSec": 120, "owner": "CI", "reason": "holds a ms speed assertion; node speed numbers count only from the v1-perf runners (ruling 46)", "perf": true},
-  {"file": "apps/app/src/shell/cmdk/cmdk.test.tsx", "capSec": 120, "owner": "L9", "reason": "heavy jsdom render, over the 20 s fast cap on loaded runners"}
+  {"file": "apps/app/src/shell/cmdk/cmdk.test.tsx", "capSec": 120, "owner": "L9", "reason": "heavy jsdom render, over the 20 s fast cap on loaded runners"},
+  {"file": "apps/desktop/tests/shell.test.ts", "capSec": 120, "owner": "L10", "reason": "22 s on a GitHub-hosted runner against the 20 s fast cap; runs cargo test where a Rust toolchain exists (GitHub-hosted has one, without the glib dev libraries), so it stays on the self-hosted runners", "heavy": true}
 ]
