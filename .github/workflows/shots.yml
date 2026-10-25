@@ -36,14 +36,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/deps
-      - name: Export the web build and take side-by-side screenshots (export budget 120 s)
+      - name: Export the web build and take side-by-side screenshots (export reported; 600 s cap on self-hosted)
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
         # A packet branch (build/P-L9b_02) shoots only its own targets; main and other branches shoot all.
         run: |
           T=all
           case "$BRANCH" in build/P-*) T="${BRANCH#build/}" ;; esac
-          node scripts/shots/shots.mjs --target "$T" --out shots-out
+          # Self-hosted runners share load with the test shards; the 120 s export budget is measured on hosted runners (ruling 40: CI wall time is reported, not gating, while saturated).
+          node scripts/shots/shots.mjs --target "$T" --out shots-out --max-export-s 600
       - name: theme_flash probe (zero wrong frames)
         run: node scripts/shots/theme-flash.mjs --skip-export
       - uses: actions/upload-artifact@v4

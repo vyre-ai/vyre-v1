@@ -43,7 +43,7 @@ let spaceSeam: SpaceStoreSeam | null = null;
 let engine: SyncEngine | null = null;
 /** The host hands the Space store (P-H_08, ruling 31). */
 export function setConnectorsSpaceStore(seam: SpaceStoreSeam | null): void { spaceSeam = seam; shared = null; }
-export const hostSeams: SeamSetters = { setConnectorsSpaceStore };
+export const hostSeams: SeamSetters = { setConnectorsSpaceStore, setSyncEngine };
 const live = (): ConnectorsHandle => {
   if (!shared) {
     shared = openConnectors(spaceSeam ? { tx: spaceSeam.open().tx } : {});

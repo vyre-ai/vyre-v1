@@ -1,0 +1,117 @@
+// ui/Avatar: people get a marble, agents a Notionists face, the assistant the Vyre mark, automations and groups a glyph; one face per name, everywhere.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { renderToStaticMarkup } from "react-dom/server";
+import { Avatar, faceTint, hash, hueOf, kindOf, marbleSpec, initialsOf, notionistsSvg } from "./index.tsx";
+import { hslHex } from "./faces.ts";
+
+test("the hash is the prototype's, so a name seeds the same face as the prototype draws", () => {
+  assert.equal(hash("Maya Chen"), 1260685739);
+  assert.equal(hash("Scheduler"), 467662964);
+});
+
+test("a person's marble takes the prototype's colours and turns for the name", () => {
+  const m = marbleSpec("Maya Chen");
+  assert.deepEqual([m.base, m.c1, m.c2], ["#C20D90", "#F0AB3D", "#C20D90"]);
+  assert.deepEqual([m.t1.x, m.t1.y, m.t2.x, m.t2.y, m.t1.rot, m.t2.rot], [-1, 3, -2, 1, 299, 189]);
+  const html = renderToStaticMarkup(<Avatar name="Maya Chen" size={24} />);
+  assert.match(html, /data-testid="avatar-Maya Chen"/);
+  assert.match(html, /data-avatar="person"/);
+  assert.match(html, /<mask id="mb[0-9a-z]+m"/);
+  assert.match(html, /fill="#C20D90"/);
+  assert.match(html, /border-top-left-radius:12px/, "a person is round");
+  assert.doesNotMatch(html, />MC</, "no letter tile");
+});
+
+test("the same name draws the same face and different names draw different ones", () => {
+  const a1 = renderToStaticMarkup(<Avatar name="Maya Chen" />);
+  const a2 = renderToStaticMarkup(<Avatar name="Maya Chen" />);
+  const b = renderToStaticMarkup(<Avatar name="Omar Haddad" />);
+  assert.equal(a1, a2);
+  assert.notEqual(a1, b);
+  const p1 = renderToStaticMarkup(<Avatar name="Scheduler" kind="agent" />);
+  const p2 = renderToStaticMarkup(<Avatar name="Proofer" kind="agent" />);
+  assert.notEqual(p1, p2);
+});
+
+test("an agent is a DiceBear Notionists face on a soft tint, with a 30 percent radius", () => {
+  assert.equal(faceTint("Scheduler"), hslHex(hueOf("Scheduler"), 55, 86));
+  assert.match(faceTint("Scheduler"), /^[0-9a-f]{6}$/);
+  const html = renderToStaticMarkup(<Avatar name="Scheduler" kind="agent" size={20} />);
+  assert.match(html, /data-avatar="agent"/);
+  assert.match(html, /<svg[^>]* width="20" height="20"/, "drawn at the size it is given");
+  assert.match(html, /viewBox="0 0 \d+ \d+"/);
+  assert.ok(html.toLowerCase().includes(`#${faceTint("Scheduler")}`) || html.toLowerCase().includes(faceTint("Scheduler")), "the tint fills the ground");
+  assert.match(html, /border-top-left-radius:30%/);
+});
+
+test("the prototype's hslHex turns hue, saturation and lightness into hex", () => {
+  assert.equal(hslHex(0, 100, 50), "ff0000");
+  assert.equal(hslHex(120, 100, 50), "00ff00");
+  assert.equal(hslHex(240, 100, 50), "0000ff");
+  assert.equal(hslHex(0, 0, 100), "ffffff");
+});
+
+test("one agent name draws one face, and two names draw two", () => {
+  assert.equal(notionistsSvg("Scheduler"), notionistsSvg("Scheduler"));
+  assert.notEqual(notionistsSvg("Scheduler"), notionistsSvg("Proofer"));
+});
+
+test("a Space is a letter on a tint, not a face", () => {
+  const html = renderToStaticMarkup(<Avatar name="Northwind" kind="space" size={20} />);
+  assert.match(html, /data-avatar="space"/);
+  assert.match(html, />N</);
+  assert.doesNotMatch(html, /<svg/);
+});
+
+test("the assistant is the Vyre mark on the neutral tile, whether asked for by kind or by name", () => {
+  assert.equal(kindOf("Assistant", "agent"), "assistant");
+  assert.equal(kindOf("Scout", "agent"), "agent");
+  assert.equal(kindOf("Maya Chen"), "person");
+  const html = renderToStaticMarkup(<Avatar name="Assistant" kind="agent" size={22} />);
+  assert.match(html, /data-avatar="assistant"/);
+  assert.match(html, /class="vmark"/);
+  assert.match(html, /background-color:var\(--sunk\)/);
+  assert.match(html, /var\(--beacon, #8B7CF6\)/);
+});
+
+test("an automation and a group draw a glyph on the neutral tile", () => {
+  const a = renderToStaticMarkup(<Avatar name="Invoice reminders" kind="automation" size={22} />);
+  const g = renderToStaticMarkup(<Avatar name="Admins" kind="group" size={22} />);
+  assert.match(a, /data-avatar="automation"/);
+  assert.match(g, /data-avatar="group"/);
+  for (const html of [a, g]) {
+    assert.match(html, /background-color:var\(--sunk\)/);
+    assert.match(html, /<path /);
+  }
+  assert.notEqual(a, g);
+});
+
+test("a photo replaces the marble", () => {
+  const html = renderToStaticMarkup(<Avatar name="Maya Chen" photo="https://example.test/maya.jpg" />);
+  assert.match(html, /maya\.jpg/);
+  assert.doesNotMatch(html, /<mask /);
+});
+
+test("running and present dots are drawn only when asked for", () => {
+  const plain = renderToStaticMarkup(<Avatar name="Scout" kind="agent" />);
+  assert.doesNotMatch(plain, /-running|-present/);
+  const on = renderToStaticMarkup(<Avatar name="Scout" kind="agent" running present />);
+  assert.match(on, /data-testid="avatar-Scout-running"/);
+  assert.match(on, /data-testid="avatar-Scout-present"/);
+});
+
+test("the face carries its name as the accessible label and takes the size it is given", () => {
+  const html = renderToStaticMarkup(<Avatar name="Omar Haddad" size={32} />);
+  assert.match(html, /aria-label="Omar Haddad"/);
+  assert.match(html, /role="img"/);
+  assert.match(html, /width:32px/);
+  assert.match(html, /height:32px/);
+});
+
+test("the letters used when a face cannot draw: two for a person from 24 px, else one", () => {
+  assert.equal(initialsOf("Maya Chen", 24, true), "MC");
+  assert.equal(initialsOf("Maya Chen", 20, true), "M");
+  assert.equal(initialsOf("scheduler", 24, false), "S");
+  assert.equal(initialsOf("  ", 24, true), "?");
+});

@@ -7463,6 +7463,7 @@ kbd { font: 500 11px/16px var(--ui); color: var(--ink-3); padding: 0 4px; border
       else setTimeout(() =&gt; { const f = $("feed"); if (f) { f.style.scrollBehavior = "auto"; f.scrollTop = f.scrollHeight; } }, 400); }
     if (h === "outsideagent") { ui.sel = { k: "chan", id: "rivera" }; setTimeout(() =&gt; { openSide("t:rivera:2"); renderAll(); }, 80); }
     if (h === "connectoutside") { ui.sel = { k: "chan", id: "rivera" }; setTimeout(() =&gt; openConnect("rivera"), 80); }
+    if (h === "demo-stream") { ui.sel = { k: "chat", id: "c1" }; S.msgs.c1.push({ me: 1, at: "9:55", tx: "Thanks. Can you also draft the engagement letter for her?" }, { a: "Intake", at: "9:56", work: { secs: 8, steps: [["Read the standard engagement letter", "templates/engagement-letter.docx"], ["Filled in the consult fee", "fee-schedule.csv"]] }, streaming: 1, html: "<p>I read the standard engagement letter and filled in the <strong>consult fee</strong> from the fee schedule. Two things need your eye:</p><ol><li>The retainer is <code>$2,500</code>, which Maya has not confirmed</li><li>Elena's address is the old one from the web form</li></ol>" }); }
     if (h === "demo-switch") setTimeout(() =&gt; { ui.sel = { k: "chat", id: "c2" }; S.msgs.c2.find((m) =&gt; m.sw).sw.open = true; renderAll(); [400, 1500, 3000].forEach((ms) =&gt; setTimeout(() =&gt; { const e = document.querySelector(".swl"); if (e) e.scrollIntoView({ block: "start" }); }, ms)); }, 60);
     if (h === "buildconnector") setTimeout(startBuildConnector, 40);
     if (/^demo-bc/.test(h)) setTimeout(async () =&gt; { const wait = (ms) =&gt; new Promise((r) =&gt; setTimeout(r, ms)); startBuildConnector(); await wait(500); const c = chat(ui.sel.id), tx = "Lawmatics: contacts, matters and notes"; S.msgs[c.id].push({ me: 1, at: "now", tx }); await bcAdvance(c, tx); if (h.endsWith("toml")) return; c.bc.keyReq = true; await bcNext(c, "key"); await bcNext(c, "test"); if (h.endsWith("test")) return; await bcNext(c, "approve"); await bcPublish(c); }, 60);
@@ -56898,7 +56899,7 @@ textarea.inp { height: auto; min-height: 150px; padding: 11px 12px; line-height:
     const has = (t) =&gt; toks.includes(t);
     if (has("light") || has("dark")) document.documentElement.dataset.theme = has("dark") ? "dark" : "light";
     { const f0 = autos()[0]; ui.tabs = f0 ? ["a:" + f0.id] : []; ui.active = f0 ? "a:" + f0.id : null; }
-    if (has("journeys") || has("journey") || has("stage")) { ui.sTab = "jour"; ui.tabs = ["j:onb"]; ui.active = "j:onb"; if (has("stage")) { ui.jsel.onb = { g: "g2" }; } }
+    if (has("journeys") || has("journey") || has("stage")) { ui.sTab = "jour"; ui.tabs = ["j:onb"]; ui.active = "j:onb"; if (has("stage")) { ui.jsel.onb = { g: "g2" }; ui.pane = true; } }
     if (has("automation")) ui.selStep.lead = findLeadAgentStep();
     if (has("paths")) ui.selStep.lead = AUTOS[0].steps[2].id;
     if (has("run-ok")) { ui.sub["a:lead"] = "runs"; ui.runSel.lead = "rl3"; ui.pt.push("r:rl3"); ui.pact = "r:rl3"; ui.pane = true; }
@@ -56908,7 +56909,7 @@ textarea.inp { height: auto; min-height: 150px; padding: 11px 12px; line-height:
     if (has("failed")) { ui.tabs.push("failed"); ui.active = "failed"; }
     if (has("digest-ask")) { ui.tabs = ["a:digest"]; ui.active = "a:digest"; ui.pt.push("ask:a:digest"); ui.pact = "ask:a:digest"; ui.pane = true; }
     if (has("ask")) { ui.pt.push("ask:a:lead"); ui.pact = "ask:a:lead"; }
-    if (has("task")) { ui.jsel.onb = { g: "g2", k: JOURNEYS[0].stages[1].tasks[0].id }; ui.tabs = ["j:onb"]; ui.active = "j:onb"; ui.sTab = "jour"; }
+    if (has("task")) { ui.jsel.onb = { g: "g2", k: JOURNEYS[0].stages[1].tasks[0].id }; ui.tabs = ["j:onb"]; ui.active = "j:onb"; ui.sTab = "jour"; ui.pane = true; }
     if (has("fields")) { ui.jsub["j:onb"] = "fields"; }
     if (has("settings")) { ui.sub["a:lead"] = "settings"; }
     if (has("trigger")) ui.selStep.lead = "t:" + AUTOS[0].triggers[0].id;
@@ -56920,6 +56921,7 @@ textarea.inp { height: auto; min-height: 150px; padding: 11px 12px; line-height:
     if (has("auto-personal")) { ui.tabs = ["a:brief"]; ui.active = "a:brief"; ui.pact = "cfg:settings"; ui.pane = true; }
     if (has("auto-promote")) { ui.tabs = ["a:brief"]; ui.active = "a:brief"; ui.pact = "cfg:settings"; ui.pane = true; }
     if (has("alerts")) { ui.pact = "cfg:alerts"; ui.pane = true; }
+    if (has("auto-runs")) { ui.pact = "cfg:runs"; ui.pane = true; }
     if (has("groups")) { ui.gopen.gs1 = true; ui.gopen.gp1 = true; ui.tabs = ["g:auto:gs1"]; ui.active = "g:auto:gs1"; }
     if (has("share-sheet")) setTimeout(() =&gt; openGroupShare(grpOf("x:gs3")), 80);
     if (has("access")) { ui.tabs = ["a:form"]; ui.active = "a:form"; ui.pane = true; ui.pact = "cfg:settings"; ui.gopen.gs3 = true; }
@@ -56955,6 +56957,7 @@ textarea.inp { height: auto; min-height: 150px; padding: 11px 12px; line-height:
     if (has("nopane")) ui.pane = false;
     renderAll();
     if (has("auto-promote")) openPromote(aOf("brief"));
+    if (has("jnew")) ACT.newjourney();
     if (has("fit")) setTimeout(() =&gt; ACT.cvfit(), 150);
     if (has("test")) ACT.testrun({ dataset: { id: "lead" } });
     if (has("connect")) ACT.connect({ dataset: { id: "lead" } });
@@ -83546,6 +83549,8 @@ NOTES.inbox = { title: "Inbox", shape: ["One Inbox for every outside conversatio
   if (tok.includes("conflicts")) synOpen("conf");
   if (tok.includes("notify")) setTimeout(() => notify(Object.assign(billingBanner(), { sticky: true })), 500);
   if (tok.includes("away")) setTimeout(awaySheet, 300);
+  /* screenshots (P-UI_04): the token "askpicker" opens the agent picker of the Ask control in the place that is showing */
+  if (tok.includes("askpicker")) setTimeout(() => { try { const f = Object.values(S.frames).find((x) => x.style.visibility === "visible"), c = f && f.contentDocument.querySelector(".vy-ask .vy-ask-c"); if (c) c.click(); } catch (e) {} }, 2200);
   /* screenshots (P-L9_08): phonedial opens the dialer, phonecall places a call to Elena, phonein rings an incoming call, phoneend hangs up after 3 s; in the place that is showing */
   if (tok.includes("phonedial") || tok.includes("phonecall") || tok.includes("phonein") || tok.includes("phoneend")) setTimeout(() => { try { const f = Object.values(S.frames).find((x) => x.style.visibility === "visible"), ph = f && f.contentWindow.VyreUI && f.contentWindow.VyreUI.phone; if (!ph) return; const who = { name: "Elena Rivera", number: "+1 415 555 0161" }; if (tok.includes("phonedial")) ph.open(); else if (tok.includes("phonein")) ph.incoming({ number: who.number }); else { ph.call(who); if (tok.includes("phoneend")) setTimeout(() => { const b = f.contentDocument.querySelector("[data-a=end]"); b && b.click(); }, 3500); } } catch (e) {} }, 2500);
   if (tok.includes("cmdk")) setTimeout(() => palOpen((decodeURIComponent((tok.find((x) => x.startsWith("q:")) || "").slice(2))).replace(/\+/g, " ")), 700);

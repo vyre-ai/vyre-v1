@@ -3,3 +3,5 @@
 export { handlers } from "./handlers/index.ts";
 export { inline, consumers } from "./projections.ts";
 export { putUploadedBytes, MAX_INLINE, MAX_UPLOAD, TRASH_MS } from "./handlers/tree.ts";
+export { configureSheets } from "./handlers/index.ts";
+export type { SheetsDrivers } from "./handlers/index.ts";
