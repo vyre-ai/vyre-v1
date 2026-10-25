@@ -2,7 +2,7 @@
 // schema read side: describe matches the registry, lists page, the map follows relations, the sensitivity scan finds ID, card and health text without returning values.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mintUuid } from "../../../lib/ids.ts";
+import { mintRecordId } from "../../../lib/ids.ts";
 import { loadRegistry, openSchema } from "../impl.ts";
 
 const NOW = 1_800_000_000_000;
@@ -73,8 +73,8 @@ test("types.list: sections, groups, paging and row counts", async () => {
   assert.deepEqual((await h["schema.types.list"](ctx, { section: "shared" })).types, []);
   assert.deepEqual((await h["schema.types.list"](ctx, { folder: "fld_abc" })).types, []);
 
-  await s.store.create("contact", mintUuid(), { name: "Ann" });
-  await s.store.create("contact", mintUuid(), { name: "Bo" });
+  await s.store.create("contact", mintRecordId(), { name: "Ann" });
+  await s.store.create("contact", mintRecordId(), { name: "Bo" });
   const contact = (await h["schema.types.list"](ctx, {})).types.find((t) => t.key === "contact")!;
   assert.equal(contact.rowCount, 2);
   assert.equal(contact.fieldCount, reg.recordTypes.find((t) => t.key === "contact")!.fields.length);
@@ -143,8 +143,8 @@ test("sensitivity scan: ID, card and health text are found, nothing is returned 
       ] },
     }],
   });
-  await s.store.create("patient", mintUuid(), { name: "A", ssn: "123-45-6789", card: "4111 1111 1111 1111", note: "Diagnosis: diabetes, prescribed metformin", memo: "hello" });
-  await s.store.create("patient", mintUuid(), { name: "B", ssn: "not an id", memo: "world" });
+  await s.store.create("patient", mintRecordId(), { name: "A", ssn: "123-45-6789", card: "4111 1111 1111 1111", note: "Diagnosis: diabetes, prescribed metformin", memo: "hello" });
+  await s.store.create("patient", mintRecordId(), { name: "B", ssn: "not an id", memo: "world" });
   const out = await h["schema.sensitivity.scan"](ctx, { type: "patient" });
   const by = new Map(out.suggestions.map((x) => [x.field, x]));
   assert.deepEqual(by.get("ssn"), { field: "ssn", kind: "id_number", matches: 1, suggestedLabel: "restricted", seal: true });

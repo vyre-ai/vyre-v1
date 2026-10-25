@@ -2,9 +2,11 @@
 // The host registers its half once at boot with setResendHost (the API key and signing secret from the Vault, Space file bytes, blob downloads): see projections.ts.
 // parseWebhook and parseInbound turn a body the host has verified (Svix signature) into the input of resend.receive_webhook and resend.receive_inbound.
 import type { Handler } from "../../host/src/invoke.ts";
+import type { SeamSetters } from "../../host/src/seams/index.ts";
 import * as h from "./handlers/index.ts";
 
-export { setResendHost } from "./projections.ts";
+import { setResendHost } from "./projections.ts";
+export { setResendHost };
 export type { ResendHost } from "./projections.ts";
 export { parseInbound, parseWebhook } from "./handlers/index.ts";
 
@@ -23,3 +25,6 @@ export const handlers: Record<string, Handler> = {
 };
 
 export const projections = { inline: {}, consumers: {} };
+
+/** Where the host registers its half at boot (ruling 31): the loader reads this export. */
+export const hostSeams: SeamSetters = { setResendHost };

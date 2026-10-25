@@ -2,6 +2,7 @@
 // until the packets that own them land (the turn worker's engine.turn.*, the pool P-L2_04, models, policy and review).
 import { accountProbe, accountResolve, accountsList } from "./accounts.ts";
 import { incidentAssign, incidentGet, incidentNote, incidentOpen, incidentResolve, incidentsList, interrupt, setMode, setModel, stop, stopAll, switchEngine } from "./control.ts";
+import { extraHandlers } from "./extra/index.ts";
 import { capsSet, pauseAll, raiseLimit, recordUsage, resumeAll, spendGet, usageQuery } from "./spend.ts";
 
 export const handlers = {
@@ -27,6 +28,7 @@ export const handlers = {
   "engine.spend.raise": raiseLimit,
   "engine.usage.query": usageQuery,
   "engine.turn.record_usage": recordUsage,
+  ...extraHandlers,
 };
 
 export { incidentOpen, openIncident } from "./control.ts";

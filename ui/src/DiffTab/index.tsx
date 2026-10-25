@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { StyleProp, TextStyle } from "react-native";
+import { Avatar } from "../Avatar/index.tsx";
 import { CommentReply } from "../CommentReply/index.tsx";
 import { menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
@@ -403,7 +404,7 @@ function UnifiedBody({ hunk, marks }: { hunk: DiffHunk; marks: boolean }): React
   return <View testID="diff-unified">{nodes}</View>;
 }
 
-/** A comment: the author's initial, the name, the text with every @mention coloured. */
+/** A comment: the author's face, the name, the text with every @mention coloured. */
 function Note({ comment }: { comment: DiffComment }): ReactElement {
   const parts: ReactNode[] = [];
   bodyParts(comment.body).forEach((part, index) => {
@@ -411,7 +412,7 @@ function Note({ comment }: { comment: DiffComment }): ReactElement {
   });
   return (
     <View style={styles.comment} testID={`diff-note-${comment.id}`}>
-      <View style={styles.author}><Text style={styles.authorText}>{comment.author.slice(0, 1).toUpperCase()}</Text></View>
+      <Avatar name={comment.author} kind="person" size={22} />
       <View style={styles.commentBody}>
         <Text style={styles.who}>{comment.author}</Text>
         <Text style={styles.text}>{parts}</Text>
@@ -729,8 +730,6 @@ const styles = StyleSheet.create({
   para: { paddingVertical: 8, paddingHorizontal: 14 },
   prose: { color: "var(--ink)" as string, fontSize: 13.5, lineHeight: 21 },
   comment: { flexDirection: "row", gap: 9, paddingHorizontal: 12, paddingVertical: 9, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
-  author: { width: 22, height: 22, borderRadius: 11, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center" },
-  authorText: { color: "var(--ink-2)" as string, fontSize: 11, fontWeight: "600" },
   commentBody: { flex: 1, minWidth: 0, gap: 2 },
   who: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "600" },
   text: { color: "var(--ink-2)" as string, fontSize: 13, lineHeight: 19 },

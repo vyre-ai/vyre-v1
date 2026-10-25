@@ -43,9 +43,9 @@ export const northwind: SampleSpace = {
   numbers: [NW_NUM, NW_BILL],
   contacts: [
     contact("elena", "Elena Rivera", 25, "email", "Lease documents for Thursday · Attached is draft 3 of the lease. Marcus at the property company asked for a reply by Friday", { mailboxIds: ["mbx_work"], unreadCount: 1, followed: true }),
-    contact("marcus", "Marcus Pruitt", 18, "sms", "Can you resend invoice 1041? I can't find it.", { mailboxIds: [NW_BILL], unreadCount: 1 }),
+    contact("marcus", "Marcus Pruitt", 18, "sms", "Can you resend invoice 1041? I can't find it.", { mailboxIds: [NW_BILL], unreadCount: 1, starred: true }),
     contact("dana", "Dana Whitfield", 95, "call", "Voicemail · 0:42 · Hi Irfad, it is Dana at Whitfield. Calling about the renewal quote.", { mailboxIds: [NW_NUM], unreadCount: 1 }),
-    contact("priya", "Priya Nair", 70, "email", "Re: Spring check-in · Yes, we would like to book a review for next week. Tuesday morning works best.", { mailboxIds: ["mbx_intake"], unreadCount: 1, campaignId: "cmp_spring" }),
+    contact("priya", "Priya Nair", 70, "email", "Re: Spring check-in · Yes, we would like to book a review for next week. Tuesday morning works best.", { mailboxIds: ["mbx_intake"], unreadCount: 1, campaignId: "cmp_spring", starred: true }),
     contact("tomas", "Tomas Berg", 120, "email", "Re: Login link not working · Thanks, but I still see an error after I click it.", { mailboxIds: ["mbx_support"], unreadCount: 1 }),
     contact("wei", "Wei Zhang", 330, "email", "Partnership inquiry · We import specialty goods and are looking for a firm to support our contracts", { mailboxIds: ["mbx_hello"], unreadCount: 1 }),
     contact("ben", "Ben Okafor", 900, "email", "Question about onboarding · I filled out your form yesterday. What happens next?", { mailboxIds: ["mbx_hello"], unreadCount: 1, needsMatch: true }),
@@ -175,6 +175,11 @@ export function createSampleInbox(space: SampleSpace = northwind, o: { online?: 
       if (!c) throw new Error(`no such conversation ${i.conversationId}`);
       replica.put("contacts", [row({ ...c, unreadCount: i.read ? 0 : Math.max(1, c.unreadCount) })]);
       return { ok: true };
+    },
+    "stars.toggle": (i: { resource: { type: string; id: string }; on: boolean }) => {
+      const c = contacts().find((x) => x.contactId === i.resource.id);
+      if (c) replica.put("contacts", [row({ ...c, starred: i.on })]);
+      return { starred: i.on, following: false };
     },
     "inbox.follow_set": (i: { contactId: string; follow: boolean }) => {
       const c = contacts().find((x) => x.contactId === i.contactId);
