@@ -74,7 +74,7 @@ test("screen: the root lists the top folders and a nested folder names its path"
   const nested = list(folder("fld_proposals"));
   assert.ok(has(nested, ">Proposals<") && has(nested, 'data-testid="files-path"') && has(nested, 'data-testid="files-crumb-fld_sales"') && has(nested, 'data-testid="files-crumb-root"'));
   assert.deepEqual(lines(nested), ["file:fil_harlow", "file:fil_rivera"]);
-  assert.ok(has(nested, ">Spreadsheet · Google Drive<") && has(nested, ">77 KB<"), "a mounted file names where it came from");
+  assert.ok(has(nested, ">Spreadsheet<") && has(nested, ">Google Drive<") && has(nested, ">77 KB<"), "a mounted file names where it came from");
 });
 
 test("Shared with me lists what was granted", () => {

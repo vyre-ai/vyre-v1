@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "P-L9e_01c-files-header",
+      "route": "/m/P-L9e_01b",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='files-new']",
+      "note": "The Sales folder: back and forward arrows, the path, Sort and the list/grid switch, Upload, the filled New button, the more menu and the side-pane toggle; Kind as a badge and Made by as a face on every line. The prototype side is its Files place on a folder of files in the same skin."
+    },
+    {
+      "id": "P-L9e_01c-files-staged",
+      "route": "/m/P-L9e_01b?where=proposals",
+      "proto": "files,staged,{skin}",
+      "waitFor": "[data-testid='staged-banner']",
+      "note": "Proposals with the staged-writes banner: Docs staged 3 writes here, Nothing is saved until you approve, Review and Approve. The prototype side is its Rivera matter folder with a change set open (needs the staged token in the prototype copy, asked of the lead)."
+    }
+  ]
+}

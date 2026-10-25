@@ -26,9 +26,15 @@ export interface FilesState {
   quickLook: string | null;
   /** The list as rows with columns, or as a grid of tiles (P-L9e_01b). */
   view: ViewMode;
+  /** Names that start with a dot (.vyre, .index) stay out of the list unless this is on. */
+  showHidden: boolean;
+  /** Where the list was before, newest last: the back arrow walks it. */
+  back: readonly Where[];
+  /** Where Back came from, newest last: the forward arrow walks it. */
+  forward: readonly Where[];
 }
 
-export const INITIAL_STATE: FilesState = { where: { kind: "folder", id: null }, selection: [], anchor: null, sort: "name", dir: "asc", quickLook: null, view: "list" };
+export const INITIAL_STATE: FilesState = { where: { kind: "folder", id: null }, selection: [], anchor: null, sort: "name", dir: "asc", quickLook: null, view: "list", showHidden: false, back: [], forward: [] };
 
 export const SORT_LABEL: Record<SortKey, string> = { name: "Name", updated: "Date modified", by: "Made by", size: "Size", kind: "Kind" };
 export const SORTS: readonly SortKey[] = ["name", "updated", "by", "size", "kind"];
@@ -211,11 +217,25 @@ export type Action =
   | { type: "sort"; key: SortKey }
   | { type: "dir"; dir: "asc" | "desc" }
   | { type: "quicklook"; key: string | null }
-  | { type: "view"; view: ViewMode };
+  | { type: "view"; view: ViewMode }
+  | { type: "hidden"; on: boolean }
+  | { type: "back" }
+  | { type: "forward" };
 
 export function reduce(s: FilesState, a: Action): FilesState {
   switch (a.type) {
-    case "go": return { ...s, where: a.where, selection: [], anchor: null, quickLook: null };
+    case "go": return sameWhere(s.where, a.where)
+      ? { ...s, where: a.where, selection: [], anchor: null, quickLook: null }
+      : { ...s, where: a.where, selection: [], anchor: null, quickLook: null, back: [...s.back, s.where].slice(-50), forward: [] };
+    case "hidden": return { ...s, showHidden: a.on };
+    case "back": {
+      const prev = s.back[s.back.length - 1];
+      return prev === undefined ? s : { ...s, where: prev, selection: [], anchor: null, quickLook: null, back: s.back.slice(0, -1), forward: [...s.forward, s.where] };
+    }
+    case "forward": {
+      const next = s.forward[s.forward.length - 1];
+      return next === undefined ? s : { ...s, where: next, selection: [], anchor: null, quickLook: null, back: [...s.back, s.where], forward: s.forward.slice(0, -1) };
+    }
     case "click": return clickSelect(s, a.order, a.key, a.mods);
     case "arrow": return arrowSelect(s, a.order, a.dir, a.shift);
     case "all": return selectAll(s, a.order);

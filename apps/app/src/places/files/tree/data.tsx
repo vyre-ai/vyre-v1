@@ -9,7 +9,7 @@ import type { FolderNode } from "../../../../../../ui/src/FolderTree/index.tsx";
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
 
 /** The capabilities the list reads live that no screen declares. */
-export type LiveCap = "files.list" | "files.recent" | "files.shared_with_me" | "files.knowledge" | "files.trash.list" | "files.tree";
+export type LiveCap = "files.list" | "files.recent" | "files.shared_with_me" | "files.knowledge" | "files.trash.list" | "files.tree" | "changesets.list";
 
 /** Where a click goes. The shell supplies these (tabs, the viewer, the share sheet, the Knowledge screens); Files never decides how a thing opens. */
 export interface FilesNav {
@@ -22,7 +22,14 @@ export interface FilesNav {
   newFolder(scope: "personal" | "space", parentId: string | null): void;
   openMemory(): void;
   openGraph(): void;
+  /** Upload into a folder (null is the top of Files): the shell opens its picker and sends the bytes through files.upload_url. */
+  upload?(folderId: string | null): void;
+  /** Review a change set an agent staged: the shell opens its review surface. */
+  reviewChanges?(changesetId: string): void;
 }
+
+/** The side pane that belongs to this place: the list shows its toggle in the header. */
+export interface PaneControl { open: boolean; toggle(): void }
 
 export interface FilesData {
   screens: ScreenHooks;
@@ -36,6 +43,8 @@ export interface FilesData {
   clock(): { now: number; offsetMin: number };
   nameOf(id: string): string;
   nav: FilesNav;
+  /** The side pane's state, when the shell has one. */
+  pane?: PaneControl;
 }
 
 const DataCtx = createContext<FilesData | null>(null);

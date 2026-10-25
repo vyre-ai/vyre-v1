@@ -2,6 +2,7 @@
 // grid scrolls on the same VirtualList as the list). The list itself stays in list/FilesList.tsx; this file owns what is drawn per line. Row stays the shared ui/Row (ruling 36).
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { ReactElement, ReactNode } from "react";
+import { Avatar } from "../../../../../ui/src/Avatar/index.tsx";
 import { Glyph } from "./tree/parts.tsx";
 import type { IconName } from "./tree/parts.tsx";
 import type { SortKey } from "./tree/model.ts";
@@ -42,12 +43,31 @@ export function ColumnHeader({ sort, dir, wide, onSort }: { sort: SortKey; dir: 
   return <View style={styles.headRow} testID="files-columns" accessibilityRole="row">{cells}</View>;
 }
 
-/** The person's mark: the first letter on a quiet disc (the prototype's 16 px face). */
-function Face({ name }: { name: string }): ReactElement {
-  return <View style={styles.face}><Text style={styles.faceText}>{name.slice(0, 1).toUpperCase()}</Text></View>;
+/** Who made it: the shared face (a person is round, an agent is the agent's face) from the shared Avatar. */
+function Face({ name, agent }: { name: string; agent: boolean }): ReactElement {
+  return <Avatar name={name} kind={agent ? "agent" : "person"} size={16} testID={`face-${name}`} />;
 }
 
-export interface Cells { when: string; by: string | null; size: string; kind: string }
+/** A kind's tint: a hue per family so the Kind column reads at a glance, on every skin (translucent ground, the hue as ink). */
+const KIND_HUE: Readonly<Record<string, number>> = {
+  Folder: 215, Text: 210, Markdown: 210, Document: 215, Spreadsheet: 145, Presentation: 25, PDF: 5, Image: 280, Video: 330, Audio: 300, Code: 190, Archive: 40, "Google file": 215, File: 220,
+};
+
+/** The Kind cell: the kind as a small tinted badge, with where it comes from beside it ("Spreadsheet · Google Drive"). */
+export function KindBadge({ kind }: { kind: string }): ReactElement {
+  const [base, source] = kind.split(" \u00b7 ");
+  const h = KIND_HUE[base ?? ""] ?? 220;
+  return (
+    <View style={styles.kind} testID="cell-kind">
+      <View testID="kind-badge" style={[styles.badge, { backgroundColor: `hsla(${h}, 65%, 52%, 0.16)` as string }]}>
+        <Text numberOfLines={1} style={[styles.badgeText, { color: `hsl(${h}, 55%, 40%)` as string }]}>{base}</Text>
+      </View>
+      {source ? <Text numberOfLines={1} style={styles.src}>{source}</Text> : null}
+    </View>
+  );
+}
+
+export interface Cells { when: string; by: string | null; byAgent?: boolean; size: string; kind: string }
 
 /** The cells of a line, in the Row's trailing slot. */
 export function RowCells({ cells, wide }: { cells: Cells; wide: boolean }): ReactElement {
@@ -56,9 +76,9 @@ export function RowCells({ cells, wide }: { cells: Cells; wide: boolean }): Reac
       <Text numberOfLines={1} style={[styles.mut, { width: COL.modified }]} testID="cell-modified">{cells.when}</Text>
       {wide ? (
         <>
-          <View style={[styles.who, { width: COL.by }]} testID="cell-by">{cells.by ? <><Face name={cells.by} /><Text numberOfLines={1} style={styles.whoText}>{cells.by}</Text></> : null}</View>
+          <View style={[styles.who, { width: COL.by }]} testID="cell-by">{cells.by ? <><Face name={cells.by} agent={cells.byAgent === true} /><Text numberOfLines={1} style={styles.whoText}>{cells.by}</Text></> : null}</View>
           <Text numberOfLines={1} style={[styles.mut, styles.num, { width: COL.size }]} testID="cell-size">{cells.size}</Text>
-          <Text numberOfLines={1} style={[styles.mut, { width: COL.kind }]} testID="cell-kind">{cells.kind}</Text>
+          <View style={{ width: COL.kind }}><KindBadge kind={cells.kind} /></View>
         </>
       ) : null}
     </View>
@@ -138,8 +158,10 @@ const styles = StyleSheet.create({
   num: { textAlign: "right" },
   who: { flexDirection: "row", alignItems: "center", gap: 7 },
   whoText: { fontSize: 12.5, color: "var(--ink-2)" as string, flexShrink: 1 },
-  face: { width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },
-  faceText: { fontSize: 9, fontWeight: "600", color: "var(--ink-2)" as string },
+  kind: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
+  badge: { height: 18, paddingHorizontal: 6, borderRadius: 5, justifyContent: "center", flexShrink: 0 },
+  badgeText: { fontSize: 11, fontWeight: "500" },
+  src: { fontSize: 11.5, color: "var(--ink-3)" as string, flexShrink: 1 },
   gridRow: { flexDirection: "row", gap: GRID_GAP, paddingHorizontal: GRID_PAD, paddingTop: 0, paddingBottom: GRID_GAP },
   tile: { borderRadius: 12, padding: 8 },
   thumb: { borderRadius: 8, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center", ...({ boxShadow: "inset 0 0 0 1px var(--line)" } as object) },
