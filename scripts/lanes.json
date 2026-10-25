@@ -256,6 +256,7 @@
         "scripts/shots/targets/",
         "scripts/shots/mounts/",
         "scripts/shots/prototype/",
+        "apps/app/package.json",
         "scripts/shots/",
         "apps/app/src/",
         "apps/app/metro.config.js",
@@ -276,6 +277,7 @@
         "scripts/shots/targets/",
         "scripts/shots/mounts/",
         "scripts/shots/prototype/",
+        "apps/app/package.json",
         "package-lock.json"
       ],
       "modules": []
@@ -288,6 +290,7 @@
         "scripts/shots/targets/",
         "scripts/shots/mounts/",
         "scripts/shots/prototype/",
+        "apps/app/package.json",
         "package-lock.json"
       ],
       "modules": []
@@ -300,6 +303,7 @@
         "scripts/shots/targets/",
         "scripts/shots/mounts/",
         "scripts/shots/prototype/",
+        "apps/app/package.json",
         "package-lock.json"
       ],
       "modules": []
@@ -313,6 +317,7 @@
         "scripts/shots/targets/",
         "scripts/shots/mounts/",
         "scripts/shots/prototype/",
+        "apps/app/package.json",
         "package-lock.json"
       ],
       "modules": []
@@ -328,6 +333,7 @@
         "scripts/shots/targets/",
         "scripts/shots/mounts/",
         "scripts/shots/prototype/",
+        "apps/app/package.json",
         "package-lock.json"
       ],
       "modules": []
