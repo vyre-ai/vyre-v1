@@ -1,3 +1,4 @@
+// run: telephony tests (rerun, P-L5_07)
 // Numbers and the US texting registration (P-L5_07; spec 2.18 Calls and SMS, Call routing and recording): buy, import, assign, route, hours, recording policy, release, and the registration from draft
 // to approved or rejected. Twilio is a scripted capability, each call checked against its frozen contract.
 // @reads /modules/telephony/migrations/0001_telephony.sql

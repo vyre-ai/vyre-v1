@@ -1,3 +1,4 @@
+// run: telephony tests (rerun, P-L5_07)
 // Texts (P-L5_07; spec 2.18 Sending, Single send API; 2.19): telephony.send_sms is the SMS half of the single send API. It honors the suppression list, SMS consent, send windows and caps like mail.send;
 // inbound texts land in the contact's conversation and STOP suppresses the sender; status callbacks move a text to delivered, undelivered or failed. Twilio, contacts and inbox are scripted capabilities.
 // @reads /modules/telephony/migrations/0001_telephony.sql

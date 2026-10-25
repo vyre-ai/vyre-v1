@@ -1,3 +1,4 @@
+// run: telephony tests (rerun, P-L5_07)
 // Calls (P-L5_07; spec 2.18 Calls and SMS, Call routing and recording; 3.3 flow 3): an incoming call is routed by the number's route and hours, answered, held, transferred, recorded and ended; every call is written
 // to the contact's conversation (inbox.link_message); dial places a call that the voice hook bridges to the dialer; voicemail lands in Files. Twilio, contacts, inbox and files are scripted capabilities,
 // each call checked against its frozen contract.
