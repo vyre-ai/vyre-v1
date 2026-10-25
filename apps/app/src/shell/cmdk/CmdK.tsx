@@ -9,7 +9,7 @@ import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { CmdKController } from "./controller.ts";
 import type { CmdKData, CmdKOptions, CmdKState } from "./controller.ts";
-import { FILTERS } from "./model.ts";
+import { filterEntries, filterLabels } from "./view.ts";
 import type { CmdAction, Hit, RowModel } from "./model.ts";
 import { formatCombo } from "../keyboard/map.ts";
 import type { Platform as KeyPlatform } from "../keyboard/map.ts";
@@ -89,7 +89,7 @@ function scopeLine(state: CmdKState): string | null {
   else if (state.parsed.prefix === "#") bits.push("Chats and records");
   else if (state.parsed.prefix === "/") bits.push("Files");
   else if (state.parsed.prefix === ">") bits.push("Actions");
-  if (state.filter.length) bits.push(state.filter.map((id) => FILTERS.find((f) => f.id === id)?.label ?? id).join(", "));
+  if (state.filter.length) bits.push(filterLabels(state.filter));
   const lead = bits.length ? `Searching ${bits.join(", ")}` : null;
   const note = state.scope === "device"
     ? "this device only: results are what it holds"
@@ -128,7 +128,7 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
   const openFilters = (x: number, y: number): void => {
     const items: MenuEntry[] = [
       { head: "Show only" },
-      ...FILTERS.map((f): MenuEntry => ({ label: `${f.label}${state.counts[f.id] ? `  ${state.counts[f.id]}` : ""}`, checked: state.filter.includes(f.id), onSelect: () => controller.toggleFilter(f.id) })),
+      ...filterEntries(state.counts, state.filter, (id) => controller.toggleFilter(id)),
       { separator: true },
       { label: "Show everything", onSelect: () => controller.clearFilter() },
     ];
@@ -147,6 +147,8 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
     });
   };
 
+  const rowNodes: ReactNode[] = [];
+  for (let i = 0; i < state.rows.length; i++) rowNodes.push(renderRow(state.rows[i] as RowModel, i, state, controller, platform, openRowMenu));
   const line = scopeLine(state);
   // Sized by CSS on the web so it follows the window with no measuring; a fixed cap on native.
   const listMax = inline ? undefined : ((Platform.OS === "web" ? "min(380px, calc(100vh - 220px))" : 380) as unknown as number);
@@ -184,7 +186,7 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
       </View>
       {line ? <View testID="cmdk-scope" style={styles.scopes}><Text style={styles.scopesText} numberOfLines={2}>{line}</Text></View> : null}
       <ScrollView nativeID="cmdk-list" testID="cmdk-list" style={[styles.list, listMax ? { maxHeight: listMax } : null]} keyboardShouldPersistTaps="handled" {...webOnly({ role: "listbox" })}>
-        {state.rows.map((r, i) => renderRow(r, i, state, controller, platform, openRowMenu))}
+        {rowNodes}
       </ScrollView>
       {!inline && Platform.OS === "web" ? (
         <View style={styles.foot}>
