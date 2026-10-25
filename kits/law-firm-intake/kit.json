@@ -1,0 +1,514 @@
+{
+  "key": "law-firm-intake",
+  "title": "Law firm intake",
+  "version": "1.0.0",
+  "channel": "stable",
+  "description": "Lead to client in one click: leads and matters, an intake Journey, a contact form, a follow-up Automation and an intake clerk.",
+  "items": [
+    {
+      "key": "rt.lead",
+      "content": "structure",
+      "type": "record_type",
+      "title": "Lead",
+      "recordType": "lead",
+      "apply": {
+        "cap": "schema.apply",
+        "input": {
+          "ops": [
+            {
+              "op": "type.create",
+              "type": "lead",
+              "def": {
+                "title": "Lead",
+                "plural": "Leads",
+                "icon": "user-plus",
+                "group": "Intake",
+                "label": "confidential",
+                "titleField": "name",
+                "statusField": "stage",
+                "ownerField": "owner",
+                "attribution": true,
+                "fields": [
+                  {
+                    "key": "name",
+                    "type": "text",
+                    "title": "Name",
+                    "required": true
+                  },
+                  {
+                    "key": "email",
+                    "type": "email",
+                    "title": "Email"
+                  },
+                  {
+                    "key": "phone",
+                    "type": "phone",
+                    "title": "Phone"
+                  },
+                  {
+                    "key": "stage",
+                    "type": "status",
+                    "title": "Stage",
+                    "options": {
+                      "stages": [
+                        {
+                          "key": "new",
+                          "title": "New"
+                        },
+                        {
+                          "key": "consult",
+                          "title": "Consult"
+                        },
+                        {
+                          "key": "retained",
+                          "title": "Retained"
+                        },
+                        {
+                          "key": "lost",
+                          "title": "Lost"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": "practiceArea",
+                    "type": "choice",
+                    "title": "Practice area"
+                  },
+                  {
+                    "key": "owner",
+                    "type": "person",
+                    "title": "Owner"
+                  }
+                ]
+              }
+            }
+          ],
+          "idempotencyKey": "kit.law-firm-intake.rt.lead",
+          "reason": "Kit install"
+        }
+      },
+      "undo": {
+        "cap": "schema.apply",
+        "input": {
+          "ops": [
+            {
+              "op": "type.drop",
+              "type": "lead"
+            }
+          ],
+          "confirm": [
+            "lead"
+          ],
+          "idempotencyKey": "kit.law-firm-intake.rt.lead.undo",
+          "reason": "Kit rollback"
+        }
+      }
+    },
+    {
+      "key": "rt.matter",
+      "content": "structure",
+      "type": "record_type",
+      "title": "Matter",
+      "recordType": "matter",
+      "apply": {
+        "cap": "schema.apply",
+        "input": {
+          "ops": [
+            {
+              "op": "type.create",
+              "type": "matter",
+              "def": {
+                "title": "Matter",
+                "plural": "Matters",
+                "icon": "briefcase",
+                "group": "Intake",
+                "label": "confidential",
+                "titleField": "title",
+                "statusField": "status",
+                "ownerField": "lead",
+                "fields": [
+                  {
+                    "key": "title",
+                    "type": "text",
+                    "title": "Title",
+                    "required": true
+                  },
+                  {
+                    "key": "status",
+                    "type": "status",
+                    "title": "Status"
+                  },
+                  {
+                    "key": "lead",
+                    "type": "person",
+                    "title": "Lead attorney"
+                  },
+                  {
+                    "key": "opened",
+                    "type": "datetime",
+                    "title": "Opened"
+                  },
+                  {
+                    "key": "fee",
+                    "type": "money",
+                    "title": "Fee"
+                  }
+                ]
+              }
+            }
+          ],
+          "idempotencyKey": "kit.law-firm-intake.rt.matter",
+          "reason": "Kit install"
+        }
+      },
+      "undo": {
+        "cap": "schema.apply",
+        "input": {
+          "ops": [
+            {
+              "op": "type.drop",
+              "type": "matter"
+            }
+          ],
+          "confirm": [
+            "matter"
+          ],
+          "idempotencyKey": "kit.law-firm-intake.rt.matter.undo",
+          "reason": "Kit rollback"
+        }
+      }
+    },
+    {
+      "key": "ui.layout.lead",
+      "content": "ui",
+      "type": "layout",
+      "title": "Lead page",
+      "apply": {
+        "cap": "schema.layout.set",
+        "input": {
+          "type": "lead",
+          "sections": [
+            {
+              "key": "who",
+              "title": "Who",
+              "fields": [
+                "name",
+                "email",
+                "phone"
+              ]
+            },
+            {
+              "key": "case",
+              "title": "The case",
+              "fields": [
+                "practiceArea",
+                "stage",
+                "owner"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "key": "ui.layout.matter",
+      "content": "ui",
+      "type": "layout",
+      "title": "Matter page",
+      "apply": {
+        "cap": "schema.layout.set",
+        "input": {
+          "type": "matter",
+          "sections": [
+            {
+              "key": "main",
+              "title": "Matter",
+              "fields": [
+                "title",
+                "status",
+                "lead"
+              ]
+            },
+            {
+              "key": "terms",
+              "title": "Terms",
+              "fields": [
+                "opened",
+                "fee"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "key": "ui.consult_minutes",
+      "content": "ui",
+      "type": "setting",
+      "title": "Consultations are 30 minutes",
+      "apply": {
+        "cap": "settings.set_space",
+        "input": {
+          "key": "kit.intake.consult_minutes",
+          "value": 30
+        }
+      },
+      "undo": {
+        "cap": "settings.reset_space",
+        "input": {
+          "key": "kit.intake.consult_minutes"
+        }
+      }
+    },
+    {
+      "key": "journey.client_intake",
+      "content": "structure",
+      "type": "journey",
+      "title": "Client intake",
+      "apply": {
+        "cap": "journeys.create",
+        "input": {
+          "name": "Client intake",
+          "subjectType": "lead",
+          "stages": [
+            {
+              "key": "new",
+              "title": "New",
+              "order": 0,
+              "exit": {
+                "requireTasks": true
+              },
+              "tasks": [
+                {
+                  "key": "first_call",
+                  "title": "Call the lead back",
+                  "kind": "work",
+                  "assigned": {
+                    "kind": "role",
+                    "id": "admin"
+                  },
+                  "required": true,
+                  "description": "Within four hours of the form coming in.",
+                  "dueAfterHours": 4
+                }
+              ],
+              "automations": [],
+              "timeLimit": {
+                "hours": 24,
+                "escalateTo": {
+                  "kind": "role",
+                  "id": "admin"
+                }
+              }
+            },
+            {
+              "key": "consult",
+              "title": "Consult",
+              "order": 1,
+              "exit": {
+                "requireTasks": true
+              },
+              "tasks": [
+                {
+                  "key": "run_consult",
+                  "title": "Hold the consultation",
+                  "kind": "work",
+                  "assigned": {
+                    "kind": "role",
+                    "id": "admin"
+                  },
+                  "required": true
+                },
+                {
+                  "key": "conflict_check",
+                  "title": "Run the conflict check",
+                  "kind": "review",
+                  "assigned": {
+                    "kind": "role",
+                    "id": "admin"
+                  },
+                  "required": true
+                }
+              ],
+              "automations": []
+            },
+            {
+              "key": "retained",
+              "title": "Retained",
+              "order": 2,
+              "exit": {
+                "requireTasks": true
+              },
+              "tasks": [
+                {
+                  "key": "engagement",
+                  "title": "Send the engagement letter for signature",
+                  "kind": "signature",
+                  "assigned": {
+                    "kind": "role",
+                    "id": "admin"
+                  },
+                  "required": true
+                }
+              ],
+              "automations": [],
+              "final": true
+            },
+            {
+              "key": "lost",
+              "title": "Lost",
+              "order": 3,
+              "exit": {
+                "requireTasks": false
+              },
+              "tasks": [],
+              "automations": [],
+              "final": true
+            }
+          ],
+          "startRule": {
+            "event": "record.created",
+            "enabled": true
+          },
+          "idempotencyKey": "kit.law-firm-intake.journey.client_intake"
+        }
+      }
+    },
+    {
+      "key": "form.contact",
+      "content": "structure",
+      "type": "form",
+      "title": "Contact us",
+      "apply": {
+        "cap": "forms.create",
+        "input": {
+          "name": "Contact us",
+          "recordType": "lead",
+          "kind": "public",
+          "idempotencyKey": "kit.law-firm-intake.form.contact"
+        }
+      }
+    },
+    {
+      "key": "auto.new_intake",
+      "content": "steps",
+      "type": "automation",
+      "title": "New intake: open a call-back task",
+      "apply": {
+        "cap": "automations.create",
+        "input": {
+          "name": "New intake",
+          "description": "When the contact form is submitted, asks an admin to call the lead back.",
+          "idempotencyKey": "kit.law-firm-intake.auto.new_intake",
+          "definition": {
+            "triggers": [
+              {
+                "key": "form_submit"
+              }
+            ],
+            "nodes": [
+              {
+                "id": "callback",
+                "key": "create_task",
+                "title": "Call the lead back",
+                "input": {
+                  "kind": "work",
+                  "title": "Call back the new lead",
+                  "recordId": "{{trigger.recordId}}",
+                  "due": "4h",
+                  "assigned": {
+                    "kind": "role",
+                    "id": "admin"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "tools": [
+        "tasks.create"
+      ]
+    },
+    {
+      "key": "agent.intake_clerk",
+      "content": "tools",
+      "type": "agent",
+      "title": "Intake clerk",
+      "tools": [
+        "records.query",
+        "records.create",
+        "records.update",
+        "forms.submissions",
+        "journeys.move_stage"
+      ],
+      "apply": {
+        "cap": "agents.create",
+        "input": {
+          "name": "Intake clerk",
+          "role": "Answers new leads, books consultations and keeps the pipeline current.",
+          "tools": {
+            "allowed": [
+              "records.query",
+              "records.create",
+              "records.update",
+              "forms.submissions",
+              "journeys.move_stage"
+            ],
+            "denied": []
+          },
+          "idempotencyKey": "kit.law-firm-intake.agent.intake_clerk"
+        }
+      }
+    }
+  ],
+  "tests": [
+    {
+      "name": "leads and matters exist after install, with their layouts and the consultation length",
+      "kind": "space",
+      "expect": {
+        "events": [
+          {
+            "name": "schema.changed"
+          },
+          {
+            "name": "settings.changed"
+          }
+        ],
+        "views": [
+          {
+            "cap": "schema.types.list",
+            "rows": 2,
+            "contains": {
+              "key": "lead"
+            }
+          },
+          {
+            "cap": "schema.types.list",
+            "contains": {
+              "key": "matter"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "the intake Journey, the New intake Automation and the Intake clerk are created",
+      "kind": "space",
+      "expect": {
+        "events": [
+          {
+            "name": "journey.created"
+          },
+          {
+            "name": "automation.created"
+          },
+          {
+            "name": "agent.created"
+          }
+        ]
+      }
+    }
+  ]
+}
