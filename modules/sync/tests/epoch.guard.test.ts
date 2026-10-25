@@ -1,4 +1,4 @@
-// P-SEC_06 (booted guard test): sync.epoch.bump purges a person's devices, so only an Admin (access.manage) or the host's own internal call may raise it. A booted daemon on the seeded Space, called through the gateway
+// P-SEC_06 (booted guard test, run with the frozen set): sync.epoch.bump purges a person's devices, so only an Admin (access.manage) or the host's own internal call may raise it. A booted daemon on the seeded Space, called through the gateway
 // with real tokens: a member who calls POST /v1/sync/epoch/bump directly gets 403 and nothing is bumped; an admin and the owner are allowed; no token gets 401. The host's own internal call (devices.revoke
 // reaching sync.epoch.bump as svc_host, so a member can revoke their own device) is proven in host/tests/session.revoke.test.ts.
 import test from "node:test";
