@@ -277,7 +277,7 @@ test("sign: each signer signs through Documenso's own signing API, and Documenso
     if (hooks.some((x) => x.body.includes("DOCUMENT_COMPLETED"))) break;
     await new Promise((r) => setTimeout(r, 3000));
   }
-  if (hooks.length === 0) say("why no webhooks", dc(["exec", "-T", "documenso", "sh", "-c", "grep -n -i -B3 -A12 'fetch\\|ssrf\\|private' /app/apps/remix/build/server/hono/packages/lib/jobs/definitions/internal/execute-webhook.handler.js | head -80"], { allowFail: true }));
+  if (hooks.length === 0) say("why no webhooks", dc(["exec", "-T", "documenso", "sh", "-c", "sed -n 1,75p /app/apps/remix/build/server/hono/packages/lib/jobs/definitions/internal/execute-webhook.handler.js; grep -rhoE 'NEXT_PRIVATE_[A-Z_]*SSRF[A-Z_]*' /app/apps/remix/build/server | sort -u"], { allowFail: true }));
   const events = hooks.map((x) => (JSON.parse(x.body) as { event: string }).event);
   say("webhook events", events.join(","));
   assert.ok(events.includes("DOCUMENT_SIGNED"), "DOCUMENT_SIGNED arrived");
