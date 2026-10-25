@@ -155,3 +155,10 @@ export function suggestionTitle(s: Suggestion): string {
   const added = first ? first.slice(1).trim() : "";
   return s.kind === "template" ? `Template change to ${s.file}` : added !== "" ? `${s.file}: ${added}` : `Change to ${s.file}`;
 }
+
+/** Builds a list from a list. Written as a function (not `.map`) so a list of JSX is plainly the composition of its parts. */
+export function collect<T, U>(list: readonly T[], fn: (item: T, index: number) => U): U[] {
+  const out: U[] = [];
+  for (const [i, x] of list.entries()) out.push(fn(x, i));
+  return out;
+}

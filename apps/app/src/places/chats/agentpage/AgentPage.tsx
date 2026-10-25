@@ -21,8 +21,7 @@ import type { AgentPageData } from "./data.tsx";
 import { ChatsTab } from "./ChatsTab.tsx";
 import { RoleLine } from "./RoleLine.tsx";
 import { SettingsTab } from "./SettingsTab.tsx";
-import { collect } from "../conversation/model.ts";
-import { DEFAULT_TAB, TABS, isTabKey, spendRatio, statusLine, stripOf } from "./model.ts";
+import { DEFAULT_TAB, TABS, collect, isTabKey, spendRatio, statusLine, stripOf } from "./model.ts";
 import type { TabKey } from "./model.ts";
 
 type AgentOut = CapMap["agents.get"]["out"];
