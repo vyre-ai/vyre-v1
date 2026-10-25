@@ -57,10 +57,17 @@ test("l4 live: a booted daemon has no L4 module not set up, and a read and a wri
   });
   const post = (token: string, p: string, body: unknown) =>
     fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+  // what the daemon logged for the trace of a failed call, so a 500 in CI says why
+  const why = (body: string): string => {
+    const traceId = /"traceId":"([0-9a-f]+)"/.exec(body)?.[1];
+    if (!traceId) return "";
+    d.sink.flush();
+    return ` | log: ${JSON.stringify(d.sink.trace(traceId).logs.map((l) => [l.msg, l.attrs]))}`;
+  };
   const ok = async (p: string, body: unknown): Promise<Record<string, unknown>> => {
     const r = await post(OWNER, p, body);
     const text = await r.text();
-    assert.equal(r.status, 200, `${p}: ${text}`);
+    assert.equal(r.status, 200, `${p}: ${text}${why(text)}`);
     return (JSON.parse(text) as { data: Record<string, unknown> }).data;
   };
   try {
