@@ -18786,6 +18786,11 @@ export type RunsFinishOut = {
     threadId?: string;
     traceId: string;
     summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
   };
 };
 export type RunsGetIn = {
@@ -18814,6 +18819,11 @@ export type RunsGetOut = {
     threadId?: string;
     traceId: string;
     summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
   };
 };
 export type RunsListIn = {
@@ -18852,6 +18862,11 @@ export type RunsListOut = {
       threadId?: string;
       traceId: string;
       summary?: string;
+      trigger?: {
+        messageId: string;
+        threadId: string;
+        channelId?: string;
+      };
     }>;
   next?: string;
   total?: number;
@@ -18885,6 +18900,11 @@ export type RunsMarkWaitingOut = {
     threadId?: string;
     traceId: string;
     summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
   };
 };
 export type RunsPreviewUndoIn = {
@@ -18932,6 +18952,11 @@ export type RunsRecordKeyOut = {
     threadId?: string;
     traceId: string;
     summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
   };
 };
 export type RunsRecordStepIn = {
@@ -18986,6 +19011,11 @@ export type RunsResumeOut = {
     threadId?: string;
     traceId: string;
     summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
   };
 };
 export type RunsRetryIn = {
@@ -19008,6 +19038,11 @@ export type RunsStartIn = {
   threadId?: string;
   keyUsed?: string;
   modelUsed?: string;
+  trigger?: {
+    messageId: string;
+    threadId: string;
+    channelId?: string;
+  };
   idempotencyKey: string;
 };
 export type RunsStartOut = {
@@ -19072,6 +19107,11 @@ export type RunsStopOut = {
     threadId?: string;
     traceId: string;
     summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
   };
 };
 export type RunsUndoIn = {

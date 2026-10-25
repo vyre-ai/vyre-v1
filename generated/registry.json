@@ -423,6 +423,122 @@
         }
       ]
     },
+    "s_075cc013db": {
+      "properties": {
+        "costMicros": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "definitionVersion": {
+          "type": "integer"
+        },
+        "endedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "keyUsed": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/s_45112f0b77"
+        },
+        "modelUsed": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "owner": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "type": "string"
+        },
+        "parentRun": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "startedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "startedBy": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "waiting",
+            "succeeded",
+            "failed",
+            "stopped"
+          ],
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/s_f21ece25da"
+        },
+        "summary": {
+          "description": "One-line result",
+          "type": "string"
+        },
+        "threadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "traceId": {
+          "examples": [
+            "0123456789abcdef0123456789abcdef"
+          ],
+          "pattern": "^[0-9a-f]{32}$",
+          "type": "string"
+        },
+        "trigger": {
+          "$ref": "#/$defs/s_f908ff12d6"
+        },
+        "waitReason": {
+          "enum": [
+            "approval",
+            "background",
+            "key"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "owner",
+        "startedBy",
+        "status",
+        "costMicros",
+        "startedAt",
+        "traceId"
+      ],
+      "type": "object"
+    },
     "s_0766030a72": {
       "enum": [
         "approval.requested",
@@ -8256,6 +8372,17 @@
       ],
       "type": "object"
     },
+    "s_6d2c83cc88": {
+      "properties": {
+        "run": {
+          "$ref": "#/$defs/s_075cc013db"
+        }
+      },
+      "required": [
+        "run"
+      ],
+      "type": "object"
+    },
     "s_6ddc87dad0": {
       "items": {
         "$ref": "#/$defs/s_1ff9692f8d"
@@ -8799,17 +8926,6 @@
       "required": [
         "fileId",
         "folderId"
-      ],
-      "type": "object"
-    },
-    "s_7916849f25": {
-      "properties": {
-        "run": {
-          "$ref": "#/$defs/s_bb7ff7d602"
-        }
-      },
-      "required": [
-        "run"
       ],
       "type": "object"
     },
@@ -13286,119 +13402,6 @@
       ],
       "type": "object"
     },
-    "s_bb7ff7d602": {
-      "properties": {
-        "costMicros": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "definitionVersion": {
-          "type": "integer"
-        },
-        "endedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "keyUsed": {
-          "type": "string"
-        },
-        "kind": {
-          "$ref": "#/$defs/s_45112f0b77"
-        },
-        "modelUsed": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "owner": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "type": "string"
-        },
-        "parentRun": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "startedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "startedBy": {
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "queued",
-            "running",
-            "waiting",
-            "succeeded",
-            "failed",
-            "stopped"
-          ],
-          "type": "string"
-        },
-        "subject": {
-          "$ref": "#/$defs/s_f21ece25da"
-        },
-        "summary": {
-          "description": "One-line result",
-          "type": "string"
-        },
-        "threadId": {
-          "examples": [
-            "thr_a1b2c3"
-          ],
-          "pattern": "^thr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "traceId": {
-          "examples": [
-            "0123456789abcdef0123456789abcdef"
-          ],
-          "pattern": "^[0-9a-f]{32}$",
-          "type": "string"
-        },
-        "waitReason": {
-          "enum": [
-            "approval",
-            "background",
-            "key"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "kind",
-        "owner",
-        "startedBy",
-        "status",
-        "costMicros",
-        "startedAt",
-        "traceId"
-      ],
-      "type": "object"
-    },
     "s_bbfdc3f5bb": {
       "properties": {
         "createdAt": {
@@ -17304,6 +17307,36 @@
       },
       "required": [
         "runId"
+      ],
+      "type": "object"
+    },
+    "s_f908ff12d6": {
+      "properties": {
+        "channelId": {
+          "examples": [
+            "chn_a1b2c3"
+          ],
+          "pattern": "^chn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "messageId": {
+          "examples": [
+            "msg_a1b2c3"
+          ],
+          "pattern": "^msg_[a-z0-9]+$",
+          "type": "string"
+        },
+        "threadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "messageId",
+        "threadId"
       ],
       "type": "object"
     },
@@ -127815,6 +127848,11 @@
               "summary": "example",
               "threadId": "thr_a1b2c3",
               "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
               "waitReason": "approval"
             }
           }
@@ -127874,7 +127912,7 @@
       "module": "runs",
       "name": "runs.finish",
       "output": {
-        "$ref": "#/$defs/s_7916849f25"
+        "$ref": "#/$defs/s_6d2c83cc88"
       },
       "permission": null,
       "resource": {
@@ -127927,6 +127965,11 @@
               "summary": "example",
               "threadId": "thr_a1b2c3",
               "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
               "waitReason": "approval"
             }
           }
@@ -127953,7 +127996,7 @@
       "module": "runs",
       "name": "runs.get",
       "output": {
-        "$ref": "#/$defs/s_7916849f25"
+        "$ref": "#/$defs/s_6d2c83cc88"
       },
       "permission": null,
       "resource": {
@@ -128025,6 +128068,11 @@
                 "summary": "example",
                 "threadId": "thr_a1b2c3",
                 "traceId": "0123456789abcdef0123456789abcdef",
+                "trigger": {
+                  "channelId": "chn_a1b2c3",
+                  "messageId": "msg_a1b2c3",
+                  "threadId": "thr_a1b2c3"
+                },
                 "waitReason": "approval"
               }
             ],
@@ -128104,7 +128152,7 @@
           },
           "runs": {
             "items": {
-              "$ref": "#/$defs/s_bb7ff7d602"
+              "$ref": "#/$defs/s_075cc013db"
             },
             "type": "array"
           },
@@ -128176,6 +128224,11 @@
               "summary": "example",
               "threadId": "thr_a1b2c3",
               "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
               "waitReason": "approval"
             }
           }
@@ -128189,7 +128242,7 @@
       "module": "runs",
       "name": "runs.mark_waiting",
       "output": {
-        "$ref": "#/$defs/s_7916849f25"
+        "$ref": "#/$defs/s_6d2c83cc88"
       },
       "permission": null,
       "resource": {
@@ -128320,6 +128373,11 @@
               "summary": "example",
               "threadId": "thr_a1b2c3",
               "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
               "waitReason": "approval"
             }
           }
@@ -128361,7 +128419,7 @@
       "module": "runs",
       "name": "runs.record_key",
       "output": {
-        "$ref": "#/$defs/s_7916849f25"
+        "$ref": "#/$defs/s_6d2c83cc88"
       },
       "permission": null,
       "resource": {
@@ -128635,6 +128693,11 @@
               "summary": "example",
               "threadId": "thr_a1b2c3",
               "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
               "waitReason": "approval"
             }
           }
@@ -128648,7 +128711,7 @@
       "module": "runs",
       "name": "runs.resume",
       "output": {
-        "$ref": "#/$defs/s_7916849f25"
+        "$ref": "#/$defs/s_6d2c83cc88"
       },
       "permission": null,
       "resource": {
@@ -128773,7 +128836,12 @@
               "id": "rec_a1b2c3",
               "type": "space"
             },
-            "threadId": "thr_a1b2c3"
+            "threadId": "thr_a1b2c3",
+            "trigger": {
+              "channelId": "chn_a1b2c3",
+              "messageId": "msg_a1b2c3",
+              "threadId": "thr_a1b2c3"
+            }
           },
           "name": "example",
           "output": {
@@ -128825,6 +128893,9 @@
             ],
             "pattern": "^thr_[a-z0-9]+$",
             "type": "string"
+          },
+          "trigger": {
+            "$ref": "#/$defs/s_f908ff12d6"
           }
         },
         "required": [
@@ -129154,6 +129225,11 @@
               "summary": "example",
               "threadId": "thr_a1b2c3",
               "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
               "waitReason": "approval"
             }
           }
@@ -129168,7 +129244,7 @@
       "name": "runs.stop",
       "offline": "online",
       "output": {
-        "$ref": "#/$defs/s_7916849f25"
+        "$ref": "#/$defs/s_6d2c83cc88"
       },
       "permission": null,
       "resource": {
