@@ -979,6 +979,7 @@ export function stubs(ctx: CallCtx) {
       events_db: call("health.events_db"),
       history: call("health.history"),
       index_db: call("health.index_db"),
+      machine: call("health.machine"),
       paused_reasons: call("health.paused_reasons"),
       run: call("health.run"),
       scheduler: call("health.scheduler"),
@@ -1083,6 +1084,7 @@ export function stubs(ctx: CallCtx) {
       },
       stage_counts: call("journeys.stage_counts"),
       start: call("journeys.start"),
+      tasks: call("journeys.tasks"),
       versions: call("journeys.versions"),
     },
     kits: {

@@ -101,6 +101,7 @@ async function applyOp(d: PushDeps, who: PushWho, op: Op): Promise<OpOutcome> {
 
 export async function pushOps(d: PushDeps, who: PushWho, req: PushReq, traceId: string): Promise<PushRes> {
   if (req.ops.length > MAX_PUSH_OPS) throw pullError("validation.too_large", `A push carries at most ${MAX_PUSH_OPS} changes.`, traceId);
+  if (d.deviceRevoked && (await d.deviceRevoked(who.person, who.device))) throw pullError("auth.device_revoked", "This device was revoked. Its copy is removed.", traceId);
   if ((await d.epochOf(who.person)) > req.epoch) throw pullError("auth.device_revoked", "This device was revoked. Its copy is removed.", traceId);
   const res: PushRes = { applied: [], rejected: [], conflicts: [], held: [], serverHlc: d.hlc() };
   for (const op of req.ops) {

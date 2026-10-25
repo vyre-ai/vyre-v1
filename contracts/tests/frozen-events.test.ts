@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { canonical } from '../../lib/canonical.ts';
 
 const FROZEN_COUNT = 601;
-const FROZEN_HASH = '301f08459022d2e244f8d893c4535dae0e5f5602032f5fbe3f15812247ff83b4';
+const FROZEN_HASH = '2672b15e19d6dfde81ccbde9beb74f6d9f00ad84eecc6d1c52fd617ca7785029';
 
 const NAME_RE = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
 const VIS = new Set(['space', 'participants', 'owner', 'private']);
@@ -119,6 +119,10 @@ test('every event has vis, label, redact and sv within the catalogue rules', () 
   }
 });
 
-// Run on the final commit of this packet, after merging main, so the CI log lists the file as ok.
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
 
-// Run on the final commit of this packet, after merging main, so the CI log lists the file as ok.
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.

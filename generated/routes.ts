@@ -12837,6 +12837,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/health/machine",
+    "cap": "health.machine",
+    "v": 1,
+    "module": "health",
+    "effects": "read",
+    "permission": "console.access",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/health/paused_reasons",
     "cap": "health.paused_reasons",
     "v": 1,
@@ -14438,6 +14456,25 @@ export const routes: Route[] = [
     },
     "idempotency": "key",
     "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/journeys/tasks",
+    "cap": "journeys.tasks",
+    "v": 1,
+    "module": "journeys",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "record",
+      "id": "/recordId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
     "offline": null,
     "teamOnly": false,
     "gate": null

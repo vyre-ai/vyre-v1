@@ -29,7 +29,7 @@ export function createPullHandlers(deps: PullDeps): PullHandlers {
       return pullChanges(deps, who(ctx), input);
     },
     async "sync.snapshot.begin"(ctx, input) {
-      return snapshotBegin(deps, who(ctx, input.deviceClass), input);
+      return snapshotBegin(deps, who(ctx, input.deviceClass), input, ctx.trace.traceId);
     },
     async "sync.snapshot.page"(ctx, input) {
       return snapshotPage(deps, who(ctx), input, ctx.trace.traceId);

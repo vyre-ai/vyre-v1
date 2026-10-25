@@ -1,5 +1,6 @@
 // Devices and sessions (spec 2.25). Own devices and sessions are the caller's to see and end; anything else needs access.manage (the manifest binds the Space at view and
 // these handlers decide, so a stranger's device reads as missing). Revoking is audited by the invoke pipeline (`audit: always`).
+import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { DeviceClass, DevicesCtx, EpochReason } from "../projections.ts";
 import {
   bumpEpoch, deviceById, deviceOut, devicesOf, epochOf, mayTouch, me, mustDevice, nid, pageOf, raise, revokeDevice, sessionOut, sessionsOf, sessionsOfDevice,
@@ -8,6 +9,14 @@ import {
 import type { DeviceRec, SessionRec } from "../projections.ts";
 
 const ok = { ok: true } as const;
+/** The host's Ctx has `call`; a hand-built test ctx may not, and then there is no sync module to tell. */
+type RevokeCtx = DevicesCtx & { call?: Ctx["call"] };
+
+/** Tell sync that this device was revoked, so its replica purges on next contact and its live sockets close (sync.epoch.bump, device scope). A failure stops the revoke call loudly: a revoked device must not keep its copy. */
+async function purgeOnSync(ctx: RevokeCtx, d: DeviceRec): Promise<void> {
+  if (typeof ctx.call !== "function") return;
+  await ctx.call("sync.epoch.bump", { personId: d.person, reason: "device_revoked", deviceId: d.id });
+}
 type Page = { cursor?: string; limit?: number };
 
 export async function mine(ctx: DevicesCtx, _input: Record<string, never>) {
@@ -45,17 +54,19 @@ export async function rename(ctx: DevicesCtx, input: { deviceId: string; name: s
   return { device: deviceOut({ ...d, name, version: d.version + 1 }, ctx.device) };
 }
 
-export async function revoke(ctx: DevicesCtx, input: { deviceId: string }) {
-  revokeDevice(ctx, mustDevice(ctx, input.deviceId));
+export async function revoke(ctx: RevokeCtx, input: { deviceId: string }) {
+  const d = mustDevice(ctx, input.deviceId);
+  revokeDevice(ctx, d);
+  await purgeOnSync(ctx, d);   // also when it was already revoked: a retry after a failed bump heals
   return ok;
 }
 
-export async function revokeOthers(ctx: DevicesCtx, _input: Record<string, never>) {
+export async function revokeOthers(ctx: RevokeCtx, _input: Record<string, never>) {
   const person = me(ctx);
   let n = 0;
   for (const d of devicesOf(ctx, person, true)) {
     if (d.id === ctx.device) continue;
-    if (revokeDevice(ctx, d)) n++;
+    if (revokeDevice(ctx, d)) { n++; await purgeOnSync(ctx, d); }
   }
   return { revoked: n };
 }

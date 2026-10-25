@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_21-tab-strip",
+      "route": "/m/P-L9_21",
+      "proto": "files,opentabs,{skin}",
+      "waitFor": "[data-testid='tab-strip']",
+      "note": "The main tab strip with four open tabs: each tab shows its icon, and the + sits right after the last tab. The prototype side is its Files place with three tabs open; the strip is what is compared (the rest of the real screen is empty)."
+    }
+  ]
+}

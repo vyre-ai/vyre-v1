@@ -56,7 +56,8 @@ test("server unit: space role, Caddy pinned and sharing vyred's network, data on
   assert.match(c, /network_mode: "service:vyred"/);
   assert.match(c, /- vyre-data:\/data/);
   assert.match(c, /VYRE_HEALTH_REQUIRE_CADDY: "1"/);
-  assert.match(c, /condition: service_healthy/);
+  assert.match(c, /condition: service_started/);
+  assert.doesNotMatch(c, /condition: service_healthy/, "Caddy waiting for vyred to be healthy deadlocks: vyred's health needs Caddy");
   assert.match(c, /cap_drop: \[ALL\]/g);
   assert.match(c, /127\.0\.0\.1:\$\{VYRE_PORT:-8420\}:8420/);
   assert.doesNotMatch(c, /(TOKEN|SECRET|PASSWORD|KEY)\s*[:=]\s*[A-Za-z0-9]{8,}/);

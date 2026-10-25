@@ -13,6 +13,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "health.events_db": async (ctx) => { throw new VyreErr(notImplemented("health.events_db", ctx.trace)); },
   "health.history": async (ctx) => { throw new VyreErr(notImplemented("health.history", ctx.trace)); },
   "health.index_db": async (ctx) => { throw new VyreErr(notImplemented("health.index_db", ctx.trace)); },
+  "health.machine": async (ctx) => { throw new VyreErr(notImplemented("health.machine", ctx.trace)); },
   "health.paused_reasons": async (ctx) => { throw new VyreErr(notImplemented("health.paused_reasons", ctx.trace)); },
   "health.run": async (ctx) => { throw new VyreErr(notImplemented("health.run", ctx.trace)); },
   "health.scheduler": async (ctx) => { throw new VyreErr(notImplemented("health.scheduler", ctx.trace)); },
