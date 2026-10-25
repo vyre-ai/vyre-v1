@@ -126,14 +126,14 @@ test("session: a token is its device; a forged header is ignored; revoking a dev
     assert.equal(await live(d, `device=${A.device}`), 401, "the live socket refuses a caller with a device name and no token");
 
     // B revokes A through the gateway
-    const revoked = await call(d, "/v1/devices/revoke", tokB, { deviceId: A.device, idempotencyKey: "rev-a-1" });
+    const revoked = await call(d, "/v1/devices/revoke", tokB, { deviceId: A.device });
     assert.equal(revoked.status, 200, JSON.stringify(await revoked.clone().json()).slice(0, 300));
     assert.deepEqual(((await revoked.json()) as { data: unknown }).data, { ok: true });
 
     // A: every HTTP call and the live socket get 401; the rows say why
     assert.equal((await whoami(d, tokA)).status, 401, "A's HTTP calls get 401");
     assert.equal((await whoami(d, tokA, { "x-vyre-device": B.device })).status, 401, "and forging B's header does not help");
-    assert.equal((await call(d, "/v1/devices/revoke", tokA, { deviceId: B.device, idempotencyKey: "rev-b-1" })).status, 401, "A cannot revoke B");
+    assert.equal((await call(d, "/v1/devices/revoke", tokA, { deviceId: B.device })).status, 401, "A cannot revoke B");
     assert.equal(await live(d, `device=${A.device}`, tokA), 401, "A's live socket gets 401");
     assert.equal(await live(d, `token=${tokA}`), 401, "also with the token in the query");
     const rowOf = (sql: string, ...a: unknown[]) => d.db!.all(sql, ...a)[0] as Record<string, unknown>;
