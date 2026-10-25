@@ -127,6 +127,18 @@ interface PieceProps {
 
 const bgOf = (p: { selected: boolean; hot: boolean; tint: string | null }): string => (p.selected ? "var(--sel)" : p.hot ? "var(--hover)" : p.tint ?? "var(--win)");
 
+/**
+ * A new query window hands back new row objects (a clone each time), so a plain memo re-rendered every drawn row, 13 cells each, whenever the window moved by a hundred rows: that was the
+ * long frames of the 100,000-row scroll. A row is the same row when it has the same id, version and update time.
+ */
+const sameRow = (a: RecordRow | null, b: RecordRow | null): boolean => a === b || (a !== null && b !== null && a.id === b.id && a.version === b.version && a.updatedAt === b.updatedAt);
+function samePiece<T extends PieceProps>(a: T, b: T): boolean {
+  if (!sameRow(a.row, b.row)) return false;
+  const ka = Object.keys(a) as (keyof T)[];
+  for (const k of ka) if (k !== "row" && a[k] !== b[k]) return false;
+  return ka.length === Object.keys(b).length;
+}
+
 const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): ReactElement {
   const { row, n, y, selected, hot, primary, names, onTap, onOpen, onHot } = p;
   const bg = bgOf(p);
@@ -153,7 +165,7 @@ const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): 
       </View>
     </View>
   );
-});
+}, samePiece);
 
 // The scrolling cells are plain elements, not React Native views and texts: a scroll mounts a few rows a frame, and 13 cells of a row as View and Text each cost several times a plain div. The
 // 100,000-row scroll probe was 66.7 ms at p95 with every column and 16.8 ms with the name column alone, so the cost is the cells. Same looks as the cell styles below.
@@ -198,7 +210,7 @@ const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: num
     pad > 0 ? createElement("div", { key: "pad", style: { width: pad, flex: "none" } }) : null,
     ...cells,
   );
-});
+}, samePiece);
 
 // ---------------------------------------------------------------- the grid
 
