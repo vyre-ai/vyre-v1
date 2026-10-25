@@ -7,7 +7,7 @@ import { createElement, useCallback, useEffect, useMemo, useRef, useState } from
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 import { Platform, Text, View } from "react-native";
 import { Avatar } from "../Avatar/index.tsx";
-import { useMenu } from "../Menu/index.tsx";
+import { menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 import {
   FILTER_LABEL, HEAD_H, LABEL_W, MON, MONL, ROW_H, STAGE_H, applyMoves, arrowTarget, cascade, clickSelect, dayOfMonth, dragChanges, fmtDay, fmtWeekday, geomOf, isLate, isWeekend, itemOf, layoutOf, monthOf, nudgeChanges, orderOf,
@@ -277,7 +277,7 @@ export function Plan(props: PlanProps): ReactElement {
     labels.push(h("div", {
       key: `il-${it.id}`, role: "row", "aria-selected": on, "data-testid": `plan-row-${it.id}`, title: it.title,
       onClick: (e: EventLike) => select(it.id, e.metaKey || e.ctrlKey, e.shiftKey), onDoubleClick: () => open(it.id),
-      onContextMenu: (e: EventLike) => { e.preventDefault(); openMenu(it.id, e.clientX, e.clientY); },
+      ...menuTrigger((x: number, y: number) => openMenu(it.id, x, y)),
       style: { position: "absolute", top: r.y, height: r.h, left: 0, width: LABEL_W, display: "flex", alignItems: "center", gap: 8, padding: "0 10px 0 22px", boxSizing: "border-box", cursor: "default", background: on ? "var(--hover)" : "transparent" },
     }, it.milestone ? icon(ICON.diamond) : h(StatusMark, { status: it.status }), h("span", { style: { fontSize: 13, color: it.status === "done" ? "var(--ink-3)" : "var(--ink)", textDecoration: it.status === "done" ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, it.title)));
     if (it.milestone) {
@@ -285,7 +285,7 @@ export function Plan(props: PlanProps): ReactElement {
       pos[it.id] = { x1: cx - 8, x2: cx + 8, yc: r.y + ROW_H / 2 };
       bars.push(h("div", {
         key: `ms-${it.id}`, role: "button", "aria-pressed": on, tabIndex: -1, "data-testid": `plan-bar-${it.id}`, title: `${it.title} · ${fmtDay(f.s)}${it.fixed ? " · pinned" : ""}`,
-        onPointerDown: (e: EventLike) => onPointerDown(e, it.id, "mv"), onDoubleClick: () => open(it.id), onContextMenu: (e: EventLike) => { e.preventDefault(); openMenu(it.id, e.clientX, e.clientY); },
+        onPointerDown: (e: EventLike) => onPointerDown(e, it.id, "mv"), onDoubleClick: () => open(it.id), ...menuTrigger((x: number, y: number) => openMenu(it.id, x, y)),
         style: { position: "absolute", left: cx - 9, top: r.y + 9, width: 18, height: 18, cursor: it.fixed ? "default" : "grab", color: it.status === "done" ? "var(--ok)" : on ? "var(--accent)" : "var(--ink-2)" },
       }, h("span", { style: { display: "block", transform: "rotate(45deg) scale(.82)", width: 18, height: 18, border: "2px solid currentColor", borderRadius: 3, boxSizing: "border-box", background: it.status === "done" ? "currentColor" : "var(--win)" } })));
       bars.push(h("span", { key: `msl-${it.id}`, style: { position: "absolute", left: cx + 15, top: r.y + 9, fontSize: 12.5, color: "var(--ink-2)", whiteSpace: "nowrap", display: "inline-flex", gap: 6, alignItems: "center" } }, it.title, h("em", { style: { fontStyle: "normal", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" } }, `${fmtWeekday(f.s)} ${fmtDay(f.s)}`), it.fixed ? icon(ICON.pin) : null));
@@ -299,7 +299,7 @@ export function Plan(props: PlanProps): ReactElement {
       key: `bar-${it.id}`, role: "button", "aria-pressed": on, "aria-label": `${it.title}, ${f.s === f.e ? fmtDay(f.s) : `${fmtDay(f.s)} to ${fmtDay(f.e)}`}${it.who ? `, ${it.who.name}` : ""}`, tabIndex: -1, "data-testid": `plan-bar-${it.id}`, "data-status": it.status,
       title: `${it.title} · ${it.who ? `${it.who.name} · ` : ""}${f.s === f.e ? fmtDay(f.s) : `${fmtDay(f.s)} to ${fmtDay(f.e)}`}`,
       onPointerDown: (e: EventLike) => { const t = e.target; onPointerDown(e, it.id, t.closest("[data-h=s]") ? "rs" : t.closest("[data-h=e]") ? "re" : "mv"); },
-      onDoubleClick: () => open(it.id), onContextMenu: (e: EventLike) => { e.preventDefault(); openMenu(it.id, e.clientX, e.clientY); },
+      onDoubleClick: () => open(it.id), ...menuTrigger((x: number, y: number) => openMenu(it.id, x, y)),
       style: { position: "absolute", left: LABEL_W + x + 1, top: r.y + 7, width: w - 2, height: 22, boxSizing: "border-box", borderRadius: 7, background: paint.bg, border: `1px solid ${late ? "var(--danger)" : on ? "var(--accent)" : paint.line}`, boxShadow: on ? "0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent)" : moving ? "0 4px 10px rgba(0,0,0,.18)" : "none", display: "flex", alignItems: "center", gap: 4, padding: "0 4px", cursor: "grab", overflow: "hidden", touchAction: "none" },
     },
     h("i", { "data-h": "s", style: HANDLE_L }),
