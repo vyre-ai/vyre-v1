@@ -148,7 +148,7 @@ export function timelineView(c: PlanCtx, height: number): ReactElement {
         h("svg", { width: total, height: lay.height, style: { position: "absolute", left: 0, top: 0, overflow: "visible", pointerEvents: "none" } }, ...arrows, band),
         tip),
       h("div", { style: { position: "sticky", left: 0, top: 0, width: LABEL_W, height: 0, zIndex: 6 } },
-        h("div", { style: { position: "absolute", left: 0, top: HEAD_H, width: LABEL_W, height: lay.height, background: "var(--win)", borderRight: "1px solid var(--line)" } }, ...labels))));
+        h("div", { style: { position: "absolute", left: 0, top: 0, width: LABEL_W, height: lay.height, background: "var(--win)", borderRight: "1px solid var(--line)" } }, ...labels))));
 }
 
 const LINK_DOT: CSSProperties = { position: "absolute", right: -5, top: "50%", marginTop: -5, width: 10, height: 10, borderRadius: 99, background: "var(--win)", border: "2px solid var(--accent)", boxSizing: "border-box", cursor: "crosshair", zIndex: 2 };
