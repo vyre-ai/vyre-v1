@@ -276,21 +276,18 @@ test("l7 live ruling 62: sign-in unlocks the person's Mine provider for their ow
     const made = await post(d.token, "/v1/members/invites/create", { role: "member", idempotencyKey: "l7-key-invite" });
     assert.equal(made.status, 200, JSON.stringify(made.body));
     const code = decodeURIComponent((made.body.data.link as string).split("/").pop() ?? "");
-    // the device wraps the person key under the password (Argon2id with the person as salt, then HKDF), exactly as identity unwraps it; the person id is minted by the server, so the join says who they are first
-    const probe = await post(null, "/v1/invites/accept_create_account", { code, username: "keyed", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop", keys: { personKeyByPassword: "AAAA", publicKey: "cHVibGlj", privateKeyWrapped: "cHJpdmF0ZQ==", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2U=" }] } });
-    assert.equal(probe.status, 200, JSON.stringify(probe.body));
-    const person = (probe.body.data.session?.sessionId, (await post(probe.body.data.session.token, "/v1/identity/whoami", {})).body.data.principal.id) as string;
-    const wrapKey = hkdf32(argon2id(PASSWORD, `vyre-person-key:${person}`), "vyre:personkey:v1", "wrap");
-    const bundle = Buffer.from(JSON.stringify(aesWrap(wrapKey, personKey, `vyre:personkey:${person}`))).toString("base64");
-    const put = await post(probe.body.data.session.token, "/v1/identity/keys_put", { reason: "password_change", keys: { personKeyByPassword: bundle, publicKey: "cHVibGlj", privateKeyWrapped: "cHJpdmF0ZQ==", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2U=" }] } });
-    assert.equal(put.status, 200, JSON.stringify(put.body));
+    // the device wraps the person key under the password (Argon2id with the username as salt, then HKDF), exactly as identity unwraps it, and sends the sealed key with the join
+    const wrapKey = hkdf32(argon2id(PASSWORD, "vyre-person-key:keyed"), "vyre:personkey:v1", "wrap");
+    const bundle = Buffer.from(JSON.stringify(aesWrap(wrapKey, personKey, "vyre:personkey:keyed"))).toString("base64");
+    const joined = await post(null, "/v1/invites/accept_create_account", { code, username: "keyed", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop", keys: { personKeyByPassword: bundle, publicKey: "cHVibGlj", privateKeyWrapped: "cHJpdmF0ZQ==", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2U=" }] } });
+    assert.equal(joined.status, 200, JSON.stringify(joined.body));
 
     const signIn = async (): Promise<string> => {
       const r = await post(null, "/v1/identity/sign_in", { username: "keyed", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop" });
       assert.equal(r.status, 200, JSON.stringify(r.body));
       return r.body.data.session.token as string;
     };
-    const t1 = await signIn();
+    const t1 = joined.body.data.session.token as string;   // joining is signing in: the key is held from here
     const added = await post(t1, "/v1/providers/add", { providerKey: "anthropic", connection: "api_key", scope: "mine", apiKey: SECRET, idempotencyKey: "l7-key-provider" });
     assert.equal(added.status, 200, "signed in, the person saves a Mine key: " + JSON.stringify(added.body));
     const fillOwn = (token: string) => post(token, "/v1/vault/fill", { handle: "#Anthropic.api_key", target: { kind: "env", ref: "x" }, returnValue: true });

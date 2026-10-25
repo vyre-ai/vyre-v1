@@ -321,5 +321,5 @@ export async function provisionAccount(ctx: IdentityCtx, p: { personId: string; 
 /** The person key the password opens from their stored bundle, or null. */
 export function personKeyOf(a: Account, password: string): Uint8Array | null {
   const keys = bundleOf(a);
-  return keys ? unwrapPersonKey(password, a.person_id, keys.personKeyByPassword) : null;
+  return keys ? unwrapPersonKey(password, a.username, keys.personKeyByPassword) : null;
 }
