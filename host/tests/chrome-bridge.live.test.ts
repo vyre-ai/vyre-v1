@@ -82,6 +82,9 @@ test("chrome bridge: a booted daemon answers /chrome-bridge/v1/rpc and /events, 
 
     assert.equal((await rpc(d, { id: "r0", type: "bridge", op: "hello", input: {} }, null)).status, 401, "no token");
     assert.equal((await rpc(d, { id: "r0", type: "bridge", op: "hello", input: {} }, "wrong")).status, 401, "a wrong token");
+    const sameLength = d.token.slice(0, -1) + (d.token.endsWith("a") ? "b" : "a");
+    assert.equal(sameLength.length, d.token.length);
+    assert.equal((await rpc(d, { id: "r0", type: "bridge", op: "hello", input: {} }, sameLength)).status, 401, "a wrong token of the same length");
     assert.equal((await fetch(`${d.url}/chrome-bridge/v1/events`)).status, 401, "the events stream needs the token too");
 
     const ok = await rpc(d, { id: "r1", type: "bridge", op: "agent.event", input: { event: "driving", agent: "agt_scout", tabId: "t1" } });

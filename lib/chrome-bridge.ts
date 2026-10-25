@@ -1,5 +1,4 @@
-// TEST DOUBLE of the daemon's Chrome bridge (host/src/bridge/chrome.ts, which the booted daemon serves and host/tests/chrome-bridge.live.test.ts proves). apps/chrome may not import host/,
-// so the extension's tests run against this copy of the same wire protocol. Keep the two in step.
+// The Chrome bridge protocol and its HTTP routes, one pure module (no node imports) so the daemon (host/src/bridge/chrome.ts re-exports it) and the extension's tests (apps/chrome/tests) run the same code.
 // The daemon's Chrome bridge (V1-SPEC 3.12, ARCH 7.12, the device service "chrome-bridge"): the other end of the native messaging host `run.vyre.bridge` (apps/chrome/src/worker/native/host.js).
 // The host relays Chrome's framed messages to this over loopback HTTP with the daemon's admin token:
 //
@@ -12,7 +11,22 @@
 // login.check ...) are answered by the host's own handlers, handed in as `invoke` and `op`; without them the bridge answers "not_available" rather than guess.
 // Nothing here reads a secret: a vault.fill is answered by the vault filler, which pushes the value to the extension on the events stream itself (`push`).
 
-import type { IncomingMessage, ServerResponse } from "node:http";
+
+/** The parts of a Node request the bridge reads; IncomingMessage satisfies it. Structural so this module imports nothing from node. */
+export interface BridgeRequest {
+  url?: string | undefined;
+  method?: string | undefined;
+  headers: Record<string, string | string[] | undefined>;
+  on(event: string, listener: (...args: unknown[]) => void): unknown;
+  destroy(): unknown;
+}
+/** The parts of a Node response the bridge writes; ServerResponse satisfies it. */
+export interface BridgeResponse {
+  writeHead(status: number, headers?: Record<string, string>): unknown;
+  write(text: string): unknown;
+  end(text?: string): unknown;
+  flushHeaders(): void;
+}
 
 export interface AgentRef { id: string; name: string }
 export interface AgentEvent { event: string; [k: string]: unknown }
@@ -44,7 +58,7 @@ export class ChromeToolError extends Error {
 }
 
 /** Constant-time token comparison without a crypto import (only the kernel and the vault import crypto, boundary B3). */
-function sameToken(given: string, want: string): boolean {
+export function sameToken(given: string, want: string): boolean {
   if (given.length !== want.length) return false;
   let diff = 0;
   for (let i = 0; i < want.length; i++) diff |= given.charCodeAt(i) ^ want.charCodeAt(i);
@@ -162,7 +176,7 @@ export function createChromeBridge(deps: ChromeBridgeDeps) {
     },
 
     /** The HTTP routes. Returns true when the request was for this bridge (and has been answered), false to let the daemon's other routes have it. */
-    handle(req: IncomingMessage, res: ServerResponse): boolean {
+    handle(req: BridgeRequest, res: BridgeResponse): boolean {
       const url = (req.url ?? "").split("?")[0];
       if (url !== "/chrome-bridge/v1/rpc" && url !== "/chrome-bridge/v1/events") return false;
       const sent = req.headers["authorization"];
@@ -181,16 +195,20 @@ export function createChromeBridge(deps: ChromeBridgeDeps) {
         return true;
       }
       if (req.method !== "POST") { res.writeHead(405); res.end(); return true; }
-      const chunks: Buffer[] = [];
+      const chunks: Uint8Array[] = [];
       let size = 0;
-      req.on("data", (c: Buffer) => {
+      req.on("data", (...a: unknown[]) => {
+        const c = typeof a[0] === "string" ? new TextEncoder().encode(a[0]) : (a[0] as Uint8Array);
         size += c.length;
         if (size > MAX_BODY) { req.destroy(); return; }
         chunks.push(c);
       });
       req.on("end", () => {
         let body: unknown;
-        try { body = JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch { res.writeHead(400, { "content-type": "application/json" }); res.end(JSON.stringify(fail("", "bad_request", "Not JSON."))); return; }
+        const all = new Uint8Array(size);
+        let at = 0;
+        for (const c of chunks) { all.set(c, at); at += c.length; }
+        try { body = JSON.parse(new TextDecoder().decode(all)); } catch { res.writeHead(400, { "content-type": "application/json" }); res.end(JSON.stringify(fail("", "bad_request", "Not JSON."))); return; }
         void rpc(body).then((reply) => { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(reply)); });
       });
       return true;
