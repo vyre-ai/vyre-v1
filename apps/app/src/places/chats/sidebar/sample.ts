@@ -50,7 +50,7 @@ export const northwind: SampleSpace = {
   channels: [
     { channelId: "intake", name: "intake", unread: 1, visibility: "public" }, { channelId: "billing", name: "billing", unread: 0, visibility: "public" },
     { channelId: "rivera", name: "rivera-matter", unread: 0, visibility: "invite" },
-    { channelId: "pruitt", name: "pruitt-matter", unread: 0, visibility: "public", project: true }, { channelId: "atp", name: "atp-q4", unread: 0, visibility: "public", project: true },
+    { channelId: "pruitt", name: "pruitt-matter", unread: 0, visibility: "public", project: true },
   ],
   needs: [
     { taskId: "tsk_n1", title: "Send 12 invoices", kind: "approve", by: "agt_billing" },

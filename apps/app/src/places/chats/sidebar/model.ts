@@ -225,6 +225,7 @@ export function startKey(row: ChatRow): string {
 }
 
 /** The agents behind open Needs you items: each one's face says "Waiting on you" (prototype Agents section). */
-export function waitingAgents(all: readonly NeedsItem[]): Set<string> {
-  return new Set(all.map((n) => n.task.createdBy));
+export function waitingAgents(all: readonly NeedsItem[], assistantId?: string): Set<string> {
+  // The assistant is your own: its requests are in Needs you, but its face never says "Waiting on you" (prototype).
+  return new Set(all.filter((n) => n.task.createdBy !== assistantId).map((n) => n.task.createdBy));
 }

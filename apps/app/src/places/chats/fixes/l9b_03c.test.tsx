@@ -26,7 +26,7 @@ test("Needs you is one row with the count, and its requests sit under it", () =>
 
 test("every agent that raised a request says Waiting on you; the others do not", () => {
   const out = html(createSampleSidebar());
-  assert.ok(count(out, "Waiting on you") >= 4, "Intake, Docs, Billing and Research wait on you");
+  assert.equal(count(out, "Waiting on you"), 4, "Intake, Docs, Billing and Research wait on you; the assistant never says it");
   for (const n of ["Intake", "Docs", "Billing", "Research"]) {
     const from = at(out, `data-testid="row-f:agt_${n.toLowerCase()}"`);
     const next = out.indexOf('data-testid="row-', from + 10);
@@ -52,6 +52,12 @@ test("channels with nothing new sit dim; the one with unread keeps its count", (
   assert.ok(has(out, 'data-testid="channel-unread-intake"') && has(out, 'data-testid="unread-intake"'));
   for (const id of ["billing", "rivera", "pruitt"]) assert.ok(has(out, `data-testid="channel-read-${id}"`), id);
   assert.ok(at(out, "rivera-matter") < at(out, 'data-testid="group-Projects"'));
+});
+
+test("the sidebar lists all seven requests and no extra project", () => {
+  const out = html(createSampleSidebar());
+  for (const t of ["Send 12 invoices", "Rivera engagement letter", "County records search", "Pruitt intake summary", "Send the ATP reminder", "Problem report from Omar", "Month-end export"]) assert.ok(has(out, t), t);
+  assert.ok(has(out, "pruitt-matter") && !has(out, "atp-q4"), "Projects hold only the followed pruitt-matter");
 });
 
 test("agents and people wear real faces, the assistant the Vyre mark", () => {

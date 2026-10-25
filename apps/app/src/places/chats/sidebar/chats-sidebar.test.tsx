@@ -32,11 +32,12 @@ test("the sections render from the Northwind sample, in the spec's order", () =>
   assert.ok(!out.includes("chats-sidebar-loading"));
 });
 
-test("Needs you lists the top three with the count of all that wait", () => {
+test("Needs you lists every request that waits, with the count (ruling 45: the prototype lists all seven)", () => {
   const out = html(createSampleSidebar());
   assert.ok(at(out, "Send 12 invoices") < at(out, "Rivera engagement letter"));
   assert.ok(out.includes('data-testid="count-needs"') && out.includes(">7<"));
   assert.ok(out.includes("Approve") && out.includes("Blocked"));
+  for (const title of ["Pruitt intake summary", "Send the ATP reminder", "Problem report from Omar", "Month-end export"]) assert.ok(out.includes(title), title);
 });
 
 test("Starred agent faces come first, each a row with its face; the working one is ringed", () => {

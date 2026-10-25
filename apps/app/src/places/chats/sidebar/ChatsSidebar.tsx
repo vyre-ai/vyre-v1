@@ -77,9 +77,10 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
   const channelsQ = useScreenQuery<ChannelsOut>(SIDEBAR_SCREEN, "channels", {});
   const facesQ = useScreenQuery<AgentsOut>(AGENTS_SCREEN, "agents", { section: "starred" });
   const agentsQ = useScreenQuery<AgentsOut>(AGENTS_SCREEN, "agents", {});
-  const needsQ = useScreenQuery<NeedsOut>(NEEDS_SCREEN, "items", { limit: 3 });
-  const allNeedsQ = useScreenQuery<NeedsOut>(NEEDS_SCREEN, "items", {});
-  const waiting = useMemo(() => waitingAgents(allNeedsQ.status === "ready" ? allNeedsQ.data.items : []), [allNeedsQ]);
+  // The prototype lists every request under Needs you, not only the top three.
+  const needsQ = useScreenQuery<NeedsOut>(NEEDS_SCREEN, "items", {});
+  const allNeedsQ = needsQ;
+  const waiting = useMemo(() => waitingAgents(allNeedsQ.status === "ready" ? allNeedsQ.data.items : [], data.space.assistant.agentId), [allNeedsQ]);
 
   const agents: Agent[] = agentsQ.status === "ready" ? agentsQ.data.agents : [];
   const names = useMemo(() => new Map(agents.map((a) => [a.agentId, a.name])), [agents]);
