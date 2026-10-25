@@ -45,3 +45,4 @@ test("catalogue roles: the seeded core Space defines its roles from the catalogu
   assert.ok(defined.get("member")!.includes("records.edit"));
   assert.ok(!defined.get("member")!.includes("schema.manage"));
 });
+// P-H_15: run on the final commit.
