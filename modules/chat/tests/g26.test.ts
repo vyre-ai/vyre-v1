@@ -95,7 +95,7 @@ test("in a sealed thread the server-written messages are refused with bad_input 
   const agent = hn.agent(INTAKE, DANA);
   const refusals = [
     h["chat.question.ask"]!(agent, { threadId: sealed, prompt: "Which?", mode: "free" }),
-    h["chat.plan.propose"]!(agent, { threadId: sealed, title: "Plan", steps: ["One"] }),
+    h["chat.plan.propose"]!(agent, { threadId: sealed, title: "Plan", steps: [{ text: "One" }] }),
     h["chat.helper.start"]!(agent, { threadId: sealed, title: "Side", instruction: "Look" }),
     h["chat.handoff"]!(agent, { threadId: sealed, toAgentId: "agt_drafter", note: "Over to you" }),
   ];
