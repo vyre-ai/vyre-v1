@@ -105,3 +105,11 @@ test("a repo that imports a forbidden path fails the run, and the CLI exits non-
   const cli = spawnSync(process.execPath, [join(repoRoot, "scripts/absence/run.ts")], { cwd: repoRoot, encoding: "utf8" });
   assert.equal(cli.status, 0, cli.stdout + cli.stderr);
 });
+
+test("the Chrome extension's Vault fill is allowed; a phone AutoFill provider is not", () => {
+  const rule = RULES.find((r) => r.id === "autofill")!;
+  assert.equal(rule.path.test("apps/chrome/src/content/autofill.js"), false);
+  assert.equal(rule.path.test("apps/chrome/tests/ext-core.fill.test.ts"), false);
+  assert.equal(rule.path.test("client/src/autofill.ts"), true);
+  assert.equal(rule.path.test("apps/app/ios/credential-provider/index.ts"), true);
+});

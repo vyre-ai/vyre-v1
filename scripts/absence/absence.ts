@@ -66,7 +66,8 @@ export const RULES: readonly AbsenceRule[] = [
   {
     id: "autofill",
     reason: "Phone AutoFill providers are not in v1 (owner, 24 Oct); the phone Vault reads and copies",
-    path: word("autofill", "auto-fill-provider", "credential-provider"),
+    // Phone providers only: the Chrome extension's Vault fill (apps/chrome/) is in v1 (owner, 24 Oct).
+    path: /^(?!apps\/chrome\/)(?:.*\/)?(?:autofill|auto-fill-provider|credential-provider)(?=[/.\-_]|$)/i,
     spec: specWord("autofill", "auto-fill-provider", "credential-provider") ,
   },
   {
