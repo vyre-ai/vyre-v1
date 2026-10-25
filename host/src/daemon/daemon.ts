@@ -447,20 +447,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       await projectionRunner.start();   // after the seams: the events module needs its dispatcher and host ports before the first event reaches webhooks_out
 
-      // The schema module seeds the record types the manifests declare once, as a write of its own, so no read has to (P-L3_17). Each declared type is also a resource in the access projection
-      // (type "record_type"), held by the Space owner, because capabilities on a type (schema.layout.set, views, grants) are authorized against it and a seeded type emits no event that would
-      // register it. The id is made from the type's key, so the same type is the same event after a reboot (the log refuses a duplicate id) and the fold is the same.
+      // The schema module seeds the record types the manifests declare once, as a write of its own, so no read has to (P-L3_17). Each declared type is also a resource in the access
+      // projection (type "record_type"), held by the Space owner, because capabilities on a type (schema.layout.set, views, grants) are authorized against it and a seeded type emits no event
+      // that would register it. The set comes from the manifests, so it is folded into the snapshot at every start and not written to the log: a new Space still starts with an empty log.
       const startSchema = loaded.moduleExports.get("schema")?.["startSchema"] as (() => Promise<void>) | undefined;
       if (startSchema) {
         await startSchema();
         for (const rt of registry.recordTypes) {
-          const key = rt.key;
-          const r = await spaceLog.appendResult({
-            id: `evt_res_rt_${key}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: key,
-            payload: { id: key, type: "record_type", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 },
-          });
-          if (!r.ok) throw new Error(`could not register the record type ${key}: ${r.message}`);
-          if (!r.duplicate) { access.fold(r.event); headSeq = Math.max(headSeq, r.event.seq); }
+          access.fold({ type: "resource.created", payload: { id: rt.key, type: "record_type", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 } });
         }
       }
 
