@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { bootedTests, manifestEdges, selectAffected, unitOf, unitTests, dynamicDirs } from "./ci-select.ts";
+import { dropUnaffectedPerf, bootedTests, manifestEdges, selectAffected, unitOf, unitTests, dynamicDirs } from "./ci-select.ts";
 import { shardFiles, toMatrix } from "./shard.ts";
 import { imports } from "./lib/graph.mjs";
 import { localCache, mirroredCache, splitByCache, recordResult, isNoCache, type CacheEnv, type Marker } from "./cache/pass-cache.ts";
@@ -271,5 +271,32 @@ test("a perf file lands in its own v1-perf matrix entry; every other entry runs 
   const hit = m.filter((j) => j.files.split(" ").includes(perf));
   assert.equal(hit.length, 1);
   assert.deepEqual({ files: hit[0]!.files, slow: hit[0]!.slow, runner: hit[0]!.runner }, { files: perf, slow: true, runner: "v1-perf" });
-  assert.ok(m.filter((j) => j !== hit[0]).every((j) => j.runner === "v1"));
+  assert.ok(m.filter((j) => j !== hit[0]).every((j) => j.runner === "v1"), "fast and slow entries run on the self-hosted v1 runners");
+});
+
+test("a perf file runs only when its own import closure changed, or always on main", () => {
+  const f: Record<string, string> = {
+    "kernel/log.ts": "export const l = 1;", "kernel/bench.test.ts": "import './log.ts';",
+    "ui/Row.ts": "export const r = 1;", "ui/row.test.ts": "import './Row.ts';",
+  };
+  const tr = new Set(Object.keys(f)), rd = (p: string) => f[p]!;
+  const perf = new Set(["kernel/bench.test.ts"]);
+  const all = ["kernel/bench.test.ts", "ui/row.test.ts"];
+  assert.deepEqual(dropUnaffectedPerf(all, ["ui/Row.ts"], perf, tr, rd, false), ["ui/row.test.ts"]);
+  assert.deepEqual(dropUnaffectedPerf(all, ["kernel/log.ts"], perf, tr, rd, false), all);
+  assert.deepEqual(dropUnaffectedPerf(all, ["kernel/bench.test.ts"], perf, tr, rd, false), all);
+  assert.deepEqual(dropUnaffectedPerf(all, ["ui/Row.ts"], perf, tr, rd, true), all);
+});
+
+test("--perf-only lists every perf file as a v1-perf job, --no-perf lists none (ruling 55)", () => {
+  const run = (flag: string) => {
+    const r = spawnSync("node", [path.join(path.dirname(new URL(import.meta.url).pathname), "ci-select.ts"), "", "--matrix", flag], { encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    return JSON.parse(r.stdout).matrix.include as { files: string; runner: string }[];
+  };
+  const only = run("--perf-only");
+  assert.ok(only.length > 0 && only.every((m) => m.runner === "v1-perf"));
+  const none = run("--no-perf");
+  const perfFiles = new Set(only.map((m) => m.files));
+  assert.ok(none.every((m) => m.files.split(" ").every((f) => !perfFiles.has(f))));
 });
