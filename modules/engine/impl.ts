@@ -9,8 +9,31 @@ import { handlers as table } from "./handlers/index.ts";
 import { bindEngine, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
 import type { Db } from "./projections.ts";
 import type { Handler } from "../../host/src/invoke.ts";
+import { bridgeConsumers } from "./handlers/bridge.ts";
+import { ensureRuntime, setEngineHost, wakeAfterUnblock } from "./runtime.ts";
+import type { EngineCtx } from "./projections.ts";
 
-export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
+// Every engine capability first makes sure the runtime exists on a daemon that wired the engine seam (the first call builds it; a daemon without the seam leaves it unbound).
+export const handlers: Record<string, Handler> = Object.fromEntries(
+  Object.entries(table as unknown as Record<string, Handler>).map(([name, fn]) => [name, (async (ctx, input) => { await ensureRuntime(ctx as never); return fn(ctx, input); }) as Handler]),
+);
+
+/** The host half arrives here at boot (ruling 31 and 32): the runtime opens real sessions through it. */
+export const hostSeams = { setEngineHost };
+
+/** The runtime is built at boot, not at the first message, and recovers threads a dead host left mid-turn. */
+export const periodic = {
+  "engine.runtime": { everyMs: 5_000, run: async (ctx: EngineCtx): Promise<void> => { await ensureRuntime(ctx); } },
+};
+
+/** A task reached Done: if it was the Unblock for a turn with no account, wake that agent in that thread. */
+export const consumers = {
+  ...bridgeConsumers,
+  "engine.unblock": {
+    on: ["task.completed"],
+    run: async (ctx: EngineCtx, event: { payload: { taskId: string } }): Promise<string[]> => ((await wakeAfterUnblock(ctx, event.payload.taskId)) ? [event.payload.taskId] : []),
+  },
+};
 
 export interface RuntimeOptions extends Omit<EngineOptions, "queue" | "leases" | "messages" | "waits" | "newId"> {
   db: Db;
