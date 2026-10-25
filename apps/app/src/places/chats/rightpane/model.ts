@@ -11,6 +11,49 @@ export const TABS: readonly { key: TabKey; title: string }[] = [
   { key: "routines", title: "Routines" },
 ];
 export const DEFAULT_TAB: TabKey = "computer";
+
+/* ---------- the tab strip at a narrow width ---------- */
+
+/** The key of the strip's last tab when some are folded away: it opens a menu of the rest. */
+export const MORE_KEY = "more";
+/** The width the pane has before it is measured (ui/SidePane's default). */
+export const PANE_WIDTH_GUESS = 340;
+/** Everything in the pane header that is not a tab: the toggle, the strip's padding and its options button. */
+export const HEADER_CHROME = 80;
+const GLYPH_W = 6.8;
+const TAB_CHROME = 20;
+/** The room one tab takes in the shared strip (12.5 px type, 10 + 6 padding, 2 gap). */
+export function tabWidth(title: string): number {
+  return Math.ceil(title.length * GLYPH_W + TAB_CHROME);
+}
+
+export interface FittedTabs<T extends { key: string; title: string }> {
+  shown: T[];
+  hidden: T[];
+}
+
+/**
+ * Which tabs the strip draws at `width` (the pane's own width). When all fit, all are shown. Otherwise the open tab is always shown, as many others as fit
+ * follow in their own order, and the rest go behind a More tab. Nothing is ever clipped.
+ */
+export function fitTabs<T extends { key: string; title: string }>(tabs: readonly T[], active: string, width: number): FittedTabs<T> {
+  const room = width - HEADER_CHROME;
+  let total = 0;
+  for (const t of tabs) total += tabWidth(t.title);
+  if (total <= room) return { shown: tabs.slice(), hidden: [] };
+  let left = room - tabWidth("More") - 2;
+  const keep = new Set<string>();
+  const open = tabs.find((t) => t.key === active);
+  if (open) { keep.add(open.key); left -= tabWidth(open.title); }
+  for (const t of tabs) {
+    if (keep.has(t.key)) continue;
+    const w = tabWidth(t.title);
+    if (w > left) break;
+    keep.add(t.key);
+    left -= w;
+  }
+  return { shown: tabs.filter((t) => keep.has(t.key)), hidden: tabs.filter((t) => !keep.has(t.key)) };
+}
 export const PANE_KEY = "chats-right-pane";
 
 export function isTabKey(v: string): v is TabKey {

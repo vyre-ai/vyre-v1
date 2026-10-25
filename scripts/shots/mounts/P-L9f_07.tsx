@@ -1,5 +1,5 @@
 // Mount for P-L9f_07: the join pages against the prototype's Join place. ?view=<state>&space=northwind|harbor picks the state,
-// named as the prototype's hash tokens are: accept, s1, s2, s3, rec, ai, setup, done, expired, signin, totp, checklist.
+// named as the prototype's hash tokens are: accept, s1, s2, s3, rec, ai, setup (frozen part way), setuprun (runs on its own to You're all set), done, expired, signin, totp, checklist.
 import type { ReactNode } from "react";
 import { Checklist } from "../../../apps/app/src/join/Checklist.tsx";
 import { JoinFlow } from "../../../apps/app/src/join/JoinFlow.tsx";
@@ -32,6 +32,7 @@ function stateFor(view: string, invite: JoinInvite): Partial<FlowState> {
     case "s3": return { stage: "steps", step: 2, ...filled };
     case "rec": return { stage: "steps", step: 2, ...filled, rec: "new", sheet: true, code: CODE };
     case "ai": return { stage: "steps", step: 3, ...filled };
+    case "setuprun": return { stage: "run", step: 3, run: 0, ...filled };
     case "setup": return { stage: "run", step: 3, run: 2, ...filled };
     case "done": return { stage: "done", step: 3, ...filled };
     case "signin": return { stage: "signin", si: "pw" };
@@ -47,7 +48,7 @@ export default function Mount(): ReactNode {
   if (view === "checklist") {
     return (
       <Checklist
-        space={invite.space} visible assistantLocked={false}
+        space={invite.space} visible assistantLocked heading={`Good morning, ${invite.names?.first ?? ""}`} dateLine="Friday, October 24"
         items={[
           { key: "photo_and_title", title: "Add a photo and title", done: false },
           { key: "connect_mailbox_and_calendar", title: "Connect your mailbox and calendar", done: false },
@@ -58,5 +59,5 @@ export default function Mount(): ReactNode {
       />
     );
   }
-  return <JoinFlow invite={invite} expired={view === "expired"} initial={stateFor(view, invite)} isTaken={(u) => TAKEN.includes(u)} hold />;
+  return <JoinFlow invite={invite} expired={view === "expired"} initial={stateFor(view, invite)} isTaken={(u) => TAKEN.includes(u)} hold={view !== "setuprun"} />;
 }

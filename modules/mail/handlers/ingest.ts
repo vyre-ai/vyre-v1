@@ -170,7 +170,7 @@ export async function ingest(ctx: MailCtx, input: IngestIn): Promise<IngestOut> 
       parsed.source, parsed.providerId, known,
     );
     addInbox(ctx, known, mailboxId);
-    noteOwnerRead(ctx, box, parsed);
+    notePull(ctx, box, parsed);
     const link = await settleLink(ctx, known, parsed, box);
     return result(known, true, link);
   }
@@ -180,7 +180,7 @@ export async function ingest(ctx: MailCtx, input: IngestIn): Promise<IngestOut> 
   insertMessage(ctx, messageId, parsed, box, reply);
   ctx.db.run(`INSERT INTO mail_seen (source, "providerId", "messageId") VALUES (?, ?, ?)`, parsed.source, parsed.providerId, messageId);
   ctx.db.run(`INSERT INTO mail_rfc ("rfcMessageId", "messageId") VALUES (?, ?)`, parsed.rfc, messageId);
-  noteOwnerRead(ctx, box, parsed);
+  notePull(ctx, box, parsed);
   const link = await settleLink(ctx, messageId, parsed, box, reply.campaignId);
   if (parsed.direction === "in") {
     const payload: { messageId: string; mailboxId: string; from: string; subject: string; contactId?: string; campaignId?: string } = {
@@ -327,10 +327,17 @@ function addInbox(ctx: MailCtx, messageId: string, mailboxId: string): void {
   ctx.db.run(`UPDATE mail_message SET "inboxIds" = ?, updated_at = ? WHERE id = ?`, JSON.stringify(ids), ctx.now(), messageId);
 }
 
-/** A pull from a person's own mailbox is a read of that person's mail: one log row, keyed by the owner. */
-function noteOwnerRead(ctx: MailCtx, box: Row, p: Parsed): void {
+/**
+ * A pull from a person's own mailbox is a read of that person's mail: one log row, keyed by the owner. A message that arrives by a pull
+ * also proves the connection works, so a Pending (or errored) mailbox starts syncing and its last sync time moves. A paused mailbox stays paused.
+ */
+function notePull(ctx: MailCtx, box: Row, p: Parsed): void {
+  if (!PULL_SOURCES.has(p.source)) return;
   const owner = strOrNull(box, "ownerId");
-  if (owner && PULL_SOURCES.has(p.source)) logRead(ctx, str(box, "id"), owner, "ingest");
+  if (owner) logRead(ctx, str(box, "id"), owner, "ingest");
+  const state = str(box, "state");
+  if (num(box, "paused") === 1 || (state !== "pending" && state !== "error" && state !== "syncing")) return;
+  ctx.db.run(`UPDATE mail_mailbox SET state = ?, "lastSyncAt" = ?, updated_at = ? WHERE id = ?`, "syncing", ctx.now(), ctx.now(), str(box, "id"));
 }
 
 interface Link {
