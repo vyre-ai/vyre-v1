@@ -6,6 +6,8 @@ import { readFileSync } from "node:fs";
 import { openRecordStore } from "../../kernel/src/store/records.ts";
 import type { ProjectionHost, Tx } from "../../kernel/src/store/projection.ts";
 import type { Store } from "../../kernel/src/store/types.ts";
+import type { SeamSetters } from "../../host/src/seams/index.ts";
+import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
 import { createSourcesHandlers } from "./handlers/index.ts";
 import type { SourcesHandlers } from "./handlers/index.ts";
 import { ensureTables } from "./projections.ts";
@@ -40,7 +42,17 @@ export function openSources(o: Partial<Omit<SourcesDeps, "tx">> & { tx?: Tx; pat
 
 type HostCtx = { trace: { traceId: string }; emit(name: string, subject: string, payload: Record<string, unknown>): unknown; call(cap: string, input: unknown): Promise<unknown>; principal?: { id: string } };
 let shared: SourcesHandle | null = null;
-const live = (): SourcesHandle => (shared ??= openSources());
+let spaceSeam: SpaceStoreSeam | null = null;
+/** The host hands the Space store (P-H_08, ruling 31). */
+export function setSourcesSpaceStore(seam: SpaceStoreSeam | null): void { spaceSeam = seam; shared = null; }
+let resolver: ((name: string) => Promise<string | undefined>) | null = null;
+const live = (): SourcesHandle => {
+  if (!shared) {
+    shared = openSources(spaceSeam ? { tx: spaceSeam.open().tx } : {});
+    if (resolver) shared.deps.secret = resolver;
+  }
+  return shared;
+};
 
 function adapt(name: keyof SourcesHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {
@@ -61,7 +73,8 @@ export const SYNC_RUN_KIND = "connector_sync";
 
 /** The Vault resolves a webhook signing secret by item name, for one delivery only (deps.secret). */
 export function setSourcesSecretResolver(fn: ((name: string) => Promise<string | undefined>) | null): void {
-  if (fn) live().deps.secret = fn; else delete live().deps.secret;
+  resolver = fn;
+  if (shared) { if (fn) shared.deps.secret = fn; else delete shared.deps.secret; }
 }
 /** Where the host hands its half at boot (ruling 31): the loader reads this export and the daemon calls each setter with the driver of the same name. */
-export const hostSeams = { setSourcesSecretResolver };
+export const hostSeams: SeamSetters = { setSourcesSecretResolver, setSourcesSpaceStore };
