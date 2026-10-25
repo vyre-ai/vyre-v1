@@ -3,7 +3,7 @@
 // No passkey row: passkeys are not in v1.
 import { Text, TextInput, View } from "react-native";
 import type { Dispatch } from "react";
-import { ActionRow, AppIcon, Bar, Button, Caption, ErrorLine, FieldRow, Foot, Group, Panel, Row, Step, Title, baseText, useJoin } from "./kit.tsx";
+import { AppIcon, Bar, Button, Caption, ErrorLine, FieldRow, Foot, Group, Panel, Row, Step, Title, baseText, useJoin } from "./kit.tsx";
 import { cleanUsername, signInValid } from "./logic.ts";
 import type { Action, FlowState, JoinInvite } from "./logic.ts";
 
@@ -71,8 +71,8 @@ export function SignIn({ invite, state, dispatch, busy, onSubmit, onSso, onGithu
             <>
               <Caption>Or continue with</Caption>
               <Group top={0} testID="sign-in-options">
-                {invite.sso.map((n) => <ActionRow key={n} testID={`sso-${n.toLowerCase()}`} label={n} note="OpenID Connect" onPress={() => onSso?.(n)} />)}
-                {invite.github ? <ActionRow testID="github" label="GitHub" note="Linked account" onPress={onGithub} /> : null}
+                {invite.sso.map((n) => <Row kind="action" key={n} testID={`sso-${n.toLowerCase()}`} label={n} note="OpenID Connect" onPress={() => onSso?.(n)} />)}
+                {invite.github ? <Row kind="action" testID="github" label="GitHub" note="Linked account" onPress={onGithub} /> : null}
               </Group>
             </>
           ) : null}

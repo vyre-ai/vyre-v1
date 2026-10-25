@@ -4,10 +4,10 @@
 // The page is presentational: the stage machine lives in logic.ts and JoinFlow.tsx owns the timers and the calls.
 import { createElement } from "react";
 import { Platform, Pressable, Text, TextInput, View } from "react-native";
-import type { Dispatch } from "react";
+import type { Dispatch, ReactNode } from "react";
 import { ConnectAI } from "./ConnectAI.tsx";
 import {
-  ActionRow, AppIcon, Bar, Button, Caption, Check, ErrorLine, FieldRow, Foot, Group, LetterTile, Meter, Panel, Progress, Row, Sheet, Step, Switch, TextButton, Title, CheckBox,
+  AppIcon, Bar, Button, Caption, Check, ErrorLine, FieldRow, Foot, Group, LetterTile, Meter, Panel, Progress, Row, Sheet, Step, Switch, TextButton, Title, CheckBox,
   baseText, useJoin,
 } from "./kit.tsx";
 import { MONO } from "./palette.ts";
@@ -41,9 +41,9 @@ function Landing({ invite, onOpenApp, onDownload, dispatch, state }: Pick<Accept
       <AppIcon kind="space" letter={invite.space} />
       <Title title={`Join ${invite.space}`} sub={`${invite.by} invited you to join as a ${invite.role}.`} />
       <Group>
-        <ActionRow testID="open-app" label="Open in Vyre" note="Installed" onPress={() => { onOpenApp?.(); dispatch({ t: "web" }); }} />
-        <ActionRow testID="download" label="Download Vyre" note={state.note === "dl" ? "Downloading…" : "Mac, Windows, Linux"} onPress={() => { onDownload?.(); dispatch({ t: "set", patch: { note: "dl" } }); }} />
-        <ActionRow testID="web" label="Continue in the browser" onPress={() => dispatch({ t: "web" })} />
+        <Row kind="action" testID="open-app" label="Open in Vyre" note="Installed" onPress={() => { onOpenApp?.(); dispatch({ t: "web" }); }} />
+        <Row kind="action" testID="download" label="Download Vyre" note={state.note === "dl" ? "Downloading…" : "Mac, Windows, Linux"} onPress={() => { onDownload?.(); dispatch({ t: "set", patch: { note: "dl" } }); }} />
+        <Row kind="action" testID="web" label="Continue in the browser" onPress={() => dispatch({ t: "web" })} />
       </Group>
       <Foot>The app keeps your files on this computer. The browser works anywhere, with less offline.</Foot>
       <Text style={[baseText(p), { fontSize: 13, lineHeight: 18, color: p.tx2, textAlign: "center", marginTop: 20, marginHorizontal: 16 }]}>
@@ -118,16 +118,14 @@ function Welcome({ invite, state, dispatch, onPickPhoto, rules }: Pick<AcceptInv
 
 function Starting({ label, names, agents, divider }: { label: string; names: string[]; agents?: boolean; divider?: boolean }) {
   const { p } = useJoin();
+  const stack: ReactNode[] = [];
+  for (const [i, n] of names.slice(0, 4).entries()) {
+    stack.push(<View key={n} style={{ marginLeft: i === 0 ? 0 : -4 }}>{agents ? <LetterTile name={n} size={24} /> : <FolderTile />}</View>);
+  }
   return (
     <Row label={label} small divider={divider} testID={`starting-${label.toLowerCase()}`}>
       <Text numberOfLines={1} style={[baseText(p), { flex: 1, minWidth: 0, fontSize: 13, color: p.tx2 }]}>{names.join(", ")}</Text>
-      <View style={{ flexDirection: "row", paddingLeft: 8 }}>
-        {names.slice(0, 4).map((n, i) => (
-          <View key={n} style={{ marginLeft: i === 0 ? 0 : -4 }}>
-            {agents ? <LetterTile name={n} size={24} /> : <FolderTile />}
-          </View>
-        ))}
-      </View>
+      <View style={{ flexDirection: "row", paddingLeft: 8 }}>{stack}</View>
     </Row>
   );
 }
@@ -164,6 +162,8 @@ function SignInStep({ invite, state, dispatch, rules }: Pick<AcceptInviteProps, 
   const taken = !!u && rules.isTaken(u);
   const mism = !!state.pw2 && state.pw2 !== state.pw;
   const sugg = taken ? suggestions(state.first, state.last, u, (x) => !rules.isTaken(x)) : [];
+  const tries: ReactNode[] = [];
+  for (const x of sugg) tries.push(<TextButton key={x} small label={x} testID={`suggest-${x}`} onPress={() => set({ user: x })} />);
   return (
     <Step id="signin-details" dir={state.dir}>
       <AppIcon kind="person" />
@@ -177,7 +177,7 @@ function SignInStep({ invite, state, dispatch, rules }: Pick<AcceptInviteProps, 
       {sugg.length ? (
         <View testID="suggestions" style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 8, marginHorizontal: 16, alignItems: "center" }}>
           <Text style={[baseText(p), { fontSize: 13, color: p.tx2 }]}>Try</Text>
-          {sugg.map((x) => <TextButton key={x} small label={x} testID={`suggest-${x}`} onPress={() => set({ user: x })} />)}
+          {tries}
         </View>
       ) : null}
       <Meter level={meter(strength(state.pw))} />

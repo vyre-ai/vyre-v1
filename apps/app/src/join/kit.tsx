@@ -120,7 +120,7 @@ export function Button({ label, onPress, disabled, large, testID }: { label: str
   const { p } = useJoin();
   return (
     <Pressable
-      accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={onPress} testID={testID}
+      accessibilityRole="button" aria-disabled={!!disabled} disabled={disabled} onPress={onPress} testID={testID}
       style={({ hovered, pressed }: { hovered?: boolean; pressed?: boolean }) => ({
         height: large ? 36 : 32, paddingHorizontal: large ? 22 : 18, borderRadius: 8, backgroundColor: p.blue, justifyContent: "center", opacity: disabled ? 0.4 : pressed ? 0.92 : hovered ? 0.94 : 1,
       })}
@@ -189,7 +189,12 @@ export function LetterTile({ name, size = 24 }: { name: string; size?: number })
 
 export function Group({ children, top, testID }: { children: ReactNode; top?: number; testID?: string }) {
   const { p } = useJoin();
-  const kids = Children.toArray(children).map((c, i) => (isValidElement(c) ? cloneElement(c as ReactElement<{ divider?: boolean }>, { divider: i > 0 }) : c));
+  const kids: ReactNode[] = [];
+  let i = 0;
+  for (const c of Children.toArray(children)) {
+    kids.push(isValidElement(c) ? cloneElement(c as ReactElement<{ divider?: boolean }>, { divider: i > 0 }) : c);
+    i++;
+  }
   return <View testID={testID} style={{ backgroundColor: p.grp, borderRadius: 10, marginTop: top ?? 24 }}>{kids}</View>;
 }
 
@@ -200,7 +205,7 @@ function Hairline() {
 
 interface RowProps { divider?: boolean; children?: ReactNode; testID?: string }
 
-export function Row({ label, children, divider, testID, labelWidth = 112, small }: RowProps & { label?: string; labelWidth?: number; small?: boolean }) {
+function FormRow({ label, children, divider, testID, labelWidth = 112, small }: RowProps & { label?: string; labelWidth?: number; small?: boolean }) {
   const { p } = useJoin();
   return (
     <View testID={testID} style={{ flexDirection: "row", alignItems: "center", gap: 12, height: 44, paddingHorizontal: 16 }}>
@@ -218,21 +223,20 @@ export function FieldRow({
 }) {
   const { p } = useJoin();
   return (
-    <Row label={label} divider={divider}>
+    <FormRow label={label} divider={divider}>
       <TextInput
         testID={testID} accessibilityLabel={label} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={p.tx2}
         secureTextEntry={secure} autoCapitalize="none" autoCorrect={false} spellCheck={false} maxLength={maxLength} inputMode={keyboard}
         {...(autoComplete ? ({ autoComplete } as object) : {})} onSubmitEditing={onSubmit}
         style={[base(p), noOutline, { flex: 1, minWidth: 0, height: "100%" as unknown as number, textAlign: "right", color: p.tx, padding: 0 }, mono ? { fontFamily: MONO } : null, spaced ? { letterSpacing: 3 } : null]}
       />
-    </Row>
+    </FormRow>
   );
 }
 
 /** A row that is a button: label on the left, an optional quiet note and a chevron. */
-export function ActionRow({ label, note, onPress, divider, testID, last, first }: RowProps & { label: string; note?: string; onPress?: () => void; last?: boolean; first?: boolean }) {
+function ActionView({ label, note, onPress, divider, testID }: RowProps & { label: string; note?: string; onPress?: () => void }) {
   const { p } = useJoin();
-  void last; void first;
   return (
     <Pressable
       accessibilityRole="button" onPress={onPress} testID={testID}
@@ -247,11 +251,11 @@ export function ActionRow({ label, note, onPress, divider, testID, last, first }
 }
 
 /** A radio row: a title, a line of help and a round mark. */
-export function OptionRow({ title, help, checked, onPress, divider, testID }: RowProps & { title: string; help: string; checked: boolean; onPress: () => void }) {
+function OptionView({ title, help, checked, onPress, divider, testID }: RowProps & { title: string; help: string; checked: boolean; onPress: () => void }) {
   const { p } = useJoin();
   return (
     <Pressable
-      accessibilityRole="radio" accessibilityState={{ checked }} onPress={onPress} testID={testID}
+      accessibilityRole="radio" aria-checked={checked} onPress={onPress} testID={testID}
       style={{ flexDirection: "row", alignItems: "flex-start", gap: 12, minHeight: 56, paddingHorizontal: 16, paddingVertical: 10 }}
     >
       {divider ? <Hairline /> : null}
@@ -271,19 +275,56 @@ export function OptionRow({ title, help, checked, onPress, divider, testID }: Ro
 export function Switch({ on, onChange, label, testID }: { on: boolean; onChange: (v: boolean) => void; label: string; testID?: string }) {
   const { p } = useJoin();
   return (
-    <Pressable accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: on }} onPress={() => onChange(!on)} testID={testID} style={{ width: 51, height: 31, borderRadius: 16, backgroundColor: on ? p.green : p.sw }}>
+    <Pressable accessibilityRole="switch" accessibilityLabel={label} aria-checked={on} onPress={() => onChange(!on)} testID={testID} style={{ width: 51, height: 31, borderRadius: 16, backgroundColor: on ? p.green : p.sw }}>
       <View style={{ position: "absolute", top: 2, left: on ? 22 : 2, width: 27, height: 27, borderRadius: 14, backgroundColor: "#fff", ...shadow("0 3px 8px rgba(0,0,0,.15), 0 1px 1px rgba(0,0,0,.16), 0 3px 1px rgba(0,0,0,.1)") }} />
     </Pressable>
   );
+}
+
+
+/** A checklist row: a round mark, a title with a line under it, and one quiet action. */
+function CheckView({ title, sub, done, aside, action, divider, testID }: RowProps & { title: string; sub: string; done: boolean; aside?: string; action?: { label: string; onPress?: () => void; testID?: string } }) {
+  const { p } = useJoin();
+  return (
+    <View testID={testID} accessibilityRole={"listitem" as never} style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56, paddingHorizontal: 16, paddingVertical: 10 }}>
+      {divider ? <Hairline /> : null}
+      <View accessibilityLabel={done ? "Done" : "Not done"} style={[{ width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: p.tx2 }, done ? { backgroundColor: p.blue, borderColor: p.blue } : null]}>
+        {done ? <Check size={12} color="#fff" /> : null}
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[base(p), { fontWeight: "500" }]}>{title}</Text>
+        <Text style={[base(p), { fontSize: 13, lineHeight: 18, color: p.tx2 }]}>{sub}</Text>
+      </View>
+      {aside ? <Text style={[base(p), { fontSize: 13, color: p.tx2 }]}>{aside}</Text> : null}
+      {action ? <TextButton testID={action.testID} label={action.label} onPress={action.onPress} /> : null}
+    </View>
+  );
+}
+
+/** The one row of the join pattern. A form row has a label and content; the other kinds are a button row, a radio row and a checklist row. */
+export type RowProps2 =
+  | { kind?: "form"; label?: string; labelWidth?: number; small?: boolean; children?: ReactNode }
+  | { kind: "action"; label: string; note?: string; onPress?: () => void }
+  | { kind: "option"; title: string; help: string; checked: boolean; onPress: () => void }
+  | { kind: "check"; title: string; sub: string; done: boolean; aside?: string; action?: { label: string; onPress?: () => void; testID?: string } };
+export function Row(props: { divider?: boolean; testID?: string } & RowProps2) {
+  switch (props.kind) {
+    case "action": return <ActionView label={props.label} note={props.note} onPress={props.onPress} divider={props.divider} testID={props.testID} />;
+    case "option": return <OptionView title={props.title} help={props.help} checked={props.checked} onPress={props.onPress} divider={props.divider} testID={props.testID} />;
+    case "check": return <CheckView title={props.title} sub={props.sub} done={props.done} aside={props.aside} action={props.action} divider={props.divider} testID={props.testID} />;
+    default: return <FormRow label={props.label} labelWidth={props.labelWidth} small={props.small} divider={props.divider} testID={props.testID}>{props.children}</FormRow>;
+  }
 }
 
 /** A three-segment strength meter. */
 export function Meter({ level }: { level: 0 | 1 | 2 | 3 }) {
   const { p } = useJoin();
   const on = [p.red, p.warn, p.green][level - 1];
+  const segments: ReactNode[] = [];
+  for (let i = 1; i <= 3; i++) segments.push(<View key={i} style={{ flex: 1, height: 3, borderRadius: 3, backgroundColor: on && i <= level ? on : p.hair }} />);
   return (
     <View testID="strength" accessibilityLabel={`Password strength ${level} of 3`} style={{ flexDirection: "row", gap: 4, marginTop: 14, marginHorizontal: 16 }}>
-      {[1, 2, 3].map((i) => <View key={i} style={{ flex: 1, height: 3, borderRadius: 3, backgroundColor: on && i <= level ? on : p.hair }} />)}
+      {segments}
     </View>
   );
 }
@@ -291,7 +332,7 @@ export function Meter({ level }: { level: 0 | 1 | 2 | 3 }) {
 export function Progress({ pct }: { pct: number }) {
   const { p } = useJoin();
   return (
-    <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(pct) }} testID="progress" style={{ height: 4, borderRadius: 4, backgroundColor: p.hair, marginTop: 28, marginHorizontal: 24, overflow: "hidden" }}>
+    <View accessibilityRole="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)} testID="progress" style={{ height: 4, borderRadius: 4, backgroundColor: p.hair, marginTop: 28, marginHorizontal: 24, overflow: "hidden" }}>
       <View style={{ height: 4, width: `${Math.max(0, Math.min(100, pct))}%`, backgroundColor: p.blue, borderRadius: 4 }} />
     </View>
   );
@@ -314,7 +355,7 @@ export function Bar({ onBack, hideBack, step, steps, cont, testID }: { onBack?: 
         )}
       </View>
       {steps ? (
-        <View accessibilityRole="progressbar" accessibilityLabel={`Step ${Math.min(steps, (step ?? 0) + 1)} of ${steps}`} accessibilityValue={{ min: 1, max: steps, now: Math.min(steps, (step ?? 0) + 1) }} testID="dots" style={{ flexDirection: "row", gap: 7 }}>
+        <View accessibilityRole="progressbar" accessibilityLabel={`Step ${Math.min(steps, (step ?? 0) + 1)} of ${steps}`} aria-valuemin={1} aria-valuemax={steps} aria-valuenow={Math.min(steps, (step ?? 0) + 1)} testID="dots" style={{ flexDirection: "row", gap: 7 }}>
           {Array.from({ length: steps }, (_, i) => <View key={i} style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: i === step ? p.tx : i < (step ?? 0) ? p.tx2 : p.hair }} />)}
         </View>
       ) : <View />}
@@ -340,7 +381,7 @@ export function Sheet({ children, label, onDismiss }: { children: ReactNode; lab
 export function CheckBox({ checked, onChange, label, testID }: { checked: boolean; onChange: (v: boolean) => void; label: string; testID?: string }) {
   const { p } = useJoin();
   return (
-    <Pressable accessibilityRole="checkbox" accessibilityState={{ checked }} onPress={() => onChange(!checked)} testID={testID} style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 18 }}>
+    <Pressable accessibilityRole="checkbox" aria-checked={checked} onPress={() => onChange(!checked)} testID={testID} style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 18 }}>
       <View style={[{ width: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: p.tx2 }, checked ? { backgroundColor: p.blue, borderColor: p.blue } : null]}>
         {checked ? <Check size={11} color="#fff" /> : null}
       </View>
