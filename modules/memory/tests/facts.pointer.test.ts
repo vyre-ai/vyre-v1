@@ -99,9 +99,3 @@ test("the lookup is fast on a big memory", async () => {
   assert.ok(sorted[0]! < 50, `fastest ${sorted[0]} ms`);
   assert.ok(sorted[4]! < 400, `median ${sorted[4]} ms`);
 });
-    times.push(performance.now() - t0);
-    assert.equal(out.lines[0]?.fact, "Quasar contract renews in November under Fiona");
-  }
-  assert.ok(Math.max(...times) < 200, `slowest ${Math.max(...times)} ms`);
-  assert.ok([...times].sort((a, b) => a - b)[2]! < 50, `median ${[...times].sort((a, b) => a - b)[2]} ms`);
-});
