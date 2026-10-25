@@ -233,6 +233,15 @@ jobs:
           node --test --test-force-exit --test-timeout=600000 --test-reporter=spec modules/computers/tests/lifecycle.heavy.test.ts modules/computers/tests/tools.heavy.test.ts 2>&1 | tee computers-heavy.out
           grep -E "^ℹ skipped 0$" computers-heavy.out
           grep -E "^ℹ pass 2$" computers-heavy.out
+      - name: Agent computer S9 on real Docker, none skipped (sandbox/computer/stream.heavy.test.ts)
+        if: always() && steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+        run: |
+          set -o pipefail
+          node --test --test-force-exit --test-timeout=1500000 --test-reporter=spec sandbox/computer/stream.heavy.test.ts 2>&1 | tee s9-heavy.out
+          grep -E "^ℹ skipped 0$" s9-heavy.out
+          grep -E "METRIC s9" s9-heavy.out
   chrome-real:
     # P-L10_06b: the Chrome extension's agent tools against a real Chromium page. VYRE_REQUIRE_CHROME=1 turns a missing Chromium into a failure (a skip is not a pass), so a green job means the
     # three real-page tests ran. Chromium comes from playwright-core the way scripts/shots does (cached by playwright after the first run); CHROME_BIN points the test at it. Gates `check`.
