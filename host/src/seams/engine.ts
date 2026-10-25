@@ -24,6 +24,8 @@ export interface EngineHostSeam {
   now?: () => number;
   /** The session opener's ports, built by createEngineSessionHost when the daemon has the Vault; the module turns them into `openSession`. */
   session?: EngineSessionPorts;
+  /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan, structural here). Absent: a CLI turn fails with sandbox.unavailable and never runs unwrapped. */
+  sandbox?: unknown;
 }
 
 export interface EngineHostDeps {
@@ -33,6 +35,8 @@ export interface EngineHostDeps {
   now?: () => number;
   /** Without the Vault there is no key to fill, so no real session opener: the engine stays unbound. */
   vault?: VaultPort;
+  /** Handed to the module as is; the host does not look inside it. */
+  sandbox?: unknown;
 }
 
 const SYSTEM = { kind: "service", id: "svc_host" } as const;
@@ -50,5 +54,5 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
   const call: EngineInvoke = (cap, input, as) => run(cap, input, as ? { kind: "person", id: as } : { ...SYSTEM });
   const postAs: EngineHostSeam["postAs"] = (agentId, post) => run("chat.post", post, { kind: "agent", id: agentId });
   const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space }) : undefined;
-  return { holder: `host:${d.space}`, call, postAs, ...(d.now ? { now: d.now } : {}), ...(session ? { session } : {}) };
+  return { holder: `host:${d.space}`, call, postAs, ...(d.now ? { now: d.now } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}) };
 }
