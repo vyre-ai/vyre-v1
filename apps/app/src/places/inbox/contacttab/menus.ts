@@ -1,0 +1,14 @@
+// The contact tab's menus, as data, so a test can read them without a click.
+import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
+import type { InboxChoice } from "./model.ts";
+
+/** Header actions: the pure part, so the menus can be tested without a click. */
+export function followMenuEntries(followed: boolean, alertOnReplies: boolean, on: { follow(follow: boolean): void; alert(alert: boolean): void }): MenuEntry[] {
+  const entries: MenuEntry[] = [{ label: followed ? "Unfollow" : "Follow", onSelect: () => on.follow(!followed) }];
+  if (followed) entries.push({ label: "Alert me on replies", checked: alertOnReplies, onSelect: () => on.alert(!alertOnReplies) });
+  return entries;
+}
+
+export function fromMenuEntries(choices: readonly InboxChoice[], current: string | null, cameIn: readonly string[], pick: (id: string) => void): MenuEntry[] {
+  return [{ head: "Send from" }, ...choices.map((c) => ({ label: cameIn.includes(c.id) ? `${c.label} (this thread)` : c.label, checked: c.id === current, onSelect: () => pick(c.id) }))];
+}

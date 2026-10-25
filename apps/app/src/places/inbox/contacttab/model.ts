@@ -344,3 +344,11 @@ export const firstName = (name: string): string => name.trim().split(/\s+/)[0] ?
 export function fill(body: string, conv: Conversation): string {
   return body.replaceAll("{first}", firstName(conv.displayName));
 }
+
+/** The / menu of the composer: templates (with the contact's first name filled in) and snippets. */
+export function cannedLists(conv: Conversation): { templates: { t: string; body: string; kind: string }[]; snippets: { t: string; body: string; kind: string }[] } {
+  return {
+    templates: TEMPLATES.map((t) => ({ t: t.name, body: fill(t.body, conv), kind: "Template" })),
+    snippets: SNIPPETS.map((t) => ({ t: t.name, body: t.body, kind: "Snippet" })),
+  };
+}

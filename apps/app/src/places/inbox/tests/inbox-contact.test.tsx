@@ -45,7 +45,7 @@ test("screen: the history reads oldest to newest with day separators, newest at 
   assert.ok(has(out, 'data-testid="contact-tab"') && has(out, "Elena Rivera"));
   const order = ["email:m_intake", "step:s_welcome", "email:m_reply", "call:c_elena", "texts:t1", "texts:t3", "email:m_lease"].map((k) => at(out, `data-testid="${k}"`));
   assert.deepEqual(order, [...order].sort((a, b) => a - b), "items run oldest to newest");
-  for (const day of ["Tue 21 Oct", "Wed 22 Oct", "Thu 23 Oct", "Today"]) assert.ok(has(out, day), `day separator ${day}`);
+  for (const day of ["Tue 21 Oct", "Wed 22 Oct", "Yesterday", "Today"]) assert.ok(has(out, day), `day separator ${day}`);
   assert.ok(!has(out, String.fromCharCode(0x2014)), "no em dash in any copy");
 });
 
@@ -111,12 +111,12 @@ test("screen: an agent's draft shows who drafted it, the inbox it sends from, th
 
 test("screen: the composer opens on the channel of the last message and the inbox the thread came in on", () => {
   const e = tab("elena").out;
-  assert.ok(has(e, 'data-testid="chan-email"') && has(e, 'aria-selected="true"') && has(e, 'data-testid="contact-recipients"') && has(e, 'data-testid="contact-subject"'));
+  assert.ok(has(e, 'data-testid="chan-email"') && has(e, 'aria-selected="true"') && has(e, 'data-testid="composer-recipients"') && has(e, 'data-testid="contact-subject"'));
   assert.ok(has(e, "Re: Lease documents for Thursday") && has(e, "Sends from Work Gmail to elena@example.test"));
   const fromE = at(e, 'data-testid="from-name"');
   assert.ok(e.slice(fromE, fromE + 80).includes("Work Gmail"), "From names the inbox it came in on");
   const m = tab("marcus").out;
-  assert.ok(has(m, "Sends from +1 415 555 0177 to +1 415 555 0188") && !has(m, 'data-testid="contact-recipients"'), "a text has no recipients block and goes from the number it came in on");
+  assert.ok(has(m, "Sends from +1 415 555 0177 to +1 415 555 0188") && !has(m, 'data-testid="composer-recipients"'), "a text has no recipients block and goes from the number it came in on");
   assert.ok(has(m, 'aria-label="Text from"'));
 });
 

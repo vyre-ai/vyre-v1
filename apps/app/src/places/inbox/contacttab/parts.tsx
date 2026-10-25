@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
 import type { IconName } from "./icons.tsx";
 import { Face } from "../sidebar/parts.tsx";
@@ -61,7 +62,7 @@ export function EmailItem({ e, who, offsetMin, quoteOpen, onQuote, onAttachment,
       ) : null}
       {r.attachments && r.attachments.length > 0 ? (
         <View style={s.atts}>
-          {r.attachments.map((a) => (
+          {each(r.attachments, (a) => (
             <Pressable key={a.name} accessibilityRole="button" accessibilityLabel={`Open ${a.name}`} testID={`attachment:${a.name}`} onPress={() => onAttachment?.(a.name)} style={(st: { hovered?: boolean }) => [s.att, hover(st) && s.attOver]}>
               <Icon name="file" size={14} /><Text style={s.attText}>{a.name}</Text>{a.size ? <Text style={s.attSize}>{a.size}</Text> : null}
             </Pressable>
@@ -70,7 +71,7 @@ export function EmailItem({ e, who, offsetMin, quoteOpen, onQuote, onAttachment,
       ) : null}
       {r.chips && r.chips.length > 0 ? (
         <View style={s.chips}>
-          {r.chips.map((c) => (
+          {each(r.chips, (c) => (
             <Pressable key={c.title} accessibilityRole="link" accessibilityLabel={`Open record ${c.title}`} testID={`chip:${c.title}`} onPress={() => onChip?.(c.title, c.recordId)} style={(st: { hovered?: boolean }) => [s.rc, hover(st) && s.rcOver]}>
               <Icon name="link" size={12} /><Text style={s.rcText}>{c.title}</Text>
             </Pressable>
@@ -86,7 +87,7 @@ export function Bubbles({ t, offsetMin }: { t: TextsEntry; offsetMin: number }):
   const out = t.direction === "out";
   return (
     <View style={[s.sg, out && s.sgOut]} testID={`texts:${t.key}`}>
-      {t.items.map((b, i) => (
+      {each(t.items, (b, i) => (
         <View key={b.id} testID={`bubble:${b.id}`} style={[s.bub, out ? s.bubOut : s.bubIn, i === 0 && (out ? s.bubFirstOut : s.bubFirstIn)]}>
           <Text style={[s.bubText, out && s.bubTextOut]} selectable>{b.body}</Text>
         </View>
@@ -178,7 +179,7 @@ export function CallLine({ c, offsetMin, open, onTranscript }: { c: CallEntry; o
       ) : null}
       {open ? (
         <View style={s.tx} testID={`transcript:${c.item.id}`}>
-          {lines.map((l, i) => <Text key={i} style={s.txLine}><Text style={s.txWho}>{l.who}</Text>{` ${l.text}`}</Text>)}
+          {each(lines, (l, i) => <Text key={i} style={s.txLine}><Text style={s.txWho}>{l.who}</Text>{` ${l.text}`}</Text>)}
         </View>
       ) : null}
       {c.ref.notes ? <Text style={s.notes}>Notes: {c.ref.notes}</Text> : null}

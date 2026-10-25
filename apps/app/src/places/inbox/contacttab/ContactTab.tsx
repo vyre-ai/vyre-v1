@@ -10,15 +10,16 @@ import type { ComposerLists } from "../../../../../../ui/src/Composer/index.tsx"
 import { Recipients } from "../../../../../../ui/src/Recipients/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
-import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useInboxData, useOnline, useOptionalInboxData, useScreenQuery } from "../sidebar/data.tsx";
 import { Face, Ghost, pointOf } from "../sidebar/parts.tsx";
 import type { Mailbox } from "../sidebar/model.ts";
 import { discardDraft, markRead, sendAgentDraft, sendEmail, sendText, setFollow } from "./actions.ts";
+import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
 import type { IconName } from "./icons.tsx";
+import { followMenuEntries, fromMenuEntries } from "./menus.ts";
 import {
-  SNIPPETS, TEMPLATES, buildFeed, canSend, choicesFor, draftCards, fill, initialDraft, pickInbox, sendBlocker, startChannel, textTarget,
+  buildFeed, canSend, cannedLists, choicesFor, draftCards, initialDraft, pickInbox, sendBlocker, startChannel, textTarget,
 } from "./model.ts";
 import type { Chan, ComposerDraft, DraftCard, DraftRow, InboxChoice, SendOptions, ThreadOut } from "./model.ts";
 import { Bubbles, CallLine, DaySep, DraftBlock, EmailItem, QuietLine } from "./parts.tsx";
@@ -44,17 +45,6 @@ const agentName = (id: string): string => {
   return base.charAt(0).toUpperCase() + base.slice(1);
 };
 
-/** Header actions: the pure part, so the menus can be tested without a click. */
-export function followMenuEntries(followed: boolean, alertOnReplies: boolean, on: { follow(follow: boolean): void; alert(alert: boolean): void }): MenuEntry[] {
-  const entries: MenuEntry[] = [{ label: followed ? "Unfollow" : "Follow", onSelect: () => on.follow(!followed) }];
-  if (followed) entries.push({ label: "Alert me on replies", checked: alertOnReplies, onSelect: () => on.alert(!alertOnReplies) });
-  return entries;
-}
-
-export function fromMenuEntries(choices: readonly InboxChoice[], current: string | null, cameIn: readonly string[], pick: (id: string) => void): MenuEntry[] {
-  return [{ head: "Send from" }, ...choices.map((c) => ({ label: cameIn.includes(c.id) ? `${c.label} (this thread)` : c.label, checked: c.id === current, onSelect: () => pick(c.id) }))];
-}
-
 function HeadButton({ icon, label, on = false, testID, disabled = false, onPress, text }: { icon: IconName; label: string; on?: boolean; testID: string; disabled?: boolean; onPress(x: number, y: number): void; text?: string }): ReactElement {
   return (
     <Pressable
@@ -73,7 +63,7 @@ export function TabLoading(): ReactElement {
   return (
     <View style={s.main} testID="contact-tab-loading" accessibilityLabel="Loading">
       <View style={s.head}><View style={s.skFace} /><View style={[s.skBar, { width: 140 }]} /></View>
-      <View style={s.feed}>{[0, 1, 2, 3].map((i) => <View key={i} style={s.skBlock}><View style={[s.skBar, { width: `${40 + i * 10}%` as unknown as number }]} /><View style={[s.skBar, s.skSmall]} /></View>)}</View>
+      <View style={s.feed}>{each([0, 1, 2, 3], (i) => <View key={i} style={s.skBlock}><View style={[s.skBar, { width: `${40 + i * 10}%` as unknown as number }]} /><View style={[s.skBar, s.skSmall]} /></View>)}</View>
       <View style={s.cmpWrap}><View style={s.skComposer} /></View>
     </View>
   );
@@ -177,10 +167,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const showFrom = (x: number, y: number): void => menu.show(fromMenuEntries(choices, inbox?.id ?? null, conv.mailboxIds, (id) => patch({ from: { ...draft.from, [chan]: id } })), x, y);
   const dial = (): void => { const n = textTo ?? (conv.address.includes("@") ? null : conv.address); if (n && props.onDial) props.onDial(n); else data.nav.openDialer(); };
 
-  const lists: ComposerLists = {
-    templates: TEMPLATES.map((t) => ({ t: t.name, body: fill(t.body, conv), kind: "Template" })),
-    snippets: SNIPPETS.map((t) => ({ t: t.name, body: t.body, kind: "Snippet" })),
-  };
+  const lists: ComposerLists = cannedLists(conv);
   const mail = chan === "email";
   const unmatched = conv.needsMatch && !conv.contactId;
   const blocker = sendBlocker(draft, inbox, online, textTo);
@@ -214,7 +201,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
 
       <ScrollView ref={scroll} style={s.feed} contentContainerStyle={s.col} testID="contact-feed">
         {feed.length === 0 && cards.length === 0 ? <States kind="empty" title="No messages yet." icon="chat" /> : null}
-        {feed.map((f): ReactElement => {
+        {each(feed, (f): ReactElement => {
           switch (f.kind) {
             case "day": return <DaySep key={f.key} label={f.label} />;
             case "email": return <EmailItem key={f.key} e={f} who={conv.displayName} offsetMin={clock.offsetMin} quoteOpen={quotes.includes(f.key)} onQuote={() => setQuotes((q) => toggled(q, f.key))} {...(props.onOpenAttachment ? { onAttachment: props.onOpenAttachment } : {})} onChip={(title, recordId) => props.onOpenRecord?.(conv.contactId ?? "", recordId ?? title)} />;
@@ -225,14 +212,14 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             case "note": return <QuietLine key={f.key} text={f.item.title ?? f.item.preview ?? ""} testID={`note:${f.item.id}`} />;
           }
         })}
-        {cards.map((d) => <DraftBlock key={d.id} d={d} note={draftNotes[d.id]} busy={busy.includes(d.id) || !online} onSend={() => void draftSend(d)} onEdit={() => draftEdit(d)} onDiscard={() => void draftDiscard(d)} />)}
+        {each(cards, (d) => <DraftBlock key={d.id} d={d} note={draftNotes[d.id]} busy={busy.includes(d.id) || !online} onSend={() => void draftSend(d)} onEdit={() => draftEdit(d)} onDiscard={() => void draftDiscard(d)} />)}
       </ScrollView>
 
       <View style={s.cmpWrap} testID="contact-composer">
         <View style={s.cmpIn}>
           <View style={s.ctop}>
             <View style={s.seg} accessibilityRole="tablist">
-              {(["email", "sms"] as const).map((c) => {
+              {each(["email", "sms"] as const, (c) => {
                 const can = options?.channels.includes(c) ?? false;
                 return (
                   <Pressable
