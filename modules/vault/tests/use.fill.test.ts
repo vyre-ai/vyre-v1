@@ -121,7 +121,10 @@ test("export_env seals a .env under the filler, keeps only the token hash, expir
   const h = harness();
   const f = await folder(h);
   await put(h, f, "Dana Lawmatics");
+  u.configureVault({ sinks: {}, origin: () => "https://vault.example.test/" });
   const r = out(await u.exportEnv(h.ctx, { folderId: f, expiresIn: "1h", idempotencyKey: key() }));
+  assert.ok(String(r.pullUrl).startsWith(`https://vault.example.test/exports/${String(r.exportId)}?token=`), "the link points at the server's own address");
+  u.configureVault(null);
   assert.deepEqual(contractErrors("vault.export_env", "out", r), []);
   assert.equal(r.expiresAt, h.ctx.now() + 3_600_000);
   const token = new URL(String(r.pullUrl)).searchParams.get("token") ?? "";
@@ -131,6 +134,7 @@ test("export_env seals a .env under the filler, keeps only the token hash, expir
   assert.ok(!JSON.stringify(row).includes(SECRET) && !JSON.stringify(row).includes(token), "the database holds neither the value nor the token");
   const env = u.exportPull(h.ctx, { exportId: String(r.exportId), token });
   assert.equal(env, `username="dana"\napi_key=${JSON.stringify(SECRET)}\n`);
+  assert.throws(() => u.exportPull(h.ctx, { exportId: String(r.exportId), token }), "a link is single use: the second pull is refused");
   assert.throws(() => u.exportPull(h.ctx, { exportId: String(r.exportId), token: "wrong" }));
   assert.deepEqual(out(await u.exportsList(h.ctx, { folderId: f })).exports, [{ id: r.exportId, folderId: f, by: MAYA, expiresAt: r.expiresAt, pulled: true }]);
   assert.deepEqual(contractErrors("vault.exports.list", "out", await u.exportsList(h.ctx, {})), []);
