@@ -3,12 +3,13 @@
 // notes are numbered pins kept in unit coordinates (0..1 of the image), so they stay on the same spot at any zoom. Plans and documents edit in place
 // and take highlight-and-comment. The Ask control is the shared AskButton. Colours are skin tokens (CSS variables on web).
 
-import { useMemo, useRef, useState } from "react";
+import { createElement, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AskButton } from "../AskButton/index.tsx";
 import type { AskButtonProps } from "../AskButton/index.tsx";
 import { MenuIcon } from "../Menu/index.tsx";
+import { Row } from "../Row/index.tsx";
 import { viewerLabel } from "./props.ts";
 import type { MarkupTool, ViewerPin, ViewerProps } from "./props.ts";
 
@@ -21,8 +22,31 @@ export { MARKUP_TOOLS, VIEWER_KINDS, viewerLabel } from "./props.ts";
 export interface Anchor { x: number; y: number; w: number; h: number }
 export interface Stroke { points: readonly (readonly [number, number])[] }
 export interface MarkupBox extends Anchor { id: string; text: string }
-export interface DocBlock { id: string; tag: "h1" | "h2" | "p" | "li" | "code"; text: string }
+export interface DocBlock { id: string; tag: "h1" | "h2" | "p" | "li" | "code" | "meta"; text: string }
+export interface ViewerDetails {
+  rows: readonly (readonly [string, string])[];
+  sections?: readonly { title: string; count?: number; items: readonly { id: string; title: string; note?: string }[] }[];
+}
 export interface Sheet { cols: readonly string[]; rows: readonly (readonly string[])[] }
+
+/** The text a person sees: **bold** and [[link]] markers removed. Find reads this, so a match is always something on screen. */
+export function stripInline(s: string): string {
+  return s.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\[\[(.+?)\]\]/g, "$1");
+}
+export interface InlineRun { text: string; bold?: boolean; link?: boolean }
+/** Splits **bold** and [[link]] into runs; the runs' text joins to stripInline(s). */
+export function inlineRuns(s: string): readonly InlineRun[] {
+  const out: InlineRun[] = [];
+  let at = 0;
+  for (const m of s.matchAll(/\*\*(.+?)\*\*|\[\[(.+?)\]\]/g)) {
+    const i = m.index ?? 0;
+    if (i > at) out.push({ text: s.slice(at, i) });
+    if (m[1] !== undefined) out.push({ text: m[1], bold: true }); else out.push({ text: m[2] ?? "", link: true });
+    at = i + m[0].length;
+  }
+  if (at < s.length) out.push({ text: s.slice(at) });
+  return out;
+}
 
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 4;
@@ -106,7 +130,7 @@ export function sheetFoot(sheet: Sheet, col: number | null): string {
 
 /* ---------- icons ---------- */
 
-const SVG = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">`;
+const SVG = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">`;
 const ICON = {
   draw: `${SVG}<path d="M3 13l1-3.500L11.500 2 14 4.500 6.500 12 3 13z"/></svg>`,
   area: `${SVG}<path d="M2.500 5.500v-3h3M10.500 2.500h3v3M13.500 10.500v3h-3M5.500 13.500h-3v-3"/></svg>`,
@@ -131,6 +155,11 @@ export interface ViewerViewProps extends ViewerProps {
   /** CSV. */
   sheet?: Sheet;
   zoom?: number;
+  /** The Details panel (the info button): path, kind, size and the file's links. */
+  details?: ViewerDetails;
+  detailsOpen?: boolean;
+  /** The selected cell when the sheet opens. */
+  initialCell?: { r: number; c: number };
   /** The file's tile letters ("PNG", "CSV"), and the line under its name (path and when it changed). */
   kindLabel?: string;
   subtitle?: string;
@@ -177,7 +206,7 @@ function each<T, R>(items: readonly T[], make: (item: T, index: number) => R): R
 
 function Tool(p: { label: string; icon: string; on?: boolean; onPress: () => void; testID: string }): ReactElement {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={p.label} accessibilityState={{ selected: p.on === true }} testID={p.testID} onPress={p.onPress}
+    <Pressable accessibilityRole="button" accessibilityLabel={p.label} aria-selected={p.on === true} accessibilityState={{ selected: p.on === true }} testID={p.testID} onPress={p.onPress}
       style={({ hovered }: { hovered?: boolean }) => [s.tool, p.on === true && s.toolOn, hovered === true && s.toolOver]}>
       <MenuIcon icon={p.icon} />
       <Text style={s.toolText}>{p.label}</Text>
@@ -199,10 +228,11 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const [line, setLine] = useState<readonly (readonly [number, number])[] | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [sort, setSort] = useState<{ col: number; dir: 1 | -1 } | null>(null);
-  const [cell, setCell] = useState<{ r: number; c: number } | null>(null);
+  const [cell, setCell] = useState<{ r: number; c: number } | null>(props.initialCell ?? null);
+  const [detailsOpen, setDetailsOpen] = useState(props.detailsOpen === true);
   const stage = useRef<{ w: number; h: number }>({ w: IMAGE_W, h: IMAGE_H });
 
-  const texts = useMemo(() => each(blocks, (b) => b.text), [blocks]);
+  const texts = useMemo(() => each(blocks, (b) => stripInline(b.text)), [blocks]);
   const hits = useMemo(() => findMatches(texts, find), [texts, find]);
   const at = hits.length === 0 ? 0 : cur % hits.length;
   const pins: readonly ViewerPin[] = props.pins ?? each(boxes, (b, i) => ({ id: b.id, n: i + 1, text: b.text }));
@@ -215,7 +245,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const pick = (t: MarkupTool): void => setTool((x) => (x === t ? null : t));
 
   const iconBtn = (label: string, icon: string, testID: string, onPress?: () => void, on = false): ReactElement => (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: on }} testID={testID} onPress={onPress}
+    <Pressable accessibilityRole="button" accessibilityLabel={label} aria-selected={on} accessibilityState={{ selected: on }} testID={testID} onPress={onPress}
       style={({ hovered }: { hovered?: boolean }) => [s.iconBtn, on && s.toolOn, hovered === true && s.toolOver]}><MenuIcon icon={icon} /></Pressable>
   );
   const bar = (
@@ -252,7 +282,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           {props.saved !== undefined ? <Text style={s.saved} testID="vw-saved">{`✓ v${props.saved}`}</Text> : null}
           <View style={s.seg} accessibilityRole="tablist">
             {each(["View", "Edit"] as const, (m) => (
-              <Pressable key={m} accessibilityRole="tab" accessibilityState={{ selected: (m === "Edit") === editMode }} testID={`vw-mode-${m.toLowerCase()}`}
+              <Pressable key={m} accessibilityRole="tab" aria-selected={(m === "Edit") === editMode} accessibilityState={{ selected: (m === "Edit") === editMode }} testID={`vw-mode-${m.toLowerCase()}`}
                 onPress={() => { setEditMode(m === "Edit"); props.onEditMode?.(m === "Edit"); }} style={[s.segBtn, (m === "Edit") === editMode && s.segOn]}>
                 <Text style={[s.segText, (m === "Edit") === editMode && s.segTextOn]}>{m}</Text>
               </Pressable>
@@ -261,7 +291,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
         </View>
       ) : null}
       {iconBtn("Find in file", ICON.find, "vw-find-btn", () => setFindOpen((o) => !o), findOpen)}
-      {iconBtn("Details", ICON.info, "vw-info", props.onInfo)}
+      {iconBtn("Details", ICON.info, "vw-info", () => { setDetailsOpen((o) => !o); props.onInfo?.(); }, detailsOpen)}
       {iconBtn("History", ICON.history, "vw-history", props.onHistory)}
       {props.ask !== undefined ? <AskButton {...props.ask} compact /> : null}
       {iconBtn("More", ICON.more, "vw-more", props.onMore)}
@@ -298,10 +328,15 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       <View style={[s.stageBox, { width: `${Math.min(100, 100 * zoom)}%`, aspectRatio: IMAGE_W / IMAGE_H }]} testID="vw-stage"
         onLayout={(e) => { stage.current = { w: e.nativeEvent.layout.width / zoom, h: e.nativeEvent.layout.height / zoom }; }}
         onStartShouldSetResponder={() => tool !== null} onResponderGrant={(e) => pointer("down", e)} onResponderMove={(e) => pointer("move", e)} onResponderRelease={(e) => pointer("up", e)}>
-        <View style={s.picture}><Text style={s.pictureText}>{props.title}</Text></View>
+        {props.src !== undefined
+          ? <Image accessibilityIgnoresInvertColors accessibilityLabel={props.title} source={{ uri: props.src }} resizeMode="cover" style={s.pictureImg} testID="vw-picture" />
+          : <View style={s.picture}><Text style={s.pictureText}>{props.title}</Text></View>}
+        {Platform.OS === "web" && (strokes.length > 0 || (line !== null && line.length > 1)) ? createElement("svg", { viewBox: "0 0 1 1", preserveAspectRatio: "none", "data-testid": "vw-strokes", style: { position: "absolute", left: 0, top: 0, width: "100%", height: "100%", pointerEvents: "none" } },
+          ...each([...each(strokes, (st) => st.points), ...(line !== null ? [line] : [])], (pts, i) => createElement("polyline", { key: i, points: each(pts, (q) => `${q[0]},${q[1]}`).join(" "), fill: "none", stroke: "#E5483A", strokeWidth: 3, strokeLinecap: "round", strokeLinejoin: "round", vectorEffect: "non-scaling-stroke" }))) : null}
         {each(strokes, (st, i) => <View key={i} testID={`vw-stroke-${i}`} style={s.strokeMark} {...web({ "data-points": each(st.points, (q) => `${q[0].toFixed(3)},${q[1].toFixed(3)}`).join(" ") })} />)}
         {each(boxes, (b, i) => (
           <View key={b.id} testID={`vw-box-${b.id}`} pointerEvents="none" style={[s.box, { left: `${b.x * 100}%`, top: `${b.y * 100}%`, width: `${b.w * 100}%`, height: `${b.h * 100}%` }]}>
+            <View style={s.handle} testID={`vw-handle-${i + 1}`} />
             <View style={s.pin} testID={`vw-pin-${i + 1}`} {...web({ "data-anchor": `${b.x.toFixed(3)},${b.y.toFixed(3)}` })}><Text style={s.pinText}>{i + 1}</Text></View>
             {b.text !== "" ? <View style={s.bubble} testID={`vw-bubble-${i + 1}`}><Text style={s.bubbleText} numberOfLines={1}>{b.text}</Text></View> : null}
           </View>
@@ -324,7 +359,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const strip = props.kind === "image" && (props.siblings?.length ?? 0) > 0 ? (
     <View style={s.strip} testID="vw-siblings">
       {each(props.siblings ?? [], (sb) => (
-        <Pressable key={sb.id} accessibilityRole="button" accessibilityLabel={sb.title} accessibilityState={{ selected: sb.id === props.current }} testID={`vw-sib-${sb.id}`}
+        <Pressable key={sb.id} accessibilityRole="button" accessibilityLabel={sb.title} aria-selected={sb.id === props.current} accessibilityState={{ selected: sb.id === props.current }} testID={`vw-sib-${sb.id}`}
           onPress={() => props.onSibling?.(sb.id)} style={[s.thumb, sb.id === props.current && s.thumbOn]}><Text style={s.thumbText} numberOfLines={1}>{sb.title}</Text></Pressable>
       ))}
     </View>
@@ -334,15 +369,31 @@ export function Viewer(props: ViewerViewProps): ReactElement {
     <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
       <View style={s.doc}>
         {each(blocks, (b, bi) => {
-          const runs = markRuns(b.text, hits, bi, at, hits);
+          if (b.tag === "meta") {
+            return (
+              <View key={b.id} style={s.meta} testID={`vw-block-${b.id}`}>
+                {each(b.text.split("\n"), (ln, li) => { const [k, ...v] = ln.split("\t"); return <View key={li} style={s.metaRow}><Text style={s.metaKey}>{k}</Text><Text style={s.metaVal}>{v.join(" ")}</Text></View>; })}
+              </View>
+            );
+          }
           if (editing && find === "") {
             return <TextInput key={b.id} multiline value={b.text} accessibilityLabel={`${b.tag} block`} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]}
               onChangeText={(t) => changeBlocks(each(blocks, (x) => (x.id === b.id ? { ...x, text: t } : x)))} />;
           }
+          const lead = b.tag === "li" ? "•  " : "";
+          if (find !== "") {
+            const runs = markRuns(stripInline(b.text), hits, bi, at, hits);
+            return (
+              <Text key={b.id} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]} {...web({ "data-tag": b.tag })}>
+                {lead}
+                {each(runs, (r, i) => (r.hit === true ? <Text key={i} style={[s.mark1, r.on === true && s.markOn]} {...web({ "data-find": r.on === true ? "current" : "match" })}>{r.text}</Text> : r.text))}
+              </Text>
+            );
+          }
           return (
             <Text key={b.id} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]} {...web({ "data-tag": b.tag })}>
-              {b.tag === "li" ? "•  " : ""}
-              {each(runs, (r, i) => (r.hit === true ? <Text key={i} style={[s.mark1, r.on === true && s.markOn]} {...web({ "data-find": r.on === true ? "current" : "match" })}>{r.text}</Text> : r.text))}
+              {lead}
+              {each(inlineRuns(b.text), (r, i) => (r.bold === true ? <Text key={i} style={s.bold}>{r.text}</Text> : r.link === true ? <Text key={i} style={s.link} {...web({ "data-link": "true" })}>{r.text}</Text> : r.text))}
             </Text>
           );
         })}
@@ -358,7 +409,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const table = sheet === undefined ? null : (
     <View style={s.fill}>
       <ScrollView style={s.scroll} horizontal contentContainerStyle={s.sheetWrap} testID="vw-sheet">
-        <View>
+        <View style={s.fill}>
           <View style={s.tr}>
             <Text style={[s.th, s.rn]}>{""}</Text>
             {each(sheet.cols, (c, ci) => (
@@ -375,7 +426,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
                 const on = cell !== null && cell.r === ri && cell.c === ci;
                 const m = find !== "" && v.toLowerCase().includes(find.trim().toLowerCase());
                 return (
-                  <Pressable key={ci} accessibilityRole="button" accessibilityState={{ selected: on }} testID={`vw-cell-${ri}-${ci}`} onPress={() => setCell({ r: ri, c: ci })}
+                  <Pressable key={ci} accessibilityRole="button" aria-selected={on} accessibilityState={{ selected: on }} testID={`vw-cell-${ri}-${ci}`} onPress={() => setCell({ r: ri, c: ci })}
                     style={[s.tdCell, on && s.tdOn, m && s.mark1]}>
                     {on && editMode ? <TextInput autoFocus accessibilityLabel={`Edit cell ${ri + 1}, ${sheet.cols[ci] ?? ""}`} testID="vw-cell-input" value={v} style={[s.td, s.cellInput, isNum(v) && s.numCell]}
                       onChangeText={(x) => setEdits((e) => ({ ...e, [`${ri}:${ci}`]: x }))} />
@@ -401,7 +452,26 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       {...web({ "data-testid": "viewer", "data-kind": props.kind, "data-pane": props.pane ?? "side", "data-tool": tool ?? "none", "data-zoom": String(zoom), "data-density": props.density ?? "regular" })}>
       {bar}
       {markBar}
-      <View style={s.fill}>{body}</View>
+      <View style={s.main}>
+        <View style={s.fill}>{body}</View>
+        {detailsOpen && props.details !== undefined ? (
+          <View style={s.details} testID="vw-details">
+            <View style={s.detailsHead}>
+              <Text style={s.detailsTitle}>Details</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Close details" testID="vw-details-close" onPress={() => setDetailsOpen(false)}><Text style={s.zoomText}>{"×"}</Text></Pressable>
+            </View>
+            <ScrollView style={s.scroll} contentContainerStyle={s.detailsBody}>
+              {each(props.details.rows, ([k, v]) => <View key={k} style={s.metaRow} testID={`vw-detail-${k}`}><Text style={s.metaKey}>{k}</Text><Text style={s.metaVal}>{v}</Text></View>)}
+              {each(props.details.sections ?? [], (sec) => (
+                <View key={sec.title} testID={`vw-detail-section-${sec.title}`}>
+                  <Text style={s.detailSec}>{sec.count !== undefined ? `${sec.title}  ${sec.count}` : sec.title}</Text>
+                  {each(sec.items, (it) => <Row key={it.id} id={`d-${it.id}`} title={it.title} {...(it.note !== undefined ? { note: it.note } : {})} />)}
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+      </View>
       {strip}
     </View>
   );
@@ -448,19 +518,33 @@ const s = StyleSheet.create({
   toolOver: { backgroundColor: "var(--hover)" as string },
   toolText: { color: "var(--ink-3)" as string, fontSize: 12.5, fontWeight: "500" },
   imgWrap: { padding: 24, alignItems: "center", gap: 14 },
-  stageBox: { borderRadius: 10, overflow: "hidden", backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
+  stageBox: { borderRadius: 10, overflow: "hidden", backgroundColor: "var(--sunk)" as string, ...(Platform.OS === "web" ? ({ backgroundImage: "conic-gradient(var(--sunk) 25%, var(--raised) 0 50%, var(--sunk) 0 75%, var(--raised) 0)", backgroundSize: "16px 16px" } as object) : {}), borderWidth: 1, borderColor: "var(--line)" as string },
+  pictureImg: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
   picture: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "var(--raised)" as string },
   pictureText: { color: "var(--ink-4)" as string, fontSize: 13 },
   strokeMark: { position: "absolute", left: 0, top: 0, width: 1, height: 1 },
   box: { position: "absolute", borderWidth: 2, borderColor: "#E5483A", backgroundColor: "rgba(229,72,58,0.12)", borderRadius: 6 },
   boxLive: { borderStyle: "dashed" },
-  pin: { position: "absolute", left: -12, top: -12, width: 24, height: 24, borderRadius: 12, backgroundColor: "#E5483A", alignItems: "center", justifyContent: "center" },
+  pin: { position: "absolute", left: -12, top: -12, width: 24, height: 24, borderRadius: 12, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
   pinText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
   noteBox: { width: "100%", maxWidth: 480, borderRadius: 10, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string, padding: 10 },
   noteInput: { color: "var(--ink)" as string, fontSize: 13, padding: 0 },
   pinList: { width: "100%", maxWidth: 480, gap: 6 },
   pinRow: { color: "var(--ink-2)" as string, fontSize: 13 },
   docWrap: { padding: 24, alignItems: "center" },
+  main: { flex: 1, flexDirection: "row", minHeight: 0 },
+  details: { width: 300, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string },
+  detailsHead: { height: 40, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14 },
+  detailsTitle: { color: "var(--ink)" as string, fontSize: 13, fontWeight: "600" },
+  detailsBody: { paddingHorizontal: 14, paddingBottom: 20, gap: 8 },
+  detailSec: { color: "var(--ink-3)" as string, fontSize: 12, fontWeight: "600", marginTop: 14, marginBottom: 4 },
+  meta: { borderRadius: 10, backgroundColor: "var(--sunk)" as string, padding: 14, gap: 6, marginBottom: 6 },
+  metaRow: { flexDirection: "row", gap: 12 },
+  metaKey: { width: 84, color: "var(--ink-3)" as string, fontSize: 12.5 },
+  metaVal: { flex: 1, color: "var(--ink)" as string, fontSize: 12.5 },
+  bold: { fontWeight: "700" },
+  link: { color: "var(--accent)" as string },
+  handle: { position: "absolute", right: -7, top: -7, width: 14, height: 14, borderRadius: 7, backgroundColor: "#E5483A", borderWidth: 2, borderColor: "#FFFFFF" },
   doc: { width: "100%", maxWidth: 720, gap: 10 },
   block: { color: "var(--ink)" as string, fontSize: 15, lineHeight: 23, padding: 0 },
   h1: { fontSize: 24, lineHeight: 30, fontWeight: "700" },
@@ -470,13 +554,13 @@ const s = StyleSheet.create({
   code: { fontFamily: "var(--mono)" as string, fontSize: 12.5, lineHeight: 19 },
   mark1: { backgroundColor: "var(--accent-wash)" as string },
   markOn: { backgroundColor: "var(--warn)" as string },
-  sheetWrap: { padding: 14 },
+  sheetWrap: { padding: 14, flexGrow: 1 },
   tr: { flexDirection: "row" },
   th: { color: "var(--ink-3)" as string, fontSize: 12, fontWeight: "600", paddingVertical: 6 },
-  thCell: { width: 150, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string, backgroundColor: "var(--sunk)" as string },
+  thCell: { flex: 1, minWidth: 150, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string, backgroundColor: "var(--sunk)" as string },
   rn: { width: 36, textAlign: "right", paddingRight: 8, color: "var(--ink-4)" as string },
   td: { color: "var(--ink)" as string, fontSize: 13, paddingVertical: 7 },
-  tdCell: { width: 150, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
+  tdCell: { flex: 1, minWidth: 150, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
   tdOn: { borderWidth: 2, borderColor: "var(--accent)" as string },
   numCell: { textAlign: "right" },
   foot: { color: "var(--ink-3)" as string, fontSize: 12, paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "var(--line)" as string },

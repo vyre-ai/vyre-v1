@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Viewer, ZOOM_MAX, ZOOM_MIN, boxFrom, clampZoom, findMatches, markRuns, pinAt, sheetFoot, sortRows, stepZoom, toUnit, VIEWER_KINDS, MARKUP_TOOLS } from "./index.tsx";
+import { Viewer, stripInline, inlineRuns, ZOOM_MAX, ZOOM_MIN, boxFrom, clampZoom, findMatches, markRuns, pinAt, sheetFoot, sortRows, stepZoom, toUnit, VIEWER_KINDS, MARKUP_TOOLS } from "./index.tsx";
 import type { DocBlock, MarkupBox, ViewerViewProps } from "./index.tsx";
 
 const BOXES: readonly MarkupBox[] = [{ id: "b1", x: 0.08, y: 0.32, w: 0.44, h: 0.32, text: "Is this offer still live?" }, { id: "b2", x: 0.6, y: 0.2, w: 0.2, h: 0.2, text: "Crop here" }];
@@ -119,4 +119,33 @@ test("markup shows Ask <agent> once something is marked, red numbered boxes with
   assert.ok(marked.includes('data-testid="vw-bubble-1"') && marked.includes("Is this offer still live?"));
   assert.ok(marked.includes('data-testid="vw-sib-a"') && marked.includes('data-testid="vw-sib-b"'));
   assert.ok(!renderToStaticMarkup(<Viewer fileId="f" title="a.png" kind="image" agentName="Research" />).includes('data-testid="vw-ask-markup"'), "nothing marked, no Ask");
+});
+
+test("inline **bold** and [[link]] markers become runs and never count in find", () => {
+  assert.equal(stripInline("The fee is **$250** and [[Pricing landscape]]"), "The fee is $250 and Pricing landscape");
+  assert.deepEqual(inlineRuns("a **b** [[c]] d"), [{ text: "a " }, { text: "b", bold: true }, { text: " " }, { text: "c", link: true }, { text: " d" }]);
+  assert.equal(inlineRuns("x **y** z").map((r) => r.text).join(""), stripInline("x **y** z"));
+  const blocks: DocBlock[] = [{ id: "a", tag: "p", text: "The **fee** is [[fee]] schedule" }];
+  assert.equal(findMatches(blocks.map((b) => stripInline(b.text)), "fee").length, 3 - 1, "markers are not matched");
+  const html = renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" blocks={blocks} />);
+  assert.ok(!html.includes("**") && !html.includes("[["), "markers never show");
+  assert.match(html, /data-link="true"/);
+});
+
+test("a front-matter block draws as a card, and the info button opens the Details panel with rows and linked sections", () => {
+  const blocks: DocBlock[] = [{ id: "m", tag: "meta", text: "kind\tdecision\nsource\tchat" }, { id: "h", tag: "h1", text: "Consult fee" }];
+  const details = { rows: [["Path", "Agents / Intake"], ["Kind", "Note"]] as const, sections: [{ title: "Links to", count: 2, items: [{ id: "a", title: "Pricing landscape" }, { id: "b", title: "Maya Chen" }] }] };
+  const closed = renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" blocks={blocks} details={details} />);
+  assert.ok(closed.includes('data-testid="vw-block-m"') && closed.includes("decision") && !closed.includes('data-testid="vw-details"'));
+  const open = renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" blocks={blocks} details={details} detailsOpen />);
+  for (const id of ["vw-details", "vw-detail-Path", "vw-detail-section-Links to", "row-d-a", "vw-details-close"]) assert.ok(open.includes(`data-testid="${id}"`), id);
+  assert.match(open, /Links to\s+2/);
+});
+
+test("a picture shows when src is given and strokes draw over it; the first cell can be pre-selected and the footer then sums its column", () => {
+  const img = renderToStaticMarkup(<Viewer fileId="f" title="a.png" kind="image" src="data:image/svg+xml;charset=utf-8,%3Csvg%2F%3E" boxes={BOXES} />);
+  assert.ok(img.includes('data-testid="vw-picture"') && img.includes('data-testid="vw-handle-1"'));
+  const sheet = renderToStaticMarkup(<Viewer fileId="c" title="c.csv" kind="csv" sheet={SHEET} initialCell={{ r: 0, c: 1 }} />);
+  assert.match(tag(sheet, "vw-cell-0-1"), /aria-selected="true"|selected/);
+  assert.match(sheet, /Amount: sum 2,400, average 800\.0/);
 });
