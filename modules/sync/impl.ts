@@ -11,6 +11,7 @@ import type { Catalog, PullDeps } from "../../sync/src/server/pull/index.ts";
 import { VyreErr } from "../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import type { PushDeps } from "../../sync/src/server/push/index.ts";
+import type { ConflictOpen } from "../../sync/src/server/push/types.ts";
 import type { DeviceClass, PullReq, PushReq } from "../../sync/src/protocol.ts";
 import { createPullHandlers, createPushHandlers, toPullCtx } from "./handlers/index.ts";
 import { createPurgeHandlers, purgeDepsOf, toPurgeCtx } from "./handlers/purge.ts";
@@ -79,7 +80,7 @@ export function openSync(o: SyncOpts): SyncHandle {
 }
 
 // ---- loader entry (P-H_02). The loader reads `handlers` once the manifest is live: capability name to handler, each taking the host Ctx as the device session.
-type SessionCtx = Pick<Ctx, "trace" | "principal"> & { device?: string };
+type SessionCtx = Pick<Ctx, "trace" | "principal"> & { device?: string; emit?: Ctx["emit"] };
 
 let shared: SyncHandle | null = null;
 let pushDeps: PushDeps | null = null;
@@ -149,7 +150,15 @@ export const handlers = {
       throw new VyreErr({ code: "internal.unavailable", message: "This server is not taking pushes yet.", retryable: true, traceId: ctx.trace.traceId, next: [{ kind: "retry", label: "Try again in a moment" }] });
     }
     // the host gives push what it knows; a device's own epoch row is in the sync store, so push reads revocation from there
-    return createPushHandlers({ deviceRevoked: (person, device) => deviceRevoked(live().deps.db, person, device), ...pd })["sync.push"](toPullCtx(ctx), input);
+    return createPushHandlers({ deviceRevoked: (person, device) => deviceRevoked(live().deps.db, person, device), ...pd,
+      // a collision parked in the conflicts module is announced, so the module can route it to the assistant or to Needs you
+      ...(seam?.conflicts && ctx.emit ? {
+        async openConflict(c: ConflictOpen) {
+          const id = await pd.openConflict(c);
+          ctx.emit!("conflict.opened", `entity/${id}`, { conflictId: id, entity: c.entity, recordId: c.id, field: c.field, actor: c.theirsActor, plainChoice: c.plainChoice, traceId: c.traceId });
+          return id;
+        },
+      } : {}) })["sync.push"](toPullCtx(ctx), input);
   },
   // admin calls (ARCH 5.7): the devices and access modules invoke them after a revoke, a removal or a label change
   "sync.epoch.bump": (ctx: SessionCtx, input: BumpInput) => createPurgeHandlers(purgeDepsOf(live(), hub))["sync.epoch.bump"](toPurgeCtx(ctx), input),

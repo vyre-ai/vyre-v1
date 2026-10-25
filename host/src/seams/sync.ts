@@ -19,6 +19,8 @@ export interface SyncSeamDeps {
   invoke(cap: string, input: unknown, seed: { space: string; principal: { kind: "person"; id: string }; device: string; v: number; origin: string }): Promise<InvokeResult>;
   /** true when the capability's input takes an idempotencyKey, so the op id can be its key */
   keyed(cap: string, v: number): boolean;
+  /** run the conflicts module's host calls */
+  conflicts?: { open(c: unknown): Promise<string>; history(e: unknown): Promise<void> };
   endpoints?(): { kind: "direct" | "relay" | "tunnel"; url: string }[];
 }
 
@@ -26,6 +28,7 @@ export function createSyncSeam(d: SyncSeamDeps) {
   return {
     store: d.store, access: d.access, now: d.now, registryHash: d.registryHash,
     ...(d.endpoints ? { endpoints: d.endpoints } : {}),
+    ...(d.conflicts ? { conflicts: d.conflicts } : {}),
     async invoke(call: SyncInvokeCall): Promise<{ kind: "applied" } | { kind: "held"; taskId: string }> {
       const body = call.input !== null && typeof call.input === "object" && !Array.isArray(call.input) ? (call.input as Record<string, unknown>) : {};
       const input = d.keyed(call.cap, call.v) && body["idempotencyKey"] === undefined ? { ...body, idempotencyKey: call.idempotencyKey } : call.input;

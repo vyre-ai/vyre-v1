@@ -108,3 +108,69 @@ test("l1 live: a booted daemon serves search from its own handlers, reports it a
     assert.equal((await post("nope", "/sync/v1/pull", { cursor: 0, epoch: 0 })).status, 401, "no token, no pull");
   } finally { await d.stop(); }
 });
+
+// Golden 4 (ruling 53): a collision on a protected field reaches the Conflicts tab through the daemon's bridge (sync.push hands it to the conflicts module with that module's own ctx), the person
+// settles it, and Undo puts the earlier value back.
+test("l1 live golden 4: an offline edit that collides on a protected field is parked in conflicts.list, settled, and Undo restores the value", async () => {
+  const dir = seededDir();
+  const d = await startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux", hostname: "l1-golden4", free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    session: (h) => {
+      const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+      return t === OWNER_TOKEN ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "dev_l1live" } : null;
+    },
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
+  });
+  const post = async (p: string, body: unknown): Promise<{ status: number; data: any; error?: { code?: string } }> => {
+    const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${OWNER_TOKEN}` }, body: JSON.stringify(body) });
+    return { status: r.status, ...((await r.json()) as object) } as never;
+  };
+  const op = (opId: string, id: string, owner: string, base: number) => ({
+    opId, traceId: "ab".repeat(16), hlc: `${Date.now().toString(16)}-0001-dev_l1live`, cap: "records.update", v: 1, entity: "contact", id,
+    input: { type: "contact", recordId: id, patch: { owner }, fields: { owner } }, baseSeq: { owner: base },
+  });
+  try {
+    const type = await post("/v1/schema/apply", { idempotencyKey: "g4-type", ops: [{ op: "type.create", type: "contact", def: { title: "Contact", plural: "Contacts", icon: "user", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "owner", type: "text", title: "Owner" }] } }] });
+    assert.equal(type.status, 200, JSON.stringify(type));
+    const made = await post("/v1/records/create", { idempotencyKey: "g4-rec", type: "contact", fields: { name: "Ann", owner: "usr_olivia" } });
+    assert.equal(made.status, 200, JSON.stringify(made));
+    const id = made.data.record.id as string;
+    const pulled = await post("/sync/v1/pull", { cursor: 0, epoch: 0 });
+    assert.equal(pulled.status, 200, JSON.stringify(pulled));
+    const seq0 = (pulled.data.changes as { id: string; seq: number }[]).find((c) => c.id === id)?.seq;
+    assert.ok(seq0 !== undefined, "the record is in the sync feed");
+
+    // device 1 changes the owner at the version it saw; device 2, offline, changes it from the same version
+    const first = await post("/sync/v1/push", { deviceId: "dev_l1live", epoch: 0, ops: [op("g4-op-a", id, "usr_noah", seq0!)] });
+    assert.equal(first.status, 200, JSON.stringify(first));
+    assert.equal(first.data.applied.length, 1);
+    assert.equal(first.data.conflicts.length, 0);
+    const second = await post("/sync/v1/push", { deviceId: "dev_l1live", epoch: 0, ops: [op("g4-op-b", id, "usr_other", seq0!)] });
+    assert.equal(second.status, 200, JSON.stringify(second));
+    assert.equal(second.data.conflicts.length, 1, "the collision on a protected field is a conflict, not a silent overwrite");
+    const conflictId = second.data.conflicts[0].id as string;
+
+    const listed = await post("/v1/conflicts/list", {});
+    assert.equal(listed.status, 200, JSON.stringify(listed));
+    assert.ok(JSON.stringify(listed.data).includes(conflictId), "the conflict is in conflicts.list");
+    const got = await post("/v1/conflicts/get", { conflictId });
+    assert.equal(got.status, 200, JSON.stringify(got));
+
+    const settled = await post("/v1/conflicts/resolve", { conflictId, choice: "theirs", summary: "Use the offline edit" });
+    assert.equal(settled.status, 200, JSON.stringify(settled));
+    const ownerNow = async () => ((await post("/v1/records/get", { type: "contact", recordId: id })).data.record.fields.owner as string);
+    assert.equal(await ownerNow(), "usr_other", "the chosen value is applied");
+    const undone = await post("/v1/conflicts/undo", { resolutionId: settled.data.resolutionId });
+    assert.equal(undone.status, 200, JSON.stringify(undone));
+    assert.equal(await ownerNow(), "usr_noah", "Undo puts the earlier value back");
+  } finally { await d.stop(); }
+});

@@ -9,7 +9,7 @@ import { deviceEpochOf, deviceRevoked, epochOf, headSeq, pullError } from "../..
 import type { Catalog, PullDeps } from "../../../sync/src/server/pull/index.ts";
 import { catalogPolicy, catalogRestricted } from "../../../sync/src/server/push/policy.ts";
 import { syncRowClocks } from "../../../sync/src/server/push/clocks.ts";
-import type { InvokeCall, PushDeps } from "../../../sync/src/server/push/types.ts";
+import type { ConflictOpen, HistoryEntry, InvokeCall, PushDeps } from "../../../sync/src/server/push/types.ts";
 import type { DeviceClass, Hello } from "../../../sync/src/protocol.ts";
 import type { DocRowRef } from "./docs.ts";
 
@@ -31,6 +31,8 @@ export interface SyncHostSeam {
   serverVersion?: string;
   /** Run the capability as the person through the invoke pipeline (permissions, Gate, validation, audit). Throws a VyreErr when refused. */
   invoke(call: InvokeCall): Promise<{ kind: "applied" } | { kind: "held"; taskId: string }>;
+  /** The conflicts module, through the host (a ctx scoped to it): where a collision is parked and a loser is kept. Omitted: sync keeps both in its own tables. */
+  conflicts?: { open(c: ConflictOpen): Promise<string>; history(e: HistoryEntry): Promise<void> };
   /** Where devices reach this Space; none known: an empty list. */
   endpoints?(): SyncEndpoint[];
   /** Fingerprint of the Space key, for the pairing screen. */
@@ -75,9 +77,11 @@ export function pushDepsOf(deps: PullDeps, seam: SyncHostSeam): PushDeps {
     appliedSeq: (opId) => db.get<{ seq: number }>("SELECT seq FROM sync_applied WHERE op_id = ?", opId)?.seq,
     policy: catalogPolicy(deps.catalog), restricted: catalogRestricted(deps.catalog),
     history(e) {
+      if (seam.conflicts) return seam.conflicts.history(e);
       db.run("INSERT OR IGNORE INTO sync_history (entity, id, field, hlc, actor, value, seq, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", e.entity, e.id, e.field, e.hlc, e.actor, JSON.stringify(e.value ?? null), e.seq, e.reason);
     },
     openConflict(c) {
+      if (seam.conflicts) return seam.conflicts.open(c);
       const id = `cfl_${createHash("sha256").update(`${c.opId}\u0000${c.field}`).digest("hex").slice(0, 24)}`;
       db.run("INSERT OR IGNORE INTO sync_conflict (id, entity, row_id, field, op_id, ours, theirs, base, state, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)",
         id, c.entity, c.id, c.field, c.opId, JSON.stringify(c.ours ?? null), JSON.stringify(c.theirs ?? null), c.base, deps.now());
