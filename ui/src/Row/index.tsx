@@ -18,7 +18,7 @@ export function rowHeight(note?: string, tall = false): number {
   return note ? ROW_HEIGHT_WITH_NOTE : ROW_HEIGHT;
 }
 
-export const Row = memo(function Row({ id, title, titleSuffix, tall = false, emphasis = false, note, selected = false, hovered = false, leading, trailing, onPress }: RowProps) {
+export const Row = memo(function Row({ id, title, titleSuffix, noteLead, tall = false, emphasis = false, note, selected = false, hovered = false, leading, trailing, onPress }: RowProps) {
   const [over, setOver] = useState(false);
   const lit = hovered || over;
   return (
@@ -40,7 +40,12 @@ export const Row = memo(function Row({ id, title, titleSuffix, tall = false, emp
             <Text numberOfLines={1} testID={id ? `row-${id}-suffix` : undefined} style={styles.suffix}>{titleSuffix}</Text>
           </View>
         ) : <Text numberOfLines={1} style={[styles.title, emphasis && BOLD]}>{title}</Text>}
-        {note ? <Text numberOfLines={tall ? 2 : 1} style={styles.note}>{note}</Text> : null}
+        {note ? (
+          <Text numberOfLines={tall ? 2 : 1} style={styles.note}>
+            {noteLead ? <Text testID={id ? `row-${id}-notelead` : undefined} style={styles.noteLead}>{`${noteLead} `}</Text> : null}
+            {note}
+          </Text>
+        ) : null}
       </View>
       {trailing ? <View testID={id ? `row-${id}-trailing` : undefined} style={styles.trailing}>{trailing}</View> : null}
     </Pressable>
@@ -61,5 +66,6 @@ const styles = StyleSheet.create({
   titleLine: { flexDirection: "row", alignItems: "baseline", minWidth: 0, gap: 6 },
   titleMain: { flexShrink: 0, maxWidth: "70%" },
   suffix: { flexShrink: 1, color: "var(--ink-3)" as string, fontSize: 12, lineHeight: 18 },
+  noteLead: { color: "var(--accent)" as string, fontWeight: "500" },
   note: { color: "var(--ink-3)" as string, fontSize: 11.5, lineHeight: 16 },
 });

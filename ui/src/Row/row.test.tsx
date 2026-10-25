@@ -71,3 +71,14 @@ test("emphasis makes the title semibold, with or without a suffix; without it th
   assert.match(withSuffix, /font-weight:600/);
   assert.ok(!off.includes("font-weight:600"));
 });
+
+test("noteLead draws an accent lead-in before the note, only with a note; rows without it are unchanged", () => {
+  const html = renderToStaticMarkup(<Row id="a" title="Rivera letter" note="Two edits left" noteLead="Draft ready" />);
+  assert.ok(html.includes('data-testid="row-a-notelead"') && html.includes("Draft ready") && html.includes("Two edits left"));
+  assert.ok(html.indexOf("Draft ready") < html.indexOf("Two edits left"), "the lead-in comes first");
+  assert.match(html, /color:var\(--accent\)/);
+  assert.ok(!renderToStaticMarkup(<Row id="a" title="Rivera letter" noteLead="Draft ready" />).includes("notelead"), "no note, no lead-in");
+  const plain = renderToStaticMarkup(<Row id="a" title="Rivera letter" note="Two edits left" />);
+  assert.ok(!plain.includes("notelead") && plain.includes("Two edits left"));
+  assert.equal(rowHeight("x"), ROW_HEIGHT_WITH_NOTE, "heights are unchanged");
+});
