@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   EmailBuilder, EMAIL_BLOCK_KINDS, EMAIL_MODES, EMAIL_PREVIEWS, PANE_TABS, PREVIEW_TEXT_LIMIT, SUBJECT_LIMIT,
-  blocksToPlain, highlightHtml, emailBlockHtml, hasUnsub, formatHtml, compileEmail as compile2, DEFAULT_EMAIL_STYLE, EMAIL_WIDTHS, EMAIL_FONTS, COLOR_LABEL, isHex, splitTokens, canRedo, canUndo, compileEmail, editBlock, fillMerge, focusKey, mergeFieldsOf, mergeToken, moveBlock, newBlock, pushHistory, runChecks, stepHistory,
+  blocksToPlain, RAIL_ORDER, SOCIAL_LIMIT, SPACER_MAX, SPACER_MIN, clampSpacer, dropSaved, savedInner, netLabel, highlightHtml, emailBlockHtml, hasUnsub, formatHtml, compileEmail as compile2, DEFAULT_EMAIL_STYLE, EMAIL_WIDTHS, EMAIL_FONTS, COLOR_LABEL, isHex, splitTokens, canRedo, canUndo, compileEmail, editBlock, fillMerge, focusKey, mergeFieldsOf, mergeToken, moveBlock, newBlock, pushHistory, runChecks, stepHistory,
 } from "./index.tsx";
 import type { EmailBlock, EmailBuilderViewProps, EmailDiff, EmailHistory, EmailSnapshot } from "./index.tsx";
 
@@ -268,4 +268,51 @@ test("a merge block draws as a chip with its label and prints as {{field}} in th
   assert.match(html, /data-token="\{\{owner_name\|owner name\}\}"/);
   assert.ok(html.includes(">owner name<"), "the chip shows the label, not the token");
   assert.match(renderToStaticMarkup(<EmailBuilder {...base} mode="plain" />), /Made from your blocks\. Edit it to write your own\./);
+});
+
+test("spacer, social and saved blocks: add, edit and export end to end", () => {
+  const sp = newBlock("spacer", "s");
+  const so = { ...newBlock("social", "o"), links: [{ network: "linkedin" as const, url: "https://linkedin.com/company/northwind" }, { network: "x" as const, url: "javascript:alert(1)" }] };
+  assert.equal(sp.size, 24);
+  assert.match(compileEmail([sp]), /height:24px/);
+  assert.match(compileEmail([{ ...sp, size: 40 }]), /height:40px/);
+  assert.equal(clampSpacer(1), SPACER_MIN);
+  assert.equal(clampSpacer(999), SPACER_MAX);
+  const html = compileEmail([so]);
+  assert.match(html, /href="https:\/\/linkedin\.com\/company\/northwind"/);
+  assert.ok(!html.includes("javascript:"), "an unsafe address is never exported");
+  assert.ok(!compileEmail([{ ...so, links: [] }]).includes("linkedin"), "an empty social block exports nothing");
+  assert.match(blocksToPlain([so]), /^linkedin: https:\/\/linkedin\.com\/company\/northwind$/);
+  assert.equal(netLabel("x"), "X");
+  assert.equal(netLabel("linkedin"), "Linkedin");
+  assert.equal(SOCIAL_LIMIT, 12);
+  const saved = dropSaved({ id: "blk_1", name: "Sign-off", block: { id: "orig", kind: "text", text: "Warm regards, {{owner_name|Maya}}" } }, "n1");
+  assert.equal(saved.kind, "saved");
+  assert.equal(saved.savedId, "blk_1");
+  assert.equal(saved.children?.[0]?.id, "n1-0", "the dropped copy has fresh ids");
+  assert.equal(savedInner(saved)?.text, "Warm regards, {{owner_name|Maya}}");
+  assert.match(compileEmail([saved]), /Warm regards, \{\{owner_name\|Maya\}\}/);
+  assert.match(compileEmail([saved], { mode: "preview", values: { owner_name: "Elena" } }), /Warm regards, Elena/);
+  assert.match(blocksToPlain([saved]), /Warm regards/);
+  assert.equal(savedInner({ id: "e", kind: "saved" }), null);
+  assert.equal(compileEmail([{ id: "e", kind: "saved" }]).includes("undefined"), false);
+});
+
+test("the rail follows the prototype order and holds every kind once; Saved opens the library, the others add", () => {
+  assert.deepEqual([...RAIL_ORDER].sort(), [...EMAIL_BLOCK_KINDS].sort());
+  assert.deepEqual(RAIL_ORDER.slice(0, 9), ["text", "heading", "image", "button", "divider", "spacer", "columns", "social", "footer"]);
+  const html = renderToStaticMarkup(<EmailBuilder {...base} />);
+  for (const k of ["spacer", "social", "saved"]) assert.ok(html.includes(`data-testid="em-add-${k}"`), k);
+  assert.ok(html.indexOf("em-add-spacer") < html.indexOf("em-add-columns") && html.indexOf("em-add-footer") < html.indexOf("em-add-saved"));
+});
+
+test("the canvas draws each new kind", () => {
+  const blocks: EmailBlock[] = [
+    { id: "sp", kind: "spacer", size: 32 },
+    { id: "so", kind: "social", align: "center", links: [{ network: "linkedin", url: "https://x.example" }, { network: "x", url: "https://x.example" }] },
+    { id: "sv", kind: "saved", text: "Sign-off", savedId: "blk_1", children: [{ id: "sv-0", kind: "text", text: "Warm regards" }] },
+  ];
+  const html = renderToStaticMarkup(<EmailBuilder {...base} blocks={blocks} />);
+  for (const id of ["em-spacer-sp", "em-social-so", "em-saved-sv"]) assert.ok(html.includes(`data-testid="${id}"`), id);
+  assert.ok(html.includes("32 px") && html.includes("Linkedin") && html.includes(">X<") && html.includes("Saved block: Sign-off") && html.includes("Warm regards"));
 });

@@ -15,11 +15,11 @@ import { MenuIcon, useMenu } from "../Menu/index.tsx";
 import { Row } from "../Row/index.tsx";
 import { MONO_VAR } from "../theme/fonts.ts";
 import { TabStrip } from "../TabStrip/index.tsx";
-import { EMAIL_ALIGNS, EMAIL_BLOCK_KINDS, EMAIL_MODES, EMAIL_PREVIEWS, emailBlockHtml, emailLabel } from "./props.ts";
-import type { EmailBlock, EmailBlockKind, EmailBuilderProps, EmailDiff, EmailMode, EmailPreview } from "./props.ts";
+import { EMAIL_ALIGNS, EMAIL_BLOCK_KINDS, EMAIL_SOCIAL_NETWORKS, EMAIL_MODES, EMAIL_PREVIEWS, emailBlockHtml, emailLabel } from "./props.ts";
+import type { EmailBlock, EmailBlockKind, EmailSocialNetwork, EmailBuilderProps, EmailDiff, EmailMode, EmailPreview } from "./props.ts";
 
 export type { EmailBlock, EmailBlockKind, EmailBuilderProps, EmailDiff, EmailMode, EmailPreview } from "./props.ts";
-export { EMAIL_ALIGNS, EMAIL_BLOCK_KINDS, EMAIL_MODES, EMAIL_PREVIEWS, emailBlockHtml, emailLabel } from "./props.ts";
+export { EMAIL_ALIGNS, EMAIL_BLOCK_KINDS, EMAIL_SOCIAL_NETWORKS, EMAIL_MODES, EMAIL_PREVIEWS, emailBlockHtml, emailLabel } from "./props.ts";
 
 /* ---------- pure logic ---------- */
 
@@ -53,6 +53,9 @@ export function newBlock(kind: EmailBlockKind, id: string): EmailBlock {
     case "text": return { id, kind, text: "Write something." };
     case "heading": return { id, kind, text: "Heading", size: 24, align: "left" };
     case "image": return { id, kind, text: "Image" };
+    case "spacer": return { id, kind, size: 24 };
+    case "social": return { id, kind, align: "center", links: [{ network: "linkedin", url: "https://" }] };
+    case "saved": return { id, kind };
     case "button": return { id, kind, text: "Open" };
     case "columns": return { id, kind, children: [{ id: `${id}-a`, kind: "text", text: "Left" }, { id: `${id}-b`, kind: "text", text: "Right" }] };
     case "divider": return { id, kind };
@@ -79,6 +82,30 @@ function resolveStyle(style: EmailStyle | undefined, dark: boolean): EmailStyle 
   return dark ? { ...s, colors: { ...s.colors, page: "#121214", email: "#1B1B1E", text: "#EDEDEF", muted: "#8A8A8F" } } : s;
 }
 
+/** A block saved for reuse (email_builder.saved_blocks.list): its id, name, the block, and whether the Space shares it. */
+export interface SavedBlock { id: string; name: string; block: EmailBlock; shared?: boolean }
+
+export const SOCIAL_LIMIT = 12;
+export const netLabel = (n: EmailSocialNetwork): string => (n === "x" ? "X" : n.charAt(0).toUpperCase() + n.slice(1));
+export const SPACER_MIN = 4;
+export const SPACER_MAX = 200;
+export const clampSpacer = (n: number): number => Math.min(SPACER_MAX, Math.max(SPACER_MIN, Math.round(n)));
+
+/** The rail's order, as the prototype draws it (Merge field stays, before HTML). */
+export const RAIL_ORDER: readonly EmailBlockKind[] = ["text", "heading", "image", "button", "divider", "spacer", "columns", "social", "footer", "saved", "merge", "html"];
+
+/** A saved block dropped into a design: a "saved" block that holds the block as it was saved (children[0]), fresh ids so it can be edited in place. */
+export function dropSaved(saved: SavedBlock, id: string): EmailBlock {
+  const reid = (b: EmailBlock, n: string): EmailBlock => ({ ...b, id: n, ...(b.children !== undefined ? { children: each(b.children, (c, i) => reid(c, `${n}-${i}`)) } : {}) });
+  return { id, kind: "saved", savedId: saved.id, text: saved.name, children: [reid(saved.block, `${id}-0`)] };
+}
+
+/** The block a "saved" block stands for, so it can be edited or detached. */
+export function savedInner(b: EmailBlock): EmailBlock | null {
+  const inner = b.children?.[0];
+  return inner !== undefined && inner.kind !== "saved" ? inner : null;
+}
+
 function blockHtml(b: EmailBlock, values: Readonly<Record<string, string>> | undefined, st: EmailStyle, dark: boolean): string {
   const c = st.colors;
   const face = `${st.font},Arial,sans-serif`;
@@ -91,6 +118,9 @@ function blockHtml(b: EmailBlock, values: Readonly<Record<string, string>> | und
       const out = `<div style="margin:0 0 14px;color:${b.kind === "footer" ? c.muted : c.text};font-family:${face}">${raw}</div>`;
       return values === undefined ? out : fillMerge(out, values);
     }
+    case "spacer":
+    case "social": return emailBlockHtml(b) ?? "";
+    case "saved": { const inner = savedInner(b); return inner === null ? "" : blockHtml(inner, values, st, dark); }
     case "image": return `<div style="margin:0 0 14px;background:${dark ? "#2A2A2E" : "#E9E9EC"};height:140px;text-align:center;font:13px/140px ${face};color:${c.muted}">${esc(b.text ?? "Image")}</div>`;
     case "button": return `<p style="margin:0 0 14px"><a href="#" style="display:inline-block;padding:10px 18px;border-radius:${Math.min(st.radius, 12)}px;background:${c.button};color:${c.buttonText};font:600 14px ${face};text-decoration:none">${esc(b.text ?? "Open")}</a></p>`;
     case "columns": return `<table role="presentation" width="100%" style="margin:0 0 14px"><tr>${each(b.children ?? [], (k) => `<td valign="top" width="50%">${blockHtml(k, values, st, dark)}</td>`).join("")}</tr></table>`;
@@ -121,6 +151,8 @@ export function blocksToPlain(blocks: readonly EmailBlock[]): string {
     if (b.kind === "text" || b.kind === "heading" || b.kind === "button" || b.kind === "merge") lines.push(b.kind === "merge" ? mergeToken(b.field ?? "") : (b.text ?? ""));
     else if (b.kind === "columns") lines.push(blocksToPlain(b.children ?? []));
     else if (b.kind === "divider") lines.push("---");
+    else if (b.kind === "social") { const l = each((b.links ?? []).filter((x) => /^(https?:\/\/|mailto:)/i.test(x.url)), (x) => `${x.network}: ${x.url}`).join("\n"); if (l !== "") lines.push(l); }
+    else if (b.kind === "saved") { const inner = savedInner(b); if (inner !== null) lines.push(blocksToPlain([inner])); }
     else if (b.kind === "footer") lines.push(b.unsub === true ? `${b.text ?? ""}\nUnsubscribe: {{unsubscribe_url}}` : (b.text ?? ""));
   }
   return lines.filter((l) => l !== "").join("\n\n");
@@ -189,7 +221,7 @@ export function focusKey(e: { key: string; metaKey?: boolean; ctrlKey?: boolean;
 const HTML_COLOR: Readonly<Record<HtmlTokenKind, { color: string }>> = {
   plain: { color: "var(--ink)" }, punct: { color: "var(--ink-3)" }, tag: { color: "var(--accent)" }, attr: { color: "var(--warn)" }, str: { color: "var(--ok)" }, comment: { color: "var(--ink-4)" },
 };
-const BLOCK_LABEL: Readonly<Record<EmailBlockKind, string>> = { text: "Text", heading: "Heading", footer: "Footer", image: "Image", button: "Button", columns: "Columns", divider: "Divider", merge: "Merge field", html: "HTML" };
+const BLOCK_LABEL: Readonly<Record<EmailBlockKind, string>> = { text: "Text", heading: "Heading", footer: "Footer", spacer: "Spacer", social: "Social", saved: "Saved", image: "Image", button: "Button", columns: "Columns", divider: "Divider", merge: "Merge field", html: "HTML" };
 export const blockLabel = (k: EmailBlockKind): string => BLOCK_LABEL[k];
 const MODE_LABEL: Readonly<Record<EmailMode, string>> = { visual: "Visual", html: "HTML", plain: "Plain text" };
 export const modeLabel = (m: EmailMode): string => MODE_LABEL[m];
@@ -206,6 +238,7 @@ const ICON = {
   up: `${SVG}<path d="M4 9.500L8 5.500l4 4"/></svg>`,
   down: `${SVG}<path d="M4 6.500l4 4 4-4"/></svg>`,
   moon: `${SVG}<path d="M13 9.500A5.500 5.500 0 016.500 3 5.500 5.500 0 1013 9.500z"/></svg>`,
+  plus: `${SVG}<path d="M8 3.500v9M3.500 8h9"/></svg>`,
   copy: `${SVG}<rect x="5.500" y="5.500" width="8" height="8" rx="1.500"/><path d="M10.500 5.500v-2a1 1 0 00-1-1h-6a1 1 0 00-1 1v6a1 1 0 001 1h2"/></svg>`,
   trash: `${SVG}<path d="M3 4.500h10M6.500 4.500V3h3v1.500M4.500 4.500l.5 8h6l.5-8"/></svg>`,
   text: `${SVG}<path d="M3 4.500h10M8 4.500v8M6 12.500h4"/></svg>`,
@@ -214,6 +247,9 @@ const ICON = {
   columns: `${SVG}<rect x="2.500" y="3" width="11" height="10" rx="1.500"/><path d="M8 3v10"/></svg>`,
   divider: `${SVG}<path d="M2.500 8h11"/></svg>`,
   history: `${SVG}<path d="M2.500 8a5.500 5.500 0 105.500-5.500A5.500 5.500 0 004 4.500M2 2.500v2.500h2.500M8 5v3l2 1.200"/></svg>`,
+  spacer: `${SVG}<path d="M8 2.500v11M5.500 5L8 2.500 10.500 5M5.500 11L8 13.500 10.500 11"/></svg>`,
+  social: `${SVG}<circle cx="4" cy="8" r="1.800"/><circle cx="12" cy="4" r="1.800"/><circle cx="12" cy="12" r="1.800"/><path d="M5.600 7.200l4.800-2.400M5.600 8.800l4.800 2.400"/></svg>`,
+  saved: `${SVG}<path d="M4 2.500h8v11L8 10.500 4 13.500z"/></svg>`,
   templates: `${SVG}<rect x="2.500" y="2.500" width="11" height="11" rx="1.500"/><path d="M2.500 6h11M6 6v7.500"/></svg>`,
   comment: `${SVG}<path d="M2.500 3.500h11v7h-6l-3 2.500v-2.500h-2z"/></svg>`,
   heading: `${SVG}<path d="M3.500 3v10M12.500 3v10M3.500 8h9"/></svg>`,
@@ -222,7 +258,7 @@ const ICON = {
   html: `${SVG}<path d="M6 4.500L2.500 8 6 11.500M10 4.500L13.500 8 10 11.500"/></svg>`,
   check: `${SVG}<path d="M3.500 8.500l3 3 6-7"/></svg>`,
 } as const;
-const BLOCK_ICON: Readonly<Record<EmailBlockKind, string>> = { text: ICON.text, heading: ICON.heading, footer: ICON.footer, image: ICON.image, button: ICON.button, columns: ICON.columns, divider: ICON.divider, merge: ICON.merge, html: ICON.html };
+const BLOCK_ICON: Readonly<Record<EmailBlockKind, string>> = { text: ICON.text, heading: ICON.heading, footer: ICON.footer, spacer: ICON.spacer, social: ICON.social, saved: ICON.saved, image: ICON.image, button: ICON.button, columns: ICON.columns, divider: ICON.divider, merge: ICON.merge, html: ICON.html };
 
 /** A person the preview can be filled for: their name and the values behind the merge fields. */
 export interface EmailContact { id: string; name: string; values: Readonly<Record<string, string>> }
@@ -330,6 +366,10 @@ export interface EmailBuilderViewProps extends EmailBuilderProps {
   /** The second subject of an A/B test, when one is running. */
   subjectB?: string;
   onSubjectB?: (subject: string | null) => void;
+  /** Saved blocks (email_builder.saved_blocks.list): the Saved button on the rail drops one into the design. */
+  savedBlocks?: readonly SavedBlock[];
+  /** Called when "Save selected block" is chosen: the name typed and the block (email_builder.saved_blocks.save). */
+  onSaveBlock?: (name: string, block: EmailBlock) => void;
   /** Starting email style (width, font, sizes, colours). */
   emailStyle?: EmailStyle;
   /** The firm's brand, shown in the Style pane. */
@@ -421,6 +461,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   const [subjectB, setSubjectB] = useState<string | null>(props.subjectB ?? null);
   const [contactId, setContactId] = useState<string | null>(props.contactId ?? props.contacts?.[0]?.id ?? null);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [savedNote, setSavedNote] = useState<string | null>(null);
   const [localComments, setLocalComments] = useState<readonly EmailComment[]>([]);
   const [draftComment, setDraftComment] = useState("");
   const refs = useRef<Record<string, { measureInWindow?: (cb: (x: number, y: number, w: number, h: number) => void) => void } | null>>({});
@@ -520,6 +561,32 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
     setDraftComment(""); props.onComment?.(text);
   };
 
+  const savedMenu = (): void => {
+    const list = props.savedBlocks ?? [];
+    const items: Parameters<typeof menu.show>[0] = [
+      { head: "Saved blocks" },
+      ...each(list, (sb) => ({ label: sb.shared === true ? `${sb.name} (shared)` : sb.name, onSelect: () => {
+        const b = dropSaved(sb, makeId());
+        const at = selected === null ? -1 : blocks.findIndex((x) => x.id === selected);
+        changeBlocks(at < 0 ? [...blocks, b] : [...blocks.slice(0, at + 1), b, ...blocks.slice(at + 1)], `Added the saved block ${sb.name}`);
+        setSelected(b.id);
+      } })),
+      ...(list.length === 0 ? [{ label: "No saved blocks yet", onSelect: () => undefined }] : []),
+      { label: "Save selected block", onSelect: () => {
+        if (sel === null || sel.kind === "saved") return;
+        const name = `${blockLabel(sel.kind)} ${list.length + 1}`;
+        props.onSaveBlock?.(name, sel);
+        setSavedNote(`Saved as ${name}`);
+      } },
+    ];
+    anchorMenu("rail-saved", items);
+  };
+  const setLink = (b: EmailBlock, i: number, patch: Partial<{ network: EmailSocialNetwork; url: string }>): void => {
+    const links = each(b.links ?? [], (l, k) => (k === i ? { ...l, ...patch } : l));
+    changeBlocks(editBlock(blocks, b.id, { links }), "Changed a social link");
+  };
+  const netMenu = (b: EmailBlock, i: number): void => anchorMenu(`net-${i}`, each(EMAIL_SOCIAL_NETWORKS, (n) => ({ label: netLabel(n), checked: b.links?.[i]?.network === n, onSelect: () => setLink(b, i, { network: n }) })));
+
   // Cmd-Shift-F and Escape (web only; native has no keyboard shortcut for it).
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") return undefined;
@@ -607,8 +674,8 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
 
   const rail = (
     <View style={[s.rail, narrow && s.railNarrow]} testID="em-rail" accessibilityLabel="Blocks">
-      {each(EMAIL_BLOCK_KINDS, (k) => (
-        <Pressable key={k} accessibilityRole="button" accessibilityLabel={`Add ${blockLabel(k)}`} testID={`em-add-${k}`} onPress={() => add(k)}
+      {each(RAIL_ORDER, (k) => (
+        <Pressable key={k} ref={refOf(`rail-${k}`)} accessibilityRole="button" accessibilityLabel={k === "saved" ? "Saved blocks" : `Add ${blockLabel(k)}`} testID={`em-add-${k}`} onPress={() => (k === "saved" ? savedMenu() : add(k))}
           style={({ hovered }: { hovered?: boolean }) => [s.railBtn, hovered === true && s.btnOver]}>
           <MenuIcon icon={BLOCK_ICON[k]} />
           <Text style={s.railText}>{blockLabel(k)}</Text>
@@ -636,6 +703,19 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
         ) : null}
         {b.kind === "image" ? <View style={s.imgBlock}><Text style={s.imgText}>{b.text ?? "Image"}</Text></View> : null}
         {b.kind === "divider" ? <View style={s.divBlock} /> : null}
+        {b.kind === "spacer" ? <View style={[s.spacerBlock, { height: clampSpacer(b.size ?? 24) }]} testID={`em-spacer-${b.id}`}><Text style={s.imgText}>{`${clampSpacer(b.size ?? 24)} px`}</Text></View> : null}
+        {b.kind === "social" ? (
+          <View style={[s.socialRow, { justifyContent: b.align === "left" ? "flex-start" : b.align === "right" ? "flex-end" : "center" }]} testID={`em-social-${b.id}`}>
+            {each(b.links ?? [], (l, i) => <Text key={i} style={s.socialChip}>{netLabel(l.network)}</Text>)}
+            {(b.links ?? []).length === 0 ? <Text style={s.imgText}>Add a link in the pane</Text> : null}
+          </View>
+        ) : null}
+        {b.kind === "saved" ? (
+          <View testID={`em-saved-${b.id}`}>
+            <Text style={s.savedTag}>{`Saved block${b.text !== undefined && b.text !== "" ? `: ${b.text}` : ""}`}</Text>
+            {(() => { const inner = savedInner(b); return inner === null ? <Text style={s.imgText}>This saved block is empty.</Text> : blockView(inner, depth + 1); })()}
+          </View>
+        ) : null}
         {b.kind === "merge" ? <Text style={s.mergeTok} {...webProps({ "data-token": mergeToken(b.field ?? "", b.text ?? "") })}>{(b.text !== undefined && b.text !== "" ? b.text : (b.field ?? "").replaceAll("_", " "))}</Text> : null}
         {b.kind === "html" ? <Text style={s.htmlBlock}>{b.text ?? ""}</Text> : null}
         {b.kind === "columns" ? <View style={s.cols}>{each(b.children ?? [], (c) => <View key={c.id} style={s.col}>{blockView(c, depth + 1)}</View>)}</View> : null}
@@ -803,6 +883,46 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
                 )}
               </View>
             ) : null}
+            {sel !== null && sel.kind === "spacer" ? (
+              <View style={s.ctl} testID="em-spacer-opt">
+                <Text style={s.ctlLabel}>Height</Text>
+                <View style={s.stepper}>
+                  <Btn label="Shorter spacer" icon={ICON.down} disabled={(sel.size ?? 24) <= SPACER_MIN} onPress={() => changeBlocks(editBlock(blocks, sel.id, { size: clampSpacer((sel.size ?? 24) - 4) }), "Shorter spacer")} testID="em-spacer-less" />
+                  <Text style={s.ctlValue} testID="em-spacer-value">{String(clampSpacer(sel.size ?? 24))}</Text>
+                  <Btn label="Taller spacer" icon={ICON.up} disabled={(sel.size ?? 24) >= SPACER_MAX} onPress={() => changeBlocks(editBlock(blocks, sel.id, { size: clampSpacer((sel.size ?? 24) + 4) }), "Taller spacer")} testID="em-spacer-more" />
+                </View>
+              </View>
+            ) : null}
+            {sel !== null && sel.kind === "social" ? (
+              <View testID="em-social-opt">
+                <View style={s.ctl} testID="em-social-align">
+                  <Text style={s.ctlLabel}>Align</Text>
+                  <View style={s.seg}>{each(EMAIL_ALIGNS, (a) => (
+                    <Pressable key={a} accessibilityRole="tab" aria-selected={(sel.align ?? "center") === a} accessibilityState={{ selected: (sel.align ?? "center") === a }} testID={`em-social-align-${a}`}
+                      onPress={() => changeBlocks(editBlock(blocks, sel.id, { align: a }), `Aligned ${a}`)} style={[s.segBtn, (sel.align ?? "center") === a && s.segOn]}>
+                      <Text style={[s.segText, (sel.align ?? "center") === a && s.segTextOn]}>{a === "left" ? "Left" : a === "center" ? "Center" : "Right"}</Text>
+                    </Pressable>))}</View>
+                </View>
+                {each(sel.links ?? [], (l, i) => (
+                  <View key={i} style={s.ctl} testID={`em-link-${i}`}>
+                    <Pressable ref={refOf(`net-${i}`)} accessibilityRole="button" accessibilityLabel={`Network ${i + 1}`} testID={`em-link-net-${i}`} onPress={() => netMenu(sel, i)} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}>
+                      <Text style={s.btnText}>{netLabel(l.network)}</Text><MenuIcon icon={ICON.down} />
+                    </Pressable>
+                    <TextInput accessibilityLabel={`Address ${i + 1}`} testID={`em-link-url-${i}`} value={l.url} autoCapitalize="none" spellCheck={false} placeholder="https://" placeholderTextColor="var(--ink-4)" style={s.linkUrl}
+                      onChangeText={(v) => setLink(sel, i, { url: v })} />
+                    <Btn label={`Remove link ${i + 1}`} icon={ICON.trash} onPress={() => changeBlocks(editBlock(blocks, sel.id, { links: (sel.links ?? []).filter((_, k) => k !== i) }), "Removed a social link")} testID={`em-link-remove-${i}`} />
+                  </View>
+                ))}
+                <Btn label="Add link" icon={ICON.plus} strong disabled={(sel.links ?? []).length >= SOCIAL_LIMIT} onPress={() => changeBlocks(editBlock(blocks, sel.id, { links: [...(sel.links ?? []), { network: "website", url: "https://" }] }), "Added a social link")} testID="em-link-add" />
+              </View>
+            ) : null}
+            {sel !== null && sel.kind === "saved" ? (
+              <View style={s.ctl} testID="em-saved-opt">
+                <Text style={s.ctlLabel}>{sel.text !== undefined && sel.text !== "" ? sel.text : "Saved block"}</Text>
+                <Btn label="Detach" strong onPress={() => { const inner = savedInner(sel); if (inner !== null) { changeBlocks(each(blocks, (x) => (x.id === sel.id ? { ...inner, id: sel.id } : x)), "Detached a saved block"); } }} testID="em-saved-detach" />
+              </View>
+            ) : null}
+            {savedNote !== null ? <Text style={s.note} testID="em-saved-note">{savedNote}</Text> : null}
             <Text style={s.note}>{sel !== null ? `${blockLabel(sel.kind)}. Edit it in place; the bar above the card moves, copies or deletes it.` : "Select a block to change it."}</Text>
           </View>
         ) : null}
@@ -988,6 +1108,11 @@ const s = StyleSheet.create({
   commentRow: { color: "var(--ink)" as string, fontSize: 13, lineHeight: 19 },
   commentBy: { color: "var(--ink-3)" as string, fontWeight: "600" },
   pvBar: { flexDirection: "row", alignItems: "center", gap: 8, width: "100%", maxWidth: 760, marginBottom: 14 },
+  spacerBlock: { alignItems: "center", justifyContent: "center", borderWidth: 1, borderStyle: "dashed", borderColor: "#C9C9CE", borderRadius: 6, marginVertical: 2 },
+  socialRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingVertical: 4 },
+  socialChip: { color: "#4A4AB8", fontSize: 13, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: "#ECEBFA" },
+  savedTag: { color: "#8A8A8F", fontSize: 11, marginBottom: 4 },
+  linkUrl: { flex: 1, minWidth: 0, height: 28, color: "var(--ink)" as string, fontSize: 12.5, paddingHorizontal: 8, borderRadius: 6, backgroundColor: "var(--sunk)" as string, marginHorizontal: 6 },
   hint: { position: "absolute", top: 12, right: 16, color: "var(--ink-3)" as string, fontSize: 12, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 8, backgroundColor: "var(--raised)" as string },
   toast: { position: "absolute", bottom: 16, alignSelf: "center", color: "var(--ink)" as string, fontSize: 12.5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: "var(--raised)" as string },
 });

@@ -23,6 +23,7 @@ const TEMPLATES = [
   { id: "tp1", name: "Quick check-in", blocks: BLOCKS },
   { id: "tp2", name: "Blank", blocks: [] as readonly EmailBlock[] },
 ];
+const SAVED = [{ id: "blk_1", name: "Sign-off", block: { id: "o", kind: "text" as const, text: "Warm regards, {{owner_name}}" } }, { id: "blk_2", name: "Follow us", shared: true, block: { id: "p", kind: "social" as const, align: "center" as const, links: [{ network: "linkedin" as const, url: "https://linkedin.com/company/northwind" }] } }];
 const IDEAS = ["Quick check-in, {{first_name}}", "How is spring shaping up at {{company}}?", "A short note before the busy season", "{{first_name}}, one question about spring", "Checking in on {{company}}"];
 const DIFFS: readonly EmailDiff[] = [
   { id: "d-subject", summary: "Shorter subject: It has been a while" },
@@ -41,7 +42,7 @@ export default function Mount(): ReactNode {
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
       <EmailBuilder id="em-q4" title="Q4 check-in" subject="Quick check-in, {{first_name}}" previewText=""
-        mode={mode} focus={q.get("focus") === "1"} paneTab={tab} preview={preview} blocks={BLOCKS} diffs={DIFFS} version={3} contacts={CONTACTS} templates={TEMPLATES} subjectIdeas={IDEAS} comments={[{ id: "k1", by: "Maya Chen", text: "Keep it under three lines." }]}
+        mode={mode} focus={q.get("focus") === "1"} paneTab={tab} preview={preview} blocks={BLOCKS} diffs={DIFFS} version={3} contacts={CONTACTS} templates={TEMPLATES} subjectIdeas={IDEAS} savedBlocks={SAVED} comments={[{ id: "k1", by: "Maya Chen", text: "Keep it under three lines." }]}
         fromName="Maya Chen · Northwind" testTo="Irfad Imtiaz" brand={{ name: "Northwind", color: "#5B5BD6", font: "Inter" }}
         askThread={[{ from: "you", text: "Make it warmer and shorter, then add a P.S." }, { from: "assistant", text: "I softened the opening and made the second paragraph more reassuring. Your merge fields are untouched. I added a short P.S. above the footer." }]}
         ask={{ place: "email", context: { kind: "email", id: "em-q4", title: "Q4 check-in", access: "edit" }, agents: AGENTS, onAsk: () => undefined }} />
