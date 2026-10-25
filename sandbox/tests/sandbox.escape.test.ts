@@ -4,8 +4,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  SYSTEM_READ, SandboxError, bwrapCommand, seatbeltCommand, confinementProbe, containerConfig, createEgressProxy, networkName, reviewContainerConfig, sbplString, seatbeltProfile, startDockerSandbox, validateSpec, within,
+  SYSTEM_READ, SandboxError, seatbeltCommand, confinementProbe, containerConfig, createEgressProxy, networkName, reviewContainerConfig, sbplString, seatbeltProfile, validateSpec, within,
 } from "../src/index.ts";
+import { bwrapCommand } from "../src/bwrap.ts";
+import { startDockerSandbox } from "../src/docker.ts";
 import type { ContainerConfig, ProxyHandle, Sandbox } from "../src/index.ts";
 import { ROOTS, echoServer, fakeDocker, rawExchange, rng, spec } from "./helpers.ts";
 
