@@ -36175,6 +36175,7 @@
                 "deployment",
                 "connector_sync",
                 "connector_build",
+                "import",
                 "runbook",
                 "wait",
                 "terminal",
