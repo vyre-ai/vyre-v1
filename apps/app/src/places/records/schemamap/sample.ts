@@ -87,16 +87,26 @@ export interface SampleSchema {
   addType(d: TypeDetail, rows: number, edges?: MapEdge[]): void;
 }
 
-export function createSampleSchema(space: SchemaSpace = northwind, o: { withSynced?: boolean } = {}): SampleSchema {
+export function createSampleSchema(space0: SchemaSpace = northwind, o: { withSynced?: boolean } = {}): SampleSchema {
+  let space = space0;
   const replica = createFakeReplica("spc_northwind");
   const calls: { cap: string; input: unknown }[] = [];
   const went: string[] = [];
   const copied: string[] = [];
   const types = new Map<string, TypeDetail>();
-  for (const d of space.types) types.set(d.key, d);
+  // the list's sample also has a type synced from GitHub, a Journey and a site table, so every source label shows
+  if (o.withSynced) {
+    const more: [TypeDetail, number][] = [
+      [detail("issues", "Issue", "Issues", "title", [f("title", "text", "Title"), f("state", "status", "State"), f("author", "person", "Author")]), 126],
+      [detail("onboarding", "Onboarding", "Onboardings", "name", [f("name", "text", "Name"), f("step", "choice", "Step"), f("client", "relation", "Client")]), 9],
+      [detail("pages", "Page", "Pages", "title", [f("title", "text", "Title"), f("slug", "text", "Slug")]), 14],
+    ];
+    for (const [d, n] of more) { space = { ...space, types: [...space.types, d], rows: { ...space.rows, [d.key]: n } }; }
+  }
   const sp: SchemaSpace = o.withSynced
-    ? { ...space, synced: { ...space.synced, hires: "hubspot" }, group: { ...space.group } }
+    ? { ...space, synced: { ...space.synced, hires: "hubspot", issues: "github" }, group: { ...space.group, onboarding: "Journeys", pages: "Sites" } }
     : space;
+  for (const d of space.types) types.set(d.key, d);
   let edges = [...space.edges];
   const rows = { ...space.rows };
 
