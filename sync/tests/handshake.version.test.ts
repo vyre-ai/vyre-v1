@@ -180,5 +180,5 @@ test("the error says what to do: update the app, nothing is lost, reading still 
   assert.match(e.error.message, /kept/);
   assert.equal(e.error.next[0]?.kind, "update_app");
   assert.equal(e.error.retryable, false);
-  assert.ok(!/[—§]/.test(e.error.message), "no em dash or section sign in copy");
+  assert.ok(!/[\u2014\u00a7]/.test(e.error.message), "no em dash or section sign in copy");
 });
