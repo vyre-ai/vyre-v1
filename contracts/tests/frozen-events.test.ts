@@ -128,3 +128,4 @@ test('every event has vis, label, redact and sv within the catalogue rules', () 
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
 
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+// rerun on final commit

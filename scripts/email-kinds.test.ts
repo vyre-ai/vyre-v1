@@ -42,3 +42,4 @@ test("spacer, social and saved are frozen kinds with their HTML export", () => {
   assert.match(saved, /<h1 [^>]*30px/);
   assert.equal(emailBlockHtml({ id: "v2", kind: "saved" }), "");
 });
+// rerun on final commit
