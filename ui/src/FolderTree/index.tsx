@@ -173,7 +173,7 @@ export function SlotRow(props: SlotRowProps): ReactElement {
       <Row
         id={props.id}
         title={`${indentFor(props.leadWidth ?? 0)}${props.title}`}
-        {...(note === undefined ? {} : { note })}
+        {...(note === undefined ? {} : { note: `${indentFor(props.leadWidth ?? 0)}${note}` })}
         selected={props.selected === true}
         hovered={hover || props.cursor === true}
         {...(props.onPress === undefined ? {} : { onPress: props.onPress })}
