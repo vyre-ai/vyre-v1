@@ -105,7 +105,9 @@ test("one open request per person and resource; the same idempotency key gives t
 });
 
 test("a request for the Space, or for a resource nobody manages, goes to the admins", async () => {
-  const { h } = world();
+  const { h, store } = world();
+  // a real resource that nobody manages (an id that is not a resource at all is the made-up case, tested below)
+  store.resources.set("fld_unmanaged", { id: "fld_unmanaged", type: "folder", parentId: null, label: "internal", ownerId: null, holds: 0, row: {} });
   await ask(h, "usr_other", { resource: { type: "space", id: "spc_test" }, level: "manage", idempotencyKey: "idem_s" });
   await ask(h, "usr_maya", { resource: { type: "folder", id: "fld_unmanaged" }, level: "view", idempotencyKey: "idem_u" });
   assert.deepEqual(h.calls.filter((c) => c.cap === "tasks.create").map((c) => (c.input["assigned"] as { id: string }).id), ["usr_admin", "usr_admin"]);
