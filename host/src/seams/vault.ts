@@ -2,6 +2,8 @@
 // caller, so authorize (Use level), audit and the history row are the normal ones and the value never passes through the module that asked. The places (git_credential, container_env, route_auth, env...)
 // are sinks the host registers per kind in DaemonOptions.seams.vaultSinks; a kind with no sink is refused by the vault module ("no place to fill").
 import dns from "node:dns/promises";
+import http from "node:http";
+import https from "node:https";
 import net from "node:net";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { CtxSeed, InvokeResult } from "../invoke.ts";
@@ -69,29 +71,68 @@ export function blockedAddress(ip: string, own: boolean): string | null {
   return "not an address";
 }
 
-/** Where a local model may be reached from this node: http or https, and every address its name resolves to allowed (a name that resolves to a refused address is refused whole). Null is fine; a string is why not. */
-export async function refuseModelAddress(address: string, own: boolean, resolve: (host: string) => Promise<string[]> = async (h) => (await dns.lookup(h, { all: true })).map((r) => r.address)): Promise<string | null> {
+/** Where a local model may be reached from this node: http or https, and every address its name resolves to allowed (a name that resolves to a refused address is refused whole). `ips` are the addresses to connect to. */
+export async function checkModelAddress(address: string, own: boolean, resolve: (host: string) => Promise<string[]> = async (h) => (await dns.lookup(h, { all: true })).map((r) => r.address)): Promise<{ why: string } | { url: URL; ips: string[] }> {
   let u: URL;
-  try { u = new URL(address); } catch { return "That is not an address."; }
-  if (u.protocol !== "http:" && u.protocol !== "https:") return "A local model is reached over http or https.";
+  try { u = new URL(address); } catch { return { why: "That is not an address." }; }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return { why: "A local model is reached over http or https." };
   const host = u.hostname.replace(/^\[|\]$/g, "");
   let ips: string[];
-  try { ips = net.isIP(host) ? [host] : await resolve(host); } catch { return "That address could not be found."; }
-  if (!ips.length) return "That address could not be found.";
+  try { ips = net.isIP(host) ? [host] : await resolve(host); } catch { return { why: "That address could not be found." }; }
+  if (!ips.length) return { why: "That address could not be found." };
   for (const ip of ips) {
     const why = blockedAddress(ip, own);
-    if (why) return own ? "That address is not allowed." : `A local model on this server cannot be ${why}.`;
+    if (why) return { why: own ? "That address is not allowed." : `A local model on this server cannot be ${why}.` };
   }
-  return null;
+  return { url: u, ips };
 }
+
+/** Null when the address may be probed from this node, else why not. */
+export async function refuseModelAddress(address: string, own: boolean, resolve?: (host: string) => Promise<string[]>): Promise<string | null> {
+  const r = await checkModelAddress(address, own, resolve);
+  return "why" in r ? r.why : null;
+}
+
+export interface PinnedResponse { status: number; ok: boolean; json(): Promise<unknown> }
+export type PinnedRequest = (url: URL, o: { headers: Record<string, string>; ips: readonly string[]; timeoutMs?: number }) => Promise<PinnedResponse>;
+
+/**
+ * GET `url` connecting to one of `ips` (the addresses that were checked), whatever the name would resolve to now: the Host header and the TLS server name stay the name\'s, the socket goes to the checked
+ * address. A redirect is not followed (it answers as a non-ok status). This is what closes the gap between checking an address and connecting to it (DNS rebinding).
+ */
+export const pinnedGet: PinnedRequest = (url, o) => new Promise((resolve, reject) => {
+  const secure = url.protocol === "https:";
+  const lib = secure ? https : http;
+  const ips = [...o.ips];
+  const req = lib.request({
+    host: url.hostname.replace(/^\[|\]$/g, ""), port: url.port || (secure ? 443 : 80), path: `${url.pathname}${url.search}`, method: "GET",
+    headers: { ...o.headers, host: url.host }, ...(secure ? { servername: net.isIP(url.hostname) ? undefined : url.hostname } : {}),
+    lookup: (_host: string, opts: { all?: boolean }, cb: (err: Error | null, a: unknown, f?: number) => void) => {
+      const pick = ips.map((address) => ({ address, family: net.isIPv6(address) ? 6 : 4 }));
+      if (opts && opts.all) cb(null, pick); else cb(null, pick[0]!.address, pick[0]!.family);
+    },
+    timeout: o.timeoutMs ?? 10_000,
+  } as http.RequestOptions, (res) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    res.on("data", (c: Buffer) => { size += c.length; if (size > 1_000_000) { req.destroy(new Error("too large")); return; } chunks.push(c); });
+    res.on("end", () => {
+      const status = res.statusCode ?? 0;
+      resolve({ status, ok: status >= 200 && status < 300, json: async () => JSON.parse(Buffer.concat(chunks).toString("utf8")) });
+    });
+  });
+  req.on("timeout", () => req.destroy(new Error("timeout")));
+  req.on("error", reject);
+  req.end();
+});
 
 /**
  * providers.test (the vault module has no network of its own): reach the provider with the key and list the models it offers. The key is used for this one request and not kept; an error never carries it.
  * A local model address comes from the caller, so it is checked first (refuseModelAddress): never link-local, and on a node that is not the caller's own never loopback or private either.
- * `own(person)` is the same rule as the key's: this is the caller's own computer. Redirects are errors. (The name is resolved to check it and again to connect; a name that changes between the two is
- * the one gap, so a Space server also keeps the model address out of the reply.)
+ * `own(person)` is the same rule as the key's: this is the caller's own computer. The socket connects to the address that was checked (pinnedGet), so a name that answers differently the second time
+ * (DNS rebinding) changes nothing. Redirects are not followed.
  */
-export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: (personId: string) => boolean; resolve?: (host: string) => Promise<string[]> } = {}) {
+export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: (personId: string) => boolean; resolve?: (host: string) => Promise<string[]>; request?: PinnedRequest } = {}) {
   const fetchFn = o.fetch ?? globalThis.fetch;
   const LISTS: Record<string, (key: string) => { url: string; headers: Record<string, string>; pick: (j: unknown) => string[] }> = {
     anthropic: (k) => ({ url: "https://api.anthropic.com/v1/models", headers: { "x-api-key": k, "anthropic-version": "2023-06-01" }, pick: ids("data", "id") }),
@@ -110,10 +151,18 @@ export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: 
     let url: string, headers: Record<string, string> = {}, pick: (j: unknown) => string[] = ids("data", "id");
     if (p.connection === "local_model") {
       if (!p.address) return { ok: false, models: [], detail: "This local model has no address." };
-      const why = await refuseModelAddress(p.address, o.own ? o.own(p.caller) : false, o.resolve);
-      if (why) return { ok: false, models: [], detail: why };
-      url = `${p.address.replace(/\/$/, "")}/v1/models`;
+      const checked = await checkModelAddress(p.address, o.own ? o.own(p.caller) : false, o.resolve);
+      if ("why" in checked) return { ok: false, models: [], detail: checked.why };
       if (p.apiKey) headers = { authorization: `Bearer ${p.apiKey}` };
+      try {
+        const base = new URL(`${checked.url.pathname.replace(/\/$/, "")}/v1/models`, checked.url);
+        const r = await (o.request ?? pinnedGet)(base, { headers, ips: checked.ips });
+        if (r.status === 401 || r.status === 403) return { ok: false, models: [], detail: "The model did not accept this key." };
+        if (!r.ok) return { ok: false, models: [], detail: `The model answered ${r.status}.` };
+        return { ok: true, models: ids("data", "id")(await r.json()) };
+      } catch {
+        return { ok: false, models: [], detail: "The model could not be reached." };
+      }
     } else {
       const make = LISTS[p.providerKey];
       if (!make) return { ok: false, models: [], detail: "This provider cannot be tested from here." };

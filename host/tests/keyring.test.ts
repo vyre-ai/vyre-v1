@@ -58,3 +58,15 @@ test("get hands out a copy: changing it changes nothing inside", () => {
   copy.fill(0);
   assert.deepEqual(k.get("usr_a"), key(3));
 });
+
+test("sweep wipes the key of a person whose sessions have all ended without anyone reading it, and leaves the others", () => {
+  const alive = new Set(["ses_a", "ses_c"]);
+  const k = createKeyring({ allowed: () => true, live: (id) => alive.has(id) });
+  k.hold("usr_a", key(1), "ses_a"); k.hold("usr_b", key(2), "ses_b"); k.hold("usr_c", key(3)); k.hold("usr_d", key(4), "ses_c");
+  assert.equal(k.sweep(), 1, "only usr_b's session is gone");
+  assert.deepEqual([k.holds("usr_a"), k.holds("usr_b"), k.holds("usr_c"), k.holds("usr_d")], [true, false, true, true]);
+  alive.delete("ses_a");
+  assert.equal(k.sweep(), 1);
+  assert.equal(k.holds("usr_a"), false);
+  assert.equal(k.sweep(), 0);
+});
