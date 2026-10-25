@@ -11483,6 +11483,25 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/google/drive/changes_start_token",
+    "cap": "google.drive.changes_start_token",
+    "v": 1,
+    "module": "google",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/google/drive/copy_file",
     "cap": "google.drive.copy_file",
     "v": 1,
@@ -16980,7 +16999,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "file",
+      "type": "note",
       "id": "/noteId"
     },
     "idempotency": "natural",
@@ -16999,7 +17018,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "manage",
     "resource": {
-      "type": "file",
+      "type": "note",
       "id": "/noteId"
     },
     "idempotency": "natural",
@@ -17036,7 +17055,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "file",
+      "type": "note",
       "id": "/noteId"
     },
     "idempotency": "natural",
@@ -20039,6 +20058,25 @@ export const routes: Route[] = [
     "resource": {
       "type": "record",
       "id": "/recordId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/records/view",
+    "cap": "records.view",
+    "v": 1,
+    "module": "records",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "record_type",
+      "id": "/type"
     },
     "idempotency": "natural",
     "risk": "low",

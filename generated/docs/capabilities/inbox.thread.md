@@ -52,6 +52,7 @@ type Out = {
     campaignId?: string;
     followed: boolean;
     alertOnReplies: boolean;
+    starred?: boolean;
   };
   items: Array<{
       kind: "email" | "sms" | "call" | "meeting" | "campaign_step" | "record_chip" | "note";
@@ -105,6 +106,7 @@ type Out = {
       ],
       "needsMatch": true,
       "ownerId": "usr_a1b2c3",
+      "starred": true,
       "unreadCount": 1
     },
     "items": [

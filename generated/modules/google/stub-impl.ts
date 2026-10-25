@@ -17,6 +17,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "google.docs.batch_update": async () => ({"applied":1} as unknown) as never,
   "google.docs.create_document": async () => ({"documentId":"example","url":"example"} as unknown) as never,
   "google.docs.get_document": async () => ({"body":{},"title":"example"} as unknown) as never,
+  "google.drive.changes_start_token": async () => ({"startPageToken":"example"} as unknown) as never,
   "google.drive.copy_file": async () => ({"file":{"driveId":"example","id":"example","mimeType":"example","modifiedTime":"example","name":"example","parents":["example"],"size":1,"webViewLink":"example"}} as unknown) as never,
   "google.drive.create_folder": async () => ({"file":{"driveId":"example","id":"example","mimeType":"example","modifiedTime":"example","name":"example","parents":["example"],"size":1,"webViewLink":"example"}} as unknown) as never,
   "google.drive.download_file": async () => ({"blobId":"blb_a1b2c3","mimeType":"example","size":1} as unknown) as never,

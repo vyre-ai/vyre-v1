@@ -1,12 +1,16 @@
-// Tree, blob, trash, version and lint handlers. Later packets add the rest of the manifest.
+// Tree, blob, trash, version, lint, changeset and agent-staging handlers. Later packets add the rest of the manifest.
 
 import { treeHandlers } from "./tree.ts";
 import { versionHandlers } from "./versions.ts";
 import { lintHandlers } from "./lint.ts";
 import { sheetsHandlers } from "./sheets.ts";
+import { changesetHandlers } from "./changesets.ts";
+import { withAgentStaging } from "./agent-stage.ts";
 
-// versionHandlers replace files.write (binary collision rule) and add files.diff; lintHandlers add files.lint, files.save, files.share; sheetsHandlers add the sheets.* table capabilities.
-export const handlers = { ...treeHandlers, ...versionHandlers, ...lintHandlers, ...sheetsHandlers };
+// versionHandlers replace files.write (binary collision rule) and add files.diff; lintHandlers add files.lint, files.save, files.share; sheetsHandlers add the sheets.* table capabilities;
+// changesetHandlers wrap files.write and files.create (agent writes in a Review changes folder are staged) and add the changesets.* capabilities; withAgentStaging puts the same staging
+// in front of files.delete, files.rename, files.move and files.save.
+export const handlers = withAgentStaging({ ...treeHandlers, ...versionHandlers, ...lintHandlers, ...sheetsHandlers, ...changesetHandlers });
 
 export { putUploadedBytes, MAX_INLINE, MAX_UPLOAD, TRASH_MS, TREE_ROOTS, KNOWLEDGE_CHILDREN } from "./tree.ts";
 export { configureSheets, sheetsHooks } from "./sheets.ts";

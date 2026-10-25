@@ -1,0 +1,25 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_06-folder-tree",
+      "route": "/m/P-L9_06?part=tree",
+      "proto": "automations,{skin}",
+      "waitFor": "[data-testid=\"folders-personal\"]",
+      "note": "ui/FolderTree with Personal, Shared with me and Space sections, folder rows with counts, against the Automations sidebar of the prototype (same three sections)."
+    },
+    {
+      "id": "P-L9_06-share-sheet",
+      "route": "/m/P-L9_06?part=share",
+      "proto": "automations,at:share-sheet,{skin}",
+      "waitFor": "[data-testid=\"share-sheet-fld_intake\"]",
+      "note": "ui/ShareSheet for a folder with an owner and two grants, against the prototype share sheet."
+    },
+    {
+      "id": "P-L9_06-needs-team-space",
+      "route": "/m/P-L9_06?part=needs",
+      "proto": "console,space:personal,{skin}",
+      "waitFor": "[data-testid=\"needs-team-space\"]",
+      "note": "ui/NeedsTeamSpace against the prototype Console in a Personal Space."
+    }
+  ]
+}
