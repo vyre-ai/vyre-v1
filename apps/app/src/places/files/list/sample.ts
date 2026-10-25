@@ -5,6 +5,7 @@
 import { createFakeReplica, createScreenHooks, liveQuery } from "../../../../../../client/src/index.ts";
 import type { FakeReplica, LiveQuery, QueryState, Row } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
+import { namesFor, nameOf } from "../../../fixtures/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { FolderNode } from "../../../../../../ui/src/FolderTree/index.tsx";
 import type { Connection, FilesData, FilesNav, LiveCap } from "../tree/data.tsx";
@@ -28,7 +29,7 @@ const f = (id: string, name: string, folder: string, kind: FileKind, size: numbe
 
 export const northwind: SampleSpace = {
   id: "northwind", name: "Northwind",
-  people: { usr_irfad: "Irfad Imtiaz", usr_maya: "Maya Chen", usr_omar: "Omar Haddad", agt_docs: "Docs", agt_billing: "Billing" },
+  people: namesFor("northwind"),
   folders: [
     F("fld_daily", "Daily", null, "personal"),
     F("fld_money", "Money", null, "personal"),
@@ -61,11 +62,11 @@ export const northwind: SampleSpace = {
 
 export const harbor: SampleSpace = {
   id: "harbor", name: "Harbor Studio",
-  people: { usr_irfad: "Irfad Imtiaz", usr_ines: "Ines Costa" },
+  people: namesFor("harbor"),
   folders: [F("fld_h_clients", "Clients", null, "space"), F("fld_h_assets", "Assets", null, "space")],
   files: [
     f("fil_h_logo", "Moreno logo round two.png", "fld_h_clients", "image", 540_000, 3 * HOUR, "usr_ines"),
-    f("fil_h_copy", "Abel homepage copy.docx", "fld_h_clients", "document", 22_000, 27 * HOUR, "usr_irfad"),
+    f("fil_h_copy", "Abel homepage copy.docx", "fld_h_clients", "document", 22_000, 27 * HOUR, "usr_june"),
     f("fil_h_type", "Typefaces.zip", "fld_h_assets", "archive", 12_500_000, 6 * DAY, "usr_ines"),
   ],
 };
@@ -216,7 +217,7 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
     connection, nav,
     pane: { open: true, toggle: () => { result.paneToggles += 1; } },
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
-    nameOf: (id) => space.people[id] ?? id,
+    nameOf: (id) => space.people[id] ?? nameOf(space.id, id),
   };
   result.data = data;
   return result;

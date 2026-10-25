@@ -4,13 +4,14 @@ Lane L4. Kind module. Version 0.1.0.
 
 Requires: mounts.
 
-## Capabilities (63)
+## Capabilities (64)
 
 - [changesets.approve](../capabilities/changesets.approve.md): Approve and commit a changeset: 3-way merge on the recorded base, conflicts go to the reviewer; optionally push
 - [changesets.comments.add](../capabilities/changesets.comments.add.md): Add an inline comment to a changeset with @ people and agents (an @ agent answers in the thread)
 - [changesets.comments.list](../capabilities/changesets.comments.list.md): List inline comments on a changeset
 - [changesets.diff](../capabilities/changesets.diff.md): Hunks of one file inside a changeset, against its recorded base version
 - [changesets.discard](../capabilities/changesets.discard.md): Throw the staged changes away
+- [changesets.edit](../capabilities/changesets.edit.md): Edit a proposed change in place before accepting it: replace a run of lines in one staged file. The proposer stays recorded and so does the editor; Approve still goes through its own Gate
 - [changesets.get](../capabilities/changesets.get.md): Read a changeset with its file list and counts
 - [changesets.list](../capabilities/changesets.list.md): List changesets, for example the ones waiting for me
 - [changesets.request_changes](../capabilities/changesets.request_changes.md): Send the reviewer comments back to the agent thread and keep the changeset open
@@ -70,11 +71,12 @@ Requires: mounts.
 - [sheets.update_row](../capabilities/sheets.update_row.md): Update one row by row id or by a key column value
 - [sheets.upsert_row](../capabilities/sheets.upsert_row.md): Update the row that matches the given columns, or append a new one
 
-## Events (28)
+## Events (29)
 
 - [changeset.approved](../events/changeset.approved.md): A changeset was approved and committed
 - [changeset.changes_requested](../events/changeset.changes_requested.md): The reviewer asked the agent for changes
 - [changeset.discarded](../events/changeset.discarded.md): A changeset was discarded
+- [changeset.edited](../events/changeset.edited.md): A person edited a proposed change in place before accepting it
 - [changeset.opened](../events/changeset.opened.md): Agent edits were staged in a working copy for review
 - [changeset.sent_for_review](../events/changeset.sent_for_review.md): A changeset was opened to an outside agent for review
 - [changeset.updated](../events/changeset.updated.md): A change inside a changeset was reverted or the agent added more edits
