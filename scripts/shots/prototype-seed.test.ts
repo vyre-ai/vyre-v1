@@ -1,3 +1,4 @@
+// P-UI_06b: Files tree and Records tables from the prototype seed.
 // The Files tree and the Records tables are what the prototype's own seed code builds (run in a vm by scripts/shots/gen-prototype-seed.mjs), for all three Spaces.
 // prototype-seed.generated.json is written by the CI regen job from that script and committed; this test runs the script again and compares, so a prototype change that is not regenerated fails here.
 import test from "node:test";
