@@ -269,9 +269,9 @@ test("replica profiles hold on the encrypted engines: a phone refuses Restricted
   const fakeMc = createFakeMc(d);
   const person = bytes(32, 4);
   const openers = { sqlcipher: { open: fakeSql.open }, sqlite3mc: { mod: fakeMc.mod, vfs: "opfs-sahpool" } };
-  const phone = await openDeviceReplica({ target: "android", spaceId: "spc", deviceId: "p", vault: createReplicaKeyVault(memoryKeyBox()), personKey: person, openers, registryHash: "h", phoneCeiling: "internal", personId: "prs_me", clock: () => NOW });
-  const web = await openDeviceReplica({ target: "web", spaceId: "spc", deviceId: "w", vault: createReplicaKeyVault(memoryKeyBox()), personKey: person, openers, registryHash: "h", personId: "prs_me", clock: () => NOW });
-  const mac = await openDeviceReplica({ target: "desktop-mac", spaceId: "spc2", deviceId: "m", vault: createReplicaKeyVault(memoryKeyBox()), personKey: person, openers, registryHash: "h", personId: "prs_me", clock: () => NOW });
+  const phone = await openDeviceReplica({ target: "android", spaceId: "spc", deviceId: "p", file: "phone.db", vault: createReplicaKeyVault(memoryKeyBox()), personKey: person, openers, registryHash: "h", phoneCeiling: "internal", personId: "prs_me", clock: () => NOW });
+  const web = await openDeviceReplica({ target: "web", spaceId: "spc", deviceId: "w", file: "web.db", vault: createReplicaKeyVault(memoryKeyBox()), personKey: person, openers, registryHash: "h", personId: "prs_me", clock: () => NOW });
+  const mac = await openDeviceReplica({ target: "desktop-mac", spaceId: "spc2", deviceId: "m", file: "mac.db", vault: createReplicaKeyVault(memoryKeyBox()), personKey: person, openers, registryHash: "h", personId: "prs_me", clock: () => NOW });
   try {
     assert.equal(web.choice.engine, "sqlite3mc-opfs");
     assert.equal(mac.choice.engine, "sqlite3mc-opfs");

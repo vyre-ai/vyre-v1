@@ -23,6 +23,13 @@ export class KeyedFiles {
   }
 }
 
+/** Schema creation runs hundreds of statements; without these a file database fsyncs each one. */
+function fastFile(path: string): DatabaseSync {
+  const db = new DatabaseSync(path);
+  db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = OFF");
+  return db;
+}
+
 const isQuery = (sql: string): boolean => /^\s*(select|pragma|with)\b/i.test(sql);
 const params = (p: readonly SqlValue[]): SqlValue[] => [...p];
 
@@ -49,7 +56,7 @@ export function createFakeSqlCipher(dir: string): FakeSqlCipher {
     files,
     withoutCipher: false,
     open(name) {
-      const db = new DatabaseSync(`${dir}/${name}`);
+      const db = fastFile(`${dir}/${name}`);
       const s: Session = { key: null, checked: false, file: name };
       return {
         execSync(sql) {
@@ -108,7 +115,7 @@ export function createFakeMc(dir: string): FakeMc {
       const m = /^file:\/([^?]+)\?vfs=multipleciphers-(.+)$/.exec(filename);
       if (!m || !m[1]) throw new Error("the cipher VFS is required: open through file:/x.db?vfs=multipleciphers-<vfs>");
       this.s = { key: null, checked: false, file: m[1] };
-      this.db = new DatabaseSync(`${dir}/${m[1]}`);
+      this.db = fastFile(`${dir}/${m[1]}`);
     }
     exec(sql: string): unknown {
       const k = /^\s*PRAGMA\s+key\s*=\s*(.+)$/i.exec(sql);
