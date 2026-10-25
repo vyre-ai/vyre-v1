@@ -208,6 +208,7 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
         ref={canvas as never}
         style={st.canvas}
         testID="schema-map"
+        role="listbox"
         accessibilityLabel="Schema map. Arrow keys move between tables, Enter opens one."
         onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (width > 0 && height > 0 && (width !== dim.width || height !== dim.height)) setMeasured({ width, height }); }}
         {...webProps({ tabIndex: 0, onKeyDown })}
@@ -288,15 +289,15 @@ function Card({ node, rect, rows, selected, lit, dim, expanded, onHover, onPress
   const more = moreCount(rows.length);
   return (
     <Pressable
-      accessibilityRole="button"
+      role="option"
+      aria-selected={selected}
       accessibilityLabel={`${node.title}, ${node.rowCount} ${node.rowCount === 1 ? "record" : "records"}`}
-      accessibilityState={{ selected }}
       onPress={onPress}
       onHoverIn={() => onHover(true)}
       onHoverOut={() => onHover(false)}
       testID={`schema-card-${node.type}`}
       style={[st.card, { left: rect.x, top: rect.y, width: rect.w }, selected ? st.cardSel : lit ? st.cardLit : null, dim && st.cardDim]}
-      {...webProps({ dataSet: { card: node.type, selected: selected ? "true" : "false" } })}
+      {...webProps({ dataSet: { card: node.type } })}
       {...menuTrigger(onMenu)}
     >
       <View style={st.cardHead}>

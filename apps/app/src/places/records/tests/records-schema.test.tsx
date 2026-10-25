@@ -154,7 +154,8 @@ test("selecting a type lights its links, dims the others, and dims the cards it 
   const dimmed = out.split('data-emphasis="dim"').length - 1;
   assert.equal(hot, 3, "projects is on the ends of three links: from clients, to tasks, to invoices");
   assert.equal(dimmed, northwindEdges.length - 3);
-  assert.equal(out.split('data-selected="true"').length - 1, 1, "exactly the selected card says so");
+  assert.equal(out.split('aria-selected="true"').length - 1, 1, "exactly the selected card says so, to screen readers too");
+  assert.ok(has(out, 'role="listbox"') && has(out, 'role="option"'), "the cards are the options of the map's listbox");
   assert.ok(has(out, 'aria-label="Projects, 12 records"'));
 });
 
