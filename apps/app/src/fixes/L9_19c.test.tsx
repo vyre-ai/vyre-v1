@@ -2,6 +2,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactElement } from "react";
+import { SamplePlace } from "../shell/spaces/sample.tsx";
 import { homePlace, homeVariantOf } from "../shell/spaces/sample-home.tsx";
 import type { PlaceContext } from "../shell/spaces/Shell.tsx";
 import { kitById } from "../shell/rail/kits.ts";
@@ -40,7 +42,9 @@ test("Harbor Studio and Personal draw their own Home", () => {
 });
 
 test("every other place keeps its sample rows", () => {
-  const out = html("nw", "chats");
-  assert.ok(out.includes('data-testid="sample-chats"'));
-  assert.ok(!out.includes('data-testid="home-place"'));
+  for (const place of ["chats", "inbox", "records", "files"] as const) {
+    const el = homePlace(ctx("nw", place)) as ReactElement<{ ctx: PlaceContext }>;
+    assert.equal(el.type, SamplePlace, place);
+    assert.equal(el.props.ctx.place, place);
+  }
 });
