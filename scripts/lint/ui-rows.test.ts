@@ -138,8 +138,8 @@ test("ui-rows lint: returns inside a nested function or a string belong to someo
   assert.deepEqual(hitsOf('const notes = items.map((item) => { const s = "return <View />"; return s + item.id; });'), []);
   // a comment that contains return <View
   assert.deepEqual(hitsOf(`const ids = items.map((item) => {\n  // return <View /> would be a list\n  return item.id;\n});`), []);
-  // an early data return, then JSX at the top level: the JSX return counts
-  assert.equal(hitsOf(`const v = items.map((item) => {\n  if (!item) return null;\n  return <View key={item.id} />;\n});`).length, 0, "a return inside the if is not top level; no top-level JSX return here");
+  // an early return of null, then a JSX return: the JSX return decides
+  assert.equal(hitsOf(`const v = items.map((item) => {\n  if (!item) return null;\n  return <View key={item.id} />;\n});`).length, 1, "the early null return is skipped; the JSX return after it is the list item");
   assert.equal(hitsOf(`const v = items.map((item) => {\n  const x = 1;\n  return <View key={item.id}>{x}</View>;\n});`).length, 1);
   // a Row callback is still held to full-width hover and selection
   const narrow = `const v = items.map((item) => {\n  return <Row style={{ width: 280, backgroundColor: item.selected ? "#eef" : "#fff" }}>{item.name}</Row>;\n});`;
