@@ -1,0 +1,37 @@
+{
+  "module": "stripe",
+  "capabilities": {
+    "stripe.checkout.create_session@1": "6296d075cca25b83d821e7b658e665c05929f7967a0ef960a86d48b9225ea080",
+    "stripe.customer.create@1": "d16fe69344c770a4fed0fb3ca0a5bf82557f57f5a49855338f52fd25fa45e92c",
+    "stripe.customer.get@1": "87c5b9935c956240a0f2e3cad5e01a6f481e06a75a0049c800320c1c6367eab5",
+    "stripe.customer.list@1": "02fb831cba30ade94dfb688bc469177531de1b096a9be56cf5adcf71ab0ab14c",
+    "stripe.customer_portal.create_session@1": "97279c1ae5527f54cf59beaee5d8ff9bd80ee7969408be4123afe4f799474ae9",
+    "stripe.health@1": "96fab2b8d643e8f25d00007c68aeb05ca8703a827a767a982a04009e10990fb5",
+    "stripe.invoice.get@1": "fc6451db89d876535c288414fe34fd57907110c335a50ba0be4305f13025ea20",
+    "stripe.invoice.list@1": "d0735a2f8aceaa8ee5fe386376db4bec65730d8d870ee56136e47721af30fa1a",
+    "stripe.invoice.send@1": "8600628c1c71c691a5e5641243e3904d81cf972f93f8c824547a018e9fff3dc0",
+    "stripe.payment_intent.get@1": "1d9ea01e52c229660d8891cae09f5f789590b105a9131dd6779cff45aeffe2a5",
+    "stripe.payment_intent.list@1": "69b694efbb00079ee080c2c7de94bcf16b5652a0c9d08b36d133fdfc13cb642e",
+    "stripe.payment_link.create@1": "b51d15015cc74f695e402c352238e30b5463dab6bb3ae50bfbae8d5cca0a2de0",
+    "stripe.price.list@1": "3c938a21541f6b4158cfd90cb2ea7245f8419836c191bef57100012cee21f786",
+    "stripe.product.list@1": "07bdf4d06f59372f4a57df27e50b49a9c7883b189044e1af14ce9c7a854fb36e",
+    "stripe.receive_webhook@1": "7db305f925b1b23667a18ebab8d3e9260d727079837f34f2452186037201112c",
+    "stripe.refund.create@1": "e7ef7db3578dda317ecb0c5d469483aade921619dfa0216748ca01950f3e94f2",
+    "stripe.subscription.cancel@1": "50cf772f00e8054feb0c3010340101e8bccff9902f05ce51b126dfcfbace28b7",
+    "stripe.subscription.get@1": "1b86d2d3bbe0dcfb81f34cd09ac621ed2f41c416a347fc3e9243f5662be5a51e",
+    "stripe.subscription.list@1": "d11e275061026e0f33505aeff2896513f91368c2c20612183ae444bb10df4499"
+  },
+  "events": {
+    "checkout.completed": "59be82df581249355fed4a517fb75fff30bb1fbc66ba8e09aacde8ed87605809",
+    "dispute.created": "8a5da21acf7c6448d64371126e2d73b34dc2729a1384db59aa1d8b6983cac316",
+    "invoice.paid": "33b88cd9358d44584a5128e492665877906e9b4a0a67243205c6a99b33f7a9fb",
+    "invoice.payment_failed": "d1c1bc98b572fd21e38ab643d8fee1adf73f189e513a5e8f7ef6d5c29ba7f6cb",
+    "payment.failed": "0b74fd285f3131880fd34cda16a1cad94f5f5eca8c284bbebc75f3f314fa9434",
+    "payment.succeeded": "81f57f15ec829268138c8bf8588eebbd98ac5d73706439cd910b2ca6916b3cb3",
+    "refund.created": "d22196c46695ab4f55ef424b07a9d49f7afa1d4bff49e070846995b7cfcc4e7e",
+    "stripe.event_received": "93f97e5e8e4b70e8269824e328af1b51e97fbaf11f7ccc0f5809ce6497704160",
+    "subscription.canceled": "ca768601d1896ffd4c5842580884a432af6082ddf05e2e0c60368f85394c53ab",
+    "subscription.created": "f3779a27b817c3b56b77d369e0d548fcbdea749b1f8f7cb66d3a2a2c133cac41",
+    "subscription.updated": "006c60c1e5bfaefa26365ee199c895bc38149b5e4858eb02000153c9d285efa6"
+  }
+}

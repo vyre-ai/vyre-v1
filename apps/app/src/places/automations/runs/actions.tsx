@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useRunsData } from "./data.tsx";
 import type { RunsData } from "./data.tsx";
-import { undoResult } from "./model.ts";
+import { stepAfterFailed, undoResult } from "./model.ts";
 import type { Run, RunStep, UndoPreview } from "./model.ts";
 
 export interface RunActions {
@@ -13,6 +13,8 @@ export interface RunActions {
   retry(run: Run, fromStep?: string): Promise<string | null>;
   /** Retry from the step that failed (found in the step log); from the start when the log names none. */
   retryStep(run: Run): Promise<string | null>;
+  /** Skip the step that failed: retry from the step after it. */
+  skipStep(run: Run): Promise<string | null>;
   stop(run: Run): Promise<void>;
   replay(run: Run, version: "same" | "current"): Promise<void>;
   copy(text: string, what: string): void;
@@ -49,6 +51,16 @@ export function useRunActions(): RunActions {
         const bad = [...(out?.steps ?? [])].reverse().find((x) => x.state === "failed");
         const res = (await data.call("runs.retry", { runId: run.id, ...(bad ? { fromStep: bad.step } : {}) })) as { runId?: string };
         setNote(bad ? "Retrying from the step that failed" : "Retrying the run");
+        return res?.runId ?? null;
+      } catch (e) { fail(e); return null; }
+    },
+    async skipStep(run) {
+      try {
+        const out = (await data.call("runs.steps", { runId: run.id })) as { steps?: readonly RunStep[] };
+        const next = stepAfterFailed(out?.steps ?? []);
+        if (!next) { setNote("There is no step after this one to continue with."); return null; }
+        const res = (await data.call("runs.retry", { runId: run.id, fromStep: next })) as { runId?: string };
+        setNote("Skipped that step. The run goes on from the next one.");
         return res?.runId ?? null;
       } catch (e) { fail(e); return null; }
     },

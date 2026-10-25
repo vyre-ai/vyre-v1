@@ -48,3 +48,4 @@ Area: space. Risk: high. Applies to: space.
 - identity.reset_preview
 - identity.reset_start
 - mcp.scopes.set
+- sync.epoch.bump

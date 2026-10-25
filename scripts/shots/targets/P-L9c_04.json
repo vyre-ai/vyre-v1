@@ -1,0 +1,54 @@
+{
+  "targets": [
+    {
+      "id": "P-L9c_04-unmatched",
+      "route": "/m/P-L9c_04",
+      "proto": "inbox,at:unmatched,{skin}",
+      "waitFor": "[data-testid='unmatched-unk']",
+      "note": "Unmatched over the Northwind sample Space: the senders and callers that match no record, newest first, each the accent-wash block with the ghost face, the number, the newest words, the time and Match to a record. The prototype side is its Inbox filtered to Matching > Unmatched."
+    },
+    {
+      "id": "P-L9c_04-match-menu",
+      "route": "/m/P-L9c_04?menu=match",
+      "proto": "inbox,at:menu:match,{skin}",
+      "waitFor": "[data-testid='menu']",
+      "note": "The Match menu open on the first line: Suggested, the people best first with their score in the count column, Search Records and Create a contact or company. The prototype opens the same menu with the menu:match token."
+    },
+    {
+      "id": "P-L9c_04-dialer",
+      "route": "/m/P-L9c_04?phone=dialer",
+      "proto": "inbox,at:dialer,{skin}",
+      "waitFor": "[data-testid='softphone-dialer']",
+      "note": "The softphone dock opened from its pill (Cmd-Shift-K does the same): dial pad, the number it calls from and suggestions as digits are typed."
+    },
+    {
+      "id": "P-L9c_04-incoming",
+      "route": "/m/P-L9c_04?phone=incoming",
+      "proto": "inbox,at:call,{skin}",
+      "waitFor": "[data-testid='softphone-incoming']",
+      "note": "A call ringing in: the incoming sheet with the caller's record card. The prototype side is the call token."
+    },
+    {
+      "id": "P-L9c_04-live",
+      "route": "/m/P-L9c_04?phone=live",
+      "proto": "inbox,at:calllive,{skin}",
+      "waitFor": "[data-testid='softphone-bar']",
+      "note": "The same call answered: the call bar with mute, hold, transfer, record and the clock."
+    },
+    {
+      "id": "P-L9c_04-ended",
+      "route": "/m/P-L9c_04?phone=ended",
+      "proto": "inbox,at:callend,{skin}",
+      "waitFor": "[data-testid='softphone-ended']",
+      "protoSettleMs": 5000,
+      "note": "After the call: the summary card with where the call was saved and Log a task."
+    },
+    {
+      "id": "P-L9c_04-harbor-empty",
+      "route": "/m/P-L9c_04?space=harbor",
+      "proto": "inbox,space:harbor,at:unmatched,{skin}",
+      "waitFor": "[data-testid='inbox-unmatched']",
+      "note": "Harbor Studio has nothing waiting for a match: the empty state with its one line."
+    }
+  ]
+}
