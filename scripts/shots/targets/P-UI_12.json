@@ -1,0 +1,32 @@
+{
+  "targets": [
+    {
+      "id": "P-UI_12-plan-timeline",
+      "route": "/m/P-UI_12?view=timeline",
+      "proto": "records,plantimeline,{skin}",
+      "waitFor": "[data-testid='plan-root']",
+      "note": "The shared Plan in its timeline view over the project's tasks. The prototype side is a project's Plan tab in the Records place with that view (token plantimeline)."
+    },
+    {
+      "id": "P-UI_12-plan-board",
+      "route": "/m/P-UI_12?view=board",
+      "proto": "records,planboard,{skin}",
+      "waitFor": "[data-testid='plan-root']",
+      "note": "The shared Plan in its board view over the project's tasks. The prototype side is a project's Plan tab in the Records place with that view (token planboard)."
+    },
+    {
+      "id": "P-UI_12-plan-list",
+      "route": "/m/P-UI_12?view=list",
+      "proto": "records,planlist,{skin}",
+      "waitFor": "[data-testid='plan-root']",
+      "note": "The shared Plan in its list view over the project's tasks. The prototype side is a project's Plan tab in the Records place with that view (token planlist)."
+    },
+    {
+      "id": "P-UI_12-plan-calendar",
+      "route": "/m/P-UI_12?view=calendar",
+      "proto": "records,plancalendar,{skin}",
+      "waitFor": "[data-testid='plan-root']",
+      "note": "The shared Plan in its calendar view over the project's tasks. The prototype side is a project's Plan tab in the Records place with that view (token plancalendar)."
+    }
+  ]
+}

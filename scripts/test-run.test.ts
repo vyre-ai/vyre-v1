@@ -32,7 +32,7 @@ test("a listed slow file passes up to its capSec", async () => {
   assert.equal(r.breakdown[0].name, "takes a while");
   assert.ok(r.breakdown[0].ms >= 1500);
 });
-test("unlisted files get the 20 s default", () => assert.equal(capFor("a.test.ts", []), DEFAULT_CAP_MS));
+test("unlisted files get the 30 s default", () => assert.equal(capFor("a.test.ts", []), DEFAULT_CAP_MS));
 test("breakdown sorts the slowest leaf tests first", () => {
   const out = "✔ a (5.2ms)\n✔ b (120.9ms)\n✖ c (50ms)\nnoise\n";
   assert.deepEqual(breakdown(out, 2), [{ name: "b", ms: 121 }, { name: "c", ms: 50 }]);

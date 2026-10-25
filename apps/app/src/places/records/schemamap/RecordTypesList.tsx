@@ -2,12 +2,13 @@
 // (Built in, Synced from an app, Site table); pressing it opens the type in Records. Structure is edited in the Console, so there is no New button; a quiet line says so.
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { AppIcon } from "../../../../../../ui/src/AppIcon/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { TYPES_SCREEN, useSchemaData, useSchemaQuery } from "./data.tsx";
 import { Glyph } from "./icons.tsx";
 import { MANAGED, fieldsWord, recordsWord, typeTag } from "./model.ts";
-import { TypeTile } from "./parts.tsx";
+import { TypeGlyph, sx } from "./parts.tsx";
 
 type ListOut = CapMap["schema.types.list"]["out"];
 
@@ -18,16 +19,22 @@ export function RecordTypesList(): ReactElement {
   if (q.status === "ready") {
     for (const t of q.data.types) {
       const tag = typeTag(t);
+      if (rows.length > 0) rows.push(<View key={`rule-${t.key}`} style={s.rule} aria-hidden />);
       rows.push(
         <Row
           key={t.key}
           id={`type:${t.key}`}
-          title={t.title}
+          title={t.plural}
           note={`${recordsWord(t.rowCount)} · ${fieldsWord(t.fieldCount)}`}
-          leading={<View style={s.lead}><TypeTile type={t.key} title={t.title} size={22} /></View>}
+          leading={<View style={s.lead}><TypeGlyph type={t.key} icon={t.icon} syncedFrom={t.syncedFrom} size={22} /></View>}
           trailing={(
             <View style={s.trail}>
-              {tag ? <Text style={s.tag} testID={`type-tag-${t.key}`}>{tag.text}</Text> : null}
+              {tag ? (
+                <View style={s.tagBox} testID={`type-source-${t.key}`}>
+                  {tag.kind === "synced" ? <AppIcon brand={tag.app} size={14} /> : null}
+                  <Text style={s.tag} testID={`type-tag-${t.key}`}>{tag.text}</Text>
+                </View>
+              ) : null}
               <Glyph name="chev" size={12} />
             </View>
           )}
@@ -70,7 +77,9 @@ const s = StyleSheet.create({
   content: { paddingVertical: 26, paddingHorizontal: 36 },
   wrap: { width: "100%", maxWidth: 760, alignSelf: "center" },
   h2: { fontSize: 22, lineHeight: 28, fontWeight: "600", letterSpacing: -0.3, color: "var(--ink)" as string, marginBottom: 4 },
-  card: { marginTop: 12, borderRadius: 12, backgroundColor: "var(--raised)" as string, overflow: "hidden", paddingVertical: 4, paddingHorizontal: 6 },
+  card: sx({ marginTop: 12, borderRadius: 12, backgroundColor: "var(--raised)", overflow: "hidden", paddingVertical: 4, paddingHorizontal: 6, boxShadow: "var(--sh-1), inset 0 0 0 1px var(--line)" }),
+  rule: { height: 1, marginHorizontal: 8, backgroundColor: "var(--line)" as string },
+  tagBox: { flexDirection: "row", alignItems: "center", gap: 6 },
   lead: { width: 30, alignItems: "flex-start", justifyContent: "center" },
   trail: { flexDirection: "row", alignItems: "center", gap: 8 },
   tag: { fontSize: 12, color: "var(--ink-3)" as string },
