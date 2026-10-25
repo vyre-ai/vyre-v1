@@ -311,7 +311,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         onSpan: (s) => sink.span({ trace_id: s.traceId, span_id: s.spanId, parent: s.parent ?? null, name: s.name, at: s.startedAt, dur_us: s.ms * 1000, attrs: { cap: s.cap, status: s.status } }),
       });
 
-      runScheduled = invokeRunner(invoke);
+      // A job the host itself scheduled (a webhook retry from the events consumer) runs as the host service, which authorize does not know: it is pre-authorized like the hook that scheduled it.
+      const runAsScheduled = invokeRunner(invoke);
+      runScheduled = (call) => (call.principal.id === SYSTEM_PRINCIPAL.id
+        ? invoke(call.cap, call.input, { space: call.space, principal: call.principal, preAuth: true, origin: "schedule", ...(call.traceId ? { trace: { traceId: call.traceId, spanId: "0".repeat(16) } } : {}) }).then(() => undefined)
+        : runAsScheduled(call));
       invokeRef = invoke;
       closers.push(() => hookRunner.pump().catch(() => {}));   // finish the pass in flight before the databases close
       closers.push(() => projectionRunner.pump().catch(() => {}));
