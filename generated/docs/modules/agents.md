@@ -23,7 +23,7 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [agents.routine.delegate](../capabilities/agents.routine.delegate.md): Hand a routine to another person or agent (a person becomes its owner, an agent runs it); undo (no `to`) hands it back to the previous owner and agent
 - [agents.routine.delete](../capabilities/agents.routine.delete.md): Delete a routine
 - [agents.routine.run_now](../capabilities/agents.routine.run_now.md): Run a routine now. The run starts as the routine owner, never as the caller, so its reach and its "Sent by <agent> on a routine <person> set" line are the owner's
-- [agents.routine.save](../capabilities/agents.routine.save.md): Create or change a routine; messages it causes carry "Sent by <agent> on a routine <person> set"
+- [agents.routine.save](../capabilities/agents.routine.save.md): Create or change a routine, a schedule (cron) or a watcher (kind watch: runs on each new message in a channel); messages it causes carry "Sent by <agent> on a routine <person> set"
 - [agents.routines.list](../capabilities/agents.routines.list.md): Routines of an agent (schedules set by the owner)
 - [agents.snapshot.take](../capabilities/agents.snapshot.take.md): Take the file snapshot a run uses; changes to the files apply between runs
 - [agents.status](../capabilities/agents.status.md): Live status of an agent: Awake (idle 2 minutes), Working, Asleep or Paused with reason and who

@@ -337,3 +337,4 @@ test('each reviewed schema has fields with labels, a sync profile, a version col
     assert.match(createBody(replica, row.table), /"version" INTEGER NOT NULL DEFAULT 0/, `${row.table} version`);
   }
 });
+// run on the final commit of the kit stages PR

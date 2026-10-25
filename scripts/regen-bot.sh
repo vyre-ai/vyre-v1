@@ -33,11 +33,18 @@ echo "== lockfile =="
 # npm never runs on the workers' Macs, so the lockfile is refreshed here whenever a package.json changed.
 npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
-if [ -n "$(git status --porcelain -- generated package-lock.json)" ]; then
+echo "== prototype seed =="
+# The prototype seed (apps/app/src/fixtures/prototype-seed.generated.json) is built from the prototype HTML by a pure-node script (about 10 s, no install). Same pattern as the lockfile.
+if [ -f scripts/shots/gen-prototype-seed.mjs ]; then node scripts/shots/gen-prototype-seed.mjs --write; fi
+SEED=apps/app/src/fixtures/prototype-seed.generated.json
+
+if [ -n "$(git status --porcelain -- generated package-lock.json $SEED)" ]; then
   git config user.name "Irfad Imtiaz"
   git config user.email "130136633+irfad7@users.noreply.github.com"
-  git add -A -- generated package-lock.json
-  git commit -q -m "chore(gen): regenerate"
+  gen_changed="$(git status --porcelain -- generated package-lock.json)"
+  seed_changed="$(git status --porcelain -- $SEED)"
+  [ -n "$gen_changed" ] && { git add -A -- generated package-lock.json; git commit -q -m "chore(gen): regenerate"; }
+  [ -n "$seed_changed" ] && { git add -A -- $SEED; git commit -q -m "chore(gen): prototype seed"; }
   if [ "$DRY_RUN" = "1" ]; then
     echo "dry run: committed locally, not pushing"
   elif ! git push origin "HEAD:refs/heads/${BRANCH}"; then
@@ -45,7 +52,7 @@ if [ -n "$(git status --porcelain -- generated package-lock.json)" ]; then
     echo "regen: push rejected (branch moved); the newer push triggers its own regen run"
     exit 0
   fi
-  echo "regen: committed generated/ and the lockfile ($(git rev-parse --short HEAD))"
+  echo "regen: committed generated files ($(git rev-parse --short HEAD))"
 else
   echo "regen: generated/ already matches the manifests, nothing to commit"
 fi
