@@ -1,0 +1,20 @@
+# TEMPORARY (P-L10_11): runs the PowerShell tests with pwsh; tmp branch only.
+name: win-try
+on:
+  push:
+    branches: ["tmp/P-L10_11-pwsh"]
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: pwsh --version
+      - run: |
+          set -o pipefail
+          pwsh -NoProfile -File scripts/install/windows/install.test.ps1 | tee win.out
+          node --test --test-reporter=spec scripts/install/windows/install.test.ts 2>&1 | tee -a win.out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: win, path: win.out }
