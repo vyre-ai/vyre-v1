@@ -6,5 +6,6 @@
   {"file": "host/tests/webhooks.live.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the daemon and a local webhook receiver with retries"},
   {"file": "modules/records/tests/write.perf.test.ts", "capSec": 120, "owner": "L3", "reason": "p95 write budget; measured in the slow shard, away from parallel fast files"},
   {"file": "host/tests/store.live.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the daemon twice on the seeded Space to prove the data modules keep records across a restart"},
-  {"file": "host/tests/syncengine.live.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the daemon on the seeded Space and runs the sync engine against a fake connector"}
+  {"file": "host/tests/syncengine.live.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the daemon on the seeded Space and runs the sync engine against a fake connector"},
+  {"file": "host/tests/live.l3.test.ts", "capSec": 120, "owner": "L3", "reason": "boots the daemon twice with every L3 module live and restarts it to read a record back; about 15 s"}
 ]
