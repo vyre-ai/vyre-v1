@@ -96,15 +96,19 @@ function useScript(store: StreamStore, mode: "hold" | "loop"): boolean {
   const [held, setHeld] = useState(false);
   useEffect(() => {
     let pos = 0;
-    let pause = 0;
+    const cycle = `${SCRIPT}\n`;
     const iv = setInterval(() => {
-      if (pause > 0) {
-        if (--pause === 0) { store.reset(); pos = 0; }
+      if (mode === "hold") {
+        if (pos >= SCRIPT.length) { store.end(); clearInterval(iv); return; }
+        if (pos >= HOLD_AT) { setHeld(true); clearInterval(iv); return; }
+        store.push(SCRIPT.slice(pos, pos + CHUNK));
+        pos += CHUNK;
         return;
       }
-      if (pos >= SCRIPT.length) { store.end(); pause = 80; return; }
-      if (mode === "hold" && pos >= HOLD_AT) { setHeld(true); clearInterval(iv); return; }
-      store.push(SCRIPT.slice(pos, pos + CHUNK));
+      // loop: one long answer that never ends (the text repeats), so the pane only ever grows, as a long answer does
+      let d = "";
+      for (let k = 0; k < CHUNK; k++) d += cycle.charAt((pos + k) % cycle.length);
+      store.push(d);
       pos += CHUNK;
     }, TICK_MS);
     return () => clearInterval(iv);
