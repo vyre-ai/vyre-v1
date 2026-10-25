@@ -1,0 +1,39 @@
+{
+  "targets": [
+    {
+      "id": "P-L9f_02-history-failed",
+      "route": "/m/P-L9f_02?view=history&space=northwind",
+      "proto": "automations,at:run,{skin}",
+      "waitFor": "[data-testid='run-chat']",
+      "note": "Run history of New lead follow-up (Needs attention with Retry step and Copy trace id, then Today, Yesterday and Earlier) and the failed run's chat in the side pane: the compact rows, Intake's turn with its thought closed, the retries and the No Twilio key error row. The prototype side is the same Runs tab with the same run open; its Automation canvas and sidebar belong to P-L9f_01."
+    },
+    {
+      "id": "P-L9f_02-chat-succeeded",
+      "route": "/m/P-L9f_02?view=chat-ok&space=northwind",
+      "proto": "automations,at:run-ok,{skin}",
+      "waitFor": "[data-testid='run-chat']",
+      "note": "A succeeded run selected in history and open in the side pane. The prototype side is the same run (Priya Nair sent the Client intake form)."
+    },
+    {
+      "id": "P-L9f_02-chat-waiting",
+      "route": "/m/P-L9f_02?view=waiting&space=northwind",
+      "proto": "automations,at:waiting,{skin}",
+      "waitFor": "[data-testid='approve']",
+      "note": "The invoice run waiting on Maya: the join line, the wait row and Approve and Decline. The prototype side is Invoice reminders with the same run open."
+    },
+    {
+      "id": "P-L9f_02-undo",
+      "route": "/m/P-L9f_02?view=undo&space=northwind&undo=1",
+      "proto": "automations,at:run-ok,{skin}",
+      "waitFor": "[data-testid='undo-panel']",
+      "note": "Undo this run open on a succeeded run: what would be reversed and what cannot be. The prototype has no Undo this run (spec 2.13 added it), so its side is the same run without it."
+    },
+    {
+      "id": "P-L9f_02-failed-runs",
+      "route": "/m/P-L9f_02?view=failed&space=northwind",
+      "proto": "automations,at:failed,{skin}",
+      "waitFor": "[data-testid='failed-runs']",
+      "note": "Failed runs across Automations: the lead run (No Twilio key) and the refused message, each with Open and Retry on hover. The prototype side is its Failed runs tab."
+    }
+  ]
+}
