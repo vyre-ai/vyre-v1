@@ -8,7 +8,7 @@ import { MAX_SNAPSHOT_PAGE } from "../../protocol.ts";
 import type { DeviceClass } from "../../protocol.ts";
 import type { Cell, Cells } from "./fold.ts";
 import { pullError } from "./errors.ts";
-import { headSeq } from "./pull.ts";
+import { deviceRevoked, headSeq } from "./pull.ts";
 import type { PullDeps } from "./pull.ts";
 import { Viewer, Window } from "./scope.ts";
 import type { RowRec, Who } from "./scope.ts";
@@ -28,7 +28,13 @@ export interface SnapshotRow {
 }
 export interface SnapshotPage { rows: SnapshotRow[]; last?: string; done: boolean }
 
-export function snapshotBegin(d: PullDeps, who: Who, req: { entities?: string[]; deviceClass: DeviceClass }): SnapshotBeginRes {
+/** A revoked device takes no snapshot: it would be handed the Space again. */
+const refuseRevoked = (d: PullDeps, who: Who, traceId: string): void => {
+  if (deviceRevoked(d.db, who.person, who.device)) throw pullError("auth.device_revoked", "This device was revoked. Its copy is removed.", traceId);
+};
+
+export function snapshotBegin(d: PullDeps, who: Who, req: { entities?: string[]; deviceClass: DeviceClass }, traceId = "0".repeat(32)): SnapshotBeginRes {
+  refuseRevoked(d, who, traceId);
   const db = d.db;
   const cls = req.deviceClass;
   const now = d.now();
@@ -74,6 +80,7 @@ function markSeen(d: PullDeps, who: Who, entity: string, ids: readonly string[],
 }
 
 export function snapshotPage(d: PullDeps, who: Who, req: { entity: string; after?: string; asOf: number }, traceId: string): SnapshotPage {
+  refuseRevoked(d, who, traceId);
   const db = d.db;
   const now = d.now();
   const session = db.get<{ expires: number }>("SELECT expires FROM sync_snapshots WHERE person = ? AND device = ? AND as_of = ?", who.person, who.device, req.asOf);
