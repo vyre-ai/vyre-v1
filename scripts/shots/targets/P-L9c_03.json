@@ -23,7 +23,7 @@
     },
     {
       "id": "P-L9c_03-calendar-month",
-      "route": "/m/P-L9c_03?mode=month",
+      "route": "/m/P-L9c_03?view=month",
       "proto": "inbox,at:calmonth,{skin}",
       "waitFor": "[data-testid='cal-month']",
       "note": "Month: whole weeks, today's number filled, events as dots with the time and title, and a count when a day holds more than fit."
