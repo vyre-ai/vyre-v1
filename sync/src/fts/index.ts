@@ -17,6 +17,11 @@ export function kindOf(entity: string): SearchKind {
   return KIND_OF_ENTITY[entity] ?? "record";
 }
 
+const PRIORITY: readonly SearchKind[] = ["person", "agent", "chat", "record", "file", "inbox", "event", "mail", "memory", "call", "other"];
+const priority = (k: SearchKind): number => PRIORITY.indexOf(k);
+/** Candidates read in static-rank order before bm25 reorders them. Rare queries have fewer matches than this, so they are ranked exactly. */
+export const CANDIDATES = 400;
+
 export const PREFIX_KINDS: Readonly<Record<string, readonly SearchKind[]>> = {
   "@": ["person", "agent"],
   "#": ["chat", "record"],
@@ -85,10 +90,11 @@ export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceCl
       let n = 0;
       driver.transaction(() => {
         driver.exec("DELETE FROM search_idx");
-        for (const r of entities.all([])) {
-          const entity = String(r.entity);
-          // one INSERT ... SELECT per entity: the kind is a constant of the entity
-          driver.prepare("INSERT INTO search_idx (title, body, entity, id, kind) SELECT title, body, entity, id, ? FROM fts WHERE entity = ?").run([kindOf(entity), entity]);
+        // Rows are inserted in priority order (people and agents, then chats, records, files, the rest; newest first inside an entity), so rowid order IS the static rank.
+        // A search reads candidates in rowid order and stops early; that is what keeps a one-letter prefix fast.
+        const names = entities.all([]).map((r) => String(r.entity)).sort((a, b) => priority(kindOf(a)) - priority(kindOf(b)) || a.localeCompare(b));
+        for (const entity of names) {
+          driver.prepare("INSERT INTO search_idx (title, body, entity, id, kind) SELECT title, body, entity, id, ? FROM fts WHERE entity = ? ORDER BY rowid DESC").run([kindOf(entity), entity]);
         }
         n = Number(total.get([])?.n ?? 0);
         driver.exec("INSERT INTO search_idx (search_idx) VALUES ('optimize')");
@@ -112,16 +118,21 @@ export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceCl
       const match = matchText(rest);
       if (!match) return { hits: [], prefix, scope, actions: false };
       const kinds = so.kinds ?? (prefix ? PREFIX_KINDS[prefix] : undefined);
-      const args: (string | number)[] = [match];
-      let where = "search_idx MATCH ?";
-      if (kinds && kinds.length) {
-        where += ` AND kind IN (${kinds.map(() => "?").join(", ")})`;
-        args.push(...kinds);
+      const kindSql = kinds && kinds.length ? ` AND kind IN (${kinds.map(() => "?").join(", ")})` : "";
+      const kindArgs: string[] = kinds && kinds.length ? [...kinds] : [];
+      // Stage 1: candidates in rowid (static rank) order, title matches first, then matches anywhere. LIMIT stops the scan early, so a broad prefix costs the same as a narrow one.
+      const pick = (m: string): number[] => driver.prepare(`SELECT rowid AS r FROM search_idx WHERE search_idx MATCH ?${kindSql} ORDER BY rowid LIMIT ${CANDIDATES}`).all([m, ...kindArgs]).map((r) => Number(r.r));
+      let cand = pick(`title : (${match})`);
+      if (cand.length < CANDIDATES) {
+        const seen = new Set(cand);
+        for (const r of pick(match)) { if (!seen.has(r)) cand.push(r); if (cand.length >= CANDIDATES) break; }
       }
-      args.push(so.limit ?? defaultLimit);
+      if (cand.length === 0) return { hits: [], prefix, scope, actions: false };
+      cand = cand.slice(0, CANDIDATES);
+      // Stage 2: bm25 (title over body) among the candidates.
       const rows = driver.prepare(
-        `SELECT entity, id, kind, title, snippet(search_idx, 1, '[', ']', '…', 12) AS snip, bm25(search_idx, 8.0, 1.0) AS score FROM search_idx WHERE ${where} ORDER BY score LIMIT ?`,
-      ).all(args);
+        `SELECT entity, id, kind, title, snippet(search_idx, 1, '[', ']', '…', 12) AS snip, bm25(search_idx, 8.0, 1.0) AS score FROM search_idx WHERE search_idx MATCH ? AND rowid IN (${cand.join(",")}) ORDER BY score LIMIT ?`,
+      ).all([match, so.limit ?? defaultLimit]);
       return {
         hits: rows.map((r) => ({
           entity: String(r.entity), id: String(r.id), kind: String(r.kind) as SearchKind, title: String(r.title ?? ""), snippet: String(r.snip ?? ""), score: Number(r.score),

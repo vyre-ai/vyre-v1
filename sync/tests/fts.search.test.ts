@@ -99,7 +99,7 @@ test("incremental updates follow the replica's own writes, edits, hides and remo
 
 test("perf search.local: p95 under 50 ms with 100k rows and 10k messages; prefix and type filter stay correct", () => {
   const d = plainFts();
-  // 3,375 distinct words (three syllables of fifteen), picked by a fixed hash so the corpus is the same every run and no word is on a large share of rows
+  // 3,375 distinct words (three syllables of fifteen), picked by a fixed hash so the corpus is the same every run. The queries below include one- and two-letter prefixes that match tens of thousands of rows.
   const sy = ["ba", "ke", "lo", "mi", "ra", "su", "te", "vo", "na", "pi", "do", "ga", "fe", "zu", "ho"];
   const word = (n: number): string => `${sy[n % 15]}${sy[Math.floor(n / 15) % 15]}${sy[Math.floor(n / 225) % 15]}`;
   const pick = (i: number, k: number): string => word((Math.imul(i * 31 + k, 2654435761) >>> 0) % 3375);
@@ -115,7 +115,7 @@ test("perf search.local: p95 under 50 ms with 100k rows and 10k messages; prefix
   const built = idx.rebuild();
   assert.equal(built, 110_002);
 
-  const queries = ["bake", "balo mi", "#kera", "@suvo", "/tena", "pidog", "gafe zu", "hobal", "zelda", "quill", "#mira dos", "vona", "kelo", "ragas", "tepid"];
+  const queries = ["b", "ba", "k", "ke", "a", "b k", "ba ke", "#b", "#ba", "@s", "@su", "/t", "/te", "bake", "balo mi", "#kera", "pidog", "gafe zu", "zelda", "quill", "#mira dos", "vona"];
   const samples: number[] = [];
   let hits = 0;
   for (let round = 0; round < 6; round++) {
