@@ -12,6 +12,8 @@
         "modules/sync/",
         "modules/conflicts/",
         "modules/search/",
+        "spikes/s13/",
+        ".github/workflows/spike-s13-vectors.yml",
         "package-lock.json"
       ],
       "modules": [
@@ -230,7 +232,9 @@
         "modules/esign/",
         "modules/portal/",
         "modules/email-builder-api/",
-        "package-lock.json"
+        "package-lock.json",
+        "scripts/shots/mounts/P-L8_13.tsx",
+        "scripts/shots/targets/P-L8_13.json"
       ],
       "modules": [
         "sites",

@@ -47,7 +47,9 @@ async function kit(b: Partial<SyncBinding> = {}) {
   const editRemote = async (id: string, patch: Record<string, unknown>) => { const r = await remoteStore.get("hs_contact", id); return remoteStore.update("hs_contact", id, patch, r!.version); };
   const run = (o: Parameters<typeof runSync>[2] = {}) => runSync(deps(), binding, o);
   const locals = async (): Promise<StoredRecord[]> => (await local.query("contact", { page: { limit: 500 } })).rows as StoredRecord[];
-  const remotes = async (): Promise<StoredRecord[]> => (await remoteStore.query("hs_contact", { page: { limit: 500 } })).rows as StoredRecord[];
+  // The store lists rows in an order that depends on when and with which id they were created, which a test must not lean on: sorted by name (numbers in order), then id.
+  const remotes = async (): Promise<StoredRecord[]> => ((await remoteStore.query("hs_contact", { page: { limit: 500 } })).rows as StoredRecord[])
+    .sort((x, y) => String(x.data["full_name"] ?? "").localeCompare(String(y.data["full_name"] ?? ""), "en", { numeric: true }) || x.id.localeCompare(y.id));
   const count = (table: string) => src.tx.get<{ n: number }>(`SELECT count(*) AS n FROM ${table}`)!.n;
   const swapRemote = (r: Store) => { remote = r; };
   return { clock, deps, seen, events, binding, addRemote, addLocal, editLocal, editRemote, run, locals, remotes, count, local, remoteStore, tx: src.tx, swapRemote };

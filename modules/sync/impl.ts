@@ -6,7 +6,7 @@ import type { AccessSnapshot } from "../../kernel/src/authorize/snapshot.ts";
 import { openRecordStore } from "../../kernel/src/store/records.ts";
 import type { ProjectionHost } from "../../kernel/src/store/projection.ts";
 import type { Store } from "../../kernel/src/store/types.ts";
-import { LABEL_RANKS, ScopeCache, loadCatalog } from "../../sync/src/server/pull/index.ts";
+import { LABEL_RANKS, ScopeCache, deviceRevoked, loadCatalog } from "../../sync/src/server/pull/index.ts";
 import type { Catalog, PullDeps } from "../../sync/src/server/pull/index.ts";
 import { VyreErr } from "../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
@@ -89,6 +89,7 @@ export const handlers = {
     if (!pushDeps) {
       throw new VyreErr({ code: "internal.unavailable", message: "This server is not taking pushes yet.", retryable: true, traceId: ctx.trace.traceId, next: [{ kind: "retry", label: "Try again in a moment" }] });
     }
-    return createPushHandlers(pushDeps)["sync.push"](toPullCtx(ctx), input);
+    // the host gives push what it knows; a device's own epoch row is in the sync store, so push reads revocation from there
+    return createPushHandlers({ deviceRevoked: (person, device) => deviceRevoked(live().deps.db, person, device), ...pushDeps })["sync.push"](toPullCtx(ctx), input);
   },
 };
