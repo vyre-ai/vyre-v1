@@ -12,7 +12,7 @@ import {
 } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import {
-  CURRENT, TABS, agoLabel, parseMap, chatWhen, isWatcher, shortSchedule, nextDay, learnedWhen, MAP_LIMIT, backTo, changeByAsking, computerView, cronWords, enter, factNote, filePath, folderEntries, formatSize, groupThreads, isDefaultFilter, nextLabel,
+  CURRENT, TABS, agoLabel, parseMap, chatWhen, workedNote, isWatcher, shortSchedule, nextDay, learnedWhen, MAP_LIMIT, backTo, changeByAsking, computerView, cronWords, enter, factNote, filePath, folderEntries, formatSize, groupThreads, isDefaultFilter, nextLabel,
   routineFile, routineNote, showingLine, sortRoutines, splitFacts, statusFor,
 } from "./model.ts";
 import type { Fact, Routine, TabKey } from "./model.ts";
@@ -406,16 +406,22 @@ test("variants exist for the screenshots", () => {
 
 /* ---------- as the prototype draws them (P-L9b_07c) ---------- */
 
-test("MAP.md: key rows read from the note, the line count against the limit", async () => {
+test("MAP.md comes from memory.map.get: key rows, its line count against the limit", async () => {
   const s = createSample();
-  const list = (await s.data.call("memory.notes.list", { agentId: "agt_intake", layer: "agent" })) as { notes: { noteId: string; path: string }[] };
-  const note = list.notes.find((n) => n.path === "MAP.md")!;
-  const read = (await s.data.call("memory.read_note", { noteId: note.noteId })) as { markdown: string };
-  const map = parseMap(read.markdown);
+  const out = (await s.data.call("memory.map.get", { agentId: "agt_intake" })) as { map?: { body: string; lines: number } };
+  assert.ok(out.map);
+  const map = parseMap(out.map.body, out.map.lines);
   assert.deepEqual(map.rows.map((r) => r.key), ["elena-rivera", "consult-rules", "maya-calendar", "intake-form-site", "weekly-lead-report"]);
   assert.equal(map.lines, 5);
   assert.equal(MAP_LIMIT, 200);
   assert.equal(parseMap("# t\n\nplain\n- `a-b`: text here\n* `c` \u2013 more").rows.map((r) => `${r.key}|${r.text}`).join(","), "a-b|text here,c|more");
+  assert.equal(parseMap("- `a` b", 42).lines, 42, "the capability's own count wins");
+});
+
+test("memory.counts says how many low-risk facts merged on their own, and the pane says so under the proposed ones", async () => {
+  const s = createSample();
+  const counts = (await s.data.call("memory.counts", { agentId: "agt_intake" })) as { autoMerged: number };
+  assert.equal(counts.autoMerged, 2);
 });
 
 test("routine rows read like the prototype: short schedule, next day, watchers on events, paused with its cron", () => {
@@ -426,8 +432,10 @@ test("routine rows read like the prototype: short schedule, next day, watchers o
   assert.equal(shortSchedule("*/5 * * * *"), "*/5 * * * *");
   assert.equal(nextDay(Date.UTC(2025, 9, 27, 8), c), "Mon Oct 27");
   const r = (cron: string, enabled = true): Routine => ({ routineId: "x", agentId: "a", title: "t", cron, prompt: "p", enabled, ownerId: "u" });
-  assert.ok(isWatcher(r("on new messages")) && !isWatcher(r("0 8 * * *")));
-  assert.equal(routineNote(r("on new messages"), c), "on new messages");
+  const w = (enabled = true): Routine => ({ routineId: "w", agentId: "a", title: "t", prompt: "p", enabled, ownerId: "u", kind: "watch", watch: { on: "message", channelId: "intake" } });
+  assert.ok(isWatcher(w()) && !isWatcher(r("0 8 * * *")));
+  assert.equal(routineNote(w(), c), "on new messages");
+  assert.equal(routineNote(w(false), c), "Paused · on new messages");
   assert.equal(routineNote(r("0 17 * * *", false), c), "Paused · Every day at 17:00");
 });
 
@@ -444,4 +452,14 @@ test("chats and learned times are clock times today, weekdays this week", () => 
   assert.equal(chatWhen(Date.UTC(2025, 9, 20, 9), c), "Mon");
   assert.equal(chatWhen(Date.UTC(2025, 8, 1, 9), c), "1 Sep");
   assert.equal(learnedWhen(Date.UTC(2025, 9, 24, 9, 31), c), "9:31");
+});
+
+test("a thread it worked in says how many replies and when the last came", () => {
+  const c = { now: SAMPLE_NOW, offsetMin: 0 };
+  const s = createSample();
+  const th = (s.replica.rows("threads") as unknown as { threadId: string; replyCount?: number; lastMessageAt?: number; createdAt: number }[]).find((x) => x.threadId === "th_a")!;
+  assert.equal(workedNote(th as never, c), "5 replies · last 9:34");
+  assert.equal(workedNote({ ...th, replyCount: 1 } as never, c), "1 reply · last 9:34");
+  assert.equal(workedNote({ ...th, replyCount: undefined, lastMessageAt: undefined } as never, c), "Started 32 min ago");
+  assert.ok(has(html(s, "threads"), "5 replies · last 9:34"));
 });

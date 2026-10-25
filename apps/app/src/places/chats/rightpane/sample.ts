@@ -46,8 +46,8 @@ const fact = (factId: string, text: string, o: Partial<Fact> & { fromMe?: boolea
   factId, layer: "agent", ownerRef: INTAKE, agentId: INTAKE, text, validFrom: at(10, 23, 9), learnedAt: at(10, 24, 9, 25), sourceKind: "chat", sourceRef: "c1", status: "current", ...o,
 });
 
-const routine = (routineId: string, title: string, cron: string, prompt: string, o: Partial<Routine> = {}): Routine => ({
-  routineId, agentId: INTAKE, title, cron, prompt, enabled: true, ownerId: "usr_omar", ...o,
+const routine = (routineId: string, title: string, cron: string | undefined, prompt: string, o: Partial<Routine> = {}): Routine => ({
+  routineId, agentId: INTAKE, title, ...(cron !== undefined ? { cron } : {}), prompt, enabled: true, ownerId: "usr_omar", ...o,
 });
 
 const folder = (folderId: string, parentId: string, name: string, fileCount: number, folderCount: number): FolderRow => ({
@@ -101,7 +101,7 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     : [
       thread("c1", "chat", "Rivera intake", at(10, 24, 9, 31)),
       thread("c5", "chat", "Weekly lead report", at(10, 20, 9, 0)),
-      thread("th_a", "thread", "#intake · Omar Haddad", at(10, 24, 9, 28), { parentThreadId: "c1" }),
+      thread("th_a", "thread", "#intake · Omar Haddad", at(10, 24, 9, 28), { parentThreadId: "c1", replyCount: 5, lastMessageAt: at(10, 24, 9, 34) }),
     ];
   replica.put("threads", threads.map((x) => ({ id: x.threadId, ...x })));
   const helpers: Helper[] = personal ? [] : [
@@ -123,8 +123,8 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
 
   const routines: Routine[] = personal ? [] : [
     routine("r3", "Morning lead sweep", "0 8 * * 1-5", "Every weekday at 8, check the web form inbox and the shared intake email for new leads since yesterday. Add each to Records as a Lead with source and first message, skip duplicates, and post a short summary in #intake.", { channelId: "intake", lastRunAt: at(10, 24, 8), nextRunAt: at(10, 27, 8) }),
-    // a watcher, not a clock routine: its trigger is an event, so the schedule field holds "on new messages" (the contract has no separate watch kind yet; see the packet comment)
-    routine("r4", "Watch #intake for new clients", "on new messages", "Whenever a message lands in #intake from someone new, open a Lead in Records, post the first reply and tag Omar.", { lastRunAt: at(10, 24, 9, 34) }),
+    // a watcher: it fires on a new message in #intake, so it has no cron
+    routine("r4", "Watch #intake for new clients", undefined, "Whenever a message lands in #intake from someone new, open a Lead in Records, post the first reply and tag Omar.", { kind: "watch", watch: { on: "message", channelId: "intake" }, lastRunAt: at(10, 24, 9, 34) }),
     routine("r5", "Chase missing intake forms", "0 17 * * *", "Every day at 5pm, find Leads whose intake form isn't back after 2 days and send one friendly reminder from the shared inbox. Stop after two reminders.", { enabled: false, lastRunAt: at(10, 21, 17) }),
   ];
   replica.put("routines", routines.map((x) => ({ id: x.routineId, ...x })));
@@ -174,9 +174,10 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
       .map((x) => strip(x, ["fromMe"]));
     return { facts: list, total: list.length };
   });
+  replica.resolve("memory.map.get", () => ({ map: { body: MAP_MD, lines: MAP_MD.split("\n").filter((l) => l.startsWith("- `")).length, updatedAt: at(10, 24, 9, 31) } }));
   replica.resolve("memory.counts", () => {
     const all = rowsOf<Fact & { fromMe?: boolean }>("facts");
-    return { current: all.filter((x) => x.status === "current").length, proposed: all.filter((x) => x.status === "proposed").length, fromMe: all.filter((x) => x.status === "current" && x.fromMe === true).length };
+    return { current: all.filter((x) => x.status === "current").length, proposed: all.filter((x) => x.status === "proposed").length, fromMe: all.filter((x) => x.status === "current" && x.fromMe === true).length, autoMerged: 2 };
   });
   replica.resolve("agents.routines.list", () => ({ routines: rowsOf<Routine & Row>("routines").map((x) => strip(x, [])) }));
   replica.resolve("files.list", (_t, input) => {
@@ -202,7 +203,6 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     return strip(next, ["fromMe"]);
   };
   let seq = 0;
-  const MAP_NOTE = { noteId: "note_map", path: "MAP.md", title: "MAP.md", layer: "agent" as const, agentId: INTAKE, updatedAt: at(10, 24, 9, 31) };
   const MAP_MD = ["# Intake memory map", "", "- `elena-rivera` client referred by Maya, call Thursday", "- `consult-rules` length, host and fee", "- `maya-calendar` when Maya is free and what she blocks",
     "- `intake-form-site` how the web intake form reaches us", "- `weekly-lead-report` what the Friday report holds"].join("\n");
   const writes: Record<string, (input: any) => unknown> = {
@@ -212,8 +212,6 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     "computers.give_back": () => ({ computer: patchComputer({ state: "working" }) }),
     "computers.provision": () => ({ computer }),
     "computers.session.sign_out": (i: { site: string }) => { replica.remove("sessions", [i.site]); return { signedOut: true }; },
-    "memory.notes.list": () => ({ notes: [MAP_NOTE], total: 1 }),
-    "memory.read_note": () => ({ note: MAP_NOTE, markdown: MAP_MD }),
     "memory.fact.accept": (i: { factId: string }) => ({ fact: setFact(i.factId, { status: "current" }) }),
     "memory.fact.reject": (i: { factId: string }) => ({ fact: setFact(i.factId, { status: "removed" }) }),
     "memory.fact.correct": (i: { factId: string; text: string }) => {
@@ -224,10 +222,10 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
       return { fact: strip(next, ["fromMe"]), closed };
     },
     "memory.facts.remove": (i: { factIds?: string[] }) => { for (const id of i.factIds ?? []) setFact(id, { status: "removed" }); return { removed: (i.factIds ?? []).length }; },
-    "agents.routine.save": (i: { routineId?: string; agentId: string; title: string; cron: string; prompt: string; channelId?: string; enabled?: boolean }) => {
+    "agents.routine.save": (i: { routineId?: string; agentId: string; title: string; cron?: string; kind?: "schedule" | "watch"; watch?: { on: "message"; channelId: string }; prompt: string; channelId?: string; enabled?: boolean }) => {
       const id = i.routineId ?? `r_new${++seq}`;
       const cur = rowsOf<Routine & Row>("routines").find((x) => x.routineId === id);
-      const next: Routine = { ...(cur ? strip(cur, []) : { ownerId: "usr_irfad" }), routineId: id, agentId: i.agentId, title: i.title, cron: i.cron, prompt: i.prompt, enabled: i.enabled ?? true, ...(i.channelId ? { channelId: i.channelId } : {}) };
+      const next: Routine = { ...(cur ? strip(cur, []) : { ownerId: "usr_irfad" }), routineId: id, agentId: i.agentId, title: i.title, ...(i.cron !== undefined ? { cron: i.cron } : {}), ...(i.kind !== undefined ? { kind: i.kind } : {}), ...(i.watch !== undefined ? { watch: i.watch } : {}), prompt: i.prompt, enabled: i.enabled ?? true, ...(i.channelId ? { channelId: i.channelId } : {}) };
       replica.put("routines", [{ id, ...next }]);
       return { routine: next };
     },

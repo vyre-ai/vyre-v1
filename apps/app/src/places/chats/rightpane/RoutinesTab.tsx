@@ -144,7 +144,7 @@ export function RoutinesTab({ deps, window, initial }: { deps: PaneDeps; window?
     entries.push({ key: "l-when", type: "label", text: "When" });
     entries.push({
       key: "when", type: "block",
-      node: <View style={st.block}><Text style={st.kvVal}>{cronWords(r.cron)}</Text><Text style={st.hint}>{r.enabled ? (r.nextRunAt !== undefined ? `Next: ${nextLabel(r.nextRunAt, clock)}` : "No run is scheduled") : "Paused. Turn it on to schedule the next run."}</Text></View>,
+      node: <View style={st.block}><Text style={st.kvVal}>{isWatcher(r) ? "On every new message in the channel" : cronWords(r.cron ?? "")}</Text><Text style={st.hint}>{r.enabled ? (r.nextRunAt !== undefined ? `Next: ${nextLabel(r.nextRunAt, clock)}` : "No run is scheduled") : "Paused. Turn it on to schedule the next run."}</Text></View>,
     });
     entries.push({ key: "l-details", type: "label", text: "Details" });
     entries.push({

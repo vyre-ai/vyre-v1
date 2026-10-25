@@ -23,8 +23,7 @@ type CountsOut = CapMap["memory.counts"]["out"];
 export const MEMORY_SCREEN = "chats.agent-memory";
 const CHATS_SCREEN = "chats.agent-page";
 type ThreadsOut = CapMap["threads.list"]["out"];
-type NotesOut = CapMap["memory.notes.list"]["out"];
-type NoteOut = CapMap["memory.read_note"]["out"];
+type MapOut = CapMap["memory.map.get"]["out"];
 
 export function MemoryTab({ deps, spaceName, window }: { deps: PaneDeps; spaceName: string; window?: VirtualWindow }): ReactElement {
   const data = usePaneData();
@@ -41,17 +40,14 @@ export function MemoryTab({ deps, spaceName, window }: { deps: PaneDeps; spaceNa
   const counts = useScreenQuery<CountsOut>(MEMORY_SCREEN, "counts", { agentId });
   const chats = useScreenQuery<ThreadsOut>(CHATS_SCREEN, "chats", {});
   const chatTitle = (id: string): string | undefined => (chats.status === "ready" ? chats.data.threads.find((t) => t.threadId === id)?.title : undefined);
-  // MAP.md, the index every chat loads: read through the notes capabilities (the memory screen has no query for it), once per agent.
+  // MAP.md, the index every chat loads: its own capability (memory.map.get), read once per agent.
   const [map, setMap] = useState<MapIndex | null>(null);
   useEffect(() => {
     let live = true;
     void (async () => {
       try {
-        const list = (await data.call("memory.notes.list", { agentId, layer: "agent" })) as NotesOut;
-        const note = list.notes.find((n) => n.path === "MAP.md");
-        if (!note) { if (live) setMap(null); return; }
-        const read = (await data.call("memory.read_note", { noteId: note.noteId })) as NoteOut;
-        if (live) setMap(parseMap(read.markdown));
+        const out = (await data.call("memory.map.get", { agentId })) as MapOut;
+        if (live) setMap(out.map ? parseMap(out.map.body, out.map.lines) : null);
       } catch { if (live) setMap(null); }
     })();
     return () => { live = false; };
@@ -119,6 +115,9 @@ export function MemoryTab({ deps, spaceName, window }: { deps: PaneDeps; spaceNa
         ),
       });
     }
+  }
+  if (counts.status === "ready" && counts.data.autoMerged > 0 && isDefaultFilter(filter)) {
+    entries.push({ key: "auto", type: "block", node: <View testID="memory-auto" style={st.auto}><Text style={st.hint}>{`${counts.data.autoMerged} low-risk ${counts.data.autoMerged === 1 ? "fact" : "facts"} merged on their own`}</Text></View> });
   }
   entries.push({
     key: "h-known", type: "block",
@@ -199,6 +198,7 @@ const st = StyleSheet.create({
   mapKey: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11.5, color: "var(--accent)" as string, flexShrink: 0 },
   mapText: { flex: 1, minWidth: 0, fontSize: 12, color: "var(--ink-2)" as string },
   cardOuter: { paddingHorizontal: 8, paddingVertical: 3 },
+  auto: { paddingHorizontal: 10, paddingVertical: 6 },
   card: { padding: 10, gap: 6, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
   cardText: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },
   cardFoot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

@@ -182,6 +182,13 @@ export function threadNote(t: Thread, c: Clock): string {
   return `Started ${agoLabel(t.createdAt, c)}`;
 }
 
+/** A thread it worked in, as the prototype's second line: "5 replies · last 9:34" when the thread says how many and when, else when it started. */
+export function workedNote(t: Thread, c: Clock): string {
+  if (t.replyCount === undefined) return threadNote(t, c);
+  const n = `${t.replyCount} ${t.replyCount === 1 ? "reply" : "replies"}`;
+  return t.lastMessageAt === undefined ? n : `${n} · last ${chatWhen(t.lastMessageAt, c)}`;
+}
+
 /** When a chat last moved, as the prototype's Its chats list says it: the clock time today, "Yesterday", the weekday within a week, else the date. */
 export function chatWhen(ts: number, c: Clock): string {
   const gap = dayNo(c.now, c) - dayNo(ts, c);
@@ -294,9 +301,9 @@ export function cronWords(cron: string): string {
   return cron;
 }
 
-/** A watcher fires on an event, not a clock: its trigger reads "on new messages". */
+/** A watcher (kind "watch") fires on a new message in a channel, not a clock. */
 export function isWatcher(r: Routine): boolean {
-  return r.cron.startsWith("on ");
+  return r.kind === "watch";
 }
 
 /** The short schedule the prototype writes on a row: "weekdays 8:00", "every Friday 9:00", "every day 17:00"; anything else as it is. */
@@ -318,9 +325,10 @@ export function nextDay(ts: number, c: Clock): string {
 }
 
 export function routineNote(r: Routine, c: Clock): string {
-  if (!r.enabled) return `Paused · ${cronWords(r.cron)}`;
-  if (isWatcher(r)) return r.cron;
-  return r.nextRunAt !== undefined ? `${shortSchedule(r.cron)} · next ${nextDay(r.nextRunAt, c)}` : shortSchedule(r.cron);
+  const cron = r.cron ?? "";
+  if (!r.enabled) return `Paused · ${isWatcher(r) ? "on new messages" : cronWords(cron)}`;
+  if (isWatcher(r)) return "on new messages";
+  return r.nextRunAt !== undefined ? `${shortSchedule(cron)} · next ${nextDay(r.nextRunAt, c)}` : shortSchedule(cron);
 }
 
 export function routinesOn(rs: readonly Routine[]): number {
@@ -365,13 +373,13 @@ export interface MapIndex { rows: MapRow[]; lines: number }
 export const MAP_LIMIT = 200;
 
 /** Reads MAP.md: each "- `key` what it points to" line is a row; the line count is what counts against the limit. */
-export function parseMap(markdown: string): MapIndex {
+export function parseMap(markdown: string, lines?: number): MapIndex {
   const rows: MapRow[] = [];
   for (const line of markdown.split("\n")) {
     const m = /^\s*[-*]\s+`([^`]+)`\s*[:\u2013-]?\s*(.*)$/.exec(line);
     if (m) rows.push({ key: m[1]!, text: m[2]!.trim() });
   }
-  return { rows, lines: rows.length };
+  return { rows, lines: lines ?? rows.length };
 }
 
 /** Where a proposed fact came from, in the prototype's words: the chat's title, "#channel", you, else the kind. */

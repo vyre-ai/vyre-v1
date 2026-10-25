@@ -6,7 +6,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { PaneDeps } from "./actions.ts";
 import { copyText } from "./actions.ts";
 import { usePaneData, useScreenQuery } from "./data.tsx";
-import { chatWhen, groupThreads, helperNote, threadNote } from "./model.ts";
+import { chatWhen, groupThreads, helperNote, workedNote } from "./model.ts";
 import type { Helper, Thread } from "./model.ts";
 import { Face, LeadIcon, PaneList, Tool } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
@@ -39,7 +39,7 @@ export function ThreadsTab({ deps, window }: { deps: PaneDeps; window?: VirtualW
   const entries: Entry[] = [];
   if (g.worked.length > 0) {
     entries.push({ key: "l-worked", type: "label", text: "Threads it worked in" });
-    for (const t of g.worked as Thread[]) entries.push({ key: `t-${t.threadId}`, type: "row", title: t.title ?? "Thread", note: threadNote(t, clock), leading: <LeadIcon name="reply" />, onPress: () => data.nav.openThread(t.threadId, "here"), trailing: (over) => (over ? side(t) : null), menu: menu(t), testID: `thread-${t.threadId}` });
+    for (const t of g.worked as Thread[]) entries.push({ key: `t-${t.threadId}`, type: "row", title: t.title ?? "Thread", note: workedNote(t, clock), leading: <LeadIcon name="reply" />, onPress: () => data.nav.openThread(t.threadId, "here"), trailing: (over) => (over ? side(t) : null), menu: menu(t), testID: `thread-${t.threadId}` });
   }
   if (g.helpers.length > 0) {
     entries.push({ key: "l-helpers", type: "label", text: "Helpers" });
