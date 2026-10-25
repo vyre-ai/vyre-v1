@@ -10775,6 +10775,14 @@ export type GoogleDocsGetDocumentOut = {
   title: string;
   body: Record<string, unknown>;
 };
+export type GoogleDriveChangesStartTokenIn = {
+  connectionId: string;
+  as?: string;
+  driveId?: string;
+};
+export type GoogleDriveChangesStartTokenOut = {
+  startPageToken: string;
+};
 export type GoogleDriveCopyFileIn = {
   connectionId: string;
   as?: string;
@@ -26468,6 +26476,7 @@ export interface CapMap {
   "google.docs.batch_update": { in: GoogleDocsBatchUpdateIn; out: GoogleDocsBatchUpdateOut };
   "google.docs.create_document": { in: GoogleDocsCreateDocumentIn; out: GoogleDocsCreateDocumentOut };
   "google.docs.get_document": { in: GoogleDocsGetDocumentIn; out: GoogleDocsGetDocumentOut };
+  "google.drive.changes_start_token": { in: GoogleDriveChangesStartTokenIn; out: GoogleDriveChangesStartTokenOut };
   "google.drive.copy_file": { in: GoogleDriveCopyFileIn; out: GoogleDriveCopyFileOut };
   "google.drive.create_folder": { in: GoogleDriveCreateFolderIn; out: GoogleDriveCreateFolderOut };
   "google.drive.download_file": { in: GoogleDriveDownloadFileIn; out: GoogleDriveDownloadFileOut };

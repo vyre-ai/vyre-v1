@@ -78676,6 +78676,82 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "as": "maya@example.com",
+            "connectionId": "con_a1b2c3",
+            "driveId": "example"
+          },
+          "name": "example",
+          "output": {
+            "startPageToken": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "google",
+      "name": "google.drive.changes_start_token",
+      "output": {
+        "properties": {
+          "startPageToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "startPageToken"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The Drive changes start page token, so a mount syncs incrementally from now instead of rescanning",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "audit": "always",
       "effects": "outward",
       "emits": [],
@@ -163856,6 +163932,7 @@
         "google.drive.copy_file",
         "google.drive.share_file",
         "google.drive.trash_file",
+        "google.drive.changes_start_token",
         "google.drive.list_changes",
         "google.drive.watch_changes",
         "google.drive.stop_watch",
