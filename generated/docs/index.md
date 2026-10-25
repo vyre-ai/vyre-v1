@@ -1,32 +1,15 @@
 # Reference index
 
-| Kind | Count |
-|---|---|
-| Modules | 64 |
-| Connector manifests | 12 |
-| Kit manifests | 4 |
-| Capabilities | 1500 |
-| Events | 602 |
-| Permissions | 57 |
-| Entities | 37 |
-| Record types | 15 |
-| Field types | 30 |
-| View kinds | 9 |
-| Steps | 25 |
-| Triggers | 14 |
-| Connectors | 13 |
-| Agent tools (not 1:1 with a capability) | 10 |
-| Block types | 22 |
-| Screens | 179 |
-| Health checks | 47 |
-| Gate act kinds | 10 |
-| Task kinds | 6 |
-| Notification kinds | 23 |
-| Import sources | 9 |
-| Settings | 96 |
-| Retention defaults | 10 |
-| Lists | 10 |
-| Error codes | 44 |
+Counts are not written down: they change with every contract change. Run `node tools/gen/src/cli.ts --summary` for them.
+
+## Kinds
+
+- Modules, connector manifests and Kit manifests: `modules/`
+- Capabilities: `capabilities/`
+- Events: `events/`
+- Permissions: `permissions/`
+- Errors: `errors/`
+- Lanes: `lanes/`
 
 ## Modules
 
