@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { SandboxError, createCredentialStore, nodeCredFs, startDockerSandbox, untar } from "../src/index.ts";
+import { SandboxError, createCredentialStore, nodeCredFs, untar } from "../src/index.ts";
+import { startDockerSandbox } from "../src/docker.ts";
 import type { CredFs, DirEntry, ProxyHandle } from "../src/index.ts";
 import { ROOTS, fakeDocker, spec } from "./helpers.ts";
 

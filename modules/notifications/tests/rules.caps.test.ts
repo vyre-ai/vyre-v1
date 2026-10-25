@@ -17,7 +17,7 @@ async function refused(p: Promise<unknown>, code: string): Promise<void> {
 
 test("every capability in the contract has a real handler", () => {
   const want = registry.capabilities.filter((c) => c.module === "notifications").map((c) => c.name).sort();
-  assert.equal(want.length, 19);
+  assert.equal(want.length, 20);
   assert.deepEqual(Object.keys(handlers).sort(), want);
 });
 
@@ -221,3 +221,5 @@ test("digest.collect: digest-level rows of a period for a person, oldest first, 
   assert.equal((await h.call("notifications.digest.collect", { person: alice.id, since: NOW - 1, until: NOW }, sender)).items.length, 1, "until is inclusive");
   await refused(h.call("notifications.digest.collect", { person: alice.id, since: 0 }, as(bob)), "permission.no_grant");
 });
+
+// Run on the final commit of this packet, after merging main, so the CI log lists the file as ok.

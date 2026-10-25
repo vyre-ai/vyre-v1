@@ -171,7 +171,7 @@ jobs:
         if: always() && steps.scope.outputs.changed == 'true'
         run: docker ps -a --filter "name=vyre" --format '{{.Names}} {{.Status}}' || true
   l2-heavy:
-    # P-L2_HEAVY (security sign-off, spec S8): real Docker, real bubblewrap and real tmux against the sandbox and the terminal module. The tests skip unless VYRE_HEAVY_DOCKER=1 and, with it on,
+    # P-L2_HEAVY (security sign-off, spec S8): real Docker, real bubblewrap and real tmux against the sandbox and the terminal module; P-L2_16b adds the agent computers module (lifecycle and the 35 tools). The tests skip unless VYRE_HEAVY_DOCKER=1 and, with it on,
     # fail instead of skipping when Docker, the image, bwrap or tmux is missing, so a green job means the proofs ran. Not part of the `check` gate below: it reports its own result on the run.
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 30
@@ -183,7 +183,7 @@ jobs:
         run: |
           git fetch -q origin main
           base="$(git merge-base origin/main HEAD)"
-          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|images/person-sandbox/|agent/tests/sandbox\.(net\.)?heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
+          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|modules/computers/|images/person-sandbox/|agent/tests/sandbox\.(net\.)?heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
       - name: Install bubblewrap and tmux when the runner does not have them
         if: steps.scope.outputs.changed == 'true'
         run: |
@@ -205,6 +205,8 @@ jobs:
         if: steps.scope.outputs.changed == 'true'
         run: |
           docker ps -aq --filter name=vyre-sbx-hv | xargs -r docker rm -f
+          docker ps -aq --filter name=vyre-comp-hv | xargs -r docker rm -f
+          docker volume ls -q --filter name=vyre-comp-hv | xargs -r docker volume rm -f
           docker network ls -q --filter name=vyre-sbx-hv | xargs -r docker network rm
           docker network ls --format '{{.Name}} {{.Driver}} {{.CreatedAt}}' | head -60
           docker network prune -f --filter until=1h || true
@@ -222,6 +224,15 @@ jobs:
           set -o pipefail
           node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.net.heavy.test.ts 2>&1 | tee net-heavy.out
           grep -E "^ℹ skipped 0$" net-heavy.out
+      - name: Agent computers on real Docker, none skipped (modules/computers/tests/lifecycle.heavy.test.ts and tools.heavy.test.ts)
+        if: always() && steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+        run: |
+          set -o pipefail
+          node --test --test-force-exit --test-timeout=600000 --test-reporter=spec modules/computers/tests/lifecycle.heavy.test.ts modules/computers/tests/tools.heavy.test.ts 2>&1 | tee computers-heavy.out
+          grep -E "^ℹ skipped 0$" computers-heavy.out
+          grep -E "^ℹ pass 2$" computers-heavy.out
   check:
     needs: [select, shards, gates]
     if: always()

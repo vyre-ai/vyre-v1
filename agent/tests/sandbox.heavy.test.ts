@@ -54,7 +54,9 @@ interface SandboxLib {
   unixSocketHttp(socketPath?: string): unknown;
   validateSpec(spec: SandboxSpec, roots: Roots): { mounts: Array<{ host: string; guest: string; mode: "ro" | "rw" }> };
 }
-const lib = (await import(pathToFileURL(path.resolve(import.meta.dirname, "../../sandbox/src/index.ts")).href)) as unknown as SandboxLib;
+// The unwalled starters are not exported from the package index any more (P-L2_16b); this file proves the unwalled paths themselves, so it takes them from their files.
+const sandboxSrc = (file: string): Promise<object> => import(pathToFileURL(path.resolve(import.meta.dirname, "../../sandbox/src", file)).href) as Promise<object>;
+const lib = { ...(await sandboxSrc("index.ts")), ...(await sandboxSrc("docker.ts")), ...(await sandboxSrc("bwrap.ts")) } as unknown as SandboxLib;
 const { DEFAULT_IMAGE, bwrapCommand, confinementProbe, createDockerApi, createEgressProxy, startDockerSandbox, unixSocketHttp, validateSpec } = lib;
 
 const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";

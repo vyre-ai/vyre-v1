@@ -4,9 +4,9 @@ import type { ReactElement } from "react";
 import { Fragment } from "react";
 import { useSaved } from "./saved.tsx";
 import { useSettingsData } from "./data.tsx";
-import { MODES, bytesLabel, controlFor, hoursSummary, labelOf, splitList, summaryOf, timeIn } from "./model.ts";
+import { MODES, bytesLabel, controlFor, hoursSummary, labelOf, rowLabel, splitList, summaryOf, timeIn } from "./model.ts";
 import type { Hours, SettingRow } from "./model.ts";
-import { Choice, Field, SettingsRow, SmallButton, Stepper, Switch, Value } from "./ui.tsx";
+import { Choice, Field, Segmented, SettingsRow, SmallButton, Slider, Stepper, Switch, Value } from "./ui.tsx";
 
 export const HOURS_PRESETS: readonly { id: string; label: string; value: Hours }[] = [
   { id: "wk95", label: "Mon to Fri, 9:00 AM to 5:30 PM", value: { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:30" } },
@@ -34,11 +34,15 @@ export function SettingControl({ row }: { row: SettingRow }): ReactElement {
   const change = useChange();
   const c = controlFor(row);
   const v = row.value;
-  const label = row.title;
+  const label = rowLabel(row);
   switch (c.kind) {
     case "switch": return <Switch on={v === true} label={label} testID={`ctl-${row.key}`} onChange={(n) => void change(row, n)} />;
-    case "choice": return <Choice value={String(v)} options={c.options} label={label} testID={`ctl-${row.key}`} onChange={(n) => void change(row, n)} />;
-    case "number": return <Stepper value={typeof v === "number" ? v : 0} {...(c.min !== undefined ? { min: c.min } : {})} {...(c.max !== undefined ? { max: c.max } : {})} step={c.step} label={label} {...(row.key.endsWith("_mb") ? { format: bytesLabel } : {})} testID={`ctl-${row.key}`} onChange={(n) => void change(row, n)} />;
+    case "choice":
+      if (row.key === "appearance.density") return <Segmented value={String(v)} options={c.options} label={label} testID={`ctl-${row.key}`} onChange={(n) => void change(row, n)} />;
+      return <Choice value={String(v)} options={c.options} label={label} testID={`ctl-${row.key}`} onChange={(n) => void change(row, n)} />;
+    case "number":
+      if (row.key === "appearance.text_size") return <Slider value={typeof v === "number" ? v : 100} min={c.min ?? 90} max={c.max ?? 120} step={5} label={label} format={(n) => `${n}%`} testID={`ctl-${row.key}`} onChange={(n) => void change(row, n)} />;
+      return <Stepper value={typeof v === "number" ? v : 0} {...(c.min !== undefined ? { min: c.min } : {})} {...(c.max !== undefined ? { max: c.max } : {})} step={c.step} label={label} {...(row.key.endsWith("_mb") ? { format: bytesLabel } : {})} testID={`ctl-${row.key}`} onChange={(n) => void change(row, n)} />;
     case "text": return <Field value={typeof v === "string" ? v : ""} label={label} testID={`ctl-${row.key}`} {...(c.pattern ? { pattern: c.pattern } : {})} mono={c.mono === true} onCommit={(n) => void change(row, n)} />;
     case "hours": return <HoursControl row={row} />;
     case "mode": {
@@ -101,7 +105,7 @@ export function SettingRowFor({ row, first, found = false }: { row: SettingRow; 
   const sub = row.key === "profile.timezone" && typeof row.value === "string" ? `It is ${timeIn(data.clock().now, row.value)} for you now` : subOf(row);
   return (
     <SettingsRow
-      id={row.key} label={row.title} first={first} found={found} {...(sub ? { sub } : {})}
+      id={row.key} label={rowLabel(row)} first={first} found={found} {...(sub ? { sub } : {})}
       control={<>{changed ? <SmallButton label="Reset" testID={`reset-${row.key}`} onPress={() => void reset()} /> : null}<SettingControl row={row} /></>}
     />
   );
