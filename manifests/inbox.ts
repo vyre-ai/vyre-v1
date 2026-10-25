@@ -17,6 +17,10 @@ const conversationRow = t.obj({
   displayName: t.str(), lastMessageAt: t.ts(), lastChannel: t.enm('email', 'sms', 'call', 'meeting'), lastPreview: t.str(), unreadCount: t.int({ minimum: 0 }),
   needsMatch: t.bool(), ownerId: t.opt(id.user), mailboxIds: t.arr(id.mailbox), campaignId: t.opt(id.campaign), followed: t.bool(), alertOnReplies: t.bool(),
   starred: t.opt(t.bool()),   // the caller's own flag, like followed; absent means not starred
+  // Row flags the list handler fills from the contact record, its deliverability and the drafts; absent means unknown or none.
+  organisation: t.opt(t.str({ examples: ['Acme Legal'] })), dnd: t.opt(t.bool()),
+  bounced: t.opt(t.bool()), unmatched: t.opt(t.bool()),
+  draftReady: t.opt(t.bool()),
 });
 const timelineItem = t.obj({
   kind: t.enm('email', 'sms', 'call', 'meeting', 'campaign_step', 'record_chip', 'note'), id: t.str(), at: t.ts(), direction: t.opt(t.enm('in', 'out')),

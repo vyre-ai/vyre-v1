@@ -82,3 +82,12 @@ CREATE TABLE IF NOT EXISTS "notifications_backstops" (
   "at" INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS "notifications_items__collapse" ON "notifications_items" ("person", "collapse_key");
+
+-- notifications_kind_levels: my own level and channels for one kind (notifications.kind.set_level). No row means the kind's shipped level.
+CREATE TABLE IF NOT EXISTS "notifications_kind_levels" (
+  "person" TEXT NOT NULL,
+  "kind" TEXT NOT NULL,
+  "level" TEXT NOT NULL,
+  "channels" TEXT NOT NULL DEFAULT '[]',
+  PRIMARY KEY ("person", "kind")
+);
