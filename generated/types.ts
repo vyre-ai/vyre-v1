@@ -13604,6 +13604,13 @@ export type KitsInstallSheetOut = {
     networkDomains: Array<string>;
     vaultNames: Array<string>;
     scripts: number;
+    problems: Array<{
+        item: string;
+        step: "apply" | "undo";
+        cap: string;
+        input: Record<string, unknown>;
+        message: string;
+      }>;
   };
 };
 export type KitsListIn = {

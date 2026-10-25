@@ -42,3 +42,19 @@ export function stepProblems(kit: KitManifest): StepProblem[] {
   }
   return out;
 }
+
+const toSnake = (s: string): string => s.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+const META = ["title", "plural", "icon", "group", "label", "titleField", "statusField", "ownerField"] as const;
+
+/**
+ * How a record type the Space has differs from the one the Kit's manifest declares, as a sentence; null when they are the same. Both are compared by their name, look, label, the fields that
+ * title, status and own a row, and their fields' keys and kinds (keys in lower snake case, which is what the schema stores).
+ */
+export function typeDifference(declared: Record<string, unknown>, have: Record<string, unknown>): string | null {
+  const norm = (v: unknown, key: string): unknown => (typeof v === "string" && key.endsWith("Field") ? toSnake(v) : v ?? null);
+  for (const k of META) if (norm(declared[k], k) !== norm(have[k], k)) return `its ${k} is ${JSON.stringify(norm(have[k], k))}, the Kit declares ${JSON.stringify(norm(declared[k], k))}`;
+  const fields = (v: unknown): string[] => (Array.isArray(v) ? (v as { key?: unknown; type?: unknown }[]).map((f) => `${toSnake(String(f.key))}:${String(f.type)}`).sort() : []);
+  const a = fields(declared["fields"]), b = fields(have["fields"]);
+  if (a.join() !== b.join()) return `its fields are ${b.join(", ")}, the Kit declares ${a.join(", ")}`;
+  return null;
+}

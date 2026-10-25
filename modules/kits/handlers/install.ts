@@ -11,7 +11,9 @@ import type { ErrorCode } from "../../../packages/contracts/src/types.ts";
 import { canonical } from "../../../lib/canonical.ts";
 import { mintUuid } from "../../../lib/ids.ts";
 import { fail as hostFail } from "../../../host/src/routes/errors.ts";
-import { stepProblems } from "./sheet.ts";
+import { stepProblems, typeDifference } from "./sheet.ts";
+import { registry } from "../../../generated/registry.ts";
+import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 
 export type KitChannel = "stable" | "beta";
 export type ContentType = "ui" | "structure" | "steps" | "tools";
@@ -102,6 +104,8 @@ export interface KitsConfig {
    * create resources itself; the host does it for it, idempotently (the same Kit is the same resource after a reboot). Omitted: nothing registers them (tests that fake access).
    */
   resources?: { ensure(kitId: string): Promise<void> };
+  /** Install and update refuse a Kit the sheet check lists problems for. On unless set to false; only the fixture tests whose Kit steps are sketches turn it off. */
+  refuseOnSheetProblems?: boolean;
 }
 
 let configured: KitsConfig | null = null;
@@ -314,7 +318,10 @@ export interface InstallSheet {
   networkDomains: string[];
   vaultNames: string[];
   scripts: number;
+  problems: SheetProblem[];
 }
+
+export interface SheetProblem { item: string; step: "apply" | "undo"; cap: string; input: Record<string, unknown>; message: string }
 
 /** Everything the Kit will touch, from its own manifest. Sorted, so the sheet is the same every time. */
 export function sheetOf(kit: KitManifest): InstallSheet {
@@ -329,7 +336,7 @@ export function sheetOf(kit: KitManifest): InstallSheet {
   }
   for (const s of kit.scripts ?? []) for (const c of s.caps) tools.add(c);
   const sort = (s: Set<string>): string[] => [...s].sort();
-  return { tools: sort(tools), recordTypes: sort(types), networkDomains: sort(domains), vaultNames: sort(vault), scripts: (kit.scripts ?? []).length };
+  return { tools: sort(tools), recordTypes: sort(types), networkDomains: sort(domains), vaultNames: sort(vault), scripts: (kit.scripts ?? []).length, problems: [] };
 }
 
 export function contentsOf(kit: KitManifest): ContentType[] {
@@ -468,10 +475,66 @@ async function get(ctx: Ctx, input: unknown): Promise<{ kit: KitOut }> {
   return { kit: kitOut(ctx, mustKit(ctx, reqStr(ctx, rec(ctx, input), "kitId"))) };
 }
 
+/**
+ * The sheet check: every apply and undo step against the contract it will call, before anyone presses Install. A step is a problem when the capability does not exist, its input does not
+ * fit the capability's input schema, or it creates a record type the Space already has (a Kit that was installed from the same source, or one the manifests seed).
+ */
+async function sheetProblems(ctx: Ctx, kit: KitManifest): Promise<SheetProblem[]> {
+  const caps = new Map<string, (typeof registry.capabilities)[number]>();
+  for (const c of registry.capabilities) { const old = caps.get(c.name); if (!old || c.v > old.v) caps.set(c.name, c); }
+  const out: SheetProblem[] = [];
+  const seenTypes = new Set<string>();
+  for (const it of kit.items) {
+    for (const which of ["apply", "undo"] as const) {
+      const step = it[which];
+      if (!step) continue;
+      const def = caps.get(step.cap);
+      const add = (message: string): void => { out.push({ item: it.key, step: which, cap: step.cap, input: step.input, message }); };
+      if (!def) { add(`${step.cap} is not a capability on this server.`); continue; }
+      const bad = validate(def.input, step.input, "", registry.$defs);
+      if (bad.length) { add(`The input does not fit ${step.cap}: ${bad.slice(0, 3).join("; ")}`); continue; }
+      if (which !== "apply" || step.cap !== "schema.apply") continue;
+      for (const op of Array.isArray(step.input["ops"]) ? (step.input["ops"] as Record<string, unknown>[]) : []) {
+        if (op["op"] !== "type.create" || typeof op["type"] !== "string") continue;
+        const type = op["type"];
+        if (seenTypes.has(type)) { add(`Record type ${type} is created twice in this Kit.`); continue; }
+        seenTypes.add(type);
+        let exists = false;
+        try { await ctx.call("schema.types.get" as never, { type } as never); exists = true; } catch { /* not there, or the caller may not read it: the install will say */ }
+        if (exists) add(`Record type ${type} already exists in this Space.`);
+      }
+    }
+  }
+  for (const p of stepProblems(kit)) out.push({ item: p.item, step: p.step, cap: p.cap, input: { pointer: p.input }, message: p.message });
+  out.push(...(await declaredTypeProblems(ctx, kit)));
+  return out;
+}
+
+/**
+ * The record types a Kit declares in its manifest (an item of type record_type with no step) against the Space. Read only: a type the Space has persisted is read with schema.types.get and
+ * compared with the declaration; one it has not persisted yet is the manifest's own, so identical. A type no manifest of this Kit declares is a problem too.
+ */
+async function declaredTypeProblems(ctx: Ctx, kit: KitManifest): Promise<SheetProblem[]> {
+  const out: SheetProblem[] = [];
+  for (const it of kit.items) {
+    if (it.type !== "record_type" || it.apply) continue;
+    const type = it.recordType ?? it.key;
+    const add = (message: string): void => { out.push({ item: it.key, step: "apply", cap: "schema.types.get", input: { type }, message }); };
+    const declared = registry.recordTypes.find((r) => r.module === kit.key && r.key === type) as unknown as Record<string, unknown> | undefined;
+    if (!declared) { add(`"${it.title}" names the record type ${type}, which this Kit does not declare.`); continue; }
+    let have: Record<string, unknown> | null = null;
+    try { have = ((await ctx.call("schema.types.get" as never, { type } as never)) as { type: Record<string, unknown> }).type; } catch { /* not persisted yet: the manifest's own definition */ }
+    const why = have ? typeDifference(declared, have) : null;
+    if (why) add(`This Space already has a record type ${type}, and ${why}. Install would not change it.`);
+  }
+  return out;
+}
+
 async function installSheet(ctx: Ctx, input: unknown): Promise<{ sheet: InstallSheet }> {
   await ensureCatalog(ctx);
   const k = mustKit(ctx, reqStr(ctx, rec(ctx, input), "kitId"));
-  return { sheet: sheetOf(parseManifest(describedVersion(ctx, k))) };
+  const manifest = parseManifest(describedVersion(ctx, k));
+  return { sheet: { ...sheetOf(manifest), problems: await sheetProblems(ctx, manifest) } };
 }
 
 async function versions(ctx: Ctx, input: unknown): Promise<{ versions: { versionId: string; version: string; at: number; by: string; channel: KitChannel }[] }> {
@@ -608,9 +671,10 @@ async function applyChanges(ctx: Ctx, kitId: string, target: KitManifest, verb: 
   }
 }
 
-/** Install and update refuse a Kit whose steps leave out an input their capability cannot do without, before any step runs (P-L10_12, handlers/sheet.ts). */
-function refuseUnresolvable(ctx: Ctx, target: KitManifest): void {
-  const problems = stepProblems(target);
+/** Install and update refuse a Kit the sheet check lists problems for, before any step runs (ruling 49, P-L10_12). */
+async function refuseUnresolvable(ctx: Ctx, target: KitManifest): Promise<void> {
+  if (configured?.refuseOnSheetProblems === false) return;
+  const problems = await sheetProblems(ctx, target);
   if (problems.length > 0) fail(ctx, "validation.precondition_failed", `${target.title} cannot be installed yet. ${problems.slice(0, 3).map((p) => p.message).join(" ")} Nothing was changed.`, { problems });
 }
 
@@ -623,7 +687,7 @@ async function install(ctx: Ctx, input: unknown): Promise<{ kit: KitOut }> {
   const head = headOf(ctx, k.id, k.channel);
   if (!head) fail(ctx, "validation.precondition_failed", "This Kit has no published version yet.");
   const target = parseManifest(head);
-  refuseUnresolvable(ctx, target);
+  await refuseUnresolvable(ctx, target);
   await applyChanges(ctx, k.id, target, "install");
   const now = ctx.now();
   ctx.db.run("UPDATE kits_kit SET installed_version = ?, previous_version = ?, installed_by = ?, installed_at = ?, updated_at = ? WHERE id = ?", target.version, null, ctx.principal.id, now, now, k.id);
@@ -640,7 +704,7 @@ async function update(ctx: Ctx, input: unknown): Promise<{ kit: KitOut }> {
   const row = wanted !== undefined ? versionRow(ctx, k.id, wanted) : headOf(ctx, k.id, k.channel);
   if (!row) fail(ctx, "validation.not_found", wanted !== undefined ? `Version ${wanted} of ${k.title} does not exist.` : "This Kit has no published version yet.");
   const target = parseManifest(row);
-  refuseUnresolvable(ctx, target);
+  await refuseUnresolvable(ctx, target);
   if (compareSemver(target.version, k.installedVersion) <= 0) fail(ctx, "validation.precondition_failed", `${k.title} ${k.installedVersion} is already at or past ${target.version}. Use rollback to go back.`);
   const from = k.installedVersion;
   await applyChanges(ctx, k.id, target, "update");
