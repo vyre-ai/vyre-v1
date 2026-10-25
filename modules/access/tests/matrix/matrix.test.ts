@@ -251,11 +251,8 @@ test("an agent that somehow holds Owner or Admin in the projection is still stri
   }
 });
 
-// KNOWN GAP (found by this suite, not fixed here: the fix is in kernel/src/authorize/snapshot.ts or modules/access/projections.ts, outside this packet's files; commented on P-L7_14 for the lead).
-// kernel AccessSnapshot.info() strips ELEVATED_ROLES = {"owner", "admin"} by id, but the module's built-in role ids are "rol_owner" and "rol_admin". AccessStore.snapshot() compensates for a role
-// assigned straight to an agent, and does not for a role held by a GROUP the agent belongs to, so such an agent is allowed what Owner may do. The assertions below are the rule (ARCH 4.5
-// "Agents never hold owner or admin") unchanged; `todo` keeps the failure from blocking until the fix lands, and the test flips to a plain pass then.
-test("an agent is not elevated by a group that holds Owner or Admin", { todo: "agents in a group that holds rol_owner or rol_admin are not stripped of it (kernel ELEVATED_ROLES matches 'owner' and 'admin', not the role ids)" }, () => {
+// Fixed by P-SEC_01: the kernel strips by role id and name (rol_owner, rol_admin), for direct, group and nested-group roles. This is the rule (ARCH 4.5 "Agents never hold owner or admin") as a plain test.
+test("an agent is not elevated by a group that holds Owner or Admin", () => {
   const { store } = world();
   putPrincipal(store, { id: "agt_grp", kind: "agent", name: "Grouped", owner: "g_owner" });
   store.setRoles("agt_grp", ["rol_member"]);
