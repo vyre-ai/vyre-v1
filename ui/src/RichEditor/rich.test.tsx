@@ -338,7 +338,8 @@ test("a collaborator's name flag floats above the line at the caret instead of s
     sendAwareness(peer, aw);
     const html = renderToStaticMarkup(<RichEditor {...base} mode="edit" markdown="" doc={doc} awareness={aw} />);
     const caret = html.slice(html.indexOf('data-testid="richeditor-cursor-'));
-    assert.match(caret.slice(0, 700), /bottom:18px/, "the flag box is placed above the caret");
+    assert.match(caret.slice(0, 900), /Maya Chen(&#x27;|')s cursor/, "the flag lives inside the caret's own box, not in the text runs");
+    assert.doesNotMatch(html.slice(0, html.indexOf('data-testid="richeditor-cursor-')).slice(-200), /Maya Chen/, "no flag text before the caret in the line");
     assert.match(html, /Hello/);
     assert.match(html, / world/);
   } finally { aw.destroy(); peer.destroy(); }
