@@ -30,13 +30,25 @@ jobs:
           path: package-lock.json
           retention-days: 7
   shots:
-    runs-on: [self-hosted, linux, v1]
-    timeout-minutes: 20
+    # GitHub-hosted (like the desktop builds, ruling 4) so screenshots never queue behind the test shards on the self-hosted runners.
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/deps
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --ignore-scripts
       - name: Export the web build and take side-by-side screenshots (export budget 120 s)
-        run: node scripts/shots/shots.mjs --target all --out shots-out
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        # A packet branch (build/P-L9b_02) shoots only its own targets; main and other branches shoot all.
+        run: |
+          T=all
+          case "$BRANCH" in build/P-*) T="${BRANCH#build/}" ;; esac
+          node scripts/shots/shots.mjs --target "$T" --out shots-out
       - name: theme_flash probe (zero wrong frames)
         run: node scripts/shots/theme-flash.mjs --skip-export
       - uses: actions/upload-artifact@v4
