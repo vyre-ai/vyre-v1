@@ -94,6 +94,15 @@ export async function bootFlowSpace(live: readonly string[]): Promise<FlowSpace>
       const text = await res.text();
       let parsed: any = text;
       try { parsed = JSON.parse(text); } catch { /* keep the text */ }
+      if (res.status >= 500) {
+        // a handler that threw is logged with its stack under this trace; put the top of it on the reply so a gap names the file
+        try {
+          d.sink.flush();
+          const threw = d.sink.trace(trace).logs.filter((l) => l.msg === "handler threw").pop();
+          const stack = String((threw?.attrs as { stack?: unknown } | null)?.stack ?? "").split("\n").slice(0, 5).map((l) => l.trim()).join(" | ");
+          if (stack && parsed?.error) parsed.error.stack = stack;
+        } catch { /* the log is a help, not a requirement */ }
+      }
       return { status: res.status, body: parsed, trace: res.headers.get("x-vyre-trace") };
     },
     signedIn(person, device = `dev_${person.slice(4)}1`) {
@@ -136,7 +145,7 @@ export class Trail {
   report(): string { return this.lines.join("\n"); }
 }
 
-export const short = (x: unknown): string => JSON.stringify(x).slice(0, 300);
+export const short = (x: unknown): string => JSON.stringify(x).slice(0, 900);
 /** Throws unless the reply has the status; the message carries the error code and text so a gap names itself. */
 export function expectStatus(r: Reply, status: number, what: string): any {
   if (r.status !== status) throw new Error(`${what}: expected ${status}, got ${r.status} ${short(r.body?.error ?? r.body)}`);
