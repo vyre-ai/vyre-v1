@@ -64,7 +64,7 @@ jobs:
           FILES: ${{ matrix.files }}
           SLOW: ${{ matrix.slow }}
         run: |
-          if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else NC=""; [ "$RUNNER_ENVIRONMENT" = "github-hosted" ] && NC="--no-cache"; node scripts/test-run.mjs $NC --files $FILES; fi  # a hosted VM never reads a shared pass cache
+          if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else NC=""; [ "$RUNNER_ENVIRONMENT" = "github-hosted" ] && NC="--no-cache"; node scripts/test-run.mjs --files $FILES $NC; fi  # a hosted VM never reads a shared pass cache
   golden-main:
     needs: select
     if: needs.select.outputs.full == 'true'
