@@ -45,6 +45,7 @@ import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, W
 import { createLiveHub } from "../ws.ts";
 import type { LiveHub } from "../ws.ts";
 import { createAccess } from "./access.ts";
+import { ADMIN_DEVICE, createSessionResolver } from "./session.ts";
 import { createResourceRegistrar } from "../gateway/resources.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
@@ -432,20 +433,23 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       await projectionRunner.start();   // after the seams: the events module needs its dispatcher and host ports before the first event reaches webhooks_out
 
       const owner = (): string => cfg.owner ?? access.owner() ?? "usr_owner";
-      const session: GatewayDeps["session"] = o.session ?? ((headers) => {
-        const t = bearer(headers["authorization"]);
-        if (!t || !sameToken(t, token)) return null;
-        return { space: spaceId, principal: { kind: "person", id: owner() }, device: headers["x-vyre-device"] ?? "local-admin" };
-      });
+      // Identity comes from the bearer token alone (host/src/daemon/session.ts): a device session row gives the person and the device; the x-vyre-device header and ?device= are ignored.
+      // The single admin token is the owner bootstrap path only (ensureAdminToken): it acts as the owner on the fixed device `local-admin`.
+      const sessions = createSessionResolver({ db: db!, space: spaceId });
+      const identify = (t: string | null): { space: string; principal: { kind: "person"; id: string }; device: string } | null => {
+        if (!t) return null;
+        if (sameToken(t, token)) return { space: spaceId, principal: { kind: "person", id: owner() }, device: ADMIN_DEVICE };
+        const s = sessions.resolve(t);
+        return s ? { space: s.space, principal: { kind: "person", id: s.person }, device: s.device } : null;
+      };
+      const session: GatewayDeps["session"] = o.session ?? ((headers) => identify(bearer(headers["authorization"])));
       gateway = createGateway({ invoke, caps: indexCapabilities(caps), routes: [...routes, ...(o.extra?.routes ?? [])], session });
       routeIndex = indexRoutes([...routes, ...(o.extra?.routes ?? [])]);   // a duplicate route is a boot error, not a first-request error
       capIndex = indexCapabilities(caps);
 
       const mkHub = (): LiveHub => createLiveHub({
         session: (h, url) => {
-          const t = bearer(h["authorization"]) ?? url.searchParams.get("token");
-          if (!t || !sameToken(t, token)) return null;
-          return { space: spaceId, principal: { kind: "person", id: owner() }, device: url.searchParams.get("device") ?? "local-admin" };
+          return identify(bearer(h["authorization"]) ?? url.searchParams.get("token"));
         },
         invoke, sink,
         eventsSince: (_s, cursor) => (recent.length && recent[0]!.seq <= cursor + 1 ? recent.filter((e) => e.seq > cursor) : []),
