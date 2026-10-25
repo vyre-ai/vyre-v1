@@ -237,7 +237,8 @@ export function AskPicker(props: PickerProps): ReactElement {
         accessibilityLabel="Close"
         style={styles.backdrop}
         onPress={onClose}
-        {...webProps({ onContextMenu: (event: { preventDefault: () => void }) => { event.preventDefault(); onClose(); }, tabIndex: -1 })}
+        {...menuTrigger(() => onClose())}
+        {...webProps({ tabIndex: -1 })}
       />
       <View role="dialog" aria-label="Choose the agent" testID="ask-picker" style={[styles.panel, { left, top, width: PANEL_W }]} {...webProps({ onKeyDown })}>
         <TextInput
