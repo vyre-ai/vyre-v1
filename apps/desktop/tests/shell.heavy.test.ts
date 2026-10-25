@@ -105,7 +105,7 @@ test("a sidecar line from another address is not trusted", () => {
 
 const APP = process.env["VYRE_SHELL_APP"];
 test("the built shell starts, reaches its sidecar and takes a vyre:// link", { skip: !APP && "VYRE_SHELL_APP is set only in the desktop job on a built app" }, async () => {
-  const app = spawn(APP as string, [], { env: { ...process.env } });
+  const app = spawn(APP as string, [], { env: { ...process.env, VYRE_SHELL_BANNER: "1" } });
   let out = "";
   app.stdout.on("data", (c: Buffer) => { out += c.toString("utf8"); });
   app.stderr.on("data", (c: Buffer) => { out += c.toString("utf8"); });

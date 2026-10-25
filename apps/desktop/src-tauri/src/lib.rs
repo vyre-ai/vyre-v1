@@ -54,6 +54,27 @@ fn toggle_main(app: &AppHandle) {
     }
 }
 
+/// CI only (VYRE_SHELL_BANNER=1): a corner label with what the shell knows, so a screenshot of the running window shows the sidecar connected.
+const BANNER: &str = r#"(function () {
+  var inv = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+  if (!inv || window.__vyreBanner) return;
+  window.__vyreBanner = true;
+  var box = document.createElement("div");
+  box.style.cssText = "position:fixed;left:16px;bottom:16px;z-index:2147483647;padding:10px 14px;border-radius:10px;background:#161616;color:#f4f1ea;font:14px/1.4 -apple-system,Segoe UI,sans-serif;white-space:pre";
+  box.textContent = "Vyre desktop shell
+sidecar: starting";
+  document.body.appendChild(box);
+  function tick() {
+    inv("desktop_info").then(function (i) {
+      var s = i.sidecar;
+      box.textContent = "Vyre desktop shell " + i.version + " (" + i.platform + " " + i.arch + ")
+sidecar: " + s.phase + (s.url ? " at " + s.url : "") + (s.version ? ", vyred " + s.version : "");
+      if (s.phase !== "ready") setTimeout(tick, 400);
+    }, function () { setTimeout(tick, 800); });
+  }
+  tick();
+})();"#;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let shared: sidecar::Shared = Arc::new(sidecar::Sidecar::default());
@@ -78,6 +99,9 @@ pub fn run() {
         .on_page_load(|webview, payload| {
             if let tauri::webview::PageLoadEvent::Finished = payload.event() {
                 let _ = webview.eval(PAGE_PROBE);
+                if std::env::var("VYRE_SHELL_BANNER").is_ok() {
+                    let _ = webview.eval(BANNER);
+                }
             }
         })
         .manage(AppState { sidecar: shared.clone(), pending: Mutex::new(None), page_listening: AtomicBool::new(false) })
