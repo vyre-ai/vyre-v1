@@ -1,0 +1,17 @@
+{
+  "module": "console-assistant",
+  "capabilities": {
+    "console.assistant_context_set@1": "accac73957a01ff2702027f542dddad6a068340b040d62489eecf2fa39ea0aa4",
+    "console.assistant_open@1": "caa17314b2cc5f071e84b34d001e9132885c754e1bd8fc09be422c3f23a9cceb",
+    "console.assistant_tools@1": "c7d78b38ba0647ea598a15a03484af9c3f86839c5faba414c65b442f1c1ae93d",
+    "console.diff_apply@1": "024d3355fb33a42808530988dd6e7898d42698e74f9a9f452911a970b88b76ac",
+    "console.diff_propose@1": "bf3e92a107ecb80672905014ca46a76d4dd40536e44610f316568f869cfda259",
+    "console.diff_reject@1": "1949f40e2f8d2f25f885bfc000707283860319f071e395b0ea59a5a4b27c19ef",
+    "console.explain_access@1": "66a07f659ea93d2c358f9a9c7a7a27e42483e1514bacd8384ee649180d818f13"
+  },
+  "events": {
+    "console.change_applied": "ad269d3abf4520b45610090bd560f86a675a6d71d3650ab0329cd559a609c1c9",
+    "console.change_proposed": "e74b1072cf2a9339ed2cbe60f8a2d562602ad13e1dfb889c39cf9f1361622195",
+    "console.change_rejected": "3b2bf98e3d77ca01123fe5b73a20b8cce3204b143fc03607c9f195e032d1bf3a"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_09-visual",
+      "route": "/m/P-L9_09",
+      "proto": "apps,at:campaign:q4/emailedit,{skin}",
+      "waitFor": "[data-testid='em-card']",
+      "note": "Visual mode: header (undo, redo, Visual|HTML|Plain text, Focus, Test send, Ask), subject and preview text with counts, block rail, the Northwind check-in card, the Style pane. The prototype side is its campaign email editor."
+    },
+    {
+      "id": "P-L9_09-html",
+      "route": "/m/P-L9_09?view=html",
+      "proto": "apps,at:campaign:q4/emailhtml,{skin}",
+      "waitFor": "[data-testid='em-html']",
+      "note": "HTML mode: the compiled email as editable source in the mono face."
+    },
+    {
+      "id": "P-L9_09-plain",
+      "route": "/m/P-L9_09?view=plain",
+      "proto": "apps,at:campaign:q4/emailplain,{skin}",
+      "waitFor": "[data-testid='em-plain']",
+      "note": "Plain text mode: the plain-text part as an editable page."
+    },
+    {
+      "id": "P-L9_09-focus",
+      "route": "/m/P-L9_09?focus=1",
+      "proto": "apps,at:campaign:q4/emailfocus,{skin}",
+      "waitFor": "[data-testid='em-card']",
+      "note": "Focus mode: header, envelope, rail and pane slide away; only the card and the leave hint stay."
+    },
+    {
+      "id": "P-L9_09-ask",
+      "route": "/m/P-L9_09?tab=ask",
+      "proto": "apps,at:campaign:q4/emailask,{skin}",
+      "waitFor": "[data-testid='em-ask']",
+      "note": "The Ask pane with three suggested changes, each accepted on its own."
+    },
+    {
+      "id": "P-L9_09-preview",
+      "route": "/m/P-L9_09?tab=preview",
+      "proto": "apps,at:campaign:q4/emailpreview,{skin}",
+      "waitFor": "[data-testid='em-previewpane']",
+      "note": "The Preview pane: desktop, mobile and dark frames, merge fields filled from a record."
+    },
+    {
+      "id": "P-L9_09-checks",
+      "route": "/m/P-L9_09?tab=checks",
+      "proto": "apps,at:campaign:q4/emailchecks,{skin}",
+      "waitFor": "[data-testid='em-checks']",
+      "note": "The Checks pane: subject, preview text, plain part and unsubscribe, each with a level dot."
+    }
+  ]
+}
