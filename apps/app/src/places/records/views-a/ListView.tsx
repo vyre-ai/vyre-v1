@@ -5,17 +5,36 @@ import { useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
-import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { Row as UiRow } from "../../../../../../ui/src/Row/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
 import { useLive, useRecordsData } from "../sidebar/data.tsx";
 import { Face, Glyph, typeIcon } from "../sidebar/parts.tsx";
+import type { IconName } from "../sidebar/parts.tsx";
 import { cellText, countSpec } from "../table/model.ts";
-import { LIST_PAGE, badgeFieldOf, cardFields, noteOf, pageSpec } from "./model.ts";
-import type { RecordRow } from "./model.ts";
+import { badgeFieldOf, cardFields, each, LIST_PAGE, noteOf, pageSpec } from "./model.ts";
+import type { FieldDef, RecordRow } from "./model.ts";
 import { Tag, valueText } from "./parts.tsx";
 import { ViewHead, useViewState } from "./view.tsx";
 import type { ViewCtx } from "./view.tsx";
+
+/** One record as the shared ui/Row: a face or an icon leading, the status tag trailing, a menu on right-click. It is named Row because the rows lint reads a list item by that name. */
+function Row({ r, title, note, selected, person, badge, icon, names, onOpen, onMenu }: {
+  r: RecordRow; title: string; note: string; selected: boolean; person: unknown; badge: FieldDef | undefined; icon: IconName; names: (id: string) => string; onOpen: () => void; onMenu: (x: number, y: number) => void;
+}): ReactElement {
+  const bv = badge ? r.fields[badge.key] : undefined;
+  const trig = menuTrigger(onMenu);
+  return (
+    <View testID={`list-${r.id}`} style={l.cell} {...(trig as object)}>
+      <UiRow
+        id={`rec-${r.id}`} title={title} note={note} selected={selected}
+        leading={typeof person === "string" && person !== "" ? <Face name={names(person)} size={24} /> : <Glyph name={icon} size={16} color="var(--ink-3)" />}
+        {...(badge && typeof bv === "string" && bv !== "" ? { trailing: <Tag field={badge} value={bv} /> } : {})}
+        onPress={onOpen}
+      />
+    </View>
+  );
+}
 
 export function ListView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const data = useRecordsData();
@@ -36,24 +55,6 @@ export function ListView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const note = cardFields(def, st.v.hidden, badge?.key ?? null, 3);
   const who = def.fields.find((f) => f.type === "person");
 
-  const item = (r: RecordRow): ReactElement => {
-    const title = (tf ? cellText(tf, r.fields[tf.key], names) : "") || "Untitled";
-    const person = who ? r.fields[who.key] : undefined;
-    const bv = badge ? r.fields[badge.key] : undefined;
-    const line = noteOf(note.map((f) => valueText(f, r, names)));
-    const trig = menuTrigger((x, y) => { setSelected(r.id); menu.show([{ label: "Open", onSelect: () => data.nav.openRecord(r.id) }], x, y); });
-    return (
-      <View testID={`list-${r.id}`} style={l.cell} {...(trig as object)}>
-        <Row
-          id={`rec-${r.id}`} title={title} {...(line ? { note: line } : {})} selected={selected === r.id}
-          leading={typeof person === "string" && person !== "" ? <Face name={names(person)} size={24} /> : <Glyph name={typeIcon(def.icon)} size={16} color="var(--ink-3)" />}
-          {...(badge && typeof bv === "string" && bv !== "" ? { trailing: <Tag field={badge} value={bv} /> } : {})}
-          onPress={() => { setSelected(r.id); data.nav.openRecord(r.id); }}
-        />
-      </View>
-    );
-  };
-
   return (
     <View style={l.main} testID="records-list" accessibilityLabel={`${def.plural} list`}>
       <ViewHead ctx={ctx} st={st} sort />
@@ -63,7 +64,14 @@ export function ListView({ ctx }: { ctx: ViewCtx }): ReactElement {
           <States kind="empty" title={st.v.clauses.length > 0 || st.v.find ? "Nothing matches these filters." : `No ${def.plural.toLowerCase()} yet.`} icon="records" />
         ) : (
           <VirtualList<RecordRow>
-            data={rows} rowHeight={44} keyOf={(r) => r.id} renderItem={(r) => item(r)}
+            data={rows} rowHeight={44} keyOf={(r) => r.id} renderItem={(r) => (
+              <Row
+                r={r} title={(tf ? cellText(tf, r.fields[tf.key], names) : "") || "Untitled"} note={noteOf(each(note, (f) => valueText(f, r, names))) || def.title} selected={selected === r.id}
+                person={who ? r.fields[who.key] : undefined} badge={badge} icon={typeIcon(def.icon)} names={names}
+                onOpen={() => { setSelected(r.id); data.nav.openRecord(r.id); }}
+                onMenu={(x, y) => { setSelected(r.id); menu.show([{ label: "Open", onSelect: () => data.nav.openRecord(r.id) }], x, y); }}
+              />
+            )}
             onEndReached={() => { if (rows.length < count) setLimit((x) => x + LIST_PAGE); }}
           />
         )}

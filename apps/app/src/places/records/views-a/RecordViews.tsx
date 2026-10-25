@@ -13,7 +13,7 @@ import { fromSaved } from "../table/model.ts";
 import { BoardView } from "./BoardView.tsx";
 import { GalleryView } from "./GalleryView.tsx";
 import { ListView } from "./ListView.tsx";
-import { KIND_LABEL, KIND_ORDER, kindOf } from "./model.ts";
+import { each, KIND_LABEL, KIND_ORDER, kindOf } from "./model.ts";
 import type { TableViewState } from "./model.ts";
 import type { KindDef, ViewCtx } from "./view.tsx";
 
@@ -40,8 +40,8 @@ function TypeViews({ type, kind, view, extraKinds }: RecordViewsProps & { type: 
   const list = views.status === "ready" ? views.data.views : [];
   const saved = state.viewId ? list.find((x) => x.viewId === state.viewId) : undefined;
   const def = describe.status === "ready" ? describe.data.types.find((t) => t.key === type) : undefined;
-  const kinds: KindDef[] = [...KIND_ORDER.map((k) => ({ kind: k, label: KIND_LABEL[k] })), ...(extraKinds ?? []).map((k) => ({ kind: k.kind, label: k.label }))];
-  const known = kinds.map((k) => k.kind);
+  const kinds: KindDef[] = [...each(KIND_ORDER, (k) => ({ kind: k, label: KIND_LABEL[k] })), ...each(extraKinds ?? [], (k) => ({ kind: k.kind, label: k.label }))];
+  const known = each(kinds, (k) => k.kind);
   const [picked, setPicked] = useState<{ key: string; kind: string } | null>(null);
   const key = `${type}:${saved?.viewId ?? ""}`;
   if (!def) return <TableLoading />;

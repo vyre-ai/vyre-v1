@@ -11,7 +11,7 @@ import type { ViewRow } from "../sidebar/model.ts";
 import { Glyph, HeadButton, pointOf, typeIcon } from "../sidebar/parts.tsx";
 import { useRecordsState } from "../sidebar/state.tsx";
 import { chosen, clearClauses, countSpec, isEdited, optionValue, optionsOf, setSort, sortable, toSaved, toggleHidden, toggleOption } from "../table/model.ts";
-import { filterable, toggleable } from "./model.ts";
+import { each, filterable, toggleable } from "./model.ts";
 import type { FieldDef, TableViewState, TypeDef } from "./model.ts";
 
 /** One kind of view in the switch: the packet's own kinds, or one a later part supplies. */
@@ -113,7 +113,7 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
     const cur = v.sort[0];
     return [
       { head: "Sort by" },
-      ...def.fields.filter(sortable).map((f): MenuEntry => ({ label: f.title, checked: cur?.field === f.key, onSelect: () => set(setSort(v, f.key, cur?.field === f.key && cur.dir === "asc" ? "desc" : "asc")) })),
+      ...each(def.fields.filter(sortable), (f): MenuEntry => ({ label: f.title, checked: cur?.field === f.key, onSelect: () => set(setSort(v, f.key, cur?.field === f.key && cur.dir === "asc" ? "desc" : "asc")) })),
       { separator: true },
       { label: "Ascending", checked: cur?.dir === "asc", onSelect: () => { if (cur) set(setSort(v, cur.field, "asc")); } },
       { label: "Descending", checked: cur?.dir === "desc", onSelect: () => { if (cur) set(setSort(v, cur.field, "desc")); } },
@@ -123,17 +123,17 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
   };
   const fieldEntries = (): MenuEntry[] => [
     { head: "Fields on each card" },
-    ...toggleable(def).filter((f) => f.key !== lanes?.field?.key).map((f): MenuEntry => ({ label: f.title, checked: !v.hidden.includes(f.key), onSelect: () => set(toggleHidden(v, f.key)) })),
+    ...each(toggleable(def).filter((f) => f.key !== lanes?.field?.key), (f): MenuEntry => ({ label: f.title, checked: !v.hidden.includes(f.key), onSelect: () => set(toggleHidden(v, f.key)) })),
   ];
   const laneEntries = (): MenuEntry[] => [
     { head: "Lanes from" },
-    ...(lanes?.choices ?? []).map((f): MenuEntry => ({ label: f.title, checked: lanes?.field?.key === f.key, onSelect: () => lanes?.pick(f.key) })),
+    ...each(lanes?.choices ?? [], (f): MenuEntry => ({ label: f.title, checked: lanes?.field?.key === f.key, onSelect: () => lanes?.pick(f.key) })),
   ];
-  const kindEntries = (): MenuEntry[] => [{ head: "View as" }, ...ctx.kinds.map((k): MenuEntry => ({ label: k.label, checked: ctx.kind === k.kind, onSelect: () => ctx.onKind(k.kind) }))];
+  const kindEntries = (): MenuEntry[] => [{ head: "View as" }, ...each(ctx.kinds, (k): MenuEntry => ({ label: k.label, checked: ctx.kind === k.kind, onSelect: () => ctx.onKind(k.kind) }))];
   const viewEntries = (): MenuEntry[] => [
     { head: "Saved views" },
     { label: `All ${def.plural.toLowerCase()}`, checked: state.viewId === null, onSelect: () => dispatch({ type: "view", viewId: null }) },
-    ...ctx.views.map((sv): MenuEntry => ({ label: sv.title, checked: state.viewId === sv.viewId, onSelect: () => dispatch({ type: "view", viewId: sv.viewId }) })),
+    ...each(ctx.views, (sv): MenuEntry => ({ label: sv.title, checked: state.viewId === sv.viewId, onSelect: () => dispatch({ type: "view", viewId: sv.viewId }) })),
   ];
 
   const sortKey = v.sort[0];

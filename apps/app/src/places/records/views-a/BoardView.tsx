@@ -12,7 +12,7 @@ import { useLive, useRecordsData } from "../sidebar/data.tsx";
 import { Glyph } from "../sidebar/parts.tsx";
 import { cellText, hueOf } from "../table/model.ts";
 import { moveCard, moveError } from "./actions.ts";
-import { LANE_PAGE, LANE_W, cardFields, isLaneField, laneCountSpec, laneFieldOf, laneSpec, lanesOf, neighbour } from "./model.ts";
+import { cardFields, each, isLaneField, LANE_PAGE, LANE_W, laneCountSpec, laneFieldOf, lanesOf, laneSpec, neighbour } from "./model.ts";
 import type { FieldDef, Lane, RecordRow } from "./model.ts";
 import { Value } from "./parts.tsx";
 import { ViewHead, useViewState } from "./view.tsx";
@@ -51,7 +51,7 @@ function Card({ row, board, lane }: { row: RecordRow; board: Board; lane: Lane }
     { label: "Open", onSelect: () => board.open(row.id) },
     { separator: true },
     { head: "Move to" },
-    ...lanes.filter((l) => !l.none || lane.none || (board.counts.current[l.key] ?? 0) > 0).map((l): MenuEntry => ({ label: l.title, checked: l.key === lane.key, onSelect: () => board.move(row, l) })),
+    ...each(lanes.filter((l) => !l.none || lane.none || (board.counts.current[l.key] ?? 0) > 0), (l): MenuEntry => ({ label: l.title, checked: l.key === lane.key, onSelect: () => board.move(row, l) })),
   ];
   const trig = menuTrigger((x, y) => { board.select(row.id); menu.show(entries(), x, y); });
   const card = (
@@ -63,7 +63,7 @@ function Card({ row, board, lane }: { row: RecordRow; board: Board; lane: Lane }
       <Text numberOfLines={2} style={c.title}>{title}</Text>
       {shown.length > 0 ? (
         <View style={c.meta}>
-          {shown.map((f) => <Value key={f.key} field={f} row={row} names={names} />)}
+          {each(shown, (f) => <Value key={f.key} field={f} row={row} names={names} />)}
         </View>
       ) : null}
     </Pressable>
@@ -94,7 +94,7 @@ function LaneColumn({ board, lane }: { board: Board; lane: Lane }): ReactElement
   if (q.status === "ready") kept.current = q.data.rows;
   const rows = kept.current;
   const count = n.status === "ready" ? n.data.count : rows.length;
-  board.ids.current[lane.key] = rows.map((r) => r.id);
+  board.ids.current[lane.key] = each(rows, (r) => r.id);
   board.counts.current[lane.key] = count;
   for (const r of rows) board.rows.current[r.id] = r;
   if (lane.none && count === 0) return null;
@@ -107,7 +107,7 @@ function LaneColumn({ board, lane }: { board: Board; lane: Lane }): ReactElement
         <Text style={c.laneCount} testID={`lane-count-${lane.key || "none"}`}>{count.toLocaleString("en-US")}</Text>
       </View>
       <ScrollView style={c.laneBody} contentContainerStyle={c.laneCards}>
-        {rows.map((r) => <Card key={r.id} row={r} board={board} lane={lane} />)}
+        {each(rows, (r) => <Card key={r.id} row={r} board={board} lane={lane} />)}
         {count > rows.length ? (
           <Pressable accessibilityRole="button" testID={`more-${lane.key || "none"}`} onPress={() => setLimit(limit + LANE_PAGE)} style={({ hovered }: { hovered?: boolean }) => [c.add, hovered === true && c.addOver]}>
             <Text style={c.addText}>{`Show ${Math.min(LANE_PAGE, count - rows.length)} more of ${(count - rows.length).toLocaleString("en-US")}`}</Text>
@@ -213,7 +213,7 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
       {error ? <Text style={c.error} accessibilityRole="alert" testID="board-error">{error}</Text> : null}
       <View style={c.sheet} {...({ onKeyDown } as object)}>
         <ScrollView horizontal style={c.lanes} contentContainerStyle={c.lanesIn} testID="board-lanes">
-          {lanes.map((l) => (
+          {each(lanes, (l) => (
             <View key={l.key || "none"} style={{ width: laneWidth, maxHeight: "100%" }}><LaneColumn board={board} lane={l} /></View>
           ))}
         </ScrollView>
