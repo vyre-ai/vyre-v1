@@ -97,6 +97,12 @@ function Remove-VyreWindows {
 }
 
 function Invoke-VyreInstall {
+    if ($Plan -and -not $Uninstall) {
+        $route = Get-VyreEngineRoute -Wsl2Ready (Test-VyreWsl2) -SpaceServer $false
+        Write-Host "engine-route: $route"
+        Write-Host (Get-VyreEngineAdvice -Route $route)
+        return
+    }
     $installDir = $env:VYRE_INSTALL_DIR
     if (-not $installDir) { $installDir = Join-Path $env:LOCALAPPDATA "Vyre" }
 
@@ -107,7 +113,6 @@ function Invoke-VyreInstall {
     }
 
     $route = Get-VyreEngineRoute -Wsl2Ready (Test-VyreWsl2) -SpaceServer $false
-    if ($Plan) { Write-Host "engine-route: $route"; Write-Host (Get-VyreEngineAdvice -Route $route); return }
 
     Test-ConstrainedLanguageMode
     if ($DryRun) { Write-Host "(dry run) would install to $installDir, register autostart and start the app"; Write-Host (Get-VyreEngineAdvice -Route $route); return }
