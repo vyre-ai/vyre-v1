@@ -14,7 +14,7 @@ import type { ExpoDatabase } from "../replica/expo.ts";
 /** What the app (which may import the engines) hands in. Only the engine the target uses needs to be present. */
 export interface EngineOpeners {
   sqlcipher?: { open(file: string): ExpoDatabase };
-  sqlite3mc?: { mod: McModule; vfs: string };
+  sqlite3mc?: { mod: McModule; vfs: string | null };
 }
 
 export interface OpenDeviceReplica {

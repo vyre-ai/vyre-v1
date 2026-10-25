@@ -32,8 +32,8 @@ export interface McModule {
 
 export interface CipherOpfsOpen {
   mod: McModule;
-  /** The SAH-pool VFS installed by the worker before this call (installOpfsSAHPoolVfs). */
-  vfs: string;
+  /** The SAH-pool VFS installed by the worker before this call (installOpfsSAHPoolVfs). null opens the module's default VFS (Node and tests: the in-memory file system). */
+  vfs: string | null;
   file: string;
   key: Uint8Array;
 }
@@ -55,14 +55,17 @@ function oneRow(db: McDatabase, sql: string): Record<string, unknown> | undefine
 export function openCipherOpfs(o: CipherOpfsOpen): SqlDriver {
   if (o.key.length !== REPLICA_KEY_BYTES) throw new ReplicaError("bad_key", "replica key must be 32 bytes");
   if (!/^[A-Za-z0-9._-]+$/.test(o.file)) throw new ReplicaError("bad_name", "unsafe database file name");
-  let made = wrapped.get(o.mod);
-  if (!made) { made = new Set<string>(); wrapped.set(o.mod, made); }
-  if (!made.has(o.vfs)) {
-    const rc = o.mod.capi.sqlite3mc_vfs_create(o.vfs, 0);
-    if (rc !== 0) throw new ReplicaError("no_cipher", `sqlite3mc_vfs_create(${o.vfs}) returned ${rc}`);
-    made.add(o.vfs);
+  const vfs = o.vfs;
+  if (vfs !== null) {
+    let made = wrapped.get(o.mod);
+    if (!made) { made = new Set<string>(); wrapped.set(o.mod, made); }
+    if (!made.has(vfs)) {
+      const rc = o.mod.capi.sqlite3mc_vfs_create(vfs, 0);
+      if (rc !== 0) throw new ReplicaError("no_cipher", `sqlite3mc_vfs_create(${vfs}) returned ${rc}`);
+      made.add(vfs);
+    }
   }
-  const db = new o.mod.oo1.DB(`file:/${o.file}?vfs=multipleciphers-${o.vfs}`, "c");
+  const db = new o.mod.oo1.DB(vfs === null ? `/${o.file}` : `file:/${o.file}?vfs=multipleciphers-${vfs}`, "c");
   try {
     db.exec(`PRAGMA cipher = '${CIPHER}'`);
     db.exec(`PRAGMA key = ${hexKey(o.key)}`);
