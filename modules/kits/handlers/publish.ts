@@ -7,7 +7,7 @@
 
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import {
-  checkKit, compareSemver, ensureCatalog, fail, headOf, isSemver, kitsConfig, many, mustKit, nid, num, pageOf, parseManifest, rec, reqStr, setHead, storeVersion, str, versionRow,
+  checkKit, compareSemver, ensureCatalog, ensureDeclaredType, fail, headOf, isSemver, kitsConfig, many, mustKit, nid, num, pageOf, parseManifest, rec, reqStr, setHead, storeVersion, str, versionRow,
 } from "./install.ts";
 import type { FixtureSpace, KitChannel, KitManifest, KitStep, ScriptTest, SpaceTest } from "./install.ts";
 import { runSandboxed } from "./sandbox.ts";
@@ -44,9 +44,10 @@ function errorText(e: unknown): string {
 
 async function applyKit(space: FixtureSpace, kit: KitManifest): Promise<string | null> {
   for (const it of kit.items) {
-    if (!it.apply) continue;
+    if (!it.apply && it.type !== "record_type") continue;
     try {
-      await space.call(it.apply.cap, it.apply.input);
+      if (it.apply) await space.call(it.apply.cap, it.apply.input);
+      else await ensureDeclaredType((cap, input) => space.call(cap, input), it.recordType ?? it.key);
     } catch (e) {
       return `installing "${it.title}" failed: ${errorText(e)}`;
     }

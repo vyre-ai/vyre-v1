@@ -66,6 +66,25 @@ const contentsOf = (k: KitManifest): string[] => CONTENT.filter((c) => k.items.s
 const steps = (k: KitManifest): { item: string; which: string; step: Step }[] =>
   k.items.flatMap((it) => (["apply", "undo"] as const).flatMap((w) => (it[w] ? [{ item: it.key, which: w, step: it[w]! }] : [])));
 
+// The manifest's recordTypes is the one declaration of a Kit's record types (ruling 56): the installer creates them and no Kit step calls type.create. These stand in for the installer on the fixture Space.
+const KIT_ID = "law-firm-intake";
+const toSnake = (s: string): string => s.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+/** The record types the Kit's manifest declares, as type.create ops (field keys in the lower snake case the schema accepts). */
+const typeOps = (): Obj[] => registry.recordTypes.filter((r) => r.module === KIT_ID).map((r) => {
+  const d = r as unknown as Obj;
+  const def: Obj = { ...d, fields: (d["fields"] as Obj[]).map((f) => ({ ...f, key: toSnake(f["key"] as string) })) };
+  for (const k of ["titleField", "statusField", "ownerField"]) if (typeof d[k] === "string") def[k] = toSnake(d[k] as string);
+  return { op: "type.create", type: r.key, def };
+});
+/** What the installer does for one item on the fixture Space: run its step, or for a record type with none, find the declared type in the Space. */
+async function applyItem(s: Fixture, it: Item): Promise<void> {
+  if (it.apply) { await s.call(it.apply.cap, it.apply.input); return; }
+  if (it.type !== "record_type") return;
+  const type = it.recordType ?? it.key;
+  if (!registry.recordTypes.some((r) => r.module === KIT_ID && r.key === type)) throw new Error(`The record type ${type} is declared by the Kit but not in this Space.`);
+  if (!s.types.includes(type)) s.types.push(type);
+}
+
 /** What the install sheet lists (sheetOf of modules/kits): every capability called, record types made, nothing else. */
 function sheetOf(k: KitManifest): { tools: string[]; recordTypes: string[] } {
   const tools = new Set<string>(), types = new Set<string>();
@@ -124,7 +143,7 @@ async function runDeclared(k: KitManifest): Promise<{ test: string; message: str
   for (const t of k.tests ?? []) {
     const s = new Fixture();
     try {
-      for (const it of k.items) if (it.apply) await s.call(it.apply.cap, it.apply.input);
+      for (const it of k.items) await applyItem(s, it);
       for (const st of t.seed ?? []) await s.call(st.cap, st.input);
       for (const want of t.expect.events ?? []) {
         if (!s.log.some((e) => e.name === want.name && (want.payload === undefined || subset(want.payload, e.payload)))) failures.push({ test: t.name, message: `expected the event ${want.name}; saw ${s.log.map((e) => e.name).join(", ") || "no events"}` });
@@ -154,11 +173,10 @@ const FORM_ITEM = "form.contact";
 const FORM_KIND = "public";
 const AUTO_ITEM = "auto.new_intake";
 const AGENT_ITEM = "agent.intake_clerk";
-const SHEET_TOOLS = ["schema.apply", "schema.layout.set", "settings.set_space", "files.create", "journeys.create", "forms.create", "automations.create", "tasks.create", "agents.create", "records.query", "records.create", "records.update", "forms.submissions", "journeys.move_stage"];
+const SHEET_TOOLS = ["schema.layout.set", "settings.set_space", "files.create", "journeys.create", "forms.create", "automations.create", "tasks.create", "agents.create", "records.query", "records.create", "records.update", "forms.submissions", "journeys.move_stage"];
 
 /** The schema accepts field keys in lower snake case only (its field key pattern, which the layout input repeats); the manifests that name these types write some keys in camel case. */
 const snake = (key: string): string => key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
-const typeOps = (): Obj[] => steps(kit()).flatMap((s) => (s.step.cap === "schema.apply" ? (s.step.input["ops"] as Obj[]) : [])).filter((o) => o["op"] === "type.create");
 const item = (key: string): Item => kit().items.find((i) => i.key === key)!;
 const stepInput = (key: string): Obj => item(key).apply!.input;
 
@@ -209,18 +227,16 @@ test("every write step that needs an idempotency key carries a stable one, uniqu
 
 // ---- agreement with the manifest ---------------------------------------------------------------------------------------------------
 
-test("the record types match what the manifest declares: title, plural, icon, group, label, status and owner fields, and field keys and types", () => {
-  const made = typeOps();
-  assert.deepEqual(made.map((o) => o["type"]).sort(), TYPES);
-  for (const op of made) {
-    const declared = registry.recordTypes.find((r) => r.key === op["type"] && r.module === KEY) as Obj | undefined;
-    assert.ok(declared, `the manifest declares ${op["type"]}`);
-    const d = op["def"] as Obj;
-    for (const k of ["title", "plural", "icon", "group", "label"] as const) assert.equal(d[k], declared[k], `${op["type"]}.${k}`);
-    for (const k of ["titleField", "statusField", "ownerField"] as const) assert.equal(d[k], declared[k] === undefined ? undefined : snake(declared[k] as string), `${op["type"]}.${k}`);
-    assert.deepEqual((d["fields"] as Obj[]).map((f) => [f["key"], f["type"]]), (declared["fields"] as Obj[]).map((f) => [snake(f["key"] as string), f["type"]]), `${op["type"]} fields`);
+test("the record types are declared once, in the manifest: every record type item names a declared type, every declared type has its item, and no step creates or drops one", () => {
+  const declared = typeOps().map((o) => o["type"] as string).sort();
+  const items = kit().items.filter((i) => i.type === "record_type");
+  assert.deepEqual(items.map((i) => i.recordType ?? i.key).sort(), declared);
+  for (const it of items) assert.ok(!it.apply && !it.undo, `${it.key}: the installer creates the type, a step does not`);
+  for (const { item, step } of steps(kit())) for (const op of step.cap === "schema.apply" ? (step.input["ops"] as Obj[]) : []) assert.ok(!["type.create", "type.drop"].includes(op["op"] as string), `${item}: ${op["op"]}`);
+  for (const t of typeOps()) {
+    const d = t["def"] as Obj;
     const keys = (d["fields"] as Obj[]).map((f) => f["key"]);
-    for (const k of ["titleField", "statusField", "ownerField"] as const) if (d[k] !== undefined) assert.ok(keys.includes(d[k]), `${op["type"]}.${k} is one of its fields`);
+    for (const k of ["titleField", "statusField", "ownerField"] as const) if (d[k] !== undefined) assert.ok(keys.includes(d[k]), `${t["type"]}.${k} is one of its fields`);
   }
 });
 
@@ -351,7 +367,7 @@ test("a lead is attributed to its source and kept confidential; the call-back ta
 
 test("install: the Kit's steps apply in item order, each with its own input, and the types, Journey, form, Automation and agent exist afterwards", async () => {
   const s = new Fixture();
-  for (const it of kit().items) if (it.apply) await s.call(it.apply.cap, it.apply.input);
+  for (const it of kit().items) await applyItem(s, it);
   assert.deepEqual(s.calls.map((c) => c.cap), kit().items.flatMap((i) => (i.apply ? [i.apply.cap] : [])));
   assert.deepEqual([...s.types].sort(), TYPES);
   assert.equal(s.journeys.length, 1);
@@ -362,11 +378,11 @@ test("install: the Kit's steps apply in item order, each with its own input, and
   for (const name of ["schema.changed", "journey.created", "automation.created", "agent.created"]) assert.ok(s.log.some((e) => e.name === name), name);
 });
 
-test("uninstall: undoing the Kit's reversible items in reverse order drops its record types and nothing else", async () => {
+test("uninstall: undoing the Kit's reversible items in reverse order leaves its record types, which the manifest owns, and their rows", async () => {
   const s = new Fixture();
-  for (const it of kit().items) if (it.apply) await s.call(it.apply.cap, it.apply.input);
+  for (const it of kit().items) await applyItem(s, it);
   for (const it of [...kit().items].reverse()) if (it.undo) await s.call(it.undo.cap, it.undo.input);
-  assert.deepEqual(s.types, []);
+  assert.deepEqual([...s.types].sort(), TYPES);
 });
 
 test("the Kit's own declared tests pass on a fixture Space that answers like the real neighbours", async () => {

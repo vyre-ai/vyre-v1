@@ -568,6 +568,20 @@ async function preview(ctx: Ctx, input: unknown): Promise<{ changes: { kind: str
   return { changes: changes.map((c) => { const full = c.op === "remove" ? titles.get(c.item.key) ?? c.item : c.item; return { kind: full.type, title: `${VERB[c.op]} ${full.title}` }; }) };
 }
 
+/**
+ * A record type a Kit's manifest declares is created by the installer, once (ruling 56): the manifest's recordTypes is the only declaration and Kit steps never call type.create for it.
+ * The schema module registers every declared type before its first read, so an identical type is already there and this is a no-op; one that is missing refuses the install.
+ */
+export async function ensureDeclaredType(call: (cap: string, input: unknown) => Promise<unknown>, type: string): Promise<void> {
+  try {
+    await call("schema.types.get", { type });
+  } catch (e) {
+    const code = (e as { error?: { code?: unknown } } | null)?.error?.code;
+    if (code === "validation.not_found") throw new Error(`The record type ${type} is declared by the Kit but not in this Space.`);
+    throw e;
+  }
+}
+
 async function runStep(ctx: Ctx, step: KitStep): Promise<void> {
   await ctx.call(step.cap as never, step.input);
 }
@@ -582,6 +596,8 @@ async function applyChanges(ctx: Ctx, kitId: string, target: KitManifest, verb: 
         if (c.item.undo) await runStep(ctx, c.item.undo);
       } else if (c.item.apply) {
         await runStep(ctx, c.item.apply);
+      } else if (c.item.type === "record_type") {
+        await ensureDeclaredType((cap, input) => ctx.call(cap as never, input), c.item.recordType ?? c.item.key);
       }
       done.push(c);
     } catch (e) {
