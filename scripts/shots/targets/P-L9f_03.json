@@ -66,7 +66,7 @@
     {
       "id": "P-L9f_03-journey-new",
       "route": "/m/P-L9f_03?view=new&space=northwind",
-      "proto": "automations,at:journeys,{skin}",
+      "proto": "automations,at:journeys,at:jnew,{skin}",
       "waitFor": "[data-testid='journey-new']",
       "note": "The New Journey type sheet. The prototype side is the designer it opens beside."
     },

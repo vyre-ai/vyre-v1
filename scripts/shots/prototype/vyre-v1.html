@@ -56898,7 +56898,7 @@ textarea.inp { height: auto; min-height: 150px; padding: 11px 12px; line-height:
     const has = (t) =&gt; toks.includes(t);
     if (has("light") || has("dark")) document.documentElement.dataset.theme = has("dark") ? "dark" : "light";
     { const f0 = autos()[0]; ui.tabs = f0 ? ["a:" + f0.id] : []; ui.active = f0 ? "a:" + f0.id : null; }
-    if (has("journeys") || has("journey") || has("stage")) { ui.sTab = "jour"; ui.tabs = ["j:onb"]; ui.active = "j:onb"; if (has("stage")) { ui.jsel.onb = { g: "g2" }; } }
+    if (has("journeys") || has("journey") || has("stage")) { ui.sTab = "jour"; ui.tabs = ["j:onb"]; ui.active = "j:onb"; if (has("stage")) { ui.jsel.onb = { g: "g2" }; ui.pane = true; } }
     if (has("automation")) ui.selStep.lead = findLeadAgentStep();
     if (has("paths")) ui.selStep.lead = AUTOS[0].steps[2].id;
     if (has("run-ok")) { ui.sub["a:lead"] = "runs"; ui.runSel.lead = "rl3"; ui.pt.push("r:rl3"); ui.pact = "r:rl3"; }
@@ -56908,7 +56908,7 @@ textarea.inp { height: auto; min-height: 150px; padding: 11px 12px; line-height:
     if (has("failed")) { ui.tabs.push("failed"); ui.active = "failed"; }
     if (has("digest-ask")) { ui.tabs = ["a:digest"]; ui.active = "a:digest"; ui.pt.push("ask:a:digest"); ui.pact = "ask:a:digest"; ui.pane = true; }
     if (has("ask")) { ui.pt.push("ask:a:lead"); ui.pact = "ask:a:lead"; }
-    if (has("task")) { ui.jsel.onb = { g: "g2", k: JOURNEYS[0].stages[1].tasks[0].id }; ui.tabs = ["j:onb"]; ui.active = "j:onb"; ui.sTab = "jour"; }
+    if (has("task")) { ui.jsel.onb = { g: "g2", k: JOURNEYS[0].stages[1].tasks[0].id }; ui.tabs = ["j:onb"]; ui.active = "j:onb"; ui.sTab = "jour"; ui.pane = true; }
     if (has("fields")) { ui.jsub["j:onb"] = "fields"; }
     if (has("settings")) { ui.sub["a:lead"] = "settings"; }
     if (has("trigger")) ui.selStep.lead = "t:" + AUTOS[0].triggers[0].id;
@@ -56955,6 +56955,7 @@ textarea.inp { height: auto; min-height: 150px; padding: 11px 12px; line-height:
     if (has("nopane")) ui.pane = false;
     renderAll();
     if (has("auto-promote")) openPromote(aOf("brief"));
+    if (has("jnew")) setTimeout(() => ACT.newjourney(), 80);
     if (has("fit")) setTimeout(() =&gt; ACT.cvfit(), 150);
     if (has("test")) ACT.testrun({ dataset: { id: "lead" } });
     if (has("connect")) ACT.connect({ dataset: { id: "lead" } });
