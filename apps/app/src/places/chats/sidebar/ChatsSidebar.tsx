@@ -259,7 +259,7 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
           <Hot>
             {(over) => (
               <Row
-                id={e.key} title={r.title} selected={sel} onPress={() => open(e)}
+                id={e.key} title={r.title} selected={sel} emphasis={r.unread > 0} onPress={() => open(e)}
                 leading={<Face name={r.who} kind={r.kind} size={18} pulse={r.working} />}
                 trailing={
                   <View style={st.tools}>
@@ -279,7 +279,7 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
         return wrap(
           <View style={{ height: ROW_H, opacity: c.unread > 0 ? 1 : 0.72 }} testID={c.unread > 0 ? `channel-unread-${c.channelId}` : `channel-read-${c.channelId}`}>
             <Row
-              id={e.key} title={c.name} selected={sel} onPress={() => open(e)}
+              id={e.key} title={c.name} selected={sel} emphasis={c.unread > 0} onPress={() => open(e)}
               leading={<LeadGlyph name={e.project ? "project" : c.visibility === "invite" ? "lock" : "hash"} />}
               trailing={c.unread > 0 ? <Badge n={c.unread} testID={`unread-${c.channelId}`} /> : null}
             />

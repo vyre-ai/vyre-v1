@@ -75,3 +75,17 @@ test("Harbor Studio: the assistant, three chats, no Needs you and no Channels", 
 });
 
 function has(s: string, needle: string): boolean { return s.includes(needle); }
+
+test("unread chats and channels have a bold title (Row emphasis); read ones do not", () => {
+  const out = html(createSampleSidebar());
+  const title = (key: string, text: string): string => {
+    const from = at(out, `data-testid="row-${key}"`);
+    const next = out.indexOf('data-testid="row-', from + 10);
+    const row = out.slice(from, next < 0 ? undefined : next);
+    return row.slice(row.indexOf(`>${text}<`) - 220, row.indexOf(`>${text}<`));
+  };
+  assert.ok(/font-weight:\s*(600|700|bold)/.test(title("ch:intake", "intake")), "unread #intake is bold");
+  assert.ok(!/font-weight:\s*(600|700|bold)/.test(title("ch:billing", "billing")), "read #billing is not");
+  assert.ok(/font-weight:\s*(600|700|bold)/.test(title("c:c3", "October invoices")), "unread chat is bold");
+  assert.ok(!/font-weight:\s*(600|700|bold)/.test(title("c:c6", "County records search")), "read chat is not");
+});
