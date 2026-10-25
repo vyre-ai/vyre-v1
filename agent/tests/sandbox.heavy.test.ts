@@ -363,7 +363,7 @@ test("docker: without the proxy there is no route: no connection to the internet
 test("docker: a service on the host that listens on every address is not reachable from the sandbox (gateway address)", { skip }, async (t) => {
   await dockerUp();
   // The proxy has to listen on the host side of the sandbox's network, so the sandbox can reach the host's gateway address. Whether it can also reach OTHER host services bound to 0.0.0.0 is the question.
-  const r = await sh(A, `env -u HTTP_PROXY -u http_proxy curl -sS -m 4 http://${gateway}:${hostPort}/; echo " exit=$?"`, 15_000);
+  const r = await sh(A, `curl --noproxy "*" -sS -m 4 http://${gateway}:${hostPort}/; echo " exit=$?"`, 15_000);
   const reached = r.stdout.includes("host-service-reached");
   t.diagnostic(`gateway ${gateway}: a host service on 0.0.0.0:${hostPort} ${reached ? "IS reachable from the sandbox (weaker than the spec says)" : "is not reachable from the sandbox"}: ${ok(r)}`);
   assert.equal(reached, false, `the sandbox reached a host service through the gateway address: ${ok(r)}`);
