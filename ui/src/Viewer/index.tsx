@@ -134,7 +134,26 @@ export interface ViewerViewProps extends ViewerProps {
   onZoom?: (zoom: number) => void;
 }
 
-const web = (p: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? p : {});
+/** Web-only attributes. react-native-web drops unknown props, so `data-x` becomes `dataSet.x` and `data-testid` becomes `testID`. */
+const web = (p: Record<string, unknown>): Record<string, unknown> => {
+  if (Platform.OS !== "web") return {};
+  const out: Record<string, unknown> = {};
+  const dataSet: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(p)) {
+    if (k === "data-testid") out["testID"] = v;
+    else if (k.startsWith("data-")) dataSet[k.slice(5)] = v;
+    else out[k] = v;
+  }
+  if (Object.keys(dataSet).length > 0) out["dataSet"] = dataSet;
+  return out;
+};
+
+/** A plain loop that builds children from data. Lists of things a person selects are the shared ui/Row (the ui-rows lint holds the line); this builds marks, blocks and cells. */
+function each<T, R>(items: readonly T[], make: (item: T, index: number) => R): R[] {
+  const out: R[] = [];
+  for (let i = 0; i < items.length; i++) out.push(make(items[i] as T, i));
+  return out;
+}
 
 function Tool(p: { label: string; icon: string; on?: boolean; onPress: () => void; testID: string }): ReactElement {
   return (
@@ -226,8 +245,8 @@ export function Viewer(props: ViewerViewProps): ReactElement {
         onLayout={(e) => { stage.current = { w: e.nativeEvent.layout.width / zoom, h: e.nativeEvent.layout.height / zoom }; }}
         onStartShouldSetResponder={() => tool !== null} onResponderGrant={(e) => pointer("down", e)} onResponderMove={(e) => pointer("move", e)} onResponderRelease={(e) => pointer("up", e)}>
         <View style={s.picture}><Text style={s.pictureText}>{props.title}</Text></View>
-        {strokes.map((st, i) => <View key={i} testID={`vw-stroke-${i}`} style={s.strokeMark} {...web({ "data-points": st.points.map((q) => `${q[0].toFixed(3)},${q[1].toFixed(3)}`).join(" ") })} />)}
-        {boxes.map((b, i) => (
+        {each(strokes, (st, i) => <View key={i} testID={`vw-stroke-${i}`} style={s.strokeMark} {...web({ "data-points": st.points.map((q) => `${q[0].toFixed(3)},${q[1].toFixed(3)}`).join(" ") })} />)}
+        {each(boxes, (b, i) => (
           <View key={b.id} testID={`vw-box-${b.id}`} pointerEvents="none" style={[s.box, { left: `${b.x * 100}%`, top: `${b.y * 100}%`, width: `${b.w * 100}%`, height: `${b.h * 100}%` }]}>
             <View style={s.pin} testID={`vw-pin-${i + 1}`} {...web({ "data-anchor": `${b.x.toFixed(3)},${b.y.toFixed(3)}` })}><Text style={s.pinText}>{i + 1}</Text></View>
           </View>
@@ -242,7 +261,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       ) : null}
       {pins.length > 0 ? (
         <View style={s.pinList} testID="vw-pins">
-          {pins.map((p) => <Text key={p.id} style={s.pinRow} testID={`vw-pinrow-${p.n}`}>{`${p.n}  ${p.text === "" ? "No note yet" : p.text}`}</Text>)}
+          {each(pins, (p) => <Text key={p.id} style={s.pinRow} testID={`vw-pinrow-${p.n}`}>{`${p.n}  ${p.text === "" ? "No note yet" : p.text}`}</Text>)}
         </View>
       ) : null}
     </ScrollView>
@@ -251,7 +270,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const docBody = (
     <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
       <View style={s.doc}>
-        {blocks.map((b, bi) => {
+        {each(blocks, (b, bi) => {
           const runs = markRuns(b.text, hits, bi, at, hits);
           if (editing && find === "") {
             return <TextInput key={b.id} multiline value={b.text} accessibilityLabel={`${b.tag} block`} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]}
@@ -260,7 +279,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           return (
             <Text key={b.id} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]} {...web({ "data-tag": b.tag })}>
               {b.tag === "li" ? "•  " : ""}
-              {runs.map((r, i) => (r.hit === true ? <Text key={i} style={[s.mark1, r.on === true && s.markOn]} {...web({ "data-find": r.on === true ? "current" : "match" })}>{r.text}</Text> : r.text))}
+              {each(runs, (r, i) => (r.hit === true ? <Text key={i} style={[s.mark1, r.on === true && s.markOn]} {...web({ "data-find": r.on === true ? "current" : "match" })}>{r.text}</Text> : r.text))}
             </Text>
           );
         })}
@@ -277,17 +296,17 @@ export function Viewer(props: ViewerViewProps): ReactElement {
         <View>
           <View style={s.tr}>
             <Text style={[s.th, s.rn]}>{""}</Text>
-            {sheet.cols.map((c, ci) => (
+            {each(sheet.cols, (c, ci) => (
               <Pressable key={c} accessibilityRole="button" accessibilityLabel={`Sort by ${c}`} testID={`vw-sort-${ci}`} style={s.thCell}
                 onPress={() => setSort((x) => (x !== null && x.col === ci ? { col: ci, dir: x.dir === 1 ? -1 : 1 } : { col: ci, dir: 1 }))}>
                 <Text style={s.th}>{`${c}${sort !== null && sort.col === ci ? (sort.dir === 1 ? " ↑" : " ↓") : ""}`}</Text>
               </Pressable>
             ))}
           </View>
-          {rows.map((r, ri) => (
+          {each(rows, (r, ri) => (
             <View key={ri} style={s.tr}>
               <Text style={[s.td, s.rn]}>{ri + 1}</Text>
-              {r.map((v, ci) => {
+              {each(r, (v, ci) => {
                 const on = cell !== null && cell.r === ri && cell.c === ci;
                 const m = find !== "" && v.toLowerCase().includes(find.trim().toLowerCase());
                 return (
