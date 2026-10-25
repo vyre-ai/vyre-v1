@@ -21,7 +21,7 @@
     },
     {
       "id": "P-L9_17-chats-harbor",
-      "route": "/m/P-L9_17?tab=chats&space=harbor",
+      "route": "/m/P-L9_17?tab=chats&all=1&space=harbor",
       "proto": "chat,space:harbor,{skin}",
       "waitFor": "[data-testid='mobile-tabs']",
       "note": "The phone shell over Harbor Studio: the Chats list full screen with Needs you, Agents, Channels and Chats and the five bottom tabs with the Needs you count on Chats. The mobile design is commissioned as its own (spec 3.11); the prototype side is its closest screen at the same size, not a pixel match.",

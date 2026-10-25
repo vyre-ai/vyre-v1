@@ -15,6 +15,12 @@ export const title = "Phone shell";
 
 const TABS: readonly TabId[] = ["chats", "inbox", "records", "files", "you"];
 
+/** The conversation, made once when its screen first draws. */
+function ChatOpen({ make }: { make: () => ReturnType<typeof createConversationSample>["data"] }): ReactNode {
+  const data = useMemo(make, [make]);
+  return <Conversation data={data} />;
+}
+
 export default function Mount(): ReactNode {
   // The query is read after mount: the static export renders the first frame without it, and the client must render that same frame or React leaves the exported markup behind.
   const [search, setSearch] = useState<string | null>(null);
@@ -24,7 +30,8 @@ export default function Mount(): ReactNode {
   const tabParam = params.get("tab") ?? "";
   const tab: TabId = TABS.find((t) => t === tabParam) ?? "chats";
   const sidebar = useMemo(() => createSampleSidebar(team), [team]);
-  const conversation = useMemo(() => createConversationSample("idle"), []);
+  // the conversation sample is made when a chat is opened, not at start (startup draws the tab bar and the first list only)
+  const conversation = useMemo(() => ({ get data() { return createConversationSample("idle").data; } }), []);
   useEffect(() => {
     if (search === null) return;
     const g = globalThis as { requestAnimationFrame?: (f: () => void) => void; performance?: { now(): number }; __probes?: Record<string, unknown> };
@@ -36,9 +43,9 @@ export default function Mount(): ReactNode {
       // a tap on a chat, a face or a Needs you row opens the conversation on top
       const open = (id: string, name: string): void => nav.open({ tab: "chats", screen: `chat:${id}`, title: name });
       const data = { ...sidebar.data, nav: { ...sidebar.data.nav, openChat: (id: string) => open(id, "Chats"), openAgentChat: (id: string) => open(id, "Chats"), openNeedsYou: (id?: string) => open(id ?? "needs", "Chats") } };
-      return <ChatsSidebar data={data} window={{ start: 0, end: 500 }} />;
+      return <ChatsSidebar data={data} {...(params.get("all") === "1" ? { window: { start: 0, end: 500 } } : {})} />;
     }
-    if (e.screen.startsWith("chat:")) return <Conversation data={conversation.data} />;
+    if (e.screen.startsWith("chat:")) return <ChatOpen make={() => conversation.data} />;
     if (e.screen === "you") return <YouScreen nav={nav} data={{ name: "Irfad Imtiaz", space: team.name, workOpen: 4, starred: 3 }} />;
     return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><Text style={{ color: "var(--ink-3)" as string, fontSize: 14 }}>{e.title ?? e.screen}</Text></View>;
   };

@@ -70,7 +70,8 @@ export const SWIPE_OPEN_AT = 0.5;
 
 /** Where a row rests after a drag of `dx` pixels (negative is left) with `actionsWidth` of buttons behind it: open (all the way over) or closed. */
 export function swipeRest(dx: number, actionsWidth: number, wasOpen: boolean): "open" | "closed" {
-  const travelled = wasOpen ? actionsWidth + dx : -dx;
+  // dragging left (negative) opens, dragging right (positive) closes
+  const travelled = wasOpen ? actionsWidth - dx : -dx;
   return travelled >= actionsWidth * SWIPE_OPEN_AT ? "open" : "closed";
 }
 
