@@ -70,7 +70,7 @@ def const(name: str, after: int = 0):
 seed_at = TEXT.index("function seedData()")
 data = {}
 for k in ["FIRST", "LAST", "STREETS", "CITIES", "NEXTS", "KINDS", "TASKT"]:
-    data[k], _ = const(k, TEXT.index("const KINDS = ") - 6000)
+    data[k], _ = const(k, TEXT.index("function mulberry32"))
 hand_m = re.compile(r"const hand = ").search(TEXT, seed_at)
 data["HAND"] = js_to_json(balanced(TEXT, hand_m.end()))
 team_m = re.compile(r'const TEAM = ').search(TEXT, TEXT.index("/* ---------- schema ---------- */"))

@@ -118,46 +118,12 @@ export const PROTO_NEXTS: readonly unknown[] = [
 ];
 
 export const PROTO_KINDS: readonly unknown[] = [
- [
-  "person",
-  "People",
-  "#E8A23B"
- ],
- [
-  "client",
-  "Clients",
-  "#E5628A"
- ],
- [
-  "project",
-  "Projects",
-  "#7B7BF0"
- ],
- [
-  "site",
-  "Sites",
-  "#2FB5A5"
- ],
- [
-  "decision",
-  "Decisions",
-  "#A96CF2"
- ],
- [
-  "record",
-  "Records",
-  "#4C9AF0"
- ],
- [
-  "chat",
-  "Chats",
-  "#8DA395"
- ],
- [
-  "run",
-  "Runs",
-  "#F0784B"
- ]
+ "engagement",
+ "annual review",
+ "document set",
+ "transfer",
+ "renewal",
+ "onboarding"
 ];
 
 export const PROTO_TASKT: readonly unknown[] = [
