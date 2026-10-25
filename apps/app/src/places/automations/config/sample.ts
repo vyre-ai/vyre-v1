@@ -9,7 +9,7 @@ import type { Definition } from "../canvas/model.ts";
 import { createSampleAutomations, harbor, northwind, SAMPLE_NOW } from "../sidebar/sample.ts";
 import type { SampleAutomations, SampleSpace } from "../sidebar/sample.ts";
 import { attachJourneys } from "../journeys/sample.ts";
-import type { ConfigDirectory, ConfigExtras } from "./data.tsx";
+import type { ConfigDirectory, ConfigExtras, FieldEntry, RecordFields } from "./data.tsx";
 import type { Alerts } from "./model.ts";
 
 export { SAMPLE_NOW };
@@ -23,6 +23,17 @@ const BRIEF: Definition = {
     { id: "brief", key: "ai", title: "Write the briefing", input: { prompt: "Four lines. The day's meetings, then what is due, then what is waiting on me." }, ai: { agentId: "agt_assistant", keyId: "key_claude" }, next: ["send"] },
     { id: "send", key: "post_message", title: "Send it to me in chat", input: { channelId: "dm:me", text: "{{brief.text}}" } },
   ],
+};
+
+const TEMPLATE_FIELDS: readonly FieldEntry[] = [
+  { name: "Lead", type: "person" }, { name: "Client", type: "rel" }, { name: "Start date", type: "date" }, { name: "Due date", type: "date" },
+  { name: "Health", type: "choice" }, { name: "Budget", type: "num" }, { name: "Stage", type: "choice" },
+];
+/** The fields of each Journey's record type as the prototype draws them: the Projects template's seven, then the type's own. */
+export const RECORD_FIELDS: Record<string, RecordFields> = {
+  "Client onboarding": { template: "Projects", inherited: TEMPLATE_FIELDS, own: [{ name: "Matter type", type: "choice" }, { name: "Referral source", type: "choice" }, { name: "Engagement signed", type: "date" }, { name: "ID verified", type: "check" }] },
+  "Matter intake": { template: "Projects", inherited: TEMPLATE_FIELDS, own: [{ name: "Practice area", type: "choice" }, { name: "Opposing party", type: "text" }] },
+  rt_project: { template: "Projects", inherited: TEMPLATE_FIELDS, own: [{ name: "Shoot date", type: "date" }, { name: "Deliverables", type: "num" }] },
 };
 
 export const DIRECTORY: Record<SampleSpace["id"], ConfigDirectory> = {
@@ -198,6 +209,7 @@ export function createConfigSample(space: SampleSpace = northwind): ConfigSample
   };
   const extras: ConfigExtras = {
     directory: DIRECTORY[space.id],
+    recordFields: (recordType) => RECORD_FIELDS[recordType] ?? { template: "Projects", inherited: TEMPLATE_FIELDS, own: [] },
     openFiles: (p) => void base.opened.push(`files:${p}`),
     openRuns: (id) => void base.opened.push(`runs:${id}`),
     openRecords: (t, stage) => void base.opened.push(`records:${t}${stage ? `:${stage}` : ""}`),

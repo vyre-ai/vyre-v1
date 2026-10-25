@@ -12,6 +12,8 @@
         "modules/sync/",
         "modules/conflicts/",
         "modules/search/",
+        "spikes/s13/",
+        ".github/workflows/spike-s13-vectors.yml",
         "package-lock.json"
       ],
       "modules": [
