@@ -115,5 +115,6 @@ test('the per-lane 10 percent sample in the doc is the sample the rule gives', (
 // rerun on final commit
 // run on the final commit of P-CC_33
 // run on the final commit of the lanes PR
+// run on the final commit of the kit stages PR
 
-// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+// run on the final commit of P-CC_28
