@@ -33,7 +33,7 @@ export interface InboxPhone {
 }
 
 /** What identifies the conversation a call can belong to. */
-export interface ConversationKey { id: string; contactId?: string | undefined; address: string }
+export interface ConversationKey { id: string; contactId?: string | undefined; address: string; /** other phones the person is known by (from their thread) */ numbers?: readonly string[] | undefined }
 
 /** The dock's context. Exported so a screen test can stand a call in without a Voice device. */
 export const InboxPhoneContext = createContext<InboxPhone | null>(null);
@@ -105,7 +105,7 @@ export function InboxPhoneDock({ device, targets = NO_TARGETS, children, placeme
   const base = stateToProps(state);
   const caller = state.peer ? callerOf(state.peer, calls, rows) : undefined;
   const rowOf = (n: string, recordId?: string): ContactRow | undefined => rows.find((r) => (recordId !== undefined && r.contactId === recordId) || sameNumber(r.address, n));
-  const claimed = claims.some((c) => state.peer !== "" && ((caller?.recordId !== undefined && c.contactId === caller.recordId) || sameNumber(c.address, state.peer)));
+  const claimed = claims.some((c) => state.peer !== "" && ((caller?.recordId !== undefined && c.contactId === caller.recordId) || sameNumber(c.address, state.peer) || (c.numbers ?? []).some((n) => sameNumber(n, state.peer))));
 
   const view: SoftphoneViewProps = {
     ...base,

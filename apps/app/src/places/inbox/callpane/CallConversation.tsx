@@ -25,7 +25,9 @@ export function CallConversation({ tasks = [], ...tab }: CallConversationProps):
   const phone = usePhone();
   const thread = useScreenQuery<ThreadOut>("inbox.contact-tab", "thread", { conversationId: tab.conversationId, ...(tab.contactId ? { contactId: tab.contactId } : {}) });
   const conv = thread.status === "ready" ? thread.data.conversation : null;
-  const key = useMemo(() => (conv ? { id: conv.id, contactId: conv.contactId, address: conv.address } : null), [conv?.id, conv?.contactId, conv?.address]); // eslint-disable-line react-hooks/exhaustive-deps
+  const numbers = thread.status === "ready" ? numbersOfThread(thread.data.items) : [];
+  const numbersKey = numbers.join("|");
+  const key = useMemo(() => (conv ? { id: conv.id, contactId: conv.contactId, address: conv.address, numbers } : null), [conv?.id, conv?.contactId, conv?.address, numbersKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const [paneOpen, setPaneOpen] = useState(true);
   // the claim is made once per conversation: the context object changes with the call, the claim function does not need to be re-run for it
   const claim = useRef(phone?.claim);
@@ -35,7 +37,6 @@ export function CallConversation({ tasks = [], ...tab }: CallConversationProps):
 
   const state = phone?.state();
   const view = phone?.view();
-  const numbers = thread.status === "ready" ? numbersOfThread(thread.data.items) : [];
   const mine = !!(key && state && view && showsCall(state.phase) && callIsWith(key, state.peer, view.caller?.recordId, numbers));
   // the bar names the person whose conversation this is, even when the dock only knew a number
   const shown = mine && view && conv ? { ...view, caller: { number: view.caller?.number ?? state?.peer ?? "", ...view.caller, name: view.caller?.name ?? conv.displayName, ...(conv.contactId ? { recordId: conv.contactId } : {}) } } : view;
