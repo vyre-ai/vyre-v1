@@ -159,6 +159,6 @@ test("Recent lists what the asker opened, newest first, only what they may still
   assert.deepEqual((await recentList(h.ctx, { limit: 1 })).hits.map((x) => x.id), ["rec_a"]);
   h.deny("record:rec_c");
   assert.deepEqual((await recentList(h.ctx, {})).hits.map((x) => x.id), ["rec_a", "fil_b"]);
-  assert.deepEqual((await recentList(asPerson(h, { kind: "person", id: "usr_omar" }), {})).hits, [], "another person's Recent is empty");
+  assert.deepEqual((await recentList(asPerson(h, { kind: "person", id: "usr_omar" }).ctx, {})).hits, [], "another person's Recent is empty");
   assert.deepEqual(contractErrors("search.recent.list", "out", await recentList(h.ctx, {})), []);
 });

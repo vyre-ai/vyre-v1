@@ -52,7 +52,7 @@ test("perf search.server: p95 under 300 ms merged with local, 100k records and 1
   samples.sort((a, b) => a - b);
   const p95 = samples[Math.floor(samples.length * 0.95)] ?? 0;
   assert.ok(hits > 0);
-  assert.deepEqual((await query(h.ctx, { q: "zelda" })).hits.map((x) => x.id), ["usr_0"]);
-  assert.deepEqual((await query(h.ctx, { q: "quill", types: ["file"] })).hits.map((x) => x.id), ["fil_1"], "the type filter finds the one file among 110,000 rows");
+  assert.deepEqual((await query(h.ctx, { q: "zelda", mode: "keyword" })).hits.map((x) => x.id), ["usr_0"]);
+  assert.deepEqual((await query(h.ctx, { q: "quill", types: ["file"], mode: "keyword" })).hits.map((x) => x.id), ["fil_1"], "the type filter finds the one file among 110,000 rows");
   assert.ok(p95 < 300, `search.server p95 ${p95.toFixed(1)} ms is over 300 ms; slowest ${samples[samples.length - 1]!.toFixed(0)} ms`);
 });

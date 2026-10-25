@@ -20,6 +20,8 @@ export interface Hit {
 /** A query whose longest word has this many characters or fewer is type-ahead: newest first, an early-stopped index scan. */
 export const SHORT_QUERY = 2;
 const RRF = 60;
+/** A vector under this cosine is not about the query: random 384-dimension vectors score within about 0.05 of zero, so 0.2 is well clear of chance. */
+const MIN_COSINE = 0.2;
 const MIN_CANDIDATES = 120;
 const MAX_CANDIDATES = 600;
 const SAFE = /^[A-Za-z0-9_.-]+$/;
@@ -114,7 +116,7 @@ export async function query(ctx: SearchCtx, input: QueryInput): Promise<{ hits: 
     const index = vectorsOf(ctx.db, ctx.space);
     if (index.size > 0) {
       const [qv] = await embed([input.q]);
-      if (qv && qv.length === DIM) vec = index.top(qv, cap).filter((v) => v.score > 0.05);
+      if (qv && qv.length === DIM) vec = index.top(qv, cap).filter((v) => v.score > MIN_COSINE);
     }
   }
 

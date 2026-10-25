@@ -19,7 +19,7 @@ export interface IndexEvent { type: string; seq: number; enc?: number; entity?: 
 /** The events that change what the index holds: which entity, which payload key holds its id, and whether the event removes it. */
 export const WATCHED: Readonly<Record<string, { entity: string; idKey: string; remove?: boolean }>> = {
   "record.created": { entity: "record", idKey: "recordId" }, "record.updated": { entity: "record", idKey: "recordId" }, "record.restored": { entity: "record", idKey: "recordId" },
-  "record.merged": { entity: "record", idKey: "recordId" }, "record.deleted": { entity: "record", idKey: "recordId", remove: true },
+  "record.deleted": { entity: "record", idKey: "recordId", remove: true },
   "file.created": { entity: "file", idKey: "fileId" }, "file.renamed": { entity: "file", idKey: "fileId" }, "file.moved": { entity: "file", idKey: "fileId" },
   "file.version_added": { entity: "file", idKey: "fileId" }, "file.restored": { entity: "file", idKey: "fileId" },
   "file.deleted": { entity: "file", idKey: "fileId", remove: true }, "file.purged": { entity: "file", idKey: "fileId", remove: true },
