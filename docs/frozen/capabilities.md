@@ -4,9 +4,9 @@ Review of the merged capability registry at the F11 freeze. `packages/contracts/
 
 ## Frozen values
 
-Registry hash: c926ab4e37f49f808e73e8c5b2fe709f33c050fbd4d22d27589fbade117200b4
-Capabilities: 1491
-Events: 598
+Registry hash: 4f4343ff7c31b92b885ffeeed19bdb0b123356df4c82a0f861e5648cd5cf73d8
+Capabilities: 1493
+Events: 600
 Registry modules: 80
 Host modules: 72
 
@@ -27,7 +27,7 @@ Selection rule: capabilities of the lane (owner of the module) sorted by name, n
 | Lane | Capabilities | Sampled |
 |---|---|---|
 | L1 | 37 | 4 |
-| L2 | 261 | 27 |
+| L2 | 263 | 27 |
 | L3 | 152 | 16 |
 | L4 | 107 | 11 |
 | L5 | 344 | 35 |
@@ -38,7 +38,7 @@ Selection rule: capabilities of the lane (owner of the module) sorted by name, n
 
 L1: conflicts.assist, conflicts.resolve, search.recent.list, sync.endpoints
 
-L2: agents.builtin_skills.list, agents.pause, agents.suggestion.accept, agents.visibility.set, channels.leave, chat.approve_plan, chat.messages.list, chat.question.ask, chat.transcript.summary, computers.chrome.net, computers.chrome.status, computers.files.write, computers.recording.process, computers.screen.type, computers.timeline_step, engine.incident.open, engine.policy.get, engine.runtime.opt_in, engine.subscription_share.set, engine.turn.start, mcp.session.open, memory.counts, memory.find_by_subject, memory.pointer, terminal.attach, terminal.read, threads.list
+L2: agents.builtin_skills.list, agents.pause, agents.snapshot.take, agents.update, channels.get, channels.update, chat.helpers.list, chat.post, chat.transcript.search, computers.chrome.fill, computers.chrome.state, computers.files.read, computers.recording.delete, computers.screen.scroll, computers.timeline, engine.incident.note, engine.placement.decide, engine.route.preview, engine.stop_all, engine.turn.start, mcp.session.mint, memory.capture, memory.find_by_subject, memory.pointer, memory.versions, terminal.read, threads.list
 
 L3: connections.complete_auth, connections.update, connectors.outbox.retry, hubspot.health, import.parse_excel, projects.file_chat, projects.pin_file, records.as_of, records.history, records.restore, schema.apply, schema.layout.set, sources.delete, sources.list, sync_types.get, sync_types.review_schema
 
