@@ -10,8 +10,8 @@ import type { Harness } from "../fixtures/harness.ts";
 const mine = registry.capabilities.filter((c) => c.module === "memory");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
-test("the handler table holds exactly the thirty frozen memory capabilities", () => {
-  assert.equal(mine.length, 30);
+test("the handler table holds exactly the thirty-one frozen memory capabilities", () => {
+  assert.equal(mine.length, 31);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
 });
 

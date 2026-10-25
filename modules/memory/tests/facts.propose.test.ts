@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  counts, erase, factAccept, factCorrect, factGet, factReject, factsAsOf, factsList, factsRemove, layersList, proposeFact,
+  counts, erase, mapGet, maintain, factAccept, factCorrect, factGet, factReject, factsAsOf, factsList, factsRemove, layersList, proposeFact,
 } from "../handlers/facts.ts";
 import { assertEventsConform, asPerson, codeOf, contractErrors, DAY, harness, NOW, seedFact } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -233,7 +233,7 @@ test("counts and layers for the agent strip", async () => {
   seedFact(h, { id: "fct_agent1", layer: "agent", agentId: "agt_intake", text: "Intake never calls before nine", sourcePerson: "usr_boss" });
   seedFact(h, { id: "fct_other", layer: "person", owner: "usr_omar", agentId: "agt_intake", text: "Omar keeps secrets" });
   const c = await counts(h.ctx, { agentId: "agt_intake" });
-  assert.deepEqual(c, { current: 2, proposed: 1, fromMe: 1 });
+  assert.deepEqual(c, { current: 2, proposed: 1, fromMe: 1, autoMerged: 1 });   // the preference merged on its own (low-risk kind); the note and the seeded fact did not
   assert.deepEqual(contractErrors("memory.counts", "out", c), []);
   const l = await layersList(h.ctx, { agentId: "agt_intake", projectId: "prj_harlow" });
   assert.deepEqual(l.layers.map((x) => x.layer), ["person", "agent", "project", "space"]);
@@ -253,3 +253,20 @@ test("a shared layer is read through the folder: no view, no fact", async () => 
   assert.equal((await factsList(h.ctx, {})).facts.length, 0);
   await assert.rejects(() => factGet(h.ctx, { factId: "fct_agent1" }), (e) => codeOf(e) === "validation.not_found");
 });
+
+test("memory.map.get returns the MAP.md block the nightly job wrote, nothing before it, and refuses someone who cannot see the agent (P-CC_34)", async () => {
+  const h = harness({ respond: { "files.write": () => ({}) } });
+  assert.deepEqual(await mapGet(h.ctx, { agentId: "agt_intake" }), {}, "absent before the first night");
+  seedFact(h, { id: "fct_m1", layer: "agent", agentId: "agt_intake", text: "Intake never calls before nine" });
+  seedFact(h, { id: "fct_mp", layer: "person", owner: "usr_dana", agentId: "agt_intake", text: "Dana's private tea preference" });
+  await maintain(h.ctx, {});
+  const got = await mapGet(h.ctx, { agentId: "agt_intake" });
+  assert.deepEqual(contractErrors("memory.map.get", "out", got), []);
+  assert.ok(String(got.map?.body).includes("Intake never calls before nine"));
+  assert.ok(!String(got.map?.body).includes("private tea"), "personal memory never goes in the map");
+  assert.equal(got.map?.updatedAt, NOW);
+  assert.ok((got.map?.lines ?? 0) > 0 && (got.map?.lines ?? 999) < 200);
+  h.deny("agent:agt_intake");
+  await assert.rejects(mapGet(h.ctx, { agentId: "agt_intake" }), (e) => codeOf(e) === "permission.no_grant");
+});
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.

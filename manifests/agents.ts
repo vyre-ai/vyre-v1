@@ -25,8 +25,11 @@ const agentRow = t.obj({
   createdAt: t.ts(), lastActiveAt: t.opt(t.ts()),
 });
 const routineRow = t.obj({
-  routineId: t.id('rtn'), agentId: id.agent, title: t.str(), cron: t.str({ examples: ['0 9 * * 1-5'] }), prompt: t.str(), channelId: t.opt(id.channel), enabled: t.bool(),
+  routineId: t.id('rtn'), agentId: id.agent, title: t.str(), cron: t.opt(t.str({ examples: ['0 9 * * 1-5'], description: 'The schedule of a schedule routine; a watcher has none' })), prompt: t.str(), channelId: t.opt(id.channel), enabled: t.bool(),
   ownerId: id.user, lastRunAt: t.opt(t.ts()), nextRunAt: t.opt(t.ts()),
+  // kind absent means schedule; a watcher runs when something happens (a new message in watch.channelId), not at a time
+  kind: t.opt(t.enm('schedule', 'watch')),
+  watch: t.opt(t.obj({ on: t.enm('message'), channelId: id.channel })),
 });
 const suggestionRow = t.obj({
   suggestionId: t.id('sug'), agentId: id.agent, kind: t.enm('agent_md', 'template'), file: t.str({ examples: ['AGENT.md'] }), diff: t.str(), reason: t.opt(t.str()),
@@ -144,8 +147,11 @@ export default defineManifest({
     read('agents.routines.list', 'Routines of an agent (schedules set by the owner)', {
       in: target, out: { routines: t.arr(routineRow) }, on: ['agent', '/agentId'], tool: 'agents', label: 'filter',
     }),
-    create('agents.routine.save', 'Create or change a routine; messages it causes carry "Sent by <agent> on a routine <person> set"', {
-      in: { ...target, routineId: t.opt(t.id('rtn')), title: t.str(), cron: t.str({ examples: ['0 9 * * 1-5'] }), prompt: t.str(), channelId: t.opt(id.channel), enabled: t.opt(t.bool()) },
+    create('agents.routine.save', 'Create or change a routine, a schedule (cron) or a watcher (kind watch: runs on each new message in a channel); messages it causes carry "Sent by <agent> on a routine <person> set"', {
+      in: {
+        ...target, routineId: t.opt(t.id('rtn')), title: t.str(), cron: t.opt(t.str({ examples: ['0 9 * * 1-5'] })), prompt: t.str(), channelId: t.opt(id.channel), enabled: t.opt(t.bool()),
+        kind: t.opt(t.enm('schedule', 'watch')), watch: t.opt(t.obj({ on: t.enm('message'), channelId: id.channel })),
+      },
       out: { routine: routineRow }, make: ['agent', '/agentId'], perm: 'agents.schedule', emits: ['agent.routine_changed'], tool: 'agents', idem: 'key',
     }),
     write('agents.routine.delete', 'Delete a routine', {
