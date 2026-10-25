@@ -22,7 +22,8 @@ const sizes = (args.sizes || Object.keys(SIZES).join(",")).split(",").map((n) =>
 const maxExport = Number(args["max-export-s"] || MAX_EXPORT_S);
 const want = args.target || "all";
 
-const targets = loadTargets(HERE).filter((t) => want === "all" || t.id === want);
+// A packet id (P-L9b_02) selects that packet's targets, whose ids start with it; "all" runs everything.
+const targets = loadTargets(HERE).filter((t) => want === "all" || t.id === want || (want.startsWith("P-") && t.id.startsWith(want + "-")));
 if (!targets.length) { console.error(`no target ${want}`); process.exit(1); }
 
 await ensureDeps(REPO);
