@@ -1,23 +1,27 @@
-// Lane L3 goes live (P-L3_LIVE): the records handler table against the frozen manifest. Records is NOT flipped to live yet: 11 of the 29 capabilities have no handler,
-// and a live module with a missing handler refuses the whole boot. STILL_MISSING is the work of the follow-up packet (P-L3_REC2); when it lands the list is emptied, the
-// assertion below becomes the exact-set check the other modules have, and host/modules.json flips `records` to live.
+// Lane L3 goes live (P-L3_LIVE, P-L3_REC2): the records handler table against the frozen manifest, an exact-set check like the other modules have.
+// All 29 capabilities have a handler, and host/modules.json lists records as live.
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { registry } from "../../../generated/registry.ts";
 import { consumers, handlers } from "../impl.ts";
 
 const mine = registry.capabilities.filter((c) => c.module === "records").map((c) => c.name).sort();
-const STILL_MISSING = ["records.changes", "records.completeness", "records.gap_check", "records.page_prefs.get", "records.page_prefs.set", "records.relate", "records.relations_map", "records.value_source", "records.values.pending", "records.values.review", "records.view"];
 
-test("records live: every capability has a handler except the named gap, and the gap has none", () => {
+test("records live: every capability of the manifest has a handler, and no handler is outside it", () => {
   assert.equal(mine.length, 29);
-  const have = Object.keys(handlers).sort();
-  assert.deepEqual([...have, ...STILL_MISSING].sort(), mine);
-  for (const name of have) assert.equal(typeof (handlers as Record<string, unknown>)[name], "function", `${name} has a handler function`);
-  for (const name of STILL_MISSING) assert.equal((handlers as Record<string, unknown>)[name], undefined, `${name} is a known gap, not a half-done handler`);
+  assert.deepEqual(Object.keys(handlers).sort(), mine);
+  for (const name of mine) assert.equal(typeof (handlers as Record<string, unknown>)[name], "function", `${name} has a handler function`);
 });
 
-test("records live: the site table consumer listens to both site table events", () => {
+test("records live: host/modules.json serves records live", () => {
+  const file = JSON.parse(fs.readFileSync(new URL("../../../host/modules.json", import.meta.url), "utf8")) as { modules: { id: string; status: string }[] };
+  assert.equal(file.modules.find((m) => m.id === "records")?.status, "live");
+});
+
+test("records live: the site table consumer listens to both site table events, the value consumer to proposals", () => {
   assert.deepEqual(consumers["records.site_tables"].on, ["site.table_created", "site.table_promoted"]);
   assert.equal(typeof consumers["records.site_tables"].run, "function");
+  assert.deepEqual(consumers["records.value_source"].on, ["record.value_proposed"]);
+  assert.equal(typeof consumers["records.value_source"].run, "function");
 });
