@@ -22,6 +22,7 @@ const exitRule = t.obj({ requireTasks: t.bool(), manualOnly: t.opt(t.bool()) });
 const stage = t.obj({
   key: stageKey, title: t.str(), order: t.int({ minimum: 0 }), exit: exitRule, timeLimit: t.opt(timeLimit), tasks: t.arr(taskTemplate),
   automations: t.arr(id.automation, { description: 'Automations that run when a record enters the stage' }), final: t.opt(t.bool()),
+  onLeaving: t.opt(t.arr(id.automation, { description: 'Automations that run when a record leaves the stage' })),
 });
 const startRule = t.obj({ event: t.str({ examples: ['record.created'] }), filter: t.opt(t.json()), enabled: t.bool() });
 const journeyRow = t.obj({
@@ -30,6 +31,10 @@ const journeyRow = t.obj({
 });
 const journeySummary = t.obj({ id: id.journey, name: t.str(), subjectType: id.recordType, recordType: id.recordType, version: t.int(), stages: t.int(), inFlight: t.int(), updatedAt: t.ts() });
 const target = { journeyId: id.journey };
+// A task as the designer shows it on a record: the template key, its stage and the state of the task made for it.
+// todo covers todo and doing; in_review covers in_review and awaiting_approval; blocked is a task that waits on something; done is done. A withdrawn task is not listed.
+const journeyTaskState = t.enm('todo', 'in_review', 'blocked', 'done');
+const journeyTask = t.obj({ stage: stageKey, taskKey: t.str(), taskId: id.task, title: t.str(), state: journeyTaskState, required: t.bool(), assigned: t.opt(assignee) });
 const mapping = t.rec(t.str({ description: 'New stage key for an old stage key' }));
 
 export default defineManifest({
@@ -45,7 +50,10 @@ export default defineManifest({
       p: { journeyId: id.journey, recordId: id.record, stage: stageKey, previousStage: t.opt(stageKey), version: t.int(), manual: t.bool(), reason: t.opt(t.str()) },
       subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A Journey record enters a stage', fields: ['/journeyId', '/stage'] },
     }),
-    ev('journey.stage_exited', 'A Journey record left a stage', { p: { journeyId: id.journey, recordId: id.record, stage: stageKey, toStage: t.opt(stageKey) }, subject: ['record', '/recordId'], label: 'subject' }),
+    ev('journey.stage_exited', 'A Journey record left a stage', {
+      p: { journeyId: id.journey, recordId: id.record, stage: stageKey, toStage: t.opt(stageKey) }, subject: ['record', '/recordId'], label: 'subject',
+      trigger: { title: 'A Journey record leaves a stage', fields: ['/journeyId', '/stage'] },
+    }),
     ev('journey.moved', 'A designer moved a record by hand, with a reason', { p: { journeyId: id.journey, recordId: id.record, fromStage: stageKey, toStage: stageKey, reason: t.str(), by: t.str() }, subject: ['record', '/recordId'], label: 'subject' }),
     ev('journey.completed', 'A Journey record reached a final stage', { p: { journeyId: id.journey, recordId: id.record, stage: stageKey }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A Journey completes', fields: ['/journeyId'] } }),
     ev('journey.time_limit_breached', 'A stage time limit passed; it reaches the owner Needs you, then the escalation role', { p: { journeyId: id.journey, recordId: id.record, stage: stageKey, limitHours: t.int(), escalated: t.bool() }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A Journey stage runs over its time limit', fields: ['/journeyId', '/stage'] } }),
@@ -71,6 +79,9 @@ export default defineManifest({
     write('journeys.delete', 'Delete a Journey with no records in flight', {
       in: target, out: { deleted: t.bool() }, perm: 'journeys.manage', level: 'manage', risk: 'high', gate: { act: 'delete', when: "actor.kind != 'person'" }, emits: ['journey.deleted'], audit: 'always', tool: 'automations',
       errors: ['validation.precondition_failed'],
+    }),
+    read('journeys.tasks', 'The tasks of one Journey record by stage, each with its state (todo, in review, blocked, done)', {
+      in: { recordId: id.record, stage: t.opt(stageKey) }, out: { tasks: t.arr(journeyTask) }, on: ['record', '/recordId'], tool: 'automations', label: 'filter',
     }),
     read('journeys.versions', 'List versions of a Journey definition', { in: target, out: { versions: t.arr(versionRow) }, tool: 'automations' }),
     write('journeys.start', 'Start a Journey on a subject record: creates the Journey record with its channel and folder and enters the first stage', {

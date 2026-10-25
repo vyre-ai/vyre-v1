@@ -39,7 +39,7 @@ Spec 2.14 is the gate act table. Spec 2.24 is the three notification levels. Spe
 | Blocks | blocks | 22 | the module that renders the block |
 | Lists | lists | 10 | the module that owns the list |
 | Steps | registry.steps | 25 | steps-core |
-| Triggers | registry.triggers | 13 | automations |
+| Triggers | registry.triggers | 14 | automations |
 | Connectors | registry.connectors | 13 | the connector module |
 
 ## Rules the test locks
@@ -558,6 +558,7 @@ Example: `record_change`.
 | email_received | An email is received | yes | {"campaignId":"cmp_a1b2c3","contactId":"rec_a1b2c3","from":"example","mailboxId":"mbx_a1b2c3","messageId":"example","subject":"example"} |
 | form_submit | A form is submitted | yes | {"formId":"frm_a1b2c3","matched":true,"recordId":"rec_a1b2c3","type":"contact"} |
 | journey_stage_entered | A Journey record enters a stage | yes | {"journeyId":"jrn_a1b2c3","manual":true,"previousStage":"example","recordId":"rec_a1b2c3","stage":"example"} |
+| journey_stage_left | A Journey record leaves a stage | yes | {"journeyId":"jrn_a1b2c3","recordId":"rec_a1b2c3","stage":"example","toStage":"example"} |
 | manual | Run by hand | yes | {"input":{},"startedBy":"example"} |
 | meeting_transcript_ready | A meeting transcript is ready | yes | {"meetingId":"rec_a1b2c3","source":"example"} |
 | record_change | A record changes | yes | {"changed":{},"fields":["example"],"op":"created","record":{},"recordId":"rec_a1b2c3","type":"contact","version":1} |

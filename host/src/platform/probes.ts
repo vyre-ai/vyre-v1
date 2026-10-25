@@ -7,7 +7,7 @@ export type ProbeState = "healthy" | "degraded" | "down";
 export interface ProbeResult { state: ProbeState; detail?: string; latencyMs?: number; values?: Record<string, number> }
 export type ProbeName = "disk_encrypted" | "events_db" | "index_db" | "scheduler" | "docker" | "caddy" | "disk_space" | "time_skew";
 export const PROBE_NAMES: readonly ProbeName[] = ["disk_encrypted", "events_db", "index_db", "scheduler", "docker", "caddy", "disk_space", "time_skew"];
-export type FetchFn = (url: string, init?: { method?: string; signal?: AbortSignal }) => Promise<{ ok: boolean; status: number; headers: { get(name: string): string | null }; text(): Promise<string> }>;
+export type FetchFn = (url: string, init?: { method?: string; signal?: AbortSignal; headers?: Record<string, string> }) => Promise<{ ok: boolean; status: number; headers: { get(name: string): string | null }; text(): Promise<string> }>;
 
 const result = (state: ProbeState, detail: string, extra: Omit<ProbeResult, "state" | "detail"> = {}): ProbeResult => ({ state, detail, ...extra });
 
@@ -77,7 +77,9 @@ export async function caddy(fetchFn: FetchFn, adminUrl: string, now: () => numbe
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 3000);
     timer.unref();
-    const r = await fetchFn(`${adminUrl.replace(/\/$/, "")}/config/`, { signal: ctl.signal }).finally(() => clearTimeout(timer));
+    // Node's fetch sends Sec-Fetch-Mode: cors, which Caddy's admin API reads as a browser and answers 403 ("not allowed to access from origin ''") unless the request names an allowed
+    // Origin. The admin address is on its own allow list, so the probe names it.
+    const r = await fetchFn(`${adminUrl.replace(/\/$/, "")}/config/`, { signal: ctl.signal, headers: { origin: new URL(adminUrl).origin } }).finally(() => clearTimeout(timer));
     const latencyMs = now() - t0;
     if (!r.ok) return result("down", `Caddy admin answered ${r.status}.`, { latencyMs });
     const body = (await r.text()).trim();
