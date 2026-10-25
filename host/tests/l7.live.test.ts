@@ -61,7 +61,7 @@ test("l7 live: host/modules.json has the complete L7a modules live and names the
 test("l7 live: a booted daemon serves every live L7a module from its own handlers; each answers a read and a write for the owner and refuses a member", async () => {
   const dir = seededDir();
   const d = await startDaemon({
-    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "team.example.com"], {}, "1.2.3"),
     platform: fakePlatform({
       os: "linux", hostname: "l7-live", free: 80e9,
       commands: {
@@ -104,7 +104,7 @@ test("l7 live: a booted daemon serves every live L7a module from its own handler
 test("l7 live: through the gateway a Shared item is put, used by name and filled; the value never appears in the use answer; a deferred capability refuses", async () => {
   const dir = seededDir();
   const d = await startDaemon({
-    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "team.example.com"], {}, "1.2.3"),
     platform: fakePlatform({
       os: "linux", hostname: "l7-vault", free: 80e9,
       commands: {
@@ -152,7 +152,7 @@ test("l7 live: through the gateway a Shared item is put, used by name and filled
 test("l7 live: an invite made by the owner is accepted by a stranger through the gateway (identity reaches members through the host), and the code works once", async () => {
   const dir = seededDir();
   const d = await startDaemon({
-    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "team.example.com"], {}, "1.2.3"),
     platform: fakePlatform({
       os: "linux", hostname: "l7-join", free: 80e9,
       commands: {
@@ -213,7 +213,7 @@ test("l7 live: whoami names the device of the call, and GitHub sign-in says it i
   const run = async (githubOAuth: { clientId: string; clientSecret: string; fetch: typeof fetch } | null) => {
     const dir = seededDir();
     const d = await startDaemon({
-      config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+      config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "team.example.com"], {}, "1.2.3"),
       platform: fakePlatform({
         os: "linux", hostname: "l7-gh", free: 80e9,
         commands: {
@@ -261,7 +261,7 @@ test("l7 live ruling 62: a signed-in member unlocks their key from their own cli
   const PASSWORD = "correct horse battery staple 9";
   const SECRET = "sk-ant-mine-NEVER-ON-DISK";
   const d = await startDaemon({
-    config: loadConfig(["--data-dir", dir, "--port", "0", "--role", "space,device"], {}, "1.2.3"),
+    config: loadConfig(["--data-dir", dir, "--port", "0", "--role", "space,device", "--address", "team.example.com"], {}, "1.2.3"),
     platform: fakePlatform({
       os: "linux", hostname: "l7-key", free: 80e9,
       commands: {

@@ -486,6 +486,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       }
 
       // the Space\'s profile row, once: its name from the event that made the Space, and where people reach it
+      if (loaded.serving.get("identity") === "live") {
+        const made = (await spaceLog.read({ after: 0, limit: 200 })).find((e) => e.type === "space.created");
+        const name = made ? ((JSON.parse(new TextDecoder().decode(made.payload)) as { name?: string }).name ?? spaceId) : spaceId;
+        await hookRunner.call("identity.ensure_space", { name, github: (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env)) !== null }).catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "identity.space_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+      }
       if (loaded.serving.get("spaces") === "live") {
         const made = (await spaceLog.read({ after: 0, limit: 200 })).find((e) => e.type === "space.created");
         const name = made ? ((JSON.parse(new TextDecoder().decode(made.payload)) as { name?: string }).name ?? spaceId) : spaceId;
