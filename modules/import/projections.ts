@@ -63,7 +63,7 @@ const ready = new WeakSet<object>();
 /** Make sure the import tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT key FROM imports_key WHERE key = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  try { db.all("SELECT key FROM import_key WHERE key = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   ready.add(db);
 }
 
@@ -139,30 +139,30 @@ export function createSession(ctx: ImportCtx, source: string, tables: Table[]): 
   if (total > MAX_ROWS) raise(ctx, "validation.bad_input", `An import takes up to ${MAX_ROWS.toLocaleString("en-US")} rows at a time; this has ${total.toLocaleString("en-US")}.`, { rows: total });
   const s: Session = { importId: newId("imp", now), source, tables, dataHash: hashOf(stable(tables)), state: "staged", createdBy: me(ctx), createdAt: now, expiresAt: now + SESSION_TTL, created: 0, updated: 0, skipped: 0, failed: 0, ranAutomations: false, errors: [] };
   ctx.db.run(
-    "INSERT INTO imports_session (importId, source, tables, dataHash, state, createdBy, createdAt, expiresAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO import_session (importId, source, tables, dataHash, state, createdBy, createdAt, expiresAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     s.importId, s.source, JSON.stringify(s.tables), s.dataHash, s.state, s.createdBy, s.createdAt, s.expiresAt,
   );
   return s;
 }
 export function saveSession(db: Db, s: Session): void {
   db.run(
-    `UPDATE imports_session SET tables = ?, state = ?, type = ?, previewToken = ?, plan = ?, runId = ?, created = ?, updated = ?, skipped = ?, failed = ?, ranAutomations = ?, errors = ?, errorsFileId = ?
+    `UPDATE import_session SET tables = ?, state = ?, type = ?, previewToken = ?, plan = ?, runId = ?, created = ?, updated = ?, skipped = ?, failed = ?, ranAutomations = ?, errors = ?, errorsFileId = ?
      WHERE importId = ?`,
     JSON.stringify(s.tables), s.state, s.type ?? null, s.previewToken ?? null, s.plan ? JSON.stringify(s.plan) : null, s.runId ?? null, s.created, s.updated, s.skipped, s.failed, s.ranAutomations ? 1 : 0,
     JSON.stringify(s.errors), s.errorsFileId ?? null, s.importId,
   );
 }
 export function findSession(db: Db, importId: string): Session | undefined {
-  const r = (db.all("SELECT * FROM imports_session WHERE importId = ?", importId) as Row[])[0];
+  const r = (db.all("SELECT * FROM import_session WHERE importId = ?", importId) as Row[])[0];
   return r ? toSession(r) : undefined;
 }
 export function listSessions(db: Db, type?: string): Session[] {
   const rows = (type === undefined
-    ? db.all("SELECT * FROM imports_session ORDER BY createdAt DESC, importId DESC")
-    : db.all("SELECT * FROM imports_session WHERE type = ? ORDER BY createdAt DESC, importId DESC", type)) as Row[];
+    ? db.all("SELECT * FROM import_session ORDER BY createdAt DESC, importId DESC")
+    : db.all("SELECT * FROM import_session WHERE type = ? ORDER BY createdAt DESC, importId DESC", type)) as Row[];
   return rows.map(toSession);
 }
-export function dropSession(db: Db, importId: string): boolean { return db.run("DELETE FROM imports_session WHERE importId = ?", importId).changes > 0; }
+export function dropSession(db: Db, importId: string): boolean { return db.run("DELETE FROM import_session WHERE importId = ?", importId).changes > 0; }
 
 /** A staged import that is still good: it exists, has not expired and has not been written. */
 export function staged(ctx: ImportCtx, importId: string, code: ErrorCode): Session {
@@ -189,12 +189,12 @@ export function tableOf(ctx: ImportCtx, s: Session, name: string | undefined): T
 
 export function keyed<T>(db: Db, key: string | undefined, cap: string): T | undefined {
   if (key === undefined) return undefined;
-  const r = (db.all("SELECT result FROM imports_key WHERE key = ? AND cap = ?", key, cap) as Row[])[0];
+  const r = (db.all("SELECT result FROM import_key WHERE key = ? AND cap = ?", key, cap) as Row[])[0];
   return r ? parseJson<T | undefined>(r["result"], undefined) : undefined;
 }
 export function remember(db: Db, key: string | undefined, cap: string, result: unknown): void {
   if (key === undefined) return;
-  db.run("INSERT OR REPLACE INTO imports_key (key, cap, result) VALUES (?, ?, ?)", key, cap, JSON.stringify(result));
+  db.run("INSERT OR REPLACE INTO import_key (key, cap, result) VALUES (?, ?, ?)", key, cap, JSON.stringify(result));
 }
 
 export function page<T>(all: readonly T[], cursor?: string, limit?: number): { rows: T[]; next?: string; total: number } {

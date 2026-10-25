@@ -70,7 +70,7 @@ test("an import over the row limit is refused before anything is staged", async 
   const h = harness();
   const big = `n\n${Array.from({ length: 100_001 }, (_x, i) => i).join("\n")}`;
   await refused(run(h, "import.parse_csv", { text: big }), "validation.bad_input");
-  assert.equal(h.rows("SELECT COUNT(*) AS n FROM imports_session")[0]?.["n"], 0);
+  assert.equal(h.rows("SELECT COUNT(*) AS n FROM import_session")[0]?.["n"], 0);
 });
 
 // ---- Excel ----

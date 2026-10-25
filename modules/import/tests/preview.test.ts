@@ -24,8 +24,8 @@ test("preview does not write: no record, no record type, no Run, no event, and t
   assert.deepEqual(h.emitted, []);
   assert.equal(h.world.store.size, 0);
   assert.equal(JSON.stringify(h.world.types.get("contact")), fieldsBefore);
-  assert.equal(h.rows("SELECT state FROM imports_session WHERE importId = ?", id)[0]?.["state"], "staged");
-  assert.equal(h.rows("SELECT created FROM imports_session WHERE importId = ?", id)[0]?.["created"], 0);
+  assert.equal(h.rows("SELECT state FROM import_session WHERE importId = ?", id)[0]?.["state"], "staged");
+  assert.equal(h.rows("SELECT created FROM import_session WHERE importId = ?", id)[0]?.["created"], 0);
   assert.match(out.previewToken, /^pv_[0-9a-f]{32}$/);
 });
 

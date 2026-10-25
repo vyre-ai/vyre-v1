@@ -16,7 +16,7 @@ async function ready(h: Harness, text: string = CSV, over: Record<string, unknow
   const p = await run(h, "import.preview", { importId, type: "contact", mapping, ...over });
   return { importId, previewToken: p.previewToken };
 }
-const state = (h: Harness, id: string): Record<string, unknown> => h.rows("SELECT * FROM imports_session WHERE importId = ?", id)[0] as Record<string, unknown>;
+const state = (h: Harness, id: string): Record<string, unknown> => h.rows("SELECT * FROM import_session WHERE importId = ?", id)[0] as Record<string, unknown>;
 
 test("commit writes the previewed rows as an import Run and says what it did", async () => {
   const h = harness();
