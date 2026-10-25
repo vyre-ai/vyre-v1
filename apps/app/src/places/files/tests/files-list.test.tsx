@@ -34,7 +34,7 @@ test("screen: the tree lists Recent, Shared with me and Trash, then the folders 
   const out = tree();
   const order = ["Recent", "Shared with me", "Trash", "Personal", "Space", "Knowledge", "Memory", "Graph"].map((t) => at(out, `>${t}<`));
   assert.deepEqual([...order].sort((a, b) => a - b), order, "the virtual rows, the folder sections, then Knowledge");
-  for (const label of ["Daily", "Money", "Maya's reports", "Sales", "Billing", "Intake"]) assert.ok(has(out, `>${label}<`), label);
+  for (const label of ["Daily", "Money", "Maya's reports", "Sales", "Billing", "Intake"]) assert.ok(has(out, `>${label.replace("'", "&#x27;")}<`), label);
   assert.ok(!has(out, ">Proposals<"), "a closed folder keeps its children out of the list");
   assert.ok(has(out, 'data-testid="row-nav:recent"') && has(out, 'data-testid="row-nav:recent-trailing"') && has(out, 'data-testid="row-folder-fld_sales"'), "every row is a ui/Row with slots");
   assert.ok(has(out, 'data-testid="count-recent"') && has(out, ">14<"), "Recent counts the live files");
