@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-UI_08-root-font",
+      "route": "/m/P-UI_08",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='rootfont']",
+      "note": "Bare elements with no font set by any component: a Find input, a menu, a dialog, SVG text and a canvas label host read in the skin's sans; code reads in mono. Nothing is serif. The prototype side is its Home in the same skin (same type)."
+    }
+  ]
+}

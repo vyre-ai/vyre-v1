@@ -11,7 +11,8 @@ export const SCREENS = { tree: "files.tree", list: "files.list" } as const;
 
 /** Where the list is. */
 export type Where = { kind: "folder"; id: string | null } | { kind: "recent" } | { kind: "shared" } | { kind: "trash" } | { kind: "knowledge" };
-export type SortKey = "name" | "updated" | "size" | "kind";
+export type SortKey = "name" | "updated" | "by" | "size" | "kind";
+export type ViewMode = "list" | "grid";
 
 export interface FilesState {
   where: Where;
@@ -23,12 +24,14 @@ export interface FilesState {
   dir: "asc" | "desc";
   /** The line Quick Look shows, or null. */
   quickLook: string | null;
+  /** The list as rows with columns, or as a grid of tiles (P-L9e_01b). */
+  view: ViewMode;
 }
 
-export const INITIAL_STATE: FilesState = { where: { kind: "folder", id: null }, selection: [], anchor: null, sort: "name", dir: "asc", quickLook: null };
+export const INITIAL_STATE: FilesState = { where: { kind: "folder", id: null }, selection: [], anchor: null, sort: "name", dir: "asc", quickLook: null, view: "list" };
 
-export const SORT_LABEL: Record<SortKey, string> = { name: "Name", updated: "Date modified", size: "Size", kind: "Kind" };
-export const SORTS: readonly SortKey[] = ["name", "updated", "size", "kind"];
+export const SORT_LABEL: Record<SortKey, string> = { name: "Name", updated: "Date modified", by: "Made by", size: "Size", kind: "Kind" };
+export const SORTS: readonly SortKey[] = ["name", "updated", "by", "size", "kind"];
 
 // ---------------------------------------------------------------- lines
 
@@ -88,7 +91,7 @@ export function updatedText(at: number, now: number, offsetMin: number): string 
 }
 
 /** Folders first, then files, each by the chosen key. Name sorts without case and with numbers in order ("file 2" before "file 10"). */
-export function sortLines(lines: readonly Line[], key: SortKey, dir: "asc" | "desc"): Line[] {
+export function sortLines(lines: readonly Line[], key: SortKey, dir: "asc" | "desc", nameOf: (id: string) => string = (id) => id): Line[] {
   const sign = dir === "asc" ? 1 : -1;
   const cmp = (a: Line, b: Line): number => {
     if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
@@ -96,6 +99,7 @@ export function sortLines(lines: readonly Line[], key: SortKey, dir: "asc" | "de
     switch (key) {
       case "name": return sign * byName;
       case "updated": return sign * (a.updatedAt - b.updatedAt) || byName;
+      case "by": return sign * (a.updatedBy === null ? (b.updatedBy === null ? 0 : -1) : b.updatedBy === null ? 1 : nameOf(a.updatedBy).localeCompare(nameOf(b.updatedBy), "en", { sensitivity: "base" })) || byName;
       case "size": return sign * (a.size - b.size) || byName;
       case "kind": return sign * a.kind.localeCompare(b.kind) || byName;
     }
@@ -206,7 +210,8 @@ export type Action =
   | { type: "clear" }
   | { type: "sort"; key: SortKey }
   | { type: "dir"; dir: "asc" | "desc" }
-  | { type: "quicklook"; key: string | null };
+  | { type: "quicklook"; key: string | null }
+  | { type: "view"; view: ViewMode };
 
 export function reduce(s: FilesState, a: Action): FilesState {
   switch (a.type) {
@@ -219,6 +224,7 @@ export function reduce(s: FilesState, a: Action): FilesState {
     case "sort": return s.sort === a.key ? { ...s, dir: s.dir === "asc" ? "desc" : "asc" } : { ...s, sort: a.key, dir: a.key === "updated" ? "desc" : "asc" };
     case "dir": return { ...s, dir: a.dir };
     case "quicklook": return { ...s, quickLook: a.key };
+    case "view": return { ...s, view: a.view };
   }
 }
 

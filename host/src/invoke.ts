@@ -9,7 +9,7 @@ import { mintId } from "../../lib/ids.ts";
 import { mintEventId } from "./ids.ts";
 import type { Decision as KernelDecision, Req as AuthReq, ResourceRef } from "../../kernel/src/authorize/index.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
-import type { Ctx, Decision, EmitOpts, Logger } from "../../packages/contracts/src/ctx.ts";
+import type { CallOpts, Ctx, Decision, EmitOpts, Logger } from "../../packages/contracts/src/ctx.ts";
 import type { CapabilityDef, CapName, EventName, TraceContext } from "../../packages/contracts/src/types.ts";
 import { BindingError, resolveResource } from "./routes/resource.ts";
 import { codeForReason, fail, HostError, toVyreError } from "./routes/errors.ts";
@@ -51,6 +51,11 @@ export interface CtxSeed {
   approval?: string | undefined;
   /** contract version; latest when omitted */
   v?: number | undefined;
+  /**
+   * Gate acts already settled by a call further up this chain (set only by ctx.call, never by a caller): a handler runs only after its own Gate cleared (approved, or no Gate applied),
+   * so the provider calls it makes for the same act are part of that one approval. The Gate hook reads this (host/src/daemon/gate-nesting.ts).
+   */
+  clearedActs?: readonly string[] | undefined;
   /** caller class resolved by the gateway: 'anonymous' and 'pending' callers skip authorize (the capability declares `caller`) */
   preAuth?: boolean | undefined;
 }
@@ -69,9 +74,14 @@ export interface SpanRecord {
 
 export interface GateHook {
   /** Does a Gate apply to this call (capability `gate` with its `when`)? Null lets the call through. */
-  applies(cap: CapabilityDef, input: unknown, seed: CtxSeed): { act: string } | null;
+  applies(cap: CapabilityDef, input: unknown, seed: CtxSeed): { act: string } | null | Promise<{ act: string } | null>;
   /** Park the call as an approval task (4.6) and return its ids. */
   park(a: { cap: CapabilityDef; input: unknown; seed: CtxSeed; act: string; decisionId: string; traceId: string }): Promise<{ taskId: string; runId?: string }>;
+  /**
+   * Who a resumed call runs as: exactly the ask-time caller, whom it acted for, and its run and thread, read from the held row the token names. Never the approver's. Null refuses the resume.
+   * Without this method a call carrying onBehalfOf is refused.
+   */
+  resume?(a: { token: string; onBehalfOf: string; cap: CapabilityDef; input: unknown }): Promise<{ principal: PrincipalSeed; actingFor?: string | undefined; run?: string | undefined; thread?: string | undefined } | null>;
   /** Is the approval token valid for exactly this call? */
   verify(token: string, a: { cap: CapabilityDef; input: unknown; seed: CtxSeed }): boolean;
 }
@@ -223,7 +233,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     // the capability's own Gate (spec 2.14): fail closed when a Gate is declared and nothing can park the call
     if (c.gate && c.gate.act !== "none" && !approved) {
       if (!deps.gate) throw fail("internal.unavailable", traceId, { message: "Approvals are not available right now.", details: { cap: c.name, act: c.gate.act } });
-      const g = deps.gate.applies(c, input, seed);
+      const g = await deps.gate.applies(c, input, seed);
       if (g) {
         return park(c, input, seed, traceId, did(), g.act, null);
       }
@@ -290,8 +300,17 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         buf.push(ev as EventEnvelope);
         return ev;
       },
-      async call<C extends CapName>(name: C, callInput: unknown): Promise<unknown> {
-        const r = await invoke(name, callInput, { ...seed, depth: depth + 1, trace, approval: undefined, v: undefined });
+      async call<C extends CapName>(name: C, callInput: unknown, opts?: CallOpts): Promise<unknown> {
+        const cleared = c.gate && c.gate.act !== "none" ? [...(seed.clearedActs ?? []), c.gate.act] : seed.clearedActs;
+        // the Gate's resume path (contract change 5): only gate.release may re-invoke a parked call, and the Gate hook says who it runs as: exactly the ask-time caller, never the approver
+        const resume = c.name === "gate.release" && opts?.approvalToken !== undefined ? opts : undefined;
+        let base: CtxSeed = seed;
+        if (resume) {
+          const original = resume.onBehalfOf && deps.gate?.resume ? await deps.gate.resume({ token: resume.approvalToken!, onBehalfOf: resume.onBehalfOf, cap: deps.caps.get(name)!, input: callInput }) : null;
+          if (!original) throw fail("permission.no_grant", trace.traceId, { message: "That approval cannot resume this call.", details: { cap: name } });
+          base = { ...seed, principal: original.principal, actingFor: original.actingFor, run: original.run, thread: original.thread };
+        }
+        const r = await invoke(name, callInput, { ...base, depth: depth + 1, trace, approval: resume?.approvalToken, v: undefined, clearedActs: resume ? undefined : cleared });
         if (r.status === "held") throw fail("permission.needs_approval", trace.traceId, { details: { taskId: r.taskId, cap: name } });
         return r.output;
       },

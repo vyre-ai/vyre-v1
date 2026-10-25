@@ -1368,12 +1368,56 @@ export type AgentsRoleLineSetOut = {
   };
   undoVersionId: string;
 };
+export type AgentsRoutineDelegateIn = {
+  agentId: string;
+  routineId: string;
+  to?: {
+    kind: "person" | "agent";
+    id: string;
+  };
+  undo?: boolean;
+};
+export type AgentsRoutineDelegateOut = {
+  routine: {
+    routineId: string;
+    agentId: string;
+    title: string;
+    cron: string;
+    prompt: string;
+    channelId?: string;
+    enabled: boolean;
+    ownerId: string;
+    lastRunAt?: number;
+    nextRunAt?: number;
+  };
+  previousOwnerId: string;
+};
 export type AgentsRoutineDeleteIn = {
   agentId: string;
   routineId: string;
 };
 export type AgentsRoutineDeleteOut = {
   deleted: boolean;
+};
+export type AgentsRoutineRunNowIn = {
+  agentId: string;
+  routineId: string;
+  idempotencyKey: string;
+};
+export type AgentsRoutineRunNowOut = {
+  routine: {
+    routineId: string;
+    agentId: string;
+    title: string;
+    cron: string;
+    prompt: string;
+    channelId?: string;
+    enabled: boolean;
+    ownerId: string;
+    lastRunAt?: number;
+    nextRunAt?: number;
+  };
+  runId: string;
 };
 export type AgentsRoutineSaveIn = {
   agentId: string;
@@ -4071,6 +4115,20 @@ export type ChangesetsDiscardIn = {
 };
 export type ChangesetsDiscardOut = {
   discarded: boolean;
+};
+export type ChangesetsEditIn = {
+  changesetId: string;
+  path: string;
+  startLine: number;
+  removeLines: number;
+  lines: Array<string>;
+};
+export type ChangesetsEditOut = {
+  fileCount: number;
+  added: number;
+  removed: number;
+  proposedBy: string;
+  editedBy: string;
 };
 export type ChangesetsGetIn = {
   changesetId: string;
@@ -25995,7 +26053,9 @@ export interface CapMap {
   "agents.restore_version": { in: AgentsRestoreVersionIn; out: AgentsRestoreVersionOut };
   "agents.resume": { in: AgentsResumeIn; out: AgentsResumeOut };
   "agents.role_line.set": { in: AgentsRoleLineSetIn; out: AgentsRoleLineSetOut };
+  "agents.routine.delegate": { in: AgentsRoutineDelegateIn; out: AgentsRoutineDelegateOut };
   "agents.routine.delete": { in: AgentsRoutineDeleteIn; out: AgentsRoutineDeleteOut };
+  "agents.routine.run_now": { in: AgentsRoutineRunNowIn; out: AgentsRoutineRunNowOut };
   "agents.routine.save": { in: AgentsRoutineSaveIn; out: AgentsRoutineSaveOut };
   "agents.routines.list": { in: AgentsRoutinesListIn; out: AgentsRoutinesListOut };
   "agents.snapshot.take": { in: AgentsSnapshotTakeIn; out: AgentsSnapshotTakeOut };
@@ -26110,6 +26170,7 @@ export interface CapMap {
   "changesets.comments.list": { in: ChangesetsCommentsListIn; out: ChangesetsCommentsListOut };
   "changesets.diff": { in: ChangesetsDiffIn; out: ChangesetsDiffOut };
   "changesets.discard": { in: ChangesetsDiscardIn; out: ChangesetsDiscardOut };
+  "changesets.edit": { in: ChangesetsEditIn; out: ChangesetsEditOut };
   "changesets.get": { in: ChangesetsGetIn; out: ChangesetsGetOut };
   "changesets.list": { in: ChangesetsListIn; out: ChangesetsListOut };
   "changesets.request_changes": { in: ChangesetsRequestChangesIn; out: ChangesetsRequestChangesOut };
@@ -27556,6 +27617,20 @@ export type AgentRoutineChangedPayload = {
   routineId: string;
   op: "created" | "updated" | "deleted";
 };
+export type AgentRoutineDelegatedPayload = {
+  agentId: string;
+  routineId: string;
+  from: string;
+  to: string;
+  undo: boolean;
+};
+export type AgentRoutineRunStartedPayload = {
+  agentId: string;
+  routineId: string;
+  runId: string;
+  ownerId: string;
+  requestedBy: string;
+};
 export type AgentSuggestionProposedPayload = {
   suggestionId: string;
   agentId: string;
@@ -27852,6 +27927,14 @@ export type ChangesetDiscardedPayload = {
   changesetId: string;
   folderId: string;
   by: string;
+};
+export type ChangesetEditedPayload = {
+  changesetId: string;
+  folderId: string;
+  path: string;
+  proposedBy: string;
+  by: string;
+  fileCount: number;
 };
 export type ChangesetOpenedPayload = {
   changesetId: string;
@@ -30679,6 +30762,8 @@ export interface EventMap {
   "agent.restored": AgentRestoredPayload;
   "agent.resumed": AgentResumedPayload;
   "agent.routine_changed": AgentRoutineChangedPayload;
+  "agent.routine_delegated": AgentRoutineDelegatedPayload;
+  "agent.routine_run_started": AgentRoutineRunStartedPayload;
   "agent.suggestion_proposed": AgentSuggestionProposedPayload;
   "agent.suggestion_resolved": AgentSuggestionResolvedPayload;
   "agent.task_finished": AgentTaskFinishedPayload;
@@ -30739,6 +30824,7 @@ export interface EventMap {
   "changeset.approved": ChangesetApprovedPayload;
   "changeset.changes_requested": ChangesetChangesRequestedPayload;
   "changeset.discarded": ChangesetDiscardedPayload;
+  "changeset.edited": ChangesetEditedPayload;
   "changeset.opened": ChangesetOpenedPayload;
   "changeset.sent_for_review": ChangesetSentForReviewPayload;
   "changeset.updated": ChangesetUpdatedPayload;
