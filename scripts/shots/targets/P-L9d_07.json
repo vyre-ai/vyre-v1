@@ -20,6 +20,13 @@
       "proto": "records,schema,expand,{skin}",
       "waitFor": "[data-testid='field-clients-since']",
       "note": "The Clients card showing all ten fields (Show fewer at the foot) with its links leaving from their rows. The prototype side is the same card expanded."
+    },
+    {
+      "id": "P-L9d_07-record-types",
+      "route": "/m/P-L9d_07?part=types",
+      "proto": "records,recordtypes,{skin}",
+      "waitFor": "[data-testid='record-types-list']",
+      "note": "The read-only Record types list: a row per type with its record count and tag (Built in, Journey, Synced from an app, Site table), and the quiet note that types are managed in the Console. The prototype side is its Record types page in the same skin."
     }
   ]
 }
