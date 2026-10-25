@@ -1406,6 +1406,9 @@ export function createClient(transport: Transport) {
       digest: {
         collect: call("notifications.digest.collect", 1),
       },
+      kind: {
+        set_level: call("notifications.kind.set_level", 1),
+      },
       kinds: {
         list: call("notifications.kinds.list", 1),
       },
