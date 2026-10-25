@@ -108,5 +108,5 @@ test("l4 live: a booted daemon has no L4 module not set up, and a read and a wri
     const refused = await post(TEMP, "/v1/files/folder/create", { idempotencyKey: "l4-live-tess", parentId: personal.folderId, name: "Nope" });
     assert.equal(refused.status, 403, "a temp person cannot create folders");
     assert.equal(((await refused.json()) as { error?: { code?: string } }).error?.code, "permission.role_lacks_permission");
-  } finally { console.log("l4 live: stopping"); await d.stop(); console.log("l4 live: stopped"); }
+  } finally { console.log("l4 live: stopping"); await d.stop(); console.log("l4 live: stopped; open resources:", JSON.stringify(process.getActiveResourcesInfo().filter((r) => r !== "TTYWrap" && r !== "FSReqCallback"))); }
 });
