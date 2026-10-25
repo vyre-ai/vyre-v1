@@ -1,0 +1,31 @@
+{
+  "id": "m2",
+  "threadId": "t2",
+  "labelIds": [
+    "INBOX"
+  ],
+  "snippet": "hi",
+  "historyId": "1002",
+  "internalDate": "1760000100000",
+  "payload": {
+    "mimeType": "text/plain",
+    "headers": [
+      {
+        "name": "From",
+        "value": "lee@acme.test"
+      },
+      {
+        "name": "To",
+        "value": "maya@vyre.test"
+      },
+      {
+        "name": "Subject",
+        "value": "Quick one"
+      }
+    ],
+    "body": {
+      "size": 4,
+      "data": "WWVzLg"
+    }
+  }
+}

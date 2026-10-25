@@ -1,0 +1,56 @@
+// from vyre 0.6.9 relay/client/serverpair.js@ac3c665d5
+// @ts-check
+// A device with NO box of its own pairs a fresh server (the iPhone's first run): it holds only its claimed identity. It redeems the server's wink/2 code over the relay, shows the person the
+// three words, and the person at the server confirms them; the server then records this identity, with its name, as its owner. Everything runs on this device through the relay client:
+// no wink tool of a box of its own is called (src/real/pairing.ts calls those; a box-less device has none).
+//
+//   const r = await pairServer({ payload, owner: { id: "per_...", name: "Alex" }, name: "Alex's iPhone", crypto, keyStore, onWords: w => show(w) });
+//
+// payload   the text of the server's QR, or the long code pasted: `vyre://wink/2?t=<16-byte seed, base64url>&r=<relay wss url>`.
+// owner     the CLAIMED identity (id and name). The server shows the name to the person at the server and records it as the owner. If the server was installed with --pair-to, the server also
+//           needs `proof` (an identity-list key's signature, see core/wink/pairing.js proveIdentity); pass it as `proof: { eid, sig }`.
+// onWords   called once with the three words this device derived. Show them: the person at the server picks the same words from three sets, and only then is anything paired.
+// Resolves { paired: true, relay, route, box, device, name, owner }: persist relay, route, box and the key store; `connect()` from client.js then reaches the server as a paired device. Rejects with
+// an Error whose `code` is one of: no_pin (a release server needs owner.pin: the head and length of the app's own identity chain), owned_by_other (the server already belongs to another Vyre identity), not_hardware (a release server takes its owner's proof only from a phone's hardware-held key: "Pair this server from Vyre on your phone"), denied_no_proof (the app sent no identity proof), denied_wrong_proof (its key did not prove the claimed identity), cannot_check (the server could not reach the names directory to check who this is: try again), bad_code, bad_owner (the server refused the identity or its id), taken (the code was already used or expired), busy, denied (the person said no or picked other words), expired (nobody answered in time),
+// unreachable (the relay or the server did not answer), cancelled.
+import { pairTicket } from "./client.js";
+import { adoptServer } from "./finish.js";
+
+const b64u = (/** @type {string} */ s) => { try { const t = atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)); return Uint8Array.from(t, c => c.charCodeAt(0)); } catch { return null; } };
+const toB64u = (/** @type {Uint8Array} */ b) => { let s = ""; for (const x of b) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+const fail = (/** @type {string} */ code, /** @type {string} */ message) => Object.assign(new Error(message), { code });
+
+/** Reads a server's QR or long code: { seed, relay } or null. A phone's code (`k=phone`) is not a server's. @param {string} s @returns {{ seed: Uint8Array, relay: string } | null} */
+export function parseServerPayload(s) {
+  const m = /^vyre:\/\/wink\/2\?(.*)$/.exec(String(s).trim());
+  if (!m) return null;
+  const q = new URLSearchParams(m[1]);
+  if (q.get("k") === "phone") return null;
+  const seed = b64u(q.get("t") || "");
+  return seed && seed.length === 16 ? { seed, relay: q.get("r") || "" } : null;
+}
+
+/**
+ * @param {{ payload: string, owner: { id: string, name?: string, vyre?: string, pin?: { id: string, seq: number, head: string }, kind?: "identity" | "space" }, name?: string, proof?: { eid: string, sig: string },
+ *   deviceKind?: "phone" | "computer" | "web", keyStorage?: "hardware" | "software", signIdentity?: (message: Uint8Array) => Promise<{ eid: string, sig: string, esig?: string }> | { eid: string, sig: string, esig?: string }, crypto?: any, keyStore?: any, WebSocket?: any, fetch?: typeof fetch, relay?: string, about?: { kind?: "app" | "web", release?: string, manifest?: string }, presenceKey?: any, passkey?: any,
+ *   onWords?: (words: string) => void, signal?: AbortSignal, pollMs?: number, timeoutMs?: number }} o
+ */
+export async function pairServer(o) {
+  const scan = parseServerPayload(o.payload);
+  if (!scan) throw fail("bad_code", "That is not a Vyre server code. Scan the code on the server's screen, or paste the long code it printed.");
+  if (!o.owner || typeof o.owner.id !== "string" || !o.owner.id) throw fail("bad_code", "pairServer needs the identity that will own the server");
+  const relay = o.relay || scan.relay;
+  const ticket = toB64u(scan.seed);
+  const deviceName = o.name || "a device";
+  /** @type {any} */ let paired;
+  try {
+    paired = await pairTicket(scan.seed, { relay, name: deviceName, crypto: o.crypto, keyStore: o.keyStore, WebSocket: o.WebSocket, ...(o.fetch ? { fetch: o.fetch } : {}), ...(o.about ? { about: o.about } : {}), ...(o.presenceKey ? { presenceKey: o.presenceKey } : {}), ...(o.passkey ? { passkey: o.passkey } : {}) });
+  } catch (e) {
+    const code = /** @type {any} */ (e).code;
+    throw fail(code === "ticket_gone" || code === "ticket_used" || code === "expired" || code === "not_found" ? "taken" : code === "rate_limited" ? "busy" : "unreachable", /** @type {Error} */ (e).message);
+  }
+  if (!paired.pending) throw fail("unreachable", "The server did not ask who is pairing. Make a new code on the server and try again.");
+  return adoptServer(paired, { relay, ticket, typed: false, owner: o.owner, deviceName, ...(o.proof ? { proof: o.proof } : {}), ...(o.signIdentity ? { signIdentity: o.signIdentity } : {}),
+    ...(o.deviceKind ? { deviceKind: o.deviceKind } : {}), ...(o.keyStorage ? { keyStorage: o.keyStorage } : {}), ...(o.presenceKey && typeof o.presenceKey.signer === "string" ? { keySigner: o.presenceKey.signer } : {}), ...(o.presenceKey && typeof o.presenceKey.rp === "string" ? { keyRp: o.presenceKey.rp } : {}), crypto: o.crypto, keyStore: o.keyStore, WebSocket: o.WebSocket,
+    ...(o.onWords ? { onWords: o.onWords } : {}), ...(o.signal ? { signal: o.signal } : {}), ...(o.pollMs !== undefined ? { pollMs: o.pollMs } : {}), ...(o.timeoutMs !== undefined ? { timeoutMs: o.timeoutMs } : {}) });
+}

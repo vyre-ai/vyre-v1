@@ -1,0 +1,18 @@
+# Site builder: static with a build step (vite, astro, eleventy, create-react-app: a package.json build script and no start script).
+# Stage one installs and builds; stage two serves STATIC_DIR from the build output with Caddy on port 3000.
+ARG NODE_IMAGE=node:24-alpine
+FROM ${NODE_IMAGE} AS build
+WORKDIR /app
+ARG LOCK_HASH=none
+ARG INSTALL_CMD="npm install"
+ARG BUILD_CMD="npm run build"
+COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* .npmrc* ./
+RUN echo "lock ${LOCK_HASH}" > /dev/null && sh -c "$INSTALL_CMD"
+COPY . .
+RUN sh -c "$BUILD_CMD"
+
+FROM caddy:2-alpine
+ARG STATIC_DIR=dist
+COPY --from=build /app/${STATIC_DIR} /srv
+EXPOSE 3000
+CMD ["caddy", "file-server", "--root", "/srv", "--listen", ":3000"]

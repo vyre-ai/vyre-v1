@@ -19,7 +19,7 @@ Move a file to another folder (grants of the new folder apply, nothing is copied
 | HTTP | POST /v1/files/move |
 | MCP tool | files_move (files) |
 | CLI | none |
-| Emits | file.moved, file.renamed |
+| Emits | file.moved, file.renamed, changeset.opened, changeset.updated |
 
 ## Input
 
@@ -56,6 +56,7 @@ type Out = {
     thumb: boolean;
     holds: number;
   };
+  changesetId?: string;
 };
 ```
 
@@ -80,6 +81,7 @@ type Out = {
     "toFolderId": "fld_a1b2c3"
   },
   "output": {
+    "changesetId": "chg_a1b2c3",
     "file": {
       "createdAt": 1760000000000,
       "deletedAt": 1760000000000,

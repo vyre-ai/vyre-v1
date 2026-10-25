@@ -9345,6 +9345,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/files/knowledge",
+    "cap": "files.knowledge",
+    "v": 1,
+    "module": "files",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/files/lint",
     "cap": "files.lint",
     "v": 1,
@@ -9662,6 +9680,24 @@ export const routes: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "send"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/files/shared_with_me",
+    "cap": "files.shared_with_me",
+    "v": 1,
+    "module": "files",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
   },
   {
     "method": "POST",
@@ -11430,6 +11466,25 @@ export const routes: Route[] = [
     "method": "POST",
     "path": "/v1/google/docs/get_document",
     "cap": "google.docs.get_document",
+    "v": 1,
+    "module": "google",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/google/drive/changes_start_token",
+    "cap": "google.drive.changes_start_token",
     "v": 1,
     "module": "google",
     "effects": "read",
@@ -14053,6 +14108,24 @@ export const routes: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/invites/accept_create_account",
+    "cap": "invites.accept_create_account",
+    "v": 1,
+    "module": "identity",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
     "teamOnly": false,
     "gate": null
   },
@@ -16926,7 +16999,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "file",
+      "type": "note",
       "id": "/noteId"
     },
     "idempotency": "natural",
@@ -16945,7 +17018,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "manage",
     "resource": {
-      "type": "file",
+      "type": "note",
       "id": "/noteId"
     },
     "idempotency": "natural",
@@ -16982,7 +17055,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "file",
+      "type": "note",
       "id": "/noteId"
     },
     "idempotency": "natural",
@@ -19985,6 +20058,25 @@ export const routes: Route[] = [
     "resource": {
       "type": "record",
       "id": "/recordId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/records/view",
+    "cap": "records.view",
+    "v": 1,
+    "module": "records",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "record_type",
+      "id": "/type"
     },
     "idempotency": "natural",
     "risk": "low",

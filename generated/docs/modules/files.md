@@ -1,10 +1,10 @@
 # Files (files)
 
-Lane L4. Kind module. Status stub. Version 0.1.0.
+Lane L4. Kind module. Version 0.1.0.
 
 Requires: mounts.
 
-## Capabilities (61)
+## Capabilities (63)
 
 - [changesets.approve](../capabilities/changesets.approve.md): Approve and commit a changeset: 3-way merge on the recorded base, conflicts go to the reviewer; optionally push
 - [changesets.comments.add](../capabilities/changesets.comments.add.md): Add an inline comment to a changeset with @ people and agents (an @ agent answers in the thread)
@@ -15,7 +15,7 @@ Requires: mounts.
 - [changesets.list](../capabilities/changesets.list.md): List changesets, for example the ones waiting for me
 - [changesets.request_changes](../capabilities/changesets.request_changes.md): Send the reviewer comments back to the agent thread and keep the changeset open
 - [changesets.revert_change](../capabilities/changesets.revert_change.md): Revert a single change (one hunk or one file) inside a changeset
-- [changesets.review_externally](../capabilities/changesets.review_externally.md): Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token
+- [changesets.review_externally](../capabilities/changesets.review_externally.md): Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token; returns a one-time review link (the token is in the link, shown once, never logged)
 - [files.comments.add](../capabilities/files.comments.add.md): Comment on a file, a range, a cell, a page or an area (area comments are numbered pins); @ people and agents
 - [files.comments.delete](../capabilities/files.comments.delete.md): Delete a comment
 - [files.comments.list](../capabilities/files.comments.list.md): List comments and numbered pins on a file; agents read pins to see what a person marked
@@ -35,6 +35,7 @@ Requires: mounts.
 - [files.folder.settings](../capabilities/files.folder.settings.md): Change Review changes, sensitivity label or the working-folder flags of a folder
 - [files.get](../capabilities/files.get.md): Read the metadata of one file
 - [files.health](../capabilities/files.health.md): Blob store and tree health: free space, orphaned blobs, index lag
+- [files.knowledge](../capabilities/files.knowledge.md): The Knowledge section of the tree: the knowledge folders and files the caller may read, plus the Memory and Graph entries
 - [files.lint](../capabilities/files.lint.md): Lint a guidance file: line counts against the limits, Inherits VYRE.md, Override lines, secret scan, agent.toml schema, routine prompt files, handoff names, repeated facts
 - [files.list](../capabilities/files.list.md): List files and folders in a folder or a section (Personal, Shared with me, Space)
 - [files.markup.get](../capabilities/files.markup.get.md): Read freehand markup (Draw) saved on an image or page
@@ -52,6 +53,7 @@ Requires: mounts.
 - [files.save](../capabilities/files.save.md): Save a guidance file (VYRE.md, AGENT.md, agent.toml, routine prompts): snapshot first, lint, then commit as a version
 - [files.share](../capabilities/files.share.md): Share a file with a person, group, role or agent at View, Use, Edit or Manage (folders use access.share)
 - [files.share_external](../capabilities/files.share_external.md): Make a view-only link to a file for someone outside the Space, with an expiry
+- [files.shared_with_me](../capabilities/files.shared_with_me.md): Files and folders other people shared with the caller, newest share first (the Shared with me section of the tree)
 - [files.trash.empty](../capabilities/files.trash.empty.md): Delete everything in Trash that the caller may delete
 - [files.trash.list](../capabilities/files.trash.list.md): Files and folders in Trash (30 days)
 - [files.tree](../capabilities/files.tree.md): The roots of the file tree: Agents, Projects, People, Channels, shared knowledge, Agent template, Deployments, GitHub, plus Recent, Shared with me, Trash and Knowledge

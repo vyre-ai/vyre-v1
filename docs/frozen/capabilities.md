@@ -4,8 +4,8 @@ Review of the merged capability registry at the F11 freeze. `packages/contracts/
 
 ## Frozen values
 
-Registry hash: 7c371eb2b5e3df97e07f92e72f5bb053763bca8ad9528880b65c99ce4857b065
-Capabilities: 1486
+Registry hash: 89f94d19c39422d2b0021e783b5d167f1c921ed5df46dcf96ce690e628b965f1
+Capabilities: 1491
 Events: 598
 Registry modules: 80
 Host modules: 72
@@ -28,11 +28,11 @@ Selection rule: capabilities of the lane (owner of the module) sorted by name, n
 |---|---|---|
 | L1 | 37 | 4 |
 | L2 | 261 | 27 |
-| L3 | 151 | 16 |
-| L4 | 105 | 11 |
-| L5 | 343 | 35 |
+| L3 | 152 | 16 |
+| L4 | 107 | 11 |
+| L5 | 344 | 35 |
 | L6 | 161 | 17 |
-| L7a | 217 | 22 |
+| L7a | 218 | 22 |
 | L7b | 78 | 8 |
 | L8 | 133 | 14 |
 
@@ -40,15 +40,15 @@ L1: conflicts.assist, conflicts.resolve, search.recent.list, sync.endpoints
 
 L2: agents.builtin_skills.list, agents.pause, agents.suggestion.accept, agents.visibility.set, channels.leave, chat.approve_plan, chat.messages.list, chat.question.ask, chat.transcript.summary, computers.chrome.net, computers.chrome.status, computers.files.write, computers.recording.process, computers.screen.type, computers.timeline_step, engine.incident.open, engine.policy.get, engine.runtime.opt_in, engine.subscription_share.set, engine.turn.start, mcp.session.open, memory.counts, memory.find_by_subject, memory.pointer, terminal.attach, terminal.read, threads.list
 
-L3: connections.complete_auth, connections.update, connectors.outbox.list, hubspot.health, import.parse_csv, projects.file_chat, projects.overview, records.as_of, records.get, records.release_hold, schema.apply, schema.layout.set, sources.delete, sources.list, sync_types.get, sync_types.review_schema
+L3: connections.complete_auth, connections.update, connectors.outbox.retry, hubspot.health, import.parse_excel, projects.file_chat, projects.pin_file, records.as_of, records.history, records.restore, schema.apply, schema.layout.set, sources.delete, sources.list, sync_types.get, sync_types.review_schema
 
-L4: changesets.approve, changesets.review_externally, files.copy, files.folder.rename, files.move, files.revoke_external, files.write, git.pull, mounts.lag, previews.health, runbooks.set_target
+L4: changesets.approve, changesets.review_externally, files.copy, files.folder.restore, files.markup.save, files.revoke_external, files.viewer_data, git.pull, mounts.get, previews.health, runbooks.set_target
 
-L5: calendar.availability, calendar.ingest_event, contacts.address.add, contacts.preferences.set, github.app.get, github.issue.update, github.pull_request.merge, google.calendar.get_event, google.drive.copy_file, google.drive.trash_file, google.gmail.create_draft, google.gmail.send_message, google.receive_push, inbox.link_message, inbox.thread, mail.domain.remove, mail.mailbox.get, mail.route.list, mailgun.domains.get, mailgun.send_email, meetings.set_summary, ms.calendar.get_schedule, ms.consent.policy_snippet, ms.drive.list_items, ms.mail.list_messages, ms.teams.recordings.list_recordings, resend.health, stripe.health, stripe.refund.create, telephony.dial, telephony.number.import, telephony.registration.refresh, twilio.a2p.status, twilio.number.search, zoom.meetings.delete
+L5: calendar.availability, calendar.ingest_event, contacts.address.add, contacts.preferences.set, github.app.get, github.issue.update, github.pull_request.merge, google.calendar.get_event, google.drive.changes_start_token, google.drive.stop_watch, google.dwd.status, google.gmail.send_message, google.meet.subscribe, inbox.following, inbox.send_options, mail.domain.list, mail.mailbox.get, mail.route.list, mailgun.domains.delete, mailgun.routes.list, meetings.set_state, ms.calendar.get_schedule, ms.consent.policy_snippet, ms.drive.list_items, ms.mail.list_folders, ms.teams.recordings.get_transcript, resend.health, stripe.health, stripe.refund.create, telephony.dial, telephony.number.get, telephony.registration.refresh, twilio.a2p.status, twilio.number.search, zoom.meetings.delete
 
 L6: automations.alerts.get, automations.groups.delete, automations.restore_version, automations.validate, gate.acts.list, home.activity, journeys.check_limits, journeys.rules.set, notifications.delegate.resolve, notifications.push.unregister, runs.preview_undo, runs.undo, scheduler.pause, scheduler.waits.register, tasks.escalate, tasks.release, webhooks.delete
 
-L7a: access.actors.create, access.groups.add_member, access.labels.set, access.request, access.roles.assign, access.unshare, audit.list, devices.revoke, folders.move, governance.holds.place, governance.tombstones.reapply, identity.passkey_remove, identity.totp_begin, members.invites.preview, members.sso.set, providers.subscription_start, settings.pages, spaces.matrix, vault.export_env, vault.import, vault.item.reveal, vault.requests.decline
+L7a: access.actors.create, access.groups.add_member, access.labels.set, access.request, access.roles.assign, access.unshare, audit.list, devices.revoke, folders.place, governance.holds.release, identity.change_password, identity.passkey_remove, identity.totp_begin, members.invites.list, members.sso.remove, providers.subscription_start, settings.pages, spaces.matrix, vault.export_env, vault.import, vault.item.reveal, vault.requests.decline
 
 L7b: backup.config_get, backup.verify, console.nav, health.history, logs.client_upload, logs.trace, network.server_remove, reports.send_to_vyre
 

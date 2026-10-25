@@ -183,7 +183,7 @@ function handlersFor(spec: SeedSpace, ownerId: string): Record<string, Handler> 
     if (records.has(id)) throw fail("validation.duplicate", ctx.trace.traceId, { details: { recordId: id } });
     records.add(id);
     const at = ctx.now();
-    ctx.emit("record.created", `record/${id}`, { recordId: id, type, fields: Object.keys(fields) });
+    ctx.emit("record.created", `record/${id}`, { recordId: id, type, fields: { ...fields } });
     return { record: { id, type, version: 1, label: 1, fields, createdAt: at, updatedAt: at, holds: 0 } };
   };
 

@@ -723,6 +723,7 @@ export function stubs(ctx: CallCtx) {
       },
       get: call("files.get"),
       health: call("files.health"),
+      knowledge: call("files.knowledge"),
       lint: call("files.lint"),
       list: call("files.list"),
       markup: {
@@ -742,6 +743,7 @@ export function stubs(ctx: CallCtx) {
       save: call("files.save"),
       share: call("files.share"),
       share_external: call("files.share_external"),
+      shared_with_me: call("files.shared_with_me"),
       trash: {
         empty: call("files.trash.empty"),
         list: call("files.trash.list"),
@@ -881,6 +883,7 @@ export function stubs(ctx: CallCtx) {
         get_document: call("google.docs.get_document"),
       },
       drive: {
+        changes_start_token: call("google.drive.changes_start_token"),
         copy_file: call("google.drive.copy_file"),
         create_folder: call("google.drive.create_folder"),
         download_file: call("google.drive.download_file"),
@@ -1056,6 +1059,9 @@ export function stubs(ctx: CallCtx) {
       thread: call("inbox.thread"),
       unmatch: call("inbox.unmatch"),
       unmatched: call("inbox.unmatched"),
+    },
+    invites: {
+      accept_create_account: call("invites.accept_create_account"),
     },
     journeys: {
       advance: call("journeys.advance"),
@@ -1508,6 +1514,7 @@ export function stubs(ctx: CallCtx) {
         review: call("records.values.review"),
       },
       versions: call("records.versions"),
+      view: call("records.view"),
     },
     reports: {
       get: call("reports.get"),

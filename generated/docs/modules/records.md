@@ -1,10 +1,10 @@
 # Records (records)
 
-Lane L3. Kind module. Status stub. Version 0.1.0.
+Lane L3. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (28)
+## Capabilities (29)
 
 - [records.as_of](../capabilities/records.as_of.md): Read a record as it was at a time
 - [records.bulk_upsert](../capabilities/records.bulk_upsert.md): Create or update many records by match key, quietly (no automations unless asked)
@@ -34,17 +34,18 @@ Requires: nothing.
 - [records.values.pending](../capabilities/records.values.pending.md): Needs review: agent-filled values waiting for a reviewer, each with its source and time (counts into My work for the field reviewer role)
 - [records.values.review](../capabilities/records.values.review.md): Accept or reject an agent-filled value; an accepted value counts, a rejected one is dropped and stays in history
 - [records.versions](../capabilities/records.versions.md): List versions of a record (One History)
+- [records.view](../capabilities/records.view.md): Read a saved view of a record type resolved for the table: the view definition and its rows with the saved filter, sort and group applied, a page at a time
 
 ## Events (11)
 
 - [field.revealed](../events/field.revealed.md): A sealed field was revealed to one actor (audited)
-- [record.created](../events/record.created.md): A record was created
-- [record.deleted](../events/record.deleted.md): A record moved to Trash
+- [record.created](../events/record.created.md): A record was created; fields carries the initial values (sealed and Restricted values as ciphertext only)
+- [record.deleted](../events/record.deleted.md): A record moved to Trash; prev carries the values it held (sealed and Restricted values as ciphertext only)
 - [record.gaps_found](../events/record.gaps_found.md): A gap-check rule found missing or stale fields on a record
 - [record.held](../events/record.held.md): A hold was placed on a record
 - [record.hold_released](../events/record.hold_released.md): A hold was released
 - [record.merged](../events/record.merged.md): Two records were merged into a survivor
 - [record.restored](../events/record.restored.md): A record came back from Trash
-- [record.updated](../events/record.updated.md): Fields of a record changed (values never included for sealed fields)
+- [record.updated](../events/record.updated.md): Fields of a record changed; fields carries the new values and prev the old ones (sealed and Restricted values as ciphertext only)
 - [record.value_proposed](../events/record.value_proposed.md): An agent or automation filled a value; it waits for review or counts straight away, per field
 - [record.value_reviewed](../events/record.value_reviewed.md): A reviewer accepted or rejected an agent-filled value

@@ -1,0 +1,81 @@
+{
+  "id": "m1",
+  "threadId": "t1",
+  "labelIds": [
+    "INBOX",
+    "UNREAD"
+  ],
+  "snippet": "Can we talk?",
+  "historyId": "1001",
+  "internalDate": "1760000000000",
+  "payload": {
+    "mimeType": "multipart/mixed",
+    "headers": [
+      {
+        "name": "From",
+        "value": "Pat Lee <Pat@Acme.test>"
+      },
+      {
+        "name": "To",
+        "value": "\"Vyre, Maya\" <maya@vyre.test>, sam@vyre.test"
+      },
+      {
+        "name": "Cc",
+        "value": "kim@acme.test"
+      },
+      {
+        "name": "Subject",
+        "value": "Can we talk?"
+      },
+      {
+        "name": "Message-ID",
+        "value": "<abc123@acme.test>"
+      },
+      {
+        "name": "In-Reply-To",
+        "value": "<prev@vyre.test>"
+      },
+      {
+        "name": "References",
+        "value": "<first@vyre.test> <prev@vyre.test>"
+      }
+    ],
+    "parts": [
+      {
+        "mimeType": "multipart/alternative",
+        "parts": [
+          {
+            "mimeType": "text/plain",
+            "body": {
+              "size": 12,
+              "data": "SGVsbG8gTWF5YSwg"
+            }
+          },
+          {
+            "mimeType": "text/html",
+            "body": {
+              "size": 20,
+              "data": "PHA-SGVsbG8gTWF5YSw8L3A-"
+            }
+          }
+        ]
+      },
+      {
+        "mimeType": "application/pdf",
+        "filename": "terms.pdf",
+        "body": {
+          "attachmentId": "att1",
+          "size": 5
+        }
+      },
+      {
+        "mimeType": "application/zip",
+        "filename": "huge.zip",
+        "body": {
+          "attachmentId": "att2",
+          "size": 99999999
+        }
+      }
+    ]
+  }
+}

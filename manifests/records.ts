@@ -28,9 +28,9 @@ export default defineManifest({
   title: 'Records',
   owner: 'L3',
   events: [
-    ev('record.created', 'A record was created', { p: { recordId: id.record, type: id.recordType, fields: t.arr(t.str()) }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A record is created', fields: ['/type'] } }),
-    ev('record.updated', 'Fields of a record changed (values never included for sealed fields)', { p: { recordId: id.record, type: id.recordType, fields: t.arr(t.str()), version: t.int() }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A record changes', fields: ['/type', '/fields'] } }),
-    ev('record.deleted', 'A record moved to Trash', { p: { recordId: id.record, type: id.recordType }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A record is deleted' } }),
+    ev('record.created', 'A record was created; fields carries the initial values (sealed and Restricted values as ciphertext only)', { p: { recordId: id.record, type: id.recordType, fields: t.rec(t.json()) }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A record is created', fields: ['/type'] } }),
+    ev('record.updated', 'Fields of a record changed; fields carries the new values and prev the old ones (sealed and Restricted values as ciphertext only)', { p: { recordId: id.record, type: id.recordType, fields: t.rec(t.json()), prev: t.rec(t.json()), version: t.int() }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A record changes', fields: ['/type', '/fields'] } }),
+    ev('record.deleted', 'A record moved to Trash; prev carries the values it held (sealed and Restricted values as ciphertext only)', { p: { recordId: id.record, type: id.recordType, prev: t.rec(t.json()) }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A record is deleted' } }),
     ev('record.restored', 'A record came back from Trash', { p: { recordId: id.record, type: id.recordType }, subject: ['record', '/recordId'], label: 'subject' }),
     ev('record.merged', 'Two records were merged into a survivor', { p: { survivorId: id.record, mergedId: id.record, type: id.recordType }, subject: ['record', '/survivorId'], label: 'subject' }),
     ev('record.held', 'A hold was placed on a record', { p: { recordId: id.record, type: id.recordType, reason: t.str() }, subject: ['record', '/recordId'], label: 'subject' }),
@@ -49,6 +49,17 @@ export default defineManifest({
     read('records.query', 'Query rows of a record type with filter, sort, group and window', {
       in: { type: id.recordType, ...viewSpec, ...pageIn }, out: { rows: t.arr(recordRow), ...pageOut },
       on: ['record_type', '/type'], tool: 'records', label: 'filter', cli: 'vyre records query',
+    }),
+    read('records.view', 'Read a saved view of a record type resolved for the table: the view definition and its rows with the saved filter, sort and group applied, a page at a time', {
+      in: { type: id.recordType, viewId: t.id('viw'), ...pageIn },
+      out: {
+        view: t.obj({
+          viewId: t.id('viw'), type: id.recordType, kind: t.str({ examples: ['table'] }), title: t.str(), shared: t.bool(), filter: t.opt(t.json()), sort: t.opt(t.json()), group: t.opt(t.str()),
+          hidden: t.opt(t.arr(t.str())), colorRules: t.opt(t.json()), config: t.opt(t.rec()), updatedAt: t.ts(),
+        }),
+        rows: t.arr(recordRow), ...pageOut,
+      },
+      on: ['record_type', '/type'], tool: 'records', label: 'filter', errors: ['validation.not_found'],
     }),
     read('records.search', 'Search rows by text across a record type', { in: { type: id.recordType, q: t.str(), ...pageIn }, out: { rows: t.arr(recordRow), ...pageOut }, on: ['record_type', '/type'], tool: 'records', label: 'filter' }),
     read('records.changes', 'Change feed of a record type since a sequence number (RecordStore.changes)', { in: { type: id.recordType, since: t.int({ minimum: 0 }), limit: t.opt(t.int()) }, out: { changes: t.arr(t.obj({ seq: t.int(), id: id.record, op: t.enm('upsert', 'patch', 'delete') })), next: t.int() }, on: ['record_type', '/type'] }),

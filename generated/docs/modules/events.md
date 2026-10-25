@@ -1,6 +1,6 @@
 # Events and webhooks (events)
 
-Lane L6. Kind module. Status stub. Version 0.1.0.
+Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 

@@ -52,6 +52,7 @@ type Out = {
     campaignId?: string;
     followed: boolean;
     alertOnReplies: boolean;
+    starred?: boolean;
   };
 };
 ```
@@ -92,6 +93,7 @@ type Out = {
       ],
       "needsMatch": true,
       "ownerId": "usr_a1b2c3",
+      "starred": true,
       "unreadCount": 1
     },
     "recordId": "rec_a1b2c3"
