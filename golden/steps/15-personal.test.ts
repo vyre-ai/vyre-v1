@@ -1,5 +1,6 @@
 // P-L11_08: golden flow 15 on a booted daemon, through the gateway with real tokens (rule 27). The modules the flow needs are flipped live in a temporary code root (see 02-space.ts).
 // A flow with GAPS (one line per owning packet, in 15-personal-space-relay.ts) is a node:test todo: it runs and prints its trail without failing the run. The steps that already work are asserted in the first test.
+// Run: all three flows 7, 8 and 15 are linked from one green run on the packet.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { checkSequence } from "../harness/index.ts";

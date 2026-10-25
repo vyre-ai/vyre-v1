@@ -1,5 +1,6 @@
 // P-L11_08: golden flow 8 on a booted daemon, through the gateway with real tokens (rule 27). The modules the flow needs are flipped live in a temporary code root (see 02-space.ts).
 // The flow itself passes for real. The approver path (a promotion that waits for the layer's owner) is a todo with its named gap.
+// Run: all three flows 7, 8 and 15 are linked from one green run on the packet.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { checkSequence } from "../harness/index.ts";
