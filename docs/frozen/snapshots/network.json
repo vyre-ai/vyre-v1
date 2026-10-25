@@ -1,0 +1,24 @@
+{
+  "module": "network",
+  "capabilities": {
+    "network.certificate_renew@1": "b20cd6dd802ddc36bcbe4a10e38519880ce04d9b687ce8cdfd4e4948cddba970",
+    "network.domain_set@1": "078b5dae920c20f3fc14ac267ca867a4bf7d2c8e0244fa6bcde7b4f5ddc667ae",
+    "network.endpoints@1": "d14864b06ed3ef9a431aeff2f41690d521185bd56a2ecd6ea15b57468ac68480",
+    "network.health@1": "7415371db851b2abaae68fde1cec28e3daa043b5a25cd06149b31c7c37a281e0",
+    "network.ingress_check@1": "14a29ebecbe0947b75256911609068f0118264b9723a3c881f5238e8351ebf18",
+    "network.public_hostnames@1": "f392e8154b791d05720e0697f0a33a1430df58db8ae071106f48cdd4a09ef908",
+    "network.relay_set@1": "a98a817bbbec2e68d903874abe579db2504286572e7f7d7f09b5c613705bb37c",
+    "network.server_join_code@1": "2dc93168e083e5629df8c6bb80cc3ade0bab3b4e7454ac715b9c399613175439",
+    "network.server_reconnect@1": "f7b9ddfd6e4fef7af1dfbac9dad76b5a8bfbb725f7d783538193b8dbde27b1b0",
+    "network.server_remove@1": "1b570da2cfa26c3884c023475577b277277d7ed87457a9709116b88e1268ef55",
+    "network.servers@1": "07a7f93200f8b612f0230487521f68446d5282d4382292324b7b272f65a6da20",
+    "network.status@1": "8b9ddaa13a34868856261c2a121834540d895030e3eeaf883c64b8307cdecbe5"
+  },
+  "events": {
+    "network.certificate_failed": "167bc518c77e825be5e0ac8034490952c537bf6b1d6418b6dff5913fefd51720",
+    "network.certificate_renewed": "fa2d777ca288a76c05fb1324732e6227ab2a569cee37175ec4372b3bb5be0ac4",
+    "network.domain_changed": "c90b075b2959a787407497d407f494ac241a09e056d5b723a2e3683506762980",
+    "network.server_added": "bc2a513b72910cfd95ba7f89b4dcb4cf001800d040fd7499aa995cefac81aef1",
+    "network.server_removed": "a30e57963b2648c75aa2f1a0a69f1bf55aa35d17305f2b514f054c58f843f377"
+  }
+}

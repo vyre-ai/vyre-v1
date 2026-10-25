@@ -20,7 +20,7 @@ import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { isSealedRef } from "../../../kernel/src/store/values.ts";
 import { StoreError } from "../../../kernel/src/store/types.ts";
 import type { FieldDef, Filter, Store, StoredRecord, TypeDef } from "../../../kernel/src/store/types.ts";
-import { RecordsError, mapError, toRow } from "./write.ts";
+import { RecordsError, fail, mapError, toRow } from "./write.ts";
 import type { RecordRow, WriteCtx } from "./write.ts";
 import { MAX_LIMIT, runQuery } from "./query.ts";
 import type { ViewSpec } from "./query.ts";
@@ -32,7 +32,11 @@ export const MAX_UPSERT_ROWS = 10_000;
 export const XLSX_MAX_ROWS = 1_048_576;
 
 export type MergeCtx = Pick<WriteCtx, "trace" | "emit"> & { actor?: string };
-export type ExportCtx = Pick<WriteCtx, "trace"> & { actor?: string };
+export type ExportCtx = Pick<WriteCtx, "trace"> & {
+  actor?: string;
+  /** The host decision for the caller on one record. An export writes a file, which the row filter on the way out cannot reach, so the rows are checked here (the label against the clearance lives in it). */
+  authorize?: (action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }) => { effect: "allow" | "deny" | "hold"; reason?: string };
+};
 
 export interface MergeDeps {
   store: Store;
@@ -45,7 +49,7 @@ export interface MergeDeps {
 export interface MergeHandlers {
   "records.merge"(ctx: MergeCtx, input: { type: string; survivorId: string; mergedIds: string[]; picks: Record<string, string> }): Promise<{ record: RecordRow; undoUntil: number }>;
   "records.bulk_upsert"(ctx: MergeCtx, input: { type: string; rows: Record<string, unknown>[]; match: string[]; runAutomations?: boolean }): Promise<{ created: number; updated: number; skipped: number }>;
-  "records.export"(ctx: ExportCtx, input: { type: string; format: "csv" | "xlsx" } & ViewSpec): Promise<{ fileId: string }>;
+  "records.export"(ctx: ExportCtx, input: { type: string; format: "csv" | "xlsx"; recordIds?: string[] } & ViewSpec): Promise<{ fileId: string }>;
 }
 
 function bad(ctx: Pick<WriteCtx, "trace">, message: string): never {
@@ -522,10 +526,12 @@ export function toXlsx(sheet: string, columns: readonly FieldDef[], rows: readon
   ]);
 }
 
-async function exportRows(deps: MergeDeps, ctx: ExportCtx, input: { type: string; format: "csv" | "xlsx" } & ViewSpec): Promise<{ fileId: string }> {
+async function exportRows(deps: MergeDeps, ctx: ExportCtx, input: { type: string; format: "csv" | "xlsx"; recordIds?: string[] } & ViewSpec): Promise<{ fileId: string }> {
   const { store, tx } = deps;
   ensure(tx);
   if (!deps.putFile) throw new Error("records.export needs a file store: createMergeHandlers was given no putFile");
+  // fail closed: a file cannot be filtered after it is written, so with no way to ask what the caller may read, nothing is exported
+  if (!ctx.authorize) fail(ctx as WriteCtx, "permission.no_grant", "This export cannot check what you may read, so it exports nothing.");
   const def = await needType(store, input.type);
   const wanted = input.fields && input.fields.length ? input.fields : def.fields.map((f) => f.name);
   const byName = new Map(def.fields.map((f) => [f.name, f]));
@@ -537,17 +543,22 @@ async function exportRows(deps: MergeDeps, ctx: ExportCtx, input: { type: string
   }
   const cap = input.format === "xlsx" ? XLSX_MAX_ROWS - 1 : Number.MAX_SAFE_INTEGER;
   const want = input.limit ?? Number.MAX_SAFE_INTEGER;
+  // a hand-picked selection: only these ids, taken from what the view returns, so an id the caller may not read (or that is gone) simply is not there
+  const picked = input.recordIds === undefined ? null : new Set(input.recordIds);
   const rows: Record<string, unknown>[] = [];
   const first: ViewSpec = { ...(input.filter !== undefined ? { filter: input.filter } : {}), ...(input.sort ? { sort: input.sort } : {}), ...(input.offset ? { offset: input.offset } : {}), limit: MAX_LIMIT };
   let cursor: string | undefined;
   for (;;) {
     const res = runQuery(tx, input.type, { ...first, ...(cursor ? { cursor } : {}) });
     for (const r of res.rows) {
+      if (picked !== null && !picked.has(r.id)) continue;
+      // only what the caller may read goes into the file, picked or not
+      if (ctx.authorize({ perm: null, level: "view" }, { type: "record", id: r.id }).effect !== "allow") continue;
       if (rows.length >= want) break;
       if (rows.length >= cap) bad(ctx, "Excel holds at most 1,048,575 data rows: export CSV or narrow the view");
       rows.push(r.fields);
     }
-    if (!res.next || rows.length >= want) break;
+    if (!res.next || rows.length >= want || (picked !== null && picked.size === 0)) break;
     cursor = res.next;
   }
   const stamp = new Date((deps.now ?? Date.now)()).toISOString().slice(0, 10);

@@ -6,13 +6,13 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ChatRightPane, ChatRightPaneLoading } from "./ChatRightPane.tsx";
 import { RightPaneDataProvider } from "./data.tsx";
-import { FilesTab } from "./FilesTab.tsx";
+import { FilesTab, treeOrder } from "./FilesTab.tsx";
 import {
   accept, correct, deleteRoutine, duplicateRoutine, provision, reject, removeFact, renameRoutine, saveInstructions, setRoutine, signOut, takeOver, giveBack, wake,
 } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import {
-  CURRENT, TABS, agoLabel, backTo, changeByAsking, computerView, cronWords, enter, factNote, filePath, folderEntries, formatSize, groupThreads, isDefaultFilter, nextLabel,
+  CURRENT, TABS, agoLabel, parseMap, chatWhen, workedNote, isWatcher, shortSchedule, nextDay, learnedWhen, MAP_LIMIT, backTo, changeByAsking, computerView, cronWords, enter, factNote, filePath, folderEntries, formatSize, groupThreads, isDefaultFilter, nextLabel,
   routineFile, routineNote, showingLine, sortRoutines, splitFacts, statusFor,
 } from "./model.ts";
 import type { Fact, Routine, TabKey } from "./model.ts";
@@ -105,19 +105,30 @@ test("Computer, in a Personal Space, says Needs a Team Space; an agent without a
 
 test("Threads: the threads it worked in, its helpers (running first), and its own chats; the open chat is selected", () => {
   const out = html(createSample(), "threads");
-  inOrder(out, ["Threads it worked in", "#intake · Elena Rivera referral", "#billing · Retainer question", ">Helpers<", "County mirrors", "Firms 1–3", "Its chats", "Rivera intake", "Weekly lead report", "Lead follow-ups"]);
-  assert.ok(has(out, "Working now") && has(out, "Started 32 min ago") && has(out, "Started Yesterday"));
+  inOrder(out, ["Threads it worked in", "#intake · Omar Haddad", ">Helpers<", "County mirrors", "Firms 1–3", "Its chats", "Rivera intake", "Weekly lead report"]);
+  assert.ok(has(out, "Working now") && has(out, "5 replies · last 9:34"));
+  assert.ok(has(out, ">9:31<") && has(out, ">Mon<"), "its chats say when as the prototype does: the clock time today, the weekday this week");
+  assert.ok(!has(out, "Lead follow-ups") && !has(out, "Retainer question"), "only what the prototype lists");
   assert.ok(has(tagOf(out, "row-chat-c1"), "background-color:var(--sel)"), "the open chat reads as selected");
   assert.ok(!has(tagOf(out, "row-thread-th_a"), "background-color:var(--sel)"), "a thread is not selected");
   for (const id of ["thread-th_a", "helper-h4", "chat-c1"]) assert.ok(has(out, `data-testid="row-${id}"`), id);
 });
 
-test("Files: the agent's folder, folders first, then files; the footer says who writes what", () => {
+test("Files: a tree, files first then folders in the prototype's order; counts on the right, locks on what Vyre owns; memory and routines open", () => {
   const out = html(createSample(), "files");
   assert.ok(has(out, "Intake's folder") && has(out, "Mounted as ~/Vyre"));
-  inOrder(out, [">downloads<", ">inbox<", ">knowledge<", ">logs<", ">memory<", ">routines<", ">skills<", ">work<", ">AGENT.md<", ">agent.toml<"]);
-  assert.ok(has(out, "1 file, 2 folders") && has(out, "2 KB · updated 22 Oct") && has(out, "940 B"));
+  inOrder(out, [">AGENT.md<", ">agent.toml<", ">memory<", ">MAP.md<", ">notes<", ">proposed<", ">recipes<", ">journal<", ">skills<", ">routines<", ">morning_lead_sweep.md<", ">knowledge<", ">inbox<", ">work<", ">downloads<", ">logs<", ">chats<"]);
+  assert.ok(has(out, "2 KB · updated 22 Oct") && has(out, "940 B"));
+  assert.ok(out.includes('data-testid="lock-fld_logs"') && out.includes('data-testid="lock-fld_chats"'), "Vyre owns logs and chats");
+  assert.ok(!out.includes('data-testid="lock-fld_memory"') && !out.includes('data-testid="lock-fld_skills"'));
   assert.ok(has(out, "People write AGENT.md. Only the owner changes agent.toml. Vyre owns logs and chats."));
+});
+
+test("Files: the tree order and the counts", () => {
+  assert.deepEqual(treeOrder([{ name: "logs" }, { name: "zeta" }, { name: "memory" }, { name: "chats" }, { name: "alpha" }, { name: "skills" }]).map((x) => x.name), ["memory", "skills", "logs", "chats", "alpha", "zeta"]);
+  const out = html(createSample(), "files");
+  const count = (id: string): string => (new RegExp(`data-testid="count-${id}"[^>]*>(\\d+)<`).exec(out) ?? [])[1] ?? "";
+  assert.deepEqual([count("fld_memory"), count("fld_skills"), count("fld_routines"), count("fld_knowledge")], ["5", "2", "3", "2"]);
 });
 
 test("Files: an empty folder says so", () => {
@@ -130,7 +141,7 @@ test("Files: an empty folder says so", () => {
 test("Memory: proposed facts wait on top with Accept and Reject; known facts carry when, learned and source; replaced ones stay out", () => {
   const out = html(createSample(), "memory");
   inOrder(out, ["Proposed · 3", "Consult invoices go out the same day as the call.", "Thursday mornings are never offered for consults.", "Elena's business partner", "What Intake knows in Northwind", "Elena Rivera was referred by Maya Chen.", "The consult fee is $250", "Consults are 1 hour"]);
-  assert.ok(has(out, "Accept or reject") && has(out, "from a chat · 24 Oct"));
+  assert.ok(has(out, "Accept or reject") && has(out, "Rivera intake") && has(out, " · 9:31") && has(out, "#intake"), "proposed facts are cards that say where from and when, in the prototype's words");
   assert.ok(has(out, "Since 23 Oct · learned 24 Oct · from a chat") && has(out, "Since 2 Oct · learned 2 Oct · from you"));
   assert.ok(!has(out, "Consults are 30 minutes."), "the replaced fact is not in the default list");
   assert.ok(has(out, 'data-testid="memory-filter"') && !has(out, 'data-testid="memory-showing"'));
@@ -156,8 +167,8 @@ test("Memory filters narrow by source and can include replaced facts", () => {
 
 test("Routines: on first by next run, paused last; the on count, switches, and the three starters", () => {
   const out = html(createSample(), "routines");
-  inOrder(out, ["Morning lead sweep", "Weekly lead report", "Chase missing intake forms", "New routine"]);
-  assert.ok(has(out, ">2 on<") && has(out, "Weekdays at 08:00 · next Mon 08:00") && has(out, "Every Friday at 09:00 · next 31 Oct") && has(out, "Paused · Every day at 17:00"));
+  inOrder(out, ["Morning lead sweep", "Watch #intake for new clients", "Chase missing intake forms", "New routine"]);
+  assert.ok(has(out, ">2 on<") && has(out, "weekdays 8:00 · next Mon Oct 27") && has(out, "on new messages") && has(out, "Paused · Every day at 17:00"));
   assert.ok(has(out, 'data-testid="routine-switch-r3"'), "a switch on every routine");
   assert.ok(has(tagOf(out, "routine-switch-r3"), 'aria-checked="true"'), "Morning lead sweep is on");
   assert.ok(has(tagOf(out, "routine-switch-r5"), 'aria-checked="false"'), "Chase missing intake forms is paused");
@@ -384,11 +395,71 @@ test("sorting routines and describing one", () => {
   const c = { now: SAMPLE_NOW, offsetMin: 0 };
   const mk = (id: string, enabled: boolean, next?: number): Routine => ({ routineId: id, agentId: "a", title: id, cron: "0 8 * * *", prompt: "p", enabled, ownerId: "u", ...(next ? { nextRunAt: next } : {}) });
   assert.deepEqual(sortRoutines([mk("p", false), mk("b", true, 20), mk("a", true, 10), mk("n", true)]).map((r) => r.routineId), ["a", "b", "n", "p"]);
-  assert.equal(routineNote(mk("z", true), c), "Every day at 08:00");
+  assert.equal(routineNote(mk("z", true), c), "every day 8:00");
   assert.equal(routineNote(mk("z", false), c), "Paused · Every day at 08:00");
 });
 
 test("variants exist for the screenshots", () => {
   const variants: Variant[] = ["northwind", "asleep", "personal"];
   for (const v of variants) assert.ok(createSample(v).data.threadId.length > 0, v);
+});
+
+/* ---------- as the prototype draws them (P-L9b_07c) ---------- */
+
+test("MAP.md comes from memory.map.get: key rows, its line count against the limit", async () => {
+  const s = createSample();
+  const out = (await s.data.call("memory.map.get", { agentId: "agt_intake" })) as { map?: { body: string; lines: number } };
+  assert.ok(out.map);
+  const map = parseMap(out.map.body, out.map.lines);
+  assert.deepEqual(map.rows.map((r) => r.key), ["elena-rivera", "consult-rules", "maya-calendar", "intake-form-site", "weekly-lead-report"]);
+  assert.equal(map.lines, 5);
+  assert.equal(MAP_LIMIT, 200);
+  assert.equal(parseMap("# t\n\nplain\n- `a-b`: text here\n* `c` \u2013 more").rows.map((r) => `${r.key}|${r.text}`).join(","), "a-b|text here,c|more");
+  assert.equal(parseMap("- `a` b", 42).lines, 42, "the capability's own count wins");
+});
+
+test("memory.counts says how many low-risk facts merged on their own, and the pane says so under the proposed ones", async () => {
+  const s = createSample();
+  const counts = (await s.data.call("memory.counts", { agentId: "agt_intake" })) as { autoMerged: number };
+  assert.equal(counts.autoMerged, 2);
+});
+
+test("routine rows read like the prototype: short schedule, next day, watchers on events, paused with its cron", () => {
+  const c = { now: SAMPLE_NOW, offsetMin: 0 };
+  assert.equal(shortSchedule("0 8 * * 1-5"), "weekdays 8:00");
+  assert.equal(shortSchedule("30 9 * * 5"), "every Friday 9:30");
+  assert.equal(shortSchedule("0 17 * * *"), "every day 17:00");
+  assert.equal(shortSchedule("*/5 * * * *"), "*/5 * * * *");
+  assert.equal(nextDay(Date.UTC(2025, 9, 27, 8), c), "Mon Oct 27");
+  const r = (cron: string, enabled = true): Routine => ({ routineId: "x", agentId: "a", title: "t", cron, prompt: "p", enabled, ownerId: "u" });
+  const w = (enabled = true): Routine => ({ routineId: "w", agentId: "a", title: "t", prompt: "p", enabled, ownerId: "u", kind: "watch", watch: { on: "message", channelId: "intake" } });
+  assert.ok(isWatcher(w()) && !isWatcher(r("0 8 * * *")));
+  assert.equal(routineNote(w(), c), "on new messages");
+  assert.equal(routineNote(w(false), c), "Paused · on new messages");
+  assert.equal(routineNote(r("0 17 * * *", false), c), "Paused · Every day at 17:00");
+});
+
+test("the routine switch is green when on (the prototype's), and a watcher has the watch glyph", () => {
+  const out = html(createSample(), "routines");
+  assert.ok(has(tagOf(out, "routine-switch-r3"), "background-color:var(--ok)"), "an on switch paints the ok token");
+  assert.ok(!has(tagOf(out, "routine-switch-r5"), "background-color:var(--ok)"));
+});
+
+test("chats and learned times are clock times today, weekdays this week", () => {
+  const c = { now: SAMPLE_NOW, offsetMin: 0 };
+  assert.equal(chatWhen(Date.UTC(2025, 9, 24, 9, 31), c), "9:31");
+  assert.equal(chatWhen(Date.UTC(2025, 9, 23, 16, 5), c), "Yesterday");
+  assert.equal(chatWhen(Date.UTC(2025, 9, 20, 9), c), "Mon");
+  assert.equal(chatWhen(Date.UTC(2025, 8, 1, 9), c), "1 Sep");
+  assert.equal(learnedWhen(Date.UTC(2025, 9, 24, 9, 31), c), "9:31");
+});
+
+test("a thread it worked in says how many replies and when the last came", () => {
+  const c = { now: SAMPLE_NOW, offsetMin: 0 };
+  const s = createSample();
+  const th = (s.replica.rows("threads") as unknown as { threadId: string; replyCount?: number; lastMessageAt?: number; createdAt: number }[]).find((x) => x.threadId === "th_a")!;
+  assert.equal(workedNote(th as never, c), "5 replies · last 9:34");
+  assert.equal(workedNote({ ...th, replyCount: 1 } as never, c), "1 reply · last 9:34");
+  assert.equal(workedNote({ ...th, replyCount: undefined, lastMessageAt: undefined } as never, c), "Started 32 min ago");
+  assert.ok(has(html(s, "threads"), "5 replies · last 9:34"));
 });

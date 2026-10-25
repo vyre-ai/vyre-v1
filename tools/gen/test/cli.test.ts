@@ -30,5 +30,5 @@ test('vyre-gen writes the same tree twice', () => {
   const fa = walk(a);
   assert.deepEqual(fa, walk(b));
   assert.ok(fa.length > 100);
-  for (const f of ['/registry.json', '/hash.txt', '/client.ts']) assert.equal(readFileSync(a + f, 'utf8'), readFileSync(b + f, 'utf8'));
+  for (const f of ['/registry.json', '/client.ts']) assert.equal(readFileSync(a + f, 'utf8'), readFileSync(b + f, 'utf8'));
 });

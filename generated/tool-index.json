@@ -5235,7 +5235,7 @@
     {
       "deferred": false,
       "name": "records_export",
-      "summary": "Export rows as CSV or Excel (permissioned)",
+      "summary": "Export rows as CSV or Excel (permissioned), the whole view or only the picked recordIds",
       "toolset": "records"
     },
     {
