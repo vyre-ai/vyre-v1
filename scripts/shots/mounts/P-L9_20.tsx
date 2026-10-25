@@ -163,7 +163,7 @@ function useShiftDebug(): string {
     const lines: string[] = [];
     const po = new g.PerformanceObserver((l) => {
       for (const e of l.getEntries()) {
-        if (e.hadRecentInput || e.value < 0.004) continue;
+        if (e.hadRecentInput || e.value < 0) continue;
         const src = (e.sources ?? []).map((x: any) => `${x.node?.nodeName}[${x.node?.getAttribute?.("data-testid") ?? ""}|${String(x.node?.textContent ?? "").slice(0, 16)}] ${Math.round(x.previousRect.x)},${Math.round(x.previousRect.y)},${Math.round(x.previousRect.width)}x${Math.round(x.previousRect.height)} -> ${Math.round(x.currentRect.x)},${Math.round(x.currentRect.y)},${Math.round(x.currentRect.width)}x${Math.round(x.currentRect.height)}`);
         lines.push(`${e.value.toFixed(4)} @${Math.round(e.startTime)}: ${src.join(" ; ")}`);
       }
