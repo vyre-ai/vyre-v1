@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
+import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Glyph } from "./icons.tsx";
 import type { GlyphName } from "./icons.tsx";
 import type { IconKey } from "./model.ts";
@@ -109,18 +110,11 @@ export function Dot({ tone, size = 7 }: { tone: "ok" | "warn" | "danger" | "mute
   return <View aria-hidden style={{ width: size, height: size, borderRadius: size, backgroundColor: bg as string }} />;
 }
 
-function hueOf(name: string): number {
-  let h = 5381;
-  for (let i = 0; i < name.length; i++) h = ((h << 5) + h + name.charCodeAt(i)) >>> 0;
-  return (h % 12) * 30;
-}
-
-/** A person is a circle, an agent a rounded square; the colour comes from the name. */
+/** A person is a round marble, an agent a pixel face on a soft tint: the shared Avatar. */
 export function Face({ name, kind = "person", size = 18 }: { name: string; kind?: string; size?: number }): ReactElement {
-  const hue = hueOf(name);
   return (
-    <View aria-hidden style={{ width: size, height: size, borderRadius: kind === "person" ? size : Math.round(size * 0.3), backgroundColor: `hsla(${hue}, 65%, 52%, 0.22)` as string, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ color: `hsl(${hue}, 55%, 46%)` as string, fontSize: Math.max(9, Math.round(size * 0.48)), fontWeight: "600" }}>{(name.trim()[0] ?? "?").toUpperCase()}</Text>
+    <View aria-hidden style={{ width: size, height: size, flexShrink: 0 }}>
+      <Avatar name={name} kind={kind === "person" ? "person" : "agent"} size={size} />
     </View>
   );
 }
