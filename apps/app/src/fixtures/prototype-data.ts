@@ -117,6 +117,72 @@ export const PROTO_NEXTS: readonly unknown[] = [
  "send the October statement"
 ];
 
+export const PROTO_KINDS: readonly unknown[] = [
+ [
+  "person",
+  "People",
+  "#E8A23B"
+ ],
+ [
+  "client",
+  "Clients",
+  "#E5628A"
+ ],
+ [
+  "project",
+  "Projects",
+  "#7B7BF0"
+ ],
+ [
+  "site",
+  "Sites",
+  "#2FB5A5"
+ ],
+ [
+  "decision",
+  "Decisions",
+  "#A96CF2"
+ ],
+ [
+  "record",
+  "Records",
+  "#4C9AF0"
+ ],
+ [
+  "chat",
+  "Chats",
+  "#8DA395"
+ ],
+ [
+  "run",
+  "Runs",
+  "#F0784B"
+ ]
+];
+
+export const PROTO_TASKT: readonly unknown[] = [
+ "Collect signed forms",
+ "Send welcome pack",
+ "Schedule review call",
+ "Draft summary",
+ "Confirm payment",
+ "Request ID document",
+ "Prepare agenda",
+ "Update the file",
+ "Chase missing details",
+ "Send reminder",
+ "Review draft",
+ "Book follow-up"
+];
+
+export const PROTO_AGS: readonly unknown[] = [
+ "Intake",
+ "Billing",
+ "Research",
+ "Docs",
+ "Scout"
+];
+
 export const PROTO_TEAM: readonly unknown[] = [
  "Maya Chen",
  "Omar Haddad",
@@ -280,6 +346,182 @@ export const PROTO_HAND: readonly unknown[] = [
   "taxId": "tax_0cc3f9",
   "summary": "Engagement completed in September. Final invoice paid."
  }
+];
+
+export const PROTO_HP: readonly unknown[] = [
+ [
+  "Rivera engagement",
+  "c0",
+  "Drafting",
+  "Maya Chen",
+  "2026-10-23",
+  "2026-11-13",
+  9500,
+  [
+   "Priority",
+   "Referral"
+  ]
+ ],
+ [
+  "Rivera annual review",
+  "c0",
+  "Intake",
+  "Lena Ortiz",
+  "2026-11-02",
+  "2026-12-04",
+  5000,
+  [
+   "Fixed fee"
+  ]
+ ],
+ [
+  "Webb group renewal",
+  "c1",
+  "In review",
+  "Omar Haddad",
+  "2026-09-14",
+  "2026-10-30",
+  22000,
+  [
+   "Hourly"
+  ]
+ ],
+ [
+  "Webb document set",
+  "c1",
+  "Drafting",
+  "Omar Haddad",
+  "2026-10-05",
+  "2026-11-20",
+  8500,
+  [
+   "Fixed fee",
+   "Rush"
+  ]
+ ],
+ [
+  "Eriksen transfer",
+  "c3",
+  "Drafting",
+  "Maya Chen",
+  "2026-10-12",
+  "2026-11-27",
+  6200,
+  []
+ ]
+];
+
+export const PROTO_HI: readonly unknown[] = [
+ [
+  "c0",
+  "p0",
+  250,
+  "Paid",
+  "2026-10-23",
+  "2026-10-23",
+  "Card"
+ ],
+ [
+  "c0",
+  "p0",
+  2400,
+  "Sent",
+  "2026-10-23",
+  "2026-10-30",
+  "Bank"
+ ],
+ [
+  "c0",
+  "p1",
+  750,
+  "Draft",
+  "2026-10-24",
+  "2026-11-07",
+  "Bank"
+ ],
+ [
+  "c1",
+  "p2",
+  6400,
+  "Overdue",
+  "2026-09-20",
+  "2026-10-04",
+  "Bank"
+ ],
+ [
+  "c1",
+  "p3",
+  3100,
+  "Sent",
+  "2026-10-12",
+  "2026-10-26",
+  "Bank"
+ ]
+];
+
+export const PROTO_HM: readonly unknown[] = [
+ [
+  "Consult · Elena Rivera",
+  "2026-10-27T14:00",
+  "c0",
+  "Maya Chen",
+  "Consult",
+  "Bring the draft engagement letter. Elena prefers afternoons."
+ ],
+ [
+  "Intro call · Elena Rivera",
+  "2026-10-20T11:00",
+  "c0",
+  "Omar Haddad",
+  "Check-in",
+  "Short call. Referred by Maya. Wants to move quickly."
+ ],
+ [
+  "Quarterly review · Webb Group",
+  "2026-10-28T10:30",
+  "c1",
+  "Omar Haddad",
+  "Review",
+  ""
+ ]
+];
+
+export const PROTO_HT: readonly unknown[] = [
+ [
+  "Request ID document",
+  "p0",
+  "Intake",
+  "To do",
+  "2026-10-26"
+ ],
+ [
+  "Send engagement letter",
+  "p0",
+  "Docs",
+  "Doing",
+  "2026-10-27"
+ ],
+ [
+  "Run the conflict check",
+  "p0",
+  "Lena Ortiz",
+  "Doing",
+  "2026-10-26"
+ ],
+ [
+  "Send welcome pack",
+  "p0",
+  "Intake",
+  "Done",
+  "2026-10-23"
+ ],
+ [
+  "Schedule the annual review",
+  "p1",
+  "Maya Chen",
+  "To do",
+  "2026-11-02"
+ ]
 ];
 
 export const PROTO_SPACE_TYPES: Readonly<Record<string, { meta: { title: string; one: string; primary: string }; fields: readonly { id: string; name: string; type: string; width: number; options?: readonly (readonly [string, number | null])[]; kind?: string; to?: string }[]; rows: readonly Record<string, unknown>[] }>> = {
