@@ -46,7 +46,7 @@ export function blobRef(ctx: Ctx, row: Row): string {
 /** Keeps one image as a blob and points the row (file, version, kind, size, page) at it. Returns the blob's metadata. */
 export async function putImage(ctx: Ctx, fileId: string, version: number, m: StoredImage): Promise<BlobMeta> {
   const blobs = blobsOf(ctx);
-  const meta = await blobs.put(m.bytes, IMAGE_TYPE);
+  const meta = await blobs.put(m.bytes, IMAGE_TYPE, { resource: { type: "file", id: fileId } });
   const old = findImage(ctx, fileId, version, m.kind, m.size, m.page);
   ctx.db.run("DELETE FROM previews_image WHERE file_id = ? AND version = ? AND kind = ? AND size = ? AND page = ?", fileId, version, m.kind, m.size, m.page);
   ctx.db.run(

@@ -25,23 +25,24 @@ const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms)
 
 test("the sections render from the Northwind sample, in the spec's order", () => {
   const out = html(createSampleSidebar());
-  const heads = ["head-needs", "head-faces", "head-recent", "head-channels"].map((id) => at(out, `data-testid="${id}"`));
-  assert.deepEqual([...heads].sort((a, b) => a - b), heads, "Needs you, Agents, Chats, Channels");
+  const heads = ["head-needs", "head-faces", "head-channels", "head-recent"].map((id) => at(out, `data-testid="${id}"`));
+  assert.deepEqual([...heads].sort((a, b) => a - b), heads, "Needs you, Agents, Channels, Chats (ruling 45)");
   for (const text of ["Needs you", "Agents", "Chats", "Channels", "Northwind", "Search", "All agents"]) assert.ok(out.includes(text), text);
   assert.ok(!out.includes(String.fromCharCode(0x2014)), "no em dash in any copy");
   assert.ok(!out.includes("chats-sidebar-loading"));
 });
 
-test("Needs you lists the top three with the count of all that wait", () => {
+test("Needs you lists every request that waits, with the count (ruling 45: the prototype lists all seven)", () => {
   const out = html(createSampleSidebar());
   assert.ok(at(out, "Send 12 invoices") < at(out, "Rivera engagement letter"));
   assert.ok(out.includes('data-testid="count-needs"') && out.includes(">7<"));
   assert.ok(out.includes("Approve") && out.includes("Blocked"));
+  for (const title of ["Pruitt intake summary", "Send the ATP reminder", "Problem report from Omar", "Month-end export"]) assert.ok(out.includes(title), title);
 });
 
 test("Starred agent faces come first, each a row with its face; the working one is ringed", () => {
   const out = html(createSampleSidebar());
-  for (const n of ["Assistant", "Intake", "Docs", "Billing", "Research"]) assert.ok(out.includes(`data-testid="face-${n}"`), n);
+  for (const n of ["Intake", "Billing", "Research", "Docs"]) assert.ok(out.includes(`data-testid="face-${n}"`), n);
   assert.ok(out.includes('data-testid="pulse"'), "Intake is working");
 });
 
