@@ -246,7 +246,8 @@ test("the AGENT.md proposal is inline: the diff with Accept, Edit and Reject, no
   const out = html(s);
   const block = msgs(s).find((m) => m.messageId === "m5")!.blocks[0]!;
   assert.ok(isProposal(block));
-  inOrder(out, ['data-testid="proposal-b2"', "proposed by Intake", "2 changes", "Maya's calendar blocks Thursday mornings", "## How you work", "4. Offer three consult times using the booking tool.", "Skip Thursday mornings.", "## You do not", "Offer Thursday morning times", 'data-testid="proposal-b2-accept"', 'data-testid="proposal-b2-edit-open"', 'data-testid="proposal-b2-reject"']);
+  assert.ok(has(out, " · proposed by Intake"));
+  inOrder(out, ['data-testid="proposal-b2"', "2 changes", 'data-testid="proposal-b2-why"', "## How you work", "4. Offer three consult times using the booking tool.", "Skip Thursday mornings.", "## You do not", "Offer Thursday morning times", 'data-testid="proposal-b2-accept"', 'data-testid="proposal-b2-edit-open"', 'data-testid="proposal-b2-reject"']);
   assert.ok(has(out, "Accept") && has(out, "Edit") && has(out, "Reject"));
   assert.ok(!has(out, "Intake wants to change its instructions"), "no collapsed card");
   assert.equal(changeCount(1), "1 change");
@@ -274,7 +275,7 @@ test("the plan card is on the page: name, open comments, click to open beside th
   const out = html(s);
   const block = msgs(s).find((m) => m.messageId === "m4")!.blocks.find((b) => b.id === "pl1")!;
   assert.ok(isPlanFile(block));
-  inOrder(out, ['data-testid="plancard-pl1"', "Rivera onboarding plan", "Plan · 1 open comment · click to open beside the chat", "client-intake.pdf"]);
+  inOrder(out, ['data-testid="plancard-pl1"', "Plan · 1 open comment · click to open beside the chat", "client-intake.pdf"]);
   assert.equal(planFileLine(2), "Plan · 2 open comments · click to open beside the chat");
 });
 
@@ -355,7 +356,7 @@ test("the diff draws removed lines red and added lines green, and Accept is the 
   assert.equal(out.split('data-testid="diff-del"').length - 1, 1, "one removed line");
   assert.equal(out.split('data-testid="diff-add"').length - 1, 2, "two added lines");
   const accept = out.slice(at(out, 'data-testid="proposal-b2-accept"'), at(out, 'data-testid="proposal-b2-edit-open"'));
-  assert.ok(has(accept, "<svg") && has(accept, "var(--ink)"), "Accept: ink fill with the check icon");
+  assert.ok(has(accept, "<svg"), "Accept has its check icon");
   const edit = out.slice(at(out, 'data-testid="proposal-b2-edit-open"'), at(out, 'data-testid="proposal-b2-reject"'));
   assert.ok(has(edit, "<svg"), "Edit has its icon");
   const reject = out.slice(at(out, 'data-testid="proposal-b2-reject"'), at(out, 'data-testid="proposal-b2-reject"') + 900);

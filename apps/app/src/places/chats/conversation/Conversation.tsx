@@ -75,7 +75,8 @@ function ConversationView(): ReactElement {
   const [finding, setFinding] = useState(false);
   const [query, setQuery] = useState("");
   const [matchAt, setMatchAt] = useState(0);
-  const narrow = useWindowDimensions().width < 640;
+  const width = useWindowDimensions().width;
+  const narrow = width > 0 && width < 640;
 
   /* Cmd/Ctrl+F opens find in chat, as in the prototype; Escape closes it. */
   useEffect(() => {
