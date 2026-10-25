@@ -1,4 +1,4 @@
-// ui/RichEditor: two editors converge through Yjs, markdown round-trips, cursors travel, the WebView bridge keeps the page and the app current (spec 2.16, ARCH 5.6, R6).
+// ui/RichEditor: two editors converge through Yjs, markdown round-trips, cursors travel, the WebView bridge keeps the page and the app current (spec 2.16, ARCH 5.6, R6). Run on the regenerated lockfile.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
