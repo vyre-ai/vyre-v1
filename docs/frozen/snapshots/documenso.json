@@ -1,0 +1,13 @@
+{
+  "module": "documenso",
+  "capabilities": {
+    "documenso.cancel@1": "26e32d3de79b6fc3a2e9337ed5157b12e4777670d041e5e0f07bcd358945e575",
+    "documenso.create@1": "ccc346e5db2c4c0c6dab543de58fd886228a521e6d2b9bb74fde1f54fa492ed3",
+    "documenso.fetch_signed@1": "09a8b480afd52a5d041ad65206a9a3095eef89536cb69e51e62b70d5db41d366",
+    "documenso.health@1": "0fa949e0a35b9c5fcc6e16fbfa31374de5eef83ad748fca9b0fe213c5088df57",
+    "documenso.status@1": "d25876b5574bcd03335b154d6e0b08207a147b118887ef85cc9e2e032cf0ccd7"
+  },
+  "events": {
+    "documenso.webhook_received": "e7727ccfff94fb4790c7185ceb1cad7e16c57421f318c5dab27f4b40537abbe2"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "module": "steps-core",
+  "capabilities": {
+    "steps.test@1": "9d41e3135a79d3d1fcf12f10d2b2730cf834bba267265d023a7cacc55ed05aa2"
+  },
+  "events": {}
+}

@@ -1,0 +1,23 @@
+{
+  "module": "settings",
+  "capabilities": {
+    "settings.copy_profile@1": "6fa0910b4419200e0c6c101aed1e2a5abdf8a4cdb3e0b2a519fea1af4a50f8e4",
+    "settings.copy_source@1": "13e0a9e877fc71c872fa247b75afadb82a4afa1ab164c70d8ec3d62fa2577287",
+    "settings.floor_set@1": "196e37b686b6a64650d9f6396cf31cd7af7234e065a39a9d97b519fe56967bf8",
+    "settings.get@1": "b2e396c0ddaf615ec4c8f9b6ad4737f10a93e0d1156fbb7cc8a87969b8a57e85",
+    "settings.kit.get@1": "54e7033e7cb9e25b0c93c7d7a44c7d22786a65976e560da853ce459b9aee3c60",
+    "settings.kit.set_mine@1": "f9ba5c2c6b0651a27b5136dd79423e42a7bf0b9921eb283d40b84271ce773c6c",
+    "settings.kit.set_space@1": "383cdd3f67524c9ee734052e4c01e0f0a3c64c8ba9aa07407c09eb11f85240ad",
+    "settings.list@1": "3466042323862ca9e4c5ab0a3116ac09c1b7d2cd3127c098bc46707c2f278605",
+    "settings.pages@1": "8e13b9fb817958a271416895e8aa77b1aea9214a91d3e64de7a4f8b55f615ffc",
+    "settings.reset@1": "388343e0bac7553bbcca77250384da256da422c4af4d105bfb2a5c370c7c4f0d",
+    "settings.reset_space@1": "131c452d68779c7a755c6ade122e187e298ff4dac4750c89d5e78309de1a66fd",
+    "settings.search@1": "fee1aa89471244f05b7774e017a54a13165901f16308a072f350edc4664a93de",
+    "settings.set@1": "fe411f5582c85a72434cbcc5101072c55c9a20e9bf59520a458488aeb9c85f65",
+    "settings.set_space@1": "a33b6432ba5d4997c3bb78e47d312ac2449e41afcfdc1614e6b3974a219c8dc1"
+  },
+  "events": {
+    "settings.changed": "21494486dd388c5f01060a6abb6944689173f6081de579a26132ea3906271d99",
+    "settings.floor_changed": "72d1beeb9f9cd86051f25c37bc1ed34add49eaed32440a493ad4292c7b7150b8"
+  }
+}
