@@ -59,8 +59,10 @@ export function createUnmatchedSample(space: SampleSpace = northwind, o: { onlin
   replica.resolve("inbox.match_suggestions", (_t, i) => ({ suggestions: SUGGESTIONS[i.conversationId] ?? [] }));
 
   const undos = new Map<string, Undo>();
+  // the suggestions are also asked as a call (the Match menu asks when it opens)
   let n = 0;
   const writes: Record<string, (i: never) => unknown> = {
+    "inbox.match_suggestions": (i: { conversationId: string }) => ({ suggestions: SUGGESTIONS[i.conversationId] ?? [] }),
     "inbox.match": (i: { conversationId: string; recordId: string }) => {
       matches.push({ cap: "inbox.match", input: i });
       const source = contacts().find((c) => c.id === i.conversationId);
