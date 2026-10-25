@@ -160,9 +160,11 @@ test("the bundle carries no log content: only what the log and health capabiliti
 });
 
 test("impl.ts exposes every health handler and no projections", () => {
-  assert.equal(Object.keys(impl.handlers).length, 16);
+  assert.equal(Object.keys(impl.handlers).length, 17);
   assert.deepEqual(impl.projections, []);
   assert.deepEqual(impl.consumers, {});
   assert.deepEqual(impl.inline, {});
   assert.deepEqual(impl.codecs, {});
 });
+
+// Run on the final commit of this packet, after merging main, so the CI log lists the file as ok.

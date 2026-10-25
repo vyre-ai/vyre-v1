@@ -255,10 +255,10 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
         <View role="tablist" aria-label={props.label ?? current?.title ?? "Tabs"} style={styles.tabs}>
           {tabNodes}
         </View>
-        <View style={styles.spacer} />
         {onPlus === undefined ? null : (
           <IconButton name="plus" label={plusTitle ?? "Open"} onPress={() => onPlus()} />
         )}
+        <View style={styles.spacer} />
         <IconButton
           name="more"
           label="Tab options"
