@@ -592,8 +592,9 @@ async function applyChanges(ctx: Ctx, kitId: string, target: KitManifest, verb: 
       // the ledger is written only after every step worked, so a failed run leaves it as it was: a retry re-applies what this run already did
       const msg = (e as { error?: { message?: unknown } } | null)?.error?.message ?? (e instanceof Error ? e.message : "The step failed.");
       const code = (e as { error?: { code?: unknown } } | null)?.error?.code;
+      const why = (e as { error?: { details?: unknown } } | null)?.error?.details;
       ctx.log.warn(`kits: ${verb} failed`, { kitId, item: c.item.key, code: typeof code === "string" ? code : "" });
-      fail(ctx, "validation.precondition_failed", `Could not ${verb} "${c.item.title}": ${String(msg).slice(0, 200)} Nothing was left half installed.`, { item: c.item.key });
+      fail(ctx, "validation.precondition_failed", `Could not ${verb} "${c.item.title}": ${String(msg).slice(0, 200)} Nothing was left half installed.`, { item: c.item.key, ...(why !== undefined ? { step: why } : {}) });
     }
   }
   const now = ctx.now();
