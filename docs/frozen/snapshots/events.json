@@ -1,0 +1,30 @@
+{
+  "module": "events",
+  "capabilities": {
+    "events.get@1": "7414ed249ba4be0b826f12d4706fd452f9fae715c2eb3730a80b41c63614b8ac",
+    "events.list@1": "cad20a85ff9feb8353f64e850924a6a823da0f8bbaabc6f2c589af0aedf249f5",
+    "events.replay@1": "069637af2455d8ea574b1d2234b999885c0f69d28c068697ffa112dc1e6ffb71",
+    "events.since@1": "d332c3895b3d234c7572bb0bf80a588dbe242539f1d0e975fe46f496a5f7b8ad",
+    "events.types@1": "4fccc4e7a46d96d7c8961dc9642cac0909638590dc7a255683482ffeaab021f0",
+    "webhooks.create@1": "243d52c82880bd4dfa713daddb97dbbd8c00a7db5842ab9c098f40097d3b90e3",
+    "webhooks.delete@1": "e2117a3aefd5761203639017b9aa0b8cfab383339f835ffd5d534ac113d44267",
+    "webhooks.deliveries@1": "1e00330ef7f9a56cdded4df98680f3fd03b4fdc6b2a89994e76f90adcf41e7a9",
+    "webhooks.get@1": "b084cc0f414911d456ca3fd77616078b8448b5c4c4aab318395667f5a777d0db",
+    "webhooks.health@1": "504533f08fb54371a4735d37520e2336858d51203d7e65beb785757c1cdf5aea",
+    "webhooks.list@1": "b2e111f1d28ea23fd41786b6b10b1310c20ee94a1ed357366b2290db03f4196f",
+    "webhooks.replay_delivery@1": "aee4a63d2e5c6299c5aa483ee957b7de17207d43179466d5a0e6c6469ab17be6",
+    "webhooks.rotate_secret@1": "d4cbda695f8150086ed9c3d027d615084961d08f474303b279119566a0de4ad0",
+    "webhooks.send_delivery@1": "64703d81aa2319a305df17b1c82a305f8d68aa1254280f77d1d86a834ae1b509",
+    "webhooks.test@1": "c0e040166b57410a0caba8c259fe1ab8908aa578475cc76f19795e2f6420430a",
+    "webhooks.update@1": "b55a098ea057da63810afc8d382548ef8dc70da8747054ca7ba572ea29275f7f"
+  },
+  "events": {
+    "webhook.created": "08947fbf5e8ec5ea30915c07f6f13599e8378b99a7e5ca716182fd15f49d3551",
+    "webhook.deleted": "6817f79bd6c8a3fb44872f119c460996f33e8c41ecf166c881e6922f8a6ea023",
+    "webhook.delivered": "3a9d85e1fbcce668441e7578cf0e27c4484e0460b115120fc94a9f1f3c86e2a2",
+    "webhook.delivery_failed": "0207cd447db232ee16146cfa075511b4b72e704d0d19d6e9ec22d383f3e62c5f",
+    "webhook.disabled": "4a30bc1446bee5265f3e41d04df19b8d529888de768ea8790e031e5fd86c7b08",
+    "webhook.secret_rotated": "e95e4667d1f0fc6ead78bc10f49df3d27a957a4ae45724335e72cc2030355eeb",
+    "webhook.updated": "1ebc1468fa15aa63bf929b811f3f516b3df9ea53926f9bdee0d826b8298e4a73"
+  }
+}
