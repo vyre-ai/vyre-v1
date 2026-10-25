@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (15)
+## Capabilities (16)
 
 - [journeys.advance](../capabilities/journeys.advance.md): Check the exit rule of the current stage and advance when its required tasks are done (called on task.completed)
 - [journeys.check_limits](../capabilities/journeys.check_limits.md): Find stages over their time limit, raise Needs you for the owner then the escalation role (called by the scheduler)
@@ -20,6 +20,7 @@ Requires: nothing.
 - [journeys.rules.set](../capabilities/journeys.rules.set.md): Set the exit rule and time limit of one stage
 - [journeys.stage_counts](../capabilities/journeys.stage_counts.md): Records in flight per stage, with how many are over their time limit
 - [journeys.start](../capabilities/journeys.start.md): Start a Journey on a subject record: creates the Journey record with its channel and folder and enters the first stage
+- [journeys.tasks](../capabilities/journeys.tasks.md): The tasks of one Journey record by stage, each with its state (todo, in review, blocked, done)
 - [journeys.versions](../capabilities/journeys.versions.md): List versions of a Journey definition
 
 ## Events (10)

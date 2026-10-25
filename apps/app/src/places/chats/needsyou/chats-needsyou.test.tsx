@@ -8,7 +8,7 @@ import { NeedsYou, NeedsYouLoading } from "./NeedsYou.tsx";
 import { act, snooze, take } from "./actions.ts";
 import type { NeedsDeps } from "./actions.ts";
 import {
-  FILTERS, SEND_BACK, agoLabel, blockView, doneLine, dueLabel, filterCounts, holder, isSendBack, matchesFilter, needsNote, needsTake, nextSelection, notePrompt, rowNote, snoozeUntil,
+  FILTERS, SEND_BACK, agoLabel, arrivedLabel, blockView, doneLine, dueLabel, filterCounts, holder, isSendBack, matchesFilter, needsNote, needsTake, nextSelection, notePrompt, rowNote, snoozeUntil,
   sortItems, splitActions, stepSelection,
 } from "./model.ts";
 import type { Item } from "./model.ts";
@@ -43,9 +43,9 @@ const item = (s: Sample, id: string): Item => {
   return x;
 };
 
-test("one list sorted by urgency: blocked first, then due today, then the rest newest first; no groups", () => {
+test("one list in the queue's order as the prototype lists it (ruling 45), withdrawn last; no groups", () => {
   const out = html(createSample());
-  inOrder(out, ['data-testid="row-need-n7"', 'data-testid="row-need-n3"', 'data-testid="row-need-n1"', 'data-testid="row-need-n6"', 'data-testid="row-need-n4"', 'data-testid="row-need-n2"', 'data-testid="row-need-n5"']);
+  inOrder(out, ['data-testid="row-need-n1"', 'data-testid="row-need-n2"', 'data-testid="row-need-n3"', 'data-testid="row-need-n4"', 'data-testid="row-need-n5"', 'data-testid="row-need-n6"', 'data-testid="row-need-n7"']);
   assert.ok(!has(out, 'data-testid="group-'), "no groups");
   assert.ok(has(out, 'data-testid="needs-count"') && has(out, ">7<") && has(out, ">Needs you<"));
   assert.ok(has(out, 'data-testid="needs-filter"'), "the filter is a quiet icon, not a row of chips");
@@ -54,9 +54,9 @@ test("one list sorted by urgency: blocked first, then due today, then the rest n
 test("two columns: the list, then the open request; the first row is open and painted as selected", () => {
   const out = html(createSample());
   inOrder(out, ['data-testid="needs-list"', 'data-testid="needs-detail"']);
-  assert.ok(has(tagOf(out, "row-need-n7"), "background-color:var(--sel)"));
+  assert.ok(has(tagOf(out, "row-need-n1"), "background-color:var(--sel)"));
   assert.ok(!has(tagOf(out, "row-need-n3"), "background-color:var(--sel)"));
-  assert.ok(has(out, "Month-end export is waiting on a sign-in") && has(out, "Needs unblocking"));
+  assert.ok(has(out, "Month-end export is waiting on a sign-in") && has(out, "Needs your approval"));
 });
 
 test("a request: what it is, why, who made it, where it came from, with one primary action and Send back", () => {
@@ -84,13 +84,13 @@ test("a review shows the excerpt and the file; a report shows its values; a bloc
 test("every row is a ui/Row with a face, a second line and a time; a quick action sits in its trailing slot", () => {
   const out = html(createSample());
   assert.ok(has(out, 'data-testid="row-need-n1-leading"') && has(out, 'data-testid="row-need-n1-trailing"') && has(out, 'data-testid="face-Billing"'));
-  assert.ok(has(out, "Approve · Billing · Due Today 17:00") && has(out, "Blocked · Scout · Blocking other work"));
+  assert.ok(has(out, "Approve · Billing · $18,420 total · due Friday") && has(out, "Unblock · Scout · Needs a login for the county site"));
   assert.ok(has(out, 'data-testid="quick-n1"') && has(out, 'data-testid="quick-n7"'));
-  assert.ok(has(out, "48 min ago") || has(out, "48 min"), "the time of the request");
+  assert.ok(has(out, ">9:12<"), "the time of the request is the clock time, as the prototype shows it");
 });
 
 test("nothing waiting says so, with the Space's name", () => {
-  const out = html(createSample("harbor"));
+  const out = html(createSample("harbor", { empty: true }));
   assert.ok(has(out, 'data-testid="needs-empty"') && has(out, "All caught up. Nothing in Harbor Studio is waiting on you."));
   assert.ok(has(out, 'data-testid="needs-nothing"') && has(out, "Nothing selected"));
 });
@@ -181,11 +181,11 @@ test("every nav handler is reachable: the shell is told what to open, never how"
 
 /* ---------- the rules behind it ---------- */
 
-test("sorting: blocked, overdue, due today, ready; earlier due first; newer request first", () => {
+test("sorting keeps the queue's order as the prototype lists it (ruling 45) and puts withdrawn requests last", () => {
   const s = createSample();
   const mk = (id: string, reason: Item["reason"], o: Partial<Item["task"]> = {}): Item => ({ reason, task: { ...item(s, "n4").task, id, blocked: false, ...o } });
-  const sorted = sortItems([mk("ready-old", "ready", { updatedAt: 1 }), mk("ready-new", "ready", { updatedAt: 9 }), mk("today", "due_today", { due: 5 }), mk("late", "overdue", { due: 3 }), mk("blocker", "blocking", { updatedAt: 50 }), mk("blocked", "ready", { blocked: true, updatedAt: 99 })]);
-  assert.deepEqual(sorted.map((i) => i.task.id), ["blocked", "blocker", "late", "today", "ready-new", "ready-old"]);
+  const given = [mk("ready-old", "ready", { updatedAt: 1 }), mk("gone", "ready", { state: "canceled" }), mk("late", "overdue", { due: 3 }), mk("blocked", "ready", { blocked: true, updatedAt: 99 }), mk("today", "due_today", { due: 5 })];
+  assert.deepEqual(sortItems(given).map((i) => i.task.id), ["ready-old", "late", "blocked", "today", "gone"]);
 });
 
 test("selection moves with the arrows, stops at the ends, and after an act goes to the next row, else the one before", () => {
@@ -243,6 +243,8 @@ test("words and times", () => {
   assert.equal(doneLine(item(s, "n2").task, { key: "review", label: "Looks good" }, "Docs"), "Marked reviewed.");
   assert.equal(doneLine(item(s, "n7").task, { key: "signin", label: "Sign in again" }, "Billing"), "Billing carries on");
   assert.equal(agoLabel(SAMPLE_NOW - 3 * 3_600_000, c), "3 h ago");
+  assert.equal(arrivedLabel(SAMPLE_NOW - 48 * 60_000, c), "9:12");
+  assert.equal(arrivedLabel(SAMPLE_NOW - 26 * 3_600_000, c), "Yesterday");
   assert.equal(agoLabel(SAMPLE_NOW - 26 * 3_600_000, c), "Yesterday");
   assert.equal(dueLabel(SAMPLE_NOW + 7 * 3_600_000, c), "Today 17:00");
   assert.equal(dueLabel(SAMPLE_NOW - 26 * 3_600_000, c), "Yesterday 08:00");
@@ -259,6 +261,13 @@ test("content blocks: a table, key/values and an excerpt get their own look; any
   assert.deepEqual(blockView({ type: "document", v: 1, data: { lines: ["x"], file: "a.docx" } }), { type: "quote", lines: ["x"], source: "a.docx" });
   assert.deepEqual(blockView({ type: "screenshot", v: 1, data: { caption: "Sign-in page" } }), { type: "line", text: "screenshot: Sign-in page" });
   assert.deepEqual(blockView({ type: "record_card", v: 1, data: null }), { type: "line", text: "record card" });
+});
+
+test("Harbor Studio has the prototype's two: Send the Moreno gallery (Proofer) and Saturday call sheet (Scheduler)", () => {
+  const out = html(createSample("harbor"));
+  assert.ok(has(out, "Send the Moreno gallery") && has(out, "Saturday call sheet"));
+  assert.ok(has(out, "Proofer") && has(out, "Scheduler"));
+  assert.ok(!has(out, 'data-testid="needs-empty"'));
 });
 
 test("variants exist for the screenshots", () => {

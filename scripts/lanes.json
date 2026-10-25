@@ -230,7 +230,9 @@
         "modules/esign/",
         "modules/portal/",
         "modules/email-builder-api/",
-        "package-lock.json"
+        "package-lock.json",
+        "scripts/shots/mounts/P-L8_13.tsx",
+        "scripts/shots/targets/P-L8_13.json"
       ],
       "modules": [
         "sites",
@@ -274,6 +276,8 @@
       "owns": [
         "apps/app/src/places/home/",
         "apps/app/src/places/chats/",
+        "apps/app/src/shell/places.test.tsx",
+        "apps/app/src/shell/providers/home.tsx",
         "scripts/shots/targets/",
         "scripts/shots/mounts/",
         "scripts/shots/prototype/",

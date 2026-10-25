@@ -10,6 +10,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "changesets.comments.list": async (ctx) => { throw new VyreErr(notImplemented("changesets.comments.list", ctx.trace)); },
   "changesets.diff": async (ctx) => { throw new VyreErr(notImplemented("changesets.diff", ctx.trace)); },
   "changesets.discard": async (ctx) => { throw new VyreErr(notImplemented("changesets.discard", ctx.trace)); },
+  "changesets.edit": async (ctx) => { throw new VyreErr(notImplemented("changesets.edit", ctx.trace)); },
   "changesets.get": async (ctx) => { throw new VyreErr(notImplemented("changesets.get", ctx.trace)); },
   "changesets.list": async (ctx) => { throw new VyreErr(notImplemented("changesets.list", ctx.trace)); },
   "changesets.request_changes": async (ctx) => { throw new VyreErr(notImplemented("changesets.request_changes", ctx.trace)); },

@@ -31,7 +31,7 @@ type In = {
     name: string;
     mode: "blocks" | "html" | "plain";
     blocks?: Array<{
-        type: "text" | "image" | "button" | "columns" | "divider" | "merge" | "html";
+        type: "text" | "heading" | "image" | "button" | "columns" | "divider" | "merge" | "footer" | "html" | "spacer" | "social" | "saved";
         props: Record<string, unknown>;
       }>;
     html?: string;
