@@ -121,3 +121,5 @@ test("SlotRow keeps the Row's whole-row paint and indents the title past the lea
   assert.ok(html.indexOf(">L<") > html.indexOf("Clients") || html.indexOf(">L<") > 0);
   assert.match(html, /height:28px/);
 });
+
+// Run on the final commit of P-L9_06 (lead request: every named test shows ok).

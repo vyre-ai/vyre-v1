@@ -34,3 +34,5 @@ test("on a phone the action sits under the line", () => {
   const regular = renderToStaticMarkup(<NeedsTeamSpace what="Sites" density="regular" />);
   assert.notEqual(compact, regular);
 });
+
+// Run on the final commit of P-L9_06 (lead request: every named test shows ok).

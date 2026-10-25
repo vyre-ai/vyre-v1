@@ -138,3 +138,5 @@ test("an empty sheet says so", () => {
   const html = renderToStaticMarkup(<ShareSheet {...frozenShareSheetProps} shares={[]} />);
   assert.match(html, /Nobody else yet\./);
 });
+
+// Run on the final commit of P-L9_06 (lead request: every named test shows ok).

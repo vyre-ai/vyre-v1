@@ -85,3 +85,5 @@ test("the level menu is a ui/Menu: it ends with Report a problem", () => {
   assert.equal(entries.filter(isItem).length, 5);
   assert.equal(ASK_FOR_ACCESS_LABEL, "Ask for access");
 });
+
+// Run on the final commit of P-L9_06 (lead request: every named test shows ok).
