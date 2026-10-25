@@ -9,6 +9,7 @@ import { handlers as table } from "./handlers/index.ts";
 import { bindEngine, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
 import type { Db } from "./projections.ts";
 import type { Handler } from "../../host/src/invoke.ts";
+import { bridgeConsumers } from "./handlers/bridge.ts";
 import { ensureRuntime, setEngineHost, wakeAfterUnblock } from "./runtime.ts";
 import type { EngineCtx } from "./projections.ts";
 
@@ -27,6 +28,7 @@ export const periodic = {
 
 /** A task reached Done: if it was the Unblock for a turn with no account, wake that agent in that thread. */
 export const consumers = {
+  ...bridgeConsumers,
   "engine.unblock": {
     on: ["task.completed"],
     run: async (ctx: EngineCtx, event: { payload: { taskId: string } }): Promise<string[]> => ((await wakeAfterUnblock(ctx, event.payload.taskId)) ? [event.payload.taskId] : []),

@@ -5,6 +5,8 @@ import { createTurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { AccountQuery, OpenSession, ResolvedAccount, TurnRow } from "../../agent/src/turn-engine/types.ts";
 import { open } from "./handlers/control.ts";
+import { bindBridge, createBridge } from "./handlers/bridge.ts";
+import type { PostAs } from "./handlers/bridge.ts";
 import { bindEngine, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
 import type { Db, EngineCtx } from "./projections.ts";
 
@@ -16,6 +18,8 @@ export interface EngineHostSeam {
   /** The real session opener. A daemon passes the host's `session` ports instead and the module builds it; a test passes a scripted one here. */
   openSession?: OpenSession;
   now?: () => number;
+  /** Run chat.post as an agent (the host builds the call with the agent as principal). With it the chat bridge is attached: the engine's replies become chat posts. */
+  postAs?: PostAs;
   /** Runs once the runtime exists and before it is bound (the chat bridge attaches here). */
   extend?: (engine: TurnEngine) => void;
 }
@@ -34,7 +38,7 @@ let building: Promise<TurnEngine | null> | null = null;
 export function setEngineHost(h: EngineHostSeam | null): void {
   host = h;
   building = null;
-  if (h === null) bindEngine(null);
+  if (h === null) { bindEngine(null); bindBridge(null); }
 }
 
 export function engineHost(): EngineHostSeam | null { return host; }
@@ -73,15 +77,18 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   const openSession = host.openSession;
   building ??= (async () => {
     const now = h.now ?? Date.now;
+    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now }) : null;
     const engine = createTurnEngine({
-      holder: h.holder, openSession, now,
+      holder: h.holder, openSession: bridge ? bridge.tap(openSession) : openSession, now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       resolveAccount: (q) => accountFor(h, q),
       onNoAccount: (info) => unblock(h, ctx.db, info),
       onTurnEnd: (turn, account) => meter(h, turn, account),
     });
+    bridge?.attach(engine);
     h.extend?.(engine);
     bindEngine(engine);
+    bindBridge(bridge);
     // threads with work a dead host left: queued or running rows with no live lease
     const stale = ctx.db.all("SELECT DISTINCT thread_id FROM engine_thread_queue WHERE state IN ('queued', 'running')") as Array<{ thread_id: string }>;
     for (const r of stale) {

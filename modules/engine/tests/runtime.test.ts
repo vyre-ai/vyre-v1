@@ -9,6 +9,7 @@ import { ensureRuntime, wakeAfterUnblock } from "../runtime.ts";
 import { boundEngine, bindEngine, sqlMessages, sqlQueue } from "../projections.ts";
 import { harness, openRaw } from "../fixtures/harness.ts";
 import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
+import { until } from "../../../agent/src/turn-engine/harness.ts";
 import type { DriverEvent } from "../../../agent/src/turn-engine/types.ts";
 import type { EngineHostSeam } from "../runtime.ts";
 
@@ -109,4 +110,21 @@ test("a thread a dead host left with queued work is opened and run when the runt
   assert.deepEqual(engine.turns(THREAD).map((t) => t.state), ["completed"]);
   hostSeams.setEngineHost(null);
 });
+test("with postAs the chat bridge is attached: the agent's reply is posted to the chat by the agent, once, under the id the engine gave it", async () => {
+  const h = harness({ threads: THREADS });
+  const p = scriptedProvider({ script: say });
+  const f: Fake = { calls: [], haveKey: true, accountsDown: false };
+  const posts: Array<{ agentId: string; threadId: string; body: string; clientId: string }> = [];
+  hostSeams.setEngineHost({ ...hostFor(p, f), postAs: async (agentId, post) => { posts.push({ agentId, threadId: post.threadId, body: post.body, clientId: post.clientId }); return {}; } });
+  const engine = (await ensureRuntime(h.ctx))!;
+  await handlers["engine.stop"]!(h.ctx as never, { threadId: THREAD } as never).catch(() => undefined);
+  engine.receive({ threadId: THREAD, author: { kind: "person", id: "usr_dana" }, body: "hello" });
+  await engine.idle(THREAD);
+  await until(() => posts.length > 0);
+  assert.equal(posts.length, 1);
+  assert.deepEqual([posts[0]!.agentId, posts[0]!.threadId, posts[0]!.body], ["agt_intake", THREAD, "Hello."]);
+  assert.equal(posts[0]!.clientId, engine.messages(THREAD).filter((m) => m.author.kind === "agent")[0]!.id, "the chat message id is the engine message id");
+  hostSeams.setEngineHost(null);
+});
+
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
