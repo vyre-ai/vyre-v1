@@ -63,7 +63,7 @@ const spaces = async (): Promise<Harness[]> => {
 };
 
 test("a real handler exists for exactly the capabilities the registry declares for health", () => {
-  assert.equal(caps.length, 16);
+  assert.equal(caps.length, 17);
   assert.deepEqual(Object.keys(handlers).sort(), caps.map((c) => c.name).sort());
 });
 

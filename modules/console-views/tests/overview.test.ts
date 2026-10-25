@@ -136,3 +136,23 @@ test("an unhealthy overview still answers when every other source is down", asyn
   assert.equal(out.health, "healthy");
   assert.deepEqual(out.usage, { turnsToday: 0, costMicrosMonth: 0, members: 0, agents: 0 });
 });
+
+test("the Overview carries the server's CPU, memory and disk and the last backup, from the health probe and the backup log", async () => {
+  const w = world({
+    ...quiet,
+    "health.machine": { state: "healthy", machine: { cpuPercent: 12.5, memoryUsedBytes: 4_000, memoryTotalBytes: 16_000, diskFreeBytes: 700, diskTotalBytes: 1_000, junk: 9 } },
+    "backup.list": { backups: [{ backupId: "bkp_a", at: NOW - 2 * DAY, verified: true }, { backupId: "bkp_b", at: NOW - DAY, verified: false }] },
+  });
+  const out = await handlers["console.overview"](w.ctx, {});
+  assert.deepEqual(out.machine, { cpuPercent: 12.5, memoryUsedBytes: 4_000, memoryTotalBytes: 16_000, diskFreeBytes: 700, diskTotalBytes: 1_000 });
+  assert.deepEqual(out.lastBackup, { at: NOW - DAY, result: "unverified" }, "the newest backup, whatever the order of the list");
+});
+
+test("a caller who may not read the probe or the backup log still gets the Overview, without those tiles", async () => {
+  const w = world({ ...quiet, "health.machine": new Error("denied"), "backup.list": new Error("denied") });
+  const out = await handlers["console.overview"](w.ctx, {});
+  assert.equal("machine" in out, false);
+  assert.equal("lastBackup" in out, false);
+  const none = await handlers["console.overview"](world({ ...quiet, "health.machine": { state: "degraded", detail: "The host has not reported this yet." }, "backup.list": { backups: [] } }).ctx, {});
+  assert.equal("machine" in none || "lastBackup" in none, false);
+});
