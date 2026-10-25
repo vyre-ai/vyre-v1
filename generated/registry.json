@@ -3529,71 +3529,6 @@
       },
       "type": "array"
     },
-    "s_348b49ae03": {
-      "properties": {
-        "blocks": {
-          "items": {
-            "properties": {
-              "props": {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              "type": {
-                "enum": [
-                  "text",
-                  "image",
-                  "button",
-                  "columns",
-                  "divider",
-                  "merge",
-                  "html"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "type",
-              "props"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "emailId": {
-          "examples": [
-            "eml_a1b2c3"
-          ],
-          "pattern": "^eml_[a-z0-9]+$",
-          "type": "string"
-        },
-        "html": {
-          "type": "string"
-        },
-        "mode": {
-          "enum": [
-            "blocks",
-            "html",
-            "plain"
-          ],
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "plain": {
-          "type": "string"
-        },
-        "subject": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "emailId",
-        "name",
-        "mode"
-      ],
-      "type": "object"
-    },
     "s_3550bb561b": {
       "items": {
         "properties": {
@@ -6582,6 +6517,49 @@
       },
       "type": "array"
     },
+    "s_573e287a45": {
+      "properties": {
+        "blocks": {
+          "items": {
+            "$ref": "#/$defs/s_65cbb13876"
+          },
+          "type": "array"
+        },
+        "emailId": {
+          "examples": [
+            "eml_a1b2c3"
+          ],
+          "pattern": "^eml_[a-z0-9]+$",
+          "type": "string"
+        },
+        "html": {
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "blocks",
+            "html",
+            "plain"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "plain": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "emailId",
+        "name",
+        "mode"
+      ],
+      "type": "object"
+    },
     "s_574cc4b511": {
       "properties": {
         "cursor": {
@@ -6864,17 +6842,6 @@
       },
       "required": [
         "resource"
-      ],
-      "type": "object"
-    },
-    "s_5b2af5e779": {
-      "properties": {
-        "email": {
-          "$ref": "#/$defs/s_348b49ae03"
-        }
-      },
-      "required": [
-        "email"
       ],
       "type": "object"
     },
@@ -7863,6 +7830,36 @@
       ],
       "type": "object"
     },
+    "s_65cbb13876": {
+      "properties": {
+        "props": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "type": {
+          "enum": [
+            "text",
+            "heading",
+            "image",
+            "button",
+            "columns",
+            "divider",
+            "merge",
+            "footer",
+            "html",
+            "spacer",
+            "social",
+            "saved"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "props"
+      ],
+      "type": "object"
+    },
     "s_66aaee851e": {
       "properties": {
         "invoice": {
@@ -8706,6 +8703,17 @@
         "assignableToAgents",
         "permissions",
         "holders"
+      ],
+      "type": "object"
+    },
+    "s_78845cba60": {
+      "properties": {
+        "email": {
+          "$ref": "#/$defs/s_573e287a45"
+        }
+      },
+      "required": [
+        "email"
       ],
       "type": "object"
     },
@@ -15499,6 +15507,42 @@
         "when",
         "route",
         "enabled"
+      ],
+      "type": "object"
+    },
+    "s_dec3308fa1": {
+      "properties": {
+        "block": {
+          "$ref": "#/$defs/s_65cbb13876"
+        },
+        "blockId": {
+          "examples": [
+            "blk_a1b2c3"
+          ],
+          "pattern": "^blk_[a-z0-9]+$",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "shared": {
+          "type": "boolean"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "blockId",
+        "name",
+        "block",
+        "shared",
+        "updatedAt"
       ],
       "type": "object"
     },
@@ -58718,7 +58762,7 @@
       "module": "email-builder-api",
       "name": "email_builder.create",
       "output": {
-        "$ref": "#/$defs/s_5b2af5e779"
+        "$ref": "#/$defs/s_78845cba60"
       },
       "permission": null,
       "resource": {
@@ -58790,7 +58834,7 @@
       "module": "email-builder-api",
       "name": "email_builder.get",
       "output": {
-        "$ref": "#/$defs/s_5b2af5e779"
+        "$ref": "#/$defs/s_78845cba60"
       },
       "permission": null,
       "resource": {
@@ -59184,7 +59228,7 @@
       "module": "email-builder-api",
       "name": "email_builder.restore_version",
       "output": {
-        "$ref": "#/$defs/s_5b2af5e779"
+        "$ref": "#/$defs/s_78845cba60"
       },
       "permission": null,
       "resource": {
@@ -59241,7 +59285,7 @@
       "input": {
         "properties": {
           "email": {
-            "$ref": "#/$defs/s_348b49ae03"
+            "$ref": "#/$defs/s_573e287a45"
           },
           "emailId": {
             "examples": [
@@ -59279,6 +59323,166 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Autosave a design; each save is a version",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "inbox"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "blocks": [
+              {
+                "block": {
+                  "props": {},
+                  "type": "text"
+                },
+                "blockId": "blk_a1b2c3",
+                "name": "example",
+                "shared": true,
+                "updatedAt": 1760000000000
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "email-builder-api",
+      "name": "email_builder.saved_blocks.list",
+      "output": {
+        "properties": {
+          "blocks": {
+            "items": {
+              "$ref": "#/$defs/s_dec3308fa1"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "blocks"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "List saved blocks: mine and the ones shared with the Space, to drop into a design",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "inbox"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "email_block.saved"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "block": {
+              "props": {},
+              "type": "text"
+            },
+            "blockId": "blk_a1b2c3",
+            "name": "example",
+            "shared": true
+          },
+          "name": "example",
+          "output": {
+            "block": {
+              "block": {
+                "props": {},
+                "type": "text"
+              },
+              "blockId": "blk_a1b2c3",
+              "name": "example",
+              "shared": true,
+              "updatedAt": 1760000000000
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "block": {
+            "$ref": "#/$defs/s_65cbb13876"
+          },
+          "blockId": {
+            "examples": [
+              "blk_a1b2c3"
+            ],
+            "pattern": "^blk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "shared": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "block"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "email-builder-api",
+      "name": "email_builder.saved_blocks.save",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "block": {
+            "$ref": "#/$defs/s_dec3308fa1"
+          }
+        },
+        "required": [
+          "block"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Save a block for reuse, or change one of mine; only the person who saved it can change it",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -173527,6 +173731,37 @@
       "summary": "A Dropbox Sign webhook arrived and was verified",
       "sv": 1,
       "vis": "space"
+    },
+    {
+      "module": "email-builder-api",
+      "name": "email_block.saved",
+      "payload": {
+        "properties": {
+          "blockId": {
+            "examples": [
+              "blk_a1b2c3"
+            ],
+            "pattern": "^blk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "shared": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "blockId",
+          "shared"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/blockId",
+        "type": "entity"
+      },
+      "summary": "A block was saved for reuse in email designs",
+      "sv": 1,
+      "vis": "owner"
     },
     {
       "module": "email-builder-api",
