@@ -83544,6 +83544,8 @@ NOTES.inbox = { title: "Inbox", shape: ["One Inbox for every outside conversatio
   if (tok.includes("conflicts")) synOpen("conf");
   if (tok.includes("notify")) setTimeout(() => notify(Object.assign(billingBanner(), { sticky: true })), 500);
   if (tok.includes("away")) setTimeout(awaySheet, 300);
+  /* screenshots (P-L9_08): phonedial opens the dialer, phonecall places a call to Elena, phonein rings an incoming call, phoneend hangs up after 3 s; in the place that is showing */
+  if (tok.includes("phonedial") || tok.includes("phonecall") || tok.includes("phonein") || tok.includes("phoneend")) setTimeout(() => { try { const f = Object.values(S.frames).find((x) => x.style.visibility === "visible"), ph = f && f.contentWindow.VyreUI && f.contentWindow.VyreUI.phone; if (!ph) return; const who = { name: "Elena Rivera", number: "+1 415 555 0161" }; if (tok.includes("phonedial")) ph.open(); else if (tok.includes("phonein")) ph.incoming({ number: who.number }); else { ph.call(who); if (tok.includes("phoneend")) setTimeout(() => { const b = f.contentDocument.querySelector("[data-a=end]"); b && b.click(); }, 3500); } } catch (e) {} }, 2500);
   if (tok.includes("cmdk")) setTimeout(() => palOpen((decodeURIComponent((tok.find((x) => x.startsWith("q:")) || "").slice(2))).replace(/\+/g, " ")), 700);
 
   /* ---------- right-click everywhere in the shell: one menu look (ctx), real state changes; Shift-F10 or the menu key opens it on the focused element ---------- */
