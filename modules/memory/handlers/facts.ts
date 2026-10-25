@@ -347,7 +347,16 @@ export async function counts(ctx: MemCtx, input: { agentId: string }) {
     current: facts.filter((f) => liveNow(f, now)).length,
     proposed: facts.filter((f) => f.status === "proposed").length,
     fromMe: facts.filter((f) => liveNow(f, now) && f.sourcePerson === me).length,
+    autoMerged: facts.filter((f) => liveNow(f, now) && f.lowRisk === true).length,
   };
+}
+
+/** The MAP.md block the nightly job last wrote for an agent. Only the agent layer goes into it, so anyone who may view the agent may read it. */
+export async function mapGet(ctx: MemCtx, input: { agentId: string }) {
+  ensure(ctx.db);
+  if (!(await makeAccess(ctx).can("agent", input.agentId, input.agentId, null, "view"))) raise(ctx, "permission.no_grant", "You cannot read this agent's memory.");
+  const r = rowsOf(ctx.db, "SELECT body, lines, updated_at FROM memory_maps WHERE agent_id = ?", input.agentId)[0];
+  return r ? { map: { body: str(r["body"]), lines: Number(r["lines"]), updatedAt: Number(r["updated_at"]) } } : {};
 }
 
 // ---- search

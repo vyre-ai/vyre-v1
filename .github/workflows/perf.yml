@@ -1,0 +1,59 @@
+name: perf
+# Ruling 55: the whole perf set (test/slow.json "perf": true) runs here, hourly and on dispatch, one file per job on the pinned v1-perf host,
+# so it never sits on main's 10 minute path. Its own concurrency group and its own budget (ci-budget.ts --kind perf, 30 minutes).
+on:
+  schedule:
+    - cron: '47 * * * *'
+  workflow_dispatch:
+concurrency:
+  group: perf-full
+  cancel-in-progress: false
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.sel.outputs.matrix }}
+      has_tests: ${{ steps.sel.outputs.has_tests }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - name: Every perf file, one job each
+        id: sel
+        run: |
+          node scripts/ci-select.ts "" --matrix --perf-only > select.json
+          node -e 'const r=JSON.parse(require("fs").readFileSync("select.json","utf8"));const n=r.matrix.include.length;console.log("select: "+n+" perf jobs");const o=process.env.GITHUB_OUTPUT;require("fs").appendFileSync(o,"has_tests="+(n>0)+"\nmatrix="+JSON.stringify(n>0?r.matrix:{include:[{name:"none",files:"",slow:"false"}]})+"\n")'
+  shards:
+    name: ${{ matrix.name }}
+    needs: select
+    if: needs.select.outputs.has_tests == 'true'
+    runs-on: [self-hosted, linux, v1-perf]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Exclusive disk for a perf job
+        run: bash scripts/ci-iolock.sh exclusive
+      - uses: ./.github/actions/deps
+      - name: Run the perf file (budgets unchanged)
+        env:
+          FILES: ${{ matrix.files }}
+        run: node scripts/test-run.ts --slow --files $FILES
+  budget-perf:
+    permissions: { contents: read, actions: read }
+    needs: [select, shards]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - name: Wall time of this run against the 30 minute perf budget
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci-budget.ts --kind perf --run-id ${{ github.run_id }} --repo ${{ github.repository }}
