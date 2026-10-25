@@ -178,7 +178,7 @@ export function MemoryTab({ deps, spaceName, window }: { deps: PaneDeps; spaceNa
       });
     }
   }
-  return <View style={st.fill}><PaneList entries={entries} {...(window ? { window } : {})} testID="memory-list" />{menu.element}</View>;
+  return <View style={st.fill}><PaneList plain entries={entries} {...(window ? { window } : {})} testID="memory-list" />{menu.element}</View>;
 }
 
 /** A proposed fact as a card (the prototype draws them boxed); right-click gives the same Accept and Reject as the buttons. */

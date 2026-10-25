@@ -3,7 +3,7 @@
 // switch repaints with no re-render.
 import { createElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
@@ -132,7 +132,8 @@ function Hot({ children }: { children: (over: boolean) => ReactElement }): React
   return <View {...{ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) }}>{children(over)}</View>;
 }
 
-export function PaneList({ entries, window, testID }: { entries: readonly Entry[]; window?: VirtualWindow; testID?: string }): ReactElement {
+/** `plain` draws every entry in one scrolling column instead of a windowed list: for a short list whose rows are boxes of varying height (Memory), where measured windowing leaves gaps. */
+export function PaneList({ entries, window, testID, plain = false }: { entries: readonly Entry[]; window?: VirtualWindow; testID?: string; plain?: boolean }): ReactElement {
   const menu = useMenu();
   const render = (e: Entry): ReactElement => {
     switch (e.type) {
@@ -161,6 +162,16 @@ export function PaneList({ entries, window, testID }: { entries: readonly Entry[
       }
     }
   };
+  if (plain) {
+    const rows: ReactElement[] = [];
+    for (const e of entries) rows.push(<View key={e.key}>{render(e)}</View>);
+    return (
+      <View testID={testID ?? "pane-list"} style={s.list}>
+        <ScrollView style={{ flex: 1 }}>{rows}</ScrollView>
+        {menu.element}
+      </View>
+    );
+  }
   return (
     <View testID={testID ?? "pane-list"} style={s.list}>
       <VirtualList data={entries} rowHeight="measure" keyOf={(e) => e.key} renderItem={render} {...(window ? { window } : {})} />
