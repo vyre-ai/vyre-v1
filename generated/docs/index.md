@@ -17,7 +17,7 @@
 | Connectors | 13 |
 | Agent tools (not 1:1 with a capability) | 10 |
 | Block types | 22 |
-| Screens | 178 |
+| Screens | 179 |
 | Health checks | 47 |
 | Gate act kinds | 10 |
 | Task kinds | 6 |
