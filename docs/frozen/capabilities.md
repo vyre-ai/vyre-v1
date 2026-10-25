@@ -4,8 +4,8 @@ Review of the merged capability registry at the F11 freeze. `packages/contracts/
 
 ## Frozen values
 
-Registry hash: 8b65d8bc151f1da324a8e0bb6c7b74ca136a9c1a4b1cd525e2e8401eb4cb564d
-Capabilities: 1494
+Registry hash: 0d9d6842b136079091070c609353002a78faca9c9af2d74b40730cafaf3f81f1
+Capabilities: 1495
 Events: 601
 Registry modules: 80
 Host modules: 72
@@ -31,7 +31,7 @@ Selection rule: capabilities of the lane (owner of the module) sorted by name, n
 | L3 | 152 | 16 |
 | L4 | 108 | 11 |
 | L5 | 344 | 35 |
-| L6 | 161 | 17 |
+| L6 | 162 | 17 |
 | L7a | 218 | 22 |
 | L7b | 78 | 8 |
 | L8 | 133 | 14 |
@@ -46,7 +46,7 @@ L4: changesets.approve, changesets.revert_change, files.comments.resolve, files.
 
 L5: calendar.availability, calendar.ingest_event, contacts.address.add, contacts.preferences.set, github.app.get, github.issue.update, github.pull_request.merge, google.calendar.get_event, google.drive.changes_start_token, google.drive.stop_watch, google.dwd.status, google.gmail.send_message, google.meet.subscribe, inbox.following, inbox.send_options, mail.domain.list, mail.mailbox.get, mail.route.list, mailgun.domains.delete, mailgun.routes.list, meetings.set_state, ms.calendar.get_schedule, ms.consent.policy_snippet, ms.drive.list_items, ms.mail.list_folders, ms.teams.recordings.get_transcript, resend.health, stripe.health, stripe.refund.create, telephony.dial, telephony.number.get, telephony.registration.refresh, twilio.a2p.status, twilio.number.search, zoom.meetings.delete
 
-L6: automations.alerts.get, automations.groups.delete, automations.restore_version, automations.validate, gate.acts.list, home.activity, journeys.check_limits, journeys.rules.set, notifications.delegate.resolve, notifications.push.unregister, runs.preview_undo, runs.undo, scheduler.pause, scheduler.waits.register, tasks.escalate, tasks.release, webhooks.delete
+L6: automations.alerts.get, automations.groups.delete, automations.retry, automations.validate, gate.deny, home.activity, journeys.create, journeys.rules.set, notifications.delegate.set, notifications.push.register, runs.preview_undo, runs.stop, scheduler.pause, scheduler.waits.match, tasks.escalate, tasks.needs_you, webhooks.delete
 
 L7a: access.actors.create, access.groups.add_member, access.labels.set, access.request, access.roles.assign, access.unshare, audit.list, devices.revoke, folders.place, governance.holds.release, identity.change_password, identity.passkey_remove, identity.totp_begin, members.invites.list, members.sso.remove, providers.subscription_start, settings.pages, spaces.matrix, vault.export_env, vault.import, vault.item.reveal, vault.requests.decline
 

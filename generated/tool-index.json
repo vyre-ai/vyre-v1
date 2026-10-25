@@ -4838,6 +4838,12 @@
     },
     {
       "deferred": false,
+      "name": "notifications_kind_set_level",
+      "summary": "Set how one kind of notification reaches me: its level and which of desktop, phone and email carry it. Give a level, channels, or both; channels alone pick the level (desktop or phone interrupt, otherwise badge). Approval reminders and owned incidents never go below Interrupt",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "notifications_kinds_list",
       "summary": "The notification kinds with level and place, for the settings page",
       "toolset": "meta"

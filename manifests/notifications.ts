@@ -25,6 +25,7 @@ const hours = t.obj({
 const rules = t.obj({
   workingHours: t.opt(hours), emailBackstop: t.bool(), mutedAgents: t.arr(id.agent), mutedChannels: t.arr(id.channel), mutedRecords: t.arr(id.record),
 });
+const channel = t.enm('desktop', 'phone', 'email');
 const delegateTo = t.obj({ kind: t.enm('person', 'role', 'none'), id: t.opt(t.str({ examples: ['usr_a1b2c3'] })) });
 const mutable = t.obj({ kind: t.enm('person', 'agent', 'channel', 'record', 'thread'), id: t.str({ examples: ['agt_a1b2c3'] }) });
 
@@ -98,7 +99,12 @@ export default defineManifest({
       in: { notificationIds: t.opt(t.arr(id.notification)), place: t.opt(place) }, out: { marked: t.int() }, emits: ['notification.seen'], tool: 'meta', offline: 'queue',
     }),
     read('notifications.kinds.list', 'The notification kinds with level and place, for the settings page', {
-      in: {}, out: { kinds: t.arr(t.obj({ key: kindKey, level, place, title: t.str(), respectHours: t.bool() })) }, tool: 'meta',
+      in: {}, out: { kinds: t.arr(t.obj({ key: kindKey, level, place, title: t.str(), respectHours: t.bool(), mine: t.opt(t.obj({ level, channels: t.arr(channel) })) })) }, tool: 'meta',
+    }),
+    write('notifications.kind.set_level', 'Set how one kind of notification reaches me: its level and which of desktop, phone and email carry it. Give a level, channels, or both; channels alone pick the level (desktop or phone interrupt, otherwise badge). Approval reminders and owned incidents never go below Interrupt', {
+      in: { kind: kindKey, level: t.opt(level), channels: t.opt(t.arr(channel, { maxItems: 3 })) },
+      out: { kind: kindKey, level, channels: t.arr(channel) }, level: 'use', emits: ['notification.rules_changed'], tool: 'meta', offline: 'queue',
+      errors: ['validation.bad_input', 'validation.precondition_failed'],
     }),
     read('notifications.rules.get', 'My notification settings: working hours, email backstop, muted agents, channels and records', { in: {}, out: { rules }, tool: 'meta' }),
     write('notifications.rules.set', 'Adjust my notification settings (settings only adjusts; nothing is required)', {
@@ -137,6 +143,12 @@ export default defineManifest({
   settings: [
     setting('notifications.working_hours', 'person', 'Notifications', 'Working hours (outside them only calls, urgent approvals and incidents interrupt)', hours, { days: [1, 2, 3, 4, 5], from: '09:00', to: '18:00', tz: 'UTC' }),
     setting('notifications.email_backstop', 'person', 'Notifications', 'Email me once if an approval waits 4 hours', t.bool(), true),
+    setting('notifications.alert_replies', 'person', 'Notifications', 'Alert me on replies', t.bool(), false),
+    setting('notifications.routines_all', 'person', 'Notifications', 'Also tell me when routines succeed (failures always)', t.bool(), false),
+    setting('notifications.hand_needs_you_to', 'person', 'Notifications', 'While you are away, hand Needs you to (a person; none leaves it with you)', t.nullable(t.str({ examples: ['usr_a1b2c3'] })), null),
+    setting('notifications.quiet_hours', 'person', 'Notifications', 'Quiet hours: no sounds or pushes between the two times; Needs you may come through', t.obj({
+      on: t.bool(), from: t.str({ pattern: '^[0-2][0-9]:[0-5][0-9]$', examples: ['22:00'] }), to: t.str({ pattern: '^[0-2][0-9]:[0-5][0-9]$', examples: ['07:00'] }), needs: t.bool(),
+    }), { on: false, from: '22:00', to: '07:00', needs: true }),
     setting('notifications.push_idle_minutes', 'space', 'Notifications', 'Minutes idle on the computer before pushes go to the phone', t.int({ minimum: 1, maximum: 60 }), 5),
   ],
   screens: [

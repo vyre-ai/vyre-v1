@@ -8,7 +8,7 @@
 // contact reaches you through the other four reasons or through the record's own Conversation tab, which asks inbox.thread for one contact.
 // DECISION: recipient search returns contacts, companies, inboxes and groups. Space members have no list capability in the frozen contract, so kind member returns nothing.
 import { fail } from "../../../host/src/routes/errors.ts";
-import { bad, codeOf, ensure, first, getConversation, jsonList, list, missing, num, obj, rowsOf, str, strOrNull, strings, text, toConversation } from "../projections.ts";
+import { bad, codeOf, ensure, first, getConversation, getRecord, nameOf, jsonList, list, missing, num, obj, rowsOf, str, strOrNull, strings, text, toConversation } from "../projections.ts";
 import type { Channel, ConversationRow, InboxCtx, Json, Row } from "../projections.ts";
 import { candidatesFor } from "./match.ts";
 
@@ -124,6 +124,31 @@ function conversationIdsWith(ctx: InboxCtx, filter: Filter): Set<string> | null 
   );
 }
 
+// ---- row flags
+
+/** The flags a list row carries, read from real data: the contact record (company, Do not contact, deliverability) and the drafts waiting for the contact. A source that fails leaves its flag off. */
+async function withFlags(ctx: InboxCtx, row: ConversationRow): Promise<ConversationRow> {
+  if (!row.contactId) return { ...row, unmatched: true };
+  const out: ConversationRow = { ...row, unmatched: false };
+  try {
+    const contact = await getRecord(ctx, "contact", row.contactId);
+    if (contact) {
+      out.dnd = contact.fields.pref_do_not_contact === true;
+      const state = text(contact.fields.deliverability);
+      out.bounced = state === "bounced" || state === "complained";
+      const company = text(contact.fields.company);
+      if (company) {
+        const org = await getRecord(ctx, "company", company);
+        if (org) out.organisation = nameOf(org);
+      }
+    }
+  } catch (e) { ctx.log.warn("inbox: could not read the contact for a row", { code: codeOf(e) }); }
+  try {
+    out.draftReady = list(obj(await ctx.call("mail.drafts.list", { contactId: row.contactId, limit: 1 })).drafts).length > 0;
+  } catch (e) { ctx.log.warn("inbox: could not read the drafts for a row", { code: codeOf(e) }); }
+  return out;
+}
+
 // ---- inbox.list_by_contact
 
 export async function listByContact(
@@ -137,7 +162,8 @@ export async function listByContact(
   const found = (await mine(ctx, input.needsMatch === undefined ? `deleted_at IS NULL` : `deleted_at IS NULL AND "needsMatch" = ?`, input.needsMatch === undefined ? [] : [input.needsMatch ? 1 : 0]))
     .filter(({ row }) => (!ids || ids.has(str(row, "id"))) && (!q || has(str(row, "displayName"), q) || has(str(row, "address"), q) || has(str(row, "lastPreview"), q)));
   const p = pageOf(found, w);
-  return { rows: p.rows.map(({ row }) => toConversation(ctx, row)), showing: showing(input, "conversations"), total: p.total, ...(p.next ? { next: p.next } : {}) };
+  const rows = await Promise.all(p.rows.map(({ row }) => withFlags(ctx, toConversation(ctx, row))));
+  return { rows, showing: showing(input, "conversations"), total: p.total, ...(p.next ? { next: p.next } : {}) };
 }
 
 // ---- inbox.list_by_thread

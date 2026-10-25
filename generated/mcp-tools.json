@@ -32327,6 +32327,73 @@
     },
     {
       "blocks": [],
+      "cap": "notifications.kind.set_level",
+      "deferred": false,
+      "description": "Set how one kind of notification reaches me: its level and which of desktop, phone and email carry it. Give a level, channels, or both; channels alone pick the level (desktop or phone interrupt, otherwise badge). Approval reminders and owned incidents never go below Interrupt",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "channels": {
+            "items": {
+              "enum": [
+                "desktop",
+                "phone",
+                "email"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "approval.requested",
+              "approval.backstop",
+              "dm",
+              "mention",
+              "call.incoming",
+              "agent.blocked",
+              "incident.owned",
+              "task.assigned",
+              "reply.followed",
+              "agent.task_finished",
+              "campaign.reply",
+              "digest.away",
+              "mention.thread",
+              "run.failed",
+              "conflict.needs_you",
+              "access.requested",
+              "access.decided",
+              "sync.attention",
+              "health.degraded",
+              "problem.report",
+              "member.joined",
+              "limit.hit",
+              "vault.rotation_due"
+            ],
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "interrupt",
+              "badge",
+              "digest"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "name": "notifications_kind_set_level",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "notifications.kinds.list",
       "deferred": false,
       "description": "The notification kinds with level and place, for the settings page",

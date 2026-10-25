@@ -1,4 +1,5 @@
-// One handler per notifications capability (19). Sending, lists, settings, mutes, away and delegates live in rules.ts; device tokens and the push payload in push.ts.
+// One handler per notifications capability (20). Sending, lists, settings, mutes, away and delegates live in rules.ts; device tokens and the push payload in push.ts.
+import { kindSetLevel } from "./kinds.ts";
 import { pushRegister, pushUnregister } from "./push.ts";
 import {
   awayClear, awayGet, awaySet, counts, delegateGet, delegateResolve, delegateSet, digestCollect, kindsList, list, markSeen, muteClear, muteList, muteSet, rulesGet, rulesSet, send,
@@ -13,6 +14,7 @@ export const handlers = {
   "notifications.delegate.resolve": delegateResolve,
   "notifications.delegate.set": delegateSet,
   "notifications.digest.collect": digestCollect,
+  "notifications.kind.set_level": kindSetLevel,
   "notifications.kinds.list": kindsList,
   "notifications.list": list,
   "notifications.mark_seen": markSeen,
