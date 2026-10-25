@@ -217,8 +217,8 @@ export async function exportEnv(ctx: VaultCtx, input: { folderId: string; expire
   const sealed = filler(ctx).seal(id, [{ key: "env", value: lines.join("\n") + (lines.length ? "\n" : ""), secret: true }]);
   const expiresAt = ctx.now() + EXPIRY_MS[input.expiresIn as Expiry];
   ctx.db.run(
-    `INSERT INTO vault_export ("id", "folderId", "by", "createdAt", "expiresAt", "tokenHash", "box", "keyId", "itemCount", "pulledAt", "revokedAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)`,
-    id, str(f, "id"), ctx.principal.id, ctx.now(), expiresAt, sha(token), JSON.stringify(sealed.box), sealed.keyId, items.length,
+    `INSERT INTO vault_export ("id", "folderId", "by", "createdAt", "expiresAt", "tokenHash", "box", "keyId", "itemCount", "pulledAt", "revokedAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, str(f, "id"), ctx.principal.id, ctx.now(), expiresAt, sha(token), JSON.stringify(sealed.box), sealed.keyId, items.length, null, null,
   );
   for (const r of items) record(ctx, str(r, "id"), "exported", { detail: `pull link ${input.expiresIn}` });
   ctx.emit("vault.exported", `vault_folder/${str(f, "id")}`, { exportId: id, folderId: str(f, "id"), itemCount: items.length, expiresAt }, { vis: "participants" });

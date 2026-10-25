@@ -40,7 +40,7 @@ import { createGateHook } from "./gate-hook.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
 import { createKitsHost } from "../seams/kits.ts";
-import { createVaultService } from "../seams/vault.ts";
+import { createVaultService, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, wireSeams } from "../seams/index.ts";
 import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
@@ -345,6 +345,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         validateInput: (cap, v, input) => (extraCaps.has(cap) ? [] : validateInput(cap, v, input)),
         validateEvent: (name, payload) => (extraEvents.has(name) ? [] : validateEvent(name, payload)),
         authorize: (r) => authorize(access.snap, r),
+        resolveItem: (type, kind, value) => resolveVaultItem(db!, type, kind, value),
         handler: (cap, v) => {
           const h = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
           // The one internal call a module may make with the host's own authority: devices -> sync.epoch.bump (a device was revoked, its replica must purge). The person revoking their own

@@ -8,6 +8,7 @@ import * as v from "../handlers/index.ts";
 import * as u from "../handlers/use.ts";
 import { DEFERRED, handlers } from "../impl.ts";
 import { registry } from "../../../generated/registry.ts";
+import { resolveVaultItem } from "../../../host/src/seams/vault.ts";
 import { AGENT, MAYA, ROB, SECRET, contractErrors, harness, refusedWith } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -174,5 +175,20 @@ test("the handler map is exactly the manifest's capabilities, and each deferred 
     const err = await Promise.resolve().then(() => run(h.ctx as never, {})).then(() => null, (e: unknown) => e as { error: { code: string; message: string } });
     assert.deepEqual([err?.error.code, err?.error.message], ["internal.unavailable", "Not in this version yet"], cap);
   }
+  h.cleanup();
+});
+
+test("the pipeline's name and handle lookup finds the item before authorize, with or without a field after the handle", async () => {
+  const h = harness();
+  const id = await put(h, await folder(h), "Dana Lawmatics");
+  const find = (kind: "name" | "handle", value: string) => resolveVaultItem(h.ctx.db, "vault_item", kind, value);
+  assert.equal(find("name", "Dana Lawmatics"), id);
+  assert.equal(find("name", "dana lawmatics"), id);
+  assert.equal(find("name", id), id);
+  assert.equal(find("handle", "#Dana_Lawmatics"), id);
+  assert.equal(find("handle", "#Dana_Lawmatics.api_key"), id);
+  assert.equal(find("handle", "#dana_lawmatics.api_key"), id);
+  assert.equal(find("name", "Nothing"), null);
+  assert.equal(resolveVaultItem(h.ctx.db, "vault_folder", "name", "Dana Lawmatics"), null);
   h.cleanup();
 });
