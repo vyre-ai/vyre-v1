@@ -10,6 +10,7 @@ import type { RecordPageStart, RelNode } from "../recordpage/index.ts";
 import { CLIENT, PROJECT, SAMPLE_NOW, createSamplePage, harbor } from "../recordpage/sample.ts";
 import type { SamplePage } from "../recordpage/sample.ts";
 import type { RecordRow } from "../recordpage/model.ts";
+import { marbleUri } from "../recordpage/FaceImage.tsx";
 
 const page = (s: SamplePage, start?: RecordPageStart, type = "clients", id = "cl_0"): string =>
   renderToStaticMarkup(<RecordPageDataProvider value={s.data}><RecordPage type={type} recordId={id} {...(start ? { start } : {})} /></RecordPageDataProvider>).replaceAll("<!-- -->", "");
@@ -280,4 +281,11 @@ test("navigate smoke: a warm server render of the whole page stays far under a s
   console.log(`INFO server render of records.page: median ${ms.toFixed(1)} ms, worst ${times[6]!.toFixed(1)} ms (informative only)`);
   assert.ok(has(out, 'data-testid="record-page"'));
   assert.ok(ms < 400, `the page took ${ms.toFixed(1)} ms to render on the server`);
+});
+
+test("screen: faces on the page are cached images, so the first frame has no blurred inline svg to paint (the navigate budget)", () => {
+  const out = page(createSamplePage());
+  assert.ok(count(out, 'data-face="image"') >= 2, "the owner and the activity lines draw their faces as images");
+  assert.ok(!has(out, "<filter") && !has(out, "feGaussianBlur<"), "no filter element on the page");
+  assert.equal(marbleUri("Maya Chen"), marbleUri("Maya Chen"));
 });

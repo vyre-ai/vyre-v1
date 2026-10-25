@@ -10,7 +10,8 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { TabStrip } from "../../../../../../ui/src/TabStrip/index.tsx";
-import { Face, Glyph, pointOf } from "../sidebar/parts.tsx";
+import { Glyph, pointOf } from "../sidebar/parts.tsx";
+import { FaceImage } from "./FaceImage.tsx";
 import { errorText, savePrefs, saveField, saveValue, sourceOf, undoSave } from "./actions.ts";
 import { useLive, useOptionalPageData, usePageData } from "./data.tsx";
 import {
@@ -133,7 +134,7 @@ function FieldRow(q: FieldProps): ReactElement {
   } else {
     const text = valueText(f, v, data.nameOf);
     const shown = (f.type === "choice" || f.type === "status") && typeof v === "string" ? <Tag field={f} value={v} />
-      : f.type === "person" ? <View style={p.person}><Face name={data.nameOf(String(v))} size={18} /><Text numberOfLines={1} style={p.value}>{data.nameOf(String(v))}</Text></View>
+      : f.type === "person" ? <View style={p.person}><FaceImage name={data.nameOf(String(v))} size={18} /><Text numberOfLines={1} style={p.value}>{data.nameOf(String(v))}</Text></View>
       : <Text style={p.value}>{text}</Text>;
     body = <Pressable accessibilityRole={kind === "none" ? "text" : "button"} accessibilityLabel={`${f.title}: ${text}`} testID={`field-${f.key}`} onPress={(e) => { if (kind === "choice") { const pt = pointOf(e); chooseFrom(f, q, pt.x, pt.y); } else if (kind !== "none") q.onEdit(f); }}>{shown}</Pressable>;
   }
@@ -162,7 +163,7 @@ function Pane({ type, row, def, tab, onTab }: { type: string; row: RecordRow; de
   const now = data.now();
   const entries = hq.status === "ready" ? hq.data.entries : [];
   const lines: ReactElement[] = [];
-  entries.forEach((e, i) => lines.push(<Row key={`${e.hlc}:${i}`} id={`act:${i}`} title={activityLine(e, def, data.nameOf)} note={e.reason ?? ""} leading={<Face name={data.nameOf(e.actor)} size={20} />} />));
+  entries.forEach((e, i) => lines.push(<Row key={`${e.hlc}:${i}`} id={`act:${i}`} title={activityLine(e, def, data.nameOf)} note={e.reason ?? ""} leading={<FaceImage name={data.nameOf(e.actor)} size={20} />} />));
   const facts: ReactElement[] = [];
   if (mq.status === "ready") for (const f of mq.data.facts) facts.push(<Row key={f.factId} id={`fact:${f.factId}`} title={f.text} note={`${f.layer} · ${ago(f.learnedAt, now)}`} onPress={() => data.nav.openSource(f.sourceLink ?? f.sourceRef)} />);
   const notes: ReactElement[] = [];
