@@ -107983,7 +107983,7 @@
       "permission": null,
       "resource": {
         "id": "/noteId",
-        "type": "file"
+        "type": "note"
       },
       "risk": "low",
       "since": "1.0.0",
@@ -108072,7 +108072,7 @@
       "permission": null,
       "resource": {
         "id": "/noteId",
-        "type": "file"
+        "type": "note"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -108339,7 +108339,7 @@
       "permission": null,
       "resource": {
         "id": "/noteId",
-        "type": "file"
+        "type": "note"
       },
       "risk": "low",
       "since": "1.0.0",

@@ -10,7 +10,7 @@ Restore a shared memory note to an earlier version (owners and admins)
 | Permission | grant only |
 | Grant level | manage |
 | Risk | medium |
-| Resource | file (/noteId) |
+| Resource | note (/noteId) |
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |
