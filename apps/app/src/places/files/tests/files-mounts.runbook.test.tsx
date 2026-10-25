@@ -5,9 +5,9 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   RunbookDataProvider, RunbookViewer, SERVER, activeAll, allSummary, highlight, latestByBlock, outputText, parseRunnable, progressLine, runBlock, runAll, runLabel, setTarget, splitRunbook, stopRun,
-} from "../src/places/files/runbook/index.ts";
-import { DEPLOY_TEXT, NOTE_ID, createSampleRunbook } from "../src/places/files/runbook/sample.ts";
-import type { SampleRunbook, Variant } from "../src/places/files/runbook/sample.ts";
+} from "../runbook/index.ts";
+import { DEPLOY_TEXT, NOTE_ID, createSampleRunbook } from "../runbook/sample.ts";
+import type { SampleRunbook, Variant } from "../runbook/sample.ts";
 
 const html = (s: SampleRunbook): string =>
   renderToStaticMarkup(<RunbookDataProvider value={s.data}><RunbookViewer fileId={s.fileId} text={s.text} /></RunbookDataProvider>).replaceAll("<!-- -->", "");

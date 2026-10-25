@@ -7,10 +7,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   MountSheet, MountsDataProvider, UnmountSheet, addInput, back, browse, canMount, canNext, chooseSource, crumbs, emptyDraft, isMounted, mountedRows, mountError, next, pick, removeMount, shareInputs,
   submitMount, togglePerson, unmountWords, walkInto, walkTo, whoLabel,
-} from "../src/places/files/mounts/index.ts";
-import type { BrowseItem, Draft } from "../src/places/files/mounts/index.ts";
-import { createSampleMounts, northwindAccounts, northwindMounts, northwindPeople } from "../src/places/files/mounts/sample.ts";
-import type { SampleMounts } from "../src/places/files/mounts/sample.ts";
+} from "../mounts/index.ts";
+import type { BrowseItem, Draft } from "../mounts/index.ts";
+import { createSampleMounts, northwindAccounts, northwindMounts, northwindPeople } from "../mounts/sample.ts";
+import type { SampleMounts } from "../mounts/sample.ts";
 
 const html = (s: SampleMounts, el: ReactElement): string =>
   renderToStaticMarkup(<MountsDataProvider value={s.data}>{el}</MountsDataProvider>).replaceAll("<!-- -->", "");
