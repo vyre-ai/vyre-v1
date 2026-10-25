@@ -1,4 +1,4 @@
-// Test harness for the import module: a real in-memory SQLite behind the host's ctx.db guard (imports_* tables only), a recording ctx, a clock the tests move, and a small world standing in for the
+// Test harness for the import module: a real in-memory SQLite behind the host's ctx.db guard (import_* tables only), a recording ctx, a clock the tests move, and a small world standing in for the
 // modules an import calls (files, schema, records, runs, google) and for the apps it reads (Airtable, Notion), plus checks against the frozen contract.
 import { ProjectionHost } from "../../../kernel/src/store/projection.ts";
 import { registry } from "../../../generated/registry.ts";
