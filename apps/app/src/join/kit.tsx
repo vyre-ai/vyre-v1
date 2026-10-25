@@ -122,10 +122,10 @@ export function Button({ label, onPress, disabled, large, testID }: { label: str
     <Pressable
       accessibilityRole="button" aria-disabled={!!disabled} disabled={disabled} onPress={onPress} testID={testID}
       style={({ hovered, pressed }: { hovered?: boolean; pressed?: boolean }) => ({
-        height: large ? 36 : 32, paddingHorizontal: large ? 22 : 18, borderRadius: 8, backgroundColor: p.blue, justifyContent: "center", opacity: disabled ? 0.4 : pressed ? 0.92 : hovered ? 0.94 : 1,
+        height: large ? 36 : 32, paddingHorizontal: large ? 22 : 18, borderRadius: 8, backgroundColor: p.blue, justifyContent: "center", flexShrink: 0, opacity: disabled ? 0.4 : pressed ? 0.92 : hovered ? 0.94 : 1,
       })}
     >
-      <Text style={[base(p), { color: "#FFFFFF", fontSize: large ? 14 : 13, fontWeight: "600" }]}>{label}</Text>
+      <Text numberOfLines={1} style={[base(p), { color: "#FFFFFF", fontSize: large ? 14 : 13, fontWeight: "600" }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -340,26 +340,37 @@ export function Progress({ pct }: { pct: number }) {
 
 // ---- the bar
 
-export function Bar({ onBack, hideBack, step, steps, cont, testID }: { onBack?: () => void; hideBack?: boolean; step?: number; steps?: number; cont: ReactNode; testID?: string }) {
+export function Bar({ onBack, hideBack, step, steps, cont, centre, testID }: { onBack?: () => void; hideBack?: boolean; step?: number; steps?: number; cont: ReactNode; /** the action sits in the middle of the bar, the dots at the left (the finish page) */ centre?: boolean; testID?: string }) {
   const { p, phone } = useJoin();
+  const dots = steps ? (
+    <View accessibilityRole="progressbar" accessibilityLabel={`Step ${Math.min(steps, (step ?? 0) + 1)} of ${steps}`} aria-valuemin={1} aria-valuemax={steps} aria-valuenow={Math.min(steps, (step ?? 0) + 1)} testID="dots" style={{ flexDirection: "row", gap: 7 }}>
+      {Array.from({ length: steps }, (_, i) => <View key={i} style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: i === step ? p.tx : i < (step ?? 0) ? p.tx2 : p.hair }} />)}
+    </View>
+  ) : <View />;
   return (
     <View
       testID={testID ?? "join-bar"}
       style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 64, paddingHorizontal: 20, paddingVertical: phone ? 10 : 0, borderTopWidth: 1, borderTopColor: p.hair }}
     >
-      {hideBack ? null : (
-        <View style={{ flex: 1, alignItems: "flex-start" }}>
-          <Pressable accessibilityRole="button" onPress={onBack} testID="back" style={({ hovered }: { hovered?: boolean }) => ({ paddingVertical: 6, paddingHorizontal: 4, borderRadius: 6, opacity: hovered ? 0.75 : 1 })}>
-            <Text style={[base(p), { color: p.blue, fontSize: 13, fontWeight: "500" }]}>Back</Text>
-          </Pressable>
-        </View>
+      {centre ? (
+        <>
+          <View style={{ flex: 1, alignItems: "flex-start" }}>{dots}</View>
+          <View style={{ flexShrink: 0, alignItems: "center" }}>{cont}</View>
+          <View style={{ flex: 1 }} />
+        </>
+      ) : (
+        <>
+          {hideBack ? null : (
+            <View style={{ flex: 1, alignItems: "flex-start" }}>
+              <Pressable accessibilityRole="button" onPress={onBack} testID="back" style={({ hovered }: { hovered?: boolean }) => ({ paddingVertical: 6, paddingHorizontal: 4, borderRadius: 6, opacity: hovered ? 0.75 : 1 })}>
+                <Text style={[base(p), { color: p.blue, fontSize: 13, fontWeight: "500" }]}>Back</Text>
+              </Pressable>
+            </View>
+          )}
+          {dots}
+          <View style={{ flex: hideBack ? 0 : 1, flexShrink: 0, alignItems: "flex-end" }}>{cont}</View>
+        </>
       )}
-      {steps ? (
-        <View accessibilityRole="progressbar" accessibilityLabel={`Step ${Math.min(steps, (step ?? 0) + 1)} of ${steps}`} aria-valuemin={1} aria-valuemax={steps} aria-valuenow={Math.min(steps, (step ?? 0) + 1)} testID="dots" style={{ flexDirection: "row", gap: 7 }}>
-          {Array.from({ length: steps }, (_, i) => <View key={i} style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: i === step ? p.tx : i < (step ?? 0) ? p.tx2 : p.hair }} />)}
-        </View>
-      ) : <View />}
-      <View style={{ flex: hideBack ? 0 : 1, alignItems: "flex-end" }}>{cont}</View>
     </View>
   );
 }
