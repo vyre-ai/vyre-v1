@@ -4,7 +4,7 @@
 //
 // The ONE other way in is the owner bootstrap path: the single local admin token that `ensureAdminToken` (config.ts) reads from VYRE_ADMIN_TOKEN or <data dir>/admin.token. The CLI and the Console
 // on the same machine use it before any device has signed in. It acts as the Space owner on the fixed device `local-admin`; the header and query cannot change that device either.
-import crypto from "node:crypto";
+import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 import type { HostDb } from "./sqlite.ts";
 
 /** The device name the owner bootstrap token acts as. It is not a row in devices_device and is never a sync replica. */
@@ -25,12 +25,12 @@ const TABLE = `CREATE TABLE IF NOT EXISTS host_session_token (
 );
 CREATE INDEX IF NOT EXISTS host_session_token_session ON host_session_token (session_id);`;
 
-const sha256 = (s: string): string => crypto.createHash("sha256").update(s).digest("hex");
+const sha256 = (s: string): string => sha256Hex(s);
 
 /** Mint a token for a device session. Only its hash is stored, so the token is shown to the device once and cannot be read back. */
 export function issueSessionToken(db: HostDb, sessionId: string, now: () => number = Date.now): string {
   db.exec(TABLE);
-  const token = `vst_${crypto.randomBytes(32).toString("hex")}`;
+  const token = `vst_${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
   db.run("INSERT INTO host_session_token (token_hash, session_id, created_at) VALUES (?, ?, ?)", sha256(token), sessionId, now());
   return token;
 }

@@ -1,7 +1,8 @@
 // P-SEC_03: a booted daemon resolves every bearer token to a device session. The device id comes from that session, never from the x-vyre-device header or ?device=; a revoked
-// device gets 401 on HTTP and on the live socket; its sibling keeps working; devices.revoke tells sync (sync.epoch.bump, device_revoked) so the revoked replica purges.
-// Everything goes through the real gateway and the real upgrade handler with real tokens. The devices module is still a stub in host/modules.json (flip: P-CI_02, ruling 25), so the test
-// serves its REAL handlers (modules/devices/impl.ts) and the REAL sync purge handlers (modules/sync/handlers/purge.ts) through `extra.handlers`; the pipeline, authorization, ctx.call and ctx.db are the daemon's.
+// device gets 401 on HTTP and on the live socket; its sibling keeps working; devices.revoke tells sync (sync.epoch.bump, reason device_revoked, that device).
+// Everything goes through the real gateway and the real upgrade handler with real tokens, and devices.revoke is the REAL module handler: host/modules.json is read from a temporary code root
+// (symlinks to this repo plus one edited modules.json) where the devices module is live, because the flip itself waits for P-CI_02 (ruling 25). sync.epoch.bump is served by a recording
+// handler: the host layer cannot import the sync module (boundaries), so the purge itself is proven by the sync module's own tests, and "sync answers a revoked device with purge" is not proven here.
 // The two devices and their sessions are fixture rows (what sign-in will write); their tokens are minted with issueSessionToken.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -9,14 +10,9 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import { bootCore } from "../../fixtures/seed/core/index.ts";
-import { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
-import { handlers as devicesHandlers } from "../../modules/devices/impl.ts";
-import { openSync } from "../../modules/sync/impl.ts";
-import { createPurgeHandlers, purgeDepsOf, toPurgeCtx } from "../../modules/sync/handlers/purge.ts";
-import { effectiveEpoch } from "../../sync/src/purge/index.ts";
-import { payloadOf } from "../../kernel/src/store/projection.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
@@ -34,6 +30,21 @@ const whoRoute = { method: "POST", path: "/v1/example/whoami", cap: "example.who
 const whoHandler = (ctx: { device?: string; principal: { id: string } }): unknown => ({ device: ctx.device ?? null, person: ctx.principal.id });
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+
+/** A code root that is this repo with the devices module live: every top-level entry a symlink, host/ rebuilt around an edited modules.json. */
+function codeRootWithDevicesLive(): string {
+  const repo = fileURLToPath(new URL("../..", import.meta.url));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-coderoot-"));
+  for (const name of fs.readdirSync(repo)) if (name !== ".git" && name !== "host") fs.symlinkSync(path.join(repo, name), path.join(root, name));
+  fs.mkdirSync(path.join(root, "host"));
+  for (const name of fs.readdirSync(path.join(repo, "host"))) if (name !== "modules.json") fs.symlinkSync(path.join(repo, "host", name), path.join(root, "host", name));
+  const list = JSON.parse(fs.readFileSync(path.join(repo, "host/modules.json"), "utf8")) as { modules: { id: string; status: string }[] };
+  const dev = list.modules.find((m) => m.id === "devices");
+  assert.ok(dev, "host/modules.json lists devices");
+  dev.status = "live";
+  fs.writeFileSync(path.join(root, "host/modules.json"), JSON.stringify(list));
+  return root;
+}
 
 function seededDir(): string {
   const core = bootCore();
@@ -68,14 +79,12 @@ function live(d: Daemon, query: string, token?: string): Promise<number> {
   });
 }
 
-test("session: a token is its device; a forged header is ignored; revoking a device cuts it off on HTTP and the live socket, its sibling keeps working, and sync purges it", async () => {
+test("session: a token is its device; a forged header is ignored; revoking a device cuts it off on HTTP and the live socket, its sibling keeps working, and sync is told to purge it", async () => {
   const dir = seededDir();
-  // the real sync purge handlers over a real sync store; the hub counts what it was told to close
-  const sync = openSync({ access: () => new AccessSnapshot() });
-  const closed: string[] = [];
-  const purge = createPurgeHandlers(purgeDepsOf(sync, { purge: () => 0, purgeDevice: (_p: string, device: string) => { closed.push(device); return 1; } }));
+  const bumps: { personId: string; reason: string; deviceId?: string }[] = [];
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    codeRoot: codeRootWithDevicesLive(),
     platform: fakePlatform({
       os: "linux", hostname: "session-revoke", free: 80e9,
       commands: {
@@ -89,8 +98,7 @@ test("session: a token is its device; a forged header is ignored; revoking a dev
       caps: [whoCap], routes: [whoRoute],
       handlers: {
         "example.whoami": whoHandler as never,
-        "devices.revoke": devicesHandlers["devices.revoke"] as unknown as Handler,
-        "sync.epoch.bump": ((ctx, input) => purge["sync.epoch.bump"](toPurgeCtx(ctx), input)) as Handler,
+        "sync.epoch.bump": ((_ctx: unknown, input: { personId: string; reason: string; deviceId?: string }) => { bumps.push(input); return { epoch: bumps.length }; }) as Handler,
       },
     },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, tick: 3_600_000, hooks: 3_600_000 },
@@ -145,12 +153,7 @@ test("session: a token is its device; a forged header is ignored; revoking a dev
     assert.equal(await live(d, `token=${tokB}`), 101, "B's live socket still opens");
     assert.equal(rowOf("SELECT revokedAt FROM devices_device WHERE id = ?", B.device)["revokedAt"], null);
 
-    // sync: devices.revoke called sync.epoch.bump for A with device_revoked; A's replica must purge, B's must not, and A's live connections were told to close
-    assert.ok(effectiveEpoch(sync.host.tx, person, A.device) > 0, "A's sync epoch rose, so A purges on next contact");
-    assert.equal(effectiveEpoch(sync.host.tx, person, B.device), 0, "B's sync epoch did not move");
-    assert.deepEqual(closed, [A.device], "only A's live sync connections were closed");
-    const bumps = sync.host.store.read({ type: "sync.epoch_bumped" }).map((e) => payloadOf<Record<string, unknown>>(e));
-    assert.equal(bumps.length, 1);
-    assert.deepEqual({ personId: bumps[0]!["personId"], reason: bumps[0]!["reason"], deviceId: bumps[0]!["deviceId"] }, { personId: person, reason: "device_revoked", deviceId: A.device });
+    // sync: devices.revoke called sync.epoch.bump once, for A, with device_revoked
+    assert.deepEqual(bumps, [{ personId: person, reason: "device_revoked", deviceId: A.device }]);
   } finally { await d.stop(); }
 });
