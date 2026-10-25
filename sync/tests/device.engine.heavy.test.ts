@@ -1,43 +1,37 @@
 // The REAL cipher engine (sqlite-wasm-cipher 2.2.4, chacha20), driven through our adapter and the one ReplicaStore. Proves what the doubles cannot:
 // file bytes hold no marker and no SQLite header, a wrong key and no key fail, rekey moves the file to the new key, and the 200k-row reopen is measured on the real engine.
-// The package is installed by spikes/sync-c/ensure-deps.mjs (same install the S5 spike uses); sync may not import it (boundary B6), so it is loaded by path.
+// sqlite-wasm-cipher 2.2.4 is a devDependency of @vyre/sync (the version spike S5 pins) and is on the allowlist.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
-import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { openCipherOpfs, rekeyCipherOpfs, createReplicaKeyVault, memoryKeyBox, openDeviceReplica } from "../src/device/index.ts";
 import type { McModule } from "../src/device/index.ts";
 
-const SPIKE = path.join(fileURLToPath(new URL("../../spikes/sync-c/", import.meta.url)));
-const req = createRequire(import.meta.url);
-// The same install the S5 spike uses (spikes/sync-c/package.json pins sqlite-wasm-cipher 2.2.4). Runs on the CI runner only; a layer package may not import the spike's helper.
-if (!fs.existsSync(path.join(SPIKE, "node_modules", "sqlite-wasm-cipher", "package.json"))) {
-  execFileSync("npm", ["install", "--no-audit", "--no-fund", "--no-package-lock", "--ignore-scripts"], { cwd: SPIKE, stdio: "inherit" });
-}
-
 interface Cipher { default: (opts?: { wasmBinary: Uint8Array }) => Promise<RealSqlite3> }
 interface RealSqlite3 extends McModule { capi: McModule["capi"] & { sqlite3_js_db_export(ptr: unknown): Uint8Array }; }
 
+/** The installed package directory, found by walking up from this file (a workspace hoists it to the root node_modules). */
+function packageDir(): string {
+  for (let d = path.dirname(fileURLToPath(import.meta.url)); ; d = path.dirname(d)) {
+    const p = path.join(d, "node_modules", "sqlite-wasm-cipher");
+    if (fs.existsSync(path.join(p, "package.json"))) return p;
+    if (path.dirname(d) === d) throw new Error("sqlite-wasm-cipher is not installed (sync devDependency)");
+  }
+}
+
 async function loadEngine(): Promise<RealSqlite3> {
-  const dir = path.join(SPIKE, "node_modules", "sqlite-wasm-cipher");
-  const pkg = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8")) as { exports?: unknown; module?: string; main?: string };
-  const root = (pkg.exports as Record<string, unknown> | undefined)?.["."];
-  const pick = (v: unknown): string | undefined => (typeof v === "string" ? v : v && typeof v === "object" ? pick((v as Record<string, unknown>)["import"] ?? (v as Record<string, unknown>)["default"]) : undefined);
-  const entry = pick(root) ?? pkg.module ?? pkg.main ?? "index.mjs";
-  // require(esm): the boundary check allows no computed import(); this module has no top-level await
-  const mod = req(path.join(dir, entry)) as Cipher;
+  const mod = (await import("sqlite-wasm-cipher")) as unknown as Cipher;
   // Node has no fetch for file URLs: hand the module its wasm bytes.
   const find = (d: string): string | null => {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
       const f = path.join(d, e.name);
-      if (e.isDirectory()) { const r = find(f); if (r) return r; } else if (/^sqlite3\.wasm$/.test(e.name)) return f;
+      if (e.isDirectory()) { const r = find(f); if (r) return r; } else if (e.name === "sqlite3.wasm") return f;
     }
     return null;
   };
-  const wasm = find(dir);
+  const wasm = find(packageDir());
   if (!wasm) throw new Error("sqlite3.wasm not found in the installed package");
   return mod.default({ wasmBinary: new Uint8Array(fs.readFileSync(wasm)) });
 }
