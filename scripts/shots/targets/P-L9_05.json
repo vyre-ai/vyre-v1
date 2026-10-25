@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_05-richeditor-cursors",
+      "route": "/m/P-L9_05?part=editor",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid=\"richeditor-toolbar\"]",
+      "note": "ui/RichEditor with the formatting toolbar, a document (heading, marks, link, list, quote) and two other people's cursors with name flags, against the prototype Files place, the nearest surface that edits a note."
+    },
+    {
+      "id": "P-L9_05-richeditor-read",
+      "route": "/m/P-L9_05?part=read",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid=\"richeditor-mode\"]",
+      "note": "ui/RichEditor in read mode (no toolbar, Read only) against the prototype Files place."
+    }
+  ]
+}

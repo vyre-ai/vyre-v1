@@ -10,11 +10,20 @@
   "description": "Shared components, tokens and skins. A skin's light and dark sets are plain data, ready before first paint.",
   "dependencies": {
     "@shopify/flash-list": "2.3.2",
+    "@tiptap/core": "2.11.5",
+    "@tiptap/extension-collaboration": "2.11.5",
+    "@tiptap/extension-collaboration-cursor": "2.11.5",
+    "@tiptap/pm": "2.11.5",
+    "@tiptap/starter-kit": "2.11.5",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-native": "0.88.0",
     "react-native-reanimated": "4.7.1",
     "react-native-web": "~0.21.4",
-    "react-native-worklets": "0.13.0"
+    "react-native-webview": "13.12.5",
+    "react-native-worklets": "0.13.0",
+    "y-prosemirror": "1.2.15",
+    "y-protocols": "1.0.6",
+    "yjs": "13.6.27"
   }
 }
