@@ -1,11 +1,11 @@
-// P-L9f_07c: first run as in the prototype (the lead's screenshot audit). Path mapping: the packet lists only this test; the screens it fixes are the join pages (apps/app/src/join, lane L9f)
+// P-L9f_07c: first run as in the prototype (the lead's screenshot audit). Path mapping: the packet names apps/app/src/places/onboarding/fixes/f07c.test.tsx, which is outside lane L9f (lanes-check), so the test lives in join/fixes; the screens it fixes are the join pages (apps/app/src/join, lane L9f)
 // and the shots mount and targets for P-L9f_07c. Layout and look are proven by the side-by-side shots; these tests hold the markup facts they rest on.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Checklist } from "../../../join/Checklist.tsx";
-import { JoinFlow } from "../../../join/JoinFlow.tsx";
-import type { FlowState, JoinInvite } from "../../../join/logic.ts";
+import { Checklist } from "../Checklist.tsx";
+import { JoinFlow } from "../JoinFlow.tsx";
+import type { FlowState, JoinInvite } from "../logic.ts";
 
 const INVITE: JoinInvite = {
   space: "Northwind", host: "northwind", by: "Irfad Imtiaz", role: "Member", email: "irfad@northwind.example",
