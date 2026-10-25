@@ -1,3 +1,4 @@
+// @reads ../../../../../scripts/shots/mounts/P-L9_16.tsx
 // Path mapping: the packet lists apps/app/tests/report*.test.tsx, outside lane L9a (lanes-check); the tests live beside the code.
 // P-L9_16 preview: the sheet lists exactly the bundle fields, Send submits that same bundle, secrets and Restricted values never leave, Cmd-Shift-/ opens it.
 import test from "node:test";
