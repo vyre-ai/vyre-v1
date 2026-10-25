@@ -37,7 +37,8 @@ test("every agent that raised a request says Waiting on you; the others do not",
   for (const n of ["Intake", "Docs", "Billing", "Research"]) {
     assert.ok(rowHtml(out, `f:agt_${n.toLowerCase()}`).includes("Waiting on you"), `${n} waits on you`);
   }
-  assert.ok(!has(html(createSampleSidebar(harbor)), "Waiting on you"), "Harbor has no requests");
+  const h = html(createSampleSidebar(harbor));
+  assert.equal(count(h, "Waiting on you"), 2, "Harbor: Scheduler and Proofer each have a request for you");
 });
 
 test("the waiting set covers requests beyond the top three", () => {
@@ -71,10 +72,11 @@ test("agents and people wear real faces, the assistant the Vyre mark", () => {
   assert.ok(has(out, "<svg"), "faces are drawn, not letters");
 });
 
-test("Harbor Studio: the assistant, three chats, no Needs you and no Channels", () => {
+test("Harbor Studio, from the shared fixtures: its two requests, Scheduler and Proofer, studio and galleries, the Moreno chats", () => {
   const out = html(createSampleSidebar(harbor));
-  assert.ok(has(out, "Plan the week") && has(out, "Flights to Kuala Lumpur") && has(out, "Tax papers checklist"));
-  assert.ok(!has(out, 'data-testid="head-needs"') && !has(out, 'data-testid="head-channels"'));
+  for (const t of ["Send the Moreno gallery", "Saturday call sheet", "Scheduler", "Proofer", "Moreno shoot Saturday", "Moreno gallery"]) assert.ok(has(out, t), t);
+  assert.ok(has(out, 'data-testid="head-needs"') && has(out, 'data-testid="head-channels"'));
+  assert.ok(has(out, ">studio<") && has(out, ">galleries<"));
   assert.equal(harbor.name, "Harbor Studio");
   assert.equal(northwind.name, "Northwind");
 });
