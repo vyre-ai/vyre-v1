@@ -5,7 +5,7 @@
 // store's own filter, sort and keyset code must return the same rows in the same order, page after page.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mintUuid } from "../../../lib/ids.ts";
+import { mintRecordId } from "../../../lib/ids.ts";
 import { openRecords } from "../impl.ts";
 import { createQueryHandlers, deleteView, listViews, runQuery, runView, saveView } from "../handlers/query.ts";
 import type { ViewSpec } from "../handlers/query.ts";
@@ -34,7 +34,7 @@ async function seed(n: number) {
   await rec.store.define({ add_types: [ITEM, TAGGED] });
   const ids: string[] = [];
   for (let i = 0; i < n; i++) {
-    const id = mintUuid();
+    const id = mintRecordId();
     ids.push(id);
     const data: Record<string, unknown> = { name: `Item ${i % 17} ${i % 2 ? "alpha" : "beta"}`, qty: i % 7 === 0 ? undefined : (i * 37) % 11 };
     const s = STATUS[i % 4];
@@ -124,7 +124,7 @@ test("deleted rows are out of every result and the count follows writes", async 
 test("the server fallback answers a filter the SQL compiler cannot express, with the same rows", async () => {
   const rec = openRecords({ space: "sp_fb" });
   await rec.store.define({ add_types: [TAGGED] });
-  const a = mintUuid(), b = mintUuid(), c = mintUuid();
+  const a = mintRecordId(), b = mintRecordId(), c = mintRecordId();
   await rec.store.create("tagged", a, { name: "a", meta: { k: "1" } });
   await rec.store.create("tagged", b, { name: "b", meta: { k: "2" } });
   await rec.store.create("tagged", c, { name: "c" });
@@ -138,7 +138,7 @@ test("the server fallback answers a filter the SQL compiler cannot express, with
 test("contains on a many-valued field matches an element", async () => {
   const rec = openRecords({ space: "sp_tags" });
   await rec.store.define({ add_types: [TAGGED] });
-  const a = mintUuid(), b = mintUuid();
+  const a = mintRecordId(), b = mintRecordId();
   await rec.store.create("tagged", a, { name: "a", tags: ["x", "y"] });
   await rec.store.create("tagged", b, { name: "b", tags: ["z"] });
   const q = createQueryHandlers({ tx: rec.host.tx });
@@ -169,7 +169,7 @@ test("search: words match as prefixes, deleted and sealed text stay out, new and
   const target = await rec.store.get("item", ids[1]!);
   await rec.store.update("item", ids[1]!, { name: "zebra crossing" }, target!.version);
   assert.deepEqual((await q["records.search"](ctx, { type: "item", q: "zebra" })).rows.map((r) => r.id), [ids[1]]);
-  const fresh = mintUuid();
+  const fresh = mintRecordId();
   await rec.store.create("item", fresh, { name: "quokka" });
   assert.deepEqual((await q["records.search"](ctx, { type: "item", q: "quokka" })).rows.map((r) => r.id), [fresh]);
   const now = await rec.store.get("item", fresh);

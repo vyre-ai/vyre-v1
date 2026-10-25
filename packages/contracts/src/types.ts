@@ -41,7 +41,7 @@ export type PlaceId = 'join' | 'home' | 'chats' | 'inbox' | 'records' | 'files' 
 export type ResourceType =
   | 'space' | 'record_type' | 'record' | 'project' | 'folder' | 'file' | 'channel' | 'thread' | 'inbox' | 'mailbox'
   | 'vault_folder' | 'vault_item' | 'automation_group' | 'automation' | 'agent' | 'connector' | 'connection'
-  | 'site' | 'form' | 'campaign' | 'kit' | 'terminal' | 'computer' | 'task' | 'run' | 'number' | 'domain' | 'calendar';
+  | 'site' | 'form' | 'campaign' | 'kit' | 'terminal' | 'computer' | 'task' | 'run' | 'number' | 'domain' | 'calendar' | 'note';
 
 export interface Manifest {
   manifest: 1;

@@ -1,0 +1,20 @@
+# @MARK@
+[Unit]
+Description=Vyre Server
+Documentation=https://vyre.run/docs/server
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+RequiresMountsFor=@VYRE_DIR@
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=@VYRE_DIR@
+ExecStart=@BIN@ start
+ExecStop=@BIN@ stop
+TimeoutStartSec=300
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target

@@ -304,33 +304,6 @@
       },
       "type": "array"
     },
-    "s_06e2de2d97": {
-      "enum": [
-        "approval.requested",
-        "approval.backstop",
-        "dm",
-        "mention",
-        "call.incoming",
-        "agent.blocked",
-        "incident.owned",
-        "task.assigned",
-        "reply.followed",
-        "agent.task_finished",
-        "campaign.reply",
-        "digest.away",
-        "mention.thread",
-        "run.failed",
-        "conflict.needs_you",
-        "access.requested",
-        "access.decided",
-        "sync.attention",
-        "health.degraded",
-        "problem.report",
-        "member.joined",
-        "limit.hit"
-      ],
-      "type": "string"
-    },
     "s_07340211b5": {
       "anyOf": [
         {
@@ -366,6 +339,34 @@
           "$ref": "#/$defs/s_0506fc3ab2"
         }
       ]
+    },
+    "s_0766030a72": {
+      "enum": [
+        "approval.requested",
+        "approval.backstop",
+        "dm",
+        "mention",
+        "call.incoming",
+        "agent.blocked",
+        "incident.owned",
+        "task.assigned",
+        "reply.followed",
+        "agent.task_finished",
+        "campaign.reply",
+        "digest.away",
+        "mention.thread",
+        "run.failed",
+        "conflict.needs_you",
+        "access.requested",
+        "access.decided",
+        "sync.attention",
+        "health.degraded",
+        "problem.report",
+        "member.joined",
+        "limit.hit",
+        "vault.rotation_due"
+      ],
+      "type": "string"
     },
     "s_08106672f4": {
       "properties": {
@@ -1463,105 +1464,6 @@
       ],
       "type": "object"
     },
-    "s_159aeafb99": {
-      "properties": {
-        "address": {
-          "description": "Email, number or handle when no contact is matched",
-          "examples": [
-            "maya@example.com"
-          ],
-          "type": "string"
-        },
-        "alertOnReplies": {
-          "type": "boolean"
-        },
-        "campaignId": {
-          "examples": [
-            "cmp_a1b2c3"
-          ],
-          "pattern": "^cmp_[a-z0-9]+$",
-          "type": "string"
-        },
-        "contactId": {
-          "examples": [
-            "rec_a1b2c3"
-          ],
-          "pattern": "^rec_[a-z0-9]+$",
-          "type": "string"
-        },
-        "displayName": {
-          "type": "string"
-        },
-        "followed": {
-          "type": "boolean"
-        },
-        "id": {
-          "examples": [
-            "cnv_a1b2c3"
-          ],
-          "pattern": "^cnv_[a-z0-9]+$",
-          "type": "string"
-        },
-        "lastChannel": {
-          "enum": [
-            "email",
-            "sms",
-            "call",
-            "meeting"
-          ],
-          "type": "string"
-        },
-        "lastMessageAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "lastPreview": {
-          "type": "string"
-        },
-        "mailboxIds": {
-          "items": {
-            "examples": [
-              "mbx_a1b2c3"
-            ],
-            "pattern": "^mbx_[a-z0-9]+$",
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "needsMatch": {
-          "type": "boolean"
-        },
-        "ownerId": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "pattern": "^usr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "unreadCount": {
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "id",
-        "address",
-        "displayName",
-        "lastMessageAt",
-        "lastChannel",
-        "lastPreview",
-        "unreadCount",
-        "needsMatch",
-        "mailboxIds",
-        "followed",
-        "alertOnReplies"
-      ],
-      "type": "object"
-    },
     "s_15f66327ba": {
       "enum": [
         "routines",
@@ -2473,12 +2375,6 @@
       ],
       "type": "object"
     },
-    "s_20d61750b4": {
-      "items": {
-        "$ref": "#/$defs/s_7fd2715127"
-      },
-      "type": "array"
-    },
     "s_20def9ae8f": {
       "properties": {
         "at": {
@@ -3353,6 +3249,17 @@
       },
       "type": "array"
     },
+    "s_2e121bf748": {
+      "properties": {
+        "number": {
+          "$ref": "#/$defs/s_93ed523472"
+        }
+      },
+      "required": [
+        "number"
+      ],
+      "type": "object"
+    },
     "s_2edf0a52c6": {
       "properties": {
         "cursor": {
@@ -3560,6 +3467,28 @@
         "mode"
       ],
       "type": "object"
+    },
+    "s_3550bb561b": {
+      "items": {
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "type",
+          "title"
+        ],
+        "type": "object"
+      },
+      "type": "array"
     },
     "s_35784e4c31": {
       "properties": {
@@ -4395,10 +4324,7 @@
           "type": "string"
         },
         "rows": {
-          "items": {
-            "$ref": "#/$defs/s_b87b1cfef9"
-          },
-          "type": "array"
+          "$ref": "#/$defs/s_a56f3dc8f1"
         },
         "total": {
           "type": "integer"
@@ -4837,6 +4763,26 @@
         "isTemplate"
       ],
       "type": "object"
+    },
+    "s_45112f0b77": {
+      "enum": [
+        "automation",
+        "automation_test",
+        "journey",
+        "journey_migrate",
+        "routine",
+        "campaign",
+        "deployment",
+        "connector_sync",
+        "connector_build",
+        "import",
+        "runbook",
+        "wait",
+        "terminal",
+        "replay",
+        "other"
+      ],
+      "type": "string"
     },
     "s_4590eb98ca": {
       "properties": {
@@ -7046,6 +6992,17 @@
       ],
       "type": "object"
     },
+    "s_611f84de8a": {
+      "properties": {
+        "conversation": {
+          "$ref": "#/$defs/s_bbe05acc1e"
+        }
+      },
+      "required": [
+        "conversation"
+      ],
+      "type": "object"
+    },
     "s_61ad3658fc": {
       "properties": {
         "person": {
@@ -8189,17 +8146,6 @@
       ],
       "type": "object"
     },
-    "s_72d1849997": {
-      "properties": {
-        "number": {
-          "$ref": "#/$defs/s_7fd2715127"
-        }
-      },
-      "required": [
-        "number"
-      ],
-      "type": "object"
-    },
     "s_73cbbf9330": {
       "properties": {
         "record": {
@@ -8333,6 +8279,24 @@
         "kind",
         "title",
         "line"
+      ],
+      "type": "object"
+    },
+    "s_74c6a2fb9f": {
+      "properties": {
+        "changesetId": {
+          "examples": [
+            "chg_a1b2c3"
+          ],
+          "pattern": "^chg_[a-z0-9]+$",
+          "type": "string"
+        },
+        "file": {
+          "$ref": "#/$defs/s_486e12678d"
+        }
+      },
+      "required": [
+        "file"
       ],
       "type": "object"
     },
@@ -8596,6 +8560,17 @@
       "required": [
         "fileId",
         "folderId"
+      ],
+      "type": "object"
+    },
+    "s_7916849f25": {
+      "properties": {
+        "run": {
+          "$ref": "#/$defs/s_bb7ff7d602"
+        }
+      },
+      "required": [
+        "run"
       ],
       "type": "object"
     },
@@ -8895,6 +8870,12 @@
       ],
       "type": "object"
     },
+    "s_7bc0d5d531": {
+      "items": {
+        "$ref": "#/$defs/s_bbe05acc1e"
+      },
+      "type": "array"
+    },
     "s_7c4e790000": {
       "items": {
         "properties": {
@@ -9141,93 +9122,6 @@
       },
       "type": "array"
     },
-    "s_7fd2715127": {
-      "properties": {
-        "a2p": {
-          "enum": [
-            "none",
-            "pending",
-            "approved",
-            "rejected"
-          ],
-          "type": "string"
-        },
-        "assigneeId": {
-          "type": "string"
-        },
-        "assigneeKind": {
-          "enum": [
-            "person",
-            "agent",
-            "inbox"
-          ],
-          "type": "string"
-        },
-        "capabilities": {
-          "items": {
-            "enum": [
-              "voice",
-              "sms",
-              "mms"
-            ],
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "e164": {
-          "examples": [
-            "+14155550123"
-          ],
-          "pattern": "^\\+[1-9][0-9]{6,14}$",
-          "type": "string"
-        },
-        "hours": {
-          "$ref": "#/$defs/s_50d16df7bf"
-        },
-        "id": {
-          "examples": [
-            "num_a1b2c3"
-          ],
-          "pattern": "^num_[a-z0-9]+$",
-          "type": "string"
-        },
-        "recording": {
-          "enum": [
-            "off",
-            "announce",
-            "ask"
-          ],
-          "type": "string"
-        },
-        "route": {
-          "$ref": "#/$defs/s_1f11893d34"
-        },
-        "state": {
-          "enum": [
-            "pending",
-            "active",
-            "released"
-          ],
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "e164",
-        "title",
-        "capabilities",
-        "assigneeKind",
-        "route",
-        "hours",
-        "recording",
-        "a2p",
-        "state"
-      ],
-      "type": "object"
-    },
     "s_8000f960cb": {
       "properties": {
         "id": {
@@ -9250,6 +9144,139 @@
       "required": [
         "kind",
         "id"
+      ],
+      "type": "object"
+    },
+    "s_807964c7e1": {
+      "properties": {
+        "actions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "builtin": {
+          "type": "boolean"
+        },
+        "connections": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "domains": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "key": {
+          "examples": [
+            "hubspot"
+          ],
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "api",
+            "mcp",
+            "dwd",
+            "oauth_app",
+            "webhook_only"
+          ],
+          "type": "string"
+        },
+        "objects": {
+          "additionalProperties": {
+            "properties": {
+              "create": {
+                "type": "string"
+              },
+              "delete": {
+                "type": "string"
+              },
+              "list": {
+                "type": "string"
+              },
+              "listAfter": {
+                "description": "List the next page; takes { after }",
+                "type": "string"
+              },
+              "update": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "object"
+        },
+        "scope": {
+          "enum": [
+            "person",
+            "space"
+          ],
+          "type": "string"
+        },
+        "secrets": {
+          "items": {
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "description"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "sources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "state": {
+          "enum": [
+            "live",
+            "draft",
+            "failing_tests"
+          ],
+          "type": "string"
+        },
+        "syncedTypes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        },
+        "version": {
+          "examples": [
+            "1.0.0"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "mode",
+        "scope",
+        "builtin",
+        "version",
+        "state",
+        "domains",
+        "secrets",
+        "connections",
+        "syncedTypes",
+        "actions",
+        "sources"
       ],
       "type": "object"
     },
@@ -10212,6 +10239,100 @@
       ],
       "type": "object"
     },
+    "s_93ed523472": {
+      "properties": {
+        "a2p": {
+          "enum": [
+            "none",
+            "pending",
+            "approved",
+            "rejected"
+          ],
+          "type": "string"
+        },
+        "assigneeId": {
+          "type": "string"
+        },
+        "assigneeKind": {
+          "enum": [
+            "person",
+            "agent",
+            "inbox"
+          ],
+          "type": "string"
+        },
+        "capabilities": {
+          "items": {
+            "enum": [
+              "voice",
+              "sms",
+              "mms"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "displayName": {
+          "description": "The name lists and the Inbox sidebar show: the title when one is set, otherwise the number formatted for reading",
+          "examples": [
+            "Intake line"
+          ],
+          "type": "string"
+        },
+        "e164": {
+          "examples": [
+            "+14155550123"
+          ],
+          "pattern": "^\\+[1-9][0-9]{6,14}$",
+          "type": "string"
+        },
+        "hours": {
+          "$ref": "#/$defs/s_50d16df7bf"
+        },
+        "id": {
+          "examples": [
+            "num_a1b2c3"
+          ],
+          "pattern": "^num_[a-z0-9]+$",
+          "type": "string"
+        },
+        "recording": {
+          "enum": [
+            "off",
+            "announce",
+            "ask"
+          ],
+          "type": "string"
+        },
+        "route": {
+          "$ref": "#/$defs/s_1f11893d34"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "active",
+            "released"
+          ],
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "e164",
+        "title",
+        "capabilities",
+        "assigneeKind",
+        "route",
+        "hours",
+        "recording",
+        "a2p",
+        "state"
+      ],
+      "type": "object"
+    },
     "s_94582a873c": {
       "properties": {
         "createdAt": {
@@ -10470,12 +10591,6 @@
         "url"
       ],
       "type": "object"
-    },
-    "s_9545dbb97f": {
-      "items": {
-        "$ref": "#/$defs/s_159aeafb99"
-      },
-      "type": "array"
     },
     "s_98c786d7d8": {
       "properties": {
@@ -11107,6 +11222,12 @@
       ],
       "type": "object"
     },
+    "s_a56f3dc8f1": {
+      "items": {
+        "$ref": "#/$defs/s_b87b1cfef9"
+      },
+      "type": "array"
+    },
     "s_a5a386f9c8": {
       "properties": {
         "as": {
@@ -11456,37 +11577,6 @@
         "$ref": "#/$defs/s_38b6d47dbd"
       },
       "type": "array"
-    },
-    "s_a76a30eb87": {
-      "properties": {
-        "campaignId": {
-          "examples": [
-            "cmp_a1b2c3"
-          ],
-          "pattern": "^cmp_[a-z0-9]+$",
-          "type": "string"
-        },
-        "messageId": {
-          "examples": [
-            "msg_a1b2c3"
-          ],
-          "pattern": "^msg_[a-z0-9]+$",
-          "type": "string"
-        },
-        "recordId": {
-          "examples": [
-            "rec_a1b2c3"
-          ],
-          "pattern": "^rec_[a-z0-9]+$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "campaignId",
-        "recordId",
-        "messageId"
-      ],
-      "type": "object"
     },
     "s_a803997f5b": {
       "properties": {
@@ -11954,119 +12044,6 @@
         "body",
         "shared",
         "updatedAt"
-      ],
-      "type": "object"
-    },
-    "s_b3c84294bd": {
-      "properties": {
-        "costMicros": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "definitionVersion": {
-          "type": "integer"
-        },
-        "endedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "keyUsed": {
-          "type": "string"
-        },
-        "kind": {
-          "$ref": "#/$defs/s_e10b3d8480"
-        },
-        "modelUsed": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "owner": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "type": "string"
-        },
-        "parentRun": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "startedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "startedBy": {
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "queued",
-            "running",
-            "waiting",
-            "succeeded",
-            "failed",
-            "stopped"
-          ],
-          "type": "string"
-        },
-        "subject": {
-          "$ref": "#/$defs/s_f21ece25da"
-        },
-        "summary": {
-          "description": "One-line result",
-          "type": "string"
-        },
-        "threadId": {
-          "examples": [
-            "thr_a1b2c3"
-          ],
-          "pattern": "^thr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "traceId": {
-          "examples": [
-            "0123456789abcdef0123456789abcdef"
-          ],
-          "pattern": "^[0-9a-f]{32}$",
-          "type": "string"
-        },
-        "waitReason": {
-          "enum": [
-            "approval",
-            "background",
-            "key"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "kind",
-        "owner",
-        "startedBy",
-        "status",
-        "costMicros",
-        "startedAt",
-        "traceId"
       ],
       "type": "object"
     },
@@ -13019,6 +12996,221 @@
         "plainChoice",
         "protectedField",
         "openedAt"
+      ],
+      "type": "object"
+    },
+    "s_bb7ff7d602": {
+      "properties": {
+        "costMicros": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "definitionVersion": {
+          "type": "integer"
+        },
+        "endedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "keyUsed": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/s_45112f0b77"
+        },
+        "modelUsed": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "owner": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "type": "string"
+        },
+        "parentRun": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "startedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "startedBy": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "waiting",
+            "succeeded",
+            "failed",
+            "stopped"
+          ],
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/s_f21ece25da"
+        },
+        "summary": {
+          "description": "One-line result",
+          "type": "string"
+        },
+        "threadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "traceId": {
+          "examples": [
+            "0123456789abcdef0123456789abcdef"
+          ],
+          "pattern": "^[0-9a-f]{32}$",
+          "type": "string"
+        },
+        "waitReason": {
+          "enum": [
+            "approval",
+            "background",
+            "key"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "owner",
+        "startedBy",
+        "status",
+        "costMicros",
+        "startedAt",
+        "traceId"
+      ],
+      "type": "object"
+    },
+    "s_bbe05acc1e": {
+      "properties": {
+        "address": {
+          "description": "Email, number or handle when no contact is matched",
+          "examples": [
+            "maya@example.com"
+          ],
+          "type": "string"
+        },
+        "alertOnReplies": {
+          "type": "boolean"
+        },
+        "campaignId": {
+          "examples": [
+            "cmp_a1b2c3"
+          ],
+          "pattern": "^cmp_[a-z0-9]+$",
+          "type": "string"
+        },
+        "contactId": {
+          "examples": [
+            "rec_a1b2c3"
+          ],
+          "pattern": "^rec_[a-z0-9]+$",
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "followed": {
+          "type": "boolean"
+        },
+        "id": {
+          "examples": [
+            "cnv_a1b2c3"
+          ],
+          "pattern": "^cnv_[a-z0-9]+$",
+          "type": "string"
+        },
+        "lastChannel": {
+          "enum": [
+            "email",
+            "sms",
+            "call",
+            "meeting"
+          ],
+          "type": "string"
+        },
+        "lastMessageAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lastPreview": {
+          "type": "string"
+        },
+        "mailboxIds": {
+          "items": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "needsMatch": {
+          "type": "boolean"
+        },
+        "ownerId": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "starred": {
+          "type": "boolean"
+        },
+        "unreadCount": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "address",
+        "displayName",
+        "lastMessageAt",
+        "lastChannel",
+        "lastPreview",
+        "unreadCount",
+        "needsMatch",
+        "mailboxIds",
+        "followed",
+        "alertOnReplies"
       ],
       "type": "object"
     },
@@ -15086,115 +15278,6 @@
       ],
       "type": "object"
     },
-    "s_d95f80f288": {
-      "properties": {
-        "actions": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "builtin": {
-          "type": "boolean"
-        },
-        "connections": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "domains": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "key": {
-          "examples": [
-            "hubspot"
-          ],
-          "type": "string"
-        },
-        "mode": {
-          "enum": [
-            "api",
-            "mcp",
-            "dwd",
-            "oauth_app",
-            "webhook_only"
-          ],
-          "type": "string"
-        },
-        "scope": {
-          "enum": [
-            "person",
-            "space"
-          ],
-          "type": "string"
-        },
-        "secrets": {
-          "items": {
-            "properties": {
-              "description": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "name",
-              "description"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "sources": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "state": {
-          "enum": [
-            "live",
-            "draft",
-            "failing_tests"
-          ],
-          "type": "string"
-        },
-        "syncedTypes": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "title": {
-          "type": "string"
-        },
-        "version": {
-          "examples": [
-            "1.0.0"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "key",
-        "title",
-        "mode",
-        "scope",
-        "builtin",
-        "version",
-        "state",
-        "domains",
-        "secrets",
-        "connections",
-        "syncedTypes",
-        "actions",
-        "sources"
-      ],
-      "type": "object"
-    },
     "s_d96ebe6616": {
       "properties": {
         "file": {
@@ -15491,23 +15574,6 @@
       ],
       "type": "object"
     },
-    "s_e10b3d8480": {
-      "enum": [
-        "automation",
-        "automation_test",
-        "journey",
-        "journey_migrate",
-        "routine",
-        "campaign",
-        "deployment",
-        "runbook",
-        "wait",
-        "terminal",
-        "replay",
-        "other"
-      ],
-      "type": "string"
-    },
     "s_e1c2ea017d": {
       "properties": {
         "accountId": {
@@ -15758,17 +15824,6 @@
       },
       "required": [
         "rules"
-      ],
-      "type": "object"
-    },
-    "s_e3a09a2137": {
-      "properties": {
-        "conversation": {
-          "$ref": "#/$defs/s_159aeafb99"
-        }
-      },
-      "required": [
-        "conversation"
       ],
       "type": "object"
     },
@@ -16482,17 +16537,6 @@
       ],
       "type": "object"
     },
-    "s_eeb669830b": {
-      "properties": {
-        "run": {
-          "$ref": "#/$defs/s_b3c84294bd"
-        }
-      },
-      "required": [
-        "run"
-      ],
-      "type": "object"
-    },
     "s_efe3c35994": {
       "items": {
         "$ref": "#/$defs/s_854a533c8e"
@@ -16676,6 +16720,12 @@
         "number"
       ],
       "type": "object"
+    },
+    "s_f13f776230": {
+      "items": {
+        "$ref": "#/$defs/s_93ed523472"
+      },
+      "type": "array"
     },
     "s_f1aa180d5c": {
       "properties": {
@@ -36476,7 +36526,7 @@
             "replies": [
               {
                 "at": 1760000000000,
-                "messageId": "msg_a1b2c3",
+                "messageId": "eml_a1b2c3",
                 "recordId": "rec_a1b2c3"
               }
             ],
@@ -36530,9 +36580,9 @@
                 },
                 "messageId": {
                   "examples": [
-                    "msg_a1b2c3"
+                    "eml_a1b2c3"
                   ],
-                  "pattern": "^msg_[a-z0-9]+$",
+                  "pattern": "^eml_[a-z0-9]+$",
                   "type": "string"
                 },
                 "recordId": {
@@ -38138,7 +38188,8 @@
           "name": "example",
           "output": {
             "actorId": "act_a1b2c3",
-            "expiresAt": 1760000000000
+            "expiresAt": 1760000000000,
+            "reviewUrl": "https://northwind.example.com/review/cs_example?token=otk_example"
           }
         }
       ],
@@ -38165,10 +38216,18 @@
             ],
             "minimum": 0,
             "type": "integer"
+          },
+          "reviewUrl": {
+            "examples": [
+              "https://northwind.example.com/review/cs_example?token=otk_example"
+            ],
+            "pattern": "^https?://",
+            "type": "string"
           }
         },
         "required": [
           "actorId",
+          "reviewUrl",
           "expiresAt"
         ],
         "type": "object"
@@ -38179,7 +38238,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token",
+      "summary": "Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token; returns a one-time review link (the token is in the link, shown once, never logged)",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -38693,7 +38752,9 @@
       "effects": "write",
       "emits": [
         "channel.created",
-        "thread.started"
+        "thread.started",
+        "channel.agent_added",
+        "channel.member_added"
       ],
       "errors": [
         "internal.unexpected",
@@ -40117,7 +40178,8 @@
       "effects": "write",
       "emits": [
         "plan.approved",
-        "block.answered"
+        "block.answered",
+        "thread.plan_mode_changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -42630,7 +42692,8 @@
       "emits": [
         "thread.started",
         "agent.engaged",
-        "message.received"
+        "message.received",
+        "message.direct"
       ],
       "errors": [
         "internal.unexpected",
@@ -51102,6 +51165,7 @@
               ],
               "key": "hubspot",
               "mode": "api",
+              "objects": {},
               "scope": "person",
               "secrets": [
                 {
@@ -51143,7 +51207,7 @@
       "output": {
         "properties": {
           "connector": {
-            "$ref": "#/$defs/s_d95f80f288"
+            "$ref": "#/$defs/s_807964c7e1"
           }
         },
         "required": [
@@ -51387,6 +51451,7 @@
                 ],
                 "key": "hubspot",
                 "mode": "api",
+                "objects": {},
                 "scope": "person",
                 "secrets": [
                   {
@@ -51439,7 +51504,7 @@
         "properties": {
           "connectors": {
             "items": {
-              "$ref": "#/$defs/s_d95f80f288"
+              "$ref": "#/$defs/s_807964c7e1"
             },
             "type": "array"
           },
@@ -66138,22 +66203,7 @@
       "name": "files.create",
       "offline": "queue",
       "output": {
-        "properties": {
-          "changesetId": {
-            "examples": [
-              "chg_a1b2c3"
-            ],
-            "pattern": "^chg_[a-z0-9]+$",
-            "type": "string"
-          },
-          "file": {
-            "$ref": "#/$defs/s_486e12678d"
-          }
-        },
-        "required": [
-          "file"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_74c6a2fb9f"
       },
       "permission": "files.write",
       "resource": {
@@ -66176,7 +66226,9 @@
     {
       "effects": "write",
       "emits": [
-        "file.deleted"
+        "file.deleted",
+        "changeset.opened",
+        "changeset.updated"
       ],
       "errors": [
         "internal.unexpected",
@@ -66194,6 +66246,7 @@
           },
           "name": "example",
           "output": {
+            "changesetId": "chg_a1b2c3",
             "deleted": true
           }
         }
@@ -66224,6 +66277,13 @@
       "offline": "queue",
       "output": {
         "properties": {
+          "changesetId": {
+            "examples": [
+              "chg_a1b2c3"
+            ],
+            "pattern": "^chg_[a-z0-9]+$",
+            "type": "string"
+          },
           "deleted": {
             "type": "boolean"
           }
@@ -67890,7 +67950,9 @@
       "effects": "write",
       "emits": [
         "file.moved",
-        "file.renamed"
+        "file.renamed",
+        "changeset.opened",
+        "changeset.updated"
       ],
       "errors": [
         "internal.unexpected",
@@ -67910,6 +67972,7 @@
           },
           "name": "example",
           "output": {
+            "changesetId": "chg_a1b2c3",
             "file": {
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
@@ -67966,7 +68029,7 @@
       "name": "files.move",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_f9e90fdca6"
+        "$ref": "#/$defs/s_74c6a2fb9f"
       },
       "permission": "files.write",
       "resource": {
@@ -68355,7 +68418,9 @@
     {
       "effects": "write",
       "emits": [
-        "file.renamed"
+        "file.renamed",
+        "changeset.opened",
+        "changeset.updated"
       ],
       "errors": [
         "internal.unexpected",
@@ -68374,6 +68439,7 @@
           },
           "name": "example",
           "output": {
+            "changesetId": "chg_a1b2c3",
             "file": {
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
@@ -68423,7 +68489,7 @@
       "name": "files.rename",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_f9e90fdca6"
+        "$ref": "#/$defs/s_74c6a2fb9f"
       },
       "permission": "files.write",
       "resource": {
@@ -68788,7 +68854,8 @@
       "effects": "write",
       "emits": [
         "file.version_added",
-        "changeset.opened"
+        "changeset.opened",
+        "changeset.updated"
       ],
       "errors": [
         "internal.unexpected",
@@ -68812,6 +68879,7 @@
           "name": "example",
           "output": {
             "added": 1,
+            "changesetId": "chg_a1b2c3",
             "lint": {
               "file": "vyre_md",
               "inherits": true,
@@ -68881,6 +68949,13 @@
         "properties": {
           "added": {
             "type": "integer"
+          },
+          "changesetId": {
+            "examples": [
+              "chg_a1b2c3"
+            ],
+            "pattern": "^chg_[a-z0-9]+$",
+            "type": "string"
           },
           "lint": {
             "$ref": "#/$defs/s_507affc09e"
@@ -78632,6 +78707,82 @@
           "deferred": true,
           "toolset": "files"
         }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "as": "maya@example.com",
+            "connectionId": "con_a1b2c3",
+            "driveId": "example"
+          },
+          "name": "example",
+          "output": {
+            "startPageToken": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "google",
+      "name": "google.drive.changes_start_token",
+      "output": {
+        "properties": {
+          "startPageToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "startPageToken"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The Drive changes start page token, so a mount syncs incrementally from now instead of rescanning",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },
@@ -90152,6 +90303,7 @@
               {
                 "id": "example",
                 "kind": "mailbox",
+                "name": "example",
                 "unread": 1
               }
             ],
@@ -90181,6 +90333,10 @@
                     "mailbox",
                     "number"
                   ],
+                  "type": "string"
+                },
+                "name": {
+                  "description": "What the sidebar shows: the mailbox address or the number display name (telephony number displayName), never the id",
                   "type": "string"
                 },
                 "unread": {
@@ -90640,6 +90796,7 @@
                 ],
                 "needsMatch": true,
                 "ownerId": "usr_a1b2c3",
+                "starred": true,
                 "unreadCount": 1
               }
             ],
@@ -90663,7 +90820,7 @@
             "type": "string"
           },
           "rows": {
-            "$ref": "#/$defs/s_9545dbb97f"
+            "$ref": "#/$defs/s_7bc0d5d531"
           },
           "showing": {
             "description": "Plain words for the header: what is showing",
@@ -90872,6 +91029,7 @@
               ],
               "needsMatch": true,
               "ownerId": "usr_a1b2c3",
+              "starred": true,
               "unreadCount": 1
             }
           }
@@ -90901,7 +91059,7 @@
       "name": "inbox.mark_read",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_e3a09a2137"
+        "$ref": "#/$defs/s_611f84de8a"
       },
       "permission": null,
       "resource": {
@@ -90958,6 +91116,7 @@
               ],
               "needsMatch": true,
               "ownerId": "usr_a1b2c3",
+              "starred": true,
               "unreadCount": 1
             },
             "undoToken": "example"
@@ -91006,7 +91165,7 @@
       "output": {
         "properties": {
           "conversation": {
-            "$ref": "#/$defs/s_159aeafb99"
+            "$ref": "#/$defs/s_bbe05acc1e"
           },
           "undoToken": {
             "type": "string"
@@ -91073,6 +91232,7 @@
               ],
               "needsMatch": true,
               "ownerId": "usr_a1b2c3",
+              "starred": true,
               "unreadCount": 1
             },
             "recordId": "rec_a1b2c3"
@@ -91120,7 +91280,7 @@
       "output": {
         "properties": {
           "conversation": {
-            "$ref": "#/$defs/s_159aeafb99"
+            "$ref": "#/$defs/s_bbe05acc1e"
           },
           "recordId": {
             "examples": [
@@ -91265,6 +91425,7 @@
                   ],
                   "needsMatch": true,
                   "ownerId": "usr_a1b2c3",
+                  "starred": true,
                   "unreadCount": 1
                 },
                 "suggestions": [
@@ -91310,7 +91471,7 @@
             "items": {
               "properties": {
                 "conversation": {
-                  "$ref": "#/$defs/s_159aeafb99"
+                  "$ref": "#/$defs/s_bbe05acc1e"
                 },
                 "suggestions": {
                   "$ref": "#/$defs/s_11fec22d98"
@@ -91631,6 +91792,7 @@
               ],
               "needsMatch": true,
               "ownerId": "usr_a1b2c3",
+              "starred": true,
               "unreadCount": 1
             },
             "items": [
@@ -91694,7 +91856,7 @@
       "output": {
         "properties": {
           "conversation": {
-            "$ref": "#/$defs/s_159aeafb99"
+            "$ref": "#/$defs/s_bbe05acc1e"
           },
           "items": {
             "items": {
@@ -91827,6 +91989,7 @@
               ],
               "needsMatch": true,
               "ownerId": "usr_a1b2c3",
+              "starred": true,
               "unreadCount": 1
             }
           }
@@ -91856,7 +92019,7 @@
       "name": "inbox.unmatch",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_e3a09a2137"
+        "$ref": "#/$defs/s_611f84de8a"
       },
       "permission": "records.edit",
       "resource": {
@@ -91911,6 +92074,7 @@
                 ],
                 "needsMatch": true,
                 "ownerId": "usr_a1b2c3",
+                "starred": true,
                 "unreadCount": 1
               }
             ],
@@ -91946,7 +92110,7 @@
             "type": "string"
           },
           "rows": {
-            "$ref": "#/$defs/s_9545dbb97f"
+            "$ref": "#/$defs/s_7bc0d5d531"
           },
           "total": {
             "type": "integer"
@@ -107863,7 +108027,7 @@
       "permission": null,
       "resource": {
         "id": "/noteId",
-        "type": "file"
+        "type": "note"
       },
       "risk": "low",
       "since": "1.0.0",
@@ -107952,7 +108116,7 @@
       "permission": null,
       "resource": {
         "id": "/noteId",
-        "type": "file"
+        "type": "note"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -108219,7 +108383,7 @@
       "permission": null,
       "resource": {
         "id": "/noteId",
-        "type": "file"
+        "type": "note"
       },
       "risk": "low",
       "since": "1.0.0",
@@ -115413,7 +115577,7 @@
                   "type": "integer"
                 },
                 "kind": {
-                  "$ref": "#/$defs/s_06e2de2d97"
+                  "$ref": "#/$defs/s_0766030a72"
                 },
                 "subject": {
                   "$ref": "#/$defs/s_f21ece25da"
@@ -115490,7 +115654,7 @@
             "items": {
               "properties": {
                 "key": {
-                  "$ref": "#/$defs/s_06e2de2d97"
+                  "$ref": "#/$defs/s_0766030a72"
                 },
                 "level": {
                   "enum": [
@@ -115697,7 +115861,7 @@
                   "type": "string"
                 },
                 "kind": {
-                  "$ref": "#/$defs/s_06e2de2d97"
+                  "$ref": "#/$defs/s_0766030a72"
                 },
                 "level": {
                   "enum": [
@@ -116480,7 +116644,7 @@
             "type": "object"
           },
           "kind": {
-            "$ref": "#/$defs/s_06e2de2d97"
+            "$ref": "#/$defs/s_0766030a72"
           },
           "runId": {
             "examples": [
@@ -123565,6 +123729,200 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "cursor": "example",
+            "limit": 1,
+            "type": "contact",
+            "viewId": "viw_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "next": "example",
+            "rows": [
+              {
+                "createdAt": 1760000000000,
+                "deletedAt": 1760000000000,
+                "fields": {},
+                "holds": 1,
+                "id": "rec_a1b2c3",
+                "label": 1,
+                "type": "contact",
+                "updatedAt": 1760000000000,
+                "version": 1
+              }
+            ],
+            "total": 1,
+            "view": {
+              "colorRules": {},
+              "config": {},
+              "filter": {},
+              "group": "example",
+              "hidden": [
+                "example"
+              ],
+              "kind": "table",
+              "shared": true,
+              "sort": {},
+              "title": "example",
+              "type": "contact",
+              "updatedAt": 1760000000000,
+              "viewId": "viw_a1b2c3"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "viewId": {
+            "examples": [
+              "viw_a1b2c3"
+            ],
+            "pattern": "^viw_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "viewId"
+        ],
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "records",
+      "name": "records.view",
+      "output": {
+        "properties": {
+          "next": {
+            "description": "Cursor for the next page; absent on the last page",
+            "type": "string"
+          },
+          "rows": {
+            "$ref": "#/$defs/s_a56f3dc8f1"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "view": {
+            "properties": {
+              "colorRules": {
+                "description": "Any JSON value"
+              },
+              "config": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "filter": {
+                "description": "Any JSON value"
+              },
+              "group": {
+                "type": "string"
+              },
+              "hidden": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "kind": {
+                "examples": [
+                  "table"
+                ],
+                "type": "string"
+              },
+              "shared": {
+                "type": "boolean"
+              },
+              "sort": {
+                "description": "Any JSON value"
+              },
+              "title": {
+                "type": "string"
+              },
+              "type": {
+                "examples": [
+                  "contact"
+                ],
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "type": "string"
+              },
+              "updatedAt": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              "viewId": {
+                "examples": [
+                  "viw_a1b2c3"
+                ],
+                "pattern": "^viw_[a-z0-9]+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "viewId",
+              "type",
+              "kind",
+              "title",
+              "shared",
+              "updatedAt"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "view",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/type",
+        "type": "record_type"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Read a saved view of a record type resolved for the table: the view definition and its rows with the saved filter, sort and group applied, a page at a time",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
         "validation.bad_input"
       ],
       "examples": [
@@ -126256,7 +126614,7 @@
       "module": "runs",
       "name": "runs.finish",
       "output": {
-        "$ref": "#/$defs/s_eeb669830b"
+        "$ref": "#/$defs/s_7916849f25"
       },
       "permission": null,
       "resource": {
@@ -126335,7 +126693,7 @@
       "module": "runs",
       "name": "runs.get",
       "output": {
-        "$ref": "#/$defs/s_eeb669830b"
+        "$ref": "#/$defs/s_7916849f25"
       },
       "permission": null,
       "resource": {
@@ -126422,7 +126780,7 @@
           },
           "kinds": {
             "items": {
-              "$ref": "#/$defs/s_e10b3d8480"
+              "$ref": "#/$defs/s_45112f0b77"
             },
             "type": "array"
           },
@@ -126486,7 +126844,7 @@
           },
           "runs": {
             "items": {
-              "$ref": "#/$defs/s_b3c84294bd"
+              "$ref": "#/$defs/s_bb7ff7d602"
             },
             "type": "array"
           },
@@ -126571,7 +126929,7 @@
       "module": "runs",
       "name": "runs.mark_waiting",
       "output": {
-        "$ref": "#/$defs/s_eeb669830b"
+        "$ref": "#/$defs/s_7916849f25"
       },
       "permission": null,
       "resource": {
@@ -126743,7 +127101,7 @@
       "module": "runs",
       "name": "runs.record_key",
       "output": {
-        "$ref": "#/$defs/s_eeb669830b"
+        "$ref": "#/$defs/s_7916849f25"
       },
       "permission": null,
       "resource": {
@@ -127030,7 +127388,7 @@
       "module": "runs",
       "name": "runs.resume",
       "output": {
-        "$ref": "#/$defs/s_eeb669830b"
+        "$ref": "#/$defs/s_7916849f25"
       },
       "permission": null,
       "resource": {
@@ -127180,7 +127538,7 @@
             "type": "string"
           },
           "kind": {
-            "$ref": "#/$defs/s_e10b3d8480"
+            "$ref": "#/$defs/s_45112f0b77"
           },
           "modelUsed": {
             "type": "string"
@@ -127550,7 +127908,7 @@
       "name": "runs.stop",
       "offline": "online",
       "output": {
-        "$ref": "#/$defs/s_eeb669830b"
+        "$ref": "#/$defs/s_7916849f25"
       },
       "permission": null,
       "resource": {
@@ -132401,7 +132759,7 @@
         {
           "input": {
             "floor": {},
-            "key": "example"
+            "key": "appearance.mode"
           },
           "name": "example",
           "output": {
@@ -132426,6 +132784,9 @@
             "description": "Any JSON value"
           },
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -132469,7 +132830,7 @@
       "examples": [
         {
           "input": {
-            "key": "example"
+            "key": "appearance.mode"
           },
           "name": "example",
           "output": {
@@ -132491,6 +132852,9 @@
       "input": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -132888,7 +133252,7 @@
       "examples": [
         {
           "input": {
-            "key": "example"
+            "key": "appearance.mode"
           },
           "name": "example",
           "output": {
@@ -132910,6 +133274,9 @@
       "input": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -132956,7 +133323,7 @@
       "examples": [
         {
           "input": {
-            "key": "example"
+            "key": "appearance.mode"
           },
           "name": "example",
           "output": {
@@ -132978,6 +133345,9 @@
       "input": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -133113,7 +133483,7 @@
       "examples": [
         {
           "input": {
-            "key": "example",
+            "key": "appearance.mode",
             "value": {}
           },
           "name": "example",
@@ -133137,6 +133507,9 @@
       "input": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           },
           "value": {
@@ -133188,7 +133561,7 @@
       "examples": [
         {
           "input": {
-            "key": "example",
+            "key": "appearance.mode",
             "value": {}
           },
           "name": "example",
@@ -133212,6 +133585,9 @@
       "input": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           },
           "value": {
@@ -135703,26 +136079,7 @@
       "input": {
         "properties": {
           "fields": {
-            "items": {
-              "properties": {
-                "key": {
-                  "type": "string"
-                },
-                "title": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "key",
-                "type",
-                "title"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+            "$ref": "#/$defs/s_3550bb561b"
           },
           "idempotencyKey": {
             "examples": [
@@ -144711,6 +145068,7 @@
                 "v": 1
               }
             ],
+            "decisionId": "example",
             "dependsOn": [
               "tsk_a1b2c3"
             ],
@@ -144723,6 +145081,7 @@
             "idempotencyKey": "idem_1",
             "kind": "work",
             "parentTaskId": "tsk_a1b2c3",
+            "payloadHash": "example",
             "recordId": "rec_a1b2c3",
             "reviewer": {
               "id": "usr_a1b2c3",
@@ -144816,6 +145175,9 @@
           "blocks": {
             "$ref": "#/$defs/s_d2c64dc123"
           },
+          "decisionId": {
+            "type": "string"
+          },
           "dependsOn": {
             "items": {
               "examples": [
@@ -144879,6 +145241,9 @@
               "tsk_a1b2c3"
             ],
             "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "payloadHash": {
             "type": "string"
           },
           "recordId": {
@@ -149006,6 +149371,7 @@
               "capabilities": [
                 "voice"
               ],
+              "displayName": "Intake line",
               "e164": "+14155550123",
               "hours": {
                 "outsideHours": "voicemail",
@@ -149045,7 +149411,7 @@
       "module": "telephony",
       "name": "telephony.number.assign",
       "output": {
-        "$ref": "#/$defs/s_72d1849997"
+        "$ref": "#/$defs/s_2e121bf748"
       },
       "permission": "comms.numbers",
       "resource": {
@@ -149098,6 +149464,7 @@
               "capabilities": [
                 "voice"
               ],
+              "displayName": "Intake line",
               "e164": "+14155550123",
               "hours": {
                 "outsideHours": "voicemail",
@@ -149176,7 +149543,7 @@
       "module": "telephony",
       "name": "telephony.number.buy",
       "output": {
-        "$ref": "#/$defs/s_72d1849997"
+        "$ref": "#/$defs/s_2e121bf748"
       },
       "permission": "comms.numbers",
       "resource": {
@@ -149217,6 +149584,7 @@
               "capabilities": [
                 "voice"
               ],
+              "displayName": "Intake line",
               "e164": "+14155550123",
               "hours": {
                 "outsideHours": "voicemail",
@@ -149269,7 +149637,7 @@
       "module": "telephony",
       "name": "telephony.number.get",
       "output": {
-        "$ref": "#/$defs/s_72d1849997"
+        "$ref": "#/$defs/s_2e121bf748"
       },
       "permission": null,
       "resource": {
@@ -149318,6 +149686,7 @@
                 "capabilities": [
                   "voice"
                 ],
+                "displayName": "Intake line",
                 "e164": "+14155550123",
                 "hours": {
                   "outsideHours": "voicemail",
@@ -149385,7 +149754,7 @@
             "type": "integer"
           },
           "numbers": {
-            "$ref": "#/$defs/s_20d61750b4"
+            "$ref": "#/$defs/s_f13f776230"
           }
         },
         "required": [
@@ -149436,6 +149805,7 @@
                 "capabilities": [
                   "voice"
                 ],
+                "displayName": "Intake line",
                 "e164": "+14155550123",
                 "hours": {
                   "outsideHours": "voicemail",
@@ -149497,7 +149867,7 @@
             "type": "string"
           },
           "numbers": {
-            "$ref": "#/$defs/s_20d61750b4"
+            "$ref": "#/$defs/s_f13f776230"
           },
           "total": {
             "type": "integer"
@@ -149708,6 +150078,7 @@
               "capabilities": [
                 "voice"
               ],
+              "displayName": "Intake line",
               "e164": "+14155550123",
               "hours": {
                 "outsideHours": "voicemail",
@@ -149763,7 +150134,7 @@
       "module": "telephony",
       "name": "telephony.number.set_hours",
       "output": {
-        "$ref": "#/$defs/s_72d1849997"
+        "$ref": "#/$defs/s_2e121bf748"
       },
       "permission": "comms.numbers",
       "resource": {
@@ -149810,6 +150181,7 @@
               "capabilities": [
                 "voice"
               ],
+              "displayName": "Intake line",
               "e164": "+14155550123",
               "hours": {
                 "outsideHours": "voicemail",
@@ -149870,7 +150242,7 @@
       "module": "telephony",
       "name": "telephony.number.set_recording",
       "output": {
-        "$ref": "#/$defs/s_72d1849997"
+        "$ref": "#/$defs/s_2e121bf748"
       },
       "permission": "comms.numbers",
       "resource": {
@@ -149926,6 +150298,7 @@
               "capabilities": [
                 "voice"
               ],
+              "displayName": "Intake line",
               "e164": "+14155550123",
               "hours": {
                 "outsideHours": "voicemail",
@@ -149981,7 +150354,7 @@
       "module": "telephony",
       "name": "telephony.number.set_route",
       "output": {
-        "$ref": "#/$defs/s_72d1849997"
+        "$ref": "#/$defs/s_2e121bf748"
       },
       "permission": "comms.numbers",
       "resource": {
@@ -153408,7 +153781,9 @@
       "effects": "write",
       "emits": [
         "channel.created",
-        "thread.promoted"
+        "thread.promoted",
+        "channel.agent_added",
+        "channel.member_added"
       ],
       "errors": [
         "internal.unexpected",
@@ -163808,6 +164183,7 @@
         "google.drive.copy_file",
         "google.drive.share_file",
         "google.drive.trash_file",
+        "google.drive.changes_start_token",
         "google.drive.list_changes",
         "google.drive.watch_changes",
         "google.drive.stop_watch",
@@ -169511,7 +169887,35 @@
       "name": "campaign.replied",
       "notify": "campaign.reply",
       "payload": {
-        "$ref": "#/$defs/s_a76a30eb87"
+        "properties": {
+          "campaignId": {
+            "examples": [
+              "cmp_a1b2c3"
+            ],
+            "pattern": "^cmp_[a-z0-9]+$",
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campaignId",
+          "recordId",
+          "messageId"
+        ],
+        "type": "object"
       },
       "replay": "pure",
       "subject": {
@@ -177325,7 +177729,7 @@
       "retention": "memory",
       "subject": {
         "id": "/noteId",
-        "type": "file"
+        "type": "note"
       },
       "summary": "A shared memory note was restored to an earlier version",
       "sv": 1,
@@ -178605,7 +179009,7 @@
             "type": "string"
           },
           "kind": {
-            "$ref": "#/$defs/s_06e2de2d97"
+            "$ref": "#/$defs/s_0766030a72"
           },
           "perHour": {
             "type": "integer"
@@ -178674,7 +179078,7 @@
             "type": "string"
           },
           "kind": {
-            "$ref": "#/$defs/s_06e2de2d97"
+            "$ref": "#/$defs/s_0766030a72"
           },
           "level": {
             "enum": [
@@ -181301,7 +181705,7 @@
             "type": "integer"
           },
           "kind": {
-            "$ref": "#/$defs/s_e10b3d8480"
+            "$ref": "#/$defs/s_45112f0b77"
           },
           "message": {
             "type": "string"
@@ -181451,7 +181855,7 @@
             "type": "integer"
           },
           "kind": {
-            "$ref": "#/$defs/s_e10b3d8480"
+            "$ref": "#/$defs/s_45112f0b77"
           },
           "name": {
             "type": "string"
@@ -181538,7 +181942,7 @@
             "type": "integer"
           },
           "kind": {
-            "$ref": "#/$defs/s_e10b3d8480"
+            "$ref": "#/$defs/s_45112f0b77"
           },
           "runId": {
             "examples": [
@@ -183238,14 +183642,33 @@
       "module": "sites",
       "name": "site.table_created",
       "payload": {
-        "$ref": "#/$defs/s_1385ca21a0"
+        "properties": {
+          "fields": {
+            "$ref": "#/$defs/s_3550bb561b"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId",
+          "type"
+        ],
+        "type": "object"
       },
       "replay": "pure",
       "subject": {
         "id": "/siteId",
         "type": "site"
       },
-      "summary": "A site table (site-scoped record type) was created",
+      "summary": "A site table (site-scoped record type) was created; fields carries its columns so the record type can be made from the event alone",
       "sv": 1,
       "vis": "space"
     },
@@ -191304,9 +191727,13 @@
       "kind": "module",
       "owner": "L6",
       "requires": [
+        "calendar",
+        "chat",
         "notifications",
         "runs",
-        "tasks"
+        "spaces",
+        "tasks",
+        "terminal"
       ],
       "title": "Home",
       "version": "0.1.0"
@@ -200838,6 +201265,69 @@
     },
     {
       "actions": {
+        "ask": {
+          "cap": "chat.start",
+          "input": {
+            "agentIds": "/state/agentIds",
+            "first": "/state/first",
+            "idempotencyKey": "/state/idempotencyKey",
+            "kind": "/state/kind"
+          }
+        },
+        "unstar": {
+          "cap": "stars.toggle",
+          "input": {
+            "on": "/state/on",
+            "resource": "/state/resource"
+          }
+        }
+      },
+      "builtin": "ui:TodayStarredAsk",
+      "id": "home.today-starred-ask",
+      "module": "home",
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "home",
+      "queries": {
+        "events": {
+          "cap": "calendar.list_events",
+          "input": {
+            "from": "/state/from",
+            "to": "/state/to"
+          },
+          "live": true
+        },
+        "stars": {
+          "cap": "stars.list",
+          "input": {},
+          "live": true
+        },
+        "terminals": {
+          "cap": "terminal.status",
+          "input": {
+            "terminalIds": "/state/terminalIds"
+          },
+          "live": true
+        }
+      },
+      "slot": "main",
+      "states": {
+        "empty": {
+          "line": "Nothing on today"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
+      "actions": {
         "follow": {
           "cap": "inbox.follow_set",
           "input": {
@@ -205131,6 +205621,21 @@
       "title": "Agent template propagation"
     },
     {
+      "default": "comfortable",
+      "key": "appearance.density",
+      "module": "settings",
+      "page": "appearance",
+      "schema": {
+        "enum": [
+          "comfortable",
+          "compact"
+        ],
+        "type": "string"
+      },
+      "scope": "person",
+      "title": "Density"
+    },
+    {
       "default": "system",
       "key": "appearance.mode",
       "module": "settings",
@@ -205147,6 +205652,17 @@
       "title": "Light or dark"
     },
     {
+      "default": false,
+      "key": "appearance.reduce_motion",
+      "module": "settings",
+      "page": "appearance",
+      "schema": {
+        "type": "boolean"
+      },
+      "scope": "person",
+      "title": "Reduce motion"
+    },
+    {
       "default": "classic",
       "key": "appearance.skin",
       "module": "settings",
@@ -205156,6 +205672,19 @@
       },
       "scope": "person",
       "title": "Skin"
+    },
+    {
+      "default": 100,
+      "key": "appearance.text_size",
+      "module": "settings",
+      "page": "appearance",
+      "schema": {
+        "maximum": 120,
+        "minimum": 90,
+        "type": "integer"
+      },
+      "scope": "person",
+      "title": "Text size (percent)"
     },
     {
       "default": {
@@ -208737,7 +209266,35 @@
       "key": "campaign_reply",
       "module": "automations",
       "payload": {
-        "$ref": "#/$defs/s_a76a30eb87"
+        "properties": {
+          "campaignId": {
+            "examples": [
+              "cmp_a1b2c3"
+            ],
+            "pattern": "^cmp_[a-z0-9]+$",
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campaignId",
+          "recordId",
+          "messageId"
+        ],
+        "type": "object"
       },
       "personalOk": true,
       "sample": {

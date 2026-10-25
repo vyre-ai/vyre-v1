@@ -11,7 +11,8 @@ on:
   workflow_dispatch:
 concurrency:
   group: main-${{ github.event_name == 'push' && 'push' || 'full' }}
-  cancel-in-progress: ${{ github.event_name == 'push' }}
+  # one run at a time, the newest waiting run replaces older waiting ones; never cancel a running one, or no run turns green and the base never advances
+  cancel-in-progress: false
 jobs:
   select:
     runs-on: [self-hosted, linux, v1]
@@ -52,6 +53,7 @@ jobs:
       matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v5
+      - uses: ./.github/actions/deps
       - name: Run the shard (20 s file cap, pass cache by import hash)
         env:
           FILES: ${{ matrix.files }}
@@ -65,6 +67,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+      - uses: ./.github/actions/deps
       - run: npm run golden
   perf:
     needs: select
@@ -73,6 +76,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+      - uses: ./.github/actions/deps
       - run: npm run perf
   contracts:
     runs-on: [self-hosted, linux, v1]

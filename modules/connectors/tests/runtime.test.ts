@@ -28,9 +28,10 @@ async function withAcme(extra: Partial<ConnectorDef> = {}): Promise<{ k: Kit; id
 const run = (k: Kit, id: string, action: string, input: unknown = {}, dryRun?: boolean) =>
   k.hs["connectors.run"](k.ctx, { key: "acme", action, connectionId: id, input, ...(dryRun !== undefined ? { dryRun } : {}) });
 
-test("every capability of the manifest for connectors and connections has a handler", () => {
+test("every capability of the connectors manifest (framework, connections, synced types, sync engine) has a handler", () => {
   const raw = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as { capabilities: { name: string; module: string }[] };
-  const names = raw.capabilities.filter((c) => c.module === "connectors" && /^(connectors|connections)\./.test(c.name)).map((c) => c.name).filter((n) => !/^connectors\.(sync_now|outbox\.|push)/.test(n)).sort();
+  const names = raw.capabilities.filter((c) => c.module === "connectors").map((c) => c.name).sort();
+  assert.equal(names.length, 44);
   assert.deepEqual(Object.keys(loaderHandlers).sort(), names);
   assert.deepEqual(Object.keys(kit().hs).sort(), names);
 });

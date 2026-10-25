@@ -1,5 +1,5 @@
 // A stand-in for the records and schema modules, for tests: the capabilities sources calls through ctx.call, answered from a kernel RecordStore.
-import { mintUuid } from "../../../lib/ids.ts";
+import { mintRecordId } from "../../../lib/ids.ts";
 import type { Filter, Store } from "../../../kernel/src/store/types.ts";
 
 export function fakeCall(store: Store, log: { cap: string; input: unknown }[] = []): (cap: string, input: unknown) => Promise<unknown> {
@@ -18,7 +18,7 @@ export function fakeCall(store: Store, log: { cap: string; input: unknown }[] = 
         return { rows: p.rows.map(row) };
       }
       case "records.create": {
-        const rec = await store.create(i.type, mintUuid(), i.fields);
+        const rec = await store.create(i.type, mintRecordId(), i.fields);
         return { record: { id: rec.id, fields: { ...rec.data } } };
       }
       case "records.update": {
@@ -34,7 +34,7 @@ export function fakeCall(store: Store, log: { cap: string; input: unknown }[] = 
           const hits = await store.query(i.type, { filter, page: { limit: 2 } });
           if (hits.rows.length > 1) throw Object.assign(new Error("two records match"), { error: { code: "validation.duplicate", message: "two records match" } });
           const hit = hits.rows[0];
-          if (!hit) { await store.create(i.type, mintUuid(), r); created++; continue; }
+          if (!hit) { await store.create(i.type, mintRecordId(), r); created++; continue; }
           const diff = Object.fromEntries(Object.entries(r).filter(([k, v]) => JSON.stringify(hit.data[k]) !== JSON.stringify(v)));
           if (!Object.keys(diff).length) { skipped++; continue; }
           await store.update(i.type, hit.id, diff, hit.version);

@@ -1,0 +1,53 @@
+{
+  "targets": [
+    {
+      "id": "P-L9f_06-profile-northwind",
+      "route": "/m/P-L9f_06?page=profile&space=northwind",
+      "proto": "settings,at:profile,{skin}",
+      "waitFor": "[data-testid='profile-card']",
+      "note": "Settings, Profile on Northwind: the profile card with Copy from another Space, About you, Availability and Contact grouped cards, and the page list in two groups."
+    },
+    {
+      "id": "P-L9f_06-notifications",
+      "route": "/m/P-L9f_06?page=notifications&space=northwind",
+      "proto": "settings,at:notifications,{skin}",
+      "waitFor": "[data-testid='page-notifications']",
+      "note": "Notifications: how each kind arrives, delivery rows, muted senders."
+    },
+    {
+      "id": "P-L9f_06-models",
+      "route": "/m/P-L9f_06?page=models&space=northwind",
+      "proto": "settings,at:models,{skin}",
+      "waitFor": "[data-testid='usage']",
+      "note": "Models and usage: default and fallback model, usage bars, where work runs, providers with Open Vault."
+    },
+    {
+      "id": "P-L9f_06-signin",
+      "route": "/m/P-L9f_06?page=signin&space=northwind",
+      "proto": "settings,at:signin,{skin}",
+      "waitFor": "[data-testid='row-device.dev_mac']",
+      "note": "Sign-in and devices: devices in this Space with Sign out, and the index of Spaces."
+    },
+    {
+      "id": "P-L9f_06-appearance",
+      "route": "/m/P-L9f_06?page=appearance&space=northwind",
+      "proto": "settings,at:appearance,{skin}",
+      "waitFor": "[data-testid='skins-dark']",
+      "note": "Appearance: light or dark, skin tiles in Dark and Light with the chosen one outlined, Kit."
+    },
+    {
+      "id": "P-L9f_06-search",
+      "route": "/m/P-L9f_06?page=profile&space=northwind&q=quiet",
+      "proto": "settings,at:search,{skin}",
+      "waitFor": "[data-testid='search-results']",
+      "note": "Cmd-F search results in the page list."
+    },
+    {
+      "id": "P-L9f_06-profile-harbor",
+      "route": "/m/P-L9f_06?page=profile&space=harbor",
+      "proto": "settings,at:profile,space:harbor,{skin}",
+      "waitFor": "[data-testid='profile-card']",
+      "note": "Settings, Profile on Harbor Studio."
+    }
+  ]
+}

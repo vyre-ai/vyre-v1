@@ -25,7 +25,7 @@ Create a Run record (engine, Gate and other modules call this for any long-lived
 
 ```ts
 type In = {
-  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "runbook" | "wait" | "terminal" | "replay" | "other";
+  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
   name?: string;
   owner: string;
   subject?: {

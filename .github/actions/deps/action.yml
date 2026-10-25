@@ -1,0 +1,22 @@
+name: deps
+description: Workspace dependencies from the host-local cache (one node_modules set per lockfile hash, hardlinked per runner). npm ci runs only on a miss, once per host.
+inputs:
+  workspace:
+    description: Directory holding package-lock.json
+    default: ${{ github.workspace }}
+outputs:
+  hit:
+    description: "true when the set was already on the host"
+    value: ${{ steps.deps.outputs.hit }}
+  key:
+    description: Lockfile hash the set is stored under
+    value: ${{ steps.deps.outputs.key }}
+  ms:
+    description: Milliseconds the step took
+    value: ${{ steps.deps.outputs.ms }}
+runs:
+  using: composite
+  steps:
+    - id: deps
+      shell: bash
+      run: bash "${{ github.workspace }}/scripts/ci-deps.sh" "${{ inputs.workspace }}"

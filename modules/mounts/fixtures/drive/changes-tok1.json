@@ -1,0 +1,10 @@
+{
+  "changes": [
+    { "fileId": "f1", "removed": false, "file": { "id": "f1", "name": "intro.pdf", "mimeType": "application/pdf", "parents": ["root_drv"], "modifiedTime": "2026-10-05T10:00:00.000Z", "size": 2100 } },
+    { "fileId": "f2", "removed": true },
+    { "fileId": "n2", "removed": false, "file": { "id": "n2", "name": "deep.txt", "mimeType": "text/plain", "parents": ["n1"], "modifiedTime": "2026-10-05T10:10:00.000Z", "size": 12 } },
+    { "fileId": "n1", "removed": false, "file": { "id": "n1", "name": "Signed", "mimeType": "application/vnd.google-apps.folder", "parents": ["d1"], "modifiedTime": "2026-10-05T10:09:00.000Z" } },
+    { "fileId": "zz", "removed": false, "file": { "id": "zz", "name": "elsewhere.txt", "mimeType": "text/plain", "parents": ["outside_folder"], "modifiedTime": "2026-10-05T10:11:00.000Z" } }
+  ],
+  "nextPageToken": "tok2"
+}
