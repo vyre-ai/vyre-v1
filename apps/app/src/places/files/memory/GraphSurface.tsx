@@ -90,6 +90,13 @@ export function GraphSurface(p: SurfaceProps): ReactElement | null {
             return { ...d, color: hot ? s.accent : s.near !== null ? fade(s.edgeInk, s.faint) : s.edgeInk, size: hot ? 2.4 : d.size, zIndex: hot ? 1 : 0 };
           },
           defaultEdgeColor: "#a1a1aa",
+          // the hovered or selected note keeps the quiet label (no white box over a dark skin): its name beside it in the full ink
+          defaultDrawNodeHover: (ctx, d, st) => {
+            if (!d.label) return;
+            ctx.font = `${st.labelWeight} ${st.labelSize}px ${st.labelFont}`;
+            ctx.fillStyle = live.current.ink;
+            ctx.fillText(d.label, d.x + d.size + 3, d.y + st.labelSize / 3);
+          },
         });
         renderer = r;
         sigma.current = r;
@@ -262,7 +269,7 @@ function drawHalos(cv: HTMLCanvasElement, r: Sigma, g: Graph, live: Live): void 
     c.beginPath(); c.arc(cx, cy, rad, 0, Math.PI * 2); c.fill();
     c.strokeStyle = live.line; c.globalAlpha = 0.55; c.lineWidth = 1; c.setLineDash([2, 5]); c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
     c.font = "600 11.5px system-ui, sans-serif"; c.fillStyle = live.ink3; c.textAlign = "center";
-    c.fillText(name, cx, cy - rad - 7);
+    c.fillText(name, cx, Math.max(14, cy - rad - 7));
   }
 }
 
