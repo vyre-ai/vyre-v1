@@ -28,6 +28,57 @@ export interface TabMenuExtra {
 
 export type TabOp = "close" | "closeOthers" | "closeAll";
 
+export const OVERFLOW_GAP = 2;
+export const OVERFLOW_PAD = 12;
+export const ICON_BUTTON_W = 26;
+export const MORE_BUTTON_W = 72;
+export const TAB_ESTIMATE_W = 120;
+
+export interface Fold { visible: string[]; folded: string[] }
+
+/**
+ * Which tabs stay in the strip and which fold into the More menu. `avail` is the width the tabs may use; `widths` holds what was measured (a tab never
+ * measured counts as the estimate). The active tab always stays, then pinned tabs, then the rest left to right until the width is used up. Order is
+ * kept. When everything fits nothing folds.
+ */
+export function foldTabs(tabs: readonly TabSpec[], widths: Readonly<Record<string, number>>, active: string, avail: number): Fold {
+  const w = (k: string): number => widths[k] ?? TAB_ESTIMATE_W;
+  let total = 0;
+  for (const tab of tabs) total += w(tab.key) + OVERFLOW_GAP;
+  const all: string[] = [];
+  for (const tab of tabs) all.push(tab.key);
+  if (avail <= 0 || total <= avail) return { visible: all, folded: [] };
+  const room = avail - MORE_BUTTON_W;
+  const keep = new Set<string>();
+  let used = 0;
+  const take = (k: string): boolean => {
+    const need = w(k) + OVERFLOW_GAP;
+    if (keep.has(k)) return true;
+    if (used + need > room && keep.size > 0) return false;
+    keep.add(k);
+    used += need;
+    return true;
+  };
+  if (tabs.some((tab) => tab.key === active)) take(active);
+  for (const tab of tabs) if (tab.pinned === true) take(tab.key);
+  for (const tab of tabs) if (!take(tab.key)) break;
+  const visible: string[] = [];
+  const folded: string[] = [];
+  for (const tab of tabs) (keep.has(tab.key) ? visible : folded).push(tab.key);
+  return { visible, folded };
+}
+
+/** The More menu: the folded tabs in strip order, the active one checked. */
+export function moreEntries(tabs: readonly TabSpec[], folded: readonly string[], active: string, select: (key: string) => void): MenuEntry[] {
+  const out: MenuEntry[] = [];
+  for (const k of folded) {
+    const tab = tabs.find((x) => x.key === k);
+    if (tab === undefined) continue;
+    out.push({ label: tab.title, ...(tab.icon !== undefined && tab.icon.length > 0 ? { icon: tab.icon } : {}), checked: k === active, onSelect: () => select(k) });
+  }
+  return out;
+}
+
 /** Moves `from` to the index `to` has now. Pinned tabs never move and nothing moves in front of them. */
 export function reorderKeys(tabs: readonly TabSpec[], from: string, to: string): string[] {
   const keys: string[] = [];
@@ -133,6 +184,8 @@ function focusNode(node: unknown): void {
 
 /* ---------- the strip ---------- */
 
+const CHEV_DOWN = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>';
+
 export const TAB_STRIP_HEIGHT = 38;
 export const TAB_HEIGHT = 32;
 const TAB_MAX_WIDTH = 210;
@@ -140,6 +193,8 @@ const TAB_MAX_WIDTH = 210;
 export interface TabStripViewProps extends TabStripProps {
   /** Accessible name for the strip. */
   label?: string;
+  /** "more": the strip measures its tabs and folds the ones that do not fit into a More menu, keeping the active tab visible, and refits when it is resized. Default: the strip scrolls. */
+  overflow?: "scroll" | "more";
 }
 
 export function TabStrip(props: TabStripViewProps): ReactElement {
@@ -150,6 +205,11 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
   const scroller = useRef<{ scrollTo?: (options: { x: number; animated: boolean }) => void } | null>(null);
   const spans = useRef<Record<string, { x: number; w: number }>>({});
   const view = useRef<{ x: number; w: number }>({ x: 0, w: 0 });
+  const widths = useRef<Record<string, number>>({});
+  const [boxW, setBoxW] = useState(0);
+  const [measured, setMeasured] = useState(0);
+  const moreRef = useRef<unknown>(null);
+  const folding = props.overflow === "more";
   const [drag, setDrag] = useState<{ from: string; over: string | null } | null>(null);
 
   const extrasFor = useCallback((key: string | undefined): TabMenuExtra[] => {
@@ -212,8 +272,19 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
     setDrag(null);
   };
 
+  const reserved = OVERFLOW_PAD + ICON_BUTTON_W + OVERFLOW_GAP + (onPlus === undefined ? 0 : ICON_BUTTON_W + OVERFLOW_GAP);
+  const fold: Fold = folding ? foldTabs(tabs, widths.current, active, boxW - reserved) : { visible: tabs.map((x) => x.key), folded: [] };
+  void measured;
+  const shown = new Set(fold.visible);
+  const openMore = (): void => {
+    const entries = moreEntries(tabs, fold.folded, active, select);
+    const box = moreRef.current as Focusable | null;
+    if (box !== null && typeof box.measureInWindow === "function") box.measureInWindow((x, y, _w, h) => show(entries, x, y + h + 4, "other"));
+    else show(entries, 0, TAB_STRIP_HEIGHT, "other");
+  };
   const tabNodes: ReactNode[] = [];
   for (const tab of tabs) {
+    if (!shown.has(tab.key)) continue;
     const on = tab.key === active;
     tabNodes.push(
       <TabItem
@@ -234,14 +305,14 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
         onDragStart={() => { if (tab.pinned !== true && onReorder) setDrag({ from: tab.key, over: null }); }}
         onDragOver={() => { if (drag !== null && drag.over !== tab.key) setDrag({ from: drag.from, over: tab.key }); }}
         onDragEnd={finishDrag}
-        onLayout={(x, w) => { spans.current[tab.key] = { x, w }; }}
+        onLayout={(x, w) => { spans.current[tab.key] = { x, w }; if (widths.current[tab.key] !== w) { widths.current[tab.key] = w; setMeasured((n) => n + 1); } }}
       />,
     );
   }
 
   const current = activeTab(props);
   return (
-    <View style={styles.strip} testID="tab-strip" {...webProps({ onPointerLeave: () => setDrag(null), onPointerUp: finishDrag })}>
+    <View style={styles.strip} testID="tab-strip" onLayout={(event) => { if (folding) setBoxW(event.nativeEvent.layout.width); }} {...webProps({ onPointerLeave: () => setDrag(null), onPointerUp: finishDrag })}>
       <ScrollView
         ref={(node) => { scroller.current = node as unknown as typeof scroller.current; }}
         horizontal
@@ -255,6 +326,20 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
         <View role="tablist" aria-label={props.label ?? current?.title ?? "Tabs"} style={styles.tabs}>
           {tabNodes}
         </View>
+        {fold.folded.length === 0 ? null : (
+          <Pressable
+            ref={(node) => { moreRef.current = node; }}
+            role="button"
+            aria-label={`${fold.folded.length} more tabs`}
+            aria-haspopup="menu"
+            testID="tab-strip-folded"
+            onPress={openMore}
+            style={({ hovered }: { hovered?: boolean }) => [styles.foldBtn, hovered === true ? HOVER : null]}
+          >
+            <Text style={styles.foldText}>{`${fold.folded.length} more`}</Text>
+            <MenuIcon icon={CHEV_DOWN} color="var(--ink-3)" size={12} />
+          </Pressable>
+        )}
         {onPlus === undefined ? null : (
           <IconButton name="plus" label={plusTitle ?? "Open"} onPress={() => onPlus()} />
         )}
@@ -372,6 +457,8 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1, alignItems: "flex-end", paddingHorizontal: 6, gap: 2 },
   tabs: { flexDirection: "row", alignItems: "flex-end", gap: 2 },
   spacer: { flexGrow: 1 },
+  foldBtn: { flexDirection: "row", alignItems: "center", gap: 4, height: 26, marginBottom: 4, paddingHorizontal: 8, borderRadius: 7 },
+  foldText: { color: "var(--ink-3)" as string, fontSize: 12.5 },
   tab: {
     height: TAB_HEIGHT,
     maxWidth: TAB_MAX_WIDTH,
