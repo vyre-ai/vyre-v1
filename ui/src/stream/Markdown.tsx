@@ -7,24 +7,36 @@ import type { Block, Inline } from "./markdown.ts";
 import { BLOCK_GAP, BODY_LINE, BODY_SIZE } from "./Reserved.tsx";
 
 function inlineNodes(items: readonly Inline[], onLink?: (href: string) => void): ReactNode {
-  return items.map((n, i) => {
+  // Plain loops, not .map: these are runs of text inside one block, not list rows (lint ui-rows is about lists of rows).
+  const out: ReactNode[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const n = items[i];
+    if (!n) continue;
     switch (n.t) {
       case "text":
-        return <Fragment key={i}>{n.v}</Fragment>;
+        out.push(<Fragment key={i}>{n.v}</Fragment>);
+        break;
       case "code":
-        return <Text key={i} style={styles.code}>{n.v}</Text>;
+        out.push(<Text key={i} style={styles.code}>{n.v}</Text>);
+        break;
       case "strong":
-        return <Text key={i} style={styles.strong}>{inlineNodes(n.c, onLink)}</Text>;
+        out.push(<Text key={i} style={styles.strong}>{inlineNodes(n.c, onLink)}</Text>);
+        break;
       case "em":
-        return <Text key={i} style={styles.em}>{inlineNodes(n.c, onLink)}</Text>;
-      case "link":
-        return (
-          <Text key={i} accessibilityRole="link" onPress={() => (onLink ? onLink(n.href) : void Linking.openURL(n.href))} style={styles.link}>
+        out.push(<Text key={i} style={styles.em}>{inlineNodes(n.c, onLink)}</Text>);
+        break;
+      case "link": {
+        const href = n.href;
+        out.push(
+          <Text key={i} accessibilityRole="link" onPress={() => (onLink ? onLink(href) : void Linking.openURL(href))} style={styles.link}>
             {inlineNodes(n.c, onLink)}
-          </Text>
+          </Text>,
         );
+        break;
+      }
     }
-  });
+  }
+  return out;
 }
 
 /** The blinking block at the end of the open text. A fixed 7 by 16 box, so its arrival and its moves do not change the line it sits on. */
@@ -37,6 +49,19 @@ export interface BlockViewProps {
   /** The caret follows the last inline of this block. Only the open block gets it. */
   caret?: boolean;
   onLink?: (href: string) => void;
+}
+
+function listItems(block: Extract<Block, { kind: "ul" | "ol" }>, caret: boolean, onLink?: (href: string) => void): ReactNode {
+  const out: ReactNode[] = [];
+  for (let i = 0; i < block.items.length; i++) {
+    out.push(
+      <View key={i} style={styles.item}>
+        <Text style={styles.marker}>{block.kind === "ul" ? "\u2022" : `${block.start + i}.`}</Text>
+        <Text style={styles.itemText}>{inlineNodes(block.items[i] ?? [], onLink)}{caret && i === block.items.length - 1 ? <Caret /> : null}</Text>
+      </View>,
+    );
+  }
+  return out;
 }
 
 export const BlockView = memo(function BlockView({ block, caret = false, onLink }: BlockViewProps) {
@@ -63,14 +88,7 @@ export const BlockView = memo(function BlockView({ block, caret = false, onLink 
     case "ul":
     case "ol":
       return (
-        <View testID={`block-${block.key}`} style={styles.list}>
-          {block.items.map((item, i) => (
-            <View key={i} style={styles.item}>
-              <Text style={styles.marker}>{block.kind === "ul" ? "•" : `${block.start + i}.`}</Text>
-              <Text style={styles.itemText}>{inlineNodes(item, onLink)}{caret && i === block.items.length - 1 ? <Caret /> : null}</Text>
-            </View>
-          ))}
-        </View>
+        <View testID={`block-${block.key}`} style={styles.list}>{listItems(block, caret, onLink)}</View>
       );
   }
 });
@@ -85,11 +103,14 @@ export interface MarkdownBlocksProps {
 /** Final blocks first (same objects every frame, so they do not re-render), then the open ones. */
 export function MarkdownBlocks({ blocks, streaming = false, onLink }: MarkdownBlocksProps) {
   const last = blocks.length - 1;
+  const views: ReactNode[] = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (b) views.push(<BlockView key={b.key} block={b} caret={streaming && i === last} {...(onLink ? { onLink } : {})} />);
+  }
   return (
     <View testID="markdown-blocks" style={styles.root}>
-      {blocks.map((b, i) => (
-        <BlockView key={b.key} block={b} caret={streaming && i === last} {...(onLink ? { onLink } : {})} />
-      ))}
+      {views}
       {streaming && blocks.length === 0 ? <View style={styles.firstCaret}><Caret /></View> : null}
     </View>
   );
