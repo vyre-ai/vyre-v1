@@ -4,11 +4,7 @@
 #
 #   docker build -t vyre/agent-computer:1 images/agent-computer
 #
-# Vyre for Chrome (apps/chrome) is baked in at /opt/vyre-chrome through the `ext` build context (see below); agentd loads it from there when it has a manifest.json.
-# Vyre for Chrome, built from apps/chrome, comes in as a named build context: `docker build --build-context ext=<built extension folder> ...`. Without it the stage is empty and the
-# computer runs without the extension (agentd loads /opt/vyre-chrome only when it has a manifest.json).
-FROM scratch AS ext
-
+# Vyre for Chrome (apps/chrome) is baked in at /opt/vyre-chrome by copying it into vyre-chrome/ before the build; agentd loads it from there when it has a manifest.json.
 FROM node:24-bookworm-slim
 
 # chromium: the browser. xvfb: the screen. ffmpeg: frames for the live view and the recording. python3-xlib: the input injector (XTEST, with a round trip so an input is acknowledged once the server
@@ -29,7 +25,9 @@ RUN groupadd --gid 10001 agent \
  && chmod 0700 /home/agent
 
 COPY agentd/ /opt/agentd/
-COPY --from=ext / /opt/vyre-chrome/
+# Vyre for Chrome: the release build and the heavy test copy the extension (manifest.json and src) into vyre-chrome/ of the build context first. A plain checkout has only the placeholder, and then
+# agentd runs the browser without the extension (it loads /opt/vyre-chrome only when it has a manifest.json). No BuildKit feature is needed: the runners have the legacy builder only.
+COPY vyre-chrome/ /opt/vyre-chrome/
 RUN chmod 0755 /opt/agentd/ctl && chmod 0644 /opt/agentd/*.ts /opt/agentd/*.py /opt/agentd/package.json
 
 ENV HOME=/home/agent \

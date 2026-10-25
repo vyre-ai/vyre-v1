@@ -106,7 +106,12 @@ before(async () => {
   assert.equal(await api.ping(), true, "the Docker daemon answers");
   const ext = process.env["VYRE_CHROME_EXT_DIR"];
   assert.ok(ext && fs.existsSync(path.join(ext, "manifest.json")), "VYRE_CHROME_EXT_DIR names the Vyre for Chrome folder (apps/chrome manifest.json and src): the agent computer ships with it");
-  const built = await runHost("docker", ["build", "-t", IMAGE, "--build-context", `ext=${ext}`, "images/agent-computer"], 1_200_000);
+  // The runners have no buildx: the extension goes into a copy of the build context.
+  const ctxDir = path.join(filesRoot, "..", `agentcomp-ctx-${suffix}`);
+  fs.cpSync(path.join(ROOT, "images/agent-computer"), ctxDir, { recursive: true });
+  fs.cpSync(ext!, path.join(ctxDir, "vyre-chrome"), { recursive: true });
+  const built = await runHost("docker", ["build", "-t", IMAGE, ctxDir], 1_200_000);
+  fs.rmSync(ctxDir, { recursive: true, force: true });
   assert.equal(built.code, 0, `building ${IMAGE} failed: ${built.out.slice(-1500)}`);
   fs.chmodSync(filesRoot, 0o777);
   await api.containerCreate(NAME, config());
