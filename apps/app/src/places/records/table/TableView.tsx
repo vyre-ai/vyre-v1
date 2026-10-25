@@ -169,7 +169,7 @@ const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): 
 
 // The scrolling cells are plain elements, not React Native views and texts: a scroll mounts a few rows a frame, and 13 cells of a row as View and Text each cost several times a plain div. The
 // 100,000-row scroll probe was 66.7 ms at p95 with every column and 16.8 ms with the name column alone, so the cost is the cells. Same looks as the cell styles below.
-const CELL_BOX = { boxSizing: "border-box", display: "flex", alignItems: "center", flex: "none", height: "100%", padding: "0 10px", overflow: "hidden" } as const;
+const CELL_BOX = { boxSizing: "border-box", display: "flex", alignItems: "center", flex: "none", height: "100%", padding: "0 10px", overflow: "hidden", contain: "layout style paint" } as const;
 const CELL_TEXT = { fontSize: 13, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 } as const;
 const CELL_NUM = { ...CELL_TEXT, fontVariantNumeric: "tabular-nums", textAlign: "right" } as const;
 const CELL_SEALED = { ...CELL_TEXT, color: "var(--ink-3)", letterSpacing: 1 } as const;
@@ -205,7 +205,7 @@ const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: num
     {
       "data-testid": row ? `recb-${row.id}` : `recb-pending-${n}`,
       onClick: () => { if (row) onTap(row.id); }, onMouseEnter: () => onHot(row ? row.id : null), onMouseLeave: () => onHot(null),
-      style: { position: "absolute", boxSizing: "border-box", display: "flex", alignItems: "center", top: y, left, width, height: ROW_H, borderBottom: "1px solid var(--line)", backgroundColor: bg },
+      style: { position: "absolute", boxSizing: "border-box", display: "flex", alignItems: "center", top: y, left, width, height: ROW_H, borderBottom: "1px solid var(--line)", backgroundColor: bg, contain: "layout style paint" },
     },
     pad > 0 ? createElement("div", { key: "pad", style: { width: pad, flex: "none" } }) : null,
     ...cells,
