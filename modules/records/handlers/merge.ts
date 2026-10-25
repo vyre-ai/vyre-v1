@@ -20,7 +20,7 @@ import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { isSealedRef } from "../../../kernel/src/store/values.ts";
 import { StoreError } from "../../../kernel/src/store/types.ts";
 import type { FieldDef, Filter, Store, StoredRecord, TypeDef } from "../../../kernel/src/store/types.ts";
-import { RecordsError, mapError, toRow } from "./write.ts";
+import { RecordsError, fail, mapError, toRow } from "./write.ts";
 import type { RecordRow, WriteCtx } from "./write.ts";
 import { MAX_LIMIT, runQuery } from "./query.ts";
 import type { ViewSpec } from "./query.ts";
@@ -530,6 +530,8 @@ async function exportRows(deps: MergeDeps, ctx: ExportCtx, input: { type: string
   const { store, tx } = deps;
   ensure(tx);
   if (!deps.putFile) throw new Error("records.export needs a file store: createMergeHandlers was given no putFile");
+  // fail closed: a file cannot be filtered after it is written, so with no way to ask what the caller may read, nothing is exported
+  if (!ctx.authorize) fail(ctx as WriteCtx, "permission.no_grant", "This export cannot check what you may read, so it exports nothing.");
   const def = await needType(store, input.type);
   const wanted = input.fields && input.fields.length ? input.fields : def.fields.map((f) => f.name);
   const byName = new Map(def.fields.map((f) => [f.name, f]));
@@ -551,7 +553,7 @@ async function exportRows(deps: MergeDeps, ctx: ExportCtx, input: { type: string
     for (const r of res.rows) {
       if (picked !== null && !picked.has(r.id)) continue;
       // only what the caller may read goes into the file, picked or not
-      if (ctx.authorize && ctx.authorize({ perm: null, level: "view" }, { type: "record", id: r.id }).effect !== "allow") continue;
+      if (ctx.authorize({ perm: null, level: "view" }, { type: "record", id: r.id }).effect !== "allow") continue;
       if (rows.length >= want) break;
       if (rows.length >= cap) bad(ctx, "Excel holds at most 1,048,575 data rows: export CSV or narrow the view");
       rows.push(r.fields);

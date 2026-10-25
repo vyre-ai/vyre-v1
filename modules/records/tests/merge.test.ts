@@ -73,7 +73,7 @@ async function kit(types: readonly unknown[] = [PARTY, DEAL]): Promise<Kit> {
     putFile: async (f) => { files.push(f); return `file_${files.length}`; },
   };
   const seen: Seen[] = [];
-  const ctx = { trace: { traceId: "0123456789abcdef0123456789abcdef" }, emit: (name: string, subject: string, payload: Record<string, unknown>) => { seen.push({ name, subject, payload }); }, actor: "usr_dana" };
+  const ctx = { trace: { traceId: "0123456789abcdef0123456789abcdef" }, emit: (name: string, subject: string, payload: Record<string, unknown>) => { seen.push({ name, subject, payload }); }, actor: "usr_dana", authorize: () => ({ effect: "allow", reason: "ok" }) };
   return { rec, deps, h: createMergeHandlers(deps), ctx: ctx as Kit["ctx"], seen, files };
 }
 
@@ -399,6 +399,11 @@ test("export never writes a row the caller may not read, picked or not: the pick
   assert.equal(await exp({ recordIds: [secret] }), "\ufeffName\r\n", "picking only what you cannot read exports nothing");
   assert.equal(await exp({}), "\ufeffName\r\nAlpha\r\nCharlie\r\n", "the whole view leaves it out as well");
   assert.ok(asked.includes(secret), "the decision was asked for that record");
+  const { authorize: _none, ...noCheck } = k.ctx as Kit["ctx"] & { authorize?: unknown };
+  const before = k.files.length;
+  await assert.rejects(k.h["records.export"](noCheck as never, { type: "sheet", format: "csv", recordIds: [open1] } as never), vcode("permission.no_grant"));
+  await assert.rejects(k.h["records.export"](noCheck as never, { type: "sheet", format: "xlsx" } as never), vcode("permission.no_grant"));
+  assert.equal(k.files.length, before, "fail closed: with no way to check, no file is written");
   const held = { ...k.ctx, authorize: () => ({ effect: "hold" as const, reason: "needs approval" }) };
   await k.h["records.export"](held as never, { type: "sheet", format: "csv", fields: ["name"] } as never);
   assert.equal(decode(k.files.at(-1)!.bytes), "\ufeffName\r\n", "a held decision is not an allow");
