@@ -11,11 +11,13 @@ import { each } from "../runs/each.ts";
 import { useConfigExtras } from "./data.tsx";
 import type { DirEntry } from "./data.tsx";
 import { Group, Hint, Lab, PickButton, SRow, Switch } from "./parts.tsx";
-import { ESCALATE_AFTER_HOURS, FAILURES_IN_A_ROW, MAX_ESCALATION_STEPS, addStep, addWho, alertSentence, escalationWords, hoursWords, nextStepHours, removeStep, removeWho, setStepHours, setStepTo, setWhen, setWhere, subjectKey, whenWords, withoutChannel } from "./model.ts";
+import { ESCALATE_AFTER_HOURS, FAILURES_IN_A_ROW, MAX_ESCALATION_STEPS, addStep, addWho, alertSentence, hoursWords, nextStepHours, removeStep, removeWho, setStepHours, setStepTo, setWhen, setWhere, subjectKey, whenWords, withoutChannel } from "./model.ts";
 import type { Alerts, Automation, Subject } from "./model.ts";
 import { useSaved } from "./saved.ts";
 
 type Kind = Subject["kind"];
+
+const subjectTitle = (s: Subject, name: (id: string) => string): string => (s.kind === "role" ? `The ${name(s.id)} role` : s.kind === "group" ? `The ${name(s.id)} group` : name(s.id));
 
 export function AlertsTab({ automation }: { automation: Automation }): ReactElement {
   const data = useAutomationsData();
@@ -119,7 +121,7 @@ export function AlertsTab({ automation }: { automation: Automation }): ReactElem
           <Group testID="alert-chain">
             {al.escalation.map((step, i) => (
               <Row
-                key={`${i}-${subjectKey(step.to)}`} id={`step-${i}`} title={step.to.kind === "role" ? `The ${data.name(step.to.id)} role` : data.name(step.to.id)} note={`After ${hoursWords(step.afterHours)}`}
+                key={`${i}-${subjectKey(step.to)}`} id={`step-${i}`} title={subjectTitle(step.to, data.name)} note={`After ${hoursWords(step.afterHours)}`}
                 leading={<View style={t.lead}><Face name={data.name(step.to.id)} kind={step.to.kind === "person" ? "person" : "agent"} size={20} /></View>}
                 trailing={<View style={t.stepTr}>
                   <PickButton label={`When and who for step ${i + 1}`} value={hoursWords(step.afterHours)} testID={`step-hours-${i}`} onPress={(x, y) => pick([{ head: "After" }, ...hoursMenu(step.afterHours, (h) => save(setStepHours(al, i, h), `Escalates after ${hoursWords(h)}`)), { separator: true }, { head: "Tell" }, ...whoMenu((w) => save(setStepTo(al, i, w), `${data.name(w.id)} is told after ${hoursWords(step.afterHours)}`), () => false)], x, y, "When and who")} />

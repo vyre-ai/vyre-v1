@@ -3,6 +3,7 @@ import { createElement } from "react";
 import type { ReactElement } from "react";
 import { Platform } from "react-native";
 import { Glyph as CanvasGlyph } from "../canvas/icons.tsx";
+import { each } from "../runs/each.ts";
 import type { GlyphName as CanvasName } from "../canvas/icons.tsx";
 
 const EXTRA = {
@@ -32,7 +33,7 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)" }: { name: Glyph
     return createElement(
       "svg",
       { viewBox: "0 0 16 16", width: size, height: size, "aria-hidden": true, style: { display: "block", flex: "none", stroke: color, strokeWidth: 1.4, strokeLinecap: "round", strokeLinejoin: "round", fill: "none" } },
-      ...(EXTRA[name as ExtraName] as readonly string[]).map((p) => createElement("path", { key: p, d: p })),
+      ...each(EXTRA[name as ExtraName] as readonly string[], (p) => createElement("path", { key: p, d: p })),
     );
   }
   return <CanvasGlyph name={name as CanvasName} size={size} color={color} />;

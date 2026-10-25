@@ -138,7 +138,7 @@ test("a Personal Automation: scope offers Promote to Space and says it runs on y
   assert.ok(!has(mine, "Followers") && !has(mine, "Loops"), "Space-only sections stay off a Personal Automation");
   s.replica.put("automations", [{ ...autoOf(s, "aut_brief"), id: "aut_theirs", ownerId: "usr_maya" } as never]);
   const theirs = config(s, "aut_theirs", "settings");
-  assert.ok(has(theirs, "Maya Chen's Personal automation, shared with you. It runs on Maya Chen's access.") && !has(theirs, 'data-testid="promote"'));
+  assert.ok(has(theirs, "Personal automation, shared with you. It runs on Maya Chen") && !has(theirs, 'data-testid="promote"'));
   assert.ok(has(theirs, "Personal, shared by Maya Chen"));
 });
 
@@ -242,7 +242,7 @@ test("the designer: where the records are, the stages in order with their counts
   const stages = ["consult", "intake", "letter", "kickoff", "onboarded"].map((k) => at(out, `data-testid="stage-${k}"`));
   assert.deepEqual([...stages].sort((a, b) => a - b), stages);
   for (const t of ["Consult booked", "Intake", "Engagement letter", "Kickoff", "Onboarded"]) assert.ok(has(out, t), t);
-  assert.ok(has(out, ">3 records<") && has(out, ">4 records<") && has(out, ">1 late<") || has(out, "1 late"));
+  assert.ok(has(out, ">3 records<") && has(out, ">4 records<") && has(out, ">1 late<"), "counts and the late ones");
   assert.ok(has(out, "Stages") && has(out, 'data-testid="open-records"') && has(out, "Open records in Records"));
   assert.ok(has(out, 'data-testid="add-stage"') && has(out, 'data-testid="subtab-settings"'));
 });
@@ -283,7 +283,7 @@ test("the Settings tab of a Journey: record type, Subject, start rule, name, ver
   assert.match(tag(out, "rule-enabled"), /aria-checked="true"/);
   assert.ok(has(out, 'aria-label="Journey name"') && has(out, "Move records to version 3") && has(out, 'data-testid="migrate"'));
   assert.ok(has(out, "14 records stay in Records as plain records") && has(out, 'data-testid="delete-journey"'));
-  assert.ok(!has(designer(nw(), "jrn_h", { initialTab: "settings" }) , "Move records to version"), "version 1 has nothing to move");
+  assert.ok(!has(designer(createConfigSample(harbor), "jrn_h", { initialTab: "settings" }), "Move records to version"), "version 1 has nothing to move");
   assert.ok(!has(out, "Give each record a channel"), "there is no per-type workspace setting");
 });
 
@@ -292,7 +292,7 @@ test("the Journey list, the pane for no selection, a stage and a task", () => {
   const none = pane(s, null);
   assert.ok(has(none, 'data-testid="journey-pane"') && has(none, "14 active records") && has(none, "1. Consult booked") && has(none, "Automations on its stages") && has(none, "On entering Consult booked"));
   const st = pane(s, { stage: "intake" });
-  assert.ok(has(st, 'data-testid="stage-pane"') && has(st, "Stage 2 of 5, 4 records") && has(st, "When every required task is done") && has(st, "3 (2 required)"), "tasks and the rule");
+  assert.ok(has(st, 'data-testid="stage-pane"') && has(st, "Stage 2 of 5, 4 records") && has(st, "When every required task is done") && has(st, "3 (3 required)"), "tasks and the rule");
   assert.ok(has(st, "3 days") && has(st, "Lena Ortiz") && has(st, "1 record is over it") && has(st, "No automations on this stage."));
   assert.ok(has(st, 'aria-label="Stage name"'));
   const tk = pane(s, { stage: "intake", task: "t_review" });

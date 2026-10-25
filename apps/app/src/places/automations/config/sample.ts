@@ -190,6 +190,9 @@ export function createConfigSample(space: SampleSpace = northwind): ConfigSample
         base.calls.push({ cap, input });
         return w(input as never);
       }
+      // a read the replica can answer (access.shares_of, the promote preview, the webhook address) is answered from its rows
+      const read = replica.run(cap as keyof CapMap, input as never);
+      if (read) return read.data;
       return base.data.call(cap, input);
     },
   };
