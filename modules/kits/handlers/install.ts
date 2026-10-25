@@ -11,6 +11,8 @@ import type { ErrorCode } from "../../../packages/contracts/src/types.ts";
 import { canonical } from "../../../lib/canonical.ts";
 import { mintUuid } from "../../../lib/ids.ts";
 import { fail as hostFail } from "../../../host/src/routes/errors.ts";
+import { registry } from "../../../generated/registry.ts";
+import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 
 export type KitChannel = "stable" | "beta";
 export type ContentType = "ui" | "structure" | "steps" | "tools";
@@ -313,7 +315,10 @@ export interface InstallSheet {
   networkDomains: string[];
   vaultNames: string[];
   scripts: number;
+  problems: SheetProblem[];
 }
+
+export interface SheetProblem { item: string; step: "apply" | "undo"; cap: string; input: Record<string, unknown>; message: string }
 
 /** Everything the Kit will touch, from its own manifest. Sorted, so the sheet is the same every time. */
 export function sheetOf(kit: KitManifest): InstallSheet {
@@ -328,7 +333,7 @@ export function sheetOf(kit: KitManifest): InstallSheet {
   }
   for (const s of kit.scripts ?? []) for (const c of s.caps) tools.add(c);
   const sort = (s: Set<string>): string[] => [...s].sort();
-  return { tools: sort(tools), recordTypes: sort(types), networkDomains: sort(domains), vaultNames: sort(vault), scripts: (kit.scripts ?? []).length };
+  return { tools: sort(tools), recordTypes: sort(types), networkDomains: sort(domains), vaultNames: sort(vault), scripts: (kit.scripts ?? []).length, problems: [] };
 }
 
 export function contentsOf(kit: KitManifest): ContentType[] {
@@ -467,10 +472,44 @@ async function get(ctx: Ctx, input: unknown): Promise<{ kit: KitOut }> {
   return { kit: kitOut(ctx, mustKit(ctx, reqStr(ctx, rec(ctx, input), "kitId"))) };
 }
 
+/**
+ * The sheet check: every apply and undo step against the contract it will call, before anyone presses Install. A step is a problem when the capability does not exist, its input does not
+ * fit the capability's input schema, or it creates a record type the Space already has (a Kit that was installed from the same source, or one the manifests seed).
+ */
+async function sheetProblems(ctx: Ctx, kit: KitManifest): Promise<SheetProblem[]> {
+  const caps = new Map<string, (typeof registry.capabilities)[number]>();
+  for (const c of registry.capabilities) { const old = caps.get(c.name); if (!old || c.v > old.v) caps.set(c.name, c); }
+  const out: SheetProblem[] = [];
+  const seenTypes = new Set<string>();
+  for (const it of kit.items) {
+    for (const which of ["apply", "undo"] as const) {
+      const step = it[which];
+      if (!step) continue;
+      const def = caps.get(step.cap);
+      const add = (message: string): void => { out.push({ item: it.key, step: which, cap: step.cap, input: step.input, message }); };
+      if (!def) { add(`${step.cap} is not a capability on this server.`); continue; }
+      const bad = validate(def.input, step.input, "", registry.$defs);
+      if (bad.length) { add(`The input does not fit ${step.cap}: ${bad.slice(0, 3).join("; ")}`); continue; }
+      if (which !== "apply" || step.cap !== "schema.apply") continue;
+      for (const op of Array.isArray(step.input["ops"]) ? (step.input["ops"] as Record<string, unknown>[]) : []) {
+        if (op["op"] !== "type.create" || typeof op["type"] !== "string") continue;
+        const type = op["type"];
+        if (seenTypes.has(type)) { add(`Record type ${type} is created twice in this Kit.`); continue; }
+        seenTypes.add(type);
+        let exists = false;
+        try { await ctx.call("schema.types.get" as never, { type } as never); exists = true; } catch { /* not there, or the caller may not read it: the install will say */ }
+        if (exists) add(`Record type ${type} already exists in this Space.`);
+      }
+    }
+  }
+  return out;
+}
+
 async function installSheet(ctx: Ctx, input: unknown): Promise<{ sheet: InstallSheet }> {
   await ensureCatalog(ctx);
   const k = mustKit(ctx, reqStr(ctx, rec(ctx, input), "kitId"));
-  return { sheet: sheetOf(parseManifest(describedVersion(ctx, k))) };
+  const manifest = parseManifest(describedVersion(ctx, k));
+  return { sheet: { ...sheetOf(manifest), problems: await sheetProblems(ctx, manifest) } };
 }
 
 async function versions(ctx: Ctx, input: unknown): Promise<{ versions: { versionId: string; version: string; at: number; by: string; channel: KitChannel }[] }> {

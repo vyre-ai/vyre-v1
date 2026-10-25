@@ -26,21 +26,24 @@ export function budgetTable(json) {
 }
 
 /** Ruling 43: the median is judged against the p50 row of perf/budgets.json (limit), the worst timed run against the p95 row (worstLimit). A row without p50 falls back to its p95. */
-export function budgetFor(kind, table) {
+export function budgetFor(kind, table, size = "desktop") {
   const row = table[kind];
   if (!row || typeof row.p95 !== "number") throw new Error(`perf/budgets.json has no p95 row for ${kind}`);
+  // The phone row of a budget (the "also" entry on a mid phone) is the limit for the phone size: startup is 1 s on desktop and 1.5 s on a phone (V1-SPEC).
+  const phone = size === "phone" ? (row.also ?? []).find((a) => /phone/.test(a.machine ?? "") && typeof a.p95 === "number") : undefined;
+  if (phone) return { limit: phone.p95, worstLimit: phone.p95, sense: MIN_SENSE.has(kind) ? "min" : "max", unit: row.unit };
   return { limit: typeof row.p50 === "number" ? row.p50 : row.p95, worstLimit: row.p95, sense: MIN_SENSE.has(kind) ? "min" : "max", unit: row.unit };
 }
 
 /** The probes a target declares, resolved against the budgets. A declared budget may tighten but never loosen (no splitting or loosening, ruling 43). */
-export function parseProbes(target, table) {
+export function parseProbes(target, table, size = "desktop") {
   const decl = target.probes;
   if (decl === undefined || decl === null) return [];
   if (typeof decl !== "object" || Array.isArray(decl)) throw new Error(`${target.id}: probes must be an object keyed by kind`);
   if (!target.waitFor) throw new Error(`${target.id}: probes need the target's waitFor selector (the mount is ready when it shows)`);
   return Object.entries(decl).map(([kind, p]) => {
     if (!KINDS.includes(kind)) throw new Error(`${target.id}: unknown probe kind ${kind} (${KINDS.join(", ")})`);
-    const b = budgetFor(kind, table);
+    const b = budgetFor(kind, table, size);
     const runs = p?.runs === undefined ? DEFAULT_RUNS : p.runs;
     if (!Number.isInteger(runs) || runs < MIN_RUNS) throw new Error(`${target.id}: ${kind}.runs must be an integer of at least ${MIN_RUNS} (the first is a discarded warm-up)`);
     let limit = b.limit;
@@ -69,8 +72,8 @@ export function summarize(values, { limit, worstLimit, sense }) {
 }
 
 /** Runs every declared probe of a target. `measure(target, run)` returns the window.__probes object of one fresh mount. */
-export async function runTarget(target, table, { measure }) {
-  const probes = parseProbes(target, table);
+export async function runTarget(target, table, { measure, size = "desktop" }) {
+  const probes = parseProbes(target, table, size);
   if (!probes.length) return [];
   const runs = Math.max(...probes.map((p) => p.runs));
   const mounts = [];
@@ -125,7 +128,7 @@ async function main() {
   try {
     for (const t of targets) {
       const kinds = Object.keys(t.probes);
-      const rs = await runTarget(t, table, { measure: (tg) => readMount(browser, { url: routeUrl(server.origin, tg.route, skin), selector: tg.waitFor, viewport: SIZES[size], scheme: skin === "graphite" ? "dark" : "light", throttle, kinds }) });
+      const rs = await runTarget(t, table, { size, measure: (tg) => readMount(browser, { url: routeUrl(server.origin, tg.route, skin), selector: tg.waitFor, viewport: SIZES[size], scheme: skin === "graphite" ? "dark" : "light", throttle, kinds }) });
       for (const r of rs) { console.log(metricLine(r)); console.log(`${size} x${throttle} ${verdictLine(r)}`); if (!r.ok) failed.push(`${r.target}:${r.kind}`); }
     }
   } finally { await browser.close(); server.close(); }
