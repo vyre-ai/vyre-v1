@@ -13,6 +13,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "notifications.delegate.resolve": async (ctx) => { throw new VyreErr(notImplemented("notifications.delegate.resolve", ctx.trace)); },
   "notifications.delegate.set": async (ctx) => { throw new VyreErr(notImplemented("notifications.delegate.set", ctx.trace)); },
   "notifications.digest.collect": async (ctx) => { throw new VyreErr(notImplemented("notifications.digest.collect", ctx.trace)); },
+  "notifications.kind.set_level": async (ctx) => { throw new VyreErr(notImplemented("notifications.kind.set_level", ctx.trace)); },
   "notifications.kinds.list": async (ctx) => { throw new VyreErr(notImplemented("notifications.kinds.list", ctx.trace)); },
   "notifications.list": async (ctx) => { throw new VyreErr(notImplemented("notifications.list", ctx.trace)); },
   "notifications.mark_seen": async (ctx) => { throw new VyreErr(notImplemented("notifications.mark_seen", ctx.trace)); },

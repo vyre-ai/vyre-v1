@@ -13,6 +13,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "notifications.delegate.resolve": Handler<"notifications.delegate.resolve", X>;
   "notifications.delegate.set": Handler<"notifications.delegate.set", X>;
   "notifications.digest.collect": Handler<"notifications.digest.collect", X>;
+  "notifications.kind.set_level": Handler<"notifications.kind.set_level", X>;
   "notifications.kinds.list": Handler<"notifications.kinds.list", X>;
   "notifications.list": Handler<"notifications.list", X>;
   "notifications.mark_seen": Handler<"notifications.mark_seen", X>;
