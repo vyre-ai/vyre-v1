@@ -21,7 +21,7 @@ import type { Sample, Variant } from "./sample.ts";
 
 const ALL = { start: 0, end: 500 };
 const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
-const html = (s: Sample, tab: TabKey): string => clean(renderToStaticMarkup(<ChatRightPane data={s.data} open onToggle={() => undefined} tab={tab} window={ALL} />));
+const html = (s: Sample, tab: TabKey, paneWidth?: number): string => clean(renderToStaticMarkup(<ChatRightPane data={s.data} open onToggle={() => undefined} tab={tab} window={ALL} {...(paneWidth ? { paneWidth } : {})} />));
 const at = (s: string, needle: string): number => {
   const i = s.indexOf(needle);
   assert.ok(i >= 0, `expected ${needle}`);
@@ -46,7 +46,7 @@ const tabs: TabKey[] = ["computer", "threads", "files", "memory", "routines"];
 
 test("five tabs in order under one pane toggle at the far left", () => {
   assert.deepEqual(TABS.map((t) => t.title), ["Computer", "Threads", "Files", "Memory", "Routines"]);
-  const out = html(createSample(), "computer");
+  const out = html(createSample(), "computer", 640);
   assert.equal(out.split('data-pane-toggle="far-left"').length - 1, 1, "exactly one toggle");
   assert.ok(has(out, 'data-toggle-count="1"'));
   inOrder(out, ['data-pane-toggle="far-left"', ">Computer<", ">Threads<", ">Files<", ">Memory<", ">Routines<"]);

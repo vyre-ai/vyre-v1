@@ -1,0 +1,11 @@
+{
+  "name": "@vyre/module-documents",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Documents module. docxtemplater and pizzip fill the firm's Word templates.",
+  "dependencies": {
+    "docxtemplater": "3.71.0",
+    "pizzip": "3.3.0"
+  }
+}

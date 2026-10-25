@@ -51,6 +51,11 @@ export interface CtxSeed {
   approval?: string | undefined;
   /** contract version; latest when omitted */
   v?: number | undefined;
+  /**
+   * Gate acts already settled by a call further up this chain (set only by ctx.call, never by a caller): a handler runs only after its own Gate cleared (approved, or no Gate applied),
+   * so the provider calls it makes for the same act are part of that one approval. The Gate hook reads this (host/src/daemon/gate-nesting.ts).
+   */
+  clearedActs?: readonly string[] | undefined;
   /** caller class resolved by the gateway: 'anonymous' and 'pending' callers skip authorize (the capability declares `caller`) */
   preAuth?: boolean | undefined;
 }
@@ -291,7 +296,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         return ev;
       },
       async call<C extends CapName>(name: C, callInput: unknown): Promise<unknown> {
-        const r = await invoke(name, callInput, { ...seed, depth: depth + 1, trace, approval: undefined, v: undefined });
+        const cleared = c.gate && c.gate.act !== "none" ? [...(seed.clearedActs ?? []), c.gate.act] : seed.clearedActs;
+        const r = await invoke(name, callInput, { ...seed, depth: depth + 1, trace, approval: undefined, v: undefined, clearedActs: cleared });
         if (r.status === "held") throw fail("permission.needs_approval", trace.traceId, { details: { taskId: r.taskId, cap: name } });
         return r.output;
       },

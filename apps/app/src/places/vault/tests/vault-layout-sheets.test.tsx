@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import Vault from "../layout/index.tsx";
 import { createSampleVault, northwind } from "../layout/sample.ts";
 import type { SampleVault } from "../layout/sample.ts";
+import { searchRing } from "../itemenv/AddAnything.tsx";
 import { TEMPLATES, MASK, understandPaste, mergeFields, fieldsFor, templateById } from "../itemenv/env.ts";
 
 Dimensions.set({ window: { width: 1280, height: 800, scale: 1, fontScale: 1 }, screen: { width: 1280, height: 800, scale: 1, fontScale: 1 } });
@@ -67,4 +68,14 @@ test("Edit saves through vault.item.update: a new key, a changed value, a remove
   assert.ok(!has(out, "pit-new-5521") && !has(out, "pl_9f2c"));
   const reveal = (await v.data.call("vault.item.reveal", { itemId: "vit_ghl", fields: ["GHL_PIT"] })) as { fields: { value: string }[] };
   assert.equal(reveal.fields[0]!.value, "pit-new-5521", "the changed value is what a reveal returns");
+});
+
+test("the Add sheet search box draws the prototype's quiet ring and no browser focus ring", () => {
+  assert.equal(searchRing(false).boxShadow, "inset 0 0 0 1px var(--line-2)", "a 1 px line at rest");
+  assert.equal(searchRing(true).boxShadow, "inset 0 0 0 1.5px var(--accent)", "a 1.5 px accent ring while the field has focus");
+  const out = html(createSampleVault(), { sheet: { add: {} } });
+  const tag = (id: string): string => new RegExp(`<[^<>]*data-testid="${id}"[^<>]*>`).exec(out)?.[0] ?? "";
+  assert.ok(has(tag("add-search"), "outline-style:none"), "the field has no browser outline");
+  assert.ok(has(tag("add-search-box"), "inset 0 0 0 1px var(--line-2)"), "the box carries the ring at rest");
+  assert.ok(!has(tag("add-search-box"), "var(--sel)") && !has(out, "outline-style:auto"));
 });

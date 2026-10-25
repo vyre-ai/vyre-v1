@@ -10,5 +10,6 @@
   {"file": "modules/console-views/tests/speed.test.ts", "capSec": 120, "owner": "L7b", "reason": "console_speed rollup of 1,000 spans per budget id; flaky under shard contention"},
   {"file": "host/tests/syncengine.live.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the daemon on the seeded Space and runs the sync engine against a fake connector"},
   {"file": "host/tests/live.l3.test.ts", "capSec": 120, "owner": "L3", "reason": "boots the daemon twice with every L3 module live and restarts it to read a record back; about 15 s"},
-  {"file": "apps/app/src/shell/cmdk/cmdk.test.tsx", "capSec": 120, "owner": "L9", "reason": "20,000-row search timing; flaky beside parallel fast files (ruling 43: browser probe is the real measure)"}
+  {"file": "apps/app/src/shell/cmdk/cmdk.test.tsx", "capSec": 120, "owner": "L9", "reason": "20,000-row search timing; flaky beside parallel fast files (ruling 43: browser probe is the real measure)"},
+  {"file": "host/tests/webhooks.recover.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the daemon twice on the seeded Space to prove a crashed webhook delivery is sent after a restart"}
 ]
