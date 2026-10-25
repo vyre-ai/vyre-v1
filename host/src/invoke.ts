@@ -100,6 +100,11 @@ export interface InvokeDeps {
   idem?: { once<T>(principal: string, cap: string, key: string | undefined | null, input: unknown, run: () => Promise<T>): Promise<T> };
   rate?: { take(key: string, spec: { n: number; perSeconds: number }, now: number): boolean };
   gate?: GateHook;
+  /**
+   * The Personal Space gate (P-H_19, spec 2.1): asked first for every capability. In a Personal Space it throws `permission.needs_team` for a team-only capability, before validation,
+   * authorize or any handler work. The sync module's `createPersonalHost(...)` satisfies this; a Team Space passes nothing, or a gate that never throws.
+   */
+  personal?: { gate(cap: string, traceId: string): void };
   /** vault name or handle to item id, for `resolve` bindings */
   resolveItem?(type: string, kind: "name" | "handle", value: string): string | null;
   /** spend so far per meter, for the spend policies */
@@ -161,6 +166,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       cap = deps.caps.get(capName, seed.v);
       if (!cap) throw fail("validation.unknown_capability", traceId, { message: "There is no such capability.", details: { cap: capName, v: seed.v ?? null } });
       const c = cap;
+      deps.personal?.gate(c.name, traceId);
       const depth = seed.depth ?? 0;
       if (depth >= MAX_DEPTH) throw fail("validation.precondition_failed", traceId, { message: "Calls nest too deeply.", details: { depth, limit: MAX_DEPTH } });
 
