@@ -11,7 +11,7 @@ import { LEASE_TTL_MS } from "../../agent/src/turn-engine/lease.ts";
 import type { LeaseRow, LeaseStore } from "../../agent/src/turn-engine/lease.ts";
 import type { NewItem, QueueStore } from "../../agent/src/turn-engine/queue.ts";
 import type { MessageStore, WaitRow, WaitStore } from "../../agent/src/turn-engine/stores.ts";
-import type { Author, QueueItem, QueueKind, QueueState, StoredMessage } from "../../agent/src/turn-engine/types.ts";
+import type { Author, QueueItem, QueueKind, QueueState, SessionSpec, StoredMessage } from "../../agent/src/turn-engine/types.ts";
 import type { RouteMention } from "../../lib/route.ts";
 
 /** What the module needs of ctx.db (the host's ScopedDb has this shape). */
@@ -47,6 +47,12 @@ export const actorOf = (ctx: Pick<EngineCtx, "principal" | "actingFor">): string
 // The engine that runs on this host. The host binds it at boot (impl.ts); handlers reach it through boundEngine().
 let bound: TurnEngine | null = null;
 export function bindEngine(engine: TurnEngine | null): void { bound = engine; }
+
+/** The session opener of this host (its pool and its warm hint), bound with the engine; null where the engine runs on a scripted provider. */
+export interface BoundOpener { warm(spec: SessionSpec): void; pool: { status(): { sessions: Array<{ driver: string; warm: number; max: number; hits: number; misses: number }>; totalWarm: number } } }
+let boundOpener: BoundOpener | null = null;
+export function bindOpener(o: BoundOpener | null): void { boundOpener = o; }
+export const openerOf = (): BoundOpener | null => boundOpener;
 export function boundEngine(ctx: Pick<EngineCtx, "trace">): TurnEngine {
   if (!bound) raise(ctx, "internal.unavailable", "The engine is not running on this host.");
   return bound;
