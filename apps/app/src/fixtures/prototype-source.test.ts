@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
-import { PROTO_CHN, PROTO_CHW, PROTO_CITIES, PROTO_FIRST, PROTO_HAND, PROTO_LAST, PROTO_NEXTS, PROTO_SPACE_TYPES, PROTO_STREETS, PROTO_TEAM, PROTO_TYPES, PROTO_INBOXES, PROTO_CONTACTS, PROTO_TEMPLATES, PROTO_SNIPPETS } from "./prototype-data.ts";
+import { PROTO_CHN, PROTO_CHW, PROTO_CITIES, PROTO_FIRST, PROTO_HAND, PROTO_LAST, PROTO_NEXTS, PROTO_SPACE_TYPES, PROTO_STREETS, PROTO_TEAM, PROTO_TYPES, PROTO_INBOXES, PROTO_CONTACTS, PROTO_TEMPLATES, PROTO_SNIPPETS, PROTO_JOURNEYS } from "./prototype-data.ts";
 import { PROTO_CLIENT_COUNT, pickChannel, protoClients, protoHash, protoWork } from "./prototype-clients.ts";
 
 const FILE = fileURLToPath(new URL("../../../../scripts/shots/prototype/vyre-v1.html", import.meta.url));
@@ -164,4 +164,14 @@ test("the inbox (its inboxes, the contacts with every message, the templates and
   const ids = (PROTO_CONTACTS as { msgs: { id: string }[] }[]).flatMap((c) => c.msgs.map((m) => m.id));
   assert.equal(new Set(ids).size, ids.length, "message ids run m1, m2 ... with no repeat");
   assert.ok(PROTO_CONTACTS.length >= 8 && PROTO_INBOXES.length === 7);
+});
+
+test("the Journeys (stages, tasks, owner fields) are what the prototype's JOURNEYS literal builds, task ids numbered from 101", () => {
+  const j = TEXT.indexOf("const JOURNEYS = [");
+  assert.ok(j > 0);
+  const literal = balancedAt(TEXT, TEXT.indexOf("[", j));
+  const mtLine = between("const mt = ", "\n", j - 3000);
+  const ran = JSON.parse(JSON.stringify(vm.runInNewContext(`let uidN = 100; const uid = (p) => (p || "x") + ++uidN;\n${mtLine}\nconst JOURNEYS = ${literal};\nJOURNEYS;`, {})));
+  assert.deepEqual(PROTO_JOURNEYS, ran);
+  assert.ok((PROTO_JOURNEYS as { id: string; stages: unknown[] }[]).length >= 2 && (PROTO_JOURNEYS as { stages: unknown[] }[]).every((x) => x.stages.length > 0));
 });

@@ -2188,6 +2188,591 @@ export const PROTO_SNIPPETS: readonly unknown[] = [
  ]
 ];
 
+export const PROTO_JOURNEYS: readonly unknown[] = [
+ {
+  "id": "onb",
+  "name": "Client onboarding",
+  "abbr": "CO",
+  "hue": 250,
+  "rec": "Client onboarding",
+  "desc": "From first consult to a signed client with a kickoff on the calendar.",
+  "ws": true,
+  "own": [
+   [
+    "Matter type",
+    "choice"
+   ],
+   [
+    "Referral source",
+    "choice"
+   ],
+   [
+    "Engagement signed",
+    "date"
+   ],
+   [
+    "ID verified",
+    "check"
+   ]
+  ],
+  "stages": [
+   {
+    "id": "g1",
+    "name": "Consult booked",
+    "n": 3,
+    "late": 0,
+    "owner": "Lena Ortiz",
+    "enter": [
+     "intake"
+    ],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k101",
+      "title": "Confirm the consult time",
+      "doer": "Lena Ortiz",
+      "reviewer": "",
+      "approver": "",
+      "due": "1 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     },
+     {
+      "id": "k102",
+      "title": "Send the intake form",
+      "doer": "Send intake form",
+      "reviewer": "",
+      "approver": "",
+      "due": "0",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "auto": true
+     }
+    ]
+   },
+   {
+    "id": "g2",
+    "name": "Intake",
+    "n": 4,
+    "late": 1,
+    "owner": "Lena Ortiz",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k103",
+      "title": "Review the intake answers",
+      "doer": "Intake",
+      "reviewer": "Lena Ortiz",
+      "approver": "",
+      "due": "1 d",
+      "req": true,
+      "keys": {
+       "claude": 1
+      },
+      "brief": "",
+      "kd": {
+       "key": "claude",
+       "backup": "anth"
+      }
+     },
+     {
+      "id": "k104",
+      "title": "Run the conflict check",
+      "doer": "Research",
+      "reviewer": "",
+      "approver": "Maya Chen",
+      "due": "2 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kd": {
+       "key": "anth",
+       "backup": "claude"
+      }
+     },
+     {
+      "id": "k105",
+      "title": "Collect the client's ID",
+      "doer": "Lena Ortiz",
+      "reviewer": "",
+      "approver": "",
+      "due": "3 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     }
+    ]
+   },
+   {
+    "id": "g3",
+    "name": "Engagement letter",
+    "n": 3,
+    "late": 0,
+    "owner": "Maya Chen",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k106",
+      "title": "Draft the engagement letter",
+      "doer": "Docs",
+      "reviewer": "Omar Haddad",
+      "approver": "Maya Chen",
+      "due": "2 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kd": {
+       "key": "anth",
+       "backup": "claude"
+      }
+     },
+     {
+      "id": "k107",
+      "title": "Sign engagement letter",
+      "doer": "Lena Ortiz",
+      "reviewer": "",
+      "approver": "",
+      "due": "3 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kind": "sign",
+      "signers": [
+       {
+        "n": "Elena Rivera",
+        "role": "Client",
+        "st": "Viewed",
+        "at": "yesterday 16:40"
+       },
+       {
+        "n": "Maya Chen",
+        "role": "Firm",
+        "st": "Signed",
+        "at": "yesterday 17:02"
+       }
+      ],
+      "doc": "Engagement letter, Rivera.docx"
+     },
+     {
+      "id": "k108",
+      "title": "Note any special terms",
+      "doer": "Omar Haddad",
+      "reviewer": "",
+      "approver": "",
+      "due": "3 d",
+      "req": false,
+      "keys": {},
+      "brief": ""
+     }
+    ]
+   },
+   {
+    "id": "g4",
+    "name": "Kickoff",
+    "n": 2,
+    "late": 0,
+    "owner": "Omar Haddad",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k109",
+      "title": "Book the kickoff call",
+      "doer": "Lena Ortiz",
+      "reviewer": "",
+      "approver": "",
+      "due": "2 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     },
+     {
+      "id": "k110",
+      "title": "Prepare the kickoff notes",
+      "doer": "Assistant",
+      "reviewer": "Omar Haddad",
+      "approver": "",
+      "due": "1 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kd": {
+       "key": "claude",
+       "backup": "oai"
+      }
+     }
+    ]
+   },
+   {
+    "id": "g5",
+    "name": "Onboarded",
+    "n": 2,
+    "late": 0,
+    "owner": "Omar Haddad",
+    "enter": [
+     "welcome"
+    ],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k111",
+      "title": "Hand over to the client's team",
+      "doer": "Omar Haddad",
+      "reviewer": "",
+      "approver": "",
+      "due": "1 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "atp",
+  "name": "ATP",
+  "abbr": "AT",
+  "hue": 160,
+  "rec": "ATP",
+  "desc": "A 12-week programme run once per client, with a weekly check-in.",
+  "ws": true,
+  "own": [
+   [
+    "Programme week",
+    "num"
+   ],
+   [
+    "Coach",
+    "person"
+   ],
+   [
+    "Package",
+    "choice"
+   ]
+  ],
+  "stages": [
+   {
+    "id": "a1",
+    "name": "Kickoff",
+    "n": 1,
+    "late": 0,
+    "owner": "Sam Patel",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k112",
+      "title": "Set the goals together",
+      "doer": "Sam Patel",
+      "reviewer": "",
+      "approver": "",
+      "due": "2 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     },
+     {
+      "id": "k113",
+      "title": "Share the programme plan",
+      "doer": "Docs",
+      "reviewer": "Sam Patel",
+      "approver": "",
+      "due": "1 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kd": {
+       "key": "anth",
+       "backup": "claude"
+      }
+     }
+    ]
+   },
+   {
+    "id": "a2",
+    "name": "Weeks 1 to 4",
+    "n": 2,
+    "late": 0,
+    "owner": "Sam Patel",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k114",
+      "title": "Weekly check-in",
+      "doer": "Sam Patel",
+      "reviewer": "",
+      "approver": "",
+      "due": "7 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     },
+     {
+      "id": "k115",
+      "title": "Progress note",
+      "doer": "Research",
+      "reviewer": "Sam Patel",
+      "approver": "",
+      "due": "7 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kd": {
+       "key": "anth",
+       "backup": "claude"
+      }
+     }
+    ]
+   },
+   {
+    "id": "a3",
+    "name": "Weeks 5 to 8",
+    "n": 2,
+    "late": 1,
+    "owner": "Sam Patel",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k116",
+      "title": "Weekly check-in",
+      "doer": "Sam Patel",
+      "reviewer": "",
+      "approver": "",
+      "due": "7 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     },
+     {
+      "id": "k117",
+      "title": "Mid-programme review",
+      "doer": "Sam Patel",
+      "reviewer": "",
+      "approver": "Maya Chen",
+      "due": "3 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     }
+    ]
+   },
+   {
+    "id": "a4",
+    "name": "Weeks 9 to 12",
+    "n": 1,
+    "late": 0,
+    "owner": "Sam Patel",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k118",
+      "title": "Weekly check-in",
+      "doer": "Sam Patel",
+      "reviewer": "",
+      "approver": "",
+      "due": "7 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     }
+    ]
+   },
+   {
+    "id": "a5",
+    "name": "Wrap-up",
+    "n": 0,
+    "late": 0,
+    "owner": "Maya Chen",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k119",
+      "title": "Write the final report",
+      "doer": "Docs",
+      "reviewer": "Sam Patel",
+      "approver": "Maya Chen",
+      "due": "3 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kd": {
+       "key": "anth",
+       "backup": "claude"
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "hire",
+  "name": "Hire",
+  "abbr": "HI",
+  "hue": 28,
+  "rec": "Hire",
+  "desc": "One open role from posting to a first day.",
+  "ws": true,
+  "own": [
+   [
+    "Role",
+    "text"
+   ],
+   [
+    "Candidate",
+    "text"
+   ],
+   [
+    "Salary band",
+    "choice"
+   ]
+  ],
+  "stages": [
+   {
+    "id": "h1",
+    "name": "Posted",
+    "n": 1,
+    "late": 0,
+    "owner": "Maya Chen",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k120",
+      "title": "Write the job post",
+      "doer": "Docs",
+      "reviewer": "Maya Chen",
+      "approver": "",
+      "due": "2 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kd": {
+       "key": "claude",
+       "backup": "anth"
+      }
+     }
+    ]
+   },
+   {
+    "id": "h2",
+    "name": "Screening",
+    "n": 1,
+    "late": 0,
+    "owner": "Omar Haddad",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k121",
+      "title": "Screen the applications",
+      "doer": "Research",
+      "reviewer": "Omar Haddad",
+      "approver": "",
+      "due": "3 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kd": {
+       "key": "anth",
+       "backup": "claude"
+      }
+     }
+    ]
+   },
+   {
+    "id": "h3",
+    "name": "Interviews",
+    "n": 1,
+    "late": 0,
+    "owner": "Omar Haddad",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k122",
+      "title": "Schedule the interviews",
+      "doer": "Lena Ortiz",
+      "reviewer": "",
+      "approver": "",
+      "due": "2 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     },
+     {
+      "id": "k123",
+      "title": "Collect interview notes",
+      "doer": "Omar Haddad",
+      "reviewer": "",
+      "approver": "",
+      "due": "1 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     }
+    ]
+   },
+   {
+    "id": "h4",
+    "name": "Offer",
+    "n": 0,
+    "late": 0,
+    "owner": "Maya Chen",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k124",
+      "title": "Send the offer",
+      "doer": "Docs",
+      "reviewer": "",
+      "approver": "Maya Chen",
+      "due": "1 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kd": {
+       "key": "anth",
+       "backup": "claude"
+      }
+     }
+    ]
+   },
+   {
+    "id": "h5",
+    "name": "Onboarding",
+    "n": 0,
+    "late": 0,
+    "owner": "Lena Ortiz",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k125",
+      "title": "Set up accounts and a desk",
+      "doer": "Lena Ortiz",
+      "reviewer": "",
+      "approver": "",
+      "due": "3 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     }
+    ]
+   }
+  ]
+ }
+];
+
 export const PROTO_SPACE_TYPES: Readonly<Record<string, { meta: { title: string; one: string; primary: string }; fields: readonly { id: string; name: string; type: string; width: number; options?: readonly (readonly [string, number | null])[]; kind?: string; to?: string }[]; rows: readonly Record<string, unknown>[] }>> = {
  "pcontacts": {
   "meta": {
