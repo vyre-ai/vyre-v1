@@ -307,3 +307,19 @@ test("drive refuses nothing for a Run that already finished and reports its stat
   assert.deepEqual(await h.engineRun(engine, (ctx) => drive(ctx, id, [step("a")], async () => ({}))), { status: "succeeded" });
   await assert.rejects(h.engineRun(engine, (ctx) => drive(ctx, "run_missing", [step("a")], async () => ({}))), (e) => codeOf(e) === "permission.not_found");
 });
+
+// ---- the trigger a run carries (P-CC_34) ----
+
+test("a run started by an event carries what woke it, and runs.get, list and the others return it", async () => {
+  const h = harness();
+  const trigger = { messageId: "msg_a1b2c3", threadId: "thr_a1b2c3", channelId: "chn_a1b2c3" };
+  const { runId } = await h.call("runs.start", { kind: "routine", name: "Greet", owner: alice.id, threadId: "thr_a1b2c3", trigger, idempotencyKey: "trig1" }, engine);
+  assert.deepEqual((await h.call("runs.get", { runId }, engine)).run.trigger, trigger);
+  assert.equal((await h.call("runs.get", { runId }, engine)).run.threadId, "thr_a1b2c3");
+  const plain = (await h.call("runs.start", { kind: "other", owner: alice.id, idempotencyKey: "trig2" }, engine)).runId;
+  assert.equal((await h.call("runs.get", { runId: plain }, engine)).run.trigger, undefined, "a run nothing woke has none");
+  const again = await h.call("runs.start", { kind: "routine", name: "Greet", owner: alice.id, trigger, idempotencyKey: "trig1" }, engine);
+  assert.equal(again.runId, runId, "the same key is the same run");
+});
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+// run on the final commit

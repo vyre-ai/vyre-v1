@@ -65,6 +65,11 @@ type Out = {
       threadId?: string;
       traceId: string;
       summary?: string;
+      trigger?: {
+        messageId: string;
+        threadId: string;
+        channelId?: string;
+      };
     }>;
   next?: string;
   total?: number;
@@ -124,6 +129,11 @@ type Out = {
         "summary": "example",
         "threadId": "thr_a1b2c3",
         "traceId": "0123456789abcdef0123456789abcdef",
+        "trigger": {
+          "channelId": "chn_a1b2c3",
+          "messageId": "msg_a1b2c3",
+          "threadId": "thr_a1b2c3"
+        },
         "waitReason": "approval"
       }
     ],
