@@ -39,8 +39,8 @@
       "id": "P-L9c_01-inbox-scroll",
       "route": "/m/P-L9c_01?rows=10000",
       "proto": "inbox,{skin}",
-      "waitFor": "[data-testid='virtual-list']",
-      "scroll": { "selector": "[data-testid=\"virtual-list\"]" },
+      "waitFor": "[data-testid='row-line:bulk0']",
+      "scroll": { "selector": "[data-testid=\"virtual-list\"]:has([data-testid=\"row-line:bulk0\"])" },
       "note": "10,000 conversations in the list; the scroll probe takes the p95 frame interval over the full scroll (budget scroll, 16.7 ms)."
     }
   ]

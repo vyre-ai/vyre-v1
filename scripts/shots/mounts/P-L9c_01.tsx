@@ -31,7 +31,8 @@ export default function Mount(): ReactNode {
     const channels = (q.get("channels") ?? "").split(",").filter((c): c is Channel => (CHANNELS as readonly string[]).includes(c));
     return { ...(view ? { view } : {}), scope: scopeOf(q.get("scope")), channels, needsMatch: q.get("needs") === "1" };
   }, [q]);
-  const phone = useWindowDimensions().width < 720;
+  const width = useWindowDimensions().width;
+  const phone = width > 0 && width < 720; // 0 is "not measured yet" (the static page)
   useEffect(() => {
     const menu = q.get("menu");
     if (menu !== "filter" && menu !== "view") return;
