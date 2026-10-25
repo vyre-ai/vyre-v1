@@ -9,6 +9,7 @@ import { StyleSheet } from "react-native";
 import { createSampleHome, northwind as northwindHome } from "../places/home/sections-a/sample.ts";
 import { ASK_DOCK } from "../places/home/sections-b/AskBox.tsx";
 import { statusIcon } from "../places/home/sections-a/model.ts";
+import { planEdits, planStatus, planTasks, stateOf } from "../places/home/sections-a/plan.ts";
 import { StatusCircle } from "../places/home/sections-a/parts.tsx";
 import type { PlaceContext } from "../shell/spaces/Shell.tsx";
 import { kitById } from "../shell/rail/kits.ts";
@@ -54,9 +55,9 @@ test("every other place keeps its sample rows", () => {
   }
 });
 
-test("My work carries the list/board toggle, the review mark and the project label as the prototype", () => {
+test("My work carries the List | Plan toggle, the review mark and the project label as the prototype", () => {
   const out = html("nw");
-  assert.ok(out.includes('data-testid="work-view-list"') && out.includes('data-testid="work-view-board"'), "the layout toggle");
+  assert.ok(out.includes('data-testid="work-view-list"') && out.includes('data-testid="work-view-plan"'), "the layout toggle");
   assert.ok(out.includes('aria-checked="true"'), "one layout is on");
   assert.equal(createSampleHome(northwindHome).data.recordTitle("rec_atp1"), "ATP · Harlow & Price", "the project label is the whole name");
   assert.equal(statusIcon({ state: "todo", blocked: false, kind: "review" }), "review");
@@ -83,4 +84,31 @@ test("the Ask box is the shared composer: the Ask agent pill beside it, only + @
 test("a review task wears a ring with a check, not a filled dot", () => {
   const svg = renderToStaticMarkup(<StatusCircle status="review" />);
   assert.ok(svg.includes('data-status="review"') && svg.includes("<path") && svg.split("<circle").length === 2, "one ring and a tick, no inner dot");
+});
+
+test("Plan mode: the open tasks are bars ending on their due day and lasting their effort; a task without a due date is left off", () => {
+  const home = createSampleHome(northwindHome);
+  const ctx = { clock: home.data.clock(), recordTitle: (id: string) => home.data.recordTitle(id), name: (id: string) => id, kindOf: () => "person" };
+  const t = (id: string, o: Record<string, unknown>) => ({ id, title: id, kind: "work", state: "todo", blocked: false, dependsOn: [], assigned: { kind: "person", id: "usr_irfad" }, ...o }) as never;
+  const list = planTasks([t("a", { due: Date.UTC(2025, 9, 24, 12), effort: 3 }), t("b", { due: Date.UTC(2025, 9, 24, 12) }), t("c", {})], ctx);
+  assert.deepEqual(list.map((x) => [x.id, x.start, x.end]), [["a", "2025-10-22", "2025-10-24"], ["b", "2025-10-24", "2025-10-24"]]);
+  assert.equal(planStatus({ state: "todo", blocked: false, kind: "review" }), "review");
+  assert.equal(planStatus({ state: "todo", blocked: false, kind: "approve" }), "approval");
+  assert.equal(planStatus({ state: "doing", blocked: true, kind: "work" }), "blocked");
+  assert.equal(stateOf("approval"), "awaiting_approval");
+});
+
+test("Plan mode: a bar moved on the timeline becomes a reschedule of that task, a state change a transition, a new face an assignment", () => {
+  const home = createSampleHome(northwindHome);
+  const ctx = { clock: home.data.clock(), recordTitle: () => undefined, name: (id: string) => id, kindOf: () => "person" };
+  const tk = { id: "a", title: "A", kind: "work", state: "todo", blocked: false, dependsOn: [], assigned: { kind: "person", id: "usr_irfad" }, due: Date.UTC(2025, 9, 24, 12), effort: 2 } as never;
+  const prev = planTasks([tk], ctx);
+  const moved = [{ ...prev[0]!, start: "2025-10-25", end: "2025-10-27", status: "done" as const, assigned: { name: "Maya Chen", kind: "person" as const } }];
+  const edits = planEdits(prev, moved, [tk], ctx, [{ id: "usr_maya", name: "Maya Chen", kind: "person" }]);
+  assert.deepEqual(edits, [
+    { kind: "reschedule", id: "a", due: Date.UTC(2025, 9, 24, 12) + 3 * 86_400_000, effort: 3 },
+    { kind: "state", id: "a", to: "done" },
+    { kind: "assign", id: "a", to: { kind: "person", id: "usr_maya" } },
+  ]);
+  assert.deepEqual(planEdits(prev, prev, [tk], ctx, []), []);
 });

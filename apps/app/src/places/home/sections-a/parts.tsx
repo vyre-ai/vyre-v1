@@ -33,8 +33,8 @@ export const ICON = {
   change: ["M11 2.5l2.5 2.5L6 12.5 3 13l.5-3z"],
   waiting: ["M13.5 8a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z", "M8 5v3.4M8 10.8h.01"],
   list: ["M5.5 4.5h8M5.5 8h8M5.5 11.5h8M2.5 4.5h.01M2.5 8h.01M2.5 11.5h.01"],
-  // the prototype's second layout icon: three lines of different length, stepped (the board)
-  board: ["M2.5 4.5h6M5.5 8h8M2.5 11.5h6"],
+  // the prototype's I.timeline: three bars stepped across the page (Plan mode)
+  timeline: ["M2.5 4h6M5.5 8h8M3.5 12h5"],
 } as const;
 export type IconName = keyof typeof ICON;
 

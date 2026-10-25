@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Plan } from "../../../../../../ui/src/Plan/index.tsx";
+import type { PlanTask, PlanWho } from "../../../../../../ui/src/Plan/types.ts";
+import { toIso } from "../../../../../../ui/src/Plan/logic.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -11,6 +14,8 @@ import { useHomeData, usePrincipals, useScreenQuery, useSelection } from "./data
 import type { Principal } from "./data.tsx";
 import { ASSIGN_GROUPS, MY_WORK_LIMIT, STATE_LABEL, dayNumber, dueCount, dueLabel, givenSub, orderMyWork, seatLabel, statusIcon, workGroups } from "./model.ts";
 import type { Ref, Task } from "./model.ts";
+import { planEdits, planStages, planTasks } from "./plan.ts";
+import type { PlanContext } from "./plan.ts";
 import { EmptyLine, Face, Glyph, HRow, LinkButton, SectionHeader, Section, Skeleton, StatusCircle, s, useNarrow } from "./parts.tsx";
 
 export const WORK_SCREEN = "tasks.my-work";
@@ -65,10 +70,10 @@ function Circle({ task, onDone }: { task: Task; onDone: () => void }): ReactElem
   );
 }
 
-function LayoutButton({ kind, on, onPress }: { kind: "list" | "board"; on: boolean; onPress: () => void }): ReactElement {
+function LayoutButton({ kind, on, onPress }: { kind: "list" | "plan"; on: boolean; onPress: () => void }): ReactElement {
   return (
-    <Pressable role="radio" aria-checked={on} aria-label={kind === "list" ? "List" : "Board"} testID={`work-view-${kind}`} onPress={onPress} style={[local.segBtn, on && local.segOn]}>
-      <Glyph name={kind} size={14} color={on ? "var(--ink)" : "var(--ink-3)"} />
+    <Pressable role="radio" aria-checked={on} aria-label={kind === "list" ? "List" : "Plan"} testID={`work-view-${kind}`} onPress={onPress} style={[local.segBtn, on && local.segOn]}>
+      <Glyph name={kind === "list" ? "list" : "timeline"} size={14} color={on ? "var(--ink)" : "var(--ink-3)"} />
     </Pressable>
   );
 }
@@ -97,7 +102,7 @@ export function MyWork(): ReactElement {
   const narrow = useNarrow();
   const menu = useMenu();
   const [adding, setAdding] = useState(false);
-  const [view, setView] = useState<"list" | "board">("list");
+  const [view, setView] = useState<"list" | "plan">("list");
   const open = useScreenQuery<Out>(WORK_SCREEN, "list", { section: "open" });
   const given = useScreenQuery<Out>(WORK_SCREEN, "list", { section: "assigned_by_me" });
   const clock = data.clock();
@@ -152,7 +157,6 @@ export function MyWork(): ReactElement {
   };
 
   const body: ReactElement[] = [];
-  const columns: ReactElement[][] = [];
   for (const g of groups) {
     const head = (
       <View key={`g-${g.name}`} style={[local.group]} testID={`group-${g.name}`}>
@@ -162,18 +166,30 @@ export function MyWork(): ReactElement {
     const rows: ReactElement[] = [];
     for (const t of g.rows) rows.push(row(t, `work:${t.id}`, false));
     body.push(head, ...rows);
-    columns.push([head, ...rows]);
   }
   if (givenTasks.length) {
     const head = <View key="g-given" style={local.group} testID="group-given"><Text style={local.groupText}>Assigned by you<Text style={local.groupCount}>{`  ${givenTasks.length}`}</Text></Text></View>;
     const rows: ReactElement[] = [];
     for (const t of givenTasks) rows.push(row(t, `given:${t.id}`, true));
     body.push(head, ...rows);
-    columns.push([head, ...rows]);
   }
 
-  const boardColumns: ReactElement[] = [];
-  for (let i = 0; i < columns.length; i++) boardColumns.push(<View key={`col-${i}`} style={local.boardCol}>{columns[i]}</View>);
+  // Plan mode: the same open tasks on the shared timeline; a change on it is written back as a reschedule, a state change or a reassignment
+  const planCtx: PlanContext = { clock, recordTitle: (id) => data.recordTitle(id), name: p.name, kindOf: p.kindOf };
+  const planTaskList = planTasks(tasks, planCtx);
+  const planStageList = planStages(tasks, planCtx);
+  const planToday = toIso(dayNumber(clock.now, clock.offsetMin));
+  const planPeople: PlanWho[] = [];
+  for (const x of p.list) planPeople.push({ name: x.name, kind: x.kind === "agent" ? "agent" : x.kind === "group" ? "group" : x.kind === "role" ? "role" : "person" });
+  const onPlanChange = (next: readonly PlanTask[]): void => {
+    for (const e of planEdits(planTaskList, next, tasks, planCtx, p.list)) {
+      const t = tasks.find((x) => x.id === e.id);
+      if (!t) continue;
+      if (e.kind === "reschedule") void actions.reschedule(t, e.due, e.effort);
+      else if (e.kind === "state") void actions.transition(t, e.to);
+      else void actions.assign(t, e.to);
+    }
+  };
   const loading = open.status === "loading";
   const total = open.status === "ready" ? open.data.counts.open : 0;
   const dueN = dueCount(tasks, clock);
@@ -184,7 +200,7 @@ export function MyWork(): ReactElement {
         <LinkButton label="+ New task" onPress={() => setAdding(true)} testID="work-new" />
         <View style={local.seg} accessibilityRole="radiogroup" accessibilityLabel="My work layout">
           <LayoutButton kind="list" on={view === "list"} onPress={() => setView("list")} />
-          <LayoutButton kind="board" on={view === "board"} onPress={() => setView("board")} />
+          <LayoutButton kind="plan" on={view === "plan"} onPress={() => setView("plan")} />
         </View>
       </SectionHeader>
       {adding ? (
@@ -193,7 +209,7 @@ export function MyWork(): ReactElement {
           onCreate={(title) => { setAdding(false); void actions.createTask(title); }}
         />
       ) : null}
-      {loading ? <Skeleton rows={4} id="work" /> : body.length ? view === "board" ? <View style={local.board} testID="work-board">{boardColumns}</View> : <View accessibilityRole="list">{body}</View> : adding ? null : <EmptyLine id="work" text="No tasks yet" />}
+      {loading ? <Skeleton rows={4} id="work" /> : body.length ? view === "plan" ? <View style={local.plan} testID="work-plan"><Plan today={planToday} stages={planStageList} tasks={planTaskList} people={planPeople} height={340} onChange={onPlanChange} onOpenTask={(t) => data.nav.openTask(t.id)} /></View> : <View accessibilityRole="list">{body}</View> : adding ? null : <EmptyLine id="work" text="No tasks yet" />}
       {menu.element}
     </Section>
   );
@@ -208,8 +224,7 @@ const local = StyleSheet.create({
   seg: { flexDirection: "row", borderRadius: 7, padding: 2, backgroundColor: "var(--sunk)" as string, marginLeft: 6 },
   segBtn: { width: 26, height: 22, borderRadius: 5, alignItems: "center", justifyContent: "center" },
   segOn: { backgroundColor: "var(--raised)" as string },
-  board: { flexDirection: "row", gap: 16, alignItems: "flex-start", flexWrap: "wrap" },
-  boardCol: { flex: 1, minWidth: 260 },
+  plan: { marginTop: 8 },
   group: { flexDirection: "row", alignItems: "center", marginTop: 12, height: 26 },
   groupText: { fontSize: 12, fontWeight: "600", color: "var(--ink-3)" as string },
   groupCount: { fontWeight: "500" },

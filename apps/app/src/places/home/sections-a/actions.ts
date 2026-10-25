@@ -44,6 +44,16 @@ export function assign(d: ActionDeps, t: Pick<Task, "id" | "title" | "assigned">
   });
 }
 
+/** The Plan timeline moved a bar: the task's end (due) and length (effort, in days) change. The Plan shows its own line with Undo, so no quiet line here. */
+export function reschedule(d: ActionDeps, t: Pick<Task, "id" | "title">, due: number, effort: number): Promise<boolean> {
+  return attempt(d, `move ${t.title}`, async () => { await d.call("tasks.update", { taskId: t.id, due, effort }); });
+}
+
+/** The Plan changed a task's state (review requested, reopened, done). */
+export function transition(d: ActionDeps, t: Pick<Task, "id" | "title">, to: Task["state"]): Promise<boolean> {
+  return attempt(d, `update ${t.title}`, async () => { await d.call("tasks.transition", { taskId: t.id, to }); });
+}
+
 export function createTask(d: ActionDeps, title: string): Promise<boolean> {
   return attempt(d, "create that task", async () => {
     await d.call("tasks.create", { kind: "work", title, assigned: { kind: "person", id: d.me } });
@@ -67,6 +77,8 @@ export function useActions(): { deps: ActionDeps } & {
   complete: (t: Pick<Task, "id" | "title" | "state">) => Promise<boolean>;
   assign: (t: Pick<Task, "id" | "title" | "assigned">, to: Ref | null) => Promise<boolean>;
   createTask: (title: string) => Promise<boolean>;
+  reschedule: (t: Pick<Task, "id" | "title">, due: number, effort: number) => Promise<boolean>;
+  transition: (t: Pick<Task, "id" | "title">, to: Task["state"]) => Promise<boolean>;
   markDigestSeen: (digestId: string) => Promise<boolean>;
   undoDigestItem: (it: Pick<DigestItem, "undo">) => Promise<boolean>;
 } {
@@ -81,6 +93,8 @@ export function useActions(): { deps: ActionDeps } & {
       complete: (t) => complete(deps, t),
       assign: (t, to) => assign(deps, t, to),
       createTask: (title) => createTask(deps, title),
+      reschedule: (t, due, effort) => reschedule(deps, t, due, effort),
+      transition: (t, to) => transition(deps, t, to),
       markDigestSeen: (id) => markDigestSeen(deps, id),
       undoDigestItem: (it) => undoDigestItem(deps, it),
     };

@@ -20,6 +20,13 @@
       "proto": "home,space:personal,{skin}",
       "waitFor": "[data-testid='home-place']",
       "note": "The shell on Home over the Personal Space. The prototype side is its Home place over Personal."
+    },
+    {
+      "id": "P-L9_19c-home-plan",
+      "route": "/m/P-L9_19c?mode=plan",
+      "proto": "home,plan,{skin}",
+      "waitFor": "[data-testid='plan-root']",
+      "note": "Home with My work in Plan mode: the shared Plan timeline (bars by start and due, today line, assignee faces, stages by project). The prototype side is its Home with the Plan toggle on."
     }
   ]
 }

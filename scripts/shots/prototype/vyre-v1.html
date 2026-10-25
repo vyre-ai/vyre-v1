@@ -49980,6 +49980,7 @@ kbd { font: 500 11px/16px var(--ui); color: var(--ink-3); padding: 0 4px; border
     if (FIRST) { const q = (window.name + "," + location.hash).toLowerCase(); if (q.includes("fr-1") || q.includes("fr-2") || q.includes("fr-3") || q.includes("fr-done")) FR.ai = true; if (q.includes("fr-2")) { FR.photo = true; FR.title = "Associate attorney"; FR.mail = FR.cal = true; } if (q.includes("fr-3")) { FR.photo = FR.mail = FR.cal = FR.assistant = true; FR.title = "Associate attorney"; } if (q.includes("fr-done")) { FR.photo = FR.mail = FR.cal = FR.assistant = FR.project = true; FR.title = "Associate attorney"; } }
     if (h === "runs") ui.view = "runs";
     if (h === "mywork" || h === "mywork-plan") { ui.view = "mywork"; if (h === "mywork-plan") ui.mwMode = "plan"; }
+    if (/(^|[,#])plan([,#]|$)/.test(location.hash || "")) ui.mwMode = "plan";
     renderAll();
     if (h === "away") { const el = document.getElementById("s-away"); el &amp;&amp; el.scrollIntoView({ block: "start" }); }
     if (h === "newtask") setTimeout(() =&gt; ACT.newtask &amp;&amp; ACT.newtask(), 60);

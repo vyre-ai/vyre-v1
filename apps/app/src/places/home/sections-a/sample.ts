@@ -30,8 +30,13 @@ export interface SampleSpace {
   routines: Routine[];
 }
 
+/** How many days each sample task takes, so the Plan timeline draws bars of different lengths (the prototype's tasks have a start as well as a due date). */
+const EFFORT_DAYS: Readonly<Record<string, number>> = {
+  tsk_t1: 4, tsk_t2: 3, tsk_t3: 2, tsk_t4: 2, tsk_t5: 3, tsk_t6: 4, tsk_t7: 3, tsk_t8: 2, tsk_t9: 5, tsk_t10: 6, tsk_t11: 5, tsk_t12: 3, tsk_t13: 10, tsk_t14: 5, tsk_t15: 3, tsk_t16: 4,
+  tsk_h1: 3, tsk_h2: 2, tsk_h3: 4, tsk_h4: 3, tsk_h5: 2,
+};
 const task = (id: string, o: Partial<Task> & { title: string; kind: Task["kind"]; assigned: Ref; due?: number; recordId?: string }): Task => ({
-  id, state: "todo", blocked: false, blocks: [], actions: [], fileIds: [], dependsOn: [], followers: [], workingNotes: {}, reviewLoops: 0,
+  id, state: "todo", ...(EFFORT_DAYS[id] === undefined ? {} : { effort: EFFORT_DAYS[id] }), blocked: false, blocks: [], actions: [], fileIds: [], dependsOn: [], followers: [], workingNotes: {}, reviewLoops: 0,
   createdBy: "usr_irfad", createdAt: at(10, 20, 9), updatedAt: at(10, 23, 9), ...o,
 } as Task);
 
@@ -228,6 +233,7 @@ export function createSampleHome(space: SampleSpace = northwind, o: { online?: b
 
   const writes: Record<string, (input: any) => unknown> = {
     "tasks.act": (i: { taskId: string; action: string }) => patchTask(i.taskId, { state: "done" }) && { task: taskRows().find((t) => t.id === i.taskId) },
+    "tasks.update": (i: { taskId: string; due?: number | null; effort?: number | null }) => ({ task: patchTask(i.taskId, { ...(i.due == null ? {} : { due: i.due }), ...(i.effort == null ? {} : { effort: i.effort }) }) }),
     "tasks.transition": (i: { taskId: string; to: Task["state"] }) => ({ task: patchTask(i.taskId, { state: i.to, blocked: false }) }),
     "tasks.assign": (i: { taskId: string; slot: "assigned" | "reviewer" | "approver"; to: Ref | null }) => {
       const patch: Partial<Task> = i.slot === "assigned" ? { assigned: i.to as Ref } : i.slot === "reviewer" ? { reviewer: i.to ?? undefined } as Partial<Task> : { approver: i.to ?? undefined } as Partial<Task>;

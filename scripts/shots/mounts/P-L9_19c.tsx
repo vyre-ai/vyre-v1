@@ -41,6 +41,15 @@ export default function Mount(): ReactNode {
     const chats = hub.session().tabs.state().tabs.find((t) => t.place === "chats");
     if (chats !== undefined) hub.closeTab(chats.key);
     setMade({ hub, theme });
+    // ?mode=plan opens My work in Plan mode once Home has drawn (the toggle is pressed as a person would)
+    if (query.get("mode") === "plan") {
+      const press = (n: number): void => {
+        const el = (globalThis as { document?: { querySelector(s: string): { click?: () => void } | null } }).document?.querySelector('[data-testid="work-view-plan"]');
+        if (el?.click) el.click();
+        else if (n < 40) setTimeout(() => press(n + 1), 150);
+      };
+      setTimeout(() => press(0), 300);
+    }
   }, []);
   if (made === null) return null;
   return (
