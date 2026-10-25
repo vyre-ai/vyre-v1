@@ -38,3 +38,17 @@ test('host/modules.json: a lane flips only its own module status; rows are other
   assert.ok(checkModulesJsonEdit('L1', mods, mods.map((m) => (m.id === 'sync' ? { ...m, owner: 'L3' } : m)), table).some((e) => e.includes('owner changed')));
   assert.deepEqual(checkEdits('L1', ['host/modules.json'], table, mods, mods), [], 'no change, no error');
 });
+
+test("ruling 59: an outside-lane edit is report-only; frozen, generated, manifests and ownership findings still fail", async () => {
+  const { splitFindings } = await import("./lanes-check.ts");
+  const r = splitFindings([
+    "modules/mail/x.ts: outside lane L3",
+    "generated/registry.ts: outside lane L3",
+    "manifests/mail.ts: outside lane L3",
+    "kernel/a.ts: frozen path, only the lead edits it",
+    "host/modules.json: row foo added, only the lead edits the list",
+    "module mail has no owner",
+  ]);
+  assert.deepEqual(r.soft, ["modules/mail/x.ts: outside lane L3"]);
+  assert.equal(r.hard.length, 5);
+});

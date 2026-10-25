@@ -63,8 +63,9 @@ fail=""
 tools/gen/check.sh || fail="contracts gate failed"
 
 if [ -z "$fail" ]; then
-  base="${BEFORE:-}"
-  if [ -z "$base" ] || echo "$base" | grep -Eq '^0+$' || ! git rev-parse --verify -q "$base" >/dev/null; then base=origin/main; fi
+  # the branch's merge-base with main, not the previous push, so every test the branch touches runs
+  git fetch -q origin main 2>/dev/null || true
+  base="$(git merge-base origin/main HEAD 2>/dev/null || echo origin/main)"
   node scripts/ci-select.ts "$base" > "${RUNNER_TEMP:-/tmp}/regen-select.json" || fail="selection failed (uncovered code)"
 fi
 
