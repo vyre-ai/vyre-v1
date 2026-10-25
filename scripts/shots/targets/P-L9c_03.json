@@ -3,35 +3,35 @@
     {
       "id": "P-L9c_03-calendar-week",
       "route": "/m/P-L9c_03",
-      "proto": "inbox,calendar,{skin}",
+      "proto": "inbox,at:calendar,{skin}",
       "waitFor": "[data-testid='event:e_lease_call']",
       "note": "The Calendar Week view over the Northwind sample Space: the sidebar with its calendars and colour dots, the week of 20 to 26 October with today marked, the now line, events in their calendar colours, overlapping events side by side, an all-day event in the header and the agent-booked event. The prototype side is its Inbox on Calendar, Week."
     },
     {
       "id": "P-L9c_03-calendar-availability",
       "route": "/m/P-L9c_03?people=maya,omar",
-      "proto": "inbox,calendar,{skin}",
+      "proto": "inbox,at:calendar,{skin}",
       "waitFor": "[data-testid='cal-avail-bar']",
       "note": "Availability on: Maya and Omar chosen from the people button, their busy times shaded as stripes on the grid, and the line under the header with who is shaded and the first time everyone is free, with Find a time and Clear."
     },
     {
       "id": "P-L9c_03-calendar-newevent",
       "route": "/m/P-L9c_03?new=1",
-      "proto": "inbox,calweek,{skin}",
+      "proto": "inbox,at:calweek,{skin}",
       "waitFor": "[data-testid='cal-card']",
       "note": "A new event after dragging on the grid: the outline on the day, and the small card with title, when, length, people, the free or busy sentence, the calendar, Find a time, Cancel and Add."
     },
     {
       "id": "P-L9c_03-calendar-month",
       "route": "/m/P-L9c_03?mode=month",
-      "proto": "inbox,calmonth,{skin}",
+      "proto": "inbox,at:calmonth,{skin}",
       "waitFor": "[data-testid='cal-month']",
       "note": "Month: whole weeks, today's number filled, events as dots with the time and title, and a count when a day holds more than fit."
     },
     {
       "id": "P-L9c_03-calendar-harbor",
       "route": "/m/P-L9c_03?space=harbor",
-      "proto": "inbox,harbor,calendar,{skin}",
+      "proto": "inbox,space:harbor,at:calendar,{skin}",
       "waitFor": "[data-testid='event:h_studio']",
       "note": "The Harbor Studio space: one calendar and three events."
     }
