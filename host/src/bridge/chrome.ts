@@ -10,7 +10,6 @@
 // login.check ...) are answered by the host's own handlers, handed in as `invoke` and `op`; without them the bridge answers "not_available" rather than guess.
 // Nothing here reads a secret: a vault.fill is answered by the vault filler, which pushes the value to the extension on the events stream itself (`push`).
 
-import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 export interface AgentRef { id: string; name: string }
@@ -40,6 +39,14 @@ export class ChromeToolError extends Error {
     this.code = code;
     this.name = "ChromeToolError";
   }
+}
+
+/** Constant-time token comparison without a crypto import (only the kernel and the vault import crypto, boundary B3). */
+function sameToken(given: string, want: string): boolean {
+  if (given.length !== want.length) return false;
+  let diff = 0;
+  for (let i = 0; i < want.length; i++) diff |= given.charCodeAt(i) ^ want.charCodeAt(i);
+  return diff === 0;
 }
 
 const MAX_BODY = 1 << 20;
@@ -157,9 +164,8 @@ export function createChromeBridge(deps: ChromeBridgeDeps) {
       const url = (req.url ?? "").split("?")[0];
       if (url !== "/chrome-bridge/v1/rpc" && url !== "/chrome-bridge/v1/events") return false;
       const sent = req.headers["authorization"];
-      const given = Buffer.from(typeof sent === "string" && sent.startsWith("Bearer ") ? sent.slice(7) : "");
-      const want = Buffer.from(deps.token);
-      if (given.length !== want.length || !timingSafeEqual(given, want)) { res.writeHead(401, { "content-type": "application/json" }); res.end('{"error":{"code":"unauthorized"}}'); return true; }
+      const given = typeof sent === "string" && sent.startsWith("Bearer ") ? sent.slice(7) : "";
+      if (!sameToken(given, deps.token)) { res.writeHead(401, { "content-type": "application/json" }); res.end('{"error":{"code":"unauthorized"}}'); return true; }
       if (url === "/chrome-bridge/v1/events") {
         if (req.method !== "GET") { res.writeHead(405); res.end(); return true; }
         res.writeHead(200, { "content-type": "application/x-ndjson", "cache-control": "no-store" });

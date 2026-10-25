@@ -17,7 +17,7 @@ import { createDecoder, encode, MAX_MESSAGE } from "../src/worker/framing.js";
 import { keyAction, letterOf, MENU_KEY, move, rowMenu, viewOf } from "../src/popup/popup-model.js";
 import { callerOk, dataDirs, findDaemon, runHost } from "../src/worker/native/host.js";
 import { parseCommand } from "../src/agent/protocol.js";
-import { ChromeToolError, createChromeBridge } from "../../../host/src/bridge/chrome.ts";
+import { ChromeToolError, createChromeBridge } from "./bridge-double.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const REPO = path.resolve(ROOT, "..", "..");

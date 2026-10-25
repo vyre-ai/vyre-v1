@@ -12,7 +12,7 @@ import { createAgentControl } from "../src/agent/index.js";
 import { createDecoder, encode } from "../src/worker/framing.js";
 import { runHost } from "../src/worker/native/host.js";
 import { HOST_NAME } from "../src/worker/protocol.js";
-import { createChromeBridge } from "../../../host/src/bridge/chrome.ts";
+import { createChromeBridge } from "./bridge-double.ts";
 
 const OUT = process.env["VYRE_SHOT_DIR"] ?? path.join(os.tmpdir(), "vyre-chrome-agent-shots");
 const SECRET = "hunter2-Pa55";
