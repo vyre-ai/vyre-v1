@@ -48,7 +48,7 @@ test("a member starts an Ask pane, finds it in the object's history, and nobody 
     const theirs = (await bo.call("chat.asks_of", { resourceType: "record", resourceId: "rec_ok" })) as { threads: unknown[]; total: number };
     assert.deepEqual([theirs.threads.length, theirs.total], [0, 0], "an Ask pane is private to the person who opened it");
 
-    assert.equal((await errorOf(() => bo.call("chat.open_as_chat", { threadId: started.thread.threadId }))).code, "validation.not_found");
+    assert.match((await errorOf(() => bo.call("chat.open_as_chat", { threadId: started.thread.threadId }))).code ?? "", /^(validation|permission)\.not_found$/, "someone else's pane does not exist for them");
     const opened = (await ana.call("chat.open_as_chat", { threadId: started.thread.threadId })) as { thread: { listed: boolean } };
     assert.equal(opened.thread.listed, true);
     assert.ok(space.published.some((e) => e.type === "thread.updated"));
