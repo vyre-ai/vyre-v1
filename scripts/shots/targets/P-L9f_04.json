@@ -40,7 +40,7 @@
       "route": "/m/P-L9f_04?rows=10000",
       "proto": "vault,{skin}",
       "scroll": {
-        "selector": "[data-testid=\"virtual-list\"]"
+        "selector": "[data-testid=\"vault-list\"] [data-testid=\"virtual-list\"]"
       },
       "waitFor": "[data-testid='env-card']",
       "note": "Ten thousand more keys in the list; the scroll probe takes the p95 frame interval over the full scroll of the virtual list."
