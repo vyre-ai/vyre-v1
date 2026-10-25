@@ -1,5 +1,6 @@
 // P-L4_LIVE (rulings 31, 32, 33): lane L4 is live on a booted daemon. host/modules.json has files, git, mounts, previews and documents live, no L4 module is reported as not set up,
 // the git host seam is wired, and one read and one write capability per module answer through the gateway with a real token. A person without files.write is refused.
+// Waiting on w12a (ctx.vault in the daemon, P-L7_LIVE): git remote flows to github.com (git.push, git.pull, git.sync with a GitHub token via ctx.vault.fill git_credential); not tested here.
 // Path mapping: the packet owns __live__/L4; this test sits in host/tests because it boots the daemon.
 import test from "node:test";
 import assert from "node:assert/strict";

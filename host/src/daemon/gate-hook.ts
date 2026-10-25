@@ -11,6 +11,7 @@ import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 import { fail } from "../routes/errors.ts";
 import type { CtxSeed, GateHook } from "../invoke.ts";
 import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
+import type { ScopedDb } from "../../../packages/contracts/src/ctx.ts";
 
 export interface GateHookDeps {
   /** Call a capability as the Space itself (its owner, origin "gate"), through the whole pipeline. */
@@ -100,4 +101,14 @@ export function createGateHook(d: GateHookDeps): GateHook {
       return claims !== null && claims.v === 1 && typeof claims.exp === "number" && claims.exp >= d.now() && claims.hash === payloadHash(a.cap, a.input, a.seed);
     },
   };
+}
+
+/** The Gate's module conditions for the live modules that export one: `git.is_protected` over the git module's `isProtectedCall`. Called as the Space itself. */
+export function moduleWhens(
+  exports: ReadonlyMap<string, Record<string, unknown>>, db: () => ScopedDb | null, call: (cap: string, input: unknown) => Promise<unknown>,
+): NonNullable<GateHookDeps["evaluators"]> {
+  const fn = exports.get("git")?.["isProtectedCall"];
+  if (typeof fn !== "function") return {};
+  const isProtected = fn as (ctx: { db: ScopedDb; call: typeof call }, input: unknown) => Promise<boolean>;
+  return { "git.is_protected": (input) => { const h = db(); return h ? isProtected({ db: h, call }, input) : true; } };
 }
