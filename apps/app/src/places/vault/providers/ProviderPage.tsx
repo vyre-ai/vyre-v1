@@ -16,9 +16,13 @@ import { countWords, tokenWords, userKind } from "./model.ts";
 
 type HistoryOut = CapMap["vault.item.history"]["out"];
 
-export interface ProviderPageProps { provider: Provider; handle: string; onNote(text: string): void }
+export interface ProviderPageProps {
+  provider: Provider; handle: string; onNote(text: string): void;
+  /** Tokens an agent or Automation used this month. Wired to the per-actor usage of P-CC_36 when it lands; until then it is not given and no number is drawn. */
+  tokensOf?: (actorId: string) => number | undefined;
+}
 
-export function ProviderPage({ provider, handle, onNote }: ProviderPageProps): ReactElement {
+export function ProviderPage({ provider, handle, onNote, tokensOf }: ProviderPageProps): ReactElement {
   const data = useVaultData();
   const people = usePrincipals();
   const hist = useScreenQuery<HistoryOut>("vault.item", "history", { itemId: provider.itemId });
@@ -60,7 +64,7 @@ export function ProviderPage({ provider, handle, onNote }: ProviderPageProps): R
         <View style={s.head}><Text accessibilityRole="header" style={s.h2}>Used by</Text></View>
         {provider.agentsUsing.map((id) => (
           <Row key={id} id={`use:${id}`} title={people.name(id)} note={userKind(id) === "automation" ? "Automation you set up" : "Runs its turns on this"} leading={<View style={s.face}><Avatar name={people.name(id)} kind={userKind(id)} size={28} /></View>}
-            trailing={<Text style={s.dim}>{countWords(turns(id), "turn")}</Text>} />
+            trailing={<Text style={s.dim} testID={`use-count-${id}`}>{tokensOf?.(id) === undefined ? countWords(turns(id), "turn") : `${countWords(turns(id), "turn")}, ${tokenWords(tokensOf(id)!)}`}</Text>} />
         ))}
         <Text style={s.dim} testID="provider-total">{`This month: ${countWords(total, "turn")} across ${countWords(provider.agentsUsing.length, "agent or Automation", "agents and Automations")}, ${tokenWords(provider.usage.tokens)}.`}</Text>
 

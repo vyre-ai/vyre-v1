@@ -10,7 +10,7 @@ import Vault from "../layout/index.tsx";
 import { VaultDataProvider } from "../layout/data.tsx";
 import { createSampleVault, harbor } from "../layout/sample.ts";
 import type { Provider } from "../layout/model.ts";
-import { AddProvider, ProviderPanel, canShare, countWords, howConnected, normalizeAddress, scopeWords, testWords, tokenWords, usageWords, userKind } from "../providers/index.ts";
+import { AddProvider, ProviderPage, ProviderPanel, canShare, countWords, howConnected, normalizeAddress, scopeWords, testWords, tokenWords, usageWords, userKind } from "../providers/index.ts";
 import { withProviders, CATALOG } from "../providers/sample.ts";
 import type { ProviderSample } from "../providers/sample.ts";
 import { HealthView, issueLine, summaryWords, worstFirst } from "../health/index.ts";
@@ -58,6 +58,15 @@ test("providers: a subscription opens on the prototype's own page, with the sign
   assert.ok(has(out, "This month:") && has(out, "4.2M tokens"), "the month's total line");
   assert.ok(has(out, 'data-testid="provider-ask"') && !has(out, 'data-testid="provider-share"'), "Ask in the header, nothing to share");
   assert.deepEqual(["Claude", "OpenCode Go key", "OpenAI key"].map((n) => has(out, n)), [true, true, true], "the prototype's three providers");
+});
+
+test("providers: per-actor tokens show only when the usage gives them, never invented", () => {
+  const s0 = sample();
+  const p = provider(s0, "prv_claude");
+  const plain = within(s0, <ProviderPage provider={p} handle="#Northwind_Claude" onNote={() => undefined} />);
+  assert.ok(!/turns?, [0-9.]+[Mk]? tokens/.test(plain), "no per-actor tokens without the data");
+  const fed = within(s0, <ProviderPage provider={p} handle="#Northwind_Claude" onNote={() => undefined} tokensOf={(id) => (id === "agt_intake" ? 1_200_000 : undefined)} />);
+  assert.ok(has(fed, "1.2M tokens"), "the slot fills when the data is given");
 });
 
 test("providers: an API key can be shared and lets the Space use it", () => {
