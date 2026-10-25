@@ -180,6 +180,9 @@ export function threadOut(db: Db, t: ThreadRec): Record<string, unknown> {
   const set = (k: string, v: unknown): void => { if (v !== undefined) out[k] = v; };
   set("title", t.title); set("starter", t.starter); set("channelId", t.channelId); set("parentThreadId", t.parentThreadId); set("parentMessageId", t.parentMessageId);
   set("recordId", t.recordId); set("folderId", t.folderId); set("scopeType", t.scopeType); set("scopeId", t.scopeId); set("closedAt", t.closedAt);
+  const stat = (db.all('SELECT COUNT(*) AS n, MAX("createdAt") AS last FROM chat_message WHERE "thread" = ? AND deleted_at IS NULL', t.id)[0] ?? {}) as { n?: number; last?: number | null };
+  out["replyCount"] = Number(stat.n ?? 0);
+  if (stat.last !== null && stat.last !== undefined) out["lastMessageAt"] = Number(stat.last);
   if (t.kind === "helper") {
     // the address bar of a helper chat: each ancestor, each part a link back
     const path: Array<{ title: string; threadId: string }> = [];
