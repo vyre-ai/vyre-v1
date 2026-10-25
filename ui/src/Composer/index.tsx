@@ -419,6 +419,8 @@ export interface ComposerProps extends ComposerShellProps {
   /** Recipients for a composer that sends outside. Mounted above the field. */
   recipients?: ReactNode;
   banner?: ReactNode;
+  /** Leaves out the "who will answer" line (a place whose agent is chosen next to the box, such as Home's Ask). The row stays when `whoExtra` is given. */
+  hideWho?: boolean;
   /** Right end of the who-will-answer row: the place puts its model chip here ("Opus"). */
   whoExtra?: ReactNode;
   /** Buttons after the symbol buttons: the place adds its model and where-it-runs controls here. */
@@ -743,10 +745,12 @@ export function Composer(props: ComposerProps): ReactElement {
           },
         })}
       />
-      <View style={styles.whoRow}>
-        <Text numberOfLines={1} style={[styles.who, who.dim && styles.whoDim]} testID="composer-who" accessibilityRole="text" accessibilityLiveRegion="polite">{who.line}</Text>
-        {props.whoExtra}
-      </View>
+      {props.hideWho === true && !props.whoExtra ? null : (
+        <View style={styles.whoRow}>
+          <Text numberOfLines={1} style={[styles.who, who.dim && styles.whoDim]} testID="composer-who" accessibilityRole="text" accessibilityLiveRegion="polite">{who.line}</Text>
+          {props.whoExtra}
+        </View>
+      )}
       <View style={styles.bar}>
         <IconButton icon={<Glyph icon={ICON_PLUS} native="+" color="var(--ink-3)" />} label="Attach a file" onPress={attach} testID="composer-attach" />
         {symbolNodes}

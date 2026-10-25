@@ -33,7 +33,8 @@ export const ICON = {
   change: ["M11 2.5l2.5 2.5L6 12.5 3 13l.5-3z"],
   waiting: ["M13.5 8a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z", "M8 5v3.4M8 10.8h.01"],
   list: ["M5.5 4.5h8M5.5 8h8M5.5 11.5h8M2.5 4.5h.01M2.5 8h.01M2.5 11.5h.01"],
-  board: ["M2.5 3.5h3.5v9H2.5zM6.5 3.5H10v6H6.5zM10.5 3.5H14v8h-3.5z"],
+  // the prototype's second layout icon: three lines of different length, stepped (the board)
+  board: ["M2.5 4.5h6M5.5 8h8M2.5 11.5h6"],
 } as const;
 export type IconName = keyof typeof ICON;
 
@@ -57,7 +58,7 @@ export function StatusCircle({ status, size = 15, hovered = false }: { status: "
   const p = (a: Record<string, unknown>) => createElement("path", { fill: "none", strokeLinecap: "round", strokeLinejoin: "round", ...a });
   if (status === "done") return createElement("svg", base, c({ r: 7, fill: "var(--ok)" }), p({ d: "M5 8.2l2.2 2.2L11 6", stroke: "#fff", strokeWidth: 1.7 }));
   if (status === "doing") return createElement("svg", base, c({ r: 6.2, fill: "none", stroke: "var(--accent)", strokeWidth: 1.6 }), createElement("path", { d: "M8 4.6a3.4 3.4 0 010 6.8z", fill: "var(--accent)" }));
-  if (status === "review") return createElement("svg", base, c({ r: 6.2, fill: "none", stroke: "var(--accent)", strokeWidth: 1.6 }), c({ r: 2.3, fill: "var(--accent)" }));
+  if (status === "review") return createElement("svg", base, c({ r: 6.2, fill: "none", stroke: "var(--ink-3)", strokeWidth: 1.5 }), p({ d: "M5.2 8.2l1.9 1.9L10.9 6", stroke: "var(--ink-2)", strokeWidth: 1.6 }));
   if (status === "blocked") return createElement("svg", base, c({ r: 6.2, fill: "none", stroke: "var(--warn)", strokeWidth: 1.6 }), p({ d: "M5.2 8h5.6", stroke: "var(--warn)", strokeWidth: 1.8 }));
   return createElement("svg", base, c({ r: 6.2, fill: "none", stroke: "var(--ink-4)", strokeWidth: 1.6 }), p({ d: "M5.2 8.2l1.9 1.9L10.9 6", stroke: "var(--ink-3)", strokeWidth: 1.6, opacity: hovered ? 1 : 0 }));
 }
