@@ -1815,7 +1815,7 @@
     {
       "deferred": false,
       "name": "console_overview",
-      "summary": "Overview: health, attention items, recent admin activity, usage",
+      "summary": "Overview: health, attention items, recent admin activity, usage, server CPU, memory and disk, and the last backup",
       "toolset": "engineer"
     },
     {
@@ -3422,6 +3422,12 @@
     },
     {
       "deferred": false,
+      "name": "health_machine",
+      "summary": "Probe: CPU load, memory and disk of the server as the host last reported them (Console Overview tiles)",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "health_run",
       "summary": "Run one health check or all of them now",
       "toolset": "engineer"
@@ -3808,6 +3814,12 @@
       "deferred": false,
       "name": "journeys_start",
       "summary": "Start a Journey on a subject record: creates the Journey record with its channel and folder and enters the first stage",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "journeys_tasks",
+      "summary": "The tasks of one Journey record by stage, each with its state (todo, in review, blocked, done)",
       "toolset": "automations"
     },
     {
@@ -4834,6 +4846,12 @@
       "deferred": false,
       "name": "notifications_delegate_set",
       "summary": "Set my standing approvals delegate chain; a delegate never gains access",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "notifications_kind_set_level",
+      "summary": "Set how one kind of notification reaches me: its level and which of desktop, phone and email carry it. Give a level, channels, or both; channels alone pick the level (desktop or phone interrupt, otherwise badge). Approval reminders and owned incidents never go below Interrupt",
       "toolset": "meta"
     },
     {
