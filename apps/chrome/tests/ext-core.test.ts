@@ -521,18 +521,13 @@ test("agent events reach the logger under the agent; the opt-in is pushed to the
     await r.until(() => r.frames.some((f) => f.type === "agent.optin"));
     assert.deepEqual(parseCommand(r.frames.find((f) => f.type === "agent.optin")), { type: "agent.optin", spaces: ["spc_acme"], mode: "personal" });
   } finally { await r.close(); }
-  r.bridge.optIn(["spc_acme"], "computer");
-  const later = await rig();
-  later.bridge.optIn(["spc_two"], "computer");
-  await later.close();
   const b = createChromeBridge({ token: "t" });
   b.optIn(["spc_x"], "computer");
-  const lines: string[] = [];
   const server = http.createServer((req, res) => { b.handle(req, res); });
   await new Promise<void>((res) => server.listen(0, "127.0.0.1", () => res()));
   const port = (server.address() as { port: number }).port;
   const got = await new Promise<string>((resolve) => {
-    http.get({ port, host: "127.0.0.1", path: "/chrome-bridge/v1/events", headers: { authorization: "Bearer t" } }, (res) => { res.setEncoding("utf8"); res.once("data", (d) => { lines.push(d); resolve(d); res.destroy(); }); });
+    http.get({ port, host: "127.0.0.1", path: "/chrome-bridge/v1/events", headers: { authorization: "Bearer t" } }, (res) => { res.setEncoding("utf8"); res.once("data", (d) => { resolve(d); res.destroy(); }); });
   });
   assert.deepEqual(JSON.parse(got.trim()), { type: "agent.optin", spaces: ["spc_x"], mode: "computer" }, "an extension that connects later is told what is already opened");
   await new Promise<void>((res) => server.close(() => res()));
