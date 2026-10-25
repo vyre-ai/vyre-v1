@@ -65,11 +65,11 @@ const channel = (id: string, o: Partial<Channel> = {}): Channel => ({ channelId:
 const need = (id: string, kind: string, blocked = false): NeedsItem => ({ reason: "ready", task: { id, kind, title: id, blocked, actions: [] } } as unknown as NeedsItem);
 const base = { needs: [] as NeedsItem[], needsTotal: 0, faces: [agent("a1"), agent("a2")], workingAgents: new Set<string>(), groups: groupRecent(recent, [], name), channels: [] as Channel[], filter: "all" as const, closed: new Set<never>() };
 
-test("the list runs Needs you (only when something waits), Agents with All agents, Chats, then Channels with Projects", () => {
+test("the list runs Needs you (only when something waits), Agents with All agents, Channels with Projects, then Chats (ruling 45)", () => {
   const e = buildEntries({ ...base, needs: [need("n1", "approve")], needsTotal: 7, channels: [channel("intake"), channel("pruitt", { recordId: "r1" }), channel("old", { archived: true })] });
   const kinds = e.map((x) => `${x.type}:${x.key}`);
   assert.equal(kinds[0], "head:h:needs");
-  assert.ok(kinds.indexOf("head:h:faces") < kinds.indexOf("head:h:recent") && kinds.indexOf("head:h:recent") < kinds.indexOf("head:h:channels"));
+  assert.ok(kinds.indexOf("head:h:faces") < kinds.indexOf("head:h:channels") && kinds.indexOf("head:h:channels") < kinds.indexOf("head:h:recent"));
   const head = e[0]!;
   assert.equal(head.type === "head" ? head.count : -1, 7, "the header counts all that wait, not the three listed");
   assert.ok(kinds.includes("more:f:all"));

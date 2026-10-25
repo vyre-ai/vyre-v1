@@ -5,7 +5,7 @@
       "route": "/m/P-L9b_03c",
       "proto": "chat,{skin}",
       "waitFor": "[data-testid='chats-sidebar']",
-      "note": "The Chats list over Northwind: Needs you as one row with the count and its requests beneath, Agents with Waiting on you on Intake, Billing, Research and Docs, dim channels with the unread count on #intake, real faces. The prototype side is its Chats place in the same skin. Known difference: the prototype puts Channels above Chats; the real list keeps the spec 3.2 order (Chats then Channels).",
+      "note": "The Chats list over Northwind: Needs you as one row with the count and its requests beneath, Agents with Waiting on you on Intake, Billing, Research and Docs, dim channels with the unread count on #intake, real faces. The prototype side is its Chats place in the same skin. Channels sit above Chats as in the prototype (ruling 45).",
       "protoSettleMs": 1500
     },
     {

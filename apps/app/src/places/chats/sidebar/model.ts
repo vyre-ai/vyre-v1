@@ -158,7 +158,7 @@ export function splitChannels(channels: readonly Channel[]): { plain: Channel[];
   return { plain: live.filter((c) => !isProject(c)), projects: live.filter(isProject) };
 }
 
-/** The flat list, top to bottom, exactly as spec 3.2 orders it: Needs you (only when something waits), Starred faces, Recent, Channels. */
+/** The flat list, top to bottom, as spec 3.2 orders it after ruling 45 (the prototype wins on layout and order): Needs you (only when something waits), Agents, Channels with Projects, then Chats. */
 export function buildEntries(i: SidebarInput): Entry[] {
   const out: Entry[] = [];
   const open = (s: SectionKey): boolean => !i.closed.has(s);
@@ -175,15 +175,6 @@ export function buildEntries(i: SidebarInput): Entry[] {
     }
     out.push({ key: "f:all", type: "more", label: "All agents", to: "agents" });
   }
-  out.push({ key: "h:recent", type: "head", section: "recent", label: "Chats", open: open("recent") });
-  if (open("recent")) {
-    const rows = i.groups.reduce((n, g) => n + g.rows.length, 0);
-    if (!rows) out.push({ key: "e:recent", type: "empty", text: i.filter === "all" ? "No chats yet" : "Nothing here" });
-    for (const g of i.groups) {
-      out.push({ key: `g:${g.key}`, type: "group", label: g.label });
-      for (const r of g.rows) out.push({ key: `c:${r.threadId}`, type: "chat", row: r });
-    }
-  }
   const { plain, projects } = splitChannels(i.channels);
   if (plain.length || projects.length) {
     out.push({ key: "h:channels", type: "head", section: "channels", label: "Channels", open: open("channels") });
@@ -193,6 +184,15 @@ export function buildEntries(i: SidebarInput): Entry[] {
         out.push({ key: "g:projects", type: "group", label: "Projects" });
         for (const c of projects) out.push({ key: `ch:${c.channelId}`, type: "channel", channel: c, project: true });
       }
+    }
+  }
+  out.push({ key: "h:recent", type: "head", section: "recent", label: "Chats", open: open("recent") });
+  if (open("recent")) {
+    const rows = i.groups.reduce((n, g) => n + g.rows.length, 0);
+    if (!rows) out.push({ key: "e:recent", type: "empty", text: i.filter === "all" ? "No chats yet" : "Nothing here" });
+    for (const g of i.groups) {
+      out.push({ key: `g:${g.key}`, type: "group", label: g.label });
+      for (const r of g.rows) out.push({ key: `c:${r.threadId}`, type: "chat", row: r });
     }
   }
   return out;

@@ -25,8 +25,8 @@ const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms)
 
 test("the sections render from the Northwind sample, in the spec's order", () => {
   const out = html(createSampleSidebar());
-  const heads = ["head-needs", "head-faces", "head-recent", "head-channels"].map((id) => at(out, `data-testid="${id}"`));
-  assert.deepEqual([...heads].sort((a, b) => a - b), heads, "Needs you, Agents, Chats, Channels");
+  const heads = ["head-needs", "head-faces", "head-channels", "head-recent"].map((id) => at(out, `data-testid="${id}"`));
+  assert.deepEqual([...heads].sort((a, b) => a - b), heads, "Needs you, Agents, Channels, Chats (ruling 45)");
   for (const text of ["Needs you", "Agents", "Chats", "Channels", "Northwind", "Search", "All agents"]) assert.ok(out.includes(text), text);
   assert.ok(!out.includes(String.fromCharCode(0x2014)), "no em dash in any copy");
   assert.ok(!out.includes("chats-sidebar-loading"));
