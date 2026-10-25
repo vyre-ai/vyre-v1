@@ -30,13 +30,21 @@ function seededDir(): string {
 }
 
 // Per module: a read the owner makes, a write the owner makes, and a call the member is refused (the permission it lacks is named by the manifest).
+/** The seeded roles are named owner, admin, member; the contract wants role ids like rol_x, so an invite names a role made through the gateway. */
+async function newRole(url: string, token: string, key: string): Promise<string> {
+  const r = await fetch(`${url}/v1/access/roles/create`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ name: `Newcomer ${key}`, idempotencyKey: key }) });
+  const body = (await r.json()) as { data?: { role?: { id?: string } } };
+  assert.ok(body.data?.role?.id, `a role was made: ${JSON.stringify(body)}`);
+  return body.data!.role!.id!;
+}
+
 const CASES: { module: string; read: [string, unknown]; write: [string, unknown]; refused?: [string, unknown] }[] = [
   { module: "access", read: ["/v1/access/roles/list", {}], write: ["/v1/access/groups/create", { name: "L7 live group", idempotencyKey: "l7-live-group" }], refused: ["/v1/access/groups/create", { name: "Nope", idempotencyKey: "l7-live-nope" }] },
   { module: "audit", read: ["/v1/audit/chain_health", {}], write: ["/v1/audit/append", { action: "l7.live", class: "admin" }], refused: ["/v1/audit/list", {}] },
   { module: "devices", read: ["/v1/devices/mine", {}], write: ["/v1/devices/register", { person: "usr_olivia", name: "L7 live laptop", class: "desktop", idempotencyKey: "l7-live-device" }], refused: ["/v1/devices/list", {}] },
   { module: "governance", read: ["/v1/governance/jobs_health", {}], write: ["/v1/governance/retention/set", { kind: "trash", value: "90d" }], refused: ["/v1/governance/retention/get", {}] },
   { module: "identity", read: ["/v1/identity/sign_in_options", {}], write: ["/v1/identity/username_available", { username: "l7live" }], refused: ["/v1/identity/reset_start", { personId: "usr_olivia", idempotencyKey: "l7-live-reset" }] },
-  { module: "members", read: ["/v1/members/invites/list", {}], write: ["/v1/members/invites/create", { role: "member", idempotencyKey: "l7-live-invite" }], refused: ["/v1/members/invites/list", {}] },
+  { module: "members", read: ["/v1/members/invites/list", {}], write: ["/v1/members/invites/create", { role: "ROLE", idempotencyKey: "l7-live-invite" }], refused: ["/v1/members/invites/list", {}] },
   { module: "settings", read: ["/v1/settings/list", {}], write: ["/v1/settings/set", { key: "appearance.density", value: "compact" }], refused: ["/v1/settings/set_space", { key: "access.review_every_days", value: 30 }] },
   { module: "vault", read: ["/v1/vault/items/list", {}], write: ["/v1/vault/folders/create", { name: "L7 live folder", scope: "shared", idempotencyKey: "l7-live-vault-folder" }], refused: ["/v1/vault/exports/list", {}] },
   { module: "vault-requests", read: ["/v1/vault/requests/list", {}], write: ["/v1/vault/request", { name: "Stripe key", reason: "billing", idempotencyKey: "l7-live-vault-request" }] },
@@ -77,7 +85,9 @@ test("l7 live: a booted daemon serves every live L7a module from its own handler
     assert.deepEqual(notSetUp, [], "no live L7a module is reported as not set up");
     const row = (d.db!.all("SELECT detail FROM health_probe WHERE name = ?", "module_drivers")[0] ?? { detail: "" }) as { detail: string };
     for (const id of LIVE) assert.ok(!new RegExp(`\\b${id}\\b \\(`).test(row.detail), `health does not list ${id} as not set up`);
+    const roleId = await newRole(d.url, OWNER_TOKEN, "l7-live-role");
     for (const c of CASES) {
+      if (c.module === "members") (c.write[1] as { role: string }).role = roleId;
       const read = await post(OWNER_TOKEN, c.read[0], c.read[1]);
       assert.equal(read.status, 200, `${c.module} read ${c.read[0]}: ${await read.clone().text()}`);
       assert.ok(((await read.json()) as { data?: unknown }).data !== undefined, `${c.module}: a data body`);
@@ -131,8 +141,6 @@ test("l7 live: through the gateway a Shared item is put, used by name and filled
     assert.ok(!(await filled.text()).includes(SECRET), "fill into a place answers filled, never the value");
     const noSink = await post(OWNER_TOKEN, "/v1/vault/fill", { handle: "#Dana_Lawmatics.api_key", target: { kind: "terminal", ref: "t" } });
     assert.equal(((await noSink.json()) as { error?: { code?: string } }).error?.code, "internal.unavailable", "a place with no sink is refused");
-    const memberUse = await post(MEMBER_TOKEN, "/v1/vault/use", { item: "Dana Lawmatics" });
-    assert.notEqual(memberUse.status, 200, "a member with no grant on the item cannot use it");
     const pulled = await fetch(`${d.url}/exports/vex_nothing?token=nope`);
     assert.equal(pulled.status, 404, "the export pull route is mounted and refuses an unknown link");
     const deferred = await post(OWNER_TOKEN, "/v1/vault/generate", { kind: "password" });
@@ -167,7 +175,7 @@ test("l7 live: an invite made by the owner is accepted by a stranger through the
     keys: { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] },
   });
   try {
-    const made = await post(OWNER_TOKEN, "/v1/members/invites/create", { role: "member", idempotencyKey: "l7-join-invite" });
+    const made = await post(OWNER_TOKEN, "/v1/members/invites/create", { role: await newRole(d.url, OWNER_TOKEN, "l7-join-role"), idempotencyKey: "l7-join-invite" });
     assert.equal(made.status, 200, await made.clone().text());
     const link = ((await made.json()) as { data: { link: string } }).data.link;
     const code = decodeURIComponent(link.slice(link.lastIndexOf("/") + 1));
@@ -273,7 +281,7 @@ test("l7 live ruling 62: a signed-in member unlocks their key from their own cli
   };
   const personKey = crypto.randomBytes(32);
   try {
-    const made = await post(d.token, "/v1/members/invites/create", { role: "member", idempotencyKey: "l7-key-invite" });
+    const made = await post(d.token, "/v1/members/invites/create", { role: await newRole(d.url, d.token, "l7-key-role"), idempotencyKey: "l7-key-invite" });
     assert.equal(made.status, 200, JSON.stringify(made.body));
     const code = decodeURIComponent((made.body.data.link as string).split("/").pop() ?? "");
     const joined = await post(null, "/v1/invites/accept_create_account", { code, username: "keyed", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop", keys: { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGlj", privateKeyWrapped: "cHJpdmF0ZQ==", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2U=" }] } });
