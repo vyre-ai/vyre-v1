@@ -13,7 +13,7 @@ const run = (): ReturnType<typeof runMemory> => (started ??= runMemory(LIVE_FOR_
 test("golden 8: the steps that are wired already pass", async () => {
   const { trail } = await run();
   const ok = okSteps(trail);
-  for (const name of ["Noah proposes a fact in his own layer"]) assert.ok(ok.includes(name), `${name} is ok\n${trail.report()}`);
+  for (const name of ["Noah proposes a fact in his own layer", "the fact is accepted into current memory", "another member cannot read it: it is Noah's alone"]) assert.ok(ok.includes(name), `${name} is ok\n${trail.report()}`);
 });
 
 test("golden 8: memory-promotion", { todo: todoOf(GAPS) }, async () => {

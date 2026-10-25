@@ -39,7 +39,7 @@ export async function runPersonal(live: readonly string[]): Promise<{ events: Ob
       assert.ok(e.some((x) => x.kind === "relay"), `endpoints ${short(e)}`);
     });
     const phone = await trail.step("the phone registers as a device", async () => {
-      const out = expectStatus(await space.call("devices.register", admin, { person: "usr_olivia", name: "Olivia phone", class: "phone" }), 200, "devices.register");
+      const out = expectStatus(await space.call("devices.register", admin, { idempotencyKey: "golden-15-phone", person: "usr_olivia", name: "Olivia phone", class: "phone" }), 200, "devices.register");
       return { device: out.device.id as string, token: issueSessionToken(space.d.db!, out.sessionId as string) };
     });
     await trail.step("the phone's replica scope is set and it pulls", async () => {
