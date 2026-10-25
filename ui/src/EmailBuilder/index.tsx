@@ -117,7 +117,7 @@ export function hasUnsub(blocks: readonly EmailBlock[]): boolean {
 export function blocksToPlain(blocks: readonly EmailBlock[]): string {
   const lines: string[] = [];
   for (const b of blocks) {
-    if (b.kind === "text" || b.kind === "heading" || b.kind === "button" || b.kind === "merge") lines.push(b.kind === "merge" ? mergeToken(b.field ?? "", b.text ?? "") : (b.text ?? ""));
+    if (b.kind === "text" || b.kind === "heading" || b.kind === "button" || b.kind === "merge") lines.push(b.kind === "merge" ? mergeToken(b.field ?? "") : (b.text ?? ""));
     else if (b.kind === "columns") lines.push(blocksToPlain(b.children ?? []));
     else if (b.kind === "divider") lines.push("---");
     else if (b.kind === "footer") lines.push(b.unsub === true ? `${b.text ?? ""}\nUnsubscribe: {{unsubscribe_url}}` : (b.text ?? ""));
@@ -635,7 +635,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
         ) : null}
         {b.kind === "image" ? <View style={s.imgBlock}><Text style={s.imgText}>{b.text ?? "Image"}</Text></View> : null}
         {b.kind === "divider" ? <View style={s.divBlock} /> : null}
-        {b.kind === "merge" ? <Text style={s.mergeTok}>{mergeToken(b.field ?? "", b.text ?? "")}</Text> : null}
+        {b.kind === "merge" ? <Text style={s.mergeTok} {...webProps({ "data-token": mergeToken(b.field ?? "", b.text ?? "") })}>{(b.text !== undefined && b.text !== "" ? b.text : (b.field ?? "").replaceAll("_", " "))}</Text> : null}
         {b.kind === "html" ? <Text style={s.htmlBlock}>{b.text ?? ""}</Text> : null}
         {b.kind === "columns" ? <View style={s.cols}>{each(b.children ?? [], (c) => <View key={c.id} style={s.col}>{blockView(c, depth + 1)}</View>)}</View> : null}
       </Pressable>
@@ -703,6 +703,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
       ) : null}
       {mode === "plain" && tab !== "preview" ? (
         <ScrollView style={s.scroll} contentContainerStyle={s.codeWrap}>
+          <Text style={s.plainHint} testID="em-plain-hint">Made from your blocks. Edit it to write your own.</Text>
           <TextInput multiline accessibilityLabel="Plain text" testID="em-plain" value={plainText} style={s.plain}
             onChangeText={(t) => { setPlain(t); commit({ ...snap, plain: t }, "Edited the plain-text part"); }} />
         </ScrollView>
@@ -956,7 +957,8 @@ const s = StyleSheet.create({
   codeShow: { minHeight: 0 },
   codeInput: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, color: "transparent" },
   code: { flex: 1, minWidth: 0, minHeight: 480, padding: 0, backgroundColor: "transparent", color: "var(--ink)" as string, fontFamily: "var(--mono)" as string, fontSize: 12.5, lineHeight: 19 },
-  plain: { width: "100%", maxWidth: 640, minHeight: 480, padding: 24, borderRadius: 10, backgroundColor: "#FFFFFF", color: "#18181A", fontFamily: "var(--mono)" as string, fontSize: 13.5, lineHeight: 21 },
+  plain: { width: "100%", maxWidth: 640, minHeight: 480, padding: 24, borderRadius: 10, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string, color: "var(--ink)" as string, fontFamily: "var(--mono)" as string, fontSize: 13.5, lineHeight: 21 },
+  plainHint: { width: "100%", maxWidth: 640, color: "var(--ink-3)" as string, fontSize: 12.5, marginBottom: 10 },
   pane: { width: 380, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--win)" as string, minHeight: 0 },
   paneBody: { flex: 1 },
   paneContent: { padding: 14, paddingBottom: 24 },

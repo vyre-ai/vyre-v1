@@ -1,5 +1,5 @@
 // Mount for P-L9_09: the EmailBuilder over the prototype's Northwind check-in email. Query (read after mount, ruling 25):
-// ?mode=visual|html|plain, ?focus=1, ?tab=style|ask|preview|checks, ?preview=desktop|mobile|dark, ?space=harbor for Harbor Studio's copy.
+// ?view=visual|html|plain (not ?mode, which the shots harness uses for light or dark), ?focus=1, ?tab=style|ask|preview|checks, ?preview=desktop|mobile|dark, ?space=harbor for Harbor Studio's copy.
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
@@ -35,7 +35,7 @@ export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
   useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
   if (q === null) return <View style={{ flex: 1 }} />;
-  const mode = (["visual", "html", "plain"].includes(q.get("mode") ?? "") ? q.get("mode") : "visual") as EmailMode;
+  const mode = (["visual", "html", "plain"].includes(q.get("view") ?? "") ? q.get("view") : "visual") as EmailMode;
   const tab = (["style", "ask", "preview", "checks"].includes(q.get("tab") ?? "") ? q.get("tab") : "style") as PaneTab;
   const preview = (["desktop", "mobile", "dark"].includes(q.get("preview") ?? "") ? q.get("preview") : "desktop") as EmailPreview;
   return (

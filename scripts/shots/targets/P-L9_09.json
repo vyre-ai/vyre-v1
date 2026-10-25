@@ -9,14 +9,14 @@
     },
     {
       "id": "P-L9_09-html",
-      "route": "/m/P-L9_09?mode=html",
+      "route": "/m/P-L9_09?view=html",
       "proto": "apps,at:campaign:q4/emailhtml,{skin}",
       "waitFor": "[data-testid='em-html']",
       "note": "HTML mode: the compiled email as editable source in the mono face."
     },
     {
       "id": "P-L9_09-plain",
-      "route": "/m/P-L9_09?mode=plain",
+      "route": "/m/P-L9_09?view=plain",
       "proto": "apps,at:campaign:q4/emailplain,{skin}",
       "waitFor": "[data-testid='em-plain']",
       "note": "Plain text mode: the plain-text part as an editable page."

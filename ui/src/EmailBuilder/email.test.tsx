@@ -260,3 +260,12 @@ test("Preview opens as the main canvas with the Desktop, Mobile, Dark and Send t
   assert.match(html, /Hi Elena/);
   assert.match(renderToStaticMarkup(<EmailBuilder {...base} subject="Hi {{first_name}}" paneTab="preview" contacts={CONTACTS} contactId="c2" />), /Hi Omar/);
 });
+
+test("a merge block draws as a chip with its label and prints as {{field}} in the plain part; Plain text mode has its hint", () => {
+  const merge: EmailBlock = { id: "m", kind: "merge", field: "owner_name", text: "owner name" };
+  assert.equal(blocksToPlain([merge]), "{{owner_name}}");
+  const html = renderToStaticMarkup(<EmailBuilder {...base} blocks={[merge]} />);
+  assert.match(html, /data-token="\{\{owner_name\|owner name\}\}"/);
+  assert.ok(html.includes(">owner name<"), "the chip shows the label, not the token");
+  assert.match(renderToStaticMarkup(<EmailBuilder {...base} mode="plain" />), /Made from your blocks\. Edit it to write your own\./);
+});
