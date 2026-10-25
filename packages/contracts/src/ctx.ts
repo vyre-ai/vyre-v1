@@ -13,6 +13,18 @@ export interface EmitOpts { idempotencyKey?: string; vis?: EventEnvelope['vis'];
  */
 export interface CallOpts { idempotencyKey?: string; traceId?: string; approvalToken?: string; onBehalfOf?: string }
 export interface Logger { debug(msg: string, attrs?: Record<string, unknown>): void; info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void; error(msg: string, attrs?: Record<string, unknown>): void }
+/** What the host knows about one stored blob. `id` is opaque; `sha256` is the hex digest of the plain bytes. */
+export interface BlobMeta { id: string; contentType: string; size: number; sha256: string; createdAt: number }
+/**
+ * ctx.blobs: binary storage scoped to the calling module (ARCH 4.1). A module sees only blobs it put itself; asking for another module's id is refused
+ * (permission.no_grant), an id nobody stored is absent (get and stat return null, delete returns false). put refuses a blob over the size limit or a module over its quota (validation.too_large).
+ */
+export interface Blobs {
+  put(bytes: Uint8Array, contentType: string): Promise<BlobMeta>;
+  get(id: string): Promise<{ meta: BlobMeta; bytes: Uint8Array } | null>;
+  stat(id: string): Promise<BlobMeta | null>;
+  delete(id: string): Promise<boolean>;
+}
 export interface Sealed { keyId: string; nonce: string; bytes: string }
 
 export interface Ctx {
@@ -35,4 +47,6 @@ export interface Ctx {
   log: Logger;
   schedule(at: number | string, cap: CapName, input: unknown): Promise<string>;
   seal: { seal(v: Uint8Array, scope: string): Sealed; unseal(s: Sealed): Uint8Array };
+  /** Present on a booted daemon; a hand-built test ctx may omit it. */
+  blobs?: Blobs;
 }

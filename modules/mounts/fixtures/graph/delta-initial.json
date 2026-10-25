@@ -1,0 +1,10 @@
+{
+  "changed": [
+    { "id": "root", "name": "root", "folder": true },
+    { "id": "m1", "name": "Policies", "folder": true, "parentId": "root", "lastModifiedDateTime": "2026-10-01T00:00:00Z" },
+    { "id": "m2", "name": "handbook.pdf", "size": 100, "lastModifiedDateTime": "2026-10-01T00:30:00Z", "parentId": "m1" },
+    { "id": "m3", "name": "readme.md", "size": 40, "lastModifiedDateTime": "2026-10-01T01:00:00Z", "parentId": "root" }
+  ],
+  "removed": [],
+  "deltaLink": "dl1"
+}

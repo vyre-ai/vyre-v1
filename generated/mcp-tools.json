@@ -32614,7 +32614,8 @@
               "health.degraded",
               "problem.report",
               "member.joined",
-              "limit.hit"
+              "limit.hit",
+              "vault.rotation_due"
             ],
             "type": "string"
           },
@@ -35461,6 +35462,48 @@
     },
     {
       "blocks": [],
+      "cap": "records.view",
+      "deferred": false,
+      "description": "Read a saved view of a record type resolved for the table: the view definition and its rows with the saved filter, sort and group applied, a page at a time",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "viewId": {
+            "examples": [
+              "viw_a1b2c3"
+            ],
+            "pattern": "^viw_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "viewId"
+        ],
+        "type": "object"
+      },
+      "name": "records_view",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "reports.get",
       "deferred": false,
       "description": "Read one report",
@@ -36130,6 +36173,9 @@
                 "routine",
                 "campaign",
                 "deployment",
+                "connector_sync",
+                "connector_build",
+                "import",
                 "runbook",
                 "wait",
                 "terminal",
@@ -38147,6 +38193,9 @@
             "description": "Any JSON value"
           },
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -38170,6 +38219,9 @@
       "inputSchema": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -38307,6 +38359,9 @@
       "inputSchema": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -38329,6 +38384,9 @@
       "inputSchema": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           }
         },
@@ -38373,6 +38431,9 @@
       "inputSchema": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           },
           "value": {
@@ -38399,6 +38460,9 @@
       "inputSchema": {
         "properties": {
           "key": {
+            "examples": [
+              "appearance.mode"
+            ],
             "type": "string"
           },
           "value": {

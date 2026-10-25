@@ -53,8 +53,24 @@ test("compose: the database is on an internal-only network with no published por
 
 // ---- a scripted Documenso -----------------------------------------------------------------------------------
 
-interface Recipient { id: number; name: string; email: string; role: string; signingOrder?: number; signingStatus: "NOT_SIGNED" | "SIGNED" | "REJECTED"; readStatus: "NOT_OPENED" | "OPENED"; rejectionReason?: string }
-interface Doc { id: number; title: string; externalId: string; status: "DRAFT" | "PENDING" | "COMPLETED" | "REJECTED"; recipients: Recipient[]; meta: Record<string, unknown>; pdf?: Uint8Array }
+interface Recipient { id: number; name: string; email: string; role: string; signingOrder?: number; signingStatus: "NOT_SIGNED" | "SIGNED" | "REJECTED"; readStatus: "NOT_OPENED" | "OPENED"; rejectionReason?: string; fields?: unknown[] }
+interface Doc { id: number; title: string; externalId: string; status: "DRAFT" | "PENDING" | "COMPLETED" | "REJECTED" | "CANCELLED"; recipients: Recipient[]; meta: Record<string, unknown>; pdf?: Uint8Array; fileName?: string }
+
+const envelopeOf = (id: number): string => `envelope_${id}`;
+const idOf = (ref: string): number => Number(ref.replace("envelope_", ""));
+
+/** Reads the `payload` JSON part and the `files` bytes out of a multipart body, the way Documenso's create endpoint does. */
+function readMultipart(contentType: string, body: Uint8Array): { payload: any; file: Uint8Array; fileName: string } {   // eslint-disable-line @typescript-eslint/no-explicit-any
+  const boundary = /boundary=(.+)$/.exec(contentType)![1]!;
+  const text = new TextDecoder("latin1").decode(body);
+  const parts = text.split(`--${boundary}`).filter((x) => x.includes("Content-Disposition"));
+  const section = (name: string) => parts.find((x) => x.includes(`name="${name}"`))!;
+  const payload = JSON.parse(section("payload").split("\r\n\r\n")[1]!.replace(/\r\n$/, ""));
+  const f = section("files");
+  const fileName = /filename="([^"]*)"/.exec(f)![1]!;
+  const raw = f.slice(f.indexOf("\r\n\r\n") + 4).replace(/\r\n$/, "");
+  return { payload, file: Uint8Array.from(raw, (c) => c.charCodeAt(0)), fileName };
+}
 
 class FakeDocumenso {
   docs = new Map<number, Doc>();
@@ -67,33 +83,45 @@ class FakeDocumenso {
     const u = new URL(url);
     const method = init.method ?? "GET";
     const auth = init.headers?.Authorization;
-    this.log.push({ method, path: u.pathname, auth, ...(typeof init.body === "string" ? { body: JSON.parse(init.body) } : {}) });
+    const ctype = init.headers?.["Content-Type"] ?? "";
+    const multipart = ctype.startsWith("multipart/form-data") && init.body instanceof Uint8Array ? readMultipart(ctype, init.body) : undefined;
+    this.log.push({ method, path: u.pathname, auth, ...(multipart ? { body: multipart.payload } : typeof init.body === "string" ? { body: JSON.parse(init.body) } : {}) });
     const reply = (status: number, body: unknown = {}): HttpResponse => ({
       status, ok: status >= 200 && status < 300, json: async () => body, arrayBuffer: async () => (body instanceof Uint8Array ? body.slice().buffer : new ArrayBuffer(0)),
     });
     if (this.down) return reply(503);
     if (u.pathname === "/api/health") return reply(200, { status: "ok" });
-    if (u.pathname.startsWith("/upload/")) {
-      const doc = this.docs.get(Number(u.pathname.split("/")[2]));
-      if (!doc || !(init.body instanceof Uint8Array)) return reply(400);
-      doc.pdf = init.body;
-      return reply(200);
-    }
-    if (u.pathname.startsWith("/signed/")) return reply(200, SIGNED_PDF);
-    if (u.pathname.startsWith("/api/v1/") && auth !== this.token) return reply(401);
-    if (method === "POST" && u.pathname === "/api/v1/documents") {
-      const b = JSON.parse(String(init.body)) as { title: string; externalId: string; recipients: { name: string; email: string; role: string; signingOrder?: number }[]; meta: Record<string, unknown> };
+    if (u.pathname.startsWith("/api/v2/") && auth !== this.token) return reply(401);
+    if (method === "POST" && u.pathname === "/api/v2/envelope/create") {
+      if (!multipart) return reply(400);
+      const b = multipart.payload as { title: string; externalId: string; recipients: { name: string; email: string; role: string; signingOrder?: number; fields?: unknown[] }[]; meta: Record<string, unknown> };
       const id = ++this.seq;
-      this.docs.set(id, { id, title: b.title, externalId: b.externalId, status: "DRAFT", meta: b.meta, recipients: b.recipients.map((r, i) => ({ id: id * 10 + i, ...r, signingStatus: "NOT_SIGNED", readStatus: "NOT_OPENED" })) });
-      return reply(200, { uploadUrl: `http://documenso.test/upload/${id}`, documentId: id, recipients: [] });
+      this.docs.set(id, {
+        id, title: b.title, externalId: b.externalId, status: "DRAFT", meta: b.meta, pdf: multipart.file, fileName: multipart.fileName,
+        recipients: b.recipients.map((r, i) => ({ id: id * 10 + i, ...r, signingStatus: "NOT_SIGNED", readStatus: "NOT_OPENED" })),
+      });
+      return reply(200, { id: envelopeOf(id) });
     }
-    const m = u.pathname.match(/^\/api\/v1\/documents\/(\d+)(\/send|\/download)?$/);
-    const doc = m ? this.docs.get(Number(m[1])) : undefined;
-    if (!m || !doc) return reply(404);
-    if (method === "POST" && m[2] === "/send") { doc.status = "PENDING"; return reply(200, { message: "sent" }); }
-    if (method === "GET" && m[2] === "/download") return reply(200, { downloadUrl: `http://documenso.test/signed/${doc.id}` });
-    if (method === "GET" && !m[2]) return reply(200, { id: doc.id, title: doc.title, externalId: doc.externalId, status: doc.status, recipients: doc.recipients });
-    if (method === "DELETE") { this.docs.delete(doc.id); return reply(200, {}); }
+    if (method === "POST" && u.pathname === "/api/v2/envelope/distribute") {
+      const doc = this.docs.get(idOf(String((JSON.parse(String(init.body)) as { envelopeId: string }).envelopeId)));
+      if (!doc) return reply(404);
+      doc.status = "PENDING";
+      return reply(200, { success: true, id: envelopeOf(doc.id), recipients: doc.recipients.map((r) => ({ id: r.id, name: r.name, email: r.email, token: `tok_${r.id}`, role: r.role, signingOrder: r.signingOrder ?? null, signingUrl: `http://documenso.test/sign/tok_${r.id}` })) });
+    }
+    if (method === "POST" && u.pathname === "/api/v2/envelope/cancel") {
+      const doc = this.docs.get(idOf(String((JSON.parse(String(init.body)) as { envelopeId: string }).envelopeId)));
+      if (!doc) return reply(404);
+      doc.status = "CANCELLED";
+      return reply(200, { success: true });
+    }
+    const item = u.pathname.match(/^\/api\/v2\/envelope\/item\/envelope_item_(\d+)\/download$/);
+    if (method === "GET" && item) return this.docs.has(Number(item[1])) && u.searchParams.get("version") === "signed" ? reply(200, SIGNED_PDF) : reply(404);
+    const one = u.pathname.match(/^\/api\/v2\/envelope\/(envelope_\d+)$/);
+    const doc = one ? this.docs.get(idOf(one[1]!)) : undefined;
+    if (method === "GET" && one) {
+      if (!doc) return reply(404);
+      return reply(200, { id: envelopeOf(doc.id), title: doc.title, externalId: doc.externalId, status: doc.status, recipients: doc.recipients, envelopeItems: [{ id: `envelope_item_${doc.id}` }] });
+    }
     return reply(405);
   };
 
@@ -114,7 +142,7 @@ class FakeDocumenso {
 /** The webhook body Documenso posts: the event name, the document with its recipients, a timestamp. */
 function hookBody(server: FakeDocumenso, event: string, id: number, at: string): unknown {
   const doc = server.docs.get(id)!;
-  return { event, payload: { id, externalId: doc.externalId, title: doc.title, status: doc.status, Recipient: doc.recipients }, createdAt: at, webhookEndpoint: "https://space.example/hooks/esign" };
+  return { event, payload: { id, envelopeId: envelopeOf(id), externalId: doc.externalId, title: doc.title, status: doc.status, Recipient: doc.recipients }, createdAt: at, webhookEndpoint: "https://space.example/hooks/esign" };
 }
 
 function rig() {
@@ -130,28 +158,44 @@ const hook = (h: Harness, payload: unknown) => h.call("esign.hook", { provider: 
 
 // ---- REST client --------------------------------------------------------------------------------------------
 
-test("client: create posts the recipients, uploads the PDF to the returned address, then sends; the token goes in the Authorization header as is", async () => {
+test("client: create sends the PDF and each signer with a signature field in one multipart call, then distributes; the token goes in the Authorization header as is", async () => {
   const server = new FakeDocumenso();
   const provider = documenso({ baseUrl: "http://documenso.test", apiToken: server.token, http: server.http });
   const req: EnvelopeRequest = { envelopeId: "env_abc", title: "Retainer", fileName: "Retainer.pdf", pdf: PDF, signers: [{ name: "A", email: "a@x.example", order: 1 }, { name: "B", email: "b@x.example", order: 2 }] };
   const { ref } = await provider.create(req);
-  assert.equal(ref, "101");
-  assert.deepEqual(server.log.map((l) => `${l.method} ${l.path}`), ["POST /api/v1/documents", "PUT /upload/101", "POST /api/v1/documents/101/send"]);
+  assert.equal(ref, "envelope_101");
+  assert.deepEqual(server.log.map((l) => `${l.method} ${l.path}`), ["POST /api/v2/envelope/create", "POST /api/v2/envelope/distribute"]);
   assert.equal(server.log[0]!.auth, "api_test_token");
+  assert.deepEqual(server.log[1]!.body, { envelopeId: "envelope_101", meta: { subject: "Please sign: Retainer" } });
   const doc = server.docs.get(101)!;
   assert.equal(doc.externalId, "env_abc");
   assert.equal(doc.status, "PENDING");
+  assert.equal(doc.fileName, "Retainer.pdf");
   assert.deepEqual([...doc.pdf!], [...PDF]);
   assert.deepEqual(doc.recipients.map((r) => [r.email, r.role, r.signingOrder]), [["a@x.example", "SIGNER", 1], ["b@x.example", "SIGNER", 2]]);
+  for (const r of doc.recipients) {
+    const f = r.fields as { type: string; page: number; positionY: number }[];
+    assert.equal(f.length, 1, "Documenso refuses to send a signer without a signature field");
+    assert.equal(f[0]!.type, "SIGNATURE");
+    assert.equal(f[0]!.page, 1);
+  }
+  assert.notEqual((doc.recipients[0]!.fields as { positionY: number }[])[0]!.positionY, (doc.recipients[1]!.fields as { positionY: number }[])[0]!.positionY, "boxes do not overlap");
   assert.equal(doc.meta.signingOrder, "SEQUENTIAL");
   await provider.create({ ...req, signers: [{ name: "A", email: "a@x.example", order: 1 }] });
   assert.equal(server.docs.get(102)!.meta.signingOrder, "PARALLEL");
 });
 
-test("client: status maps Documenso's words, cancel deletes, fetchSigned downloads the signed PDF, health reads /api/health", async () => {
+test("client: a file name that could break the multipart header is made safe", async () => {
+  const server = new FakeDocumenso();
+  const provider = documenso({ baseUrl: "http://documenso.test", apiToken: server.token, http: server.http });
+  await provider.create({ envelopeId: "env_1", title: "T", fileName: 'a"b\r\nX: y.pdf', pdf: PDF, signers: [{ name: "A", email: "a@x.example", order: 1 }] });
+  assert.equal(server.docs.get(101)!.fileName, "a_b__X_ y.pdf");
+});
+
+test("client: status maps Documenso's words, cancel cancels, fetchSigned downloads the signed PDF, health reads /api/health", async () => {
   const { server, provider } = rig();
   const { ref } = await provider.create({ envelopeId: "env_1", title: "T", fileName: "T.pdf", pdf: PDF, signers: [{ name: "Dana", email: "dana@client.example", order: 1 }, { name: "Sam", email: "sam@client.example", order: 1 }] });
-  const id = Number(ref);
+  const id = idOf(ref);
   assert.deepEqual(await provider.status(ref), { state: "sent", signers: [{ name: "Dana", email: "dana@client.example", status: "sent" }, { name: "Sam", email: "sam@client.example", status: "sent" }] });
   server.open(id, "dana@client.example");
   assert.equal((await provider.status(ref)).state, "viewed");
@@ -165,21 +209,21 @@ test("client: status maps Documenso's words, cancel deletes, fetchSigned downloa
   assert.deepEqual(await provider.health!(), { ok: true });
 
   const second = (await provider.create({ envelopeId: "env_2", title: "T", fileName: "T.pdf", pdf: PDF, signers: [{ name: "Dana", email: "dana@client.example", order: 1 }] })).ref;
-  server.reject(Number(second), "dana@client.example", "wrong amount");
+  server.reject(idOf(second), "dana@client.example", "wrong amount");
   assert.deepEqual(await provider.status(second), { state: "declined", signers: [{ name: "Dana", email: "dana@client.example", status: "declined" }], reason: "wrong amount" });
   await provider.cancel(second);
-  assert.equal(server.docs.has(Number(second)), false);
+  assert.equal(server.docs.get(idOf(second))!.status, "CANCELLED");
 });
 
 test("client: a wrong token, a missing document or a server error throws with the status, never a partial result", async () => {
   const server = new FakeDocumenso();
   const bad = documenso({ baseUrl: "http://documenso.test", apiToken: "wrong", http: server.http });
-  await assert.rejects(bad.status("1"), /answered 401/);
+  await assert.rejects(bad.status("envelope_1"), /answered 401/);
   const good = documenso({ baseUrl: "http://documenso.test", apiToken: server.token, http: server.http });
-  await assert.rejects(good.status("999"), /answered 404/);
-  await assert.rejects(good.fetchSigned("999"), /answered 404/);
+  await assert.rejects(good.status("envelope_999"), /answered 404/);
+  await assert.rejects(good.fetchSigned("envelope_999"), /answered 404/);
   server.down = true;
-  await assert.rejects(good.create({ envelopeId: "e", title: "T", fileName: "T.pdf", pdf: PDF, signers: [{ name: "A", email: "a@x.example", order: 1 }] }), /answered 503/);
+  await assert.rejects(good.create({ envelopeId: "e", title: "T", fileName: "T.pdf", pdf: PDF, signers: [{ name: "A", email: "a@x.example", order: 1 }] }), /refused the document \(503\)/);
   assert.deepEqual(await good.health!(), { ok: false, detail: "Documenso answered 503." });
   assert.equal(server.docs.size, 0, "a failed create leaves no document");
 });
@@ -194,7 +238,7 @@ test("webhook: Documenso events read as viewed, signed, completed, declined and 
   for (const [event, kind] of Object.entries(kinds)) {
     const ev = provider.webhook(body(event))!;
     assert.equal(ev.kind, kind, event);
-    assert.equal(ev.ref, "7");
+    assert.equal(ev.ref, "envelope_7");
     assert.deepEqual(ev.recipients, [{ email: "dana@client.example", name: "Dana", read: true, signed: true, rejected: false }]);
   }
   for (const ignored of ["DOCUMENT_CREATED", "DOCUMENT_SENT", "SOMETHING_NEW"]) assert.equal(provider.webhook(body(ignored)), null, ignored);
@@ -212,7 +256,7 @@ test("replay: opened, signed twice, completed. The signed PDF is saved as a new 
   const { envelopeId } = await sendIt(h);
   const id = 101;
   assert.equal(server.docs.get(id)!.status, "PENDING");
-  assert.equal(h.rows("esign_envelope")[0]!.provider_ref, "101");
+  assert.equal(h.rows("esign_envelope")[0]!.provider_ref, "envelope_101");
 
   server.open(id, "dana@client.example");
   await hook(h, hookBody(server, "DOCUMENT_OPENED", id, "2026-10-25T10:00:00Z"));

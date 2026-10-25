@@ -15,6 +15,7 @@
 import { canonical } from "../../../lib/canonical.ts";
 import { formatHlc } from "../../../lib/hlc.ts";
 import { mintUuid } from "../../../lib/ids.ts";
+import { mintRecordId } from "../ids.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { isSealedRef } from "../../../kernel/src/store/values.ts";
 import { StoreError } from "../../../kernel/src/store/types.ts";
@@ -398,7 +399,7 @@ async function upsert(deps: MergeDeps, ctx: MergeCtx, input: { type: string; row
   for (const plan of plans.values()) {
     try {
       if (!plan.existing) {
-        const id = mintUuid();
+        const id = mintRecordId();
         const rec = await store.create(input.type, id, plan.values);
         created++;
         ctx.emit("record.created", `record/${rec.id}`, { recordId: rec.id, type: rec.type, fields: { ...rec.data }, ...(quiet ? { quiet: true } : {}) });

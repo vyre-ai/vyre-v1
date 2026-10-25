@@ -17,13 +17,14 @@ import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
 import { createCtxSeal } from "../ctx/seal.ts";
 import { ScheduleQueue } from "../ctx/schedule.ts";
 import type { ScheduledCall } from "../ctx/schedule.ts";
+import { createBlobStore } from "../ctx/blobs.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
 import { createGateway, indexRoutes } from "../gateway.ts";
 import { withEventIds } from "../ids.ts";
 import type { GatewayDeps, RouteRec } from "../gateway.ts";
 import { createInvoke, createRateLimiter, fail, indexCapabilities, makeError } from "../invoke.ts";
-import type { AuditRow, Handler } from "../invoke.ts";
-import { fileImporter, fileSeamImporter, loadHost, readModuleList } from "../loader.ts";
+import type { AuditRow, Handler, Invoke } from "../invoke.ts";
+import { fileExportsImporter, fileImporter, fileSeamImporter, loadHost, readModuleList } from "../loader.ts";
 import type { RegistryLike } from "../loader.ts";
 import { LogSink } from "../logsink/index.ts";
 import { nodePlatform } from "../platform/index.ts";
@@ -36,12 +37,21 @@ import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
 import { createGateHook } from "./gate-hook.ts";
 import { withGateNesting } from "./gate-nesting.ts";
-import { wireSeams } from "../seams/index.ts";
-import type { SeamDeps, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
+import { createEventsHost } from "../seams/events-ports.ts";
+import type { PostFetch } from "../seams/events-ports.ts";
+import { createPushPort, wireSeams } from "../seams/index.ts";
+import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
 import { createLiveHub } from "../ws.ts";
 import type { LiveHub } from "../ws.ts";
 import { createAccess } from "./access.ts";
+import { createResourceRegistrar } from "../gateway/resources.ts";
 import { fromStored, toNew } from "./commit.ts";
+import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
+import type { HookRunner, ModuleHooks } from "./consumers.ts";
+import { createSpaceStore, spaceStoreDrivers, spaceStorePath } from "./store.ts";
+import { coreOf, createSyncEngine } from "./syncengine.ts";
+import { collectProjections, createProjectionRunner } from "./projections.ts";
+import type { ProjectionRunner } from "./projections.ts";
 import { defaultNetworkPort, pollCommands } from "./commands.ts";
 import type { NetworkPort } from "./commands.ts";
 import { alive, clearInfo, ensureAdminToken, ensureDirs, pathsFor, readInfo, writeInfo } from "./config.ts";
@@ -92,7 +102,18 @@ export interface DaemonOptions {
   /** The Vault, as the connector seams use it. Without one the seams that need a secret refuse, which is right until the Vault module is live. */
   vault?: VaultPort;
   /** The Space ports the Google, Microsoft and IMAP seams read, and (for tests) setters that replace the ones the modules export as `hostSeams`. Omitted ports refuse. */
-  seams?: { setters?: SeamSetters } & Partial<Omit<SeamDeps, "vault">>;
+  seams?: {
+    setters?: SeamSetters;
+    /** more drivers by setter name (a module's own `configureX`), added to the built-in and daemon ones */
+    drivers?: Record<string, SeamDriver>;
+    /** the APNs/FCM transport behind the notifications push port; omitted: pushes are recorded as not pushed */
+    push?: PushTransportDeps;
+    /** the domains a signed webhook may reach; omitted: none */
+    webhookAllow?: () => readonly string[];
+    postFetch?: PostFetch;
+  } & Partial<Omit<SeamDeps, "vault" | "drivers" | "owners">>;
+  /** replace the consumers and periodic jobs read from the live modules' exports (tests) */
+  hooks?: ModuleHooks[];
   /** The key behind ctx.seal. Omitted: a random 32-byte key kept in <data dir>/seal.key (0600). */
   sealKey?: { key: Uint8Array | string; keyId: string };
   /** replace the default session (the local admin token) */
@@ -100,7 +121,7 @@ export interface DaemonOptions {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   /** intervals in ms; tests shorten them */
-  intervals?: { tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number };
+  intervals?: { tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number };
 }
 
 export interface Daemon {
@@ -116,8 +137,12 @@ export interface Daemon {
   db: HostDb | null;
   /** ctx.schedule jobs (Gate timeouts, escalations, retry-later), space role only; the daemon ticks it every second */
   schedule: ScheduleQueue | null;
-  /** which connector seams were wired at boot, space role only */
+  /** which host drivers were wired at boot and which setters had none, space role only */
   seams: WiredSeams | null;
+  /** the module consumers and periodic jobs, space role only */
+  hooks: HookRunner | null;
+  /** the module projections (events.webhooks_out), space role only */
+  projections: ProjectionRunner | null;
   sink: LogSink;
   log: LogClient | null;
   /** run probes now (all by default), write them, and return the results */
@@ -161,6 +186,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let db: HostDb | null = null;
   let queue: ScheduleQueue | null = null;
   let seams: WiredSeams | null = null;
+  let hooks: HookRunner | null = null;
+  let projections: ProjectionRunner | null = null;
   let log: LogClient | null = null;
   const probeState = new Map<ProbeName, ProbeResult>();
   const recent: EventEnvelope[] = [];
@@ -221,9 +248,28 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       headSeq = (await log.currentHead()).seq;
 
       const reg = registry as unknown as RegistryLike;
-      const loaded = await loadHost({ registry: reg, modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")), routes, importer: fileImporter(codeRoot), seamImporter: fileSeamImporter(codeRoot), db, ...(o.http ? { fetch: o.http } : {}) });
-      const caps = [...(registry.capabilities as unknown as CapabilityDef[]), ...(o.extra?.caps ?? [])];
-      const extraCaps = new Set((o.extra?.caps ?? []).map((c) => c.name));
+      const loaded = await loadHost({ registry: reg, modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")), routes, importer: fileImporter(codeRoot), seamImporter: fileSeamImporter(codeRoot), exportsImporter: fileExportsImporter(codeRoot), db, ...(o.http ? { fetch: o.http } : {}) });
+      const registryCaps = registry.capabilities as unknown as CapabilityDef[];
+      // consumers and periodic jobs the live modules export (ruling 32): each runs through the invoke pipeline as a host-only capability that may emit what its module's capabilities emit
+      let invokeRef: Invoke = () => Promise.reject(new Error("the invoke pipeline is not ready"));
+      const hookRunner = createHookRunner({
+        space, now, db, hooks: o.hooks ?? [...loaded.moduleExports].map(([id, ns]) => collectHooks(id, ns)),
+        log: { read: (q) => log!.read(q), currentHead: () => log!.currentHead() },
+        invoke: (cap, input, seed) => invokeRef(cap, input, seed),
+        emitsOf: (m) => [...new Set(registryCaps.filter((c) => (c as { module?: string }).module === m).flatMap((c) => c.emits as string[]))],
+        capOf: (m) => registryCaps.find((c) => (c as { module?: string }).module === m),
+        warn: (msg, attrs) => sink.log({ space: space!, level: 30, msg, place: "hooks", ...(attrs ? { attrs } : {}) }),
+      });
+      hooks = hookRunner;
+      // the async projections the live modules export (P-H_07): the events module's webhooks_out turns subscribed events into signed deliveries
+      const projectionRunner = createProjectionRunner({
+        now, db, log: { read: (q) => log!.read(q), currentHead: () => log!.currentHead() },
+        projections: [...loaded.moduleExports.values()].flatMap((ns) => collectProjections(ns)),
+        warn: (msg, attrs) => sink.log({ space: space!, level: 30, msg, place: "projections", ...(attrs ? { attrs } : {}) }),
+      });
+      projections = projectionRunner;
+      const caps = [...registryCaps, ...(o.extra?.caps ?? []), ...hookRunner.caps];
+      const extraCaps = new Set([...(o.extra?.caps ?? []), ...hookRunner.caps].map((c) => c.name));
       const extraEvents = new Set([...(o.extra?.events ?? []), ...(o.extra?.caps ?? []).flatMap((c) => c.emits as string[])]);
       const idem = log.idempotency();
       const sinkLog = sink.invokeLogger(space);
@@ -240,7 +286,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         onError: (c, e, final) => sinkLog.warn("schedule.failed", { cap: c.cap, id: c.id, tries: c.tries + 1, final, error: e instanceof Error ? e.message : String(e) }),
       });
       queue = scheduleQueue;
-      const seal = createCtxSeal(o.sealKey ?? { key: sealKeyFile(path.join(paths.root, "seal.key")), keyId: "k1" });
+      const sealKey = o.sealKey ?? { key: sealKeyFile(path.join(paths.root, "seal.key")), keyId: "k1" };
+      const seal = createCtxSeal(sealKey);
+      const blobs = createBlobStore({ dir: path.join(paths.root, "blobs", "ctx"), key: sealKey.key, now });
 
       // The Gate hook, only once the Gate module is live (a stub answers with examples, which must never decide a send). Its questions and parked calls run as the Space itself.
       const gate = loaded.serving.get("gate") === "live"
@@ -264,10 +312,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         validateInput: (cap, v, input) => (extraCaps.has(cap) ? [] : validateInput(cap, v, input)),
         validateEvent: (name, payload) => (extraEvents.has(name) ? [] : validateEvent(name, payload)),
         authorize: (r) => authorize(access.snap, r),
-        handler: (cap, v) => o.extra?.handlers?.[cap] ?? loaded.handler(cap, v),
-        services: hostServices({ base: loaded.services, seal, queue: scheduleQueue }),
+        handler: (cap, v) => o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v),
+        services: hostServices({ base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs }),
         idem, rate: createRateLimiter(), now, log: sinkLog,
         ...(gate ? { gate } : {}),
+        // P-H_16: an object a call creates is a resource in the same commit, so it is authorizable at once
+        resources: createResourceRegistrar({ events: registry.events, exists: (id) => access.snap.resource(id) !== undefined }),
         commit: withEventIds(async (b) => {
           const trace = b.events[0]?.traceId ?? ZERO_TRACE;
           if (chainBroken) throw fail("internal.unavailable", trace, { message: "The event log failed verification, so this server is not accepting changes. Run vyre-server doctor." });
@@ -283,11 +333,42 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           recent.push(...events);
           if (recent.length > RING) recent.splice(0, recent.length - RING);
           hub?.publish(spaceId, events);
+          void hookRunner.pump().catch((e: unknown) => sink.log({ space: spaceId, level: 30, msg: "hooks.pump_failed", place: "hooks", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+          void projectionRunner.pump().catch((e: unknown) => sink.log({ space: spaceId, level: 30, msg: "projections.pump_failed", place: "projections", attrs: { error: e instanceof Error ? e.message : String(e) } }));
         },
         onSpan: (s) => sink.span({ trace_id: s.traceId, span_id: s.spanId, parent: s.parent ?? null, name: s.name, at: s.startedAt, dur_us: s.ms * 1000, attrs: { cap: s.cap, status: s.status } }),
       });
 
-      runScheduled = invokeRunner(invoke);
+      // A job the host itself scheduled (a webhook retry from the events consumer) runs as the host service, which authorize does not know: it is pre-authorized like the hook that scheduled it.
+      const runAsScheduled = invokeRunner(invoke);
+      runScheduled = (call) => (call.principal.id === SYSTEM_PRINCIPAL.id
+        ? invoke(call.cap, call.input, { space: call.space, principal: call.principal, preAuth: true, origin: "schedule", ...(call.traceId ? { trace: { traceId: call.traceId, spanId: "0".repeat(16) } } : {}) }).then(() => undefined)
+        : runAsScheduled(call));
+      invokeRef = invoke;
+      closers.push(() => hookRunner.pump().catch(() => {}));   // finish the pass in flight before the databases close
+      closers.push(() => projectionRunner.pump().catch(() => {}));
+      await hookRunner.start();
+      // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
+      const spaceLog = log;
+      const system = (cap: string, input: unknown): Promise<unknown> =>
+        invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
+      // the Space record store the L3 data modules share (P-H_08): one file in the data directory, opened by the first module that needs it, closed at shutdown
+      const spaceStore = createSpaceStore({ path: spaceStorePath(paths.root), space: spaceId });
+      closers.push(() => spaceStore.close());
+      const hostDrivers: Record<string, SeamDriver> = {
+        setPushPort: () => createPushPort(o.seams?.push),
+        setEventsDispatch: () => system,
+        // the import module reads an Airtable or Notion key from the Vault by handle, for one call
+        setImportHost: (d) => ({ secret: (_ctx: unknown, handle: string) => d.vault.secret(handle.startsWith("#") ? handle : `#${handle}`, d.space) }),
+        setEventsHost: () => createEventsHost({
+          reader: { source: { read: (q) => spaceLog.read(q), head: async () => (await spaceLog.currentHead()).seq }, access: () => access.snap, owner: () => cfg.owner ?? access.owner() ?? null, now },
+          post: { allow: o.seams?.webhookAllow ?? (() => []), now, ...(o.seams?.postFetch ? { fetch: o.seams.postFetch } : {}) },
+        }),
+        ...spaceStoreDrivers(spaceStore),
+        // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
+        setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open() }, now }),
+        ...(o.seams?.drivers ?? {}),
+      };
       const setters = o.seams?.setters ?? loaded.hostSeams;
       if (Object.keys(setters).length) {
         const none = (what: string) => () => Promise.reject(new Error(`${what} is not available on this server yet.`));
@@ -299,9 +380,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           ...(o.seams?.fetch ? { fetch: o.seams.fetch } : {}),
           // where Mailgun posts inbound mail: the address people reach this Space at, else the local URL (read at call time, the port is known only after listen)
           publicUrl: o.seams?.publicUrl ?? (async () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }),
+          drivers: hostDrivers, owners: loaded.seamOwners,
         });
         closers.push(() => seams?.unwire());
+        const gaps = seams.missing;
+        for (const m of gaps) sink.log({ space: spaceId, level: 30, msg: "seam.no_driver", place: "boot", attrs: { setter: m.setter, ...(m.module ? { module: m.module } : {}), reason: m.reason } });
+        // health lists only what is missing: a Space with every driver set has no row, so the eight host probes stay the eight
+        if (gaps.length) {
+          const detail = `Not set up: ${gaps.map((m) => `${m.module ?? "a module"} (${m.setter})`).join(", ")}.`;
+          db!.run(
+            "INSERT INTO health_probe (name, state, detail, latency_ms, values_json, at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET state = excluded.state, detail = excluded.detail, latency_ms = excluded.latency_ms, values_json = excluded.values_json, at = excluded.at",
+            "module_drivers", "degraded", detail, null, JSON.stringify({ missing: gaps.length, wired: seams.wired.length }), now(),
+          );
+        } else db!.run("DELETE FROM health_probe WHERE name = ?", "module_drivers");
       }
+
+      await projectionRunner.start();   // after the seams: the events module needs its dispatcher and host ports before the first event reaches webhooks_out
 
       const owner = (): string => cfg.owner ?? access.owner() ?? "usr_owner";
       const session: GatewayDeps["session"] = o.session ?? ((headers) => {
@@ -395,6 +489,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   if (hasSpace) {
     scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });
     scheduler.add({ name: "schedule.tick", schedule: { everyMs: o.intervals?.tick ?? 1000 }, run: async () => { await queue?.tick(); } });
+    scheduler.add({ name: "projections.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await projections?.pump(); } });
+    scheduler.add({ name: "hooks.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await hooks?.pump(); } });   // the backstop for a consumer that failed, and for events committed by another process
+    for (const p of hooks?.periodic ?? []) scheduler.add({ name: `hook.${p.name}`, schedule: { everyMs: p.everyMs }, run: async () => { await hooks?.runPeriodic(p.name); } });
     scheduler.add({ name: "idempotency.purge", schedule: { daily: { hour: 4, minute: 0 } }, run: async () => { await log?.purgeIdempotency(); } });
   }
 
@@ -405,6 +502,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     version: cfg.version, roles: cfg.roles, space, head: headSeq, startedAt,
     services: supervisor.status().map((s) => ({ name: s.name, state: s.state, restarts: s.restarts })),
     probes: Object.fromEntries([...probeState].map(([k, v]) => [k, v.state])),
+    drivers: { wired: seams?.wired ?? [], missing: seams?.missing ?? [] },
   });
 
   const coerce = (method: string, p: string, query: Record<string, string>): Record<string, unknown> => {
@@ -459,7 +557,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
   let stopped = false;
   return {
-    url: `http://${cfg.host}:${boundPort}`, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, sink, log,
+    url: `http://${cfg.host}:${boundPort}`, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log,
     runProbes, pollCommands: runCommands,
     async stop() {
       if (stopped) return;

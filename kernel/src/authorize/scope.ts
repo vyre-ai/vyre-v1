@@ -104,8 +104,17 @@ export function scopeFor(snap: AccessSnapshot, q: ScopeForReq): ScopeResult {
     if (q.actingFor && q.actingFor !== q.principal) { const a = snap.info(q.actingFor); if (!a) return empty("not_a_member"); if (!subjects.includes(a)) subjects.push(a); }
   }
   const preds = subjects.map((s) => subjectPred(snap, s, q));
+  // Same rule as authorize: per subject a field is hidden only if every type-wide grant that reaches that subject hides it; across subjects the hidden sets union.
+  const rank = rankOf(q.level);
   const hidden = new Set<string>();
-  for (const g of snap.typeWide(q.entityType) ?? []) for (const f of g.hidden) hidden.add(f);
+  for (const s of subjects) {
+    let own: string[] | null = null;
+    for (const g of snap.typeWide(q.entityType) ?? []) {
+      if (!s.keys.has(g.key) || g.rank < rank || !live(g, q.now)) continue;
+      own = own === null ? [...g.hidden] : own.filter((f) => g.hidden.includes(f));
+    }
+    for (const f of own ?? []) hidden.add(f);
+  }
   return { predicate: and(preds), level: q.level, hiddenFields: [...hidden], labelCeiling: Math.min(...subjects.map((s) => s.clearance)) };
 }
 

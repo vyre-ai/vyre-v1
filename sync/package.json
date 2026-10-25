@@ -3,6 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "exports": { "./protocol": "./src/protocol.ts" },
-  "description": "Sync protocol (ARCH 5): frozen wire types, validators and the handshake decision."
+  "exports": {
+    "./protocol": "./src/protocol.ts"
+  },
+  "description": "Sync protocol (ARCH 5): frozen wire types, validators and the handshake decision.",
+  "dependencies": {
+    "y-protocols": "1.0.6",
+    "yjs": "13.6.27"
+  }
 }

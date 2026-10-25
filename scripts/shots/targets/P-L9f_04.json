@@ -1,0 +1,49 @@
+{
+  "targets": [
+    {
+      "id": "P-L9f_04-vault-northwind",
+      "route": "/m/P-L9f_04",
+      "proto": "vault,{skin}",
+      "waitFor": "[data-testid='env-card']",
+      "note": "The Vault over the Northwind sample Space: sidebar (All, AI providers, Keys, Logins, Cards, Health, Shared folders, Mine, Advanced), the item list sorted by last use with the dot on rows worth a look, and GoHighLevel open as a .env block with every value hidden. At 390 px the list shows alone with the section menu in its header."
+    },
+    {
+      "id": "P-L9f_04-vault-fields",
+      "route": "/m/P-L9f_04?view=fields",
+      "proto": "vault,at:detail-fields,{skin}",
+      "waitFor": "[data-testid='env-card']",
+      "note": "The same item in the Fields view: key, Secret or Plain mark and the hidden value on each row."
+    },
+    {
+      "id": "P-L9f_04-vault-add",
+      "route": "/m/P-L9f_04?sheet=add&paste=GHL_PIT%3Dpit-7c1e4a2b-90d1-4b9e-8a52-3e6d1f0aa417%0AGHL_LOCATION_ID%3DnwLoc7Kq2mXpR4vLnTzB",
+      "proto": "vault,at:paste,{skin}",
+      "waitFor": "[data-testid='add-status']",
+      "note": "The Add sheet after a .env was pasted: the reel of apps, the one-line status with Undo, the name and handle, and a field per line."
+    },
+    {
+      "id": "P-L9f_04-vault-edit",
+      "route": "/m/P-L9f_04?sheet=edit",
+      "proto": "vault,at:edit,{skin}",
+      "waitFor": "[data-testid='edit-sheet']",
+      "note": "The Edit sheet in .env view with the diff line (no changes yet) and the masked values."
+    },
+    {
+      "id": "P-L9f_04-vault-harbor",
+      "route": "/m/P-L9f_04?space=harbor",
+      "proto": "vault,space:harbor,{skin}",
+      "waitFor": "[data-testid='env-card']",
+      "note": "The same place over the Harbor Studio sample Space (five items, one folder, one provider)."
+    },
+    {
+      "id": "P-L9f_04-vault-scroll",
+      "route": "/m/P-L9f_04?rows=10000",
+      "proto": "vault,{skin}",
+      "scroll": {
+        "selector": "[data-testid=\"virtual-list\"]:has([data-testid=\"row-vit_x0\"])"
+      },
+      "waitFor": "[data-testid='row-vit_x0']",
+      "note": "Ten thousand more keys in the list; the scroll probe takes the p95 frame interval over the full scroll of the virtual list."
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 // Documenso provider and the inbound webhook (spec 2.20, 3.6; ARCH 8.4). Documenso runs unmodified as its own container (images/documenso: pinned digest,
 // Postgres sidecar on an internal-only network); Vyre only calls its REST API with an API token. Its AGPL licence is fine because Vyre never forks or links it.
-// The API client targets Documenso's v1 REST API: create a document with its recipients, upload the PDF to the returned address, send it, then read status or download.
+// The API client targets Documenso's v2 REST API: create an envelope in one multipart call (the PDF and each signer with a signature field), distribute it, then read status or download.
+// The v1 API needs S3 upload transport, which the pinned compose (database transport) does not have.
 // esign.hook turns a provider webhook into envelope changes. A webhook is a hint: "signed" and "declined" are applied only after the provider's own API confirms them.
 // The route that receives the POST checks Documenso's shared secret header before calling the handler; the handler checks that the document is one of ours.
 // @reads ../../../images/documenso/documenso.lock
@@ -81,46 +82,78 @@ function mapStatus(doc: Obj): ProviderStatus {
   return out;
 }
 
+/** A multipart/form-data body with a JSON `payload` part and one PDF `files` part, built by hand because the injected HttpFn takes bytes. */
+export function multipartPdf(boundary: string, payload: unknown, fileName: string, pdf: Uint8Array): Uint8Array {
+  const enc = new TextEncoder();
+  const safeName = fileName.replace(/[^A-Za-z0-9._ -]/g, "_") || "document.pdf";
+  const head = enc.encode(`--${boundary}\r\nContent-Disposition: form-data; name="payload"\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(payload)}\r\n`
+    + `--${boundary}\r\nContent-Disposition: form-data; name="files"; filename="${safeName}"\r\nContent-Type: application/pdf\r\n\r\n`);
+  const tail = enc.encode(`\r\n--${boundary}--\r\n`);
+  const out = new Uint8Array(head.length + pdf.length + tail.length);
+  out.set(head, 0);
+  out.set(pdf, head.length);
+  out.set(tail, head.length + pdf.length);
+  return out;
+}
+
+/** Where each signer's signature box goes: page 1, left margin, one box per signer stacked upwards from the bottom (percent of the page). */
+function signatureBox(index: number): { page: number; positionX: number; positionY: number; width: number; height: number } {
+  return { page: 1, positionX: 10, positionY: Math.max(5, 85 - index * 12), width: 30, height: 8 };
+}
+
 export function documenso(o: DocumensoOptions): EsignProvider {
   const base = o.baseUrl.replace(/\/+$/, "");
-  const headers = { Authorization: o.apiToken, "Content-Type": "application/json" };
+  const auth = { Authorization: o.apiToken };
 
   async function api(method: string, path: string, body?: unknown): Promise<unknown> {
-    const res = await o.http(`${base}/api/v1${path}`, { method, headers, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const res = await o.http(`${base}/api/v2${path}`, { method, headers: { ...auth, ...(body === undefined ? {} : { "Content-Type": "application/json" }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     if (!res.ok) throw new Error(`Documenso answered ${res.status} for ${method} ${path}`);
     return res.status === 204 ? {} : res.json();
+  }
+
+  async function envelope(ref: string): Promise<Obj> {
+    const doc = await api("GET", `/envelope/${encodeURIComponent(ref)}`);
+    if (!isObj(doc)) throw new Error("Documenso returned no envelope");
+    return doc;
   }
 
   return {
     async create(req: EnvelopeRequest): Promise<{ ref: string }> {
       const sequential = req.signers.some((x) => x.order > 1);
-      const made = await api("POST", "/documents", {
-        title: req.title, externalId: req.envelopeId,
-        recipients: req.signers.map((x) => ({ name: x.name, email: x.email, role: "SIGNER", signingOrder: x.order })),
-        meta: { signingOrder: sequential ? "SEQUENTIAL" : "PARALLEL", subject: `Please sign: ${req.title}` },
+      const payload = {
+        type: "DOCUMENT", title: req.title, externalId: req.envelopeId,
+        recipients: req.signers.map((x, i) => ({
+          name: x.name, email: x.email, role: "SIGNER", signingOrder: x.order,
+          fields: [{ type: "SIGNATURE", identifier: 0, ...signatureBox(i), fieldMeta: { type: "signature", required: true } }],
+        })),
+        meta: { signingOrder: sequential ? "SEQUENTIAL" : "PARALLEL", subject: `Please sign: ${req.title}`, distributionMethod: "EMAIL" },
+      };
+      const boundary = `vyre${req.envelopeId.replace(/[^A-Za-z0-9]/g, "")}`;
+      const made = await o.http(`${base}/api/v2/envelope/create`, {
+        method: "POST", headers: { ...auth, "Content-Type": `multipart/form-data; boundary=${boundary}` }, body: multipartPdf(boundary, payload, req.fileName, req.pdf),
       });
-      if (!isObj(made) || typeof made.uploadUrl !== "string" || (typeof made.documentId !== "number" && typeof made.documentId !== "string")) throw new Error("Documenso returned no upload address");
-      const put = await o.http(made.uploadUrl, { method: "PUT", headers: { "Content-Type": "application/pdf" }, body: req.pdf });
-      if (!put.ok) throw new Error(`Documenso refused the PDF upload (${put.status})`);
-      const ref = String(made.documentId);
-      await api("POST", `/documents/${encodeURIComponent(ref)}/send`, { sendEmail: true });
+      if (!made.ok) throw new Error(`Documenso refused the document (${made.status})`);
+      const json = await made.json();
+      if (!isObj(json) || typeof json.id !== "string" || json.id === "") throw new Error("Documenso returned no envelope id");
+      const ref = json.id;
+      await api("POST", "/envelope/distribute", { envelopeId: ref, meta: { subject: `Please sign: ${req.title}` } });
       return { ref };
     },
 
     async status(ref: string): Promise<ProviderStatus> {
-      const doc = await api("GET", `/documents/${encodeURIComponent(ref)}`);
-      if (!isObj(doc)) throw new Error("Documenso returned no document");
-      return mapStatus(doc);
+      return mapStatus(await envelope(ref));
     },
 
     async cancel(ref: string): Promise<void> {
-      await api("DELETE", `/documents/${encodeURIComponent(ref)}`);
+      await api("POST", "/envelope/cancel", { envelopeId: ref });
     },
 
     async fetchSigned(ref: string): Promise<SignedFiles> {
-      const link = await api("GET", `/documents/${encodeURIComponent(ref)}/download`);
-      if (!isObj(link) || typeof link.downloadUrl !== "string") throw new Error("Documenso returned no download address");
-      const res = await o.http(link.downloadUrl, { method: "GET", headers: { Authorization: o.apiToken } });
+      const doc = await envelope(ref);
+      const items = Array.isArray(doc.envelopeItems) ? doc.envelopeItems.filter(isObj) : [];
+      const first = items[0];
+      if (!first || typeof first.id !== "string") throw new Error("Documenso returned no document to download");
+      const res = await o.http(`${base}/api/v2/envelope/item/${encodeURIComponent(first.id)}/download?version=signed`, { method: "GET", headers: auth });
       if (!res.ok) throw new Error(`Documenso refused the download (${res.status})`);
       // the signing certificate is part of the signed PDF in Documenso, so there is no second file
       return { pdf: new Uint8Array(await res.arrayBuffer()) };
@@ -129,7 +162,7 @@ export function documenso(o: DocumensoOptions): EsignProvider {
     webhook(payload: unknown): WebhookEvent | null {
       if (!isObj(payload) || typeof payload.event !== "string" || !isObj(payload.payload)) throw new ProviderPayloadError("That is not a Documenso webhook.");
       const doc = payload.payload;
-      const id = doc.id;
+      const id = typeof doc.envelopeId === "string" && doc.envelopeId !== "" ? doc.envelopeId : doc.id;
       if (typeof id !== "number" && typeof id !== "string") throw new ProviderPayloadError("The webhook names no document.");
       const kinds: Record<string, WebhookEvent["kind"]> = {
         DOCUMENT_OPENED: "viewed", DOCUMENT_SIGNED: "signed", DOCUMENT_COMPLETED: "completed", DOCUMENT_REJECTED: "declined", DOCUMENT_CANCELLED: "cancelled",
