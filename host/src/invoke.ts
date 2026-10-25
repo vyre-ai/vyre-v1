@@ -13,6 +13,7 @@ import type { Ctx, Decision, EmitOpts, Logger } from "../../packages/contracts/s
 import type { CapabilityDef, CapName, EventName, TraceContext } from "../../packages/contracts/src/types.ts";
 import { BindingError, resolveResource } from "./routes/resource.ts";
 import { codeForReason, fail, HostError, toVyreError } from "./routes/errors.ts";
+import type { ResourceRegistrar } from "./gateway/resources.ts";
 
 export { HostError, VyreErr, fail, makeError } from "./routes/errors.ts";
 
@@ -95,6 +96,8 @@ export interface InvokeDeps {
   spend?(principal: string): Record<string, number> | undefined;
   /** module services for the handler context: db, vault, http, schedule, seal */
   services?(seed: CtxSeed, cap: CapabilityDef): Partial<Pick<Ctx, "db" | "vault" | "http" | "schedule" | "seal" | "blobs">>;
+  /** P-H_16: registers the objects a call brought into being as resources, in the same commit (host/src/gateway/resources.ts) */
+  resources?: ResourceRegistrar;
   log?: Logger;
   onSpan?(s: SpanRecord): void;
   now?(): number;
@@ -232,6 +235,12 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     const events: EventEnvelope[] = [];
     const ctx = makeCtx(c, seed, trace, depth, events);
     const output = await h(ctx, input);   // a throw here is mapped by the outer catch: VyreErr and HostError keep their code, anything else is internal.unexpected
+    // P-H_16: every object this call created becomes a resource in the same commit, so it is authorizable at once (one place for every module)
+    if (deps.resources && events.length) {
+      for (const row of deps.resources.register({ cap: c, input, space: seed.space, owner: seed.actingFor ?? seed.principal.id, events })) {
+        events.push(envelope("resource.created" as EventName, `resource/${row.id}`, row, seed, trace, depth) as EventEnvelope);
+      }
+    }
 
     // 7 commit: events, inline projections and the audit row land together
     const auditRow: AuditRow | null = shouldAudit(c)
@@ -253,6 +262,18 @@ export function createInvoke(deps: InvokeDeps): Invoke {
 
   const shouldAudit = (c: CapabilityDef): boolean => c.audit === "always" || (c.audit === "sensitive" && c.risk !== "low");
 
+  /** One event envelope, stamped with the call's trace, actor and clock. `subject` is `<entity>/<id>`. */
+  function envelope<T>(name: EventName, subject: string, payload: T, seed: CtxSeed, trace: TraceContext, depth: number, opts?: EmitOpts): EventEnvelope<T> {
+    const parts = subject.split("/").filter(Boolean);
+    return {
+      seq: 0, id: mintEventId(now()), type: name, sv: 1, hlc: nextHlc(), at: now(), traceId: trace.traceId, spanId: trace.spanId,
+      actor: seed.principal.id, ...(seed.actingFor ? { onBehalf: seed.actingFor } : {}), ...(seed.device ? { device: seed.device } : {}),
+      ...(seed.run ? { runId: seed.run } : {}), ...(opts?.cause ? { cause: opts.cause } : {}), origin: seed.origin ?? "user", depth,
+      entity: parts.length > 1 ? parts[parts.length - 2]! : subject, ...(parts.length > 1 ? { entityId: parts[parts.length - 1]! } : {}),
+      label: 0, vis: opts?.vis ?? "space", enc: 0, payload,
+    };
+  }
+
   function makeCtx(c: CapabilityDef, seed: CtxSeed, trace: TraceContext, depth: number, buf: EventEnvelope[]): Ctx {
     const svc = deps.services?.(seed, c) ?? {};
     const unavailable = (what: string) => (): never => { throw fail("internal.not_implemented", trace.traceId, { details: { service: what, cap: c.name } }); };
@@ -265,14 +286,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         if (!c.emits.includes(name)) throw fail("internal.unexpected", trace.traceId, { message: "Something went wrong on our side.", details: { cap: c.name, event: name, why: "event not declared in emits" } });
         const bad = deps.validateEvent?.(name, payload);
         if (bad?.length) throw fail("internal.unexpected", trace.traceId, { message: "Something went wrong on our side.", details: { cap: c.name, event: name, errors: bad.slice(0, 5) } });
-        const parts = subject.split("/").filter(Boolean);
-        const ev: EventEnvelope<T> = {
-          seq: 0, id: mintEventId(now()), type: name, sv: 1, hlc: nextHlc(), at: now(), traceId: trace.traceId, spanId: trace.spanId,
-          actor: seed.principal.id, ...(seed.actingFor ? { onBehalf: seed.actingFor } : {}), ...(seed.device ? { device: seed.device } : {}),
-          ...(seed.run ? { runId: seed.run } : {}), ...(opts?.cause ? { cause: opts.cause } : {}), origin: seed.origin ?? "user", depth,
-          entity: parts.length > 1 ? parts[parts.length - 2]! : subject, ...(parts.length > 1 ? { entityId: parts[parts.length - 1]! } : {}),
-          label: 0, vis: opts?.vis ?? "space", enc: 0, payload,
-        };
+        const ev = envelope(name, subject, payload, seed, trace, depth, opts);
         buf.push(ev as EventEnvelope);
         return ev;
       },
