@@ -66,10 +66,10 @@ test("a daemon boots on a copy and answers through the gateway: the contacts are
       const res = await fetch(`${d.url}${r.path}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(body) });
       return { status: res.status, data: ((await res.json()) as { data?: unknown; error?: unknown }).data ?? null };
     };
-    const types = await post("schema.types.list", {});
-    assert.equal(types.status, 200);
-    const contact = (types.data.types as { key: string; rowCount: number }[]).find((t) => t.key === "contact");
-    assert.ok(contact && contact.rowCount >= SMALL_TARGET.records, `contact rows ${contact?.rowCount}`);
+    const rows = await post("records.query", { type: "contact", limit: 500 });
+    assert.equal(rows.status, 200);
+    const got = rows.data.total ?? (rows.data.rows as unknown[]).length;
+    assert.ok(got >= SMALL_TARGET.records, `contact rows ${got}`);
   } finally { await d.stop(); s.close(); }
 });
 
