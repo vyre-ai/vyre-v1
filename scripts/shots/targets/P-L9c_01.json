@@ -1,0 +1,47 @@
+{
+  "targets": [
+    {
+      "id": "P-L9c_01-inbox-contact",
+      "route": "/m/P-L9c_01",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid='row-line:elena']",
+      "note": "The Inbox over the Northwind sample Space, By contact: the sidebar (By contact, All inboxes, Calendar, Mine, Shared, Agents, Lists, Calendars with colour dots, the dialer at the foot) and the list with face, name, newest message, time and the inbox it came in on. The prototype side is its Inbox in the same skin. On a phone only the list shows, as in the prototype."
+    },
+    {
+      "id": "P-L9c_01-inbox-filter-menu",
+      "route": "/m/P-L9c_01?menu=filter",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid='menu']",
+      "note": "The filter menu open: Channel, Inbox and Matching with counts and no checkmarks yet. The prototype draws the same menu from its filter icon; compare the grouping, the counts and the quiet rows."
+    },
+    {
+      "id": "P-L9c_01-inbox-filtered",
+      "route": "/m/P-L9c_01?channels=email&needs=1",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid='inbox-showing']",
+      "note": "A filtered list: Email and Needs a match checked, the header says Showing Email, Needs a match with Show all, the filter icon is lit. The prototype side is its unfiltered Inbox; the Showing line and the lit filter are compared with its design notes (spec 3.3)."
+    },
+    {
+      "id": "P-L9c_01-inbox-calls",
+      "route": "/m/P-L9c_01?view=calls",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid='row-line:cal_dana']",
+      "note": "Calls only: one line per call with who, what and how long. The prototype side is its default Inbox; Calls only is a header menu choice there."
+    },
+    {
+      "id": "P-L9c_01-inbox-harbor",
+      "route": "/m/P-L9c_01?space=harbor",
+      "proto": "inbox,harbor,{skin}",
+      "waitFor": "[data-testid='row-line:kai']",
+      "note": "The same Inbox over the Harbor Studio sample Space: two mailboxes, three conversations, one calendar."
+    },
+    {
+      "id": "P-L9c_01-inbox-scroll",
+      "route": "/m/P-L9c_01?rows=10000",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid='virtual-list']",
+      "scroll": { "selector": "[data-testid=\"virtual-list\"]" },
+      "note": "10,000 conversations in the list; the scroll probe takes the p95 frame interval over the full scroll (budget scroll, 16.7 ms)."
+    }
+  ]
+}
