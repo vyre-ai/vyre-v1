@@ -4,7 +4,8 @@
 //
 // The remote Store. A connector exposes a synced object through its actions, by name: `list_<remote>` (and `list_<remote>_after` with `{ after }` for the next page), `create_<one>` and
 // `update_<one>` taking `{ properties }` (and `{ id, properties }`), `delete_<one>` taking `{ id }`, where <one> is the object name without its trailing "s" (HubSpot: list_contacts,
-// create_contact). A list answer is either `{ results: [{ id, properties, archived? }], paging: { next: { after } } }` (HubSpot's shape) or `{ rows: [{ id, data }], next }`. Every call goes
+// create_contact). A connector spec may override the names with an explicit per-object map, `objects: { contact: { list, listAfter, create, update, delete } }`, read from the connector
+// row (`connectors.get`); any name it leaves out keeps the convention, so no connector is forced into HubSpot naming. A list answer is either `{ results: [{ id, properties, archived? }], paging: { next: { after } } }` (HubSpot's shape) or `{ rows: [{ id, data }], next }`. Every call goes
 // through the capability API (`connectors.run`), so the Vault, the egress list, the rate limit and the audit apply as for any other call. Remote records carry no version, so a write
 // never fails on one. A row the app marks archived reads as removed.
 import { sha256Hex } from "../../../kernel/src/log/hash.ts";
@@ -88,8 +89,24 @@ export function readRows(output: unknown): { rows: RemoteRow[]; next?: string } 
   return { rows, ...(typeof after === "string" && after !== "" ? { next: after } : {}) };
 }
 
-export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "connector" | "connectionId" | "remote">): Store & { updatedAtOf(id: string): number } {
+export interface ObjectNames { list?: string; listAfter?: string; create?: string; update?: string; delete?: string }
+export type ObjectMap = Record<string, ObjectNames>;
+
+/** The names a connector spec gives one object (by the bound name, then by its singular), or none. */
+export function namesFor(objects: unknown, remote: string): ObjectNames {
+  if (!isObj(objects)) return {};
+  const hit = objects[remote] ?? objects[oneOf(remote)];
+  if (!isObj(hit)) return {};
+  const out: ObjectNames = {};
+  for (const k of ["list", "listAfter", "create", "update", "delete"] as const) if (typeof hit[k] === "string" && hit[k] !== "") out[k] = hit[k];
+  return out;
+}
+
+export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "connector" | "connectionId" | "remote">, objects?: unknown): Store & { updatedAtOf(id: string): number } {
   const one = oneOf(b.remote);
+  const names = namesFor(objects, b.remote);
+  const nameList = names.list ?? `list_${b.remote}`, nameAfter = names.listAfter ?? `list_${b.remote}_after`;
+  const nameCreate = names.create ?? `create_${one}`, nameUpdate = names.update ?? `update_${one}`, nameDelete = names.delete ?? `delete_${one}`;
   const stamps = new Map<string, number>();
   const run = async (action: string, input: unknown): Promise<unknown> => {
     const out = (await ctx.call("connectors.run", {
@@ -105,7 +122,7 @@ export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "c
     const out: RemoteRow[] = [];
     let after: string | undefined;
     do {
-      const page = readRows(await run(after === undefined ? `list_${b.remote}` : `list_${b.remote}_after`, after === undefined ? {} : { after }));
+      const page = readRows(await run(after === undefined ? nameList : nameAfter, after === undefined ? {} : { after }));
       out.push(...page.rows);
       after = page.next;
     } while (after !== undefined && out.length < 100_000);
@@ -124,20 +141,20 @@ export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "c
       return toRecord(r);
     },
     async create(_type: string, _id: string, data): Promise<StoredRecord> {
-      const out = await run(`create_${one}`, { properties: data });
+      const out = await run(nameCreate, { properties: data });
       const id = isObj(out) && (typeof out["id"] === "string" || typeof out["id"] === "number") ? String(out["id"]) : "";
       if (!id) throw new StoreError("unavailable", `The app did not return an id for the new ${one}.`);
       return { type: b.remote, id, version: 1, data, created_at: 0, updated_at: 0 };
     },
     async update(_type: string, id: string, patch): Promise<StoredRecord> {
-      await run(`update_${one}`, { id, properties: patch });
+      await run(nameUpdate, { id, properties: patch });
       return { type: b.remote, id, version: 1, data: patch, created_at: 0, updated_at: 0 };
     },
     async remove(_type: string, id: string): Promise<StoredRecord> {
-      await run(`delete_${one}`, { id });
+      await run(nameDelete, { id });
       return { type: b.remote, id, version: 1, data: {}, created_at: 0, updated_at: 0, deleted_at: 1 };
     },
-    restore: unsupported("restoring a record") as never,
+    restore: unsupported("restoring a removed record; the engine re-creates it from the snapshot instead") as never,
     types: async () => [],
     describe: async () => null,
     define: unsupported("changing types") as never,
@@ -161,14 +178,24 @@ const bindingOf = (b: BindingRow): SyncBindingLike => ({
 });
 
 export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: () => number }): SyncEngineLike {
-  const depsOf = (ctx: EngineCtx, b: BindingRow): { deps: SyncDepsLike; remote: ReturnType<typeof remoteStore>; tx: Tx; local: Store } => {
+  // the connector's own names for its objects, read once per connector (a connector row without them keeps the convention)
+  const maps = new Map<string, Promise<unknown>>();
+  const objectsOf = (ctx: EngineCtx, connector: string): Promise<unknown> => {
+    let p = maps.get(connector);
+    if (!p) {
+      p = ctx.call("connectors.get", { key: connector }).then((r) => (isObj(r) && isObj(r["connector"]) ? r["connector"]["objects"] : undefined), () => undefined);
+      maps.set(connector, p);
+    }
+    return p;
+  };
+  const depsOf = async (ctx: EngineCtx, b: BindingRow): Promise<{ deps: SyncDepsLike; remote: ReturnType<typeof remoteStore>; tx: Tx; local: Store }> => {
     const { store, tx } = o.local.open();
-    const remote = remoteStore(ctx, b);
+    const remote = remoteStore(ctx, b, await objectsOf(ctx, b.connector));
     return { deps: { local: store, remote, tx, ...(o.now ? { now: o.now } : {}), emit: (n, s, p) => ctx.emit(n, s, p) }, remote, tx, local: store };
   };
   return {
     async preview(ctx, b, opts) {
-      const { deps } = depsOf(ctx, b);
+      const { deps } = await depsOf(ctx, b);
       const r = await o.core.runSync(deps, bindingOf(b), { mode: opts.direction ?? "both", dryRun: true, traceId: ctx.trace.traceId });
       return {
         creates: r.local.created + r.remote.created, updates: r.local.updated + r.remote.updated, removes: r.remote.removed + r.removedAtSource, skips: r.conflicts,
@@ -176,13 +203,13 @@ export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: ()
       };
     },
     async confirmDeletes(ctx, b, decision) {
-      return o.core.confirmDeletes(depsOf(ctx, b).deps, bindingOf(b), decision);
+      return o.core.confirmDeletes((await depsOf(ctx, b)).deps, bindingOf(b), decision);
     },
     async resolveConflict(ctx, b, conflictId, resolution, value) {
-      return o.core.resolveConflict(depsOf(ctx, b).deps, bindingOf(b), conflictId, resolution, value);
+      return o.core.resolveConflict((await depsOf(ctx, b)).deps, bindingOf(b), conflictId, resolution, value);
     },
     async replayConflict(ctx, b, conflictId) {
-      const { tx, local, remote } = depsOf(ctx, b);
+      const { tx, local, remote } = await depsOf(ctx, b);
       const c = tx.get<{ local_id: string; field: string; ours: string | null; theirs: string | null }>("SELECT local_id, field, ours, theirs FROM sy_conflicts WHERE conflict_id = ? AND sync_type = ?", conflictId, b.syncTypeId);
       if (!c) throw new StoreError("not_found", "no conflict with that id");
       const ours: unknown = JSON.parse(c.ours ?? "null");
@@ -197,10 +224,26 @@ export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: ()
       ];
     },
     async undoPush(ctx, b, outboxId) {
-      return o.core.undoPush(depsOf(ctx, b).deps, bindingOf(b), outboxId);
+      const { deps, tx, local, remote } = await depsOf(ctx, b);
+      const row = tx.get<{ op: string; status: string; undone_at: number | null; local_id: string; replaced: string | null }>(
+        "SELECT op, status, undone_at, local_id, replaced FROM sy_outbox WHERE outbox_id = ? AND sync_type = ?", outboxId, b.syncTypeId,
+      );
+      if (!row || row.op !== "remove" || row.status !== "done" || row.undone_at !== null) return o.core.undoPush(deps, bindingOf(b), outboxId);
+      // Undoing a removal: the app has no way to bring a deleted record back, so it is created again from the snapshot taken just before the delete. No snapshot: say so.
+      if (!row.replaced) return { undone: false, reason: "The app record was not saved before it was removed, so it cannot be put back." };
+      const snapshot = JSON.parse(row.replaced) as Record<string, unknown>;
+      const made = await remote.create(b.remote, "", snapshot as never);
+      const rec = await local.get(b.type, row.local_id, { include_deleted: true });
+      const base: Record<string, unknown> = {};
+      for (const f of b.fields.filter((x) => x.dir !== "off")) base[f.key] = rec?.data[f.key] ?? null;
+      tx.run("DELETE FROM sy_links WHERE sync_type = ? AND (local_id = ? OR remote_id = ?)", b.syncTypeId, row.local_id, made.id);
+      tx.run("INSERT INTO sy_links (sync_type, local_id, remote_id, base, removed_at) VALUES (?, ?, ?, ?, NULL)", b.syncTypeId, row.local_id, made.id, JSON.stringify(base));
+      tx.run("UPDATE sy_outbox SET status = 'undone', undone_at = ? WHERE outbox_id = ?", (o.now ?? Date.now)(), outboxId);
+      deps.emit?.("sync.push_undone", `record/${row.local_id}`, { syncTypeId: b.syncTypeId, recordId: row.local_id, outboxId });
+      return { undone: true };
     },
     async push(ctx, b, outboxId) {
-      const { deps, tx } = depsOf(ctx, b);
+      const { deps, tx } = await depsOf(ctx, b);
       o.core.retryPush(deps, outboxId);   // a failed row goes back to pending; a pending one is untouched
       await o.core.flushOutbox(deps, bindingOf(b));
       const row = tx.get<{ status: string; error: string | null }>("SELECT status, error FROM sy_outbox WHERE outbox_id = ? AND sync_type = ?", outboxId, b.syncTypeId);

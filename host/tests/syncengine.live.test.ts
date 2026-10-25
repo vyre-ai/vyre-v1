@@ -12,7 +12,7 @@ import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon, CODE_ROOT } from "../src/daemon/daemon.ts";
 import { fileExportsImporter } from "../src/loader.ts";
-import { coreOf, createSyncEngine, readRows, remoteStore } from "../src/daemon/syncengine.ts";
+import { coreOf, createSyncEngine, namesFor, readRows, remoteStore } from "../src/daemon/syncengine.ts";
 import type { BindingRow, EngineCtx, SyncBindingLike } from "../src/daemon/syncengine.ts";
 import { createSpaceStore } from "../src/daemon/store.ts";
 
@@ -49,6 +49,7 @@ test("syncengine: the adapter runs preview, push, undo, an asked conflict and co
     trace: { traceId: "0123456789abcdef0123456789abcdef" },
     emit: () => ({}),
     call: async (cap, input) => {
+      if (cap === "connectors.get") return { connector: { key: "fakeapp" } };   // no per-object map: the convention applies
       assert.equal(cap, "connectors.run");
       const i = input as { key: string; action: string; connectionId: string; input: { id?: string; properties?: Record<string, unknown> }; idempotencyKey: string };
       assert.equal(i.key, "fakeapp");
@@ -62,6 +63,7 @@ test("syncengine: the adapter runs preview, push, undo, an asked conflict and co
           if (failOnce) { failOnce = false; throw new Error("the app is busy"); }
           app.set(i.input.id!, { ...app.get(i.input.id!), ...i.input.properties });
           return { output: { id: i.input.id } };
+        case "delete_contact": app.delete(i.input.id!); return { output: { id: i.input.id } };
         default: throw new Error(`no action ${i.action}`);
       }
     },
@@ -69,12 +71,12 @@ test("syncengine: the adapter runs preview, push, undo, an asked conflict and co
   const row: BindingRow = {
     syncTypeId: "syt_1", type: "contact", connector: "fakeapp", connectionId: "con_1", remote: "contacts",
     fields: [{ key: "name", remote: "full_name", dir: "both" }, { key: "email", remote: "email_address", dir: "both" }],
-    match: ["email"], createAtSource: false, deletes: "off", conflict: "ask",
+    match: ["email"], createAtSource: false, deletes: "travel", conflict: "ask",
   };
   const binding: SyncBindingLike = {
     syncTypeId: "syt_1", type: "contact", remote: "contacts", connector: "fakeapp", label: "Fake app",
     fields: [{ local: "name", remote: "full_name", direction: "both" }, { local: "email", remote: "email_address", direction: "both" }],
-    match: ["email"], createAtSource: false, deletes: false, conflict: "ask",
+    match: ["email"], createAtSource: false, deletes: true, conflict: "ask",
   };
   const engine = createSyncEngine({ core, local: { open: () => ({ store, tx }) } });
   const deps = () => ({ local: store, remote: remoteStore(ctx, row), tx });
@@ -120,6 +122,24 @@ test("syncengine: the adapter runs preview, push, undo, an asked conflict and co
   assert.equal(settled.recordId, bo.id);
   assert.equal((await store.get("contact", bo.id))!.data["name"], "Robert");
 
+  // a removal travels with delete_contact; undoing it creates the app record again from the snapshot taken before the delete
+  const annNow = await localByEmail("ann@new.io");
+  await store.remove("contact", annNow.id, annNow.version);
+  await core.runSync(deps(), binding, { mode: "both" });
+  assert.ok(calls.includes("delete_contact"), "the removal went out as delete_contact");
+  assert.equal(app.has("h1"), false, "the record is gone from the app");
+  const removal = tx.get<{ outbox_id: string }>("SELECT outbox_id FROM sy_outbox WHERE sync_type = ? AND op = 'remove' AND status = 'done'", "syt_1");
+  assert.ok(removal, "the removal is in the outbox as done");
+  const back = await engine.undoPush(ctx, row, removal!.outbox_id);
+  assert.deepEqual(back, { undone: true });
+  assert.ok([...app.values()].some((p) => p["email_address"] === "ann@x.io" || p["email_address"] === "ann@new.io"), "the app record is created again from the snapshot");
+  assert.ok(calls.filter((c) => c === "create_contact").length >= 1);
+  // no snapshot, no silent guess
+  tx.run("UPDATE sy_outbox SET status = 'done', undone_at = NULL, replaced = NULL WHERE outbox_id = ?", removal!.outbox_id);
+  const refused = await engine.undoPush(ctx, row, removal!.outbox_id);
+  assert.equal(refused.undone, false);
+  assert.match(refused.reason ?? "", /cannot be put back/);
+
   // nothing is waiting on a delete decision
   assert.equal(await engine.confirmDeletes(ctx, row, "keep"), 0);
   space.close();
@@ -148,4 +168,29 @@ test("syncengine live: a booted daemon wires setSyncEngine and reports no connec
     assert.deepEqual((d.seams?.missing ?? []).filter((m) => m.module === "connectors"), [], "no connectors setter is reported as not set up");
     assert.ok(d.seams?.wired.includes("setSyncEngine"), "setSyncEngine is wired");
   } finally { await d.stop(); }
+});
+
+test("syncengine: a connector spec may name its own actions per object; names it leaves out keep the convention", async () => {
+  assert.deepEqual(namesFor({ contact: { list: "find_all", create: "add_one", bogus: 1 } }, "contacts"), { list: "find_all", create: "add_one" });
+  assert.deepEqual(namesFor({ contacts: { delete: "remove_it" } }, "contacts"), { delete: "remove_it" });
+  assert.deepEqual(namesFor(undefined, "contacts"), {});
+  const seen: string[] = [];
+  const call = async (_cap: string, input: unknown): Promise<unknown> => {
+    const i = input as { action: string };
+    seen.push(i.action);
+    if (i.action === "find_all") return { output: { rows: [{ id: "a", data: { n: 1 } }], next: "p2" } };
+    if (i.action === "find_more") return { output: { rows: [{ id: "b", data: { n: 2 } }] } };
+    return { output: { id: "z" } };
+  };
+  const b = { connector: "odd", connectionId: "con_9", remote: "contacts" };
+  const s = remoteStore({ call }, b, { contact: { list: "find_all", listAfter: "find_more", create: "add_one", update: "change_one", delete: "remove_one" } });
+  assert.equal((await s.query("contacts", { page: { limit: 10 } })).rows.length, 2);
+  await s.create("contacts", "", { n: 3 });
+  await s.update("contacts", "a", { n: 4 }, 1);
+  await s.remove("contacts", "a", 1);
+  assert.deepEqual(seen, ["find_all", "find_more", "add_one", "change_one", "remove_one"]);
+  seen.length = 0;
+  const plain = remoteStore({ call }, b, { contact: { list: "find_all" } });
+  await plain.create("contacts", "", { n: 3 });
+  assert.deepEqual(seen, ["create_contact"], "a name the spec leaves out keeps the convention");
 });
