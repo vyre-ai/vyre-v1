@@ -64,10 +64,12 @@ test("a daemon boots on a copy and answers through the gateway: the contacts are
     const post = async (cap: string, body: unknown): Promise<{ status: number; data: any }> => {
       const r = routes.find((x) => x.cap === cap)!;
       const res = await fetch(`${d.url}${r.path}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(body) });
-      return { status: res.status, data: ((await res.json()) as { data?: unknown; error?: unknown }).data ?? null };
+      const body = (await res.json()) as { data?: unknown; error?: unknown };
+      return { status: res.status, data: body.data ?? body.error ?? null };
     };
+    assert.equal((await post("schema.types.list", {})).status, 200, "the schema module is read first: records answers no type contact until it has been (lazy built-in types)");
     const rows = await post("records.query", { type: "contact", limit: 500 });
-    assert.equal(rows.status, 200);
+    assert.equal(rows.status, 200, JSON.stringify(rows.data));
     const got = rows.data.total ?? (rows.data.rows as unknown[]).length;
     assert.ok(got >= SMALL_TARGET.records, `contact rows ${got}`);
   } finally { await d.stop(); s.close(); }
