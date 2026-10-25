@@ -81,7 +81,8 @@ export function usePrincipals(): { list: Principal[]; byId(id: string): Principa
 
 export function useOnline(): boolean {
   const { connection } = useHomeData();
-  return useSyncExternalStore(connection.subscribe, () => connection.get() === "online", () => true);
+  const online = (): boolean => connection.get() === "online";
+  return useSyncExternalStore(connection.subscribe, online, online);
 }
 
 // ---------------------------------------------------------------- the quiet line with Undo
