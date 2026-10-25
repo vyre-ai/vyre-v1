@@ -33,16 +33,18 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 24, cache: npm }
       - run: npm ci --no-audit --no-fund
-      - name: Stage the sidecar (the Node runtime as binaries/vyred-<triple>) and its program; tauri-build needs both to exist
+      - name: Web export and the sidecar (the Node runtime as binaries/vyred-<triple> plus its program); tauri-build needs the three to exist
         working-directory: apps/desktop
-        run: npm run stage
+        run: |
+          npm run web
+          npm run stage
       - name: Rust unit tests
         run: cargo test --lib --manifest-path apps/desktop/src-tauri/Cargo.toml
       - name: Licenses (cargo deny)
         run: |
           cargo install cargo-deny --locked
           cargo deny --manifest-path apps/desktop/src-tauri/Cargo.toml check licenses bans
-      - name: Build the web export and the shell
+      - name: Build the shell (web export and sidecar are staged above)
         working-directory: apps/desktop
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then npm run build:mac; else npm run build:win; fi

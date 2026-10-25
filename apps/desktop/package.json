@@ -10,8 +10,8 @@
     "stage": "node src-tauri/stage-runtime.ts",
     "tauri": "npx --yes @tauri-apps/cli@2",
     "build": "npm run web && npm run stage && npm run tauri -- build --ci",
-    "build:mac": "npm run web && npm run tauri -- build --ci --bundles app,dmg",
-    "build:win": "npm run web && npm run tauri -- build --ci --bundles nsis",
+    "build:mac": "npm run tauri -- build --ci --bundles app,dmg",
+    "build:win": "npm run tauri -- build --ci --bundles nsis",
     "dev": "npm run stage && npm run tauri -- dev"
   }
 }
