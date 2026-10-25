@@ -17,13 +17,20 @@ import { hostSeams } from "../impl.ts";
 import { handlers } from "../impl.ts";
 import { closeDefaultSandbox, ensureRuntime } from "../runtime.ts";
 import { harness } from "../fixtures/harness.ts";
-import { until } from "../../../agent/src/turn-engine/harness.ts";
 import type { EngineHostSeam } from "../runtime.ts";
 
 const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
 const skip: string | false = ON ? false : "needs VYRE_HEAVY_DOCKER=1";
 const FAKE_CLI = fileURLToPath(new URL("../../../host/tests/fixtures/fake-cli-driver/fake-cli.mjs", import.meta.url));
 const THREAD = "thr_cli";
+/** A real process takes real time: wait on the clock, not on event-loop turns. */
+async function waitFor(cond: () => boolean, ms = 30_000): Promise<void> {
+  const end = Date.now() + ms;
+  while (!cond()) {
+    if (Date.now() > end) throw new Error("waitFor: condition never became true");
+    await new Promise<void>((r) => setTimeout(r, 50));
+  }
+}
 const THREADS = [{ threadId: THREAD, kind: "chat", starter: "usr_dana", agents: [{ agentId: "agt_intake", mode: "lead" as const }] }];
 const data = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-engine-cli-")));
 fs.chmodSync(data, 0o755);
@@ -63,8 +70,8 @@ test("a message to an agent on a Claude Code account streams a reply into the ch
     assert.ok(engine, "the runtime is built from the host half");
     await handlers["engine.stop"]!(h.ctx as never, { threadId: THREAD } as never).catch(() => undefined);   // opens the thread through threads.get
     engine.receive({ threadId: THREAD, author: { kind: "person", id: "usr_dana" }, body: "hello" });
+    await waitFor(() => posts.length > 0);
     await engine.idle(THREAD);
-    await until(() => posts.length > 0, 20_000);
     assert.equal(posts.length, 1, "one reply in the chat");
     assert.deepEqual([posts[0]!.agentId, posts[0]!.threadId, posts[0]!.body], ["agt_intake", THREAD, "Hello from the fake engine."]);
     assert.equal(posts[0]!.clientId, engine.messages(THREAD).filter((m) => m.author.kind === "agent")[0]!.id, "the chat message id is the engine message id");
