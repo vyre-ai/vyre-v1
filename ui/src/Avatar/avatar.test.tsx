@@ -18,7 +18,7 @@ test("a person's marble takes the prototype's colours and turns for the name", (
   assert.match(html, /data-avatar="person"/);
   assert.match(html, /<mask id="mb[0-9a-z]+m"/);
   assert.match(html, /fill="#C20D90"/);
-  assert.match(html, /border-radius:12px/, "a person is round");
+  assert.match(html, /border-top-left-radius:12px/, "a person is round");
   assert.doesNotMatch(html, />MC</, "no letter tile");
 });
 
@@ -42,7 +42,7 @@ test("an agent is a pixel face on a soft tint, with a 30 percent radius", () => 
   assert.match(html, /shape-rendering="crispEdges"/);
   assert.ok(html.includes(`fill="${spec.tint}"`), "the tint fills the ground");
   assert.ok(html.includes(`fill="${spec.skin}"`), "the head is skin coloured");
-  assert.match(html, /border-radius:30%/);
+  assert.match(html, /border-top-left-radius:30%/);
   assert.ok((html.match(/<rect /g) ?? []).length >= 6, "a head, hair, eyes and a mouth are drawn");
 });
 

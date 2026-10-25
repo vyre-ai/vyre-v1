@@ -51,7 +51,7 @@ export const Avatar = memo(function Avatar({ name, kind: kindProp, size = AVATAR
   let clip = true;
 
   if (kind === "person" && photo) {
-    face = <Image accessibilityIgnoresInvertColors source={{ uri: photo }} style={{ width: size, height: size }} />;
+    face = web ? createElement("img", { src: photo, alt: "", width: size, height: size, draggable: false, style: { display: "block", objectFit: "cover", width: size, height: size } }) : <Image accessibilityIgnoresInvertColors source={{ uri: photo }} style={{ width: size, height: size }} />;
   } else if (kind === "person") {
     face = web ? svg(marbleInner(name), size, "0 0 80 80") : <NativeLetters name={name} size={size} person tint={`hsl(${hueOf(name)}, 45%, 70%)`} />;
   } else if (kind === "agent") {

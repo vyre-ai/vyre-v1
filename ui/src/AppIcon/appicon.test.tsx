@@ -20,7 +20,7 @@ test("a branded tile draws the mark in the brand colour on the neutral ground wi
   assert.match(html, /color:#EA4335/);
   assert.match(html, /background-color:var\(--sunk\)/);
   assert.match(html, /box-shadow:inset 0 0 0 1px var\(--line\)/);
-  assert.match(html, /border-radius:28%/);
+  assert.match(html, /border-top-left-radius:28%/);
   assert.match(html, /width:28px/);
 });
 
