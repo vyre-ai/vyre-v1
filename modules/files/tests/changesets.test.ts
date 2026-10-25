@@ -596,3 +596,4 @@ test("edit: a caller without edit access, an agent, a bad range, a closed change
   await handlers["changesets.discard"](ctx, { changesetId: cs });
   await expectCode("validation.precondition_failed", () => edit(ctx));
 });
+// P-CC_21: changesets.edit is covered by the last two tests above.
