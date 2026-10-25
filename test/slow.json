@@ -9,5 +9,7 @@
   {"file": "host/tests/syncengine.live.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the daemon on the seeded Space and runs the sync engine against a fake connector"},
   {"file": "host/tests/live.l3.test.ts", "capSec": 120, "owner": "L3", "reason": "boots the daemon twice with every L3 module live and restarts it to read a record back; about 15 s"},
   {"file": "host/tests/webhooks.recover.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the daemon twice on the seeded Space to prove a crashed webhook delivery is sent after a restart"},
-  {"file": "host/tests/kits.live.test.ts", "capSec": 120, "owner": "L10", "reason": "boots the daemon with kits live and installs a Kit over HTTP"}
+  {"file": "host/tests/kits.live.test.ts", "capSec": 120, "owner": "L10", "reason": "boots the daemon with kits live and installs a Kit over HTTP"},
+  {"file": "host/tests/chrome-bridge.live.test.ts", "capSec": 120, "owner": "L10", "reason": "boots the daemon and drives the Chrome bridge endpoints over HTTP"},
+  {"file": "apps/chrome/tests/ext-agent.real.test.ts", "capSec": 120, "owner": "L10", "reason": "drives a real Chromium page three times (about 16 s); the chrome-real job requires Chromium, other shards skip it when there is none"}
 ]
