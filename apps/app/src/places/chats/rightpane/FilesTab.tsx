@@ -11,7 +11,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { PaneDeps } from "./actions.ts";
 import { copyText } from "./actions.ts";
 import { usePaneData, useScreenQuery } from "./data.tsx";
-import { agoLabel, filePath, folderEntries, formatSize } from "./model.ts";
+import { agoLabel, folderEntries, formatSize } from "./model.ts";
 import { Icon, LeadIcon } from "./parts.tsx";
 
 type FilesOut = CapMap["files.list"]["out"];
@@ -47,7 +47,7 @@ function Level({ folderId, depth, deps, relative, openSet, toggle }: {
   const rows: ReactElement[] = [];
   for (const f of files) {
     const open = (how: "side" | "full"): void => data.nav.openFile(f.fileId, how);
-    const path = filePath(relative.map((n) => ({ folderId: n, name: n })), f.name);
+    const path = [...relative, f.name].join("/");
     rows.push(
       <View key={f.fileId} style={indent}>
         <TreeMenu title={f.name} entries={[
@@ -101,7 +101,9 @@ export function FilesTab({ deps, folderId }: { deps: PaneDeps; folderId: string;
   const [opened, setOpened] = useState<ReadonlySet<string> | null>(null);
   const initial = useMemo(() => {
     if (q.status !== "ready") return new Set<string>();
-    return new Set(q.data.folders.filter((f) => f.parentId === folderId && OPEN_AT_START.has(f.name)).map((f) => f.folderId));
+    const ids = new Set<string>();
+    for (const f of q.data.folders) if (f.parentId === folderId && OPEN_AT_START.has(f.name)) ids.add(f.folderId);
+    return ids;
   }, [q, folderId]);
   const openSet = opened ?? initial;
   const toggle = (id: string): void => setOpened((cur) => { const n = new Set(cur ?? initial); if (n.has(id)) n.delete(id); else n.add(id); return n; });
