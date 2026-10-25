@@ -241,7 +241,6 @@
         "forms",
         "campaigns",
         "templates",
-        "kits",
         "esign",
         "portal",
         "email-builder-api"
@@ -359,7 +358,9 @@
         "scripts/install/",
         "package-lock.json"
       ],
-      "modules": []
+      "modules": [
+        "kits"
+      ]
     },
     {
       "id": "L11",
@@ -439,7 +440,7 @@
     "import": "L3",
     "inbox": "L5",
     "journeys": "L6",
-    "kits": "L8",
+    "kits": "L10",
     "logs": "L7b",
     "mail": "L5",
     "mailgun": "L5",
