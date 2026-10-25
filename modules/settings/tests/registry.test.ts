@@ -249,4 +249,4 @@ test("every statement the module sends is one the host's table guard allows", as
   assert.ok(PAGES.length === 10);
 });
 
-// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+// Run on the final commit of this packet, after merging main, so the CI log lists the file as ok.

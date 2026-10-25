@@ -222,4 +222,4 @@ test("digest.collect: digest-level rows of a period for a person, oldest first, 
   await refused(h.call("notifications.digest.collect", { person: alice.id, since: 0 }, as(bob)), "permission.no_grant");
 });
 
-// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+// Run on the final commit of this packet, after merging main, so the CI log lists the file as ok.
