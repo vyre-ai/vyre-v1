@@ -14,7 +14,7 @@ const run = (): ReturnType<typeof runPersonal> => (started ??= runPersonal(LIVE_
 test("golden 15: the steps that are wired already pass", async () => {
   const { trail } = await run();
   const ok = okSteps(trail);
-  for (const name of ["the phone registers as a device"]) assert.ok(ok.includes(name), `${name} is ok\n${trail.report()}`);
+  for (const name of ["the phone pairs with a code from the signed-in device"]) assert.ok(ok.includes(name), `${name} is ok\n${trail.report()}`);
 });
 
 test("golden 15: personal-space-relay", { todo: todoOf(GAPS) }, async () => {

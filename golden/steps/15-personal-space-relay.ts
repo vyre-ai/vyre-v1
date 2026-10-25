@@ -1,7 +1,6 @@
 // Golden flow 15: a Personal Space reached through the relay (spec 2.1, ARCH 5.13). The phone registers as a device of the host computer's Space, its replica converges over sync, the Personal
 // matrix refuses what needs a Team Space, and revoking the phone purges its replica. Through the gateway, real tokens; sync is booted live or the flow says why it cannot be.
 import assert from "node:assert/strict";
-import { issueSessionToken } from "../../host/src/daemon/session.ts";
 import { bootFlowSpace, expectStatus, short, Trail } from "./02-space.ts";
 import type { FlowSpace, Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
@@ -38,15 +37,17 @@ export async function runPersonal(live: readonly string[]): Promise<{ events: Ob
       const e = expectStatus(await space.call("network.endpoints", admin, {}), 200, "network.endpoints").endpoints as { kind: string }[];
       assert.ok(e.some((x) => x.kind === "relay"), `endpoints ${short(e)}`);
     });
-    const phone = await trail.step("the phone registers as a device", async () => {
-      const out = expectStatus(await space.call("devices.register", admin, { idempotencyKey: "golden-15-phone", person: "usr_olivia", name: "Olivia phone", class: "phone" }), 200, "devices.register");
-      return { device: out.device.id as string, token: issueSessionToken(space.d.db!, out.sessionId as string) };
+    const phone = await trail.step("the phone pairs with a code from the signed-in device", async () => {
+      const made = expectStatus(await space.call("identity.pair_create", admin, { idempotencyKey: "golden-15-pair", purpose: "app" }), 200, "identity.pair_create");
+      const out = expectStatus(await space.call("identity.pair_redeem", null, { code: made.code as string, deviceName: "Olivia phone", deviceClass: "phone" }), 200, "identity.pair_redeem");
+      assert.equal(out.status, "ok", `pair_redeem ${short(out)}`);
+      return { device: out.session.deviceId as string, token: out.session.token as string };
     });
     await trail.step("the phone's replica scope is set and it pulls", async () => {
       const r = await fetch(`${space.d.url}/sync/v1/pull`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${phone!.token}` }, body: JSON.stringify({ cursor: 0, epoch: 0 }) });
       assert.equal(r.status, 200, `sync pull: ${r.status}`);
       assert.ok(synced, "sync is live, so this pull is answered by the real handler");
-    }, ["the phone registers as a device"]);
+    }, ["the phone pairs with a code from the signed-in device"]);
     await trail.step("a document edited on the host reaches the phone", async () => {
       assert.ok(synced, "needs sync live");
       throw new Error("not reachable until sync is live: no document update has been pushed or pulled");
@@ -54,12 +55,12 @@ export async function runPersonal(live: readonly string[]): Promise<{ events: Ob
     await trail.step("refusal: the phone cannot revoke the host's other devices", async () => {
       const r = await space.call("devices.revoke", phone!.token, { deviceId: "dev_hostcomputer" });
       assert.ok(r.status >= 400 && r.status < 500, `a phone revoking a device it does not own: ${r.status}`);
-    }, ["the phone registers as a device"]);
+    }, ["the phone pairs with a code from the signed-in device"]);
     await trail.step("revoking the phone ends it", async () => {
       expectStatus(await space.call("devices.revoke", admin, { deviceId: phone!.device }), 200, "devices.revoke");
       const r = await space.call("devices.sessions.list", phone!.token, {});
       assert.equal(r.status, 401, `the phone's token after revoke: ${r.status}`);
-    }, ["the phone registers as a device"]);
+    }, ["the phone pairs with a code from the signed-in device"]);
     return { events: await space.events(), trail };
   } finally { await s?.stop(); }
 }
