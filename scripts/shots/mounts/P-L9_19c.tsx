@@ -37,6 +37,9 @@ export default function Mount(): ReactNode {
     const theme = createThemeController({ personId: "irfad", spaceId: openId, spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
     const hub = createSampleShell({ openId, theme });
     hub.go("home");
+    // the prototype opens on one Home tab: close the Kit's start tab (Chats) that the Space opened with
+    const chats = hub.session().tabs.state().tabs.find((t) => t.place === "chats");
+    if (chats !== undefined) hub.closeTab(chats.key);
     setMade({ hub, theme });
   }, []);
   if (made === null) return null;

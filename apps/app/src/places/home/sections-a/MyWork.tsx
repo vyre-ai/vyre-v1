@@ -89,6 +89,7 @@ export function MyWork(): ReactElement {
   const narrow = useNarrow();
   const menu = useMenu();
   const [adding, setAdding] = useState(false);
+  const [view, setView] = useState<"list" | "board">("list");
   const open = useScreenQuery<Out>(WORK_SCREEN, "list", { section: "open" });
   const given = useScreenQuery<Out>(WORK_SCREEN, "list", { section: "assigned_by_me" });
   const clock = data.clock();
@@ -143,17 +144,22 @@ export function MyWork(): ReactElement {
   };
 
   const body: ReactElement[] = [];
+  const columns: ReactElement[][] = [];
   for (const g of groups) {
-    body.push(
+    const head = (
       <View key={`g-${g.name}`} style={[local.group]} testID={`group-${g.name}`}>
         <Text style={[local.groupText, g.name === "Overdue" && { color: "var(--danger)" as string }]}>{g.name}<Text style={local.groupCount}>{`  ${g.total}`}</Text></Text>
-      </View>,
+      </View>
     );
-    for (const t of g.rows) body.push(row(t, `work:${t.id}`, false));
+    const rows = g.rows.map((t) => row(t, `work:${t.id}`, false));
+    body.push(head, ...rows);
+    columns.push([head, ...rows]);
   }
   if (givenTasks.length) {
-    body.push(<View key="g-given" style={local.group} testID="group-given"><Text style={local.groupText}>Assigned by you<Text style={local.groupCount}>{`  ${givenTasks.length}`}</Text></Text></View>);
-    for (const t of givenTasks) body.push(row(t, `given:${t.id}`, true));
+    const head = <View key="g-given" style={local.group} testID="group-given"><Text style={local.groupText}>Assigned by you<Text style={local.groupCount}>{`  ${givenTasks.length}`}</Text></Text></View>;
+    const rows = givenTasks.map((t) => row(t, `given:${t.id}`, true));
+    body.push(head, ...rows);
+    columns.push([head, ...rows]);
   }
 
   const loading = open.status === "loading";
@@ -164,6 +170,16 @@ export function MyWork(): ReactElement {
       <SectionHeader id="work" title="My work" count={open.status === "ready" ? `${total} · ${dueN} due` : undefined}>
         {total > MY_WORK_LIMIT ? <LinkButton label={`All ${total} in My work`} onPress={() => data.nav.openMyWork()} testID="work-all" /> : null}
         <LinkButton label="+ New task" onPress={() => setAdding(true)} testID="work-new" />
+        <View style={local.seg} accessibilityRole="radiogroup" accessibilityLabel="My work layout">
+          {(["list", "board"] as const).map((v) => (
+            <Pressable
+              key={v} accessibilityRole="radio" accessibilityState={{ checked: view === v }} accessibilityLabel={v === "list" ? "List" : "Board"} testID={`work-view-${v}`}
+              onPress={() => setView(v)} style={[local.segBtn, view === v && local.segOn]}
+            >
+              <Glyph name={v} size={14} color={view === v ? "var(--ink)" : "var(--ink-3)"} />
+            </Pressable>
+          ))}
+        </View>
       </SectionHeader>
       {adding ? (
         <NewTask
@@ -171,7 +187,7 @@ export function MyWork(): ReactElement {
           onCreate={(title) => { setAdding(false); void actions.createTask(title); }}
         />
       ) : null}
-      {loading ? <Skeleton rows={4} id="work" /> : body.length ? <View accessibilityRole="list">{body}</View> : adding ? null : <EmptyLine id="work" text="No tasks yet" />}
+      {loading ? <Skeleton rows={4} id="work" /> : body.length ? view === "board" ? <View style={local.board} testID="work-board">{columns.map((c, i) => <View key={`col-${i}`} style={local.boardCol}>{c}</View>)}</View> : <View accessibilityRole="list">{body}</View> : adding ? null : <EmptyLine id="work" text="No tasks yet" />}
       {menu.element}
     </Section>
   );
@@ -183,6 +199,11 @@ const local = StyleSheet.create({
   chipText: { color: "var(--ink-3)" as string, fontSize: 12.5, flexShrink: 1 },
   due: { minWidth: 64, textAlign: "right", color: "var(--ink-2)" as string, fontSize: 12.5 },
   state: { minWidth: 56, textAlign: "right", fontSize: 12, fontWeight: "500", color: "var(--ink-3)" as string },
+  seg: { flexDirection: "row", borderRadius: 7, padding: 2, backgroundColor: "var(--sunk)" as string, marginLeft: 6 },
+  segBtn: { width: 26, height: 22, borderRadius: 5, alignItems: "center", justifyContent: "center" },
+  segOn: { backgroundColor: "var(--raised)" as string },
+  board: { flexDirection: "row", gap: 16, alignItems: "flex-start", flexWrap: "wrap" },
+  boardCol: { flex: 1, minWidth: 260 },
   group: { flexDirection: "row", alignItems: "center", marginTop: 12, height: 26 },
   groupText: { fontSize: 12, fontWeight: "600", color: "var(--ink-3)" as string },
   groupCount: { fontWeight: "500" },

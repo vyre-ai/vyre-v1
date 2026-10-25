@@ -1,6 +1,7 @@
 // Home > Quick start and the Ask box (spec 3.1): three quick-start buttons and one box that starts a chat with your assistant. It sits at the foot of the page. Without an AI account the box is locked and says how to unlock it. ui/Composer is the box, so @ # / and Enter work as they do in Chats.
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import type { ViewStyle } from "react-native";
 import { Composer } from "../../../../../../ui/src/Composer/index.tsx";
 import type { ComposerSend } from "../../../../../../ui/src/Composer/index.tsx";
 import { useHomeData, useHomeLine, usePrincipals } from "../sections-a/data.tsx";
@@ -60,7 +61,8 @@ export function AskBox(): ReactElement {
 }
 
 const local = StyleSheet.create({
-  dock: { marginTop: 26, paddingTop: 6, paddingBottom: 6 },
+  // docked: it stays at the foot of the place while the page scrolls under it, as the prototype draws it
+  dock: { marginTop: 26, paddingTop: 6, paddingBottom: 6, ...(Platform.OS === "web" ? ({ position: "sticky", bottom: 0, zIndex: 4, backgroundColor: "var(--win)" } as unknown as ViewStyle) : {}) },
   quick: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4, marginBottom: 8 },
   quickTitle: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string, marginRight: 8 },
   askRow: { flexDirection: "row", alignItems: "flex-start", gap: 4 },

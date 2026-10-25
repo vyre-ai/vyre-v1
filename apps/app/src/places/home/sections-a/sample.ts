@@ -52,7 +52,7 @@ const unblock = [{ key: "unblock", label: "Unblock" }];
 
 export const northwind: SampleSpace = {
   id: "northwind", name: "Northwind", me: people[0]!, principals: people,
-  records: { rec_rivera: "Rivera matter", rec_pruitt: "Pruitt engagement", rec_atp1: "Harlow & Price", rec_q4: "Q4 billing", rec_hiring: "Hiring: operations lead", rec_offsite: "Q4 offsite", rec_web: "Website relaunch" },
+  records: { rec_rivera: "Rivera matter", rec_pruitt: "Pruitt engagement", rec_atp1: "ATP · Harlow & Price", rec_q4: "Q4 billing", rec_hiring: "Hiring: operations lead", rec_offsite: "Q4 offsite", rec_web: "Website relaunch" },
   tasks: [
     task("tsk_t1", { title: "Send the retainer reminder to Marcus Pruitt", kind: "work", state: "doing", assigned: P("usr_irfad"), due: at(10, 22), recordId: "rec_pruitt" }),
     task("tsk_t2", { title: "Review the Harlow & Price worksheet", kind: "review", assigned: A("agt_research"), reviewer: P("usr_irfad"), due: at(10, 23), recordId: "rec_atp1" }),

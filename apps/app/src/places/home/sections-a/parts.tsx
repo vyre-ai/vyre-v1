@@ -33,6 +33,7 @@ export const ICON = {
   change: ["M11 2.5l2.5 2.5L6 12.5 3 13l.5-3z"],
   waiting: ["M13.5 8a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z", "M8 5v3.4M8 10.8h.01"],
   list: ["M5.5 4.5h8M5.5 8h8M5.5 11.5h8M2.5 4.5h.01M2.5 8h.01M2.5 11.5h.01"],
+  board: ["M2.5 3.5h3.5v9H2.5zM6.5 3.5H10v6H6.5zM10.5 3.5H14v8h-3.5z"],
 } as const;
 export type IconName = keyof typeof ICON;
 
