@@ -39,10 +39,11 @@ function inlineNodes(items: readonly Inline[], onLink?: (href: string) => void):
   return out;
 }
 
-/** The blinking block at the end of the open text. A fixed 7 by 16 box, so its arrival and its moves do not change the line it sits on. */
-export const Caret = memo(function Caret() {
-  return <View testID="stream-caret" aria-hidden style={styles.caret} />;
-});
+/**
+ * The caret at the end of the open text is a character, not a box. A box (a View or a nested Text) that sits after text which grows moves every frame, and the browser counts each move as a layout
+ * shift; a character is part of the text it follows, so adding it and moving it change no element's position (perf layout_shift stays 0).
+ */
+export const CARET = "\u258D";
 
 export interface BlockViewProps {
   block: Block;
@@ -57,7 +58,7 @@ function listItems(block: Extract<Block, { kind: "ul" | "ol" }>, caret: boolean,
     out.push(
       <View key={i} style={styles.item}>
         <Text style={styles.marker}>{block.kind === "ul" ? "\u2022" : `${block.start + i}.`}</Text>
-        <Text style={styles.itemText}>{inlineNodes(block.items[i] ?? [], onLink)}{caret && i === block.items.length - 1 ? <Caret /> : null}</Text>
+        <Text style={styles.itemText}>{inlineNodes(block.items[i] ?? [], onLink)}{caret && i === block.items.length - 1 ? CARET : null}</Text>
       </View>,
     );
   }
@@ -65,7 +66,7 @@ function listItems(block: Extract<Block, { kind: "ul" | "ol" }>, caret: boolean,
 }
 
 export const BlockView = memo(function BlockView({ block, caret = false, onLink }: BlockViewProps) {
-  const tail = caret ? <Caret /> : null;
+  const tail = caret ? CARET : null;
   switch (block.kind) {
     case "p":
       return <Text testID={`block-${block.key}`} style={styles.p}>{inlineNodes(block.inline, onLink)}{tail}</Text>;
@@ -111,7 +112,7 @@ export function MarkdownBlocks({ blocks, streaming = false, onLink }: MarkdownBl
   return (
     <View testID="markdown-blocks" style={styles.root}>
       {views}
-      {streaming && blocks.length === 0 ? <View style={styles.firstCaret}><Caret /></View> : null}
+      {streaming && blocks.length === 0 ? <Text style={styles.p}>{CARET}</Text> : null}
     </View>
   );
 }
@@ -135,8 +136,6 @@ const styles = StyleSheet.create({
   em: { fontStyle: "italic" },
   link: { color: "var(--accent)" as string },
   code: { fontFamily: MONO, fontSize: 13, backgroundColor: "var(--sunk)" as string },
-  caret: { width: 7, height: 16, marginLeft: 2, borderRadius: 1, backgroundColor: "var(--ink)" as string },
-  firstCaret: { height: BODY_LINE, justifyContent: "center", marginBottom: BLOCK_GAP },
   quote: { borderLeftWidth: 2, borderLeftColor: "var(--line-2)" as string, paddingLeft: 12, marginBottom: BLOCK_GAP },
   quoteText: { color: "var(--ink-2)" as string, fontSize: BODY_SIZE, lineHeight: BODY_LINE },
   rule: { height: 1, backgroundColor: "var(--line)" as string, marginVertical: 12 },

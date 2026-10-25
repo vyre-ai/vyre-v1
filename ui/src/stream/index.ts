@@ -7,7 +7,7 @@ export type { Block, IncrementalMarkdown, Inline, MarkdownStats, MarkdownView } 
 export { createStreamStore } from "./store.ts";
 export type { StreamSnapshot, StreamStats, StreamStore } from "./store.ts";
 export { useStream } from "./useStream.ts";
-export { BlockView, Caret, MarkdownBlocks } from "./Markdown.tsx";
+export { BlockView, CARET, MarkdownBlocks } from "./Markdown.tsx";
 export type { BlockViewProps, MarkdownBlocksProps } from "./Markdown.tsx";
 export { StreamText } from "./StreamText.tsx";
 export type { StreamTextProps } from "./StreamText.tsx";

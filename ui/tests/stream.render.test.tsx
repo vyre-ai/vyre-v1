@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
-  AVATAR_SIZE, AvatarSlot, BODY_LINE, HEADER_HEIGHT, MarkdownBlocks, ReservedImage, SkeletonMessage, StreamText, createCoalescer, createIncrementalMarkdown, createStreamStore, isAtEnd,
+  AVATAR_SIZE, AvatarSlot, BODY_LINE, CARET, HEADER_HEIGHT, MarkdownBlocks, ReservedImage, SkeletonMessage, StreamText, createCoalescer, createIncrementalMarkdown, createStreamStore, isAtEnd,
   messageHeight, parseChunk, parseInline,
 } from "../src/stream/index.ts";
 import type { FrameScheduler } from "../src/stream/index.ts";
@@ -276,11 +276,12 @@ test("the caret is drawn once, at the end of the open block, and not on final bl
   md.append("Done paragraph.\n\nStill writing **bo");
   const v = md.view();
   const html = renderToStaticMarkup(<MarkdownBlocks blocks={v.blocks} streaming />);
-  assert.equal(html.match(/data-testid="stream-caret"/g)?.length, 1);
-  assert.ok(html.indexOf("Done paragraph.") < html.indexOf("stream-caret"));
-  assert.ok(html.indexOf("stream-caret") > html.indexOf("Still writing"));
+  assert.equal(html.match(new RegExp(CARET, "g"))?.length, 1);
+  assert.ok(html.indexOf("Done paragraph.") < html.indexOf(CARET));
+  assert.ok(html.indexOf(CARET) > html.indexOf("Still writing"));
+  assert.doesNotMatch(html, /stream-caret/, "the caret is a character of the text, not an element that could move and shift the layout");
   const finished = renderToStaticMarkup(<MarkdownBlocks blocks={v.blocks} />);
-  assert.doesNotMatch(finished, /stream-caret/);
+  assert.doesNotMatch(finished, new RegExp(CARET));
 });
 
 test("StreamText reads the store's snapshot", () => {
@@ -291,9 +292,9 @@ test("StreamText reads the store's snapshot", () => {
   const html = renderToStaticMarkup(<StreamText store={store} />);
   assert.match(html, /Title/);
   assert.match(html, /Body text/);
-  assert.match(html, /stream-caret/);
+  assert.match(html, new RegExp(CARET));
   store.end();
-  assert.doesNotMatch(renderToStaticMarkup(<StreamText store={store} />), /stream-caret/);
+  assert.doesNotMatch(renderToStaticMarkup(<StreamText store={store} />), new RegExp(CARET));
 });
 
 test("markdown blocks draw lists with their numbers, quotes and code", () => {
