@@ -6,8 +6,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { canonical } from '../../lib/canonical.ts';
 
-const FROZEN_COUNT = 600;
-const FROZEN_HASH = '32302b01f410f49f97aeb65bae7cb2f8ba0af77e209ecc7b20e3e602688573e0';
+const FROZEN_COUNT = 601;
+const FROZEN_HASH = '301f08459022d2e244f8d893c4535dae0e5f5602032f5fbe3f15812247ff83b4';
 
 const NAME_RE = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
 const VIS = new Set(['space', 'participants', 'owner', 'private']);

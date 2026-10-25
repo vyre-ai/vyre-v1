@@ -134,6 +134,9 @@ export default defineManifest({
     ev('changeset.changes_requested', 'The reviewer asked the agent for changes', { p: { changesetId: id.changeset, folderId: id.folder, by: t.str(), comments: t.int() }, subject: ['folder', '/folderId'] }),
     ev('changeset.discarded', 'A changeset was discarded', { p: { changesetId: id.changeset, folderId: id.folder, by: t.str() }, subject: ['folder', '/folderId'] }),
     ev('changeset.updated', 'A change inside a changeset was reverted or the agent added more edits', { p: { changesetId: id.changeset, folderId: id.folder, fileCount: t.int() }, subject: ['folder', '/folderId'] }),
+    ev('changeset.edited', 'A person edited a proposed change in place before accepting it', {
+      p: { changesetId: id.changeset, folderId: id.folder, path: t.str(), proposedBy: t.str(), by: t.str(), fileCount: t.int() }, subject: ['folder', '/folderId'],
+    }),
     ev('changeset.sent_for_review', 'A changeset was opened to an outside agent for review', { p: { changesetId: id.changeset, actorId: t.opt(id.actor) }, subject: ['entity', '/changesetId'], replay: 'stub' }),
     ev('sheet.row_appended', 'A row was added to a sheet', { p: { fileId: id.file, sheet: t.str(), rowId, runId: t.opt(id.run) }, subject: ['file', '/fileId'], label: 'subject', trigger: { title: 'A row is added to a sheet', fields: ['/fileId', '/sheet'] } }),
     ev('sheet.row_updated', 'A row of a sheet changed', { p: { fileId: id.file, sheet: t.str(), rowId, columns: t.arr(t.str()), runId: t.opt(id.run) }, subject: ['file', '/fileId'], label: 'subject', trigger: { title: 'A sheet row changes', fields: ['/fileId', '/sheet'] } }),
@@ -319,6 +322,11 @@ export default defineManifest({
     }),
     write('changesets.revert_change', 'Revert a single change (one hunk or one file) inside a changeset', {
       in: { changesetId: id.changeset, path: t.str(), hunkId: t.opt(t.str()) }, out: { fileCount: t.int() }, emits: ['changeset.updated'], tool: 'files',
+    }),
+    write('changesets.edit', 'Edit a proposed change in place before accepting it: replace a run of lines in one staged file. The proposer stays recorded and so does the editor; Approve still goes through its own Gate', {
+      in: { changesetId: id.changeset, path: t.str(), startLine: t.int({ minimum: 1 }), removeLines: t.int({ minimum: 0 }), lines: t.arr(t.str()) },
+      out: { fileCount: t.int(), added: t.int(), removed: t.int(), proposedBy: t.str(), editedBy: t.str() },
+      audit: 'always', emits: ['changeset.edited'], tool: 'files', errors: ['validation.not_found', 'validation.precondition_failed', 'permission.no_grant'],
     }),
     write('changesets.review_externally', 'Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token; returns a one-time review link (the token is in the link, shown once, never logged)', {
       in: { changesetId: id.changeset, actorId: t.opt(id.actor) }, out: { actorId: id.actor, reviewUrl: t.str({ pattern: '^https?://', examples: ['https://northwind.example.com/review/cs_example?token=otk_example'] }), expiresAt: t.ts() }, emits: ['changeset.sent_for_review'], audit: 'always', tool: 'files',
