@@ -292,3 +292,27 @@ test("recipient search ranks contacts, companies, inboxes and groups, and takes 
   await refused(recipientsSearch(h.ctx, { q: "  " }), "validation.bad_input");
   await refused(recipientsSearch(h.ctx, { q: "x", limit: 51 }), "validation.bad_input");
 });
+
+test("list rows carry the organisation, Do not contact, bounced, unmatched and draft-ready flags from real data", async () => {
+  const h = harness({
+    contacts: [
+      { id: "rec_acme01", type: "company", name: "Acme Legal", emails: [], phones: [] },
+      { ...LEE, company: "rec_acme01", draft: true },
+      { ...DANA, dnd: true, deliverability: "bounced" },
+    ],
+    mailboxes: [...MBX],
+  });
+  h.mailboxOwners.set("mbx_work1", "usr_maya01");
+  h.mail.set("eml_a", { id: "eml_a", threadId: "thr_a", subject: "Hi", from: "pat@acme.test", to: ["maya@vyre.test"] });
+  h.mail.set("eml_b", { id: "eml_b", threadId: "thr_b", subject: "Hi", from: "dana@fox.test", to: ["maya@vyre.test"] });
+  h.mail.set("eml_c", { id: "eml_c", threadId: "thr_c", subject: "Hi", from: "who@nowhere.test", to: ["hello@vyre.test"] });
+  h.denied.add("mailbox:none");
+  const lee = (await linkMessage(h.ctx, link({ address: "pat@acme.test", id: "eml_a", mailboxId: "mbx_work1", at: NOW + 3 * HOUR }))).conversationId;
+  const dana = (await linkMessage(h.ctx, link({ address: "dana@fox.test", id: "eml_b", mailboxId: "mbx_work1", at: NOW + 2 * HOUR }))).conversationId;
+  const out = (await listByContact(h.ctx, {})).rows;
+  const byId = (id: string) => out.find((r) => r.id === id)!;
+  const a = byId(lee);
+  assert.deepEqual([a.organisation, a.dnd, a.bounced, a.unmatched, a.draftReady], ["Acme Legal", false, false, false, true]);
+  const b = byId(dana);
+  assert.deepEqual([b.organisation, b.dnd, b.bounced, b.unmatched, b.draftReady], [undefined, true, true, false, false]);
+});
