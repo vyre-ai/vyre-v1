@@ -27,7 +27,8 @@ cleanup() {
   docker ps -aq --filter "label=com.docker.compose.project=$PROJECT" 2>/dev/null | while read -r c; do docker rm -f "$c" >/dev/null 2>&1 || true; done
   docker volume ls -q --filter "label=com.docker.compose.project=$PROJECT" 2>/dev/null | while read -r vol; do docker volume rm -f "$vol" >/dev/null 2>&1 || true; done
   docker rm -f "$REG" >/dev/null 2>&1 || true
-  rm -rf "$W"
+  rm -rf "$W" 2>/dev/null || sudo -n rm -rf "$W" 2>/dev/null || docker run --rm -v "$W:/w" busybox:1.36.1 rm -rf /w/srv >/dev/null 2>&1 || true
+  rm -rf "$W" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -84,7 +85,7 @@ check() {
 }
 
 t_install_first_boot() {
-  install_enc --yes >"$W/inst.out" 2>&1 || { cat "$W/inst.out"; docker ps -a; docker logs "$(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT" | head -n 1)" 2>&1 | tail -n 40; return 1; }
+  install_enc --yes >"$W/inst.out" 2>&1 || { cat "$W/inst.out"; docker ps -a; for c in $(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT"); do echo "--- logs of $c"; docker logs "$c" 2>&1 | tail -n 40; done; return 1; }
   grep -q "vyre-server doctor is green" "$W/inst.out"
   [ "$(vs version)" = 1.0.0 ]
 }
