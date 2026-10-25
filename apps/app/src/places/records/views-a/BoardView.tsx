@@ -34,13 +34,14 @@ interface Board {
   counts: { current: Record<string, number> };
   move: (row: RecordRow, to: Lane) => void;
   open: (id: string) => void;
+  /** The board's one menu, drawn after everything else so it is never under a lane. */
+  show: (items: readonly MenuEntry[], x: number, y: number) => void;
 }
 
 // ---------------------------------------------------------------- one card
 
 function Card({ row, board, lane }: { row: RecordRow; board: Board; lane: Lane }): ReactElement {
   const data = useRecordsData();
-  const menu = useMenu();
   const { ctx, st, field, lanes } = board;
   const names = data.nameOf;
   const tf = ctx.def.fields.find((f) => f.key === ctx.def.titleField);
@@ -53,7 +54,7 @@ function Card({ row, board, lane }: { row: RecordRow; board: Board; lane: Lane }
     { head: "Move to" },
     ...each(lanes.filter((l) => !l.none || lane.none || (board.counts.current[l.key] ?? 0) > 0), (l): MenuEntry => ({ label: l.title, checked: l.key === lane.key, onSelect: () => board.move(row, l) })),
   ];
-  const trig = menuTrigger((x, y) => { board.select(row.id); menu.show(entries(), x, y); });
+  const trig = menuTrigger((x, y) => { board.select(row.id); board.show(entries(), x, y); });
   const card = (
     <Pressable
       accessibilityRole="button" accessibilityLabel={`${title}, ${lane.title}`} accessibilityState={{ selected }} testID={`card-${row.id}`}
@@ -68,8 +69,7 @@ function Card({ row, board, lane }: { row: RecordRow; board: Board; lane: Lane }
       ) : null}
     </Pressable>
   );
-  const both = <>{card}{menu.element}</>;
-  if (Platform.OS !== "web") return both;
+  if (Platform.OS !== "web") return card;
   return createElement(
     "div",
     {
@@ -78,7 +78,7 @@ function Card({ row, board, lane }: { row: RecordRow; board: Board; lane: Lane }
       onDragEnd: () => { board.drag.current = null; },
       style: { cursor: "grab" },
     },
-    both,
+    card,
   );
 }
 
@@ -144,6 +144,7 @@ function LaneColumn({ board, lane }: { board: Board; lane: Lane }): ReactElement
 export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const data = useRecordsData();
   const st = useViewState(ctx);
+  const menu = useMenu();
   const [picked, setPicked] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -165,7 +166,7 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
     setSelected(row.id);
     moveCard(data, ctx.type, field, row, to).catch((e: unknown) => setError(moveError(e)));
   };
-  const board: Board = { ctx, st, field, lanes, selected, select: setSelected, drag, ids, rows, counts, move, open: data.nav.openRecord };
+  const board: Board = { ctx, st, field, lanes, selected, select: setSelected, drag, ids, rows, counts, move, open: data.nav.openRecord, show: menu.show };
   const shown = (l: Lane): boolean => !l.none || (counts.current[l.key] ?? 0) > 0;
 
   const laneOfSelected = (): { lane: Lane; at: number } | null => {
@@ -218,6 +219,7 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
           ))}
         </ScrollView>
       </View>
+      {menu.element}
     </View>
   );
 }
