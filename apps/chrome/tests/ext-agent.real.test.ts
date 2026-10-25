@@ -223,7 +223,11 @@ test("the chrome_* tools drive a real page: read, press, type, hold, send, mask"
     assert.deepEqual((await r.call("chrome_status")).held.sort(), [held.heldId, heldPay.heldId].sort());
     const sent = await r.call("chrome_send", { heldId: held.heldId });
     assert.equal(sent.sent, true);
+    // chrome_send returns when the click is made; the form POST can still be in flight, so wait for it to arrive, then see that no second one follows
+    for (let waited = 0; srv.counts.contacts < 1 && waited < 3000; waited += 50) await new Promise((res) => setTimeout(res, 50));
     assert.equal(srv.counts.contacts, 1, "sent exactly once");
+    await new Promise((res) => setTimeout(res, 500));
+    assert.equal(srv.counts.contacts, 1, "and no second send follows");
     await assert.rejects(r.call("chrome_send", { heldId: held.heldId }), (e: any) => e.code === "held_gone");
     assert.equal(srv.counts.contacts, 1);
 
