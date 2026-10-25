@@ -45,7 +45,7 @@ test("a request that is not plainly local is refused: a proxy header, a Host tha
   } finally { r.close(); }
 });
 
-test("no token is 401, a node that is not the person's own is 403, a bad key is 400, a GET is 405, and the key is never in an answer", async () => {
+test("no token is 401, a node that is not the person's own is 403, a bad key is 422, a GET is 405, and the key is never in an answer", async () => {
   const r = await rig((p) => p !== "usr_a");
   try {
     assert.equal((await r.call("/local/vault/key/unlock", { headers: { authorization: "Bearer nope" }, body: { key: B64 } })).status, 401);
@@ -55,8 +55,8 @@ test("no token is 401, a node that is not the person's own is 403, a bad key is 
   } finally { r.close(); }
   const own = await rig();
   try {
-    assert.equal((await own.call("/local/vault/key/unlock", { body: { key: "AAAA" } })).status, 400);
-    assert.equal((await own.call("/local/vault/key/unlock", { body: {} })).status, 400);
+    assert.equal((await own.call("/local/vault/key/unlock", { body: { key: "AAAA" } })).status, 422);
+    assert.equal((await own.call("/local/vault/key/unlock", { body: {} })).status, 422);
     assert.equal((await own.call("/local/vault/key/unlock", { method: "GET" })).status, 405);
     assert.equal((await own.call("/other")).status, 404);
   } finally { own.close(); }

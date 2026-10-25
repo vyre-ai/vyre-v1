@@ -27,8 +27,8 @@ test("the catalog names every engine driver and each connection it takes", async
 test("a Shared API key is added, listed with its handle, visible to people with Use, and the key is in no row", async () => {
   const h = harness();
   const folder = await sharedFolder(h);
-  const row = out(await p.add(h.ctx, { providerKey: "anthropic", connection: "api_key", scope: "shared", apiKey: SECRET, folderId: folder, idempotencyKey: key() }));
-  assert.deepEqual(contractErrors("providers.add", "out", row), []);
+  const row = out(out(await p.add(h.ctx, { providerKey: "anthropic", connection: "api_key", scope: "shared", apiKey: SECRET, folderId: folder, idempotencyKey: key() })).provider);
+  assert.deepEqual(contractErrors("providers.add", "out", { provider: row }), []);
   assert.deepEqual([row.providerKey, row.connection, row.scope, row.engine, row.spaceMayUse, row.state, row.handle, row.via], ["anthropic", "api_key", "shared", "anthropic", true, "ok", "#Anthropic", "API key, shared"]);
   const listed = out(await p.list(h.ctx, {}));
   assert.deepEqual(contractErrors("providers.list", "out", listed), []);
@@ -44,9 +44,9 @@ test("a Shared API key is added, listed with its handle, visible to people with 
 
 test("a Mine key lives in the person's own AI providers folder and no one else lists it; acting for the person finds it", async () => {
   const h = harness();
-  const row = out(await p.add(h.ctx, { providerKey: "openai", connection: "api_key", scope: "mine", apiKey: SECRET, idempotencyKey: key() }));
+  const row = out(out(await p.add(h.ctx, { providerKey: "openai", connection: "api_key", scope: "mine", apiKey: SECRET, idempotencyKey: key() })).provider);
   assert.deepEqual([row.scope, row.spaceMayUse, row.via], ["mine", false, "API key, yours"]);
-  const again = out(await p.add(h.ctx, { providerKey: "openai", connection: "api_key", scope: "mine", apiKey: `${SECRET}-2`, idempotencyKey: key() }));
+  const again = out(out(await p.add(h.ctx, { providerKey: "openai", connection: "api_key", scope: "mine", apiKey: `${SECRET}-2`, idempotencyKey: key() })).provider);
   assert.notEqual(again.itemId, row.itemId, "a second key is a second account");
   assert.equal((out(await p.list(h.ctx, {})).providers as Json[]).length, 2);
   h.actAs("person", ROB);
@@ -71,7 +71,7 @@ test("add refuses what cannot work: an unknown provider, a wrong connection, no 
 test("providers.test reaches the provider only through the host, shows the models, and marks the account failing when it is refused", async () => {
   const h = harness();
   const folder = await sharedFolder(h);
-  const row = out(await p.add(h.ctx, { providerKey: "anthropic", connection: "api_key", scope: "shared", apiKey: SECRET, folderId: folder, idempotencyKey: key() }));
+  const row = out(out(await p.add(h.ctx, { providerKey: "anthropic", connection: "api_key", scope: "shared", apiKey: SECRET, folderId: folder, idempotencyKey: key() })).provider);
   u.configureVault(null);
   const no = out(await p.test(h.ctx, { providerId: String(row.id) }));
   assert.deepEqual([no.ok, no.models], [false, []], "no host probe: it says so");
@@ -93,7 +93,7 @@ test("providers.test reaches the provider only through the host, shows the model
 test("a local model is added by address and tested with it", async () => {
   const h = harness();
   const folder = await sharedFolder(h);
-  const row = out(await p.add(h.ctx, { providerKey: "local", connection: "local_model", scope: "shared", address: "http://localhost:11434", folderId: folder, idempotencyKey: key() }));
+  const row = out(out(await p.add(h.ctx, { providerKey: "local", connection: "local_model", scope: "shared", address: "http://localhost:11434", folderId: folder, idempotencyKey: key() })).provider);
   assert.equal(row.via, "Local model");
   const seen: unknown[] = [];
   u.configureVault({ sinks: {}, probe: async (q) => { seen.push(q); return { ok: true, models: ["llama3"] }; } });
@@ -105,9 +105,9 @@ test("a local model is added by address and tested with it", async () => {
 
 test("set_space_use lets the owner of a Mine account offer it to the Space, and remove deletes the item with the account", async () => {
   const h = harness();
-  const row = out(await p.add(h.ctx, { providerKey: "xai", connection: "api_key", scope: "mine", apiKey: SECRET, idempotencyKey: key() }));
-  assert.equal(out(await p.setSpaceUse(h.ctx, { providerId: String(row.id), allow: true })).spaceMayUse, true);
-  assert.equal(out(await p.setSpaceUse(h.ctx, { providerId: String(row.id), allow: false })).spaceMayUse, false);
+  const row = out(out(await p.add(h.ctx, { providerKey: "xai", connection: "api_key", scope: "mine", apiKey: SECRET, idempotencyKey: key() })).provider);
+  assert.equal(out(out(await p.setSpaceUse(h.ctx, { providerId: String(row.id), allow: true })).provider).spaceMayUse, true);
+  assert.equal(out(out(await p.setSpaceUse(h.ctx, { providerId: String(row.id), allow: false })).provider).spaceMayUse, false);
   h.actAs("person", ROB);
   assert.equal(await refusedWith(p.setSpaceUse(h.ctx, { providerId: String(row.id), allow: true })), "validation.not_found", "someone else's Mine account does not exist for them");
   h.actAs("person", MAYA);
@@ -126,10 +126,10 @@ test("a subscription sign-in: start gives a flow, complete waits for the compute
   h.advance(1000);
   const mine = String(out(out(await v.foldersCreate(h.ctx, { name: "Mine keys", scope: "mine", idempotencyKey: key() })).folder).id);
   await v.itemPut(h.ctx, { folderId: mine, name: "Claude Code sign-in", kind: "ai_subscription", fields: [{ key: "credentials", value: SECRET }], idempotencyKey: key() } as Parameters<typeof v.itemPut>[1]);
-  const row = out(await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId) }));
-  assert.deepEqual(contractErrors("providers.subscription_complete", "out", row), []);
+  const row = out(out(await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId) })).provider);
+  assert.deepEqual(contractErrors("providers.subscription_complete", "out", { provider: row }), []);
   assert.deepEqual([row.connection, row.scope, row.engine, row.via, row.providerKey], ["subscription", "mine", "claude-code", "Subscription, yours", "claude-code"]);
-  assert.equal(out(await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId) })).id, row.id, "pressing Done twice is one account");
+  assert.equal(out(out(await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId) })).provider).id, row.id, "pressing Done twice is one account");
   const tested = out(await p.test(h.ctx, { providerId: String(row.id) }));
   assert.deepEqual([tested.ok, (tested.models as string[]).length > 0], [true, true]);
   h.actAs("person", ROB);

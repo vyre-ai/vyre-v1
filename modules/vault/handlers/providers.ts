@@ -132,7 +132,7 @@ export async function add(ctx: VaultCtx, input: { providerKey: string; connectio
   const id = newId("prv", ctx.now());
   ctx.db.run(`INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, c.key, input.connection, input.scope, me(ctx), itemId, input.scope === "shared" ? 1 : 0, "ok", ctx.now(), null);
-  return rowOut(ctx, providerById(ctx, id));
+  return { provider: rowOut(ctx, providerById(ctx, id)) };
 }
 
 export async function remove(ctx: VaultCtx, input: { providerId: string }) {
@@ -151,7 +151,7 @@ export async function setSpaceUse(ctx: VaultCtx, input: { providerId: string; al
   mayAct(ctx, p, "manage");
   if (str(p, "owner") !== me(ctx) && !atLeast(levelOn(ctx, "vault_item", str(p, "itemId")), "manage")) denied(ctx, "Only the owner of a provider says whether the Space may use it.");
   ctx.db.run(`UPDATE vault_provider SET "spaceMayUse" = ? WHERE "id" = ?`, input.allow ? 1 : 0, str(p, "id"));
-  return rowOut(ctx, providerById(ctx, str(p, "id")));
+  return { provider: rowOut(ctx, providerById(ctx, str(p, "id"))) };
 }
 
 // ---- subscription sign-in
@@ -172,7 +172,7 @@ export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: strin
   if (!f || str(f, "person") !== me(ctx)) throw fail("validation.not_found", ctx.trace.traceId, { message: "That sign-in was not started by you." });
   if (f["doneAt"] !== null) {
     const again = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).find((p) => live(p) && str(p, "owner") === me(ctx) && str(p, "providerKey") === str(f, "providerKey"));
-    if (again) return rowOut(ctx, again);
+    if (again) return { provider: rowOut(ctx, again) };
   }
   const linked = new Set(rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).map((p) => str(p, "itemId")));
   const item = rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => live(r) && str(r, "kind") === "ai_subscription" && str(r, "owner") === me(ctx) && !linked.has(str(r, "id")))
@@ -183,7 +183,7 @@ export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: strin
   ctx.db.run(`INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, str(f, "providerKey"), "subscription", "mine", me(ctx), str(item, "id"), 0, "ok", ctx.now(), null);
   ctx.db.run(`UPDATE vault_provider_flow SET "doneAt" = ? WHERE "id" = ?`, ctx.now(), input.flowId);
-  return rowOut(ctx, providerById(ctx, id));
+  return { provider: rowOut(ctx, providerById(ctx, id)) };
 }
 
 // ---- test

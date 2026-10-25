@@ -12,6 +12,22 @@ import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
+import { fileURLToPath } from "node:url";
+
+/** A code root that is this repo with the vault live: every top-level entry a symlink, host/ rebuilt around an edited modules.json (the vault flips in P-L7_LIVE). */
+function codeRootWithVaultLive(): string {
+  const repo = fileURLToPath(new URL("../..", import.meta.url));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-coderoot-"));
+  for (const name of fs.readdirSync(repo)) if (name !== ".git" && name !== "host") fs.symlinkSync(path.join(repo, name), path.join(root, name));
+  fs.mkdirSync(path.join(root, "host"));
+  for (const name of fs.readdirSync(path.join(repo, "host"))) if (name !== "modules.json") fs.symlinkSync(path.join(repo, "host", name), path.join(root, "host", name));
+  const list = JSON.parse(fs.readFileSync(path.join(repo, "host/modules.json"), "utf8")) as { modules: { id: string; status: string }[] };
+  const v = list.modules.find((m) => m.id === "vault");
+  assert.ok(v, "host/modules.json lists vault");
+  v.status = "live";
+  fs.writeFileSync(path.join(root, "host/modules.json"), JSON.stringify(list));
+  return root;
+}
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 const OWNER = "tok-usr_olivia", OTHER = "tok-usr_noah";
@@ -25,7 +41,9 @@ test("vault key (ruling 62): unlock opens the person's Mine provider for their t
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
   fs.copyFileSync(core.file, path.join(dir, "events.db"));
   core.close();
+  const codeRoot = codeRootWithVaultLive();
   const boot = (extra: string[] = []) => startDaemon({
+    codeRoot,
     config: loadConfig(["--data-dir", dir, "--port", "0", ...extra], {}, "1.2.3"),
     platform: fakePlatform({
       os: "linux", hostname: "vault-key", free: 80e9,
