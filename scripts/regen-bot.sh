@@ -14,7 +14,7 @@ DRY_RUN="${DRY_RUN:-0}"
 MAIN=0
 case "$BRANCH" in
   build/*) ;;
-  main) MAIN=1 ;;   # after every merge to main (regen-main.yml): rebuild generated/ and the snapshots so main is never behind its manifests
+  main) MAIN=1 ;;   # after every merge to main (regen.yml on main): rebuild generated/ and the snapshots so main is never behind its manifests
   *) echo "regen: refusing to run on $BRANCH (build/* and main only)"; exit 1;;
 esac
 

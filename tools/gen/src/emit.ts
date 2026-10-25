@@ -57,7 +57,7 @@ export function emitAll(reg: Registry): Files {
 
   put('README.md', '# generated\n\nEverything here is written by `tools/gen` from `manifests/`. Never edit by hand; run `node tools/gen/src/cli.ts` and commit the result. CI runs `--check` and fails on drift.\n');
   put('registry.json', registryJson);
-  put('registry.ts', `${HEADER}// Loads registry.json at runtime (no JSON module inference in the compiler). The registry hash is not exported here: this file reaches clients and the web bundle, so it stays free of node:crypto. Tools hash registry.json themselves.\nimport { readFileSync } from 'node:fs';\nimport type { Registry } from '../packages/contracts/src/registry.ts';\n\nconst text = readFileSync(new URL('./registry.json', import.meta.url), 'utf8');\nexport const registry = JSON.parse(text) as Registry;\n`);
+  put('registry.ts', `${HEADER}// Loads registry.json at runtime (no JSON module inference in the compiler). The registry hash is not exported here: this file reaches clients and the web bundle, so it holds no crypto import. Tools hash registry.json themselves.\nimport { readFileSync } from 'node:fs';\nimport type { Registry } from '../packages/contracts/src/registry.ts';\n\nconst text = readFileSync(new URL('./registry.json', import.meta.url), 'utf8');\nexport const registry = JSON.parse(text) as Registry;\n`);
 
   // ---- types.ts: every input, output and event payload type
   {
