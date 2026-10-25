@@ -21,6 +21,7 @@ import {
   FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, SCROLL_BLOCK, chosen, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, groupable, hasOptions,
   hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, setSort, sortable, toSaved, toggleHidden, toggleOption, totalWidth,
 } from "./model.ts";
+import { allIds, eachId, pickedFilter, recordsWord } from "./bulk.ts";
 import { NO_PICK, isPickedRow, pickCount, toggleHeader, togglePick } from "./model.ts";
 import type { Column, FieldDef, Pick, RecordRow, TableViewState, TypeDef } from "./model.ts";
 
@@ -352,19 +353,37 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
     });
   };
   const nPicked = pickCount(sel, count ?? 0);
+  /** The bulk work in flight or just done: a confirm to answer, a progress line, then what was deleted with Undo. */
+  const [work, setWork] = useState<{ kind: "confirm"; ids: readonly string[]; every: boolean; n: number } | { kind: "busy"; text: string } | { kind: "done"; ids: readonly string[]; failed: number } | null>(null);
+  const viewFilter = filterOf(v, def.titleField);
+  const deleteNow = async (ids: readonly string[], every: boolean): Promise<void> => {
+    let all = ids;
+    if (every) {
+      setWork({ kind: "busy", text: "Finding the records…" });
+      all = await allIds(data.call, { type, ...(viewFilter === undefined ? {} : { filter: viewFilter }), ...(v.sort.length ? { sort: v.sort } : {}) }, count ?? 0, (n) => setWork({ kind: "busy", text: `Finding the records… ${n.toLocaleString("en-US")}` }));
+    }
+    const r = await eachId(data.call, "records.delete", type, all, (done, failed) => setWork({ kind: "busy", text: `Deleting ${(done + failed).toLocaleString("en-US")} of ${all.length.toLocaleString("en-US")}…` }));
+    clearPick(); setSelected(null);
+    setWork({ kind: "done", ids: all, failed: r.failed });
+  };
+  const undoDelete = async (ids: readonly string[]): Promise<void> => {
+    await eachId(data.call, "records.restore", type, ids, (done, failed) => setWork({ kind: "busy", text: `Restoring ${(done + failed).toLocaleString("en-US")} of ${ids.length.toLocaleString("en-US")}…` }));
+    setWork(null);
+  };
   /** What the right-click menu and the selection bar both offer. `ids` are the picked rows; `every` means the whole table. */
   const actionEntries = (ids: readonly string[], every: boolean): MenuEntry[] => {
-    const word = every ? `All ${(count ?? 0).toLocaleString("en-US")}` : String(ids.length);
+    const n = every ? (count ?? 0) : ids.length;
     const out: MenuEntry[] = [];
     if (!every && ids.length === 1) out.push({ label: "Open", onSelect: () => data.nav.openRecord(ids[0] as string) });
     out.push({
-      label: every ? `Export ${word} as CSV` : `Export the view as CSV`,
-      onSelect: () => { void data.call("records.export", { type, format: "csv", ...(filterOf(v, def.titleField) === undefined ? {} : { filter: filterOf(v, def.titleField) }), ...(v.sort.length ? { sort: v.sort.map((x) => ({ ...x })) } : {}) }); },
+      label: every || ids.length > 1 ? "Export picked as CSV" : ids.length === 1 ? "Export this record as CSV" : "Export the view as CSV",
+      onSelect: () => {
+        const filter = every || ids.length === 0 ? viewFilter : pickedFilter(viewFilter, ids);
+        void data.call("records.export", { type, format: "csv", ...(filter === undefined ? {} : { filter }), ...(v.sort.length ? { sort: v.sort.map((x) => ({ ...x })) } : {}) });
+      },
     });
     out.push({ separator: true });
-    out.push(every
-      ? { label: "Delete needs fewer rows selected" }
-      : { label: ids.length === 1 ? "Delete" : `Delete ${word} records`, danger: true, onSelect: () => { for (const id of ids) void data.call("records.delete", { type, recordId: id }); clearPick(); setSelected(null); } });
+    out.push({ label: n === 1 ? "Delete" : `Delete ${n.toLocaleString("en-US")} records`, danger: true, onSelect: () => setWork({ kind: "confirm", ids, every, n }) });
     return out;
   };
   const rowMenu = (r: RecordRow, x: number, y: number): void => {
@@ -515,7 +534,28 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
         <HeadButton icon="plus" label="New" bare={slim} testID="records-new" onPress={newRecord} />
       </View>
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="records-offline">Offline, showing your saved copy</Text>}
-      {picked !== "none" || sel.ids.size > 0 ? (
+      {work ? (
+        <View style={styles.pickBar} accessibilityRole="alert" testID="records-work">
+          {work.kind === "confirm" ? (
+            <>
+              <Text style={styles.pickBarText} testID="records-confirm-text">{`Delete ${recordsWord(work.n, def.title.toLowerCase(), def.plural.toLowerCase())}?`}</Text>
+              <View style={styles.grow} />
+              <Pressable accessibilityRole="button" testID="records-confirm-delete" onPress={() => void deleteNow(work.ids, work.every)} style={styles.pickLink}><Text style={[styles.pickLinkText, styles.pickDanger]}>Delete</Text></Pressable>
+              <Pressable accessibilityRole="button" testID="records-confirm-cancel" onPress={() => setWork(null)} style={styles.pickLink}><Text style={styles.pickLinkText}>Cancel</Text></Pressable>
+            </>
+          ) : work.kind === "busy" ? (
+            <Text style={styles.pickBarText} testID="records-work-text">{work.text}</Text>
+          ) : (
+            <>
+              <Text style={styles.pickBarText} testID="records-work-text">{`Deleted ${recordsWord(work.ids.length - work.failed, def.title.toLowerCase(), def.plural.toLowerCase())}.${work.failed > 0 ? ` ${work.failed.toLocaleString("en-US")} could not be deleted.` : ""} They are in the Trash.`}</Text>
+              <View style={styles.grow} />
+              <Pressable accessibilityRole="button" testID="records-undo" onPress={() => void undoDelete(work.ids)} style={styles.pickLink}><Text style={styles.pickLinkText}>Undo</Text></Pressable>
+              <Pressable accessibilityRole="button" testID="records-work-close" onPress={() => setWork(null)} style={styles.pickLink}><Text style={styles.pickLinkText}>Dismiss</Text></Pressable>
+            </>
+          )}
+        </View>
+      ) : null}
+      {work === null && (picked !== "none" || sel.ids.size > 0) ? (
         <View style={styles.pickBar} accessibilityRole="toolbar" testID="records-pick-bar">
           <Text style={styles.pickBarText} testID="records-pick-text">
             {sel.every ? `All ${(count ?? 0).toLocaleString("en-US")} ${def.plural.toLowerCase()} are selected.` : `${sel.ids.size.toLocaleString("en-US")} ${sel.ids.size === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()} selected.`}
@@ -526,7 +566,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
           <View style={styles.grow} />
           {actionEntries(sel.every ? [] : [...sel.ids], sel.every).filter((e) => "label" in e).map((e) => {
             const it = e as { label: string; onSelect?: () => void; danger?: boolean };
-            const off = it.onSelect === undefined;
+            const off = false;
             return (
               <Pressable key={it.label} accessibilityRole="button" accessibilityState={{ disabled: off }} disabled={off} testID={`records-pick-${it.label.split(" ")[0]!.toLowerCase()}`} onPress={() => it.onSelect?.()} style={({ hovered }: { hovered?: boolean }) => [styles.pickLink, hovered === true && styles.pickLinkOver]}>
                 <Text style={[styles.pickLinkText, it.danger === true && styles.pickDanger, off && styles.pickOff]}>{it.label}</Text>

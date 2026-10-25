@@ -178,7 +178,7 @@ function matches(r: RecordRow, c: Clause | undefined): boolean {
   if (!c) return true;
   if (c.and) return c.and.every((x) => matches(r, x));
   if (c.or) return c.or.some((x) => matches(r, x));
-  const v = r.fields[c.field ?? ""];
+  const v = c.field === "id" ? r.id : r.fields[c.field ?? ""];
   switch (c.op) {
     case "eq": return v === c.value;
     case "ne": return v !== c.value;
@@ -280,6 +280,7 @@ export function createSampleRecords(space: SampleSpace = northwind, o: { online?
     return { rows: rows.slice(offset, offset + limit), total: rows.length };
   });
 
+  const trash = new Map<string, Row>();
   const writes: Record<string, (i: never) => unknown> = {
     "records.create": (i: { type: string; fields: Record<string, unknown> }) => {
       const id = `${i.type}_new${replica.rows(`records:${i.type}`).length}`;
@@ -287,6 +288,21 @@ export function createSampleRecords(space: SampleSpace = northwind, o: { online?
       replica.put(`records:${i.type}`, [rec]);
       return { record: rec };
     },
+    "records.delete": (i: { type: string; recordId: string }) => {
+      const cur = (replica.rows(`records:${i.type}`) as unknown as { id: string }[]).find((r) => r.id === i.recordId);
+      if (!cur) throw new Error("not_found");
+      trash.set(i.recordId, cur as unknown as Row);
+      replica.remove(`records:${i.type}`, [i.recordId]);
+      return { deleted: true };
+    },
+    "records.restore": (i: { type: string; recordId: string }) => {
+      const cur = trash.get(i.recordId);
+      if (!cur) throw new Error("not_found");
+      trash.delete(i.recordId);
+      replica.put(`records:${i.type}`, [cur]);
+      return { record: cur };
+    },
+    "records.export": () => ({ fileId: "fil_export" }),
     "views.save": (i: { type: string; viewId?: string; kind: string; title: string; filter?: unknown; sort?: unknown; group?: string; hidden?: string[]; config?: Record<string, unknown> }) => {
       const viewId = i.viewId ?? `vw_${replica.rows("views").length + 1}`;
       const view = { id: viewId, viewId, type: i.type, kind: i.kind, title: i.title, shared: false, ownerId: space.me, updatedAt: SAMPLE_NOW, ...(i.filter !== undefined ? { filter: i.filter } : {}), ...(i.sort !== undefined ? { sort: i.sort } : {}), ...(i.group ? { group: i.group } : {}), ...(i.hidden ? { hidden: i.hidden } : {}), ...(i.config ? { config: i.config } : {}) };
@@ -308,7 +324,11 @@ export function createSampleRecords(space: SampleSpace = northwind, o: { online?
     async call(cap, input) {
       calls.push({ cap, input });
       const w = writes[cap];
-      if (!w) throw new Error(`unknown capability ${cap}`);
+      if (!w) {
+        const read = replica.run(cap as never, input as never);
+        if (read) return read.data;
+        throw new Error(`unknown capability ${cap}`);
+      }
       return w(input as never);
     },
     connection, nav,
