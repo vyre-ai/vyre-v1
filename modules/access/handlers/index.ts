@@ -1,6 +1,9 @@
-// One handler per access capability. Share, folders, requests and reviews land in later packets.
+// One handler per access capability. Share and folders are handlers/share.ts (P-L7_02); requests and reviews land in later packets.
 import type { AccessCtx } from "../projections.ts";
 import { raise } from "../projections.ts";
+import {
+  foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, lists, share, sharesOf, unshare,
+} from "./share.ts";
 import {
   actorsCreate, actorsEngineer, actorsList, actorsRedeem, actorsRevoke, actorsUpdate, check,
   labelsList, labelsSet, policiesList, policiesReset, policiesSet, projectionHealth, viewAs,
@@ -39,7 +42,7 @@ export const handlers = {
   "access.groups.update": groupsUpdate,
   "access.labels.list": labelsList,
   "access.labels.set": labelsSet,
-  "access.lists": later,
+  "access.lists": lists,
   "access.policies.list": policiesList,
   "access.policies.reset": policiesReset,
   "access.policies.set": policiesSet,
@@ -66,15 +69,15 @@ export const handlers = {
   "access.roles.preview": rolesPreview,
   "access.roles.unassign": rolesUnassign,
   "access.roles.update": rolesUpdate,
-  "access.share": later,
-  "access.shares_of": later,
-  "access.unshare": later,
+  "access.share": share,
+  "access.shares_of": sharesOf,
+  "access.unshare": unshare,
   "access.view_as": viewAs,
-  "folders.create": later,
-  "folders.delete": later,
-  "folders.list": later,
-  "folders.move": later,
-  "folders.place": later,
-  "folders.rename": later,
-  "folders.unplace": later,
+  "folders.create": foldersCreate,
+  "folders.delete": foldersDelete,
+  "folders.list": foldersList,
+  "folders.move": foldersMove,
+  "folders.place": foldersPlace,
+  "folders.rename": foldersRename,
+  "folders.unplace": foldersUnplace,
 };
