@@ -260,8 +260,25 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       });
       hooks = hookRunner;
       // the async projections the live modules export (P-H_07): the events module's webhooks_out turns subscribed events into signed deliveries
+      // crash recovery: a webhook delivery row inserted but never dispatched (the daemon died between the two) is sent again; the send is idempotent per attempt
+      let dispatchSystem: ((cap: string, input: unknown) => Promise<unknown>) | null = null;
+      const dueDeliveries = loaded.moduleExports.get("events")?.["dueDeliveries"] as ((ctx: { db: unknown }, now: number, limit?: number) => { webhook_id: string; event_id: string; attempts: number; state: string; at: number }[]) | undefined;
+      const WEBHOOK_RECOVER_MS = 30_000;
       const projectionRunner = createProjectionRunner({
-        now, db, log: { read: (q) => log!.read(q), currentHead: () => log!.currentHead() },
+        now, db,
+        ...(dueDeliveries ? { recover: [{
+          name: "events.webhooks_out", windowMs: WEBHOOK_RECOVER_MS,
+          run: async (t: number) => {
+            if (!dispatchSystem) return 0;
+            let n = 0;
+            for (const r of dueDeliveries({ db: db! }, t, 100)) {
+              if (r.state !== "pending" || r.attempts !== 0 || r.at > t - WEBHOOK_RECOVER_MS) continue;
+              await dispatchSystem("webhooks.send_delivery", { webhookId: r.webhook_id, eventId: r.event_id, attempt: 1, idempotencyKey: `${r.webhook_id}:${r.event_id}:1` });
+              n++;
+            }
+            return n;
+          },
+        }] } : {}), log: { read: (q) => log!.read(q), currentHead: () => log!.currentHead() },
         projections: [...loaded.moduleExports.values()].flatMap((ns) => collectProjections(ns)),
         warn: (msg, attrs) => sink.log({ space: space!, level: 30, msg, place: "projections", ...(attrs ? { attrs } : {}) }),
       });
@@ -335,6 +352,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // the Space record store the L3 data modules share (P-H_08): one file in the data directory, opened by the first module that needs it, closed at shutdown
       const spaceStore = createSpaceStore({ path: spaceStorePath(paths.root), space: spaceId });
       closers.push(() => spaceStore.close());
+      dispatchSystem = system;
       const hostDrivers: Record<string, SeamDriver> = {
         setPushPort: () => createPushPort(o.seams?.push),
         setEventsDispatch: () => system,
