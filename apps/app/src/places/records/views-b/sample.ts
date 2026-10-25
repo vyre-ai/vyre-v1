@@ -40,7 +40,7 @@ export function task(i: number): RecordRow {
   };
 }
 
-const PLACES = [["San Francisco office", "office", 37.7749, -122.4194, 840], ["Oakland clinic", "clinic", 37.8044, -122.2712, 410], ["San Jose partner", "partner", 37.3382, -121.8863, 120], ["Berkeley clinic", "clinic", 37.8715, -122.273, 260],
+export const PLACES = [["San Francisco office", "office", 37.7749, -122.4194, 840], ["Oakland clinic", "clinic", 37.8044, -122.2712, 410], ["San Jose partner", "partner", 37.3382, -121.8863, 120], ["Berkeley clinic", "clinic", 37.8715, -122.273, 260],
   ["Palo Alto office", "office", 37.4419, -122.143, 530], ["Sacramento partner", "partner", 38.5816, -121.4944, 90], ["Santa Rosa clinic", "clinic", 38.4405, -122.7141, 175], ["Fremont office", "office", 37.5485, -121.9886, 320]] as const;
 
 export function location(i: number): RecordRow {
@@ -123,4 +123,14 @@ export function createBSample(space: SampleSpace = northRich, o: { online?: bool
     },
   };
   return { ...base, data, decisions };
+}
+
+/** The prototype's Northwind (the shared fixtures' counts and rows: Clients 1,240, Projects 270, Meetings 652 ...) with the Records views' own writes. */
+export async function createProtoSample(o: { online?: boolean; fail?: string } = {}): Promise<BSample> {
+  const { protoRows, protoViewsSpace } = await import("./proto.ts");
+  const sample = createBSample(protoViewsSpace(), o);
+  const rows = protoRows();
+  sample.replica.put("records:projects", rows.projects);
+  sample.replica.put("records:meetings", rows.meetings);
+  return sample;
 }

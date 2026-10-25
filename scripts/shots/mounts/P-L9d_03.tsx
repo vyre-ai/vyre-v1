@@ -7,15 +7,18 @@ import { View, useWindowDimensions } from "react-native";
 import { RecordsDataProvider, RecordsSidebar, RecordsStateProvider } from "../../../apps/app/src/places/records/sidebar/index.ts";
 import { RecordViews } from "../../../apps/app/src/places/records/views-a/index.ts";
 import { EXTRA_KINDS, TodayProvider } from "../../../apps/app/src/places/records/views-b/index.tsx";
-import { TODAY, createBSample, harborRich, northRich } from "../../../apps/app/src/places/records/views-b/sample.ts";
+import { TODAY, createBSample, createProtoSample, harborRich } from "../../../apps/app/src/places/records/views-b/sample.ts";
+import type { BSample } from "../../../apps/app/src/places/records/views-b/sample.ts";
+import { PROTO_TODAY } from "../../../apps/app/src/places/records/views-b/proto.ts";
 
 export const title = "Records: Calendar, Timeline, Map and Charts";
 
-const DEFAULT_TYPE: Record<string, string> = { calendar: "projects", timeline: "tasks", map: "locations", charts: "projects" };
+// The prototype compares Calendar on Meetings and Timeline on Projects; Northwind is the shared fixtures' Space (Clients 1,240, Projects 270 ...), today Oct 24, 2026.
+const DEFAULT_TYPE: Record<string, string> = { calendar: "meetings", timeline: "projects", map: "locations", charts: "projects" };
 
-function Page({ q }: { q: URLSearchParams }): ReactNode {
-  const space = q.get("space") === "harbor" ? harborRich : northRich;
-  const sample = useMemo(() => createBSample(space), [space]);
+function Page({ q, northwind }: { q: URLSearchParams; northwind: BSample }): ReactNode {
+  const harbor = q.get("space") === "harbor";
+  const sample = useMemo(() => (harbor ? createBSample(harborRich) : northwind), [harbor, northwind]);
   const kind = q.get("kind") ?? "timeline";
   const initial = useMemo(() => ({ type: q.get("type") ?? DEFAULT_TYPE[kind] ?? "projects" }), [q, kind]);
   const width = useWindowDimensions().width;
@@ -28,7 +31,7 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
     return () => clearTimeout(t);
   }, [q]);
   return (
-    <TodayProvider value={TODAY}>
+    <TodayProvider value={harbor ? TODAY : PROTO_TODAY}>
       <RecordsDataProvider value={sample.data}>
         <RecordsStateProvider initial={initial}>
           <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
@@ -44,6 +47,7 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
 /** The query is read after the page is live (the static export keeps the markup it was rendered with), so the mount draws once the query is known. */
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
-  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
-  return q ? <Page q={q} /> : null;
+  const [northwind, setNorthwind] = useState<BSample | null>(null);
+  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); void createProtoSample().then(setNorthwind); }, []);
+  return q && northwind ? <Page q={q} northwind={northwind} /> : null;
 }
