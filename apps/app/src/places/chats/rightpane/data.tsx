@@ -3,6 +3,7 @@
 import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
+import type { DirectoryEntry } from "../../../../../../ui/src/ShareSheet/index.tsx";
 import type { Clock } from "./model.ts";
 
 /** Where a click goes. The shell decides how a thing opens (in place, beside, full screen); the pane only says what. */
@@ -47,6 +48,8 @@ export interface ChatRightPaneData {
   space: { name: string; personal: boolean };
   nav: RightPaneNav;
   clock(): Clock;
+  /** The Space's people, for "Delegate" on a routine (the shared people picker draws them). Absent while the directory has not loaded: the picker then says so. */
+  people?: readonly DirectoryEntry[];
 }
 
 const Ctx = createContext<ChatRightPaneData | null>(null);
