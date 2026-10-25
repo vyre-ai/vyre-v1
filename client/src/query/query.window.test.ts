@@ -158,16 +158,17 @@ test("an unchanged row keeps the same object across window moves, eviction and a
 
 test("with versionOf a row is the same object while its version holds, even if other content differs; a new version is a new object", () => {
   const t = setup();
-  let version = 1;
-  const def: ListDef<{ open: number }, Item> = { ...t.def, cap: "item.list.v", versionOf: () => version };
+  // the version is the row's rank; the title is not part of it
+  const def: ListDef<{ open: number }, Item> = { ...t.def, cap: "item.list.v", versionOf: (r) => r.rank };
   const client = createQueryClient(t.store, { windowRows: 150 });
   const w = win(client.list(def, { open: 1 }));
   const a = w.rows(0, 100);
-  for (let s = 100; s < 1_000; s += 100) w.rows(s, s + 100);
-  assert.equal(win(client.list(def, { open: 1 })).rows(0, 1)[0], a[0]);
-  version = 2;
-  for (let s = 100; s < 1_000; s += 100) w.rows(s, s + 100);
+  for (let s = 100; s < 1_000; s += 100) w.rows(s, s + 100); // row 0 is evicted
+  t.set(a[0]!.id, { title: "same version, other title" });
+  const same = win(client.list(def, { open: 1 })).rows(0, 1)[0];
+  assert.equal(same, a[0], "the version held, so the object is the one the consumer has");
+  for (let s = 100; s < 1_000; s += 100) w.rows(s, s + 100); // evicted again
+  t.set(a[0]!.id, { rank: -5 });
   const b = win(client.list(def, { open: 1 })).rows(0, 1)[0];
   assert.notEqual(b, a[0], "a new version is a new object");
-  assert.deepEqual(b, a[0], "with the same content");
 });
