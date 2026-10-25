@@ -44,7 +44,7 @@ import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, wireSeams } from "../seams/index.ts";
 import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
 import { createLiveHub } from "../ws.ts";
-import type { LiveHub } from "../ws.ts";
+import type { LiveHub, SyncHubPort } from "../ws.ts";
 import { createAccess } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver } from "./session.ts";
 import { createResourceRegistrar } from "../gateway/resources.ts";
@@ -123,6 +123,8 @@ export interface DaemonOptions {
   sealKey?: { key: Uint8Array | string; keyId: string };
   /** replace the default session (the local admin token) */
   session?: GatewayDeps["session"];
+  /** Sync's live hub (createSyncLiveHub) for the live socket: sockets then speak the sync protocol (full hello_ok, filtered ev batches). `onHub` receives the host hub, which is the port for sync's setLiveHub (purge, purgeDevice). */
+  liveSync?: { hub: SyncHubPort; onHub?(hub: LiveHub): void };
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   /** intervals in ms; tests shorten them */
@@ -475,6 +477,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         invoke, sink,
         eventsSince: (_s, cursor) => (recent.length && recent[0]!.seq <= cursor + 1 ? recent.filter((e) => e.seq > cursor) : []),
         head: () => headSeq,
+        ...(o.liveSync ? { sync: o.liveSync.hub } : {}),
       });
       hubFactory = mkHub;
     } else {
@@ -573,6 +576,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const gatewayUnit = async (): Promise<RunningUnit> => {
     const h = hubFactory ? hubFactory() : createLiveHub({ session: () => null });
     hub = h;
+    o.liveSync?.onHub?.(h);
     const server = h.server;
     server.removeAllListeners("request");
     const listener = requestListener({
