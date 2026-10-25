@@ -61,7 +61,7 @@ Events:
 
 ### health
 
-Capabilities to implement: 16. Events to emit: 5. Contract tests that must go green: `generated/tests/health/`.
+Capabilities to implement: 17. Events to emit: 5. Contract tests that must go green: `generated/tests/health/`.
 
 Capabilities:
 - health.caddy (read, grant only, level view)
@@ -72,6 +72,7 @@ Capabilities:
 - health.events_db (read, grant only, level view)
 - health.history (read, console.access, level view)
 - health.index_db (read, grant only, level view)
+- health.machine (read, console.access, level view)
 - health.paused_reasons (read, grant only, level view)
 - health.run (write, console.access, level edit)
 - health.scheduler (read, grant only, level view)

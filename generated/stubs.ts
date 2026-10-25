@@ -578,6 +578,10 @@ export function stubs(ctx: CallCtx) {
       render: call("email_builder.render"),
       restore_version: call("email_builder.restore_version"),
       save: call("email_builder.save"),
+      saved_blocks: {
+        list: call("email_builder.saved_blocks.list"),
+        save: call("email_builder.saved_blocks.save"),
+      },
       send_test: call("email_builder.send_test"),
       snippets: {
         delete: call("email_builder.snippets.delete"),
@@ -979,6 +983,7 @@ export function stubs(ctx: CallCtx) {
       events_db: call("health.events_db"),
       history: call("health.history"),
       index_db: call("health.index_db"),
+      machine: call("health.machine"),
       paused_reasons: call("health.paused_reasons"),
       run: call("health.run"),
       scheduler: call("health.scheduler"),
@@ -1083,6 +1088,7 @@ export function stubs(ctx: CallCtx) {
       },
       stage_counts: call("journeys.stage_counts"),
       start: call("journeys.start"),
+      tasks: call("journeys.tasks"),
       versions: call("journeys.versions"),
     },
     kits: {
@@ -1284,6 +1290,9 @@ export function stubs(ctx: CallCtx) {
         save: call("memory.layout.save"),
       },
       maintain: call("memory.maintain"),
+      map: {
+        get: call("memory.map.get"),
+      },
       notes: {
         list: call("memory.notes.list"),
       },
@@ -1405,6 +1414,9 @@ export function stubs(ctx: CallCtx) {
       },
       digest: {
         collect: call("notifications.digest.collect"),
+      },
+      kind: {
+        set_level: call("notifications.kind.set_level"),
       },
       kinds: {
         list: call("notifications.kinds.list"),

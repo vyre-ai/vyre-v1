@@ -1,0 +1,6 @@
+{"type":"system","subtype":"init","cwd":"/work","session_id":"{{SESSION}}","tools":["mcp__vyre__schema_describe"],"mcp_servers":[{"name":"vyre","status":"connected"}],"model":"grok-4"}
+{"type":"stream_event","event":{"type":"message_start","message":{"id":"gmsg_01","role":"assistant","content":[],"usage":{"input_tokens":30,"output_tokens":1}}},"session_id":"{{SESSION}}"}
+{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello from "}},"session_id":"{{SESSION}}"}
+{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Grok."}},"session_id":"{{SESSION}}"}
+{"type":"assistant","message":{"id":"gmsg_01","role":"assistant","content":[{"type":"text","text":"Hello from Grok."}],"usage":{"input_tokens":30,"output_tokens":5}},"session_id":"{{SESSION}}"}
+{"type":"result","subtype":"success","is_error":false,"num_turns":1,"result":"Hello from Grok.","session_id":"{{SESSION}}","usage":{"input_tokens":30,"output_tokens":5}}

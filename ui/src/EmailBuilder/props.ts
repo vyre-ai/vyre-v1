@@ -13,7 +13,7 @@ export const EMAIL_PREVIEWS = ["desktop", "mobile", "dark"] as const;
 
 export type EmailPreview = (typeof EMAIL_PREVIEWS)[number];
 
-export const EMAIL_BLOCK_KINDS = ["text", "image", "button", "columns", "divider", "merge", "html"] as const;
+export const EMAIL_BLOCK_KINDS = ["text", "heading", "image", "button", "columns", "divider", "merge", "footer", "html", "spacer", "social", "saved"] as const;
 
 export type EmailBlockKind = (typeof EMAIL_BLOCK_KINDS)[number];
 
@@ -25,7 +25,27 @@ export interface EmailBlock {
   field?: string;
   /** Nested blocks when kind is columns. */
   children?: readonly EmailBlock[];
+  /** Heading size in px (kind heading). Default 24. */
+  size?: number;
+  /** Text alignment (kinds heading and footer). Default left. */
+  align?: EmailAlign;
+  /** Social links (kind social): up to twelve of a known network and a web address. */
+  links?: readonly EmailSocialLink[];
+  /** Id of the saved block this block was dropped from (kind saved); children[0] is the block as it was saved. */
+  savedId?: string;
+  /** Footer carries the one-click Unsubscribe and Email preferences links (kind footer). */
+  unsub?: boolean;
 }
+
+export const EMAIL_SOCIAL_NETWORKS = ["facebook", "instagram", "linkedin", "x", "youtube", "tiktok", "website"] as const;
+
+export type EmailSocialNetwork = (typeof EMAIL_SOCIAL_NETWORKS)[number];
+
+export interface EmailSocialLink { network: EmailSocialNetwork; url: string }
+
+export const EMAIL_ALIGNS = ["left", "center", "right"] as const;
+
+export type EmailAlign = (typeof EMAIL_ALIGNS)[number];
 
 export interface EmailDiff {
   id: string;
@@ -61,4 +81,39 @@ export interface EmailBuilderProps {
 export function emailLabel(props: EmailBuilderProps): string {
   if (props.subject.length > 0) return props.subject;
   return props.title.length > 0 ? props.title : "EmailBuilder";
+}
+
+function escHtml(value: string): string {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+}
+
+/** HTML export of the two first-class text kinds, as the prototype draws them. Other kinds return null (the builder exports those itself). */
+export function emailBlockHtml(block: EmailBlock): string | null {
+  const align = block.align ?? "left";
+  const text = escHtml(block.text ?? "");
+  if (block.kind === "heading") {
+    const size = block.size !== undefined && block.size > 0 ? block.size : 24;
+    return `<h1 style="margin:0;font:700 ${size}px/1.2 sans-serif;text-align:${align};letter-spacing:-.01em">${text}</h1>`;
+  }
+  if (block.kind === "footer") {
+    const links = block.unsub === true
+      ? `<div style="margin-top:8px"><a href="{{unsubscribe_url}}">Unsubscribe</a> &middot; <a href="{{preferences_url}}">Email preferences</a></div>`
+      : "";
+    return `<div style="font:400 12px/1.6 sans-serif;text-align:${align}"><div>${text}</div>${links}</div>`;
+  }
+  if (block.kind === "spacer") {
+    const size = block.size !== undefined && block.size >= 4 ? Math.min(200, block.size) : 24;
+    return `<div style="height:${size}px;line-height:${size}px;font-size:0">&nbsp;</div>`;
+  }
+  if (block.kind === "social") {
+    const links = (block.links ?? []).filter((l) => /^(https?:\/\/|mailto:)/i.test(l.url));
+    if (links.length === 0) return "";
+    const a = links.map((l) => `<a href="${escHtml(l.url)}" style="text-decoration:none;margin:0 6px">${escHtml(l.network)}</a>`).join("");
+    return `<div style="font:400 14px/1.6 sans-serif;text-align:${block.align ?? "center"}">${a}</div>`;
+  }
+  if (block.kind === "saved") {
+    const inner = block.children?.[0];
+    return inner && inner.kind !== "saved" ? emailBlockHtml(inner) : "";
+  }
+  return null;
 }
