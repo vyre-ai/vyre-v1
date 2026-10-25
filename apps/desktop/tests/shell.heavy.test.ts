@@ -125,6 +125,8 @@ test("the built shell starts, reaches its sidecar and takes a vyre:// link", { s
     const r = spawnSync(opener[0], [...opener.slice(1), "vyre://open?address=acme.example.com"], { encoding: "utf8" });
     assert.equal(r.status, 0, r.stderr);
     await until(/vyre-desktop: deep link open received/, 20_000);
+    const page = await until(/vyre-desktop: page rendered: (\d+) chars at tauri:\/\/localhost/, 20_000);
+    console.log(`page: ${page[0]}`);
     assert.doesNotMatch(out, /acme\.example\.com/, "link parameters never reach the log");
     // The desktop job takes its screenshot of the running window during this hold.
     await new Promise((r) => setTimeout(r, Number(process.env["VYRE_SHELL_HOLD_MS"] ?? "0")));

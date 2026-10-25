@@ -19,6 +19,21 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 pub const SHORTCUT: &str = "CommandOrControl+Shift+V";
 
+/// Run in the page after every load: report script errors and how much text rendered, through our own command.
+/// This is how a blank window shows up in the log (and in the desktop job) instead of staying a mystery.
+const PAGE_PROBE: &str = r#"(function () {
+  var inv = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+  if (!inv || window.__vyreProbe) return;
+  window.__vyreProbe = true;
+  function send(kind, text) { try { inv("page_report", { kind: kind, text: String(text) }); } catch (e) {} }
+  window.addEventListener("error", function (e) { send("error", e.message); });
+  window.addEventListener("unhandledrejection", function (e) { send("error", e.reason); });
+  setTimeout(function () {
+    var n = document.body ? document.body.innerText.length : 0;
+    send("rendered", n + " chars at " + location.protocol + "//" + location.host + location.pathname);
+  }, 2000);
+})();"#;
+
 fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
@@ -60,8 +75,13 @@ pub fn run() {
                 })
                 .build(),
         )
+        .on_page_load(|webview, payload| {
+            if let tauri::webview::PageLoadEvent::Finished = payload.event() {
+                let _ = webview.eval(PAGE_PROBE);
+            }
+        })
         .manage(AppState { sidecar: shared.clone(), pending: Mutex::new(None), page_listening: AtomicBool::new(false) })
-        .invoke_handler(tauri::generate_handler![commands::desktop_info, commands::take_pending_link])
+        .invoke_handler(tauri::generate_handler![commands::desktop_info, commands::take_pending_link, commands::page_report])
         .setup(move |app| {
             let handle = app.handle().clone();
 

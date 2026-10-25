@@ -1,6 +1,7 @@
 // The shell's whole surface to the page (window.__TAURI__.core.invoke). Two commands, one event per kind:
 //   desktop_info()        platform, app version and the sidecar status (address once it answers /healthz)
 //   take_pending_link()   a Vyre link that arrived before the page was listening, once
+//   page_report(kind, text)  what the shell's own load hook (lib.rs PAGE_PROBE) tells us: script errors and the rendered size, to the log only
 // Events: "vyre://sidecar" (Status) and "vyre://deep-link" (DeepLink).
 
 use crate::links::DeepLink;
@@ -54,4 +55,12 @@ pub fn deliver(app: &AppHandle, link: DeepLink) {
     } else if let Ok(mut p) = state.pending.lock() {
         *p = Some(link);
     }
+}
+
+/// Called by the shell's own probe script after a page load. Local log only, never the network; the text is cut short.
+#[tauri::command]
+pub fn page_report(kind: String, text: String) {
+    let kind: String = kind.chars().filter(|c| c.is_ascii_alphanumeric()).take(16).collect();
+    let text: String = text.chars().filter(|c| !c.is_control()).take(200).collect();
+    println!("vyre-desktop: page {kind}: {text}");
 }
