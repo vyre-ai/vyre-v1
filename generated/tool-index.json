@@ -399,7 +399,7 @@
     {
       "deferred": false,
       "name": "agents_routine_save",
-      "summary": "Create or change a routine; messages it causes carry \"Sent by <agent> on a routine <person> set\"",
+      "summary": "Create or change a routine, a schedule (cron) or a watcher (kind watch: runs on each new message in a channel); messages it causes carry \"Sent by <agent> on a routine <person> set\"",
       "toolset": "agents"
     },
     {
@@ -4365,7 +4365,7 @@
     {
       "deferred": false,
       "name": "memory_counts",
-      "summary": "Counts for the agent strip: current facts, proposed facts and facts from the caller",
+      "summary": "Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own",
       "toolset": "memory"
     },
     {
@@ -4444,6 +4444,12 @@
       "deferred": false,
       "name": "memory_layout_save",
       "summary": "Save node positions for a graph",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_map_get",
+      "summary": "The MAP.md block of an agent as the nightly job last wrote it (agent layer only, never personal memory); absent before the first night",
       "toolset": "memory"
     },
     {

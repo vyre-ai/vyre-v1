@@ -279,6 +279,89 @@
       ],
       "type": "object"
     },
+    "s_050abe3aea": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "channelId": {
+          "examples": [
+            "chn_a1b2c3"
+          ],
+          "pattern": "^chn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "cron": {
+          "description": "The schedule of a schedule routine; a watcher has none",
+          "examples": [
+            "0 9 * * 1-5"
+          ],
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "kind": {
+          "enum": [
+            "schedule",
+            "watch"
+          ],
+          "type": "string"
+        },
+        "lastRunAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "nextRunAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ownerId": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "routineId": {
+          "examples": [
+            "rtn_a1b2c3"
+          ],
+          "pattern": "^rtn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "watch": {
+          "$ref": "#/$defs/s_f5d31dac8f"
+        }
+      },
+      "required": [
+        "routineId",
+        "agentId",
+        "title",
+        "prompt",
+        "enabled",
+        "ownerId"
+      ],
+      "type": "object"
+    },
     "s_0697bd8576": {
       "items": {
         "properties": {
@@ -3309,27 +3392,6 @@
       },
       "required": [
         "kind"
-      ],
-      "type": "object"
-    },
-    "s_30183bc12b": {
-      "properties": {
-        "next": {
-          "description": "Cursor for the next page; absent on the last page",
-          "type": "string"
-        },
-        "threads": {
-          "items": {
-            "$ref": "#/$defs/s_d3e31471e5"
-          },
-          "type": "array"
-        },
-        "total": {
-          "type": "integer"
-        }
-      },
-      "required": [
-        "threads"
       ],
       "type": "object"
     },
@@ -10763,6 +10825,17 @@
       ],
       "type": "object"
     },
+    "s_9746c1f86e": {
+      "properties": {
+        "thread": {
+          "$ref": "#/$defs/s_b4cc02fcf3"
+        }
+      },
+      "required": [
+        "thread"
+      ],
+      "type": "object"
+    },
     "s_98c786d7d8": {
       "properties": {
         "e164": {
@@ -11776,6 +11849,27 @@
       ],
       "type": "object"
     },
+    "s_a85a72f91c": {
+      "properties": {
+        "next": {
+          "description": "Cursor for the next page; absent on the last page",
+          "type": "string"
+        },
+        "threads": {
+          "items": {
+            "$ref": "#/$defs/s_b4cc02fcf3"
+          },
+          "type": "array"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "threads"
+      ],
+      "type": "object"
+    },
     "s_a8e0a730ee": {
       "items": {
         "properties": {
@@ -12412,6 +12506,137 @@
         "type": "object"
       },
       "type": "array"
+    },
+    "s_b4cc02fcf3": {
+      "properties": {
+        "agents": {
+          "$ref": "#/$defs/s_18a5df4b3d"
+        },
+        "channelId": {
+          "examples": [
+            "chn_a1b2c3"
+          ],
+          "pattern": "^chn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "closedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "chat",
+            "channel",
+            "thread",
+            "ask",
+            "run",
+            "helper",
+            "console"
+          ],
+          "type": "string"
+        },
+        "lastMessageAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "listed": {
+          "type": "boolean"
+        },
+        "members": {
+          "$ref": "#/$defs/s_39a2155802"
+        },
+        "parentMessageId": {
+          "examples": [
+            "msg_a1b2c3"
+          ],
+          "pattern": "^msg_[a-z0-9]+$",
+          "type": "string"
+        },
+        "parentThreadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "path": {
+          "description": "Address bar parts for helper chats, each a link back",
+          "items": {
+            "$ref": "#/$defs/s_2a7bd8f420"
+          },
+          "type": "array"
+        },
+        "planMode": {
+          "type": "boolean"
+        },
+        "recordId": {
+          "examples": [
+            "rec_a1b2c3"
+          ],
+          "pattern": "^rec_[a-z0-9]+$",
+          "type": "string"
+        },
+        "replyCount": {
+          "description": "Messages in the thread that are not deleted",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "scopeId": {
+          "type": "string"
+        },
+        "scopeType": {
+          "examples": [
+            "record"
+          ],
+          "type": "string"
+        },
+        "starter": {
+          "type": "string"
+        },
+        "threadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId",
+        "kind",
+        "listed",
+        "planMode",
+        "members",
+        "agents",
+        "createdAt"
+      ],
+      "type": "object"
     },
     "s_b4d375add9": {
       "properties": {
@@ -13480,79 +13705,6 @@
       },
       "required": [
         "terminal"
-      ],
-      "type": "object"
-    },
-    "s_be45381a2d": {
-      "properties": {
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "channelId": {
-          "examples": [
-            "chn_a1b2c3"
-          ],
-          "pattern": "^chn_[a-z0-9]+$",
-          "type": "string"
-        },
-        "cron": {
-          "examples": [
-            "0 9 * * 1-5"
-          ],
-          "type": "string"
-        },
-        "enabled": {
-          "type": "boolean"
-        },
-        "lastRunAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "nextRunAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "ownerId": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "pattern": "^usr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "prompt": {
-          "type": "string"
-        },
-        "routineId": {
-          "examples": [
-            "rtn_a1b2c3"
-          ],
-          "pattern": "^rtn_[a-z0-9]+$",
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "routineId",
-        "agentId",
-        "title",
-        "cron",
-        "prompt",
-        "enabled",
-        "ownerId"
       ],
       "type": "object"
     },
@@ -14767,124 +14919,6 @@
       },
       "required": [
         "delivery"
-      ],
-      "type": "object"
-    },
-    "s_d3e31471e5": {
-      "properties": {
-        "agents": {
-          "$ref": "#/$defs/s_18a5df4b3d"
-        },
-        "channelId": {
-          "examples": [
-            "chn_a1b2c3"
-          ],
-          "pattern": "^chn_[a-z0-9]+$",
-          "type": "string"
-        },
-        "closedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "chat",
-            "channel",
-            "thread",
-            "ask",
-            "run",
-            "helper",
-            "console"
-          ],
-          "type": "string"
-        },
-        "listed": {
-          "type": "boolean"
-        },
-        "members": {
-          "$ref": "#/$defs/s_39a2155802"
-        },
-        "parentMessageId": {
-          "examples": [
-            "msg_a1b2c3"
-          ],
-          "pattern": "^msg_[a-z0-9]+$",
-          "type": "string"
-        },
-        "parentThreadId": {
-          "examples": [
-            "thr_a1b2c3"
-          ],
-          "pattern": "^thr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "path": {
-          "description": "Address bar parts for helper chats, each a link back",
-          "items": {
-            "$ref": "#/$defs/s_2a7bd8f420"
-          },
-          "type": "array"
-        },
-        "planMode": {
-          "type": "boolean"
-        },
-        "recordId": {
-          "examples": [
-            "rec_a1b2c3"
-          ],
-          "pattern": "^rec_[a-z0-9]+$",
-          "type": "string"
-        },
-        "scopeId": {
-          "type": "string"
-        },
-        "scopeType": {
-          "examples": [
-            "record"
-          ],
-          "type": "string"
-        },
-        "starter": {
-          "type": "string"
-        },
-        "threadId": {
-          "examples": [
-            "thr_a1b2c3"
-          ],
-          "pattern": "^thr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "threadId",
-        "kind",
-        "listed",
-        "planMode",
-        "members",
-        "agents",
-        "createdAt"
       ],
       "type": "object"
     },
@@ -17222,6 +17256,28 @@
       ],
       "type": "object"
     },
+    "s_f5d31dac8f": {
+      "properties": {
+        "channelId": {
+          "examples": [
+            "chn_a1b2c3"
+          ],
+          "pattern": "^chn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "on": {
+          "enum": [
+            "message"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "on",
+        "channelId"
+      ],
+      "type": "object"
+    },
     "s_f845a71a23": {
       "properties": {
         "automation": {
@@ -17707,17 +17763,6 @@
         "type": "object"
       },
       "type": "array"
-    },
-    "s_fe3178e960": {
-      "properties": {
-        "thread": {
-          "$ref": "#/$defs/s_d3e31471e5"
-        }
-      },
-      "required": [
-        "thread"
-      ],
-      "type": "object"
     },
     "s_ff7445c64f": {
       "properties": {
@@ -26334,12 +26379,17 @@
               "channelId": "chn_a1b2c3",
               "cron": "0 9 * * 1-5",
               "enabled": true,
+              "kind": "schedule",
               "lastRunAt": 1760000000000,
               "nextRunAt": 1760000000000,
               "ownerId": "usr_a1b2c3",
               "prompt": "example",
               "routineId": "rtn_a1b2c3",
-              "title": "example"
+              "title": "example",
+              "watch": {
+                "channelId": "chn_a1b2c3",
+                "on": "message"
+              }
             }
           }
         }
@@ -26403,7 +26453,7 @@
             "type": "string"
           },
           "routine": {
-            "$ref": "#/$defs/s_be45381a2d"
+            "$ref": "#/$defs/s_050abe3aea"
           }
         },
         "required": [
@@ -26535,12 +26585,17 @@
               "channelId": "chn_a1b2c3",
               "cron": "0 9 * * 1-5",
               "enabled": true,
+              "kind": "schedule",
               "lastRunAt": 1760000000000,
               "nextRunAt": 1760000000000,
               "ownerId": "usr_a1b2c3",
               "prompt": "example",
               "routineId": "rtn_a1b2c3",
-              "title": "example"
+              "title": "example",
+              "watch": {
+                "channelId": "chn_a1b2c3",
+                "on": "message"
+              }
             },
             "runId": "run_a1b2c3"
           }
@@ -26584,7 +26639,7 @@
       "output": {
         "properties": {
           "routine": {
-            "$ref": "#/$defs/s_be45381a2d"
+            "$ref": "#/$defs/s_050abe3aea"
           },
           "runId": {
             "examples": [
@@ -26636,9 +26691,14 @@
             "cron": "0 9 * * 1-5",
             "enabled": true,
             "idempotencyKey": "idem_1",
+            "kind": "schedule",
             "prompt": "example",
             "routineId": "rtn_a1b2c3",
-            "title": "example"
+            "title": "example",
+            "watch": {
+              "channelId": "chn_a1b2c3",
+              "on": "message"
+            }
           },
           "name": "example",
           "output": {
@@ -26647,12 +26707,17 @@
               "channelId": "chn_a1b2c3",
               "cron": "0 9 * * 1-5",
               "enabled": true,
+              "kind": "schedule",
               "lastRunAt": 1760000000000,
               "nextRunAt": 1760000000000,
               "ownerId": "usr_a1b2c3",
               "prompt": "example",
               "routineId": "rtn_a1b2c3",
-              "title": "example"
+              "title": "example",
+              "watch": {
+                "channelId": "chn_a1b2c3",
+                "on": "message"
+              }
             }
           }
         }
@@ -26690,6 +26755,13 @@
             "minLength": 1,
             "type": "string"
           },
+          "kind": {
+            "enum": [
+              "schedule",
+              "watch"
+            ],
+            "type": "string"
+          },
           "prompt": {
             "type": "string"
           },
@@ -26702,12 +26774,14 @@
           },
           "title": {
             "type": "string"
+          },
+          "watch": {
+            "$ref": "#/$defs/s_f5d31dac8f"
           }
         },
         "required": [
           "agentId",
           "title",
-          "cron",
           "prompt",
           "idempotencyKey"
         ],
@@ -26719,7 +26793,7 @@
       "output": {
         "properties": {
           "routine": {
-            "$ref": "#/$defs/s_be45381a2d"
+            "$ref": "#/$defs/s_050abe3aea"
           }
         },
         "required": [
@@ -26735,7 +26809,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Create or change a routine; messages it causes carry \"Sent by <agent> on a routine <person> set\"",
+      "summary": "Create or change a routine, a schedule (cron) or a watcher (kind watch: runs on each new message in a channel); messages it causes carry \"Sent by <agent> on a routine <person> set\"",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -26767,12 +26841,17 @@
                 "channelId": "chn_a1b2c3",
                 "cron": "0 9 * * 1-5",
                 "enabled": true,
+                "kind": "schedule",
                 "lastRunAt": 1760000000000,
                 "nextRunAt": 1760000000000,
                 "ownerId": "usr_a1b2c3",
                 "prompt": "example",
                 "routineId": "rtn_a1b2c3",
-                "title": "example"
+                "title": "example",
+                "watch": {
+                  "channelId": "chn_a1b2c3",
+                  "on": "message"
+                }
               }
             ]
           }
@@ -26802,7 +26881,7 @@
         "properties": {
           "routines": {
             "items": {
-              "$ref": "#/$defs/s_be45381a2d"
+              "$ref": "#/$defs/s_050abe3aea"
             },
             "type": "array"
           }
@@ -40897,6 +40976,7 @@
                 "createdAt": 1760000000000,
                 "folderId": "fld_a1b2c3",
                 "kind": "chat",
+                "lastMessageAt": 1760000000000,
                 "listed": true,
                 "members": [
                   {
@@ -40914,6 +40994,7 @@
                 ],
                 "planMode": true,
                 "recordId": "rec_a1b2c3",
+                "replyCount": 1,
                 "scopeId": "example",
                 "scopeType": "record",
                 "starter": "example",
@@ -40957,7 +41038,7 @@
       "module": "chat",
       "name": "chat.asks_of",
       "output": {
-        "$ref": "#/$defs/s_30183bc12b"
+        "$ref": "#/$defs/s_a85a72f91c"
       },
       "permission": null,
       "resource": {
@@ -41307,6 +41388,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -41324,6 +41406,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -41370,7 +41453,7 @@
             "type": "integer"
           },
           "thread": {
-            "$ref": "#/$defs/s_d3e31471e5"
+            "$ref": "#/$defs/s_b4cc02fcf3"
           }
         },
         "required": [
@@ -41441,6 +41524,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -41458,6 +41542,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -41526,7 +41611,7 @@
             "type": "string"
           },
           "helper": {
-            "$ref": "#/$defs/s_d3e31471e5"
+            "$ref": "#/$defs/s_b4cc02fcf3"
           }
         },
         "required": [
@@ -41938,6 +42023,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -41955,6 +42041,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -41985,7 +42072,7 @@
       "name": "chat.open_as_chat",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -43193,6 +43280,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -43210,6 +43298,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -43308,7 +43397,7 @@
       "name": "chat.start",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": "chats.private",
       "resource": {
@@ -43363,6 +43452,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -43380,6 +43470,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -43398,7 +43489,7 @@
       "name": "chat.thread",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -106457,6 +106548,7 @@
           },
           "name": "example",
           "output": {
+            "autoMerged": 1,
             "current": 1,
             "fromMe": 1,
             "proposed": 1
@@ -106484,6 +106576,11 @@
       "name": "memory.counts",
       "output": {
         "properties": {
+          "autoMerged": {
+            "description": "Current facts that merged on their own because their kind is low risk, so no person accepted them",
+            "minimum": 0,
+            "type": "integer"
+          },
           "current": {
             "type": "integer"
           },
@@ -106497,7 +106594,8 @@
         "required": [
           "current",
           "proposed",
-          "fromMe"
+          "fromMe",
+          "autoMerged"
         ],
         "type": "object"
       },
@@ -106507,7 +106605,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "Counts for the agent strip: current facts, proposed facts and facts from the caller",
+      "summary": "Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -108125,6 +108223,95 @@
       "summary": "Nightly job: merge accepted facts, close old versions, rewrite MAP.md (under 200 lines) for each agent",
       "surfaces": {
         "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "map": {
+              "body": "example",
+              "lines": 1,
+              "updatedAt": 1760000000000
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.map.get",
+      "output": {
+        "properties": {
+          "map": {
+            "properties": {
+              "body": {
+                "type": "string"
+              },
+              "lines": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "updatedAt": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "body",
+              "lines",
+              "updatedAt"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The MAP.md block of an agent as the nightly job last wrote it (agent layer only, never personal memory); absent before the first night",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
       },
       "v": 1
     },
@@ -154430,6 +154617,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -154447,6 +154635,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -154491,7 +154680,7 @@
       "module": "chat",
       "name": "threads.add_agent",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": "channels.agents",
       "resource": {
@@ -154545,6 +154734,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -154562,6 +154752,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -154591,7 +154782,7 @@
       "module": "chat",
       "name": "threads.close",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -154643,6 +154834,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -154660,6 +154852,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -154690,7 +154883,7 @@
       "module": "chat",
       "name": "threads.get",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -154750,6 +154943,7 @@
                 "createdAt": 1760000000000,
                 "folderId": "fld_a1b2c3",
                 "kind": "chat",
+                "lastMessageAt": 1760000000000,
                 "listed": true,
                 "members": [
                   {
@@ -154767,6 +154961,7 @@
                 ],
                 "planMode": true,
                 "recordId": "rec_a1b2c3",
+                "replyCount": 1,
                 "scopeId": "example",
                 "scopeType": "record",
                 "starter": "example",
@@ -154833,7 +155028,7 @@
       "module": "chat",
       "name": "threads.list",
       "output": {
-        "$ref": "#/$defs/s_30183bc12b"
+        "$ref": "#/$defs/s_a85a72f91c"
       },
       "permission": null,
       "resource": {
@@ -155075,6 +155270,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -155092,6 +155288,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -155109,7 +155306,7 @@
       "module": "chat",
       "name": "threads.members.add",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -155164,6 +155361,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -155181,6 +155379,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -155198,7 +155397,7 @@
       "module": "chat",
       "name": "threads.members.remove",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -155254,6 +155453,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -155271,6 +155471,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -155308,7 +155509,7 @@
       "module": "chat",
       "name": "threads.remove_agent",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": "channels.agents",
       "resource": {
@@ -155362,6 +155563,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -155379,6 +155581,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -155408,7 +155611,7 @@
       "module": "chat",
       "name": "threads.reopen",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -155463,6 +155666,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -155480,6 +155684,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -155525,7 +155730,7 @@
       "name": "threads.set_folder",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -155580,6 +155785,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -155597,6 +155803,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -155631,7 +155838,7 @@
       "name": "threads.set_plan_mode",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -155686,6 +155893,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -155703,6 +155911,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -155737,7 +155946,7 @@
       "name": "threads.update",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
