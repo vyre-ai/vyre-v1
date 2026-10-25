@@ -96,6 +96,11 @@ export interface KitsConfig {
   fixture?: () => Promise<FixtureSpace>;
   /** the agent the Kit builder chat opens with */
   builderAgentId?: string;
+  /**
+   * The host makes a Kit a resource in the Space's access projection (type "kit"), which kits.get, kits.install_sheet, kits.install and the rest are authorized against. A module cannot
+   * create resources itself; the host does it for it, idempotently (the same Kit is the same resource after a reboot). Omitted: nothing registers them (tests that fake access).
+   */
+  resources?: { ensure(kitId: string): Promise<void> };
 }
 
 let configured: KitsConfig | null = null;
@@ -103,6 +108,7 @@ let configured: KitsConfig | null = null;
 /** The host calls this once at start. Tests pass fakes; null clears. */
 export function configureKits(config: KitsConfig | null): void {
   configured = config;
+  registered.clear();
 }
 
 export function kitsConfig(): KitsConfig | null {
@@ -383,6 +389,15 @@ export async function storeVersion(ctx: Ctx, kitId: string, kit: KitManifest, by
   return one(ctx, "SELECT * FROM kits_version WHERE id = ?", id) as Row;
 }
 
+/** Kits already registered as resources by this process; the host's ensure is idempotent, this only saves asking again. */
+const registered = new Set<string>();
+async function registerResource(kitId: string): Promise<void> {
+  const r = configured?.resources;
+  if (!r || registered.has(kitId)) return;
+  await r.ensure(kitId);
+  registered.add(kitId);
+}
+
 /** Makes sure every Kit the server ships has a row, a version row and a head. Idempotent; a Kit that fails its own check is skipped with a warning. */
 export async function ensureCatalog(ctx: Ctx): Promise<void> {
   const src = configured?.source;
@@ -401,6 +416,7 @@ export async function ensureCatalog(ctx: Ctx): Promise<void> {
       row = one(ctx, "SELECT * FROM kits_kit WHERE id = ?", id) as Row;
     }
     const kitId = str(row.id);
+    await registerResource(kitId);
     let v = versionRow(ctx, kitId, kit.version);
     const isNew = !v;
     if (!v) v = await storeVersion(ctx, kitId, kit, "builtin");
@@ -576,8 +592,9 @@ async function applyChanges(ctx: Ctx, kitId: string, target: KitManifest, verb: 
       // the ledger is written only after every step worked, so a failed run leaves it as it was: a retry re-applies what this run already did
       const msg = (e as { error?: { message?: unknown } } | null)?.error?.message ?? (e instanceof Error ? e.message : "The step failed.");
       const code = (e as { error?: { code?: unknown } } | null)?.error?.code;
+      const why = (e as { error?: { details?: unknown } } | null)?.error?.details;
       ctx.log.warn(`kits: ${verb} failed`, { kitId, item: c.item.key, code: typeof code === "string" ? code : "" });
-      fail(ctx, "validation.precondition_failed", `Could not ${verb} "${c.item.title}": ${String(msg).slice(0, 200)} Nothing was left half installed.`, { item: c.item.key });
+      fail(ctx, "validation.precondition_failed", `Could not ${verb} "${c.item.title}": ${String(msg).slice(0, 200)} Nothing was left half installed.`, { item: c.item.key, ...(why !== undefined ? { step: why } : {}) });
     }
   }
   const now = ctx.now();
