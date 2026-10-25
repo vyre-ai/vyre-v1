@@ -132,7 +132,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
     if (inGroup.length === 0) continue;
     const open = openGroups.has(g);
     navRows.push(
-      <Pressable key={`g-${g}`} accessibilityRole="button" accessibilityLabel={g} accessibilityState={{ expanded: open }} testID={`navgroup-${g}`} onPress={() => setOpenGroups((cur) => { const n = new Set(cur); if (n.has(g)) n.delete(g); else n.add(g); return n; })} style={[s.groupHead, pointer]}>
+      <Pressable key={`g-${g}`} accessibilityRole="button" accessibilityLabel={g} accessibilityState={{ expanded: open }} aria-expanded={open} testID={`navgroup-${g}`} onPress={() => setOpenGroups((cur) => { const n = new Set(cur); if (n.has(g)) n.delete(g); else n.add(g); return n; })} style={[s.groupHead, pointer]}>
         <View style={{ transform: [{ rotate: open ? "0deg" : "-90deg" }] }}><Glyph name="chevD" size={11} color="var(--ink-4)" /></View>
         <Text style={s.groupTitle}>{g}</Text>
       </Pressable>,
@@ -166,7 +166,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
         <Pressable ref={(r) => { searchBtn.current = r; }} accessibilityRole="button" accessibilityLabel="Search" testID="console-search" onPress={openSearch} style={[s.chip, pointer]}>
           <Glyph name="search" size={14} color="var(--ink-2)" />{narrow ? null : <><Text style={s.chipText}>Search</Text><Text style={s.kbd}>{"⌘"}K</Text></>}
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Assistant" accessibilityState={{ selected: assistantOn }} testID="console-assistant-toggle" onPress={() => setAssistantOn((v) => !v)} style={[s.chip, pointer, assistantOn && s.chipOn]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Assistant" accessibilityState={{ selected: assistantOn }} aria-pressed={assistantOn} testID="console-assistant-toggle" onPress={() => setAssistantOn((v) => !v)} style={[s.chip, pointer, assistantOn && s.chipOn]}>
           <Glyph name="assistant" size={14} color={assistantOn ? "var(--accent)" : "var(--ink-2)"} />{narrow ? null : <><Text style={s.chipText}>Assistant</Text><Text style={s.kbd}>{"⌘"}J</Text></>}
         </Pressable>
         <Pressable ref={(r) => { skinBtn.current = r; }} accessibilityRole="button" accessibilityLabel="Skin" testID="console-skin" onPress={() => { const a = below(skinBtn); menu.show(skinMenuEntries(skin, (id) => onSkin?.(id)), a.x, a.y, "other", { label: "Skin" }); }} style={[s.chip, pointer]}>
