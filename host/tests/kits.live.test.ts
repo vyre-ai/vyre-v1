@@ -2,7 +2,8 @@
 // the loader collects `hostSeams.setKitsHost` from modules/kits/impl.ts, the daemon wires it with host/src/seams/kits.ts, and a person installs a Kit over HTTP, whose step
 // (schema.apply, a live module) lands in the Space, and reads it back. host/modules.json still says kits is a stub (the live flip is P-CI_02, ruling 25), so this test boots
 // from a copy of the code root whose modules.json has kits live; every other file is a symlink to the real one.
-// Kits are registered as access resources by the host (daemon.ts, setKitsHost), not by this test.
+// The seeded Space's owner role carries schema.manage since P-H_15 and P-H_17, so the test adds no role. A Kit has no event before it is installed, so the registrar of P-H_16 cannot
+// make it a resource; the host registers each shipped Kit once (daemon.ts, setKitsHost), not this test.
 // Path mapping: the packet owns modules/kits/impl.ts and this test; the driver sits in host/src/seams/kits.ts and is registered in host/src/daemon/daemon.ts.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -16,7 +17,6 @@ import { loadConfig } from "../src/daemon/config.ts";
 import { CODE_ROOT, startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 import { createKitsHost } from "../src/seams/kits.ts";
-import { ROLE_PERMS } from "../../kernel/src/grants/roles.ts";
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 const tmp = (p: string): string => fs.mkdtempSync(path.join(os.tmpdir(), p));
@@ -37,12 +37,6 @@ const KIT = {
 
 function seededDir(): string {
   const core = bootCore();
-  // The seed's roles carry no `schema.manage` (the permission the Kit's schema.apply step needs), so the Space owner is given it by one more role.defined event in this copy.
-  const [owned] = core.store.appendBatch([{
-    id: "evt_kitlive_0001", type: "role.defined", sv: 1, trace_id: "0".repeat(32), actor: "svc_seed", vis: "space", entity: "role", entity_id: "owner",
-    payload: { id: "owner", clearance: 3, perms: [...ROLE_PERMS.owner, "schema.manage"], name: "owner" },
-  }]);
-  assert.ok(owned?.ok, "the owner role is extended");
   const dir = tmp("vyre-kits-live-");
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
   fs.copyFileSync(core.file, path.join(dir, "events.db"));
