@@ -32614,7 +32614,8 @@
               "health.degraded",
               "problem.report",
               "member.joined",
-              "limit.hit"
+              "limit.hit",
+              "vault.rotation_due"
             ],
             "type": "string"
           },

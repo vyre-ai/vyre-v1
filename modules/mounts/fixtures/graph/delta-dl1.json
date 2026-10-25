@@ -1,0 +1,9 @@
+{
+  "changed": [
+    { "id": "m3", "name": "README.md", "size": 44, "lastModifiedDateTime": "2026-10-02T01:00:00Z", "parentId": "root" },
+    { "id": "m4", "name": "leave.txt", "size": 8, "lastModifiedDateTime": "2026-10-02T02:00:00Z", "parentId": "m1" },
+    { "id": "m5", "name": "elsewhere.txt", "size": 8, "lastModifiedDateTime": "2026-10-02T02:30:00Z", "parentId": "other" }
+  ],
+  "removed": ["m2"],
+  "deltaLink": "dl2"
+}
