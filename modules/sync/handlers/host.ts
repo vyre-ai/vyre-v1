@@ -5,6 +5,7 @@ import type { InlineProjection, ProjectionHost, Tx } from "../../../kernel/src/s
 import type { Store } from "../../../kernel/src/store/types.ts";
 import { decideHello } from "../../../sync/src/handshake/decide.ts";
 import { deviceEpochOf, deviceRevoked, epochOf, headSeq, pullError } from "../../../sync/src/server/pull/index.ts";
+import type { Policy } from "../../../sync/src/server/push/merge.ts";
 import type { Catalog, PullDeps } from "../../../sync/src/server/pull/index.ts";
 import { catalogPolicy, catalogRestricted } from "../../../sync/src/server/push/policy.ts";
 import { syncRowClocks } from "../../../sync/src/server/push/clocks.ts";
@@ -68,6 +69,16 @@ export function noteCursor(db: Tx, person: string, device: string, deviceClass: 
   db.run("INSERT INTO sync_device_cursor (person, device, class, cursor, last_seen) VALUES (?, ?, ?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET cursor = max(cursor, excluded.cursor), class = excluded.class, last_seen = excluded.last_seen", person, device, deviceClass, cursor, at);
 }
 
+/** The merge rule a Space-defined record type gives one of its fields (schema.apply `merge`), read from the type definition in the Space store; none when the type or the rule is not there. */
+function typeMerge(db: Tx, entity: string, field: string): Policy | undefined {
+  try {
+    const row = db.get<{ def: string }>("SELECT def FROM rs_types WHERE name = ?", entity);
+    if (!row) return undefined;
+    const f = (JSON.parse(row.def) as { fields?: { name?: string; merge?: string }[] }).fields?.find((x) => x.name === field);
+    return f?.merge === "lww" || f?.merge === "assistant" || f?.merge === "append" || f?.merge === "text-crdt" ? f.merge : undefined;
+  } catch { return undefined; }
+}
+
 /** The ports of the push server over the sync store: field clocks from sync_rows, policy from the entity catalog, history, parked conflicts, applied seqs and idempotent effects in the module's own tables. */
 export function pushDepsOf(deps: PullDeps, seam: SyncHostSeam): PushDeps {
   const db = deps.db;
@@ -85,7 +96,7 @@ export function pushDepsOf(deps: PullDeps, seam: SyncHostSeam): PushDeps {
     },
     clocks: syncRowClocks(db),
     appliedSeq: (opId) => db.get<{ seq: number }>("SELECT seq FROM sync_applied WHERE op_id = ?", opId)?.seq,
-    policy: catalogPolicy(deps.catalog), restricted: catalogRestricted(deps.catalog),
+    policy: catalogPolicy(deps.catalog, (entity, field) => typeMerge(db, entity, field)), restricted: catalogRestricted(deps.catalog),
     history(e) {
       if (seam.conflicts) return seam.conflicts.history(e);
       db.run("INSERT OR IGNORE INTO sync_history (entity, id, field, hlc, actor, value, seq, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", e.entity, e.id, e.field, e.hlc, e.actor, JSON.stringify(e.value ?? null), e.seq, e.reason);

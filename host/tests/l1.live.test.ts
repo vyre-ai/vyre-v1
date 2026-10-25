@@ -14,22 +14,6 @@ import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
-import { fileURLToPath } from "node:url";
-
-/** This repo as a code root with the Kits module live (it flips later): every top-level entry a symlink, host/ rebuilt around an edited modules.json. */
-function codeRootWithKitsLive(): string {
-  const repo = fileURLToPath(new URL("../..", import.meta.url));
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-coderoot-"));
-  for (const name of fs.readdirSync(repo)) if (name !== ".git" && name !== "host") fs.symlinkSync(path.join(repo, name), path.join(root, name));
-  fs.mkdirSync(path.join(root, "host"));
-  for (const name of fs.readdirSync(path.join(repo, "host"))) if (name !== "modules.json") fs.symlinkSync(path.join(repo, "host", name), path.join(root, "host", name));
-  const list = JSON.parse(fs.readFileSync(path.join(repo, "host/modules.json"), "utf8")) as { modules: { id: string; status: string }[] };
-  const kits = list.modules.find((m) => m.id === "kits");
-  if (kits) kits.status = "live";
-  fs.writeFileSync(path.join(root, "host/modules.json"), JSON.stringify(list));
-  return root;
-}
-
 const LIVE = ["search", "sync", "conflicts"];
 const STUB: string[] = [];
 
@@ -129,7 +113,6 @@ test("l1 live: a booted daemon serves search from its own handlers, reports it a
 test("l1 live golden 4: an offline edit that collides on a protected field is parked in conflicts.list, settled, and Undo restores the value", async () => {
   const dir = seededDir();
   const d = await startDaemon({
-    codeRoot: codeRootWithKitsLive(),
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({
       os: "linux", hostname: "l1-golden4", free: 80e9,
@@ -152,18 +135,14 @@ test("l1 live golden 4: an offline edit that collides on a protected field is pa
   };
   // a record type of the sync catalog with a protected field, made here because the seeded Space does not have it (commission, protected field status)
   const op = (opId: string, id: string, owner: string, base: number) => ({
-    opId, traceId: "ab".repeat(16), hlc: `${Date.now().toString(16)}-0001-dev_l1live`, cap: "records.update", v: 1, entity: "commission", id,
-    input: { type: "commission", recordId: id, patch: { status: owner }, fields: { status: owner } }, baseSeq: { status: base },
+    opId, traceId: "ab".repeat(16), hlc: `${Date.now().toString(16)}-0001-dev_l1live`, cap: "records.update", v: 1, entity: "g4_deal", id,
+    input: { type: "g4_deal", recordId: id, patch: { status: owner }, fields: { status: owner } }, baseSeq: { status: base },
   });
   try {
-    // the Harbor Studio Kit declares the commission record type (protected field: status); installing it makes the type and its resource in the Space
-    const kitList = await post("/v1/kits/list", {});
-    assert.equal(kitList.status, 200, JSON.stringify(kitList));
-    const kitId = (kitList.data.kits as { key: string; kitId: string }[]).find((k) => k.key === "harbor-studio")?.kitId;
-    assert.ok(kitId, "the Harbor Studio Kit ships with the server");
-    const installed = await post("/v1/kits/install", { kitId, accepted: true });
-    assert.equal(installed.status, 200, JSON.stringify(installed));
-    const made = await post("/v1/records/create", { idempotencyKey: "g4-rec", type: "commission", fields: { title: "Logo", status: "brief" } });
+    // a record type of the Space's own whose status the assistant settles when two edits collide (schema merge rule "assistant")
+    const type = await post("/v1/schema/apply", { idempotencyKey: "g4-type", ops: [{ op: "type.create", type: "g4_deal", def: { title: "Deal", plural: "Deals", icon: "dollar", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "status", type: "text", title: "Status", merge: "assistant" }] } }] });
+    assert.equal(type.status, 200, JSON.stringify(type));
+    const made = await post("/v1/records/create", { idempotencyKey: "g4-rec", type: "g4_deal", fields: { name: "Logo", status: "brief" } });
     assert.equal(made.status, 200, JSON.stringify(made));
     const id = made.data.record.id as string;
     const pulled = await post("/sync/v1/pull", { cursor: 0, epoch: 0 });
@@ -189,7 +168,7 @@ test("l1 live golden 4: an offline edit that collides on a protected field is pa
 
     const settled = await post("/v1/conflicts/resolve", { conflictId, choice: "theirs", summary: "Use the offline edit" });
     assert.equal(settled.status, 200, JSON.stringify(settled));
-    const ownerNow = async () => ((await post("/v1/records/get", { type: "commission", recordId: id })).data.record.fields.status as string);
+    const ownerNow = async () => ((await post("/v1/records/get", { type: "g4_deal", recordId: id })).data.record.fields.status as string);
     assert.equal(await ownerNow(), "review", "the chosen value is applied");
     const undone = await post("/v1/conflicts/undo", { resolutionId: settled.data.resolutionId });
     assert.equal(undone.status, 200, JSON.stringify(undone));
