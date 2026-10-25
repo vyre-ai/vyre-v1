@@ -4,8 +4,8 @@ import fs from "node:fs";
 import { LIMIT_MIN, QUEUE_ALERT_SEC, budgetLines, checkBudget, split, wallSec } from "./ci-budget.ts";
 import { queueVsExec, report, rows } from "./ci-report.ts";
 
-test("limits are 5, 10 and 25 minutes", () => {
-  assert.deepEqual(LIMIT_MIN, { push: 5, main: 10, tag: 25 });
+test("limits are 5, 10 and 25 minutes, plus 30 for the hourly perf run (ruling 55)", () => {
+  assert.deepEqual(LIMIT_MIN, { push: 5, main: 10, tag: 25, perf: 30 });
 });
 
 test("a run fails when wall time exceeds 5, 10 and 25 minutes", () => {
@@ -72,4 +72,10 @@ test("check.yml: select, golden and contracts have no needs so they run in paral
     assert.ok(m, j);
     assert.doesNotMatch(m![1], /\n    needs:/, `${j} must not wait on another job`);
   }
+});
+
+test("the hourly perf run has its own 30 minute budget (ruling 55)", () => {
+  assert.equal(LIMIT_MIN.perf, 30);
+  assert.equal(checkBudget("perf", 29 * 60).ok, true);
+  assert.equal(checkBudget("perf", 31 * 60).ok, false);
 });
