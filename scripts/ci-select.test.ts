@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { manifestEdges, selectAffected, unitOf, unitTests, dynamicDirs } from "./ci-select.ts";
+import { bootedTests, manifestEdges, selectAffected, unitOf, unitTests, dynamicDirs } from "./ci-select.ts";
 import { imports } from "./lib/graph.mjs";
 import { localCache, mirroredCache, splitByCache, recordResult, isNoCache, type CacheEnv, type Marker } from "./cache/pass-cache.ts";
 
@@ -226,4 +226,40 @@ test("a non-literal dynamic import makes the loader depend on every file in the 
   assert.deepEqual(dynamicDirs("lib/loader.ts", unitFiles["lib/loader.ts"]!), ["lib/plugins"]);
   const r = selectAffected({ changed: ["lib/plugins/one.ts"], tracked: uTracked, read: uRead });
   assert.deepEqual(r.files, ["lib/loader.test.ts"]);
+});
+
+const bootFiles: Record<string, string> = {
+  "modules/kits/handlers/install.ts": "export const x = 1;",
+  "modules/kits/impl.ts": "export const y = 1;",
+  "modules/records/handlers/write.ts": "export const w = 1;",
+  "modules/records/README.md": "docs",
+  "modules/tasks/handlers/state.ts": "export const t = 1;",
+  "modules/mail/handlers/send.ts": "export const m = 1;",
+  "host/tests/kits.live.test.ts": 'import { startDaemon } from "../src/daemon/daemon.ts";\nconst kits = list.find((m) => m.id === "kits");',
+  "host/tests/live.l3.test.ts": 'import { startDaemon } from "../src/daemon/daemon.ts";\nconst L3 = ["records", "schema", "sources"];',
+  "host/tests/store.live.test.ts": '// @reads /modules/records/\nimport { startDaemon } from "../src/daemon/daemon.ts";',
+  "host/tests/live.l6.test.ts": 'import { startDaemon } from "../src/daemon/daemon.ts";\nconst L6 = ["tasks", "events"];',
+  "host/tests/loader.stub.test.ts": 'import { loadHost } from "../src/loader.ts";\nconst kits = "kits";',
+};
+const bootTracked = new Set(Object.keys(bootFiles));
+const bootRead = (f: string): string => { const s = bootFiles[f]; if (s === undefined) throw new Error(f); return s; };
+
+test("changing modules/kits/handlers/install.ts selects the booted-daemon test that boots kits, and not the others", () => {
+  assert.deepEqual(bootedTests(["modules/kits/handlers/install.ts"], bootTracked, bootRead), ["host/tests/kits.live.test.ts"]);
+  const r = selectAffected({ changed: ["modules/kits/handlers/install.ts"], tracked: bootTracked, read: bootRead });
+  assert.ok(r.files.includes("host/tests/kits.live.test.ts"));
+  assert.ok(!r.files.includes("host/tests/live.l6.test.ts") && !r.files.includes("host/tests/live.l3.test.ts"));
+  assert.ok(r.why.some((w) => /booted-daemon rule: 1 tests/.test(w)));
+});
+
+test("changing modules/records selects every booted-daemon test that boots records, by id list or by @reads, and not a test that never starts the daemon", () => {
+  assert.deepEqual(bootedTests(["modules/records/handlers/write.ts"], bootTracked, bootRead), ["host/tests/live.l3.test.ts", "host/tests/store.live.test.ts"]);
+  assert.deepEqual(bootedTests(["modules/kits/impl.ts"], bootTracked, bootRead), ["host/tests/kits.live.test.ts"], "loader.stub names kits but boots nothing");
+});
+
+test("a module id list selects the daemon tests of each module on it; a change that is not code, or outside modules/, selects none", () => {
+  assert.deepEqual(bootedTests(["modules/tasks/handlers/state.ts"], bootTracked, bootRead), ["host/tests/live.l6.test.ts"]);
+  assert.deepEqual(bootedTests(["modules/records/README.md"], bootTracked, bootRead), []);
+  assert.deepEqual(bootedTests(["modules/mail/handlers/send.ts"], bootTracked, bootRead), [], "no booted test names mail");
+  assert.deepEqual(bootedTests(["lib/x.ts"], bootTracked, bootRead), []);
 });
