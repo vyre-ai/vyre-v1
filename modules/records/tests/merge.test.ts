@@ -3,7 +3,7 @@
 // records.merge (survivor, per-field picks, relation rewrite, history, undo), records.bulk_upsert (quiet, idempotent) and records.export (CSV, XLSX).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mintUuid } from "../../../lib/ids.ts";
+import { mintRecordId } from "../../../lib/ids.ts";
 import { formatHlc } from "../../../lib/hlc.ts";
 import { openRecords } from "../impl.ts";
 import { UNDO_WINDOW_MS, createMergeHandlers, findMerge, undoMerge } from "../handlers/merge.ts";
@@ -78,7 +78,7 @@ async function kit(types: readonly unknown[] = [PARTY, DEAL]): Promise<Kit> {
 }
 
 async function party(k: Kit, data: Record<string, unknown>): Promise<string> {
-  const id = mintUuid();
+  const id = mintRecordId();
   await k.rec.store.create("party", id, data);
   return id;
 }
@@ -92,7 +92,7 @@ test("merge: picks per field, fills empty fields, rewrites relations, trashes th
   await k.rec.mergeFields("party", b, { city: { value: "Bergen", hlc: hlc(2_000, "dev_a"), baseSeq: 1 } }, "usr_x");
   await k.rec.mergeFields("party", b, { city: { value: "OLD", hlc: hlc(1_000, "dev_b"), baseSeq: 1 } }, "usr_y");
 
-  const d1 = mintUuid(), d2 = mintUuid(), d3 = mintUuid();
+  const d1 = mintRecordId(), d2 = mintRecordId(), d3 = mintRecordId();
   await k.rec.store.create("deal", d1, { title: "d1", owner: link(b), partners: [link(a), link(b), link(c)] });
   await k.rec.store.create("deal", d2, { title: "d2", owner: link(a) });
   await k.rec.store.create("deal", d3, { title: "d3", owner: link(c) });
@@ -133,7 +133,7 @@ test("merge: undo within 30 days restores records, relations, survivor fields an
   const k = await kit();
   const a = await party(k, { name: "Ann" });
   const b = await party(k, { name: "Ann B", phone: "555", city: "Oslo" });
-  const d1 = mintUuid();
+  const d1 = mintRecordId();
   const original = [link(a), link(b)];
   await k.rec.store.create("deal", d1, { title: "d1", owner: link(b), partners: original });
   await k.h["records.merge"](k.ctx, { type: "party", survivorId: a, mergedIds: [b], picks: { name: b } });
@@ -158,7 +158,7 @@ test("merge: a relation changed after the merge is left alone by undo", async ()
   const a = await party(k, { name: "Ann" });
   const b = await party(k, { name: "Bee" });
   const o = await party(k, { name: "Other" });
-  const d1 = mintUuid();
+  const d1 = mintRecordId();
   await k.rec.store.create("deal", d1, { title: "d1", owner: link(b) });
   await k.h["records.merge"](k.ctx, { type: "party", survivorId: a, mergedIds: [b], picks: {} });
   const cur = await k.rec.store.get("deal", d1);
@@ -181,25 +181,25 @@ test("merge: refusals change nothing", async () => {
   const k = await kit([PARTY, DEAL, SYNCED, LEDGER]);
   const a = await party(k, { name: "Ann", code: "S" });
   const b = await party(k, { name: "Bee", code: "M" });
-  const d1 = mintUuid();
+  const d1 = mintRecordId();
   await k.rec.store.create("deal", d1, { title: "d1", owner: link(b) });
   const m = (input: { survivorId?: string; mergedIds?: string[]; picks?: Record<string, string>; type?: string }) =>
     k.h["records.merge"](k.ctx, { type: input.type ?? "party", survivorId: input.survivorId ?? a, mergedIds: input.mergedIds ?? [b], picks: input.picks ?? {} });
 
   await assert.rejects(m({ mergedIds: [] }), vcode("validation.bad_input"));
   await assert.rejects(m({ mergedIds: [a] }), vcode("validation.bad_input"), "the survivor cannot be merged into itself");
-  await assert.rejects(m({ picks: { name: mintUuid() } }), vcode("validation.bad_input"), "a pick must name the survivor or a merged record");
+  await assert.rejects(m({ picks: { name: mintRecordId() } }), vcode("validation.bad_input"), "a pick must name the survivor or a merged record");
   await assert.rejects(m({ picks: { nope: a } }), vcode("validation.bad_input"), "a pick must name a field");
-  await assert.rejects(m({ mergedIds: [mintUuid()] }), vcode("validation.not_found"));
-  await assert.rejects(m({ survivorId: mintUuid() }), vcode("validation.not_found"));
+  await assert.rejects(m({ mergedIds: [mintRecordId()] }), vcode("validation.not_found"));
+  await assert.rejects(m({ survivorId: mintRecordId() }), vcode("validation.not_found"));
   await assert.rejects(m({ picks: { code: b } }), vcode("validation.field_locked"), "write-once on the survivor");
 
-  const x = mintUuid(), y = mintUuid();
+  const x = mintRecordId(), y = mintRecordId();
   await k.rec.store.create("crm_contact", x, { name: "X" });
   await k.rec.store.create("crm_contact", y, { name: "Y" });
   await assert.rejects(m({ type: "crm_contact", survivorId: x, mergedIds: [y] }), vcode("validation.bad_input"), "synced records are linked, not merged");
 
-  const l1 = mintUuid(), l2 = mintUuid();
+  const l1 = mintRecordId(), l2 = mintRecordId();
   await k.rec.store.create("ledger", l1, { name: "L1" });
   await k.rec.store.create("ledger", l2, { name: "L2" });
   await assert.rejects(m({ type: "ledger", survivorId: l1, mergedIds: [l2] }), vcode("validation.field_locked"), "protected types cannot lose rows");
@@ -281,7 +281,7 @@ const decode = (b: Uint8Array): string => new TextDecoder("utf-8", { ignoreBOM: 
 
 test("export csv: quoted, formula-safe, sealed masked, view spec applies", async () => {
   const k = await kit([SHEET]);
-  const mk = (data: Record<string, unknown>) => k.rec.store.create("sheet", mintUuid(), data);
+  const mk = (data: Record<string, unknown>) => k.rec.store.create("sheet", mintRecordId(), data);
   await mk({ name: "Smith, John", note: 'say "hi"\nline2', qty: 3, fee: { amount: 12.5, currency: "USD" }, ssn: seal("sv_secret") });
   await mk({ name: "=SUM(A1)", qty: -4 });
   await mk({ name: "Zed" });
@@ -345,8 +345,8 @@ function unzip(bytes: Uint8Array): ZipEntry[] {
 
 test("export xlsx: a valid package with escaped inline strings, numbers as numbers, sealed masked", async () => {
   const k = await kit([SHEET]);
-  await k.rec.store.create("sheet", mintUuid(), { name: "A & B <x>", qty: 3, fee: { amount: 2, currency: "EUR" }, ssn: seal("sv_secret") });
-  await k.rec.store.create("sheet", mintUuid(), { name: "Zed", note: "second" });
+  await k.rec.store.create("sheet", mintRecordId(), { name: "A & B <x>", qty: 3, fee: { amount: 2, currency: "EUR" }, ssn: seal("sv_secret") });
+  await k.rec.store.create("sheet", mintRecordId(), { name: "Zed", note: "second" });
   await k.h["records.export"](k.ctx, { type: "sheet", format: "xlsx", sort: [{ field: "name", dir: "asc" }] });
   const f = k.files[0]!;
   assert.equal(f.name, "sheet-2027-01-15.xlsx");

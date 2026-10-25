@@ -8,7 +8,7 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useOnline, useRecordsData } from "../sidebar/data.tsx";
 import type { RecordsData } from "../sidebar/data.tsx";
 import type { ViewRow } from "../sidebar/model.ts";
-import { Glyph, HeadButton, pointOf, typeIcon } from "../sidebar/parts.tsx";
+import { Glyph, HeadButton, anchorOf, pointOf, typeIcon } from "../sidebar/parts.tsx";
 import { useRecordsState } from "../sidebar/state.tsx";
 import { chosen, clearClauses, countSpec, isEdited, optionValue, optionsOf, setSort, sortable, toSaved, toggleHidden, toggleOption } from "../table/model.ts";
 import { each, filterable, toggleable } from "./model.ts";
@@ -85,7 +85,7 @@ export function kindEntries(ctx: ViewCtx): MenuEntry[] {
   return [{ head: "View as" }, ...each(ctx.kinds, (k): MenuEntry => ({ label: k.label, checked: ctx.kind === k.kind, onSelect: () => ctx.onKind(k.kind) }))];
 }
 
-/** The switch between the kinds of view, a quiet button with a menu under it. The table's header has the same one, passed in through its headerExtra. */
+/** The switch between the kinds of view, a quiet button with a menu under it (anchored to the button). The table's header has the same one, passed in through its headerExtra. */
 export function KindSwitch({ ctx }: { ctx: ViewCtx }): ReactElement {
   const menu = useMenu();
   const label = ctx.kinds.find((k) => k.kind === ctx.kind)?.label ?? ctx.kind;
@@ -93,7 +93,7 @@ export function KindSwitch({ ctx }: { ctx: ViewCtx }): ReactElement {
     <>
       <Pressable
         accessibilityRole="button" accessibilityLabel={`View as, ${label}`} testID="records-kind"
-        onPress={(e) => { const p = pointOf(e); menu.show(kindEntries(ctx), p.x, p.y); }} style={({ hovered }: { hovered?: boolean }) => [s.kind, hovered === true && s.pickOver]}
+        onPress={(e) => { const p = anchorOf(e); menu.show(kindEntries(ctx), p.x, p.y); }} style={({ hovered }: { hovered?: boolean }) => [s.kind, hovered === true && s.pickOver]}
       >
         <Text style={s.kindText}>{label}</Text>
         <Glyph name="chevd" size={9} />

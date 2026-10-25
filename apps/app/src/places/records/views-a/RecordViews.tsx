@@ -15,8 +15,8 @@ import { GalleryView } from "./GalleryView.tsx";
 import { ListView } from "./ListView.tsx";
 import { each, KIND_LABEL, KIND_ORDER, kindOf } from "./model.ts";
 import type { TableViewState } from "./model.ts";
-import { KindSwitch } from "./view.tsx";
 import type { KindDef, ViewCtx } from "./view.tsx";
+import { KindSwitch } from "./view.tsx";
 
 type TypesOut = CapMap["schema.types.list"]["out"];
 type ViewsOut = CapMap["views.list"]["out"];
