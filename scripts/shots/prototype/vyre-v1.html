@@ -56955,7 +56955,7 @@ textarea.inp { height: auto; min-height: 150px; padding: 11px 12px; line-height:
     if (has("nopane")) ui.pane = false;
     renderAll();
     if (has("auto-promote")) openPromote(aOf("brief"));
-    if (has("jnew")) setTimeout(() => ACT.newjourney(), 80);
+    if (has("jnew")) ACT.newjourney();
     if (has("fit")) setTimeout(() =&gt; ACT.cvfit(), 150);
     if (has("test")) ACT.testrun({ dataset: { id: "lead" } });
     if (has("connect")) ACT.connect({ dataset: { id: "lead" } });
