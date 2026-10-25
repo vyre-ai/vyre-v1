@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Vyre for Chrome",
+  "version": "0.0.0",
+  "description": "Fill logins and codes from your Space's Vault, save new logins, ask an agent about the page. Talks only to the Vyre app on this computer.",
+  "minimum_chrome_version": "116",
+  "icons": {
+    "16": "src/popup/icons/icon-16.png",
+    "32": "src/popup/icons/icon-32.png",
+    "48": "src/popup/icons/icon-48.png",
+    "128": "src/popup/icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "Vyre",
+    "default_popup": "src/popup/popup.html"
+  },
+  "background": {
+    "service_worker": "src/worker/index.js",
+    "type": "module"
+  },
+  "permissions": ["storage", "activeTab", "scripting", "nativeMessaging"],
+  "host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+      "js": ["src/content/finder.js", "src/content/autofill.js", "src/content/capture.js", "src/content/prompt.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Ctrl+Shift+L", "mac": "Command+Shift+L" },
+      "description": "Open Vyre for this page"
+    }
+  }
+}

@@ -41,6 +41,7 @@ import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, W
 import { createLiveHub } from "../ws.ts";
 import type { LiveHub } from "../ws.ts";
 import { createAccess } from "./access.ts";
+import { createResourceRegistrar } from "../gateway/resources.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
 import type { HookRunner, ModuleHooks } from "./consumers.ts";
@@ -292,6 +293,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         handler: (cap, v) => o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v),
         services: hostServices({ base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs }),
         idem, rate: createRateLimiter(), now, log: sinkLog,
+        // P-H_16: an object a call creates is a resource in the same commit, so it is authorizable at once
+        resources: createResourceRegistrar({ events: registry.events, exists: (id) => access.snap.resource(id) !== undefined }),
         commit: withEventIds(async (b) => {
           const trace = b.events[0]?.traceId ?? ZERO_TRACE;
           if (chainBroken) throw fail("internal.unavailable", trace, { message: "The event log failed verification, so this server is not accepting changes. Run vyre-server doctor." });

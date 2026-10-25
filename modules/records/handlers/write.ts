@@ -1,6 +1,6 @@
 // records.create / update / delete / restore. API callers pass baseVersion and get version_conflict.
 // Sync merges by field clock in impl.ts and does not come through baseVersion.
-import { mintUuid } from "../../../lib/ids.ts";
+import { mintRecordId } from "../ids.ts";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, EventName, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
@@ -124,7 +124,7 @@ export function createWriteHandlers(deps: WriteDeps): WriteHandlers {
         const have = await deps.store.get(prior.type, prior.id);
         if (have) return { record: toRow(have, deps.meta(prior.type, prior.id)) };
       }
-      const id = mintUuid();
+      const id = mintRecordId();
       const rec = await deps.store.create(input.type, id, input.fields);
       if (key !== undefined) seen.set(key, { type: input.type, id: rec.id });
       ctx.emit("record.created", subject(rec.id), { recordId: rec.id, type: rec.type, fields: { ...rec.data } });
