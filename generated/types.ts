@@ -7397,7 +7397,7 @@ export type EmailBuilderCreateOut = {
     name: string;
     mode: "blocks" | "html" | "plain";
     blocks?: Array<{
-        type: "text" | "image" | "button" | "columns" | "divider" | "merge" | "html";
+        type: "text" | "heading" | "image" | "button" | "columns" | "divider" | "merge" | "footer" | "html" | "spacer" | "social" | "saved";
         props: Record<string, unknown>;
       }>;
     html?: string;
@@ -7414,7 +7414,7 @@ export type EmailBuilderGetOut = {
     name: string;
     mode: "blocks" | "html" | "plain";
     blocks?: Array<{
-        type: "text" | "image" | "button" | "columns" | "divider" | "merge" | "html";
+        type: "text" | "heading" | "image" | "button" | "columns" | "divider" | "merge" | "footer" | "html" | "spacer" | "social" | "saved";
         props: Record<string, unknown>;
       }>;
     html?: string;
@@ -7465,7 +7465,7 @@ export type EmailBuilderRestoreVersionOut = {
     name: string;
     mode: "blocks" | "html" | "plain";
     blocks?: Array<{
-        type: "text" | "image" | "button" | "columns" | "divider" | "merge" | "html";
+        type: "text" | "heading" | "image" | "button" | "columns" | "divider" | "merge" | "footer" | "html" | "spacer" | "social" | "saved";
         props: Record<string, unknown>;
       }>;
     html?: string;
@@ -7480,7 +7480,7 @@ export type EmailBuilderSaveIn = {
     name: string;
     mode: "blocks" | "html" | "plain";
     blocks?: Array<{
-        type: "text" | "image" | "button" | "columns" | "divider" | "merge" | "html";
+        type: "text" | "heading" | "image" | "button" | "columns" | "divider" | "merge" | "footer" | "html" | "spacer" | "social" | "saved";
         props: Record<string, unknown>;
       }>;
     html?: string;
@@ -7490,6 +7490,40 @@ export type EmailBuilderSaveIn = {
 };
 export type EmailBuilderSaveOut = {
   version: number;
+};
+export type EmailBuilderSavedBlocksListIn = Record<string, unknown>;
+export type EmailBuilderSavedBlocksListOut = {
+  blocks: Array<{
+      blockId: string;
+      name: string;
+      block: {
+        type: "text" | "heading" | "image" | "button" | "columns" | "divider" | "merge" | "footer" | "html" | "spacer" | "social" | "saved";
+        props: Record<string, unknown>;
+      };
+      shared: boolean;
+      updatedAt: number;
+    }>;
+};
+export type EmailBuilderSavedBlocksSaveIn = {
+  blockId?: string;
+  name: string;
+  block: {
+    type: "text" | "heading" | "image" | "button" | "columns" | "divider" | "merge" | "footer" | "html" | "spacer" | "social" | "saved";
+    props: Record<string, unknown>;
+  };
+  shared?: boolean;
+};
+export type EmailBuilderSavedBlocksSaveOut = {
+  block: {
+    blockId: string;
+    name: string;
+    block: {
+      type: "text" | "heading" | "image" | "button" | "columns" | "divider" | "merge" | "footer" | "html" | "spacer" | "social" | "saved";
+      props: Record<string, unknown>;
+    };
+    shared: boolean;
+    updatedAt: number;
+  };
 };
 export type EmailBuilderSendTestIn = {
   emailId: string;
@@ -12999,6 +13033,7 @@ export type JourneysCreateIn = {
         }>;
       automations: Array<string>;
       final?: boolean;
+      onLeaving?: Array<string>;
     }>;
   startRule?: {
     event: string;
@@ -13054,6 +13089,7 @@ export type JourneysCreateOut = {
           }>;
         automations: Array<string>;
         final?: boolean;
+        onLeaving?: Array<string>;
       }>;
     startRule?: {
       event: string;
@@ -13114,6 +13150,7 @@ export type JourneysDesignIn = {
         }>;
       automations: Array<string>;
       final?: boolean;
+      onLeaving?: Array<string>;
     }>;
   startRule?: {
     event: string;
@@ -13170,6 +13207,7 @@ export type JourneysDesignOut = {
           }>;
         automations: Array<string>;
         final?: boolean;
+        onLeaving?: Array<string>;
       }>;
     startRule?: {
       event: string;
@@ -13233,6 +13271,7 @@ export type JourneysGetOut = {
           }>;
         automations: Array<string>;
         final?: boolean;
+        onLeaving?: Array<string>;
       }>;
     startRule?: {
       event: string;
@@ -13350,6 +13389,7 @@ export type JourneysRenameOut = {
           }>;
         automations: Array<string>;
         final?: boolean;
+        onLeaving?: Array<string>;
       }>;
     startRule?: {
       event: string;
@@ -13424,6 +13464,7 @@ export type JourneysRulesSetOut = {
           }>;
         automations: Array<string>;
         final?: boolean;
+        onLeaving?: Array<string>;
       }>;
     startRule?: {
       event: string;
@@ -13455,6 +13496,24 @@ export type JourneysStartIn = {
 export type JourneysStartOut = {
   recordId: string;
   stage: string;
+};
+export type JourneysTasksIn = {
+  recordId: string;
+  stage?: string;
+};
+export type JourneysTasksOut = {
+  tasks: Array<{
+      stage: string;
+      taskKey: string;
+      taskId: string;
+      title: string;
+      state: "todo" | "in_review" | "blocked" | "done";
+      required: boolean;
+      assigned?: {
+        kind: "person" | "agent" | "group" | "role" | "automation";
+        id: string;
+      };
+    }>;
 };
 export type JourneysVersionsIn = {
   journeyId: string;
@@ -26474,6 +26533,8 @@ export interface CapMap {
   "email_builder.render": { in: EmailBuilderRenderIn; out: EmailBuilderRenderOut };
   "email_builder.restore_version": { in: EmailBuilderRestoreVersionIn; out: EmailBuilderRestoreVersionOut };
   "email_builder.save": { in: EmailBuilderSaveIn; out: EmailBuilderSaveOut };
+  "email_builder.saved_blocks.list": { in: EmailBuilderSavedBlocksListIn; out: EmailBuilderSavedBlocksListOut };
+  "email_builder.saved_blocks.save": { in: EmailBuilderSavedBlocksSaveIn; out: EmailBuilderSavedBlocksSaveOut };
   "email_builder.send_test": { in: EmailBuilderSendTestIn; out: EmailBuilderSendTestOut };
   "email_builder.snippets.delete": { in: EmailBuilderSnippetsDeleteIn; out: EmailBuilderSnippetsDeleteOut };
   "email_builder.snippets.list": { in: EmailBuilderSnippetsListIn; out: EmailBuilderSnippetsListOut };
@@ -26840,6 +26901,7 @@ export interface CapMap {
   "journeys.rules.set": { in: JourneysRulesSetIn; out: JourneysRulesSetOut };
   "journeys.stage_counts": { in: JourneysStageCountsIn; out: JourneysStageCountsOut };
   "journeys.start": { in: JourneysStartIn; out: JourneysStartOut };
+  "journeys.tasks": { in: JourneysTasksIn; out: JourneysTasksOut };
   "journeys.versions": { in: JourneysVersionsIn; out: JourneysVersionsOut };
   "kits.builder_open": { in: KitsBuilderOpenIn; out: KitsBuilderOpenOut };
   "kits.choose": { in: KitsChooseIn; out: KitsChooseOut };
@@ -28377,6 +28439,10 @@ export type DropboxSignWebhookReceivedPayload = {
   providerEventId: string;
   envelopeId: string;
   status: string;
+};
+export type EmailBlockSavedPayload = {
+  blockId: string;
+  shared: boolean;
 };
 export type EmailTemplateSavedPayload = {
   emailId: string;
@@ -30978,6 +31044,7 @@ export interface EventMap {
   "document.template_marked": DocumentTemplateMarkedPayload;
   "docusign.webhook_received": DocusignWebhookReceivedPayload;
   "dropbox_sign.webhook_received": DropboxSignWebhookReceivedPayload;
+  "email_block.saved": EmailBlockSavedPayload;
   "email_template.saved": EmailTemplateSavedPayload;
   "email_template.test_sent": EmailTemplateTestSentPayload;
   "engine.policy_changed": EnginePolicyChangedPayload;
