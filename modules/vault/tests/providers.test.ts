@@ -33,6 +33,7 @@ test("a Shared API key is added, listed with its handle, visible to people with 
   const listed = out(await p.list(h.ctx, {}));
   assert.deepEqual(contractErrors("providers.list", "out", listed), []);
   assert.equal((listed.providers as Json[]).length, 1);
+  assert.deepEqual(h.named("provider.added").map((e) => e.payload), [{ providerId: row.id, providerKey: "anthropic", connection: "api_key", scope: "shared" }]);
   assert.ok(!h.everything().includes(SECRET), "the key is sealed in the item, nowhere else");
   h.actAs("person", ROB);
   assert.deepEqual(out(await p.list(h.ctx, {})).providers, [], "no Use on the item, no account");
