@@ -1,0 +1,253 @@
+{
+  "key": "harbor-studio",
+  "title": "Harbor Studio",
+  "version": "1.0.0",
+  "channel": "stable",
+  "description": "A design studio: commissions on a board, its own words, rail and skin, and two agents. The third seeded Space uses it to prove a Space switch swaps the Kit.",
+  "items": [
+    {
+      "key": "rt.commission",
+      "content": "structure",
+      "type": "record_type",
+      "title": "Commission",
+      "recordType": "commission",
+      "apply": {
+        "cap": "schema.apply",
+        "input": {
+          "ops": [
+            {
+              "op": "type.create",
+              "type": "commission",
+              "def": {
+                "title": "Commission",
+                "plural": "Commissions",
+                "icon": "palette",
+                "group": "Studio",
+                "label": "internal",
+                "titleField": "title",
+                "statusField": "status",
+                "fields": [
+                  {
+                    "key": "title",
+                    "type": "text",
+                    "title": "Title",
+                    "required": true
+                  },
+                  {
+                    "key": "client",
+                    "type": "text",
+                    "title": "Client"
+                  },
+                  {
+                    "key": "status",
+                    "type": "status",
+                    "title": "Status",
+                    "options": {
+                      "stages": [
+                        {
+                          "key": "brief",
+                          "title": "Brief"
+                        },
+                        {
+                          "key": "concept",
+                          "title": "Concept"
+                        },
+                        {
+                          "key": "review",
+                          "title": "In review"
+                        },
+                        {
+                          "key": "delivered",
+                          "title": "Delivered"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": "due",
+                    "type": "datetime",
+                    "title": "Due"
+                  }
+                ]
+              }
+            }
+          ],
+          "idempotencyKey": "kit.harbor.rt.commission",
+          "reason": "Kit install"
+        }
+      },
+      "undo": {
+        "cap": "schema.apply",
+        "input": {
+          "ops": [
+            {
+              "op": "type.drop",
+              "type": "commission"
+            }
+          ],
+          "confirm": [
+            "commission"
+          ],
+          "idempotencyKey": "kit.harbor.rt.commission.undo",
+          "reason": "Kit rollback"
+        }
+      }
+    },
+    {
+      "key": "ui.words",
+      "content": "ui",
+      "type": "words",
+      "title": "Studio words: Commission, Client, Brief"
+    },
+    {
+      "key": "ui.layout.commission",
+      "content": "ui",
+      "type": "layout",
+      "title": "Commission page",
+      "apply": {
+        "cap": "schema.layout.set",
+        "input": {
+          "type": "commission",
+          "sections": [
+            {
+              "key": "brief",
+              "title": "Brief",
+              "fields": [
+                "title",
+                "client",
+                "due"
+              ]
+            },
+            {
+              "key": "progress",
+              "title": "Progress",
+              "fields": [
+                "status"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "key": "ui.rail",
+      "content": "ui",
+      "type": "rail",
+      "title": "Studio rail (records before inbox)",
+      "apply": {
+        "cap": "settings.set_space",
+        "input": {
+          "key": "kit.default.rail",
+          "value": [
+            "home",
+            "chats",
+            "records",
+            "files",
+            "apps",
+            "inbox",
+            "automations",
+            "vault",
+            "settings"
+          ]
+        }
+      },
+      "undo": {
+        "cap": "settings.reset_space",
+        "input": {
+          "key": "kit.default.rail"
+        }
+      }
+    },
+    {
+      "key": "ui.tokens",
+      "content": "ui",
+      "type": "tokens",
+      "title": "Dusk skin by default",
+      "apply": {
+        "cap": "settings.set_space",
+        "input": {
+          "key": "space.skin_default",
+          "value": "dusk"
+        }
+      },
+      "undo": {
+        "cap": "settings.reset_space",
+        "input": {
+          "key": "space.skin_default"
+        }
+      }
+    },
+    {
+      "key": "agent.producer",
+      "content": "tools",
+      "type": "agent",
+      "title": "Producer",
+      "tools": [
+        "records.query",
+        "records.update",
+        "calendar.list_events"
+      ],
+      "apply": {
+        "cap": "agents.create",
+        "input": {
+          "name": "Producer",
+          "role": "Keeps commissions moving",
+          "idempotencyKey": "kit.harbor.agent.producer"
+        }
+      }
+    },
+    {
+      "key": "agent.art_director",
+      "content": "tools",
+      "type": "agent",
+      "title": "Art director",
+      "tools": [
+        "records.query",
+        "files.read"
+      ],
+      "apply": {
+        "cap": "agents.create",
+        "input": {
+          "name": "Art director",
+          "role": "Reviews concepts against the brief",
+          "idempotencyKey": "kit.harbor.agent.art_director"
+        }
+      }
+    }
+  ],
+  "tests": [
+    {
+      "name": "commissions exist after install and the studio skin and rail are set",
+      "kind": "space",
+      "expect": {
+        "events": [
+          {
+            "name": "schema.changed"
+          },
+          {
+            "name": "settings.changed"
+          }
+        ],
+        "views": [
+          {
+            "cap": "schema.types.list",
+            "contains": {
+              "key": "commission"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "both studio agents are created",
+      "kind": "space",
+      "expect": {
+        "events": [
+          {
+            "name": "agent.created"
+          }
+        ]
+      }
+    }
+  ]
+}
