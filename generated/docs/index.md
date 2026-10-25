@@ -5,8 +5,8 @@
 | Modules | 64 |
 | Connector manifests | 12 |
 | Kit manifests | 4 |
-| Capabilities | 1491 |
-| Events | 598 |
+| Capabilities | 1495 |
+| Events | 601 |
 | Permissions | 57 |
 | Entities | 37 |
 | Record types | 15 |
@@ -23,7 +23,7 @@
 | Task kinds | 6 |
 | Notification kinds | 23 |
 | Import sources | 9 |
-| Settings | 92 |
+| Settings | 96 |
 | Retention defaults | 10 |
 | Lists | 10 |
 | Error codes | 44 |
