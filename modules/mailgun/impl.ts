@@ -3,9 +3,11 @@
 // Space's public address): see projections.ts. parseWebhook and parseInbound turn a body the host has verified into the input of mailgun.receive_webhook and
 // mailgun.receive_inbound.
 import type { Handler } from "../../host/src/invoke.ts";
+import type { SeamSetters } from "../../host/src/seams/index.ts";
 import * as h from "./handlers/index.ts";
 
-export { setMailgunHost } from "./projections.ts";
+import { setMailgunHost } from "./projections.ts";
+export { setMailgunHost };
 export type { MailgunHost } from "./projections.ts";
 export { parseInbound, parseWebhook } from "./handlers/index.ts";
 
@@ -26,3 +28,6 @@ export const handlers: Record<string, Handler> = {
 };
 
 export const projections = { inline: {}, consumers: {} };
+
+/** Where the host registers its half at boot (ruling 31): the loader reads this export. */
+export const hostSeams: SeamSetters = { setMailgunHost };

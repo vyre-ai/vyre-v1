@@ -12,11 +12,12 @@ HTTP 422. Retryable: no.
 - access.roles.delete
 - access.roles.unassign
 - access.share
+- agents.routine.delegate
+- agents.routine.run_now
 - agents.suggestion.accept
 - automations.promote
 - automations.set_enabled
 - changesets.approve
-- changesets.edit
 - chat.answer_block
 - chat.approve_plan
 - chat.handoff
@@ -30,4 +31,3 @@ HTTP 422. Retryable: no.
 - connectors.remove
 - console.diff_apply
 - contacts.suppression.remove
-- documents.fill

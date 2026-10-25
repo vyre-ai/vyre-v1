@@ -77,11 +77,12 @@ test("the filter menu groups Channel, Inbox and Matching with counts and a check
   const picked: string[] = [];
   const entries = filterMenuEntries(state, rows, boxes, { channel: (c) => void picked.push(`c:${c}`), inbox: (id) => void picked.push(`i:${id}`), needsMatch: () => void picked.push("m") });
   assert.deepEqual(entries.filter((x) => "head" in x).map((x) => (x as { head: string }).head), ["Channel", "Inbox", "Matching"]);
-  const flat = items(entries).map((x) => [x.label, x.checked === true]);
-  assert.deepEqual(flat.slice(0, 3), [["Email (8)", true], ["Text (4)", false], ["Call (1)", false]]);
-  assert.ok(flat.some((x) => x[0] === "hello@ (2)" && x[1] === true), "checked inbox with its count");
-  assert.ok(flat.some((x) => x[0] === "support@ (1)" && x[1] === false));
-  assert.deepEqual(flat[flat.length - 1], ["Needs a match (2)", true]);
+  const flat = items(entries).map((x) => [x.label, x.count, x.checked === true]);
+  assert.deepEqual(flat.slice(0, 3), [["Email", 8, true], ["Text", 4, false], ["Call", 1, false]], "the count sits in the Menu's count column, not in the label");
+  assert.ok(flat.some((x) => x[0] === "hello@" && x[1] === 2 && x[2] === true), "checked inbox with its count");
+  assert.ok(flat.some((x) => x[0] === "support@" && x[1] === 1 && x[2] === false));
+  assert.deepEqual(flat[flat.length - 1], ["Needs a match", 2, true]);
+  assert.ok(items(entries).every((x) => !/\(\d+\)/.test(x.label)), "no label carries a number in brackets");
   for (const it of items(entries)) it.onSelect?.();
   assert.equal(picked.filter((p) => p.startsWith("c:")).length, 3);
   assert.ok(picked.includes("m") && picked.includes("i:mbx_hello"));
@@ -111,7 +112,7 @@ test("the sidebar groups inboxes with their unread counts and keeps the lists an
   const out = side();
   const order = ["By contact", "All inboxes", "Calendar", "Mine", "Shared", "Agents", "Lists", "Calendars"].map((t) => at(out, `>${t}<`));
   assert.deepEqual([...order].sort((a, b) => a - b), order, "rows then Mine, Shared, Agents, Lists, Calendars");
-  for (const label of ["Work Gmail", "Personal", "+1 415 555 0132", "hello@", "support@", "intake@", "Following", "Campaigns", "Work Google", "Microsoft"]) assert.ok(has(out, `>${label}<`), label);
+  for (const label of ["Work Gmail", "Personal", "+1 415 555 0132", "hello@", "support@", "intake@", "Starred", "Following", "Campaigns", "Work Google", "Microsoft"]) assert.ok(has(out, `>${label}<`), label);
   assert.ok(has(out, 'data-testid="row-nav:view:contact"') && has(out, 'data-testid="row-nav:view:contact-trailing"'), "sidebar rows are ui/Row with slots");
   const dot = (id: string): string => (out.match(/<div[^>]*data-testid="cal-dot-[^"]*"[^>]*>/g) ?? []).find((t) => t.includes(`cal-dot-${id}"`)) ?? "";
   assert.ok(dot("cal_work").includes("background-color") && dot("cal_ms").includes("background-color") && dot("cal_work") !== dot("cal_ms"), "each calendar has its own colour dot");
@@ -173,17 +174,21 @@ test("times: a clock time today, Yesterday, the weekday this week, then the date
   assert.equal(listTime(now - 25 * min, now, -480), "2:15 AM", "the person's own day");
 });
 
-test("the line's menu opens, marks read or unread, follows and matches", () => {
+test("the line's menu opens, marks read or unread, follows, stars and matches", () => {
   const s = createSampleInbox();
   const rows = s.replica.rows("contacts") as unknown as Parameters<typeof contactEntry>[0][];
   const elena = contactEntry(rows.find((r) => r.id === "elena")!, northwind.mailboxes);
   const unk = contactEntry(rows.find((r) => r.id === "unk")!, northwind.mailboxes);
   const did: string[] = [];
-  const h = { open: () => void did.push("open"), read: (r: boolean) => void did.push(`read:${r}`), follow: (f: boolean) => void did.push(`follow:${f}`), match: () => void did.push("match") };
+  const h = { open: () => void did.push("open"), read: (r: boolean) => void did.push(`read:${r}`), follow: (f: boolean) => void did.push(`follow:${f}`), star: (on: boolean) => void did.push(`star:${on}`), match: () => void did.push("match") };
   const e = items(lineMenuEntries(elena, h));
-  assert.deepEqual(e.map((x) => x.label), ["Open", "Mark as Read", "Unfollow"]);
+  assert.deepEqual(e.map((x) => x.label), ["Open", "Mark as Read", "Unfollow", "Star"]);
   for (const it of e) it.onSelect?.();
-  assert.deepEqual(did, ["open", "read:true", "follow:false"]);
+  assert.deepEqual(did, ["open", "read:true", "follow:false", "star:true"]);
+  const marcus = contactEntry(rows.find((r) => r.id === "marcus")!, northwind.mailboxes);
+  assert.deepEqual(items(lineMenuEntries(marcus, h)).map((x) => x.label), ["Open", "Mark as Read", "Follow", "Unstar"], "a starred conversation offers Unstar");
+  items(lineMenuEntries(marcus, h))[3]!.onSelect?.();
+  assert.equal(did[did.length - 1], "star:false");
   assert.deepEqual(items(lineMenuEntries(unk, h)).map((x) => x.label), ["Open", "Mark as Read", "Match to a record…"]);
 });
 
@@ -219,9 +224,38 @@ test("harbor studio draws its own inboxes, contacts and calendar", () => {
 });
 
 test("narrowing is a function of the entries and the state alone", () => {
-  const mk = (key: string, at: number, o: Partial<Entry> = {}): Entry => ({ key, kind: "contact", name: key, snippet: "", at, unread: 0, channel: "email", via: "", inboxIds: ["a"], needsMatch: false, followed: false, campaign: false, missed: false, openId: key, ...o });
+  const mk = (key: string, at: number, o: Partial<Entry> = {}): Entry => ({ key, kind: "contact", name: key, snippet: "", at, unread: 0, channel: "email", via: "", inboxIds: ["a"], needsMatch: false, followed: false, starred: false, campaign: false, missed: false, openId: key, ...o });
   const es = [mk("old", 1), mk("new", 9), mk("ghost", 5, { needsMatch: true }), mk("call", 7, { channel: "call", inboxIds: ["b"] })];
   assert.deepEqual(narrow(es, INITIAL_STATE).map((e) => e.key), ["ghost", "new", "call", "old"], "an unmatched sender first, then newest first");
   assert.deepEqual(narrow(es, { ...INITIAL_STATE, inboxes: ["b"] }).map((e) => e.key), ["call"]);
   assert.deepEqual(narrow(es, { ...INITIAL_STATE, channels: ["call"] }).map((e) => e.key), ["call"]);
+  const starred = [mk("old", 1, { starred: true }), mk("new", 9), mk("mid", 5, { starred: true })];
+  assert.deepEqual(narrow(starred, { ...INITIAL_STATE, scope: { kind: "starred" } }).map((e) => e.key), ["mid", "old"], "Starred keeps only starred conversations, newest first");
+});
+
+// ---------------------------------------------------------------- P-L9c_01b: the Starred list
+
+test("Starred: a list under Lists, before Following, that holds the starred conversations", () => {
+  const out = side();
+  assert.ok(at(out, ">Lists<") < at(out, ">Starred<") && at(out, ">Starred<") < at(out, ">Following<") && at(out, ">Following<") < at(out, ">Campaigns<"));
+  assert.ok(has(out, 'data-testid="row-nav:list:starred"') && has(out, 'data-testid="row-nav:list:starred-leading"'), "a ui/Row with a leading glyph");
+  assert.deepEqual(lines(list({ scope: { kind: "starred" } })), ["marcus", "priya"]);
+  assert.ok(has(list({ scope: { kind: "starred" } }), ">Starred<"), "the header names the list");
+  assert.equal(scopeTitle({ kind: "starred" }, northwind.mailboxes), "Starred");
+  const tagOf = (out: string): string => /<[^<>]*data-testid="row-nav:list:starred"[^<>]*>/.exec(out)?.[0] ?? "";
+  assert.ok(has(tagOf(side({ scope: { kind: "starred" } })), "background-color:var(--sel)"), "the row is selected when its list is showing");
+  assert.ok(!has(tagOf(side()), "background-color:var(--sel)"));
+});
+
+test("Starred: starring a conversation shows it under Starred, unstarring takes it out", async () => {
+  const s = createSampleInbox();
+  const html = (initial: Partial<InboxState>): string => wrap(s, initial, <ContactList />);
+  assert.deepEqual(lines(html({ scope: { kind: "starred" } })), ["marcus", "priya"]);
+  await s.data.call("stars.toggle", { resource: { type: "record", id: "ct_elena" }, on: true });
+  assert.deepEqual(lines(html({ scope: { kind: "starred" } })), ["marcus", "elena", "priya"], "elena joins, newest first (marcus 18 min, elena 25 min, priya 70 min)");
+  assert.ok(has(html({}), 'data-testid="star-elena"'), "a starred line carries the star mark");
+  await s.data.call("stars.toggle", { resource: { type: "record", id: "ct_marcus" }, on: false });
+  assert.deepEqual(lines(html({ scope: { kind: "starred" } })), ["elena", "priya"]);
+  assert.ok(!has(html({}), 'data-testid="star-marcus"'));
+  assert.deepEqual(s.calls.map((c) => c.cap), ["stars.toggle", "stars.toggle"]);
 });

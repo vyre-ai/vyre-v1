@@ -8,23 +8,28 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { deleteRoutine, duplicateRoutine, renameRoutine, saveInstructions, setRoutine } from "./actions.ts";
+import { addMenu } from "../../../../../../ui/src/ShareSheet/index.tsx";
+import { delegateRoutine, deleteRoutine, duplicateRoutine, renameRoutine, runNow, saveInstructions, setRoutine } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import { usePaneData, useScreenQuery } from "./data.tsx";
 import { ROUTINE_STARTS, changeByAsking, cronWords, lastRunLine, nextLabel, routineFile, routineNote, routinesOn, sortRoutines } from "./model.ts";
 import type { Routine } from "./model.ts";
-import { LeadIcon, PaneList, Switch, TextButton, Tool } from "./parts.tsx";
+import { Face, LeadIcon, PaneList, Switch, TextButton, Tool } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
 
 type RoutinesOut = CapMap["agents.routines.list"]["out"];
 
 export const ROUTINES_SCREEN = "chats.agent-page";
 
-export function RoutinesTab({ deps, window }: { deps: PaneDeps; window?: VirtualWindow }): ReactElement {
+type Mode = "view" | "rename" | "instructions" | "delete" | "delegate";
+
+/** `initial` opens one routine in a given mode (tests and screenshots); the pane starts on the list. */
+export function RoutinesTab({ deps, window, initial }: { deps: PaneDeps; window?: VirtualWindow; initial?: { routineId: string; mode?: Mode } }): ReactElement {
   const data = usePaneData();
   const menu = useMenu();
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [mode, setMode] = useState<"view" | "rename" | "instructions" | "delete">("view");
+  const [openId, setOpenId] = useState<string | null>(initial?.routineId ?? null);
+  const [mode, setMode] = useState<Mode>(initial?.mode ?? "view");
+  const [running, setRunning] = useState<readonly string[]>([]);
   const [draft, setDraft] = useState("");
   const agentId = data.agent.agentId;
   const name = data.agent.name;
@@ -37,15 +42,24 @@ export function RoutinesTab({ deps, window }: { deps: PaneDeps; window?: Virtual
   const routines = sortRoutines(q.data.routines);
   const current: Routine | undefined = openId === null ? undefined : routines.find((r) => r.routineId === openId);
 
+  const run = (r: Routine): void => {
+    if (running.includes(r.routineId)) return;
+    setRunning((x) => [...x, r.routineId]);
+    void runNow(deps, r).then(() => setRunning((x) => x.filter((id) => id !== r.routineId)));
+  };
+  const personName = (id: string): string => data.people?.find((p) => p.id === id)?.name ?? id;
+
   const menuFor = (r: Routine): MenuEntry[] => [
     { label: "Open", onSelect: () => { setOpenId(r.routineId); setMode("view"); } },
     { label: "Open Prompt File", onSelect: () => data.nav.openRoutineFile(agentId, r.title) },
+    { label: "Run Now", onSelect: () => run(r) },
     { label: r.enabled ? "Pause" : "Resume", onSelect: () => void setRoutine(deps, r, !r.enabled) },
     { separator: true },
     { label: "Change by Asking…", onSelect: () => data.nav.fillComposer(changeByAsking(r.title)) },
     { label: "Edit Instructions", onSelect: () => { setOpenId(r.routineId); setMode("instructions"); setDraft(r.prompt); } },
     { label: "Rename", onSelect: () => { setOpenId(r.routineId); setMode("rename"); setDraft(r.title); } },
     { label: "Duplicate", onSelect: () => void duplicateRoutine(deps, r) },
+    { label: "Delegate…", onSelect: () => { setOpenId(r.routineId); setMode("delegate"); } },
     { separator: true },
     { label: "Delete Routine…", danger: true, onSelect: () => { setOpenId(r.routineId); setMode("delete"); } },
   ];
@@ -76,6 +90,7 @@ export function RoutinesTab({ deps, window }: { deps: PaneDeps; window?: Virtual
         key: "acts", type: "block",
         node: (
           <View style={st.acts}>
+            <TextButton label={running.includes(r.routineId) ? "Running…" : "Run Now"} disabled={running.includes(r.routineId)} onPress={() => run(r)} testID="routine-run" />
             <TextButton label="Change by Asking" onPress={() => data.nav.fillComposer(changeByAsking(r.title))} testID="routine-ask" />
             <View style={{ flex: 1 }} />
             <Tool icon="more" label="More" onPress={(x, y) => menu.show(menuFor(r), x, y, "other")} testID="routine-more" />
@@ -97,6 +112,20 @@ export function RoutinesTab({ deps, window }: { deps: PaneDeps; window?: Virtual
           </View>
         ),
       });
+    }
+    if (mode === "delegate") {
+      // The shared people picker (ui/ShareSheet's Add menu): People, Groups, Roles, Agents. Only people can own a routine, so only people are offered, and not the owner.
+      const others = (data.people ?? []).filter((p) => p.id !== r.ownerId);
+      const picks = addMenu({ people: others }, [], (subject, name) => { void delegateRoutine(deps, r, subject.id, name).then((ok) => { if (ok) setMode("view"); }); });
+      entries.push({ key: "l-delegate", type: "label", text: "Give this routine to" });
+      if (picks.length === 0) entries.push({ key: "no-people", type: "empty", text: data.people === undefined ? "The directory is still loading." : "There is nobody else in this Space.", testID: "delegate-empty" });
+      let at = 0;
+      for (const m of picks) {
+        if (!("label" in m)) continue;
+        const who = others[at++];
+        entries.push({ key: `who-${who?.id ?? at}`, type: "row", title: m.label, ...(who?.sub ? { note: who.sub } : {}), leading: <Face name={m.label} size={20} />, ...(m.onSelect ? { onPress: m.onSelect } : {}), testID: `delegate-${who?.id ?? at}` });
+      }
+      entries.push({ key: "delegate-cancel", type: "block", node: <View style={st.acts}><TextButton label="Cancel" onPress={() => setMode("view")} testID="delegate-cancel" /></View> });
     }
     entries.push({ key: "l-does", type: "label", text: "What it does", right: routineFile(r.title) });
     entries.push({
@@ -123,6 +152,7 @@ export function RoutinesTab({ deps, window }: { deps: PaneDeps; window?: Virtual
       node: (
         <View testID="routine-details" style={st.kv}>
           <Text style={st.kvKey}>Results</Text><Text style={st.kvVal}>{r.channelId ? `Posted to a channel (${r.channelId})` : "In the agent's chat"}</Text>
+          <Text style={st.kvKey}>Set by</Text><Text style={st.kvVal} testID="routine-owner">{personName(r.ownerId)}</Text>
           <Text style={st.kvKey}>Last run</Text><Text style={st.kvVal}>{lastRunLine(r, clock)}</Text>
         </View>
       ),

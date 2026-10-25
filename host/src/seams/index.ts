@@ -8,14 +8,16 @@ import { createGoogleHost } from "./google.ts";
 import type { GoogleHostSeam, GoogleSeamDeps } from "./google.ts";
 import { createImapSecretResolver } from "./imap.ts";
 import type { ImapSecretResolver } from "./imap.ts";
+import { createMailgunHost, createResendHost } from "./mail-providers.ts";
+import type { MailgunHostSeam, ResendHostSeam } from "./mail-providers.ts";
 import { createMsHost } from "./microsoft.ts";
 import { createSourcesSecretResolver } from "./sources.ts";
 import type { SourcesSecretResolver } from "./sources.ts";
 import type { MsHostSeam, MsSeamDeps } from "./microsoft.ts";
 import type { FetchedResponse, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort } from "./ports.ts";
 
-export { createGoogleHost, createImapSecretResolver, createMsHost, createSourcesSecretResolver };
-export type { FetchedResponse, GoogleHostSeam, GoogleSeamDeps, ImapSecretResolver, MsHostSeam, SourcesSecretResolver, MsSeamDeps, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort };
+export { createGoogleHost, createImapSecretResolver, createMailgunHost, createMsHost, createResendHost, createSourcesSecretResolver };
+export type { FetchedResponse, GoogleHostSeam, MailgunHostSeam, ResendHostSeam, GoogleSeamDeps, ImapSecretResolver, MsHostSeam, SourcesSecretResolver, MsSeamDeps, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort };
 
 /** Every host driver is built from the same deps; a driver may return anything the setter accepts (a seam object, a function, a config). */
 export type SeamDriver = (d: SeamDriverDeps) => unknown;
@@ -35,6 +37,9 @@ export interface SeamSetters {
   setImapSecretResolver?: ((fn: ImapSecretResolver | null) => void) | undefined;
   /** the sources module's deps.secret: webhook signing secrets from the Vault */
   setSourcesSecretResolver?: ((fn: SourcesSecretResolver | null) => void) | undefined;
+  /** the Space sending backends (P-L5_05): key, files, downloads; Mailgun also uploads and the public address */
+  setResendHost?: ((h: ResendHostSeam | null) => void) | undefined;
+  setMailgunHost?: ((h: MailgunHostSeam | null) => void) | undefined;
   [name: string]: ((driver: never) => void) | undefined;
 }
 
@@ -46,6 +51,8 @@ export interface SeamDeps {
   members: SpaceMembers;
   /** the Space the Vault is read for (the sources seam is fixed to it) */
   space: string;
+  /** the address people reach this Space at, for Mailgun's inbound route; omitted: that call answers unavailable */
+  publicUrl?: ((space: string) => Promise<string>) | undefined;
   /** drivers by setter name, added to (and overriding) the built-in registry: the daemon supplies the ones that need its own state */
   drivers?: Record<string, SeamDriver>;
   /** which module exported each setter, for the report of what is missing */
@@ -56,7 +63,7 @@ export type SeamState = "wired" | "absent";
 export interface MissingDriver { setter: string; module?: string; reason: string }
 export interface WiredSeams {
   /** the four connector seams, kept for the callers that read them by name */
-  state: { google: SeamState; microsoft: SeamState; imap: SeamState; sources: SeamState };
+  state: { google: SeamState; microsoft: SeamState; imap: SeamState; sources: SeamState; resend: SeamState; mailgun: SeamState };
   /** every setter that was called with its driver */
   wired: string[];
   /** every setter that was exported but could not be given a driver (none registered, or the driver threw), with the module that offered it */
@@ -80,10 +87,12 @@ export const BUILTIN_DRIVERS: Readonly<Record<string, SeamDriver>> = Object.free
   setMsHost: (d: SeamDriverDeps) => createMsHost(d.common),
   setImapSecretResolver: (d: SeamDriverDeps) => createImapSecretResolver(d.vault),
   setSourcesSecretResolver: (d: SeamDriverDeps) => createSourcesSecretResolver(d.vault, d.space),
+  setResendHost: (d: SeamDriverDeps) => createResendHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
+  setMailgunHost: (d: SeamDriverDeps) => createMailgunHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
 });
 
 const LEGACY: Readonly<Record<string, keyof WiredSeams["state"]>> = Object.freeze({
-  setGoogleHost: "google", setMsHost: "microsoft", setImapSecretResolver: "imap", setSourcesSecretResolver: "sources",
+  setGoogleHost: "google", setMsHost: "microsoft", setImapSecretResolver: "imap", setSourcesSecretResolver: "sources", setResendHost: "resend", setMailgunHost: "mailgun",
 });
 
 /** What the notifications module hands the transport (the structural subset of its PushMessage). */
@@ -124,7 +133,7 @@ export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
   const common = { vault: deps.vault, fetch, files: deps.files, blobs: deps.blobs, members: deps.members };
   const driverDeps: SeamDriverDeps = { ...deps, fetch, common };
   const registry: Record<string, SeamDriver> = { ...BUILTIN_DRIVERS, ...(deps.drivers ?? {}) };
-  const state: WiredSeams["state"] = { google: "absent", microsoft: "absent", imap: "absent", sources: "absent" };
+  const state: WiredSeams["state"] = { google: "absent", microsoft: "absent", imap: "absent", sources: "absent", resend: "absent", mailgun: "absent" };
   const wired: string[] = [];
   const missing: MissingDriver[] = [];
   const called: ((driver: unknown) => void)[] = [];

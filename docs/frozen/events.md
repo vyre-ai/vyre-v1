@@ -8,19 +8,19 @@ The catalogue is the `events` array in `generated/registry.json`, emitted by too
 
 | Item | Value |
 |---|---|
-| Events | 599 |
-| Hash | `f27281c1470d4660f69ce02ad19f748f347dd52afdfca46f4f5d1941b4807a4c` |
+| Events | 600 |
+| Hash | `32302b01f410f49f97aeb65bae7cb2f8ba0af77e209ecc7b20e3e602688573e0` |
 | Hash input | SHA-256 of the canonical JSON of the events array (`lib/canonical.ts`: sorted keys, no whitespace) |
 | Schema version | 1 on every event |
-| Distinct names | 599 |
+| Distinct names | 600 |
 | Primitives | 139 |
-| Registry hash | `b35e02e799c0f9876bf499037e3e9eacc75680b319f3a90ed212bbae970405ea` (`generated/hash.txt`) |
+| Registry hash | `886375dc2ab485da0d425ea0a5ecafa67c35e3a10ec48046c2f793710e45a3aa` (`generated/hash.txt`) |
 
 The registry hash covers the whole registry. The event hash covers the events array only.
 
 ## Checks
 
-Name. Every name is `<primitive>.<verb>`: `^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$`. One dot, both segments lowercase, digits and underscores allowed (`access_review.closed`, `calendar_event.created`). 599 names, all unique, 139 primitives.
+Name. Every name is `<primitive>.<verb>`: `^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$`. One dot, both segments lowercase, digits and underscores allowed (`access_review.closed`, `calendar_event.created`). 600 names, all unique, 139 primitives.
 
 Owner. Every event carries `module`, and that id is one of the registry modules. 74 modules own at least one event. Six modules declare none: `console-views`, `default`, `estate-planning`, `harbor-studio`, `law-firm-intake`, `steps-core`.
 
