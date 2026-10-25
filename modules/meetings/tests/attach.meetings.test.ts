@@ -187,7 +187,7 @@ test("schedule: a Zoom link, the calendar event and one Meeting in a step; Meet 
   const got = out(await m.schedule(h.ctx, { title: "Intake", startsAt: START, endsAt: START + HOUR, attendees: [DANA, PATA], provider: "zoom", agenda: "Goals", idempotencyKey: "sched-1" }));
   assert.deepEqual(contractErrors("meetings.schedule", "out", got), []);
   assert.equal(got.joinUrl, JOIN);
-  assert.deepEqual(h.calls("zoom.meetings.create")[0]?.input, { topic: "Intake", startTime: START, durationMinutes: 60, agenda: "Goals" });
+  assert.deepEqual(h.calls("zoom.meetings.create")[0]?.input, { topic: "Intake", startTime: START, durationMinutes: 60, agenda: "Goals", idempotencyKey: "sched-1:zoom" });
   const ev = h.calls("calendar.create_event")[0]?.input;
   assert.deepEqual([ev?.calendarId, ev?.joinProvider, ev?.idempotencyKey], ["cld_work0001", "zoom", "sched-1:event"]);
   const f = h.fields(String(got.meetingId));
@@ -217,7 +217,7 @@ test("cancel: the record, its calendar events and the Zoom meeting; a missing on
   h.calendar.events.set(EVENT, { id: EVENT });
   assert.deepEqual(await m.cancel(h.ctx, { meetingId: id }), { meetingId: id });
   assert.deepEqual(h.calendar.deleted, [EVENT]);
-  assert.deepEqual(h.calls("zoom.meetings.delete")[0]?.input, { meetingId: ZOOM_ID });
+  assert.deepEqual(h.calls("zoom.meetings.delete")[0]?.input, { meetingId: ZOOM_ID, idempotencyKey: `meeting_cancel:${id}:zoom` });
   assert.equal(h.fields(id)["status"], "canceled");
   assert.deepEqual(h.named("meeting.canceled").map((e) => e.payload), [{ meetingId: id }]);
   await m.cancel(h.ctx, { meetingId: id });
