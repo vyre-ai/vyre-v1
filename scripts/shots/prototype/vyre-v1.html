@@ -5351,7 +5351,7 @@ kbd { font: 500 11px/16px var(--ui); color: var(--ink-3); padding: 0 4px; border
     if (f.kind === "csv") {
       let rows = f.rows.map((r, i) =&gt; [r, i]);
       if (ui.sortCol !== null) rows.sort((a, b) =&gt; { const x = a[0][ui.sortCol], y = b[0][ui.sortCol]; const nx = parseFloat(String(x).replace(/[^0-9.]/g, "")), ny = parseFloat(String(y).replace(/[^0-9.]/g, "")); return (isNaN(nx) || isNaN(ny) ? String(x).localeCompare(String(y)) : nx - ny) * ui.sortDir; });
-      const isNum = (v) =&gt; /^[$\d.,\u2014-]+$/.test(v);
+      const isNum = (v) =&gt; /^[$\d.,\u2013-]+$/.test(v);
       return `&lt;div class="fvbody white"&gt;&lt;div class="sheetv"&gt;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th class="rn"&gt;&lt;/th&gt;${f.cols.map((c, ci) =&gt; `&lt;th data-sort="${ci}" title="Sort"&gt;${esc(c)}${ui.sortCol === ci ? `&lt;span class="srt"&gt;${ui.sortDir &gt; 0 ? "↑" : "↓"}&lt;/span&gt;` : ""}&lt;/th&gt;`).join("")}&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;${rows.map(([r, ri], k) =&gt; `&lt;tr&gt;&lt;td class="rn"&gt;${k + 1}&lt;/td&gt;${r.map((v, ci) =&gt; `&lt;td class="${isNum(v) ? "num" : ""}" data-cell="${ri}:${ci}"&gt;${esc(v)}&lt;/td&gt;`).join("")}&lt;/tr&gt;`).join("")}&lt;/tbody&gt;&lt;/table&gt;&lt;/div&gt;&lt;div class="sheetfoot"&gt;&lt;span&gt;${f.rows.length} rows · ${f.cols.length} columns&lt;/span&gt;&lt;span&gt;${editing ? "Double-click a cell to edit · Enter saves" : "Click a column to sort"}&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;`;
     }
     if (f.kind === "md") {
@@ -56898,17 +56898,17 @@ textarea.inp { height: auto; min-height: 150px; padding: 11px 12px; line-height:
     const has = (t) =&gt; toks.includes(t);
     if (has("light") || has("dark")) document.documentElement.dataset.theme = has("dark") ? "dark" : "light";
     { const f0 = autos()[0]; ui.tabs = f0 ? ["a:" + f0.id] : []; ui.active = f0 ? "a:" + f0.id : null; }
-    if (has("journeys") || has("journey") || has("stage")) { ui.sTab = "jour"; ui.tabs = ["j:onb"]; ui.active = "j:onb"; if (has("stage")) { ui.jsel.onb = { g: "g2" }; } }
+    if (has("journeys") || has("journey") || has("stage")) { ui.sTab = "jour"; ui.tabs = ["j:onb"]; ui.active = "j:onb"; if (has("stage")) { ui.jsel.onb = { g: "g2" }; ui.pane = true; } }
     if (has("automation")) ui.selStep.lead = findLeadAgentStep();
     if (has("paths")) ui.selStep.lead = AUTOS[0].steps[2].id;
-    if (has("run-ok")) { ui.sub["a:lead"] = "runs"; ui.runSel.lead = "rl3"; ui.pt.push("r:rl3"); ui.pact = "r:rl3"; }
-    if (has("run")) { ui.sub["a:lead"] = "runs"; ui.pt.push("r:rl1"); ui.pact = "r:rl1"; }
+    if (has("run-ok")) { ui.sub["a:lead"] = "runs"; ui.runSel.lead = "rl3"; ui.pt.push("r:rl3"); ui.pact = "r:rl3"; ui.pane = true; }
+    if (has("run")) { ui.sub["a:lead"] = "runs"; ui.pt.push("r:rl1"); ui.pact = "r:rl1"; ui.pane = true; }
     if (has("versions")) { ui.sub["a:lead"] = "versions"; ui.cf = { k: "cmp", id: "lead", n: 5 }; }
-    if (has("waiting")) { ui.tabs = ["a:inv"]; ui.active = "a:inv"; ui.pt.push("r:ri1"); ui.pact = "r:ri1"; }
+    if (has("waiting")) { ui.tabs = ["a:inv"]; ui.active = "a:inv"; ui.sub["a:inv"] = "runs"; ui.pt.push("r:ri1"); ui.pact = "r:ri1"; ui.pane = true; }
     if (has("failed")) { ui.tabs.push("failed"); ui.active = "failed"; }
     if (has("digest-ask")) { ui.tabs = ["a:digest"]; ui.active = "a:digest"; ui.pt.push("ask:a:digest"); ui.pact = "ask:a:digest"; ui.pane = true; }
     if (has("ask")) { ui.pt.push("ask:a:lead"); ui.pact = "ask:a:lead"; }
-    if (has("task")) { ui.jsel.onb = { g: "g2", k: JOURNEYS[0].stages[1].tasks[0].id }; ui.tabs = ["j:onb"]; ui.active = "j:onb"; ui.sTab = "jour"; }
+    if (has("task")) { ui.jsel.onb = { g: "g2", k: JOURNEYS[0].stages[1].tasks[0].id }; ui.tabs = ["j:onb"]; ui.active = "j:onb"; ui.sTab = "jour"; ui.pane = true; }
     if (has("fields")) { ui.jsub["j:onb"] = "fields"; }
     if (has("settings")) { ui.sub["a:lead"] = "settings"; }
     if (has("trigger")) ui.selStep.lead = "t:" + AUTOS[0].triggers[0].id;
@@ -56920,6 +56920,7 @@ textarea.inp { height: auto; min-height: 150px; padding: 11px 12px; line-height:
     if (has("auto-personal")) { ui.tabs = ["a:brief"]; ui.active = "a:brief"; ui.pact = "cfg:settings"; ui.pane = true; }
     if (has("auto-promote")) { ui.tabs = ["a:brief"]; ui.active = "a:brief"; ui.pact = "cfg:settings"; ui.pane = true; }
     if (has("alerts")) { ui.pact = "cfg:alerts"; ui.pane = true; }
+    if (has("auto-runs")) { ui.pact = "cfg:runs"; ui.pane = true; }
     if (has("groups")) { ui.gopen.gs1 = true; ui.gopen.gp1 = true; ui.tabs = ["g:auto:gs1"]; ui.active = "g:auto:gs1"; }
     if (has("share-sheet")) setTimeout(() =&gt; openGroupShare(grpOf("x:gs3")), 80);
     if (has("access")) { ui.tabs = ["a:form"]; ui.active = "a:form"; ui.pane = true; ui.pact = "cfg:settings"; ui.gopen.gs3 = true; }
@@ -56955,6 +56956,7 @@ textarea.inp { height: auto; min-height: 150px; padding: 11px 12px; line-height:
     if (has("nopane")) ui.pane = false;
     renderAll();
     if (has("auto-promote")) openPromote(aOf("brief"));
+    if (has("jnew")) ACT.newjourney();
     if (has("fit")) setTimeout(() =&gt; ACT.cvfit(), 150);
     if (has("test")) ACT.testrun({ dataset: { id: "lead" } });
     if (has("connect")) ACT.connect({ dataset: { id: "lead" } });
@@ -83546,6 +83548,8 @@ NOTES.inbox = { title: "Inbox", shape: ["One Inbox for every outside conversatio
   if (tok.includes("conflicts")) synOpen("conf");
   if (tok.includes("notify")) setTimeout(() => notify(Object.assign(billingBanner(), { sticky: true })), 500);
   if (tok.includes("away")) setTimeout(awaySheet, 300);
+  /* screenshots (P-L9_08): phonedial opens the dialer, phonecall places a call to Elena, phonein rings an incoming call, phoneend hangs up after 3 s; in the place that is showing */
+  if (tok.includes("phonedial") || tok.includes("phonecall") || tok.includes("phonein") || tok.includes("phoneend")) setTimeout(() => { try { const f = Object.values(S.frames).find((x) => x.style.visibility === "visible"), ph = f && f.contentWindow.VyreUI && f.contentWindow.VyreUI.phone; if (!ph) return; const who = { name: "Elena Rivera", number: "+1 415 555 0161" }; if (tok.includes("phonedial")) ph.open(); else if (tok.includes("phonein")) ph.incoming({ number: who.number }); else { ph.call(who); if (tok.includes("phoneend")) setTimeout(() => { const b = f.contentDocument.querySelector("[data-a=end]"); b && b.click(); }, 3500); } } catch (e) {} }, 2500);
   if (tok.includes("cmdk")) setTimeout(() => palOpen((decodeURIComponent((tok.find((x) => x.startsWith("q:")) || "").slice(2))).replace(/\+/g, " ")), 700);
 
   /* ---------- right-click everywhere in the shell: one menu look (ctx), real state changes; Shift-F10 or the menu key opens it on the focused element ---------- */
