@@ -211,7 +211,7 @@ export async function record(ctx: TelCtx, input: { callId: string; action: strin
   if (policy === "announce" && consent.announced !== true) refuse(ctx, "Tell the caller the call is being recorded first.");
   const confirmedBy = strOrUndef(consent.confirmedBy);
   if (policy === "ask" && (consent.announced !== true || !confirmedBy)) refuse(ctx, "Ask the other person if you may record, and note who agreed.");
-  const started = obj(await ctx.call("twilio.recording.start", { callSid: sid as string, announced: true }));
+  const started = obj(await ctx.call("twilio.recording.start", { callSid: sid as string, announced: true, idempotencyKey: `tel:${str(row, "id")}:recstart:${ctx.now()}` }));
   setMeta(ctx, str(row, "id"), { recording: 1, recordingSid: text(started.recordingSid), consent: JSON.stringify({ policy, announced: true, ...(confirmedBy ? { confirmedBy } : {}), by: ctx.principal.id, at: ctx.now() }) });
   patch(ctx, "telephony_call", str(row, "id"), { consentLogged: 1 });
   ctx.emit("call.recording_changed", `entity/${str(row, "id")}`, { callId: str(row, "id"), recording: true, consentLogged: true });
