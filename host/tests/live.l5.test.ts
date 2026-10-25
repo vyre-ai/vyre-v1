@@ -1,6 +1,6 @@
 // P-L5_LIVE (rulings 31, 32): the L5 modules that are done are live on a booted daemon. host/modules.json has them live, no L5 module is reported as not set up, the Stripe, Twilio and GitHub
 // host seams are wired, and one read and one write capability per module answer through the gateway with a real token. A member without connectors.manage is refused.
-// contacts-link and inbox wait for the entity table rename (P-CC_37). telephony, meetings and zoom are not in this list: their packets (P-L5_07, P-L5_10) have not landed, so they stay stub (comment on the packet).
+telephony, meetings and zoom are not in this list: their packets (P-L5_07, P-L5_10) have not landed, so they stay stub (comment on the packet).
 // Path mapping: the packet owns __live__/L5; this test sits in host/tests because it boots the daemon.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -13,7 +13,7 @@ import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 
-const LIVE = ["calendar", "github", "google", "mail", "mailgun", "microsoft", "resend", "stripe", "twilio"];
+const LIVE = ["calendar", "contacts-link", "github", "google", "inbox", "mail", "mailgun", "microsoft", "resend", "stripe", "twilio"];
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 
@@ -33,8 +33,10 @@ const AT = 1_790_000_000_000;
 // [module, read, write]: each a path and a body. The reads and writes need no provider account; the answers come from the module's own tables.
 const CALLS: [string, [string, unknown], [string, unknown]][] = [
   ["calendar", ["/v1/calendar/list_calendars", {}], ["/v1/calendar/create_calendar", { idempotencyKey: "l5-cal", title: "Team" }]],
+  ["contacts-link", ["/v1/contacts/suppression/list", {}], ["/v1/contacts/suppression/add", { channel: "email", addresses: ["optout@example.com"], reason: "manual" }]],
   ["github", ["/v1/github/health", {}], ["/v1/github/app/create_manifest", { org: "acme" }]],
   ["google", ["/v1/google/health", {}], ["/v1/google/dwd/disable", {}]],
+  ["inbox", ["/v1/inbox/counts", {}], ["/v1/inbox/link_message", { channel: "email", ref: { kind: "mail_message", id: "msg_1" }, address: "a@example.com", direction: "in", at: AT }]],
   ["mail", ["/v1/mail/mailbox/list", {}], ["/v1/mail/mailbox/create", { idempotencyKey: "l5-mbx", kind: "shared", address: "team@example.com", title: "Team", provider: "inbound_only" }]],
   ["microsoft", ["/v1/ms/health", {}], ["/v1/ms/consent/disable", {}]],
   ["stripe", ["/v1/stripe/health", {}], ["/v1/stripe/receive_webhook", { eventId: "evt_1", type: "checkout.session.completed", objectId: "cs_1", amount: 100, currency: "USD", at: AT }]],
