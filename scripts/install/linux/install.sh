@@ -374,6 +374,15 @@ unpack_release() {
 # lock_get KEY: a value from the release's images.lock.
 lock_get() { sed -n "s/^$1=\\(.*\\)\$/\\1/p" "$DIR/releases/$REL_VERSION/images.lock" 2>/dev/null | head -n 1; }
 
+# space_id: the Space's id. The daemon refuses to boot a data directory that has no Space, and compose passes an empty VYRE_SPACE through as empty,
+# so the installer names one: the id of an earlier install (compose.env), else one handed in (VYRE_SPACE), else a new spc_ id. A re-run keeps it.
+space_id() {
+  _s=$(sed -n 's/^VYRE_SPACE=\(.*\)$/\1/p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  [ -n "$_s" ] || _s=${VYRE_SPACE:-}
+  [ -n "$_s" ] || _s=spc_$(openssl rand -hex 12)
+  printf '%s' "$_s"
+}
+
 write_config() {
   if [ "$DRY" = 1 ]; then say "would write $DIR/vyre.env (0600), $DIR/compose.env and $DIR/compose.override.yml, and create $DATA_DIR"; return 0; fi
   mkdir -p "$DIR" "$DATA_DIR/space" "$DATA_DIR/work" "$DATA_DIR/caddy" "$DATA_DIR/caddy-config" "$DIR/backups" "$DIR/state"
@@ -390,6 +399,7 @@ write_config() {
   {
     printf 'VYRE_IMAGE=%s\n' "$(lock_get VYRE_IMAGE)"
     printf 'VYRE_PORT=8420\n'
+    printf 'VYRE_SPACE=%s\n' "$(space_id)"
     [ -z "$DOMAIN" ] || printf 'VYRE_ADDRESS=%s\n' "$DOMAIN"
     [ -z "$RELAY" ] || printf 'VYRE_RELAY_URL=%s\n' "$RELAY"
   } >"$DIR/compose.env.new"
