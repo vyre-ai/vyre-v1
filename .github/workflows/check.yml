@@ -39,6 +39,9 @@ jobs:
       matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+      - name: Exclusive disk for a perf job (waits for the Docker-heavy jobs on this host)
+        if: matrix.runner == 'v1-perf'
+        run: bash scripts/ci-iolock.sh exclusive
       - uses: ./.github/actions/deps
       - name: Run the shard (20 s file cap, pass cache by import hash)
         env:
@@ -123,6 +126,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      - name: Disk lock (heavy jobs share the disk, perf jobs run alone on it)
+        run: bash scripts/ci-iolock.sh shared
       - name: Did images/ or a heavy test change on this branch?
         id: scope
         run: |
@@ -189,6 +194,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      - name: Disk lock (heavy jobs share the disk, perf jobs run alone on it)
+        run: bash scripts/ci-iolock.sh shared
       - name: Did the sandbox, the terminal module, the person-sandbox image or the heavy tests change on this branch?
         id: scope
         run: |
@@ -251,6 +258,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Disk lock (heavy jobs share the disk, perf jobs run alone on it)
+        run: bash scripts/ci-iolock.sh shared
       - uses: ./.github/actions/deps
       - name: Chromium (playwright-core, cached on the runner)
         run: |
