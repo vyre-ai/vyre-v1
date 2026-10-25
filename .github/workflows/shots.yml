@@ -18,10 +18,12 @@ concurrency:
 jobs:
   lockfile:
     if: github.event_name == 'workflow_dispatch' && inputs.lockfile == 'true' || contains(github.event.head_commit.message, '[lockfile]')
-    runs-on: [self-hosted, linux, v1]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
       - name: Resolve the dependency tree into package-lock.json
         run: node scripts/shots/lockfile.mjs
       - uses: actions/upload-artifact@v4
@@ -30,8 +32,8 @@ jobs:
           path: package-lock.json
           retention-days: 7
   shots:
-    # Self-hosted again: hosted Actions minutes hit the account spending limit (25 Oct). Back to hosted once billing allows.
-    runs-on: [self-hosted, linux, v1]
+    # GitHub-hosted again: the repo is public, hosted minutes are free (25 Oct). The 120 s export budget is a wall-time report here, never a speed gate (ruling 46).
+    runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
