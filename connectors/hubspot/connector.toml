@@ -1,0 +1,212 @@
+# HubSpot: the built-in example connector (spec 2.10). It compiles to the ConnectorDef in manifests/connectors/hubspot.ts; tests/replay.test.ts keeps the two equal.
+# Secrets are named here and resolved from the Vault at call time. The connector reaches only the domains below.
+key = "hubspot"
+title = "HubSpot"
+mode = "api"
+scope = "space"
+version = "1.0.0"
+domains = ["api.hubapi.com", "app.hubspot.com"]
+health = "test_connection"
+healthCheck = "hubspot.api"
+capabilities = ["hubspot.test_connection", "hubspot.list_objects", "hubspot.push_object"]
+rate = { rps = 8, burst = 16 }
+
+[auth]
+type = "oauth2"
+secret = "HubSpot_Token"
+authUrl = "https://app.hubspot.com/oauth/authorize"
+tokenUrl = "https://api.hubapi.com/oauth/v1/token"
+pkce = true
+scopes = [
+  "crm.objects.contacts.read",
+  "crm.objects.contacts.write",
+  "crm.objects.companies.read",
+  "crm.objects.companies.write",
+]
+
+[[secrets]]
+name = "HubSpot_Token"
+description = "Private app token or OAuth refresh token"
+
+# Inbound: HubSpot webhooks arrive at /hooks/hubspot, are verified by signature and deduplicated on the provider event id.
+[[sources]]
+key = "webhook"
+path = "/hooks/hubspot"
+verify = "signature"
+event = "hubspot.webhook_received"
+dedupe = "/providerEventId"
+
+# Synced types. Every one starts one-way safe: nothing is created in HubSpot, nothing is deleted there, and a field only travels
+# back when its direction says "both". Person fields default to asking on a conflict.
+[[synced_types]]
+type = "contact"
+remote = "contacts"
+match = ["email"]
+createAtSource = false
+deletes = "off"
+conflict = "ask"
+nightlyReconcile = true
+polling = { activeSec = 120, idleSec = 900, dormantSec = 3600 }
+
+[[synced_types.fields]]
+key = "name"
+remote = "firstname"
+dir = "both"
+
+[[synced_types.fields]]
+key = "email"
+remote = "email"
+dir = "both"
+
+[[synced_types.fields]]
+key = "phone"
+remote = "phone"
+dir = "both"
+
+[[synced_types]]
+type = "company"
+remote = "companies"
+match = ["website"]
+createAtSource = false
+deletes = "off"
+conflict = "newest"
+nightlyReconcile = true
+polling = { activeSec = 120, idleSec = 900, dormantSec = 3600 }
+
+[[synced_types.fields]]
+key = "name"
+remote = "name"
+dir = "both"
+
+[[synced_types.fields]]
+key = "website"
+remote = "domain"
+dir = "pull"
+
+# ---- actions ----
+# A list call is two actions because a template with a missing input is refused: the first page has no cursor.
+[[actions]]
+name = "test_connection"
+url = "https://api.hubapi.com/account-info/v3/details"
+output = ""
+
+[[actions]]
+name = "list_contacts"
+url = "https://api.hubapi.com/crm/v3/objects/contacts"
+query = { limit = "{input.limit}", properties = "firstname,lastname,email,phone,hs_lastmodifieddate" }
+output = ""
+
+[[actions]]
+name = "list_contacts_after"
+url = "https://api.hubapi.com/crm/v3/objects/contacts"
+query = { limit = "{input.limit}", after = "{input.cursor}", properties = "firstname,lastname,email,phone,hs_lastmodifieddate" }
+output = ""
+
+[[actions]]
+name = "list_companies"
+url = "https://api.hubapi.com/crm/v3/objects/companies"
+query = { limit = "{input.limit}", properties = "name,domain,hs_lastmodifieddate" }
+output = ""
+
+[[actions]]
+name = "list_companies_after"
+url = "https://api.hubapi.com/crm/v3/objects/companies"
+query = { limit = "{input.limit}", after = "{input.cursor}", properties = "name,domain,hs_lastmodifieddate" }
+output = ""
+
+[[actions]]
+name = "update_contact"
+method = "PATCH"
+url = "https://api.hubapi.com/crm/v3/objects/contacts/{input.id}"
+body = { properties = "{input.properties}" }
+output = ""
+write = true
+
+[[actions]]
+name = "create_contact"
+method = "POST"
+url = "https://api.hubapi.com/crm/v3/objects/contacts"
+body = { properties = "{input.properties}" }
+output = ""
+write = true
+
+[[actions]]
+name = "update_company"
+method = "PATCH"
+url = "https://api.hubapi.com/crm/v3/objects/companies/{input.id}"
+body = { properties = "{input.properties}" }
+output = ""
+write = true
+
+[[actions]]
+name = "create_company"
+method = "POST"
+url = "https://api.hubapi.com/crm/v3/objects/companies"
+body = { properties = "{input.properties}" }
+output = ""
+write = true
+
+# ---- recorded responses (tests/recorded/*.json are real HubSpot answers with the personal data replaced) ----
+[[tests]]
+name = "the token is checked against the portal"
+action = "test_connection"
+expect = { requests = 1 }
+[[tests.responses]]
+url = "https://api.hubapi.com/account-info/v3/details"
+file = "tests/recorded/account-details.json"
+
+[[tests]]
+name = "the first page of contacts"
+action = "list_contacts"
+input = { limit = 2 }
+expect = { requests = 1 }
+[[tests.responses]]
+url = "https://api.hubapi.com/crm/v3/objects/contacts"
+file = "tests/recorded/contacts-page-1.json"
+
+[[tests]]
+name = "the second page of contacts follows the cursor"
+action = "list_contacts_after"
+input = { limit = 2, cursor = "NTI1Cg" }
+expect = { requests = 1 }
+[[tests.responses]]
+url = "https://api.hubapi.com/crm/v3/objects/contacts"
+file = "tests/recorded/contacts-page-2.json"
+
+[[tests]]
+name = "the first page of companies"
+action = "list_companies"
+input = { limit = 100 }
+expect = { requests = 1 }
+[[tests.responses]]
+url = "https://api.hubapi.com/crm/v3/objects/companies"
+file = "tests/recorded/companies-page-1.json"
+
+[[tests]]
+name = "a contact is updated"
+action = "update_contact"
+input = { id = "501", properties = { phone = "+1 555 0100" } }
+expect = { requests = 1 }
+[[tests.responses]]
+method = "PATCH"
+url = "https://api.hubapi.com/crm/v3/objects/contacts/501"
+file = "tests/recorded/contact-updated.json"
+
+[[tests]]
+name = "a rejected token is an auth error"
+action = "test_connection"
+expect = { error = "provider.auth_failed" }
+[[tests.responses]]
+url = "https://api.hubapi.com/account-info/v3/details"
+status = 401
+file = "tests/recorded/error-401.json"
+
+[[tests]]
+name = "HubSpot rate limiting is its own error"
+action = "list_contacts"
+input = { limit = 100 }
+expect = { error = "provider.rate_limited" }
+[[tests.responses]]
+url = "https://api.hubapi.com/crm/v3/objects/contacts"
+status = 429
+file = "tests/recorded/error-429.json"
