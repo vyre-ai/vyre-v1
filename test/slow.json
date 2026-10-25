@@ -16,5 +16,8 @@
   {"file": "agent/tests/turn-engine.perf.test.ts", "capSec": 120, "owner": "L5", "reason": "speed budget; node speed numbers count only from the v1-perf runners (ruling 46)", "perf": true},
   {"file": "kernel/tests/authorize.bench.test.ts", "capSec": 120, "owner": "L1", "reason": "speed benchmark; node speed numbers count only from the v1-perf runners (ruling 46)", "perf": true},
   {"file": "kernel/tests/log.commit.bench.test.ts", "capSec": 120, "owner": "L1", "reason": "speed benchmark; node speed numbers count only from the v1-perf runners (ruling 46)", "perf": true},
-  {"file": "manifest/tests/scaffold.module.test.ts", "capSec": 120, "owner": "CI", "reason": "took 22 s on loaded runners against the 20 s fast cap"}
+  {"file": "manifest/tests/scaffold.module.test.ts", "capSec": 120, "owner": "CI", "reason": "took 22 s on loaded runners against the 20 s fast cap"},
+  {"file": "apps/app/src/places/records/tests/records-table.test.tsx", "capSec": 120, "owner": "L9", "reason": "heavy jsdom renders, 20-22 s on loaded runners; holds the table100k speed assertion, so it runs on v1-perf (ruling 46)", "perf": true},
+  {"file": "apps/app/src/places/records/tests/records-views-a.test.tsx", "capSec": 120, "owner": "L9", "reason": "heavy jsdom renders, 20-22 s on loaded runners; holds the table100k speed assertion, so it runs on v1-perf (ruling 46)", "perf": true},
+  {"file": "apps/app/src/places/chats/agentpage/chats-agent.test.tsx", "capSec": 120, "owner": "L9", "reason": "heavy jsdom renders, 20-22 s on loaded runners"}
 ]

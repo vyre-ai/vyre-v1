@@ -10,7 +10,7 @@ test("fifteen entries pass, the sixteenth fails", () => {
   assert.deepEqual(checkSlow(list(MAX_ENTRIES)), []);
   const p = checkSlow(list(MAX_ENTRIES + 1));
   assert.equal(p.length, 1);
-  assert.match(p[0], /21 entries, the cap is 20/);
+  assert.match(p[0], /25 entries, the cap is 24/);
 });
 test("capSec over 120, missing owner or reason, duplicates and non-test files fail", () => {
   assert.match(checkSlow([{ ...entry(1), capSec: 121 }])[0], /capSec/);
