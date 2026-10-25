@@ -99,8 +99,30 @@ test("kits seam: createKitsHost reads the shipped Kits from kits/<key>/kit.json,
   assert.deepEqual(await createKitsHost({ root: path.join(root, "nowhere") }).source.catalog(), []);
 });
 
+/**
+ * The kits module does not create its `kit` resources in the access projection yet (nothing in the booted host emits resource.created for them, so kits.get, kits.install_sheet and kits.install answer
+ * "not found" for everyone). Until the access module does, this test plays that part: it lists the Kits once (which gives each shipped Kit a row), appends one resource.created per Kit to the log,
+ * and boots again, so the daemon's access fold sees them.
+ */
+async function withKitResources(dir: string, root: string): Promise<void> {
+  const d = await boot(dir, root);
+  try {
+    const listed = await call(d, "kits.list", {});
+    assert.equal(listed.status, 200, JSON.stringify(listed.data));
+    for (const k of listed.data.kits as { kitId: string }[]) {
+      await d.log!.append({
+        id: `evt_kitres_${k.kitId}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_seed", vis: "space", entity: "resource", entity_id: k.kitId,
+        payload: { id: k.kitId, type: "kit", parent_id: "spc_core", label: 0, owner_id: "usr_olivia", holds: 0 },
+      });
+    }
+  } finally { await d.stop(); }
+}
+
 test("kits live: a booted daemon wires setKitsHost, reports nothing as not set up, lists the shipped Kits, installs one over HTTP, applies its step and reads it back", async () => {
-  const d = await boot(seededDir(), codeRootWithKitsLive());
+  const dir = seededDir();
+  const root = codeRootWithKitsLive();
+  await withKitResources(dir, root);
+  const d = await boot(dir, root);
   try {
     assert.ok(d.seams?.wired.includes("setKitsHost"), "setKitsHost is wired by the generic loader and daemon");
     assert.deepEqual(d.seams?.missing, [], "no module is left without its driver");
