@@ -150,3 +150,13 @@ test("a picture shows when src is given and strokes draw over it; the first cell
   assert.match(tag(sheet, "vw-cell-0-1"), /aria-selected="true"|selected/);
   assert.match(sheet, /Amount: sum 2,400, average 800\.0/);
 });
+
+test("a document has View and Edit, and Edit makes its blocks editable; code files have neither; strokes draw as an svg over the picture", () => {
+  const doc: DocBlock[] = [{ id: "a", tag: "p", text: "Hello" }];
+  assert.ok(renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" blocks={doc} />).includes('data-testid="vw-mode"'));
+  assert.ok(!renderToStaticMarkup(<Viewer fileId="d" title="f.py" kind="document" blocks={[{ id: "c", tag: "code", text: "x = 1" }]} />).includes('data-testid="vw-mode"'));
+  assert.ok(renderToStaticMarkup(<Viewer fileId="d" title="n.md" kind="document" edit blocks={doc} />).includes("<textarea") === false, "the server render starts in View");
+  const strokes = [{ points: [[0.1, 0.1], [0.2, 0.2]] as const }];
+  const img = renderToStaticMarkup(<Viewer fileId="f" title="a.png" kind="image" strokes={strokes} />);
+  assert.ok(img.includes('data-testid="vw-strokes"') && img.includes("<polyline") && img.includes('points="0.1,0.1 0.2,0.2"'));
+});

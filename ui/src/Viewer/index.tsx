@@ -236,7 +236,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const hits = useMemo(() => findMatches(texts, find), [texts, find]);
   const at = hits.length === 0 ? 0 : cur % hits.length;
   const pins: readonly ViewerPin[] = props.pins ?? each(boxes, (b, i) => ({ id: b.id, n: i + 1, text: b.text }));
-  const editing = props.editing === true;
+  const editing = props.editing === true || ((props.kind === "document" || props.kind === "plan") && editMode);
 
   const setZ = (z: number): void => { setZoom(z); props.onZoom?.(z); };
   const changeBoxes = (next: readonly MarkupBox[]): void => { setBoxes(next); props.onBoxes?.(next); };
@@ -277,7 +277,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           <Pressable accessibilityRole="button" accessibilityLabel="Zoom in" testID="vw-zoom-in" onPress={() => setZ(stepZoom(zoom, 1))}><Text style={s.zoomText}>{"+"}</Text></Pressable>
         </View>
       ) : null}
-      {props.kind === "csv" || props.kind === "plan" ? (
+      {props.kind === "csv" || props.kind === "plan" || (props.kind === "document" && blocks.some((b) => b.tag !== "code")) ? (
         <View style={s.modeRow} testID="vw-mode">
           {props.saved !== undefined ? <Text style={s.saved} testID="vw-saved">{`✓ v${props.saved}`}</Text> : null}
           <View style={s.seg} accessibilityRole="tablist">
@@ -331,7 +331,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
         {props.src !== undefined
           ? <Image accessibilityIgnoresInvertColors accessibilityLabel={props.title} source={{ uri: props.src }} resizeMode="cover" style={s.pictureImg} testID="vw-picture" />
           : <View style={s.picture}><Text style={s.pictureText}>{props.title}</Text></View>}
-        {Platform.OS === "web" && (strokes.length > 0 || (line !== null && line.length > 1)) ? createElement("svg", { viewBox: "0 0 1 1", preserveAspectRatio: "none", "data-testid": "vw-strokes", style: { position: "absolute", left: 0, top: 0, width: "100%", height: "100%", pointerEvents: "none" } },
+        {Platform.OS === "web" && (strokes.length > 0 || (line !== null && line.length > 1)) ? createElement("svg", { viewBox: "0 0 1 1", preserveAspectRatio: "none", "data-testid": "vw-strokes", style: { position: "absolute", left: 0, top: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 } },
           ...each([...each(strokes, (st) => st.points), ...(line !== null ? [line] : [])], (pts, i) => createElement("polyline", { key: i, points: each(pts, (q) => `${q[0]},${q[1]}`).join(" "), fill: "none", stroke: "#E5483A", strokeWidth: 3, strokeLinecap: "round", strokeLinejoin: "round", vectorEffect: "non-scaling-stroke" }))) : null}
         {each(strokes, (st, i) => <View key={i} testID={`vw-stroke-${i}`} style={s.strokeMark} {...web({ "data-points": each(st.points, (q) => `${q[0].toFixed(3)},${q[1].toFixed(3)}`).join(" ") })} />)}
         {each(boxes, (b, i) => (
