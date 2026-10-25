@@ -14,6 +14,7 @@ import { routes } from "../../../generated/routes.ts";
 import { validateEvent, validateInput } from "../../../generated/validators.ts";
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
 import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
+import type { ScopedDb } from "../../../packages/contracts/src/ctx.ts";
 import { createCtxSeal } from "../ctx/seal.ts";
 import { ScheduleQueue } from "../ctx/schedule.ts";
 import type { ScheduledCall } from "../ctx/schedule.ts";
@@ -90,6 +91,15 @@ function sealKeyFile(file: string): string {
   return t;
 }
 
+/** The Gate's `git.is_protected` condition, over the git module's `isProtectedCall`; nothing when git is not live (its calls are stubs). */
+function gitProtected(
+  fn: unknown, db: () => HostDb | null, call: (cap: string, input: unknown) => Promise<unknown>,
+): Record<string, (input: unknown) => Promise<boolean>> {
+  if (typeof fn !== "function") return {};
+  const isProtected = fn as (ctx: { db: ScopedDb; call: (cap: string, input: unknown) => Promise<unknown> }, input: unknown) => Promise<boolean>;
+  return { "git.is_protected": (input) => { const h = db(); return h ? isProtected({ db: h, call }, input) : Promise.resolve(true); } };
+}
+
 export interface DaemonOptions {
   config: DaemonConfig;
   codeRoot?: string;
@@ -116,6 +126,8 @@ export interface DaemonOptions {
     /** the domains a signed webhook may reach; omitted: none */
     webhookAllow?: () => readonly string[];
     postFetch?: PostFetch;
+    /** where the Vault filler leaves a GitHub installation token for the git module to take once, by the ref it asked with (`git_credential`); omitted: an empty slot, so a GitHub remote call refuses */
+    gitCredentials?: Map<string, string>;
   } & Partial<Omit<SeamDeps, "vault" | "drivers" | "owners">>;
   /** replace the consumers and periodic jobs read from the live modules' exports (tests) */
   hooks?: ModuleHooks[];
@@ -326,6 +338,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             return r.output;
           },
           unseal: (s) => seal.unseal(s), now,
+          // git.is_protected(input.branch) (git.push, git.sync): the git module judges it from the folder's settings, called as the Space itself
+          evaluators: gitProtected(loaded.moduleExports.get("git")?.["isProtectedCall"], () => db, async (cap, input) => {
+            const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: owner() }, origin: "gate" });
+            return r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`));
+          }),
           hold: (id) => {
             const r = db?.all("SELECT state, principal_kind, principal_id, acting_for, run_id, thread_id, payload_hash FROM gate_holds WHERE id = ?", id)[0] as
               { state: string; principal_kind: string; principal_id: string; acting_for: string | null; run_id: string | null; thread_id: string | null; payload_hash: string } | undefined;
@@ -387,6 +404,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const system = (cap: string, input: unknown): Promise<unknown> =>
         invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
       // the Space record store the L3 data modules share (P-H_08): one file in the data directory, opened by the first module that needs it, closed at shutdown
+      const gitCredentials = o.seams?.gitCredentials ?? new Map<string, string>();
       const spaceStore = createSpaceStore({ path: spaceStorePath(paths.root), space: spaceId });
       closers.push(() => spaceStore.close());
       dispatchSystem = system;
@@ -414,6 +432,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           reader: { source: { read: (q) => spaceLog.read(q), head: async () => (await spaceLog.currentHead()).seq }, access: () => access.snap, owner: () => cfg.owner ?? access.owner() ?? null, now },
           post: { allow: o.seams?.webhookAllow ?? (() => []), now, ...(o.seams?.postFetch ? { fetch: o.seams.postFetch } : {}) },
         }),
+        // the git module: working trees under the data directory, and the slot a GitHub installation token is taken from
+        setGitHost: () => ({ treesDir: path.join(paths.root, "trees"), takeCredential: (ref: string) => { const t = gitCredentials.get(ref); gitCredentials.delete(ref); return t; } }),
         ...spaceStoreDrivers(spaceStore),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
         setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open() }, now }),

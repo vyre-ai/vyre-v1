@@ -18,6 +18,11 @@ export interface GateHookDeps {
   /** ctx.seal.unseal: opens the approval token. */
   unseal(s: { keyId: string; nonce: string; bytes: string }): Uint8Array;
   now(): number;
+  /**
+   * Conditions a module answers itself, by the function name in a capability's `when` (for example `git.is_protected(input.branch)`, which needs the folder's git settings). The
+   * expression language has no such functions, so the Gate asks the module; an evaluator that throws counts as holding, like an unreadable expression.
+   */
+  evaluators?: Record<string, (input: unknown, seed: Pick<CtxSeed, "principal">) => boolean | Promise<boolean>>;
   /** The held row an approval names (the host owns modules.db): who asked, whom for, run and thread, the stored payload hash and its state. Null when there is none. */
   hold(id: string): { state: string; principalKind: string; principalId: string; actingFor?: string | undefined; run?: string | undefined; thread?: string | undefined; payloadHash: string } | null;
 }
@@ -41,6 +46,16 @@ export function whenHolds(when: string | undefined, input: unknown, seed: Pick<C
   } catch { return true; }
 }
 
+/** `fn.name(input.field)`: a condition the module behind `fn.name` evaluates. */
+const MODULE_WHEN = /^\s*([a-z_]+\.[a-z_]+)\(\s*input(?:\.[A-Za-z_]+)*\s*\)\s*$/;
+
+async function appliesWhen(d: Pick<GateHookDeps, "evaluators">, when: string | undefined, input: unknown, seed: Pick<CtxSeed, "principal">): Promise<boolean> {
+  const fn = when === undefined ? undefined : MODULE_WHEN.exec(when)?.[1];
+  const evaluate = fn === undefined ? undefined : d.evaluators?.[fn];
+  if (!evaluate) return whenHolds(when, input, seed);
+  try { return await evaluate(input, seed); } catch { return true; }
+}
+
 interface Claims { v?: unknown; hash?: unknown; exp?: unknown; hold?: unknown }
 function claimsOf(d: Pick<GateHookDeps, "unseal">, token: string): Claims | null {
   if (!token.startsWith("apv_")) return null;
@@ -54,7 +69,7 @@ export function createGateHook(d: GateHookDeps): GateHook {
     async applies(cap, input, seed) {
       const act = cap.gate?.act;
       if (!act || act === "none") return null;
-      if (!whenHolds(cap.gate?.when, input, seed)) return null;
+      if (!(await appliesWhen(d, cap.gate?.when, input, seed))) return null;
       const r = (await d.call("gate.effective_rule", { principal: { kind: seed.principal.kind, id: seed.principal.id }, act })) as { hold?: unknown } | null;
       return r?.hold === true ? { act } : null;
     },
