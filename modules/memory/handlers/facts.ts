@@ -354,8 +354,6 @@ export async function counts(ctx: MemCtx, input: { agentId: string }) {
 
 interface Doc { kind: "fact" | "note"; id: string; title: string; text: string; layer: Layer; path: string | null; since: number | null; link: string | null; learnedAt: number; shared: boolean }
 
-const factTitle = (f: Fact): string => (f.kind ? `${f.kind.slice(0, 1).toUpperCase()}${f.kind.slice(1)}` : "Fact");
-
 /** The notes the caller may read, as documents. Person-layer notes are indexed by sealed title only. */
 async function noteDocs(ctx: MemCtx, access: Access, agentId: string | undefined, projectId: string | undefined): Promise<Array<Doc & { noteId: string }>> {
   const me = actorOf(ctx);
@@ -386,19 +384,40 @@ function readTitle(ctx: MemCtx, sealed: string): string {
 
 async function factDocs(ctx: MemCtx, access: Access, agentId: string | undefined, projectId: string | undefined): Promise<Doc[]> {
   const now = ctx.now();
-  const args: unknown[] = [now, actorOf(ctx)];
-  let sql = "SELECT * FROM memory_facts WHERE status = 'current' AND (valid_to IS NULL OR valid_to > ?) AND (layer != 'person' OR owner_ref = ?)";
+  const me = actorOf(ctx);
+  const args: unknown[] = [now, me];
+  let sql = "SELECT id, layer, owner_ref, agent_id, project_id, note_id, kind, text, sealed, enc, valid_from, learned_at, source_link FROM memory_facts WHERE status = 'current' AND (valid_to IS NULL OR valid_to > ?) AND (layer != 'person' OR owner_ref = ?)";
   if (agentId) { sql += " AND (agent_id = ? OR layer IN ('project', 'space'))"; args.push(agentId); }
   if (projectId) { sql += " AND (project_id = ? OR layer != 'project')"; args.push(projectId); }
-  const paths = new Map<string, string>();
+  const paths = new Map<string, string | null>();
+  const allowed = new Map<string, boolean>();
   const docs: Doc[] = [];
-  for (const f of await readableFacts(ctx, access, rowsOf(ctx.db, sql, ...args))) {
-    let path: string | null = null;
-    if (f.noteId) {
-      if (!paths.has(f.noteId)) paths.set(f.noteId, str(rowsOf(ctx.db, "SELECT path FROM memory_notes WHERE note_id = ?", f.noteId)[0]?.["path"]));
-      path = paths.get(f.noteId) || null;
+  // Access is decided once per place a fact lives in (layer, owner, agent, project), not once per fact.
+  for (const r of rowsOf(ctx.db, sql, ...args)) {
+    const layer = r["layer"] as Layer;
+    const owner = str(r["owner_ref"]);
+    const agent = orNull(r["agent_id"]);
+    const project = orNull(r["project_id"]);
+    const place = `${layer}|${owner}|${agent ?? ""}|${project ?? ""}`;
+    let ok = allowed.get(place);
+    if (ok === undefined) {
+      ok = await access.can(layer, owner, agent, project, "view");
+      allowed.set(place, ok);
     }
-    docs.push({ kind: "fact", id: f.id, title: factTitle(f), text: f.text, layer: f.layer, path, since: f.validFrom, link: f.sourceLink, learnedAt: f.learnedAt, shared: f.layer !== "person" });
+    if (!ok) continue;
+    const text = num(r["enc"]) === 2 ? readFact(ctx, { ...r, status: "current" }).text : str(r["text"]);
+    if (text === "") continue;
+    const noteId = orNull(r["note_id"]);
+    let path: string | null = null;
+    if (noteId) {
+      if (!paths.has(noteId)) paths.set(noteId, orNull(rowsOf(ctx.db, "SELECT path FROM memory_notes WHERE note_id = ?", noteId)[0]?.["path"]));
+      path = paths.get(noteId) ?? null;
+    }
+    const kind = orNull(r["kind"]);
+    docs.push({
+      kind: "fact", id: str(r["id"]), title: kind ? `${kind.slice(0, 1).toUpperCase()}${kind.slice(1)}` : "Fact", text, layer, path, since: num(r["valid_from"]), link: orNull(r["source_link"]),
+      learnedAt: num(r["learned_at"]), shared: layer !== "person",
+    });
   }
   return docs;
 }
