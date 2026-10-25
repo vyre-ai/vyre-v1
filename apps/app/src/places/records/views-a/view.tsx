@@ -163,12 +163,12 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
   return (
     <View style={s.head} testID="records-head">
       <View style={s.crumb}>
-        <Glyph name={typeIcon(def.icon)} size={18} color="var(--ink-2)" />
+        {slim ? null : <Glyph name={typeIcon(def.icon)} size={18} color="var(--ink-2)" />}
         <Text accessibilityRole="header" aria-level={1} style={s.h1} numberOfLines={1}>{def.plural}</Text>
-        <Text style={s.slash}>/</Text>
+        {slim ? null : <Text style={s.slash}>/</Text>}
         <Pressable accessibilityRole="button" accessibilityLabel="Saved views" testID="records-views" onPress={(e) => { const p = pointOf(e); menu.show(viewEntries(), p.x, p.y); }}
           style={({ hovered }: { hovered?: boolean }) => [s.pick, hovered === true && s.pickOver]}>
-          <Text style={s.pickText}>{ctx.saved ? ctx.saved.title : `All ${def.plural.toLowerCase()}`}</Text>
+          <Text style={s.pickText} numberOfLines={1}>{ctx.saved ? ctx.saved.title : `All ${def.plural.toLowerCase()}`}</Text>
           {st.edited ? <Text style={s.dirty}>{"·"}</Text> : null}
           <Glyph name="chevd" size={9} />
         </Pressable>
@@ -202,12 +202,12 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
 
 export const s = StyleSheet.create({
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 2, paddingLeft: 18, paddingRight: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, zIndex: 10 },
-  crumb: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0, flexShrink: 1 },
-  h1: { margin: 0, fontSize: 14, fontWeight: "600", letterSpacing: -0.07, color: "var(--ink)" as string },
+  crumb: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0, flexShrink: 1, overflow: "hidden" },
+  h1: { margin: 0, flexShrink: 1, minWidth: 0, fontSize: 14, fontWeight: "600", letterSpacing: -0.07, color: "var(--ink)" as string },
   slash: { fontSize: 14, color: "var(--ink-4)" as string },
-  pick: { height: 26, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 7, borderRadius: 6 },
+  pick: { height: 26, flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 7, borderRadius: 6 },
   pickOver: { backgroundColor: "var(--hover)" as string },
-  pickText: { fontSize: 13, color: "var(--ink-2)" as string },
+  pickText: { flexShrink: 1, fontSize: 13, color: "var(--ink-2)" as string },
   dirty: { fontSize: 16, lineHeight: 16, color: "var(--accent)" as string },
   modline: { flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 6 },
   modText: { fontSize: 12.5, color: "var(--ink-3)" as string },
