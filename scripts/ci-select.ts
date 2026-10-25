@@ -1,13 +1,13 @@
 // Test selection for CI (ARCH 10.2, 10.6). Wraps the import-graph walk in scripts/ci-select.mjs and adds the manifest edge:
 // a change under manifests/ selects the generated contract tests for that module and every consumer of its generated outputs.
 // Rules kept from the walk: a changed or added test file always runs; a changed code file reached by no test is "uncovered" and fails.
-//   node scripts/ci-select.ts <base-ref> [--matrix [--max N]]   prints {"all","files","why","uncovered","edges"}; exit 1 when a code file is uncovered
+//   node scripts/ci-select.ts <base-ref> [--matrix [--max N] [--perf-always]]   prints {"all","files","why","uncovered","edges"}; exit 1 when a code file is uncovered
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { select as walk } from "./ci-select.mjs";
-import { CODE, TEST } from "./lib/graph.mjs";
+import { CODE, TEST, imports, closure } from "./lib/graph.mjs";
 import { shardFiles, toMatrix } from "./shard.ts";
 
 export type Selection = { all: boolean; files: string[]; why: string[]; uncovered: string[]; edges: string[] };
@@ -119,17 +119,30 @@ export function selectAffected({ changed, tracked, read }: Input): Selection {
   return { ...r, why, uncovered, files: [...new Set([...r.files, ...own, ...frozen, ...unit, ...booted])].sort(), edges };
 }
 
+/**
+ * Perf files (test/slow.json "perf": true) follow the same affected-only rule as every other test, even when the selection says "all"
+ * (a shared Row change reaches nearly every test but cannot move a kernel benchmark): one runs only when a changed path is in its own import closure, or always when `always` is set (main).
+ */
+export function dropUnaffectedPerf(files: string[], changed: string[], perf: Set<string>, tracked: Set<string>, read: (f: string) => string, always: boolean): string[] {
+  if (always || !files.some((f) => perf.has(f))) return files;
+  const fwd = imports(tracked, read);
+  const hit = new Set(changed);
+  return files.filter((f) => !perf.has(f) || closure(f, fwd).some((c) => hit.has(c)));
+}
+
 const self = fileURLToPath(import.meta.url);
 if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   const repo = path.resolve(path.dirname(self), "..");
   const git = (a: string[]) => { const r = spawnSync("git", a, { cwd: repo, encoding: "utf8", maxBuffer: 1 << 28 }); if (r.status !== 0) throw new Error(r.stderr); return r.stdout; };
   const base = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : "";
   let result: Selection;
+  let changedPaths: string[] = [];
   let tracked = new Set<string>();
   try { tracked = new Set(git(["ls-files"]).split("\n").filter(Boolean)); } catch {}
   try {
     if (!base || /^0+$/.test(base)) throw new Error("no base");
     const changed = git(["diff", "--name-only", "--no-renames", `${base}...HEAD`]).split("\n").filter(Boolean);
+    changedPaths = changed;
     result = selectAffected({ changed, tracked, read: (f) => fs.readFileSync(path.join(repo, f), "utf8") });
   } catch (e: any) {
     result = { all: true, files: [], why: [`could not tell what changed (${String(e.message).split("\n")[0]}): running everything`], uncovered: [], edges: [] };
@@ -137,9 +150,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   if (process.argv.includes("--matrix")) {
     const mi = process.argv.indexOf("--max");
     const maxArg = mi > 0 ? Number(process.argv[mi + 1]) : 0;
-    const files = result.all ? [...tracked].filter((f) => TEST.test(f)) : result.files;
+    const picked = result.all ? [...tracked].filter((f) => TEST.test(f)) : result.files;
     const timings = JSON.parse(fs.readFileSync(path.join(repo, "test/timings.json"), "utf8"));
     const slow = JSON.parse(fs.readFileSync(path.join(repo, "test/slow.json"), "utf8"));
+    const perf = new Set<string>(slow.filter((e: { perf?: boolean }) => e.perf === true).map((e: { file: string }) => e.file));
+    const files = dropUnaffectedPerf(picked, changedPaths, perf, tracked, (f) => fs.readFileSync(path.join(repo, f), "utf8"), process.argv.includes("--perf-always"));
     console.log(JSON.stringify({ ...result, matrix: toMatrix(shardFiles(files, timings, slow, maxArg ? { max: maxArg } : {})) }));
   } else console.log(JSON.stringify(result));
   if (!result.all && result.uncovered.length) { for (const f of result.uncovered) console.error(`no test covers ${f}`); process.exit(1); }
