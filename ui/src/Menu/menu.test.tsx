@@ -122,7 +122,7 @@ test("a rendered menu lists the items in order and Report a problem last, with a
 
 test("the first item is lit on open (hover and focus paint the whole row)", () => {
   const html = renderToStaticMarkup(<Menu items={[{ label: "Open" }, { label: "Copy" }]} x={0} y={0} />);
-  assert.equal(html.match(/background-color:var\(--accent\)/g)?.length, 1, "exactly one lit row");
+  assert.equal(html.match(/background-color:var\(--hover\)/g)?.length, 1, "exactly one lit row");
   assert.match(html, /r-width-/, "rows carry a full width style");
 });
 
@@ -170,4 +170,12 @@ test("a right-click opens the menu at the pointer and stops the browser's own me
   onKey({ key: "F10", preventDefault: () => undefined, currentTarget: target });
   onKey({ key: "a", preventDefault: () => undefined, currentTarget: target });
   assert.deepEqual(opened, ["120,80", "10,50", "10,50"]);
+});
+
+test("a count sits in its own quiet right-aligned column, never in the label", () => {
+  const html = renderToStaticMarkup(<Menu items={[{ label: "Email", count: 8, checked: true }, { label: "Text", count: 4 }]} x={0} y={0} />);
+  assert.match(html, /data-testid="menu-count-Email"[^>]*>8</, "the count renders as its own element");
+  assert.ok(!html.includes("Email (8)"), "the label stays plain");
+  assert.ok(html.indexOf(">8<") < html.indexOf("✓"), "the count comes before the check");
+  assert.ok(!html.includes("var(--accent)"), "no filled accent box on a lit row");
 });

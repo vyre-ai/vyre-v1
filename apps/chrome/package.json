@@ -1,0 +1,8 @@
+{
+  "name": "@vyre/chrome",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24 <25" },
+  "description": "Vyre for Chrome: the MV3 extension (vault autofill, save-a-login, Ask, agent browsing). Plain JavaScript with JSDoc types: Chrome loads these files as they are, there is no build step."
+}
