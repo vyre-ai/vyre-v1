@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { TabStrip } from "../../../../../ui/src/TabStrip/index.tsx";
 import type { TabSpec } from "../../../../../ui/src/TabStrip/index.tsx";
+import { iconMarkup } from "../rail/icons.tsx";
 import { PLACE_TITLE } from "../rail/kits.ts";
 import type { PlaceId } from "../rail/kits.ts";
 import type { TabEntry, TabsController, TabsState } from "./store.ts";
@@ -14,7 +15,7 @@ export function useTabs(controller: TabsController): TabsState {
 
 export function tabSpecs(tabs: readonly TabEntry[]): TabSpec[] {
   const out: TabSpec[] = [];
-  for (const t of tabs) out.push({ key: t.key, title: t.title, ...(t.pinned === true ? { pinned: true } : {}) });
+  for (const t of tabs) out.push({ key: t.key, title: t.title, icon: iconMarkup(t.place), ...(t.pinned === true ? { pinned: true } : {}) });
   return out;
 }
 

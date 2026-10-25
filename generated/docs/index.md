@@ -5,8 +5,8 @@
 | Modules | 64 |
 | Connector manifests | 12 |
 | Kit manifests | 4 |
-| Capabilities | 1497 |
-| Events | 601 |
+| Capabilities | 1500 |
+| Events | 602 |
 | Permissions | 57 |
 | Entities | 37 |
 | Record types | 15 |
@@ -70,7 +70,7 @@
 - [import](modules/import.md) (L3, module)
 - [inbox](modules/inbox.md) (L5, module)
 - [journeys](modules/journeys.md) (L6, module)
-- [kits](modules/kits.md) (L8, module)
+- [kits](modules/kits.md) (L10, module)
 - [law-firm-intake](modules/law-firm-intake.md) (L8, kit)
 - [logs](modules/logs.md) (L7b, module)
 - [mail](modules/mail.md) (L5, module)

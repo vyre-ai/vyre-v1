@@ -1,6 +1,6 @@
 # agents.routine.save
 
-Create or change a routine; messages it causes carry "Sent by <agent> on a routine <person> set"
+Create or change a routine, a schedule (cron) or a watcher (kind watch: runs on each new message in a channel); messages it causes carry "Sent by <agent> on a routine <person> set"
 
 | | |
 |---|---|
@@ -28,10 +28,15 @@ type In = {
   agentId: string;
   routineId?: string;
   title: string;
-  cron: string;
+  cron?: string;
   prompt: string;
   channelId?: string;
   enabled?: boolean;
+  kind?: "schedule" | "watch";
+  watch?: {
+    on: "message";
+    channelId: string;
+  };
   idempotencyKey: string;
 };
 ```
@@ -44,13 +49,18 @@ type Out = {
     routineId: string;
     agentId: string;
     title: string;
-    cron: string;
+    cron?: string;
     prompt: string;
     channelId?: string;
     enabled: boolean;
     ownerId: string;
     lastRunAt?: number;
     nextRunAt?: number;
+    kind?: "schedule" | "watch";
+    watch?: {
+      on: "message";
+      channelId: string;
+    };
   };
 };
 ```
@@ -74,9 +84,14 @@ type Out = {
     "cron": "0 9 * * 1-5",
     "enabled": true,
     "idempotencyKey": "idem_1",
+    "kind": "schedule",
     "prompt": "example",
     "routineId": "rtn_a1b2c3",
-    "title": "example"
+    "title": "example",
+    "watch": {
+      "channelId": "chn_a1b2c3",
+      "on": "message"
+    }
   },
   "output": {
     "routine": {
@@ -84,12 +99,17 @@ type Out = {
       "channelId": "chn_a1b2c3",
       "cron": "0 9 * * 1-5",
       "enabled": true,
+      "kind": "schedule",
       "lastRunAt": 1760000000000,
       "nextRunAt": 1760000000000,
       "ownerId": "usr_a1b2c3",
       "prompt": "example",
       "routineId": "rtn_a1b2c3",
-      "title": "example"
+      "title": "example",
+      "watch": {
+        "channelId": "chn_a1b2c3",
+        "on": "message"
+      }
     }
   }
 }

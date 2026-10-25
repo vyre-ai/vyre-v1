@@ -4,10 +4,10 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (30)
+## Capabilities (31)
 
 - [memory.capture](../capabilities/memory.capture.md): Capture at chat end: a cheap-model pass proposes facts to the person layer; channel facts go to the project layer, Automation facts to proposed/
-- [memory.counts](../capabilities/memory.counts.md): Counts for the agent strip: current facts, proposed facts and facts from the caller
+- [memory.counts](../capabilities/memory.counts.md): Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own
 - [memory.erase](../capabilities/memory.erase.md): Erase completely: delete facts from history; open to the source person or an admin; the audit entry records who and when, never what
 - [memory.fact.accept](../capabilities/memory.fact.accept.md): Accept a proposed fact into current memory
 - [memory.fact.correct](../capabilities/memory.fact.correct.md): Correct a fact: the old one is closed with today as its end date and a new fact is added
@@ -25,6 +25,7 @@ Requires: nothing.
 - [memory.layout.get](../capabilities/memory.layout.get.md): Saved node positions for a graph
 - [memory.layout.save](../capabilities/memory.layout.save.md): Save node positions for a graph
 - [memory.maintain](../capabilities/memory.maintain.md): Nightly job: merge accepted facts, close old versions, rewrite MAP.md (under 200 lines) for each agent
+- [memory.map.get](../capabilities/memory.map.get.md): The MAP.md block of an agent as the nightly job last wrote it (agent layer only, never personal memory); absent before the first night
 - [memory.notes.list](../capabilities/memory.notes.list.md): List memory notes of an agent, project or the Space, including proposed/ and recipes/
 - [memory.pointer](../capabilities/memory.pointer.md): Pointer block for a message: up to about 5 lines from a local lookup, no model call, deduplicated against the thread
 - [memory.promote](../capabilities/memory.promote.md): Promote a fact to the agent, a project or the Space layer; a task for the right approver carries the name and time, no admin needed when the person can edit the target

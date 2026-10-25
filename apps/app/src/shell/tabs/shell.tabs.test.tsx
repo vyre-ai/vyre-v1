@@ -1,4 +1,5 @@
 // Main tabs (spec 3.0, 4.7): per device and per Space, restored on return, not synced. The pure state, the controller over a device's storage, and the strip.
+// @reads ../../../../../scripts/shots/mounts/P-L9_21.tsx
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -119,5 +120,8 @@ test("the strip draws the Space's tabs with the selected one marked, a plus and 
   assert.ok(out.includes('data-testid="tab-records:pruitt-selected"'), "the selected tab is marked");
   assert.ok(out.includes('data-testid="tab-chats"') && out.includes('data-testid="tab-files"'));
   assert.ok(out.includes('data-testid="tab-strip-plus"') && out.includes('data-testid="tab-strip-more"'));
-  assert.deepEqual(tabSpecs([{ ...placeTab("home"), pinned: true }, placeTab("chats")]), [{ key: "home", title: "Home", pinned: true }, { key: "chats", title: "Chats" }]);
+  const specs = tabSpecs([{ ...placeTab("home"), pinned: true }, placeTab("chats")]);
+  assert.deepEqual(specs.map((s) => [s.key, s.title, s.pinned === true]), [["home", "Home", true], ["chats", "Chats", false]]);
+  assert.ok(specs.every((s) => s.icon !== undefined && s.icon.startsWith("<svg")), "every tab carries its place icon");
+  assert.notEqual(specs[0]?.icon, specs[1]?.icon, "each place has its own icon");
 });
