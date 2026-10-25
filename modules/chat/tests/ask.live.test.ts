@@ -42,6 +42,8 @@ test("a member starts an Ask pane, finds it in the object's history, and nobody 
     const bo = space.api("usr_bo");
     const started = (await ana.call("chat.start", { kind: "ask", agentIds: ["agt_intake"], scopeType: "record", scopeId: "rec_ok", idempotencyKey: "ask1" })) as { thread: { threadId: string; listed: boolean } };
     assert.equal(started.thread.listed, false);
+    // The host registers a created thread as a resource owned by its creator in the same commit (invoke.ts, P-H_16); the test space has no resource registry, so the snapshot gets the row here.
+    space.access.putResource({ id: started.thread.threadId, type: "thread", parent_id: null, label: 0, owner_id: "usr_ana", holds: 0 });
 
     const mine = (await ana.call("chat.asks_of", { resourceType: "record", resourceId: "rec_ok" })) as { threads: Array<{ threadId: string }>; total: number };
     assert.deepEqual(mine.threads.map((t) => t.threadId), [started.thread.threadId]);
