@@ -463,7 +463,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         return s ? { space: s.space, principal: { kind: "person", id: s.person }, device: s.device } : null;
       };
       const session: GatewayDeps["session"] = o.session ?? ((headers) => identify(bearer(headers["authorization"])));
-      gateway = createGateway({ invoke, caps: indexCapabilities(caps), routes: [...routes, ...(o.extra?.routes ?? [])], session });
+      gateway = createGateway({ invoke, caps: indexCapabilities(caps), routes: [...routes, ...(o.extra?.routes ?? [])], session,
+        // callers before sign-in (sign_in, join, username_available) and invited-not-yet-members: a service principal that is no one, so a handler that needs a person (me()) refuses and the rest rate-limits on it
+        preAuth: (caller) => ({ space: spaceId, principal: { kind: "service", id: caller } }) });
       // GET /spaces/<space>/blobs/<id> (ruling 50): a blob is served to a caller who may read the resource its module stored it for
       blobRoute = createBlobRoute({
         space: spaceId, store: blobs,
