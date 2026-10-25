@@ -14689,6 +14689,32 @@
       ],
       "type": "object"
     },
+    "s_d06586147f": {
+      "properties": {
+        "cpuPercent": {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        },
+        "diskFreeBytes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "diskTotalBytes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "memoryTotalBytes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "memoryUsedBytes": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "s_d09bc4ad3a": {
       "properties": {
         "resolutionId": {
@@ -53804,6 +53830,17 @@
               }
             ],
             "health": "healthy",
+            "lastBackup": {
+              "at": 1760000000000,
+              "result": "verified"
+            },
+            "machine": {
+              "cpuPercent": 1,
+              "diskFreeBytes": 1,
+              "diskTotalBytes": 1,
+              "memoryTotalBytes": 1,
+              "memoryUsedBytes": 1
+            },
             "usage": {
               "agents": 1,
               "costMicrosMonth": 1,
@@ -53836,6 +53873,33 @@
               "down"
             ],
             "type": "string"
+          },
+          "lastBackup": {
+            "properties": {
+              "at": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              "result": {
+                "enum": [
+                  "verified",
+                  "unverified"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "result"
+            ],
+            "type": "object"
+          },
+          "machine": {
+            "$ref": "#/$defs/s_d06586147f"
           },
           "usage": {
             "properties": {
@@ -53875,7 +53939,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "Overview: health, attention items, recent admin activity, usage",
+      "summary": "Overview: health, attention items, recent admin activity, usage, server CPU, memory and disk, and the last backup",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -85500,6 +85564,82 @@
       "summary": "Probe: search index lag behind the log head",
       "surfaces": {
         "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "detail": "example",
+            "latencyMs": 1,
+            "machine": {
+              "cpuPercent": 1,
+              "diskFreeBytes": 1,
+              "diskTotalBytes": 1,
+              "memoryTotalBytes": 1,
+              "memoryUsedBytes": 1
+            },
+            "state": "healthy"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "health",
+      "name": "health.machine",
+      "output": {
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "latencyMs": {
+            "type": "integer"
+          },
+          "machine": {
+            "$ref": "#/$defs/s_d06586147f"
+          },
+          "state": {
+            "enum": [
+              "healthy",
+              "degraded",
+              "down"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "permission": "console.access",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Probe: CPU load, memory and disk of the server as the host last reported them (Console Overview tiles)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
       },
       "v": 1
     },

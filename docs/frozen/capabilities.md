@@ -4,8 +4,8 @@ Review of the merged capability registry at the F11 freeze. `packages/contracts/
 
 ## Frozen values
 
-Registry hash: 0d9d6842b136079091070c609353002a78faca9c9af2d74b40730cafaf3f81f1
-Capabilities: 1495
+Registry hash: fe22a0bd48f2b43da3f051dcc76c2777a6d17f2cd16029a3b013caf5d9124fa1
+Capabilities: 1496
 Events: 601
 Registry modules: 80
 Host modules: 72
@@ -33,7 +33,7 @@ Selection rule: capabilities of the lane (owner of the module) sorted by name, n
 | L5 | 344 | 35 |
 | L6 | 162 | 17 |
 | L7a | 218 | 22 |
-| L7b | 78 | 8 |
+| L7b | 79 | 8 |
 | L8 | 133 | 14 |
 
 L1: conflicts.assist, conflicts.resolve, search.recent.list, sync.endpoints
@@ -50,7 +50,7 @@ L6: automations.alerts.get, automations.groups.delete, automations.retry, automa
 
 L7a: access.actors.create, access.groups.add_member, access.labels.set, access.request, access.roles.assign, access.unshare, audit.list, devices.revoke, folders.place, governance.holds.release, identity.change_password, identity.passkey_remove, identity.totp_begin, members.invites.list, members.sso.remove, providers.subscription_start, settings.pages, spaces.matrix, vault.export_env, vault.import, vault.item.reveal, vault.requests.decline
 
-L7b: backup.config_get, backup.verify, console.nav, health.history, logs.client_upload, logs.trace, network.server_remove, reports.send_to_vyre
+L7b: backup.config_get, backup.verify, console.nav, health.history, health.time_skew, logs.trace, network.server_remove, reports.send_to_vyre
 
 L8: bookings.availability, campaigns.launch, campaigns.stop, docusign.cancel, email_builder.ask_diff, email_builder.send_test, esign.provider_set, forms.get, forms.update, kits.preview, portal.file_link, sites.deployments, sites.previews, source_rules.list
 

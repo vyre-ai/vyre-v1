@@ -1,6 +1,6 @@
 # console.overview
 
-Overview: health, attention items, recent admin activity, usage
+Overview: health, attention items, recent admin activity, usage, server CPU, memory and disk, and the last backup
 
 | | |
 |---|---|
@@ -51,6 +51,17 @@ type Out = {
     members: number;
     agents: number;
   };
+  machine?: {
+    cpuPercent?: number;
+    memoryUsedBytes?: number;
+    memoryTotalBytes?: number;
+    diskFreeBytes?: number;
+    diskTotalBytes?: number;
+  };
+  lastBackup?: {
+    at: number;
+    result: "verified" | "unverified";
+  };
 };
 ```
 
@@ -87,6 +98,17 @@ type Out = {
       }
     ],
     "health": "healthy",
+    "lastBackup": {
+      "at": 1760000000000,
+      "result": "verified"
+    },
+    "machine": {
+      "cpuPercent": 1,
+      "diskFreeBytes": 1,
+      "diskTotalBytes": 1,
+      "memoryTotalBytes": 1,
+      "memoryUsedBytes": 1
+    },
     "usage": {
       "agents": 1,
       "costMicrosMonth": 1,
