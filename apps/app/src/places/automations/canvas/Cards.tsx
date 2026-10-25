@@ -56,7 +56,7 @@ export function StepCard({ card, selected, hovered, handlers, agent, onHover }: 
       onFocus={() => { setFocus(true); handlers.onFocusId?.(card.id); }}
       onBlur={() => setFocus(false)}
       {...trig}
-      {...webOnly({ onKeyDown: (e: KeyEventLike) => { handlers.onKey(e, card.id); trigKey?.(e); }, tabIndex: 0, "data-card": card.id })}
+      {...webOnly({ onKeyDown: (e: KeyEventLike) => { handlers.onKey(e, card.id); trigKey?.(e); }, tabIndex: 0, dataSet: { card: card.id } })}
       style={[
         c.card, { left: card.x, top: card.y, width: card.w, height: card.h }, pointer,
         errors.length > 0 && { borderColor: "var(--danger)" as string },

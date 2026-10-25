@@ -169,7 +169,7 @@ export function AutomationsSidebar({ selectedId = null, initialTab = "automation
     const tone = a.failedRuns > 0 ? "danger" : a.status === "paused" || section === "needs" && a.status !== "on" ? "warn" : a.status === "on" ? "ok" : "muted";
     const waiting = a.lastRun?.status === "waiting";
     return (
-      <View key={`auto-${rid}`} {...menuTrigger((x, y) => rowMenu(a, x, y))} {...webOnly({ "data-row": rid })}>
+      <View key={`auto-${rid}`} {...menuTrigger((x, y) => rowMenu(a, x, y))} {...webOnly({ dataSet: { row: rid } })}>
         <Row
           id={`auto-${rid}`} title={a.name} note={noteOf(a, reasons)} selected={selectedId === a.id || focusId === rid}
           onPress={() => { setFocusId(rid); data.nav.openAutomation(a.id); }}
