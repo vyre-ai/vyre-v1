@@ -1,6 +1,7 @@
 // Join colours (spec 3.13, ARCH 7.13): the pages follow the platform's own look, not the Space skin, so they use the system palette
 // (iOS and macOS system colours) in light and dark. One accent, the system blue. The mode comes from the document the theme boot marked
 // (data-mode or data-theme), else from the operating system.
+import { useSyncExternalStore } from "react";
 import { useColorScheme } from "react-native";
 
 export interface JoinPalette {
@@ -29,9 +30,21 @@ export function documentMode(): JoinMode | null {
   return v === "dark" || v === "light" ? v : null;
 }
 
+/** Re-reads the mode when the document's skin changes (a skin picked later, or the boot script marking the page after the static markup was made). */
+function watchDocument(onChange: () => void): () => void {
+  const root = (globalThis as { document?: { documentElement?: object } }).document?.documentElement;
+  const Observer = (globalThis as { MutationObserver?: new (cb: () => void) => { observe(n: object, o: object): void; disconnect(): void } }).MutationObserver;
+  if (!root || !Observer) return () => undefined;
+  const mo = new Observer(onChange);
+  mo.observe(root, { attributes: true, attributeFilter: ["data-mode", "data-theme"] });
+  return () => mo.disconnect();
+}
+
+/** The mode of the page. The server snapshot is "nothing marked", so a pre-rendered page hydrates and then follows the document at once instead of keeping the light markup. */
 export function useJoinMode(): JoinMode {
   const os = useColorScheme();
-  return documentMode() ?? (os === "dark" ? "dark" : "light");
+  const marked = useSyncExternalStore(watchDocument, documentMode, () => null);
+  return marked ?? (os === "dark" ? "dark" : "light");
 }
 
 export const FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", sans-serif';

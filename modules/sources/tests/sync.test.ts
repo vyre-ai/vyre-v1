@@ -3,7 +3,7 @@
 // imports fire no automations unless ticked, vanished records are soft-marked behind a guard.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mintUuid } from "../../../lib/ids.ts";
+import { mintRecordId } from "../../../lib/ids.ts";
 import { openRecordStore } from "../../../kernel/src/store/records.ts";
 import type { Store, StoredRecord } from "../../../kernel/src/store/types.ts";
 import { openSources } from "../impl.ts";
@@ -41,8 +41,8 @@ async function kit(b: Partial<SyncBinding> = {}) {
   const local = localOpen.store;
   const remoteStore = remoteOpen.store;
   const events = (name: string) => seen.filter((e) => e.name === name).map((e) => e.payload);
-  const addRemote = async (data: Record<string, unknown>) => (await remoteStore.create("hs_contact", mintUuid(), data)).id;
-  const addLocal = async (data: Record<string, unknown>) => (await local.create("contact", mintUuid(), data)).id;
+  const addRemote = async (data: Record<string, unknown>) => (await remoteStore.create("hs_contact", mintRecordId(), data)).id;
+  const addLocal = async (data: Record<string, unknown>) => (await local.create("contact", mintRecordId(), data)).id;
   const editLocal = async (id: string, patch: Record<string, unknown>) => { const r = await local.get("contact", id); return local.update("contact", id, patch, r!.version); };
   const editRemote = async (id: string, patch: Record<string, unknown>) => { const r = await remoteStore.get("hs_contact", id); return remoteStore.update("hs_contact", id, patch, r!.version); };
   const run = (o: Parameters<typeof runSync>[2] = {}) => runSync(deps(), binding, o);
