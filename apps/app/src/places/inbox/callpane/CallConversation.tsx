@@ -3,7 +3,7 @@
 // ("Saved to Elena's conversation", Log a task). The floating dock keeps out of the way while this conversation is open; from another place it is the only call surface.
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { View } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import { CallBar, CallPane, Softphone } from "../../../../../../ui/src/Softphone/index.tsx";
 import { ContactTab } from "../contacttab/index.ts";
@@ -29,6 +29,8 @@ export function CallConversation({ tasks = [], ...tab }: CallConversationProps):
   const numbersKey = numbers.join("|");
   const key = useMemo(() => (conv ? { id: conv.id, contactId: conv.contactId, address: conv.address, numbers } : null), [conv?.id, conv?.contactId, conv?.address, numbersKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const [paneOpen, setPaneOpen] = useState(true);
+  const width = useWindowDimensions().width;
+  const phoneSize = width > 0 && width < 720; // 0 is "not measured yet" (the static page); on a phone the bar is the call surface and the Call tab does not squeeze the thread
   // the claim is made once per conversation: the context object changes with the call, the claim function does not need to be re-run for it
   const claim = useRef(phone?.claim);
   claim.current = phone?.claim;
@@ -53,7 +55,7 @@ export function CallConversation({ tasks = [], ...tab }: CallConversationProps):
         ) : null}
         <ContactTab {...tab} />
       </View>
-      {mine && shown ? (
+      {mine && shown && !phoneSize ? (
         <SidePane paneKey="inbox-call" toggle={{ open: paneOpen, onPress: () => setPaneOpen((o) => !o) }} tabs={TAB} activeTab="call" title="Call">
           <CallPane
             caller={shown.caller}

@@ -3,7 +3,7 @@
 // State is read after mount (rule 25), so the static export never shows a stale one.
 import { useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
-import { View } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 import { InboxDataProvider, InboxSidebar, InboxStateProvider } from "../../../apps/app/src/places/inbox/sidebar/index.ts";
 import { InboxPhoneDock } from "../../../apps/app/src/places/inbox/softphone/index.ts";
 import { InboxUnmatched } from "../../../apps/app/src/places/inbox/unmatched/index.ts";
@@ -23,6 +23,8 @@ export default function Mount(): ReactNode {
   const who = (q.get("c") === "marcus" ? "marcus" : "elena") as "elena" | "marcus";
   const contactId = who === "marcus" ? "ct_marcus" : "ct_elena";
   const list = q.get("where") === "list";
+  const width = useWindowDimensions().width;
+  const phone = width > 0 && width < 720;
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
     timers.push(setTimeout(() => { sample.device.ring(PHONE_OF[who]!); }, 400));
@@ -35,7 +37,7 @@ export default function Mount(): ReactNode {
       <InboxStateProvider initial={{}}>
         <InboxPhoneDock device={sample.device} placement="dock">
           <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-            <View style={{ width: 240 }}><InboxSidebar /></View>
+            {phone ? null : <View style={{ width: 240 }}><InboxSidebar /></View>}
             {list ? <InboxUnmatched /> : <CallConversation conversationId={who} contactId={contactId} tasks={TASKS[who]} />}
           </View>
         </InboxPhoneDock>
