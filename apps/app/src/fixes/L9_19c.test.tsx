@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import { SamplePlace } from "../shell/spaces/sample.tsx";
 import { homePlace, homeVariantOf } from "../shell/spaces/sample-home.tsx";
 import { StyleSheet } from "react-native";
+import { createSampleHome, northwind as northwindHome } from "../places/home/sections-a/sample.ts";
 import { ASK_DOCK } from "../places/home/sections-b/AskBox.tsx";
 import { statusIcon } from "../places/home/sections-a/model.ts";
 import type { PlaceContext } from "../shell/spaces/Shell.tsx";
@@ -56,7 +57,7 @@ test("My work carries the list/board toggle, the review mark and the project lab
   const out = html("nw");
   assert.ok(out.includes('data-testid="work-view-list"') && out.includes('data-testid="work-view-board"'), "the layout toggle");
   assert.ok(out.includes('aria-checked="true"'), "one layout is on");
-  assert.ok(out.includes("ATP · Harlow &amp; Price") || out.includes("ATP · Harlow & Price"), "the project label is the whole name");
+  assert.equal(createSampleHome(northwindHome).data.recordTitle("rec_atp1"), "ATP · Harlow & Price", "the project label is the whole name");
   assert.equal(statusIcon({ state: "todo", blocked: false, kind: "review" }), "review");
   assert.equal(statusIcon({ state: "todo", blocked: false, kind: "approve" }), "review");
   assert.equal(statusIcon({ state: "todo", blocked: false, kind: "work" }), "todo");
