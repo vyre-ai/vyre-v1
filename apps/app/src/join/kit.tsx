@@ -1,8 +1,8 @@
 // Join building blocks, in the pattern of a system setup assistant (spec 3.13): one centred column, an app icon, system type, grouped inset lists,
 // a Back / progress / Continue bar and the system accent. Flat: no gradients, no blurs, no decorative splits. Every block paints from the join palette.
-import { Children, cloneElement, createContext, createElement, isValidElement, useContext, useMemo } from "react";
+import { Children, cloneElement, createContext, createElement, isValidElement, useContext, useMemo, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Dimensions } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
 import { FONT, MONO, paletteOf, useJoinMode } from "./palette.ts";
 import type { JoinMode, JoinPalette } from "./palette.ts";
@@ -23,6 +23,24 @@ const reduceMotion = (): boolean => {
   return !web || !mm || mm("(prefers-reduced-motion: reduce)").matches;
 };
 
+// The window size as an external store: the static export is pre-rendered with no window, and a size read during the first render would keep the pre-rendered layout (the phone
+// look on a wide window). The server snapshot is a desktop window; the client snapshot is the real one, so React corrects the page right after it hydrates.
+interface Viewport { width: number; height: number }
+const SERVER_VIEWPORT: Viewport = { width: 1280, height: 800 };
+let viewport: Viewport = SERVER_VIEWPORT;
+function readViewport(): Viewport {
+  const w = (globalThis as { innerWidth?: number; innerHeight?: number });
+  const size = typeof w.innerWidth === "number" && typeof w.innerHeight === "number" ? { width: w.innerWidth, height: w.innerHeight } : Dimensions.get("window");
+  if (size.width !== viewport.width || size.height !== viewport.height) viewport = { width: size.width, height: size.height };
+  return viewport;
+}
+function watchViewport(onChange: () => void): () => void {
+  const g = globalThis as { addEventListener?: (t: string, f: () => void) => void; removeEventListener?: (t: string, f: () => void) => void };
+  g.addEventListener?.("resize", onChange);
+  return () => g.removeEventListener?.("resize", onChange);
+}
+const useViewport = (): Viewport => useSyncExternalStore(watchViewport, readViewport, () => SERVER_VIEWPORT);
+
 /** Phone layout from 640 wide down, as in the prototype. */
 export const PHONE_MAX = 640;
 
@@ -31,7 +49,7 @@ export const PHONE_MAX = 640;
 export function JoinFrame({ children, mode }: { children: ReactNode; mode?: JoinMode }) {
   const detected = useJoinMode();
   const m = mode ?? detected;
-  const { width } = useWindowDimensions();
+  const { width } = useViewport();
   const phone = width <= PHONE_MAX;
   const theme = useMemo(() => ({ p: paletteOf(m), mode: m, phone }), [m, phone]);
   return (
@@ -48,7 +66,7 @@ export function JoinFrame({ children, mode }: { children: ReactNode; mode?: Join
 
 export function Panel({ children, bar, center }: { children: ReactNode; bar?: ReactNode; center?: boolean }) {
   const { p, phone } = useJoin();
-  const { height } = useWindowDimensions();
+  const { height } = useViewport();
   const h = phone ? "100%" : Math.min(624, height - 48);
   return (
     <View
@@ -122,10 +140,10 @@ export function Button({ label, onPress, disabled, large, testID }: { label: str
     <Pressable
       accessibilityRole="button" aria-disabled={!!disabled} disabled={disabled} onPress={onPress} testID={testID}
       style={({ hovered, pressed }: { hovered?: boolean; pressed?: boolean }) => ({
-        height: large ? 36 : 32, paddingHorizontal: large ? 22 : 18, borderRadius: 8, backgroundColor: p.blue, justifyContent: "center", opacity: disabled ? 0.4 : pressed ? 0.92 : hovered ? 0.94 : 1,
+        height: large ? 36 : 32, paddingHorizontal: large ? 22 : 18, borderRadius: 8, backgroundColor: p.blue, justifyContent: "center", flexShrink: 0, opacity: disabled ? 0.4 : pressed ? 0.92 : hovered ? 0.94 : 1,
       })}
     >
-      <Text style={[base(p), { color: "#FFFFFF", fontSize: large ? 14 : 13, fontWeight: "600" }]}>{label}</Text>
+      <Text numberOfLines={1} style={[base(p), { color: "#FFFFFF", fontSize: large ? 14 : 13, fontWeight: "600" }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -340,26 +358,37 @@ export function Progress({ pct }: { pct: number }) {
 
 // ---- the bar
 
-export function Bar({ onBack, hideBack, step, steps, cont, testID }: { onBack?: () => void; hideBack?: boolean; step?: number; steps?: number; cont: ReactNode; testID?: string }) {
+export function Bar({ onBack, hideBack, step, steps, cont, centre, testID }: { onBack?: () => void; hideBack?: boolean; step?: number; steps?: number; cont: ReactNode; /** the action sits in the middle of the bar, the dots at the left (the finish page) */ centre?: boolean; testID?: string }) {
   const { p, phone } = useJoin();
+  const dots = steps ? (
+    <View accessibilityRole="progressbar" accessibilityLabel={`Step ${Math.min(steps, (step ?? 0) + 1)} of ${steps}`} aria-valuemin={1} aria-valuemax={steps} aria-valuenow={Math.min(steps, (step ?? 0) + 1)} testID="dots" style={{ flexDirection: "row", gap: 7 }}>
+      {Array.from({ length: steps }, (_, i) => <View key={i} style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: i === step ? p.tx : i < (step ?? 0) ? p.tx2 : p.hair }} />)}
+    </View>
+  ) : <View />;
   return (
     <View
       testID={testID ?? "join-bar"}
       style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 64, paddingHorizontal: 20, paddingVertical: phone ? 10 : 0, borderTopWidth: 1, borderTopColor: p.hair }}
     >
-      {hideBack ? null : (
-        <View style={{ flex: 1, alignItems: "flex-start" }}>
-          <Pressable accessibilityRole="button" onPress={onBack} testID="back" style={({ hovered }: { hovered?: boolean }) => ({ paddingVertical: 6, paddingHorizontal: 4, borderRadius: 6, opacity: hovered ? 0.75 : 1 })}>
-            <Text style={[base(p), { color: p.blue, fontSize: 13, fontWeight: "500" }]}>Back</Text>
-          </Pressable>
-        </View>
+      {centre ? (
+        <>
+          <View style={{ flex: 1, alignItems: "flex-start" }}>{dots}</View>
+          <View style={{ flexShrink: 0, alignItems: "center" }}>{cont}</View>
+          <View style={{ flex: 1 }} />
+        </>
+      ) : (
+        <>
+          {hideBack ? null : (
+            <View style={{ flex: 1, alignItems: "flex-start" }}>
+              <Pressable accessibilityRole="button" onPress={onBack} testID="back" style={({ hovered }: { hovered?: boolean }) => ({ paddingVertical: 6, paddingHorizontal: 4, borderRadius: 6, opacity: hovered ? 0.75 : 1 })}>
+                <Text style={[base(p), { color: p.blue, fontSize: 13, fontWeight: "500" }]}>Back</Text>
+              </Pressable>
+            </View>
+          )}
+          {dots}
+          <View style={{ flex: hideBack ? 0 : 1, flexShrink: 0, alignItems: "flex-end" }}>{cont}</View>
+        </>
       )}
-      {steps ? (
-        <View accessibilityRole="progressbar" accessibilityLabel={`Step ${Math.min(steps, (step ?? 0) + 1)} of ${steps}`} aria-valuemin={1} aria-valuemax={steps} aria-valuenow={Math.min(steps, (step ?? 0) + 1)} testID="dots" style={{ flexDirection: "row", gap: 7 }}>
-          {Array.from({ length: steps }, (_, i) => <View key={i} style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: i === step ? p.tx : i < (step ?? 0) ? p.tx2 : p.hair }} />)}
-        </View>
-      ) : <View />}
-      <View style={{ flex: hideBack ? 0 : 1, alignItems: "flex-end" }}>{cont}</View>
     </View>
   );
 }

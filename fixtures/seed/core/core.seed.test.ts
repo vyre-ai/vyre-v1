@@ -15,7 +15,7 @@ import { smallRecipe, SMALL_TARGET } from "../small/recipe.ts";
 import { perfRecipe, PERF_TARGET } from "../perf/recipe.ts";
 
 /** The frozen shape: sha-256 of the recipe's events (type, entity, id, payload). Only the lead changes it, together with the recipe. */
-const CORE_SHAPE_HASH = "bb3e660c5d92ab9ec2221b5612938df4b27659ceb0d7170291c45e22df073152";
+const CORE_SHAPE_HASH = "d59162903db6b5c52e02f0528f2b07fcf2d5bd8adcfd1d8353b156685099b502";
 const shapeHash = (): string => crypto.createHash("sha256").update(canonical(coreEvents().map((e) => [e.type, e.entity, e.entity_id, e.payload]))).digest("hex");
 
 const scratch = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "core-seed-"));

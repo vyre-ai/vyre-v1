@@ -2,7 +2,7 @@
 // in-memory reference, Twenty, a file store) registers these tests against a factory that returns a fresh, empty store.
 // A store that passes carries the revision in `version().conformance`. The gateway never relies on a store for
 // permissions, so nothing here tests who may see what; it tests that the store keeps our ids, versions and values.
-import { mintUuid } from "../../lib/ids.ts";
+import { mintRecordId } from "../../lib/ids.ts";
 import { canonical } from "../../lib/canonical.ts";
 import { sha256Hex as sha256 } from "../src/log/hash.ts";
 
@@ -53,7 +53,7 @@ const ref = (r: string = "sv_1") => ({ sealed: "ssn", ref: r, present: true, val
 export function conformance(make: () => Promise<any>, { test, assert }: { test: (name: string, fn: () => Promise<void>) => void; assert: any }, label = "store"): void {
   const T = (name: string, fn: (s: any) => Promise<void>) => test(`conformance (${label}): ${name}`, async () => { const s = await make(); await s.define({ add_types: [CONTACT] }); await fn(s); });
   const code = (c: string) => (e: any) => { assert.equal(e && e.code, c, `expected ${c}, got ${e && e.code}: ${e && e.message}`); return true; };
-  const add = (s: any, data: any) => { const id = mintUuid(); return s.create("contact", id, data).then((r: any) => { assert.equal(r.id, id, "the store must keep the id it was given"); return r; }); };
+  const add = (s: any, data: any) => { const id = mintRecordId(); return s.create("contact", id, data).then((r: any) => { assert.equal(r.id, id, "the store must keep the id it was given"); return r; }); };
 
   T("define is idempotent and reports what changed", async s => {
     const again = await s.define({ add_types: [CONTACT] });
@@ -83,7 +83,7 @@ export function conformance(make: () => Promise<any>, { test, assert }: { test: 
     await assert.rejects(() => s.create("contact", "not-a-uuid", { name: "x" }), code("invalid"));
     const r = await add(s, { name: "Jane" });
     await assert.rejects(() => s.create("contact", r.id, { name: "Dup" }), code("invalid"));
-    await assert.rejects(() => s.create("nope", mintUuid(), {}), code("unknown_type"));
+    await assert.rejects(() => s.create("nope", mintRecordId(), {}), code("unknown_type"));
     await assert.rejects(() => add(s, { name: "x", bogus: 1 }), code("unknown_field"));
     await assert.rejects(() => add(s, { age: 3 }), code("invalid"));
     await assert.rejects(() => add(s, { name: "x", age: "old" }), code("invalid"));
@@ -107,7 +107,7 @@ export function conformance(make: () => Promise<any>, { test, assert }: { test: 
     assert.deepEqual(u.data, { name: "Jane", status: "open" });
     await assert.rejects(() => s.update("contact", r.id, { name: "Old" }, 1), code("version_conflict"));
     await assert.rejects(() => s.update("contact", r.id, { name: null }, 2), code("invalid"));
-    await assert.rejects(() => s.update("contact", mintUuid(), { name: "x" }, 1), code("not_found"));
+    await assert.rejects(() => s.update("contact", mintRecordId(), { name: "x" }, 1), code("not_found"));
     assert.equal((await s.get("contact", r.id)).version, 2, "a refused update changes nothing");
   });
 
@@ -226,7 +226,7 @@ export function conformance(make: () => Promise<any>, { test, assert }: { test: 
   });
 
   // ---- revision 4: unique fields ----
-  const acct = (s: any, data: any) => s.create("account", mintUuid(), data);
+  const acct = (s: any, data: any) => s.create("account", mintRecordId(), data);
 
   T("unique: two concurrent creates with the same value make one record and one clean refusal", async s => {
     await s.define({ add_types: [ACCOUNT] });
@@ -294,7 +294,7 @@ export function conformance(make: () => Promise<any>, { test, assert }: { test: 
     await s.define({ add_types: [t] });
     assert.deepEqual((await s.types()).find((x: any) => x.name === "client"), t);
     const who = await add(s, { name: "Who" });
-    const r = await s.create("client", mintUuid(), { who: { urn: `${SPACE_URN}/contact/${who.id}` }, stage: "On", old: "kept" });
+    const r = await s.create("client", mintRecordId(), { who: { urn: `${SPACE_URN}/contact/${who.id}` }, stage: "On", old: "kept" });
     assert.equal((await s.get("client", r.id)).data.old, "kept");
   });
 
@@ -344,14 +344,14 @@ export function conformance(make: () => Promise<any>, { test, assert }: { test: 
   T("links: a single link keeps its reference, changes, clears, and is found by eq, in and is_null", async s => {
     await withLead(s);
     const a = await add(s, { name: "A" }), b = await add(s, { name: "B" });
-    const l = await s.create("lead", mintUuid(), { title: "x", contact: link(a.id) });
+    const l = await s.create("lead", mintRecordId(), { title: "x", contact: link(a.id) });
     assert.deepEqual((await s.get("lead", l.id)).data.contact, link(a.id));
     assert.deepEqual(ids((await s.query("lead", { filter: { field: "contact", op: "eq", value: link(a.id) }, page: { limit: 10 } })).rows), [l.id]);
     assert.deepEqual(ids((await s.query("lead", { filter: { field: "contact", op: "eq", value: link(b.id) }, page: { limit: 10 } })).rows), []);
     const moved = await s.update("lead", l.id, { contact: link(b.id) }, 1);
     assert.deepEqual(moved.data.contact, link(b.id));
     assert.deepEqual(ids((await s.query("lead", { filter: { field: "contact", op: "in", value: [link(a.id), link(b.id)] }, page: { limit: 10 } })).rows), [l.id]);
-    const none = await s.create("lead", mintUuid(), { title: "y" });
+    const none = await s.create("lead", mintRecordId(), { title: "y" });
     assert.deepEqual(ids((await s.query("lead", { filter: { field: "contact", op: "is_null" }, page: { limit: 10 } })).rows), [none.id]);
     const cleared = await s.update("lead", l.id, { contact: null }, 2);
     assert.equal(cleared.data.contact, undefined);
@@ -361,7 +361,7 @@ export function conformance(make: () => Promise<any>, { test, assert }: { test: 
   T("links: a many link keeps a set of references, adds and removes members, and is found by contains", async s => {
     await withLead(s);
     const a = await add(s, { name: "A" }), b = await add(s, { name: "B" }), c = await add(s, { name: "C" });
-    const l = await s.create("lead", mintUuid(), { title: "x", referrers: [link(a.id), link(b.id)] });
+    const l = await s.create("lead", mintRecordId(), { title: "x", referrers: [link(a.id), link(b.id)] });
     assert.deepEqual(urns((await s.get("lead", l.id)).data.referrers), urns([link(a.id), link(b.id)]));
     assert.deepEqual(ids((await s.query("lead", { filter: { field: "referrers", op: "contains", value: link(b.id) }, page: { limit: 10 } })).rows), [l.id]);
     assert.deepEqual(ids((await s.query("lead", { filter: { field: "referrers", op: "contains", value: link(c.id) }, page: { limit: 10 } })).rows), []);
@@ -377,8 +377,8 @@ export function conformance(make: () => Promise<any>, { test, assert }: { test: 
     await withLead(s);
     const a = await add(s, { name: "A" }), b = await add(s, { name: "B" });
     const mine: string[] = [];
-    for (let i = 0; i < 5; i++) mine.push((await s.create("lead", mintUuid(), { title: `m${i}`, contact: link(a.id), referrers: [link(b.id)] })).id);
-    for (let i = 0; i < 3; i++) await s.create("lead", mintUuid(), { title: `o${i}`, contact: link(b.id) });
+    for (let i = 0; i < 5; i++) mine.push((await s.create("lead", mintRecordId(), { title: `m${i}`, contact: link(a.id), referrers: [link(b.id)] })).id);
+    for (let i = 0; i < 3; i++) await s.create("lead", mintRecordId(), { title: `o${i}`, contact: link(b.id) });
     const f = { field: "contact", op: "eq", value: link(a.id) };
     const p1 = await s.query("lead", { filter: f, page: { limit: 2 } });
     assert.equal(p1.rows.length, 2); assert.ok(p1.next_cursor);
@@ -395,7 +395,7 @@ export function conformance(make: () => Promise<any>, { test, assert }: { test: 
   T("links: removing the target never breaks a link, and restoring it brings the link back", async s => {
     await withLead(s);
     const a = await add(s, { name: "A" }), b = await add(s, { name: "B" });
-    const l = await s.create("lead", mintUuid(), { title: "x", contact: link(a.id), referrers: [link(a.id), link(b.id)] });
+    const l = await s.create("lead", mintRecordId(), { title: "x", contact: link(a.id), referrers: [link(a.id), link(b.id)] });
     await s.remove("contact", a.id, a.version);
     await s.restore("contact", a.id, 2);
     const back = (await s.get("lead", l.id)).data;
@@ -407,7 +407,7 @@ export function conformance(make: () => Promise<any>, { test, assert }: { test: 
   T("kernel attributes given at create are there on the first read, with no later write", async s => {
     // a store that offers attr_filter takes the record's attributes with its create (`opts.attrs`, `opts.urn`): the very first query by attribute finds it. A store without the feature has nothing to check.
     if (!s.features().attr_filter) return;
-    const id = mintUuid();
+    const id = mintRecordId();
     const u = `${SPACE_URN}/contact/${id}`;
     await s.create("contact", id, { name: "Attr" }, { attrs: { space: SUITE_SPACE, created_by: "person:per_a", owner: "per_o" }, urn: u });
     const mine = await s.query("contact", { attr_filter: { urn_prefix: `${SPACE_URN}/contact/`, any: [{ created_by: "person:per_a" }] }, page: { limit: 10 } });
