@@ -56,11 +56,11 @@ export const LOCKED_NOTE = "Only people who can change this agent can edit this 
 
 export interface Stat { key: string; value: string; label: string }
 
-/** Dollars from micros: "$0.42", "$12", "$1.5k". */
+/** Dollars from micros: "$0.42", "$5", "$12", "$1.5k". Whole amounts drop the cents; nothing spent is "$0.00". */
 export function dollars(micros: number): string {
   const d = micros / 1_000_000;
   if (d >= 1000) return `$${(d / 1000).toFixed(d >= 10_000 ? 0 : 1)}k`;
-  if (d >= 10) return `$${Math.round(d)}`;
+  if (d >= 10 || (d > 0 && Number.isInteger(d))) return `$${Math.round(d)}`;
   return `$${d.toFixed(2)}`;
 }
 
