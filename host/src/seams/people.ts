@@ -4,7 +4,7 @@
 //   identity.invites    peek and accept, run by the members module through its host calls (members.invite_peek, members.invite_accept), so identity never touches members tables
 //   identity.github     GitHub sign-in and linking, only when VYRE_GH_OAUTH_CLIENT_ID and _SECRET are set
 //   identity.session    the device of the call, for whoami
-//   identity.keyring    the person's key, held in memory on their own node from sign-in to sign-out (ruling 62)
+//   identity.keyring    clears the person's key from this node's memory at sign-out and password change (ruling 62); the key itself arrives from their client over loopback
 //   identity.losses     what a reset would lose: Mine vault items counted from the vault table (chat and memory counts follow when those modules count their private rows)
 //   members.factors     second factors per person: TOTP when identity holds a secret for them
 //   members.owned      routines, agents, automations and Mine vault items, through those modules' host calls; records, files, channels, projects, mailbox connections, private chats and memory report nothing yet
@@ -20,7 +20,7 @@ export interface PeopleDeps {
   call(name: string, input: unknown, as?: { principal: { kind: "person" | "agent" | "service"; id: string } }): Promise<unknown>;
   /** GitHub sign-in; omitted: identity answers that it is not set up on this server */
   github?: GithubOAuth | null;
-  /** the person keys this node holds (ruling 62); identity holds one at sign-in and clears it at sign-out */
+  /** the person key this node holds (ruling 62, 63); identity clears it at sign-out */
   keyring?: Keyring;
 }
 
@@ -94,7 +94,7 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
     identity: {
       directory,
       ...(d.github ? { github: createGithub(d.github) } : {}),
-      ...(d.keyring ? { keyring: d.keyring } : {}),
+      ...(d.keyring ? { keyring: { clear: (personId: string) => d.keyring!.clear(personId) } } : {}),
       invites: {
         peek: (code: string) => d.call("members.invite_peek", { code }),
         accept: (inviteId: string, personId: string) => d.call("members.invite_accept", { inviteId, personId }).then(() => undefined),

@@ -240,20 +240,19 @@ test("l7 live: whoami names the device of the call, and GitHub sign-in says it i
   assert.deepEqual(seen, ["https://github.com/login/oauth/access_token", "https://api.github.com/user"]);
 });
 
-// Ruling 62: the signed-in person\'s key, opened with their password at sign-in, held in memory on this node only. Their Mine provider opens for their own turn; nobody else\'s turn can use it; signing out
-// locks it, so does a restart; and nothing key-like reaches the data directory.
+// Ruling 62, 63: the person\'s own client unwraps their key and hands it to the daemon on their own node over loopback; their Mine provider then opens for their own turn, sign-out locks it, and nothing key-like
+// reaches the data directory. (The unlock, lock, other-person and restart cases are in host/tests/vault.key.test.ts; this is the sign-out leg through the real identity module.)
 import crypto from "node:crypto";
-import { aesWrap, argon2id, hkdf32 } from "../../kernel/src/seal/index.ts";
 
 function walk(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]));
 }
 
-test("l7 live ruling 62: sign-in unlocks the person's Mine provider for their own turn, another person cannot open it, sign-out and a restart lock it, and the key never reaches disk", async () => {
+test("l7 live ruling 62: a signed-in member unlocks their key from their own client, signing out locks it, and the key never reaches disk", async () => {
   const dir = seededDir();
   const PASSWORD = "correct horse battery staple 9";
   const SECRET = "sk-ant-mine-NEVER-ON-DISK";
-  const boot = () => startDaemon({
+  const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0", "--role", "space,device"], {}, "1.2.3"),
     platform: fakePlatform({
       os: "linux", hostname: "l7-key", free: 80e9,
@@ -266,53 +265,34 @@ test("l7 live ruling 62: sign-in unlocks the person's Mine provider for their ow
     fetch: caddyFetch,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
-  let d = await boot();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const post = async (token: string | null, p: string, body: unknown): Promise<{ status: number; body: any }> => {
     const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
-    return { status: r.status, body: await r.json() };
+    const text = await r.text();
+    return { status: r.status, body: text ? JSON.parse(text) : null };
   };
   const personKey = crypto.randomBytes(32);
   try {
     const made = await post(d.token, "/v1/members/invites/create", { role: "member", idempotencyKey: "l7-key-invite" });
     assert.equal(made.status, 200, JSON.stringify(made.body));
     const code = decodeURIComponent((made.body.data.link as string).split("/").pop() ?? "");
-    // the device wraps the person key under the password (Argon2id with the username as salt, then HKDF), exactly as identity unwraps it, and sends the sealed key with the join
-    const wrapKey = hkdf32(argon2id(PASSWORD, "vyre-person-key:keyed"), "vyre:personkey:v1", "wrap");
-    const bundle = Buffer.from(JSON.stringify(aesWrap(wrapKey, personKey, "vyre:personkey:keyed"))).toString("base64");
-    const joined = await post(null, "/v1/invites/accept_create_account", { code, username: "keyed", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop", keys: { personKeyByPassword: bundle, publicKey: "cHVibGlj", privateKeyWrapped: "cHJpdmF0ZQ==", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2U=" }] } });
+    const joined = await post(null, "/v1/invites/accept_create_account", { code, username: "keyed", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop", keys: { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGlj", privateKeyWrapped: "cHJpdmF0ZQ==", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2U=" }] } });
     assert.equal(joined.status, 200, JSON.stringify(joined.body));
-
-    const signIn = async (): Promise<string> => {
-      const r = await post(null, "/v1/identity/sign_in", { username: "keyed", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop" });
-      assert.equal(r.status, 200, JSON.stringify(r.body));
-      return r.body.data.session.token as string;
-    };
-    const t1 = joined.body.data.session.token as string;   // joining is signing in: the key is held from here
+    const t1 = joined.body.data.session.token as string;
+    const unlock = (t: string) => post(t, "/local/vault/key/unlock", { key: personKey.toString("base64") });
+    assert.equal((await unlock(t1)).status, 204, "their client hands over the key it unwrapped");
     const added = await post(t1, "/v1/providers/add", { providerKey: "anthropic", connection: "api_key", scope: "mine", apiKey: SECRET, idempotencyKey: "l7-key-provider" });
-    assert.equal(added.status, 200, "signed in, the person saves a Mine key: " + JSON.stringify(added.body));
-    const fillOwn = (token: string) => post(token, "/v1/vault/fill", { handle: "#Anthropic.api_key", target: { kind: "env", ref: "x" }, returnValue: true });
-    const own = await fillOwn(t1);
-    assert.equal(own.status, 200, JSON.stringify(own.body));
-    assert.equal(own.body.data.value, SECRET, "their own turn opens their Mine key");
+    assert.equal(added.status, 200, JSON.stringify(added.body));
+    const fill = (t: string) => post(t, "/v1/vault/fill", { handle: "#Anthropic.api_key", target: { kind: "env", ref: "x" }, returnValue: true });
+    assert.equal((await fill(t1)).body.data.value, SECRET, "their own turn opens their Mine key");
 
-    const other = await fillOwn(d.token);
-    assert.notEqual(other.status, 200, "the owner of the Space is another person here: their turn cannot open it");
-    assert.ok(!JSON.stringify(other.body).includes(SECRET));
+    const signedIn = await post(null, "/v1/identity/sign_in", { username: "keyed", password: PASSWORD, deviceName: "Phone", deviceClass: "desktop" });
+    assert.equal(signedIn.status, 200, JSON.stringify(signedIn.body));
+    const t2 = signedIn.body.data.session.token as string;
+    assert.equal((await fill(t2)).status, 200, "the key belongs to the person on this node, whichever of their sessions asks");
+    assert.equal((await post(t1, "/v1/identity/sign_out", {})).status, 200);
+    assert.equal((await fill(t2)).body.error?.code, "auth.unauthenticated", "signing out took the key out of memory");
 
-    const t2 = await signIn();
-    assert.equal((await fillOwn(t2)).status, 200);
-    const out = await post(t1, "/v1/identity/sign_out", {});
-    assert.equal(out.status, 200, JSON.stringify(out.body));
-    const locked = await fillOwn(t2);
-    assert.equal(locked.body.error?.code, "auth.unauthenticated", "after sign-out the key is gone from memory: " + JSON.stringify(locked.body));
-
-    const t3 = await signIn();
-    assert.equal((await fillOwn(t3)).status, 200, "signing in again unlocks it");
-    await d.stop();
-    d = await boot();
-    const after = await fillOwn(t3);
-    assert.equal(after.body.error?.code, "auth.unauthenticated", "a restart forgets the key: the session survives, the unlock does not");
-    // nothing key-like on disk: not the raw person key, nor its hex or base64, and not the Mine value
     for (const f of walk(dir)) {
       const bytes = fs.readFileSync(f);
       for (const needle of [personKey, Buffer.from(personKey.toString("hex")), Buffer.from(personKey.toString("base64")), Buffer.from(SECRET)]) assert.ok(!bytes.includes(needle), `${path.basename(f)} holds nothing key-like`);

@@ -2,7 +2,7 @@
 import type { Account, Device, IdentityCtx, SignInOut } from "../projections.ts";
 import {
   ENROL_TTL_MS, PAIR_TTL_MS, accountById, accountByName, burnVerify, checkVerifier, currentSessionId, endSessionRow, issueSession, lockedFor, matchTotp, me, newChallenge,
-  newTotpSecret, nid, noteFail, normCode, pairCode, personKeyOf, putCode, raise, spendCode, USERNAME,
+  newTotpSecret, nid, noteFail, normCode, pairCode, putCode, raise, spendCode, USERNAME,
 } from "../projections.ts";
 
 type SpaceRow = { name: string; logo_file_id: string | null; fingerprint: string; github: number; second_factor_required: number; sso_json: string };

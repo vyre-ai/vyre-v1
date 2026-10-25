@@ -3,7 +3,7 @@
 import type { Device, IdentityCtx, KeyBundle, SignInOut } from "../projections.ts";
 import {
   MIN_SECRET, RESET_TTL_MS, USERNAME, nid, provisionAccount, randomBytes, validBundle, accountById, accountByName, bundleOf, burnVerify, checkVerifier, issueSession, lockedFor, makeVerifier, me, mustAccount, noteFail, raise,
-  revokeSessions, setKeys, spendCode, putCode, clearFails, personKeyOf,
+  revokeSessions, setKeys, spendCode, putCode, clearFails,
 } from "../projections.ts";
 
 const ok = { ok: true } as const;

@@ -1,46 +1,26 @@
-// The person keys this node holds (ruling 62): the signed-in person's own key, opened with their password at sign-in on their own node and kept in daemon memory only. It is never written to disk or to a log, is cleared at
-// sign-out, at a password change or reset and at shutdown, and a node that is not the person's own (`allowed` says no) never takes it. The vault module reads it through its KeyPort for that person's Mine items.
+// The person key this node holds (ruling 62, 63): the signed-in person's own key, unwrapped by their client on their own computer after a password sign-in and handed to this daemon over loopback
+// (host/src/routes/local-key.ts). The daemon never sees the password and never unwraps anything. The key lives in daemon memory only: never on disk or in a log, cleared at sign-out, at lock and at
+// shutdown, and a node that is not the person's own (`allowed` says no) never takes it. The vault module reads it through its KeyPort for that person's Mine items.
 export interface Keyring {
-  hold(personId: string, key: Uint8Array): void;
+  hold(personId: string, key: Uint8Array): boolean;
   clear(personId: string): void;
-  stage(challengeId: string, personId: string, key: Uint8Array): void;
-  release(challengeId: string): void;
-  /** the key, for the vault's KeyPort; null when the person is not signed in here */
+  /** the key, for the vault's KeyPort; null when the person has not unlocked here */
   get(personId: string): Uint8Array | null;
   clearAll(): void;
 }
 
-const STAGE_MS = 5 * 60_000;
-
-export function createKeyring(o: { allowed(personId: string): boolean; now(): number }): Keyring {
+export function createKeyring(o: { allowed(personId: string): boolean }): Keyring {
   const held = new Map<string, Uint8Array>();
-  const staged = new Map<string, { person: string; key: Uint8Array; expires: number }>();
   const wipe = (k: Uint8Array | undefined): void => { k?.fill(0); };
   return {
     hold(personId, key) {
-      if (!o.allowed(personId)) return;
+      if (!o.allowed(personId) || key.length !== 32) return false;
       wipe(held.get(personId));
       held.set(personId, Uint8Array.from(key));
+      return true;
     },
-    clear(personId) {
-      wipe(held.get(personId)); held.delete(personId);
-      for (const [id, s] of staged) if (s.person === personId) { wipe(s.key); staged.delete(id); }
-    },
-    stage(challengeId, personId, key) {
-      if (!o.allowed(personId)) return;
-      staged.set(challengeId, { person: personId, key: Uint8Array.from(key), expires: o.now() + STAGE_MS });
-    },
-    release(challengeId) {
-      const s = staged.get(challengeId);
-      staged.delete(challengeId);
-      if (!s) return;
-      if (s.expires > o.now()) { wipe(held.get(s.person)); held.set(s.person, s.key); } else wipe(s.key);
-    },
+    clear(personId) { wipe(held.get(personId)); held.delete(personId); },
     get: (personId) => held.get(personId) ?? null,
-    clearAll() {
-      for (const k of held.values()) wipe(k);
-      for (const s of staged.values()) wipe(s.key);
-      held.clear(); staged.clear();
-    },
+    clearAll() { for (const k of held.values()) wipe(k); held.clear(); },
   };
 }
