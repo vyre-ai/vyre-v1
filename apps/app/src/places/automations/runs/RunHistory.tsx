@@ -15,6 +15,7 @@ import type { FilterKey, Run } from "./model.ts";
 import { IconButton, QuietButton, StatusMark, moveRowFocus, webOnly } from "./parts.tsx";
 import type { KeyEventLike } from "./parts.tsx";
 import { RunRow } from "./RunRow.tsx";
+import { each } from "./each.ts";
 
 type ListOut = CapMap["runs.list"]["out"];
 
@@ -30,6 +31,7 @@ export interface RunHistoryProps {
 
 type Item = { k: "lab"; id: string; text: string } | { k: "att"; run: Run } | { k: "run"; run: Run };
 const ITEM_HEIGHT = 44;
+const keyOfItem = (it: Item): string => (it.k === "lab" ? it.id : it.run.id);
 
 export function RunHistory({ subject, scope = subject ? "subject" : "mine", currentVersion, selectedRunId = null, initialFilter = "all" }: RunHistoryProps): ReactElement {
   const data = useRunsData();
@@ -53,7 +55,7 @@ export function RunHistory({ subject, scope = subject ? "subject" : "mine", curr
   }, [shown, handled, filter, now]);
 
   const menu = (run: Run, x: number, y: number): void => show(runMenu(run, actions, data.nav, show, { x, y }, needsAttention(run, handled)), x, y, "context", { label: runTitle(run) });
-  const filterMenu = (x: number, y: number): void => show([{ head: "Show" }, ...FILTERS.map((f) => ({ label: f.label, checked: f.key === filter, onSelect: () => setFilter(f.key) }))], x, y, "other");
+  const filterMenu = (x: number, y: number): void => show([{ head: "Show" }, ...each(FILTERS, (f) => ({ label: f.label, checked: f.key === filter, onSelect: () => setFilter(f.key) }))], x, y, "other");
   const def = FILTERS.find((f) => f.key === filter)!;
 
   const onKey = (e: KeyEventLike & { currentTarget?: unknown; target?: unknown }): void => {
@@ -99,11 +101,11 @@ export function RunHistory({ subject, scope = subject ? "subject" : "mine", curr
       ) : null}
       <View style={{ flex: 1, minHeight: 0 }}>
         {q.status === "loading" ? (
-          <View testID="run-history-loading" style={h.skeleton}>{[0, 1, 2, 3, 4].map((i) => <View key={i} style={h.skRow} />)}</View>
+          <View testID="run-history-loading" style={h.skeleton}>{each([0, 1, 2, 3, 4], (i) => <View key={i} style={h.skRow} />)}</View>
         ) : items.length === 0 ? (
           <View style={h.blank} testID="run-history-empty"><Text style={h.blankText}>{filter === "all" ? "No runs yet. Run a test to see one." : "Nothing matches."}</Text></View>
         ) : (
-          <VirtualList data={items} rowHeight={ITEM_HEIGHT} keyOf={(it) => (it.k === "lab" ? it.id : it.run.id)} renderItem={(it) => render(it as Item)} />
+          <VirtualList data={items} rowHeight={ITEM_HEIGHT} keyOf={keyOfItem} renderItem={render} />
         )}
       </View>
       {actions.note ? <Text style={h.note} accessibilityLiveRegion="polite" testID="run-note">{actions.note}</Text> : null}

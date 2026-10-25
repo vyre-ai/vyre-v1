@@ -14,6 +14,7 @@ import type { Run } from "./model.ts";
 import { MainHead, moveRowFocus, webOnly } from "./parts.tsx";
 import type { KeyEventLike } from "./parts.tsx";
 import { RunRow } from "./RunRow.tsx";
+import { each } from "./each.ts";
 
 type ListOut = CapMap["runs.list"]["out"];
 
@@ -22,6 +23,8 @@ export interface FailedRunsProps {
   scope?: "mine" | "all";
   selectedRunId?: string | null;
 }
+
+const keyOfRun = (r: Run): string => r.id;
 
 export function FailedRuns({ scope = "mine", selectedRunId = null }: FailedRunsProps): ReactElement {
   const data = useRunsData();
@@ -38,6 +41,13 @@ export function FailedRuns({ scope = "mine", selectedRunId = null }: FailedRunsP
     if (e.key === "ArrowDown" || e.key === "ArrowUp") { if (moveRowFocus(e.currentTarget, e.target, e.key === "ArrowDown" ? 1 : -1)) e.preventDefault?.(); }
   };
 
+  const renderRun = (run: Run): ReactElement => (
+    <RunRow
+      run={run} now={now} rowKey={run.id} selected={selectedRunId === run.id} open title={`${subjectName(run)} \u00B7 ${runTitle(run)}`}
+      onOpen={(x) => data.nav.openRunSide(x.id)} onOpenMain={(x) => data.nav.openRun(x.id)} onRetry={(x) => void actions.retryStep(x)} onMenu={menu}
+    />
+  );
+
   return (
     <View testID="failed-runs" accessibilityLabel="Failed runs" style={f.frame} {...webOnly({ onKeyDown: onKey })}>
       <MainHead
@@ -46,7 +56,7 @@ export function FailedRuns({ scope = "mine", selectedRunId = null }: FailedRunsP
       />
       <View style={f.col}>
         {q.status === "loading" ? (
-          <View testID="failed-runs-loading" style={{ paddingTop: 22 }}>{[0, 1, 2].map((i) => <View key={i} style={f.skRow} />)}</View>
+          <View testID="failed-runs-loading" style={{ paddingTop: 22 }}>{each([0, 1, 2], (i) => <View key={i} style={f.skRow} />)}</View>
         ) : rows.length === 0 ? (
           <View style={f.blank} testID="failed-runs-empty">
             <View aria-hidden style={f.big}><Glyph name="check" size={24} color="var(--ok)" /></View>
@@ -54,18 +64,7 @@ export function FailedRuns({ scope = "mine", selectedRunId = null }: FailedRunsP
             <Text style={f.blankText}>Nothing failed. A failed run waits here until you retry it.</Text>
           </View>
         ) : (
-          <VirtualList
-            data={rows} rowHeight={44} keyOf={(r) => r.id}
-            renderItem={(r) => {
-              const run = r as Run;
-              return (
-                <RunRow
-                  run={run} now={now} rowKey={run.id} selected={selectedRunId === run.id} open title={`${subjectName(run)} · ${runTitle(run)}`}
-                  onOpen={(x) => data.nav.openRunSide(x.id)} onOpenMain={(x) => data.nav.openRun(x.id)} onRetry={(x) => void actions.retryStep(x)} onMenu={menu}
-                />
-              );
-            }}
-          />
+          <VirtualList data={rows} rowHeight={44} keyOf={keyOfRun} renderItem={renderRun} />
         )}
       </View>
       {actions.note ? <Text style={f.note} accessibilityLiveRegion="polite" testID="run-note">{actions.note}</Text> : null}

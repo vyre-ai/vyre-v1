@@ -136,8 +136,8 @@ test("history: a status filter says what it shows and how to go back; an empty o
 
 test("history: the selected run uses the quiet selection, a failed run offers Retry, every row is the shared Row with a leading mark", () => {
   const out = history(createSampleRuns(northwind), { selectedRunId: "rl3" });
-  assert.match(tag(out, "row-run-rl3"), /aria-selected="true"/);
-  assert.match(tag(out, "row-run-rl2"), /aria-selected="false"/);
+  assert.match(tag(out, "row-run-rl3"), /background-color:var\(--sel\)/, "the selected row paints the quiet selection token");
+  assert.doesNotMatch(tag(out, "row-run-rl2"), /var\(--sel\)/);
   assert.ok(has(out, 'data-testid="row-run-rl3-leading"') && has(out, 'data-testid="status-succeeded"'));
   assert.ok(has(out, 'data-testid="status-failed"'));
 });

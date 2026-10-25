@@ -15,6 +15,7 @@ import { MainHead, QuietButton, Tile, pointer, statusColor, statusGlyph, webOnly
 import type { KeyEventLike } from "./parts.tsx";
 import { RunLines } from "./RunLines.tsx";
 import { UndoPanel } from "./RunUndo.tsx";
+import { each } from "./each.ts";
 
 type GetOut = CapMap["runs.get"]["out"];
 type StepsOut = CapMap["runs.steps"]["out"];
@@ -55,7 +56,7 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
   }, [initialUndo, runId, data]);
 
   if (q.status === "loading") {
-    return <View testID="run-chat-loading" style={s.frame}><View style={s.skHead} /><View style={s.skBody}>{[0, 1, 2, 3].map((i) => <View key={i} style={s.skLine} />)}</View></View>;
+    return <View testID="run-chat-loading" style={s.frame}><View style={s.skHead} /><View style={s.skBody}>{each([0, 1, 2, 3], (i) => <View key={i} style={s.skLine} />)}</View></View>;
   }
   if (!run) return <View testID="run-chat-gone" style={s.frame}><View style={s.gone}><Text style={s.goneText}>That run is gone.</Text></View></View>;
 

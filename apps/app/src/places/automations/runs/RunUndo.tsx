@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { SKIP_WORDS, plural, undoSummary } from "./model.ts";
 import type { UndoPreview } from "./model.ts";
 import { QuietButton } from "./parts.tsx";
+import { each } from "./each.ts";
 
 export type UndoViewState = { phase: "loading" } | { phase: "ready"; preview: UndoPreview };
 const SHOWN = 4;
@@ -18,9 +19,9 @@ export function UndoPanel({ state, onConfirm, onCancel }: { state: UndoViewState
     <View style={u.panel} testID="undo-panel" accessibilityLabel="Undo this run">
       <Text style={u.head}>Undo what this run changed?</Text>
       <Text style={u.text}>{undoSummary(p)}</Text>
-      {p.undone.slice(0, SHOWN).map((x) => <Text key={x.eventId} style={u.li}>{`•  ${x.summary}`}</Text>)}
+      {each(p.undone.slice(0, SHOWN), (x) => <Text key={x.eventId} style={u.li}>{`•  ${x.summary}`}</Text>)}
       {p.undone.length > SHOWN ? <Text style={u.dim}>{`and ${plural(p.undone.length - SHOWN, "more change")}`}</Text> : null}
-      {p.skipped.map((x) => <Text key={x.eventId} style={u.dim}>{`•  ${x.summary} (${SKIP_WORDS[x.reason].toLowerCase()}, stays)`}</Text>)}
+      {each(p.skipped, (x) => <Text key={x.eventId} style={u.dim}>{`•  ${x.summary} (${SKIP_WORDS[x.reason].toLowerCase()}, stays)`}</Text>)}
       <View style={u.acts}>
         <QuietButton label="Undo this run" icon="undo" tone="danger" disabled={p.undone.length === 0} testID="confirm-undo" onPress={onConfirm} />
         <QuietButton label="Cancel" testID="cancel-undo" onPress={onCancel} />

@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { pressPoint } from "./actions.tsx";
+import { each } from "./each.ts";
 import { Glyph, lineGlyph } from "./glyphs.tsx";
 import { lineTime } from "./model.ts";
 import type { Run, RunLine, Tone, Who } from "./model.ts";
@@ -72,8 +73,8 @@ export function RunLines({ run, lines, name, me, actions, canRetry, openThoughts
                   {open.has(l.id) ? <Text style={c.tq}>{turn.thought.text}</Text> : null}
                 </View>
               ) : null}
-              {turn && turn.did.length ? <View style={c.list}><Text style={c.listHead}>Did</Text>{turn.did.map((x) => <Text key={x} style={c.li}>{`•  ${x}`}</Text>)}</View> : null}
-              {turn && turn.skipped.length ? <View style={c.list}><Text style={[c.listHead, { color: "var(--ink-3)" as string }]}>Skipped</Text>{turn.skipped.map((x) => <Text key={x} style={[c.li, { color: "var(--ink-3)" as string }]}>{`•  ${x}`}</Text>)}</View> : null}
+              {turn && turn.did.length ? <View style={c.list}><Text style={c.listHead}>Did</Text>{each(turn.did, (x) => <Text key={x} style={c.li}>{`•  ${x}`}</Text>)}</View> : null}
+              {turn && turn.skipped.length ? <View style={c.list}><Text style={[c.listHead, { color: "var(--ink-3)" as string }]}>Skipped</Text>{each(turn.skipped, (x) => <Text key={x} style={[c.li, { color: "var(--ink-3)" as string }]}>{`•  ${x}`}</Text>)}</View> : null}
               {turn && (turn.key || turn.model) ? (
                 <View style={c.meta2}>
                   <Glyph name="key" size={12} color="var(--ink-3)" />
@@ -138,14 +139,14 @@ export function RunLines({ run, lines, name, me, actions, canRetry, openThoughts
         return (
           <View key={l.id} testID={`branch-${l.id}`} accessibilityLabel={`Side thread, ${l.label}`} style={c.branch}>
             <Text style={c.branchHead}>{l.label}</Text>
-            {l.lines.map(render)}
+            {each(l.lines, render)}
           </View>
         );
     }
   };
   return (
     <View testID="run-lines" {...webOnly({ role: "log" })}>
-      {lines.map(render)}
+      {each(lines, render)}
       {run.status === "running" ? (
         <View style={c.rl} testID="run-working"><View style={c.ri}><Glyph name="retry" size={13} color="var(--ink-3)" /></View><View style={c.rb}><Text style={[c.rbText, { color: "var(--ink-3)" as string }]}>Working…</Text></View></View>
       ) : null}
