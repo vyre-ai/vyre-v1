@@ -93,6 +93,12 @@ test("the shipped Default and Harbor Studio Kits install by name on a booted dae
     assert.equal(agents.status, 200, JSON.stringify(agents.data));
     const names = JSON.stringify(agents.data);
     for (const k of KITS) for (const a of k.agents) assert.ok(names.includes(`"${a}"`), `${k.key} created the agent ${a}`);
+    // every item of each Kit was applied, including the group defaults (access is still a stub module, so its effect cannot be read back; the ledger shows the step ran)
+    for (const k of KITS) {
+      const manifest = JSON.parse(fs.readFileSync(path.join(CODE_ROOT, "kits", k.key, "kit.json"), "utf8")) as { items: { key: string }[] };
+      const applied = (d.db!.all("SELECT item_key FROM kits_applied WHERE kit_id = ?", byKey.get(k.key)!.kitId) as { item_key: string }[]).map((r) => r.item_key).sort();
+      assert.deepEqual(applied, manifest.items.map((i) => i.key).sort(), `${k.key}: every item was applied`);
+    }
     for (const k of KITS) {
       const got = await call(d, "kits.get", { kitId: byKey.get(k.key)!.kitId });
       assert.equal(got.data.kit.installed, true, `${k.key} still reads installed`);
