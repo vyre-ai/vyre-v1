@@ -101,9 +101,7 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     : [
       thread("c1", "chat", "Rivera intake", at(10, 24, 9, 31)),
       thread("c5", "chat", "Weekly lead report", at(10, 20, 9, 0)),
-      thread("c9", "chat", "Lead follow-ups", at(10, 17, 15, 20)),
-      thread("th_a", "thread", "#intake · Elena Rivera referral", at(10, 24, 9, 28), { parentThreadId: "c1" }),
-      thread("th_b", "thread", "#billing · Retainer question", at(10, 23, 16, 5), { parentThreadId: "c1" }),
+      thread("th_a", "thread", "#intake · Omar Haddad", at(10, 24, 9, 28), { parentThreadId: "c1" }),
     ];
   replica.put("threads", threads.map((x) => ({ id: x.threadId, ...x })));
   const helpers: Helper[] = personal ? [] : [
@@ -125,21 +123,24 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
 
   const routines: Routine[] = personal ? [] : [
     routine("r3", "Morning lead sweep", "0 8 * * 1-5", "Every weekday at 8, check the web form inbox and the shared intake email for new leads since yesterday. Add each to Records as a Lead with source and first message, skip duplicates, and post a short summary in #intake.", { channelId: "intake", lastRunAt: at(10, 24, 8), nextRunAt: at(10, 27, 8) }),
-    routine("r4", "Weekly lead report", "0 9 * * 5", "Every Friday, summarise the week's leads by source and what happened to each. Post it in this chat.", { lastRunAt: at(10, 24, 9), nextRunAt: at(10, 31, 9) }),
+    // a watcher, not a clock routine: its trigger is an event, so the schedule field holds "on new messages" (the contract has no separate watch kind yet; see the packet comment)
+    routine("r4", "Watch #intake for new clients", "on new messages", "Whenever a message lands in #intake from someone new, open a Lead in Records, post the first reply and tag Omar.", { lastRunAt: at(10, 24, 9, 34) }),
     routine("r5", "Chase missing intake forms", "0 17 * * *", "Every day at 5pm, find Leads whose intake form isn't back after 2 days and send one friendly reminder from the shared inbox. Stop after two reminders.", { enabled: false, lastRunAt: at(10, 21, 17) }),
   ];
   replica.put("routines", routines.map((x) => ({ id: x.routineId, ...x })));
 
   const folders: FolderRow[] = personal ? [] : [
-    folder("fld_memory", FOLDER, "memory", 1, 2), folder("fld_skills", FOLDER, "skills", 0, 2), folder("fld_routines", FOLDER, "routines", 3, 0), folder("fld_knowledge", FOLDER, "knowledge", 2, 0),
+    folder("fld_memory", FOLDER, "memory", 1, 4), folder("fld_skills", FOLDER, "skills", 0, 2), folder("fld_routines", FOLDER, "routines", 3, 0), folder("fld_knowledge", FOLDER, "knowledge", 2, 0),
     folder("fld_inbox", FOLDER, "inbox", 0, 0), folder("fld_work", FOLDER, "work", 0, 3), folder("fld_downloads", FOLDER, "downloads", 1, 0), folder("fld_logs", FOLDER, "logs", 1, 0),
-    folder("fld_notes", "fld_memory", "notes", 4, 0), folder("fld_proposed", "fld_memory", "proposed", 3, 0),
+    folder("fld_chats", FOLDER, "chats", 1, 0),
+    folder("fld_notes", "fld_memory", "notes", 5, 0), folder("fld_proposed", "fld_memory", "proposed", 3, 0), folder("fld_recipes", "fld_memory", "recipes", 1, 0), folder("fld_journal", "fld_memory", "journal", 1, 0),
   ];
   replica.put("folders", folders.map((x) => ({ id: x.folderId, ...x })));
   const files: FileRow[] = personal ? [] : [
     file("fl_agent", FOLDER, "AGENT.md", 2150, at(10, 22, 11)), file("fl_toml", FOLDER, "agent.toml", 940, at(10, 15, 9), "text"),
     file("fl_map", "fld_memory", "MAP.md", 612, at(10, 24, 9, 31)),
-    file("fl_r1", "fld_routines", "morning-lead-sweep.md", 410, at(10, 9, 9)),
+    file("fl_r1", "fld_routines", "morning_lead_sweep.md", 410, at(10, 9, 9)), file("fl_r2", "fld_routines", "watch_intake_for_new_clients.md", 380, at(10, 9, 9)),
+    file("fl_r3", "fld_routines", "chase_missing_intake_forms.md", 360, at(10, 9, 9)),
   ];
   replica.put("files", files.map((x) => ({ id: x.fileId, ...x })));
 
@@ -201,6 +202,9 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     return strip(next, ["fromMe"]);
   };
   let seq = 0;
+  const MAP_NOTE = { noteId: "note_map", path: "MAP.md", title: "MAP.md", layer: "agent" as const, agentId: INTAKE, updatedAt: at(10, 24, 9, 31) };
+  const MAP_MD = ["# Intake memory map", "", "- `elena-rivera` client referred by Maya, call Thursday", "- `consult-rules` length, host and fee", "- `maya-calendar` when Maya is free and what she blocks",
+    "- `intake-form-site` how the web intake form reaches us", "- `weekly-lead-report` what the Friday report holds"].join("\n");
   const writes: Record<string, (input: any) => unknown> = {
     "computers.wake": () => ({ computer: patchComputer({ state: "working", caption: "Waking up" }) }),
     "computers.sleep": () => ({ computer: patchComputer({ state: "asleep" }) }),
@@ -208,6 +212,8 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     "computers.give_back": () => ({ computer: patchComputer({ state: "working" }) }),
     "computers.provision": () => ({ computer }),
     "computers.session.sign_out": (i: { site: string }) => { replica.remove("sessions", [i.site]); return { signedOut: true }; },
+    "memory.notes.list": () => ({ notes: [MAP_NOTE], total: 1 }),
+    "memory.read_note": () => ({ note: MAP_NOTE, markdown: MAP_MD }),
     "memory.fact.accept": (i: { factId: string }) => ({ fact: setFact(i.factId, { status: "current" }) }),
     "memory.fact.reject": (i: { factId: string }) => ({ fact: setFact(i.factId, { status: "removed" }) }),
     "memory.fact.correct": (i: { factId: string; text: string }) => {
