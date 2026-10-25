@@ -1,0 +1,34 @@
+{
+  "targets": [
+    {
+      "id": "P-L9e_01b-files-list-root",
+      "route": "/m/P-L9e_01b",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='row-line:file:fil_deck']",
+      "note": "The Sales folder as a list: the breadcrumb, the sort button, the list/grid toggle, and the Name, Modified, Made by, Size and Kind columns. The prototype side is its Files place on a folder of files, in the same skin."
+    },
+    {
+      "id": "P-L9e_01b-files-grid-root",
+      "route": "/m/P-L9e_01b?view=grid",
+      "proto": "files,grid,{skin}",
+      "waitFor": "[data-testid='tile-file:fil_deck']",
+      "note": "The same folder as a grid of tiles. The prototype side opens its Files place on a folder of files with the grid toggle on (the existing grid token)."
+    },
+    {
+      "id": "P-L9e_01b-files-list-scroll",
+      "route": "/m/P-L9e_01b?rows=10000",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='row-line:file:bulk0']",
+      "scroll": { "selector": "[data-testid=\"virtual-list\"]:has([data-testid=\"row-line:file:bulk0\"])" },
+      "note": "10,000 files in one folder as a list with columns; the scroll probe takes the p95 frame interval over the full scroll (budget scroll, 16.7 ms)."
+    },
+    {
+      "id": "P-L9e_01b-files-grid-scroll",
+      "route": "/m/P-L9e_01b?rows=10000&view=grid",
+      "proto": "files,grid,{skin}",
+      "waitFor": "[data-testid='tile-file:bulk0']",
+      "scroll": { "selector": "[data-testid=\"virtual-list\"]:has([data-testid=\"tile-file:bulk0\"])" },
+      "note": "10,000 files in one folder as a grid (2,500 rows of four); the scroll probe takes the p95 frame interval over the full scroll."
+    }
+  ]
+}

@@ -28,6 +28,7 @@ import { fileExportsImporter, fileImporter, fileSeamImporter, loadHost, readModu
 import type { RegistryLike } from "../loader.ts";
 import { LogSink } from "../logsink/index.ts";
 import { nodePlatform } from "../platform/index.ts";
+import type { FetchLike } from "../ctx/http.ts";
 import type { Platform } from "../platform/index.ts";
 import * as probes from "../platform/probes.ts";
 import type { FetchFn, ProbeName, ProbeResult } from "../platform/probes.ts";
@@ -96,6 +97,8 @@ export interface DaemonOptions {
   services?: ServiceSpec[];
   /** capabilities, routes, handlers and event names beyond the generated registry (tests register example.echo; later lanes register host-only calls) */
   extra?: { caps?: CapabilityDef[]; routes?: RouteRec[]; handlers?: Record<string, Handler>; events?: string[] };
+  /** the network under ctx.http (each module still reaches only its connector's domains); tests answer provider calls with it. Omitted: the global fetch. */
+  http?: FetchLike;
   /** The Vault, as the connector seams use it. Without one the seams that need a secret refuse, which is right until the Vault module is live. */
   vault?: VaultPort;
   /** The Space ports the Google, Microsoft and IMAP seams read, and (for tests) setters that replace the ones the modules export as `hostSeams`. Omitted ports refuse. */
@@ -249,7 +252,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       headSeq = (await log.currentHead()).seq;
 
       const reg = registry as unknown as RegistryLike;
-      const loaded = await loadHost({ registry: reg, modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")), routes, importer: fileImporter(codeRoot), seamImporter: fileSeamImporter(codeRoot), exportsImporter: fileExportsImporter(codeRoot), db });
+      const loaded = await loadHost({ registry: reg, modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")), routes, importer: fileImporter(codeRoot), seamImporter: fileSeamImporter(codeRoot), exportsImporter: fileExportsImporter(codeRoot), db, ...(o.http ? { fetch: o.http } : {}) });
       const registryCaps = registry.capabilities as unknown as CapabilityDef[];
       // consumers and periodic jobs the live modules export (ruling 32): each runs through the invoke pipeline as a host-only capability that may emit what its module's capabilities emit
       let invokeRef: Invoke = () => Promise.reject(new Error("the invoke pipeline is not ready"));
@@ -263,8 +266,25 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       });
       hooks = hookRunner;
       // the async projections the live modules export (P-H_07): the events module's webhooks_out turns subscribed events into signed deliveries
+      // crash recovery: a webhook delivery row inserted but never dispatched (the daemon died between the two) is sent again; the send is idempotent per attempt
+      let dispatchSystem: ((cap: string, input: unknown) => Promise<unknown>) | null = null;
+      const dueDeliveries = loaded.moduleExports.get("events")?.["dueDeliveries"] as ((ctx: { db: unknown }, now: number, limit?: number) => { webhook_id: string; event_id: string; attempts: number; state: string; at: number }[]) | undefined;
+      const WEBHOOK_RECOVER_MS = 30_000;
       const projectionRunner = createProjectionRunner({
-        now, db, log: { read: (q) => log!.read(q), currentHead: () => log!.currentHead() },
+        now, db,
+        ...(dueDeliveries ? { recover: [{
+          name: "events.webhooks_out", windowMs: WEBHOOK_RECOVER_MS,
+          run: async (t: number) => {
+            if (!dispatchSystem) return 0;
+            let n = 0;
+            for (const r of dueDeliveries({ db: db! }, t, 100)) {
+              if (r.state !== "pending" || r.attempts !== 0 || r.at > t - WEBHOOK_RECOVER_MS) continue;
+              await dispatchSystem("webhooks.send_delivery", { webhookId: r.webhook_id, eventId: r.event_id, attempt: 1, idempotencyKey: `${r.webhook_id}:${r.event_id}:1` });
+              n++;
+            }
+            return n;
+          },
+        }] } : {}), log: { read: (q) => log!.read(q), currentHead: () => log!.currentHead() },
         projections: [...loaded.moduleExports.values()].flatMap((ns) => collectProjections(ns)),
         warn: (msg, attrs) => sink.log({ space: space!, level: 30, msg, place: "projections", ...(attrs ? { attrs } : {}) }),
       });
@@ -338,6 +358,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // the Space record store the L3 data modules share (P-H_08): one file in the data directory, opened by the first module that needs it, closed at shutdown
       const spaceStore = createSpaceStore({ path: spaceStorePath(paths.root), space: spaceId });
       closers.push(() => spaceStore.close());
+      dispatchSystem = system;
       const hostDrivers: Record<string, SeamDriver> = {
         setPushPort: () => createPushPort(o.seams?.push),
         setEventsDispatch: () => system,
@@ -361,6 +382,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           blobs: o.seams?.blobs ?? { put: none("The blob store") },
           members: o.seams?.members ?? { emails: none("The member list") },
           ...(o.seams?.fetch ? { fetch: o.seams.fetch } : {}),
+          // where Mailgun posts inbound mail: the address people reach this Space at, else the local URL (read at call time, the port is known only after listen)
+          publicUrl: o.seams?.publicUrl ?? (async () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }),
           drivers: hostDrivers, owners: loaded.seamOwners,
         });
         closers.push(() => seams?.unwire());

@@ -249,7 +249,7 @@ test("wireSeams registers what it is given and reports what is absent, then take
     setGoogleHost: (h) => { calls.push(h ? "google+" : "google-"); google = h; },
     setImapSecretResolver: (f) => { calls.push(f ? "imap+" : "imap-"); imap = f; },
   }, w.deps);
-  assert.deepEqual(wired.state, { google: "wired", microsoft: "absent", imap: "wired", sources: "absent" });
+  assert.deepEqual(wired.state, { google: "wired", microsoft: "absent", imap: "wired", sources: "absent", resend: "absent", mailgun: "absent" });
   assert.equal(typeof (google as GoogleHostSeam | null)?.mintToken, "function");
   assert.equal(typeof imap, "function");
   wired.unwire();
