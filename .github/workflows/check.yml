@@ -253,7 +253,7 @@ jobs:
           VYRE_REQUIRE_CHROME: "1"
         run: |
           set -o pipefail
-          node scripts/test-run.mjs --no-cache --files apps/chrome/tests/ext-agent.real.test.ts 2>&1 | tee chrome-real.out
+          node scripts/test-run.ts --slow --no-cache --files apps/chrome/tests/ext-agent.real.test.ts 2>&1 | tee chrome-real.out
           grep -q '^ok .*apps/chrome/tests/ext-agent.real.test.ts' chrome-real.out
   check:
     needs: [select, shards, gates, chrome-real]
