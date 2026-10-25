@@ -103,10 +103,19 @@ function messageOf(r: Row): StoredMessage {
   };
 }
 
+// The id the next appended message must carry. The chat bridge sets it around engine.receive so a person's message is stored under the id chat gave it: one id for one message in both tables.
+let forcedId: string | null = null;
+export function withMessageId<T>(id: string, fn: () => T): T {
+  forcedId = id;
+  try { return fn(); } finally { forcedId = null; }
+}
+
 export function sqlMessages(db: Db, now: () => number = Date.now): MessageStore {
   ensure(db);
   return {
-    append(msg) {
+    append(given) {
+      const msg = forcedId === null ? given : { ...given, id: forcedId };
+      forcedId = null;
       // The sequence is taken in the same statement as the insert; two hosts racing for one number lose on the unique index and retry.
       for (let attempt = 0; ; attempt++) {
         try {

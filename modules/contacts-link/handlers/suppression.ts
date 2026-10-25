@@ -51,12 +51,12 @@ function stringList(ctx: ContactsCtx, v: unknown, label: string, max: number): s
 
 /** The row for (channel, address) that is on the list now, if any. */
 export function onList(ctx: ContactsCtx, channel: Channel, address: string): Row | null {
-  return first(ctx.db.all(`SELECT * FROM contacts_suppression WHERE channel = ? AND address = ? AND deleted_at IS NULL`, channel, address));
+  return first(ctx.db.all(`SELECT * FROM contacts_link_suppression WHERE channel = ? AND address = ? AND deleted_at IS NULL`, channel, address));
 }
 
 /** The strongest reason this address is on the list for, or null. */
 export function reasonFor(ctx: ContactsCtx, channel: Channel, address: string): Reason | null {
-  const reasons = rowsOf(ctx.db.all(`SELECT reason FROM contacts_suppression WHERE channel = ? AND address = ? AND deleted_at IS NULL`, channel, address)).map((r) => reasonOf(str(r, "reason")));
+  const reasons = rowsOf(ctx.db.all(`SELECT reason FROM contacts_link_suppression WHERE channel = ? AND address = ? AND deleted_at IS NULL`, channel, address)).map((r) => reasonOf(str(r, "reason")));
   return PRIORITY.find((p) => reasons.includes(p)) ?? null;
 }
 
@@ -97,8 +97,8 @@ export async function suppressionList(
   const q = (input.query ?? "").trim().toLowerCase().replace(/[%_]/g, "");
   if (q) { where.push("address LIKE ?"); args.push(`%${q}%`); }
   const clause = where.join(" AND ");
-  const total = num(first(ctx.db.all(`SELECT count(*) AS n FROM contacts_suppression WHERE ${clause}`, ...args)), "n");
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM contacts_suppression WHERE ${clause} ORDER BY "addedAt" DESC, id ASC LIMIT ? OFFSET ?`, ...args, limit, offset));
+  const total = num(first(ctx.db.all(`SELECT count(*) AS n FROM contacts_link_suppression WHERE ${clause}`, ...args)), "n");
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM contacts_link_suppression WHERE ${clause} ORDER BY "addedAt" DESC, id ASC LIMIT ? OFFSET ?`, ...args, limit, offset));
   const out: { rows: SuppressionOut[]; next?: string; total: number } = { rows: rows.map(rowOut), total };
   if (offset + limit < total) out.next = String(offset + limit);
   return out;
@@ -121,11 +121,11 @@ function insertRow(ctx: ContactsCtx, n: NewRow): Row | null {
   if (onList(ctx, n.channel, n.address)) return null;
   const id = newId("sup", ctx.now());
   ctx.db.run(
-    `INSERT INTO contacts_suppression (id, channel, address, reason, source, "contactId", "addedAt", "addedBy", note, version, updated_at, deleted_at)
+    `INSERT INTO contacts_link_suppression (id, channel, address, reason, source, "contactId", "addedAt", "addedBy", note, version, updated_at, deleted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, n.channel, n.address, n.reason, n.source, n.contactId ?? null, n.addedAt, ctx.principal.id, n.note ?? null, 1, ctx.now(), null,
   );
-  const row = first(ctx.db.all(`SELECT * FROM contacts_suppression WHERE id = ?`, id));
+  const row = first(ctx.db.all(`SELECT * FROM contacts_link_suppression WHERE id = ?`, id));
   if (!row) throw fail("internal.unexpected", ctx.trace.traceId);
   ctx.emit("suppression.added", `entity/${id}`, eventPayload(row));
   return row;
@@ -199,9 +199,9 @@ export async function suppressionRemove(ctx: ContactsCtx, input: { suppressionId
   ensure(ctx);
   if (!isId("sup", input.suppressionId)) bad(ctx, "Suppression id is not valid.");
   if (ctx.principal.kind !== "person") refuse(ctx, "Only a person can take an address off the suppression list.");
-  const row = first(ctx.db.all(`SELECT * FROM contacts_suppression WHERE id = ? AND deleted_at IS NULL`, input.suppressionId)) ?? missing(ctx, "That address is not on the list.");
+  const row = first(ctx.db.all(`SELECT * FROM contacts_link_suppression WHERE id = ? AND deleted_at IS NULL`, input.suppressionId)) ?? missing(ctx, "That address is not on the list.");
   const now = ctx.now();
-  ctx.db.run(`UPDATE contacts_suppression SET deleted_at = ?, note = ?, version = ?, updated_at = ? WHERE id = ?`, now, input.note ?? strOrNull(row, "note"), num(row, "version") + 1, now, input.suppressionId);
+  ctx.db.run(`UPDATE contacts_link_suppression SET deleted_at = ?, note = ?, version = ?, updated_at = ? WHERE id = ?`, now, input.note ?? strOrNull(row, "note"), num(row, "version") + 1, now, input.suppressionId);
   ctx.emit("suppression.removed", `entity/${input.suppressionId}`, eventPayload(row));
   return { removed: true };
 }
