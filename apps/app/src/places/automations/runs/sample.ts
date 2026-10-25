@@ -4,6 +4,7 @@
 import { createFakeReplica, createScreenHooks, liveQuery } from "../../../../../../client/src/index.ts";
 import type { FakeReplica, LiveQuery, Row, ScreenHooks } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
+import { namesFor, nameOf } from "../../../fixtures/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { RunsData, RunsNav } from "./data.tsx";
 import type { Run, RunStep, ThreadMessage, UndoPreview } from "./model.ts";
@@ -39,11 +40,11 @@ export interface RunsSpace {
 
 export const northwind: RunsSpace = {
   id: "northwind", name: "Northwind", me: { id: "usr_irfad", name: "Irfad Imtiaz" },
-  names: { usr_irfad: "Irfad Imtiaz", usr_maya: "Maya Chen", usr_omar: "Omar Haddad", agt_intake: "Intake", agt_billing: "Billing", aut_lead: "New lead follow-up", aut_flag: "Flag invoices over $5k to me", aut_invoice: "Invoice reminders", aut_meeting: "Meeting transcript to tasks", svc_runs: "Runs" },
+  names: namesFor("northwind", { aut_lead: "New lead follow-up", aut_flag: "Flag invoices over $5k to me", aut_invoice: "Invoice reminders", aut_meeting: "Meeting transcript to tasks", svc_runs: "Runs" }),
 };
 export const harbor: RunsSpace = {
   id: "harbor", name: "Harbor Studio", me: { id: "usr_june", name: "June Okafor" },
-  names: { usr_june: "June Okafor", usr_ines: "Ines Costa", agt_scheduler: "Scheduler", aut_h1: "Brief to project", aut_h2: "Friday wrap-up", svc_runs: "Runs" },
+  names: namesFor("harbor", { aut_h1: "Brief to project", aut_h2: "Friday wrap-up", svc_runs: "Runs" }),
 };
 
 const runRow = (o: Partial<Run> & { id: string; startedAt: number; status: Run["status"]; auto: string; owner: string }): Row => {
@@ -248,7 +249,7 @@ export function createSampleRuns(space: RunsSpace = northwind): SampleRuns {
       return r.data;
     },
     me: space.me,
-    name: (id) => space.names[id] ?? id,
+    name: (id) => space.names[id] ?? nameOf(space.id, id),
     nav,
     clock: () => ({ now: SAMPLE_NOW }),
   };

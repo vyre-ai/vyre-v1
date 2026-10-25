@@ -3349,6 +3349,126 @@
       ],
       "type": "object"
     },
+    "s_323acdeb06": {
+      "properties": {
+        "address": {
+          "description": "Email, number or handle when no contact is matched",
+          "examples": [
+            "maya@example.com"
+          ],
+          "type": "string"
+        },
+        "alertOnReplies": {
+          "type": "boolean"
+        },
+        "bounced": {
+          "type": "boolean"
+        },
+        "campaignId": {
+          "examples": [
+            "cmp_a1b2c3"
+          ],
+          "pattern": "^cmp_[a-z0-9]+$",
+          "type": "string"
+        },
+        "contactId": {
+          "examples": [
+            "rec_a1b2c3"
+          ],
+          "pattern": "^rec_[a-z0-9]+$",
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "dnd": {
+          "type": "boolean"
+        },
+        "draftReady": {
+          "type": "boolean"
+        },
+        "followed": {
+          "type": "boolean"
+        },
+        "id": {
+          "examples": [
+            "cnv_a1b2c3"
+          ],
+          "pattern": "^cnv_[a-z0-9]+$",
+          "type": "string"
+        },
+        "lastChannel": {
+          "enum": [
+            "email",
+            "sms",
+            "call",
+            "meeting"
+          ],
+          "type": "string"
+        },
+        "lastMessageAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lastPreview": {
+          "type": "string"
+        },
+        "mailboxIds": {
+          "items": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "needsMatch": {
+          "type": "boolean"
+        },
+        "organisation": {
+          "examples": [
+            "Acme Legal"
+          ],
+          "type": "string"
+        },
+        "ownerId": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "starred": {
+          "type": "boolean"
+        },
+        "unmatched": {
+          "type": "boolean"
+        },
+        "unreadCount": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "address",
+        "displayName",
+        "lastMessageAt",
+        "lastChannel",
+        "lastPreview",
+        "unreadCount",
+        "needsMatch",
+        "mailboxIds",
+        "followed",
+        "alertOnReplies"
+      ],
+      "type": "object"
+    },
     "s_332ac41b43": {
       "items": {
         "properties": {
@@ -6992,17 +7112,6 @@
       ],
       "type": "object"
     },
-    "s_611f84de8a": {
-      "properties": {
-        "conversation": {
-          "$ref": "#/$defs/s_bbe05acc1e"
-        }
-      },
-      "required": [
-        "conversation"
-      ],
-      "type": "object"
-    },
     "s_61ad3658fc": {
       "properties": {
         "person": {
@@ -8869,12 +8978,6 @@
         "issue"
       ],
       "type": "object"
-    },
-    "s_7bc0d5d531": {
-      "items": {
-        "$ref": "#/$defs/s_bbe05acc1e"
-      },
-      "type": "array"
     },
     "s_7c4e790000": {
       "items": {
@@ -11797,6 +11900,12 @@
       ],
       "type": "object"
     },
+    "s_ab4bbadc09": {
+      "items": {
+        "$ref": "#/$defs/s_323acdeb06"
+      },
+      "type": "array"
+    },
     "s_ab4d804e42": {
       "properties": {
         "event": {
@@ -12313,6 +12422,17 @@
       },
       "required": [
         "scope"
+      ],
+      "type": "object"
+    },
+    "s_b628c0cd13": {
+      "properties": {
+        "conversation": {
+          "$ref": "#/$defs/s_323acdeb06"
+        }
+      },
+      "required": [
+        "conversation"
       ],
       "type": "object"
     },
@@ -13109,108 +13229,6 @@
         "costMicros",
         "startedAt",
         "traceId"
-      ],
-      "type": "object"
-    },
-    "s_bbe05acc1e": {
-      "properties": {
-        "address": {
-          "description": "Email, number or handle when no contact is matched",
-          "examples": [
-            "maya@example.com"
-          ],
-          "type": "string"
-        },
-        "alertOnReplies": {
-          "type": "boolean"
-        },
-        "campaignId": {
-          "examples": [
-            "cmp_a1b2c3"
-          ],
-          "pattern": "^cmp_[a-z0-9]+$",
-          "type": "string"
-        },
-        "contactId": {
-          "examples": [
-            "rec_a1b2c3"
-          ],
-          "pattern": "^rec_[a-z0-9]+$",
-          "type": "string"
-        },
-        "displayName": {
-          "type": "string"
-        },
-        "followed": {
-          "type": "boolean"
-        },
-        "id": {
-          "examples": [
-            "cnv_a1b2c3"
-          ],
-          "pattern": "^cnv_[a-z0-9]+$",
-          "type": "string"
-        },
-        "lastChannel": {
-          "enum": [
-            "email",
-            "sms",
-            "call",
-            "meeting"
-          ],
-          "type": "string"
-        },
-        "lastMessageAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "lastPreview": {
-          "type": "string"
-        },
-        "mailboxIds": {
-          "items": {
-            "examples": [
-              "mbx_a1b2c3"
-            ],
-            "pattern": "^mbx_[a-z0-9]+$",
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "needsMatch": {
-          "type": "boolean"
-        },
-        "ownerId": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "pattern": "^usr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "starred": {
-          "type": "boolean"
-        },
-        "unreadCount": {
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "id",
-        "address",
-        "displayName",
-        "lastMessageAt",
-        "lastChannel",
-        "lastPreview",
-        "unreadCount",
-        "needsMatch",
-        "mailboxIds",
-        "followed",
-        "alertOnReplies"
       ],
       "type": "object"
     },
@@ -91137,9 +91155,12 @@
               {
                 "address": "maya@example.com",
                 "alertOnReplies": true,
+                "bounced": true,
                 "campaignId": "cmp_a1b2c3",
                 "contactId": "rec_a1b2c3",
                 "displayName": "example",
+                "dnd": true,
+                "draftReady": true,
                 "followed": true,
                 "id": "cnv_a1b2c3",
                 "lastChannel": "email",
@@ -91149,8 +91170,10 @@
                   "mbx_a1b2c3"
                 ],
                 "needsMatch": true,
+                "organisation": "Acme Legal",
                 "ownerId": "usr_a1b2c3",
                 "starred": true,
+                "unmatched": true,
                 "unreadCount": 1
               }
             ],
@@ -91174,7 +91197,7 @@
             "type": "string"
           },
           "rows": {
-            "$ref": "#/$defs/s_7bc0d5d531"
+            "$ref": "#/$defs/s_ab4bbadc09"
           },
           "showing": {
             "description": "Plain words for the header: what is showing",
@@ -91370,9 +91393,12 @@
             "conversation": {
               "address": "maya@example.com",
               "alertOnReplies": true,
+              "bounced": true,
               "campaignId": "cmp_a1b2c3",
               "contactId": "rec_a1b2c3",
               "displayName": "example",
+              "dnd": true,
+              "draftReady": true,
               "followed": true,
               "id": "cnv_a1b2c3",
               "lastChannel": "email",
@@ -91382,8 +91408,10 @@
                 "mbx_a1b2c3"
               ],
               "needsMatch": true,
+              "organisation": "Acme Legal",
               "ownerId": "usr_a1b2c3",
               "starred": true,
+              "unmatched": true,
               "unreadCount": 1
             }
           }
@@ -91413,7 +91441,7 @@
       "name": "inbox.mark_read",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_611f84de8a"
+        "$ref": "#/$defs/s_b628c0cd13"
       },
       "permission": null,
       "resource": {
@@ -91457,9 +91485,12 @@
             "conversation": {
               "address": "maya@example.com",
               "alertOnReplies": true,
+              "bounced": true,
               "campaignId": "cmp_a1b2c3",
               "contactId": "rec_a1b2c3",
               "displayName": "example",
+              "dnd": true,
+              "draftReady": true,
               "followed": true,
               "id": "cnv_a1b2c3",
               "lastChannel": "email",
@@ -91469,8 +91500,10 @@
                 "mbx_a1b2c3"
               ],
               "needsMatch": true,
+              "organisation": "Acme Legal",
               "ownerId": "usr_a1b2c3",
               "starred": true,
+              "unmatched": true,
               "unreadCount": 1
             },
             "undoToken": "example"
@@ -91519,7 +91552,7 @@
       "output": {
         "properties": {
           "conversation": {
-            "$ref": "#/$defs/s_bbe05acc1e"
+            "$ref": "#/$defs/s_323acdeb06"
           },
           "undoToken": {
             "type": "string"
@@ -91573,9 +91606,12 @@
             "conversation": {
               "address": "maya@example.com",
               "alertOnReplies": true,
+              "bounced": true,
               "campaignId": "cmp_a1b2c3",
               "contactId": "rec_a1b2c3",
               "displayName": "example",
+              "dnd": true,
+              "draftReady": true,
               "followed": true,
               "id": "cnv_a1b2c3",
               "lastChannel": "email",
@@ -91585,8 +91621,10 @@
                 "mbx_a1b2c3"
               ],
               "needsMatch": true,
+              "organisation": "Acme Legal",
               "ownerId": "usr_a1b2c3",
               "starred": true,
+              "unmatched": true,
               "unreadCount": 1
             },
             "recordId": "rec_a1b2c3"
@@ -91634,7 +91672,7 @@
       "output": {
         "properties": {
           "conversation": {
-            "$ref": "#/$defs/s_bbe05acc1e"
+            "$ref": "#/$defs/s_323acdeb06"
           },
           "recordId": {
             "examples": [
@@ -91766,9 +91804,12 @@
                 "conversation": {
                   "address": "maya@example.com",
                   "alertOnReplies": true,
+                  "bounced": true,
                   "campaignId": "cmp_a1b2c3",
                   "contactId": "rec_a1b2c3",
                   "displayName": "example",
+                  "dnd": true,
+                  "draftReady": true,
                   "followed": true,
                   "id": "cnv_a1b2c3",
                   "lastChannel": "email",
@@ -91778,8 +91819,10 @@
                     "mbx_a1b2c3"
                   ],
                   "needsMatch": true,
+                  "organisation": "Acme Legal",
                   "ownerId": "usr_a1b2c3",
                   "starred": true,
+                  "unmatched": true,
                   "unreadCount": 1
                 },
                 "suggestions": [
@@ -91825,7 +91868,7 @@
             "items": {
               "properties": {
                 "conversation": {
-                  "$ref": "#/$defs/s_bbe05acc1e"
+                  "$ref": "#/$defs/s_323acdeb06"
                 },
                 "suggestions": {
                   "$ref": "#/$defs/s_11fec22d98"
@@ -92133,9 +92176,12 @@
             "conversation": {
               "address": "maya@example.com",
               "alertOnReplies": true,
+              "bounced": true,
               "campaignId": "cmp_a1b2c3",
               "contactId": "rec_a1b2c3",
               "displayName": "example",
+              "dnd": true,
+              "draftReady": true,
               "followed": true,
               "id": "cnv_a1b2c3",
               "lastChannel": "email",
@@ -92145,8 +92191,10 @@
                 "mbx_a1b2c3"
               ],
               "needsMatch": true,
+              "organisation": "Acme Legal",
               "ownerId": "usr_a1b2c3",
               "starred": true,
+              "unmatched": true,
               "unreadCount": 1
             },
             "items": [
@@ -92210,7 +92258,7 @@
       "output": {
         "properties": {
           "conversation": {
-            "$ref": "#/$defs/s_bbe05acc1e"
+            "$ref": "#/$defs/s_323acdeb06"
           },
           "items": {
             "items": {
@@ -92330,9 +92378,12 @@
             "conversation": {
               "address": "maya@example.com",
               "alertOnReplies": true,
+              "bounced": true,
               "campaignId": "cmp_a1b2c3",
               "contactId": "rec_a1b2c3",
               "displayName": "example",
+              "dnd": true,
+              "draftReady": true,
               "followed": true,
               "id": "cnv_a1b2c3",
               "lastChannel": "email",
@@ -92342,8 +92393,10 @@
                 "mbx_a1b2c3"
               ],
               "needsMatch": true,
+              "organisation": "Acme Legal",
               "ownerId": "usr_a1b2c3",
               "starred": true,
+              "unmatched": true,
               "unreadCount": 1
             }
           }
@@ -92373,7 +92426,7 @@
       "name": "inbox.unmatch",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_611f84de8a"
+        "$ref": "#/$defs/s_b628c0cd13"
       },
       "permission": "records.edit",
       "resource": {
@@ -92415,9 +92468,12 @@
               {
                 "address": "maya@example.com",
                 "alertOnReplies": true,
+                "bounced": true,
                 "campaignId": "cmp_a1b2c3",
                 "contactId": "rec_a1b2c3",
                 "displayName": "example",
+                "dnd": true,
+                "draftReady": true,
                 "followed": true,
                 "id": "cnv_a1b2c3",
                 "lastChannel": "email",
@@ -92427,8 +92483,10 @@
                   "mbx_a1b2c3"
                 ],
                 "needsMatch": true,
+                "organisation": "Acme Legal",
                 "ownerId": "usr_a1b2c3",
                 "starred": true,
+                "unmatched": true,
                 "unreadCount": 1
               }
             ],
@@ -92464,7 +92522,7 @@
             "type": "string"
           },
           "rows": {
-            "$ref": "#/$defs/s_7bc0d5d531"
+            "$ref": "#/$defs/s_ab4bbadc09"
           },
           "total": {
             "type": "integer"
@@ -115969,6 +116027,120 @@
       "v": 1
     },
     {
+      "effects": "write",
+      "emits": [
+        "notification.rules_changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "channels": [
+              "desktop"
+            ],
+            "kind": "approval.requested",
+            "level": "interrupt"
+          },
+          "name": "example",
+          "output": {
+            "channels": [
+              "desktop"
+            ],
+            "kind": "approval.requested",
+            "level": "interrupt"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "channels": {
+            "items": {
+              "enum": [
+                "desktop",
+                "phone",
+                "email"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "type": "array"
+          },
+          "kind": {
+            "$ref": "#/$defs/s_0766030a72"
+          },
+          "level": {
+            "enum": [
+              "interrupt",
+              "badge",
+              "digest"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "notifications",
+      "name": "notifications.kind.set_level",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "channels": {
+            "items": {
+              "enum": [
+                "desktop",
+                "phone",
+                "email"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "$ref": "#/$defs/s_0766030a72"
+          },
+          "level": {
+            "enum": [
+              "interrupt",
+              "badge",
+              "digest"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "level",
+          "channels"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Set how one kind of notification reaches me: its level and which of desktop, phone and email carry it. Give a level, channels, or both; channels alone pick the level (desktop or phone interrupt, otherwise badge). Approval reminders and owned incidents never go below Interrupt",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "meta"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -115986,6 +116158,12 @@
               {
                 "key": "approval.requested",
                 "level": "interrupt",
+                "mine": {
+                  "channels": [
+                    "desktop"
+                  ],
+                  "level": "interrupt"
+                },
                 "place": "home",
                 "respectHours": true,
                 "title": "example"
@@ -116017,6 +116195,34 @@
                     "digest"
                   ],
                   "type": "string"
+                },
+                "mine": {
+                  "properties": {
+                    "channels": {
+                      "items": {
+                        "enum": [
+                          "desktop",
+                          "phone",
+                          "email"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "level": {
+                      "enum": [
+                        "interrupt",
+                        "badge",
+                        "digest"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "level",
+                    "channels"
+                  ],
+                  "type": "object"
                 },
                 "place": {
                   "enum": [
@@ -207146,6 +207352,17 @@
       "title": "Members excluded from the Microsoft connection"
     },
     {
+      "default": false,
+      "key": "notifications.alert_replies",
+      "module": "notifications",
+      "page": "Notifications",
+      "schema": {
+        "type": "boolean"
+      },
+      "scope": "person",
+      "title": "Alert me on replies"
+    },
+    {
       "default": true,
       "key": "notifications.email_backstop",
       "module": "notifications",
@@ -207155,6 +207372,27 @@
       },
       "scope": "person",
       "title": "Email me once if an approval waits 4 hours"
+    },
+    {
+      "default": null,
+      "key": "notifications.hand_needs_you_to",
+      "module": "notifications",
+      "page": "Notifications",
+      "schema": {
+        "anyOf": [
+          {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "scope": "person",
+      "title": "While you are away, hand Needs you to (a person; none leaves it with you)"
     },
     {
       "default": 5,
@@ -207168,6 +207406,61 @@
       },
       "scope": "space",
       "title": "Minutes idle on the computer before pushes go to the phone"
+    },
+    {
+      "default": {
+        "from": "22:00",
+        "needs": true,
+        "on": false,
+        "to": "07:00"
+      },
+      "key": "notifications.quiet_hours",
+      "module": "notifications",
+      "page": "Notifications",
+      "schema": {
+        "properties": {
+          "from": {
+            "examples": [
+              "22:00"
+            ],
+            "pattern": "^[0-2][0-9]:[0-5][0-9]$",
+            "type": "string"
+          },
+          "needs": {
+            "type": "boolean"
+          },
+          "on": {
+            "type": "boolean"
+          },
+          "to": {
+            "examples": [
+              "07:00"
+            ],
+            "pattern": "^[0-2][0-9]:[0-5][0-9]$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "on",
+          "from",
+          "to",
+          "needs"
+        ],
+        "type": "object"
+      },
+      "scope": "person",
+      "title": "Quiet hours: no sounds or pushes between the two times; Needs you may come through"
+    },
+    {
+      "default": false,
+      "key": "notifications.routines_all",
+      "module": "notifications",
+      "page": "Notifications",
+      "schema": {
+        "type": "boolean"
+      },
+      "scope": "person",
+      "title": "Also tell me when routines succeed (failures always)"
     },
     {
       "default": {

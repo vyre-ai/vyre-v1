@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: chat, runs, tasks, vault.
 
-## Capabilities (19)
+## Capabilities (20)
 
 - [notifications.away.clear](../capabilities/notifications.away.clear.md): I'm Back: end away and return what waited
 - [notifications.away.get](../capabilities/notifications.away.get.md): Am I away, until when, and who holds my approvals
@@ -14,6 +14,7 @@ Requires: chat, runs, tasks, vault.
 - [notifications.delegate.resolve](../capabilities/notifications.delegate.resolve.md): Walk a person's delegate chain for an item and return the first holder who can act on it (access evaluated for each)
 - [notifications.delegate.set](../capabilities/notifications.delegate.set.md): Set my standing approvals delegate chain; a delegate never gains access
 - [notifications.digest.collect](../capabilities/notifications.digest.collect.md): Gather digest-level items for a person and period (input to the While you were away digest)
+- [notifications.kind.set_level](../capabilities/notifications.kind.set_level.md): Set how one kind of notification reaches me: its level and which of desktop, phone and email carry it. Give a level, channels, or both; channels alone pick the level (desktop or phone interrupt, otherwise badge). Approval reminders and owned incidents never go below Interrupt
 - [notifications.kinds.list](../capabilities/notifications.kinds.list.md): The notification kinds with level and place, for the settings page
 - [notifications.list](../capabilities/notifications.list.md): My notifications by place and level, newest first
 - [notifications.mark_seen](../capabilities/notifications.mark_seen.md): Mark notifications seen by ids or for a whole place
