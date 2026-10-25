@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import type { TextStyle, ViewStyle } from "react-native";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useScreenQuery, useVaultData } from "../layout/data.tsx";
@@ -44,6 +45,7 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste }: Ad
   const list: Folder[] = folders.status === "ready" ? folders.data.folders.filter((f) => f.yourLevel === "edit" || f.yourLevel === "manage") : [];
   const [folderId, setFolderId] = useState<string | undefined>(lastFolderId);
   const [search, setSearch] = useState("");
+  const [searchFocus, setSearchFocus] = useState(false);
   const [name, setName] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
   const [kind, setKind] = useState<ItemKind>("env");
@@ -148,9 +150,9 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste }: Ad
       </>}
     >
       {menu.element}
-      <View style={s.searchRow}>
+      <View style={[s.searchRow, searchRing(searchFocus)]} testID="add-search-box">
         <Glyph name="search" size={14} />
-        <TextInput value={search} onChangeText={(v) => { if (v.length - search.length > 8 && !/\s/.test(v.trim())) { understand(v); setSearch(""); } else setSearch(v); }} placeholder="Search apps, or paste a key" accessibilityLabel="Search apps" autoFocus style={s.search} testID="add-search"
+        <TextInput value={search} onChangeText={(v) => { if (v.length - search.length > 8 && !/\s/.test(v.trim())) { understand(v); setSearch(""); } else setSearch(v); }} placeholder="Search apps, or paste a key" accessibilityLabel="Search apps" autoFocus onFocus={() => setSearchFocus(true)} onBlur={() => setSearchFocus(false)} style={[s.search, NO_BROWSER_RING]} testID="add-search"
           onSubmitEditing={() => { const first = reel.find((t) => t.id !== "custom"); if (first && search.trim()) applyTemplate(first); }} />
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.reel} testID="add-reel" accessibilityRole="list">
@@ -190,8 +192,16 @@ function rectOf(e: unknown): { x: number; y: number } {
   return box ? { x: box.left, y: box.top - 4 } : { x: ev.nativeEvent?.pageX ?? 0, y: ev.nativeEvent?.pageY ?? 0 };
 }
 
+/** The browser draws its own focus ring on a text field; the search box draws the prototype's quiet ring on the whole box instead (.search3:focus-within). */
+const NO_BROWSER_RING = { outlineStyle: "none", outlineWidth: 0, backgroundColor: "transparent" } as unknown as TextStyle;
+
+/** The ring of the search box: a 1 px line at rest, a 1.5 px accent ring while the field has focus. Plain objects, so the token shows in the element's inline style. */
+export function searchRing(focused: boolean): ViewStyle {
+  return { boxShadow: focused ? "inset 0 0 0 1.5px var(--accent)" : "inset 0 0 0 1px var(--line-2)" } as unknown as ViewStyle;
+}
+
 const s = StyleSheet.create({
-  searchRow: { flexDirection: "row", alignItems: "center", gap: 8, height: 34, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "var(--sel)" as string },
+  searchRow: { flexDirection: "row", alignItems: "center", gap: 8, height: 46, paddingHorizontal: 12, borderRadius: 12 },
   search: { flex: 1, minWidth: 0, color: "var(--ink)" as string, fontSize: 13.5 },
   reel: { gap: 6, paddingVertical: 2 },
   app: { width: 76, alignItems: "center", gap: 5, paddingVertical: 8, borderRadius: 10 },

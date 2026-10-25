@@ -9,6 +9,7 @@ import { createElement, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
+import { Avatar } from "../Avatar/index.tsx";
 import { SlotRow } from "../FolderTree/index.tsx";
 import { MenuIcon, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
@@ -158,19 +159,16 @@ const webProps = (props: Record<string, unknown>): Record<string, unknown> => (P
 const CARD_SHADOW = { boxShadow: "var(--sh-pop)" } as unknown as ViewStyle;
 const CHEVRON = '<svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>';
 
-const hue = (s: string): number => {
-  let h = 0;
-  for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360;
-  return h;
-};
-
 function Tile({ name, kind, size = 22 }: { name: string; kind: ShareSubjectKind; size?: number }): ReactElement {
-  const color = kind === "group" || kind === "role" || kind === "link" ? "var(--ink-3)" : `hsl(${hue(name)} 30% 50%)`;
-  const radius = kind === "agent" ? size * 0.3 : size / 2;
-  const glyph = kind === "link" ? "↗" : kind === "group" ? "··" : kind === "role" ? "R" : name.trim().charAt(0).toUpperCase() || "?";
+  if (kind === "link") return <LinkTile size={size} />;
+  return <Avatar name={name} kind={kind === "group" || kind === "role" ? "group" : kind === "agent" ? "agent" : "person"} size={size} />;
+}
+
+/** The link row's tile: an arrow on the neutral tile. */
+function LinkTile({ size }: { size: number }): ReactElement {
   return (
-    <View style={{ width: size, height: size, borderRadius: radius, backgroundColor: color as string, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ color: "#fff", fontSize: size * 0.42, fontWeight: "600" }}>{glyph}</Text>
+    <View style={{ width: size, height: size, borderRadius: "30%" as unknown as number, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center" }}>
+      <Text style={{ color: "var(--ink-2)" as string, fontSize: size * 0.5, fontWeight: "600" }}>{"↗"}</Text>
     </View>
   );
 }

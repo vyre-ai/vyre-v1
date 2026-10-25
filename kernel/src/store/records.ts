@@ -6,7 +6,7 @@
 // (query.ts), which is exact and bounded in memory, and is what the conformance suite measures.
 import { DatabaseSync } from "node:sqlite";
 import { canonical } from "../../../lib/canonical.ts";
-import { isUuid } from "../../../lib/ids.ts";
+import { isRecordId } from "../../../lib/ids.ts";
 import { sha256Hex } from "../log/hash.ts";
 import type { StoredEvent } from "../log/types.ts";
 import { aggregate as agg, fieldOf, page } from "./query.ts";
@@ -211,7 +211,7 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
     },
     async create(type, id, data) {
       const def = needType(type);
-      if (!isUuid(id)) throw fail("invalid", "id must be a time-prefixed uuid");
+      if (!isRecordId(id)) throw fail("invalid", "id must be a contract record id: rec_ then 32 hex digits");
       if (rowOf(type, id)) throw fail("invalid", `${type} ${id} already exists`);
       validate(def, data as Record<string, unknown>);
       checkUnique(def, data as Record<string, unknown>, null);
