@@ -46,6 +46,7 @@ export function createSampleDeps(o: SampleOptions = {}): SampleRun {
   let online = o.online ?? true;
   let policy = o.policy ?? "on";
   let n = 0;
+  let ids = 0;
   const submitted: SubmitIn[] = [];
   const sentToVyre: string[] = [];
   const deps: ReportDeps = {
@@ -67,7 +68,7 @@ export function createSampleDeps(o: SampleOptions = {}): SampleRun {
     windowSize: () => ({ width: 1280, height: 800 }),
     outbox,
     now: () => Date.UTC(2026, 9, 24, 10, 0),
-    newId: () => `t${n}`,
+    newId: () => `t${ids++}`,
   };
   return { deps, captures, outbox, submitted, sentToVyre, setOnline: (v) => { online = v; }, setPolicy: (v) => { policy = v; } };
 }

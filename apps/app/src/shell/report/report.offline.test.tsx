@@ -1,4 +1,4 @@
-// Path mapping: the packet lists apps/app/tests/report*.test.tsx, outside lane L9a (lanes-check); the tests live beside the code. (runs with the packet)
+// Path mapping: the packet lists apps/app/tests/report*.test.tsx, outside lane L9a (lanes-check); the tests live beside the code.
 // P-L9_16 offline: Send while offline queues reports.submit and sends it on reconnect with the original trace ids.
 import test from "node:test";
 import assert from "node:assert/strict";
