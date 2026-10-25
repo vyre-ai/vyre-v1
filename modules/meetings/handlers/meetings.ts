@@ -307,7 +307,7 @@ export async function schedule(ctx: MeetCtx, input: { title: string; startsAt: n
   }
   let zoom: Json | null = null;
   if (input.provider === "zoom") {
-    zoom = obj(obj(await ctx.call("zoom.meetings.create", { topic: input.title.trim(), startTime: input.startsAt, durationMinutes: Math.max(1, Math.ceil((input.endsAt - input.startsAt) / 60_000)), ...(input.agenda ? { agenda: input.agenda } : {}) })).meeting);
+    zoom = obj(obj(await ctx.call("zoom.meetings.create", { topic: input.title.trim(), startTime: input.startsAt, durationMinutes: Math.max(1, Math.ceil((input.endsAt - input.startsAt) / 60_000)), ...(input.agenda ? { agenda: input.agenda } : {}), idempotencyKey: `${key}:zoom` })).meeting);
     if (!text(zoom["id"]) || !text(zoom["joinUrl"])) throw new Error("zoom.meetings.create answered no meeting");
   }
   const created = obj(obj(await ctx.call("calendar.create_event", {
@@ -336,7 +336,7 @@ export async function cancel(ctx: MeetCtx, input: { meetingId: string }) {
     try { await ctx.call("calendar.delete_event", { eventId }); } catch (e) { if (codeOf(e) !== "validation.not_found") throw e; }
   }
   if (l?.providerRef && l.provider === "zoom") {
-    try { await ctx.call("zoom.meetings.delete", { meetingId: l.providerRef }); } catch (e) { if (codeOf(e) !== "validation.not_found") throw e; }
+    try { await ctx.call("zoom.meetings.delete", { meetingId: l.providerRef, idempotencyKey: `meeting_cancel:${input.meetingId}:zoom` }); } catch (e) { if (codeOf(e) !== "validation.not_found") throw e; }
   }
   await patchMeeting(ctx, input.meetingId, { status: "canceled" });
   ctx.emit("meeting.canceled", `record/${input.meetingId}`, { meetingId: input.meetingId });

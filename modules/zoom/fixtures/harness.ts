@@ -53,6 +53,7 @@ export function harness(o: { noHost?: boolean } = {}) {
   const scripts = new Map<string, Script>();
   let clock = NOW;
   let seq = 0;
+  let fileSeq = 0;   // files and runs are numbered apart, so a test names a file without counting the runs before it
   const err = (code: string, message: string): HostError => fail(code as never, TRACE, { message });
 
   const host: ZoomHost = {
@@ -77,7 +78,7 @@ export function harness(o: { noHost?: boolean } = {}) {
     "files.tree": () => ({ roots: [{ key: "personal", title: "Personal", kind: "folder", folderId: "fld_personal1", count: 0 }] }),
     "files.create": (i) => ({
       file: {
-        fileId: `fil_zrec${++seq}`, folderId: i["folderId"], name: i["name"], kind: i["kind"] ?? "other", mime: i["mime"] ?? "application/octet-stream", size: 5000, version: 1, label: 0, ownerId: MAYA, createdAt: NOW, updatedAt: NOW,
+        fileId: `fil_zrec${++fileSeq}`, folderId: i["folderId"], name: i["name"], kind: i["kind"] ?? "other", mime: i["mime"] ?? "application/octet-stream", size: 5000, version: 1, label: 0, ownerId: MAYA, createdAt: NOW, updatedAt: NOW,
         updatedBy: MAYA, thumb: false, holds: 0,
       },
     }),

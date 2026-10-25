@@ -100,7 +100,7 @@ test("Meet, Teams and uploads attach a file already in Files, with or without a 
   assert.equal(h.named("meeting.recording_attached").length, 1);
   assert.equal(h.named("meeting.transcript_ready").length, 2);
   assert.equal(await refusedWith(m.attachRecording(h.ctx, { meetingId: t, source: "teams", transcriptText: "x".repeat(2_000_001) })), "validation.too_large");
-  assert.equal(h.runs.size >= 3, true);
+  assert.equal(h.runs.size, 2, "one Run for the Meet attach (the repeat reused it) and one for the Teams transcript; the refused oversize transcript started none");
 });
 
 test("Zoom: the recording and the transcript can arrive apart; a repeat of the first changes nothing, the second brings the words", async () => {
