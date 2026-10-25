@@ -54,7 +54,7 @@
     {
       "id": "connectors",
       "owner": "L3",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "console-assistant",
@@ -154,7 +154,7 @@
     {
       "id": "import",
       "owner": "L3",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "inbox",
@@ -239,7 +239,7 @@
     {
       "id": "projects",
       "owner": "L3",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "records",
@@ -274,7 +274,7 @@
     {
       "id": "schema",
       "owner": "L3",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "search",
@@ -294,7 +294,7 @@
     {
       "id": "sources",
       "owner": "L3",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "spaces",

@@ -1,0 +1,266 @@
+{
+  "key": "default",
+  "title": "Default Kit",
+  "version": "1.0.0",
+  "channel": "stable",
+  "description": "What every new Space starts with: the standard rail, a note board, the Everyone defaults and a meeting-ended summary.",
+  "items": [
+    {
+      "key": "rt.note_board",
+      "content": "structure",
+      "type": "record_type",
+      "title": "Note board",
+      "recordType": "note_board",
+      "apply": {
+        "cap": "schema.apply",
+        "input": {
+          "ops": [
+            {
+              "op": "type.create",
+              "type": "note_board",
+              "def": {
+                "title": "Note board",
+                "plural": "Note boards",
+                "icon": "note",
+                "group": "Notes",
+                "label": "internal",
+                "titleField": "title",
+                "fields": [
+                  {
+                    "key": "title",
+                    "type": "text",
+                    "title": "Title",
+                    "required": true
+                  },
+                  {
+                    "key": "body",
+                    "type": "longtext",
+                    "title": "Body"
+                  }
+                ]
+              }
+            }
+          ],
+          "idempotencyKey": "kit.default.rt.note_board",
+          "reason": "Kit install"
+        }
+      },
+      "undo": {
+        "cap": "schema.apply",
+        "input": {
+          "ops": [
+            {
+              "op": "type.drop",
+              "type": "note_board"
+            }
+          ],
+          "confirm": [
+            "note_board"
+          ],
+          "idempotencyKey": "kit.default.rt.note_board.undo",
+          "reason": "Kit rollback"
+        }
+      }
+    },
+    {
+      "key": "ui.layout.note_board",
+      "content": "ui",
+      "type": "layout",
+      "title": "Note board page",
+      "apply": {
+        "cap": "schema.layout.set",
+        "input": {
+          "type": "note_board",
+          "sections": [
+            {
+              "key": "main",
+              "title": "Note",
+              "fields": [
+                "title",
+                "body"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "key": "ui.rail",
+      "content": "ui",
+      "type": "rail",
+      "title": "Standard rail",
+      "apply": {
+        "cap": "settings.set_space",
+        "input": {
+          "key": "kit.default.rail",
+          "value": [
+            "home",
+            "chats",
+            "inbox",
+            "records",
+            "files",
+            "apps",
+            "automations",
+            "vault",
+            "settings"
+          ]
+        }
+      },
+      "undo": {
+        "cap": "settings.reset_space",
+        "input": {
+          "key": "kit.default.rail"
+        }
+      }
+    },
+    {
+      "key": "ui.tokens",
+      "content": "ui",
+      "type": "tokens",
+      "title": "Paper skin by default",
+      "apply": {
+        "cap": "settings.set_space",
+        "input": {
+          "key": "space.skin_default",
+          "value": "paper"
+        }
+      },
+      "undo": {
+        "cap": "settings.reset_space",
+        "input": {
+          "key": "space.skin_default"
+        }
+      }
+    },
+    {
+      "key": "access.everyone",
+      "content": "structure",
+      "type": "group_defaults",
+      "title": "Everyone can see and edit note boards",
+      "apply": {
+        "cap": "access.groups.defaults_set",
+        "input": {
+          "grants": [
+            {
+              "resource": {
+                "type": "record_type",
+                "id": "note_board"
+              },
+              "level": "edit"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "key": "auto.meeting_ended",
+      "content": "steps",
+      "type": "automation",
+      "title": "Meeting ended: write the summary once the transcript is ready",
+      "apply": {
+        "cap": "automations.create",
+        "input": {
+          "name": "Meeting ended",
+          "description": "When a meeting has its transcript, writes the summary and decisions and asks the owner to review them.",
+          "idempotencyKey": "kit.default.auto.meeting_ended",
+          "definition": {
+            "triggers": [
+              {
+                "key": "meeting_transcript_ready"
+              }
+            ],
+            "nodes": [
+              {
+                "id": "summarise",
+                "key": "ai",
+                "title": "Summarise the meeting",
+                "input": {
+                  "prompt": "Write a short summary and the decisions of the meeting from its transcript."
+                },
+                "next": [
+                  "review"
+                ]
+              },
+              {
+                "id": "review",
+                "key": "create_task",
+                "title": "Review the summary",
+                "input": {
+                  "kind": "review",
+                  "title": "Review the summary of {{trigger.meetingId}}",
+                  "recordId": "{{trigger.meetingId}}",
+                  "assigned": {
+                    "kind": "role",
+                    "id": "owner"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "tools": [
+        "records.update",
+        "tasks.create"
+      ]
+    },
+    {
+      "key": "agent.assistant",
+      "content": "tools",
+      "type": "agent",
+      "title": "Assistant",
+      "tools": [
+        "records.query",
+        "records.create",
+        "records.update",
+        "files.read"
+      ],
+      "apply": {
+        "cap": "agents.create",
+        "input": {
+          "name": "Assistant",
+          "role": "Your assistant",
+          "idempotencyKey": "kit.default.agent.assistant"
+        }
+      }
+    }
+  ],
+  "tests": [
+    {
+      "name": "the note board exists after install, with its page layout and the standard rail",
+      "kind": "space",
+      "expect": {
+        "events": [
+          {
+            "name": "schema.changed"
+          },
+          {
+            "name": "settings.changed"
+          }
+        ],
+        "views": [
+          {
+            "cap": "schema.types.list",
+            "contains": {
+              "key": "note_board"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "the meeting-ended Automation and the Assistant are created",
+      "kind": "space",
+      "expect": {
+        "events": [
+          {
+            "name": "automation.created"
+          },
+          {
+            "name": "agent.created"
+          }
+        ]
+      }
+    }
+  ]
+}

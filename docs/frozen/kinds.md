@@ -2,7 +2,7 @@
 
 Freeze review E (P-PR_38). This records the extension kind tables and one example of each kind.
 
-The source is the committed registry `generated/registry.json` (hash `1c3af69e0b6a3efb5cb4e417996c28265cdf4d11461fe0b1a91f6ad9f59c7493`). `generated/kinds.ts` re-exports gate acts, task kinds, notification kinds, health checks, retention, settings, import sources, blocks and lists. Steps, triggers and connectors sit on the same registry (ARCH 3.4). The review reads those three from `generated/registry.ts`.
+The source is the committed registry `generated/registry.json` (hash `c926ab4e37f49f808e73e8c5b2fe709f33c050fbd4d22d27589fbade117200b4`). `generated/kinds.ts` re-exports gate acts, task kinds, notification kinds, health checks, retention, settings, import sources, blocks and lists. Steps, triggers and connectors sit on the same registry (ARCH 3.4). The review reads those three from `generated/registry.ts`.
 
 Spec 2.14 is the gate act table. Spec 2.24 is the three notification levels. Spec 4.18 is the health checks (each has a next step) and the logs retention window. Spec 5 names backups and report-a-problem, which show up here as the `backups` retention class and the `problem.report` notification. Spec b9 (one API, toolsets, and the replay sandbox) shows up as step samples, which a replay can show, and as each connector naming a health check. ARCH 3.5 covers blocks, health checks, gate acts, task kinds and notification kinds.
 
@@ -34,7 +34,7 @@ Spec 2.14 is the gate act table. Spec 2.24 is the three notification levels. Spe
 | Notification kinds | notificationKinds | 23 | notifications |
 | Health checks | healthChecks | 47 | one module each |
 | Retention classes | retention | 10 | governance |
-| Settings | settings | 89 | the module that owns the row |
+| Settings | settings | 92 | the module that owns the row |
 | Import sources | importSources | 9 | import, vault |
 | Blocks | blocks | 22 | the module that renders the block |
 | Lists | lists | 10 | the module that owns the list |
@@ -361,8 +361,11 @@ Example: `mail.send_window`.
 |---|---|---|---|---|
 | access.review_every_days | access | space | console.access | 90 |
 | agents.template_mode | agents | space | Policies | suggest |
+| appearance.density | settings | person | appearance | comfortable |
 | appearance.mode | settings | person | appearance | system |
+| appearance.reduce_motion | settings | person | appearance | false |
 | appearance.skin | settings | person | appearance | classic |
+| appearance.text_size | settings | person | appearance | 100 |
 | automations.default_error_alert | automations | space | Automations | {"when":"every","where":"needs_you"} |
 | automations.max_chain_depth | automations | space | Automations | 8 |
 | automations.run_automations_on_import | automations | space | Automations | false |

@@ -1,4 +1,5 @@
 // The shell's whole surface to the page (window.__TAURI__.core.invoke). Two commands, one event per kind:
+//   notify, pick_paths, set_badge   the native features (native.rs)
 //   desktop_info()        platform, app version and the sidecar status (address once it answers /healthz)
 //   take_pending_link()   a Vyre link that arrived before the page was listening, once
 //   page_report(kind, text)  what the shell's own load hook (lib.rs PAGE_PROBE) tells us: script errors and the rendered size, to the log only
@@ -17,6 +18,7 @@ pub struct AppState {
     pub sidecar: Shared,
     pub pending: Mutex<Option<DeepLink>>,
     pub page_listening: AtomicBool,
+    pub native: crate::native::NativeState,
 }
 
 #[derive(Serialize)]
