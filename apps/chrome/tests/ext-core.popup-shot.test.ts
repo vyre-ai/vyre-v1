@@ -125,7 +125,8 @@ test("the popup and the save card in a real Chrome, paper and graphite", { skip:
       await p2.goto(`${srv.url}/popup.html?skin=${skin}`);
       await p2.waitForSelector("#note:not([hidden])");
       assert.match(await p2.textContent("#note") ?? "", /not installed/);
-      assert.equal(await p2.evaluate(() => (document.getElementById("web") as HTMLElement).hidden), false);
+      assert.equal(await p2.textContent("#note button"), "Open the web app");
+      assert.equal(await p2.$("#web"), null, "one link, not two");
       await p2.screenshot({ path: path.join(OUT, `popup-no-app-${skin}.png`), fullPage: true });
       await c2.close();
 

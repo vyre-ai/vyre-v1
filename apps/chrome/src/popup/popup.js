@@ -83,7 +83,6 @@ function render() {
   });
   $("logins").hidden = v.rows.length === 0;
   if (v.note) showNote(v.note.text, v.note.action ?? null); else $("note").hidden = true;
-  $("web").hidden = !v.showWeb;
   /** @type {HTMLInputElement} */ ($("q")).disabled = !v.canAsk;
   $("face-letter").textContent = agent ? (agent.name[0] || "V").toUpperCase() : "V";
 }
@@ -201,7 +200,6 @@ $("ask").addEventListener("submit", async (e) => {
 });
 
 $("vault").addEventListener("click", async () => { await ask({ type: "popup.openVault" }); window.close(); });
-$("web").addEventListener("click", async () => { await ask({ type: "popup.openWeb" }); window.close(); });
 
 document.addEventListener("keydown", (e) => {
   const where = { inInput: e.target instanceof HTMLInputElement, menuOpen: !menu.hidden };

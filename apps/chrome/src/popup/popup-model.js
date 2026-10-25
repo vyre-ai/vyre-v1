@@ -15,7 +15,7 @@ export function letterOf(name) {
 
 /**
  * @param {any} state the worker's popup.state data
- * @returns {{ spaceName: string, site: string, rows: { id: string, name: string, letter: string, trail: string, kind: string }[], note: Note | null, showWeb: boolean, canAsk: boolean, canFill: boolean }}
+ * @returns {{ spaceName: string, site: string, rows: { id: string, name: string, letter: string, trail: string, kind: string }[], note: Note | null, canAsk: boolean, canFill: boolean }}
  */
 export function viewOf(state) {
   const active = (state.spaces || []).find((/** @type {any} */ s) => s.id === state.active);
@@ -23,11 +23,12 @@ export function viewOf(state) {
   const site = state.page ? state.page.host : "";
   /** @type {Note | null} */
   let note = null;
-  let showWeb = false;
   let canFill = false;
   if (state.status === "no_host" || state.status === "offline") {
-    note = { kind: "warn", text: state.error && state.error.message ? state.error.message : "The Vyre app is not running.", action: { id: "openWeb", label: "Open the web app" } };
-    showWeb = (state.spaces || []).some((/** @type {any} */ s) => s.webUrl);
+    const web = (state.spaces || []).some((/** @type {any} */ s) => s.webUrl);
+    note = { kind: "warn", text: state.error && state.error.message ? state.error.message : "The Vyre app is not running." };
+    // The way forward sits in the note itself; a second link in the footer would say the same thing twice.
+    if (web) note.action = { id: "openWeb", label: "Open the web app" };
   } else if (state.error && state.error.code === "locked") {
     note = { kind: "warn", text: state.error.message };
   } else if (!state.page) {
@@ -42,7 +43,7 @@ export function viewOf(state) {
     canFill = true;
   }
   const rows = canFill ? state.rows.map((/** @type {LoginRow} */ r) => ({ id: r.id, name: r.name, letter: letterOf(r.name), trail: r.kind === "totp" ? "Code" : "", kind: r.kind })) : [];
-  return { spaceName, site, rows, note, showWeb, canAsk: state.status === "online" && Boolean(state.page), canFill };
+  return { spaceName, site, rows, note, canAsk: state.status === "online" && Boolean(state.page), canFill };
 }
 
 /**

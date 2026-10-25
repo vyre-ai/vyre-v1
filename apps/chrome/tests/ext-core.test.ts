@@ -342,8 +342,9 @@ test("each state has its own words and way forward", () => {
   assert.match(viewOf({ ...base, page: { ...base.page, secure: false } }).note!.text, /not secure/);
   const none = viewOf({ ...base, status: "no_host", error: { code: "no_host", message: "Vyre is not installed on this computer." }, rows: [] });
   assert.equal(none.note!.action!.id, "openWeb");
-  assert.equal(none.showWeb, true);
   assert.equal(none.canAsk, false);
+  const noWeb = viewOf({ ...base, spaces: [{ id: "a", name: "Acme Law", webUrl: "" }], status: "offline", error: { code: "offline", message: "The Vyre app is not running. Open it and try again." }, rows: [] });
+  assert.equal(noWeb.note!.action, undefined, "no web address known, so no link to offer");
   assert.equal(viewOf({ ...base, error: { code: "locked", message: "Your vault is locked." }, rows: [] }).note!.text, "Your vault is locked.");
 });
 
