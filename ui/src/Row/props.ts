@@ -10,6 +10,8 @@ export interface RowProps {
   note?: string;
   /** Accent-coloured lead-in before the note on the same line (Draft ready, Waiting on you). Shown only with a note. */
   noteLead?: string;
+  /** Colour of the lead-in: the accent (default) or the warning colour ("Unsure match"). */
+  noteLeadTone?: "accent" | "warning";
   selected?: boolean;
   hovered?: boolean;
   /** Muted text after the title on the same line (an org next to a name). Truncates before the title does. */

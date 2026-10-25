@@ -93,3 +93,15 @@ test("titleMarks draw after the title and the suffix on the title line; rows wit
   assert.ok(!plain.includes("-marks"));
   assert.equal(rowHeight(), ROW_HEIGHT, "heights are unchanged");
 });
+
+test("noteLeadTone picks the lead-in colour: accent by default, warning on request; the note keeps its own colour", () => {
+  const accent = renderToStaticMarkup(<Row id="a" title="Rivera" note="Maya Chen at Northwind" noteLead="Draft ready" />);
+  const warn = renderToStaticMarkup(<Row id="a" title="Rivera" note="Maya Chen at Northwind" noteLead="Unsure match" noteLeadTone="warning" />);
+  const explicit = renderToStaticMarkup(<Row id="a" title="Rivera" note="n" noteLead="Draft ready" noteLeadTone="accent" />);
+  assert.match(accent, /color:var\(--accent\)/);
+  assert.ok(!accent.includes("var(--warn)"), "the default is not the warning colour");
+  assert.match(warn, /color:var\(--warn\)/);
+  assert.ok(!warn.includes("color:var(--accent)"), "warning replaces the accent");
+  assert.match(explicit, /color:var\(--accent\)/);
+  assert.ok(warn.includes("Unsure match") && warn.includes("Maya Chen at Northwind"));
+});

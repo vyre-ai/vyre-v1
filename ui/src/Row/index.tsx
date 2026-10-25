@@ -18,7 +18,7 @@ export function rowHeight(note?: string, tall = false): number {
   return note ? ROW_HEIGHT_WITH_NOTE : ROW_HEIGHT;
 }
 
-export const Row = memo(function Row({ id, title, titleSuffix, titleMarks, noteLead, tall = false, emphasis = false, note, selected = false, hovered = false, leading, trailing, onPress }: RowProps) {
+export const Row = memo(function Row({ id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "accent", tall = false, emphasis = false, note, selected = false, hovered = false, leading, trailing, onPress }: RowProps) {
   const [over, setOver] = useState(false);
   const lit = hovered || over;
   return (
@@ -43,7 +43,7 @@ export const Row = memo(function Row({ id, title, titleSuffix, titleMarks, noteL
         ) : <Text numberOfLines={1} style={[styles.title, emphasis && BOLD]}>{title}</Text>}
         {note ? (
           <Text numberOfLines={tall ? 2 : 1} style={styles.note}>
-            {noteLead ? <Text testID={id ? `row-${id}-notelead` : undefined} style={NOTE_LEAD}>{`${noteLead} `}</Text> : null}
+            {noteLead ? <Text testID={id ? `row-${id}-notelead` : undefined} style={noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD}>{`${noteLead} `}</Text> : null}
             {note}
           </Text>
         ) : null}
@@ -56,6 +56,7 @@ export const Row = memo(function Row({ id, title, titleSuffix, titleMarks, noteL
 // Plain objects (not StyleSheet ids) so the painted token is visible in the element's inline style.
 const HOVER = { backgroundColor: "var(--hover)" };
 const NOTE_LEAD = { color: "var(--accent)", fontWeight: "500" as const };
+const NOTE_LEAD_WARN = { color: "var(--warn)", fontWeight: "500" as const };
 const BOLD = { fontWeight: "600" as const };
 const SELECTED = { backgroundColor: "var(--sel)" };
 
