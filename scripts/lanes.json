@@ -191,6 +191,8 @@
       "id": "L7b",
       "name": "Server and Console",
       "owns": [
+        "scripts/shots/mounts/P-L7b_11.tsx",
+        "scripts/shots/targets/P-L7b_11.json",
         "apps/console/",
         "host/src/",
         "images/vyred/",
@@ -221,14 +223,12 @@
       "owns": [
         "images/site-builders/",
         "images/documenso/",
-        "kits/",
         "apps/forms-embed/",
         "relay/warmup/",
         "modules/sites/",
         "modules/forms/",
         "modules/campaigns/",
         "modules/templates/",
-        "modules/kits/",
         "modules/esign/",
         "modules/portal/",
         "modules/email-builder-api/",
@@ -348,6 +348,8 @@
       "id": "L10",
       "name": "Edges",
       "owns": [
+        "kits/",
+        "modules/kits/",
         "apps/chrome/",
         "apps/desktop/",
         "apps/reports/",
