@@ -56932,8 +56932,6 @@ textarea.inp { height: auto; min-height: 150px; padding: 11px 12px; line-height:
     { const cid = (x) =&gt; (x === "reactivate" ? "react" : x), c1 = arg("campaign"), c2 = arg("recipients"), m1 = arg("mailbox"); let h = null;
       if (c1) h = "campaign:" + cid(c1); else if (c2) h = "campaign:" + cid(c2) + "/recipients"; else if (m1) h = "sending/mailbox:" + m1;
       else if (has("recipients")) h = "campaign:q4/recipients"; else if (has("email")) h = "campaign:q4/email"; else if (has("paths-camp")) h = "campaign:q4/step"; else if (has("sending")) h = "sending/mailbox:mb2"; else if (has("launch")) h = "campaign:react/launch"; else if (has("campaigns") || has("campaign")) h = "campaigns";
-      const EMT = ["email-html", "email-plain", "email-focus", "email-ask", "email-preview", "email-checks"].find(has);
-      if (EMT) { h = "campaign:q4/email"; setTimeout(() =&gt; { const q = (x) =&gt; document.querySelector(x); const tab = (n) =&gt; { const b = [...document.querySelectorAll(".vy-em-pane button, .vy-em-pane [role=tab]")].find((y) =&gt; y.textContent.trim() === n); if (b) b.click(); }; if (EMT === "email-html") q('[data-mode="html"]').click(); else if (EMT === "email-plain") q('[data-mode="text"]').click(); else if (EMT === "email-focus") q('[data-a="focus"]').click(); else tab({ "email-ask": "Ask", "email-preview": "Preview", "email-checks": "Checks" }[EMT]); }, 1500); }
       if (h) { setTimeout(() =&gt; toApps(h), 60); } }
     if (has("jview")) { designerOn = false; ui.sTab = "jour"; ui.tabs = ["j:onb"]; ui.active = "j:onb"; }
     if (has("empty")) { ui.space = "Irfad"; ui.tabs = []; ui.active = null; }
@@ -70882,7 +70880,7 @@ const status = (t) =&gt; Apps.status(t);
         else if (t === "pane") ui.pane = true;
         else if (t === "step" &amp;&amp; id) { const f = flatSteps(aOf(id))[0]; if (f) ui.selStep[id] = f.id; ui.pane = true; }
         else if (t.startsWith("mailbox:") &amp;&amp; key === "sending") { const m = t.slice(8); ui.pt.push("mb:" + m); ui.pact = "mb:" + m; ui.pane = true; }
-        else if (/^email(edit|html|focus|preview|checks|ask)$/.test(t) &amp;&amp; id) { const ek = "em:" + id + ":" + campEmails(aOf(id))[0].id; delete EMS[ek]; ui.emInit = { [ek]: { edit: {}, html: { mode: "html" }, focus: { focus: true, tab: "style" }, preview: { tab: "preview" }, checks: { tab: "checks" }, ask: { ask: { agent: "Assistant", text: "Make it warmer and shorter, then add a P.S." }, instant: true } }[t.slice(5)] }; if (t === "emailedit") ui.emInit[ek].select = "button"; if (!ui.tabs.includes(ek)) ui.tabs.push(ek); ui.active = ek; }
+        else if (/^email(edit|html|plain|focus|preview|checks|ask)$/.test(t) &amp;&amp; id) { const ek = "em:" + id + ":" + campEmails(aOf(id))[0].id; delete EMS[ek]; ui.emInit = { [ek]: { edit: {}, html: { mode: "html" }, plain: { mode: "text" }, focus: { focus: true, tab: "style" }, preview: { tab: "preview" }, checks: { tab: "checks" }, ask: { ask: { agent: "Assistant", text: "Make it warmer and shorter, then add a P.S." }, instant: true } }[t.slice(5)] }; if (t === "emailedit") ui.emInit[ek].select = "button"; if (!ui.tabs.includes(ek)) ui.tabs.push(ek); ui.active = ek; }
         else if (t === "email" &amp;&amp; id) { const f = flatSteps(aOf(id)).find((s) =&gt; s.kind === "email"); if (f) ui.selStep[id] = f.id; ui.pane = true; }
       });
       renderAll();
