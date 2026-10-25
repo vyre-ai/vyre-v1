@@ -172,3 +172,15 @@ test("epochs: a person bump and a Space key rotation count up on their own", asy
     { scope: "space", epoch: 1, reason: "key_rotation" },
   ]);
 });
+
+test("revoking a device tells sync with device_revoked and that device, once per device; a plain member may do it for their own", async () => {
+  const { h, mac, phone } = await world();
+  const calls: { cap: string; input: unknown }[] = [];
+  const ctx = { ...h.as(MAYA.id, { device: phone.device.id }), call: (cap: string, input: unknown) => { calls.push({ cap, input }); return Promise.resolve({ epoch: 1 }); } };
+  await handlers["devices.revoke"](ctx as never, { deviceId: mac.device.id });
+  assert.deepEqual(calls, [{ cap: "sync.epoch.bump", input: { personId: "usr_maya", reason: "device_revoked", deviceId: mac.device.id } }]);
+  calls.length = 0;
+  const third = await handlers["devices.register"](h.system(), { person: "usr_maya", name: "Third", class: "web" });
+  await handlers["devices.revoke_others"](ctx as never, {});
+  assert.deepEqual(calls.map((c) => (c.input as { deviceId: string }).deviceId), [third.device.id], "revoke_others bumps for each device it revokes, not for the current one or an already revoked one");
+});
