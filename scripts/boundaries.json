@@ -203,7 +203,8 @@
     "dynamicOk": [
       "ui/src/theme/theme.firstframe.test.ts",
       "host/src/loader.ts",
-      "agent/tests/sandbox.heavy.test.ts"
+      "agent/tests/sandbox.heavy.test.ts",
+  "agent/tests/sandbox.net.heavy.test.ts"
     ],
     "ignoreImports": [
       "manifest/gen/scaffold/index.ts"
