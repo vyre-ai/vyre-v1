@@ -36,10 +36,4 @@ export async function eachId(call: Call, cap: "records.delete" | "records.restor
   return { done, failed };
 }
 
-/** The filter that exports exactly the picked rows: the view's own filter and the ids. */
-export function pickedFilter(viewFilter: unknown, ids: readonly string[]): unknown {
-  const pick = { field: "id", op: "in", value: [...ids] };
-  return viewFilter === undefined ? pick : { and: [viewFilter, pick] };
-}
-
 export const recordsWord = (n: number, one: string, many: string): string => `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;

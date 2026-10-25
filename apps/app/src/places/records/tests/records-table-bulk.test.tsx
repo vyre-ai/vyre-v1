@@ -3,7 +3,7 @@
 // through the data layer's `call`, as the table does.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CHUNK, allIds, chunks, eachId, pickedFilter, recordsWord } from "../table/bulk.ts";
+import { CHUNK, allIds, chunks, eachId, recordsWord } from "../table/bulk.ts";
 import { createSampleRecords, northwind } from "../table/sample.ts";
 
 test("chunks cut a list in order and never loop forever", () => {
@@ -50,18 +50,6 @@ test("one failed id is counted and the rest still go", async () => {
   const s = createSampleRecords(northwind);
   const r = await eachId(s.data.call, "records.delete", "clients", ["cl_0", "nope", "cl_1"], () => undefined);
   assert.deepEqual(r, { done: 2, failed: 1 });
-});
-
-test("export of a pick is the view's filter and the picked ids; with no pick it is the view's filter", () => {
-  assert.deepEqual(pickedFilter(undefined, ["a", "b"]), { field: "id", op: "in", value: ["a", "b"] });
-  const view = { field: "status", op: "eq", value: "active" };
-  assert.deepEqual(pickedFilter(view, ["a"]), { and: [view, { field: "id", op: "in", value: ["a"] }] });
-});
-
-test("the sample understands an id filter, so an export of picked rows is exactly those rows", () => {
-  const s = createSampleRecords(northwind);
-  const out = s.replica.run("records.query", { type: "clients", filter: { field: "id", op: "in", value: ["cl_2", "cl_5"] } }) as { data: { rows: { id: string }[] } };
-  assert.deepEqual(out.data.rows.map((r) => r.id).sort(), ["cl_2", "cl_5"]);
 });
 
 test("counts read in words", () => {

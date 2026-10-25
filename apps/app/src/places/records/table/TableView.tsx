@@ -21,7 +21,7 @@ import {
   FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, SCROLL_BLOCK, chosen, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, groupable, hasOptions,
   hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, setSort, sortable, toSaved, toggleHidden, toggleOption, totalWidth,
 } from "./model.ts";
-import { allIds, eachId, pickedFilter, recordsWord } from "./bulk.ts";
+import { allIds, eachId, recordsWord } from "./bulk.ts";
 import { NO_PICK, isPickedRow, pickCount, toggleHeader, togglePick } from "./model.ts";
 import type { Column, FieldDef, Pick, RecordRow, TableViewState, TypeDef } from "./model.ts";
 
@@ -375,13 +375,14 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
     const n = every ? (count ?? 0) : ids.length;
     const out: MenuEntry[] = [];
     if (!every && ids.length === 1) out.push({ label: "Open", onSelect: () => data.nav.openRecord(ids[0] as string) });
-    out.push({
-      label: every || ids.length > 1 ? "Export picked as CSV" : ids.length === 1 ? "Export this record as CSV" : "Export the view as CSV",
-      onSelect: () => {
-        const filter = every || ids.length === 0 ? viewFilter : pickedFilter(viewFilter, ids);
-        void data.call("records.export", { type, format: "csv", ...(filter === undefined ? {} : { filter }), ...(v.sort.length ? { sort: v.sort.map((x) => ({ ...x })) } : {}) });
-      },
-    });
+    // records.query and records.export take a filter that is opaque JSON over the type's own fields: there is no "id in [...]" form in manifests/records.ts, so a hand-picked set cannot be
+    // exported yet (contract request to the lead). Everything else exports the view's rows: Select all N, and a menu opened with nothing picked.
+    if (every || ids.length === 0) {
+      out.push({
+        label: "Export as CSV",
+        onSelect: () => { void data.call("records.export", { type, format: "csv", ...(viewFilter === undefined ? {} : { filter: viewFilter }), ...(v.sort.length ? { sort: v.sort.map((x) => ({ ...x })) } : {}) }); },
+      });
+    }
     out.push({ separator: true });
     out.push({ label: n === 1 ? "Delete" : `Delete ${n.toLocaleString("en-US")} records`, danger: true, onSelect: () => setWork({ kind: "confirm", ids, every, n }) });
     return out;

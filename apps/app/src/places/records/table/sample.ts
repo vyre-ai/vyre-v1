@@ -178,7 +178,7 @@ function matches(r: RecordRow, c: Clause | undefined): boolean {
   if (!c) return true;
   if (c.and) return c.and.every((x) => matches(r, x));
   if (c.or) return c.or.some((x) => matches(r, x));
-  const v = c.field === "id" ? r.id : r.fields[c.field ?? ""];
+  const v = r.fields[c.field ?? ""];
   switch (c.op) {
     case "eq": return v === c.value;
     case "ne": return v !== c.value;
