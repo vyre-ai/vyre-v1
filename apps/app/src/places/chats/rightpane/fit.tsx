@@ -1,6 +1,6 @@
 // The one overflow tab strip logic, shared by the Chats right pane and the agent page: fit what the width allows, fold the rest behind a More tab, open its menu.
 // The strip itself is ui/TabStrip (the pane draws it through ui/SidePane); only the choice of tabs and the More menu live here, so the two places cannot drift.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -13,7 +13,11 @@ export function useTitleWidths(): { widths: ReadonlyMap<string, number>; set(tit
 }
 
 /** The hidden row that measures tab titles at the strip's 12.5 px type; it takes no room and takes no touches. */
-export function TabMeasure({ titles, onWidth }: { titles: readonly string[]; onWidth(title: string, w: number): void }): ReactElement {
+export function TabMeasure({ titles, onWidth }: { titles: readonly string[]; onWidth(title: string, w: number): void }): ReactElement | null {
+  // Drawn after mount only: the static export and server render keep the model's estimate and carry no hidden copy of the titles.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
   const items: ReactElement[] = [];
   for (const t of titles) items.push(<Text key={t} testID={`measure-${t}`} numberOfLines={1} onLayout={(e) => onWidth(t, Math.ceil(e.nativeEvent.layout.width))} style={ms.text}>{t}</Text>);
   return <View pointerEvents="none" aria-hidden style={ms.row}>{items}</View>;

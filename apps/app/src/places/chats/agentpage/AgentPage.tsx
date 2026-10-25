@@ -19,7 +19,7 @@ import type { PageDeps } from "./actions.ts";
 import { AgentPageDataProvider, paneDataOf, useAgentPageData, useOnline, useOptionalAgentPageData, useScreenQuery } from "./data.tsx";
 import type { AgentPageData } from "./data.tsx";
 import { ChatsTab } from "./ChatsTab.tsx";
-import { TabMeasure, useFittedTabs, useTitleWidths } from "../rightpane/fit.tsxx";
+import { TabMeasure, useFittedTabs, useTitleWidths } from "../rightpane/fit.tsx";
 import { RoleLine } from "./RoleLine.tsx";
 import { SettingsTab } from "./SettingsTab.tsx";
 import { DEFAULT_TAB, TABS, collect, spendRatio, statusLine, stripOf } from "./model.ts";
