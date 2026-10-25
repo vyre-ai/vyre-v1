@@ -7,7 +7,7 @@ import { createLocalKeyRoute } from "../src/routes/local-key.ts";
 
 async function rig(allowed: (p: string) => boolean = () => true) {
   const keyring = createKeyring({ allowed });
-  const route = createLocalKeyRoute({ person: (h) => (h["authorization"] === "Bearer tok-a" ? "usr_a" : null), keyring, allowed });
+  const route = createLocalKeyRoute({ caller: (h) => (h["authorization"] === "Bearer tok-a" ? { person: "usr_a", sessionId: "ses_a" } : null), keyring, allowed });
   const server = http.createServer((req, res) => { if (!route.handle(req, res)) { res.writeHead(404); res.end(); } });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const port = (server.address() as { port: number }).port;
@@ -45,7 +45,7 @@ test("a request that is not plainly local is refused: a proxy header, a Host tha
   } finally { r.close(); }
 });
 
-test("no token is 401, a node that is not the person's own is 403, a bad key is 400, a GET is 405, and the key is never in an answer", async () => {
+test("no token is 401, a node that is not the person's own is 403, a bad key is 422, a GET is 405, and the key is never in an answer", async () => {
   const r = await rig((p) => p !== "usr_a");
   try {
     assert.equal((await r.call("/local/vault/key/unlock", { headers: { authorization: "Bearer nope" }, body: { key: B64 } })).status, 401);
@@ -55,8 +55,8 @@ test("no token is 401, a node that is not the person's own is 403, a bad key is 
   } finally { r.close(); }
   const own = await rig();
   try {
-    assert.equal((await own.call("/local/vault/key/unlock", { body: { key: "AAAA" } })).status, 400);
-    assert.equal((await own.call("/local/vault/key/unlock", { body: {} })).status, 400);
+    assert.equal((await own.call("/local/vault/key/unlock", { body: { key: "AAAA" } })).status, 422);
+    assert.equal((await own.call("/local/vault/key/unlock", { body: {} })).status, 422);
     assert.equal((await own.call("/local/vault/key/unlock", { method: "GET" })).status, 405);
     assert.equal((await own.call("/other")).status, 404);
   } finally { own.close(); }

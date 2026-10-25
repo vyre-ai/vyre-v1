@@ -19,6 +19,7 @@ import { startDaemon } from "../../../host/src/daemon/daemon.ts";
 import type { Daemon } from "../../../host/src/daemon/daemon.ts";
 import type { NewEvent } from "../../../kernel/src/log/types.ts";
 import { LogStore } from "../../../kernel/src/log/store.ts";
+import { fillAccessTables } from "../core/access.ts";
 import { CORE_SOURCES, CORE_SPACE, PEOPLE, REPO, bootCore, cacheDir, registryHash, templateKey } from "../core/index.ts";
 import { SMALL_TARGET } from "./recipe.ts";
 
@@ -79,6 +80,7 @@ export function extraEvents(): NewEvent[] {
   const out: NewEvent[] = [];
   let n = 0;
   for (const type of ["contact", "company"]) out.push(resource(++n, type, "record_type"));
+  for (const id of ["agt_scout", "agt_helper"]) out.push(resource(++n, id, "agent"));
   for (let i = 1; i < SMALL_TARGET.channels; i++) out.push(resource(++n, `chn_s${String(i).padStart(2, "0")}`, "channel"));
   return out;
 }
@@ -146,6 +148,14 @@ async function build(into: string): Promise<void> {
     for (const r of store.appendBatch(more)) if (!r.ok) throw new Error(`seed event refused: ${r.message}`);
     store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
     store.close();
+  }
+  {
+    const log = new DatabaseSync(path.join(into, "events.db"), { readOnly: true });
+    const events = (log.prepare("SELECT event, payload FROM events ORDER BY seq").all() as { event: string; payload: Uint8Array }[]).map((r) => ({ type: (JSON.parse(r.event) as { type: string }).type, payload: r.payload }));
+    log.close();
+    const mod = new DatabaseSync(path.join(into, "modules.db"));
+    fillAccessTables({ run: (sql, ...args) => mod.prepare(sql).run(...(args as never[])) }, events);
+    mod.close();
   }
   fs.writeFileSync(path.join(into, "small.json"), JSON.stringify({ gaps, agentsByModule: madeByModule }));
   for (const f of ["modules.db", "events.db", "space.db"]) {

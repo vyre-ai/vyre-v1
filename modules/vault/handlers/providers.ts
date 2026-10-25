@@ -4,7 +4,7 @@
 // ever sees the key for that one call.
 // DECISION: a Shared provider is an API key or a local model; a subscription sign-in is Mine for ever (the kind cannot be shared). The Space may use a Mine provider only when its owner says so.
 import { fail } from "../../../host/src/routes/errors.ts";
-import { foldersCreate, itemDelete, itemPut, openFields } from "./items.ts";
+import { itemDelete, itemPut, openFields } from "./items.ts";
 import { atLeast, bad, denied, ensure, first, isId, levelOn, newId, num, rowsOf, statements, str } from "../projections.ts";
 import type { Row, VaultCtx } from "../projections.ts";
 import { hostOf } from "./use.ts";
@@ -28,7 +28,7 @@ export const CATALOG: readonly CatalogEntry[] = [
 const entry = (key: unknown): CatalogEntry | undefined => CATALOG.find((c) => c.key === key);
 
 /** What the host does with a key to see whether the provider takes it (omitted: the module cannot say). */
-export interface ProviderProbe { (p: { providerKey: string; connection: string; apiKey?: string; address?: string }): Promise<{ ok: boolean; models: string[]; detail?: string }> }
+export interface ProviderProbe { (p: { providerKey: string; connection: string; caller: string; apiKey?: string; address?: string }): Promise<{ ok: boolean; models: string[]; detail?: string }> }
 
 const providersSql = readFileSync(new URL("../migrations/0003_providers.sql", import.meta.url), "utf8");
 const ready = new WeakSet<object>();
@@ -106,7 +106,10 @@ export async function list(ctx: VaultCtx, _input: Record<string, never>) {
 async function mineFolder(ctx: VaultCtx): Promise<string> {
   const have = rowsOf(ctx.db.all(`SELECT * FROM vault_folder`)).find((f) => live(f) && str(f, "scope") === "mine" && str(f, "owner") === ctx.principal.id && str(f, "name") === "AI providers");
   if (have) return str(have, "id");
-  return str((await foldersCreate(ctx, { name: "AI providers", scope: "mine", idempotencyKey: `ai-providers-${ctx.principal.id}` })).folder as unknown as Row, "id");
+  // made quietly: providers.add declares provider.added and vault.item_created, not vault.folder_created, and the folder is the module's own bookkeeping for the person
+  const id = newId("vfd", ctx.now());
+  ctx.db.run(`INSERT INTO vault_folder ("id", "name", "parentId", "scope", "owner", "whoCanExport", "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?)`, id, "AI providers", null, "mine", ctx.principal.id, "[]", ctx.now());
+  return id;
 }
 
 export async function add(ctx: VaultCtx, input: { providerKey: string; connection: string; scope: string; apiKey?: string; address?: string; folderId?: string; idempotencyKey: string }) {
@@ -132,7 +135,8 @@ export async function add(ctx: VaultCtx, input: { providerKey: string; connectio
   const id = newId("prv", ctx.now());
   ctx.db.run(`INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, c.key, input.connection, input.scope, me(ctx), itemId, input.scope === "shared" ? 1 : 0, "ok", ctx.now(), null);
-  return rowOut(ctx, providerById(ctx, id));
+  ctx.emit("provider.added", `entity/${id}`, { providerId: id, providerKey: c.key, connection: input.connection, scope: input.scope }, { vis: "participants" });
+  return { provider: rowOut(ctx, providerById(ctx, id)) };
 }
 
 export async function remove(ctx: VaultCtx, input: { providerId: string }) {
@@ -141,6 +145,7 @@ export async function remove(ctx: VaultCtx, input: { providerId: string }) {
   mayAct(ctx, p, "manage");
   if (itemOf(ctx, str(p, "itemId"))) await itemDelete(ctx, { itemId: str(p, "itemId") });
   ctx.db.run(`UPDATE vault_provider SET "deleted_at" = ? WHERE "id" = ?`, ctx.now(), str(p, "id"));
+  ctx.emit("provider.removed", `entity/${str(p, "id")}`, { providerId: str(p, "id") }, { vis: "participants" });
   return { ok: true };
 }
 
@@ -151,7 +156,8 @@ export async function setSpaceUse(ctx: VaultCtx, input: { providerId: string; al
   mayAct(ctx, p, "manage");
   if (str(p, "owner") !== me(ctx) && !atLeast(levelOn(ctx, "vault_item", str(p, "itemId")), "manage")) denied(ctx, "Only the owner of a provider says whether the Space may use it.");
   ctx.db.run(`UPDATE vault_provider SET "spaceMayUse" = ? WHERE "id" = ?`, input.allow ? 1 : 0, str(p, "id"));
-  return rowOut(ctx, providerById(ctx, str(p, "id")));
+  ctx.emit("provider.updated", `entity/${str(p, "id")}`, { providerId: str(p, "id"), spaceMayUse: input.allow }, { vis: "participants" });
+  return { provider: rowOut(ctx, providerById(ctx, str(p, "id"))) };
 }
 
 // ---- subscription sign-in
@@ -172,7 +178,7 @@ export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: strin
   if (!f || str(f, "person") !== me(ctx)) throw fail("validation.not_found", ctx.trace.traceId, { message: "That sign-in was not started by you." });
   if (f["doneAt"] !== null) {
     const again = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).find((p) => live(p) && str(p, "owner") === me(ctx) && str(p, "providerKey") === str(f, "providerKey"));
-    if (again) return rowOut(ctx, again);
+    if (again) return { provider: rowOut(ctx, again) };
   }
   const linked = new Set(rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).map((p) => str(p, "itemId")));
   const item = rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => live(r) && str(r, "kind") === "ai_subscription" && str(r, "owner") === me(ctx) && !linked.has(str(r, "id")))
@@ -183,7 +189,8 @@ export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: strin
   ctx.db.run(`INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, str(f, "providerKey"), "subscription", "mine", me(ctx), str(item, "id"), 0, "ok", ctx.now(), null);
   ctx.db.run(`UPDATE vault_provider_flow SET "doneAt" = ? WHERE "id" = ?`, ctx.now(), input.flowId);
-  return rowOut(ctx, providerById(ctx, id));
+  ctx.emit("provider.added", `entity/${id}`, { providerId: id, providerKey: str(f, "providerKey"), connection: "subscription", scope: "mine" }, { vis: "participants" });
+  return { provider: rowOut(ctx, providerById(ctx, id)) };
 }
 
 // ---- test
@@ -209,7 +216,7 @@ export async function test(ctx: VaultCtx, input: { providerId: string }) {
   const fields = await openFields(ctx, item);
   const value = (k: string): string | undefined => fields.find((f) => f.key === k)?.value;
   try {
-    const r = await probe({ providerKey: str(p, "providerKey"), connection: str(p, "connection"), ...(value("api_key") ? { apiKey: value("api_key")! } : {}), ...(value("address") ? { address: value("address")! } : {}) });
+    const r = await probe({ providerKey: str(p, "providerKey"), connection: str(p, "connection"), caller: me(ctx), ...(value("api_key") ? { apiKey: value("api_key")! } : {}), ...(value("address") ? { address: value("address")! } : {}) });
     return done(r.ok, r.models, r.detail);
   } catch (e) {
     return done(false, [], e instanceof Error ? e.message.replace(/sk-[A-Za-z0-9_-]+/g, "[key]").slice(0, 200) : "The provider did not answer.");

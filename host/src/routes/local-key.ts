@@ -6,8 +6,8 @@ import { httpOf, makeError } from "./errors.ts";
 import type { Keyring } from "../seams/keyring.ts";
 
 export interface LocalKeyDeps {
-  /** the person the request's bearer token belongs to, or null */
-  person(headers: http.IncomingHttpHeaders): Promise<string | null> | string | null;
+  /** who the request's bearer token belongs to, and the device session it is (none for the local admin token), or null */
+  caller(headers: http.IncomingHttpHeaders): Promise<{ person: string; sessionId?: string } | null> | { person: string; sessionId?: string } | null;
   keyring: Keyring;
   /** whether this node is that person's own */
   allowed(personId: string): boolean;
@@ -45,8 +45,9 @@ async function bodyOf(req: http.IncomingMessage): Promise<unknown> {
 export function createLocalKeyRoute(deps: LocalKeyDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } {
   async function serve(req: http.IncomingMessage, res: http.ServerResponse, op: "unlock" | "lock"): Promise<void> {
     if (!isLocal(req)) return refuse(res, "permission.no_grant", "This only works on your own computer.");
-    const person = await deps.person(req.headers);
-    if (!person) return refuse(res, "auth.unauthenticated", "Sign in first.");
+    const caller = await deps.caller(req.headers);
+    const person = caller?.person;
+    if (!person || !caller) return refuse(res, "auth.unauthenticated", "Sign in first.");
     if (!deps.allowed(person)) return refuse(res, "permission.no_grant", "This computer is not yours, so it does not hold your key.");
     if (op === "lock") { deps.keyring.clear(person); return send(res, 204); }
     let key: Buffer;
@@ -55,7 +56,7 @@ export function createLocalKeyRoute(deps: LocalKeyDeps): { handle(req: http.Inco
       key = typeof k === "string" ? Buffer.from(k, "base64") : Buffer.alloc(0);
     } catch { return refuse(res, "validation.bad_input", "Send { key } as base64."); }
     if (key.length !== 32) { key.fill(0); return refuse(res, "validation.bad_input", "The key is 32 bytes, base64."); }
-    deps.keyring.hold(person, key);
+    deps.keyring.hold(person, key, caller.sessionId);
     key.fill(0);
     send(res, 204);
   }
