@@ -71,7 +71,7 @@ export function Button({ label, onPress, primary = false, disabled = false, hint
     <Pressable
       accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} testID={testID} onPress={onPress}
       onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
-      style={[s.btn, primary ? s.btnPrimary : over && s.btnOver, disabled && { opacity: 0.5 }]}
+      style={[s.btn, primary ? PRIMARY : over && s.btnOver, disabled && { opacity: 0.5 }]}
     >
       <Text style={[s.btnText, primary && s.btnTextPrimary]}>{label}</Text>
       {hint ? <Text style={[s.hint, primary && s.hintPrimary]}>{hint}</Text> : null}
@@ -79,13 +79,15 @@ export function Button({ label, onPress, primary = false, disabled = false, hint
   );
 }
 
+// Plain object (not a StyleSheet id) so the painted token shows in the element's inline style, as ui/Row does.
+const PRIMARY = { backgroundColor: "var(--ink)" };
+
 export const s = StyleSheet.create({
   lead: { width: 18, height: 18, alignItems: "center", justifyContent: "center" },
   tool: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   toolOver: { backgroundColor: "var(--press)" as string },
   btn: { height: 30, paddingHorizontal: 12, borderRadius: 8, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 },
   btnOver: { backgroundColor: "var(--hover)" as string },
-  btnPrimary: { backgroundColor: "var(--ink)" as string },
   btnText: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
   btnTextPrimary: { color: "var(--win)" as string },
   hint: { fontSize: 11, color: "var(--ink-4)" as string },

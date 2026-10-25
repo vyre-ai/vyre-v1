@@ -60,7 +60,7 @@ test("Approve is the black button with its A key hint, Send back follows with B"
   const at = out.indexOf('data-testid="needs-primary"');
   assert.ok(at > 0 && out.slice(at, at + 900).includes(">A<"));
   assert.ok(out.indexOf('data-testid="needs-sendback"') > at && out.slice(out.indexOf('data-testid="needs-sendback"')).includes(">B<"));
-  assert.ok(out.slice(at - 400, at + 400).includes("var(--ink)"), "filled with the ink token, not the accent");
+  assert.ok(out.slice(at - 500, at + 500).includes("background-color:var(--ink)"), "filled with the ink token, not the accent");
 });
 
 test("Harbor Studio shows its two requests", () => {
