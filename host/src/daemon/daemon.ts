@@ -5,6 +5,7 @@
 //           the Chrome bridge register as supervised services (`options.services`) when their lanes land.
 // Nothing here knows a module's internals: module code only ever sees the ctx the loader builds.
 import fs from "node:fs";
+import type http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { authorize } from "../../../kernel/src/authorize/index.ts";
@@ -41,6 +42,8 @@ import { withGateNesting } from "./gate-nesting.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
+import { createLocalKeyRoute } from "../routes/local-key.ts";
+import { createKeyring } from "../seams/keyring.ts";
 import { createProviderProbe, createVaultService, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, wireSeams } from "../seams/index.ts";
@@ -216,6 +219,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // GET /exports/<id>?token= (P-L7_16): the vault module checks the token; until it is configured every pull is refused
   let pullVaultExport: (exportId: string, token: string) => string = () => { throw new Error("the Vault is not live on this server"); };
   const exportRoute = createVaultExportRoute({ pull: (id, t) => pullVaultExport(id, t) });
+  // Ruling 62: the person's own key, handed over by their client on their own node (POST /local/vault/key/unlock, loopback only), held in memory only. A device-role daemon is the computer of whoever signs in on it;
+  // a Space server holds the key of its owner alone.
+  let ownerOfSpace: () => string | null = () => cfg.owner;
+  let personOf: (h: http.IncomingHttpHeaders) => Promise<string | null> | string | null = () => null;
+  const ownNode = (p: string): boolean => cfg.roles.includes("device") || p === ownerOfSpace();
+  const keyring = createKeyring({ allowed: ownNode });
+  closers.push(() => keyring.clearAll());
+  const localKeyRoute = createLocalKeyRoute({ person: (h) => personOf(h), keyring, allowed: ownNode });
   let headSeq = 0;
   const access = createAccess();
 
@@ -426,6 +437,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           post: { allow: o.seams?.webhookAllow ?? (() => []), now, ...(o.seams?.postFetch ? { fetch: o.seams.postFetch } : {}) },
         }),
         ...spaceStoreDrivers(spaceStore),
+        setVaultKeyPort: () => ({ personKey: async (personId: string) => keyring.get(personId) }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
         configureVault: () => ({ sinks: o.seams?.vaultSinks ?? {}, db: db!, probe: createProviderProbe(), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
@@ -471,6 +483,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         return s ? { space: s.space, principal: { kind: "person", id: s.person }, device: s.device } : null;
       };
       const session: GatewayDeps["session"] = o.session ?? ((headers) => identify(bearer(headers["authorization"])));
+      ownerOfSpace = () => cfg.owner ?? access.owner() ?? null;
+      personOf = async (h) => (await session(h))?.principal.id ?? null;
       gateway = createGateway({ invoke, caps: indexCapabilities(caps), routes: [...routes, ...(o.extra?.routes ?? [])], session });
       // GET /spaces/<space>/blobs/<id> (ruling 50): a blob is served to a caller who may read the resource its module stored it for
       blobRoute = createBlobRoute({
@@ -592,7 +606,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
     });
-    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || exportRoute.handle(req, res)) return; listener(req, res); });
+    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || exportRoute.handle(req, res) || localKeyRoute.handle(req, res)) return; listener(req, res); });
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error): void => reject(err);
       server.once("error", onError);
