@@ -18,6 +18,7 @@ import { createCtxSeal } from "../ctx/seal.ts";
 import { ScheduleQueue } from "../ctx/schedule.ts";
 import type { ScheduledCall } from "../ctx/schedule.ts";
 import { createBlobStore } from "../ctx/blobs.ts";
+import { createBlobRoute } from "../routes/blobs.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
 import { createGateway, indexRoutes } from "../gateway.ts";
 import { withEventIds } from "../ids.ts";
@@ -45,6 +46,7 @@ import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, W
 import { createLiveHub } from "../ws.ts";
 import type { LiveHub } from "../ws.ts";
 import { createAccess } from "./access.ts";
+import { ADMIN_DEVICE, createSessionResolver } from "./session.ts";
 import { createResourceRegistrar } from "../gateway/resources.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
@@ -59,6 +61,8 @@ import { alive, clearInfo, ensureAdminToken, ensureDirs, pathsFor, readInfo, wri
 import type { DaemonConfig, DaemonPaths, Role } from "./config.ts";
 import { migrate } from "./hosttables.ts";
 import { requestListener } from "./http.ts";
+import { createChromeBridge } from "../bridge/chrome.ts";
+import type { ChromeBridge } from "../bridge/chrome.ts";
 import { coerceQuery } from "./query.ts";
 import type { PropSchema } from "./query.ts";
 import { openDb, readLogMeta } from "./sqlite.ts";
@@ -150,6 +154,8 @@ export interface Daemon {
   runProbes(names?: readonly ProbeName[]): Promise<Partial<Record<ProbeName, ProbeResult>>>;
   /** do every open restart and network command now */
   pollCommands(): Promise<number>;
+  /** The Chrome bridge behind /chrome-bridge/v1/*: agent tool calls to the extension, and the extension's requests (apps/chrome native host) */
+  chromeBridge: ChromeBridge;
   stop(): Promise<void>;
 }
 
@@ -181,6 +187,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const token = ensureAdminToken(paths);
   const sink = new LogSink({ path: paths.logs, now, secrets: () => [token] });
   const closers: (() => Promise<void> | void)[] = [() => sink.close()];
+  const chromeBridge = createChromeBridge({ token, onEvent: (e) => sink.log({ space: "-", level: 20, msg: "chrome.agent_event", place: "chrome-bridge", attrs: { event: e.event, agent: typeof e["agent"] === "string" ? e["agent"] : "" } }) });
+  closers.push(() => { chromeBridge.failAll(); chromeBridge.closeStreams(); });
   const fetchFn: FetchFn | null = o.fetch ?? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null);
 
   let space: string | null = cfg.space ?? (hasSpace ? readLogMeta(paths.events, "space") : null);
@@ -200,6 +208,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let capIndex: ReturnType<typeof indexCapabilities> | null = null;
   let boundPort = cfg.port;
   let gateway: ReturnType<typeof createGateway> | null = null;
+  let blobRoute: ReturnType<typeof createBlobRoute> | null = null;
   let headSeq = 0;
   const access = createAccess();
 
@@ -330,7 +339,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         validateInput: (cap, v, input) => (extraCaps.has(cap) ? [] : validateInput(cap, v, input)),
         validateEvent: (name, payload) => (extraEvents.has(name) ? [] : validateEvent(name, payload)),
         authorize: (r) => authorize(access.snap, r),
-        handler: (cap, v) => o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v),
+        handler: (cap, v) => {
+          const h = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
+          // The one internal call a module may make with the host's own authority: devices -> sync.epoch.bump (a device was revoked, its replica must purge). The person revoking their own
+          // device holds no sync grant, and a revoke that cannot purge would leave the copy on the device. Nothing else is widened: every other ctx.call keeps the caller's authority.
+          if (!h || !cap.startsWith("devices.")) return h;
+          const wrapped: Handler = (ctx, input) => h({ ...ctx, call: (name, callInput, opts) => (name === "sync.epoch.bump" ? system(name, callInput) : ctx.call(name, callInput, opts)) } as typeof ctx, input);
+          return wrapped;
+        },
         services: hostServices({ base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs }),
         idem, rate: createRateLimiter(), now, log: sinkLog,
         ...(gate ? { gate } : {}),
@@ -432,20 +448,29 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       await projectionRunner.start();   // after the seams: the events module needs its dispatcher and host ports before the first event reaches webhooks_out
 
       const owner = (): string => cfg.owner ?? access.owner() ?? "usr_owner";
-      const session: GatewayDeps["session"] = o.session ?? ((headers) => {
-        const t = bearer(headers["authorization"]);
-        if (!t || !sameToken(t, token)) return null;
-        return { space: spaceId, principal: { kind: "person", id: owner() }, device: headers["x-vyre-device"] ?? "local-admin" };
-      });
+      // Identity comes from the bearer token alone (host/src/daemon/session.ts): a device session row gives the person and the device; the x-vyre-device header and ?device= are ignored.
+      // The single admin token is the owner bootstrap path only (ensureAdminToken): it acts as the owner on the fixed device `local-admin`.
+      const sessions = createSessionResolver({ db: db!, space: spaceId });
+      const identify = (t: string | null): { space: string; principal: { kind: "person"; id: string }; device: string } | null => {
+        if (!t) return null;
+        if (sameToken(t, token)) return { space: spaceId, principal: { kind: "person", id: owner() }, device: ADMIN_DEVICE };
+        const s = sessions.resolve(t);
+        return s ? { space: s.space, principal: { kind: "person", id: s.person }, device: s.device } : null;
+      };
+      const session: GatewayDeps["session"] = o.session ?? ((headers) => identify(bearer(headers["authorization"])));
       gateway = createGateway({ invoke, caps: indexCapabilities(caps), routes: [...routes, ...(o.extra?.routes ?? [])], session });
+      // GET /spaces/<space>/blobs/<id> (ruling 50): a blob is served to a caller who may read the resource its module stored it for
+      blobRoute = createBlobRoute({
+        space: spaceId, store: blobs,
+        session: async (h) => { const s = await session(h); return s ? { space: s.space, principal: s.principal, ...(s.actingFor ? { actingFor: s.actingFor } : {}) } : null; },
+        allow: (c, r) => authorize(access.snap, { principal: c.principal.id, ...(c.actingFor ? { actingFor: c.actingFor } : {}), action: { perm: null, level: "view" }, resource: { type: r.type, id: r.id } }).effect === "allow",
+      });
       routeIndex = indexRoutes([...routes, ...(o.extra?.routes ?? [])]);   // a duplicate route is a boot error, not a first-request error
       capIndex = indexCapabilities(caps);
 
       const mkHub = (): LiveHub => createLiveHub({
         session: (h, url) => {
-          const t = bearer(h["authorization"]) ?? url.searchParams.get("token");
-          if (!t || !sameToken(t, token)) return null;
-          return { space: spaceId, principal: { kind: "person", id: owner() }, device: url.searchParams.get("device") ?? "local-admin" };
+          return identify(bearer(h["authorization"]) ?? url.searchParams.get("token"));
         },
         invoke, sink,
         eventsSince: (_s, cursor) => (recent.length && recent[0]!.seq <= cursor + 1 ? recent.filter((e) => e.seq > cursor) : []),
@@ -550,10 +575,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     hub = h;
     const server = h.server;
     server.removeAllListeners("request");
-    server.on("request", requestListener({
+    const listener = requestListener({
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
-    }));
+    });
+    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res)) return; listener(req, res); });
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error): void => reject(err);
       server.once("error", onError);
@@ -591,7 +617,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
   let stopped = false;
   return {
-    url: `http://${cfg.host}:${boundPort}`, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log,
+    url: `http://${cfg.host}:${boundPort}`, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge,
     runProbes, pollCommands: runCommands,
     async stop() {
       if (stopped) return;

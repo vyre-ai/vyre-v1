@@ -7765,6 +7765,42 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/email_builder/saved_blocks/list",
+    "cap": "email_builder.saved_blocks.list",
+    "v": 1,
+    "module": "email-builder-api",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/email_builder/saved_blocks/save",
+    "cap": "email_builder.saved_blocks.save",
+    "v": 1,
+    "module": "email-builder-api",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/email_builder/send_test",
     "cap": "email_builder.send_test",
     "v": 1,
@@ -12837,6 +12873,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/health/machine",
+    "cap": "health.machine",
+    "v": 1,
+    "module": "health",
+    "effects": "read",
+    "permission": "console.access",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/health/paused_reasons",
     "cap": "health.paused_reasons",
     "v": 1,
@@ -14438,6 +14492,25 @@ export const routes: Route[] = [
     },
     "idempotency": "key",
     "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/journeys/tasks",
+    "cap": "journeys.tasks",
+    "v": 1,
+    "module": "journeys",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "record",
+      "id": "/recordId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -16910,6 +16983,24 @@ export const routes: Route[] = [
     "effects": "write",
     "permission": null,
     "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/map/get",
+    "cap": "memory.map.get",
+    "v": 1,
+    "module": "memory",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
     "resource": {
       "type": "space"
     },

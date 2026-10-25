@@ -279,6 +279,89 @@
       ],
       "type": "object"
     },
+    "s_050abe3aea": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "channelId": {
+          "examples": [
+            "chn_a1b2c3"
+          ],
+          "pattern": "^chn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "cron": {
+          "description": "The schedule of a schedule routine; a watcher has none",
+          "examples": [
+            "0 9 * * 1-5"
+          ],
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "kind": {
+          "enum": [
+            "schedule",
+            "watch"
+          ],
+          "type": "string"
+        },
+        "lastRunAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "nextRunAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ownerId": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "routineId": {
+          "examples": [
+            "rtn_a1b2c3"
+          ],
+          "pattern": "^rtn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "watch": {
+          "$ref": "#/$defs/s_f5d31dac8f"
+        }
+      },
+      "required": [
+        "routineId",
+        "agentId",
+        "title",
+        "prompt",
+        "enabled",
+        "ownerId"
+      ],
+      "type": "object"
+    },
     "s_0697bd8576": {
       "items": {
         "properties": {
@@ -339,6 +422,122 @@
           "$ref": "#/$defs/s_0506fc3ab2"
         }
       ]
+    },
+    "s_075cc013db": {
+      "properties": {
+        "costMicros": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "definitionVersion": {
+          "type": "integer"
+        },
+        "endedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "keyUsed": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/s_45112f0b77"
+        },
+        "modelUsed": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "owner": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "type": "string"
+        },
+        "parentRun": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "startedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "startedBy": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "waiting",
+            "succeeded",
+            "failed",
+            "stopped"
+          ],
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/s_f21ece25da"
+        },
+        "summary": {
+          "description": "One-line result",
+          "type": "string"
+        },
+        "threadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "traceId": {
+          "examples": [
+            "0123456789abcdef0123456789abcdef"
+          ],
+          "pattern": "^[0-9a-f]{32}$",
+          "type": "string"
+        },
+        "trigger": {
+          "$ref": "#/$defs/s_f908ff12d6"
+        },
+        "waitReason": {
+          "enum": [
+            "approval",
+            "background",
+            "key"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "owner",
+        "startedBy",
+        "status",
+        "costMicros",
+        "startedAt",
+        "traceId"
+      ],
+      "type": "object"
     },
     "s_0766030a72": {
       "enum": [
@@ -1397,17 +1596,6 @@
       ],
       "type": "object"
     },
-    "s_14f6a8c95f": {
-      "properties": {
-        "journey": {
-          "$ref": "#/$defs/s_3b7eca5922"
-        }
-      },
-      "required": [
-        "journey"
-      ],
-      "type": "object"
-    },
     "s_157c2c9b95": {
       "properties": {
         "kitId": {
@@ -1689,6 +1877,12 @@
           "dir"
         ],
         "type": "object"
+      },
+      "type": "array"
+    },
+    "s_1a0d5dc1ad": {
+      "items": {
+        "$ref": "#/$defs/s_4ae4009732"
       },
       "type": "array"
     },
@@ -2652,6 +2846,17 @@
       ],
       "type": "object"
     },
+    "s_25dfda5e35": {
+      "properties": {
+        "journey": {
+          "$ref": "#/$defs/s_df187904ca"
+        }
+      },
+      "required": [
+        "journey"
+      ],
+      "type": "object"
+    },
     "s_2795589129": {
       "properties": {
         "conflict": {
@@ -3306,27 +3511,6 @@
       ],
       "type": "object"
     },
-    "s_30183bc12b": {
-      "properties": {
-        "next": {
-          "description": "Cursor for the next page; absent on the last page",
-          "type": "string"
-        },
-        "threads": {
-          "items": {
-            "$ref": "#/$defs/s_d3e31471e5"
-          },
-          "type": "array"
-        },
-        "total": {
-          "type": "integer"
-        }
-      },
-      "required": [
-        "threads"
-      ],
-      "type": "object"
-    },
     "s_3115d5e95d": {
       "properties": {
         "row": {
@@ -3522,71 +3706,6 @@
         "type": "object"
       },
       "type": "array"
-    },
-    "s_348b49ae03": {
-      "properties": {
-        "blocks": {
-          "items": {
-            "properties": {
-              "props": {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              "type": {
-                "enum": [
-                  "text",
-                  "image",
-                  "button",
-                  "columns",
-                  "divider",
-                  "merge",
-                  "html"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "type",
-              "props"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "emailId": {
-          "examples": [
-            "eml_a1b2c3"
-          ],
-          "pattern": "^eml_[a-z0-9]+$",
-          "type": "string"
-        },
-        "html": {
-          "type": "string"
-        },
-        "mode": {
-          "enum": [
-            "blocks",
-            "html",
-            "plain"
-          ],
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "plain": {
-          "type": "string"
-        },
-        "subject": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "emailId",
-        "name",
-        "mode"
-      ],
-      "type": "object"
     },
     "s_3550bb561b": {
       "items": {
@@ -4357,83 +4476,6 @@
         "actor",
         "at",
         "state"
-      ],
-      "type": "object"
-    },
-    "s_3b7eca5922": {
-      "properties": {
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "jrn_a1b2c3"
-          ],
-          "pattern": "^jrn_[a-z0-9]+$",
-          "type": "string"
-        },
-        "inFlight": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "name": {
-          "type": "string"
-        },
-        "recordType": {
-          "examples": [
-            "contact"
-          ],
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "type": "string"
-        },
-        "stages": {
-          "$ref": "#/$defs/s_514842fb1f"
-        },
-        "startAutomationId": {
-          "examples": [
-            "aut_a1b2c3"
-          ],
-          "pattern": "^aut_[a-z0-9]+$",
-          "type": "string"
-        },
-        "startRule": {
-          "$ref": "#/$defs/s_25d70fcceb"
-        },
-        "subjectType": {
-          "examples": [
-            "contact"
-          ],
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "type": "string"
-        },
-        "updatedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "version": {
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "subjectType",
-        "recordType",
-        "version",
-        "stages",
-        "inFlight",
-        "createdAt",
-        "updatedAt"
       ],
       "type": "object"
     },
@@ -5359,6 +5401,143 @@
       ],
       "type": "object"
     },
+    "s_4ae4009732": {
+      "properties": {
+        "automations": {
+          "description": "Automations that run when a record enters the stage",
+          "items": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "exit": {
+          "properties": {
+            "manualOnly": {
+              "type": "boolean"
+            },
+            "requireTasks": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "requireTasks"
+          ],
+          "type": "object"
+        },
+        "final": {
+          "type": "boolean"
+        },
+        "key": {
+          "examples": [
+            "intake"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        "onLeaving": {
+          "description": "Automations that run when a record leaves the stage",
+          "items": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "order": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tasks": {
+          "items": {
+            "properties": {
+              "approver": {
+                "$ref": "#/$defs/s_f05a3f77df"
+              },
+              "assigned": {
+                "$ref": "#/$defs/s_f05a3f77df"
+              },
+              "backupKeyId": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "doneByAutomation": {
+                "examples": [
+                  "aut_a1b2c3"
+                ],
+                "pattern": "^aut_[a-z0-9]+$",
+                "type": "string"
+              },
+              "dueAfterHours": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "key": {
+                "examples": [
+                  "collect_documents"
+                ],
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "type": "string"
+              },
+              "keyId": {
+                "description": "Inference key for an agent task",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "work",
+                  "approve",
+                  "review",
+                  "answer",
+                  "unblock",
+                  "signature"
+                ],
+                "type": "string"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "reviewer": {
+                "$ref": "#/$defs/s_f05a3f77df"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "title",
+              "assigned",
+              "required"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "timeLimit": {
+          "$ref": "#/$defs/s_d3f43ff5d3"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "order",
+        "exit",
+        "tasks",
+        "automations"
+      ],
+      "type": "object"
+    },
     "s_4bcc467032": {
       "properties": {
         "affects": {
@@ -6062,12 +6241,6 @@
       ],
       "type": "object"
     },
-    "s_514842fb1f": {
-      "items": {
-        "$ref": "#/$defs/s_b91fd91453"
-      },
-      "type": "array"
-    },
     "s_51b3ec7c59": {
       "properties": {
         "agentId": {
@@ -6522,6 +6695,49 @@
       },
       "type": "array"
     },
+    "s_573e287a45": {
+      "properties": {
+        "blocks": {
+          "items": {
+            "$ref": "#/$defs/s_65cbb13876"
+          },
+          "type": "array"
+        },
+        "emailId": {
+          "examples": [
+            "eml_a1b2c3"
+          ],
+          "pattern": "^eml_[a-z0-9]+$",
+          "type": "string"
+        },
+        "html": {
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "blocks",
+            "html",
+            "plain"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "plain": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "emailId",
+        "name",
+        "mode"
+      ],
+      "type": "object"
+    },
     "s_574cc4b511": {
       "properties": {
         "cursor": {
@@ -6804,17 +7020,6 @@
       },
       "required": [
         "resource"
-      ],
-      "type": "object"
-    },
-    "s_5b2af5e779": {
-      "properties": {
-        "email": {
-          "$ref": "#/$defs/s_348b49ae03"
-        }
-      },
-      "required": [
-        "email"
       ],
       "type": "object"
     },
@@ -7803,6 +8008,36 @@
       ],
       "type": "object"
     },
+    "s_65cbb13876": {
+      "properties": {
+        "props": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "type": {
+          "enum": [
+            "text",
+            "heading",
+            "image",
+            "button",
+            "columns",
+            "divider",
+            "merge",
+            "footer",
+            "html",
+            "spacer",
+            "social",
+            "saved"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "props"
+      ],
+      "type": "object"
+    },
     "s_66aaee851e": {
       "properties": {
         "invoice": {
@@ -8134,6 +8369,17 @@
         "currency",
         "status",
         "created"
+      ],
+      "type": "object"
+    },
+    "s_6d2c83cc88": {
+      "properties": {
+        "run": {
+          "$ref": "#/$defs/s_075cc013db"
+        }
+      },
+      "required": [
+        "run"
       ],
       "type": "object"
     },
@@ -8649,6 +8895,17 @@
       ],
       "type": "object"
     },
+    "s_78845cba60": {
+      "properties": {
+        "email": {
+          "$ref": "#/$defs/s_573e287a45"
+        }
+      },
+      "required": [
+        "email"
+      ],
+      "type": "object"
+    },
     "s_78de507bd6": {
       "properties": {
         "fileId": {
@@ -8669,17 +8926,6 @@
       "required": [
         "fileId",
         "folderId"
-      ],
-      "type": "object"
-    },
-    "s_7916849f25": {
-      "properties": {
-        "run": {
-          "$ref": "#/$defs/s_bb7ff7d602"
-        }
-      },
-      "required": [
-        "run"
       ],
       "type": "object"
     },
@@ -10695,6 +10941,17 @@
       ],
       "type": "object"
     },
+    "s_9746c1f86e": {
+      "properties": {
+        "thread": {
+          "$ref": "#/$defs/s_b4cc02fcf3"
+        }
+      },
+      "required": [
+        "thread"
+      ],
+      "type": "object"
+    },
     "s_98c786d7d8": {
       "properties": {
         "e164": {
@@ -11708,6 +11965,27 @@
       ],
       "type": "object"
     },
+    "s_a85a72f91c": {
+      "properties": {
+        "next": {
+          "description": "Cursor for the next page; absent on the last page",
+          "type": "string"
+        },
+        "threads": {
+          "items": {
+            "$ref": "#/$defs/s_b4cc02fcf3"
+          },
+          "type": "array"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "threads"
+      ],
+      "type": "object"
+    },
     "s_a8e0a730ee": {
       "items": {
         "properties": {
@@ -12345,6 +12623,137 @@
       },
       "type": "array"
     },
+    "s_b4cc02fcf3": {
+      "properties": {
+        "agents": {
+          "$ref": "#/$defs/s_18a5df4b3d"
+        },
+        "channelId": {
+          "examples": [
+            "chn_a1b2c3"
+          ],
+          "pattern": "^chn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "closedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "chat",
+            "channel",
+            "thread",
+            "ask",
+            "run",
+            "helper",
+            "console"
+          ],
+          "type": "string"
+        },
+        "lastMessageAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "listed": {
+          "type": "boolean"
+        },
+        "members": {
+          "$ref": "#/$defs/s_39a2155802"
+        },
+        "parentMessageId": {
+          "examples": [
+            "msg_a1b2c3"
+          ],
+          "pattern": "^msg_[a-z0-9]+$",
+          "type": "string"
+        },
+        "parentThreadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "path": {
+          "description": "Address bar parts for helper chats, each a link back",
+          "items": {
+            "$ref": "#/$defs/s_2a7bd8f420"
+          },
+          "type": "array"
+        },
+        "planMode": {
+          "type": "boolean"
+        },
+        "recordId": {
+          "examples": [
+            "rec_a1b2c3"
+          ],
+          "pattern": "^rec_[a-z0-9]+$",
+          "type": "string"
+        },
+        "replyCount": {
+          "description": "Messages in the thread that are not deleted",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "scopeId": {
+          "type": "string"
+        },
+        "scopeType": {
+          "examples": [
+            "record"
+          ],
+          "type": "string"
+        },
+        "starter": {
+          "type": "string"
+        },
+        "threadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId",
+        "kind",
+        "listed",
+        "planMode",
+        "members",
+        "agents",
+        "createdAt"
+      ],
+      "type": "object"
+    },
     "s_b4d375add9": {
       "properties": {
         "channel": {
@@ -12691,132 +13100,6 @@
       },
       "type": "object"
     },
-    "s_b91fd91453": {
-      "properties": {
-        "automations": {
-          "description": "Automations that run when a record enters the stage",
-          "items": {
-            "examples": [
-              "aut_a1b2c3"
-            ],
-            "pattern": "^aut_[a-z0-9]+$",
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "exit": {
-          "properties": {
-            "manualOnly": {
-              "type": "boolean"
-            },
-            "requireTasks": {
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "requireTasks"
-          ],
-          "type": "object"
-        },
-        "final": {
-          "type": "boolean"
-        },
-        "key": {
-          "examples": [
-            "intake"
-          ],
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "type": "string"
-        },
-        "order": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "tasks": {
-          "items": {
-            "properties": {
-              "approver": {
-                "$ref": "#/$defs/s_f05a3f77df"
-              },
-              "assigned": {
-                "$ref": "#/$defs/s_f05a3f77df"
-              },
-              "backupKeyId": {
-                "type": "string"
-              },
-              "description": {
-                "type": "string"
-              },
-              "doneByAutomation": {
-                "examples": [
-                  "aut_a1b2c3"
-                ],
-                "pattern": "^aut_[a-z0-9]+$",
-                "type": "string"
-              },
-              "dueAfterHours": {
-                "minimum": 1,
-                "type": "integer"
-              },
-              "key": {
-                "examples": [
-                  "collect_documents"
-                ],
-                "pattern": "^[a-z][a-z0-9_]*$",
-                "type": "string"
-              },
-              "keyId": {
-                "description": "Inference key for an agent task",
-                "type": "string"
-              },
-              "kind": {
-                "enum": [
-                  "work",
-                  "approve",
-                  "review",
-                  "answer",
-                  "unblock",
-                  "signature"
-                ],
-                "type": "string"
-              },
-              "required": {
-                "type": "boolean"
-              },
-              "reviewer": {
-                "$ref": "#/$defs/s_f05a3f77df"
-              },
-              "title": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "key",
-              "title",
-              "assigned",
-              "required"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "timeLimit": {
-          "$ref": "#/$defs/s_d3f43ff5d3"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "key",
-        "title",
-        "order",
-        "exit",
-        "tasks",
-        "automations"
-      ],
-      "type": "object"
-    },
     "s_b92225d0bc": {
       "properties": {
         "follower": {
@@ -13116,119 +13399,6 @@
         "plainChoice",
         "protectedField",
         "openedAt"
-      ],
-      "type": "object"
-    },
-    "s_bb7ff7d602": {
-      "properties": {
-        "costMicros": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "definitionVersion": {
-          "type": "integer"
-        },
-        "endedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "keyUsed": {
-          "type": "string"
-        },
-        "kind": {
-          "$ref": "#/$defs/s_45112f0b77"
-        },
-        "modelUsed": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "owner": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "type": "string"
-        },
-        "parentRun": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "startedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "startedBy": {
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "queued",
-            "running",
-            "waiting",
-            "succeeded",
-            "failed",
-            "stopped"
-          ],
-          "type": "string"
-        },
-        "subject": {
-          "$ref": "#/$defs/s_f21ece25da"
-        },
-        "summary": {
-          "description": "One-line result",
-          "type": "string"
-        },
-        "threadId": {
-          "examples": [
-            "thr_a1b2c3"
-          ],
-          "pattern": "^thr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "traceId": {
-          "examples": [
-            "0123456789abcdef0123456789abcdef"
-          ],
-          "pattern": "^[0-9a-f]{32}$",
-          "type": "string"
-        },
-        "waitReason": {
-          "enum": [
-            "approval",
-            "background",
-            "key"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "kind",
-        "owner",
-        "startedBy",
-        "status",
-        "costMicros",
-        "startedAt",
-        "traceId"
       ],
       "type": "object"
     },
@@ -13538,79 +13708,6 @@
       },
       "required": [
         "terminal"
-      ],
-      "type": "object"
-    },
-    "s_be45381a2d": {
-      "properties": {
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "channelId": {
-          "examples": [
-            "chn_a1b2c3"
-          ],
-          "pattern": "^chn_[a-z0-9]+$",
-          "type": "string"
-        },
-        "cron": {
-          "examples": [
-            "0 9 * * 1-5"
-          ],
-          "type": "string"
-        },
-        "enabled": {
-          "type": "boolean"
-        },
-        "lastRunAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "nextRunAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "ownerId": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "pattern": "^usr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "prompt": {
-          "type": "string"
-        },
-        "routineId": {
-          "examples": [
-            "rtn_a1b2c3"
-          ],
-          "pattern": "^rtn_[a-z0-9]+$",
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "routineId",
-        "agentId",
-        "title",
-        "cron",
-        "prompt",
-        "enabled",
-        "ownerId"
       ],
       "type": "object"
     },
@@ -14689,6 +14786,32 @@
       ],
       "type": "object"
     },
+    "s_d06586147f": {
+      "properties": {
+        "cpuPercent": {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        },
+        "diskFreeBytes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "diskTotalBytes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "memoryTotalBytes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "memoryUsedBytes": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "s_d09bc4ad3a": {
       "properties": {
         "resolutionId": {
@@ -14799,124 +14922,6 @@
       },
       "required": [
         "delivery"
-      ],
-      "type": "object"
-    },
-    "s_d3e31471e5": {
-      "properties": {
-        "agents": {
-          "$ref": "#/$defs/s_18a5df4b3d"
-        },
-        "channelId": {
-          "examples": [
-            "chn_a1b2c3"
-          ],
-          "pattern": "^chn_[a-z0-9]+$",
-          "type": "string"
-        },
-        "closedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "chat",
-            "channel",
-            "thread",
-            "ask",
-            "run",
-            "helper",
-            "console"
-          ],
-          "type": "string"
-        },
-        "listed": {
-          "type": "boolean"
-        },
-        "members": {
-          "$ref": "#/$defs/s_39a2155802"
-        },
-        "parentMessageId": {
-          "examples": [
-            "msg_a1b2c3"
-          ],
-          "pattern": "^msg_[a-z0-9]+$",
-          "type": "string"
-        },
-        "parentThreadId": {
-          "examples": [
-            "thr_a1b2c3"
-          ],
-          "pattern": "^thr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "path": {
-          "description": "Address bar parts for helper chats, each a link back",
-          "items": {
-            "$ref": "#/$defs/s_2a7bd8f420"
-          },
-          "type": "array"
-        },
-        "planMode": {
-          "type": "boolean"
-        },
-        "recordId": {
-          "examples": [
-            "rec_a1b2c3"
-          ],
-          "pattern": "^rec_[a-z0-9]+$",
-          "type": "string"
-        },
-        "scopeId": {
-          "type": "string"
-        },
-        "scopeType": {
-          "examples": [
-            "record"
-          ],
-          "type": "string"
-        },
-        "starter": {
-          "type": "string"
-        },
-        "threadId": {
-          "examples": [
-            "thr_a1b2c3"
-          ],
-          "pattern": "^thr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "threadId",
-        "kind",
-        "listed",
-        "planMode",
-        "members",
-        "agents",
-        "createdAt"
       ],
       "type": "object"
     },
@@ -15539,6 +15544,119 @@
         "when",
         "route",
         "enabled"
+      ],
+      "type": "object"
+    },
+    "s_dec3308fa1": {
+      "properties": {
+        "block": {
+          "$ref": "#/$defs/s_65cbb13876"
+        },
+        "blockId": {
+          "examples": [
+            "blk_a1b2c3"
+          ],
+          "pattern": "^blk_[a-z0-9]+$",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "shared": {
+          "type": "boolean"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "blockId",
+        "name",
+        "block",
+        "shared",
+        "updatedAt"
+      ],
+      "type": "object"
+    },
+    "s_df187904ca": {
+      "properties": {
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "jrn_a1b2c3"
+          ],
+          "pattern": "^jrn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "inFlight": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "recordType": {
+          "examples": [
+            "contact"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        "stages": {
+          "$ref": "#/$defs/s_1a0d5dc1ad"
+        },
+        "startAutomationId": {
+          "examples": [
+            "aut_a1b2c3"
+          ],
+          "pattern": "^aut_[a-z0-9]+$",
+          "type": "string"
+        },
+        "startRule": {
+          "$ref": "#/$defs/s_25d70fcceb"
+        },
+        "subjectType": {
+          "examples": [
+            "contact"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "version": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "subjectType",
+        "recordType",
+        "version",
+        "stages",
+        "inFlight",
+        "createdAt",
+        "updatedAt"
       ],
       "type": "object"
     },
@@ -17141,6 +17259,28 @@
       ],
       "type": "object"
     },
+    "s_f5d31dac8f": {
+      "properties": {
+        "channelId": {
+          "examples": [
+            "chn_a1b2c3"
+          ],
+          "pattern": "^chn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "on": {
+          "enum": [
+            "message"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "on",
+        "channelId"
+      ],
+      "type": "object"
+    },
     "s_f845a71a23": {
       "properties": {
         "automation": {
@@ -17167,6 +17307,36 @@
       },
       "required": [
         "runId"
+      ],
+      "type": "object"
+    },
+    "s_f908ff12d6": {
+      "properties": {
+        "channelId": {
+          "examples": [
+            "chn_a1b2c3"
+          ],
+          "pattern": "^chn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "messageId": {
+          "examples": [
+            "msg_a1b2c3"
+          ],
+          "pattern": "^msg_[a-z0-9]+$",
+          "type": "string"
+        },
+        "threadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "messageId",
+        "threadId"
       ],
       "type": "object"
     },
@@ -17626,17 +17796,6 @@
         "type": "object"
       },
       "type": "array"
-    },
-    "s_fe3178e960": {
-      "properties": {
-        "thread": {
-          "$ref": "#/$defs/s_d3e31471e5"
-        }
-      },
-      "required": [
-        "thread"
-      ],
-      "type": "object"
     },
     "s_ff7445c64f": {
       "properties": {
@@ -26253,12 +26412,17 @@
               "channelId": "chn_a1b2c3",
               "cron": "0 9 * * 1-5",
               "enabled": true,
+              "kind": "schedule",
               "lastRunAt": 1760000000000,
               "nextRunAt": 1760000000000,
               "ownerId": "usr_a1b2c3",
               "prompt": "example",
               "routineId": "rtn_a1b2c3",
-              "title": "example"
+              "title": "example",
+              "watch": {
+                "channelId": "chn_a1b2c3",
+                "on": "message"
+              }
             }
           }
         }
@@ -26322,7 +26486,7 @@
             "type": "string"
           },
           "routine": {
-            "$ref": "#/$defs/s_be45381a2d"
+            "$ref": "#/$defs/s_050abe3aea"
           }
         },
         "required": [
@@ -26454,12 +26618,17 @@
               "channelId": "chn_a1b2c3",
               "cron": "0 9 * * 1-5",
               "enabled": true,
+              "kind": "schedule",
               "lastRunAt": 1760000000000,
               "nextRunAt": 1760000000000,
               "ownerId": "usr_a1b2c3",
               "prompt": "example",
               "routineId": "rtn_a1b2c3",
-              "title": "example"
+              "title": "example",
+              "watch": {
+                "channelId": "chn_a1b2c3",
+                "on": "message"
+              }
             },
             "runId": "run_a1b2c3"
           }
@@ -26503,7 +26672,7 @@
       "output": {
         "properties": {
           "routine": {
-            "$ref": "#/$defs/s_be45381a2d"
+            "$ref": "#/$defs/s_050abe3aea"
           },
           "runId": {
             "examples": [
@@ -26555,9 +26724,14 @@
             "cron": "0 9 * * 1-5",
             "enabled": true,
             "idempotencyKey": "idem_1",
+            "kind": "schedule",
             "prompt": "example",
             "routineId": "rtn_a1b2c3",
-            "title": "example"
+            "title": "example",
+            "watch": {
+              "channelId": "chn_a1b2c3",
+              "on": "message"
+            }
           },
           "name": "example",
           "output": {
@@ -26566,12 +26740,17 @@
               "channelId": "chn_a1b2c3",
               "cron": "0 9 * * 1-5",
               "enabled": true,
+              "kind": "schedule",
               "lastRunAt": 1760000000000,
               "nextRunAt": 1760000000000,
               "ownerId": "usr_a1b2c3",
               "prompt": "example",
               "routineId": "rtn_a1b2c3",
-              "title": "example"
+              "title": "example",
+              "watch": {
+                "channelId": "chn_a1b2c3",
+                "on": "message"
+              }
             }
           }
         }
@@ -26609,6 +26788,13 @@
             "minLength": 1,
             "type": "string"
           },
+          "kind": {
+            "enum": [
+              "schedule",
+              "watch"
+            ],
+            "type": "string"
+          },
           "prompt": {
             "type": "string"
           },
@@ -26621,12 +26807,14 @@
           },
           "title": {
             "type": "string"
+          },
+          "watch": {
+            "$ref": "#/$defs/s_f5d31dac8f"
           }
         },
         "required": [
           "agentId",
           "title",
-          "cron",
           "prompt",
           "idempotencyKey"
         ],
@@ -26638,7 +26826,7 @@
       "output": {
         "properties": {
           "routine": {
-            "$ref": "#/$defs/s_be45381a2d"
+            "$ref": "#/$defs/s_050abe3aea"
           }
         },
         "required": [
@@ -26654,7 +26842,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Create or change a routine; messages it causes carry \"Sent by <agent> on a routine <person> set\"",
+      "summary": "Create or change a routine, a schedule (cron) or a watcher (kind watch: runs on each new message in a channel); messages it causes carry \"Sent by <agent> on a routine <person> set\"",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -26686,12 +26874,17 @@
                 "channelId": "chn_a1b2c3",
                 "cron": "0 9 * * 1-5",
                 "enabled": true,
+                "kind": "schedule",
                 "lastRunAt": 1760000000000,
                 "nextRunAt": 1760000000000,
                 "ownerId": "usr_a1b2c3",
                 "prompt": "example",
                 "routineId": "rtn_a1b2c3",
-                "title": "example"
+                "title": "example",
+                "watch": {
+                  "channelId": "chn_a1b2c3",
+                  "on": "message"
+                }
               }
             ]
           }
@@ -26721,7 +26914,7 @@
         "properties": {
           "routines": {
             "items": {
-              "$ref": "#/$defs/s_be45381a2d"
+              "$ref": "#/$defs/s_050abe3aea"
             },
             "type": "array"
           }
@@ -40816,6 +41009,7 @@
                 "createdAt": 1760000000000,
                 "folderId": "fld_a1b2c3",
                 "kind": "chat",
+                "lastMessageAt": 1760000000000,
                 "listed": true,
                 "members": [
                   {
@@ -40833,6 +41027,7 @@
                 ],
                 "planMode": true,
                 "recordId": "rec_a1b2c3",
+                "replyCount": 1,
                 "scopeId": "example",
                 "scopeType": "record",
                 "starter": "example",
@@ -40876,7 +41071,7 @@
       "module": "chat",
       "name": "chat.asks_of",
       "output": {
-        "$ref": "#/$defs/s_30183bc12b"
+        "$ref": "#/$defs/s_a85a72f91c"
       },
       "permission": null,
       "resource": {
@@ -41226,6 +41421,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -41243,6 +41439,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -41289,7 +41486,7 @@
             "type": "integer"
           },
           "thread": {
-            "$ref": "#/$defs/s_d3e31471e5"
+            "$ref": "#/$defs/s_b4cc02fcf3"
           }
         },
         "required": [
@@ -41360,6 +41557,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -41377,6 +41575,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -41445,7 +41644,7 @@
             "type": "string"
           },
           "helper": {
-            "$ref": "#/$defs/s_d3e31471e5"
+            "$ref": "#/$defs/s_b4cc02fcf3"
           }
         },
         "required": [
@@ -41857,6 +42056,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -41874,6 +42074,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -41904,7 +42105,7 @@
       "name": "chat.open_as_chat",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -43112,6 +43313,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -43129,6 +43331,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -43227,7 +43430,7 @@
       "name": "chat.start",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": "chats.private",
       "resource": {
@@ -43282,6 +43485,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -43299,6 +43503,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -43317,7 +43522,7 @@
       "name": "chat.thread",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -53804,6 +54009,17 @@
               }
             ],
             "health": "healthy",
+            "lastBackup": {
+              "at": 1760000000000,
+              "result": "verified"
+            },
+            "machine": {
+              "cpuPercent": 1,
+              "diskFreeBytes": 1,
+              "diskTotalBytes": 1,
+              "memoryTotalBytes": 1,
+              "memoryUsedBytes": 1
+            },
             "usage": {
               "agents": 1,
               "costMicrosMonth": 1,
@@ -53836,6 +54052,33 @@
               "down"
             ],
             "type": "string"
+          },
+          "lastBackup": {
+            "properties": {
+              "at": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              "result": {
+                "enum": [
+                  "verified",
+                  "unverified"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "result"
+            ],
+            "type": "object"
+          },
+          "machine": {
+            "$ref": "#/$defs/s_d06586147f"
           },
           "usage": {
             "properties": {
@@ -53875,7 +54118,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "Overview: health, attention items, recent admin activity, usage",
+      "summary": "Overview: health, attention items, recent admin activity, usage, server CPU, memory and disk, and the last backup",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -58643,7 +58886,7 @@
       "module": "email-builder-api",
       "name": "email_builder.create",
       "output": {
-        "$ref": "#/$defs/s_5b2af5e779"
+        "$ref": "#/$defs/s_78845cba60"
       },
       "permission": null,
       "resource": {
@@ -58715,7 +58958,7 @@
       "module": "email-builder-api",
       "name": "email_builder.get",
       "output": {
-        "$ref": "#/$defs/s_5b2af5e779"
+        "$ref": "#/$defs/s_78845cba60"
       },
       "permission": null,
       "resource": {
@@ -59109,7 +59352,7 @@
       "module": "email-builder-api",
       "name": "email_builder.restore_version",
       "output": {
-        "$ref": "#/$defs/s_5b2af5e779"
+        "$ref": "#/$defs/s_78845cba60"
       },
       "permission": null,
       "resource": {
@@ -59166,7 +59409,7 @@
       "input": {
         "properties": {
           "email": {
-            "$ref": "#/$defs/s_348b49ae03"
+            "$ref": "#/$defs/s_573e287a45"
           },
           "emailId": {
             "examples": [
@@ -59204,6 +59447,166 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Autosave a design; each save is a version",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "inbox"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "blocks": [
+              {
+                "block": {
+                  "props": {},
+                  "type": "text"
+                },
+                "blockId": "blk_a1b2c3",
+                "name": "example",
+                "shared": true,
+                "updatedAt": 1760000000000
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "email-builder-api",
+      "name": "email_builder.saved_blocks.list",
+      "output": {
+        "properties": {
+          "blocks": {
+            "items": {
+              "$ref": "#/$defs/s_dec3308fa1"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "blocks"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "List saved blocks: mine and the ones shared with the Space, to drop into a design",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "inbox"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "email_block.saved"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "block": {
+              "props": {},
+              "type": "text"
+            },
+            "blockId": "blk_a1b2c3",
+            "name": "example",
+            "shared": true
+          },
+          "name": "example",
+          "output": {
+            "block": {
+              "block": {
+                "props": {},
+                "type": "text"
+              },
+              "blockId": "blk_a1b2c3",
+              "name": "example",
+              "shared": true,
+              "updatedAt": 1760000000000
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "block": {
+            "$ref": "#/$defs/s_65cbb13876"
+          },
+          "blockId": {
+            "examples": [
+              "blk_a1b2c3"
+            ],
+            "pattern": "^blk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "shared": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "block"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "email-builder-api",
+      "name": "email_builder.saved_blocks.save",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "block": {
+            "$ref": "#/$defs/s_dec3308fa1"
+          }
+        },
+        "required": [
+          "block"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Save a block for reuse, or change one of mine; only the person who saved it can change it",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -85510,6 +85913,82 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "detail": "example",
+            "latencyMs": 1,
+            "machine": {
+              "cpuPercent": 1,
+              "diskFreeBytes": 1,
+              "diskTotalBytes": 1,
+              "memoryTotalBytes": 1,
+              "memoryUsedBytes": 1
+            },
+            "state": "healthy"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "health",
+      "name": "health.machine",
+      "output": {
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "latencyMs": {
+            "type": "integer"
+          },
+          "machine": {
+            "$ref": "#/$defs/s_d06586147f"
+          },
+          "state": {
+            "enum": [
+              "healthy",
+              "degraded",
+              "down"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "permission": "console.access",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Probe: CPU load, memory and disk of the server as the host last reported them (Console Overview tiles)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
         "validation.bad_input"
       ],
       "examples": [
@@ -92801,6 +93280,9 @@
                 },
                 "final": true,
                 "key": "intake",
+                "onLeaving": [
+                  "aut_a1b2c3"
+                ],
                 "order": 1,
                 "tasks": [
                   {
@@ -92863,6 +93345,9 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "onLeaving": [
+                    "aut_a1b2c3"
+                  ],
                   "order": 1,
                   "tasks": [
                     {
@@ -92927,7 +93412,7 @@
             "type": "string"
           },
           "stages": {
-            "$ref": "#/$defs/s_514842fb1f"
+            "$ref": "#/$defs/s_1a0d5dc1ad"
           },
           "startRule": {
             "$ref": "#/$defs/s_25d70fcceb"
@@ -92951,7 +93436,7 @@
       "module": "journeys",
       "name": "journeys.create",
       "output": {
-        "$ref": "#/$defs/s_14f6a8c95f"
+        "$ref": "#/$defs/s_25dfda5e35"
       },
       "permission": "journeys.manage",
       "resource": {
@@ -93077,6 +93562,9 @@
                 },
                 "final": true,
                 "key": "intake",
+                "onLeaving": [
+                  "aut_a1b2c3"
+                ],
                 "order": 1,
                 "tasks": [
                   {
@@ -93138,6 +93626,9 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "onLeaving": [
+                    "aut_a1b2c3"
+                  ],
                   "order": 1,
                   "tasks": [
                     {
@@ -93206,7 +93697,7 @@
           },
           "stages": {
             "items": {
-              "$ref": "#/$defs/s_b91fd91453"
+              "$ref": "#/$defs/s_4ae4009732"
             },
             "minItems": 1,
             "type": "array"
@@ -93234,7 +93725,7 @@
       "output": {
         "properties": {
           "journey": {
-            "$ref": "#/$defs/s_3b7eca5922"
+            "$ref": "#/$defs/s_df187904ca"
           },
           "startAutomationId": {
             "examples": [
@@ -93297,6 +93788,9 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "onLeaving": [
+                    "aut_a1b2c3"
+                  ],
                   "order": 1,
                   "tasks": [
                     {
@@ -93367,7 +93861,7 @@
       "module": "journeys",
       "name": "journeys.get",
       "output": {
-        "$ref": "#/$defs/s_14f6a8c95f"
+        "$ref": "#/$defs/s_25dfda5e35"
       },
       "permission": null,
       "resource": {
@@ -93924,6 +94418,9 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "onLeaving": [
+                    "aut_a1b2c3"
+                  ],
                   "order": 1,
                   "tasks": [
                     {
@@ -93998,7 +94495,7 @@
       "module": "journeys",
       "name": "journeys.rename",
       "output": {
-        "$ref": "#/$defs/s_14f6a8c95f"
+        "$ref": "#/$defs/s_25dfda5e35"
       },
       "permission": "journeys.manage",
       "resource": {
@@ -94063,6 +94560,9 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "onLeaving": [
+                    "aut_a1b2c3"
+                  ],
                   "order": 1,
                   "tasks": [
                     {
@@ -94164,7 +94664,7 @@
       "module": "journeys",
       "name": "journeys.rules.set",
       "output": {
-        "$ref": "#/$defs/s_14f6a8c95f"
+        "$ref": "#/$defs/s_25dfda5e35"
       },
       "permission": "journeys.manage",
       "resource": {
@@ -94364,6 +94864,143 @@
           "toolset": "automations"
         },
         "outboundWebhook": true
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "recordId": "rec_a1b2c3",
+            "stage": "intake"
+          },
+          "name": "example",
+          "output": {
+            "tasks": [
+              {
+                "assigned": {
+                  "id": "usr_a1b2c3",
+                  "kind": "person"
+                },
+                "required": true,
+                "stage": "intake",
+                "state": "todo",
+                "taskId": "tsk_a1b2c3",
+                "taskKey": "example",
+                "title": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "stage": {
+            "examples": [
+              "intake"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "journeys",
+      "name": "journeys.tasks",
+      "output": {
+        "properties": {
+          "tasks": {
+            "items": {
+              "properties": {
+                "assigned": {
+                  "$ref": "#/$defs/s_f05a3f77df"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "stage": {
+                  "examples": [
+                    "intake"
+                  ],
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "type": "string"
+                },
+                "state": {
+                  "enum": [
+                    "todo",
+                    "in_review",
+                    "blocked",
+                    "done"
+                  ],
+                  "type": "string"
+                },
+                "taskId": {
+                  "examples": [
+                    "tsk_a1b2c3"
+                  ],
+                  "pattern": "^tsk_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "taskKey": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "stage",
+                "taskKey",
+                "taskId",
+                "title",
+                "state",
+                "required"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "tasks"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/recordId",
+        "type": "record"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The tasks of one Journey record by stage, each with its state (todo, in review, blocked, done)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
       },
       "v": 1
     },
@@ -94966,6 +95603,15 @@
               "networkDomains": [
                 "example"
               ],
+              "problems": [
+                {
+                  "cap": "example",
+                  "input": {},
+                  "item": "example",
+                  "message": "example",
+                  "step": "apply"
+                }
+              ],
               "recordTypes": [
                 "example"
               ],
@@ -95009,6 +95655,41 @@
                 },
                 "type": "array"
               },
+              "problems": {
+                "items": {
+                  "properties": {
+                    "cap": {
+                      "type": "string"
+                    },
+                    "input": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "item": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "step": {
+                      "enum": [
+                        "apply",
+                        "undo"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "item",
+                    "step",
+                    "cap",
+                    "input",
+                    "message"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
               "recordTypes": {
                 "items": {
                   "type": "string"
@@ -95036,7 +95717,8 @@
               "recordTypes",
               "networkDomains",
               "vaultNames",
-              "scripts"
+              "scripts",
+              "problems"
             ],
             "type": "object"
           }
@@ -95053,7 +95735,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "The install sheet: tools, record types, network domains, vault names",
+      "summary": "The install sheet: tools, record types, network domains, vault names, scripts, and the steps the sheet check found broken",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -105944,6 +106626,7 @@
           },
           "name": "example",
           "output": {
+            "autoMerged": 1,
             "current": 1,
             "fromMe": 1,
             "proposed": 1
@@ -105971,6 +106654,11 @@
       "name": "memory.counts",
       "output": {
         "properties": {
+          "autoMerged": {
+            "description": "Current facts that merged on their own because their kind is low risk, so no person accepted them",
+            "minimum": 0,
+            "type": "integer"
+          },
           "current": {
             "type": "integer"
           },
@@ -105984,7 +106672,8 @@
         "required": [
           "current",
           "proposed",
-          "fromMe"
+          "fromMe",
+          "autoMerged"
         ],
         "type": "object"
       },
@@ -105994,7 +106683,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "Counts for the agent strip: current facts, proposed facts and facts from the caller",
+      "summary": "Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -107612,6 +108301,95 @@
       "summary": "Nightly job: merge accepted facts, close old versions, rewrite MAP.md (under 200 lines) for each agent",
       "surfaces": {
         "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "map": {
+              "body": "example",
+              "lines": 1,
+              "updatedAt": 1760000000000
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.map.get",
+      "output": {
+        "properties": {
+          "map": {
+            "properties": {
+              "body": {
+                "type": "string"
+              },
+              "lines": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "updatedAt": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "body",
+              "lines",
+              "updatedAt"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The MAP.md block of an agent as the nightly job last wrote it (agent layer only, never personal memory); absent before the first night",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
       },
       "v": 1
     },
@@ -127115,6 +127893,11 @@
               "summary": "example",
               "threadId": "thr_a1b2c3",
               "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
               "waitReason": "approval"
             }
           }
@@ -127174,7 +127957,7 @@
       "module": "runs",
       "name": "runs.finish",
       "output": {
-        "$ref": "#/$defs/s_7916849f25"
+        "$ref": "#/$defs/s_6d2c83cc88"
       },
       "permission": null,
       "resource": {
@@ -127227,6 +128010,11 @@
               "summary": "example",
               "threadId": "thr_a1b2c3",
               "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
               "waitReason": "approval"
             }
           }
@@ -127253,7 +128041,7 @@
       "module": "runs",
       "name": "runs.get",
       "output": {
-        "$ref": "#/$defs/s_7916849f25"
+        "$ref": "#/$defs/s_6d2c83cc88"
       },
       "permission": null,
       "resource": {
@@ -127325,6 +128113,11 @@
                 "summary": "example",
                 "threadId": "thr_a1b2c3",
                 "traceId": "0123456789abcdef0123456789abcdef",
+                "trigger": {
+                  "channelId": "chn_a1b2c3",
+                  "messageId": "msg_a1b2c3",
+                  "threadId": "thr_a1b2c3"
+                },
                 "waitReason": "approval"
               }
             ],
@@ -127404,7 +128197,7 @@
           },
           "runs": {
             "items": {
-              "$ref": "#/$defs/s_bb7ff7d602"
+              "$ref": "#/$defs/s_075cc013db"
             },
             "type": "array"
           },
@@ -127476,6 +128269,11 @@
               "summary": "example",
               "threadId": "thr_a1b2c3",
               "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
               "waitReason": "approval"
             }
           }
@@ -127489,7 +128287,7 @@
       "module": "runs",
       "name": "runs.mark_waiting",
       "output": {
-        "$ref": "#/$defs/s_7916849f25"
+        "$ref": "#/$defs/s_6d2c83cc88"
       },
       "permission": null,
       "resource": {
@@ -127620,6 +128418,11 @@
               "summary": "example",
               "threadId": "thr_a1b2c3",
               "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
               "waitReason": "approval"
             }
           }
@@ -127661,7 +128464,7 @@
       "module": "runs",
       "name": "runs.record_key",
       "output": {
-        "$ref": "#/$defs/s_7916849f25"
+        "$ref": "#/$defs/s_6d2c83cc88"
       },
       "permission": null,
       "resource": {
@@ -127935,6 +128738,11 @@
               "summary": "example",
               "threadId": "thr_a1b2c3",
               "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
               "waitReason": "approval"
             }
           }
@@ -127948,7 +128756,7 @@
       "module": "runs",
       "name": "runs.resume",
       "output": {
-        "$ref": "#/$defs/s_7916849f25"
+        "$ref": "#/$defs/s_6d2c83cc88"
       },
       "permission": null,
       "resource": {
@@ -128073,7 +128881,12 @@
               "id": "rec_a1b2c3",
               "type": "space"
             },
-            "threadId": "thr_a1b2c3"
+            "threadId": "thr_a1b2c3",
+            "trigger": {
+              "channelId": "chn_a1b2c3",
+              "messageId": "msg_a1b2c3",
+              "threadId": "thr_a1b2c3"
+            }
           },
           "name": "example",
           "output": {
@@ -128125,6 +128938,9 @@
             ],
             "pattern": "^thr_[a-z0-9]+$",
             "type": "string"
+          },
+          "trigger": {
+            "$ref": "#/$defs/s_f908ff12d6"
           }
         },
         "required": [
@@ -128454,6 +129270,11 @@
               "summary": "example",
               "threadId": "thr_a1b2c3",
               "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
               "waitReason": "approval"
             }
           }
@@ -128468,7 +129289,7 @@
       "name": "runs.stop",
       "offline": "online",
       "output": {
-        "$ref": "#/$defs/s_7916849f25"
+        "$ref": "#/$defs/s_6d2c83cc88"
       },
       "permission": null,
       "resource": {
@@ -153917,6 +154738,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -153934,6 +154756,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -153978,7 +154801,7 @@
       "module": "chat",
       "name": "threads.add_agent",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": "channels.agents",
       "resource": {
@@ -154032,6 +154855,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -154049,6 +154873,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -154078,7 +154903,7 @@
       "module": "chat",
       "name": "threads.close",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -154130,6 +154955,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -154147,6 +154973,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -154177,7 +155004,7 @@
       "module": "chat",
       "name": "threads.get",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -154237,6 +155064,7 @@
                 "createdAt": 1760000000000,
                 "folderId": "fld_a1b2c3",
                 "kind": "chat",
+                "lastMessageAt": 1760000000000,
                 "listed": true,
                 "members": [
                   {
@@ -154254,6 +155082,7 @@
                 ],
                 "planMode": true,
                 "recordId": "rec_a1b2c3",
+                "replyCount": 1,
                 "scopeId": "example",
                 "scopeType": "record",
                 "starter": "example",
@@ -154320,7 +155149,7 @@
       "module": "chat",
       "name": "threads.list",
       "output": {
-        "$ref": "#/$defs/s_30183bc12b"
+        "$ref": "#/$defs/s_a85a72f91c"
       },
       "permission": null,
       "resource": {
@@ -154562,6 +155391,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -154579,6 +155409,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -154596,7 +155427,7 @@
       "module": "chat",
       "name": "threads.members.add",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -154651,6 +155482,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -154668,6 +155500,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -154685,7 +155518,7 @@
       "module": "chat",
       "name": "threads.members.remove",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -154741,6 +155574,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -154758,6 +155592,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -154795,7 +155630,7 @@
       "module": "chat",
       "name": "threads.remove_agent",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": "channels.agents",
       "resource": {
@@ -154849,6 +155684,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -154866,6 +155702,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -154895,7 +155732,7 @@
       "module": "chat",
       "name": "threads.reopen",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -154950,6 +155787,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -154967,6 +155805,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -155012,7 +155851,7 @@
       "name": "threads.set_folder",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -155067,6 +155906,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -155084,6 +155924,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -155118,7 +155959,7 @@
       "name": "threads.set_plan_mode",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -155173,6 +156014,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -155190,6 +156032,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -155224,7 +156067,7 @@
       "name": "threads.update",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -173221,6 +174064,37 @@
     },
     {
       "module": "email-builder-api",
+      "name": "email_block.saved",
+      "payload": {
+        "properties": {
+          "blockId": {
+            "examples": [
+              "blk_a1b2c3"
+            ],
+            "pattern": "^blk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "shared": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "blockId",
+          "shared"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/blockId",
+        "type": "entity"
+      },
+      "summary": "A block was saved for reuse in email designs",
+      "sv": 1,
+      "vis": "owner"
+    },
+    {
+      "module": "email-builder-api",
       "name": "email_template.saved",
       "payload": {
         "$ref": "#/$defs/s_cb6eb7675e"
@@ -176278,21 +177152,43 @@
       "payload": {
         "properties": {
           "fromFolderId": {
-            "examples": [
-              "fld_a1b2c3"
-            ],
-            "pattern": "^fld_[a-z0-9]+$",
-            "type": "string"
+            "anyOf": [
+              {
+                "examples": [
+                  "fld_a1b2c3"
+                ],
+                "pattern": "^fld_[a-z0-9]+$",
+                "type": "string"
+              },
+              {
+                "examples": [
+                  "vfd_a1b2c3"
+                ],
+                "pattern": "^vfd_[a-z0-9]+$",
+                "type": "string"
+              }
+            ]
           },
           "resource": {
             "$ref": "#/$defs/s_f21ece25da"
           },
           "toFolderId": {
-            "examples": [
-              "fld_a1b2c3"
-            ],
-            "pattern": "^fld_[a-z0-9]+$",
-            "type": "string"
+            "anyOf": [
+              {
+                "examples": [
+                  "fld_a1b2c3"
+                ],
+                "pattern": "^fld_[a-z0-9]+$",
+                "type": "string"
+              },
+              {
+                "examples": [
+                  "vfd_a1b2c3"
+                ],
+                "pattern": "^vfd_[a-z0-9]+$",
+                "type": "string"
+              }
+            ]
           }
         },
         "required": [
@@ -176712,6 +177608,13 @@
       },
       "summary": "A Journey record left a stage",
       "sv": 1,
+      "trigger": {
+        "fields": [
+          "/journeyId",
+          "/stage"
+        ],
+        "title": "A Journey record leaves a stage"
+      },
       "vis": "space"
     },
     {
@@ -192511,7 +193414,7 @@
     {
       "id": "kits",
       "kind": "module",
-      "owner": "L8",
+      "owner": "L10",
       "requires": [],
       "title": "Kits",
       "version": "0.1.0"
@@ -194370,6 +195273,34 @@
         },
         {
           "key": "stage",
+          "options": {
+            "stages": [
+              {
+                "key": "intake",
+                "title": "Intake"
+              },
+              {
+                "key": "drafting",
+                "title": "Drafting"
+              },
+              {
+                "key": "review",
+                "title": "Review"
+              },
+              {
+                "key": "signing",
+                "title": "Signing"
+              },
+              {
+                "key": "funding",
+                "title": "Funding"
+              },
+              {
+                "key": "complete",
+                "title": "Complete"
+              }
+            ]
+          },
           "title": "Stage",
           "type": "status"
         },
@@ -194415,6 +195346,26 @@
         },
         {
           "key": "status",
+          "options": {
+            "stages": [
+              {
+                "key": "brief",
+                "title": "Brief"
+              },
+              {
+                "key": "concept",
+                "title": "Concept"
+              },
+              {
+                "key": "review",
+                "title": "In review"
+              },
+              {
+                "key": "delivered",
+                "title": "Delivered"
+              }
+            ]
+          },
           "title": "Status",
           "type": "status"
         },
@@ -210372,6 +211323,52 @@
         "event": "journey.stage_entered"
       },
       "title": "A Journey record enters a stage"
+    },
+    {
+      "allowSelfTrigger": false,
+      "key": "journey_stage_left",
+      "module": "automations",
+      "payload": {
+        "properties": {
+          "journeyId": {
+            "examples": [
+              "jrn_a1b2c3"
+            ],
+            "pattern": "^jrn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "toStage": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "journeyId",
+          "recordId",
+          "stage"
+        ],
+        "type": "object"
+      },
+      "personalOk": true,
+      "sample": {
+        "journeyId": "jrn_a1b2c3",
+        "recordId": "rec_a1b2c3",
+        "stage": "example",
+        "toStage": "example"
+      },
+      "source": {
+        "event": "journey.stage_exited"
+      },
+      "title": "A Journey record leaves a stage"
     },
     {
       "allowSelfTrigger": false,

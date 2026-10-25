@@ -12,6 +12,8 @@
         "modules/sync/",
         "modules/conflicts/",
         "modules/search/",
+        "spikes/s13/",
+        ".github/workflows/spike-s13-vectors.yml",
         "package-lock.json"
       ],
       "modules": [
@@ -189,6 +191,8 @@
       "id": "L7b",
       "name": "Server and Console",
       "owns": [
+        "scripts/shots/mounts/P-L7b_11.tsx",
+        "scripts/shots/targets/P-L7b_11.json",
         "apps/console/",
         "host/src/",
         "images/vyred/",
@@ -219,25 +223,24 @@
       "owns": [
         "images/site-builders/",
         "images/documenso/",
-        "kits/",
         "apps/forms-embed/",
         "relay/warmup/",
         "modules/sites/",
         "modules/forms/",
         "modules/campaigns/",
         "modules/templates/",
-        "modules/kits/",
         "modules/esign/",
         "modules/portal/",
         "modules/email-builder-api/",
-        "package-lock.json"
+        "package-lock.json",
+        "scripts/shots/mounts/P-L8_13.tsx",
+        "scripts/shots/targets/P-L8_13.json"
       ],
       "modules": [
         "sites",
         "forms",
         "campaigns",
         "templates",
-        "kits",
         "esign",
         "portal",
         "email-builder-api"
@@ -344,6 +347,8 @@
       "id": "L10",
       "name": "Edges",
       "owns": [
+        "kits/",
+        "modules/kits/",
         "apps/chrome/",
         "apps/desktop/",
         "apps/reports/",
@@ -353,7 +358,9 @@
         "scripts/install/",
         "package-lock.json"
       ],
-      "modules": []
+      "modules": [
+        "kits"
+      ]
     },
     {
       "id": "L11",
@@ -433,7 +440,7 @@
     "import": "L3",
     "inbox": "L5",
     "journeys": "L6",
-    "kits": "L8",
+    "kits": "L10",
     "logs": "L7b",
     "mail": "L5",
     "mailgun": "L5",

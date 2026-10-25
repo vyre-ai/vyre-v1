@@ -66,6 +66,7 @@ type In = {
         }>;
       automations: Array<string>;
       final?: boolean;
+      onLeaving?: Array<string>;
     }>;
   startRule?: {
     event: string;
@@ -127,6 +128,7 @@ type Out = {
           }>;
         automations: Array<string>;
         final?: boolean;
+        onLeaving?: Array<string>;
       }>;
     startRule?: {
       event: string;
@@ -172,6 +174,9 @@ type Out = {
         },
         "final": true,
         "key": "intake",
+        "onLeaving": [
+          "aut_a1b2c3"
+        ],
         "order": 1,
         "tasks": [
           {
@@ -232,6 +237,9 @@ type Out = {
           },
           "final": true,
           "key": "intake",
+          "onLeaving": [
+            "aut_a1b2c3"
+          ],
           "order": 1,
           "tasks": [
             {
