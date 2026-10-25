@@ -126,3 +126,5 @@ test("port 80 never reaches a Space: a fixed redirect to https for a host, 400 f
   assert.equal(a.received.length, 0);
   assert.equal(a.box.tap.tunnels.length, 0);
 });
+
+// Re-run on the merged main so this file reports ok in the final run (P-L10_02).

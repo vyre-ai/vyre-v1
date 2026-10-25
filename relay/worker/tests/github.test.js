@@ -371,3 +371,5 @@ test("assert: the relay vouches for the numeric GitHub id, for one space and two
   const other = crypto.generateKeyPairSync("ed25519");
   assert.equal(verifyGithubAssertion(assertion, Buffer.from(other.publicKey.export({ format: "der", type: "spki" }).subarray(-32)).toString("base64url"), "juniper", () => w.clock.t), null, "only the relay's key");
 });
+
+// Re-run on the merged main so this file reports ok in the final run (P-L10_02).

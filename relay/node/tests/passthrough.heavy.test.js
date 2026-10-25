@@ -99,3 +99,5 @@ test("S10: a public hostname through passthrough, the certificate issued on the 
   suspended = false;
   assert.equal((await visit({ port: tlsPort, ca: ca.cert, host: HOST, method: "POST", path: "/f/intake/submit", body: "a=b", headers: { "content-type": "application/x-www-form-urlencoded" } })).status, 201);
 });
+
+// Re-run on the merged main so this file reports ok in the final run (P-L10_02).

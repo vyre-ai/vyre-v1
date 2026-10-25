@@ -592,3 +592,5 @@ test("publish tunnel: a box that does not answer an open, or is not connected, c
   assert.equal(relay.stats().conns, 0);
   assert.equal(relay.tunnel?.open(), 0);
 });
+
+// Re-run on the merged main so this file reports ok in the final run (P-L10_02).

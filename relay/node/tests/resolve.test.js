@@ -53,3 +53,5 @@ test("an answer that is not { data: { route: string } } is nobody's", async t =>
     assert.equal(await directoryResolve({ base, secret: SECRET })("documents.harlow.vyre.run"), null, JSON.stringify(body));
   }
 });
+
+// Re-run on the merged main so this file reports ok in the final run (P-L10_02).

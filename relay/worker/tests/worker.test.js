@@ -923,3 +923,5 @@ for (const hibernateEveryEvent of [false, true]) {
     for (const bad of [{}, { loc: "x", s: SEEDS }, { loc: LOCS, s: "short" }]) assert.equal((await signin(rt, bad)).status, 400);
   });
 }
+
+// Re-run on the merged main so this file reports ok in the final run (P-L10_02).

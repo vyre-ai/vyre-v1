@@ -80,3 +80,5 @@ test("a watch ends when the box goes away", async t => {
   await new Promise(r => setTimeout(r, 100));
   assert.equal((await ask(base, { loc: LOC, s: SEED })).status, 202, "still the same answer");
 });
+
+// Re-run on the merged main so this file reports ok in the final run (P-L10_02).

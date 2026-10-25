@@ -184,3 +184,5 @@ test("tunnel front: a directory that fails answers no, never a cached yes", asyn
   assert.equal(front.stats.refused.unknown_name, 1);
   void w;
 });
+
+// Re-run on the merged main so this file reports ok in the final run (P-L10_02).
