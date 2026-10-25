@@ -1,3 +1,4 @@
+// @reads ../../../../../../scripts/shots/mounts/P-L9d_07.tsx
 // Records > Schema map and Record types (P-L9d_07): the map draws a card per type with its links and has no editing controls; the list is rows that open a type and a line that says
 // structure lives in the Console. Screens render through react-dom/server over react-native-web from the sample Space's replica.
 import test from "node:test";
