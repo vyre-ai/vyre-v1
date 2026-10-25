@@ -46,7 +46,7 @@ import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, W
 import { createLiveHub } from "../ws.ts";
 import type { LiveHub } from "../ws.ts";
 import { createAccess } from "./access.ts";
-import { ADMIN_DEVICE, createSessionResolver } from "./session.ts";
+import { ADMIN_DEVICE, createSessionResolver, issueSessionToken } from "./session.ts";
 import { createResourceRegistrar } from "../gateway/resources.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
@@ -408,6 +408,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           },
         }),
         setEventsDispatch: () => system,
+        // identity opens a device session at sign-in: the token is minted here for that devices session, and ending a session stops it at the gateway (P-SEC_05)
+        setSessionTokens: () => ({
+          mint: (sessionId: string) => issueSessionToken(db!, sessionId, now),
+          end: (sessionId: string) => { db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", now(), sessionId); },
+        }),
         // the import module reads an Airtable or Notion key from the Vault by handle, for one call
         setImportHost: (d) => ({ secret: (_ctx: unknown, handle: string) => d.vault.secret(handle.startsWith("#") ? handle : `#${handle}`, d.space) }),
         setEventsHost: () => createEventsHost({

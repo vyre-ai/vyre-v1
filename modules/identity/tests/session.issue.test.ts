@@ -116,11 +116,7 @@ test("booted: a person who has just joined signs in on two devices, both tokens 
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, tick: 3_600_000, hooks: 3_600_000 },
   });
   try {
-    // what the host does at boot: mint the token for a devices session, end it at the gateway
-    configureSessionTokens({
-      mint: (sessionId) => issueSessionToken(d.db!, sessionId),
-      end: (sessionId) => { d.db!.run(`UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL`, Date.now(), sessionId); },
-    });
+    // no configureSessionTokens here: the daemon wires identity's setSessionTokens seam at boot, and that is what this proves
     // the joined member: an account row, as the invite accept leaves it
     const ctx = { space: "spc_core", trace: { traceId: "t".repeat(32) }, now: () => Date.now(), db: d.db, emit: () => undefined } as unknown as IdentityCtx;
     await provisionAccount(ctx, { personId: "usr_joined", username: "joined", name: "Joined Member", secret: SECRET });
