@@ -1,6 +1,6 @@
 // Streaming render (ARCH 9, perf stream_render and layout_shift): 100 deltas a second become at most one append per frame, only the open block of the markdown is parsed again, final blocks keep
 // their identity so React skips them, and every box that arrives late is reserved at its final size. The browser-side numbers (frame interval under a 100 delta/s stream, layout shift 0) are the
-// shots scroll probe on scripts/shots/mounts/P-L9_20.tsx; this file proves the mechanism that keeps them.
+// shots scroll probe on scripts/shots/mounts/P-L9_20.tsx; this file proves the mechanism that keeps them (the caret is text inside the last run, so it never moves as a box).
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
