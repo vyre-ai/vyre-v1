@@ -15,7 +15,7 @@ test('check is clean on freshly generated output and fails after an edit', () =>
   const dir = mkdtempSync(join(tmpdir(), 'gen-check-'));
   assert.equal(run('--out', dir).status, 0);
   assert.equal(run('--check', '--out', dir).status, 0);
-  appendFileSync(join(dir, 'hash.txt'), 'drift\n');
+  appendFileSync(join(dir, 'registry.json'), 'drift\n');
   const bad = run('--check', '--out', dir);
   assert.equal(bad.status, 1);
   assert.match(bad.stderr, /out of date/);

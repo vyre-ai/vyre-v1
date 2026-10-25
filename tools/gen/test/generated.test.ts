@@ -22,10 +22,9 @@ import { syncEntities } from '../../../generated/sync/entities.ts';
 import { validateInput, validateEvent } from '../../../generated/validators.ts';
 import { levelIncludes, ladderFor } from '../../../packages/contracts/src/index.ts';
 
-test('registry hash matches registry.json', () => {
+test('registry hash is the hash of registry.json, computed and never written down', () => {
   const text = readFileSync(new URL('../../../generated/registry.json', import.meta.url), 'utf8');
   assert.equal(createHash('sha256').update(text).digest('hex'), registryHash);
-  assert.equal(readFileSync(new URL('../../../generated/hash.txt', import.meta.url), 'utf8').trim(), registryHash);
 });
 
 test('routes, tools and catalogues agree with the registry', () => {
