@@ -192,7 +192,11 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
   const assigned = data.nameOf(t.assigned.id);
   const gone = isWithdrawn(item);
   const people = participants(t, (id) => (id.startsWith("usr_") ? "person" : "agent"));
-  const peopleMenu = (x: number, y: number): void => showMenu(people.map((p) => ({ label: `${data.nameOf(p.id)}, ${p.role}`, onSelect: () => undefined })), x, y);
+  const peopleMenu = (x: number, y: number): void => {
+    const who: MenuEntry[] = [];
+    for (const p of people) who.push({ label: `${data.nameOf(p.id)}, ${p.role}`, onSelect: () => undefined });
+    showMenu(who, x, y);
+  };
   const blockNodes: ReactElement[] = [];
   for (const [i, b] of t.blocks.entries()) blockNodes.push(<Block key={`${b.type}-${i}`} view={blockView(b)} />);
   const moreButtons: ReactElement[] = [];
@@ -377,11 +381,11 @@ function NeedList({ items, withdrawn, render, window }: { items: readonly Item[]
     entries.push({ key: "label:withdrawn", label: "Withdrawn" });
     for (const item of withdrawn) entries.push({ key: keyOfItem(item), item });
   }
-  return (
-    <VirtualList
-      data={entries} rowHeight={44} keyOf={(e) => e.key}
-      renderItem={(e) => ("item" in e ? render(e.item) : <View testID="needs-withdrawn-label" style={st.nsec}><Text accessibilityRole="header" style={st.nsecText}>{e.label}</Text></View>)}
-      {...(window ? { window } : {})}
-    />
-  );
+  const renderEntry = (e: Entry): ReactElement => ("item" in e ? render(e.item) : <WithdrawnLabel label={e.label} />);
+  return <VirtualList data={entries} rowHeight={44} keyOf={(e) => e.key} renderItem={renderEntry} {...(window ? { window } : {})} />;
+}
+
+/** The quiet label above the withdrawn requests: a section heading, not a list item. */
+function WithdrawnLabel({ label }: { label: string }): ReactElement {
+  return <View testID="needs-withdrawn-label" style={st.nsec}><Text accessibilityRole="header" style={st.nsecText}>{label}</Text></View>;
 }
