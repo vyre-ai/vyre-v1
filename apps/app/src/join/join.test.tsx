@@ -216,8 +216,9 @@ test("the checklist counts what is done, locks the assistant behind the AI accou
     { key: "connect_mailbox_and_calendar" as const, title: "Connect your mailbox and calendar", done: false },
     { key: "meet_assistant" as const, title: "Meet your assistant", done: false },
   ];
-  const out = renderToStaticMarkup(<Checklist space="Northwind" items={items} visible assistantLocked />);
-  for (const text of ["Get started", "1 of 3 done", "Add a photo and title", "Done", "So agents can draft and schedule for you", "Connect an AI account first", "Locked", "Not now"]) assert.ok(out.includes(text), text);
+  const out = renderToStaticMarkup(<Checklist space="Northwind" items={items} visible assistantLocked heading="Good morning, Dana" dateLine="Friday, October 24" />);
+  for (const text of ["Good morning, Dana", "Friday, October 24", "Get started", "1 of 4", "Connect an AI account", "Your assistant stays locked until you do", "Add a photo and title", "Done", "So agents can draft and schedule for you", "Connect an AI account first", "Locked", "Hide"]) assert.ok(out.includes(text), text);
+  assert.doesNotMatch(out, /data-testid="join-panel"|data-testid="join-frame"/, "the checklist is a page of Home's layout, not a modal over a wash");
   assert.match(out, /data-testid="go-connect_mailbox_and_calendar"/);
   assert.doesNotMatch(out, /data-testid="go-meet_assistant"/, "a locked step has no action");
   assert.doesNotMatch(out, /data-testid="go-photo_and_title"/, "a done step has no action");
