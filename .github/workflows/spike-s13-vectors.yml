@@ -13,10 +13,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/deps
-      - name: Model cache (one download per runner host, checked by sha256)
-        run: echo "VYRE_MODEL_CACHE=/var/lib/ci-run/model-cache/751bff37182d3f1213fa05d7196b954e230abad9" >> "$GITHUB_ENV"
+      - name: Model cache (downloaded once per job into the job's temp folder, checked by sha256)
+        run: echo "VYRE_MODEL_CACHE=$RUNNER_TEMP/model-cache/751bff37182d3f1213fa05d7196b954e230abad9" >> "$GITHUB_ENV"
       - name: Kernel budget (60 ms over 200k vectors) and embedder budget (100 chunks per second)
-        run: node spikes/s13/bench.ts all 2>&1 | tee s13-bench.txt
+        shell: bash
+        run: |
+          set -o pipefail
+          node spikes/s13/bench.ts all 2>&1 | tee s13-bench.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: s13-bench, path: s13-bench.txt, retention-days: 30 }

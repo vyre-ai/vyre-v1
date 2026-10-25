@@ -221,7 +221,7 @@ let kernel: VectorKernel = jsKernel;
 /** The host (or the vectors spike) gives the module a faster kernel; null puts the JavaScript one back. */
 export function setVectorKernel(k: VectorKernel | null): void { kernel = k ?? jsKernel; }
 
-const CHUNK = 4_096;
+const CHUNK = 16_384;
 
 /** Every vector of one Space in one contiguous array, scanned in full for a query: brute force, fine to about 200k vectors (ARCH R14). */
 export class VectorIndex {
