@@ -1,0 +1,20 @@
+{
+  "module": "resend",
+  "capabilities": {
+    "resend.domains.create@1": "2959c7668ec26964166405d7b1094128301aeb44a07c0925761a830dd1c4cb97",
+    "resend.domains.delete@1": "3cd8dea064a71d4a5eb6941fdab492031abe55249d536aff3ff766b722834f64",
+    "resend.domains.get@1": "16100b16d7b843ef97db9c13a6fb34c399e40cb30f1dc35d2c6efd27c865edc8",
+    "resend.domains.list@1": "39b74d125e864fac8d9f8afdae92c7481f235b10e3bc7ef8110f3bd68e60b377",
+    "resend.domains.verify@1": "20a292fef5b9bde06836028d9ab15db6f85c555aebe1119f2daee4920bbce3e8",
+    "resend.get_email@1": "7dd3d4c9fa823459a845cf386ca5be8cfe959ed8507f414c36d117fb7bb36ad5",
+    "resend.health@1": "5b2d9c38cdd9f890b9232f93ae930c3f3303cdd26d96b0e15bd6786bbec93cce",
+    "resend.inbound.get_email@1": "94ad7e222c0fc6586ff7dec990b2759bc865a32c90ddb4a64fe1b76c38bf5f50",
+    "resend.receive_inbound@1": "4225a81f616433683b7273c30d3fb256505d098260797cc286894b0ad33c417a",
+    "resend.receive_webhook@1": "4bf09e37df306e015e65214df2d1dfded5b961172fa5f5d34d15a1715d4cad23",
+    "resend.send_email@1": "097570d356dab8843259800c9ea6401c70f6acd28c455394dfcf0cb62d613482"
+  },
+  "events": {
+    "resend.event_received": "acccc227f97100adc50a7d67c8063aad78bb0b079f73da9268d8271193b45788",
+    "resend.inbound_received": "858d04b23242fc3f4fcb035ba62b974e5e643d5e0b989f3fb5b5f2bccde73730"
+  }
+}

@@ -1,8 +1,10 @@
 name: check
-# Per push affected-only checks, budget 5 minutes (ARCH-DECISIONS 13). Required checks on main: check, golden, budget.
+# Per push affected-only checks, budget 5 minutes (ARCH-DECISIONS 13). Required checks on main (and for the merge queue): check, golden, contracts. budget only reports, on branch pushes.
 on:
   push:
-    branches-ignore: [main]
+    branches-ignore: [main, 'gh-readonly-queue/**']
+  # the merge queue runs the same required checks on each batch (ruling: merge queue on main)
+  merge_group:
 concurrency:
   group: push-${{ github.ref }}
   cancel-in-progress: true
@@ -20,19 +22,17 @@ jobs:
         with: { node-version: 24 }
       - name: Select affected tests and shard them
         id: sel
-        env:
-          BEFORE: ${{ github.event.before }}
         run: |
-          BASE="$BEFORE"
-          if [ -z "$BASE" ] || echo "$BASE" | grep -Eq '^0+$'; then BASE=origin/main; fi
-          git rev-parse --verify -q "$BASE" >/dev/null || BASE=origin/main
+          # Every check run selects against the branch's merge-base with main, never the previous push: a later push must still include every test the branch has touched since it left main.
+          git fetch -q origin main
+          BASE="$(git merge-base origin/main HEAD)"
           node scripts/ci-select.ts "$BASE" --matrix > select.json
           node -e 'const r=JSON.parse(require("fs").readFileSync("select.json","utf8"));console.log("select: "+(r.all?"all":r.files.length+" files")+" "+r.why.join("; "));require("fs").appendFileSync(process.env.GITHUB_OUTPUT,"matrix="+JSON.stringify(r.matrix)+"\ncount="+r.matrix.include.length+"\n")'
   shards:
     name: ${{ matrix.name }}
     needs: select
     if: needs.select.outputs.count != '0'
-    runs-on: ${{ fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
+    runs-on: ${{ matrix.runner == 'hosted' && 'ubuntu-latest' || fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -47,6 +47,7 @@ jobs:
         env:
           FILES: ${{ matrix.files }}
           SLOW: ${{ matrix.slow }}
+          VYRE_PERF_RUN: ${{ matrix.runner == 'v1-perf' && '1' || '' }}   # perf files run only on the pinned perf host (test-run skips them elsewhere)
         run: |
           if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else NC=""; [ "$RUNNER_ENVIRONMENT" = "github-hosted" ] && NC="--no-cache"; node scripts/test-run.mjs --files $FILES $NC; fi  # a hosted VM never reads a shared pass cache
   gates:
@@ -200,7 +201,7 @@ jobs:
         run: |
           git fetch -q origin main
           base="$(git merge-base origin/main HEAD)"
-          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|modules/computers/|images/person-sandbox/|images/agent-computer/|agent/tests/sandbox\.(net\.)?heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
+          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|modules/computers/|modules/engine/(sandbox|tests/(sandbox|cli))|images/person-sandbox/|images/agent-computer/|agent/tests/sandbox\.(net\.)?heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
       - name: Install bubblewrap and tmux when the runner does not have them
         if: steps.scope.outputs.changed == 'true'
         run: |
@@ -232,7 +233,7 @@ jobs:
         if: steps.scope.outputs.changed == 'true'
         env:
           VYRE_HEAVY_DOCKER: "1"
-        run: node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts
+        run: node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts modules/engine/tests/sandbox.heavy.test.ts modules/engine/tests/cli.heavy.test.ts
       - name: The network wall, none skipped (agent/tests/sandbox.net.heavy.test.ts)
         if: always() && steps.scope.outputs.changed == 'true'
         env:
@@ -322,12 +323,10 @@ jobs:
         with: { node-version: 24 }
       - name: Did contracts change?
         id: scope
-        env:
-          BEFORE: ${{ github.event.before }}
         run: |
-          BASE="$BEFORE"
-          if [ -z "$BASE" ] || echo "$BASE" | grep -Eq '^0+$'; then BASE=origin/main; fi
-          git rev-parse --verify -q "$BASE" >/dev/null || BASE=origin/main
+          # Every check run selects against the branch's merge-base with main, never the previous push: a later push must still include every test the branch has touched since it left main.
+          git fetch -q origin main
+          BASE="$(git merge-base origin/main HEAD)"
           if git diff --name-only "$BASE"...HEAD | grep -Eq '^(manifests|packages/contracts|tools/gen|generated)/'; then echo "run=true" >> "$GITHUB_OUTPUT"; else echo "run=false" >> "$GITHUB_OUTPUT"; fi
       - name: Regenerate into a scratch directory
         if: steps.scope.outputs.run == 'true'
@@ -346,7 +345,7 @@ jobs:
   budget:
     permissions: { contents: read, actions: read }
     needs: [select, shards, check, golden]
-    if: always()
+    if: always() && github.event_name != 'merge_group'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

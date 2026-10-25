@@ -52,7 +52,7 @@ jobs:
     name: ${{ matrix.name }}
     needs: select
     if: needs.select.outputs.has_tests == 'true'
-    runs-on: ${{ fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
+    runs-on: ${{ matrix.runner == 'hosted' && 'ubuntu-latest' || fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -67,6 +67,7 @@ jobs:
         env:
           FILES: ${{ matrix.files }}
           SLOW: ${{ matrix.slow }}
+          VYRE_PERF_RUN: ${{ matrix.runner == 'v1-perf' && '1' || '' }}   # perf files run only on the pinned perf host (test-run skips them elsewhere)
         run: |
           if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else NC=""; [ "$RUNNER_ENVIRONMENT" = "github-hosted" ] && NC="--no-cache"; node scripts/test-run.mjs --files $FILES $NC; fi  # a hosted VM never reads a shared pass cache
   golden-main:
