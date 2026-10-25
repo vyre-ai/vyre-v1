@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_15-cmdk",
+      "route": "/m/P-L9_15",
+      "proto": "search,{skin}",
+      "waitFor": "[data-testid='cmdk-list'] [data-testid^='row-']",
+      "note": "Cmd-K with the query referral: local hits first, then the server hits merged in (shared files, records and a channel), grouped under quiet headings with the highlighted row in the quiet wash, against the prototype palette opened at #search with the same word. Paper and graphite, 1280 and 390 wide."
+    }
+  ]
+}
