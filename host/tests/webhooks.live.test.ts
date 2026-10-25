@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { bootCore } from "../../fixtures/seed/core/index.ts";
+import { ROLE_PERMS } from "../../kernel/src/grants/roles.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
@@ -29,6 +30,12 @@ const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, heade
 
 function seededDir(): string {
   const core = bootCore();
+  // The seed's roles carry no `connectors.manage` (the permission webhooks.create needs), so the Space owner is given it by one more role.defined event in this copy.
+  const [owned] = core.store.appendBatch([{
+    id: "evt_whlive_0001", type: "role.defined", sv: 1, trace_id: "0".repeat(32), actor: "svc_seed", vis: "space", entity: "role", entity_id: "owner",
+    payload: { id: "owner", clearance: 3, perms: [...ROLE_PERMS.owner, "connectors.manage"], name: "owner" },
+  }]);
+  assert.ok(owned?.ok, "the owner role is extended");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-webhooks-live-"));
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
   fs.copyFileSync(core.file, path.join(dir, "events.db"));
