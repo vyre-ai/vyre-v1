@@ -57,12 +57,14 @@
       "lib",
       "manifest",
       "contracts",
-      "kernel"
+      "kernel",
+      "allowlist"
     ],
     "client": [
       "contracts",
       "sync/client",
-      "lib"
+      "lib",
+      "allowlist"
     ],
     "modules/*": [
       "lib",
@@ -147,7 +149,7 @@
       ]
     },
     "B3": {
-      "text": "only kernel and modules/vault import crypto primitives for key handling; allowCryptoFiles names the sanctioned others (websocket accept hash, envelope payload hash, ACME account and CSR keys); tests may hash",
+      "text": "only kernel and modules/vault import crypto primitives for key handling; allowCryptoFiles names the sanctioned others (websocket accept hash, envelope payload hash, ACME account and CSR keys); tests may hash; the relay checks route signatures and the WebSocket handshake (relay/node, relay/worker tests)",
       "allowCrypto": [
         "kernel",
         "modules/vault"
@@ -161,7 +163,11 @@
       "allowCryptoFiles": [
         "host/src/ws.ts",
         "packages/contracts/src/envelope.ts",
-        "lib/acme/"
+        "lib/acme/",
+        "relay/node/server.js",
+        "relay/node/wire.js",
+        "relay/node/ws.js",
+        "relay/worker/tests/wire.js"
       ]
     },
     "B4": {
@@ -199,7 +205,8 @@
     "dynamicOk": [
       "ui/src/theme/theme.firstframe.test.ts",
       "host/src/loader.ts",
-      "agent/tests/sandbox.heavy.test.ts"
+      "agent/tests/sandbox.heavy.test.ts",
+      "agent/tests/sandbox.net.heavy.test.ts"
     ],
     "ignoreImports": [
       "manifest/gen/scaffold/index.ts"

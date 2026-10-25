@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_13-kit-run",
+      "route": "/m/P-L9_13",
+      "proto": "records,{skin}",
+      "note": "The Kit runtime over a 20-screen run: declarative list screens from KitScreenDef, loading skeleton to rows. The prototype has no Kit screen as such; its Records list is the matching row look (whole-row hover, 40 px rows, quiet headings). The scroll probe scrolls the run and reports layout_shift, which must be 0.",
+      "scroll": { "selector": "[data-testid=\"kit-run\"]" }
+    }
+  ]
+}

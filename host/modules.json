@@ -9,7 +9,7 @@
     {
       "id": "agents",
       "owner": "L2",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "audit",
@@ -19,7 +19,7 @@
     {
       "id": "automations",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "backup",
@@ -54,7 +54,7 @@
     {
       "id": "connectors",
       "owner": "L3",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "console-assistant",
@@ -99,7 +99,7 @@
     {
       "id": "events",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "files",
@@ -114,7 +114,7 @@
     {
       "id": "gate",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "git",
@@ -144,7 +144,7 @@
     {
       "id": "home",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "identity",
@@ -154,7 +154,7 @@
     {
       "id": "import",
       "owner": "L3",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "inbox",
@@ -164,7 +164,7 @@
     {
       "id": "journeys",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "kits",
@@ -204,7 +204,7 @@
     {
       "id": "memory",
       "owner": "L2",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "microsoft",
@@ -239,12 +239,12 @@
     {
       "id": "projects",
       "owner": "L3",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "records",
       "owner": "L3",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "reports-client",
@@ -259,22 +259,22 @@
     {
       "id": "runbooks",
       "owner": "L4",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "runs",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "scheduler-api",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "schema",
       "owner": "L3",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "search",
@@ -294,7 +294,7 @@
     {
       "id": "sources",
       "owner": "L3",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "spaces",
@@ -304,7 +304,7 @@
     {
       "id": "steps-core",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "stripe",
@@ -319,7 +319,7 @@
     {
       "id": "tasks",
       "owner": "L6",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "telephony",

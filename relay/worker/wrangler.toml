@@ -1,0 +1,121 @@
+# from vyre 0.6.9 relay/worker/wrangler.toml@57ce975b8
+# The Vyre relay on Cloudflare (ADR 0026, section 2). No account id here: wrangler takes it from
+# the logged-in account at deploy. Deploying needs the lead's approval. A ratelimit namespace_id
+# is a positive integer this account picks for itself (nothing to create first); it only has to
+# be unique across the account's Workers, and a counter is shared by every binding using the same
+# id, so each limiter below has its own. 26xxx is this relay's block (ADR 0026).
+name = "vyre-relay"
+main = "index.js"
+compatibility_date = "2026-09-01"
+
+# The relay's one hostname, as a Worker custom domain (it makes the DNS record and the
+# certificate). Approved by the lead, 28 Sep 2026. No workers.dev address.
+workers_dev = false
+routes = [{ pattern = "relay.vyre.run", custom_domain = true }]
+
+[[durable_objects.bindings]]
+name = "ROUTES"
+class_name = "RouteRelay"
+
+# One object per Wink pairing ticket locator (ADR 0045), not per route: a resolve request carries
+# only a locator, nothing to route it to a specific RouteRelay object by.
+[[durable_objects.bindings]]
+name = "TICKETS"
+class_name = "PairTicket"
+
+# One object per typed Wink code rendezvous (spec 6.5): `rv:XX`, 1024 of them. It records which
+# route holds the rendezvous and until when, and nothing about a password.
+[[durable_objects.bindings]]
+name = "CODES"
+class_name = "CodeSlot"
+
+# One object per name's sign-in requests (`si:<hash of the name>`): the routes that serve the name and a per-minute count. No name, no secret.
+[[durable_objects.bindings]]
+name = "SIGNIN"
+class_name = "SigninSlot"
+
+# Sign in with GitHub (relay/worker/github.js): starts, one-use tickets, nonces and the GitHub-id to identity links, in one object. Holds no key and no secret of a person.
+[[durable_objects.bindings]]
+name = "GITHUB"
+class_name = "GithubLinks"
+
+# The free plan needs SQLite-backed Durable Objects. Cloudflare applies each migration tag once,
+# ever, on a given relay: a relay that already ran v1 (RouteRelay alone, before ADR 0045) never
+# re-runs it, so PairTicket needs its OWN tag, or /v1/pair 404s everything forever, fail-closed
+# but silently broken (reviewer's MEDIUM, 28 Sep).
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RouteRelay"]
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["PairTicket"]
+# CodeSlot needs its own tag for the same reason PairTicket did.
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["CodeSlot"]
+# SigninSlot, the same way.
+[[migrations]]
+tag = "v4"
+new_sqlite_classes = ["SigninSlot"]
+
+[[migrations]]
+tag = "v5"
+new_sqlite_classes = ["GithubLinks"]
+
+# Per-address limiting for /v1/device: the 256-bit route id and the DO's own per-route caps make
+# this safe without one, but it is real protection against cost and flooding, so it is on.
+[[ratelimits]]
+name = "DEVICE_LIMITER"
+namespace_id = "26001"
+simple = { limit = 30, period = 60 }
+
+# Per-address limiting for /v1/pair (ADR 0045's Wink resolve). The locator derives from a seed of at least 64 bits, so
+# guessing is infeasible within a ticket's five minutes; a flood from one address is still real.
+[[ratelimits]]
+name = "PAIR_LIMITER"
+namespace_id = "26002"
+simple = { limit = 30, period = 60 }
+# No global limit on /v1/pair: it let any outsider block pairing for every user (GHSA-25xh-w9j7-7v28).
+
+# The setup mailbox (tailnet plan 3.6b). Appends are the install script's, a handful per install,
+# so the per-address limit is small; reads are the page's long polls (one every 20 seconds), and
+# a per-locator limit stands in for the old global one, which let any outsider block every install (GHSA-25xh-w9j7-7v28). A zone rule backs
+# these if the Workers Free limiter stays silent.
+[[ratelimits]]
+name = "SETUP_LIMITER"
+namespace_id = "26004"
+simple = { limit = 20, period = 60 }
+[[ratelimits]]
+name = "SETUP_READ_LIMITER"
+namespace_id = "26005"
+simple = { limit = 10, period = 60 }
+[[ratelimits]]
+name = "SETUP_LOC_LIMITER"
+namespace_id = "26007"
+simple = { limit = 60, period = 60 }
+
+# The typed Wink code (spec 6.5), per address, never global (GHSA-25xh-w9j7-7v28): a session is charged
+# 10 a minute, any later step 30, and a miss on a rendezvous that is not live 30 more. The real client
+# address must reach the Worker (cf-connecting-ip); behind another forwarder the limits are weaker.
+[[ratelimits]]
+name = "CODE_LIMITER"
+namespace_id = "26010"
+simple = { limit = 10, period = 60 }
+[[ratelimits]]
+name = "CODE_STEP_LIMITER"
+namespace_id = "26011"
+simple = { limit = 30, period = 60 }
+[[ratelimits]]
+name = "CODE_MISS_LIMITER"
+namespace_id = "26012"
+simple = { limit = 30, period = 60 }
+
+# Cloudflare keeps request logs, with addresses, whenever this is on; Vyre needs none of them (#70). A specific failure may switch it on for a day, and the privacy page says so.
+[observability]
+enabled = false
+
+# Per-address limiting for /v1/signin (sign in by name). A name is also limited inside its own object (3 a minute), and there is no global limit.
+[[ratelimits]]
+name = "SIGNIN_LIMITER"
+namespace_id = "26020"
+simple = { limit = 10, period = 60 }

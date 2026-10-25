@@ -1,0 +1,7 @@
+{
+  "changes": [
+    { "fileId": "g1", "removed": false, "file": { "id": "g1", "name": "Plan", "mimeType": "application/vnd.google-apps.document", "parents": ["root_drv"], "modifiedTime": "2026-10-05T11:00:00.000Z" } },
+    { "fileId": "d1", "removed": false, "file": { "id": "d1", "name": "Agreements", "mimeType": "application/vnd.google-apps.folder", "parents": ["root_drv"], "modifiedTime": "2026-10-05T11:05:00.000Z" } }
+  ],
+  "newStartPageToken": "tok3"
+}

@@ -255,6 +255,8 @@
         "apps/app/app/",
         "scripts/shots/targets/",
         "scripts/shots/mounts/",
+        "scripts/shots/prototype/",
+        "apps/app/package.json",
         "scripts/shots/",
         "apps/app/src/",
         "apps/app/metro.config.js",
@@ -274,6 +276,8 @@
         "apps/app/src/places/chats/",
         "scripts/shots/targets/",
         "scripts/shots/mounts/",
+        "scripts/shots/prototype/",
+        "apps/app/package.json",
         "package-lock.json"
       ],
       "modules": []
@@ -285,6 +289,8 @@
         "apps/app/src/places/inbox/",
         "scripts/shots/targets/",
         "scripts/shots/mounts/",
+        "scripts/shots/prototype/",
+        "apps/app/package.json",
         "package-lock.json"
       ],
       "modules": []
@@ -296,6 +302,8 @@
         "apps/app/src/places/records/",
         "scripts/shots/targets/",
         "scripts/shots/mounts/",
+        "scripts/shots/prototype/",
+        "apps/app/package.json",
         "package-lock.json"
       ],
       "modules": []
@@ -308,6 +316,8 @@
         "apps/app/src/places/apps/",
         "scripts/shots/targets/",
         "scripts/shots/mounts/",
+        "scripts/shots/prototype/",
+        "apps/app/package.json",
         "package-lock.json"
       ],
       "modules": []
@@ -322,6 +332,8 @@
         "apps/app/src/join/",
         "scripts/shots/targets/",
         "scripts/shots/mounts/",
+        "scripts/shots/prototype/",
+        "apps/app/package.json",
         "package-lock.json"
       ],
       "modules": []

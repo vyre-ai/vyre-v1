@@ -26,6 +26,8 @@ export type HandlerMap = Record<string, Handler>;
 export type Importer = (moduleId: string, kind: "stub" | "live") => Promise<HandlerMap>;
 /** What a module's impl.ts exports as `hostSeams`: the setters through which the host hands it a connector seam (Google, Microsoft, IMAP). Undefined when the module has none or no impl. */
 export type SeamImporter = (moduleId: string) => Promise<SeamSetters | undefined>;
+/** Everything a module's impl.ts exports (its consumers and periodic hooks are read from it). Undefined when the module has no impl. */
+export type ExportsImporter = (moduleId: string) => Promise<Record<string, unknown> | undefined>;
 
 export interface LoaderOptions {
   registry: RegistryLike;
@@ -34,6 +36,8 @@ export interface LoaderOptions {
   importer: Importer;
   /** collects each module impl's `hostSeams` (ruling 31); omitted: none */
   seamImporter?: SeamImporter;
+  /** reads the exports of every live module (consumers, periodic hooks); omitted: none */
+  exportsImporter?: ExportsImporter;
   /** the module database; omit and ctx.db refuses every call */
   db?: RawDb;
   fetch?: FetchLike;
@@ -48,6 +52,10 @@ export interface LoadedHost {
   stubModules(): string[];
   /** every setter the modules exported as hostSeams, merged; the daemon wires the seams through them */
   hostSeams: SeamSetters;
+  /** setter name to the module that exported it */
+  seamOwners: ReadonlyMap<string, string>;
+  /** the exports of each live module's impl.ts, by module id */
+  moduleExports: ReadonlyMap<string, Record<string, unknown>>;
 }
 
 /** Where 0.6-style files live: generated/modules/<id>/stub-impl.ts for a stub, modules/<id>/impl.ts once live. */
@@ -67,6 +75,13 @@ export function fileSeamImporter(root: string): SeamImporter {
       const m = (await import(pathToFileURL(`${root.replace(/\/$/, "")}/modules/${id}/impl.ts`).href)) as { hostSeams?: SeamSetters };
       return m.hostSeams;
     } catch { return undefined; }
+  };
+}
+
+/** modules/<id>/impl.ts as a whole. The same file the handlers import, so a setter called on it reaches the instance the handlers run. */
+export function fileExportsImporter(root: string): ExportsImporter {
+  return async (id) => {
+    try { return (await import(pathToFileURL(`${root.replace(/\/$/, "")}/modules/${id}/impl.ts`).href)) as Record<string, unknown>; } catch { return undefined; }
   };
 }
 
@@ -107,6 +122,7 @@ export async function loadHost(o: LoaderOptions): Promise<LoadedHost> {
   }
   // 3b host seams: each module impl's exported setters, merged (two modules offering the same setter is a boot error)
   const hostSeams: SeamSetters = {};
+  const seamOwners = new Map<string, string>();
   if (o.seamImporter) {
     for (const m of o.registry.modules) {
       if (!o.registry.capabilities.some((c) => c.module === m.id)) continue;
@@ -115,7 +131,17 @@ export async function loadHost(o: LoaderOptions): Promise<LoadedHost> {
         if (typeof fn !== "function") continue;
         if ((hostSeams as Record<string, unknown>)[k]) problems.push(`module ${m.id} offers ${k}, which another module already offers`);
         (hostSeams as Record<string, unknown>)[k] = fn;
+        seamOwners.set(k, m.id);
       }
+    }
+  }
+  // 3c the exports of the live modules: where the host finds their consumers and periodic hooks
+  const moduleExports = new Map<string, Record<string, unknown>>();
+  if (o.exportsImporter) {
+    for (const [id, kind] of serving) {
+      if (kind !== "live") continue;
+      const ns = await o.exportsImporter(id);
+      if (ns) moduleExports.set(id, ns);
     }
   }
   if (problems.length) throw new Error(`host boot refused:\n- ${problems.join("\n- ")}`);
@@ -138,7 +164,7 @@ export async function loadHost(o: LoaderOptions): Promise<LoadedHost> {
     },
     match,
     serving,
-    hostSeams,
+    hostSeams, seamOwners, moduleExports,
     stubModules: () => [...serving].filter(([, k]) => k === "stub").map(([id]) => id),
   };
 }
