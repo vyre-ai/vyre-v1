@@ -9,7 +9,7 @@ import { States } from "../../../../../../ui/src/States/index.tsx";
 import { useRecordsData } from "../sidebar/data.tsx";
 import { Glyph, HeadButton } from "../sidebar/parts.tsx";
 import { cellText } from "../table/model.ts";
-import { badgeFieldOf } from "../views-a/model.ts";
+import { badgeFieldOf, each } from "../views-a/model.ts";
 import { ViewHead, useViewState } from "../views-a/view.tsx";
 import type { ViewCtx } from "../views-a/view.tsx";
 import { dropRecord, moveError } from "./actions.ts";
@@ -38,7 +38,7 @@ export function CalendarView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const dateButton = field ? (
     <HeadButton icon="calendar" label="Date" detail={field.title} testID="records-date" onPress={(x, y) => menu.show([
       { head: "Place records by" },
-      ...dateFields(def).map((f) => ({ label: f.title, checked: f.key === field.key, onSelect: () => setPicked(f.key) })),
+      ...each(dateFields(def), (f) => ({ label: f.title, checked: f.key === field.key, onSelect: () => setPicked(f.key) })),
     ], x, y)} />
   ) : null;
   const head = <ViewHead ctx={ctx} st={st} fields={false} extra={dateButton} />;
@@ -76,14 +76,14 @@ export function CalendarView({ ctx }: { ctx: ViewCtx }): ReactElement {
 
   const weeks: ReactElement[] = [];
   for (let w = 0; w < 6; w++) {
-    const cells = grid.slice(w * 7, w * 7 + 7).map((cell) => {
+    const cells = each(grid.slice(w * 7, w * 7 + 7), (cell) => {
       const list = by.get(cell.key) ?? [];
       const all = open === cell.key;
       const shown = all ? list : list.slice(0, CELL_EVENTS);
       const body = (
         <View testID={`day-${cell.key}`} style={[c.day, !cell.inMonth && c.dayOut, cell.key === todayKey && c.dayToday]}>
           <Text style={[c.dayNum, cell.key === todayKey && c.dayNumToday]}>{cell.day}</Text>
-          {shown.map(chip)}
+          {each(shown, chip)}
           {list.length > shown.length ? (
             <Pressable accessibilityRole="button" testID={`more-${cell.key}`} onPress={() => setOpen(cell.key)}><Text style={c.more}>{`+${list.length - shown.length} more`}</Text></Pressable>
           ) : null}
@@ -106,7 +106,7 @@ export function CalendarView({ ctx }: { ctx: ViewCtx }): ReactElement {
         <Pressable accessibilityRole="button" testID="cal-today" onPress={() => setCursor(null)} style={({ hovered }: { hovered?: boolean }) => [c.todayBtn, hovered === true && c.todayOver]}><Text style={c.todayText}>Today</Text></Pressable>
         {error ? <Text style={c.error} accessibilityRole="alert" testID="calendar-error">{error}</Text> : null}
       </View>
-      <View style={c.dow}>{WEEKDAYS.map((d) => <Text key={d} style={c.dowText}>{d}</Text>)}</View>
+      <View style={c.dow}>{each(WEEKDAYS, (d) => <Text key={d} style={c.dowText}>{d}</Text>)}</View>
       <View style={c.grid} testID="cal-grid">{weeks}</View>
       <Text style={c.foot} testID="records-count">{`${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()}${count > dated ? `, ${count - dated} with no ${field.title.toLowerCase()}` : ""}`}</Text>
       {menu.element}

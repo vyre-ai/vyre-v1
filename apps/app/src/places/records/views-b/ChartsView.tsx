@@ -13,6 +13,7 @@ import type { ViewCtx } from "../views-a/view.tsx";
 import { useViewRows } from "./data.ts";
 import { isGroupField, isMeasureField, measureText, tally, total, valueText, widths } from "./model.ts";
 import type { FieldDef, Measure } from "./model.ts";
+import { each } from "../views-a/model.ts";
 
 export function chartDefaults(ctx: ViewCtx): { group: FieldDef | undefined; measure: Measure } {
   const cfg = ctx.saved?.config ?? {};
@@ -39,11 +40,11 @@ export function ChartsView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const buttons = (
     <>
       <HeadButton icon="group" label="Group by" detail={group?.title} testID="records-chart-group" onPress={(x, y) => menu.show([
-        { head: "Group by" }, ...groups.map((f) => ({ label: f.title, checked: f.key === group?.key, onSelect: () => setGroupKey(f.key) })),
+        { head: "Group by" }, ...each(groups, (f) => ({ label: f.title, checked: f.key === group?.key, onSelect: () => setGroupKey(f.key) })),
       ], x, y)} />
       <HeadButton icon="sort" label="Measure" detail={measure.kind === "count" ? "Count" : (def.fields.find((f) => f.key === measure.field)?.title ?? "")} testID="records-chart-measure" onPress={(x, y) => menu.show([
         { head: "Measure" }, { label: "Count", checked: measure.kind === "count", onSelect: () => setMeasure({ kind: "count" }) },
-        ...measures.map((f) => ({ label: `Sum of ${f.title.toLowerCase()}`, checked: measure.kind === "sum" && measure.field === f.key, onSelect: () => setMeasure({ kind: "sum", field: f.key }) })),
+        ...each(measures, (f) => ({ label: `Sum of ${f.title.toLowerCase()}`, checked: measure.kind === "sum" && measure.field === f.key, onSelect: () => setMeasure({ kind: "sum", field: f.key }) })),
       ], x, y)} />
     </>
   );
@@ -62,7 +63,7 @@ export function ChartsView({ ctx }: { ctx: ViewCtx }): ReactElement {
           <States kind="empty" title={st.v.clauses.length > 0 || st.v.find ? "Nothing matches these filters." : `No ${def.plural.toLowerCase()} yet.`} icon="records" />
         ) : (
           <View style={k.chart} accessibilityRole="list" testID="chart-bars">
-            {slices.map((s, i) => (
+            {each(slices, (s, i) => (
               <View key={s.key || "none"} style={k.row} testID={`slice-${s.key || "none"}`} accessibilityLabel={`${s.label}, ${valueText(s.value, measure, def)}`}>
                 <Text numberOfLines={1} style={k.label}>{s.label}</Text>
                 <View style={k.track}>

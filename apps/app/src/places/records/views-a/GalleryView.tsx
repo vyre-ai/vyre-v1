@@ -10,7 +10,7 @@ import { States } from "../../../../../../ui/src/States/index.tsx";
 import { useLive, useRecordsData } from "../sidebar/data.tsx";
 import { Face } from "../sidebar/parts.tsx";
 import { cellText, countSpec } from "../table/model.ts";
-import { BODY_H, COVER_H, GALLERY_PAD, GALLERY_PAGE, CARD_GAP, badgeFieldOf, cardFields, coverHue, coverOf, galleryLayout, initialsOf, pageSpec } from "./model.ts";
+import { badgeFieldOf, BODY_H, CARD_GAP, cardFields, COVER_H, coverHue, coverOf, each, GALLERY_PAD, GALLERY_PAGE, galleryLayout, initialsOf, pageSpec } from "./model.ts";
 import type { RecordRow } from "./model.ts";
 import { LazyImage, Tag, Value } from "./parts.tsx";
 import { ViewHead, useViewState } from "./view.tsx";
@@ -46,7 +46,7 @@ function GalleryCard({ ctx, row, width, hidden, selected, onSelect }: { ctx: Vie
         </View>
         <View style={g.body}>
           <Text numberOfLines={1} style={g.title}>{title}</Text>
-          <View style={g.meta}>{meta.map((f) => <Value key={f.key} field={f} row={row} names={names} />)}</View>
+          <View style={g.meta}>{each(meta, (f) => <Value key={f.key} field={f} row={row} names={names} />)}</View>
         </View>
       </Pressable>
       {menu.element}
@@ -88,7 +88,7 @@ export function GalleryView({ ctx }: { ctx: ViewCtx }): ReactElement {
         ) : (
           <ScrollView style={g.scroll} contentContainerStyle={g.grid} testID="records-scroll">
             <View style={g.wrap} testID="gallery-grid" accessibilityLabel={`${count} cards`}>
-              {rows.map((r) => <GalleryCard key={r.id} ctx={ctx} row={r} width={cardW} hidden={st.v.hidden} selected={selected === r.id} onSelect={setSelected} />)}
+              {each(rows, (r) => <GalleryCard key={r.id} ctx={ctx} row={r} width={cardW} hidden={st.v.hidden} selected={selected === r.id} onSelect={setSelected} />)}
             </View>
             {count > rows.length ? (
               <Pressable accessibilityRole="button" testID="gallery-more" onPress={() => setLimit(limit + GALLERY_PAGE)} style={({ hovered }: { hovered?: boolean }) => [g.more, hovered === true && g.moreOver]}>

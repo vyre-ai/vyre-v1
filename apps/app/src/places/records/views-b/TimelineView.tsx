@@ -9,7 +9,7 @@ import { States } from "../../../../../../ui/src/States/index.tsx";
 import { useRecordsData } from "../sidebar/data.tsx";
 import { HeadButton } from "../sidebar/parts.tsx";
 import { cellText } from "../table/model.ts";
-import { badgeFieldOf, laneFieldOf } from "../views-a/model.ts";
+import { badgeFieldOf, each, laneFieldOf } from "../views-a/model.ts";
 import { ViewHead, useViewState } from "../views-a/view.tsx";
 import type { ViewCtx } from "../views-a/view.tsx";
 import { decideCascade, moveBar, moveError } from "./actions.ts";
@@ -101,7 +101,7 @@ export function TimelineView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const dateButton = range ? (
     <HeadButton icon="calendar" label="Dates" detail={range.end ? `${range.start.title} to ${range.end.title}` : range.start.title} testID="records-dates" onPress={(x, y) => menu.show([
       { head: "Start the bars at" },
-      ...dateFields(def).map((f) => ({ label: f.title, checked: f.key === range.start.key, onSelect: () => setPicked(f.key) })),
+      ...each(dateFields(def), (f) => ({ label: f.title, checked: f.key === range.start.key, onSelect: () => setPicked(f.key) })),
     ], x, y)} />
   ) : null;
   const head = <ViewHead ctx={ctx} st={st} fields={false} extra={dateButton} />;

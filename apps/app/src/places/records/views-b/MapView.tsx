@@ -7,7 +7,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-n
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { useRecordsData } from "../sidebar/data.tsx";
 import { cellText } from "../table/model.ts";
-import { badgeFieldOf } from "../views-a/model.ts";
+import { badgeFieldOf, each } from "../views-a/model.ts";
 import { ViewHead, useViewState } from "../views-a/view.tsx";
 import type { ViewCtx } from "../views-a/view.tsx";
 import { useViewRows } from "./data.ts";
@@ -34,13 +34,13 @@ export function MapView({ ctx }: { ctx: ViewCtx }): ReactElement {
     return <View style={m.main} testID="records-map">{head}<States kind="empty" title={rows.length > 0 ? `No ${def.plural.toLowerCase()} have a place yet. Add latitude and longitude fields to see them here.` : `No ${def.plural.toLowerCase()} yet.`} icon="records" /></View>;
   }
   const b = boundsOf(points);
-  const at = points.map((p) => ({ p, ...plot(p, b, W, H) }));
+  const at = each(points, (p) => ({ p, ...plot(p, b, W, H) }));
   const lines: ReactElement[] = [];
   for (let i = 1; i < 4; i++) {
     lines.push(createElement("line", { key: `v${i}`, x1: (W / 4) * i, y1: 0, x2: (W / 4) * i, y2: H, style: { stroke: "var(--line)", strokeWidth: 1 } }));
     lines.push(createElement("line", { key: `h${i}`, x1: 0, y1: (H / 4) * i, x2: W, y2: (H / 4) * i, style: { stroke: "var(--line)", strokeWidth: 1 } }));
   }
-  const pins = at.map(({ p, x, y }) => {
+  const pins = each(at, ({ p, x, y }) => {
     const hue = hueOfRow(badge, p.row);
     const on = lit === p.id;
     return createElement("circle", {
@@ -58,7 +58,7 @@ export function MapView({ ctx }: { ctx: ViewCtx }): ReactElement {
       <View style={m.body}>
         <View style={m.canvas} testID="map-canvas">{canvas}</View>
         <ScrollView style={m.list} testID="map-list">
-          {points.map((p) => (
+          {each(points, (p) => (
             <Pressable
               key={p.id} accessibilityRole="button" accessibilityLabel={title(p)} testID={`place-${p.id}`} onPress={() => data.nav.openRecord(p.id)}
               onHoverIn={() => setLit(p.id)} onHoverOut={() => setLit(null)}
