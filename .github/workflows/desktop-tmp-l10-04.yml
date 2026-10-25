@@ -1,0 +1,67 @@
+# TEMPORARY (P-L10_04): compiles and tests the Rust side on a hosted mac runner; removed before the packet is submitted.
+# READY TO COPY to .github/workflows/desktop.yml (L11 owns workflows; P-L10_03 may not edit that path).
+# Tauri 2 mac and windows builds on GitHub-hosted runners only (ruling 4). Ad-hoc signed mac app, unsigned windows
+# installer; Developer ID signing and notarization switch on only when the `apple` environment secrets exist (never a failure).
+name: desktop-tmp-l10-04
+on:
+  workflow_dispatch:
+  push:
+    branches: ["build/P-L10_04"]
+    paths: ["apps/desktop/**", ".github/workflows/desktop-tmp-l10-04.yml"]
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    continue-on-error: true
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps/desktop/src-tauri/target
+          key: desktop-${{ runner.os }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.toml') }}
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Web export and the sidecar (the Node runtime as binaries/vyred-<triple> plus its program); tauri-build needs the three to exist
+        working-directory: apps/desktop
+        run: |
+          npm run web
+          npm run stage
+      - name: Rust unit tests
+        run: cargo test --lib --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - name: Licenses (cargo deny)
+        run: |
+          cargo install cargo-deny --locked
+          cargo deny --manifest-path apps/desktop/src-tauri/Cargo.toml check licenses bans
+      - name: Build the shell (web export and sidecar are staged above)
+        working-directory: apps/desktop
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then npm run build:mac; else npm run build:win; fi
+      - name: Verify the ad-hoc signature (mac)
+        if: runner.os == 'macOS'
+        run: codesign -dv --verbose=2 apps/desktop/src-tauri/target/release/bundle/macos/Vyre.app 2>&1 | tee proof-codesign.txt
+      - name: Launch the built shell, reach the sidecar, open a vyre:// link, screenshot
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then APP="$PWD/apps/desktop/src-tauri/target/release/bundle/macos/Vyre.app/Contents/MacOS/vyre-desktop"; else APP="$PWD/apps/desktop/src-tauri/target/release/vyre-desktop.exe"; fi
+          apps/desktop/src-tauri/ci/run-shell.sh "$APP" "$PWD/out"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-${{ runner.os }}
+          path: |
+            out
+            proof-codesign.txt
+            apps/desktop/src-tauri/target/release/bundle/dmg
+            apps/desktop/src-tauri/target/release/bundle/nsis
+          if-no-files-found: warn
