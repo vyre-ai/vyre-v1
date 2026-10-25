@@ -46,7 +46,7 @@ function delayedHooks(): ScreenHooks {
 }
 
 const env: KitEnv = { hooks: delayedHooks(), online: true, invoke: () => {} };
-const run = screens.filter((s) => isScreenPlace(s.place)).slice(0, 20).map(previewDef);
+const run = screens.filter((s) => isScreenPlace(s.place) && Object.keys(s.queries).length > 0).slice(0, 20).map(previewDef);
 
 export default function Mount() {
   // The run mounts after the first commit, so the page frame exists before the slots do and no slot is measured at 0 height.
