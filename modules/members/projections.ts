@@ -33,7 +33,7 @@ export interface MembersCtx {
   owned?: {
     of(personId: string): Partial<Record<RemovalKind, OwnedItem>> | Promise<Partial<Record<RemovalKind, OwnedItem>>>;
     /** Items under a legal hold that the person owns. */
-    holds(personId: string): number;
+    holds(personId: string): number | Promise<number>;
     /** Apply one wizard action to one kind; returns how many things it touched. */
     apply(personId: string, kind: RemovalKind, action: RemovalAction, to?: string): Promise<number>;
   };

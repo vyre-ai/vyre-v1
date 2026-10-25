@@ -15,7 +15,7 @@ export interface PeopleDeps {
   access(): AccessSnapshot;
   db: { all(sql: string, ...args: unknown[]): unknown[] };
   /** run a module\'s host call as that module */
-  call(name: string, input: unknown): Promise<unknown>;
+  call(name: string, input: unknown, as?: { principal: { kind: "person" | "agent" | "service"; id: string } }): Promise<unknown>;
   /** GitHub sign-in; omitted: identity answers that it is not set up on this server */
   github?: GithubOAuth | null;
 }
@@ -49,7 +49,7 @@ export function createGithub(o: GithubOAuth): { resolve(code: string): Promise<{
   };
 }
 
-export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { device?: string }) => Record<string, unknown> | null {
+export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { device?: string; principal?: { kind: string; id: string } }) => Record<string, unknown> | null {
   const directory = {
     of(personId: string) {
       const info = d.access().info(personId);
@@ -57,22 +57,34 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
     },
     roleName(personId: string) { return d.access().info(personId)?.roleNames.split(", ")[0] ?? "member"; },
   };
-  // the removal wizard: each owning module answers for its own kinds through its host calls (<module>.owned_by, <module>.reassign_owned); a module that is not live has no host call and owns nothing here
-  const OWNERS: Record<string, string> = { routines: "agents", agents: "agents", automations: "automations", vault_mine: "vault" };
-  const owned = {
-    async of(personId: string) {
-      const out: Record<string, { count: number; sample: unknown[] }> = {};
+  // the removal wizard: each owning module answers for its own kinds through its host calls (<module>.owned_by, <module>.reassign_owned), run as the admin doing the removal; a module that is not live has
+  // no host call and owns nothing here. HOOK for a module that joins (files, channels, private chats, memory): export `hostCalls` with "<module>.owned_by" answering { <kind>: { count, sample, ids } } and
+  // "<module>.reassign_owned" taking { person, kind, action, to? } and answering how many it touched, then add the kind to OWNERS below.
+  const OWNERS: Record<string, string> = { routines: "agents", agents: "agents", automations: "automations", vault_mine: "vault", records: "records", projects: "projects" };
+  const ownedFor = (as: { principal: { kind: "person" | "agent" | "service"; id: string } } | undefined) => {
+    const gather = async (personId: string) => {
+      const out: Record<string, { count: number; sample: unknown[]; ids?: string[] }> = {};
       for (const module of new Set(Object.values(OWNERS))) {
-        try { Object.assign(out, (await d.call(`${module}.owned_by`, { person: personId })) as object); } catch { /* module not live */ }
+        try { Object.assign(out, (await d.call(`${module}.owned_by`, { person: personId }, as)) as object); } catch { /* module not live */ }
       }
       return out;
-    },
-    holds: () => 0,
-    async apply(personId: string, kind: string, action: string, to?: string) {
-      const module = OWNERS[kind];
-      if (!module) return 0;
-      try { return Number(await d.call(`${module}.reassign_owned`, { person: personId, kind, action, ...(to ? { to } : {}) })); } catch { return 0; }
-    },
+    };
+    return {
+      async of(personId: string) {
+        const all = await gather(personId);
+        return Object.fromEntries(Object.entries(all).map(([k, v]) => [k, { count: v.count, sample: v.sample }]));
+      },
+      /** items the person owns that are on legal hold (governance answers; a hold on the person counts) */
+      async holds(personId: string) {
+        const ids = Object.values(await gather(personId)).flatMap((v) => v.ids ?? []);
+        try { return Number(await d.call("governance.held_among", { person: personId, ids }, as)); } catch { return 0; }
+      },
+      async apply(personId: string, kind: string, action: string, to?: string) {
+        const module = OWNERS[kind];
+        if (!module) return 0;
+        try { return Number(await d.call(`${module}.reassign_owned`, { person: personId, kind, action, ...(to ? { to } : {}) }, as)); } catch { return 0; }
+      },
+    };
   };
   const extras: Record<string, Record<string, unknown>> = {
     identity: {
@@ -86,7 +98,7 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
     },
     members: {
       factors: { of: (personId: string) => (count(d.db, `SELECT count(*) AS n FROM identity_accounts WHERE person_id = ? AND totp_secret IS NOT NULL`, personId) > 0 ? ["totp"] : []) },
-      owned,
+      owned: ownedFor(undefined),
     },
     spaces: { directory, attention: { of: () => ({ needsYou: 0, unread: 0 }) } },
   };
@@ -94,6 +106,7 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
     const base = extras[module];
     if (!base) return null;
     // the device the call came from, for whoami (the session row itself is the devices module's)
+    if (module === "members") return { ...base, owned: ownedFor(ctx.principal && ctx.principal.kind !== undefined ? { principal: { kind: ctx.principal.kind as "person" | "agent" | "service", id: ctx.principal.id } } : undefined) };
     return module === "identity" && ctx.device ? { ...base, session: { deviceId: ctx.device } } : base;
   };
 }

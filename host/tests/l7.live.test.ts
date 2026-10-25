@@ -181,6 +181,13 @@ test("l7 live: an invite made by the owner is accepted by a stranger through the
     assert.equal(preview.status, 200, await preview.clone().text());
     const items = ((await preview.json()) as { data: { items: { kind: string; count: number }[] } }).data.items;
     assert.equal(items.find((i) => i.kind === "agents")?.count, 1, "the agent the person owns is listed");
+    // a legal hold on the person stops a delete, and lifting it lets the plan through
+    const held = await post(OWNER_TOKEN, "/v1/governance/holds/place", { target: { kind: "person", id: newbie }, reason: "litigation" });
+    assert.equal(held.status, 200, await held.clone().text());
+    const blocked = await post(OWNER_TOKEN, "/v1/members/remove", { personId: newbie, plan: [{ kind: "agents", action: "delete" }] });
+    assert.equal(((await blocked.json()) as { error?: { code?: string } }).error?.code, "permission.on_hold", "a hold blocks the delete");
+    const lifted = await post(OWNER_TOKEN, "/v1/governance/holds/release", { target: { kind: "person", id: newbie } });
+    assert.equal(lifted.status, 200, await lifted.clone().text());
     const removed = await post(OWNER_TOKEN, "/v1/members/remove", { personId: newbie, plan: [{ kind: "agents", action: "reassign", to: "usr_olivia" }] });
     assert.equal(removed.status, 200, await removed.clone().text());
     const mine = await post(OWNER_TOKEN, "/v1/agents/list", {});
