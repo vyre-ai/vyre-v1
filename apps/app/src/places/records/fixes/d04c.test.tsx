@@ -77,6 +77,13 @@ test("a proposed value waits with who proposed it; Accept writes it and Reject k
   await assert.rejects(() => call(t, "records.values.review", { type: "clients", recordId: "cl_0", field: "phone", decision: "accept" }), /nothing is waiting/);
 });
 
+test("the relationship map is the full canvas: the controls, the count of records and links, and 1 hop drops the outer ring", () => {
+  const out = renderToStaticMarkup(<RecordPageDataProvider value={createSamplePage().data}><RecordPage type="clients" recordId="cl_0" start={{ map: true, pane: false }} /></RecordPageDataProvider>).replaceAll("<!-- -->", "");
+  for (const id of ["relation-canvas", "map-as-map", "map-as-list", "hops-1", "hops-2", "zoom-in", "zoom-out", "zoom-fit", "map-close", "map-count"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  assert.ok(has(out, "3 nodes") && has(out, "2 links"), "Elena and her two projects");
+  assert.ok(!has(out, 'data-testid="record-sheet"'), "the canvas replaces the sheet");
+});
+
 test("no copy on the record page uses an em dash", () => {
   assert.ok(!has(page(createSamplePage(), ["cl_0", "cl_1"]), String.fromCharCode(0x2014)));
   void SAMPLE_NOW;

@@ -207,9 +207,9 @@ function Pane({ type, row, def, tab, onTab }: { type: string; row: RecordRow; de
 
 // ---------------------------------------------------------------- the relationship map
 
-function RelationMap({ nodes, edges, onOpen }: { nodes: readonly RelNode[]; edges: { from: string; to: string; field: string }[]; onOpen: (n: RelNode) => void }): ReactElement | null {
+function RelationMap({ nodes, edges, onOpen, w = 360, h = 260, zoom = 1, hops = 2 }: { nodes: readonly RelNode[]; edges: { from: string; to: string; field: string }[]; onOpen: (n: RelNode) => void; w?: number; h?: number; zoom?: number; hops?: 1 | 2 }): ReactElement | null {
   if (Platform.OS !== "web") return null;
-  const placed = mapLayout(nodes);
+  const placed = mapLayout(nodes.filter((n) => n.hop <= hops), w, h);
   const at = new Map(each(placed, (n): [string, typeof n] => [n.recordId, n]));
   const kids: ReactElement[] = [];
   for (const e of edges) {
@@ -222,7 +222,39 @@ function RelationMap({ nodes, edges, onOpen }: { nodes: readonly RelNode[]; edge
       createElement("circle", { cx: n.x, cy: n.y, r: n.hop === 0 ? 11 : 8, style: { fill: `hsl(${hue}, 60%, 52%)`, stroke: n.hop === 0 ? "var(--accent)" : "var(--win)", strokeWidth: n.hop === 0 ? 3 : 2 } }),
       createElement("text", { x: n.x, y: n.y + (n.hop === 0 ? 24 : 21), textAnchor: "middle", style: { fill: "var(--ink-2)", fontSize: 11 } }, n.title)));
   }
-  return createElement("svg", { viewBox: "0 0 360 260", width: "100%", height: 260, role: "img", "aria-label": "Relationships, two hops out", "data-testid": "relation-map", style: { display: "block" } }, ...kids);
+  return createElement("svg", { viewBox: `0 0 ${w} ${h}`, width: `${Math.round(zoom * 100)}%`, height: Math.round(h * zoom), role: "img", "aria-label": `Relationships, ${hops === 1 ? "one hop" : "two hops"} out`, "data-testid": "relation-map", style: { display: "block" } }, ...kids);
+}
+
+/** The full canvas of the relationship map: the whole page area, Map or List, 1 or 2 hops, zoom, and how many records and links it draws. */
+function MapCanvas({ title, nodes, edges, onOpen, onBack }: { title: string; nodes: readonly RelNode[]; edges: { from: string; to: string; field: string }[]; onOpen: (n: RelNode) => void; onBack: () => void }): ReactElement {
+  const [hops, setHops] = useState<1 | 2>(2);
+  const [zoom, setZoom] = useState(1);
+  const [asList, setAsList] = useState(false);
+  const shown = nodes.filter((n) => n.hop <= hops);
+  const ids = new Set(each(shown, (n) => n.recordId));
+  const links = edges.filter((e) => ids.has(e.from) && ids.has(e.to)).length;
+  const seg = (label: string, on: boolean, press: () => void, id: string): ReactElement => <Pressable accessibilityRole="button" aria-pressed={on} accessibilityState={{ selected: on }} testID={id} onPress={press} style={[p.seg, on && p.segOn]}><Text style={[p.segText, on && p.segTextOn]}>{label}</Text></Pressable>;
+  const list: ReactElement[] = [];
+  for (const n of shown) list.push(<Row key={n.recordId} id={`maplist:${n.recordId}`} title={n.title} note={n.hop === 0 ? "This record" : n.hop === 1 ? `${n.type} · linked` : `${n.type} · two hops`} onPress={() => onOpen(n)} />);
+  return (
+    <View style={p.canvas} testID="relation-canvas">
+      <View style={p.canvasBar}>
+        <Text style={p.canvasTitle}>{title}</Text>
+        <View style={p.grow} />
+        <View style={p.segs}>{seg("Map", !asList, () => setAsList(false), "map-as-map")}{seg("List", asList, () => setAsList(true), "map-as-list")}</View>
+        <View style={p.segs}>{seg("1 hop", hops === 1, () => setHops(1), "hops-1")}{seg("2 hops", hops === 2, () => setHops(2), "hops-2")}</View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to the page" testID="map-close" onPress={onBack} style={p.seg}><Text style={p.segText}>Page</Text></Pressable>
+      </View>
+      <ScrollView style={p.canvasBody}>{nodes.length <= 1 ? <Text style={p.paneEmpty}>Nothing is linked to this record yet.</Text> : asList ? <View testID="relation-list">{list}</View> : <RelationMap nodes={nodes} edges={edges} onOpen={onOpen} w={900} h={560} zoom={zoom} hops={hops} />}</ScrollView>
+      <View style={p.canvasFoot}>
+        <Text style={p.updated} testID="map-count">{`${shown.length} nodes \u00B7 ${links} links`}</Text>
+        <View style={p.grow} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Zoom in" testID="zoom-in" onPress={() => setZoom((z) => Math.min(2, Math.round((z + 0.25) * 100) / 100))} style={p.seg}><Text style={p.segText}>+</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Zoom out" testID="zoom-out" onPress={() => setZoom((z) => Math.max(0.5, Math.round((z - 0.25) * 100) / 100))} style={p.seg}><Text style={p.segText}>{"\u2212"}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Fit" testID="zoom-fit" onPress={() => setZoom(1)} style={p.seg}><Text style={p.segText}>Fit</Text></Pressable>
+      </View>
+    </View>
+  );
 }
 
 // ---------------------------------------------------------------- the page
@@ -364,7 +396,7 @@ function PageBody({ type, recordId, start = {}, order }: RecordPageProps): React
         </View>
       ) : null}
       <View style={wide ? p.split : p.stack}>
-        <ScrollView style={p.sheet} contentContainerStyle={p.sheetIn} testID="record-sheet">
+        {map ? <MapCanvas title={title} nodes={nodes} edges={mapEdges} onOpen={(n) => data.nav.openRecord(n.type, n.recordId)} onBack={() => setMap(false)} /> : <ScrollView style={p.sheet} contentContainerStyle={p.sheetIn} testID="record-sheet">
           <Text style={p.kind} testID="record-kind">{def.title}</Text>
           <View style={p.heroRow}>
             <Face name={title} size={44} />
@@ -397,10 +429,9 @@ function PageBody({ type, recordId, start = {}, order }: RecordPageProps): React
               {cq.status === "ready" && cq.data.missing.length > 0 ? <Pressable accessibilityRole="button" testID="ask-missing" onPress={() => data.nav.openChat(type, row.id, askText(cq.data, title))}><Text style={p.ringLink}>Ask for these</Text></Pressable> : null}
             </View>
           ) : null}
-          {map ? <View style={p.mapBox} testID="relation-map-box">{nodes.length > 1 ? <RelationMap nodes={nodes} edges={mapEdges} onOpen={(n) => data.nav.openRecord(n.type, n.recordId)} /> : <Text style={p.paneEmpty}>Nothing is linked to this record yet.</Text>}</View> : null}
           {view === "overview" ? body : <Text style={p.paneEmpty} testID="conversation-hint">The conversation about this record is in the pane, and in its chat.</Text>}
           {all ? <Pressable accessibilityRole="button" testID="hide-empty" onPress={() => setAll(false)}><Text style={p.more}>Hide empty fields</Text></Pressable> : null}
-        </ScrollView>
+        </ScrollView>}
         {paneOpen && late ? <Pane type={type} row={row} def={def} tab={tab} onTab={setTab} /> : null}
       </View>
       {menu.element}
@@ -443,6 +474,16 @@ const p = StyleSheet.create({
   proposedYes: { backgroundColor: "var(--accent)" as string },
   proposedBtnText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
   proposedYesText: { color: "var(--accent-ink)" as string },
+  canvas: { flex: 1, minWidth: 0 },
+  canvasBar: { height: 44, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 18 },
+  canvasTitle: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
+  canvasBody: { flex: 1 },
+  canvasFoot: { height: 40, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18 },
+  segs: { flexDirection: "row", gap: 2, padding: 2, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  seg: { height: 24, paddingHorizontal: 9, borderRadius: 6, justifyContent: "center" },
+  segOn: { backgroundColor: "var(--raised)" as string },
+  segText: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  segTextOn: { color: "var(--ink)" as string, fontWeight: "500" },
   proposedNote: { fontSize: 12, color: "var(--ink-3)" as string },
   hb: { height: 28, paddingHorizontal: 8, borderRadius: 7, flexDirection: "row", alignItems: "center", gap: 6 },
   hbOn: { backgroundColor: "var(--accent-wash)" as string },
@@ -458,7 +499,6 @@ const p = StyleSheet.create({
   ringRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12, marginBottom: 6 },
   ringText: { fontSize: 12.5, color: "var(--ink-2)" as string, fontVariant: ["tabular-nums"] },
   ringLink: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
-  mapBox: { marginTop: 8, borderRadius: 12, backgroundColor: "var(--sunk)" as string, padding: 8 },
   sh: { height: 32, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 16, paddingHorizontal: 4, borderRadius: 6 },
   shut: { transform: [{ rotate: "-90deg" }] },
   st: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string },
