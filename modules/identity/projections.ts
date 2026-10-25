@@ -16,7 +16,7 @@ export interface IdentityCtx {
   /** Absent on pre-auth calls (caller 'anonymous'). */
   principal?: { kind: string; id: string };
   /** The session the call arrived on, when there is one. */
-  session?: { id: string; deviceId: string };
+  session?: { id?: string; deviceId: string };
   trace: { traceId: string };
   now(): number;
   db: Db;

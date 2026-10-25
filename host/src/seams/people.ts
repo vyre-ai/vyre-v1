@@ -2,6 +2,8 @@
 // module that owns it. Each is a plain object on the ctx of that module's capabilities; a module without the extra answers the way its handler says (empty directory, no invites wired).
 //   identity.directory  roles (names) and groups of a person, from the access projection
 //   identity.invites    peek and accept, run by the members module through its host calls (members.invite_peek, members.invite_accept), so identity never touches members tables
+//   identity.github     GitHub sign-in and linking, only when VYRE_GH_OAUTH_CLIENT_ID and _SECRET are set
+//   identity.session    the device of the call, for whoami
 //   identity.losses     what a reset would lose: Mine vault items counted from the vault table (chat and memory counts follow when those modules count their private rows)
 //   members.factors     second factors per person: TOTP when identity holds a secret for them
 //   members.owned      routines, agents, automations and Mine vault items, through those modules' host calls; records, files, channels, projects, mailbox connections, private chats and memory report nothing yet
@@ -14,13 +16,40 @@ export interface PeopleDeps {
   db: { all(sql: string, ...args: unknown[]): unknown[] };
   /** run a module\'s host call as that module */
   call(name: string, input: unknown): Promise<unknown>;
+  /** GitHub sign-in; omitted: identity answers that it is not set up on this server */
+  github?: GithubOAuth | null;
 }
 
 const count = (db: PeopleDeps["db"], sql: string, ...args: unknown[]): number => {
   try { return Number((db.all(sql, ...args)[0] as { n?: number } | undefined)?.n ?? 0); } catch { return 0; }
 };
 
-export function createPeopleExtras(d: PeopleDeps): (module: string) => Record<string, unknown> | null {
+/** The GitHub OAuth app of this server (VYRE_GH_OAUTH_CLIENT_ID and VYRE_GH_OAUTH_CLIENT_SECRET, set by the installer from the owner's vault); both or neither. */
+export interface GithubOAuth { clientId: string; clientSecret: string; fetch?: typeof globalThis.fetch }
+export function githubOAuthFromEnv(env: NodeJS.ProcessEnv): GithubOAuth | null {
+  const clientId = env["VYRE_GH_OAUTH_CLIENT_ID"], clientSecret = env["VYRE_GH_OAUTH_CLIENT_SECRET"];
+  return clientId && clientSecret ? { clientId, clientSecret } : null;
+}
+
+/** Trade a sign-in code for who it belongs to: the code goes to GitHub with the app's secret, the token that comes back is used once to read the user, then dropped. */
+export function createGithub(o: GithubOAuth): { resolve(code: string): Promise<{ id: string; login: string }> } {
+  const f = o.fetch ?? globalThis.fetch;
+  return {
+    async resolve(code) {
+      const t = await f("https://github.com/login/oauth/access_token", {
+        method: "POST", headers: { accept: "application/json", "content-type": "application/json" }, body: JSON.stringify({ client_id: o.clientId, client_secret: o.clientSecret, code }), redirect: "error",
+      });
+      const token = ((await t.json()) as { access_token?: unknown }).access_token;
+      if (typeof token !== "string" || token === "") throw new Error("GitHub did not accept the code");
+      const u = await f("https://api.github.com/user", { headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "user-agent": "vyre-server" }, redirect: "error" });
+      const user = (await u.json()) as { id?: unknown; login?: unknown };
+      if ((typeof user.id !== "number" && typeof user.id !== "string") || typeof user.login !== "string") throw new Error("GitHub did not say who this is");
+      return { id: String(user.id), login: user.login };
+    },
+  };
+}
+
+export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { device?: string }) => Record<string, unknown> | null {
   const directory = {
     of(personId: string) {
       const info = d.access().info(personId);
@@ -48,6 +77,7 @@ export function createPeopleExtras(d: PeopleDeps): (module: string) => Record<st
   const extras: Record<string, Record<string, unknown>> = {
     identity: {
       directory,
+      ...(d.github ? { github: createGithub(d.github) } : {}),
       invites: {
         peek: (code: string) => d.call("members.invite_peek", { code }),
         accept: (inviteId: string, personId: string) => d.call("members.invite_accept", { inviteId, personId }).then(() => undefined),
@@ -60,5 +90,10 @@ export function createPeopleExtras(d: PeopleDeps): (module: string) => Record<st
     },
     spaces: { directory, attention: { of: () => ({ needsYou: 0, unread: 0 }) } },
   };
-  return (module) => extras[module] ?? null;
+  return (module, ctx) => {
+    const base = extras[module];
+    if (!base) return null;
+    // the device the call came from, for whoami (the session row itself is the devices module's)
+    return module === "identity" && ctx.device ? { ...base, session: { deviceId: ctx.device } } : base;
+  };
 }

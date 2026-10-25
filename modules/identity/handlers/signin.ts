@@ -90,7 +90,7 @@ export async function verifySecondFactor(ctx: IdentityCtx, input: Device & { cha
 }
 
 export async function githubSignIn(ctx: IdentityCtx, input: Device & { code: string }): Promise<SignInOut> {
-  if (!ctx.github) raise(ctx.trace.traceId, "internal.unavailable", "GitHub sign-in is not set up for this Space");
+  if (!ctx.github) raise(ctx.trace.traceId, "internal.unavailable", "GitHub sign-in isn't set up on this server");
   const space = ctx.db.all(`SELECT github FROM identity_space WHERE id = ?`, ctx.space)[0] as { github: number } | undefined;
   if (!space || space.github !== 1) raise(ctx.trace.traceId, "validation.unsupported", "GitHub sign-in is off for this Space");
   const gh = await ctx.github.resolve(input.code).catch(() => undefined);
@@ -207,7 +207,7 @@ export async function passkeyRemove(ctx: IdentityCtx, _input: { name: string }):
 // ---- GitHub link
 export async function githubLink(ctx: IdentityCtx, input: { code: string }) {
   const a = me(ctx);
-  if (!ctx.github) raise(ctx.trace.traceId, "internal.unavailable", "GitHub is not set up for this Space");
+  if (!ctx.github) raise(ctx.trace.traceId, "internal.unavailable", "GitHub sign-in isn't set up on this server");
   const gh = await ctx.github.resolve(input.code).catch(() => undefined);
   if (!gh) raise(ctx.trace.traceId, "auth.invalid_code");
   const other = ctx.db.all(`SELECT person_id FROM identity_accounts WHERE github_id = ?`, gh.id)[0] as { person_id: string } | undefined;

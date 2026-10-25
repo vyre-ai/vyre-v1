@@ -193,3 +193,42 @@ test("l7 live: an invite made by the owner is accepted by a stranger through the
     assert.equal(who.status, 200);
   } finally { await d.stop(); }
 });
+
+test("l7 live: whoami names the device of the call, and GitHub sign-in says it is not set up when the server has no OAuth app, or goes to GitHub when it has one", async () => {
+  const run = async (githubOAuth: { clientId: string; clientSecret: string; fetch: typeof fetch } | null) => {
+    const dir = seededDir();
+    const d = await startDaemon({
+      config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+      platform: fakePlatform({
+        os: "linux", hostname: "l7-gh", free: 80e9,
+        commands: {
+          [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+          "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+          "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+        },
+      }),
+      fetch: caddyFetch,
+      githubOAuth,
+      session: (h) => {
+        const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+        return t === OWNER_TOKEN ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "dev_l7gh" } : null;
+      },
+      intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
+    });
+    try {
+      const gh = await fetch(`${d.url}/v1/identity/github_sign_in`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: "abc", deviceName: "Mac", deviceClass: "desktop" }) });
+      return { status: gh.status, body: (await gh.json()) as { error?: { code?: string; message?: string } } };
+    } finally { await d.stop(); }
+  };
+  const none = await run(null);
+  assert.equal(none.body.error?.code, "internal.unavailable");
+  assert.equal(none.body.error?.message, "GitHub sign-in isn't set up on this server");
+  const seen: string[] = [];
+  const fake = (async (url: string) => {
+    seen.push(String(url));
+    return String(url).includes("access_token") ? new Response(JSON.stringify({ access_token: "gho_x" })) : new Response(JSON.stringify({ id: 42, login: "octo" }));
+  }) as unknown as typeof fetch;
+  const some = await run({ clientId: "cid", clientSecret: "sec", fetch: fake });
+  assert.notEqual(some.body.error?.message, "GitHub sign-in isn't set up on this server", "with an OAuth app the code goes to GitHub");
+  assert.deepEqual(seen, ["https://github.com/login/oauth/access_token", "https://api.github.com/user"]);
+});
