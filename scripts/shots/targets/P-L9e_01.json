@@ -1,0 +1,54 @@
+{
+  "targets": [
+    {
+      "id": "P-L9e_01-files-folder",
+      "route": "/m/P-L9e_01",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='row-line:file:fil_deck']",
+      "note": "The Files place over the Northwind sample Space: the tree (Recent, Shared with me, Trash, the folders in Personal, Shared with me and Space, Knowledge) and the Sales folder as one list of ui/Row lines. The prototype side is its Files place in the same skin. On a phone only the list shows, as in the prototype."
+    },
+    {
+      "id": "P-L9e_01-files-selected",
+      "route": "/m/P-L9e_01?select=1",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='files-count']",
+      "note": "Two lines selected (Cmd-click): the quiet selection token on whole rows and the count in the header. The prototype shows one selected row; the multi-select count is compared with its design notes (spec 3.5)."
+    },
+    {
+      "id": "P-L9e_01-files-quicklook",
+      "route": "/m/P-L9e_01?quicklook=1",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='quicklook']",
+      "note": "Quick Look on a selected file (Space): the file large with its kind, size and who last changed it. The prototype opens its viewer from the same list; compare the card against its raised surface and type."
+    },
+    {
+      "id": "P-L9e_01-files-sort-menu",
+      "route": "/m/P-L9e_01?menu=sort",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='menu']",
+      "note": "The sort menu open: Name, Date modified, Size, Kind with a checkmark, then the direction."
+    },
+    {
+      "id": "P-L9e_01-files-shared",
+      "route": "/m/P-L9e_01?where=shared",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='row-line:file:fil_q3']",
+      "note": "Shared with me: what was granted, as one list. The prototype side is its Files place."
+    },
+    {
+      "id": "P-L9e_01-files-harbor",
+      "route": "/m/P-L9e_01?space=harbor",
+      "proto": "files,harbor,{skin}",
+      "waitFor": "[data-testid='files-count']",
+      "note": "The same Files place over the Harbor Studio sample Space."
+    },
+    {
+      "id": "P-L9e_01-files-scroll",
+      "route": "/m/P-L9e_01?rows=10000",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='virtual-list']",
+      "scroll": { "selector": "[data-testid=\"virtual-list\"]" },
+      "note": "10,000 files in one folder; the scroll probe takes the p95 frame interval over the full scroll (budget scroll, 16.7 ms)."
+    }
+  ]
+}
