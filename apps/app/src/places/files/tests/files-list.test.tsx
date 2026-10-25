@@ -80,7 +80,7 @@ test("screen: the root lists the top folders and a nested folder names its path"
 test("Shared with me lists what was granted", () => {
   const out = list({ where: { kind: "shared" } });
   assert.deepEqual(lines(out), ["folder:fld_maya", "file:fil_q3"]);
-  assert.ok(has(out, ">Shared with me<") && has(out, "Q3 report.pdf") && has(out, "PDF · 1.2 MB"));
+  assert.ok(has(out, ">Shared with me<") && has(out, "Q3 report.pdf") && has(out, ">PDF<") && has(out, ">1.2 MB<"));
 });
 
 test("Recent lists the newest files first and Knowledge lists the notes", () => {
@@ -275,7 +275,7 @@ test("columns: the header names Name, Modified, Made by, Size and Kind, each a s
     const here = at(out, `data-testid="files-col-${k}"`);
     assert.ok(here > prev, "in the prototype's order");
     prev = here;
-    assert.equal(has(t, 'aria-selected="true"'), k === "size", `only the sorted column is marked (${k})`);
+    assert.equal(has(out, `data-testid="files-sorted-${k}"`), k === "size", `only the sorted column is marked (${k})`);
   }
   assert.ok(/data-testid="files-sort-label"[^>]*>Size</.test(out), "the sort button names the sort");
 });
@@ -324,10 +324,11 @@ test("breadcrumb: Files, then each folder down to this one; every crumb but the 
 test("toggle: list is the default; grid draws the same lines as tiles in rows; the toggle says which is on and the choice sticks", () => {
   const asList = list(folder("fld_sales"));
   assert.ok(has(asList, 'data-testid="files-columns"') && !has(asList, 'data-testid="tile-'));
-  assert.ok(has(tag(asList, "files-view-list"), 'aria-checked="true"') && has(tag(asList, "files-view-grid"), 'aria-checked="false"'));
+  const lit = (out: string, v: string): boolean => has(tag(out, `files-view-${v}`), "background-color:var(--raised)");
+  assert.ok(lit(asList, "list") && !lit(asList, "grid") && has(tag(asList, "files-view-grid"), 'role="radio"'), "the list button is lit and the grid button is not");
   const asGrid = list({ ...folder("fld_sales"), view: "grid" });
   assert.ok(!has(asGrid, 'data-testid="files-columns"') && has(asGrid, 'data-testid="files-view-grid"'));
-  assert.ok(has(tag(asGrid, "files-view-grid"), 'aria-checked="true"') && has(tag(asGrid, "files-view-list"), 'aria-checked="false"'));
+  assert.ok(lit(asGrid, "grid") && !lit(asGrid, "list"), "the grid button is lit and the list button is not");
   const tiles = [...asGrid.matchAll(/data-testid="tile-((?:file|folder):[^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(tiles, ["folder:fld_proposals", "file:fil_logo", "file:fil_deck", "file:fil_pricing"], "the same lines in the same order");
   assert.ok(has(asGrid, "Pitch deck v4.pptx") && has(asGrid, "8.9 MB") && has(asGrid, "2 items"));

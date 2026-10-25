@@ -15,16 +15,16 @@ import { useFilesData, useFolderNodes, useOnline, useOptionalFilesData, useSourc
 import {
   SORTS, SORT_LABEL, WHERE_LABEL, createSpring, crumbs, dragPayload, dropMoves, emptyText, fileLine, folderLine, kindLabel, parsePayload, sizeText, sortLines, sourceOf, updatedText,
 } from "../tree/model.ts";
-import type { Line, Spring } from "../tree/model.ts";
+import type { Line, SortKey, Spring } from "../tree/model.ts";
 import { Glyph, iconOfKind } from "../tree/parts.tsx";
 import { useFilesState } from "../tree/state.tsx";
-import { ColumnHeader, GridRow, LIST_ROW, RowCells, Tile, WIDE, chunk, gridLayout } from "../FileList.tsx";
-import { Toolbar } from "../Toolbar.tsx";
-import type { Crumb } from "../Toolbar.tsx";
+import { ColumnHeader, GridRow, LIST_ROW, RowCells, Tile, WIDE, chunk, gridKey, gridLayout } from "../FileList.tsx";
+import { Toolbar, crumbTrail } from "../Toolbar.tsx";
 import { DragWrap } from "./DragWrap.tsx";
 import { QuickLook } from "./QuickLook.tsx";
 
 const DOUBLE_MS = 450;
+const lineKey = (l: Line): string => l.key;
 
 /** The line's menu: open, Quick Look, share and rename where they apply, and the Trash (or Restore from it). */
 export function lineMenuEntries(
@@ -202,13 +202,17 @@ function List(): ReactElement {
       selected={state.selection.includes(l.key)} hovered={over === l.key} onPress={() => press(l)}
     />
   ));
+  const renderGridRow = (r: readonly Line[]): ReactElement => {
+    const tiles: ReactElement[] = [];
+    for (const l of r) tiles.push(<View key={l.key}>{renderTile(l)}</View>);
+    return <GridRow>{tiles}</GridRow>;
+  };
   const gridRows = useMemo(() => chunk(lines, layout.per), [lines, layout.per]);
 
   const title = state.where.kind === "folder" ? (state.where.id === null ? "Files" : crumbs(nodes.status === "ready" ? nodes.data : [], state.where.id).pop()?.name ?? "Files") : WHERE_LABEL[state.where.kind];
   const path = state.where.kind === "folder" && nodes.status === "ready" ? crumbs(nodes.data, state.where.id) : [];
-  const trail: Crumb[] = state.where.kind === "folder"
-    ? [{ key: "root", name: "Files", id: null }, ...path.map((p) => ({ key: p.id, name: p.name, id: p.id }))]
-    : [{ key: state.where.kind, name: title }];
+  const trail = crumbTrail(state.where.kind === "folder" ? path : null, title, state.where.kind);
+  const sortBy = (k: SortKey): void => dispatch({ type: "sort", key: k });
   const ql = state.quickLook !== null ? byKey.get(state.quickLook) : undefined;
 
   return (
@@ -229,11 +233,11 @@ function List(): ReactElement {
       ) : (
         <View style={styles.listBox} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))} {...({ onKeyDown, tabIndex: 0 } as object)}>
           {grid ? (
-            <VirtualList data={gridRows} rowHeight={layout.height} keyOf={(r) => r.map((l) => l.key).join("|")} renderItem={(r) => <GridRow>{r.map((l) => <View key={l.key}>{renderTile(l)}</View>)}</GridRow>} />
+            <VirtualList data={gridRows} rowHeight={layout.height} keyOf={gridKey} renderItem={renderGridRow} />
           ) : (
             <>
-              <ColumnHeader sort={state.sort} dir={state.dir} wide={wide} onSort={(k) => dispatch({ type: "sort", key: k })} />
-              <VirtualList data={lines} rowHeight={LIST_ROW} keyOf={(l) => l.key} renderItem={renderLine} />
+              <ColumnHeader sort={state.sort} dir={state.dir} wide={wide} onSort={sortBy} />
+              <VirtualList data={lines} rowHeight={LIST_ROW} keyOf={lineKey} renderItem={renderLine} />
             </>
           )}
         </View>

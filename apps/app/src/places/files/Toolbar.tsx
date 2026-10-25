@@ -24,6 +24,14 @@ export interface ToolbarProps {
   onView(view: ViewMode): void;
 }
 
+/** The crumbs of a place: Files and each folder down to this one for a folder, the place's own name for Recent, Shared with me, Trash or Knowledge. */
+export function crumbTrail(folder: readonly { id: string; name: string }[] | null, title: string, placeKey: string): Crumb[] {
+  if (folder === null) return [{ key: placeKey, name: title }];
+  const out: Crumb[] = [{ key: "root", name: "Files", id: null }];
+  for (const f of folder) out.push({ key: f.id, name: f.name, id: f.id });
+  return out;
+}
+
 /** The path. Every crumb but the last opens its folder; the last is the page title. */
 export function Breadcrumb({ crumbs, onGo }: { crumbs: readonly Crumb[]; onGo(id: string | null): void }): ReactElement {
   const out: ReactElement[] = [];
@@ -48,7 +56,7 @@ export function Breadcrumb({ crumbs, onGo }: { crumbs: readonly Crumb[]; onGo(id
 export function ViewToggle({ view, onView }: { view: ViewMode; onView(view: ViewMode): void }): ReactElement {
   const one = (v: ViewMode, label: string): ReactElement => (
     <Pressable key={v} accessibilityRole="radio" accessibilityLabel={label} accessibilityState={{ checked: view === v }} testID={`files-view-${v}`} onPress={() => onView(v)}
-      style={({ hovered }: { hovered?: boolean }) => [styles.seg, view === v ? styles.segOn : hovered === true ? styles.over : null]}>
+      style={({ hovered }: { hovered?: boolean }) => [styles.seg, view === v ? SEG_ON : hovered === true ? HOVER : null]}>
       <Glyph name={v} size={14} color={view === v ? "var(--ink)" : "var(--ink-3)"} />
     </Pressable>
   );
@@ -79,6 +87,10 @@ export function Toolbar({ crumbs, count, sortLabel, view, onGo, onSort, onView }
   );
 }
 
+// Plain objects (not StyleSheet ids), as in ui/Row, so the painted token is visible in the element's inline style.
+const SEG_ON = { backgroundColor: "var(--raised)", boxShadow: "var(--sh-1)" };
+const HOVER = { backgroundColor: "var(--hover)" };
+
 const styles = StyleSheet.create({
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 14, paddingRight: 12, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   bc: { flexDirection: "row", alignItems: "center", gap: 2, minWidth: 0, flexShrink: 1, overflow: "hidden" },
@@ -93,5 +105,4 @@ const styles = StyleSheet.create({
   sortText: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
   segs: { height: 28, padding: 2, borderRadius: 8, flexDirection: "row", backgroundColor: "var(--hover)" as string },
   seg: { width: 30, borderRadius: 6, alignItems: "center", justifyContent: "center" },
-  segOn: { backgroundColor: "var(--raised)" as string, ...({ boxShadow: "var(--sh-1)" } as object) },
 });

@@ -25,22 +25,21 @@ const HEADERS: readonly { key: SortKey; label: string; width: number | null; rig
 
 /** One column header: a button that sorts by the column, then flips; the sorted one is dark and carries an arrow. */
 export function ColumnHeader({ sort, dir, wide, onSort }: { sort: SortKey; dir: "asc" | "desc"; wide: boolean; onSort(key: SortKey): void }): ReactElement {
-  return (
-    <View style={styles.headRow} testID="files-columns" accessibilityRole="row">
-      {HEADERS.filter((h) => wide || !h.wide).map((h) => {
-        const on = sort === h.key;
-        return (
-          <View key={h.key} style={[h.width === null ? styles.nameCol : { width: h.width, marginLeft: h.key === "updated" ? 8 : COL.gap }, h.right && styles.right]} accessibilityRole="columnheader" {...({ "aria-sort": on ? (dir === "asc" ? "ascending" : "descending") : "none" } as object)}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Sort by ${h.label}`} accessibilityState={{ selected: on }} testID={`files-col-${h.key}`} onPress={() => onSort(h.key)}
-              style={({ hovered }: { hovered?: boolean }) => [styles.hbtn, hovered === true && styles.over]}>
-              <Text numberOfLines={1} style={[styles.hlabel, on && styles.hon]}>{h.label}</Text>
-              {on ? <Glyph name={dir === "asc" ? "sortAsc" : "sortDesc"} size={9} color="var(--ink)" width={1.8} /> : null}
-            </Pressable>
-          </View>
-        );
-      })}
-    </View>
-  );
+  const cells: ReactElement[] = [];
+  for (const h of HEADERS) {
+    if (!wide && h.wide) continue;
+    const on = sort === h.key;
+    cells.push(
+      <View key={h.key} style={[h.width === null ? styles.nameCol : { width: h.width, marginLeft: h.key === "updated" ? 8 : COL.gap }, h.right && styles.right]} accessibilityRole="columnheader">
+        <Pressable accessibilityRole="button" accessibilityLabel={`Sort by ${h.label}`} testID={`files-col-${h.key}`} onPress={() => onSort(h.key)}
+          style={({ hovered }: { hovered?: boolean }) => [styles.hbtn, hovered === true && HOVER]}>
+          <Text numberOfLines={1} style={[styles.hlabel, on && SORTED]}>{h.label}</Text>
+          {on ? <View testID={`files-sorted-${h.key}`} accessibilityLabel={dir === "asc" ? "Ascending" : "Descending"}><Glyph name={dir === "asc" ? "sortAsc" : "sortDesc"} size={9} color="var(--ink)" width={1.8} /></View> : null}
+        </Pressable>
+      </View>,
+    );
+  }
+  return <View style={styles.headRow} testID="files-columns" accessibilityRole="row">{cells}</View>;
 }
 
 /** The person's mark: the first letter on a quiet disc (the prototype's 16 px face). */
@@ -81,6 +80,11 @@ export function gridLayout(width: number): { per: number; tile: number; height: 
   return { per, tile, height: 8 + thumb + 8 + 20 + 16 + 8 + GRID_GAP };
 }
 
+/** A grid row is keyed by its first tile: a line is in one row only. */
+export function gridKey(row: readonly { key: string }[]): string {
+  return row[0]?.key ?? "";
+}
+
 /** Splits lines into the rows of the grid. */
 export function chunk<T>(items: readonly T[], per: number): T[][] {
   const out: T[][] = [];
@@ -105,7 +109,7 @@ export function Tile({ id, name, meta, icon, folder, width, selected, hovered = 
   const thumb = Math.round(((width - 16) * 3) / 4);
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={name} accessibilityState={{ selected }} testID={`tile-${id}`} onPress={onPress}
-      style={({ hovered: h }: { hovered?: boolean }) => [styles.tile, { width }, (hovered || h === true) && TILE_HOVER, selected && TILE_SEL]}>
+      style={({ hovered: h }: { hovered?: boolean }) => [styles.tile, { width }, (hovered || h === true) && HOVER, selected && TILE_SEL]}>
       <View style={[styles.thumb, { height: thumb }]}><Glyph name={icon} size={folder ? 54 : 40} color={folder ? "var(--accent)" : "var(--ink-3)"} width={1} /></View>
       <Text numberOfLines={1} style={styles.gname}>{name}</Text>
       <Text numberOfLines={1} style={styles.gmeta}>{meta}</Text>
@@ -119,7 +123,8 @@ export function GridRow({ children }: { children: ReactNode }): ReactElement {
 }
 
 // Plain objects (not StyleSheet ids), as in ui/Row, so the painted token is visible in the element's inline style.
-const TILE_HOVER = { backgroundColor: "var(--hover)" };
+const HOVER = { backgroundColor: "var(--hover)" };
+const SORTED = { color: "var(--ink)" };
 const TILE_SEL = { backgroundColor: "var(--accent-wash)", boxShadow: "inset 0 0 0 1.5px var(--accent-line)" };
 
 const styles = StyleSheet.create({
@@ -128,8 +133,6 @@ const styles = StyleSheet.create({
   right: { alignItems: "flex-end" },
   hbtn: { height: 24, paddingHorizontal: 4, marginLeft: -4, borderRadius: 5, flexDirection: "row", alignItems: "center", gap: 4 },
   hlabel: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
-  hon: { color: "var(--ink)" as string },
-  over: { backgroundColor: "var(--hover)" as string },
   cells: { flexDirection: "row", alignItems: "center", gap: COL.gap },
   mut: { fontSize: 12.5, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   num: { textAlign: "right" },
