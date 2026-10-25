@@ -191,7 +191,7 @@ test("a version written by a run shows Undo this run, and says why it cannot whe
   const stuck = renderToStaticMarkup(<HistoryTab {...frozenHistoryTabProps} selectedVersionId="ver_1" />);
   assert.match(stuck, /data-testid="history-undo"/);
   assert.match(tagOf(stuck, "history-undo"), /aria-disabled="true"/);
-  assert.ok(stuck.includes(UNDO_NOTE));
+  assert.ok(stuck.includes(UNDO_NOTE.replaceAll("'", "&#x27;")), "the note is shown (the markup escapes the apostrophe)");
 });
 
 test("no versions says so", () => {
