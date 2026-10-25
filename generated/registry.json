@@ -176822,21 +176822,43 @@
       "payload": {
         "properties": {
           "fromFolderId": {
-            "examples": [
-              "fld_a1b2c3"
-            ],
-            "pattern": "^fld_[a-z0-9]+$",
-            "type": "string"
+            "anyOf": [
+              {
+                "examples": [
+                  "fld_a1b2c3"
+                ],
+                "pattern": "^fld_[a-z0-9]+$",
+                "type": "string"
+              },
+              {
+                "examples": [
+                  "vfd_a1b2c3"
+                ],
+                "pattern": "^vfd_[a-z0-9]+$",
+                "type": "string"
+              }
+            ]
           },
           "resource": {
             "$ref": "#/$defs/s_f21ece25da"
           },
           "toFolderId": {
-            "examples": [
-              "fld_a1b2c3"
-            ],
-            "pattern": "^fld_[a-z0-9]+$",
-            "type": "string"
+            "anyOf": [
+              {
+                "examples": [
+                  "fld_a1b2c3"
+                ],
+                "pattern": "^fld_[a-z0-9]+$",
+                "type": "string"
+              },
+              {
+                "examples": [
+                  "vfd_a1b2c3"
+                ],
+                "pattern": "^vfd_[a-z0-9]+$",
+                "type": "string"
+              }
+            ]
           }
         },
         "required": [
