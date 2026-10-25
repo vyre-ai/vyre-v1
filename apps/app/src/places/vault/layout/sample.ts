@@ -70,6 +70,9 @@ export const northwind: SampleSpace = {
     { id: "vit_wifi", name: "Office Wi-Fi", kind: "note", folder: "fld_finance", scope: "shared", usedAgo: 40 * DAY_MS, fields: [["NOTE", "Northwind-Guest / harbor-lights-42", true]] },
   ],
   history: [
+    { item: "vit_claude", actor: { kind: "agent", id: "agt_intake" }, action: "used", field: "CLAUDE_SETUP_TOKEN", ago: m(42) },
+    { item: "vit_claude", actor: { kind: "agent", id: "agt_intake" }, action: "used", field: "CLAUDE_SETUP_TOKEN", ago: h(3) },
+    { item: "vit_claude", actor: { kind: "agent", id: "agt_research" }, action: "used", field: "CLAUDE_SETUP_TOKEN", ago: h(5) },
     { item: "vit_ghl", actor: { kind: "agent", id: "agt_intake" }, action: "used", field: "GHL_PIT", ago: m(14) },
     { item: "vit_ghl", actor: { kind: "agent", id: "agt_research" }, action: "used", field: "GHL_PIT", ago: h(2) },
     { item: "vit_ghl", actor: { kind: "service", id: "aut_weekly" }, onBehalfOf: { kind: "person", id: "usr_irfad" }, action: "used", field: "GHL_PIT", ago: h(26) },
