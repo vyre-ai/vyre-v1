@@ -10,7 +10,8 @@ import type { SlowEntry } from "./slow-check.ts";
 export const MAX_SHARDS = 24;
 export const TARGET_SEC = 25;
 export const FALLBACK_SEC = 3;
-export const FAST_CAP_SEC = 20;
+// Ruling 52 (P-CI_31): 30 s, was 20 s. Cold pass caches on the new hosts and hosted runners made real 20-22 s UI files hit the old cap; CI hygiene only, speed budgets stay on v1-perf (ruling 46).
+export const FAST_CAP_SEC = 30;
 
 export type Timings = Record<string, { ms: number; at?: string }>;
 export type Shards = {
@@ -26,7 +27,7 @@ export function shardCount(totalSec: number, max = MAX_SHARDS, target = TARGET_S
   return totalSec <= 0 ? 0 : Math.min(max, Math.ceil(totalSec / target));
 }
 
-/** Seconds a file is expected to take: its measured time, else the median of measured files, else the fallback. Capped at the 20 s file cap. */
+/** Seconds a file is expected to take: its measured time, else the median of measured files, else the fallback. Capped at the fast file cap. */
 export function expectedSec(file: string, timings: Timings, median: number): number {
   const t = timings[file];
   return Math.min(FAST_CAP_SEC, t && t.ms > 0 ? t.ms / 1000 : median);

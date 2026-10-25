@@ -1,5 +1,5 @@
 // Per-file runner (ARCH 10.2): one `node --test` process per file with --test-timeout and a watchdog at the file cap.
-// A file over its cap fails with the slowest-test breakdown. The cap is 20 s unless test/slow.json lists the file (capSec <= 120).
+// A file over its cap fails with the slowest-test breakdown. The cap is 30 s unless test/slow.json lists the file (capSec <= 120).
 // Selection (ci-select) and the pass cache live in scripts/test-run.mjs; this module is the watchdog, breakdown and timings.
 //   node scripts/test-run.ts --files a.test.ts b.test.ts [--slow] [--jobs N] [--timings]
 import fs from "node:fs";
@@ -9,7 +9,8 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { SlowEntry } from "./slow-check.ts";
 
-export const DEFAULT_CAP_MS = 20_000;
+// Ruling 52 (P-CI_31): 30 s, was 20 s. Cold pass caches on the new hosts and hosted runners made real 20-22 s UI files hit the old cap; CI hygiene only, speed budgets stay on v1-perf (ruling 46).
+export const DEFAULT_CAP_MS = 30_000;
 
 export type RunResult = { file: string; ok: boolean; ms: number; capMs: number; overCap: boolean; breakdown: { name: string; ms: number }[]; out: string };
 
@@ -43,7 +44,7 @@ export function runFile(file: string, opts: { cwd?: string; capMs?: number } = {
     const p = spawn(process.execPath, [...loader, "--test", "--test-reporter=spec", `--test-timeout=${capMs}`, file], { cwd, stdio: ["ignore", "pipe", "pipe"], env });
     let out = "", overCap = false;
     p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (out += d));
-    const dog = setTimeout(() => { overCap = true; p.kill("SIGKILL"); }, capMs);
+    const dog = setTimeout(() => { overCap = true; p.kill("SIGKILL"); }, capMs + 2000); // watchdog 2 s after the cap, so a file just over it is reported over-cap with its breakdown, not killed mid-test
     p.on("close", (code) => {
       clearTimeout(dog);
       const ms = Date.now() - t0;

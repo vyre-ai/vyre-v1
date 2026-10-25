@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { shardCount, shardFiles, toMatrix, MAX_SHARDS, type Timings } from "./shard.ts";
+import { shardCount, shardFiles, toMatrix, MAX_SHARDS, FAST_CAP_SEC, type Timings } from "./shard.ts";
 import type { SlowEntry } from "./slow-check.ts";
 
 const slowEntry = (file: string, capSec = 90): SlowEntry => ({ file, capSec, owner: "t", reason: "t" });
@@ -61,9 +61,9 @@ test("a file missing from timings gets the median; none known gets the fallback"
   assert.equal(none.totalSec, 3);
 });
 
-test("a fast file is budgeted at no more than the 20 s cap", () => {
+test("a fast file is budgeted at no more than the fast file cap", () => {
   const s = shardFiles(["a.test.ts"], { "a.test.ts": { ms: 90000 } }, []);
-  assert.equal(s.totalSec, 20);
+  assert.equal(s.totalSec, FAST_CAP_SEC);
 });
 
 test("no files gives no shards", () => {
