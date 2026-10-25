@@ -6,6 +6,8 @@ import { readFileSync } from "node:fs";
 import { openRecordStore } from "../../kernel/src/store/records.ts";
 import type { ProjectionHost, Tx } from "../../kernel/src/store/projection.ts";
 import type { Store } from "../../kernel/src/store/types.ts";
+import type { SeamSetters } from "../../host/src/seams/index.ts";
+import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
 import { createSourcesHandlers } from "./handlers/index.ts";
 import type { SourcesHandlers } from "./handlers/index.ts";
 import { ensureTables } from "./projections.ts";
@@ -40,7 +42,11 @@ export function openSources(o: Partial<Omit<SourcesDeps, "tx">> & { tx?: Tx; pat
 
 type HostCtx = { trace: { traceId: string }; emit(name: string, subject: string, payload: Record<string, unknown>): unknown; call(cap: string, input: unknown): Promise<unknown>; principal?: { id: string } };
 let shared: SourcesHandle | null = null;
-const live = (): SourcesHandle => (shared ??= openSources());
+let spaceSeam: SpaceStoreSeam | null = null;
+/** The host hands the Space store (P-H_08, ruling 31). */
+export function setSourcesSpaceStore(seam: SpaceStoreSeam | null): void { spaceSeam = seam; shared = null; }
+export const hostSeams: SeamSetters = { setSourcesSpaceStore };
+const live = (): SourcesHandle => (shared ??= openSources(spaceSeam ? { tx: spaceSeam.open().tx } : {}));
 
 function adapt(name: keyof SourcesHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {

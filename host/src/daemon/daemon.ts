@@ -44,6 +44,7 @@ import { createAccess } from "./access.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
 import type { HookRunner, ModuleHooks } from "./consumers.ts";
+import { createSpaceStore, spaceStoreDrivers, spaceStorePath } from "./store.ts";
 import { defaultNetworkPort, pollCommands } from "./commands.ts";
 import type { NetworkPort } from "./commands.ts";
 import { alive, clearInfo, ensureAdminToken, ensureDirs, pathsFor, readInfo, writeInfo } from "./config.ts";
@@ -306,6 +307,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const spaceLog = log;
       const system = (cap: string, input: unknown): Promise<unknown> =>
         invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
+      // the Space record store the L3 data modules share (P-H_08): one file in the data directory, opened by the first module that needs it, closed at shutdown
+      const spaceStore = createSpaceStore({ path: spaceStorePath(paths.root), space: spaceId });
+      closers.push(() => spaceStore.close());
       const hostDrivers: Record<string, SeamDriver> = {
         setPushPort: () => createPushPort(o.seams?.push),
         setEventsDispatch: () => system,
@@ -313,6 +317,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           reader: { source: { read: (q) => spaceLog.read(q), head: async () => (await spaceLog.currentHead()).seq }, access: () => access.snap, owner: () => cfg.owner ?? access.owner() ?? null, now },
           post: { allow: o.seams?.webhookAllow ?? (() => []), now, ...(o.seams?.postFetch ? { fetch: o.seams.postFetch } : {}) },
         }),
+        ...spaceStoreDrivers(spaceStore),
         ...(o.seams?.drivers ?? {}),
       };
       const setters = o.seams?.setters ?? loaded.hostSeams;

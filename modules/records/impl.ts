@@ -9,6 +9,8 @@ import { isSealedRef } from "../../kernel/src/store/values.ts";
 import { StoreError } from "../../kernel/src/store/types.ts";
 import type { FieldDef, Store, StoredRecord, TypeDef } from "../../kernel/src/store/types.ts";
 import type { ProjectionHost } from "../../kernel/src/store/projection.ts";
+import type { SeamSetters } from "../../host/src/seams/index.ts";
+import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
 import { createQueryHandlers, createRecordsHandlers, mapError, RecordsError, toRow } from "./handlers/index.ts";
 import type { QueryHandlers, RecordRow, WriteCtx, WriteHandlers } from "./handlers/index.ts";
 import { fieldMetaTable, historyText, recordsFieldMeta } from "./projections.ts";
@@ -106,8 +108,9 @@ function assertWriteOnce(def: TypeDef, current: Record<string, unknown>, patch: 
   }
 }
 
-export function openRecords(o: { path?: string; space?: string; actor?: string; clock?: () => number } = {}): RecordsHandle {
-  const opened = openRecordStore({
+export function openRecords(o: { path?: string; space?: string; actor?: string; clock?: () => number; opened?: { host: ProjectionHost; store: Store } } = {}): RecordsHandle {
+  // `opened` is the Space store the host hands over (P-H_08); without it (tests) the module opens a private one
+  const opened = o.opened ?? openRecordStore({
     path: o.path ?? ":memory:",
     space: o.space ?? "sp_records",
     extra: [recordsFieldMeta],
@@ -264,8 +267,16 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
 }
 
 let shared: RecordsHandle | null = null;
+let spaceSeam: SpaceStoreSeam | null = null;
+/** The host hands the Space store (P-H_08, ruling 31). The per-field clocks projection must be on that store before it opens, so it is declared here. */
+export function setRecordsSpaceStore(seam: SpaceStoreSeam | null): void {
+  spaceSeam = seam;
+  shared = null;
+  seam?.declare([recordsFieldMeta]);
+}
+export const hostSeams: SeamSetters = { setRecordsSpaceStore };
 function live(): RecordsHandle {
-  if (!shared) shared = openRecords();
+  if (!shared) shared = openRecords(spaceSeam ? { opened: spaceSeam.open() } : {});
   return shared;
 }
 

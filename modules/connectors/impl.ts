@@ -5,6 +5,8 @@
 import { readFileSync } from "node:fs";
 import { openRecordStore } from "../../kernel/src/store/records.ts";
 import type { ProjectionHost, Tx } from "../../kernel/src/store/projection.ts";
+import type { SeamSetters } from "../../host/src/seams/index.ts";
+import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
 import { createConnectorsHandlers } from "./handlers/index.ts";
 import type { ConnectorsHandlers } from "./handlers/index.ts";
 import { ensureTables, seedBuiltins } from "./projections.ts";
@@ -37,9 +39,20 @@ export function openConnectors(o: Partial<Omit<SyncDeps, "tx">> & { tx?: Tx; pat
 
 type HostCtx = Omit<ConnectorsCtx, "actor"> & { principal?: { id: string } };
 let shared: ConnectorsHandle | null = null;
-const live = (): ConnectorsHandle => (shared ??= openConnectors());
+let spaceSeam: SpaceStoreSeam | null = null;
+let engine: SyncEngine | null = null;
+/** The host hands the Space store (P-H_08, ruling 31). */
+export function setConnectorsSpaceStore(seam: SpaceStoreSeam | null): void { spaceSeam = seam; shared = null; }
+export const hostSeams: SeamSetters = { setConnectorsSpaceStore };
+const live = (): ConnectorsHandle => {
+  if (!shared) {
+    shared = openConnectors(spaceSeam ? { tx: spaceSeam.open().tx } : {});
+    if (engine) shared.deps.engine = engine;
+  }
+  return shared;
+};
 /** The host hands the sync engine (modules/sources) to the live handlers: preview, undo, conflict settling, replay, confirm deletes and push need it (boundary B1 keeps this module from importing it). */
-export function setSyncEngine(engine: SyncEngine): void { live().deps.engine = engine; }
+export function setSyncEngine(e: SyncEngine): void { engine = e; if (shared) shared.deps.engine = e; }
 
 function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {
