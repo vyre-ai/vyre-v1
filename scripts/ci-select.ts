@@ -47,6 +47,31 @@ export function unitTests(changed: string[], tracked: Set<string>): string[] {
   return [...tracked].filter((f) => TEST.test(f) && [...units].some((u) => f.startsWith(u))).sort();
 }
 
+/**
+ * Booted-daemon tests (host/tests/*.test.ts that call startDaemon) load the modules they boot by file name at run time, so the import walk never sees a module as their
+ * dependency. A change under modules/<m>/ selects every such test that boots <m>: one that has an `// @reads /modules/<m>/` line, or that names <m> as a quoted module id
+ * (an id list such as `const L6 = ["tasks", ...]`, or `m.id === "kits"`).
+ */
+export function bootedTests(changed: string[], tracked: Set<string>, read: (f: string) => string): string[] {
+  const touched = new Set<string>();
+  for (const f of changed) { const m = /^modules\/([^/]+)\//.exec(f); if (m && !/\.md$/.test(f)) touched.add(m[1]!); }
+  if (!touched.size) return [];
+  const ids = new Set<string>();
+  for (const f of tracked) { const m = /^modules\/([^/]+)\//.exec(f); if (m) ids.add(m[1]!); }
+  const out: string[] = [];
+  for (const f of [...tracked].sort()) {
+    if (!/^host\/tests\/[^/]+\.test\.[cm]?[jt]s$/.test(f)) continue;
+    let src: string;
+    try { src = read(f); } catch { continue; }
+    if (!/\bstartDaemon\b/.test(src)) continue;
+    const boots = new Set<string>();
+    for (const m of src.matchAll(/^\s*\/\/\s*@reads\s+\/modules\/([^/\s]+)\//gm)) boots.add(m[1]!);
+    for (const m of src.matchAll(/["']([a-z][a-z0-9-]*)["']/g)) if (ids.has(m[1]!)) boots.add(m[1]!);
+    if ([...touched].some((t) => boots.has(t))) out.push(f);
+  }
+  return out;
+}
+
 /** Directory a non-literal dynamic import (template or concatenation) can load from, repo-relative, or null. */
 const DYNAMIC = [/\bimport\(\s*`([^`$]*)\$\{/g, /\bimport\(\s*(?:'([^']*)'|"([^"]*)")\s*\+/g];
 export function dynamicDirs(from: string, src: string): string[] {
@@ -89,7 +114,9 @@ export function selectAffected({ changed, tracked, read }: Input): Selection {
   if (frozen.length) why.push(`frozen trigger: ${frozen.length} frozen-* tests always run`);
   const unit = unitTests(changed, tracked);
   if (unit.length) why.push(`unit rule: ${unit.length} tests in the changed module or package`);
-  return { ...r, why, uncovered, files: [...new Set([...r.files, ...own, ...frozen, ...unit])].sort(), edges };
+  const booted = bootedTests(changed, tracked, read);
+  if (booted.length) why.push(`booted-daemon rule: ${booted.length} tests that boot a changed module`);
+  return { ...r, why, uncovered, files: [...new Set([...r.files, ...own, ...frozen, ...unit, ...booted])].sort(), edges };
 }
 
 const self = fileURLToPath(import.meta.url);
