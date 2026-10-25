@@ -255,7 +255,6 @@ test("share_external: an expiry must be in the future and within a year; restric
   assert.equal(await code(call(ctx, "files.share_external", { fileId: "fil_nope", idempotencyKey: "c" })), "validation.not_found");
 
   const personalId = await personal(ctx);
-  for (const r of db.rows("files_folder")) if (r["id"] === personalId) void r;
   ctx.db.run("UPDATE files_folder SET label = ? WHERE id = ?", 3, personalId);
   assert.equal(await code(call(ctx, "files.share_external", { fileId: f, idempotencyKey: "d" })), "permission.above_clearance");
   ctx.db.run("UPDATE files_folder SET label = ? WHERE id = ?", 2, personalId);
