@@ -138,6 +138,7 @@ export function Shell(props: ShellProps): ReactElement {
     epoch: state.epoch,
     kit: session.kit,
   };
+  // The place frame is keyed by epoch, Space and place only: an item change (ctx.hash) updates the place in place, so its sidebar scroll, pane and composer keep their state.
   const activeTab = tabs.tabs.find((t) => t.key === tabs.active);
 
   let stage: ReactNode;
@@ -153,7 +154,7 @@ export function Shell(props: ShellProps): ReactElement {
   } else {
     const blocked = session.def.kind === "personal" ? teamOnly(state.place) : null;
     stage = (
-      <PlaceFrame hub={hub} epoch={state.epoch} key={`${state.epoch}:${ctx.spaceId}:${state.place}:${state.hash}`}>
+      <PlaceFrame hub={hub} epoch={state.epoch} key={`${state.epoch}:${ctx.spaceId}:${state.place}`}>
         {blocked !== null ? <NeedsTeamSpace what={blocked} density={compact ? "compact" : "regular"} onAction={() => props.onSpaceAction?.("add")} /> : props.renderPlace(ctx)}
       </PlaceFrame>
     );
