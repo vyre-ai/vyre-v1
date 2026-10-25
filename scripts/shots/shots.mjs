@@ -23,6 +23,9 @@ const sizes = (args.sizes || Object.keys(SIZES).join(",")).split(",").map((n) =>
 const maxExport = Number(args["max-export-s"] || MAX_EXPORT_S);
 const want = args.target || "all";
 
+// P-UI_14: the production app's startup and bundle report, on the perf runner (the target carries no screenshots)
+if (want === "P-UI_14") { const { main } = await import("./startup.mjs"); await main(args["skip-export"] ? ["--skip-export"] : []); process.exit(0); }
+
 // A packet id (P-L9b_02) selects that packet's targets, whose ids start with it; "all" runs everything.
 const targets = loadTargets(HERE).filter((t) => want === "all" || t.id === want || (want.startsWith("P-") && t.id.startsWith(want + "-")));
 // A packet branch with no screenshot targets of its own (a backend packet that merged main) has nothing to shoot.
@@ -54,18 +57,20 @@ try {
   for (const t of targets) for (const skin of skins) for (const [sizeName, vp] of sizes) {
     const dir = path.join(out, t.id); fs.mkdirSync(dir, { recursive: true });
     const stem = `${skin}-${sizeName}`;
-    const shoot = async (url, file, settleMs, scheme) => {
+    const shoot = async (url, file, settleMs, scheme, click) => {
       const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: scheme, reducedMotion: "reduce" });
       const page = await ctx.newPage();
       await page.goto(url, { waitUntil: "load", timeout: 60000 });
       if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 30000 }).catch(() => {});
       await page.waitForTimeout(settleMs);
+      // a prototype state with no hash token is reached the way a person does: press the control in whichever frame has it
+      if (click) { for (const fr of page.frames()) { const el = fr.locator(click).first(); if (await el.count()) { await el.click().catch(() => {}); break; } } await page.waitForTimeout(600); }
       await page.screenshot({ path: file });
       await ctx.close();
     };
     const scheme = skin === "graphite" ? "dark" : "light";
     await shoot(routeUrl(real.origin, t.route, skin), path.join(dir, `${stem}-real.png`), 800, scheme);
-    await shoot(`${proto.origin}/vyre-v1.html#${protoHash(t.proto, skin)}`, path.join(dir, `${stem}-proto.png`), t.protoSettleMs ?? 3000, scheme);
+    await shoot(`${proto.origin}/vyre-v1.html#${protoHash(t.proto, skin)}`, path.join(dir, `${stem}-proto.png`), t.protoSettleMs ?? 3000, scheme, t.protoClick);
     const cmp = path.join(dir, `${stem}-compare.html`);
     fs.writeFileSync(cmp, sideBySideHtml({ title: `${t.id} - ${skin} - ${sizeName} ${vp.width}x${vp.height}`, real: `${stem}-real.png`, proto: `${stem}-proto.png` }));
     const ctx = await browser.newContext({ viewport: { width: vp.width * 2 + 36, height: vp.height + 70 } });

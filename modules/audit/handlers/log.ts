@@ -41,7 +41,17 @@ export async function exportCsv(ctx: AuditCtx, input: Omit<Filter, "q" | "traceI
     if (!page.more || rows.length >= EXPORT_MAX) break;
     before = page.rows[page.rows.length - 1]!.seq;
   }
-  const kept = rows.slice(0, EXPORT_MAX).reverse();
+  // The read filter cannot reach the contents of the file, so a row that names a resource goes in only on an explicit view allow for it (hold is a deny). No authorize in the context: refuse (P-SEC_07).
+  if (typeof ctx.authorize !== "function") raise(ctx, "permission.role_lacks_permission", "This server cannot check who may see each row, so it exports nothing.");
+  const may = new Map<string, boolean>();
+  const visible = (r: RowRec): boolean => {
+    if (!r.resource_type) return true;
+    const key = `${r.resource_type}:${r.resource_id}`;
+    let ok = may.get(key);
+    if (ok === undefined) { ok = ctx.authorize!({ perm: null, level: "view" }, { type: r.resource_type, id: r.resource_id }).effect === "allow"; may.set(key, ok); }
+    return ok;
+  };
+  const kept = rows.slice(0, EXPORT_MAX).filter(visible).reverse();
   const name = `audit-${new Date(ctx.now()).toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv`;
   const fileId = await ctx.exports.save(name, csvOf(kept));
   ctx.emit("audit.exported", fileId, { by: who(ctx), rows: kept.length, fileId });

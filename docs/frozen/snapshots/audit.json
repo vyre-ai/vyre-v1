@@ -1,0 +1,21 @@
+{
+  "module": "audit",
+  "capabilities": {
+    "audit.append@1": "48a19556375c794a2bcf6a64b8711abd085fdd4d55f42549e2512b2c01c729b2",
+    "audit.archive@1": "6722d438f02a67e86b20f46d73921977cd738592172a55aeb2b391c22cab85e6",
+    "audit.archives.list@1": "095fa7153cf1789eb05922180624808be79d96ff7eb654add68a98f748839557",
+    "audit.chain_health@1": "7513203bbaeda2d48c308c52f4832c43fc6c831aa0f5843a3842701dba20240c",
+    "audit.checkpoint@1": "82c4e83de164c5045690826e76f7e7dead52e16acc3dd14b402ff38718ee4a31",
+    "audit.checkpoints.list@1": "aeb6f8ecba5f868d0133a3aee5fa801a6e9a2d27dd7545f475e1db9d262d8a3c",
+    "audit.export@1": "31524dad1aeeef446f46b7ab5c50263154522a6ee8a45068a0eb6c2fde777ea1",
+    "audit.get@1": "872a6d58ffbeb2408366dd1607368e981ec09a5b0bfe8111b1072a3570fd276d",
+    "audit.list@1": "fb69910d0b9c0f1bd38dbb83a9e8bcad545dbbbfa1cc17dfbe46e791f128a7b1",
+    "audit.verify@1": "4a7a3902e5dca8ff7fb736c66e8357e6ffaa8ebdef4f632619f5fba8ac980b7d"
+  },
+  "events": {
+    "audit.archived": "6f38e69454d7e48f5dbc2d1bfad8a23012fee423bb2b4688dce4927376e8e95d",
+    "audit.checkpointed": "01124a09c034b2918aca4a062308575031d726ed5806270fe021acd882ae590d",
+    "audit.exported": "97fbf4e09e77a7f82c34e9b28a26e78a31819cf77d8c3450c8ee3035a92da9af",
+    "audit.verified": "5f1af2543c842ccbc5b306ffb2d6e10659cf1b8d929082e3c929f69aaa27eba4"
+  }
+}
