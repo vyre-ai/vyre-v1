@@ -274,6 +274,6 @@ test("a full export needs the Space-wide export permission", async () => {
   const w = await ready();
   w.allowExport(false);
   const err = await failed(call("backup.export_start", w.ctx, {}));
-  assert.equal(err.error.code, "permission.role_lacks_permission");
+  assert.equal(err.error.code, "permission.no_grant");
   assert.deepEqual(w.saved, []);
 });

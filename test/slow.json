@@ -37,6 +37,8 @@
   {"file": "modules/sync/tests/pull.snapshot.test.ts", "capSec": 120, "owner": "CI", "reason": "holds a ms speed assertion; node speed numbers count only from the v1-perf runners (ruling 46)", "perf": true},
   {"file": "apps/app/src/shell/cmdk/cmdk.test.tsx", "capSec": 120, "owner": "L9", "reason": "heavy jsdom render, over the 20 s fast cap on loaded runners"},
   {"file": "apps/desktop/tests/shell.test.ts", "capSec": 120, "owner": "L10", "reason": "22 s on a GitHub-hosted runner against the 20 s fast cap; runs cargo test where a Rust toolchain exists (GitHub-hosted has one, without the glib dev libraries), so it stays on the self-hosted runners", "heavy": true},
+  {"file": "host/tests/schema.start.boot.test.ts", "capSec": 120, "owner": "L3", "reason": "boots the daemon twice (start and restart) and drives schema over HTTP"},
+  {"file": "modules/schema/tests/seed.perf.test.ts", "capSec": 120, "owner": "L3", "reason": "seed speed budget (under 200 ms); node speed numbers count only from the v1-perf runners (ruling 46)", "perf": true},
   {"file": "modules/memory/tests/facts.pointer.test.ts", "capSec": 120, "owner": "L2", "reason": "holds a ms speed assertion; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
   {"file": "modules/memory/tests/facts.proofset.test.ts", "capSec": 120, "owner": "L2", "reason": "holds a ms speed assertion; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
   {"file": "modules/search/tests/query.perf.test.ts", "capSec": 120, "owner": "L2", "reason": "holds a ms speed assertion; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
@@ -47,5 +49,9 @@
   {"file": "modules/chat/tests/post.seq.test.ts", "capSec": 120, "owner": "L2", "reason": "holds a ms speed assertion; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
   {"file": "sync/tests/device.engine.heavy.test.ts", "capSec": 120, "owner": "L1", "reason": "holds a ms speed assertion; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
   {"file": "ui/src/Composer/composer.test.tsx", "capSec": 120, "owner": "L9", "reason": "holds a ms speed assertion; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
-  {"file": "ui/tests/stream.render.test.tsx", "capSec": 120, "owner": "L9", "reason": "holds a ms speed assertion; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true}
+  {"file": "ui/tests/stream.render.test.tsx", "capSec": 120, "owner": "L9", "reason": "holds a ms speed assertion; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
+  {"file": "perf/server/server.test.ts", "capSec": 120, "owner": "L11", "reason": "server probes against the speed budgets; full scale (VYRE_PERF_FULL=1) in the hourly perf run on v1-perf (ruling 46)", "perf": true},
+  {"file": "fixtures/seed/small/small.seed.perf.test.ts", "capSec": 120, "owner": "L2", "reason": "the speed test split out of its functional file; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
+  {"file": "testkit/tests/createTestSpace.perf.test.ts", "capSec": 120, "owner": "L2", "reason": "the speed test split out of its functional file; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
+  {"file": "scripts/shard.perf.test.ts", "capSec": 120, "owner": "L11", "reason": "the speed test split out of its functional file; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true}
 ]
