@@ -11,6 +11,7 @@ import type { ErrorCode } from "../../../packages/contracts/src/types.ts";
 import { canonical } from "../../../lib/canonical.ts";
 import { mintUuid } from "../../../lib/ids.ts";
 import { fail as hostFail } from "../../../host/src/routes/errors.ts";
+import { stepProblems } from "./sheet.ts";
 
 export type KitChannel = "stable" | "beta";
 export type ContentType = "ui" | "structure" | "steps" | "tools";
@@ -607,6 +608,12 @@ async function applyChanges(ctx: Ctx, kitId: string, target: KitManifest, verb: 
   }
 }
 
+/** Install and update refuse a Kit whose steps leave out an input their capability cannot do without, before any step runs (P-L10_12, handlers/sheet.ts). */
+function refuseUnresolvable(ctx: Ctx, target: KitManifest): void {
+  const problems = stepProblems(target);
+  if (problems.length > 0) fail(ctx, "validation.precondition_failed", `${target.title} cannot be installed yet. ${problems.slice(0, 3).map((p) => p.message).join(" ")} Nothing was changed.`, { problems });
+}
+
 async function install(ctx: Ctx, input: unknown): Promise<{ kit: KitOut }> {
   const o = rec(ctx, input);
   if (o.accepted !== true) fail(ctx, "validation.bad_input", "Confirm the install sheet first.", { field: "accepted" });
@@ -616,6 +623,7 @@ async function install(ctx: Ctx, input: unknown): Promise<{ kit: KitOut }> {
   const head = headOf(ctx, k.id, k.channel);
   if (!head) fail(ctx, "validation.precondition_failed", "This Kit has no published version yet.");
   const target = parseManifest(head);
+  refuseUnresolvable(ctx, target);
   await applyChanges(ctx, k.id, target, "install");
   const now = ctx.now();
   ctx.db.run("UPDATE kits_kit SET installed_version = ?, previous_version = ?, installed_by = ?, installed_at = ?, updated_at = ? WHERE id = ?", target.version, null, ctx.principal.id, now, now, k.id);
@@ -632,6 +640,7 @@ async function update(ctx: Ctx, input: unknown): Promise<{ kit: KitOut }> {
   const row = wanted !== undefined ? versionRow(ctx, k.id, wanted) : headOf(ctx, k.id, k.channel);
   if (!row) fail(ctx, "validation.not_found", wanted !== undefined ? `Version ${wanted} of ${k.title} does not exist.` : "This Kit has no published version yet.");
   const target = parseManifest(row);
+  refuseUnresolvable(ctx, target);
   if (compareSemver(target.version, k.installedVersion) <= 0) fail(ctx, "validation.precondition_failed", `${k.title} ${k.installedVersion} is already at or past ${target.version}. Use rollback to go back.`);
   const from = k.installedVersion;
   await applyChanges(ctx, k.id, target, "update");
