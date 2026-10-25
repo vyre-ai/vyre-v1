@@ -206,7 +206,8 @@ for (const id of ["claude_code", "codex", "grok"] as const) {
     const session = await driver.open(specOf());
     const turn = collect(session.send(turnOf("hang")));
     await until(() => spy.writes.length > 0);
-    await sleep(150);
+    // The resume below needs the engine's session id, which arrives with the process's first line. A fixed pause was too short on a loaded runner; wait for the id itself.
+    for (let i = 0; i < 400 && (await session.checkpoint()).sessionId === null; i++) await sleep(25);
     const pid = session.pid;
     await session.cancel();
     assert.deepEqual(await turn, [], "no error and no done after a cancel");

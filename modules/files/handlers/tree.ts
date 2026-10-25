@@ -1119,7 +1119,12 @@ async function filesMove(ctx: Ctx, input: unknown): Promise<{ file: FileOut }> {
 async function filesCopy(ctx: Ctx, input: unknown): Promise<{ file: FileOut }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
-  const file = liveFile(ctx, reqStr(ctx, o, "fileId"));
+  const sourceId = reqStr(ctx, o, "fileId");
+  // The pipeline authorized the destination folder; the file being copied is another item, and the copy carries its contents into a place the caller can write. Only an explicit allow on the source copies it (P-SEC_07).
+  if (typeof ctx.authorize !== "function" || ctx.authorize({ perm: null, level: "view" }, { type: "file", id: sourceId }).effect !== "allow") {
+    fail(ctx, "permission.no_grant", "You cannot copy a file you cannot open.", { fileId: sourceId });
+  }
+  const file = liveFile(ctx, sourceId);
   const dest = liveFolder(ctx, reqStr(ctx, o, "toFolderId"));
   const name = cleanName(ctx, optStr(ctx, o, "name") ?? String(file.name));
   if (nameTaken(ctx, String(dest.id), name)) fail(ctx, "validation.duplicate", "That name is already in this folder.");

@@ -7,6 +7,7 @@ import { emitAll, summary } from './emit.ts';
 import { loadManifests } from './load.ts';
 import { diffRegistries } from './diff.ts';
 import { dedupeRegistry } from './dedupe.ts';
+import { SNAPSHOT_DIR, snapshotFiles } from '../../../lib/snapshot.ts';
 import type { Registry } from '../../../packages/contracts/src/index.ts';
 import { validateAll } from './validate.ts';
 import type { LaneTable } from './validate.ts';
@@ -68,6 +69,16 @@ if (diffIdx >= 0) {
 }
 const files = emitAll(registry);
 if (args.includes('--summary')) console.log(summary(registry));
+if (args.includes('--snapshots')) {
+  // docs/frozen/snapshots: one file per manifest (lib/snapshot.ts). Written from the same deduplicated registry the generated tree holds, never merged by hand.
+  const dir = join(root, SNAPSHOT_DIR);
+  const want = snapshotFiles(dedupeRegistry(registry));
+  mkdirSync(dir, { recursive: true });
+  for (const name of readdirSync(dir)) if (!want.has(`${SNAPSHOT_DIR}/${name}`)) rmSync(join(dir, name));
+  for (const [p, text] of want) writeFileSync(join(root, p), text);
+  console.log(`snapshots: ${want.size} files in ${SNAPSHOT_DIR}`);
+  process.exit(0);
+}
 
 if (check) {
   const onDisk = new Set(walk(outDir));

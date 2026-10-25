@@ -1,6 +1,7 @@
 // Turn engine rows and ports (ARCH 6.1, 6.2, 6.5). Held in memory here behind store interfaces; module engine persists the same columns.
 // The session types mirror ARCH 6.6 (agent/src/driver.ts is lead-owned and not on main yet); when it lands, adapt `OpenSession` to it in one place.
 import type { RouteMention, RouteReason } from "../../../lib/route.ts";
+import type { AccountKind, ResolveReason } from "../accounts/types.ts";
 
 export type ThreadKind = "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
 export type AgentMode = "lead" | "listen";
@@ -147,7 +148,13 @@ export interface EngineSession {
   readonly providerLatencyMs?: number;
 }
 
-export interface SessionSpec { threadId: string; agent: EngineAgent; asker: string }
+/**
+ * The account a turn runs on, as engine.account.resolve answered it. `ref` is the Vault handle (never a value); the opener fetches the secret itself through Vault fill.
+ * `itemId` is the Vault item behind the handle, so usage can be metered against it. `payer` is the person who pays.
+ */
+export interface ResolvedAccount { ref: string; driver: string; provider: string; kind: AccountKind; payer: string; reason: ResolveReason; itemId?: string }
+export interface AccountQuery { threadId: string; agentId: string; askerId: string; stepKey?: string }
+export interface SessionSpec { threadId: string; agent: EngineAgent; asker: string; turnId: string; traceId: string; account?: ResolvedAccount }
 export type OpenSession = (spec: SessionSpec) => Promise<EngineSession>;
 
 export interface ReceiveResult { responders: string[]; reason: RouteReason; qseqs: number[]; messageId: string }

@@ -55,10 +55,10 @@ export default defineManifest({
     ], { ownerField: 'owner', group: 'People', attribution: true }),
   ],
   entities: [
-    entity('suppression', 'contacts_suppression', 'sup_', { channel: 'choice', address: 'text', reason: 'choice', source: 'text', contactId: 'text', addedAt: 'datetime', addedBy: 'text', note: 'text' }, 'space', {
+    entity('suppression', 'contacts_link_suppression', 'sup_', { channel: 'choice', address: 'text', reason: 'choice', source: 'text', contactId: 'text', addedAt: 'datetime', addedBy: 'text', note: 'text' }, 'space', {
       sync: { profile: { desktop: 'none', phone: 'none', web: 'none' } },
     }),
-    entity('contact_address', 'contacts_address', 'adr_', { contactId: 'text', kind: 'choice', value: 'text', normalized: 'text', primary: 'checkbox', verified: 'checkbox' }, 'record', { parentField: 'contactId' }),
+    entity('contact_address', 'contacts_link_address', 'adr_', { contactId: 'text', kind: 'choice', value: 'text', normalized: 'text', primary: 'checkbox', verified: 'checkbox' }, 'record', { parentField: 'contactId' }),
   ],
   events: [
     ev('contact.preferences_changed', 'Consent, Do-not-contact or channel opt-outs changed', { p: { contactId: id.record, changed: t.arr(t.str()), source: t.str() }, subject: ['record', '/contactId'], label: 'subject', trigger: { title: "A contact's preferences change" } }),
