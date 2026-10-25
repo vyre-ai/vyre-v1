@@ -224,7 +224,7 @@ test("cancel: the record, its calendar events and the Zoom meeting; a missing on
   assert.equal(h.named("meeting.canceled").length, 1);
   assert.equal(h.calls("zoom.meetings.delete").length, 1);
 
-  const other = String(out(await m.ingest(h.ctx, zoom({ providerRef: "50000000000", joinUrl: "https://us02web.zoom.us/j/50000000000", startsAt: START + 50 * HOUR, attendees: [] }))).meetingId);
+  const other = String(out(await m.ingest(h.ctx, zoom({ providerRef: "50000000000", joinUrl: "https://us02web.zoom.us/j/50000000000", startsAt: START + 50 * HOUR, endsAt: START + 51 * HOUR, attendees: [] }))).meetingId);
   h.script("zoom.meetings.delete", () => { throw h.err("provider.auth_failed", "no"); });
   assert.equal(await refusedWith(m.cancel(h.ctx, { meetingId: other })), "provider.auth_failed");
   assert.equal(h.fields(other)["status"], "scheduled", "a refusal leaves the meeting as it was");
