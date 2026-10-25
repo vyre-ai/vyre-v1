@@ -159,7 +159,8 @@ export function InboxPhoneDock({ device, targets = NO_TARGETS, children, placeme
     isClaimed: () => latest.current.claimed,
     notes: () => latest.current.notes,
     setNotes,
-  }), [controller]);
+  // a new object whenever the call, the claims or the notes change, so a conversation that reads the call re-renders with it
+  }), [controller, state, claimed, claims, notes, saved, summary]);
   // while the conversation is open the call lives in its header; the floating dock is for the dialer, an incoming ring and a call whose conversation is not open
   const floating = dockFloats(claimed, state.phase);
   return (
