@@ -340,7 +340,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   const changeColor = (k: keyof EmailColors, v: string): void => { if (isHex(v)) changeStyle({ colors: { ...style.colors, [k]: v.toUpperCase() } }, `Changed ${COLOR_LABEL[k].toLowerCase()} colour`); };
   const tidy = (): void => { const next = formatHtml(html !== "" ? html : compiled); setHtml(next); commit({ ...snap, html: next }, "Tidied the HTML"); };
   const pickFont = (): void => {
-    const open = (x: number, y: number): void => menu.show(EMAIL_FONTS.map((f) => ({ label: f, checked: style.font === f, onSelect: () => changeStyle({ font: f }, `Changed the font to ${f}`) })), x, y, "menu");
+    const open = (x: number, y: number): void => menu.show(EMAIL_FONTS.map((f) => ({ label: f, checked: style.font === f, onSelect: () => changeStyle({ font: f }, `Changed the font to ${f}`) })), x, y, "other");
     if (fontBtn.current?.measureInWindow !== undefined) fontBtn.current.measureInWindow((x, y, _w, h) => open(x, y + h + 4)); else open(0, 0);
   };
   const changeBlocks = (next: readonly EmailBlock[], why: string): void => { setBlocks(next); commit({ ...snap, blocks: next }, why); };
