@@ -1,0 +1,38 @@
+{
+  "module": "schema",
+  "capabilities": {
+    "schema.apply@1": "e2857433dc05767f1105d1f665303003c849e548de5aaf548d2cfde575edef74",
+    "schema.changes.list@1": "07a5b4bfd54341901afff8bd00856c4a52943e0cd3d1f7c9b2da4b398394492f",
+    "schema.describe@1": "1c769f3b9c6807e1f39b425f9a776786ae333d7ecf4d54a4023eac85a8256f0b",
+    "schema.diff@1": "f4677ebed603d4bf10dac7fd83ebacde4de5b841b0575c14eda79a75b453d4c3",
+    "schema.field_types@1": "be8c48c859d4310a03a39080103fd7e3d87a997489e18ae90f81144a84cca304",
+    "schema.gap_rules.list@1": "555c333c53bd87492a4dcf3dd64d411fd872451790b9f7b0f89a0cbbaab4299d",
+    "schema.gap_rules.set@1": "0f1bed102f2a17b91df7aff7b4a10a75582498f54e454aad3a42b02452483894",
+    "schema.infer@1": "2be3d28f56ccb75257af907fb4a82e0e42f85fc1246eb10531b36fe87f7d913b",
+    "schema.layout.get@1": "ee48171fa77de7b32a5b8c92ef791a18cdb5da2119f94e5e7ace899cff5e1a9e",
+    "schema.layout.set@1": "284b0ebf70a0a7b1d54b0f9ec195768963d8a6c49167d4c606514e8afca1e4b5",
+    "schema.map@1": "77934d804d542628f2cf7724c84e67250a88ceadedf4117145159c14544d0dd8",
+    "schema.restore_field@1": "b3eff9f33b43705479e80fee82d37bc99fde83440da2d28e3126c40915019fa4",
+    "schema.sensitivity.scan@1": "fd7e4d52835fde7ebb8a9bcaab1a8c72b52019f03a220b05772d6af0ee3f7137",
+    "schema.set_label@1": "4fda783c9af552e55e9684026235883dc19688a0c239df83eb80d5496ce6f856",
+    "schema.trash.list@1": "31657a99e2f8e62812976b610245df2e1fd56aef059a0439e4aac3cc4858e58f",
+    "schema.types.get@1": "3f506dddbcf654abe9d708807a67a2f94033464217cfadd5de692e6b105edd59",
+    "schema.types.list@1": "916ac129d4cca8c362a0efd7b89a9b4bbb1d1d095c1c52b4a418ba84517258d9",
+    "schema.view_kinds@1": "48bd08ccba2068000d6e3947e04d7373098d57d82b7e7266406fc8846ae88bd4",
+    "views.delete@1": "bb2dbf7bc45ab48554a3aca7589c39ba356d7f939929db9d9302bb71fe3ecbfb",
+    "views.get@1": "4abfef36a03fb2016758d09e1bf9753b4a6e7a1177550fa18c9be7154ffc2d36",
+    "views.list@1": "905129e05175893109125c2c5c6919ee46c8303fa7e3473a9419cde1606ff6f0",
+    "views.publish@1": "b87075e444c4da65c8ed5db8cd1c2067bbd5a5078eeb82935207b6b46c224394",
+    "views.save@1": "2e192b9a69c548915506827a0dd85f292d2e2db760bd0a113b9cf613af3ef629",
+    "views.share_external@1": "220e0063dc860e1b22ea72c684139c39dac2abf460dacf9ce9bcb7bf184a7e7b"
+  },
+  "events": {
+    "schema.changed": "cd3ec97deb7777d859d33d8541db3f7662b578cd32878bd257cb29dee5f3d5c5",
+    "schema.field_restored": "147197a87058483e93cc7b1d28df8a6c70e329a739286add9b03ce2ceb6d450f",
+    "schema.label_changed": "b8aaa3ac521fe38379f25e5b5939745b5cb942028f69932e09ee717fafba0f15",
+    "schema.type_dropped": "59d3e48969d41afe1666f263aa73909274de608cd5ccf290df27bce2bbff800c",
+    "view.deleted": "f8f66a83a3a768f727e714d69c8b5a955963c1e6d469b4cd73bcb6acf34ea728",
+    "view.published": "7274f94d1fc27754c4ceb0e14f6d7f35f0f6a635a4be5cb60a3d08bbc0116ec5",
+    "view.saved": "2dae72c2468bc8598114f403b073d6fe25e6550b3beacfd74cfeb02219130df1"
+  }
+}

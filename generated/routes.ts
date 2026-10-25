@@ -23826,8 +23826,8 @@ export const routes: Route[] = [
     "v": 1,
     "module": "sync",
     "effects": "write",
-    "permission": null,
-    "level": "edit",
+    "permission": "access.manage",
+    "level": "manage",
     "resource": {
       "type": "space"
     },

@@ -1,0 +1,26 @@
+{
+  "module": "mcp",
+  "capabilities": {
+    "mcp.health@1": "f58b9fad935725415c0fa3f85a78e9710e7f9066ddeebc1515327d0adf31b0b6",
+    "mcp.scopes.set@1": "dcc5e2bf0543c18834af5fd1ca7c0a104e3b8e16151c603eee77f3a33268dd08",
+    "mcp.session.close@1": "ddb7326a34b6056a6c7da8fa9755702085cada6178947958c2e7a1efaa0018ea",
+    "mcp.session.mint@1": "ceac8b1130a0caea597c372b4b508bc2757a31ae49924986bdf985e789ab0944",
+    "mcp.session.open@1": "8fe07b761c4fba8f66c0e0fb0e45a1216782b31e53d32dfad16ba9c6ce0b9027",
+    "mcp.sessions.list@1": "c13e6165a39e0211a3378420e93ced3ce7d835a11435a8468ebb3a7651c20246",
+    "mcp.token.issue@1": "1b3cdeb6f8ae257aaaedba6ea1a1b929456c441d02de509be349e2487600e8f4",
+    "mcp.token.log_reveal@1": "f103c72761b4f25b50da1bdf9495ddce404c426412b2b61e7cafaef866eab3f6",
+    "mcp.token.register@1": "83c295ece137256af19d9e5eec8bdc2e47db7e73bf48736cfa6ec81bdf6e2894",
+    "mcp.tool.describe@1": "741daa901489b36529df5a88ce30616395686184433ba3cfe56965580ae5abb2",
+    "mcp.tool.search@1": "eead54eb8cbf7ed269b9659d7f28483300078fb443032de0821301d039151e18",
+    "mcp.tools.list@1": "a69d1180317a019c7531206cc4abc4eae1e60e2fc4c37038b0883b38ab2f88f3",
+    "mcp.toolsets.list@1": "f2301832be5097c0cd48e8afaf97e0399ab8d043240126cf7374aaf243163089"
+  },
+  "events": {
+    "mcp.scopes_changed": "2fdd034c8f95ae3c4dcdd85ba388931ab876936b9286f491d9e810cf834ce31c",
+    "mcp.session_ended": "0c71914ce6626c0276f1cd073f5b881e5d11d916cb616d50f32b1c35e60ea46a",
+    "mcp.session_started": "c30a64f7042e84ad672d85162f91c28a14f70293279fd2903f10fc31bd74ae84",
+    "token.issued": "0d2f3af83e58d60322461d589f3b5b202f291a3c2b01ea7e949089e4b289b293",
+    "token.registered": "57066ce8e60644b2c5a92d01e5c05d99fc7433fecd652c9c53ba5b40e098fece",
+    "token.revealed": "382259f966ed98fef21a7581cb9f7b4b0dc3594feaf9a91b048b88d35b58aeb3"
+  }
+}

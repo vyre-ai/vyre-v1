@@ -1,0 +1,28 @@
+{
+  "module": "terminal",
+  "capabilities": {
+    "terminal.attach@1": "67a2ce89ca8f56e796840e289d2ee3e479c71bef42192cf9a05f4343e39bbdc2",
+    "terminal.close@1": "7a4fb59faa779b79ee25078610a6e844a6ef314f18c7dd863210d0d5e01c2da5",
+    "terminal.get@1": "2c1de87f4531047b4d5df48b8c7d4aa547fc8f2cccbbacfcd22279e4ed40bd76",
+    "terminal.health@1": "7aacc600b8082edd76ebf98e6e6f26472b85e1b413d5482e8142f22ad8b96e6a",
+    "terminal.input@1": "357ecc97ef7aa28eead936659cbd76c73f394b2247d5a6a2ac6895a812773725",
+    "terminal.interrupt@1": "81c7a204492c89f991f1b727a42faddc3e7200fad141da26671ca3356984d79f",
+    "terminal.list@1": "102ae431faac0881c2890cd5e5c200089d32e1466b28b7e0739ec2e77d0e54aa",
+    "terminal.open@1": "a97e820a8ff1b9dd41d2f0f2cd92c7ac6abc7bc86e06ddbacf514d76a8d45399",
+    "terminal.open_server@1": "73fee641491088d39c69b45d55854b490d53cc8d7059077710b8ff575f9e5255",
+    "terminal.read@1": "289b14957cc4cd0967676a7e1c578f0a3560a15eca9fb290b29c7100d52edb23",
+    "terminal.rename@1": "231710455058cf14e631f9c0d3db0aa0c0b2994091deb629bf58735ea6b97765",
+    "terminal.resize@1": "2798db1ac014f9ad08e07bb4946112a75692e3d4ab004356b6711a09c1e85ea6",
+    "terminal.rules.get@1": "b0a3cd986e581864094a70ee908ca5bdca76f69caf903521f7b0d042265caa42",
+    "terminal.rules.set@1": "e0a20e7c7c00a8da22a52da7d628949298ae4ef6217a4f4217adb80c7647271f",
+    "terminal.run@1": "456904f3e8e3ff3a89f09ab7e81a8151f7fae5eecc71898d3ef47194f6466251",
+    "terminal.status@1": "adb9fbf1c71a0ec5f8dff1b068f81f55e30c3b504fbb6a7dd4e50f132b5cf232"
+  },
+  "events": {
+    "terminal.closed": "67298f1bb59427922e28d07dd58e80abb5799c025e30da8acbf2ffee62698e32",
+    "terminal.command_finished": "27b602ce6dd90d1dceb804a39cfff314a3f5d571f1b76816d545c91bb7032eca",
+    "terminal.opened": "49eb24d956939e32d5c9500352df1006be1a996183f9462e1a5ae0f5c1113f51",
+    "terminal.renamed": "6656b1dace132d021fc02b8a9a43b6b40bf3cfc07ff6571387b86197b26176a8",
+    "terminal.rules_changed": "2a539990365c0fdbd7bc775fec6f10243655a9722468d970793f9e03ba70de0b"
+  }
+}
