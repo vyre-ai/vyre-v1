@@ -41,9 +41,10 @@ function inlineNodes(items: readonly Inline[], onLink?: (href: string) => void):
 
 /**
  * The caret at the end of the open text is a character, not a box. A box (a View or a nested Text) that sits after text which grows moves every frame, and the browser counts each move as a layout
- * shift; a character is part of the text it follows, so adding it and moving it change no element's position (perf layout_shift stays 0).
+ * shift; a character is part of the text it follows, so adding it and moving it change no element's position (perf layout_shift stays 0). It is a plain bar of the text face: a glyph from
+ * another font (a block character) makes the line a pixel or two taller and every block that loses it shifts the one below.
  */
-export const CARET = "\u258D";
+export const CARET = "|";
 
 export interface BlockViewProps {
   block: Block;

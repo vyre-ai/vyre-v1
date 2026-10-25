@@ -276,12 +276,12 @@ test("the caret is drawn once, at the end of the open block, and not on final bl
   md.append("Done paragraph.\n\nStill writing **bo");
   const v = md.view();
   const html = renderToStaticMarkup(<MarkdownBlocks blocks={v.blocks} streaming />);
-  assert.equal(html.match(new RegExp(CARET, "g"))?.length, 1);
+  assert.equal(html.split(CARET).length - 1, 1);
   assert.ok(html.indexOf("Done paragraph.") < html.indexOf(CARET));
   assert.ok(html.indexOf(CARET) > html.indexOf("Still writing"));
   assert.doesNotMatch(html, /stream-caret/, "the caret is a character of the text, not an element that could move and shift the layout");
   const finished = renderToStaticMarkup(<MarkdownBlocks blocks={v.blocks} />);
-  assert.doesNotMatch(finished, new RegExp(CARET));
+  assert.ok(!finished.includes(CARET));
 });
 
 test("StreamText reads the store's snapshot", () => {
@@ -292,9 +292,9 @@ test("StreamText reads the store's snapshot", () => {
   const html = renderToStaticMarkup(<StreamText store={store} />);
   assert.match(html, /Title/);
   assert.match(html, /Body text/);
-  assert.match(html, new RegExp(CARET));
+  assert.ok(html.includes(CARET));
   store.end();
-  assert.doesNotMatch(renderToStaticMarkup(<StreamText store={store} />), new RegExp(CARET));
+  assert.ok(!renderToStaticMarkup(<StreamText store={store} />).includes(CARET));
 });
 
 test("markdown blocks draw lists with their numbers, quotes and code", () => {
