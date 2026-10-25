@@ -41,6 +41,14 @@
       "proto": "records,harbor,record,{skin}",
       "waitFor": "[data-testid='record-page']",
       "note": "The same page over the Harbor Studio sample Space."
+    },
+    {
+      "id": "P-L9d_04-navigate",
+      "route": "/m/P-L9d_04?probe=navigate",
+      "proto": "records,record,{skin}",
+      "waitFor": "[data-testid='navigate-probe']",
+      "protoSettleMs": 3000,
+      "note": "The navigate probe in the browser (ruling 43): the record page opened seven times, the first thrown away, the median of five against the 50 ms budget with the worst printed in the corner."
     }
   ]
 }
