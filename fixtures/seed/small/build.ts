@@ -80,6 +80,8 @@ export function extraEvents(): NewEvent[] {
   const out: NewEvent[] = [];
   let n = 0;
   for (const type of ["contact", "company"]) out.push(resource(++n, type, "record_type"));
+  // the agents of core are principals; memory and access also need them as resources (who may edit an agent's layer)
+  for (const id of ["agt_scout", "agt_helper"]) out.push(resource(++n, id, "agent"));
   for (let i = 1; i < SMALL_TARGET.channels; i++) out.push(resource(++n, `chn_s${String(i).padStart(2, "0")}`, "channel"));
   return out;
 }
