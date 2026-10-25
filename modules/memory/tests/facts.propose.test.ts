@@ -270,3 +270,4 @@ test("memory.map.get returns the MAP.md block the nightly job wrote, nothing bef
   await assert.rejects(mapGet(h.ctx, { agentId: "agt_intake" }), (e) => codeOf(e) === "permission.no_grant");
 });
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+// run on the final commit

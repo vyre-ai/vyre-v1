@@ -104,3 +104,4 @@ test("a new message in the watched channel starts one run under the routine owne
   assert.deepEqual(await fire(hn, msg()), []);
   assert.equal(started.length, before);
 });
+// run on the final commit
