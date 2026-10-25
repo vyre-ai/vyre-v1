@@ -155,11 +155,32 @@ const HISTORY: readonly Item[] = Array.from({ length: 150 }, (_, i) => {
   };
 });
 
+function useShiftDebug(): string {
+  const [text, setText] = useState("no shifts");
+  useEffect(() => {
+    const g = globalThis as unknown as { PerformanceObserver?: new (cb: (l: { getEntries(): any[] }) => void) => { observe(o: object): void } };
+    if (!g.PerformanceObserver) return;
+    const lines: string[] = [];
+    const po = new g.PerformanceObserver((l) => {
+      for (const e of l.getEntries()) {
+        if (e.hadRecentInput) continue;
+        const src = (e.sources ?? []).map((x: any) => `${x.node?.nodeName}[${x.node?.getAttribute?.("data-testid") ?? ""}|${String(x.node?.textContent ?? "").slice(0, 20)}] ${Math.round(x.previousRect.x)},${Math.round(x.previousRect.y)},${Math.round(x.previousRect.width)}x${Math.round(x.previousRect.height)} -> ${Math.round(x.currentRect.x)},${Math.round(x.currentRect.y)},${Math.round(x.currentRect.width)}x${Math.round(x.currentRect.height)}`);
+        lines.push(`${e.value.toFixed(5)} @${Math.round(e.startTime)}: ${src.join(" ; ")}`);
+      }
+      setText(lines.slice(0, 12).join("\n"));
+    });
+    try { po.observe({ type: "layout-shift", buffered: true }); } catch { /* none */ }
+  }, []);
+  return text;
+}
+
 function Probe(): ReactNode {
   const store = useMemo(() => createStreamStore(), []);
   useScript(store, "loop");
+  const dbg = useShiftDebug();
   return (
     <View style={{ flex: 1, backgroundColor: "var(--win)" }}>
+      <Text style={{ position: "absolute", zIndex: 9, top: 0, left: 0, fontSize: 10, color: "red", backgroundColor: "#fff" }}>{dbg}</Text>
       <Feed testID="history-list" follow={false}>
         <Column>
           {HISTORY.map((m) => (m.user ? <Bubble key={m.id} text={m.text} /> : <Answer key={m.id} who={m.who} time={m.time} blocks={m.blocks} image={m.image} />))}
