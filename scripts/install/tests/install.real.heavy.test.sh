@@ -100,7 +100,7 @@ reset_stack() {
   rm -rf "$W/srv" "$W/bin/vyre-server" "$W/units"/* 2>/dev/null || true
 }
 t_install_first_boot() {
-  install_enc --yes >"$W/inst.out" 2>&1 || { cat "$W/inst.out"; docker ps -a; for c in $(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT"); do echo "--- logs of $c"; docker logs "$c" 2>&1 | tail -n 40; done; return 1; }
+  install_enc --yes >"$W/inst.out" 2>&1 || { cat "$W/inst.out"; docker ps -a; for c in $(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT"); do echo "--- health of $c"; docker inspect --format '{{json .State.Health}}' "$c" 2>&1 | cut -c1-900; echo "--- logs of $c"; docker logs "$c" 2>&1 | tail -n 40; done; return 1; }
   grep -q "vyre-server doctor is green" "$W/inst.out"
   [ "$(vs version)" = 1.0.0 ]
 }
@@ -116,7 +116,7 @@ t_real_daemon_answers() {
 }
 t_sign_in_reachable() {
   # The sign-in page's data comes from identity.sign_in_options, a pre-auth read. The real gateway must route it (never 404 unknown capability).
-  code=$(curl -s -o "$W/signin.json" -w '%{http_code}' "http://127.0.0.1:$PORT/v1/identity/sign_in_options")
+  code=$(curl -s -X POST -H 'content-type: application/json' -d '{}' -o "$W/signin.json" -w '%{http_code}' "http://127.0.0.1:$PORT/v1/identity/sign_in_options")
   cat "$W/signin.json"; echo
   if node_live=$(grep -c "{ *\"id\": *\"identity\"[^}]*\"status\": *\"live\"" "$REPO/host/modules.json" 2>/dev/null) && [ "$node_live" -ge 1 ]; then
     [ "$code" = 200 ]
