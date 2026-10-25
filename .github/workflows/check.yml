@@ -1,8 +1,10 @@
 name: check
-# Per push affected-only checks, budget 5 minutes (ARCH-DECISIONS 13). Required checks on main: check, golden, budget.
+# Per push affected-only checks, budget 5 minutes (ARCH-DECISIONS 13). Required checks on main (and for the merge queue): check, golden, contracts. budget only reports, on branch pushes.
 on:
   push:
-    branches-ignore: [main]
+    branches-ignore: [main, 'gh-readonly-queue/**']
+  # the merge queue runs the same required checks on each batch (ruling: merge queue on main)
+  merge_group:
 concurrency:
   group: push-${{ github.ref }}
   cancel-in-progress: true
@@ -344,7 +346,7 @@ jobs:
   budget:
     permissions: { contents: read, actions: read }
     needs: [select, shards, check, golden]
-    if: always()
+    if: always() && github.event_name != 'merge_group'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
