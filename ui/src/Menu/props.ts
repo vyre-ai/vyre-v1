@@ -19,6 +19,8 @@ export interface MenuItem {
   label: string;
   icon?: string;
   checked?: boolean;
+  /** A quiet number shown in a right-aligned column (ruling 39): filter menus put their counts here, never in the label. */
+  count?: number;
   danger?: boolean;
   onSelect?: () => void;
 }
