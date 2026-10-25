@@ -112,5 +112,21 @@ test("a seeded person signs in and pairs a device", async () => {
     const pair = await post("identity.pair_create", { idempotencyKey: "small-pair", purpose: "app" }, sign.data.session.token);
     assert.equal(pair.status, 200, JSON.stringify(pair.data));
     assert.match(pair.data.code, /^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+test("the access module knows the seed: View as and a folder share work on seeded ids", async () => {
+  const s = await bootSmall({ cache, scratch: scratch() });
+  const d = await startSeeded(s.dir);
+  try {
+    const post = async (cap: string, body: unknown): Promise<{ status: number; data: any }> => {
+      const r = routes.find((x) => x.cap === cap)!;
+      const res = await fetch(`${d.url}${r.path}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(body) });
+      const reply = (await res.json()) as { data?: unknown; error?: unknown };
+      return { status: res.status, data: reply.data ?? reply.error ?? null };
+    };
+    const view = await post("access.view_as", { person: "usr_noah" });
+    assert.equal(view.status, 200, JSON.stringify(view.data));
+    const who = await post("access.principals.get", { principal: { kind: "person", id: "usr_tess" } });
+    assert.equal(who.status, 200, JSON.stringify(who.data));
+    const shared = await post("access.share", { idempotencyKey: "small-share", resource: { type: "folder", id: "fld_clients" }, subject: { kind: "person", id: "usr_tess" }, level: "view" });
+    assert.equal(shared.status, 200, JSON.stringify(shared.data));
   } finally { await d.stop(); s.close(); }
 });
