@@ -64,6 +64,13 @@ export function checkEdits(lane: string, changed: string[], laneTable: LaneTable
   return errs;
 }
 
+/** Ruling 59: which findings fail the job. Only a plain "outside lane" edit outside the guarded trees is report-only. */
+export function splitFindings(errs: string[]): { hard: string[]; soft: string[] } {
+  const guarded = (e: string) => /^(generated|manifests|packages\/contracts|tools\/gen|docs\/frozen)\//.test(e);
+  const soft = errs.filter((e) => / outside lane /.test(e) && !guarded(e) && !/frozen path/.test(e));
+  return { hard: errs.filter((e) => !soft.includes(e)), soft };
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const lane = process.argv[2] ?? '';
   const base = process.argv[3] ?? 'origin/main';
@@ -75,7 +82,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const shown = mb ? spawnSync('git', ['show', `${mb}:host/modules.json`], { cwd: root, encoding: 'utf8' }) : undefined;
   const baseMods = shown && shown.status === 0 ? (JSON.parse(shown.stdout) as { modules: ModuleRow[] }).modules : undefined;
   const errs = [...checkOwnership(mods, table, {}), ...checkEdits(lane, diff.stdout.split('\n').filter(Boolean), table, mods, baseMods)];
-  for (const e of errs) console.error(e);
-  process.exit(errs.length ? 1 : 0);
+  // Ruling 59: "outside lane" is report-only (findings are printed, the job passes); the frozen, generated and manifests guards, the host/modules.json rules and the module-ownership table still fail.
+  const { hard, soft } = splitFindings(errs);
+  for (const e of soft) console.error(`WARN ${e}`);
+  for (const e of hard) console.error(e);
+  process.exit(hard.length ? 1 : 0);
 }
 

@@ -1,0 +1,22 @@
+{
+  "module": "backup",
+  "capabilities": {
+    "backup.config_get@1": "4f77ec0628089cccc947e41cc938725a26ec45d5f89e59c1892d5edce9bc0076",
+    "backup.config_set@1": "3a0796d0559cae472270ecb033181c8f990d330f6e5b2785233b14a79c3eedd8",
+    "backup.delete@1": "493c11fc12299b2c251a4294fc842d3ca70cd2350c03f47941fc35a876c91861",
+    "backup.export_start@1": "7218e337c5c25a8ceb350dd136171aab0f1de2771928504bed9b7ff40ef92ec3",
+    "backup.health@1": "c69251228879e8091adb23a9bd5968bc43c76be4e6d15ce8e76eca688e1761a3",
+    "backup.list@1": "8c6b378823acb9c68ff890def593e557865dba0949ee44b084c3786039f98d97",
+    "backup.restore@1": "c30f16adf4f5122377f9483bcaad3ab57ebaebe0e2a60f834952bf4fe4f40759",
+    "backup.restore_preview@1": "5d1ddfb404406257c37d0b8002b0267d351ed9985c015cc4ccefc7bcf274f88e",
+    "backup.run@1": "05c14c5fe995a6cb85d2029d8cd99cede155c3f82d6daec31208d3cd3ce66d35",
+    "backup.verify@1": "206312be4678ba02275404ed1368afdb2023a58facfbcaec64238958c50d6396"
+  },
+  "events": {
+    "backup.completed": "a394a0a012d6f6cf816eb5d10141bd4bf8c528f7494e91d863d0133a8e01a334",
+    "backup.config_changed": "a302759306657270ff71a84f229e3c07aca8f906424777365dc599a94dfa0afc",
+    "backup.failed": "e83f2695cd7680b357b5e8b82a54384cf4f2e961819c3ef6cf44b4146998b78d",
+    "backup.restored": "b3ad60730123fc7a1194043c78d2b26197a5c0c4908630a6747c075945e7a268",
+    "backup.verified": "c2d4b66ea32a2137bc6ea097a47c23452e6963712b5f57f6b858d858d20386ef"
+  }
+}

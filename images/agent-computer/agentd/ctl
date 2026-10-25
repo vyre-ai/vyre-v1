@@ -1,0 +1,39 @@
+#!/usr/bin/env node
+// agentd's control program (modules/computers/impl.ts, CONTROL PROTOCOL): `ctl <action> '<json>'` asks the running agentd over its unix socket and prints the answer.
+// An answer is one JSON object on stdout and exit 0. A refusal is {"code","message"} on the last line of stderr and a non-zero exit (code 1: agentd refused; 3: agentd is not up yet).
+import net from "node:net";
+
+const SOCKET = process.env.VYRE_AGENTD_SOCKET || "/tmp/agentd.sock";
+const [action, arg] = process.argv.slice(2);
+
+function die(code, message, exit) {
+  process.stderr.write(JSON.stringify({ code, message }) + "\n");
+  process.exit(exit);
+}
+
+if (!action) die("bad_input", "ctl needs an action", 2);
+let args = {};
+if (arg !== undefined && arg !== "") {
+  try { args = JSON.parse(arg); } catch { die("bad_input", "the argument is not JSON", 2); }
+}
+
+const sock = net.connect(SOCKET);
+let buf = "";
+let done = false;
+sock.setEncoding("utf8");
+sock.on("connect", () => sock.write(JSON.stringify({ action, args }) + "\n"));
+sock.on("data", (d) => {
+  buf += d;
+  const at = buf.indexOf("\n");
+  if (at < 0 || done) return;
+  done = true;
+  let r;
+  try { r = JSON.parse(buf.slice(0, at)); } catch { die("unavailable", "agentd answered with something that is not JSON", 1); }
+  if (r && r.ok === true) {
+    process.stdout.write(JSON.stringify(r.result === undefined ? {} : r.result) + "\n", () => process.exit(0));
+  } else {
+    die((r && r.code) || "unavailable", (r && r.message) || "agentd refused", 1);
+  }
+});
+sock.on("error", (e) => die("unavailable", "agentd is not answering: " + e.message, 3));
+sock.on("close", () => { if (!done) die("unavailable", "agentd closed the connection", 3); });

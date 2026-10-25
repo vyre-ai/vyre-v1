@@ -1,0 +1,18 @@
+{
+  "module": "runbooks",
+  "capabilities": {
+    "runbooks.list@1": "263f55899067504b339e65399ab1d1ffbbe4ceb1a55b7118bbd7ca252682c928",
+    "runbooks.parse@1": "7320981ee7f9de48ce37f1589bd05741d9feaeba90eb5a21e86df37b40a0f912",
+    "runbooks.run@1": "da170e5195b51409744bacd668bf59029730758631eee259f73b052536a78478",
+    "runbooks.runs.get@1": "a251f07d9422de13b372a7094248e14fa96cc2074e8971fd7000c4e95b1a0212",
+    "runbooks.runs.list@1": "6f7e17684352885bdfedec802abafe41e04d8c7d461e619e6598dbae9ebb0703",
+    "runbooks.set_target@1": "ff0a14cf78db77d93d58a9dab39c26ba211d2630e2c357192b66bdc70eab946b",
+    "runbooks.targets@1": "0fbc73d1fede86c27066a8bf700b407d3a2d7641af6f613c6eeb2d30f8d5d972"
+  },
+  "events": {
+    "runbook.block_finished": "6a5d29d2b39db81e62b9aaa1d78ae8ea6c53f40da616ce6c17caa5e0cd4d4f15",
+    "runbook.run_finished": "eccd0aa8860933eb369a49fa807743b4e57a311dc2cfc591334039eb5a9f6f0f",
+    "runbook.run_started": "befc442dbfd872463f1af09533233438865fa5da91333e3ce3f0d1ada3877e20",
+    "runbook.target_set": "d4d8a1cfd21310507b5c73a82bc9dbf08c5a8091eb377aa7ec98091660b42998"
+  }
+}
