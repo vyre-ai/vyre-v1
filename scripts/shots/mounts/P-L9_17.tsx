@@ -38,6 +38,8 @@ export default function Mount(): ReactNode {
     g.requestAnimationFrame?.(() => { g.__probes = { ...(g.__probes ?? {}), startup: Math.round(g.performance?.now() ?? 0), ready: true }; });
   }, [search]);
   if (search === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
+  // ?empty=1 draws nothing but the page and still reports startup: the baseline of bundle load and boot, to split it from the shell's first draw.
+  if (params.get("empty") === "1") return <View testID="mobile-tabs" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   const render = (e: Entry, nav: MobileNav): ReactNode => {
     if (e.screen === "chats") {
       // a tap on a chat, a face or a Needs you row opens the conversation on top
