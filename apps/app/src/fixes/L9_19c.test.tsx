@@ -9,6 +9,7 @@ import { StyleSheet } from "react-native";
 import { createSampleHome, northwind as northwindHome } from "../places/home/sections-a/sample.ts";
 import { ASK_DOCK } from "../places/home/sections-b/AskBox.tsx";
 import { statusIcon } from "../places/home/sections-a/model.ts";
+import { StatusCircle } from "../places/home/sections-a/parts.tsx";
 import type { PlaceContext } from "../shell/spaces/Shell.tsx";
 import { kitById } from "../shell/rail/kits.ts";
 
@@ -69,4 +70,17 @@ test("Quick start and the Ask composer are the last section, docked", () => {
   const dock = StyleSheet.flatten(ASK_DOCK) as Record<string, unknown>;
   assert.equal(dock["position"], "sticky", "sticks to the foot of the place");
   assert.equal(dock["bottom"], 0);
+});
+
+test("the Ask box is the shared composer: the Ask agent pill beside it, only + @ # in the tool row, no who-will-answer line", () => {
+  const out = html("nw");
+  assert.ok(out.includes('data-testid="ask-agent"'), "the shared AskButton beside the box");
+  assert.ok(!out.includes('data-testid="composer-who"') && !out.includes("will reply"), "no answer line");
+  assert.ok(out.includes("Attach a file") && out.includes("(@)") && out.includes("(#)"), "+ @ #");
+  assert.ok(!out.includes("snippets (/)"), "no slash button");
+});
+
+test("a review task wears a ring with a check, not a filled dot", () => {
+  const svg = renderToStaticMarkup(<StatusCircle status="review" />);
+  assert.ok(svg.includes('data-status="review"') && svg.includes("<path") && svg.split("<circle").length === 2, "one ring and a tick, no inner dot");
 });
