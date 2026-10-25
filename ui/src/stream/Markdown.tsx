@@ -53,13 +53,20 @@ export interface BlockViewProps {
   onLink?: (href: string) => void;
 }
 
+/** The inline runs with the caret written into the last text run (or after the last non-text run), so it is part of an existing text node and never a node of its own. */
+function withCaret(items: readonly Inline[]): readonly Inline[] {
+  const last = items[items.length - 1];
+  if (last && last.t === "text") return [...items.slice(0, -1), { t: "text", v: last.v + CARET }];
+  return [...items, { t: "text", v: CARET }];
+}
+
 function listItems(block: Extract<Block, { kind: "ul" | "ol" }>, caret: boolean, onLink?: (href: string) => void): ReactNode {
   const out: ReactNode[] = [];
   for (let i = 0; i < block.items.length; i++) {
     out.push(
       <View key={i} style={styles.item}>
         <Text style={styles.marker}>{block.kind === "ul" ? "\u2022" : `${block.start + i}.`}</Text>
-        <Text style={styles.itemText}>{inlineNodes(block.items[i] ?? [], onLink)}{caret && i === block.items.length - 1 ? CARET : null}</Text>
+        <Text style={styles.itemText}>{inlineNodes(caret && i === block.items.length - 1 ? withCaret(block.items[i] ?? []) : (block.items[i] ?? []), onLink)}</Text>
       </View>,
     );
   }
@@ -67,16 +74,15 @@ function listItems(block: Extract<Block, { kind: "ul" | "ol" }>, caret: boolean,
 }
 
 export const BlockView = memo(function BlockView({ block, caret = false, onLink }: BlockViewProps) {
-  const tail = caret ? CARET : null;
   switch (block.kind) {
     case "p":
-      return <Text testID={`block-${block.key}`} style={styles.p}>{inlineNodes(block.inline, onLink)}{tail}</Text>;
+      return <Text testID={`block-${block.key}`} style={styles.p}>{inlineNodes(caret ? withCaret(block.inline) : block.inline, onLink)}</Text>;
     case "h":
-      return <Text testID={`block-${block.key}`} accessibilityRole="header" style={[styles.p, styles.h, HEADING[block.level]]}>{inlineNodes(block.inline, onLink)}{tail}</Text>;
+      return <Text testID={`block-${block.key}`} accessibilityRole="header" style={[styles.p, styles.h, HEADING[block.level]]}>{inlineNodes(caret ? withCaret(block.inline) : block.inline, onLink)}</Text>;
     case "quote":
       return (
         <View testID={`block-${block.key}`} style={styles.quote}>
-          <Text style={styles.quoteText}>{inlineNodes(block.inline, onLink)}{tail}</Text>
+          <Text style={styles.quoteText}>{inlineNodes(caret ? withCaret(block.inline) : block.inline, onLink)}</Text>
         </View>
       );
     case "hr":
@@ -84,7 +90,7 @@ export const BlockView = memo(function BlockView({ block, caret = false, onLink 
     case "code":
       return (
         <View testID={`block-${block.key}`} style={styles.pre}>
-          <Text style={styles.preText}>{block.text}{tail}</Text>
+          <Text style={styles.preText}>{caret ? block.text + CARET : block.text}</Text>
         </View>
       );
     case "ul":
