@@ -69,7 +69,7 @@ function docError(code: ErrorCode, message: string, traceId: string, kind: strin
   return new VyreErr({ code, message, retryable: false, traceId, next: [{ kind, label }] });
 }
 
-const SYSTEM = "sync";
+const SYSTEM = "svc_sync";
 const SUGGEST_PENDING = 1;
 
 export function createDocServer(d: DocDeps): DocServer {

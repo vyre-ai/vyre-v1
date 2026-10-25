@@ -125,6 +125,13 @@ export interface DocClient {
 }
 
 const REMOTE = { remote: true };
+
+/** The larger clock of each client in two state vectors. */
+function unionSv(a: Map<number, number>, b: Map<number, number>): Map<number, number> {
+  const out = new Map(a);
+  for (const [k, v] of b) if ((out.get(k) ?? 0) < v) out.set(k, v);
+  return out;
+}
 const LOADED = { loaded: true };
 
 export function createDocClient(o: DocClientOpts): DocClient {
@@ -144,6 +151,8 @@ export function createDocClient(o: DocClientOpts): DocClient {
     let dirty = saved?.dirty ?? false;
     let confirmed = 0;
     let awareness: Awareness | null = null;
+    // What the server is known to hold since the last handshake: updates shipped on this link. A handshake answer is computed against it, so an edit sent live is not sent a second time.
+    let mirror = newDoc();
     let tail: Promise<void> = Promise.resolve();
     let frames: Promise<void> = Promise.resolve();
     let saveQueued = false;
@@ -175,7 +184,7 @@ export function createDocClient(o: DocClientOpts): DocClient {
 
     ydoc.on("update", (u: Uint8Array, origin: unknown) => {
       if (origin === REMOTE || origin === LOADED || closed) return;
-      if (link) { ship("ydoc.update", u); dirty = false; } else dirty = true;
+      if (link) { Y.applyUpdate(mirror, u); ship("ydoc.update", u); dirty = false; } else dirty = true;
       saveSoon();
     });
 
@@ -207,6 +216,7 @@ export function createDocClient(o: DocClientOpts): DocClient {
         return run;
       },
       handshake() {
+        mirror = newDoc();
         // A private document has no state vector the server could use: it sends everything and this device answers with what the server lacks.
         send("ydoc.sync1", enc === 2 ? {} : { sv: toB64(Y.encodeStateVector(ydoc)) });
       },
@@ -239,7 +249,7 @@ export function createDocClient(o: DocClientOpts): DocClient {
         if (f.t === "ydoc.sync1") {
           // The server's state vector: send what it lacks.
           if (enc === 0 && typeof data["sv"] === "string") {
-            const diff = Y.encodeStateAsUpdate(ydoc, fromB64(data["sv"]));
+            const diff = Y.encodeStateAsUpdate(ydoc, unionSv(Y.decodeStateVector(fromB64(data["sv"])), Y.decodeStateVector(Y.encodeStateVector(mirror))));
             if (!isEmptyUpdate(diff)) ship("ydoc.sync2", diff);
             dirty = false;
             saveSoon();
@@ -256,15 +266,14 @@ export function createDocClient(o: DocClientOpts): DocClient {
         if (typeof data["snapshot"] === "string") blobs.push(data["snapshot"]);
         if (Array.isArray(data["updates"])) for (const u of data["updates"]) if (typeof u === "string") blobs.push(u);
         if (typeof data["update"] === "string" && data["update"].length > 0) blobs.push(data["update"]);
-        const known = new Y.Doc();
         for (const b of blobs) {
           const plain = await o.crypto!.open(fromB64(b));
-          Y.applyUpdate(known, plain);
+          Y.applyUpdate(mirror, plain);
           Y.applyUpdate(ydoc, plain, REMOTE);
         }
         if (f.t === "ydoc.sync2" && !data["update"]) {
           // The handshake answer: what the server lacks is whatever this device has beyond what it just sent.
-          const diff = Y.encodeStateAsUpdate(ydoc, Y.encodeStateVector(known));
+          const diff = Y.encodeStateAsUpdate(ydoc, Y.encodeStateVector(mirror));
           if (!isEmptyUpdate(diff)) ship("ydoc.sync2", diff);
           dirty = false;
         }

@@ -27,7 +27,8 @@ test("3 clients (one offline, one agent actor) converge; the server store rebuil
   const rnd = (): number => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
   const put = (d: typeof dA, tag: string, i: number): void => {
     const t = d.text();
-    t.insert(Math.floor(rnd() * (t.length + 1)), `[${tag}${i}]`);
+    // at the start or the end, so one actor's tag never lands inside another's
+    t.insert(rnd() < 0.5 ? 0 : t.length, `[${tag}${i}]`);
   };
   for (let i = 0; i < 40; i++) {
     put(dB, "b", i);
