@@ -11,8 +11,10 @@ shot() {
     screencapture -x "$1"
   fi
 }
-export VYRE_SHELL_APP="$APP" VYRE_SHELL_HOLD_MS=12000
-( sleep 30; shot "$OUT/$RUNNER_OS-shell.png" ) &
+export VYRE_SHELL_APP="$APP" VYRE_SHELL_HOLD_MS=25000
+( sleep 14
+  if [ "$RUNNER_OS" = "macOS" ]; then osascript -e 'tell application "System Events" to set frontmost of first process whose name is "vyre-desktop" to true' >/dev/null 2>&1 || true; sleep 2; fi
+  shot "$OUT/$RUNNER_OS-shell.png"; sleep 3; shot "$OUT/$RUNNER_OS-shell-2.png" ) &
 SHOT_PID=$!
 node --test --test-reporter=spec apps/desktop/tests/shell.heavy.test.ts 2>&1 | tee "$OUT/shell-heavy.log"
 RC=${PIPESTATUS[0]}
