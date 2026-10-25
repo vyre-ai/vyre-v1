@@ -121,7 +121,7 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
         <RunLines
           run={run} lines={lines} me={data.me.id} name={(w) => data.name(w.id)} canRetry={canRetry} openThoughts={openThoughts}
           actions={{
-            retryStep: () => void actions.retry(run, failStep).then((id) => id && setRetried(true)), retryStart: () => void actions.retry(run).then((id) => id && setRetried(true)), stopRun: () => void actions.stop(run),
+            retryStep: () => void actions.retry(run, failStep).then((id) => id && setRetried(true)), skipStep: () => void actions.skipStep(run).then((id) => id && setRetried(true)), editStep: (step) => { if (automation) data.nav.openAutomation(automation, step); }, stopRun: () => void actions.stop(run),
             copyTrace: () => actions.copy(run.traceId, "the trace id"), replayMenu, decide,
           }}
         />

@@ -1,0 +1,13 @@
+{
+  "module": "dropbox-sign",
+  "capabilities": {
+    "dropbox_sign.cancel@1": "4d9a2f6572cf3466e43035933602dfab4945387fd5d10d07845c47bba148ad1f",
+    "dropbox_sign.create@1": "cd8f3f78d898d74a8364be5586295977798270193640452898ae7698b07fd2fb",
+    "dropbox_sign.fetch_signed@1": "40e02408b06ee2469dfa2a5a24d02c2d48abe29d29bf4262500720c39361de15",
+    "dropbox_sign.health@1": "1ec6833d31f8a03c1f329010f77206db40b5e69d6ea9552ba759220abf3fdbdb",
+    "dropbox_sign.status@1": "98fcef9be789f373b74476dce5d89078cd29dafc814840662682d61412390049"
+  },
+  "events": {
+    "dropbox_sign.webhook_received": "751a66078ab3dce3d376fe1f901d4dea34fe5e8ee6e254dc4858a40fc657f6f0"
+  }
+}
