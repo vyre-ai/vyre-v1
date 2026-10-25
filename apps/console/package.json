@@ -1,0 +1,11 @@
+{
+  "name": "@vyre/console",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "expo-router/entry",
+  "description": "The Vyre Console (Expo web, react-native-web): console.<space-address>, for Owners, Admins and Developers. Shares @vyre/ui with the app; not linked from it (spec 3.10).",
+  "dependencies": {
+    "@vyre/ui": "*"
+  }
+}
