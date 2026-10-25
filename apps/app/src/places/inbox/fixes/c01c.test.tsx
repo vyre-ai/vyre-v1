@@ -46,10 +46,11 @@ test("the unread time is drawn in the accent colour and the More button waits fo
 test("the sidebar has Client portal under Shared, Billing's number under Agents and Starred in Lists", () => {
   const s = createSampleInbox();
   const out = renderToStaticMarkup(<InboxDataProvider value={s.data}><InboxStateProvider initial={{}}><InboxSidebar /></InboxStateProvider></InboxDataProvider>).replaceAll("<!-- -->", "");
-  for (const label of ["Client portal", "Billing's number", "Starred"]) assert.ok(has(out, `>${label}<`), label);
+  const html = (t: string): string => t.replaceAll("'", "&#x27;");
+  for (const label of ["Client portal", "Billing's number", "Starred"]) assert.ok(has(out, `>${html(label)}<`), label);
   const shared = out.indexOf(">Shared<"), agents = out.indexOf(">Agents<"), lists = out.indexOf(">Lists<");
   assert.ok(shared < out.indexOf(">Client portal<") && out.indexOf(">Client portal<") < agents);
-  assert.ok(agents < out.indexOf(">Billing's number<") && out.indexOf(">Billing's number<") < lists);
+  assert.ok(agents < out.indexOf(">Billing&#x27;s number<") && out.indexOf(">Billing&#x27;s number<") < lists);
   const counts = s.data.screens.query("inbox.sidebar", "counts").getSnapshot();
   assert.equal(counts.status, "ready");
   const groups = navGroups([], (counts as { status: "ready"; data: Parameters<typeof navGroups>[1] & object }).data, s.data.numbers?.());
