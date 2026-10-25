@@ -3,6 +3,7 @@
 import { ScrollViewStyleReset, useServerDocumentContext } from "expo-router/html";
 import type { PropsWithChildren } from "react";
 import { skins } from "@vyre/ui/tokens";
+import { rootFontCss } from "@vyre/ui/src/theme/fonts.ts";
 
 const data: Record<string, { base: string; light: Record<string, string>; dark: Record<string, string> }> = {};
 for (const s of skins) data[s.id] = { base: s.base, light: s.light, dark: s.dark };
@@ -21,6 +22,7 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
         <script dangerouslySetInnerHTML={{ __html: BOOT }} />
         <ScrollViewStyleReset />
+        <style id="vyre-root-font" dangerouslySetInnerHTML={{ __html: rootFontCss() }} />
         {headNodes}
       </head>
       <body {...bodyAttributes}>
