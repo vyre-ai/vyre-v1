@@ -14,6 +14,7 @@ import {
   atLeast, bad, denied, ensure, first, isId, levelOn, liveFolder, newId, num, obj, parseJson, patchMeta, record, rowsOf, statements, str,
 } from "../projections.ts";
 import type { Row, VaultCtx, VaultDb } from "../projections.ts";
+import type { ProviderProbe } from "./providers.ts";
 
 const FIELD_KEY = /^[A-Za-z][A-Za-z0-9_]*$/;
 const HANDLE = /^#([A-Za-z0-9_]+)(?:\.([A-Za-z][A-Za-z0-9_]*))?$/;
@@ -38,10 +39,13 @@ export interface VaultHost {
   db?: VaultDb;
   /** The address people reach this server at, for the pull link of an export (read at call time). */
   origin?(): string;
+  /** Reaches a provider with a key to see whether it is taken, and which models it lists (providers.test). */
+  probe?: ProviderProbe;
   /** The module hands the host its SecretPort. */
   provide?(port: SecretPort): void;
 }
 let host: VaultHost | null = null;
+export const hostOf = (): VaultHost | null => host;
 /** The host registers the places a value may be filled into (ruling 31/32); null takes them away. */
 export function configureVault(h: VaultHost | null): void {
   host = h;
