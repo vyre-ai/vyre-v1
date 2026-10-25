@@ -131,6 +131,8 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     if (signal.aborted) { await stop(r, false); return "stop"; }
     const text = !a.systemFlag && !systemSent && deps.system !== null && deps.system !== "" ? `${deps.system}\n\n${prompt}` : prompt;
     systemSent = true;
+    // Before the write: a steering message may be injected the moment the text is on its way, and it counts on top of this one.
+    outstanding = 1;
     try {
       try { await r.proc.write(a.encode(text)); }
       catch {
@@ -140,7 +142,6 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
         await r.proc.write(a.encode(text));
       }
       if (!a.persistent) r.proc.endInput();
-      outstanding = 1;
       for (;;) {
         const item = await r.chan.next(idleMs, signal);
         if (item === null) return "stop";
