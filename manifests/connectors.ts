@@ -19,10 +19,16 @@ const conflictRule = t.enm('newest', 'source', 'vyre', 'ask');
 const fieldMap = t.obj({ key: fieldKey, remote: t.str(), dir, transform: t.opt(t.str({ description: 'Small expression over the value' })) });
 const polling = t.obj({ activeSec: t.int({ minimum: 30 }), idleSec: t.int({ minimum: 60 }), dormantSec: t.int({ minimum: 300 }) });
 
+/** The action names a connector uses to sync one object; a name left out keeps the convention list_<objects>, list_<objects>_after, create_<object>, update_<object>, delete_<object>. */
+const objectActions = t.obj({
+  list: t.opt(t.str()), listAfter: t.opt(t.str({ description: 'List the next page; takes { after }' })), create: t.opt(t.str()), update: t.opt(t.str()), delete: t.opt(t.str()),
+});
+
 const connectorRow = t.obj({
   key: id.connector, title: t.str(), mode, scope: t.enm('person', 'space'), builtin: t.bool(), version: t.str({ examples: ['1.0.0'] }),
   state: t.enm('live', 'draft', 'failing_tests'), domains: t.arr(t.str()), secrets: t.arr(t.obj({ name: t.str(), description: t.str() })),
   connections: t.int({ minimum: 0 }), syncedTypes: t.arr(t.str()), actions: t.arr(t.str()), sources: t.arr(t.str()),
+  objects: t.opt(t.rec(objectActions)),
 });
 
 const connectionRow = t.obj({

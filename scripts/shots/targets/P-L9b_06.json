@@ -1,0 +1,28 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_06-needs-northwind",
+      "route": "/m/P-L9b_06?sel=n1",
+      "proto": "chat,needs,{skin}",
+      "waitFor": "[data-testid='needs-you']",
+      "note": "Needs you over the Northwind sample Space: the list on the left (blocked and due first), the invoice approval open on the right with its table, why, source, Approve and Send back. The prototype side is its Needs you in the same skin with the same request open; its list is ordered by arrival where the real one is ordered by urgency.",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_06-needs-harbor",
+      "route": "/m/P-L9b_06?v=harbor",
+      "proto": "chat,needs,space:harbor,{skin}",
+      "waitFor": "[data-testid='needs-you']",
+      "note": "Needs you in Harbor Studio, a Personal-sized Space with nothing waiting: All caught up, and Nothing selected on the right. The prototype side is its Needs you in the Harbor Space.",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_06-helper-done",
+      "route": "/m/P-L9b_06?screen=helper",
+      "proto": "chat,at:demo-helper,{skin}",
+      "waitFor": "[data-testid='helper-chat']",
+      "note": "A finished helper (Research, Firms 1-3): the address bar, the brief, Worked for 31s with three steps, the result, and the read-only note with Reply in the parent. The prototype side is its helper page (hash demo-helper, added to the prototype copy).",
+      "protoSettleMs": 1500
+    }
+  ]
+}
