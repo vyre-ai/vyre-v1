@@ -1,0 +1,10 @@
+{
+  "name": "@vyre/module-files",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Files module. exceljs reads and writes XLSX table files (sheets.* capabilities).",
+  "dependencies": {
+    "exceljs": "4.4.0"
+  }
+}
