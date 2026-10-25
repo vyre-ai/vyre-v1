@@ -91,6 +91,13 @@ export function pointOf(e: unknown): { x: number; y: number } {
 }
 interface Anchor { getBoundingClientRect?: () => { left: number; bottom: number } }
 
+/** Where a menu opened from a button goes: under the button's left edge, whether it was pressed, clicked from code or opened by the keyboard (rule 26). Falls back to the press point. */
+export function anchorOf(e: unknown): { x: number; y: number } {
+  const box = (e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.();
+  if (box && Number.isFinite(box.left) && Number.isFinite(box.bottom)) return { x: box.left, y: box.bottom + 4 };
+  return pointOf(e);
+}
+
 /** A quiet header button: an icon, a label that drops away on a phone, and what it applies ("Sort", "Name"). Lit when something is applied. */
 export function HeadButton({ icon, label, detail, on = false, testID, onPress, bare = false }: {
   icon: IconName; label: string; detail?: string | undefined; on?: boolean; testID?: string; onPress: (x: number, y: number) => void; bare?: boolean;
@@ -101,7 +108,7 @@ export function HeadButton({ icon, label, detail, on = false, testID, onPress, b
       accessibilityLabel={detail ? `${label}, ${detail}` : label}
       accessibilityState={{ selected: on }}
       testID={testID}
-      onPress={(e) => { const p = pointOf(e); onPress(p.x, p.y); }}
+      onPress={(e) => { const p = anchorOf(e); onPress(p.x, p.y); }}
       style={({ hovered }: { hovered?: boolean }) => [s.hb, hovered === true && s.hbOver]}
     >
       <Glyph name={icon} size={14} color={on ? "var(--accent)" : "var(--ink-2)"} />
