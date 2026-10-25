@@ -3,10 +3,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { MobileShell, YouScreen } from "../src/mobile/shell/index.ts";
-import { MOBILE_TABS, NOT_ON_PHONE, SWIPE_OPEN_AT, back, canBack, current, initialNav, isAllowed, open, origin, selectTab, swipeOffset, swipeRest } from "../src/mobile/shell/model.ts";
-import { SwipeRow } from "../src/mobile/sheets/SwipeRow.tsx";
-import { Sheet } from "../src/mobile/sheets/Sheet.tsx";
+import { MobileShell, YouScreen } from "./index.ts";
+import { MOBILE_TABS, NOT_ON_PHONE, SWIPE_OPEN_AT, back, canBack, current, initialNav, isAllowed, open, origin, selectTab, swipeOffset, swipeRest } from "./model.ts";
+import { SwipeRow } from "../sheets/SwipeRow.tsx";
+import { Sheet } from "../sheets/Sheet.tsx";
 
 const has = (s: string, n: string): boolean => s.includes(n);
 
