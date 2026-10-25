@@ -62028,6 +62028,7 @@ kbd { font: 500 11px/16px var(--ui); color: var(--ink-3); padding: 0 4px; border
     else if (k === "call" &amp;&amp; arg) { const c = byPhone(arg); S.active = "inbox"; renderAll(); VyreUI.phone.call({ name: c ? c.name : arg, number: arg, record: c ? phoneCard(c) : null }); }
     else if (k === "menu") { S.active = "inbox"; renderAll(); if (arg === "filter") filterMenu(600, 90); else if (arg === "view") viewMenu(1100, 90); else if (arg === "match") matchMenu(byId("unk"), 1000, 130); else if (arg === "plus") connectMenu(200, 70); }
     else if (k === "view") { S.view = arg; S.active = "inbox"; renderAll(); }
+    else if (k === "scope") { S.scope = arg; S.active = "inbox"; renderAll(); }
     else if (k === "dialer") { S.active = "inbox"; renderAll(); VyreUI.phone.open(); }
     else if (k === "pane") { openContact(arg || lead().id); S.pane = true; renderAll(); }
     else if (k === "callaway") { S.active = "inbox"; renderAll(); VyreUI.phone.incoming({ number: "+1 415 555 0161", to: OWN_NUM }); setTimeout(() =&gt; VyreUI.phone.answer(), 200); setTimeout(() =&gt; openContact("marcus"), 900); }
