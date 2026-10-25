@@ -27,7 +27,7 @@ test("create makes the record, exactly one channel and one folder under Projects
   assert.equal(ch.folderId, out.folderId);
   const plan = await run(h, "projects.plan", { projectId: out.projectId });
   assert.deepEqual({ stages: plan.stages, tasks: plan.tasks, links: plan.links }, { stages: [], tasks: [], links: [] });
-  assert.deepEqual(h.names(), ["project.created", "project.member_set"]);
+  assert.deepEqual(h.names(), ["project.created"]);
   assert.deepEqual(h.named("project.created")[0]?.payload, { projectId: out.projectId, recordId: out.recordId, type: "project", channelId: out.channelId, folderId: out.folderId, source: "new" });
 });
 

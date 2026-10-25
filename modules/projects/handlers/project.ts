@@ -32,7 +32,7 @@ async function tasksOrNone(ctx: ProjectsCtx, p: Project): Promise<TaskView[]> {
 // ---- people ----
 
 /** Give a principal a role: the previous grants of that source go, the new ones are written on the project, its folder and its channel. */
-async function applyRole(ctx: ProjectsCtx, p: Project, principal: string, role: Role): Promise<{ member: Member; previous?: Role }> {
+async function applyRole(ctx: ProjectsCtx, p: Project, principal: string, role: Role, announce = true): Promise<{ member: Member; previous?: Role }> {
   const kind = kindOfPrincipal(principal);
   if (!kind) raise(ctx, "validation.bad_input", "A person, an agent or a group holds a project role.", { principal });
   const before = memberOf(ctx.db, p.projectId, principal);
@@ -43,7 +43,8 @@ async function applyRole(ctx: ProjectsCtx, p: Project, principal: string, role: 
   }
   saveMember(ctx.db, p.projectId, member);
   if (role === "lead") await writeRecord(ctx, p, { lead: principal });
-  emitP(ctx, "project.member_set", p.projectId, { principal, role, previous: before?.role });
+  // projects.create and projects.from_channel declare project.created, not project.member_set: the first people on a project are part of its creation
+  if (announce) emitP(ctx, "project.member_set", p.projectId, { principal, role, previous: before?.role });
   return { member, ...(before ? { previous: before.role } : {}) };
 }
 
@@ -152,7 +153,7 @@ async function makeProject(ctx: ProjectsCtx, o: Plan): Promise<Made> {
   replaceStages(ctx.db, projectId, o.stages.map((s, order) => ({ key: s.key, title: s.title, order })));
   await writeRecord(ctx, p, { channel: channelId, folder: folderId });
   emitP(ctx, "project.created", projectId, { recordId, type: o.type, channelId, folderId, source: o.source });
-  for (const [principal, role] of members) await applyRole(ctx, p, principal, role);
+  for (const [principal, role] of members) await applyRole(ctx, p, principal, role, false);
   return { projectId, recordId, channelId, folderId };
 }
 
