@@ -34,6 +34,8 @@ export interface CipherOpfsOpen {
   mod: McModule;
   /** The SAH-pool VFS installed by the worker before this call (installOpfsSAHPoolVfs). null opens the module's default VFS (Node and tests: the in-memory file system). */
   vfs: string | null;
+  /** Full SQLite filename, overriding the one built from `file` and `vfs`. Tests use file:/x.db?vfs=memdb to read the stored bytes back. */
+  uri?: string;
   file: string;
   key: Uint8Array;
 }
@@ -65,7 +67,7 @@ export function openCipherOpfs(o: CipherOpfsOpen): SqlDriver {
       made.add(vfs);
     }
   }
-  const db = new o.mod.oo1.DB(vfs === null ? `/${o.file}` : `file:/${o.file}?vfs=multipleciphers-${vfs}`, "c");
+  const db = new o.mod.oo1.DB(o.uri ?? (vfs === null ? `/${o.file}` : `file:/${o.file}?vfs=multipleciphers-${vfs}`), "c");
   try {
     db.exec(`PRAGMA cipher = '${CIPHER}'`);
     db.exec(`PRAGMA key = ${hexKey(o.key)}`);
@@ -93,13 +95,14 @@ export function openCipherOpfs(o: CipherOpfsOpen): SqlDriver {
     },
     run(sql, params) {
       const s = stmt(sql);
-      try { s.bind(params).step(); } finally { s.reset(true); }
+      try { if (params.length) s.bind(params);
+      s.step(); } finally { s.reset(true); }
     },
     all(sql, params) {
       const s = stmt(sql);
       const out: Record<string, unknown>[] = [];
       try {
-        s.bind(params);
+        if (params.length) s.bind(params);
         while (s.step()) out.push(s.get({}));
       } finally { s.reset(true); }
       return out;

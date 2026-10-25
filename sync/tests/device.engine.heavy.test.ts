@@ -40,23 +40,31 @@ const MARK = "CIPHER-MARK-4471-vyre-replica";
 
 test("real engine: bytes at rest hold no marker or SQLite header; wrong key and no key fail; rekey moves the file", async () => {
   const sqlite3 = await loadEngine();
-  const open = (k: Uint8Array) => openCipherOpfs({ mod: sqlite3, vfs: null, file: "enc.db", key: k });
+  // The stored bytes: a named in-memory database is one buffer shared by every connection. A holder connection that never sends a key keeps it alive and serializes that raw buffer
+  // (for the memdb VFS sqlite3_serialize hands back the stored pages, not decrypted ones).
+  const uri = "file:/enc.db?vfs=memdb";
+  const holder = new sqlite3.oo1.DB(uri, "c");
+  const open = (k: Uint8Array) => openCipherOpfs({ mod: sqlite3, vfs: null, uri, file: "enc.db", key: k });
   const d = open(key(1));
   d.exec("CREATE TABLE t (id TEXT PRIMARY KEY, v TEXT)");
   d.prepare("INSERT INTO t VALUES (?, ?)").run(["a", MARK]);
   assert.equal(d.prepare("SELECT v FROM t WHERE id = ?").get(["a"])?.v, MARK);
   d.close();
 
-  // the file as stored: read it back raw through a connection that never sends a key
-  const raw = new sqlite3.oo1.DB("/enc.db", "w");
-  let bytes: Uint8Array;
-  try { bytes = sqlite3.capi.sqlite3_js_db_export((raw as unknown as { pointer: unknown }).pointer); } finally { raw.close(); }
+  const bytes: Uint8Array = sqlite3.capi.sqlite3_js_db_export((holder as unknown as { pointer: unknown }).pointer);
+  // control: the same read of an UNkeyed database does show the marker, so a clean result above is the cipher and not a blind read
+  const plain = new sqlite3.oo1.DB("file:/plain.db?vfs=memdb", "c");
+  plain.exec(`CREATE TABLE t (v TEXT); INSERT INTO t VALUES ('${MARK}')`);
+  const plainBytes: Uint8Array = sqlite3.capi.sqlite3_js_db_export((plain as unknown as { pointer: unknown }).pointer);
+  assert.equal(Buffer.from(plainBytes).includes(MARK), true, "control: an unkeyed database holds the marker in its stored bytes");
+  assert.equal(Buffer.from(plainBytes.slice(0, 15)).toString(), "SQLite format 3");
+  plain.close();
   assert.ok(bytes.length > 0, "the file has content");
   assert.equal(Buffer.from(bytes).includes(MARK), false, "no plaintext marker in the file bytes");
   assert.notEqual(Buffer.from(bytes.slice(0, 15)).toString(), "SQLite format 3", "no SQLite header in the file bytes");
 
   assert.throws(() => open(key(2)), (e: unknown) => (e as { code?: string }).code === "wrong_key");
-  const keyless = new sqlite3.oo1.DB("/enc.db", "w");
+  const keyless = new sqlite3.oo1.DB(uri, "w");
   try { assert.throws(() => keyless.selectValue("SELECT v FROM t"), "no key cannot read"); } finally { keyless.close(); }
 
   const live = open(key(1));
@@ -66,6 +74,9 @@ test("real engine: bytes at rest hold no marker or SQLite header; wrong key and 
   const moved = open(key(3));
   assert.equal(moved.prepare("SELECT v FROM t WHERE id = ?").get(["a"])?.v, MARK, "the new key reads");
   moved.close();
+  const after = sqlite3.capi.sqlite3_js_db_export((holder as unknown as { pointer: unknown }).pointer);
+  assert.equal(Buffer.from(after).includes(MARK), false, "still no plaintext after rekey");
+  holder.close();
 });
 
 test("real engine: a 200k-row replica reopens through the device path under the startup slice", async () => {
