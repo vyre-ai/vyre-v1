@@ -3,19 +3,20 @@
 // next pull answers purge with no rows, its snapshot and push are refused, and every call it makes through the gateway gets 401; the other device pulls, snapshots and pushes as before.
 // Stand-ins that remain, and why: host/modules.json is read from a temporary code root where devices is live (the flip waits for P-L1_LIVE and the devices lane); the sync module is still a
 // stub there (its impl exports 4 of 16 handlers, so a live flip would refuse to boot), so its real handlers are handed to the daemon through extra.handlers, over the module's own openSync
-// store. The host layer cannot import a module, so the sync pieces are taken by file path the way the loader takes them. The two devices and their sessions are fixture rows (what sign-in will write).
+// store (useSync, setPushDeps; sync.epoch.bump and sync.acl.reindex are in impl.handlers). The host layer cannot import a module, so the sync pieces are taken through the loader's importer. The two devices and their sessions are fixture rows (what sign-in will write).
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { bootCore } from "../../fixtures/seed/core/index.ts";
 import { AccessSnapshot } from "../../kernel/src/authorize/snapshot.ts";
 import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
+import { fileExportsImporter } from "../src/loader.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 import { issueSessionToken } from "../src/daemon/session.ts";
 import type { Handler } from "../src/invoke.ts";
@@ -49,40 +50,29 @@ function seededDir(): string {
   return dir;
 }
 
-const REPO = fileURLToPath(new URL("../..", import.meta.url));
-const mod = async (rel: string): Promise<Record<string, any>> => (await import(pathToFileURL(path.join(REPO, rel)).href)) as Record<string, any>;
-
-/** The sync module's own handlers over its own store: one contact the person may see, an access snapshot that says so. */
-async function realSync() {
-  const impl = await mod("modules/sync/impl.ts");
-  const handlersMod = await mod("modules/sync/handlers/index.ts");
-  const purgeMod = await mod("modules/sync/handlers/purge.ts");
-  const pushMod = await mod("modules/sync/handlers/push.ts");
+/** The sync module's own handlers, taken through the loader the way the daemon takes a module (a host test cannot import one), over its own store: one contact the person may see. */
+async function realSync(root: string) {
+  const impl = (await fileExportsImporter(root)("sync")) as unknown as {
+    openSync(o: { access: () => unknown; clock: () => number }): { host: { append(e: unknown): { seq: number }; tx: { all(sql: string): unknown[] }; store: { read(q: unknown): unknown[] } }; deps: { hlc(): string; db: unknown } };
+    useSync(h: unknown): void;
+    setPushDeps(d: unknown): void;
+    handlers: Record<string, Handler>;
+  };
   const access = new AccessSnapshot();
   access.putRole({ id: "member", clearance: 1, perms: ["records.read"], name: "Member" });
   access.putPrincipal({ id: PERSON, kind: "person", status: "active", name: PERSON });
   access.addPrincipalRole({ holder: PERSON, role: "member" });
   for (const type of ["record", "space"]) access.putGrant({ id: `gr_${type}`, subject_kind: "actor", subject_id: PERSON, resource_type: type, resource_id: null, level: "view" });
   const sync = impl.openSync({ access: () => access, clock: () => NOW });
+  impl.useSync(sync);
   const trace = "0123456789abcdef0123456789abcdef";
   const seq = sync.host.append({ type: "sync.row", sv: 1, trace_id: trace, actor: "svc_seed", hlc: "000000000001-0000-srv", vis: "space", payload: { entity: "contact", id: "c1", op: "upsert", fields: { name: "Ann", email: "a@example.com" }, at: NOW } }).seq;
-  const pull = handlersMod.createPullHandlers(sync.deps);
-  const purge = purgeMod.createPurgeHandlers(purgeMod.purgeDepsOf(sync, { purge: () => 0 }));
-  const { deviceRevoked } = await mod("sync/src/server/pull/index.ts");
-  const push = pushMod.createPushHandlers({
-    now: () => NOW, hlc: sync.deps.hlc, epochOf: () => 0, deviceRevoked: (p: string, d: string) => deviceRevoked(sync.host.tx, p, d),
+  impl.setPushDeps({
+    now: () => NOW, hlc: sync.deps.hlc, epochOf: () => 0,
     invoke: async () => ({ kind: "applied", seq }), clocks: () => ({}), appliedSeq: () => undefined, policy: () => ({ kind: "lww" }), restricted: () => false,
     history: () => {}, openConflict: () => "cfl_x", once: (_p: string, _c: string, _k: string, _i: unknown, run: () => unknown) => run(),
   });
-  const pctx = (ctx: { trace: { traceId: string }; principal: { id: string }; device?: string }) => handlersMod.toPullCtx(ctx);
-  const handlers: Record<string, Handler> = {
-    "sync.pull": ((ctx: never, input: never) => pull["sync.pull"](pctx(ctx), input)) as Handler,
-    "sync.snapshot.begin": ((ctx: never, input: never) => pull["sync.snapshot.begin"](pctx(ctx), input)) as Handler,
-    "sync.snapshot.page": ((ctx: never, input: never) => pull["sync.snapshot.page"](pctx(ctx), input)) as Handler,
-    "sync.push": ((ctx: never, input: never) => push["sync.push"](pctx(ctx), input)) as Handler,
-    "sync.epoch.bump": ((ctx: { trace: { traceId: string }; principal: { id: string } }, input: never) => purge["sync.epoch.bump"]({ trace: ctx.trace, principal: ctx.principal.id }, input)) as Handler,
-  };
-  return { handlers, sync };
+  return { handlers: impl.handlers, sync };
 }
 
 const post = (d: Daemon, p: string, token: string | null, body: unknown) => fetch(`${d.url}${p}`, {
@@ -92,11 +82,12 @@ const getp = (d: Daemon, p: string, token: string) => fetch(`${d.url}${p}`, { he
 type PullBody = { data: { reset?: string; changes: unknown[]; epoch: number } };
 
 test("revoke e2e: devices.revoke on a booted daemon makes the device's next pull answer purge and its calls 401; the other device is unaffected", async () => {
-  const { handlers, sync } = await realSync();
+  const root = codeRootWithDevicesLive();
+  const { handlers, sync } = await realSync(root);
   const dir = seededDir();
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
-    codeRoot: codeRootWithDevicesLive(),
+    codeRoot: root,
     platform: fakePlatform({
       os: "linux", hostname: "revoke-e2e", free: 80e9,
       commands: {
