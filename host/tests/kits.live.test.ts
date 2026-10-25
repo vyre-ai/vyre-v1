@@ -2,6 +2,7 @@
 // the loader collects `hostSeams.setKitsHost` from modules/kits/impl.ts, the daemon wires it with host/src/seams/kits.ts, and a person installs a Kit over HTTP, whose step
 // (tasks.create, a live module) lands in the Space, and reads it back. host/modules.json still says kits is a stub (the live flip is P-CI_02, ruling 25), so this test boots
 // from a copy of the code root whose modules.json has kits live; every other file is a symlink to the real one.
+// Kits are registered as access resources by the host (daemon.ts, setKitsHost), not by this test.
 // Path mapping: the packet owns modules/kits/impl.ts and this test; the driver sits in host/src/seams/kits.ts and is registered in host/src/daemon/daemon.ts.
 import test from "node:test";
 import assert from "node:assert/strict";
