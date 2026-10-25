@@ -280,16 +280,6 @@
       "dev": false
     },
     {
-      "name": "onnxruntime-web",
-      "reason": "runs the all-MiniLM-L6-v2 embedding model on WASM (ruling 47, S13)",
-      "dev": true
-    },
-    {
-      "name": "wabt",
-      "reason": "assembles the readable vector kernel WAT on the runner (ruling 47, S13)",
-      "dev": true
-    },
-    {
       "name": "sqlite-wasm-cipher",
       "reason": "encrypted OPFS replica engine (S5); real-engine heavy test",
       "dev": true

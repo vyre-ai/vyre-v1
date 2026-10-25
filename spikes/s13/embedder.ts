@@ -1,5 +1,6 @@
-// The real embedder (ruling 47): all-MiniLM-L6-v2 quantized ONNX on onnxruntime-web's WASM backend, mean pooled over the attention mask and normalised to unit length (384 dimensions).
+// The real embedder (rulings 47 and 54): all-MiniLM-L6-v2 quantized ONNX on onnxruntime-node (the host) or onnxruntime-web's WASM backend (clients), mean pooled over the attention mask and normalised to unit length (384 dimensions).
 // It fits the module's seam: `setEmbedder(createEmbedder(...))` in modules/search. Texts are batched and padded to the longest in the batch.
+import os from "node:os";
 import { MODEL_FILES, fetchModelFile } from "./model.ts";
 import type { Fetch } from "./model.ts";
 import { encode, vocabOf } from "./tokenizer.ts";
@@ -11,19 +12,27 @@ interface Session { run(feeds: Record<string, Tensor>): Promise<Record<string, T
 interface Ort {
   InferenceSession: { create(model: Uint8Array, o: Record<string, unknown>): Promise<Session> };
   Tensor: new (type: string, data: BigInt64Array, dims: number[]) => Tensor;
-  env: { wasm: { numThreads: number } };
+  env: { wasm?: { numThreads: number } };
 }
+
+/** `node`: onnxruntime-node, the native runtime the host uses (ruling 54). `web`: onnxruntime-web on WASM, what clients use. Same model, same files, same pooling. */
+export type Runtime = "node" | "web";
 
 export interface Embedder { (texts: readonly string[]): Promise<Float32Array[]>; readonly maxTokens: number }
 
-export async function createEmbedder(o: { dir?: string; fetch?: Fetch; batch?: number; maxTokens?: number; threads?: number } = {}): Promise<Embedder> {
-  const ort = (await import("onnxruntime-web")) as unknown as Ort;
-  ort.env.wasm.numThreads = o.threads ?? 1;
+export async function createEmbedder(o: { dir?: string; fetch?: Fetch; batch?: number; maxTokens?: number; threads?: number; runtime?: Runtime } = {}): Promise<Embedder> {
+  const runtime = o.runtime ?? "node";
+  const ort = (runtime === "node" ? await import("onnxruntime-node") : await import("onnxruntime-web")) as unknown as Ort;
+  // the host leaves one core to everything else; a client's WASM runtime stays on one thread unless told
+  const threads = o.threads ?? (runtime === "node" ? Math.max(1, os.availableParallelism() - 1) : 1);
+  if (runtime === "web" && ort.env.wasm) ort.env.wasm.numThreads = threads;
   const files = { dir: o.dir, fetch: o.fetch } as { dir?: string; fetch?: Fetch };
   const [model, tok] = await Promise.all([fetchModelFile(MODEL_FILES.model, files), fetchModelFile(MODEL_FILES.tokenizer, files)]);
   const vocab = vocabOf(new TextDecoder().decode(tok));
-  const session = await ort.InferenceSession.create(model, { executionProviders: ["wasm"], graphOptimizationLevel: "all" });
-  const batch = o.batch ?? 16;
+  const session = await ort.InferenceSession.create(model, runtime === "node"
+    ? { executionProviders: ["cpu"], graphOptimizationLevel: "all", intraOpNumThreads: threads, interOpNumThreads: 1 }
+    : { executionProviders: ["wasm"], graphOptimizationLevel: "all" });
+  const batch = o.batch ?? (runtime === "node" ? 32 : 16);
   const maxTokens = o.maxTokens ?? 128;
 
   async function run(texts: readonly string[]): Promise<Float32Array[]> {
