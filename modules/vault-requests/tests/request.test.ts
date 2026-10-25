@@ -114,7 +114,7 @@ test("a manager can attach an item that already exists; it must hold the fields 
   const w = world();
   const { request } = await ask(w, "agt_helper", { fields: ["api_key"] });
   assert.equal(await failed(handlers["vault.requests.fulfil"](w.as("usr_mira"), { requestId: request.id, itemId: "vit_thin" })), "validation.precondition_failed", "that item has no api_key field");
-  assert.equal(await failed(handlers["vault.requests.fulfil"](w.as("usr_mira"), { requestId: request.id, itemId: "vit_none" })), "no such item" , "the vault refuses what the manager cannot see");
+  assert.equal(await failed(handlers["vault.requests.fulfil"](w.as("usr_mira"), { requestId: request.id, itemId: "vit_none" })), "Error: no such item", "the vault refuses what the manager cannot see");
   assert.equal(w.called("vault.share").length, 0, "nothing was shared by a refused attempt");
   const done = await handlers["vault.requests.fulfil"](w.as("usr_mira"), { requestId: request.id, itemId: "vit_have" });
   assert.deepEqual([done.request.state, done.request.itemId], ["fulfilled", "vit_have"]);
