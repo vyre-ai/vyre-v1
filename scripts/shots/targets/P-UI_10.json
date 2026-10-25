@@ -9,16 +9,6 @@
         "selector": "[data-testid=\"records-scroll\"]:has([data-testid=\"rec-cl_20\"])"
       },
       "note": "Same mount and query as P-L9d_01-records-100k (faces on): the scroll probe takes the p95 frame interval over a full scroll against the 16.7 ms budget, to prove the cached face bitmaps keep faces from slowing the scroll."
-    },
-    {
-      "id": "P-UI_10-records-100k-nofaces",
-      "route": "/m/P-L9d_01?rows=100000&nofaces=1",
-      "proto": "records,{skin}",
-      "waitFor": "[data-testid='rec-cl_20']",
-      "scroll": {
-        "selector": "[data-testid=\"records-scroll\"]:has([data-testid=\"rec-cl_20\"])"
-      },
-      "note": "Diagnostic: same table with flat tiles instead of faces, to compare scroll p95 with faces on in the same run."
     }
   ]
 }

@@ -54,8 +54,6 @@ export const Avatar = memo(function Avatar({ name, kind: kindProp, size = AVATAR
   const kind = kindOf(name, kindProp);
   // A person's marble and an agent's face are drawn once to a cached bitmap per seed, kind, size and skin; rows reuse it as an <img>.
   const browser = web && typeof document !== "undefined";
-  // DIAGNOSTIC (P-UI_10, remove): ?nofaces=1 draws a flat tile so the scroll probe can run faces off and on in one run.
-  const flat = browser && /[?&]nofaces=1/.test(globalThis.location?.search ?? "");
   const drawn = web && kind === "agent";
   const key = faceKey(name, kind, size, currentSkin());
   const [, bump] = useState(0);
@@ -75,8 +73,6 @@ export const Avatar = memo(function Avatar({ name, kind: kindProp, size = AVATAR
     face = web ? createElement("img", { src: photo, alt: "", width: size, height: size, draggable: false, style: { display: "block", objectFit: "cover", width: size, height: size } }) : <Image accessibilityIgnoresInvertColors source={{ uri: photo }} style={{ width: size, height: size }} />;
   } else if (bitmap !== undefined) {
     face = createElement("img", { src: bitmap, alt: "", width: size, height: size, draggable: false, decoding: "async", style: { display: "block", width: size, height: size }, "data-face": "cached" });
-  } else if (flat) {
-    face = createElement("span", { style: { display: "block", width: size, height: size, backgroundColor: "#92A1C6" } });
   } else if (kind === "person" && browser) {
     face = createElement("span", { style: { display: "block", width: size, height: size, backgroundImage: marbleGradient(name) }, "data-face": "gradient" });
   } else if (kind === "person") {
