@@ -1,0 +1,32 @@
+{
+  "targets": [
+    {
+      "id": "P-L9d_07-schema-map",
+      "route": "/m/P-L9d_07",
+      "proto": "records,schema,{skin}",
+      "waitFor": "[data-testid='schema-card-projects']",
+      "note": "The Schema map over the Northwind sample: a card per record type with its record count and five fields (the title field, the links, then the rest), a curve per link, the zoom buttons and the minimap, fitted to the window. The prototype side is its Schema map in the same skin; it also has New table and Journey buttons and drag-to-link dots, which the app does not have (structure is edited in the Console, spec 3.4), and the real header says Edit in the Console instead."
+    },
+    {
+      "id": "P-L9d_07-schema-select",
+      "route": "/m/P-L9d_07?select=projects",
+      "proto": "records,schema,select,{skin}",
+      "waitFor": "[data-testid='schema-card-projects']",
+      "note": "Projects selected: its three links lit in the accent, the other curves faded, the cards it is not linked to dimmed. The prototype side is the same selection (it also opens its right pane, which the real map does not)."
+    },
+    {
+      "id": "P-L9d_07-schema-expand",
+      "route": "/m/P-L9d_07?expand=clients",
+      "proto": "records,schema,expand,{skin}",
+      "waitFor": "[data-testid='field-clients-since']",
+      "note": "The Clients card showing all ten fields (Show fewer at the foot) with its links leaving from their rows. The prototype side is the same card expanded."
+    },
+    {
+      "id": "P-L9d_07-record-types",
+      "route": "/m/P-L9d_07?part=types",
+      "proto": "records,recordtypes,{skin}",
+      "waitFor": "[data-testid='record-types-list']",
+      "note": "The read-only Record types list: a row per type with its record count and tag (Built in, Journey, Synced from an app, Site table), and the quiet note that types are managed in the Console. The prototype side is its Record types page in the same skin."
+    }
+  ]
+}
