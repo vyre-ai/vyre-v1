@@ -274,7 +274,8 @@ test("docker wall: the container has no network: only loopback, no route, no nam
   await dockerUp();
   assert.equal(A.network, "wall");
   assert.equal(docker(["inspect", "-f", "{{.HostConfig.NetworkMode}}", idA]).trim(), "none");
-  assert.equal(docker(["inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", idA]).trim(), "", "no address on any network");
+  // Docker prints "invalid IP" for a container with no address; what matters is that no IPv4 address is there.
+  assert.doesNotMatch(docker(["inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", idA]), /\d+\.\d+\.\d+\.\d+/, "no address on any network");
   assert.equal(docker(["network", "ls", "-q", "--filter", `name=${idA}`]).trim(), "", "no network of its own either");
   const nics = await sh(A, "tail -n +3 /proc/net/dev | cut -d: -f1 | tr -d ' '");
   assert.equal(nics.stdout.trim(), "lo");
@@ -323,7 +324,7 @@ test("docker wall: a process that unsets the proxy variables, or asks for the ol
   }
   assert.notEqual((await sh(A, `touch ${GUEST_DIR}/escape`)).exitCode, 0, "the socket folder is read-only");
   assert.notEqual((await sh(A, `rm -f ${GUEST_SOCKET}`)).exitCode, 0, "and the socket cannot be removed");
-  assert.equal(docker(["inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", idB]).trim(), "", "the other person's sandbox has no address to find");
+  assert.doesNotMatch(docker(["inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", idB]), /\d+\.\d+\.\d+\.\d+/, "the other person's sandbox has no address to find");
   assert.equal((await sh(A, "echo still-here")).stdout.trim(), "still-here");
 });
 
