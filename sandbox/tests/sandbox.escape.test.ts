@@ -352,7 +352,7 @@ function fakeSandbox(leaks: ReadonlySet<string> = new Set()): Sandbox {
     if (script === "id -u") return { exitCode: 0, stdout: leaks.has("root") ? "0\n" : "10001\n" };
     if (script === "touch /vyre-probe") return says("rootfs", false);
     if (script.includes("docker.sock")) return says("socket", false);
-    if (script.includes("/proc/1/environ")) return says("proc", false);
+    if (script.includes("/proc/[0-9]*/cmdline")) return says("proc", false);
     if (script.startsWith("cat ")) return says("outside", false);
     if (script.startsWith('touch "/work/site/')) return says("rw", true);
     if (script.startsWith('touch "/work/reference/')) return says("ro", false);
