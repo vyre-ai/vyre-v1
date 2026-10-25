@@ -6,7 +6,8 @@ import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../clien
 import type { ThreadMessage } from "./model.ts";
 
 export interface RunsNav {
-  openAutomation(id: string): void;
+  /** Opens the Automation; `stepId` selects that step with its panel open (Edit step). */
+  openAutomation(id: string, stepId?: string): void;
   /** The run in the main view (Open in Main). */
   openRun(runId: string): void;
   /** The run chat in the side pane. */
