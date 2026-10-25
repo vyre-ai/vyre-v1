@@ -1,0 +1,47 @@
+{
+  "targets": [
+    {
+      "id": "P-L9d_01-records-table",
+      "route": "/m/P-L9d_01",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='records-count']",
+      "note": "The Records place over the Northwind sample Space: the sidebar (record types with counts in their groups, a Sites group, saved views, Manage) and the Clients table with its quiet header buttons, tags, faces and the foot count. The prototype side is its Records place in the same skin. On a phone only the table shows, as in the prototype."
+    },
+    {
+      "id": "P-L9d_01-records-filter-menu",
+      "route": "/m/P-L9d_01?menu=filter",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='menu']",
+      "note": "The Filter menu open: each choice field with its options, counts and checkmarks, no rows of chips. The prototype draws the same menu from its Filter button."
+    },
+    {
+      "id": "P-L9d_01-records-view",
+      "route": "/m/P-L9d_01?view=vw_active",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='records-count']",
+      "note": "A saved view applied: Active clients, filtered and sorted by value, the view named in the crumb. The prototype side is its unfiltered table; the crumb and the foot count are compared with its design notes."
+    },
+    {
+      "id": "P-L9d_01-records-group",
+      "route": "/m/P-L9d_01?group=status",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='group-active']",
+      "note": "Grouped by Status: a header row per group with its count, folded by a click."
+    },
+    {
+      "id": "P-L9d_01-records-harbor",
+      "route": "/m/P-L9d_01?space=harbor",
+      "proto": "records,harbor,{skin}",
+      "waitFor": "[data-testid='records-count']",
+      "note": "The same Records place over the Harbor Studio sample Space."
+    },
+    {
+      "id": "P-L9d_01-records-100k",
+      "route": "/m/P-L9d_01?rows=100000",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='records-count']",
+      "scroll": { "selector": "[data-testid=\"records-scroll\"]" },
+      "note": "100,014 clients: the table opens by drawing a window and reserves the full height; the scroll probe takes the p95 frame interval over a full scroll (budget scroll, 16.7 ms) and checks the height does not change."
+    }
+  ]
+}
