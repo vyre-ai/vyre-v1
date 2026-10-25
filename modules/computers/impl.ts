@@ -20,10 +20,12 @@
 //                                                {code, message} on stderr with a non-zero exit)
 import type { Handler } from "../../host/src/invoke.ts";
 import { tarFiles } from "../../sandbox/src/tar.ts";
+import { createDockerApi, unixSocketHttp } from "../../sandbox/src/docker.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { ToolError } from "./handlers/tools/common.ts";
 import type { ToolAnswer, ToolCode, ToolHost } from "./handlers/tools/common.ts";
+import { bindHost } from "./projections.ts";
 import type { ComputerHost, HostKind, Probe, RecordResult, SessionInfo } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
@@ -281,3 +283,25 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
   };
   return host;
 }
+
+/** What the host hands over at boot (host/src/seams/computers.ts): the Docker socket, the image and the agents' Files folders. The module builds the Docker host from it and binds it. */
+export interface ComputersHostConfig {
+  socketPath?: string;
+  image?: string;
+  filesRoot?: (agentId: string) => string | null;
+  startTimeoutMs?: number;
+}
+
+export function setComputerHost(c: ComputersHostConfig | null): void {
+  if (c === null) { bindHost(null); return; }
+  const http = unixSocketHttp(c.socketPath);
+  bindHost(createDockerComputerHost({
+    api: createDockerApi(http), http,
+    ...(c.image !== undefined ? { image: c.image } : {}),
+    ...(c.filesRoot !== undefined ? { filesRoot: c.filesRoot } : {}),
+    ...(c.startTimeoutMs !== undefined ? { startTimeoutMs: c.startTimeoutMs } : {}),
+  }));
+}
+
+/** The host half arrives here at boot (rulings 31 and 32). */
+export const hostSeams = { setComputerHost };
