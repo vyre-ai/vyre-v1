@@ -17953,6 +17953,7 @@ export type RecordsExportIn = {
   fields?: Array<string>;
   offset?: number;
   limit?: number;
+  recordIds?: Array<string>;
 };
 export type RecordsExportOut = {
   fileId: string;

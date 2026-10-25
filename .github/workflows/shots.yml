@@ -47,6 +47,10 @@ jobs:
           case "$BRANCH" in build/P-*) T="${BRANCH#build/}" ;; esac
           # Self-hosted runners share load with the test shards; the 120 s export budget is measured on hosted runners (ruling 40: CI wall time is reported, not gating, while saturated).
           node scripts/shots/shots.mjs --target "$T" --out shots-out --max-export-s 600 --no-probes
+      - name: No prototype seed in the production web bundle (P-UI_06b)
+        run: |
+          # skipped until scripts/shots/no-seed-in-bundle.mjs is on the branch (it lands with P-UI_06b)
+          if [ -f scripts/shots/no-seed-in-bundle.mjs ] && [ -d scripts/shots/app/dist ]; then node scripts/shots/no-seed-in-bundle.mjs scripts/shots/app/dist; else echo "no-seed-in-bundle: script or export dir not present, skipped"; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
