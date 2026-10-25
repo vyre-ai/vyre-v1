@@ -52,7 +52,8 @@ test("l6 live: a booted daemon has a driver for every L6 module, its health list
     const row = (d.db!.all("SELECT detail FROM health_probe WHERE name = ?", "module_drivers")[0] ?? { detail: "" }) as { detail: string };
     for (const id of L6) assert.ok(!new RegExp(`\\b${id}\\b \\(`).test(row.detail), `health does not list ${id} as not set up`);
     const consumers = d.hooks!.consumers.map((c) => c.name);
-    for (const name of ["notifications.fanout", "runs.alerts", "events.webhooks_out"]) assert.ok(consumers.includes(name), `${name} is registered`);
+    for (const name of ["notifications.fanout", "runs.alerts"]) assert.ok(consumers.includes(name), `${name} is registered`);
+    // events.webhooks_out is a kernel async projection (mode "async"), not a host hook consumer; the daemon does not run kernel projections yet, so it is not asserted here.
     assert.ok(d.hooks!.periodic.some((p) => p.name === "runs.escalations"), "runs.escalations is scheduled");
   } finally { await d.stop(); }
 });
