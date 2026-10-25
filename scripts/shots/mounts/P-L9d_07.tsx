@@ -1,6 +1,6 @@
 // Mount for P-L9d_07: the Schema map and the Record types list over the Northwind sample Space (or Harbor Studio with ?space=harbor).
 // ?part=map (default)  ?select=projects lights that type's links  ?expand=clients shows all of that card's fields.  ?part=types is the read-only Record types list.
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { RecordTypesList, SchemaDataProvider, SchemaMap } from "../../../apps/app/src/places/records/schemamap/index.ts";
