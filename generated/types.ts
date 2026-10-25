@@ -12877,6 +12877,7 @@ export type JourneysCreateIn = {
         }>;
       automations: Array<string>;
       final?: boolean;
+      onLeaving?: Array<string>;
     }>;
   startRule?: {
     event: string;
@@ -12932,6 +12933,7 @@ export type JourneysCreateOut = {
           }>;
         automations: Array<string>;
         final?: boolean;
+        onLeaving?: Array<string>;
       }>;
     startRule?: {
       event: string;
@@ -12992,6 +12994,7 @@ export type JourneysDesignIn = {
         }>;
       automations: Array<string>;
       final?: boolean;
+      onLeaving?: Array<string>;
     }>;
   startRule?: {
     event: string;
@@ -13048,6 +13051,7 @@ export type JourneysDesignOut = {
           }>;
         automations: Array<string>;
         final?: boolean;
+        onLeaving?: Array<string>;
       }>;
     startRule?: {
       event: string;
@@ -13111,6 +13115,7 @@ export type JourneysGetOut = {
           }>;
         automations: Array<string>;
         final?: boolean;
+        onLeaving?: Array<string>;
       }>;
     startRule?: {
       event: string;
@@ -13228,6 +13233,7 @@ export type JourneysRenameOut = {
           }>;
         automations: Array<string>;
         final?: boolean;
+        onLeaving?: Array<string>;
       }>;
     startRule?: {
       event: string;
@@ -13302,6 +13308,7 @@ export type JourneysRulesSetOut = {
           }>;
         automations: Array<string>;
         final?: boolean;
+        onLeaving?: Array<string>;
       }>;
     startRule?: {
       event: string;
@@ -13333,6 +13340,24 @@ export type JourneysStartIn = {
 export type JourneysStartOut = {
   recordId: string;
   stage: string;
+};
+export type JourneysTasksIn = {
+  recordId: string;
+  stage?: string;
+};
+export type JourneysTasksOut = {
+  tasks: Array<{
+      stage: string;
+      taskKey: string;
+      taskId: string;
+      title: string;
+      state: "todo" | "in_review" | "blocked" | "done";
+      required: boolean;
+      assigned?: {
+        kind: "person" | "agent" | "group" | "role" | "automation";
+        id: string;
+      };
+    }>;
 };
 export type JourneysVersionsIn = {
   journeyId: string;
@@ -26700,6 +26725,7 @@ export interface CapMap {
   "journeys.rules.set": { in: JourneysRulesSetIn; out: JourneysRulesSetOut };
   "journeys.stage_counts": { in: JourneysStageCountsIn; out: JourneysStageCountsOut };
   "journeys.start": { in: JourneysStartIn; out: JourneysStartOut };
+  "journeys.tasks": { in: JourneysTasksIn; out: JourneysTasksOut };
   "journeys.versions": { in: JourneysVersionsIn; out: JourneysVersionsOut };
   "kits.builder_open": { in: KitsBuilderOpenIn; out: KitsBuilderOpenOut };
   "kits.choose": { in: KitsChooseIn; out: KitsChooseOut };

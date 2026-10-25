@@ -1080,6 +1080,7 @@ export function createClient(transport: Transport) {
       },
       stage_counts: call("journeys.stage_counts", 1),
       start: call("journeys.start", 1),
+      tasks: call("journeys.tasks", 1),
       versions: call("journeys.versions", 1),
     },
     kits: {
