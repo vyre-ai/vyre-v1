@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
-import { PROTO_CHN, PROTO_CHW, PROTO_CITIES, PROTO_FIRST, PROTO_HAND, PROTO_LAST, PROTO_NEXTS, PROTO_SPACE_TYPES, PROTO_STREETS, PROTO_TEAM } from "./prototype-data.ts";
+import { PROTO_CHN, PROTO_CHW, PROTO_CITIES, PROTO_FIRST, PROTO_HAND, PROTO_LAST, PROTO_NEXTS, PROTO_SPACE_TYPES, PROTO_STREETS, PROTO_TEAM, PROTO_TYPES } from "./prototype-data.ts";
 import { PROTO_CLIENT_COUNT, pickChannel, protoClients, protoHash, protoWork } from "./prototype-clients.ts";
 
 const FILE = fileURLToPath(new URL("../../../../scripts/shots/prototype/vyre-v1.html", import.meta.url));
@@ -139,4 +139,15 @@ test("the projects, invoices, meetings and tasks are what the prototype's own se
   assert.deepEqual(w.invoices.map((x) => ({ ...x })), ran.invoices.map((r) => ({ id: r["id"], no: r["no"], client: one(r["client"]), project: one(r["project"]), amount: r["amount"], status: r["status"], issued: r["issued"], due: r["due"], method: r["method"] })));
   assert.deepEqual(w.meetings.map((x) => ({ ...x })), ran.meetings.map((r) => ({ id: r["id"], title: r["title"], when: r["when"], client: one(r["client"]), host: r["host"], kind: r["kind"], done: r["done"], notes: r["notes"] })));
   assert.deepEqual(w.tasks.map((x) => ({ ...x })), ran.tasks.map((r) => ({ id: r["id"], title: r["title"], project: one(r["project"]), assignee: r["assignee"], status: r["status"], due: r["due"], done: r["done"] })));
+});
+
+test("the record types and schema (fields, widths, options with their hues, rollup and formula paths) are what the prototype's TY block builds", () => {
+  const schema = TEXT.indexOf("/* ---------- schema ---------- */");
+  const block = between("const F = (id, n, t, w, x)", "const TYPE_ORDER", schema);
+  const ran = JSON.parse(JSON.stringify(vm.runInNewContext(`${block}\nTY;`, {})));
+  assert.deepEqual(PROTO_TYPES, ran);
+  assert.deepEqual(Object.keys(PROTO_TYPES), ["clients", "projects", "invoices", "meetings", "tasks"]);
+  const clients = PROTO_TYPES["clients"] as { fields: { id: string; t: string; o?: unknown[] }[] };
+  assert.ok(["name", "status", "owner", "fit", "since", "taxId", "bank", "summary", "health"].every((id) => clients.fields.some((f) => f.id === id)));
+  assert.deepEqual(clients.fields.find((f) => f.id === "status")?.o, [["Lead", 220], ["Consult booked", 270], ["Active", 145], ["On hold", 35], ["Closed", null]]);
 });

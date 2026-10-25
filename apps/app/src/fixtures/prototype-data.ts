@@ -490,6 +490,925 @@ export const PROTO_HT: readonly unknown[] = [
  ]
 ];
 
+export const PROTO_TYPES: Readonly<Record<string, unknown>> = {
+ "clients": {
+  "id": "clients",
+  "n": "Clients",
+  "one": "Client",
+  "pre": "c",
+  "primary": "name",
+  "needLabel": "Intake",
+  "fields": [
+   {
+    "id": "name",
+    "n": "Name",
+    "t": "text",
+    "w": 214,
+    "need": 1
+   },
+   {
+    "id": "status",
+    "n": "Status",
+    "t": "status",
+    "w": 136,
+    "o": [
+     [
+      "Lead",
+      220
+     ],
+     [
+      "Consult booked",
+      270
+     ],
+     [
+      "Active",
+      145
+     ],
+     [
+      "On hold",
+      35
+     ],
+     [
+      "Closed",
+      null
+     ]
+    ]
+   },
+   {
+    "id": "owner",
+    "n": "Owner",
+    "t": "person",
+    "w": 138,
+    "need": 1
+   },
+   {
+    "id": "fit",
+    "n": "Fit",
+    "t": "rating",
+    "w": 90
+   },
+   {
+    "id": "since",
+    "n": "Client since",
+    "t": "date",
+    "w": 152,
+    "need": 1
+   },
+   {
+    "id": "openBal",
+    "n": "Open balance",
+    "t": "rollup",
+    "w": 142,
+    "rt": "money",
+    "expr": "SUM(Invoices.Amount) where Status is Sent or Overdue",
+    "path": [
+     [
+      "Clients",
+      ""
+     ],
+     [
+      "Invoices",
+      "linked by Client"
+     ],
+     [
+      "Amount",
+      "sum of unpaid"
+     ]
+    ]
+   },
+   {
+    "id": "nextMeet",
+    "n": "Next meeting",
+    "t": "lookup",
+    "w": 150,
+    "rt": "datetime",
+    "expr": "Meetings.When, earliest that has not happened",
+    "path": [
+     [
+      "Clients",
+      ""
+     ],
+     [
+      "Meetings",
+      "linked by Client"
+     ],
+     [
+      "When",
+      "earliest upcoming"
+     ]
+    ]
+   },
+   {
+    "id": "taxId",
+    "n": "Tax ID",
+    "t": "sealed",
+    "w": 150,
+    "need": 1
+   },
+   {
+    "id": "bank",
+    "n": "Bank account (IBAN)",
+    "t": "sealed",
+    "w": 170
+   },
+   {
+    "id": "summary",
+    "n": "Summary",
+    "t": "ai",
+    "w": 270
+   },
+   {
+    "id": "projects",
+    "n": "Projects",
+    "t": "relation",
+    "w": 220,
+    "rev": [
+     "projects",
+     "client"
+    ],
+    "to": "projects"
+   },
+   {
+    "id": "health",
+    "n": "Health",
+    "t": "formula",
+    "w": 96,
+    "expr": "IF({Open balance} > 5000, \"Review\", \"Good\")",
+    "path": [
+     [
+      "Clients",
+      ""
+     ],
+     [
+      "Open balance",
+      "rollup of Invoices"
+     ]
+    ]
+   },
+   {
+    "id": "source",
+    "n": "How did you hear about us",
+    "t": "choice",
+    "w": 200,
+    "key": "heard_from",
+    "need": 1,
+    "o": [
+     [
+      "Referral",
+      160
+     ],
+     [
+      "Website",
+      205
+     ],
+     [
+      "Event",
+      330
+     ],
+     [
+      "Partner",
+      35
+     ]
+    ]
+   },
+   {
+    "id": "email",
+    "n": "Email",
+    "t": "text",
+    "w": 214,
+    "need": 1,
+    "kind": "email"
+   },
+   {
+    "id": "phone",
+    "n": "Phone",
+    "t": "text",
+    "w": 130,
+    "need": 1,
+    "kind": "phone"
+   },
+   {
+    "id": "key",
+    "n": "Key account",
+    "t": "check",
+    "w": 100
+   },
+   {
+    "id": "ltv",
+    "n": "Lifetime value",
+    "t": "rollup",
+    "w": 136,
+    "rt": "money",
+    "expr": "SUM(Invoices.Amount) where Status is Paid",
+    "path": [
+     [
+      "Clients",
+      ""
+     ],
+     [
+      "Invoices",
+      "linked by Client"
+     ],
+     [
+      "Amount",
+      "sum of paid"
+     ]
+    ]
+   },
+   {
+    "id": "refby",
+    "n": "Referred by",
+    "t": "person",
+    "w": 138
+   },
+   {
+    "id": "dob",
+    "n": "Date of birth",
+    "t": "date",
+    "w": 116,
+    "need": 1,
+    "imp": 1
+   },
+   {
+    "id": "addr",
+    "n": "Address",
+    "t": "text",
+    "w": 250,
+    "need": 1,
+    "imp": 1
+   },
+   {
+    "id": "idDoc",
+    "n": "ID document",
+    "t": "files",
+    "w": 140,
+    "need": 1,
+    "imp": 1
+   },
+   {
+    "id": "pref",
+    "n": "Best time to reach",
+    "t": "choice",
+    "w": 140,
+    "need": 1,
+    "o": [
+     [
+      "Mornings",
+      205
+     ],
+     [
+      "Afternoons",
+      35
+     ],
+     [
+      "Evenings",
+      270
+     ]
+    ]
+   },
+   {
+    "id": "sendform",
+    "n": "Send intake form",
+    "t": "button",
+    "w": 150,
+    "auto": "Intake reminder"
+   }
+  ],
+  "hidden": [
+   "email",
+   "phone",
+   "key",
+   "ltv",
+   "refby",
+   "dob",
+   "addr",
+   "idDoc",
+   "pref",
+   "sendform"
+  ],
+  "sections": [
+   [
+    "Contact",
+    [
+     "email",
+     "phone",
+     "addr",
+     "pref",
+     "owner",
+     "refby"
+    ]
+   ],
+   [
+    "Relationship",
+    [
+     "status",
+     "source",
+     "since",
+     "fit",
+     "key",
+     "dob",
+     "idDoc"
+    ]
+   ],
+   [
+    "Sealed",
+    [
+     "taxId",
+     "bank"
+    ]
+   ],
+   [
+    "Calculated",
+    [
+     "openBal",
+     "ltv",
+     "nextMeet",
+     "health"
+    ]
+   ],
+   [
+    "Actions",
+    [
+     "sendform"
+    ]
+   ]
+  ],
+  "related": [
+   [
+    "projects",
+    "client",
+    "Projects"
+   ],
+   [
+    "invoices",
+    "client",
+    "Invoices"
+   ],
+   [
+    "meetings",
+    "client",
+    "Meetings"
+   ]
+  ]
+ },
+ "projects": {
+  "id": "projects",
+  "n": "Projects",
+  "one": "Project",
+  "pre": "p",
+  "primary": "title",
+  "fields": [
+   {
+    "id": "title",
+    "n": "Title",
+    "t": "text",
+    "w": 230
+   },
+   {
+    "id": "client",
+    "n": "Client",
+    "t": "relation",
+    "w": 180,
+    "to": "clients"
+   },
+   {
+    "id": "stage",
+    "n": "Stage",
+    "t": "status",
+    "w": 128,
+    "o": [
+     [
+      "Intake",
+      220
+     ],
+     [
+      "Drafting",
+      270
+     ],
+     [
+      "In review",
+      35
+     ],
+     [
+      "Delivered",
+      145
+     ],
+     [
+      "On hold",
+      null
+     ]
+    ]
+   },
+   {
+    "id": "lead",
+    "n": "Lead",
+    "t": "person",
+    "w": 138
+   },
+   {
+    "id": "start",
+    "n": "Start",
+    "t": "date",
+    "w": 100
+   },
+   {
+    "id": "due",
+    "n": "Due",
+    "t": "date",
+    "w": 100
+   },
+   {
+    "id": "health",
+    "n": "Health",
+    "t": "choice",
+    "w": 112,
+    "o": [
+     [
+      "On track",
+      145
+     ],
+     [
+      "At risk",
+      35
+     ],
+     [
+      "Late",
+      0
+     ]
+    ]
+   },
+   {
+    "id": "budget",
+    "n": "Budget",
+    "t": "money",
+    "w": 118
+   },
+   {
+    "id": "template",
+    "n": "Template",
+    "t": "choice",
+    "w": 150,
+    "o": [
+     [
+      "Client onboarding",
+      160
+     ],
+     [
+      "Annual review",
+      205
+     ],
+     [
+      "Blank",
+      null
+     ]
+    ]
+   },
+   {
+    "id": "billed",
+    "n": "Billed",
+    "t": "rollup",
+    "w": 118,
+    "rt": "money",
+    "expr": "SUM(Invoices.Amount) where Status is not Draft",
+    "path": [
+     [
+      "Projects",
+      ""
+     ],
+     [
+      "Invoices",
+      "linked by Project"
+     ],
+     [
+      "Amount",
+      "sum, not drafts"
+     ]
+    ]
+   },
+   {
+    "id": "progress",
+    "n": "Progress",
+    "t": "formula",
+    "w": 120,
+    "rt": "pct",
+    "expr": "COUNT(Tasks where Done) / COUNT(Tasks)",
+    "path": [
+     [
+      "Projects",
+      ""
+     ],
+     [
+      "Tasks",
+      "linked by Project"
+     ],
+     [
+      "Done",
+      "share checked"
+     ]
+    ]
+   },
+   {
+    "id": "tags",
+    "n": "Tags",
+    "t": "multi",
+    "w": 170,
+    "o": [
+     [
+      "Priority",
+      0
+     ],
+     [
+      "Fixed fee",
+      205
+     ],
+     [
+      "Hourly",
+      270
+     ],
+     [
+      "Rush",
+      35
+     ],
+     [
+      "Referral",
+      160
+     ]
+    ]
+   },
+   {
+    "id": "tasks",
+    "n": "Tasks",
+    "t": "relation",
+    "w": 180,
+    "rev": [
+     "tasks",
+     "project"
+    ],
+    "to": "tasks"
+   }
+  ],
+  "hidden": [
+   "template",
+   "billed",
+   "tags"
+  ],
+  "sections": [
+   [
+    "Details",
+    [
+     "client",
+     "stage",
+     "lead",
+     "start",
+     "due",
+     "health",
+     "budget",
+     "template",
+     "tags"
+    ]
+   ],
+   [
+    "Calculated",
+    [
+     "billed",
+     "progress"
+    ]
+   ]
+  ],
+  "related": [
+   [
+    "tasks",
+    "project",
+    "Tasks"
+   ],
+   [
+    "invoices",
+    "project",
+    "Invoices"
+   ]
+  ]
+ },
+ "invoices": {
+  "id": "invoices",
+  "n": "Invoices",
+  "one": "Invoice",
+  "pre": "i",
+  "primary": "no",
+  "fields": [
+   {
+    "id": "no",
+    "n": "Number",
+    "t": "auto",
+    "w": 112
+   },
+   {
+    "id": "client",
+    "n": "Client",
+    "t": "relation",
+    "w": 190,
+    "to": "clients"
+   },
+   {
+    "id": "project",
+    "n": "Project",
+    "t": "relation",
+    "w": 190,
+    "to": "projects"
+   },
+   {
+    "id": "amount",
+    "n": "Amount",
+    "t": "money",
+    "w": 128
+   },
+   {
+    "id": "status",
+    "n": "Status",
+    "t": "status",
+    "w": 110,
+    "o": [
+     [
+      "Draft",
+      null
+     ],
+     [
+      "Sent",
+      220
+     ],
+     [
+      "Paid",
+      145
+     ],
+     [
+      "Overdue",
+      0
+     ]
+    ]
+   },
+   {
+    "id": "issued",
+    "n": "Issued",
+    "t": "date",
+    "w": 112
+   },
+   {
+    "id": "due",
+    "n": "Due",
+    "t": "date",
+    "w": 112
+   },
+   {
+    "id": "method",
+    "n": "Method",
+    "t": "choice",
+    "w": 110,
+    "o": [
+     [
+      "Card",
+      270
+     ],
+     [
+      "Bank",
+      205
+     ],
+     [
+      "Cheque",
+      35
+     ]
+    ]
+   }
+  ],
+  "hidden": [],
+  "sections": [
+   [
+    "Details",
+    [
+     "client",
+     "project",
+     "amount",
+     "status",
+     "issued",
+     "due",
+     "method"
+    ]
+   ]
+  ],
+  "related": []
+ },
+ "meetings": {
+  "id": "meetings",
+  "n": "Meetings",
+  "one": "Meeting",
+  "pre": "m",
+  "primary": "title",
+  "fields": [
+   {
+    "id": "title",
+    "n": "Title",
+    "t": "text",
+    "w": 240
+   },
+   {
+    "id": "when",
+    "n": "When",
+    "t": "datetime",
+    "w": 170
+   },
+   {
+    "id": "client",
+    "n": "Client",
+    "t": "relation",
+    "w": 190,
+    "to": "clients"
+   },
+   {
+    "id": "host",
+    "n": "Host",
+    "t": "person",
+    "w": 138
+   },
+   {
+    "id": "kind",
+    "n": "Kind",
+    "t": "choice",
+    "w": 110,
+    "o": [
+     [
+      "Consult",
+      270
+     ],
+     [
+      "Check-in",
+      205
+     ],
+     [
+      "Review",
+      35
+     ],
+     [
+      "Signing",
+      145
+     ]
+    ]
+   },
+   {
+    "id": "done",
+    "n": "Held",
+    "t": "check",
+    "w": 76
+   },
+   {
+    "id": "rec",
+    "n": "Recording",
+    "t": "files",
+    "w": 130
+   },
+   {
+    "id": "notes",
+    "n": "Notes",
+    "t": "long",
+    "w": 240
+   }
+  ],
+  "hidden": [],
+  "sections": [
+   [
+    "Details",
+    [
+     "when",
+     "client",
+     "host",
+     "kind",
+     "done",
+     "rec",
+     "notes"
+    ]
+   ]
+  ],
+  "related": []
+ },
+ "tasks": {
+  "id": "tasks",
+  "n": "Tasks",
+  "one": "Task",
+  "pre": "t",
+  "primary": "title",
+  "fields": [
+   {
+    "id": "title",
+    "n": "Task",
+    "t": "text",
+    "w": 260
+   },
+   {
+    "id": "project",
+    "n": "Project",
+    "t": "relation",
+    "w": 200,
+    "to": "projects"
+   },
+   {
+    "id": "assignee",
+    "n": "Assigned",
+    "t": "person",
+    "w": 138
+   },
+   {
+    "id": "stage",
+    "n": "Stage",
+    "t": "choice",
+    "w": 120,
+    "o": [
+     [
+      "Intake",
+      220
+     ],
+     [
+      "Drafting",
+      270
+     ],
+     [
+      "In review",
+      35
+     ],
+     [
+      "Delivered",
+      145
+     ]
+    ]
+   },
+   {
+    "id": "status",
+    "n": "Status",
+    "t": "status",
+    "w": 110,
+    "o": [
+     [
+      "To do",
+      null
+     ],
+     [
+      "Doing",
+      220
+     ],
+     [
+      "Blocked",
+      35
+     ],
+     [
+      "Done",
+      145
+     ]
+    ]
+   },
+   {
+    "id": "due",
+    "n": "Due",
+    "t": "date",
+    "w": 100
+   },
+   {
+    "id": "done",
+    "n": "Done",
+    "t": "check",
+    "w": 70
+   },
+   {
+    "id": "reviewer",
+    "n": "Reviewer",
+    "t": "person",
+    "w": 138
+   },
+   {
+    "id": "approver",
+    "n": "Approver",
+    "t": "person",
+    "w": 138
+   }
+  ],
+  "hidden": [
+   "reviewer",
+   "approver"
+  ],
+  "sections": [
+   [
+    "Details",
+    [
+     "project",
+     "stage",
+     "assignee",
+     "reviewer",
+     "approver",
+     "status",
+     "due",
+     "done"
+    ]
+   ]
+  ],
+  "related": []
+ }
+};
+
 export const PROTO_SPACE_TYPES: Readonly<Record<string, { meta: { title: string; one: string; primary: string }; fields: readonly { id: string; name: string; type: string; width: number; options?: readonly (readonly [string, number | null])[]; kind?: string; to?: string }[]; rows: readonly Record<string, unknown>[] }>> = {
  "pcontacts": {
   "meta": {
