@@ -16,6 +16,7 @@ const conversationRow = t.obj({
   id: cnvId, contactId: t.opt(id.record), address: t.str({ description: 'Email, number or handle when no contact is matched', examples: ['maya@example.com'] }),
   displayName: t.str(), lastMessageAt: t.ts(), lastChannel: t.enm('email', 'sms', 'call', 'meeting'), lastPreview: t.str(), unreadCount: t.int({ minimum: 0 }),
   needsMatch: t.bool(), ownerId: t.opt(id.user), mailboxIds: t.arr(id.mailbox), campaignId: t.opt(id.campaign), followed: t.bool(), alertOnReplies: t.bool(),
+  starred: t.opt(t.bool()),   // the caller's own flag, like followed; absent means not starred
 });
 const timelineItem = t.obj({
   kind: t.enm('email', 'sms', 'call', 'meeting', 'campaign_step', 'record_chip', 'note'), id: t.str(), at: t.ts(), direction: t.opt(t.enm('in', 'out')),
@@ -100,7 +101,7 @@ const manifest = defineManifest({
       emits: ['conversation.created', 'conversation.matched', 'conversation.needs_match', 'conversation.reply_received', 'conversation.campaign_reply'], idem: 'natural',
     }),
     read('inbox.counts', 'Unread counts for the sidebar: per inbox, per number and the Needs a match total', {
-      in: {}, out: { byInbox: t.arr(t.obj({ kind: t.enm('mailbox', 'number'), id: t.str(), unread: t.int() })), total: t.int(), needsMatch: t.int() }, tool: 'inbox',
+      in: {}, out: { byInbox: t.arr(t.obj({ kind: t.enm('mailbox', 'number'), id: t.str(), name: t.opt(t.str({ description: 'What the sidebar shows: the mailbox address or the number display name (telephony number displayName), never the id' })), unread: t.int() })), total: t.int(), needsMatch: t.int() }, tool: 'inbox',
     }),
     write('inbox.mark_read', 'Mark a conversation read or unread', {
       in: { conversationId: cnvId, read: t.opt(t.bool()) }, out: { conversation: conversationRow }, tool: 'inbox', offline: 'queue',

@@ -50,6 +50,17 @@ export default defineManifest({
       in: { type: id.recordType, ...viewSpec, ...pageIn }, out: { rows: t.arr(recordRow), ...pageOut },
       on: ['record_type', '/type'], tool: 'records', label: 'filter', cli: 'vyre records query',
     }),
+    read('records.view', 'Read a saved view of a record type resolved for the table: the view definition and its rows with the saved filter, sort and group applied, a page at a time', {
+      in: { type: id.recordType, viewId: t.id('viw'), ...pageIn },
+      out: {
+        view: t.obj({
+          viewId: t.id('viw'), type: id.recordType, kind: t.str({ examples: ['table'] }), title: t.str(), shared: t.bool(), filter: t.opt(t.json()), sort: t.opt(t.json()), group: t.opt(t.str()),
+          hidden: t.opt(t.arr(t.str())), colorRules: t.opt(t.json()), config: t.opt(t.rec()), updatedAt: t.ts(),
+        }),
+        rows: t.arr(recordRow), ...pageOut,
+      },
+      on: ['record_type', '/type'], tool: 'records', label: 'filter', errors: ['validation.not_found'],
+    }),
     read('records.search', 'Search rows by text across a record type', { in: { type: id.recordType, q: t.str(), ...pageIn }, out: { rows: t.arr(recordRow), ...pageOut }, on: ['record_type', '/type'], tool: 'records', label: 'filter' }),
     read('records.changes', 'Change feed of a record type since a sequence number (RecordStore.changes)', { in: { type: id.recordType, since: t.int({ minimum: 0 }), limit: t.opt(t.int()) }, out: { changes: t.arr(t.obj({ seq: t.int(), id: id.record, op: t.enm('upsert', 'patch', 'delete') })), next: t.int() }, on: ['record_type', '/type'] }),
     read('records.history', 'Field history of a record: previous values and merge losers', { in: { ...target, field: t.opt(t.str()) }, out: { entries: t.arr(t.obj({ field: t.str(), value: t.json(), hlc: t.str(), actor: t.str(), reason: t.opt(t.str()) })) }, on: ['record', '/recordId'], tool: 'records' }),
