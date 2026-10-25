@@ -1,7 +1,7 @@
 // Inbox > the conversation with a call in it (prototype Inbox, calllive and callend). The caller's conversation opens with the call bar in its header (face, name, clock, mute, hold, keypad,
 // transfer, record, end) and the Call tab of the shared side pane beside it (Notes for this call, Last interactions, Open tasks, Open record). After the call the header holds the ended card
 // ("Saved to Elena's conversation", Log a task). The floating dock keeps out of the way while this conversation is open; from another place it is the only call surface.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { View } from "react-native";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
@@ -27,7 +27,11 @@ export function CallConversation({ tasks = [], ...tab }: CallConversationProps):
   const conv = thread.status === "ready" ? thread.data.conversation : null;
   const key = useMemo(() => (conv ? { id: conv.id, contactId: conv.contactId, address: conv.address } : null), [conv?.id, conv?.contactId, conv?.address]); // eslint-disable-line react-hooks/exhaustive-deps
   const [paneOpen, setPaneOpen] = useState(true);
-  useEffect(() => (key && phone ? phone.claim(key) : undefined), [key, phone]);
+  // the claim is made once per conversation: the context object changes with the call, the claim function does not need to be re-run for it
+  const claim = useRef(phone?.claim);
+  claim.current = phone?.claim;
+  const has = phone !== null;
+  useEffect(() => (key && has ? claim.current?.(key) : undefined), [key, has]);
 
   const state = phone?.state();
   const view = phone?.view();
