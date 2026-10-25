@@ -48,7 +48,11 @@ export function collectPage(rootSelector, max) {
     }
     const label = el.getAttribute("aria-label");
     if (label && label.trim()) return label.trim().slice(0, 120);
-    if (el.labels && el.labels.length) { const t = [...el.labels].map((/** @type {any} */ l) => l.textContent).join(" ").replace(/\s+/g, " ").trim(); if (t) return t.slice(0, 120); }
+    if (el.labels && el.labels.length) {
+      // A label's own words, without the controls inside it (a select's options are not part of its name).
+      const t = [...el.labels].map((/** @type {any} */ l) => { const c = l.cloneNode(true); c.querySelectorAll("input,select,textarea,button,output,meter,progress").forEach((/** @type {any} */ x) => x.remove()); return c.textContent; }).join(" ").replace(/\s+/g, " ").trim();
+      if (t) return t.slice(0, 120);
+    }
     if (el.tagName === "INPUT" && el.placeholder) return String(el.placeholder).trim().slice(0, 120);
     if (el.tagName === "INPUT" && /^(button|submit|reset)$/i.test(el.type) && el.value) return String(el.value).trim().slice(0, 120);
     const text = (el.innerText || el.textContent || "").trim().replace(/\s+/g, " ");
