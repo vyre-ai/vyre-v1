@@ -1,4 +1,5 @@
 // The warmup pool over HTTP (node:http): the same contract, through a real socket with real headers, so what the module's client sends is what the service reads.
+// @reads /relay/warmup/main.js
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createWarmupServer } from "../server.js";
