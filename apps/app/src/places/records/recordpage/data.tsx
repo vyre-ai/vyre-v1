@@ -26,6 +26,8 @@ export interface RecordPageData {
   now(): number;
   nameOf(id: string): string;
   nav: RecordPageNav;
+  /** Whether a record is starred for the person and a way to change it; there is no capability for this yet, so the shell supplies it. Without it the star is not drawn. */
+  star?: { get(type: string, recordId: string): boolean; set(type: string, recordId: string, on: boolean): void };
 }
 
 const Ctx = createContext<RecordPageData | null>(null);

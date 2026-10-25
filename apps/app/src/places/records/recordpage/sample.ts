@@ -122,6 +122,9 @@ export function createSamplePage(space: PageSpace = northwind, o: { fail?: strin
   replica.resolve("records.versions", (t, i: CapMap["records.versions"]["in"]) => ({ versions: ([...(t.get("versions")?.values() ?? [])] as unknown as (Version & { recordId: string })[]).filter((v) => v.recordId === i.recordId).map(({ recordId: _r, ...v }) => v as Version) }));
   replica.resolve("memory.find_by_subject", (t, i: CapMap["memory.find_by_subject"]["in"]) => ({ facts: ([...(t.get("facts")?.values() ?? [])] as unknown as (CapMap["memory.find_by_subject"]["out"]["facts"][number] & { subject: string })[]).filter((x) => x.subject === i.subject).map(({ subject: _s, ...x }) => x as CapMap["memory.find_by_subject"]["out"]["facts"][number]), notes: [] }));
 
+  // a value Scout proposed for Elena's phone, waiting for review (records.values.pending); Accept writes it, Reject keeps the field as it was
+  let pending: { recordId: string; type: string; field: string; value: string; actor: string; at: number }[] = space.id === "northwind" ? [{ recordId: "cl_0", type: "clients", field: "phone", value: "+1 415 555 0161", actor: "agt_docs", at: SAMPLE_NOW - 40 * 60_000 }] : [];
+  const stars = new Set<string>(["clients:cl_0"]);
   let hist = 0;
   const writes: Record<string, (i: never) => unknown> = {
     "records.update": (i: { type: string; recordId: string; patch: Record<string, unknown>; baseVersion?: number }) => {
@@ -140,6 +143,17 @@ export function createSamplePage(space: PageSpace = northwind, o: { fail?: strin
       replica.put("prefs", [{ id: "p", n: (replica.rows("prefs").length + 1) }] as unknown as Row[]);
       return { folded: [...prefs.folded], keepVisible: [...prefs.keepVisible] };
     },
+    "records.query": (i: { type: string }) => ({ rows: rowsOf(i.type).map((r) => ({ id: r.id, type: r.type, version: r.version, label: r.label, fields: r.fields, createdAt: r.createdAt, updatedAt: r.updatedAt, holds: r.holds })), total: rowsOf(i.type).length }),
+    "records.values.pending": (i: { type: string }) => ({ values: pending.filter((x) => x.type === i.type).map((x) => ({ recordId: x.recordId, type: x.type, field: x.field, value: x.value, source: { kind: "agent" as const, actor: x.actor, at: x.at, state: "needs_review" as const } })), total: pending.length }),
+    "records.values.review": (i: { type: string; recordId: string; field: string; decision: "accept" | "reject" }) => {
+      const hit = pending.find((x) => x.type === i.type && x.recordId === i.recordId && x.field === i.field);
+      if (!hit) throw new Error("nothing is waiting for review there");
+      pending = pending.filter((x) => x !== hit);
+      const r = rowsOf(i.type).find((x) => x.id === i.recordId)!;
+      const next = i.decision === "accept" ? { ...r, version: r.version + 1, updatedAt: SAMPLE_NOW, fields: { ...r.fields, [i.field]: hit.value } } : r;
+      replica.put(`records:${i.type}`, [own(next)]);
+      return { record: next };
+    },
     "records.value_source": () => ({ source: { kind: "agent", actor: "Docs", at: SAMPLE_NOW - DAY, state: "counted" } }),
   };
   const data: RecordPageData = {
@@ -151,6 +165,7 @@ export function createSamplePage(space: PageSpace = northwind, o: { fail?: strin
       if (!w) throw new Error(`unknown capability ${cap}`);
       return w(input as never);
     },
+    star: { get: (t, id) => stars.has(`${t}:${id}`), set: (t, id, on) => void (on ? stars.add(`${t}:${id}`) : stars.delete(`${t}:${id}`)) },
     now: () => SAMPLE_NOW, nameOf: (id) => space.people[id] ?? id,
     nav: { openRecord: (t, id) => void opened.push(`record:${t}:${id}`), openChat: (t, id, ask) => void opened.push(`chat:${t}:${id}${ask ? `:${ask}` : ""}`), openFiles: (t, id) => void opened.push(`files:${t}:${id}`), openSource: (l) => void opened.push(`source:${l}`) },
   };

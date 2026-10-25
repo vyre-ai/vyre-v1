@@ -31,7 +31,14 @@ export interface RecordPageStart {
   edit?: { key: string; text: string };
 }
 
-export interface RecordPageProps { type: string; recordId: string; start?: RecordPageStart }
+export interface RecordPageProps {
+  type: string; recordId: string; start?: RecordPageStart;
+  /** The ids of the view this record was opened from, in its order: Previous and Next walk it. Without it the type's own list is used. */
+  order?: readonly string[];
+}
+
+/** A value an agent, form or sync proposed for a field, waiting for a person (records.values.pending). */
+interface Proposal { field: string; text: string; by: string; at: number; link?: string }
 
 interface Flash { text: string; undo?: Undo; bad?: boolean }
 
@@ -83,7 +90,8 @@ function Tag({ field, value }: { field: FieldDef; value: string }): ReactElement
 }
 
 interface FieldProps {
-  field: FieldDef; row: RecordRow; type: string; editing: { key: string; text: string; error?: string } | null; nodes: readonly RelNode[];
+  now: number; field: FieldDef; row: RecordRow; type: string; editing: { key: string; text: string; error?: string } | null; nodes: readonly RelNode[];
+  proposal?: Proposal | undefined; onReview: (f: FieldDef, decision: "accept" | "reject") => void;
   show: (items: readonly MenuEntry[], x: number, y: number) => void; onEdit: (f: FieldDef) => void; onText: (t: string) => void; onCommit: (f: FieldDef, text: string) => void; onCancel: () => void; onValue: (f: FieldDef, v: unknown) => void; onSource: (f: FieldDef, x: number, y: number) => void;
 }
 
@@ -140,7 +148,19 @@ function FieldRow(q: FieldProps): ReactElement {
   return (
     <View style={p.field} testID={`row-${f.key}`} {...(trig as object)}>
       <Text numberOfLines={1} style={p.label}>{f.title}</Text>
-      <View style={p.valueCol}>{body}</View>
+      <View style={p.valueCol}>
+        {body}
+        {q.proposal ? (
+          <View style={p.proposed} testID={`proposed-${f.key}`} accessibilityLabel={`Proposed ${f.title}`}>
+            <Text style={p.proposedValue}>{q.proposal.text}</Text>
+            <View style={p.proposedActs}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Reject the proposed ${f.title}`} testID={`reject-${f.key}`} onPress={() => q.onReview(f, "reject")} style={p.proposedBtn}><Text style={p.proposedBtnText}>Reject</Text></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Accept the proposed ${f.title}`} testID={`accept-${f.key}`} onPress={() => q.onReview(f, "accept")} style={[p.proposedBtn, p.proposedYes]}><Text style={[p.proposedBtnText, p.proposedYesText]}>Accept</Text></Pressable>
+            </View>
+            <Text style={p.proposedNote}>{`Proposed by ${q.proposal.by} · ${ago(q.proposal.at, q.now)}. Waiting for your review.`}</Text>
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -207,7 +227,7 @@ function RelationMap({ nodes, edges, onOpen }: { nodes: readonly RelNode[]; edge
 
 // ---------------------------------------------------------------- the page
 
-function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement {
+function PageBody({ type, recordId, start = {}, order }: RecordPageProps): ReactElement {
   const data = usePageData();
   const rq = useLive("records.get", { type, recordId });
   const dq = useLive("schema.describe", { type });
@@ -224,6 +244,10 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const [tab, setTab] = useState<PaneKey>(start.tab ?? "activity");
   const [map, setMap] = useState(start.map === true);
   const busy = useRef(false);
+  const [view, setView] = useState<"overview" | "conversation">("overview");
+  const [starred, setStarred] = useState<boolean>(() => data.star?.get(type, recordId) ?? false);
+  const [ids, setIds] = useState<readonly string[]>(order ?? []);
+  const [proposals, setProposals] = useState<readonly Proposal[]>([]);
   // the right pane (its three reads and its rows) comes after the first paint on a screen; a server render or a test has no frames, so it is there at once
   const [late, setLate] = useState(typeof window === "undefined" || start.pane !== undefined || start.tab !== undefined);
   useEffect(() => {
@@ -232,6 +256,16 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
     const a = requestAnimationFrame(() => { b = requestAnimationFrame(() => setLate(true)); });
     return () => { cancelAnimationFrame(a); cancelAnimationFrame(b); };
   }, [late]);
+  // what comes after the first paint: the order of the view (Previous and Next) and the values waiting for review
+  useEffect(() => {
+    if (!late) return undefined;
+    let live = true;
+    if (!order) void (data.call("records.query", { type, limit: 500 }) as Promise<{ rows: { id: string }[] }>).then((o) => { if (live) setIds(o.rows.map((r) => r.id)); }).catch(() => undefined);
+    void (data.call("records.values.pending", { type }) as Promise<{ values: { recordId: string; field: string; value?: unknown; source: { actor: string; at: number } }[] }>)
+      .then((o) => { if (live) setProposals(o.values.filter((v) => v.recordId === recordId).map((v) => ({ field: v.field, text: typeof v.value === "string" ? v.value : JSON.stringify(v.value ?? ""), by: data.nameOf(v.source.actor), at: v.source.at }))); })
+      .catch(() => undefined);
+    return () => { live = false; };
+  }, [late, data, type, recordId, order]);
   const menu = useMenu();
   const def = dq.status === "ready" ? dq.data.types.find((t) => t.key === type) : undefined;
   const row = rq.status === "ready" ? (rq.data.record as RecordRow | undefined) : undefined;
@@ -244,9 +278,19 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const nodes = mq.status === "ready" ? mq.data.nodes : [];
   const title = String(row.fields[def.titleField] ?? "") || "Untitled";
   const sf = def.summaryField ? def.fields.find((x) => x.key === def.summaryField) : undefined;
+  const statusField = def.statusField ? def.fields.find((x) => x.key === def.statusField) : undefined;
+  const ownerField = def.ownerField ? def.fields.find((x) => x.key === def.ownerField) : undefined;
   const summary = sf ? valueText(sf, row.fields[sf.key], data.nameOf) : "";
   const paneOpen = pane ?? wide;
 
+  const at = ids.indexOf(recordId);
+  const step = (d: 1 | -1): void => { const next = at >= 0 ? ids[at + d] : undefined; if (next) data.nav.openRecord(type, next); };
+  const toggleStar = (): void => { const on = !starred; setStarred(on); data.star?.set(type, recordId, on); };
+  const review = (f: FieldDef, decision: "accept" | "reject"): void => {
+    data.call("records.values.review", { type, recordId, field: f.key, decision })
+      .then(() => { setProposals((cur) => cur.filter((x) => x.field !== f.key)); setFlash({ text: decision === "accept" ? `Accepted the proposed ${f.title.toLowerCase()}.` : `Kept the current ${f.title.toLowerCase()}.` }); })
+      .catch((e: unknown) => setFlash({ text: errorText(e, "Could not review that"), bad: true }));
+  };
   const commit = (f: FieldDef, text: string): void => {
     if (busy.current) return;
     busy.current = true;
@@ -273,13 +317,13 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   };
   const fold = (s: Section): void => { void savePrefs(data, type, { folded: toggleFold(each(sections.filter((x) => x.folded), (x) => x.key), s.key) }); };
 
-  const fieldProps = { row, type, editing, nodes, show: menu.show, onEdit: (f: FieldDef) => setEditing({ key: f.key, text: inputText(f, row.fields[f.key]) }), onText: (t: string) => setEditing((e) => (e ? { ...e, text: t, ...(e.error ? { error: "" } : {}) } : e)), onCommit: commit, onCancel: () => setEditing(null), onValue: setValue, onSource: showSource };
+  const fieldProps = { now: data.now(), onReview: review, row, type, editing, nodes, show: menu.show, onEdit: (f: FieldDef) => setEditing({ key: f.key, text: inputText(f, row.fields[f.key]) }), onText: (t: string) => setEditing((e) => (e ? { ...e, text: t, ...(e.error ? { error: "" } : {}) } : e)), onCommit: commit, onCancel: () => setEditing(null), onValue: setValue, onSource: showSource };
 
   const body: ReactElement[] = [];
   for (const s of sections) {
     const sh = shownFields(s, row, prefs.keepVisible, all);
     const fields: ReactElement[] = [];
-    for (const f of sh.fields) fields.push(<View key={f.key} style={wide ? p.half : p.full}><FieldRow field={f} {...fieldProps} /></View>);
+    for (const f of sh.fields) fields.push(<View key={f.key} style={wide ? p.half : p.full}><FieldRow field={f} proposal={proposals.find((x) => x.field === f.key)} {...fieldProps} /></View>);
     body.push(
       <View key={s.key} testID={`section-${s.key}`}>
         <Pressable accessibilityRole="button" accessibilityState={{ expanded: !s.folded }} aria-expanded={!s.folded} accessibilityLabel={s.title} testID={`fold-${s.key}`} onPress={() => fold(s)} style={({ hovered }: { hovered?: boolean }) => [p.sh, hovered === true && p.cardOver]}>
@@ -301,6 +345,13 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
         <Text style={p.crumb} numberOfLines={1}>{def.plural}</Text>
         <Text style={p.slash}>/</Text>
         <Text accessibilityRole="header" aria-level={1} style={p.h1} numberOfLines={1} testID="record-title-crumb">{title}</Text>
+        {ids.length > 1 ? (
+          <>
+            <Pressable accessibilityRole="button" accessibilityLabel="Previous record" testID="prev" disabled={at <= 0} onPress={() => step(-1)} style={({ hovered }: { hovered?: boolean }) => [p.hb, at <= 0 && p.off, hovered === true && p.cardOver]}><View style={p.flip}><Glyph name="chevd" size={12} color="var(--ink-2)" /></View></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Next record" testID="next" disabled={at < 0 || at >= ids.length - 1} onPress={() => step(1)} style={({ hovered }: { hovered?: boolean }) => [p.hb, (at < 0 || at >= ids.length - 1) && p.off, hovered === true && p.cardOver]}><View style={p.flipR}><Glyph name="chevd" size={12} color="var(--ink-2)" /></View></Pressable>
+          </>
+        ) : null}
+        {data.star ? <Pressable accessibilityRole="button" accessibilityState={{ selected: starred }} aria-pressed={starred} accessibilityLabel={starred ? "Unstar" : "Star"} testID="star" onPress={toggleStar} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver]}><Text style={[p.starGlyph, starred && p.starOn]}>{starred ? "\u2605" : "\u2606"}</Text></Pressable> : null}
         <View style={p.grow} />
         <Pressable accessibilityRole="button" accessibilityState={{ selected: map }} testID="toggle-map" onPress={() => setMap(!map)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, map && p.hbOn]}><Glyph name="map" size={14} color={map ? "var(--accent)" : "var(--ink-2)"} /><Text style={[p.hbText, map && p.lit]}>Relationships</Text></Pressable>
         <Pressable accessibilityRole="button" accessibilityState={{ selected: paneOpen }} testID="toggle-pane" onPress={() => setPane(!paneOpen)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, paneOpen && p.hbOn]}><Glyph name="expand" size={14} color={paneOpen ? "var(--accent)" : "var(--ink-2)"} /><Text style={[p.hbText, paneOpen && p.lit]}>Details</Text></Pressable>
@@ -314,12 +365,29 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
       ) : null}
       <View style={wide ? p.split : p.stack}>
         <ScrollView style={p.sheet} contentContainerStyle={p.sheetIn} testID="record-sheet">
+          <Text style={p.kind} testID="record-kind">{def.title}</Text>
+          <View style={p.heroRow}>
+            <Face name={title} size={44} />
+            <View style={p.heroText}>
           <Pressable accessibilityRole="button" accessibilityLabel="Edit title" testID="title" onPress={() => fieldProps.onEdit(def.fields.find((f) => f.key === def.titleField)!)}>
             {editing?.key === def.titleField
               ? <TextInput autoFocus value={editing.text} onChangeText={fieldProps.onText} accessibilityLabel="Title" testID={`edit-${def.titleField}`} onBlur={() => commit(def.fields.find((f) => f.key === def.titleField)!, editing.text)} onSubmitEditing={() => commit(def.fields.find((f) => f.key === def.titleField)!, editing.text)} onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setEditing(null); }} style={p.titleInput} />
               : <Text accessibilityRole="header" aria-level={2} style={p.title}>{title}</Text>}
           </Pressable>
+            </View>
+          </View>
+          <View style={p.chips} testID="record-chips">
+            {statusField && row.fields[statusField.key] ? <Tag field={statusField} value={String(row.fields[statusField.key])} /> : null}
+            {ownerField && row.fields[ownerField.key] ? <View style={p.person}><Face name={data.nameOf(String(row.fields[ownerField.key]))} size={18} /><Text style={p.value}>{data.nameOf(String(row.fields[ownerField.key]))}</Text></View> : null}
+            <Text style={p.updated} testID="record-updated">{`Updated ${ago(row.updatedAt, data.now())}`}</Text>
+          </View>
           {summary ? <Text style={p.summary} testID="summary">{summary}</Text> : null}
+          <View style={p.tabs} accessibilityRole="tablist">
+            <Pressable accessibilityRole="tab" aria-selected={view === "overview"} accessibilityState={{ selected: view === "overview" }} testID="tab-overview" onPress={() => setView("overview")} style={[p.tab, view === "overview" && p.tabOn]}><Text style={[p.tabText, view === "overview" && p.tabTextOn]}>Overview</Text></Pressable>
+            <Pressable accessibilityRole="tab" aria-selected={view === "conversation"} accessibilityState={{ selected: view === "conversation" }} testID="tab-conversation" onPress={() => { setView("conversation"); setPane(true); setTab("chat"); }} style={[p.tab, view === "conversation" && p.tabOn]}><Text style={[p.tabText, view === "conversation" && p.tabTextOn]}>Conversation</Text></Pressable>
+            <View style={p.grow} />
+            <Pressable accessibilityRole="button" testID="open-chat-link" onPress={() => data.nav.openChat(type, row.id)}><Text style={p.ringLink}>Open in Chats</Text></Pressable>
+          </View>
           {ring ? (
             <View style={p.ringRow} testID="completeness">
               {Platform.OS === "web" ? createElement("svg", { viewBox: "0 0 24 24", width: 24, height: 24, role: "img", "aria-label": `Completeness ${ring.label}`, "data-testid": "ring" },
@@ -330,7 +398,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
             </View>
           ) : null}
           {map ? <View style={p.mapBox} testID="relation-map-box">{nodes.length > 1 ? <RelationMap nodes={nodes} edges={mapEdges} onOpen={(n) => data.nav.openRecord(n.type, n.recordId)} /> : <Text style={p.paneEmpty}>Nothing is linked to this record yet.</Text>}</View> : null}
-          {body}
+          {view === "overview" ? body : <Text style={p.paneEmpty} testID="conversation-hint">The conversation about this record is in the pane, and in its chat.</Text>}
           {all ? <Pressable accessibilityRole="button" testID="hide-empty" onPress={() => setAll(false)}><Text style={p.more}>Hide empty fields</Text></Pressable> : null}
         </ScrollView>
         {paneOpen && late ? <Pane type={type} row={row} def={def} tab={tab} onTab={setTab} /> : null}
@@ -353,6 +421,29 @@ const p = StyleSheet.create({
   slash: { fontSize: 14, color: "var(--ink-4)" as string },
   h1: { margin: 0, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, flexShrink: 1 },
   grow: { flex: 1 },
+  off: { opacity: 0.35 },
+  flip: { transform: [{ rotate: "90deg" }] },
+  flipR: { transform: [{ rotate: "-90deg" }] },
+  starGlyph: { fontSize: 16, color: "var(--ink-3)" as string },
+  starOn: { color: "var(--warn)" as string },
+  kind: { fontSize: 12.5, color: "var(--ink-3)" as string, marginBottom: 6 },
+  heroRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  heroText: { flex: 1, minWidth: 0 },
+  chips: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 12, marginTop: 8 },
+  updated: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  tabs: { flexDirection: "row", alignItems: "center", gap: 18, marginTop: 14, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  tab: { paddingVertical: 8, borderBottomWidth: 2, borderBottomColor: "transparent" },
+  tabOn: { borderBottomColor: "var(--ink)" as string },
+  tabText: { fontSize: 13, color: "var(--ink-3)" as string },
+  tabTextOn: { color: "var(--ink)" as string, fontWeight: "500" },
+  proposed: { marginTop: 6, padding: 10, gap: 6, borderRadius: 10, backgroundColor: "var(--warn-wash, var(--sunk))" as string },
+  proposedValue: { fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
+  proposedActs: { flexDirection: "row", gap: 6 },
+  proposedBtn: { height: 26, paddingHorizontal: 10, borderRadius: 6, justifyContent: "center", backgroundColor: "var(--sunk)" as string },
+  proposedYes: { backgroundColor: "var(--accent)" as string },
+  proposedBtnText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
+  proposedYesText: { color: "var(--accent-ink)" as string },
+  proposedNote: { fontSize: 12, color: "var(--ink-3)" as string },
   hb: { height: 28, paddingHorizontal: 8, borderRadius: 7, flexDirection: "row", alignItems: "center", gap: 6 },
   hbOn: { backgroundColor: "var(--accent-wash)" as string },
   hbText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
