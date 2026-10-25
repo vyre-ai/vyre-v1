@@ -112,6 +112,10 @@ test("screen: an agent's draft shows who drafted it, the inbox it sends from, th
 test("screen: the composer opens on the channel of the last message and the inbox the thread came in on", () => {
   const e = tab("elena").out;
   for (const id of ["chan-email", "chan-sms", "composer-recipients", "contact-subject", "from-pick"]) assert.ok(has(e, `data-testid="${id}"`), id);
+  const emailTab = e.slice(e.lastIndexOf("<", e.indexOf('data-testid="chan-email"')), e.indexOf(">", e.indexOf('data-testid="chan-email"')));
+  assert.ok(has(emailTab, 'aria-selected="true"'), "the selected channel tab exposes aria-selected");
+  const smsTab = e.slice(e.lastIndexOf("<", e.indexOf('data-testid="chan-sms"')), e.indexOf(">", e.indexOf('data-testid="chan-sms"')));
+  assert.ok(has(smsTab, 'aria-selected="false"'), "the other tab says it is not selected");
   assert.ok(has(e, "Re: Lease documents for Thursday") && has(e, "Sends from Work Gmail to elena@example.test"));
   const fromE = at(e, 'data-testid="from-name"');
   assert.ok(e.slice(fromE, fromE + 80).includes("Work Gmail"), "From names the inbox it came in on");

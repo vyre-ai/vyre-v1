@@ -223,7 +223,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
                 const can = options?.channels.includes(c) ?? false;
                 return (
                   <Pressable
-                    key={c} accessibilityRole="tab" accessibilityLabel={c === "email" ? "Email" : "Text"} accessibilityState={{ selected: chan === c, disabled: !can }} testID={`chan-${c}`} disabled={!can}
+                    key={c} accessibilityRole="tab" accessibilityLabel={c === "email" ? "Email" : "Text"} accessibilityState={{ selected: chan === c, disabled: !can }} aria-selected={chan === c} testID={`chan-${c}`} disabled={!can}
                     onPress={() => patch({ chan: c })} style={({ hovered }: { hovered?: boolean }) => [s.segBtn, chan === c && s.segOn, hovered === true && chan !== c && s.hicOver, !can && s.dim]}
                   >
                     <Icon name={c === "email" ? "mail" : "sms"} size={13} color={chan === c ? "var(--ink)" : "var(--ink-3)"} />
