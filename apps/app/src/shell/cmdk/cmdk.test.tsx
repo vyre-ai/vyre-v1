@@ -1,15 +1,16 @@
+// Path mapping: the packet lists apps/app/tests/cmdk*.test.tsx, which lanes-check puts outside L9a; the test lives beside the code in apps/app/src/shell/cmdk/.
 // P-L9_15: Cmd-K. Local-first merge ordering, prefix routing, type filters, skin preview, the keyboard map, the rendered sheet and the search budgets.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { CmdKBody } from "../src/shell/cmdk/CmdK.tsx";
-import { CmdKController } from "../src/shell/cmdk/controller.ts";
+import { CmdKBody } from "./CmdK.tsx";
+import { CmdKController } from "./controller.ts";
 import {
   FILTERS, effectiveTypes, filterCounts, groupRows, mergeHits, parseQuery, stepActive,
-} from "../src/shell/cmdk/model.ts";
-import type { Hit } from "../src/shell/cmdk/model.ts";
-import { ACTIONS, LOCAL_HITS, SERVER_HITS, createSampleData } from "../src/shell/cmdk/sample.ts";
-import { KEYBOARD_MAP, formatCombo, keyboardRows, matchShortcut } from "../src/shell/keyboard/map.ts";
+} from "./model.ts";
+import type { Hit } from "./model.ts";
+import { ACTIONS, LOCAL_HITS, SERVER_HITS, createSampleData } from "./sample.ts";
+import { KEYBOARD_MAP, formatCombo, keyboardRows, matchShortcut } from "../keyboard/map.ts";
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const titles = (c: CmdKController): string[] => c.getState().rows.flatMap((r) => (r.type === "hit" ? [r.hit.title] : r.type === "action" ? [r.action.title] : r.type === "skin" ? [r.name] : []));
