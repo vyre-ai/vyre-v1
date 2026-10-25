@@ -152,6 +152,8 @@ test("screen: Intake's graph draws its notes without the personal one, each in i
   assert.ok(!has(out, 'data-testid="gnode-letter"'), "another agent's notes stay out of this agent's graph");
   assert.ok(has(out, 'data-kind="client"') && has(out, 'role="listbox"') && has(out, 'aria-label="Notes in the graph"'), "the notes are also a listbox, because a WebGL canvas cannot be read aloud");
   assert.ok(has(out, `data-testid="legend-client"`) && has(out, `background:${kindColor("client")}`), "one colour per kind, in the legend");
+  assert.ok(has(out, 'data-testid="graph-legend"') && has(out, 'role="group"') && has(out, 'aria-label="Clients, '), "the legend is a card of toggle rows, each with its count");
+  assert.equal(count(out, 'data-testid="legend-'), KINDS.length, "one legend row per kind");
   assert.ok(has(out, ">12 notes, 13 links, 2 clusters<") && has(out, 'data-testid="cluster-Firm"') && has(out, ">Firm 8<"));
   assert.ok(has(out, ">Graph<") && has(out, ">Intake<") && has(out, 'data-testid="scope-agent"') && has(out, ">Whole Space<"));
   for (const id of ["graph-find", "graph-layers", "graph-kinds", "graph-export", "graph-slider", "zoom-in", "zoom-out", "zoom-fit"]) assert.ok(has(out, `data-testid="${id}"`), id);

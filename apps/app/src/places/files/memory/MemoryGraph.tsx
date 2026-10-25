@@ -46,6 +46,7 @@ function GraphBody({ agentId, scope: scope0 = "agent", selected = null, step: st
   const [moved, setMoved] = useState<Positions>({});
   const [command, setCommand] = useState<SurfaceProps["command"]>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [narrow, setNarrow] = useState(false);
   const now = data.now();
   const asOf = asOfOf(step, now);
   const agentArg = scope === "agent" && agent ? { agentId: agent } : {};
@@ -159,7 +160,7 @@ function GraphBody({ agentId, scope: scope0 = "agent", selected = null, step: st
         {asOf !== undefined ? <Pressable accessibilityRole="button" testID="graph-now" onPress={() => setStep(SLIDER_DAYS)}><Text style={m.link}>Back to now</Text></Pressable> : null}
       </View>
       {note ? <Text style={m.note} accessibilityRole="alert" testID="graph-note">{note}</Text> : null}
-      <View style={m.wrap} testID="graph-wrap">
+      <View style={m.wrap} testID="graph-wrap" onLayout={(e: { nativeEvent: { layout: { width: number } } }) => setNarrow(e.nativeEvent.layout.width < 760)}>
         {empty ? (
           <States kind="empty" title={g.nodes.length > 0 ? "Every note is filtered out." : "No notes to draw yet"} icon="files" {...(g.nodes.length > 0 ? { action: { label: "Show everything", onPress: () => { setLayers(ALL_LAYERS); setKinds(new Set()); setQ(""); } } } : {})} />
         ) : (
@@ -167,6 +168,7 @@ function GraphBody({ agentId, scope: scope0 = "agent", selected = null, step: st
             <GraphSurface
               nodes={s.nodes} edges={s.edges} pos={pos} deg={deg} sel={sel} lit={lit} fitKey={sig} command={command}
               onSelect={setSel} onOpen={open} onDrop={drop} onKey={onKey} onMenu={nodeMenu}
+              kinds={kinds} onKind={(k) => setKinds(kinds.size === 0 ? new Set(KINDS.filter((x) => x !== k)) : toggled(kinds, k))} narrow={narrow}
             />
             <View style={m.zoom} testID="graph-zoom">
               <Pressable accessibilityRole="button" accessibilityLabel="Zoom in" testID="zoom-in" onPress={() => send("in")} style={m.zBtn}><Icon name="plus" size={14} color="var(--ink-2)" /></Pressable>
@@ -218,7 +220,7 @@ const m = StyleSheet.create({
   wrap: { flex: 1, minHeight: 0, overflow: "hidden" },
   zoom: { position: "absolute", right: 14, bottom: 14, borderRadius: 9, backgroundColor: "var(--raised)" as string, overflow: "hidden", boxShadow: "var(--sh-1), inset 0 0 0 1px var(--line)" } as object,
   zBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  card: { position: "absolute", left: 14, bottom: 14, maxWidth: 280, padding: 12, gap: 4, borderRadius: 11, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-2), inset 0 0 0 1px var(--line)" } as object,
+  card: { position: "absolute", left: 14, top: 12, maxWidth: 280, padding: 12, gap: 4, borderRadius: 11, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-2), inset 0 0 0 1px var(--line)" } as object,
   cardHead: { flexDirection: "row", alignItems: "center", gap: 8 },
   dot: { width: 9, height: 9, borderRadius: 9 },
   cardTitle: { flexShrink: 1, fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },

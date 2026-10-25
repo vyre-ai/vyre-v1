@@ -6,7 +6,7 @@ import type { ReactElement } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import type Graph from "graphology";
 import type Sigma from "sigma";
-import { KIND_HUE, KIND_LABEL, hslHex, kindColor, neighborsOf, radiusOf } from "./model.ts";
+import { KINDS, KIND_HUE, KIND_LABEL, hslHex, kindColor, neighborsOf, radiusOf } from "./model.ts";
 import type { GEdge, GNode, Positions } from "./model.ts";
 
 export interface SurfaceProps {
@@ -26,6 +26,11 @@ export interface SurfaceProps {
   onDrop: (id: string, p: { x: number; y: number }) => void;
   onMenu: (id: string, x: number, y: number) => void;
   onKey: (e: { key: string; shiftKey?: boolean; preventDefault?: () => void }) => void;
+  /** The kinds the legend shows as on (none chosen means every kind), and a click on one of its rows. */
+  kinds?: ReadonlySet<string>;
+  onKind?: (k: GNode["kind"]) => void;
+  /** A window too narrow for the legend card: it is left out, as in the prototype. */
+  narrow?: boolean;
 }
 
 /** A colour from the skin as a value WebGL can use (#rrggbb or rgba), whatever form the token is written in. */
@@ -40,17 +45,23 @@ function resolve(el: Element, token: string, fallback: string): string {
   return ctx.fillStyle;
 }
 
-interface Live { sel: string | null; hover: string | null; lit: ReadonlySet<string>; near: ReadonlySet<string> | null; ink: string; faint: string; accent: string; edgeInk: string }
+interface Live { sel: string | null; hover: string | null; lit: ReadonlySet<string>; near: ReadonlySet<string> | null; hubs: ReadonlySet<string>; ink: string; ink3: string; line: string; faint: string; accent: string; edgeInk: string }
+
+/** How many of the most linked notes keep their name on screen when nothing is selected. */
+const HUBS = 12;
+/** A group needs this many notes to get a halo. */
+const HALO_MIN = 3;
 
 export function GraphSurface(p: SurfaceProps): ReactElement | null {
   const el = useRef<HTMLElement | null>(null);
   const sigma = useRef<Sigma | null>(null);
   const graph = useRef<Graph | null>(null);
-  const live = useRef<Live>({ sel: null, hover: null, lit: new Set(), near: null, ink: "#555555", faint: "#aaaaaa", accent: "#5b50e8", edgeInk: "#a1a1aa" });
+  const live = useRef<Live>({ sel: null, hover: null, lit: new Set(), near: null, hubs: new Set(), ink: "#555555", ink3: "#777777", line: "#cccccc", faint: "#aaaaaa", accent: "#5b50e8", edgeInk: "#a1a1aa" });
   const props = useRef(p);
   props.current = p;
   const [failed, setFailed] = useState<string | null>(null);
   const [ready, setReady] = useState(0);
+  const haloEl = useRef<HTMLCanvasElement | null>(null);
   const seen = useRef({ fit: "", command: 0 });
 
   // sigma and graphology are loaded when the surface is on screen
@@ -70,7 +81,7 @@ export function GraphSurface(p: SurfaceProps): ReactElement | null {
             const s = live.current;
             const dim = (s.near !== null && !s.near.has(id)) || (s.lit.size > 0 && !s.lit.has(id));
             const on = s.sel === id || s.hover === id;
-            return { ...d, color: dim ? fade(d.color, s.faint) : d.color, label: dim && !s.lit.has(id) ? "" : d.label, forceLabel: on || s.lit.has(id), highlighted: s.sel === id, zIndex: on ? 2 : dim ? 0 : 1 };
+            return { ...d, color: dim ? fade(d.color, s.faint) : d.color, label: dim && !s.lit.has(id) ? "" : d.label, forceLabel: on || s.lit.has(id) || (!dim && s.hubs.has(id)), highlighted: s.sel === id, zIndex: on ? 2 : dim ? 0 : 1 };
           },
           edgeReducer: (id, d) => {
             const s = live.current;
@@ -82,6 +93,14 @@ export function GraphSurface(p: SurfaceProps): ReactElement | null {
         });
         renderer = r;
         sigma.current = r;
+        // the cluster halos sit on a canvas under sigma's own, redrawn after every frame it draws
+        const halo = (globalThis as { document: Document }).document.createElement("canvas");
+        halo.setAttribute("data-testid", "graph-halos");
+        halo.setAttribute("aria-hidden", "true");
+        halo.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none";
+        node.insertBefore(halo, node.firstChild);
+        haloEl.current = halo;
+        r.on("afterRender", () => drawHalos(halo, r, g, live.current));
         let drag: { id: string; moved: boolean } | null = null;
         r.on("downNode", (e) => { drag = { id: e.node, moved: false }; g.setNodeAttribute(e.node, "highlighted", true); if (!r.getCustomBBox()) r.setCustomBBox(r.getBBox()); r.getCamera().disable(); });
         r.getMouseCaptor().on("mousemovebody", (e) => {
@@ -114,7 +133,7 @@ export function GraphSurface(p: SurfaceProps): ReactElement | null {
         setFailed(e instanceof Error ? e.message : "WebGL is not available");
       }
     }).catch((e: unknown) => setFailed(e instanceof Error ? e.message : "The graph could not load"));
-    return () => { dead = true; renderer?.kill(); sigma.current = null; graph.current = null; };
+    return () => { dead = true; renderer?.kill(); haloEl.current?.remove(); haloEl.current = null; sigma.current = null; graph.current = null; };
   }, []);
 
   // the nodes and the links: rebuilt when the picture changes
@@ -126,10 +145,13 @@ export function GraphSurface(p: SurfaceProps): ReactElement | null {
     for (const n of p.nodes) {
       const at = p.pos[n.nodeId];
       if (!at) continue;
-      g.addNode(n.nodeId, { x: at.x, y: at.y, size: radiusOf(p.deg.get(n.nodeId) ?? 0) * 0.62, label: n.title, color: kind(n.kind), kind: n.kind });
+      g.addNode(n.nodeId, { x: at.x, y: at.y, size: radiusOf(p.deg.get(n.nodeId) ?? 0) * 0.62, label: n.title, color: kind(n.kind), kind: n.kind, cluster: n.cluster ?? "" });
     }
     for (const e of p.edges) if (g.hasNode(e.from) && g.hasNode(e.to) && !g.hasEdge(e.from, e.to)) g.addEdge(e.from, e.to, { size: e.kind === "came_from" ? 0.8 : 1.3, kind: e.kind });
+    live.current.hubs = new Set([...p.nodes].sort((a, b) => (p.deg.get(b.nodeId) ?? 0) - (p.deg.get(a.nodeId) ?? 0) || a.title.localeCompare(b.title)).slice(0, HUBS).filter((n) => (p.deg.get(n.nodeId) ?? 0) > 0).map((n) => n.nodeId));
     live.current.ink = resolve(node, "--ink-2", "#555555");
+    live.current.ink3 = resolve(node, "--ink-3", "#777777");
+    live.current.line = resolve(node, "--line", "#cccccc");
     live.current.faint = resolve(node, "--win", "#ffffff");
     live.current.accent = resolve(node, "--accent", "#5b50e8");
     live.current.edgeInk = resolve(node, "--ink-4", "#a1a1aa");
@@ -180,19 +202,68 @@ export function GraphSurface(p: SurfaceProps): ReactElement | null {
       ref: (n: HTMLElement | null) => { el.current = n; }, tabIndex: 0, role: "application", "aria-label": "Memory graph. Tab walks the notes, Enter opens one, plus and minus zoom.", "data-testid": "graph-surface",
       onKeyDown: p.onKey, style: { position: "absolute", inset: 0, outline: "none" },
     }),
-    kindsLegend(),
+    p.narrow ? null : kindsLegend(p),
     createElement("div", { role: "listbox", "aria-label": "Notes in the graph", "data-testid": "graph-notes", style: { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" } }, ...options),
   );
 }
 
-/** The kind colours as a quiet legend in the corner. */
-function kindsLegend(): ReactElement {
-  const kids: ReactElement[] = [];
-  for (const k of ["person", "client", "project", "note", "decision", "record", "chat", "site"] as const) {
-    kids.push(createElement("span", { key: k, "data-testid": `legend-${k}`, style: { display: "inline-flex", alignItems: "center", gap: 5, marginRight: 10, fontSize: 11, color: "var(--ink-3)" } },
-      createElement("i", { style: { width: 8, height: 8, borderRadius: 8, background: kindColor(k), display: "inline-block" } }), KIND_LABEL[k]));
+/** The legend as a card in the lower left corner: one row per kind with its colour and how many notes of it are drawn. A row turns that kind off and on. */
+function kindsLegend(p: SurfaceProps): ReactElement {
+  const count = new Map<string, number>();
+  for (const n of p.nodes) count.set(n.kind, (count.get(n.kind) ?? 0) + 1);
+  const chosen = p.kinds ?? new Set<string>();
+  const rows: ReactElement[] = [];
+  for (const k of KINDS) {
+    const off = chosen.size > 0 && !chosen.has(k);
+    rows.push(createElement("button", {
+      key: k, type: "button", "data-testid": `legend-${k}`, "aria-pressed": !off, "aria-label": `${KIND_LABEL[k]}, ${count.get(k) ?? 0}`, onClick: () => p.onKind?.(k),
+      style: { display: "flex", alignItems: "center", gap: 8, height: 22, width: "100%", padding: "0 4px", border: 0, borderRadius: 6, background: "transparent", font: "inherit", fontSize: 12, color: "var(--ink-2)", textAlign: "left", cursor: "pointer", opacity: off ? 0.4 : 1 },
+    },
+    createElement("i", { style: { width: 9, height: 9, borderRadius: 9, flex: "none", background: kindColor(k), display: "inline-block" } }),
+    KIND_LABEL[k],
+    createElement("span", { style: { marginLeft: "auto", paddingLeft: 14, color: "var(--ink-4)", fontVariantNumeric: "tabular-nums" } }, String(count.get(k) ?? 0))));
   }
-  return createElement("div", { style: { position: "absolute", left: 12, top: 10, pointerEvents: "none", display: "flex", flexWrap: "wrap", maxWidth: "70%" } }, ...kids);
+  return createElement("div", { key: "legend", "data-testid": "graph-legend", role: "group", "aria-label": "Kinds", style: { position: "absolute", left: 16, bottom: 16, display: "flex", flexDirection: "column", gap: 1, padding: "8px 10px", borderRadius: 12, background: "color-mix(in srgb, var(--raised) 86%, transparent)", backdropFilter: "blur(10px)", boxShadow: "var(--sh-1), inset 0 0 0 1px var(--line)", minWidth: 150 } }, ...rows);
+}
+
+/** The halos: a soft disc behind each group of notes that share a cluster, with the cluster's name over it. The group's size and place come from where sigma has put its notes on screen. */
+function drawHalos(cv: HTMLCanvasElement, r: Sigma, g: Graph, live: Live): void {
+  const host = cv.parentElement;
+  if (!host) return;
+  const dpr = (globalThis as { devicePixelRatio?: number }).devicePixelRatio ?? 1;
+  const w = host.clientWidth, h = host.clientHeight;
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const c = cv.getContext("2d");
+  if (!c) return;
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.clearRect(0, 0, w, h);
+  const by = new Map<string, { x: number; y: number }[]>();
+  g.forEachNode((id, a) => {
+    const name = a.cluster as string;
+    if (!name) return;
+    const d = r.getNodeDisplayData(id);
+    if (!d) return;
+    const at = r.framedGraphToViewport({ x: d.x, y: d.y });
+    const list = by.get(name);
+    if (list) list.push(at); else by.set(name, [at]);
+  });
+  for (const [name, pts] of by) {
+    if (pts.length < HALO_MIN) continue;
+    let cx = 0, cy = 0;
+    for (const q of pts) { cx += q.x; cy += q.y; }
+    cx /= pts.length; cy /= pts.length;
+    let far = 0, sum = 0;
+    for (const q of pts) { const d = Math.hypot(q.x - cx, q.y - cy); far = Math.max(far, d); sum += d; }
+    const rad = Math.min(far, (sum / pts.length) * 1.35) + 40;
+    const grd = c.createRadialGradient(cx, cy, rad * 0.2, cx, cy, rad);
+    grd.addColorStop(0, "rgba(128,128,255,.075)");
+    grd.addColorStop(1, "rgba(128,128,255,.02)");
+    c.fillStyle = grd;
+    c.beginPath(); c.arc(cx, cy, rad, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = live.line; c.globalAlpha = 0.55; c.lineWidth = 1; c.setLineDash([2, 5]); c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
+    c.font = "600 11.5px system-ui, sans-serif"; c.fillStyle = live.ink3; c.textAlign = "center";
+    c.fillText(name, cx, cy - rad - 7);
+  }
 }
 
 /** A colour mixed toward the background by a third: how a node or link that is not in focus looks. */
