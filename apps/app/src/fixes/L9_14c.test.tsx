@@ -7,6 +7,8 @@ import { ChatsPlace, SIDEBAR_W, WIDE } from "../places/chats/ChatsPlace.tsx";
 import { createSample as createConversationSample } from "../places/chats/conversation/sample.ts";
 import { createSample as createPaneSample } from "../places/chats/rightpane/sample.ts";
 import { createSampleSidebar, northwind } from "../places/chats/sidebar/sample.ts";
+import { chatsPlace } from "../shell/spaces/sample-chats.tsx";
+import type { PlaceContext } from "../shell/spaces/Shell.tsx";
 
 const ALL = { start: 0, end: 500 };
 const place = (open = true): string =>
@@ -40,4 +42,12 @@ test("the open chat is Rivera intake with its composer, and the pane follows its
 test("there is no Comment or Notes control: those are the prototype's review tools", () => {
   const out = place();
   assert.ok(!has(out, ">Comment<") && !has(out, ">Notes<"));
+});
+
+test("the sample shell shows the Chats place on Chats and the sample rows everywhere else", () => {
+  const ctx = (place: string): PlaceContext => ({ spaceId: "nw", spaceName: "Northwind", kind: "team", place, hash: "", epoch: 0, kit: { id: "team", places: [], top: [], start: "chats" } } as unknown as PlaceContext);
+  const chats = renderToStaticMarkup(chatsPlace(ctx("chats")) as never).replaceAll("<!-- -->", "");
+  assert.ok(has(chats, 'data-testid="chats-place"') && has(chats, "Send 12 invoices"));
+  const files = renderToStaticMarkup(chatsPlace(ctx("files")) as never);
+  assert.ok(!has(files, 'data-testid="chats-place"'));
 });
