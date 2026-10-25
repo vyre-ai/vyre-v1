@@ -1,7 +1,10 @@
+// @reads /apps/app/app/+html.tsx
+// @reads /scripts/shots/app/app/+html.tsx
 // One root font (P-UI_08): the rule reaches the app root, a deep node through inheritance, an overlay menu and a canvas label host, on the skin's tokens.
 // The browser-computed families on real screens are the shots; this file proves the rule text and its install.
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { MONO_HOSTS, MONO_VAR, SANS_HOSTS, SANS_VAR, installRootFont, rootFontCss } from "../src/theme/fonts.ts";
 
 /** Which family a node gets: the first rule whose selector list names it (rules in the sheet order, last match wins, as CSS). */
@@ -54,4 +57,13 @@ test("installRootFont adds one style element and is idempotent", () => {
   assert.equal(els.length, 1);
   assert.equal(els[0]!.textContent, rootFontCss());
   assert.equal(installRootFont(undefined), false);
+});
+
+test("the app document and the shots document both put the root font rule in the head", () => {
+  for (const rel of ["../../apps/app/app/+html.tsx", "../../scripts/shots/app/app/+html.tsx"]) {
+    const src = fs.readFileSync(new URL(rel, import.meta.url), "utf8");
+    assert.match(src, /import \{ rootFontCss \} from "@vyre\/ui\/src\/theme\/fonts\.ts"/, `${rel} imports the rule`);
+    assert.match(src, /<style id="vyre-root-font" dangerouslySetInnerHTML=\{\{ __html: rootFontCss\(\) \}\} \/>/, `${rel} renders it`);
+    assert.ok(src.indexOf("vyre-root-font") < src.indexOf("{headNodes}"), `${rel}: before the bundle's own styles`);
+  }
 });
