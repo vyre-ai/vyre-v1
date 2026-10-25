@@ -263,7 +263,7 @@ function NoteHeaderBar({ h, mode }: { h: NoteHeader; mode: RichEditorMode }): Re
       ) : null}
       <View accessibilityRole="radiogroup" accessibilityLabel="View or edit" style={styles.seg}>{seg}</View>
       {iconButton("find", "Find in file", false)}
-      {iconButton("info", "Details", h.detailsOpen === true, h.onDetails)}
+      {iconButton("info", h.detailsOpen === true ? "Hide details" : "Details", h.detailsOpen === true, h.onDetails)}
       {iconButton("history", "Version history", false)}
       {h.ask !== undefined ? <AskButton {...h.ask} /> : null}
       {iconButton("more", "More", false)}

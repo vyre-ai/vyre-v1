@@ -325,7 +325,7 @@ test("the header carries the shared Ask control and a Details toggle that shows 
   const html = renderToStaticMarkup(<RichEditor {...base} mode="edit" markdown="x" header={{ name: "n.md", meta: "m", ask, detailsOpen: true }} />);
   assert.match(html, /data-testid="ask"/);
   assert.match(html, /Docs/);
-  assert.match(html, /aria-selected="true"/, "Details is pressed while its column is open");
+  assert.match(html, /aria-label="Hide details"/, "Details offers Hide while its column is open");
 });
 
 test("a collaborator's name flag floats above the line at the caret instead of sitting in the text", () => {
