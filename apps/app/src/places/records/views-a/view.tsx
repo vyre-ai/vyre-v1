@@ -1,7 +1,7 @@
 // What every view of part A shares: the context a view is given (type, saved views, the kind switch), the state of the view being edited, and the header with its quiet buttons. Filter, Fields and
 // the kind switch open the one ui/Menu with checkmarks and counts; nothing here is a row of chips.
 import { useState } from "react";
-import type { Dispatch, ReactElement, SetStateAction } from "react";
+import type { Dispatch, ReactElement, ReactNode, SetStateAction } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -76,9 +76,11 @@ export interface HeadProps {
   sort?: boolean;
   /** The fields the Fields menu can hide on a card or row; omitted for a view that shows none. */
   fields?: boolean;
+  /** Buttons a later kind adds before the kind switch (the calendar's date field, the chart's measure). */
+  extra?: ReactNode;
 }
 
-export function ViewHead({ ctx, st, lanes, sort = false, fields = true }: HeadProps): ReactElement {
+export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }: HeadProps): ReactElement {
   const data = useRecordsData();
   const { state, dispatch } = useRecordsState();
   const menu = useMenu();
@@ -167,6 +169,7 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true }: HeadPr
       {sort ? <HeadButton icon="sort" label="Sort" detail={sortKey ? def.fields.find((f) => f.key === sortKey.field)?.title : undefined} on={sortKey !== undefined} bare={slim} testID="records-sort" onPress={(x, y) => menu.show(sortEntries(), x, y)} /> : null}
       {lanes ? <HeadButton icon="group" label="Lanes" detail={laneField?.title} bare={slim} testID="records-lanes" onPress={(x, y) => menu.show(laneEntries(), x, y)} /> : null}
       {fields ? <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={slim} testID="records-fields" onPress={(x, y) => menu.show(fieldEntries(), x, y)} /> : null}
+      {extra}
       <Pressable
         accessibilityRole="button" accessibilityLabel={`View as, ${ctx.kinds.find((k) => k.kind === ctx.kind)?.label ?? ctx.kind}`} testID="records-kind"
         onPress={(e) => { const p = pointOf(e); menu.show(kindEntries(), p.x, p.y); }} style={({ hovered }: { hovered?: boolean }) => [s.kind, hovered === true && s.pickOver]}
