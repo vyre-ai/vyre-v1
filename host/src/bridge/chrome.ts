@@ -163,6 +163,7 @@ export function createChromeBridge(deps: ChromeBridgeDeps) {
       if (url === "/chrome-bridge/v1/events") {
         if (req.method !== "GET") { res.writeHead(405); res.end(); return true; }
         res.writeHead(200, { "content-type": "application/x-ndjson", "cache-control": "no-store" });
+        res.flushHeaders();   // headers go out now: a client waits for the status before the first push, and an idle stream sends nothing else
         const write = (text: string): void => { res.write(text); };
         const end = (): void => { try { res.end(); } catch { /* already closed */ } };
         streams.add(write);
