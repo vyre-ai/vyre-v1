@@ -34,6 +34,8 @@ export default function Mount(): ReactNode {
     <View style={{ flex: 1, minHeight: 0 }}>
       <EmailBuilder id="em-q4" title="Q4 check-in" subject="It has been a while, {{first_name|there}}" previewText="A short note from Maya at Northwind, and one way to pick things back up."
         mode={mode} focus={q.get("focus") === "1"} paneTab={tab} preview={preview} blocks={BLOCKS} diffs={DIFFS} version={3} mergeValues={{ first_name: "Elena", company: "Rivera Holdings" }}
+        fromName="Maya Chen · Northwind" testTo="Irfad Imtiaz" previewAs="Elena Rivera" brand={{ name: "Northwind", color: "#5B5BD6", font: "Inter" }}
+        askThread={[{ from: "you", text: "Make it warmer and shorter, then add a P.S." }, { from: "assistant", text: "I softened the opening and made the second paragraph more reassuring. Your merge fields are untouched. I added a short P.S. above the footer." }]}
         ask={{ place: "email", context: { kind: "email", id: "em-q4", title: "Q4 check-in", access: "edit" }, agents: AGENTS, onAsk: () => undefined }} />
     </View>
   );

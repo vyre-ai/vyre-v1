@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   EmailBuilder, EMAIL_BLOCK_KINDS, EMAIL_MODES, EMAIL_PREVIEWS, PANE_TABS, PREVIEW_TEXT_LIMIT, SUBJECT_LIMIT,
-  blocksToPlain, canRedo, canUndo, compileEmail, editBlock, fillMerge, focusKey, mergeFieldsOf, mergeToken, moveBlock, newBlock, pushHistory, runChecks, stepHistory,
+  blocksToPlain, splitTokens, canRedo, canUndo, compileEmail, editBlock, fillMerge, focusKey, mergeFieldsOf, mergeToken, moveBlock, newBlock, pushHistory, runChecks, stepHistory,
 } from "./index.tsx";
 import type { EmailBlock, EmailBuilderViewProps, EmailDiff, EmailHistory, EmailSnapshot } from "./index.tsx";
 
@@ -145,4 +145,20 @@ test("preview frames: desktop, mobile and dark are the three tabs; the pane tabs
   for (const p of EMAIL_PREVIEWS) assert.ok(html.includes(`data-testid="em-pv-${p}"`), p);
   const checks = renderToStaticMarkup(<EmailBuilder {...base} paneTab="checks" />);
   for (const id of ["subject", "preview", "plain", "unsub"]) assert.ok(checks.includes(`data-testid="em-check-${id}"`), id);
+});
+
+test("merge tokens draw as chips and keep the token in data-token", () => {
+  assert.deepEqual(splitTokens("Hi {{first_name|there}}, ok").map((r) => r.text), ["Hi ", "first name", ", ok"]);
+  const html = renderToStaticMarkup(<EmailBuilder {...base} blocks={[{ id: "t", kind: "text", text: "Hi {{first_name|there}}" }]} />);
+  assert.match(html, /data-token="\{\{first_name\|there\}\}"/);
+});
+
+test("Style pane shows the brand with Use brand; Preview pane shows the inbox row and Send test; Ask pane shows the conversation and composer", () => {
+  const style = renderToStaticMarkup(<EmailBuilder {...base} brand={{ name: "Northwind", color: "#5B5BD6", font: "Inter" }} />);
+  assert.ok(style.includes('data-testid="em-brand"') && style.includes('data-testid="em-use-brand"') && style.includes("#5B5BD6"));
+  assert.ok(!renderToStaticMarkup(<EmailBuilder {...base} />).includes('data-testid="em-brand"'), "no brand, no section");
+  const pv = renderToStaticMarkup(<EmailBuilder {...base} paneTab="preview" fromName="Maya Chen" testTo="Irfad" previewAs="Elena Rivera" />);
+  assert.ok(pv.includes('data-testid="em-inbox"') && pv.includes('data-testid="em-preview-send"') && pv.includes("Maya Chen") && pv.includes("For Elena Rivera"));
+  const ask = renderToStaticMarkup(<EmailBuilder {...base} paneTab="ask" askThread={[{ from: "you", text: "Warmer please" }, { from: "assistant", text: "Done" }]} />);
+  assert.ok(ask.includes('data-testid="em-composer"') && ask.includes('data-testid="em-msg-0"') && ask.includes("Warmer please") && ask.includes("Done"));
 });

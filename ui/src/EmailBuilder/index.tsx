@@ -8,6 +8,7 @@ import { createElement, useCallback, useEffect, useMemo, useRef, useState } from
 import type { ReactElement } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { AskButton } from "../AskButton/index.tsx";
+import { Composer } from "../Composer/index.tsx";
 import type { AskButtonProps } from "../AskButton/index.tsx";
 import { MenuIcon } from "../Menu/index.tsx";
 import { Row } from "../Row/index.tsx";
@@ -175,6 +176,23 @@ const BLOCK_ICON: Readonly<Record<EmailBlockKind, string>> = { text: ICON.text, 
 
 /* ---------- the view ---------- */
 
+export interface AskMessage { from: "you" | "assistant"; text: string }
+export interface EmailBrand { name: string; color: string; font: string }
+
+/** Splits text into plain runs and merge tokens, so tokens draw as chips. */
+export function splitTokens(text: string): readonly { token?: string; field?: string; text: string }[] {
+  const out: { token?: string; field?: string; text: string }[] = [];
+  let at = 0;
+  for (const m of text.matchAll(/\{\{\s*([\w.]+)\s*(?:\|([^}]*))?\}\}/g)) {
+    const i = m.index ?? 0;
+    if (i > at) out.push({ text: text.slice(at, i) });
+    out.push({ token: m[0], field: m[1] ?? "", text: (m[1] ?? "").replaceAll("_", " ") });
+    at = i + m[0].length;
+  }
+  if (at < text.length) out.push({ text: text.slice(at) });
+  return out;
+}
+
 export interface EmailBuilderViewProps extends EmailBuilderProps {
   /** The shared Ask control's props; the header shows it when given. */
   ask?: AskButtonProps;
@@ -188,6 +206,19 @@ export interface EmailBuilderViewProps extends EmailBuilderProps {
   paneTab?: PaneTab;
   /** Source of ids for new blocks. */
   makeId?: () => string;
+  /** The Ask pane's conversation so far, oldest first. */
+  askThread?: readonly AskMessage[];
+  /** Called when the person sends a message from the Ask pane composer. */
+  onAsk?: (text: string) => void;
+  /** Sender shown in the inbox row of the Preview pane. */
+  fromName?: string;
+  /** Who a test send goes to. */
+  testTo?: string;
+  /** Name of the record the merge fields are filled from ("Elena Rivera"). */
+  previewAs?: string;
+  /** The firm's brand, shown in the Style pane. */
+  brand?: EmailBrand;
+  onUseBrand?: () => void;
 }
 
 function webProps(props: Record<string, unknown>): Record<string, unknown> {
@@ -241,6 +272,8 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   const initial: EmailSnapshot = { subject: props.subject, previewText: props.previewText ?? "", blocks: props.blocks ?? [], html: props.html ?? "", plain: props.plain ?? "" };
   const [hist, setHist] = useState<EmailHistory>({ entries: [initial], at: 0 });
   const [sent, setSent] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [thread, setThread] = useState<readonly AskMessage[]>(props.askThread ?? []);
 
   useEffect(() => setMode(props.mode), [props.mode]);
   useEffect(() => setFocus(props.focus === true), [props.focus]);
@@ -350,9 +383,15 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
     return (
       <Pressable key={b.id} testID={`em-block-${b.id}`} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`${blockLabel(b.kind)} block`} onPress={() => setSelected(b.id)}
         style={({ hovered }: { hovered?: boolean }) => [s.blk, (on || hovered === true) && s.blkOver, on && s.blkOn]}>
-        {b.kind === "text" || b.kind === "button" ? (
-          <TextInput multiline={b.kind === "text"} accessibilityLabel={`${blockLabel(b.kind)} text`} value={b.text ?? ""} placeholder="Type here" placeholderTextColor="#a1a1a6"
-            style={[b.kind === "button" ? s.btnBlock : s.textBlock]} onFocus={() => setSelected(b.id)}
+        {b.kind === "text" && editing !== b.id ? (
+          <Text style={s.textBlock} testID={`em-text-${b.id}`} onPress={() => { setSelected(b.id); setEditing(b.id); }}>
+            {splitTokens(b.text ?? "").map((r, i) => r.token === undefined ? r.text
+              : <Text key={i} style={s.mergeTok} {...webProps({ "data-token": r.token })}>{r.text}</Text>)}
+          </Text>
+        ) : null}
+        {(b.kind === "text" && editing === b.id) || b.kind === "button" ? (
+          <TextInput multiline={b.kind === "text"} autoFocus={b.kind === "text"} accessibilityLabel={`${blockLabel(b.kind)} text`} value={b.text ?? ""} placeholder="Type here" placeholderTextColor="#a1a1a6"
+            style={[b.kind === "button" ? s.btnBlock : s.textBlock]} onFocus={() => setSelected(b.id)} onBlur={() => setEditing((e) => (e === b.id ? null : e))}
             onChangeText={(t) => changeBlocks(editBlock(blocks, b.id, { text: t }), "Edited text")} />
         ) : null}
         {b.kind === "image" ? <View style={s.imgBlock}><Text style={s.imgText}>{b.text ?? "Image"}</Text></View> : null}
@@ -412,6 +451,14 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
       <ScrollView style={s.paneBody} contentContainerStyle={s.paneContent}>
         {tab === "style" ? (
           <View testID="em-style">
+            {props.brand !== undefined ? (
+              <View testID="em-brand">
+                <Text style={s.sec}>Brand</Text>
+                <Row id="brand" title={props.brand.name} note={`${props.brand.color} · ${props.brand.font}`}
+                  leading={<View style={[s.brandDot, { backgroundColor: props.brand.color }]}><Text style={s.brandLetter}>{props.brand.name.slice(0, 1)}</Text></View>}
+                  trailing={<Btn label="Use brand" strong onPress={() => props.onUseBrand?.()} testID="em-use-brand" />} />
+              </View>
+            ) : null}
             <Text style={s.sec}>Merge fields</Text>
             {mergeFieldsOf(`${subject} ${compiled}`).length === 0 ? <Text style={s.note}>No merge fields yet. The Merge field block adds one.</Text>
               : mergeFieldsOf(`${subject} ${compiled}`).map((f) => <View key={f} testID={`em-field-${f}`}><Row id={f} title={f} /></View>)}
@@ -421,6 +468,12 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
         ) : null}
         {tab === "ask" ? (
           <View testID="em-ask">
+            <View style={s.askHead}>{props.ask !== undefined ? <AskButton {...props.ask} compact /> : null}<Text style={s.stat} numberOfLines={1}>{props.title}</Text></View>
+            {thread.map((m, i) => (
+              <View key={i} style={m.from === "you" ? s.msgYou : s.msgBot} testID={`em-msg-${i}`}>
+                <Text style={s.msgText}>{m.text}</Text>
+              </View>
+            ))}
             <Text style={s.sec}>Suggested changes</Text>
             {diffs.length === 0 ? <Text style={s.note}>Nothing suggested yet. Ask an agent to rewrite the subject or tighten the body; each change comes back here to accept one at a time.</Text> : null}
             {diffs.map((d) => (
@@ -429,6 +482,10 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
                   trailing={accepted.has(d.id) ? <Text style={s.done}>Accepted</Text> : <Btn label="Accept" strong onPress={() => accept(d)} testID={`em-accept-${d.id}`} />} />
               </View>
             ))}
+            <View style={s.composer} testID="em-composer">
+              <Composer whoWillAnswer={props.ask?.agents.find((a) => a.assistant === true)?.name ?? "Assistant"} placeholder="What should change?" symbols={["at", "hash", "slash"]}
+                onSend={(text) => { setThread((th) => [...th, { from: "you", text }]); props.onAsk?.(text); }} />
+            </View>
           </View>
         ) : null}
         {tab === "preview" ? (
@@ -440,7 +497,23 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
                 </Pressable>
               ))}
             </View>
+            <Text style={s.sec}>In the inbox</Text>
+            <View style={s.inbox} testID="em-inbox">
+              <View style={s.brandDot}><Text style={s.brandLetter}>{(props.fromName ?? "N").slice(0, 1)}</Text></View>
+              <View style={s.grow}>
+                <Text style={s.inboxFrom} numberOfLines={1}>{props.fromName ?? "Sender"}</Text>
+                <Text style={s.inboxSub} numberOfLines={1}>{fillMerge(subject, props.mergeValues)}</Text>
+                <Text style={s.note} numberOfLines={1}>{previewText === "" ? "No preview text" : previewText}</Text>
+              </View>
+            </View>
+            <Text style={s.note}>{`${props.previewAs !== undefined ? `For ${props.previewAs}. ` : ""}Phones cut the subject at about 40 characters.`}</Text>
             <View style={s.frame}><Frame html={preHtml} width={Math.min(PREVIEW_WIDTH[preview], 340)} /></View>
+            <Text style={s.sec}>Send a test</Text>
+            <Row id="to" title={props.testTo ?? "You"} note="To" />
+            <View style={s.testRow}>
+              <Btn label="Send test" strong onPress={() => { setSent(true); onTestSend?.(); }} testID="em-preview-send" />
+              <Text style={s.note}>Merge fields are filled in for the record.</Text>
+            </View>
           </View>
         ) : null}
         {tab === "checks" ? (
@@ -550,6 +623,17 @@ const s = StyleSheet.create({
   dotOk: { backgroundColor: "var(--ok)" as string },
   dotWarn: { backgroundColor: "var(--warn)" as string },
   dotBad: { backgroundColor: "var(--danger)" as string },
+  brandDot: { width: 28, height: 28, borderRadius: 7, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center", marginRight: 10 },
+  brandLetter: { color: "#FFFFFF", fontSize: 12.5, fontWeight: "700" },
+  askHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
+  msgYou: { alignSelf: "flex-end", maxWidth: "88%", backgroundColor: "var(--sunk)" as string, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 },
+  msgBot: { alignSelf: "flex-start", maxWidth: "94%", paddingVertical: 4, marginBottom: 8 },
+  msgText: { color: "var(--ink)" as string, fontSize: 13, lineHeight: 19 },
+  composer: { marginTop: 14 },
+  inbox: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 10, padding: 10, marginBottom: 8 },
+  inboxFrom: { color: "var(--ink)" as string, fontSize: 13, fontWeight: "600" },
+  inboxSub: { color: "var(--ink)" as string, fontSize: 13 },
+  testRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 },
   hint: { position: "absolute", top: 12, right: 16, color: "var(--ink-3)" as string, fontSize: 12, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 8, backgroundColor: "var(--raised)" as string },
   toast: { position: "absolute", bottom: 16, alignSelf: "center", color: "var(--ink)" as string, fontSize: 12.5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: "var(--raised)" as string },
 });
