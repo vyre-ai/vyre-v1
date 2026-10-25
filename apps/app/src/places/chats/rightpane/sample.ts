@@ -174,11 +174,11 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
       .map((x) => strip(x, ["fromMe"]));
     return { facts: list, total: list.length };
   });
-  replica.resolve("memory.map.get", () => ({ map: { body: MAP_MD, lines: MAP_MD.split("\n").filter((l) => l.startsWith("- `")).length, updatedAt: at(10, 24, 9, 31) } }));
-  replica.resolve("memory.counts", () => {
+  const countsOut = () => {
     const all = rowsOf<Fact & { fromMe?: boolean }>("facts");
     return { current: all.filter((x) => x.status === "current").length, proposed: all.filter((x) => x.status === "proposed").length, fromMe: all.filter((x) => x.status === "current" && x.fromMe === true).length, autoMerged: 2 };
-  });
+  };
+  replica.resolve("memory.counts", countsOut);
   replica.resolve("agents.routines.list", () => ({ routines: rowsOf<Routine & Row>("routines").map((x) => strip(x, [])) }));
   replica.resolve("files.list", (_t, input) => {
     const folder = input.folder ?? FOLDER;
@@ -205,7 +205,12 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
   let seq = 0;
   const MAP_MD = ["# Intake memory map", "", "- `elena-rivera` client referred by Maya, call Thursday", "- `consult-rules` length, host and fee", "- `maya-calendar` when Maya is free and what she blocks",
     "- `intake-form-site` how the web intake form reaches us", "- `weekly-lead-report` what the Friday report holds"].join("\n");
+  const mapOut = () => ({ map: { body: MAP_MD, lines: MAP_MD.split("\n").filter((l) => l.startsWith("- `")).length, updatedAt: at(10, 24, 9, 31) } });
+  replica.resolve("memory.map.get", mapOut);
   const writes: Record<string, (input: any) => unknown> = {
+    // reads the pane makes with a plain call (not a live query)
+    "memory.map.get": () => mapOut(),
+    "memory.counts": () => countsOut(),
     "computers.wake": () => ({ computer: patchComputer({ state: "working", caption: "Waking up" }) }),
     "computers.sleep": () => ({ computer: patchComputer({ state: "asleep" }) }),
     "computers.take_over": () => ({ computer: patchComputer({ state: "takeover", takeoverBy: "usr_irfad" }) }),

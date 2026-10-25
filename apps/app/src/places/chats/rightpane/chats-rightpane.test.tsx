@@ -106,7 +106,7 @@ test("Computer, in a Personal Space, says Needs a Team Space; an agent without a
 test("Threads: the threads it worked in, its helpers (running first), and its own chats; the open chat is selected", () => {
   const out = html(createSample(), "threads");
   inOrder(out, ["Threads it worked in", "#intake · Omar Haddad", ">Helpers<", "County mirrors", "Firms 1–3", "Its chats", "Rivera intake", "Weekly lead report"]);
-  assert.ok(has(out, "Working now") && has(out, "Started 32 min ago"));
+  assert.ok(has(out, "Working now") && has(out, "5 replies · last 9:34"));
   assert.ok(has(out, ">9:31<") && has(out, ">Mon<"), "its chats say when as the prototype does: the clock time today, the weekday this week");
   assert.ok(!has(out, "Lead follow-ups") && !has(out, "Retainer question"), "only what the prototype lists");
   assert.ok(has(tagOf(out, "row-chat-c1"), "background-color:var(--sel)"), "the open chat reads as selected");
