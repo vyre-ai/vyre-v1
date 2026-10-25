@@ -136,11 +136,19 @@ export function reasonWord(r: Reason, due: number | undefined, c: Clock): string
   }
 }
 
-/** The second line of a row: kind, who made it, then what it is. */
+/** The second line of a row, as the prototype writes it: the verb you act with (Approve, Review, Unblock), who made it, then what it is (its summary, else why it is urgent). */
 export function rowNote(i: Item, who: string, c: Clock): string {
   const t = i.task;
-  const tail = reasonWord(i.reason, t.due, c) || t.summary || "";
-  return [kindWord(t), who, tail].filter((x) => x !== "").join(" · ");
+  const verb = t.kind === "unblock" ? "Unblock" : kindWord(t);
+  const tail = t.summary || reasonWord(i.reason, t.due, c);
+  return [verb, who, tail].filter((x) => x !== "").join(" · ");
+}
+
+/** The time a request arrived, as the prototype shows it: the clock time today ("9:12"), "Yesterday", else the date. */
+export function arrivedLabel(ts: number, c: Clock): string {
+  const gap = dayNo(c.now, c) - dayNo(ts, c);
+  if (gap <= 0) { const d = local(ts, c); return `${d.getUTCHours()}:${two(d.getUTCMinutes())}`; }
+  return agoLabel(ts, c);
 }
 
 /** The role you act in on this task, for the meta line. */

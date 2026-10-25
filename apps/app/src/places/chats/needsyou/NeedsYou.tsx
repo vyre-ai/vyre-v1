@@ -16,7 +16,7 @@ import type { NeedsDeps } from "./actions.ts";
 import { NeedsYouDataProvider, useNeedsData, useOnline, useOptionalNeedsData, useScreenQuery } from "./data.tsx";
 import type { NeedsYouData } from "./data.tsx";
 import {
-  FILTERS, SNOOZES, agoLabel, blockView, holder, matchesFilter, needsLine, needsNote, needsTake, nextSelection, notePrompt, roleWord, rowNote, sortItems,
+  FILTERS, SNOOZES, arrivedLabel, blockView, holder, matchesFilter, needsLine, needsNote, needsTake, nextSelection, notePrompt, roleWord, rowNote, sortItems,
   isWithdrawn, peopleCount, participants, sourceWord, splitActions, splitWithdrawn, stateWord, stepSelection,
 } from "./model.ts";
 import type { Action, BlockView, Item, KindFilter, Task } from "./model.ts";
@@ -117,7 +117,7 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
           leading={<Face name={who(i.task)} size={26} />}
           trailing={
             <View style={st.rowEnd}>
-              <Text style={st.time}>{agoLabel(i.task.updatedAt, clock)}</Text>
+              <Text style={st.time}>{arrivedLabel(i.task.updatedAt, clock)}</Text>
               {quick && holder(i, data.me).kind === "free" ? <Tool icon="check" label={`${quick.label} ${i.task.title}`} onPress={() => void doAct(i, quick)} testID={`quick-${i.task.id}`} /> : null}
             </View>
           }
@@ -230,7 +230,7 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
       <View style={st.src}>
         <Text style={st.srcText}>From </Text>
         {src ? <Pressable accessibilityRole="link" onPress={() => data.nav.openSource(src.kind, src.id)} testID="needs-source"><Text style={st.link}>{srcTitle}</Text></Pressable> : <Text style={st.srcText}>{who}</Text>}
-        <Text style={st.srcText}>{` · ${who} · ${agoLabel(t.updatedAt, clock)}`}</Text>
+        <Text style={st.srcText}>{` · ${who} · ${arrivedLabel(t.updatedAt, clock)}`}</Text>
       </View>
       {held.kind === "handled" ? <Text testID="needs-handled" style={st.holder}>{`Handled by ${data.nameOf(held.by ?? "")}`}</Text> : null}
       {held.kind === "taken" ? <Text testID="needs-taken" style={st.holder}>{`Taken by ${data.nameOf(held.by ?? "")}`}</Text> : null}
