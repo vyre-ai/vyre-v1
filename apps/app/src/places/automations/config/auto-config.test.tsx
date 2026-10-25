@@ -149,7 +149,7 @@ test("followers and access go through their own capabilities and show in the pan
   const out = config(s, "aut_lead", "settings");
   assert.ok(has(out, 'data-testid="row-follower-usr_lena"') && !has(out, 'data-testid="row-follower-usr_maya"'));
   const before = shareRows((await s.data.call("access.shares_of", { resource: { type: "automation", id: "aut_lead" } })) as never, s.data.name);
-  assert.deepEqual(before.map((r) => [r.subjectId, r.level, r.via]), [["usr_irfad", "manage", "owner"], ["usr_maya", "edit", "grant"], ["usr_omar", "view", "grant"], ["agt_intake", "use", "grant"], ["grp_admins", "view", "folder"]]);
+  assert.deepEqual(before.map((r) => [r.subjectId, r.level, r.via, r.through]), [["usr_irfad", "manage", "owner", "owner"], ["usr_maya", "edit", "grant", "direct"], ["usr_omar", "view", "grant", "direct"], ["agt_intake", "use", "grant", "direct"], ["grp_admins", "view", "space", "group"]]);
   await s.data.call("access.share", { resource: { type: "automation", id: "aut_lead" }, subject: { kind: "person", id: "usr_lena" }, level: "view" });
   await s.data.call("access.unshare", { resource: { type: "automation", id: "aut_lead" }, subject: { kind: "person", id: "usr_omar" } });
   const after = shareRows((await s.data.call("access.shares_of", { resource: { type: "automation", id: "aut_lead" } })) as never, s.data.name);

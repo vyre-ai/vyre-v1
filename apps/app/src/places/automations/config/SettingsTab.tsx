@@ -23,8 +23,10 @@ import { useSaved } from "./saved.ts";
 
 type SharesOut = CapMap["access.shares_of"]["out"];
 
-/** The contract's grants as the Share sheet's rows: direct grants can be raised and removed, the rest come from a group, a role, a folder or the owner. */
-export function shareRows(out: SharesOut, name: (id: string) => string): ShareRow[] {
+export type AccessRow = ShareRow & { through: SharesOut["shares"][number]["through"] };
+
+/** The contract's grants as the Share sheet's rows: direct grants can be raised and removed, the rest come from a group, a role, a folder or the owner. `through` keeps which. */
+export function shareRows(out: SharesOut, name: (id: string) => string): AccessRow[] {
   return each(out.shares, (s) => {
     const kind = s.grant.subject.kind;
     return {
@@ -32,9 +34,12 @@ export function shareRows(out: SharesOut, name: (id: string) => string): ShareRo
       subjectId: s.grant.subject.id, name: name(s.grant.subject.id), level: s.grant.level,
       via: s.through === "owner" ? "owner" : s.through === "direct" ? "grant" : s.through === "folder" ? "folder" : "space",
       fromFolderId: s.through === "folder" ? s.grant.source ?? null : null,
+      through: s.through,
     };
   });
 }
+
+const THROUGH_NOTE: Readonly<Record<AccessRow["through"], string | undefined>> = { owner: "Owner", direct: undefined, group: "From a group", role: "From a role", folder: "From the folder" };
 
 export function SettingsTab({ automation, openPromote = false, openShare = false }: { automation: Automation; openPromote?: boolean; openShare?: boolean }): ReactElement {
   const data = useAutomationsData();
@@ -195,14 +200,14 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
 }
 
 /** Who has access, as the rows of the group: the owner first, direct grants, then what comes from a group or role. */
-function AccessSummary({ rows }: { rows: readonly ShareRow[] }): ReactElement {
+function AccessSummary({ rows }: { rows: readonly AccessRow[] }): ReactElement {
   const data = useAutomationsData();
   if (rows.length === 0) return <SRow last label="Only the owner" minHeight={40} />;
   return (
     <>
       {rows.map((r) => (
         <Row
-          key={`${r.subjectKind}:${r.subjectId}`} id={`access-${r.subjectId}`} title={r.name} note={r.via === "owner" ? "Owner" : r.via === "grant" ? undefined : r.via === "folder" ? "From a group" : "From a role"}
+          key={`${r.subjectKind}:${r.subjectId}`} id={`access-${r.subjectId}`} title={r.name} note={THROUGH_NOTE[r.through]}
           leading={<View style={t.lead}><Face name={data.name(r.subjectId)} kind={r.subjectKind === "person" ? "person" : "agent"} size={20} /></View>}
           trailing={<Text style={t.value}>{r.level[0]!.toUpperCase() + r.level.slice(1)}</Text>}
         />
