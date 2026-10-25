@@ -12,7 +12,7 @@ import { scopeAllows } from "../../../agent/src/mcp/scopes.ts";
 import { DEFAULT_SCOPES } from "../../../agent/src/mcp/types.ts";
 import type { Scopes } from "../../../agent/src/mcp/types.ts";
 import {
-  DEFAULT_SESSION_TTL_SEC, ONE_TIME_MS, actorOf, boundServer, callerForToken, countLive, endpointOf, ensure, insertSession, isLive, loadGenerated, mintId, parseScopes, raise, revokeActor,
+  DEFAULT_SESSION_TTL_SEC, ONE_TIME_MS, actorOf, boundServer, callerForToken, countLive, endpointOf, ensure, insertSession, isLive, loadGenerated, mintId, registryHash, parseScopes, raise, revokeActor,
   scopesJson, secret, sessionBy, sessionOf, sha256, tokenBy,
 } from "../projections.ts";
 import type { McpCtx, SessionRow } from "../projections.ts";
@@ -221,7 +221,7 @@ export function toolsetsList(ctx: McpCtx, _input: Record<string, never>) {
   };
 }
 
-export function health(ctx: McpCtx, _input: Record<string, never>) {
+export async function health(ctx: McpCtx, _input: Record<string, never>) {
   const t0 = Date.now();
   ensure(ctx.db);
   const g = loadGenerated();
@@ -232,7 +232,7 @@ export function health(ctx: McpCtx, _input: Record<string, never>) {
   return {
     state: server ? ("healthy" as const) : ("degraded" as const),
     ...(server ? {} : { detail: "The MCP endpoint is not running on this host." }),
-    latencyMs, sessions, registryHash: g.registryHash,
+    latencyMs, sessions, registryHash: await registryHash(),
   };
 }
 

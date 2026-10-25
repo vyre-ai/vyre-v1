@@ -100,17 +100,17 @@ const T = (id: string, name: string, kind: ItemKind, keys: [string, boolean][], 
 export const CUSTOM: Template = T("custom", "Custom", "env", [], 220);
 export const TEMPLATES: readonly Template[] = [
   CUSTOM,
-  T("stripe", "Stripe", "api_key", [["STRIPE_SECRET_KEY", true], ["STRIPE_WEBHOOK_SECRET", true]], 250),
-  T("github", "GitHub", "api_key", [["GITHUB_TOKEN", true]], 210),
-  T("openai", "OpenAI", "api_key", [["OPENAI_API_KEY", true]], 160),
-  T("anthropic", "Anthropic", "api_key", [["ANTHROPIC_API_KEY", true]], 20),
+  T("login", "Login", "login", [["URL", false], ["USERNAME", false], ["PASSWORD", true]], 40),
+  T("card", "Card", "card", [["CARD_NUMBER", true], ["EXPIRY", false], ["CVV", true]], 70),
   T("highlevel", "GoHighLevel", "api_key", [["GHL_PIT", true], ["GHL_LOCATION_ID", false]], 140),
   T("twilio", "Twilio", "api_key", [["TWILIO_ACCOUNT_SID", false], ["TWILIO_AUTH_TOKEN", true]], 350),
+  T("stripe", "Stripe", "api_key", [["STRIPE_SECRET_KEY", true], ["STRIPE_WEBHOOK_SECRET", true]], 250),
+  T("openai", "OpenAI", "api_key", [["OPENAI_API_KEY", true]], 160),
+  T("anthropic", "Anthropic", "api_key", [["ANTHROPIC_API_KEY", true]], 20),
+  T("github", "GitHub", "api_key", [["GITHUB_TOKEN", true]], 210),
   T("slack", "Slack", "api_key", [["SLACK_BOT_TOKEN", true]], 300),
   T("postgres", "Postgres", "env", [["DATABASE_URL", true]], 200),
   T("lawmatics", "Lawmatics", "api_key", [["LAWMATICS_API_KEY", true]], 110),
-  T("login", "Login", "login", [["URL", false], ["USERNAME", false], ["PASSWORD", true]], 40),
-  T("card", "Card", "card", [["CARD_NUMBER", true], ["EXPIRY", false], ["CVV", true]], 70),
 ];
 
 export const templateById = (id: string): Template | undefined => TEMPLATES.find((t) => t.id === id);

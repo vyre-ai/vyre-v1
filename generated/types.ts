@@ -17953,6 +17953,7 @@ export type RecordsExportIn = {
   fields?: Array<string>;
   offset?: number;
   limit?: number;
+  recordIds?: Array<string>;
 };
 export type RecordsExportOut = {
   fileId: string;
@@ -25112,7 +25113,7 @@ export type VaultExportsRevokeOut = {
 export type VaultFillIn = {
   handle: string;
   target: {
-    kind: "env" | "http_header" | "browser" | "terminal" | "file";
+    kind: "env" | "http_header" | "browser" | "terminal" | "file" | "git_credential" | "container_env" | "route_auth";
     ref: string;
   };
   returnValue?: boolean;

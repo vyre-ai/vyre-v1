@@ -11,6 +11,8 @@ export const FILL_TOOLS: Readonly<Record<string, Place>> = {
   terminal_run: "terminal", terminal_open: "terminal",
   chrome_fill: "browser", chrome_type: "browser", chrome_act: "browser", screen_type: "browser",
   sites_deploy: "http", sites_env_set: "http",
+  // The engine session opener (drivers/open): an account's key goes into a CLI engine's process environment, or into the auth header of an API driver's request. Never into a transcript.
+  engine_launch: "terminal", engine_authorize: "http",
 };
 /** Deployments only receive items that allow it. */
 export const DEPLOY_TOOLS: ReadonlySet<string> = new Set(["sites_deploy", "sites_env_set"]);
