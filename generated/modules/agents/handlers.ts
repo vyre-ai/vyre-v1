@@ -19,7 +19,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "agents.restore_version": Handler<"agents.restore_version", X>;
   "agents.resume": Handler<"agents.resume", X>;
   "agents.role_line.set": Handler<"agents.role_line.set", X>;
+  "agents.routine.delegate": Handler<"agents.routine.delegate", X>;
   "agents.routine.delete": Handler<"agents.routine.delete", X>;
+  "agents.routine.run_now": Handler<"agents.routine.run_now", X>;
   "agents.routine.save": Handler<"agents.routine.save", X>;
   "agents.routines.list": Handler<"agents.routines.list", X>;
   "agents.snapshot.take": Handler<"agents.snapshot.take", X>;
