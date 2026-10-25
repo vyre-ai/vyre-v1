@@ -13,20 +13,20 @@ import { ITEM_SCREEN } from "./ItemEnv.tsx";
 
 type GetOut = CapMap["vault.item.get"]["out"];
 
-export interface EditSheetProps { itemId: string; onClose: () => void; onSaved: (text: string) => void }
+export interface EditSheetProps { itemId: string; onClose: () => void; onSaved: (text: string) => void; /** Opens in Fields with a new empty field, focused. */ addField?: boolean }
 
-export function EditSheet({ itemId, onClose, onSaved }: EditSheetProps): ReactElement | null {
+export function EditSheet({ itemId, onClose, onSaved, addField = false }: EditSheetProps): ReactElement | null {
   const got = useScreenQuery<GetOut>(ITEM_SCREEN, "item", { itemId });
   if (got.status !== "ready") return <Sheet title="Edit" onClose={onClose} testID="edit-sheet"><Text style={s.note}>Loading</Text></Sheet>;
-  return <Body itemId={itemId} item={got.data} onClose={onClose} onSaved={onSaved} />;
+  return <Body itemId={itemId} item={got.data} onClose={onClose} onSaved={onSaved} addField={addField} />;
 }
 
-function Body({ itemId, item: got, onClose, onSaved }: { itemId: string; item: GetOut; onClose: () => void; onSaved: (text: string) => void }): ReactElement {
+function Body({ itemId, item: got, onClose, onSaved, addField }: { itemId: string; item: GetOut; onClose: () => void; onSaved: (text: string) => void; addField: boolean }): ReactElement {
   const data = useVaultData();
   const current: Field[] = useMemo(() => got.fields.map((f) => ({ key: f.key, value: "", secret: f.secret })), [got]);
   const [name, setName] = useState(got.item.name);
-  const [view, setView] = useState<"env" | "fields">("env");
-  const [rows, setRows] = useState<Field[]>(current);
+  const [view, setView] = useState<"env" | "fields">(addField ? "fields" : "env");
+  const [rows, setRows] = useState<Field[]>(addField ? [...current, { key: "", value: "", secret: true }] : current);
   const [text, setText] = useState(() => rowsToText(current));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -66,12 +66,12 @@ function Body({ itemId, item: got, onClose, onSaved }: { itemId: string; item: G
     const r = rows[i]!;
     rowLines.push(
             <View key={i} style={s.rowLine} testID={`edit-row-${i}`}>
-              <TextInput value={r.key} onChangeText={(v) => setRows(patchAt(rows, i, { key: normalizeKey(v) }))} accessibilityLabel="Field name" autoCapitalize="characters" style={[s.input, s.keyIn]} />
+              <TextInput value={r.key} onChangeText={(v) => setRows(patchAt(rows, i, { key: normalizeKey(v) }))} accessibilityLabel="Field name" autoCapitalize="characters" autoFocus={addField && i === rows.length - 1} style={[s.input, s.keyIn]} />
               <TextInput
                 value={r.value} placeholder={MASK} secureTextEntry={r.secret} onChangeText={(v) => setRows(patchAt(rows, i, { value: v }))}
                 accessibilityLabel={`Value of ${r.key || "the field"}`} autoCapitalize="none" autoCorrect={false} style={[s.input, { flex: 1, minWidth: 0 }]}
               />
-              <IconBtn icon={r.secret ? "lock" : "eye"} label={r.secret ? "Secret. Make it plain" : "Plain. Make it secret"} onPress={() => setRows(patchAt(rows, i, { secret: !x.secret }))} testID={`edit-secret-${i}`} />
+              <IconBtn icon={r.secret ? "lock" : "eye"} label={r.secret ? "Secret. Make it plain" : "Plain. Make it secret"} onPress={() => setRows(patchAt(rows, i, { secret: !r.secret }))} testID={`edit-secret-${i}`} />
               <IconBtn icon="x" label={`Remove ${r.key || "the field"}`} onPress={() => setRows(rows.filter((_, j) => j !== i))} testID={`edit-remove-${i}`} />
             </View>
     );
@@ -91,8 +91,8 @@ function Body({ itemId, item: got, onClose, onSaved }: { itemId: string; item: G
         <TextInput value={name} onChangeText={setName} accessibilityLabel="Name" style={s.input} testID="edit-name" />
       </View>
       <View style={s.seg} accessibilityRole="tablist">
-        <Pressable accessibilityRole="tab" accessibilityState={{ selected: view === "fields" }} onPress={() => switchTo("fields")} style={[s.segBtn, view === "fields" && s.segOn]} testID="edit-mode-fields"><Text style={s.segText}>Fields</Text></Pressable>
-        <Pressable accessibilityRole="tab" accessibilityState={{ selected: view === "env" }} onPress={() => switchTo("env")} style={[s.segBtn, view === "env" && s.segOn]} testID="edit-mode-env"><Text style={s.segText}>.env</Text></Pressable>
+        <Pressable accessibilityRole="tab" aria-selected={view === "fields"} onPress={() => switchTo("fields")} style={[s.segBtn, view === "fields" && s.segOn]} testID="edit-mode-fields"><Text style={s.segText}>Fields</Text></Pressable>
+        <Pressable accessibilityRole="tab" aria-selected={view === "env"} onPress={() => switchTo("env")} style={[s.segBtn, view === "env" && s.segOn]} testID="edit-mode-env"><Text style={s.segText}>.env</Text></Pressable>
       </View>
       {view === "env" ? (
         <View style={s.field}>

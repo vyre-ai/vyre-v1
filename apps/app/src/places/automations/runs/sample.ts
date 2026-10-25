@@ -54,7 +54,7 @@ const runRow = (o: Partial<Run> & { id: string; startedAt: number; status: Run["
 
 function northwindRows(): { runs: Row[]; steps: Row[]; messages: Row[]; undo: Row[] } {
   const lead = (o: Partial<Run> & { id: string; startedAt: number; status: Run["status"] }): Row => runRow({ auto: "aut_lead", owner: "usr_maya", definitionVersion: 5, ...o });
-  const ok = (id: string, who: string, d: number, at: number, via: string): Row => lead({ id, status: "succeeded", name: `${who} ${via}`, startedAt: at, endedAt: at + d * 1000, definitionVersion: 4, summary: `Succeeded, 6 steps, ${d} s`, threadId: `thr_${id}` });
+  const ok = (id: string, who: string, d: number, at: number, via: string): Row => lead({ id, status: "succeeded", name: `${who} ${via}`, startedAt: at, endedAt: at + d * 1000, definitionVersion: 4, summary: `Succeeded, 5 steps, ${d} s`, threadId: `thr_${id}` });
   const runs: Row[] = [
     lead({ id: "rl1", status: "failed", name: "Elena Rivera arrived from the Meta lead form", startedAt: ago(33), endedAt: ago(33) + 24_000, summary: "No Twilio key", threadId: "thr_rl1" }),
     ok("rl2", "David Okafor", 41, dayAt(1, 460), "arrived from the Meta lead form"),
@@ -63,6 +63,8 @@ function northwindRows(): { runs: Row[]; steps: Row[]; messages: Row[]; undo: Ro
     ok("rl5", "Ana Silva", 37, dayAt(3, 700), "arrived from the Meta lead form"),
     ok("rl6", "Jonas Weber", 40, dayAt(4, 300), "arrived from the Meta lead form"),
     runRow({ id: "ri1", auto: "aut_invoice", owner: "usr_irfad", status: "waiting", waitReason: "approval", name: "On schedule, Fridays at 09:00", startedAt: ago(14), definitionVersion: 4, threadId: "thr_ri1" }),
+    runRow({ id: "rq1", auto: "aut_invoice", owner: "usr_irfad", status: "queued", name: "Invoice 1046, Okafor Family, $2,150", startedAt: ago(2), definitionVersion: 4, threadId: "thr_rq1" }),
+    ...[7, 14, 21, 28].map((d, n) => runRow({ id: `ri_f${n}`, auto: "aut_invoice", owner: "usr_irfad", status: "succeeded", name: "On schedule, Fridays at 09:00", startedAt: dayAt(d, -14), endedAt: dayAt(d, -14) + 71_000, definitionVersion: 4, summary: "Succeeded, 6 steps, 71 s", threadId: `thr_ri_f${n}` })),
     runRow({ id: "rbig0", auto: "aut_flag", owner: "usr_irfad", status: "failed", name: "Invoice 1044, Greene & Co, $7,900", startedAt: ago(47), endedAt: ago(47) + 19_000, definitionVersion: 3, summary: "The message was refused", threadId: "thr_rbig0" }),
     runRow({ id: "rm0", auto: "aut_meeting", owner: "usr_omar", status: "running", name: "Kickoff call with Elena Rivera has a transcript", startedAt: ago(30), definitionVersion: 2, threadId: "thr_rm0" }),
   ];
@@ -71,6 +73,7 @@ function northwindRows(): { runs: Row[]; steps: Row[]; messages: Row[]; undo: Ro
     { id: "rl1_s2", runId: "rl1", step: "draft", attempt: 1, state: "succeeded" },
     { id: "rl1_s3", runId: "rl1", step: "paths", attempt: 1, state: "succeeded" },
     ...[1, 2, 3].map((n) => ({ id: `rl1_s4_${n}`, runId: "rl1", step: "text", attempt: n, state: "failed", error: { code: "connector.no_key", message: "No Twilio key" } })),
+    { id: "rl1_s5", runId: "rl1", step: "wait", attempt: 0, state: "pending" },
     { id: "rbig0_s1", runId: "rbig0", step: "message", attempt: 3, state: "failed", error: { code: "chat.refused", message: "The message was refused" } },
   ];
   const lt = runs[0]!["startedAt"] as number;
@@ -234,7 +237,7 @@ export function createSampleRuns(space: RunsSpace = northwind): SampleRuns {
     },
   };
   const nav: RunsNav = {
-    openAutomation: (id) => void opened.push(`automation:${id}`), openRun: (id) => void opened.push(`run:${id}`), openRunSide: (id) => void opened.push(`side:${id}`),
+    openAutomation: (id, step) => void opened.push(step ? `automation:${id}:${step}` : `automation:${id}`), openRun: (id) => void opened.push(`run:${id}`), openRunSide: (id) => void opened.push(`side:${id}`),
   };
   const data: RunsData = {
     screens,
