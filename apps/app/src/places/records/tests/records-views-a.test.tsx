@@ -1,3 +1,4 @@
+// @reads ../../../../../../scripts/shots/mounts/P-L9d_02.tsx
 // Records views, part A: Board, Gallery and List. Lanes from a status field with their own cached counts, a card dropped on a lane written through records.update, a gallery whose every card
 // has a fixed box and whose covers load lazily, a list of shared Rows, and the switch between them and the table.
 import test from "node:test";
