@@ -12,7 +12,7 @@ import { Face } from "../sidebar/parts.tsx";
 import { cellText, countSpec } from "../table/model.ts";
 import { badgeFieldOf, BODY_H, CARD_GAP, cardFields, COVER_H, coverHue, coverOf, each, GALLERY_PAD, GALLERY_PAGE, galleryLayout, initialsOf, pageSpec } from "./model.ts";
 import type { RecordRow } from "./model.ts";
-import { LazyImage, Tag, Value } from "./parts.tsx";
+import { LazyImage, Tag, Value, inkOf } from "./parts.tsx";
 import { ViewHead, useViewState } from "./view.tsx";
 import type { ViewCtx } from "./view.tsx";
 
@@ -41,7 +41,7 @@ function GalleryCard({ ctx, row, width, hidden, selected, onSelect }: { ctx: Vie
         style={({ hovered }: { hovered?: boolean }) => [g.card, { width }, shadow(hovered === true ? "var(--sh-2), inset 0 0 0 1px var(--line)" : "var(--sh-1), inset 0 0 0 1px var(--line)"), selected && g.cardOn]}
       >
         <View testID={`cover-${row.id}`} style={[g.cover, { width, backgroundColor: `hsla(${hue}, 70%, 62%, 0.28)` }]}>
-          {cover ? <LazyImage url={cover.url} name={cover.name} width={width} height={COVER_H} /> : typeof person === "string" && person !== "" ? <Face name={names(person)} size={56} /> : <Text style={[g.initials, { color: `hsl(${hue}, 55%, 40%)` }]}>{initialsOf(title)}</Text>}
+          {cover ? <LazyImage url={cover.url} name={cover.name} width={width} height={COVER_H} /> : typeof person === "string" && person !== "" ? <Face name={names(person)} size={56} /> : <Text style={[g.initials, { color: inkOf(hue) }]}>{initialsOf(title)}</Text>}
           {badge && typeof badgeValue === "string" && badgeValue !== "" ? <View style={g.badge}><Tag field={badge} value={badgeValue} /></View> : null}
         </View>
         <View style={g.body}>

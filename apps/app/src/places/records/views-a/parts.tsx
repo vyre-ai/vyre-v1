@@ -6,12 +6,15 @@ import { Face, Glyph } from "../sidebar/parts.tsx";
 import { cellText, hueOf, isNumeric, optionsOf } from "../table/model.ts";
 import type { FieldDef, RecordRow } from "./model.ts";
 
+/** A text colour for a hue that reads on its own tint in every skin: the hue mixed into the skin's ink, so it darkens on paper and lightens on graphite. */
+export const inkOf = (hue: number): string => `color-mix(in srgb, hsl(${hue}, 70%, 50%) 55%, var(--ink))`;
+
 export function Tag({ field, value }: { field: FieldDef; value: string }): ReactElement {
   const opt = optionsOf(field).find((o) => o.key === value);
   const hue = opt?.color && /^\d+$/.test(opt.color) ? Number(opt.color) : hueOf(value);
   return (
     <View testID={`tag-${field.key}`} style={[p.tag, { backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)` }]}>
-      <Text numberOfLines={1} style={[p.tagText, { color: `hsl(${hue}, 55%, 40%)` }]}>{opt?.title ?? value}</Text>
+      <Text numberOfLines={1} style={[p.tagText, { color: inkOf(hue) }]}>{opt?.title ?? value}</Text>
     </View>
   );
 }
