@@ -16,7 +16,9 @@ HTTP 404. Retryable: no.
 - agents.restore_version
 - agents.resume
 - agents.role_line.set
+- agents.routine.delegate
 - agents.routine.delete
+- agents.routine.run_now
 - agents.routines.list
 - agents.snapshot.take
 - agents.status
@@ -29,5 +31,3 @@ HTTP 404. Retryable: no.
 - automations.fire
 - automations.followers.add
 - automations.followers.remove
-- automations.get
-- automations.groups.delete
