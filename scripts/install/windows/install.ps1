@@ -9,7 +9,7 @@
 #
 #   -Uninstall   stop the app, remove the autostart task and the install folder
 #   -DryRun      print every step, change nothing
-#   -Plan        print where CLI engines will run on this PC and exit
+#   -Plan        print where CLI engines will run on this PC and exit (needs no install folder)
 #
 # Env: VYRE_INSTALL_DIR (default $env:LOCALAPPDATA\Vyre), VYRE_RELEASE_BASE (a release's download address). VYRE_CODE is cleared before the app starts and never written anywhere.
 param(
