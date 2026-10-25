@@ -11445,37 +11445,6 @@
       },
       "type": "array"
     },
-    "s_a76a30eb87": {
-      "properties": {
-        "campaignId": {
-          "examples": [
-            "cmp_a1b2c3"
-          ],
-          "pattern": "^cmp_[a-z0-9]+$",
-          "type": "string"
-        },
-        "messageId": {
-          "examples": [
-            "msg_a1b2c3"
-          ],
-          "pattern": "^msg_[a-z0-9]+$",
-          "type": "string"
-        },
-        "recordId": {
-          "examples": [
-            "rec_a1b2c3"
-          ],
-          "pattern": "^rec_[a-z0-9]+$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "campaignId",
-        "recordId",
-        "messageId"
-      ],
-      "type": "object"
-    },
     "s_a803997f5b": {
       "properties": {
         "count": {
@@ -169892,7 +169861,35 @@
       "name": "campaign.replied",
       "notify": "campaign.reply",
       "payload": {
-        "$ref": "#/$defs/s_a76a30eb87"
+        "properties": {
+          "campaignId": {
+            "examples": [
+              "cmp_a1b2c3"
+            ],
+            "pattern": "^cmp_[a-z0-9]+$",
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campaignId",
+          "recordId",
+          "messageId"
+        ],
+        "type": "object"
       },
       "replay": "pure",
       "subject": {
@@ -177706,7 +177703,7 @@
       "retention": "memory",
       "subject": {
         "id": "/noteId",
-        "type": "file"
+        "type": "note"
       },
       "summary": "A shared memory note was restored to an earlier version",
       "sv": 1,
@@ -209243,7 +209240,35 @@
       "key": "campaign_reply",
       "module": "automations",
       "payload": {
-        "$ref": "#/$defs/s_a76a30eb87"
+        "properties": {
+          "campaignId": {
+            "examples": [
+              "cmp_a1b2c3"
+            ],
+            "pattern": "^cmp_[a-z0-9]+$",
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campaignId",
+          "recordId",
+          "messageId"
+        ],
+        "type": "object"
       },
       "personalOk": true,
       "sample": {
