@@ -138,6 +138,9 @@ export interface ReplicaStore {
   /** SQL write plus invalidation. Returns after the sync engine commits. Async engines queue SQL and still invalidate before return. */
   write(input: ReplicaWrite): ReplicaWriteResult;
   read(entity: string, id: string): SqlRow | null;
+  /** Set or clear the star and follow flags of a row without writing it. A phone keeps flagged rows whatever their age and admits flagged records it does not own. */
+  keep(entity: string, id: string, flags: { starred?: boolean; follows?: boolean }): void;
+  isKept(entity: string, id: string): { starred: boolean; follows: boolean };
   hide(entity: string, id: string, seq: number): void;
   subscribe(match: SubscribeMatch, fn: () => void): () => void;
   putBlob(hash: string, bytes: Uint8Array): void;
