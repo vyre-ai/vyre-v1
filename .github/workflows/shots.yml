@@ -30,17 +30,12 @@ jobs:
           path: package-lock.json
           retention-days: 7
   shots:
-    # GitHub-hosted (like the desktop builds, ruling 4) so screenshots never queue behind the test shards on the self-hosted runners.
-    runs-on: ubuntu-latest
+    # Self-hosted again: hosted Actions minutes hit the account spending limit (25 Oct). Back to hosted once billing allows.
+    runs-on: [self-hosted, linux, v1]
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-      - name: Install dependencies
-        run: npm ci --no-audit --no-fund --ignore-scripts
+      - uses: ./.github/actions/deps
       - name: Export the web build and take side-by-side screenshots (export budget 120 s)
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
