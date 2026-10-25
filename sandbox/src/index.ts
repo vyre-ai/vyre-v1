@@ -10,7 +10,8 @@ export { SYSTEM_READ, sbplString, seatbeltCommand, seatbeltProfile } from "./sea
 export type { SeatbeltOptions } from "./seatbelt.ts";
 // The unwalled starters (startDockerSandbox, bwrapCommand) are not exported: a sandbox started through them keeps a network path to the host that the wall closes (P-L2_HEAVY found it). The
 // only starters are the walled ones below (ruling: security sign-off S8). Their own unit tests import ./docker.ts and ./bwrap.ts directly.
-export { startWalledBwrapSandbox, startWalledDockerSandbox } from "./net/index.ts";
+export { bwrapWallCommand, startNetWall, startWalledBwrapSandbox, startWalledDockerSandbox } from "./net/index.ts";
+export type { BwrapWallOptions, NetWall, NetWallOptions, WalledCommand } from "./net/index.ts";
 export type { WalledBwrapDeps, WalledBwrapSandbox, WalledDockerDeps, WalledSandbox } from "./net/index.ts";
 export type { BwrapOptions } from "./bwrap.ts";
 export { createCredentialStore, nodeCredFs } from "./creds.ts";

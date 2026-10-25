@@ -99,6 +99,8 @@ export default defineManifest({
     write('sync.epoch.bump', 'Raise a person sync epoch (device revoked, person suspended or removed, password reset, clearance lowered, key rotation) so old replicas purge', {
       in: { personId: id.user, reason: t.enm('device_revoked', 'suspended', 'removed', 'password_reset', 'clearance_lowered', 'key_rotation'), deviceId: t.opt(id.device) },
       out: { epoch: t.int() }, emits: ['sync.epoch_bumped'], audit: 'always', risk: 'high', idem: 'none',
+      // P-SEC_06: a person's epoch purges that person's devices, so only an Admin (access.manage) or the host itself (svc_host, which skips authorize on its own internal calls) may raise it
+      perm: 'access.manage', level: 'manage',
     }),
     write('sync.acl.reindex', 'Emit synthetic upsert or hide changes for rows whose visibility changed after a grant, revoke or label change', {
       in: { resourceType: t.str(), resourceId: t.str(), entity: t.opt(t.str()) },

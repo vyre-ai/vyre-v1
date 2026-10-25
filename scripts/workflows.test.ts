@@ -82,7 +82,10 @@ test("no npm install, docker pull or curl outside prewarm", () => {
   for (const w of all) for (const j of w.jobs) {
     const code = j.text.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");
     if (w.file === "nightly.yml" && j.name === "prewarm") continue;
-    assert.ok(!bad.test(code), `${w.file}: job ${j.name} installs or downloads`);
+    // Pinned forms are allowed anywhere: a pull of image@sha256:<digest> (or a helper that does that) and a curl in a job that also checks a literal sha256 with `sha256sum -c`.
+    const lines = code.split("\n").filter((l) => bad.test(l));
+    const pinned = (l: string) => (/docker pull/.test(l) && /@\$2|@sha256:[0-9a-f]{64}/.test(l)) || (/\bcurl /.test(l) && /sha256sum -c/.test(code) && /[0-9a-f]{64}/.test(code));
+    assert.ok(lines.every(pinned), `${w.file}: job ${j.name} installs or downloads`);
   }
   assert.match(wf("nightly").text, /prewarm:/);
 });

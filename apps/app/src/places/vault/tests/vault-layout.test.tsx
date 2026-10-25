@@ -169,7 +169,7 @@ test("sections filter the list: Keys, Logins, Cards, AI providers, a folder, Min
   assert.ok(has(logins, "Google Workspace") && has(logins, "GitHub") && !has(logins, "GoHighLevel"));
   assert.ok(has(list({ kind: "cards" }), "Northwind Visa"));
   const prov = list({ kind: "providers" });
-  assert.ok(has(prov, "Claude") && has(prov, "OpenCode Go key") && has(prov, "Anthropic API key") && !has(prov, "Stripe"));
+  assert.ok(has(prov, "Claude") && has(prov, "OpenCode Go key") && has(prov, "OpenAI key") && !has(prov, "Stripe"));
   assert.ok(has(prov, "Sign in with Claude Max · Mine"), "a provider row says how it signs in and Mine or Shared");
   const fin = list({ kind: "folder", folderId: "fld_finance" });
   assert.ok(has(fin, "Stripe") && has(fin, "Northwind Visa") && !has(fin, "GoHighLevel"));

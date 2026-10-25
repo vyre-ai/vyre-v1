@@ -34,12 +34,12 @@ Spec 2.14 is the gate act table. Spec 2.24 is the three notification levels. Spe
 | Notification kinds | notificationKinds | 23 | notifications |
 | Health checks | healthChecks | 47 | one module each |
 | Retention classes | retention | 10 | governance |
-| Settings | settings | 92 | the module that owns the row |
+| Settings | settings | 96 | the module that owns the row |
 | Import sources | importSources | 9 | import, vault |
 | Blocks | blocks | 22 | the module that renders the block |
 | Lists | lists | 10 | the module that owns the list |
 | Steps | registry.steps | 25 | steps-core |
-| Triggers | registry.triggers | 13 | automations |
+| Triggers | registry.triggers | 14 | automations |
 | Connectors | registry.connectors | 13 | the connector module |
 
 ## Rules the test locks
@@ -418,8 +418,12 @@ Example: `mail.send_window`.
 | memory.weekly_nudge | memory | person | Memory and privacy | true |
 | microsoft.auto_connect | microsoft | space | integrations | true |
 | microsoft.excluded_members | microsoft | space | integrations | [] |
+| notifications.alert_replies | notifications | person | Notifications | false |
 | notifications.email_backstop | notifications | person | Notifications | true |
+| notifications.hand_needs_you_to | notifications | person | Notifications | null |
 | notifications.push_idle_minutes | notifications | space | Notifications | 5 |
+| notifications.quiet_hours | notifications | person | Notifications | {"from":"22:00","needs":true,"on":false,"to":"07:00"} |
+| notifications.routines_all | notifications | person | Notifications | false |
 | notifications.working_hours | notifications | person | Notifications | {"days":[1,2,3,4,5],"from":"09:00","to":"18:00","tz":"UTC"} |
 | profile.contact | settings | person | profile | {} |
 | profile.display_name | settings | person | profile | "" |
@@ -554,6 +558,7 @@ Example: `record_change`.
 | email_received | An email is received | yes | {"campaignId":"cmp_a1b2c3","contactId":"rec_a1b2c3","from":"example","mailboxId":"mbx_a1b2c3","messageId":"example","subject":"example"} |
 | form_submit | A form is submitted | yes | {"formId":"frm_a1b2c3","matched":true,"recordId":"rec_a1b2c3","type":"contact"} |
 | journey_stage_entered | A Journey record enters a stage | yes | {"journeyId":"jrn_a1b2c3","manual":true,"previousStage":"example","recordId":"rec_a1b2c3","stage":"example"} |
+| journey_stage_left | A Journey record leaves a stage | yes | {"journeyId":"jrn_a1b2c3","recordId":"rec_a1b2c3","stage":"example","toStage":"example"} |
 | manual | Run by hand | yes | {"input":{},"startedBy":"example"} |
 | meeting_transcript_ready | A meeting transcript is ready | yes | {"meetingId":"rec_a1b2c3","source":"example"} |
 | record_change | A record changes | yes | {"changed":{},"fields":["example"],"op":"created","record":{},"recordId":"rec_a1b2c3","type":"contact","version":1} |

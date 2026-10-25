@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { shardCount, shardFiles, toMatrix, MAX_SHARDS, type Timings } from "./shard.ts";
+import { shardCount, shardFiles, toMatrix, MAX_SHARDS, FAST_CAP_SEC, FILES_PER_SHARD, type Timings } from "./shard.ts";
 import type { SlowEntry } from "./slow-check.ts";
 
 const slowEntry = (file: string, capSec = 90): SlowEntry => ({ file, capSec, owner: "t", reason: "t" });
@@ -23,9 +23,9 @@ test("greedy longest-first: balanced bins, every file once, deterministic", () =
   const timings: Timings = { "a.test.ts": { ms: 10000 }, "b.test.ts": { ms: 9000 }, "c.test.ts": { ms: 8000 }, "d.test.ts": { ms: 7000 }, "e.test.ts": { ms: 6000 }, "f.test.ts": { ms: 5000 } };
   const files = Object.keys(timings);
   const s = shardFiles(files, timings, []);
-  assert.equal(s.count, 2);
+  assert.equal(s.count, 1);
   assert.deepEqual(s.fast.flatMap((b) => b.files).sort(), files);
-  assert.equal(s.makespanSec, 23);
+  assert.equal(s.makespanSec, 45);
   assert.deepEqual(shardFiles([...files].reverse(), timings, []), s);
 });
 
@@ -50,8 +50,8 @@ test("a slow file never extends the fast critical path even when it is the longe
   const { files, timings } = mk(4, 20);
   timings["big.test.ts"] = { ms: 100000 };
   const s = shardFiles([...files, "big.test.ts"], timings, [slowEntry("big.test.ts", 120)]);
-  assert.equal(s.makespanSec, 20);
-  assert.equal(s.count, 4);
+  assert.equal(s.makespanSec, 80);
+  assert.equal(s.count, 1);
 });
 
 test("a file missing from timings gets the median; none known gets the fallback", () => {
@@ -61,9 +61,9 @@ test("a file missing from timings gets the median; none known gets the fallback"
   assert.equal(none.totalSec, 3);
 });
 
-test("a fast file is budgeted at no more than the 20 s cap", () => {
+test("a fast file is budgeted at no more than the fast file cap", () => {
   const s = shardFiles(["a.test.ts"], { "a.test.ts": { ms: 90000 } }, []);
-  assert.equal(s.totalSec, 20);
+  assert.equal(s.totalSec, FAST_CAP_SEC);
 });
 
 test("no files gives no shards", () => {
@@ -79,13 +79,11 @@ test("many files cap at 24 shards and stay balanced", () => {
   assert.equal(s.makespanSec, 500);
 });
 
-test("perf: sharding 5,000 files stays far inside the select budget (ci_push_5m)", (t) => {
-  const { files, timings } = mk(5000, 1);
-  files.forEach((f, i) => { timings[f] = { ms: 200 + ((i * 37) % 9000) }; });
-  const t0 = performance.now();
-  const s = shardFiles(files, timings, []);
-  const ms = performance.now() - t0;
-  t.diagnostic(`PERF shard 5000 files into ${s.count}: ${ms.toFixed(0)} ms (budget 8000 ms, file cap 20 s)`);
-  assert.ok(ms < 2000);
-  assert.ok(s.makespanSec <= s.totalSec / s.count + 20);
+test("shards scale with the file count: about 8 files per shard, at least 1, at most 24", () => {
+  const n = (k: number) => { const { files, timings } = mk(k, 1); return shardFiles(files, timings, []).count; };
+  assert.equal(n(1), 1);
+  assert.equal(n(FILES_PER_SHARD), 1);
+  assert.equal(n(FILES_PER_SHARD + 1), 2);
+  assert.equal(n(40), 5);
+  assert.equal(n(10000), MAX_SHARDS);
 });

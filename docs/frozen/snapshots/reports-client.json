@@ -1,0 +1,19 @@
+{
+  "module": "reports-client",
+  "capabilities": {
+    "reports.get@1": "6d82cff5b16dc6baa28ee06fe8a5942bab8df450b33789ce7b37bac9b2ad2685",
+    "reports.health@1": "28f5c03071b5b379e58eae379b366e392d75774fe785cb1cbd99822cb6b3f6b7",
+    "reports.list@1": "6c6f68ce549d33c2660e14539c2cf0cb2b01d5aef09ae21226de109f20de03da",
+    "reports.policy_get@1": "e3bbb36b5be4d4f7820aade12a1086967cb4bbefa5648a590b236c37433836a1",
+    "reports.policy_set@1": "5271c0c1e0475e2a0ad50dbb89b33562bd7f3fd913674948fdd176c94d9e6d87",
+    "reports.preview@1": "aa811f2cf806a76a8ed0006cfbf24c6b2bdb281154e215b43894d7372c8388fc",
+    "reports.resolved@1": "766fe91e018d2dd6566752450c0d3b2fa3534eed4ba210ec219811277209d7f9",
+    "reports.send_to_vyre@1": "0ffbe10782037118cc0b3ab7f9b3b3d76989d84ee29cdc51d0acea9a07392caf",
+    "reports.submit@1": "700eecd53ce3d43023d7502b05b0feaa9372047a36a6c731e621bfe2161d4d5c"
+  },
+  "events": {
+    "report.resolved": "e7dc4962c6b71179492e7fd5da88b74ca5739a4f84b8bce78e98b590e41b0af3",
+    "report.sent_to_vyre": "6d3c04393a0b27278b2327e0c1198ef55e975435210a882128c772c173118ccb",
+    "report.submitted": "6d2c755c89d50c33cad148c2586b81a21c1c84980a2af281d4b98617e902b17f"
+  }
+}

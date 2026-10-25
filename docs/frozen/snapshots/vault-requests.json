@@ -1,0 +1,17 @@
+{
+  "module": "vault-requests",
+  "capabilities": {
+    "vault.request@1": "efeeed96855edb3505b689ba9f3a0e7a50ff9520c5890af25e80d0b27c26bb8d",
+    "vault.requests.cancel@1": "fc84171e73faf34fbc48fa057281e505008d72ddc96d8ca877549cff7beabbe0",
+    "vault.requests.decline@1": "f19e12ab3f2bd919d2c785fdd47b79787475b8e959ee3bb217243ede78efd7f2",
+    "vault.requests.fulfil@1": "a7866070ee6ccef658e7794c7db85584fe975cca04fa1bb8b2c92f7162a47521",
+    "vault.requests.get@1": "8372376d8649586049a5cfb5a8229c0f89859404078e3659112d124b855207d5",
+    "vault.requests.list@1": "49d4f299e8d2f1ca03fea88d4244f73aed1141d5718e2d2b4da181782ff2f443"
+  },
+  "events": {
+    "vault.request_canceled": "275d2e8c6c7d00296701d4309974bc321595a251271411380c4be33f089f0419",
+    "vault.request_declined": "de06b049f9c027ef6b2b634474a9fe393888759fa2e0398656d32b9be6021e8c",
+    "vault.request_fulfilled": "ebbdefc135cd4ef75f774d3f50d40974e981c43363e9ee6fb1e67b0d9151b7bb",
+    "vault.requested": "82f1596f9c0fc1395fe9d32681f8026948f23c9bf3d068e5cac6a88e2bfabb9b"
+  }
+}

@@ -12,6 +12,6 @@ export { defaultMode, assignDefaults, withMode, preview } from "./lead.ts";
 export { scriptedProvider } from "./scripted-session.ts";
 export type { ScriptedOptions, ScriptedSession, ScriptedProvider } from "./scripted-session.ts";
 export type {
-  AccountReason, AgentMode, Author, DriverEvent, EngineAgent, EngineEvent, EngineSession, IncomingMessage, OpenSession, OpenThread, Placement,
-  PreviewResult, QueueItem, QueueKind, QueueState, ReceiveResult, ResumedCall, SessionSpec, SpendRow, StoredMessage, ThreadKind, ToolResult, TurnInput, TurnRow, TurnState,
+  AccountQuery, AccountReason, AgentMode, Author, DriverEvent, EngineAgent, EngineEvent, EngineSession, IncomingMessage, OpenSession, OpenThread, Placement,
+  PreviewResult, QueueItem, QueueKind, QueueState, ReceiveResult, ResolvedAccount, ResumedCall, SessionSpec, SpendRow, StoredMessage, ThreadKind, ToolResult, TurnInput, TurnRow, TurnState,
 } from "./types.ts";

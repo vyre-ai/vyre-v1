@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { toolSearch, toolDescribe, toolsList, toolsetsList, health } from "../handlers/server.ts";
 import { harness } from "../fixtures/harness.ts";
-import { loadGenerated as moduleGenerated } from "../projections.ts";
+import { createHash } from "node:crypto";
+import { loadGenerated as moduleGenerated, registryHash } from "../projections.ts";
 import { createMcpServer, scopeAllows } from "../../../agent/src/mcp/index.ts";
 import type { McpCaller, Scopes } from "../../../agent/src/mcp/index.ts";
 import { fakeInvoke, loadGenerated } from "../../../agent/src/tools/harness.ts";
@@ -127,11 +128,11 @@ test("the outside tool's list is the default set cut by its scopes, for every co
   }
 });
 
-test("mcp.health reports the registry hash served, the live sessions and whether this host runs the endpoint", () => {
+test("mcp.health reports the registry hash served, the live sessions and whether this host runs the endpoint", async () => {
   const hn = harness();
-  const out = health(hn.ctx, {});
-  assert.equal(out.registryHash, read("generated/hash.txt").trim());
-  assert.equal(out.registryHash, moduleGenerated().registryHash);
+  const out = await health(hn.ctx, {});
+  assert.equal(out.registryHash, createHash("sha256").update(read("generated/registry.json")).digest("hex"));
+  assert.equal(out.registryHash, await registryHash());
   assert.equal(out.sessions, 0);
   assert.equal(out.state, "degraded", "no MCP endpoint bound on a bare test host");
   assert.ok(out.detail);

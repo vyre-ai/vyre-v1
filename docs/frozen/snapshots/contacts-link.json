@@ -1,0 +1,31 @@
+{
+  "module": "contacts-link",
+  "capabilities": {
+    "contacts.address.add@1": "e809ab5710b8af769681925392bb86b7c21b862646d83d8f745c642786a04dba",
+    "contacts.address.list@1": "081f3332bfeac34569da02c3a11d4b4f34a0de84cbba44c39c356453deea0c7d",
+    "contacts.address.remove@1": "e7404f985d4ca7afd098af0fb6596a27b8496cf3ca355c27d65029c6806fdc07",
+    "contacts.address.set_primary@1": "2a2e65dc240b84908071e1a32caec3c99a2139a86a3d9160391b1031679075c6",
+    "contacts.apply_optout@1": "4df7da64c092dce59ae37dfcb2c5c1a1578994e641ce6e828b162e55fa67cba1",
+    "contacts.deliverability@1": "03ea46c4bbd63890d20bcf34346b4852ecc5cc7920717bce5ecdb7d9353f5284",
+    "contacts.dnd_screen@1": "b1c9c028ca11dbbf00816142ce1434d15e2ee770d5c1ee88fb3081b72ffd18ad",
+    "contacts.duplicates.dismiss@1": "086c9d1a119d35e50bc7ea0ff59d4faeea466fb5252d273a7da07fe4a5646553",
+    "contacts.duplicates.list@1": "b7ea85e9d50622d62f35f870ad2bdc222663518d943fc65bc11ee36657266559",
+    "contacts.preferences.get@1": "433f3e471bc391e06a6638c27a08bab4a2137cc383d684ec82deae55b13d01a7",
+    "contacts.preferences.set@1": "1d2e3586619e8834577c7a1373530b2fc70bf6f585048bfb6ec7e9eb0c20cbe2",
+    "contacts.resolve@1": "38c848872b11dc5589224977b705977cd104604b97056b9229021761b445f9f2",
+    "contacts.route_owner@1": "2609613578c3f40bc74ebcdd1d56fbaea335406a2fde0b57e51ac49dc0562540",
+    "contacts.suppression.add@1": "57db060fb1d3df45e7df7d0624e61c3fb9f01507b544a66f05f9f8ca2531f598",
+    "contacts.suppression.check@1": "6ed22a1e1cb8697f97c8e86166b58ccdef2f9a9853ad88b4d6cebc4b220a8a19",
+    "contacts.suppression.import@1": "5e07116f032de2165fdb07e640d0f1109b2ba50257db7c1902222966b60af1ad",
+    "contacts.suppression.list@1": "1b57121f4fc8dde0588fff8c98e8e85affc118af028166c4fabbf4072c9b978f",
+    "contacts.suppression.remove@1": "16b6ee4522a1a04ac7b97a640d10734490fb29361b1a47aa447a14235250860f"
+  },
+  "events": {
+    "contact.address_added": "98c58fd77d9b64f31429a9b3e55b2eb89b5e821569b35302ef99759e1ee5caf5",
+    "contact.address_removed": "e9950f3819e2086d2a35243bf20b8a574a4fdcc4b2698775bf6f094490518f7f",
+    "contact.dnd_screened": "be9991bcbeea09b5ecb7ffc8ec8781f827264ad1e875a4e52d63c40163a1be98",
+    "contact.preferences_changed": "2e0d02576a52fbe07edbf4d6159946743108b4839717c1b16b5bcd11a5b4d24c",
+    "suppression.added": "d58af8844d67d561610b8aa745bf0dce48bd958e6671f474687c082ecc283c50",
+    "suppression.removed": "359f81e64a4a98136eb7409f355172b44264314b124c429bde451cc90711f2a8"
+  }
+}

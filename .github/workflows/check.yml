@@ -1,14 +1,16 @@
 name: check
-# Per push affected-only checks, budget 5 minutes (ARCH-DECISIONS 13). Required checks on main: check, golden, budget.
+# Per push affected-only checks, budget 5 minutes (ARCH-DECISIONS 13). Required checks on main (and for the merge queue): check, golden, contracts. budget only reports, on branch pushes.
 on:
   push:
-    branches-ignore: [main]
+    branches-ignore: [main, 'gh-readonly-queue/**']
+  # the merge queue runs the same required checks on each batch (ruling: merge queue on main)
+  merge_group:
 concurrency:
   group: push-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   select:
-    runs-on: [self-hosted, linux, v1]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       matrix: ${{ steps.sel.outputs.matrix }}
@@ -16,41 +18,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
       - name: Select affected tests and shard them
         id: sel
-        env:
-          BEFORE: ${{ github.event.before }}
         run: |
-          BASE="$BEFORE"
-          if [ -z "$BASE" ] || echo "$BASE" | grep -Eq '^0+$'; then BASE=origin/main; fi
-          git rev-parse --verify -q "$BASE" >/dev/null || BASE=origin/main
+          # Every check run selects against the branch's merge-base with main, never the previous push: a later push must still include every test the branch has touched since it left main.
+          git fetch -q origin main
+          BASE="$(git merge-base origin/main HEAD)"
           node scripts/ci-select.ts "$BASE" --matrix > select.json
           node -e 'const r=JSON.parse(require("fs").readFileSync("select.json","utf8"));console.log("select: "+(r.all?"all":r.files.length+" files")+" "+r.why.join("; "));require("fs").appendFileSync(process.env.GITHUB_OUTPUT,"matrix="+JSON.stringify(r.matrix)+"\ncount="+r.matrix.include.length+"\n")'
   shards:
     name: ${{ matrix.name }}
     needs: select
     if: needs.select.outputs.count != '0'
-    runs-on: [self-hosted, linux, v1]
-    timeout-minutes: 5
+    runs-on: ${{ matrix.runner == 'hosted' && 'ubuntu-latest' || fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+      - name: Exclusive disk for a perf job (waits for the Docker-heavy jobs on this host)
+        if: matrix.runner == 'v1-perf'
+        run: bash scripts/ci-iolock.sh exclusive
       - uses: ./.github/actions/deps
       - name: Run the shard (20 s file cap, pass cache by import hash)
         env:
           FILES: ${{ matrix.files }}
           SLOW: ${{ matrix.slow }}
+          VYRE_PERF_RUN: ${{ matrix.runner == 'v1-perf' && '1' || '' }}   # perf files run only on the pinned perf host (test-run skips them elsewhere)
         run: |
-          if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else node scripts/test-run.mjs --files $FILES; fi
+          if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else NC=""; [ "$RUNNER_ENVIRONMENT" = "github-hosted" ] && NC="--no-cache"; node scripts/test-run.mjs --files $FILES $NC; fi  # a hosted VM never reads a shared pass cache
   gates:
     # P-CI_03: ownership, boundaries, lint and typecheck run on every push, so evidence that claims them is verified here.
-    runs-on: [self-hosted, linux, v1]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
       - name: Lane from the branch name (build/P-L7_04 is L7a, build/P-L7b_05 is L7b, L9 is L9a, P-CI is L11, P-CC and P-PR are the lead's)
         id: lane
         env:
@@ -58,8 +66,7 @@ jobs:
         run: |
           lane=""
           case "$BRANCH" in
-            build/P-CI_02|build/P-CI_08) lane=lead ;;   # contract steward: changes the contract types and the frozen hashes (ruling 25, 27)
-            build/P-CI_*|build/P-CI-*) lane=L11 ;;
+            build/P-CI_*|build/P-CI-*) lane=lead ;;   # CI packets change workflows, scripts and test/slow.json, which no module lane owns; they are the lead's (ruling 25, 27). A pattern, so a new P-CI number never conflicts here.
             build/P-CC_*|build/P-PR_*) lane=lead ;;
             *) lane="$(echo "$BRANCH" | sed -nE 's#^build/P-(L[0-9]+[a-z]?)_[0-9]+[a-z]?(-.*)?$#\1#p')"
               case "$lane" in L7) lane=L7a ;; L9) lane=L9a ;; esac ;;
@@ -119,6 +126,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      - name: Disk lock (heavy jobs share the disk, perf jobs run alone on it)
+        run: bash scripts/ci-iolock.sh shared
       - name: Did images/ or a heavy test change on this branch?
         id: scope
         run: |
@@ -143,7 +152,11 @@ jobs:
       - name: Pull the base images the site builders use (the test pulls nothing itself)
         if: steps.scope.outputs.changed == 'true'
         run: |
-          for img in node:24-alpine python:3.13-slim caddy:2-alpine; do docker pull -q "$img"; done
+          # pinned by digest, then tagged with the name the builders ask for
+          pull() { docker pull -q "$1@$2" && docker tag "$1@$2" "$1:$3"; }
+          pull node sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 24-alpine
+          pull python sha256:d98cc29d3266e535dd9da1099688d9cb3ca4753813571e071763d17725460962 3.13-slim
+          pull caddy sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f 2-alpine
       - name: Site builders on real Docker (modules/sites/tests/builders.heavy.test.ts)
         if: always() && steps.scope.outputs.changed == 'true'
         env:
@@ -154,11 +167,14 @@ jobs:
         if: always() && steps.scope.outputs.changed == 'true'
         run: |
           v=v2.40.3
-          case "$(uname -m)" in x86_64) a=x86_64 ;; aarch64) a=aarch64 ;; *) echo "unsupported arch"; exit 1 ;; esac
+          case "$(uname -m)" in
+            x86_64) a=x86_64; sum=dba9d98e1ba5bfe11d88c99b9bd32fc4a0624a30fafe68eea34d61a3e42fd372 ;;
+            aarch64) a=aarch64; sum=d26373b19e89160546d15407516cc59f453030d9bc5b43ba7faf16f7b4980137 ;;
+            *) echo "unsupported arch"; exit 1 ;;
+          esac
           d="$RUNNER_TEMP/compose"; mkdir -p "$d"
           curl -fsSL -o "$d/docker-compose" "https://github.com/docker/compose/releases/download/$v/docker-compose-linux-$a"
-          curl -fsSL -o "$d/sum" "https://github.com/docker/compose/releases/download/$v/docker-compose-linux-$a.sha256"
-          (cd "$d" && echo "$(cut -d' ' -f1 sum)  docker-compose" | sha256sum -c -)
+          echo "$sum  $d/docker-compose" | sha256sum -c -
           chmod +x "$d/docker-compose"; "$d/docker-compose" version
           echo "bin=$d/docker-compose" >> "$GITHUB_OUTPUT"
       - name: Documenso e-sign against the pinned container (modules/esign/tests/documenso.heavy.test.ts)
@@ -178,12 +194,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      - name: Disk lock (heavy jobs share the disk, perf jobs run alone on it)
+        run: bash scripts/ci-iolock.sh shared
       - name: Did the sandbox, the terminal module, the person-sandbox image or the heavy tests change on this branch?
         id: scope
         run: |
           git fetch -q origin main
           base="$(git merge-base origin/main HEAD)"
-          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|modules/computers/|images/person-sandbox/|agent/tests/sandbox\.(net\.)?heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
+          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|modules/computers/|modules/engine/(sandbox|tests/(sandbox|cli))|images/person-sandbox/|images/agent-computer/|agent/tests/sandbox\.(net\.)?heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
       - name: Install bubblewrap and tmux when the runner does not have them
         if: steps.scope.outputs.changed == 'true'
         run: |
@@ -215,7 +233,7 @@ jobs:
         if: steps.scope.outputs.changed == 'true'
         env:
           VYRE_HEAVY_DOCKER: "1"
-        run: node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts
+        run: node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts modules/engine/tests/sandbox.heavy.test.ts modules/engine/tests/cli.heavy.test.ts
       - name: The network wall, none skipped (agent/tests/sandbox.net.heavy.test.ts)
         if: always() && steps.scope.outputs.changed == 'true'
         env:
@@ -233,10 +251,47 @@ jobs:
           node --test --test-force-exit --test-timeout=600000 --test-reporter=spec modules/computers/tests/lifecycle.heavy.test.ts modules/computers/tests/tools.heavy.test.ts 2>&1 | tee computers-heavy.out
           grep -E "^ℹ skipped 0$" computers-heavy.out
           grep -E "^ℹ pass 2$" computers-heavy.out
-  check:
-    needs: [select, shards, gates]
-    if: always()
+      - name: Agent computer S9 on real Docker, none skipped (sandbox/computer/stream.heavy.test.ts)
+        if: always() && steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+        run: |
+          set -o pipefail
+          # Vyre for Chrome has no build step (apps/chrome/package.json): the extension is its manifest and src folder, assembled as it ships and copied by the heavy test into a copy of the image's build context (the runners have no buildx).
+          rm -rf "$RUNNER_TEMP/vyre-chrome-ext" && mkdir -p "$RUNNER_TEMP/vyre-chrome-ext"
+          cp apps/chrome/manifest.json "$RUNNER_TEMP/vyre-chrome-ext/" && cp -r apps/chrome/src "$RUNNER_TEMP/vyre-chrome-ext/src"
+          export VYRE_CHROME_EXT_DIR="$RUNNER_TEMP/vyre-chrome-ext"
+          node --test --test-force-exit --test-timeout=1500000 --test-reporter=spec sandbox/computer/stream.heavy.test.ts 2>&1 | tee s9-heavy.out
+          grep -E "^ℹ skipped 0$" s9-heavy.out
+          grep -E "METRIC s9" s9-heavy.out
+  chrome-real:
+    # P-L10_06b: the Chrome extension's agent tools against a real Chromium page. VYRE_REQUIRE_CHROME=1 turns a missing Chromium into a failure (a skip is not a pass), so a green job means the
+    # three real-page tests ran. Chromium comes from playwright-core the way scripts/shots does (cached by playwright after the first run); CHROME_BIN points the test at it. Gates `check`.
     runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Disk lock (heavy jobs share the disk, perf jobs run alone on it)
+        run: bash scripts/ci-iolock.sh shared
+      - uses: ./.github/actions/deps
+      - name: Chromium (playwright-core, cached on the runner)
+        run: |
+          npx playwright-core install chromium
+          CHROME_BIN="$(node -e 'import("playwright-core").then((p) => console.log((p.chromium ?? p.default.chromium).executablePath()))')"
+          test -x "$CHROME_BIN"
+          echo "CHROME_BIN=$CHROME_BIN" >> "$GITHUB_ENV"
+          echo "chromium: $CHROME_BIN"
+      - name: Extension agent tools against a real page (ext-agent.real.test.ts)
+        env:
+          VYRE_REQUIRE_CHROME: "1"
+        run: |
+          set -o pipefail
+          node scripts/test-run.ts --slow --no-cache --files apps/chrome/tests/ext-agent.real.test.ts 2>&1 | tee chrome-real.out
+          grep -q '^ok .*apps/chrome/tests/ext-agent.real.test.ts' chrome-real.out
+  check:
+    needs: [select, shards, gates, chrome-real]
+    if: always()
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Every shard passed or there was nothing to run
@@ -244,12 +299,14 @@ jobs:
           SELECT: ${{ needs.select.result }}
           SHARDS: ${{ needs.shards.result }}
           GATES: ${{ needs.gates.result }}
+          CHROME: ${{ needs.chrome-real.result }}
         run: |
           [ "$GATES" = "success" ] || { echo "gates (ownership, boundaries, lint, typecheck): $GATES"; exit 1; }
           [ "$SELECT" = "success" ] || { echo "select: $SELECT"; exit 1; }
+          [ "$CHROME" = "success" ] || { echo "chrome-real (the extension against a real Chromium): $CHROME"; exit 1; }
           case "$SHARDS" in success|skipped) ;; *) echo "shards: $SHARDS"; exit 1;; esac
   golden:
-    runs-on: [self-hosted, linux, v1]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -257,19 +314,19 @@ jobs:
       - name: Golden flows (needs/pending mode lands with scripts/golden.ts, P-PR_63)
         run: npm run golden
   contracts:
-    runs-on: [self-hosted, linux, v1]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
       - name: Did contracts change?
         id: scope
-        env:
-          BEFORE: ${{ github.event.before }}
         run: |
-          BASE="$BEFORE"
-          if [ -z "$BASE" ] || echo "$BASE" | grep -Eq '^0+$'; then BASE=origin/main; fi
-          git rev-parse --verify -q "$BASE" >/dev/null || BASE=origin/main
+          # Every check run selects against the branch's merge-base with main, never the previous push: a later push must still include every test the branch has touched since it left main.
+          git fetch -q origin main
+          BASE="$(git merge-base origin/main HEAD)"
           if git diff --name-only "$BASE"...HEAD | grep -Eq '^(manifests|packages/contracts|tools/gen|generated)/'; then echo "run=true" >> "$GITHUB_OUTPUT"; else echo "run=false" >> "$GITHUB_OUTPUT"; fi
       - name: Regenerate into a scratch directory
         if: steps.scope.outputs.run == 'true'
@@ -288,11 +345,13 @@ jobs:
   budget:
     permissions: { contents: read, actions: read }
     needs: [select, shards, check, golden]
-    if: always()
-    runs-on: [self-hosted, linux, v1]
+    if: always() && github.event_name != 'merge_group'
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
       - name: Wall time of this run against the 5 minute push budget
         env:
           GH_TOKEN: ${{ github.token }}

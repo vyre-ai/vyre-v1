@@ -1,0 +1,6 @@
+# Generated and recorded files are rebuilt by tools/gen and the regen bot, never merged by hand. In a local merge git keeps our side and the regen bot rebuilds the file from the manifests,
+# so a worker who runs `git merge origin/main` gets no conflict in generated/ or the snapshots. Needs the driver once per clone: git config merge.ours.driver true
+# (scripts/setup-merge-drivers.sh sets it). GitHub's own merge button ignores merge drivers: that is why the hash, the counts and the lane tables that used to conflict every time were
+# removed from these files, and why docs/frozen/snapshots holds one file per manifest.
+generated/** merge=ours
+docs/frozen/snapshots/** merge=ours
