@@ -4,6 +4,7 @@ A capability listed here has a registered handler that refuses with `internal.un
 
 | Module | Capability | Packet |
 |---|---|---|
-| vault | providers.add, providers.catalog, providers.list, providers.remove, providers.set_space_use, providers.subscription_complete, providers.subscription_start, providers.test | P-L7_11 |
 | vault | vault.import, vault.import_parse, vault.generate, vault.health | P-L7_11 |
 | vault | vault.folders.update, vault.folders.delete, vault.items.export_mine, vault.items.match, vault.policy.get, vault.policy.set, vault.site_rules.list, vault.site_rules.set | no packet yet (listed on P-L7_LIVE) |
+
+The providers capabilities (list, add, remove, test, sign-in) are real, not deferred: the engine needs them for every turn.

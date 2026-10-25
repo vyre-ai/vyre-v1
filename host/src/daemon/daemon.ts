@@ -5,6 +5,7 @@
 //           the Chrome bridge register as supervised services (`options.services`) when their lanes land.
 // Nothing here knows a module's internals: module code only ever sees the ctx the loader builds.
 import fs from "node:fs";
+import type http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { authorize } from "../../../kernel/src/authorize/index.ts";
@@ -38,12 +39,16 @@ import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
 import { createGateHook } from "./gate-hook.ts";
 import { withGateNesting } from "./gate-nesting.ts";
+import { createEngineHost } from "../seams/engine.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import { createSyncSeam } from "../seams/sync.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { sha256b64 } from "../../../kernel/src/seal/index.ts";
-import { createVaultService, resolveVaultItem } from "../seams/vault.ts";
+import { createLocalKeyRoute } from "../routes/local-key.ts";
+import { createKeyring } from "../seams/keyring.ts";
+import { sessionLive } from "./session.ts";
+import { createProviderProbe, createVaultService, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, wireSeams } from "../seams/index.ts";
 import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
@@ -125,6 +130,10 @@ export interface DaemonOptions {
     /** where a vault value may be filled, by kind (git_credential, container_env, env...): each receives the value for one call and must not keep or log it */
     vaultSinks?: Record<string, (f: { value: string; ref: string; handle: string; field: string; itemId: string }) => Promise<void> | void>;
   } & Partial<Omit<SeamDeps, "vault" | "drivers" | "owners">>;
+  /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
+  engineSandbox?: unknown;
+  /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
+  engineCli?: unknown;
   /** replace the consumers and periodic jobs read from the live modules' exports (tests) */
   hooks?: ModuleHooks[];
   /** The key behind ctx.seal. Omitted: a random 32-byte key kept in <data dir>/seal.key (0600). */
@@ -134,7 +143,7 @@ export interface DaemonOptions {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   /** intervals in ms; tests shorten them */
-  intervals?: { tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number };
+  intervals?: { tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number; sweep?: number };
 }
 
 export interface Daemon {
@@ -220,6 +229,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // GET /exports/<id>?token= (P-L7_16): the vault module checks the token; until it is configured every pull is refused
   let pullVaultExport: (exportId: string, token: string) => string = () => { throw new Error("the Vault is not live on this server"); };
   const exportRoute = createVaultExportRoute({ pull: (id, t) => pullVaultExport(id, t) });
+  // Ruling 62: the person's own key, handed over by their client on their own node (POST /local/vault/key/unlock, loopback only), held in memory only. A device-role daemon is the computer of whoever signs in on it;
+  // a Space server holds the key of its owner alone.
+  let ownerOfSpace: () => string | null = () => cfg.owner;
+  let callerOf: (h: http.IncomingHttpHeaders) => Promise<{ person: string; sessionId?: string } | null> = () => Promise.resolve(null);
+  const ownNode = (p: string): boolean => cfg.roles.includes("device") || p === ownerOfSpace();
+  const keyring = createKeyring({ allowed: ownNode, live: (id) => (db ? sessionLive(db, id) : false) });
+  closers.push(() => keyring.clearAll());
+  const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: ownNode });
   let headSeq = 0;
   const access = createAccess();
 
@@ -423,6 +440,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           },
         }),
         setEventsDispatch: () => system,
+        // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
+        setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
         // the import module reads an Airtable or Notion key from the Vault by handle, for one call
         setImportHost: (d) => ({ secret: (_ctx: unknown, handle: string) => d.vault.secret(handle.startsWith("#") ? handle : `#${handle}`, d.space) }),
         setEventsHost: () => createEventsHost({
@@ -431,8 +450,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }),
         ...spaceStoreDrivers(spaceStore),
         configureSync: () => createSyncSeam({ store: spaceStore, ...(loaded.serving.get("conflicts") === "live" ? { conflicts: { open: (c) => hookRunner.call("conflicts.park", c) as Promise<string>, history: async (e) => { await hookRunner.call("conflicts.record_history", e); } } } : {}), access: () => access.snap, space: spaceId, now, registryHash, invoke: (c, i, seed) => invoke(c, i, seed), keyed: (c, v) => capIndex?.get(c, v)?.idempotency === "key", ...(cfg.address ? { endpoints: () => [{ kind: "direct" as const, url: `wss://${cfg.address}/sync/v1/live` }] } : {}) }),
+        setVaultKeyPort: () => ({ personKey: async (personId: string) => keyring.get(personId) }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
-        configureVault: () => ({ sinks: o.seams?.vaultSinks ?? {}, db: db!, origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
+        configureVault: () => ({ sinks: o.seams?.vaultSinks ?? {}, db: db!, probe: createProviderProbe({ own: ownNode }), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
         setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open() }, now }),
         ...(o.seams?.drivers ?? {}),
@@ -465,6 +485,19 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       await projectionRunner.start();   // after the seams: the events module needs its dispatcher and host ports before the first event reaches webhooks_out
 
+      // The schema module seeds the record types the manifests declare once, as a write of its own, so no read has to (P-L3_17). Each declared type is also a resource in the access
+      // projection (type "record_type"), held by the Space owner, because capabilities on a type (schema.layout.set, views, grants) are authorized against it and a seeded type emits no event
+      // that would register it. The set comes from the manifests, so it is folded into the snapshot at every start and not written to the log: a new Space still starts with an empty log.
+      const startSchema = loaded.moduleExports.get("schema")?.["startSchema"] as (() => Promise<void>) | undefined;
+      if (startSchema) {
+        // started, not awaited: boot does not wait for the seed (most starts never touch schema), and every schema call waits for it, so none sees a half-seeded Space
+        const seeding = startSchema().catch((e: unknown) => { sink.log({ space: spaceId, level: 50, msg: "schema.seed_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }); });
+        closers.push(() => seeding);
+        for (const rt of registry.recordTypes) {
+          access.fold({ type: "resource.created", payload: { id: rt.key, type: "record_type", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 } });
+        }
+      }
+
       const owner = (): string => cfg.owner ?? access.owner() ?? "usr_owner";
       // Identity comes from the bearer token alone (host/src/daemon/session.ts): a device session row gives the person and the device; the x-vyre-device header and ?device= are ignored.
       // The single admin token is the owner bootstrap path only (ensureAdminToken): it acts as the owner on the fixed device `local-admin`.
@@ -476,6 +509,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         return s ? { space: s.space, principal: { kind: "person", id: s.person }, device: s.device } : null;
       };
       const session: GatewayDeps["session"] = o.session ?? ((headers) => identify(bearer(headers["authorization"])));
+      ownerOfSpace = () => cfg.owner ?? access.owner() ?? null;
+      callerOf = async (h) => {
+        const who = await session(h);
+        if (!who) return null;
+        const token = bearer(h["authorization"]);
+        const device = token ? sessions.resolve(token) : null;
+        return { person: who.principal.id, ...(device ? { sessionId: device.sessionId } : {}) };
+      };
       gateway = createGateway({ invoke, caps: indexCapabilities(caps), routes: [...routes, ...(o.extra?.routes ?? [])], session });
       // GET /spaces/<space>/blobs/<id> (ruling 50): a blob is served to a caller who may read the resource its module stored it for
       blobRoute = createBlobRoute({
@@ -560,6 +601,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
   const fast = o.intervals?.fast ?? 15_000, slow = o.intervals?.slow ?? 60_000;
   const group = (names: ProbeName[]): ProbeName[] => names.filter((n) => relevant.includes(n));
+  // a signed-out person's key leaves memory within the interval, not whenever someone next reads it
+  scheduler.add({ name: "keyring.sweep", schedule: { everyMs: o.intervals?.sweep ?? 30_000 }, run: () => { keyring.sweep(); } });
   scheduler.add({ name: "probes.fast", schedule: { everyMs: fast }, run: async () => { await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"])); } });
   scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"])); reportNetwork(); } });
   scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"])); } });
@@ -597,7 +640,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
     });
-    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || exportRoute.handle(req, res)) return; listener(req, res); });
+    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || exportRoute.handle(req, res) || localKeyRoute.handle(req, res)) return; listener(req, res); });
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error): void => reject(err);
       server.once("error", onError);
