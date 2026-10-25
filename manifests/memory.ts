@@ -176,7 +176,7 @@ export default defineManifest({
     ev('memory.erased', 'Facts were erased from history (who and when only)', { p: { count: t.int(), by: t.str(), scope: t.opt(t.str()) }, subject: ['entity', '/by'], vis: 'participants', retention: 'memory' }),
     ev('memory.captured', 'Capture ran for a thread', { p: { threadId: id.thread, proposed: t.int(), merged: t.int() }, subject: ['thread', '/threadId'], vis: 'participants', retention: 'memory' }),
     ev('memory.map_rewritten', 'MAP.md of an agent was rewritten by the nightly job', { p: { agentId: id.agent, lines: t.int() }, subject: ['agent', '/agentId'], retention: 'memory' }),
-    ev('memory.note_restored', 'A shared memory note was restored to an earlier version', { p: { noteId: id.note, versionId: id.version, by: t.str() }, subject: ['file', '/noteId'], retention: 'memory' }),
+    ev('memory.note_restored', 'A shared memory note was restored to an earlier version', { p: { noteId: id.note, versionId: id.version, by: t.str() }, subject: ['note', '/noteId'], retention: 'memory' }),
     ev('memory.everything_viewed', 'An admin opened the everything graph view', { p: { by: t.str() }, subject: ['entity', '/by'], retention: 'audit' }),
   ],
   blocks: [

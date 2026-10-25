@@ -40,5 +40,5 @@ Requires: nothing.
 - [site.preview_removed](../events/site.preview_removed.md): A preview was removed after the branch merged
 - [site.promoted](../events/site.promoted.md): A build was promoted to production through the Gate
 - [site.rolled_back](../events/site.rolled_back.md): Production was rolled back to an earlier build
-- [site.table_created](../events/site.table_created.md): A site table (site-scoped record type) was created
+- [site.table_created](../events/site.table_created.md): A site table (site-scoped record type) was created; fields carries its columns so the record type can be made from the event alone
 - [site.table_promoted](../events/site.table_promoted.md): A site table became a Space record type
