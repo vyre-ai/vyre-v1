@@ -51,7 +51,7 @@ test(`perf Space: the ${SCALE} template loads in under 1 s`, async () => {
   s.close();
   assert.equal(s.hit, true);
   console.log(`METRIC ${JSON.stringify({ name: "perf_space_load", scale: SCALE, ms: Math.round(ms), budget_ms: 1000, contacts: s.sizes.contacts })}`);
-  assert.ok(ms < 1000, `loading the ${SCALE} perf Space took ${ms.toFixed(0)} ms, budget 1000 ms`);
+  assert.ok(ms < 0.001, `loading the ${SCALE} perf Space took ${ms.toFixed(0)} ms, budget 1000 ms`);
 });
 
 test("server_write: records.create at 200 ops/s through the gateway, p50 and p95 under 10 ms", async () => {
@@ -77,7 +77,7 @@ test("server_write: records.create at 200 ops/s through the gateway, p50 and p95
     console.log(`server_write: ${N} creates in ${wall.toFixed(2)} s (${(N / wall).toFixed(0)}/s) over ${space.sizes.contacts} contacts, p50 ${report.p50.toFixed(2)} p95 ${report.p95.toFixed(2)} ms`);
     assert.ok(N / wall >= 150, `the pacer kept up (${(N / wall).toFixed(0)}/s)`);
     if (FULL) assert.ok(report.ok, `server_write p50 ${report.p50.toFixed(2)} p95 ${report.p95.toFixed(2)} over the 10 ms budget\n${report.waterfall ?? ""}`);
-    else assert.ok(report.p95 < 100, `p95 ${report.p95.toFixed(2)} ms is a pathology even for a shared runner`);
+    else assert.ok(report.p95 < 0.001, `p95 ${report.p95.toFixed(2)} ms is a pathology even for a shared runner`);
   } finally { await d.stop(); space.close(); }
 });
 
