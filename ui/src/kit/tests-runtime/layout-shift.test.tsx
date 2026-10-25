@@ -1,6 +1,7 @@
 // Navigate and layout shift: across a 20-screen run every screen occupies the same box whether it is loading, empty,
 // offline, in error or ready, so the swap between states moves nothing. The browser measurement (layout-shift sum over the
 // same run in headless Chrome) is the shots probe on scripts/shots/mounts/P-L9_13.tsx.
+// @reads ../../../../scripts/shots/mounts/P-L9_13.tsx
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";

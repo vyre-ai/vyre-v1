@@ -67,5 +67,5 @@ export default function Mount() {
 
 const styles = StyleSheet.create({
   run: { flex: 1, backgroundColor: "var(--win)" as string },
-  slot: { height: 320, overflow: "hidden", borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  slot: { height: 1000, overflow: "hidden", borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
 });
