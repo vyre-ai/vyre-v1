@@ -18,7 +18,7 @@ export function rowHeight(note?: string, tall = false): number {
   return note ? ROW_HEIGHT_WITH_NOTE : ROW_HEIGHT;
 }
 
-export const Row = memo(function Row({ id, title, titleSuffix, tall = false, note, selected = false, hovered = false, leading, trailing, onPress }: RowProps) {
+export const Row = memo(function Row({ id, title, titleSuffix, tall = false, emphasis = false, note, selected = false, hovered = false, leading, trailing, onPress }: RowProps) {
   const [over, setOver] = useState(false);
   const lit = hovered || over;
   return (
@@ -36,10 +36,10 @@ export const Row = memo(function Row({ id, title, titleSuffix, tall = false, not
       <View style={styles.text}>
         {titleSuffix ? (
           <View style={styles.titleLine}>
-            <Text numberOfLines={1} style={[styles.title, styles.titleMain]}>{title}</Text>
+            <Text numberOfLines={1} style={[styles.title, styles.titleMain, emphasis && BOLD]}>{title}</Text>
             <Text numberOfLines={1} testID={id ? `row-${id}-suffix` : undefined} style={styles.suffix}>{titleSuffix}</Text>
           </View>
-        ) : <Text numberOfLines={1} style={styles.title}>{title}</Text>}
+        ) : <Text numberOfLines={1} style={[styles.title, emphasis && BOLD]}>{title}</Text>}
         {note ? <Text numberOfLines={tall ? 2 : 1} style={styles.note}>{note}</Text> : null}
       </View>
       {trailing ? <View testID={id ? `row-${id}-trailing` : undefined} style={styles.trailing}>{trailing}</View> : null}
@@ -49,6 +49,7 @@ export const Row = memo(function Row({ id, title, titleSuffix, tall = false, not
 
 // Plain objects (not StyleSheet ids) so the painted token is visible in the element's inline style.
 const HOVER = { backgroundColor: "var(--hover)" };
+const BOLD = { fontWeight: "600" as const };
 const SELECTED = { backgroundColor: "var(--sel)" };
 
 const styles = StyleSheet.create({

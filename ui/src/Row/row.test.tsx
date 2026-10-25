@@ -62,3 +62,12 @@ test("a title suffix draws muted after the name on the same line, and rows witho
   assert.ok(html.indexOf("Maya Chen") < html.indexOf("Northwind"), "the suffix follows the name");
   assert.ok(!renderToStaticMarkup(<Row id="a" title="Maya Chen" />).includes("-suffix"));
 });
+
+test("emphasis makes the title semibold, with or without a suffix; without it the weight is untouched", () => {
+  const on = renderToStaticMarkup(<Row id="a" title="Intake channel" emphasis />);
+  const withSuffix = renderToStaticMarkup(<Row id="a" title="Maya Chen" titleSuffix="Northwind" emphasis />);
+  const off = renderToStaticMarkup(<Row id="a" title="Intake channel" />);
+  assert.match(on, /font-weight:600/);
+  assert.match(withSuffix, /font-weight:600/);
+  assert.ok(!off.includes("font-weight:600"));
+});

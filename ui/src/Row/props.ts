@@ -14,6 +14,8 @@ export interface RowProps {
   titleSuffix?: string;
   /** Two-line variant, 62 px: the title line and a note of up to two lines (Inbox rows). Default is the 28 or 44 px row. */
   tall?: boolean;
+  /** Semibold title (unread chats and channels). */
+  emphasis?: boolean;
   /** Before the title (avatar, icon, chevron). Keeps its own width; the title starts after it. */
   leading?: ReactNode;
   /** After the title, right aligned (count, level picker, controls). */
