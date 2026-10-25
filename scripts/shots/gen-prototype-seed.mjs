@@ -42,12 +42,14 @@ function stubs(space) {
 }
 
 /** The module script that starts with `startMarker` after the textarea `id`, up to `endMarker`, as one function body. */
-function slice(text, textareaId, startMarker, endMarker) {
+function slice(text, textareaId, startMarker, endMarker, endAfter) {
   const at = text.indexOf(`<textarea hidden id="${textareaId}">`);
   if (at < 0) throw new Error(`no ${textareaId} in the prototype`);
   const from = text.indexOf(startMarker, at);
   if (from < 0) throw new Error(`no start marker in ${textareaId}`);
-  const to = text.indexOf(endMarker, from);
+  const search = endAfter ? text.indexOf(endAfter, from) : from;
+  if (search < 0) throw new Error(`no ${endAfter} in ${textareaId}`);
+  const to = text.indexOf(endMarker, search);
   if (to < 0) throw new Error(`no end marker ${endMarker} in ${textareaId}`);
   return text.slice(from + startMarker.length, to);
 }
@@ -69,7 +71,7 @@ function run(body, expose, space) {
 
 export function runSeed() {
   const text = protoText();
-  const filesBody = slice(text, "src-files", '<script>\n(function () {\n  "use strict";\n', "\n  /* ================= inboxfiles");
+  const filesBody = slice(text, "src-files", '<script>\n(function () {\n  "use strict";\n', "\n  /* ================= inboxfiles", "const SIDE_IDS");
   const recordsBody = slice(text, "src-records", '<script>\n(function () {\n  "use strict";\n', "\n  /* the signed-in person's grants");
   const out = {};
   for (const [key, short] of SPACES) {
