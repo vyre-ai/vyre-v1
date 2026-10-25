@@ -751,7 +751,6 @@ export function createClient(transport: Transport) {
       share: call("files.share", 1),
       share_external: call("files.share_external", 1),
       shared_with_me: call("files.shared_with_me", 1),
-      star: call("files.star", 1),
       trash: {
         empty: call("files.trash.empty", 1),
         list: call("files.trash.list", 1),
@@ -1291,6 +1290,9 @@ export function createClient(transport: Transport) {
         save: call("memory.layout.save", 1),
       },
       maintain: call("memory.maintain", 1),
+      map: {
+        get: call("memory.map.get", 1),
+      },
       notes: {
         list: call("memory.notes.list", 1),
       },

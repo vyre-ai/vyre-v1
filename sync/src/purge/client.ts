@@ -15,6 +15,8 @@ export interface PurgeClientOpts {
   personActive?: (reason: PurgeReason) => boolean | Promise<boolean>;
   /** The epoch this device last took part in, so an old frame is ignored. */
   currentEpoch?: () => number;
+  /** Wraps the wipe of one purge: the device acknowledges it to the server (devices.purge_ack) once the wipe completed. The shell passes `(epoch, wipe) => acker.afterWipe(deviceId, epoch, wipe)` from client/src/store createPurgeAcker. */
+  around?: <R>(epoch: number, wipe: () => Promise<R>) => Promise<R>;
 }
 
 export interface PurgeClient {
@@ -34,7 +36,8 @@ export function createPurgeClient(o: PurgeClientOpts): PurgeClient {
     if (running) return running;
     const p = (async () => {
       const personActive = o.personActive ? await Promise.resolve(o.personActive(reason)).catch(() => false) : false;
-      const report = await purgeReplica({ ...o.purge, reason, epoch, personActive });
+      const wipe = (): Promise<PurgeReport> => purgeReplica({ ...o.purge, reason, epoch, personActive });
+      const report = await (o.around ? o.around(epoch, wipe) : wipe());
       done = epoch;
       return report;
     })();

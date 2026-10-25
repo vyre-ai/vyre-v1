@@ -6,21 +6,16 @@ The catalogue is the `events` array in `generated/registry.json`, emitted by too
 
 ## Frozen values
 
+Each event is frozen in `docs/frozen/snapshots/<manifest>.json` beside the capabilities of its manifest (see docs/frozen/capabilities.md): one line per event with the sha256 of its canonical definition. There is no catalogue-wide hash or count here; those changed with every new event and made every contract PR conflict with every other.
+
 | Item | Value |
 |---|---|
-| Events | 603 |
-| Hash | `10ebca9de9018b6f1ade46b514e6b39e26d41312c46b431d50668e017bd3fc76` |
-| Hash input | SHA-256 of the canonical JSON of the events array (`lib/canonical.ts`: sorted keys, no whitespace) |
+| Hash input | SHA-256 of the canonical JSON of one event (`lib/canonical.ts`: sorted keys, no whitespace), shared schemas resolved |
 | Schema version | 1 on every event |
-| Distinct names | 603 |
-| Primitives | 139 |
-| Registry hash | `e40160da06d6b1bbb8c20f83444511421136932f1c25498ff9837e5a48aa0efd` (`generated/hash.txt`) |
-
-The registry hash covers the whole registry. The event hash covers the events array only.
 
 ## Checks
 
-Name. Every name is `<primitive>.<verb>`: `^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$`. One dot, both segments lowercase, digits and underscores allowed (`access_review.closed`, `calendar_event.created`). 600 names, all unique, 139 primitives.
+Name. Every name is `<primitive>.<verb>`: `^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$`. One dot, both segments lowercase, digits and underscores allowed (`access_review.closed`, `calendar_event.created`). All names are unique.
 
 Owner. Every event carries `module`, and that id is one of the registry modules. 74 modules own at least one event. Six modules declare none: `console-views`, `default`, `estate-planning`, `harbor-studio`, `law-firm-intake`, `steps-core`.
 

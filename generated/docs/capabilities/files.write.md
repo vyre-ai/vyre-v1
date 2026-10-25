@@ -60,8 +60,6 @@ type Out = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
-    starred?: boolean;
-    conflict?: boolean;
   };
   versionId?: string;
   changesetId?: string;
@@ -98,7 +96,6 @@ type Out = {
   "output": {
     "changesetId": "chg_a1b2c3",
     "file": {
-      "conflict": true,
       "createdAt": 1760000000000,
       "deletedAt": 1760000000000,
       "fileId": "fil_a1b2c3",
@@ -114,7 +111,6 @@ type Out = {
         "mountId": "mnt_a1b2c3",
         "provider": "example"
       },
-      "starred": true,
       "thumb": true,
       "updatedAt": 1760000000000,
       "updatedBy": "example",

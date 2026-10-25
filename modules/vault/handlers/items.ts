@@ -23,7 +23,7 @@ const live = (r: Row): boolean => r["deleted_at"] === null || r["deleted_at"] ==
 
 // ---- sealed values
 
-function filler(ctx: VaultCtx) {
+export function filler(ctx: VaultCtx) {
   const f = currentFiller();
   if (!f) throw fail("internal.unavailable", ctx.trace.traceId, { message: "The vault service is not running, so values cannot be read or saved. Restart it from Console." });
   return f;
@@ -31,7 +31,9 @@ function filler(ctx: VaultCtx) {
 
 /** The wrap key of the signed-in owner, or a refusal. */
 async function ownerWrap(ctx: VaultCtx, owner: string): Promise<Buffer> {
-  if (ctx.principal.id !== owner || ctx.principal.kind !== "person") return denied(ctx, "A Mine item belongs to one person. Only they can read or change it.");
+  // the owner themselves, or a turn run for them: the key exists only on a node where they unlocked it (ruling 62), so another person's turn never reaches it
+  const theirs = (ctx.principal.id === owner && ctx.principal.kind === "person") || ctx.actingFor === owner;
+  if (!theirs) return denied(ctx, "A Mine item belongs to one person. Only they can read or change it.");
   const key = await currentKeyPort()?.personKey(owner);
   if (!key) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your vault key is locked. Sign in again to open your Mine items." });
   return wrapKeyFromPersonKey(key);
@@ -52,7 +54,7 @@ function storeSealed(ctx: VaultCtx, itemId: string, s: SealedFields): void {
   else ctx.db.run(`INSERT INTO vault_secret ("itemId", "enc", "keyId", "wrapped", "box", "rev") VALUES (?, ?, ?, ?, ?, ?)`, itemId, s.enc, s.keyId, s.wrapped ? JSON.stringify(s.wrapped) : null, JSON.stringify(s.box), s.rev);
 }
 
-async function openFields(ctx: VaultCtx, item: Row): Promise<Field[]> {
+export async function openFields(ctx: VaultCtx, item: Row): Promise<Field[]> {
   const sealed = sealedOf(ctx, str(item, "id"));
   try {
     if (sealed.enc === ENC_MINE) return openMine(str(item, "id"), sealed, await ownerWrap(ctx, str(item, "owner")));
@@ -70,18 +72,18 @@ async function sealFor(ctx: VaultCtx, itemId: string, scope: string, owner: stri
 // ---- visibility
 
 /** Mine items are the owner's alone; anything else is visible when authorize allows Use. */
-function visible(ctx: VaultCtx, r: Row): boolean {
+export function visible(ctx: VaultCtx, r: Row): boolean {
   if (!live(r)) return false;
   if (str(r, "scope") === "mine") return str(r, "owner") === ctx.principal.id;
   return str(r, "owner") === ctx.principal.id || levelOn(ctx, "vault_item", str(r, "id")) !== null;
 }
 
-function levelOf(ctx: VaultCtx, r: Row) {
+export function levelOf(ctx: VaultCtx, r: Row) {
   return str(r, "owner") === ctx.principal.id ? "manage" as const : levelOn(ctx, "vault_item", str(r, "id"));
 }
 
 /** An item the caller can see, at least at `need`; a Mine item of someone else does not exist for them. */
-function reachable(ctx: VaultCtx, id: string, need: "use" | "view" | "edit" | "manage", opts: { trashed?: boolean } = {}): Row {
+export function reachable(ctx: VaultCtx, id: string, need: "use" | "view" | "edit" | "manage", opts: { trashed?: boolean } = {}): Row {
   if (!isId("vit", id)) bad(ctx, "Item id is not valid.");
   const r = opts.trashed ? anyItem(ctx, id) : liveItem(ctx, id);
   if (str(r, "scope") === "mine" && str(r, "owner") !== ctx.principal.id) throw fail("validation.not_found", ctx.trace.traceId, { message: "That item is not in this Vault." });
@@ -303,8 +305,8 @@ export async function itemMove(ctx: VaultCtx, input: { itemId: string; folderId:
   patchMeta(ctx, str(r, "id"), { folderId: str(target, "id"), scope: to });
   record(ctx, str(r, "id"), "moved", { detail: `${from} to ${str(target, "id")}` });
   ctx.emit("vault.item_moved", `vault_item/${str(r, "id")}`, { itemId: str(r, "id"), fromFolderId: from, toFolderId: str(target, "id") }, { vis: "participants" });
-  // item.moved names generic fld_ folders; vault folders are vfd_, so the event carries the resource only (vault.item_moved has the folders)
-  ctx.emit("item.moved", `vault_item/${str(r, "id")}`, { resource: { type: "vault_item", id: str(r, "id") } });
+  // item.moved takes fld_ and vfd_ folders alike (P-CC_28), so a Vault move carries from and to on the shared event too
+  ctx.emit("item.moved", `vault_item/${str(r, "id")}`, { resource: { type: "vault_item", id: str(r, "id") }, fromFolderId: from, toFolderId: str(target, "id") });
   return { item: metaOut(ctx, liveItem(ctx, str(r, "id"))) };
 }
 

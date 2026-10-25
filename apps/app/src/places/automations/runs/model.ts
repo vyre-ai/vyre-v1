@@ -212,6 +212,15 @@ export function flat(lines: readonly RunLine[]): RunLine[] {
   return lines.flatMap((l) => (l.kind === "branch" ? [l, ...flat(l.lines)] : [l]));
 }
 
+/** The step that follows the last failed one in the step log, in first-seen order: where Skip step carries on. */
+export function stepAfterFailed(steps: readonly RunStep[]): string | undefined {
+  const order: string[] = [];
+  for (const s of steps) if (!order.includes(s.step)) order.push(s.step);
+  const bad = [...steps].reverse().find((s) => s.state === "failed");
+  if (!bad) return undefined;
+  return order[order.indexOf(bad.step) + 1];
+}
+
 /** The step to retry from: the last error row's step, else the last failed step. */
 export function failedStep(lines: readonly RunLine[], steps: readonly RunStep[]): string | undefined {
   const err = [...flat(lines)].reverse().find((l): l is Extract<RunLine, { kind: "error" }> => l.kind === "error");

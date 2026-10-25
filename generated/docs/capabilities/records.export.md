@@ -1,6 +1,6 @@
 # records.export
 
-Export rows as CSV or Excel (permissioned)
+Export rows as CSV or Excel (permissioned), the whole view or only the picked recordIds
 
 | | |
 |---|---|
@@ -36,6 +36,7 @@ type In = {
   fields?: Array<string>;
   offset?: number;
   limit?: number;
+  recordIds?: Array<string>;
 };
 ```
 
@@ -70,6 +71,9 @@ type Out = {
     "group": "example",
     "limit": 1,
     "offset": 1,
+    "recordIds": [
+      "rec_a1b2c3"
+    ],
     "sort": [
       {
         "dir": "asc",

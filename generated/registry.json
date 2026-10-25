@@ -104,6 +104,28 @@
       },
       "type": "array"
     },
+    "s_01ba7de8d7": {
+      "properties": {
+        "files": {
+          "$ref": "#/$defs/s_a21144ff96"
+        },
+        "folders": {
+          "$ref": "#/$defs/s_67ef96a86f"
+        },
+        "next": {
+          "description": "Cursor for the next page; absent on the last page",
+          "type": "string"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "files",
+        "folders"
+      ],
+      "type": "object"
+    },
     "s_027fb3219c": {
       "properties": {
         "default": {
@@ -241,24 +263,6 @@
       ],
       "type": "object"
     },
-    "s_04aaa4e969": {
-      "properties": {
-        "changesetId": {
-          "examples": [
-            "chg_a1b2c3"
-          ],
-          "pattern": "^chg_[a-z0-9]+$",
-          "type": "string"
-        },
-        "file": {
-          "$ref": "#/$defs/s_ac13e8babf"
-        }
-      },
-      "required": [
-        "file"
-      ],
-      "type": "object"
-    },
     "s_0506fc3ab2": {
       "properties": {
         "at": {
@@ -272,6 +276,89 @@
       },
       "required": [
         "at"
+      ],
+      "type": "object"
+    },
+    "s_050abe3aea": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "channelId": {
+          "examples": [
+            "chn_a1b2c3"
+          ],
+          "pattern": "^chn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "cron": {
+          "description": "The schedule of a schedule routine; a watcher has none",
+          "examples": [
+            "0 9 * * 1-5"
+          ],
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "kind": {
+          "enum": [
+            "schedule",
+            "watch"
+          ],
+          "type": "string"
+        },
+        "lastRunAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "nextRunAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ownerId": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "routineId": {
+          "examples": [
+            "rtn_a1b2c3"
+          ],
+          "pattern": "^rtn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "watch": {
+          "$ref": "#/$defs/s_f5d31dac8f"
+        }
+      },
+      "required": [
+        "routineId",
+        "agentId",
+        "title",
+        "prompt",
+        "enabled",
+        "ownerId"
       ],
       "type": "object"
     },
@@ -335,6 +422,122 @@
           "$ref": "#/$defs/s_0506fc3ab2"
         }
       ]
+    },
+    "s_075cc013db": {
+      "properties": {
+        "costMicros": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "definitionVersion": {
+          "type": "integer"
+        },
+        "endedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "keyUsed": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/s_45112f0b77"
+        },
+        "modelUsed": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "owner": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "type": "string"
+        },
+        "parentRun": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "startedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "startedBy": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "waiting",
+            "succeeded",
+            "failed",
+            "stopped"
+          ],
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/s_f21ece25da"
+        },
+        "summary": {
+          "description": "One-line result",
+          "type": "string"
+        },
+        "threadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "traceId": {
+          "examples": [
+            "0123456789abcdef0123456789abcdef"
+          ],
+          "pattern": "^[0-9a-f]{32}$",
+          "type": "string"
+        },
+        "trigger": {
+          "$ref": "#/$defs/s_f908ff12d6"
+        },
+        "waitReason": {
+          "enum": [
+            "approval",
+            "background",
+            "key"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "owner",
+        "startedBy",
+        "status",
+        "costMicros",
+        "startedAt",
+        "traceId"
+      ],
+      "type": "object"
     },
     "s_0766030a72": {
       "enum": [
@@ -1269,6 +1472,74 @@
         "type": "object"
       },
       "type": "array"
+    },
+    "s_13ccf833f9": {
+      "properties": {
+        "fileCount": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "folderCount": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "git": {
+          "type": "boolean"
+        },
+        "label": {
+          "maximum": 3,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "parentId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "path": {
+          "examples": [
+            "Projects/Probate GTM"
+          ],
+          "type": "string"
+        },
+        "reviewChanges": {
+          "type": "boolean"
+        },
+        "scope": {
+          "enum": [
+            "personal",
+            "space"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/s_79be53286e"
+        }
+      },
+      "required": [
+        "folderId",
+        "name",
+        "path",
+        "fileCount",
+        "folderCount",
+        "scope",
+        "label",
+        "git",
+        "reviewChanges"
+      ],
+      "type": "object"
     },
     "s_13ee309840": {
       "items": {
@@ -3240,27 +3511,6 @@
       ],
       "type": "object"
     },
-    "s_30183bc12b": {
-      "properties": {
-        "next": {
-          "description": "Cursor for the next page; absent on the last page",
-          "type": "string"
-        },
-        "threads": {
-          "items": {
-            "$ref": "#/$defs/s_d3e31471e5"
-          },
-          "type": "array"
-        },
-        "total": {
-          "type": "integer"
-        }
-      },
-      "required": [
-        "threads"
-      ],
-      "type": "object"
-    },
     "s_3115d5e95d": {
       "properties": {
         "row": {
@@ -3454,12 +3704,6 @@
           "copiedToTrash"
         ],
         "type": "object"
-      },
-      "type": "array"
-    },
-    "s_333ebd7463": {
-      "items": {
-        "$ref": "#/$defs/s_ac13e8babf"
       },
       "type": "array"
     },
@@ -4881,6 +5125,118 @@
       ],
       "type": "object"
     },
+    "s_486e12678d": {
+      "properties": {
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "deletedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fileId": {
+          "examples": [
+            "fil_a1b2c3"
+          ],
+          "pattern": "^fil_[a-z0-9]+$",
+          "type": "string"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "holds": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "text",
+            "markdown",
+            "document",
+            "spreadsheet",
+            "presentation",
+            "pdf",
+            "image",
+            "video",
+            "audio",
+            "code",
+            "archive",
+            "google_native",
+            "other"
+          ],
+          "type": "string"
+        },
+        "label": {
+          "maximum": 3,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        },
+        "size": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/s_79be53286e"
+        },
+        "thumb": {
+          "type": "boolean"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "updatedBy": {
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "fileId",
+        "folderId",
+        "name",
+        "kind",
+        "mime",
+        "size",
+        "version",
+        "label",
+        "ownerId",
+        "createdAt",
+        "updatedAt",
+        "updatedBy",
+        "thumb",
+        "holds"
+      ],
+      "type": "object"
+    },
     "s_489f2891b9": {
       "properties": {
         "as": {
@@ -4931,77 +5287,6 @@
       "required": [
         "deliveryId",
         "idempotencyKey"
-      ],
-      "type": "object"
-    },
-    "s_4a1e404cdd": {
-      "properties": {
-        "fileCount": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "folderCount": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "git": {
-          "type": "boolean"
-        },
-        "label": {
-          "maximum": 3,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "name": {
-          "type": "string"
-        },
-        "parentId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "path": {
-          "examples": [
-            "Projects/Probate GTM"
-          ],
-          "type": "string"
-        },
-        "reviewChanges": {
-          "type": "boolean"
-        },
-        "scope": {
-          "enum": [
-            "personal",
-            "space"
-          ],
-          "type": "string"
-        },
-        "source": {
-          "$ref": "#/$defs/s_79be53286e"
-        },
-        "subject": {
-          "$ref": "#/$defs/s_b5775f40f8"
-        }
-      },
-      "required": [
-        "folderId",
-        "name",
-        "path",
-        "fileCount",
-        "folderCount",
-        "scope",
-        "label",
-        "git",
-        "reviewChanges"
       ],
       "type": "object"
     },
@@ -7467,28 +7752,6 @@
       ],
       "type": "object"
     },
-    "s_63dc3a7fc4": {
-      "properties": {
-        "files": {
-          "$ref": "#/$defs/s_333ebd7463"
-        },
-        "folders": {
-          "$ref": "#/$defs/s_76462aa6ce"
-        },
-        "next": {
-          "description": "Cursor for the next page; absent on the last page",
-          "type": "string"
-        },
-        "total": {
-          "type": "integer"
-        }
-      },
-      "required": [
-        "files",
-        "folders"
-      ],
-      "type": "object"
-    },
     "s_63dee7bf35": {
       "properties": {
         "fixedIn": {
@@ -7828,6 +8091,12 @@
       ],
       "type": "object"
     },
+    "s_67ef96a86f": {
+      "items": {
+        "$ref": "#/$defs/s_13ccf833f9"
+      },
+      "type": "array"
+    },
     "s_685b085375": {
       "properties": {
         "alerts": {
@@ -8103,6 +8372,17 @@
       ],
       "type": "object"
     },
+    "s_6d2c83cc88": {
+      "properties": {
+        "run": {
+          "$ref": "#/$defs/s_075cc013db"
+        }
+      },
+      "required": [
+        "run"
+      ],
+      "type": "object"
+    },
     "s_6ddc87dad0": {
       "items": {
         "$ref": "#/$defs/s_1ff9692f8d"
@@ -8357,6 +8637,24 @@
       ],
       "type": "object"
     },
+    "s_74c6a2fb9f": {
+      "properties": {
+        "changesetId": {
+          "examples": [
+            "chg_a1b2c3"
+          ],
+          "pattern": "^chg_[a-z0-9]+$",
+          "type": "string"
+        },
+        "file": {
+          "$ref": "#/$defs/s_486e12678d"
+        }
+      },
+      "required": [
+        "file"
+      ],
+      "type": "object"
+    },
     "s_753c0a822e": {
       "properties": {
         "request": {
@@ -8507,12 +8805,6 @@
       ],
       "type": "object"
     },
-    "s_76462aa6ce": {
-      "items": {
-        "$ref": "#/$defs/s_4a1e404cdd"
-      },
-      "type": "array"
-    },
     "s_76a1c562f7": {
       "properties": {
         "incident": {
@@ -8634,17 +8926,6 @@
       "required": [
         "fileId",
         "folderId"
-      ],
-      "type": "object"
-    },
-    "s_7916849f25": {
-      "properties": {
-        "run": {
-          "$ref": "#/$defs/s_bb7ff7d602"
-        }
-      },
-      "required": [
-        "run"
       ],
       "type": "object"
     },
@@ -10240,6 +10521,17 @@
       ],
       "type": "object"
     },
+    "s_8fffaf9035": {
+      "properties": {
+        "folder": {
+          "$ref": "#/$defs/s_13ccf833f9"
+        }
+      },
+      "required": [
+        "folder"
+      ],
+      "type": "object"
+    },
     "s_90ff7d13ee": {
       "properties": {
         "branches": {
@@ -10646,6 +10938,17 @@
       },
       "required": [
         "url"
+      ],
+      "type": "object"
+    },
+    "s_9746c1f86e": {
+      "properties": {
+        "thread": {
+          "$ref": "#/$defs/s_b4cc02fcf3"
+        }
+      },
+      "required": [
+        "thread"
       ],
       "type": "object"
     },
@@ -11156,6 +11459,12 @@
       ],
       "type": "object"
     },
+    "s_a21144ff96": {
+      "items": {
+        "$ref": "#/$defs/s_486e12678d"
+      },
+      "type": "array"
+    },
     "s_a2d37875a7": {
       "properties": {
         "schedule": {
@@ -11656,6 +11965,27 @@
       ],
       "type": "object"
     },
+    "s_a85a72f91c": {
+      "properties": {
+        "next": {
+          "description": "Cursor for the next page; absent on the last page",
+          "type": "string"
+        },
+        "threads": {
+          "items": {
+            "$ref": "#/$defs/s_b4cc02fcf3"
+          },
+          "type": "array"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "threads"
+      ],
+      "type": "object"
+    },
     "s_a8e0a730ee": {
       "items": {
         "properties": {
@@ -11917,124 +12247,6 @@
       },
       "required": [
         "rules"
-      ],
-      "type": "object"
-    },
-    "s_ac13e8babf": {
-      "properties": {
-        "conflict": {
-          "type": "boolean"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "deletedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "fileId": {
-          "examples": [
-            "fil_a1b2c3"
-          ],
-          "pattern": "^fil_[a-z0-9]+$",
-          "type": "string"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "holds": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "kind": {
-          "enum": [
-            "text",
-            "markdown",
-            "document",
-            "spreadsheet",
-            "presentation",
-            "pdf",
-            "image",
-            "video",
-            "audio",
-            "code",
-            "archive",
-            "google_native",
-            "other"
-          ],
-          "type": "string"
-        },
-        "label": {
-          "maximum": 3,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "mime": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "ownerId": {
-          "type": "string"
-        },
-        "size": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "source": {
-          "$ref": "#/$defs/s_79be53286e"
-        },
-        "starred": {
-          "type": "boolean"
-        },
-        "thumb": {
-          "type": "boolean"
-        },
-        "updatedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "updatedBy": {
-          "type": "string"
-        },
-        "version": {
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "fileId",
-        "folderId",
-        "name",
-        "kind",
-        "mime",
-        "size",
-        "version",
-        "label",
-        "ownerId",
-        "createdAt",
-        "updatedAt",
-        "updatedBy",
-        "thumb",
-        "holds"
       ],
       "type": "object"
     },
@@ -12411,6 +12623,137 @@
       },
       "type": "array"
     },
+    "s_b4cc02fcf3": {
+      "properties": {
+        "agents": {
+          "$ref": "#/$defs/s_18a5df4b3d"
+        },
+        "channelId": {
+          "examples": [
+            "chn_a1b2c3"
+          ],
+          "pattern": "^chn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "closedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "chat",
+            "channel",
+            "thread",
+            "ask",
+            "run",
+            "helper",
+            "console"
+          ],
+          "type": "string"
+        },
+        "lastMessageAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "listed": {
+          "type": "boolean"
+        },
+        "members": {
+          "$ref": "#/$defs/s_39a2155802"
+        },
+        "parentMessageId": {
+          "examples": [
+            "msg_a1b2c3"
+          ],
+          "pattern": "^msg_[a-z0-9]+$",
+          "type": "string"
+        },
+        "parentThreadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "path": {
+          "description": "Address bar parts for helper chats, each a link back",
+          "items": {
+            "$ref": "#/$defs/s_2a7bd8f420"
+          },
+          "type": "array"
+        },
+        "planMode": {
+          "type": "boolean"
+        },
+        "recordId": {
+          "examples": [
+            "rec_a1b2c3"
+          ],
+          "pattern": "^rec_[a-z0-9]+$",
+          "type": "string"
+        },
+        "replyCount": {
+          "description": "Messages in the thread that are not deleted",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "scopeId": {
+          "type": "string"
+        },
+        "scopeType": {
+          "examples": [
+            "record"
+          ],
+          "type": "string"
+        },
+        "starter": {
+          "type": "string"
+        },
+        "threadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId",
+        "kind",
+        "listed",
+        "planMode",
+        "members",
+        "agents",
+        "createdAt"
+      ],
+      "type": "object"
+    },
     "s_b4d375add9": {
       "properties": {
         "channel": {
@@ -12488,39 +12831,6 @@
       },
       "required": [
         "scope"
-      ],
-      "type": "object"
-    },
-    "s_b5775f40f8": {
-      "properties": {
-        "id": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "agent",
-            "project",
-            "space"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "kind"
-      ],
-      "type": "object"
-    },
-    "s_b59a284a11": {
-      "properties": {
-        "file": {
-          "$ref": "#/$defs/s_ac13e8babf"
-        }
-      },
-      "required": [
-        "file"
       ],
       "type": "object"
     },
@@ -13092,119 +13402,6 @@
       ],
       "type": "object"
     },
-    "s_bb7ff7d602": {
-      "properties": {
-        "costMicros": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "definitionVersion": {
-          "type": "integer"
-        },
-        "endedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "keyUsed": {
-          "type": "string"
-        },
-        "kind": {
-          "$ref": "#/$defs/s_45112f0b77"
-        },
-        "modelUsed": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "owner": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "type": "string"
-        },
-        "parentRun": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "startedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "startedBy": {
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "queued",
-            "running",
-            "waiting",
-            "succeeded",
-            "failed",
-            "stopped"
-          ],
-          "type": "string"
-        },
-        "subject": {
-          "$ref": "#/$defs/s_f21ece25da"
-        },
-        "summary": {
-          "description": "One-line result",
-          "type": "string"
-        },
-        "threadId": {
-          "examples": [
-            "thr_a1b2c3"
-          ],
-          "pattern": "^thr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "traceId": {
-          "examples": [
-            "0123456789abcdef0123456789abcdef"
-          ],
-          "pattern": "^[0-9a-f]{32}$",
-          "type": "string"
-        },
-        "waitReason": {
-          "enum": [
-            "approval",
-            "background",
-            "key"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "kind",
-        "owner",
-        "startedBy",
-        "status",
-        "costMicros",
-        "startedAt",
-        "traceId"
-      ],
-      "type": "object"
-    },
     "s_bbfdc3f5bb": {
       "properties": {
         "createdAt": {
@@ -13511,79 +13708,6 @@
       },
       "required": [
         "terminal"
-      ],
-      "type": "object"
-    },
-    "s_be45381a2d": {
-      "properties": {
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "channelId": {
-          "examples": [
-            "chn_a1b2c3"
-          ],
-          "pattern": "^chn_[a-z0-9]+$",
-          "type": "string"
-        },
-        "cron": {
-          "examples": [
-            "0 9 * * 1-5"
-          ],
-          "type": "string"
-        },
-        "enabled": {
-          "type": "boolean"
-        },
-        "lastRunAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "nextRunAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "ownerId": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "pattern": "^usr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "prompt": {
-          "type": "string"
-        },
-        "routineId": {
-          "examples": [
-            "rtn_a1b2c3"
-          ],
-          "pattern": "^rtn_[a-z0-9]+$",
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "routineId",
-        "agentId",
-        "title",
-        "cron",
-        "prompt",
-        "enabled",
-        "ownerId"
       ],
       "type": "object"
     },
@@ -14798,124 +14922,6 @@
       },
       "required": [
         "delivery"
-      ],
-      "type": "object"
-    },
-    "s_d3e31471e5": {
-      "properties": {
-        "agents": {
-          "$ref": "#/$defs/s_18a5df4b3d"
-        },
-        "channelId": {
-          "examples": [
-            "chn_a1b2c3"
-          ],
-          "pattern": "^chn_[a-z0-9]+$",
-          "type": "string"
-        },
-        "closedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "chat",
-            "channel",
-            "thread",
-            "ask",
-            "run",
-            "helper",
-            "console"
-          ],
-          "type": "string"
-        },
-        "listed": {
-          "type": "boolean"
-        },
-        "members": {
-          "$ref": "#/$defs/s_39a2155802"
-        },
-        "parentMessageId": {
-          "examples": [
-            "msg_a1b2c3"
-          ],
-          "pattern": "^msg_[a-z0-9]+$",
-          "type": "string"
-        },
-        "parentThreadId": {
-          "examples": [
-            "thr_a1b2c3"
-          ],
-          "pattern": "^thr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "path": {
-          "description": "Address bar parts for helper chats, each a link back",
-          "items": {
-            "$ref": "#/$defs/s_2a7bd8f420"
-          },
-          "type": "array"
-        },
-        "planMode": {
-          "type": "boolean"
-        },
-        "recordId": {
-          "examples": [
-            "rec_a1b2c3"
-          ],
-          "pattern": "^rec_[a-z0-9]+$",
-          "type": "string"
-        },
-        "scopeId": {
-          "type": "string"
-        },
-        "scopeType": {
-          "examples": [
-            "record"
-          ],
-          "type": "string"
-        },
-        "starter": {
-          "type": "string"
-        },
-        "threadId": {
-          "examples": [
-            "thr_a1b2c3"
-          ],
-          "pattern": "^thr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "threadId",
-        "kind",
-        "listed",
-        "planMode",
-        "members",
-        "agents",
-        "createdAt"
       ],
       "type": "object"
     },
@@ -17253,6 +17259,28 @@
       ],
       "type": "object"
     },
+    "s_f5d31dac8f": {
+      "properties": {
+        "channelId": {
+          "examples": [
+            "chn_a1b2c3"
+          ],
+          "pattern": "^chn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "on": {
+          "enum": [
+            "message"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "on",
+        "channelId"
+      ],
+      "type": "object"
+    },
     "s_f845a71a23": {
       "properties": {
         "automation": {
@@ -17282,6 +17310,36 @@
       ],
       "type": "object"
     },
+    "s_f908ff12d6": {
+      "properties": {
+        "channelId": {
+          "examples": [
+            "chn_a1b2c3"
+          ],
+          "pattern": "^chn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "messageId": {
+          "examples": [
+            "msg_a1b2c3"
+          ],
+          "pattern": "^msg_[a-z0-9]+$",
+          "type": "string"
+        },
+        "threadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "messageId",
+        "threadId"
+      ],
+      "type": "object"
+    },
     "s_f9a7628479": {
       "properties": {
         "callId": {
@@ -17302,6 +17360,17 @@
       "required": [
         "callId",
         "fileId"
+      ],
+      "type": "object"
+    },
+    "s_f9e90fdca6": {
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/s_486e12678d"
+        }
+      },
+      "required": [
+        "file"
       ],
       "type": "object"
     },
@@ -17570,17 +17639,6 @@
       ],
       "type": "object"
     },
-    "s_fc475b05bc": {
-      "properties": {
-        "folder": {
-          "$ref": "#/$defs/s_4a1e404cdd"
-        }
-      },
-      "required": [
-        "folder"
-      ],
-      "type": "object"
-    },
     "s_fc6e29e41d": {
       "properties": {
         "messages": {
@@ -17738,17 +17796,6 @@
         "type": "object"
       },
       "type": "array"
-    },
-    "s_fe3178e960": {
-      "properties": {
-        "thread": {
-          "$ref": "#/$defs/s_d3e31471e5"
-        }
-      },
-      "required": [
-        "thread"
-      ],
-      "type": "object"
     },
     "s_ff7445c64f": {
       "properties": {
@@ -26365,12 +26412,17 @@
               "channelId": "chn_a1b2c3",
               "cron": "0 9 * * 1-5",
               "enabled": true,
+              "kind": "schedule",
               "lastRunAt": 1760000000000,
               "nextRunAt": 1760000000000,
               "ownerId": "usr_a1b2c3",
               "prompt": "example",
               "routineId": "rtn_a1b2c3",
-              "title": "example"
+              "title": "example",
+              "watch": {
+                "channelId": "chn_a1b2c3",
+                "on": "message"
+              }
             }
           }
         }
@@ -26434,7 +26486,7 @@
             "type": "string"
           },
           "routine": {
-            "$ref": "#/$defs/s_be45381a2d"
+            "$ref": "#/$defs/s_050abe3aea"
           }
         },
         "required": [
@@ -26566,12 +26618,17 @@
               "channelId": "chn_a1b2c3",
               "cron": "0 9 * * 1-5",
               "enabled": true,
+              "kind": "schedule",
               "lastRunAt": 1760000000000,
               "nextRunAt": 1760000000000,
               "ownerId": "usr_a1b2c3",
               "prompt": "example",
               "routineId": "rtn_a1b2c3",
-              "title": "example"
+              "title": "example",
+              "watch": {
+                "channelId": "chn_a1b2c3",
+                "on": "message"
+              }
             },
             "runId": "run_a1b2c3"
           }
@@ -26615,7 +26672,7 @@
       "output": {
         "properties": {
           "routine": {
-            "$ref": "#/$defs/s_be45381a2d"
+            "$ref": "#/$defs/s_050abe3aea"
           },
           "runId": {
             "examples": [
@@ -26667,9 +26724,14 @@
             "cron": "0 9 * * 1-5",
             "enabled": true,
             "idempotencyKey": "idem_1",
+            "kind": "schedule",
             "prompt": "example",
             "routineId": "rtn_a1b2c3",
-            "title": "example"
+            "title": "example",
+            "watch": {
+              "channelId": "chn_a1b2c3",
+              "on": "message"
+            }
           },
           "name": "example",
           "output": {
@@ -26678,12 +26740,17 @@
               "channelId": "chn_a1b2c3",
               "cron": "0 9 * * 1-5",
               "enabled": true,
+              "kind": "schedule",
               "lastRunAt": 1760000000000,
               "nextRunAt": 1760000000000,
               "ownerId": "usr_a1b2c3",
               "prompt": "example",
               "routineId": "rtn_a1b2c3",
-              "title": "example"
+              "title": "example",
+              "watch": {
+                "channelId": "chn_a1b2c3",
+                "on": "message"
+              }
             }
           }
         }
@@ -26721,6 +26788,13 @@
             "minLength": 1,
             "type": "string"
           },
+          "kind": {
+            "enum": [
+              "schedule",
+              "watch"
+            ],
+            "type": "string"
+          },
           "prompt": {
             "type": "string"
           },
@@ -26733,12 +26807,14 @@
           },
           "title": {
             "type": "string"
+          },
+          "watch": {
+            "$ref": "#/$defs/s_f5d31dac8f"
           }
         },
         "required": [
           "agentId",
           "title",
-          "cron",
           "prompt",
           "idempotencyKey"
         ],
@@ -26750,7 +26826,7 @@
       "output": {
         "properties": {
           "routine": {
-            "$ref": "#/$defs/s_be45381a2d"
+            "$ref": "#/$defs/s_050abe3aea"
           }
         },
         "required": [
@@ -26766,7 +26842,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Create or change a routine; messages it causes carry \"Sent by <agent> on a routine <person> set\"",
+      "summary": "Create or change a routine, a schedule (cron) or a watcher (kind watch: runs on each new message in a channel); messages it causes carry \"Sent by <agent> on a routine <person> set\"",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -26798,12 +26874,17 @@
                 "channelId": "chn_a1b2c3",
                 "cron": "0 9 * * 1-5",
                 "enabled": true,
+                "kind": "schedule",
                 "lastRunAt": 1760000000000,
                 "nextRunAt": 1760000000000,
                 "ownerId": "usr_a1b2c3",
                 "prompt": "example",
                 "routineId": "rtn_a1b2c3",
-                "title": "example"
+                "title": "example",
+                "watch": {
+                  "channelId": "chn_a1b2c3",
+                  "on": "message"
+                }
               }
             ]
           }
@@ -26833,7 +26914,7 @@
         "properties": {
           "routines": {
             "items": {
-              "$ref": "#/$defs/s_be45381a2d"
+              "$ref": "#/$defs/s_050abe3aea"
             },
             "type": "array"
           }
@@ -40928,6 +41009,7 @@
                 "createdAt": 1760000000000,
                 "folderId": "fld_a1b2c3",
                 "kind": "chat",
+                "lastMessageAt": 1760000000000,
                 "listed": true,
                 "members": [
                   {
@@ -40945,6 +41027,7 @@
                 ],
                 "planMode": true,
                 "recordId": "rec_a1b2c3",
+                "replyCount": 1,
                 "scopeId": "example",
                 "scopeType": "record",
                 "starter": "example",
@@ -40988,7 +41071,7 @@
       "module": "chat",
       "name": "chat.asks_of",
       "output": {
-        "$ref": "#/$defs/s_30183bc12b"
+        "$ref": "#/$defs/s_a85a72f91c"
       },
       "permission": null,
       "resource": {
@@ -41338,6 +41421,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -41355,6 +41439,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -41401,7 +41486,7 @@
             "type": "integer"
           },
           "thread": {
-            "$ref": "#/$defs/s_d3e31471e5"
+            "$ref": "#/$defs/s_b4cc02fcf3"
           }
         },
         "required": [
@@ -41472,6 +41557,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -41489,6 +41575,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -41557,7 +41644,7 @@
             "type": "string"
           },
           "helper": {
-            "$ref": "#/$defs/s_d3e31471e5"
+            "$ref": "#/$defs/s_b4cc02fcf3"
           }
         },
         "required": [
@@ -41969,6 +42056,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -41986,6 +42074,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -42016,7 +42105,7 @@
       "name": "chat.open_as_chat",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -43224,6 +43313,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -43241,6 +43331,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -43339,7 +43430,7 @@
       "name": "chat.start",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": "chats.private",
       "resource": {
@@ -43394,6 +43485,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -43411,6 +43503,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -43429,7 +43522,7 @@
       "name": "chat.thread",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -66690,7 +66783,6 @@
           "name": "example",
           "output": {
             "file": {
-              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -66706,7 +66798,6 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
-              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -66754,7 +66845,7 @@
       "module": "files",
       "name": "files.copy",
       "output": {
-        "$ref": "#/$defs/s_b59a284a11"
+        "$ref": "#/$defs/s_f9e90fdca6"
       },
       "permission": "files.write",
       "resource": {
@@ -66807,7 +66898,6 @@
           "output": {
             "changesetId": "chg_a1b2c3",
             "file": {
-              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -66823,7 +66913,6 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
-              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -66889,7 +66978,7 @@
       "name": "files.create",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_04aaa4e969"
+        "$ref": "#/$defs/s_74c6a2fb9f"
       },
       "permission": "files.write",
       "resource": {
@@ -67244,11 +67333,7 @@
             "idempotencyKey": "idem_1",
             "name": "example",
             "parentId": "fld_a1b2c3",
-            "reviewChanges": true,
-            "subject": {
-              "id": "agt_a1b2c3",
-              "kind": "agent"
-            }
+            "reviewChanges": true
           },
           "name": "example",
           "output": {
@@ -67266,10 +67351,6 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
-              },
-              "subject": {
-                "id": "agt_a1b2c3",
-                "kind": "agent"
               }
             }
           }
@@ -67297,28 +67378,6 @@
           },
           "reviewChanges": {
             "type": "boolean"
-          },
-          "subject": {
-            "properties": {
-              "id": {
-                "examples": [
-                  "agt_a1b2c3"
-                ],
-                "type": "string"
-              },
-              "kind": {
-                "enum": [
-                  "agent",
-                  "project"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "kind",
-              "id"
-            ],
-            "type": "object"
           }
         },
         "required": [
@@ -67333,7 +67392,7 @@
       "name": "files.folder.create",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_fc475b05bc"
+        "$ref": "#/$defs/s_8fffaf9035"
       },
       "permission": "files.write",
       "resource": {
@@ -67458,10 +67517,6 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
-              },
-              "subject": {
-                "id": "agt_a1b2c3",
-                "kind": "agent"
               }
             }
           }
@@ -67488,7 +67543,7 @@
       "module": "files",
       "name": "files.folder.get",
       "output": {
-        "$ref": "#/$defs/s_fc475b05bc"
+        "$ref": "#/$defs/s_8fffaf9035"
       },
       "permission": null,
       "resource": {
@@ -67542,10 +67597,6 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
-              },
-              "subject": {
-                "id": "agt_a1b2c3",
-                "kind": "agent"
               }
             }
           }
@@ -67579,7 +67630,7 @@
       "module": "files",
       "name": "files.folder.move",
       "output": {
-        "$ref": "#/$defs/s_fc475b05bc"
+        "$ref": "#/$defs/s_8fffaf9035"
       },
       "permission": "files.write",
       "resource": {
@@ -67633,10 +67684,6 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
-              },
-              "subject": {
-                "id": "agt_a1b2c3",
-                "kind": "agent"
               }
             }
           }
@@ -67650,7 +67697,7 @@
       "module": "files",
       "name": "files.folder.rename",
       "output": {
-        "$ref": "#/$defs/s_fc475b05bc"
+        "$ref": "#/$defs/s_8fffaf9035"
       },
       "permission": "files.write",
       "resource": {
@@ -67702,10 +67749,6 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
-              },
-              "subject": {
-                "id": "agt_a1b2c3",
-                "kind": "agent"
               }
             }
           }
@@ -67731,7 +67774,7 @@
       "module": "files",
       "name": "files.folder.restore",
       "output": {
-        "$ref": "#/$defs/s_fc475b05bc"
+        "$ref": "#/$defs/s_8fffaf9035"
       },
       "permission": "files.delete",
       "resource": {
@@ -67782,10 +67825,6 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
-                },
-                "subject": {
-                  "id": "agt_a1b2c3",
-                  "kind": "agent"
                 }
               }
             ]
@@ -67824,7 +67863,7 @@
       "output": {
         "properties": {
           "folders": {
-            "$ref": "#/$defs/s_76462aa6ce"
+            "$ref": "#/$defs/s_67ef96a86f"
           }
         },
         "required": [
@@ -67884,10 +67923,6 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
-              },
-              "subject": {
-                "id": "agt_a1b2c3",
-                "kind": "agent"
               }
             }
           }
@@ -67925,7 +67960,7 @@
       "module": "files",
       "name": "files.folder.settings",
       "output": {
-        "$ref": "#/$defs/s_fc475b05bc"
+        "$ref": "#/$defs/s_8fffaf9035"
       },
       "permission": "files.write",
       "resource": {
@@ -67961,7 +67996,6 @@
           "name": "example",
           "output": {
             "file": {
-              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -67977,7 +68011,6 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
-              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -68007,7 +68040,7 @@
       "module": "files",
       "name": "files.get",
       "output": {
-        "$ref": "#/$defs/s_b59a284a11"
+        "$ref": "#/$defs/s_f9e90fdca6"
       },
       "permission": null,
       "resource": {
@@ -68087,7 +68120,6 @@
           "output": {
             "files": [
               {
-                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -68103,7 +68135,6 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
-                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -68125,10 +68156,6 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
-                },
-                "subject": {
-                  "id": "agt_a1b2c3",
-                  "kind": "agent"
                 }
               }
             ],
@@ -68165,10 +68192,10 @@
       "output": {
         "properties": {
           "files": {
-            "$ref": "#/$defs/s_333ebd7463"
+            "$ref": "#/$defs/s_a21144ff96"
           },
           "folders": {
-            "$ref": "#/$defs/s_76462aa6ce"
+            "$ref": "#/$defs/s_67ef96a86f"
           },
           "next": {
             "description": "Cursor for the next page; absent on the last page",
@@ -68338,7 +68365,6 @@
           "output": {
             "files": [
               {
-                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -68354,7 +68380,6 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
-                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -68376,10 +68401,6 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
-                },
-                "subject": {
-                  "id": "agt_a1b2c3",
-                  "kind": "agent"
                 }
               }
             ],
@@ -68456,7 +68477,7 @@
       "module": "files",
       "name": "files.list",
       "output": {
-        "$ref": "#/$defs/s_63dc3a7fc4"
+        "$ref": "#/$defs/s_01ba7de8d7"
       },
       "permission": null,
       "resource": {
@@ -68728,7 +68749,6 @@
           "output": {
             "changesetId": "chg_a1b2c3",
             "file": {
-              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -68744,7 +68764,6 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
-              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -68785,7 +68804,7 @@
       "name": "files.move",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_04aaa4e969"
+        "$ref": "#/$defs/s_74c6a2fb9f"
       },
       "permission": "files.write",
       "resource": {
@@ -69106,7 +69125,6 @@
           "output": {
             "files": [
               {
-                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -69122,7 +69140,6 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
-                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -69150,7 +69167,7 @@
       "output": {
         "properties": {
           "files": {
-            "$ref": "#/$defs/s_333ebd7463"
+            "$ref": "#/$defs/s_a21144ff96"
           }
         },
         "required": [
@@ -69199,7 +69216,6 @@
           "output": {
             "changesetId": "chg_a1b2c3",
             "file": {
-              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -69215,7 +69231,6 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
-              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -69249,7 +69264,7 @@
       "name": "files.rename",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_04aaa4e969"
+        "$ref": "#/$defs/s_74c6a2fb9f"
       },
       "permission": "files.write",
       "resource": {
@@ -69371,7 +69386,6 @@
           "name": "example",
           "output": {
             "file": {
-              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -69387,7 +69401,6 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
-              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -69423,7 +69436,7 @@
       "module": "files",
       "name": "files.restore",
       "output": {
-        "$ref": "#/$defs/s_b59a284a11"
+        "$ref": "#/$defs/s_f9e90fdca6"
       },
       "permission": "files.delete",
       "resource": {
@@ -69463,7 +69476,6 @@
           "name": "example",
           "output": {
             "file": {
-              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -69479,7 +69491,6 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
-              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -69519,7 +69530,7 @@
       "output": {
         "properties": {
           "file": {
-            "$ref": "#/$defs/s_ac13e8babf"
+            "$ref": "#/$defs/s_486e12678d"
           },
           "versionId": {
             "examples": [
@@ -69983,7 +69994,6 @@
           "output": {
             "files": [
               {
-                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -69999,7 +70009,6 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
-                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -70021,10 +70030,6 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
-                },
-                "subject": {
-                  "id": "agt_a1b2c3",
-                  "kind": "agent"
                 }
               }
             ],
@@ -70070,7 +70075,7 @@
       "module": "files",
       "name": "files.shared_with_me",
       "output": {
-        "$ref": "#/$defs/s_63dc3a7fc4"
+        "$ref": "#/$defs/s_01ba7de8d7"
       },
       "permission": null,
       "resource": {
@@ -70079,95 +70084,6 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "Files and folders other people shared with the caller, newest share first (the Shared with me section of the tree)",
-      "surfaces": {
-        "http": "auto",
-        "mcp": {
-          "toolset": "files"
-        }
-      },
-      "v": 1
-    },
-    {
-      "effects": "write",
-      "emits": [
-        "file.starred"
-      ],
-      "errors": [
-        "internal.unexpected",
-        "permission.above_clearance",
-        "permission.no_grant",
-        "validation.bad_input",
-        "validation.not_found"
-      ],
-      "examples": [
-        {
-          "input": {
-            "fileId": "fil_a1b2c3",
-            "starred": true
-          },
-          "name": "example",
-          "output": {
-            "file": {
-              "conflict": true,
-              "createdAt": 1760000000000,
-              "deletedAt": 1760000000000,
-              "fileId": "fil_a1b2c3",
-              "folderId": "fld_a1b2c3",
-              "holds": 1,
-              "kind": "text",
-              "label": 1,
-              "mime": "example",
-              "name": "example",
-              "ownerId": "example",
-              "size": 1,
-              "source": {
-                "mountId": "mnt_a1b2c3",
-                "provider": "example"
-              },
-              "starred": true,
-              "thumb": true,
-              "updatedAt": 1760000000000,
-              "updatedBy": "example",
-              "version": 1
-            }
-          }
-        }
-      ],
-      "idempotency": "natural",
-      "input": {
-        "properties": {
-          "fileId": {
-            "examples": [
-              "fil_a1b2c3"
-            ],
-            "pattern": "^fil_[a-z0-9]+$",
-            "type": "string"
-          },
-          "starred": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "fileId",
-          "starred"
-        ],
-        "type": "object"
-      },
-      "level": "view",
-      "module": "files",
-      "name": "files.star",
-      "offline": "queue",
-      "output": {
-        "$ref": "#/$defs/s_b59a284a11"
-      },
-      "permission": null,
-      "resource": {
-        "id": "/fileId",
-        "type": "file"
-      },
-      "risk": "medium",
-      "since": "1.0.0",
-      "summary": "Star a file or take the star off; a star is mine alone",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -70262,7 +70178,6 @@
           "output": {
             "files": [
               {
-                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -70278,7 +70193,6 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
-                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -70300,10 +70214,6 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
-                },
-                "subject": {
-                  "id": "agt_a1b2c3",
-                  "kind": "agent"
                 }
               }
             ],
@@ -70331,7 +70241,7 @@
       "module": "files",
       "name": "files.trash.list",
       "output": {
-        "$ref": "#/$defs/s_63dc3a7fc4"
+        "$ref": "#/$defs/s_01ba7de8d7"
       },
       "permission": null,
       "resource": {
@@ -70368,10 +70278,6 @@
                 "folderId": "fld_a1b2c3",
                 "key": "example",
                 "kind": "folder",
-                "subject": {
-                  "id": "agt_a1b2c3",
-                  "kind": "agent"
-                },
                 "title": "example"
               }
             ]
@@ -70412,9 +70318,6 @@
                     "virtual"
                   ],
                   "type": "string"
-                },
-                "subject": {
-                  "$ref": "#/$defs/s_b5775f40f8"
                 },
                 "title": {
                   "type": "string"
@@ -70629,7 +70532,6 @@
             "canEdit": true,
             "canMark": true,
             "file": {
-              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -70645,7 +70547,6 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
-              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -70692,7 +70593,7 @@
             "type": "boolean"
           },
           "file": {
-            "$ref": "#/$defs/s_ac13e8babf"
+            "$ref": "#/$defs/s_486e12678d"
           },
           "pages": {
             "type": "integer"
@@ -70795,7 +70696,6 @@
           "output": {
             "changesetId": "chg_a1b2c3",
             "file": {
-              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -70811,7 +70711,6 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
-              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -70862,7 +70761,7 @@
             "type": "string"
           },
           "file": {
-            "$ref": "#/$defs/s_ac13e8babf"
+            "$ref": "#/$defs/s_486e12678d"
           },
           "versionId": {
             "examples": [
@@ -95704,6 +95603,15 @@
               "networkDomains": [
                 "example"
               ],
+              "problems": [
+                {
+                  "cap": "example",
+                  "input": {},
+                  "item": "example",
+                  "message": "example",
+                  "step": "apply"
+                }
+              ],
               "recordTypes": [
                 "example"
               ],
@@ -95747,6 +95655,41 @@
                 },
                 "type": "array"
               },
+              "problems": {
+                "items": {
+                  "properties": {
+                    "cap": {
+                      "type": "string"
+                    },
+                    "input": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "item": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "step": {
+                      "enum": [
+                        "apply",
+                        "undo"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "item",
+                    "step",
+                    "cap",
+                    "input",
+                    "message"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
               "recordTypes": {
                 "items": {
                   "type": "string"
@@ -95774,7 +95717,8 @@
               "recordTypes",
               "networkDomains",
               "vaultNames",
-              "scripts"
+              "scripts",
+              "problems"
             ],
             "type": "object"
           }
@@ -95791,7 +95735,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "The install sheet: tools, record types, network domains, vault names",
+      "summary": "The install sheet: tools, record types, network domains, vault names, scripts, and the steps the sheet check found broken",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -106682,6 +106626,7 @@
           },
           "name": "example",
           "output": {
+            "autoMerged": 1,
             "current": 1,
             "fromMe": 1,
             "proposed": 1
@@ -106709,6 +106654,11 @@
       "name": "memory.counts",
       "output": {
         "properties": {
+          "autoMerged": {
+            "description": "Current facts that merged on their own because their kind is low risk, so no person accepted them",
+            "minimum": 0,
+            "type": "integer"
+          },
           "current": {
             "type": "integer"
           },
@@ -106722,7 +106672,8 @@
         "required": [
           "current",
           "proposed",
-          "fromMe"
+          "fromMe",
+          "autoMerged"
         ],
         "type": "object"
       },
@@ -106732,7 +106683,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "Counts for the agent strip: current facts, proposed facts and facts from the caller",
+      "summary": "Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -108350,6 +108301,95 @@
       "summary": "Nightly job: merge accepted facts, close old versions, rewrite MAP.md (under 200 lines) for each agent",
       "surfaces": {
         "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "map": {
+              "body": "example",
+              "lines": 1,
+              "updatedAt": 1760000000000
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.map.get",
+      "output": {
+        "properties": {
+          "map": {
+            "properties": {
+              "body": {
+                "type": "string"
+              },
+              "lines": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "updatedAt": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "body",
+              "lines",
+              "updatedAt"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The MAP.md block of an agent as the nightly job last wrote it (agent layer only, never personal memory); absent before the first night",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
       },
       "v": 1
     },
@@ -123063,6 +123103,9 @@
             "group": "example",
             "limit": 1,
             "offset": 1,
+            "recordIds": [
+              "rec_a1b2c3"
+            ],
             "sort": [
               {
                 "dir": "asc",
@@ -123107,6 +123150,18 @@
           "offset": {
             "minimum": 0,
             "type": "integer"
+          },
+          "recordIds": {
+            "description": "Export only these rows (a hand-picked selection), in the order of the view; a row the caller may not read is left out",
+            "items": {
+              "examples": [
+                "rec_a1b2c3"
+              ],
+              "pattern": "^rec_[a-z0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 5000,
+            "type": "array"
           },
           "sort": {
             "items": {
@@ -123170,7 +123225,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Export rows as CSV or Excel (permissioned)",
+      "summary": "Export rows as CSV or Excel (permissioned), the whole view or only the picked recordIds",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -127853,6 +127908,11 @@
               "summary": "example",
               "threadId": "thr_a1b2c3",
               "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
               "waitReason": "approval"
             }
           }
@@ -127912,7 +127972,7 @@
       "module": "runs",
       "name": "runs.finish",
       "output": {
-        "$ref": "#/$defs/s_7916849f25"
+        "$ref": "#/$defs/s_6d2c83cc88"
       },
       "permission": null,
       "resource": {
@@ -127965,6 +128025,11 @@
               "summary": "example",
               "threadId": "thr_a1b2c3",
               "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
               "waitReason": "approval"
             }
           }
@@ -127991,7 +128056,7 @@
       "module": "runs",
       "name": "runs.get",
       "output": {
-        "$ref": "#/$defs/s_7916849f25"
+        "$ref": "#/$defs/s_6d2c83cc88"
       },
       "permission": null,
       "resource": {
@@ -128063,6 +128128,11 @@
                 "summary": "example",
                 "threadId": "thr_a1b2c3",
                 "traceId": "0123456789abcdef0123456789abcdef",
+                "trigger": {
+                  "channelId": "chn_a1b2c3",
+                  "messageId": "msg_a1b2c3",
+                  "threadId": "thr_a1b2c3"
+                },
                 "waitReason": "approval"
               }
             ],
@@ -128142,7 +128212,7 @@
           },
           "runs": {
             "items": {
-              "$ref": "#/$defs/s_bb7ff7d602"
+              "$ref": "#/$defs/s_075cc013db"
             },
             "type": "array"
           },
@@ -128214,6 +128284,11 @@
               "summary": "example",
               "threadId": "thr_a1b2c3",
               "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
               "waitReason": "approval"
             }
           }
@@ -128227,7 +128302,7 @@
       "module": "runs",
       "name": "runs.mark_waiting",
       "output": {
-        "$ref": "#/$defs/s_7916849f25"
+        "$ref": "#/$defs/s_6d2c83cc88"
       },
       "permission": null,
       "resource": {
@@ -128358,6 +128433,11 @@
               "summary": "example",
               "threadId": "thr_a1b2c3",
               "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
               "waitReason": "approval"
             }
           }
@@ -128399,7 +128479,7 @@
       "module": "runs",
       "name": "runs.record_key",
       "output": {
-        "$ref": "#/$defs/s_7916849f25"
+        "$ref": "#/$defs/s_6d2c83cc88"
       },
       "permission": null,
       "resource": {
@@ -128673,6 +128753,11 @@
               "summary": "example",
               "threadId": "thr_a1b2c3",
               "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
               "waitReason": "approval"
             }
           }
@@ -128686,7 +128771,7 @@
       "module": "runs",
       "name": "runs.resume",
       "output": {
-        "$ref": "#/$defs/s_7916849f25"
+        "$ref": "#/$defs/s_6d2c83cc88"
       },
       "permission": null,
       "resource": {
@@ -128811,7 +128896,12 @@
               "id": "rec_a1b2c3",
               "type": "space"
             },
-            "threadId": "thr_a1b2c3"
+            "threadId": "thr_a1b2c3",
+            "trigger": {
+              "channelId": "chn_a1b2c3",
+              "messageId": "msg_a1b2c3",
+              "threadId": "thr_a1b2c3"
+            }
           },
           "name": "example",
           "output": {
@@ -128863,6 +128953,9 @@
             ],
             "pattern": "^thr_[a-z0-9]+$",
             "type": "string"
+          },
+          "trigger": {
+            "$ref": "#/$defs/s_f908ff12d6"
           }
         },
         "required": [
@@ -129192,6 +129285,11 @@
               "summary": "example",
               "threadId": "thr_a1b2c3",
               "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
               "waitReason": "approval"
             }
           }
@@ -129206,7 +129304,7 @@
       "name": "runs.stop",
       "offline": "online",
       "output": {
-        "$ref": "#/$defs/s_7916849f25"
+        "$ref": "#/$defs/s_6d2c83cc88"
       },
       "permission": null,
       "resource": {
@@ -135156,7 +135254,6 @@
           "name": "example",
           "output": {
             "file": {
-              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -135172,7 +135269,6 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
-              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -135232,7 +135328,7 @@
       "module": "files",
       "name": "sheets.create",
       "output": {
-        "$ref": "#/$defs/s_b59a284a11"
+        "$ref": "#/$defs/s_f9e90fdca6"
       },
       "permission": "files.write",
       "resource": {
@@ -143143,6 +143239,7 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "permission.role_lacks_permission",
         "validation.bad_input"
       ],
       "examples": [
@@ -143193,7 +143290,7 @@
         ],
         "type": "object"
       },
-      "level": "edit",
+      "level": "manage",
       "module": "sync",
       "name": "sync.epoch.bump",
       "output": {
@@ -143207,7 +143304,7 @@
         ],
         "type": "object"
       },
-      "permission": null,
+      "permission": "access.manage",
       "resource": {
         "type": "space"
       },
@@ -154657,6 +154754,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -154674,6 +154772,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -154718,7 +154817,7 @@
       "module": "chat",
       "name": "threads.add_agent",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": "channels.agents",
       "resource": {
@@ -154772,6 +154871,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -154789,6 +154889,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -154818,7 +154919,7 @@
       "module": "chat",
       "name": "threads.close",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -154870,6 +154971,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -154887,6 +154989,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -154917,7 +155020,7 @@
       "module": "chat",
       "name": "threads.get",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -154977,6 +155080,7 @@
                 "createdAt": 1760000000000,
                 "folderId": "fld_a1b2c3",
                 "kind": "chat",
+                "lastMessageAt": 1760000000000,
                 "listed": true,
                 "members": [
                   {
@@ -154994,6 +155098,7 @@
                 ],
                 "planMode": true,
                 "recordId": "rec_a1b2c3",
+                "replyCount": 1,
                 "scopeId": "example",
                 "scopeType": "record",
                 "starter": "example",
@@ -155060,7 +155165,7 @@
       "module": "chat",
       "name": "threads.list",
       "output": {
-        "$ref": "#/$defs/s_30183bc12b"
+        "$ref": "#/$defs/s_a85a72f91c"
       },
       "permission": null,
       "resource": {
@@ -155302,6 +155407,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -155319,6 +155425,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -155336,7 +155443,7 @@
       "module": "chat",
       "name": "threads.members.add",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -155391,6 +155498,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -155408,6 +155516,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -155425,7 +155534,7 @@
       "module": "chat",
       "name": "threads.members.remove",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -155481,6 +155590,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -155498,6 +155608,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -155535,7 +155646,7 @@
       "module": "chat",
       "name": "threads.remove_agent",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": "channels.agents",
       "resource": {
@@ -155589,6 +155700,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -155606,6 +155718,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -155635,7 +155748,7 @@
       "module": "chat",
       "name": "threads.reopen",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -155690,6 +155803,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -155707,6 +155821,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -155752,7 +155867,7 @@
       "name": "threads.set_folder",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -155807,6 +155922,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -155824,6 +155940,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -155858,7 +155975,7 @@
       "name": "threads.set_plan_mode",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -155913,6 +156030,7 @@
               "createdAt": 1760000000000,
               "folderId": "fld_a1b2c3",
               "kind": "chat",
+              "lastMessageAt": 1760000000000,
               "listed": true,
               "members": [
                 {
@@ -155930,6 +156048,7 @@
               ],
               "planMode": true,
               "recordId": "rec_a1b2c3",
+              "replyCount": 1,
               "scopeId": "example",
               "scopeType": "record",
               "starter": "example",
@@ -155964,7 +156083,7 @@
       "name": "threads.update",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_fe3178e960"
+        "$ref": "#/$defs/s_9746c1f86e"
       },
       "permission": null,
       "resource": {
@@ -158628,7 +158747,10 @@
                   "http_header",
                   "browser",
                   "terminal",
-                  "file"
+                  "file",
+                  "git_credential",
+                  "container_env",
+                  "route_auth"
                 ],
                 "type": "string"
               },
@@ -166398,7 +166520,7 @@
           "web": "all"
         }
       },
-      "table": "contacts_address"
+      "table": "contacts_link_address"
     },
     {
       "acl": {
@@ -167707,7 +167829,7 @@
           "web": "none"
         }
       },
-      "table": "contacts_suppression"
+      "table": "contacts_link_suppression"
     },
     {
       "acl": {
@@ -174697,41 +174819,6 @@
       "vis": "space"
     },
     {
-      "module": "files",
-      "name": "file.starred",
-      "payload": {
-        "properties": {
-          "by": {
-            "type": "string"
-          },
-          "fileId": {
-            "examples": [
-              "fil_a1b2c3"
-            ],
-            "pattern": "^fil_[a-z0-9]+$",
-            "type": "string"
-          },
-          "starred": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "fileId",
-          "by",
-          "starred"
-        ],
-        "type": "object"
-      },
-      "replay": "pure",
-      "subject": {
-        "id": "/fileId",
-        "type": "file"
-      },
-      "summary": "A person starred a file or took the star off",
-      "sv": 1,
-      "vis": "owner"
-    },
-    {
       "label": "subject",
       "module": "files",
       "name": "file.version_added",
@@ -177084,21 +177171,43 @@
       "payload": {
         "properties": {
           "fromFolderId": {
-            "examples": [
-              "fld_a1b2c3"
-            ],
-            "pattern": "^fld_[a-z0-9]+$",
-            "type": "string"
+            "anyOf": [
+              {
+                "examples": [
+                  "fld_a1b2c3"
+                ],
+                "pattern": "^fld_[a-z0-9]+$",
+                "type": "string"
+              },
+              {
+                "examples": [
+                  "vfd_a1b2c3"
+                ],
+                "pattern": "^vfd_[a-z0-9]+$",
+                "type": "string"
+              }
+            ]
           },
           "resource": {
             "$ref": "#/$defs/s_f21ece25da"
           },
           "toFolderId": {
-            "examples": [
-              "fld_a1b2c3"
-            ],
-            "pattern": "^fld_[a-z0-9]+$",
-            "type": "string"
+            "anyOf": [
+              {
+                "examples": [
+                  "fld_a1b2c3"
+                ],
+                "pattern": "^fld_[a-z0-9]+$",
+                "type": "string"
+              },
+              {
+                "examples": [
+                  "vfd_a1b2c3"
+                ],
+                "pattern": "^vfd_[a-z0-9]+$",
+                "type": "string"
+              }
+            ]
           }
         },
         "required": [
@@ -193324,7 +193433,7 @@
     {
       "id": "kits",
       "kind": "module",
-      "owner": "L8",
+      "owner": "L10",
       "requires": [],
       "title": "Kits",
       "version": "0.1.0"
@@ -195183,6 +195292,34 @@
         },
         {
           "key": "stage",
+          "options": {
+            "stages": [
+              {
+                "key": "intake",
+                "title": "Intake"
+              },
+              {
+                "key": "drafting",
+                "title": "Drafting"
+              },
+              {
+                "key": "review",
+                "title": "Review"
+              },
+              {
+                "key": "signing",
+                "title": "Signing"
+              },
+              {
+                "key": "funding",
+                "title": "Funding"
+              },
+              {
+                "key": "complete",
+                "title": "Complete"
+              }
+            ]
+          },
           "title": "Stage",
           "type": "status"
         },
@@ -195228,6 +195365,26 @@
         },
         {
           "key": "status",
+          "options": {
+            "stages": [
+              {
+                "key": "brief",
+                "title": "Brief"
+              },
+              {
+                "key": "concept",
+                "title": "Concept"
+              },
+              {
+                "key": "review",
+                "title": "In review"
+              },
+              {
+                "key": "delivered",
+                "title": "Delivered"
+              }
+            ]
+          },
           "title": "Status",
           "type": "status"
         },

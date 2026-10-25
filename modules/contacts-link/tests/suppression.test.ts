@@ -21,7 +21,7 @@ function world(o: HarnessOptions = {}): Harness {
   return h;
 }
 
-const live = (h: Harness) => h.rows(`SELECT * FROM contacts_suppression WHERE deleted_at IS NULL`);
+const live = (h: Harness) => h.rows(`SELECT * FROM contacts_link_suppression WHERE deleted_at IS NULL`);
 
 // ---- add
 
@@ -120,7 +120,7 @@ test("the check answers with the strongest reason for each listed address, in th
   await suppressionAdd(h.ctx, { channel: "email", addresses: ["a@x.test"], reason: "manual" });
   await suppressionAdd(h.ctx, { channel: "email", addresses: ["b@x.test"], reason: "unsubscribe" });
   h.ctx.db.run(
-    `INSERT INTO contacts_suppression (id, channel, address, reason, source, "contactId", "addedAt", "addedBy", note, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO contacts_link_suppression (id, channel, address, reason, source, "contactId", "addedAt", "addedBy", note, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     "sup_second", "email", "b@x.test", "complaint", "test", null, NOW, "usr_x", null, 1, NOW, null,
   );
   const input = { channel: "email" as const, addresses: ["B@X.test", "c@x.test", "a@x.test", "A@x.test", "not an address"] };
@@ -186,7 +186,7 @@ test("a person takes an address off the list, audited by the event, and the chec
     [`entity/${id}`, { suppressionId: id, channel: "email", reason: "unsubscribe", contactId: "rec_pat01" }],
   ]);
   assert.equal(live(h).length, 0);
-  assert.equal(h.rows(`SELECT * FROM contacts_suppression WHERE id = ?`, id)[0]!.note, "asked to hear from us again");
+  assert.equal(h.rows(`SELECT * FROM contacts_link_suppression WHERE id = ?`, id)[0]!.note, "asked to hear from us again");
   await refused(suppressionRemove(h.ctx, { suppressionId: id }), "validation.not_found");
   assert.equal((await suppressionAdd(h.ctx, { channel: "email", addresses: ["pat@x.test"], reason: "manual" })).added, 1);   // can be listed again
 });

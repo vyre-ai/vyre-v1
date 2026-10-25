@@ -37,10 +37,6 @@ type Out = {
       kind: "folder" | "virtual";
       folderId?: string;
       count: number;
-      subject?: {
-        kind: "agent" | "project" | "space";
-        id?: string;
-      };
     }>;
 };
 ```
@@ -65,10 +61,6 @@ type Out = {
         "folderId": "fld_a1b2c3",
         "key": "example",
         "kind": "folder",
-        "subject": {
-          "id": "agt_a1b2c3",
-          "kind": "agent"
-        },
         "title": "example"
       }
     ]

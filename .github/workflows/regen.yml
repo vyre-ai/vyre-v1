@@ -13,6 +13,9 @@ on:
       - 'package.json'
       - '**/package.json'
       - 'tools/gen/**'
+      - 'lib/snapshot.ts'
+      - 'scripts/shots/prototype/vyre-v1.html'
+      - 'scripts/shots/gen-prototype-seed.mjs'
       - '.github/workflows/regen.yml'
       - 'scripts/regen-bot.sh'
 concurrency:
@@ -25,7 +28,7 @@ jobs:
   regen:
     # The bot's own commit never retriggers this (it only touches generated/), the guard is for a hand-made copy of that message.
     if: "${{ !startsWith(github.event.head_commit.message, 'chore(gen): regenerate') }}"
-    runs-on: [self-hosted, linux, v1]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -33,6 +36,8 @@ jobs:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
       - name: Regenerate, commit generated/ back, rerun the checks
         env:
           BRANCH: ${{ github.ref_name }}

@@ -94,11 +94,11 @@ export async function deliverability(
   const emails = new Set<string>();
   const own = normalize("email", text(rec.fields.email));
   if (own) emails.add(own);
-  for (const a of rowsOf(ctx.db.all(`SELECT * FROM contacts_address WHERE "contactId" = ? AND kind = ? AND deleted_at IS NULL`, rec.id, "email"))) emails.add(str(a, "normalized"));
+  for (const a of rowsOf(ctx.db.all(`SELECT * FROM contacts_link_address WHERE "contactId" = ? AND kind = ? AND deleted_at IS NULL`, rec.id, "email"))) emails.add(str(a, "normalized"));
   const seen = new Set<string>();
   const rows = [
-    ...rowsOf(ctx.db.all(`SELECT * FROM contacts_suppression WHERE "contactId" = ? AND deleted_at IS NULL`, rec.id)),
-    ...[...emails].flatMap((e) => rowsOf(ctx.db.all(`SELECT * FROM contacts_suppression WHERE channel = ? AND address = ? AND deleted_at IS NULL`, "email", e))),
+    ...rowsOf(ctx.db.all(`SELECT * FROM contacts_link_suppression WHERE "contactId" = ? AND deleted_at IS NULL`, rec.id)),
+    ...[...emails].flatMap((e) => rowsOf(ctx.db.all(`SELECT * FROM contacts_link_suppression WHERE channel = ? AND address = ? AND deleted_at IS NULL`, "email", e))),
   ];
   for (const r of rows) {
     if (seen.has(str(r, "id"))) continue;

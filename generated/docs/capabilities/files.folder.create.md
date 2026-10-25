@@ -28,10 +28,6 @@ type In = {
   parentId: string;
   name: string;
   reviewChanges?: boolean;
-  subject?: {
-    kind: "agent" | "project";
-    id: string;
-  };
   idempotencyKey: string;
 };
 ```
@@ -55,10 +51,6 @@ type Out = {
     };
     git: boolean;
     reviewChanges: boolean;
-    subject?: {
-      kind: "agent" | "project" | "space";
-      id?: string;
-    };
   };
 };
 ```
@@ -81,11 +73,7 @@ type Out = {
     "idempotencyKey": "idem_1",
     "name": "example",
     "parentId": "fld_a1b2c3",
-    "reviewChanges": true,
-    "subject": {
-      "id": "agt_a1b2c3",
-      "kind": "agent"
-    }
+    "reviewChanges": true
   },
   "output": {
     "folder": {
@@ -102,10 +90,6 @@ type Out = {
       "source": {
         "mountId": "mnt_a1b2c3",
         "provider": "example"
-      },
-      "subject": {
-        "id": "agt_a1b2c3",
-        "kind": "agent"
       }
     }
   }

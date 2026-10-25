@@ -8,7 +8,7 @@
 // DECISION: step cap lives in the engine (opts.maxSteps, default 500); runs.record_step has no cap field and only refuses a runaway log (HARD_STEP_ROWS).
 import {
   DEFAULT_WAIT_MS, HARD_STEP_ROWS, allSteps, allWaits, clean, clearWait, countRuns, countStepRows, emitRun, engineHealth, findRun, findStep, idemKeyFor, isActive,
-  isTerminalStep, latestSteps, listRuns, manageRun, newRunId, newSpanId, newThreadId, page, patchExtra, raise, readExtra, runOut, saveRun, saveStep, saveWait, seeRun, stepOut, touch,
+  isTerminalStep, latestSteps, listRuns, manageRun, newRunId, newSpanId, newThreadId, page, patchExtra, raise, readExtra, readTrigger, runOut, saveRun, saveStep, saveWait, seeRun, stepOut, touch,
 } from "../projections.ts";
 import type { Db, ResourceRef, Run, RunKind, RunStatus, RunsCtx, StepRow, StepState, WaitReason, WaitRow } from "../projections.ts";
 
@@ -64,6 +64,8 @@ export async function start(ctx: RunsCtx, input: In): Promise<unknown> {
   }
   if (input.parentRun && !findRun(ctx.db, input.parentRun)) raise(ctx, "validation.not_found", "The parent run does not exist.", { reason: "no_parent" });
   const run = newRun(ctx, input as Parameters<typeof newRun>[1]);
+  const trig = input.trigger as { messageId: string; threadId: string; channelId?: string } | undefined;
+  if (trig) ctx.db.run("INSERT OR REPLACE INTO runs_trigger (run_id, message_id, thread_id, channel_id) VALUES (?, ?, ?, ?)", run.id, trig.messageId, trig.threadId, trig.channelId ?? null);
   if (key) ctx.db.run("INSERT OR REPLACE INTO runs_idem (idem_key, run_id) VALUES (?, ?)", key, run.id);
   return { runId: run.id };
 }
@@ -102,7 +104,7 @@ async function unblockStarter(ctx: RunsCtx, run: Run, reason: WaitReason): Promi
 export async function markWaitingCap(ctx: RunsCtx, input: In): Promise<unknown> {
   const run = seeRun(ctx, input.runId);
   const r = await markWaiting(ctx, run, { reason: input.reason, taskId: input.taskId, on: input.on });
-  return { run: runOut(r) };
+  return { run: runOut(r, readTrigger(ctx.db, r.id)) };
 }
 
 export function resumeRun(ctx: RunsCtx, run: Run, reason?: WaitReason): Run {
@@ -117,7 +119,7 @@ export function resumeRun(ctx: RunsCtx, run: Run, reason?: WaitReason): Run {
   return run;
 }
 export async function resume(ctx: RunsCtx, input: In): Promise<unknown> {
-  return { run: runOut(resumeRun(ctx, seeRun(ctx, input.runId), input.reason)) };
+  return { run: ((x) => runOut(x, readTrigger(ctx.db, x.id)))(resumeRun(ctx, seeRun(ctx, input.runId), input.reason)) };
 }
 
 /** How many of this owner's most recent finished Runs of the same kind and name failed in a row, this one included. */
@@ -178,16 +180,16 @@ async function needsYou(ctx: RunsCtx, run: Run, message: string): Promise<void> 
 export async function finish(ctx: RunsCtx, input: In): Promise<unknown> {
   const run = seeRun(ctx, input.runId);
   const r = await finishRun(ctx, run, input.status, { summary: input.summary, costMicros: input.costMicros, error: input.error });
-  return { run: runOut(r) };
+  return { run: runOut(r, readTrigger(ctx.db, r.id)) };
 }
 
 // ---- stop, retry, replay ----
 
 export async function stop(ctx: RunsCtx, input: In): Promise<unknown> {
   const run = manageRun(ctx, input.runId);
-  if (run.status === "stopped") return { run: runOut(run) };
+  if (run.status === "stopped") return { run: runOut(run, readTrigger(ctx.db, run.id)) };
   if (!isActive(run.status)) raise(ctx, "validation.precondition_failed", "That run has already finished.", { reason: "run_finished", status: run.status });
-  return { run: runOut(await finishRun(ctx, run, "stopped", { by: ctx.principal.id, reason: input.reason })) };
+  return { run: ((x) => runOut(x, readTrigger(ctx.db, x.id)))(await finishRun(ctx, run, "stopped", { by: ctx.principal.id, reason: input.reason })) };
 }
 
 export async function retry(ctx: RunsCtx, input: In): Promise<unknown> {
@@ -220,12 +222,12 @@ export async function replay(ctx: RunsCtx, input: In): Promise<unknown> {
 // ---- reads ----
 
 export async function get(ctx: RunsCtx, input: In): Promise<unknown> {
-  return { run: runOut(seeRun(ctx, input.runId)) };
+  return { run: (() => { const x = seeRun(ctx, input.runId); return runOut(x, readTrigger(ctx.db, x.id)); })() };
 }
 export async function list(ctx: RunsCtx, input: In): Promise<unknown> {
   const rows = listRuns(ctx, { scope: input.scope, ownerId: input.ownerId, subject: input.subject, kinds: input.kinds, statuses: input.statuses, since: input.since });
   const p = page(rows, input.cursor, input.limit);
-  return clean({ runs: p.rows.map(runOut), next: p.next, total: p.total });
+  return clean({ runs: p.rows.map((x) => runOut(x, readTrigger(ctx.db, x.id))), next: p.next, total: p.total });
 }
 export async function steps(ctx: RunsCtx, input: In): Promise<unknown> {
   seeRun(ctx, input.runId);
@@ -245,7 +247,7 @@ export async function status(ctx: RunsCtx): Promise<unknown> {
 
 export async function recordKey(ctx: RunsCtx, input: In): Promise<unknown> {
   const run = seeRun(ctx, input.runId);
-  return { run: runOut(applyKey(ctx, run, input)) };
+  return { run: ((x) => runOut(x, readTrigger(ctx.db, x.id)))(applyKey(ctx, run, input)) };
 }
 function applyKey(ctx: RunsCtx, run: Run, k: { step?: string; keyUsed: string; modelUsed?: string; fellBackFrom?: string; reason?: string }): Run {
   run.keyUsed = k.keyUsed;

@@ -50,10 +50,6 @@ type Out = {
     };
     git: boolean;
     reviewChanges: boolean;
-    subject?: {
-      kind: "agent" | "project" | "space";
-      id?: string;
-    };
   };
 };
 ```
@@ -92,10 +88,6 @@ type Out = {
       "source": {
         "mountId": "mnt_a1b2c3",
         "provider": "example"
-      },
-      "subject": {
-        "id": "agt_a1b2c3",
-        "kind": "agent"
       }
     }
   }

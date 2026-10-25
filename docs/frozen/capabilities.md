@@ -1,16 +1,10 @@
 # Frozen capabilities (Freeze review A, P-PR_34)
 
-Review of the merged capability registry at the F11 freeze. `packages/contracts/tests/frozen-capabilities.test.ts` reads this file and fails when the registry, the counts or the sample drift from it. A deliberate change to the registry updates this file in the same commit, signed by the lead.
+Review of the merged capability registry at the F11 freeze. `packages/contracts/tests/frozen-capabilities.test.ts` checks the rules in this file and the snapshots it describes. A deliberate change to the registry updates this file in the same commit, signed by the lead.
 
 ## Frozen values
 
-Registry hash: e40160da06d6b1bbb8c20f83444511421136932f1c25498ff9837e5a48aa0efd
-Capabilities: 1500
-Events: 603
-Registry modules: 80
-Host modules: 72
-
-The hash is the sha256 of `generated/registry.json` and equals `generated/hash.txt`. The registry merges 80 manifests (64 module, 12 connector, 4 kit); `host/modules.json` lists 72 of them as host modules.
+The contract of every capability is frozen in `docs/frozen/snapshots/<manifest>.json`: one small file per manifest, one line per capability (`name@version`) holding the sha256 of its canonical definition with shared schemas resolved (`lib/snapshot.ts`). The regen bot writes the files with `node tools/gen/src/cli.ts --snapshots`; the test fails on a missing, changed or stray file and names the capability. There is no registry-wide hash, count or per-lane table here on purpose: each of those changed with every contract change, so every contract PR conflicted with every other. Two PRs that change different manifests now merge in either order with nothing to re-record.
 
 ## Completeness (all capabilities, checked by the test)
 
@@ -20,39 +14,9 @@ The hash is the sha256 of `generated/registry.json` and equals `generated/hash.t
 - Every capability with idempotency `key` has an `idempotencyKey` in its input (through `$ref` where the schema is shared).
 - Every capability has exactly one example, so no capability is unexemplified.
 
-## Sample (10 percent of each lane, read)
+## Sample read at the freeze
 
-Selection rule: capabilities of the lane (owner of the module) sorted by name, n = ceil(count / 10), take index floor(i * count / n) for i in 0..n-1. The test recomputes this and compares it with the lists below.
-
-| Lane | Capabilities | Sampled |
-|---|---|---|
-| L1 | 37 | 4 |
-| L2 | 263 | 27 |
-| L3 | 152 | 16 |
-| L4 | 109 | 11 |
-| L5 | 344 | 35 |
-| L6 | 163 | 17 |
-| L7a | 218 | 22 |
-| L7b | 79 | 8 |
-| L8 | 135 | 14 |
-
-L1: conflicts.assist, conflicts.resolve, search.recent.list, sync.endpoints
-
-L2: agents.builtin_skills.list, agents.pause, agents.snapshot.take, agents.update, channels.get, channels.update, chat.helpers.list, chat.post, chat.transcript.search, computers.chrome.fill, computers.chrome.state, computers.files.read, computers.recording.delete, computers.screen.scroll, computers.timeline, engine.incident.note, engine.placement.decide, engine.route.preview, engine.stop_all, engine.turn.start, mcp.session.mint, memory.capture, memory.find_by_subject, memory.pointer, memory.versions, terminal.read, threads.list
-
-L3: connections.complete_auth, connections.update, connectors.outbox.retry, hubspot.health, import.parse_excel, projects.file_chat, projects.pin_file, records.as_of, records.history, records.restore, schema.apply, schema.layout.set, sources.delete, sources.list, sync_types.get, sync_types.review_schema
-
-L4: changesets.approve, changesets.revert_change, files.comments.resolve, files.folder.rename, files.markup.save, files.revoke_external, files.versions, git.protect, mounts.get, previews.health, runbooks.set_target
-
-L5: calendar.availability, calendar.ingest_event, contacts.address.add, contacts.preferences.set, github.app.get, github.issue.update, github.pull_request.merge, google.calendar.get_event, google.drive.changes_start_token, google.drive.stop_watch, google.dwd.status, google.gmail.send_message, google.meet.subscribe, inbox.following, inbox.send_options, mail.domain.list, mail.mailbox.get, mail.route.list, mailgun.domains.delete, mailgun.routes.list, meetings.set_state, ms.calendar.get_schedule, ms.consent.policy_snippet, ms.drive.list_items, ms.mail.list_folders, ms.teams.recordings.get_transcript, resend.health, stripe.health, stripe.refund.create, telephony.dial, telephony.number.get, telephony.registration.refresh, twilio.a2p.status, twilio.number.search, zoom.meetings.delete
-
-L6: automations.alerts.get, automations.groups.delete, automations.retry, automations.validate, gate.deny, home.activity, journeys.create, journeys.stage_counts, notifications.delegate.resolve, notifications.push.register, runs.mark_waiting, runs.stop, scheduler.pause, scheduler.waits.match, tasks.escalate, tasks.needs_you, webhooks.delete
-
-L7a: access.actors.create, access.groups.add_member, access.labels.set, access.request, access.roles.assign, access.unshare, audit.list, devices.revoke, folders.place, governance.holds.release, identity.change_password, identity.passkey_remove, identity.totp_begin, members.invites.list, members.sso.remove, providers.subscription_start, settings.pages, spaces.matrix, vault.export_env, vault.import, vault.item.reveal, vault.requests.decline
-
-L7b: backup.config_get, backup.verify, console.nav, health.history, health.time_skew, logs.trace, network.server_remove, reports.send_to_vyre
-
-L8: bookings.availability, campaigns.launch, campaigns.stop, docusign.cancel, email_builder.ask_diff, email_builder.saved_blocks.save, esign.hook, forms.fields_set, forms.unpublish, kits.list, portal.accounts, sites.deployments, sites.preview_remove, source_rules.list
+At the F11 freeze the lead read 10 percent of each lane's capabilities (sorted by name, every n-th). The findings below come from that read. The sample lists are not kept: they went stale with the first contract change and the completeness rules above are what the test enforces.
 
 ## Findings from reading the sample
 

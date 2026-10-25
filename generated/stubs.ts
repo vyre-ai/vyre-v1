@@ -751,7 +751,6 @@ export function stubs(ctx: CallCtx) {
       share: call("files.share"),
       share_external: call("files.share_external"),
       shared_with_me: call("files.shared_with_me"),
-      star: call("files.star"),
       trash: {
         empty: call("files.trash.empty"),
         list: call("files.trash.list"),
@@ -1291,6 +1290,9 @@ export function stubs(ctx: CallCtx) {
         save: call("memory.layout.save"),
       },
       maintain: call("memory.maintain"),
+      map: {
+        get: call("memory.map.get"),
+      },
       notes: {
         list: call("memory.notes.list"),
       },

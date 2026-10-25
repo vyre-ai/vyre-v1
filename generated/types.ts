@@ -1382,13 +1382,18 @@ export type AgentsRoutineDelegateOut = {
     routineId: string;
     agentId: string;
     title: string;
-    cron: string;
+    cron?: string;
     prompt: string;
     channelId?: string;
     enabled: boolean;
     ownerId: string;
     lastRunAt?: number;
     nextRunAt?: number;
+    kind?: "schedule" | "watch";
+    watch?: {
+      on: "message";
+      channelId: string;
+    };
   };
   previousOwnerId: string;
 };
@@ -1409,13 +1414,18 @@ export type AgentsRoutineRunNowOut = {
     routineId: string;
     agentId: string;
     title: string;
-    cron: string;
+    cron?: string;
     prompt: string;
     channelId?: string;
     enabled: boolean;
     ownerId: string;
     lastRunAt?: number;
     nextRunAt?: number;
+    kind?: "schedule" | "watch";
+    watch?: {
+      on: "message";
+      channelId: string;
+    };
   };
   runId: string;
 };
@@ -1423,10 +1433,15 @@ export type AgentsRoutineSaveIn = {
   agentId: string;
   routineId?: string;
   title: string;
-  cron: string;
+  cron?: string;
   prompt: string;
   channelId?: string;
   enabled?: boolean;
+  kind?: "schedule" | "watch";
+  watch?: {
+    on: "message";
+    channelId: string;
+  };
   idempotencyKey: string;
 };
 export type AgentsRoutineSaveOut = {
@@ -1434,13 +1449,18 @@ export type AgentsRoutineSaveOut = {
     routineId: string;
     agentId: string;
     title: string;
-    cron: string;
+    cron?: string;
     prompt: string;
     channelId?: string;
     enabled: boolean;
     ownerId: string;
     lastRunAt?: number;
     nextRunAt?: number;
+    kind?: "schedule" | "watch";
+    watch?: {
+      on: "message";
+      channelId: string;
+    };
   };
 };
 export type AgentsRoutinesListIn = {
@@ -1451,13 +1471,18 @@ export type AgentsRoutinesListOut = {
       routineId: string;
       agentId: string;
       title: string;
-      cron: string;
+      cron?: string;
       prompt: string;
       channelId?: string;
       enabled: boolean;
       ownerId: string;
       lastRunAt?: number;
       nextRunAt?: number;
+      kind?: "schedule" | "watch";
+      watch?: {
+        on: "message";
+        channelId: string;
+      };
     }>;
 };
 export type AgentsSnapshotTakeIn = {
@@ -4731,6 +4756,8 @@ export type ChatAsksOfOut = {
         }>;
       createdAt: number;
       closedAt?: number;
+      replyCount?: number;
+      lastMessageAt?: number;
       path?: Array<{
           title: string;
           threadId: string;
@@ -4835,6 +4862,8 @@ export type ChatHandoffOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -4881,6 +4910,8 @@ export type ChatHelperStartOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -5015,6 +5046,8 @@ export type ChatOpenAsChatOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -5290,6 +5323,8 @@ export type ChatStartOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -5330,6 +5365,8 @@ export type ChatThreadOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -8690,8 +8727,6 @@ export type FilesCopyOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
-    starred?: boolean;
-    conflict?: boolean;
   };
 };
 export type FilesCreateIn = {
@@ -8727,8 +8762,6 @@ export type FilesCreateOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
-    starred?: boolean;
-    conflict?: boolean;
   };
   changesetId?: string;
 };
@@ -8786,10 +8819,6 @@ export type FilesFolderCreateIn = {
   parentId: string;
   name: string;
   reviewChanges?: boolean;
-  subject?: {
-    kind: "agent" | "project";
-    id: string;
-  };
   idempotencyKey: string;
 };
 export type FilesFolderCreateOut = {
@@ -8808,10 +8837,6 @@ export type FilesFolderCreateOut = {
     };
     git: boolean;
     reviewChanges: boolean;
-    subject?: {
-      kind: "agent" | "project" | "space";
-      id?: string;
-    };
   };
 };
 export type FilesFolderDeleteIn = {
@@ -8839,10 +8864,6 @@ export type FilesFolderGetOut = {
     };
     git: boolean;
     reviewChanges: boolean;
-    subject?: {
-      kind: "agent" | "project" | "space";
-      id?: string;
-    };
   };
 };
 export type FilesFolderMoveIn = {
@@ -8865,10 +8886,6 @@ export type FilesFolderMoveOut = {
     };
     git: boolean;
     reviewChanges: boolean;
-    subject?: {
-      kind: "agent" | "project" | "space";
-      id?: string;
-    };
   };
 };
 export type FilesFolderRenameIn = {
@@ -8891,10 +8908,6 @@ export type FilesFolderRenameOut = {
     };
     git: boolean;
     reviewChanges: boolean;
-    subject?: {
-      kind: "agent" | "project" | "space";
-      id?: string;
-    };
   };
 };
 export type FilesFolderRestoreIn = {
@@ -8916,10 +8929,6 @@ export type FilesFolderRestoreOut = {
     };
     git: boolean;
     reviewChanges: boolean;
-    subject?: {
-      kind: "agent" | "project" | "space";
-      id?: string;
-    };
   };
 };
 export type FilesFolderSearchIn = {
@@ -8943,10 +8952,6 @@ export type FilesFolderSearchOut = {
       };
       git: boolean;
       reviewChanges: boolean;
-      subject?: {
-        kind: "agent" | "project" | "space";
-        id?: string;
-      };
     }>;
 };
 export type FilesFolderSettingsIn = {
@@ -8970,10 +8975,6 @@ export type FilesFolderSettingsOut = {
     };
     git: boolean;
     reviewChanges: boolean;
-    subject?: {
-      kind: "agent" | "project" | "space";
-      id?: string;
-    };
   };
 };
 export type FilesGetIn = {
@@ -9000,8 +9001,6 @@ export type FilesGetOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
-    starred?: boolean;
-    conflict?: boolean;
   };
 };
 export type FilesHealthIn = Record<string, unknown>;
@@ -9035,8 +9034,6 @@ export type FilesKnowledgeOut = {
       deletedAt?: number;
       thumb: boolean;
       holds: number;
-      starred?: boolean;
-      conflict?: boolean;
     }>;
   folders: Array<{
       folderId: string;
@@ -9053,10 +9050,6 @@ export type FilesKnowledgeOut = {
       };
       git: boolean;
       reviewChanges: boolean;
-      subject?: {
-        kind: "agent" | "project" | "space";
-        id?: string;
-      };
     }>;
   views: Array<{
       key: "memory" | "graph";
@@ -9120,8 +9113,6 @@ export type FilesListOut = {
       deletedAt?: number;
       thumb: boolean;
       holds: number;
-      starred?: boolean;
-      conflict?: boolean;
     }>;
   folders: Array<{
       folderId: string;
@@ -9138,10 +9129,6 @@ export type FilesListOut = {
       };
       git: boolean;
       reviewChanges: boolean;
-      subject?: {
-        kind: "agent" | "project" | "space";
-        id?: string;
-      };
     }>;
   next?: string;
   total?: number;
@@ -9196,8 +9183,6 @@ export type FilesMoveOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
-    starred?: boolean;
-    conflict?: boolean;
   };
   changesetId?: string;
 };
@@ -9256,8 +9241,6 @@ export type FilesRecentOut = {
       deletedAt?: number;
       thumb: boolean;
       holds: number;
-      starred?: boolean;
-      conflict?: boolean;
     }>;
 };
 export type FilesRenameIn = {
@@ -9285,8 +9268,6 @@ export type FilesRenameOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
-    starred?: boolean;
-    conflict?: boolean;
   };
   changesetId?: string;
 };
@@ -9323,8 +9304,6 @@ export type FilesRestoreOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
-    starred?: boolean;
-    conflict?: boolean;
   };
 };
 export type FilesRestoreVersionIn = {
@@ -9352,8 +9331,6 @@ export type FilesRestoreVersionOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
-    starred?: boolean;
-    conflict?: boolean;
   };
   versionId: string;
 };
@@ -9445,8 +9422,6 @@ export type FilesSharedWithMeOut = {
       deletedAt?: number;
       thumb: boolean;
       holds: number;
-      starred?: boolean;
-      conflict?: boolean;
     }>;
   folders: Array<{
       folderId: string;
@@ -9463,42 +9438,9 @@ export type FilesSharedWithMeOut = {
       };
       git: boolean;
       reviewChanges: boolean;
-      subject?: {
-        kind: "agent" | "project" | "space";
-        id?: string;
-      };
     }>;
   next?: string;
   total?: number;
-};
-export type FilesStarIn = {
-  fileId: string;
-  starred: boolean;
-};
-export type FilesStarOut = {
-  file: {
-    fileId: string;
-    folderId: string;
-    name: string;
-    kind: "text" | "markdown" | "document" | "spreadsheet" | "presentation" | "pdf" | "image" | "video" | "audio" | "code" | "archive" | "google_native" | "other";
-    mime: string;
-    size: number;
-    version: number;
-    label: number;
-    ownerId: string;
-    createdAt: number;
-    updatedAt: number;
-    updatedBy: string;
-    source?: {
-      mountId: string;
-      provider: string;
-    };
-    deletedAt?: number;
-    thumb: boolean;
-    holds: number;
-    starred?: boolean;
-    conflict?: boolean;
-  };
 };
 export type FilesTrashEmptyIn = {
   olderThanDays?: number;
@@ -9531,8 +9473,6 @@ export type FilesTrashListOut = {
       deletedAt?: number;
       thumb: boolean;
       holds: number;
-      starred?: boolean;
-      conflict?: boolean;
     }>;
   folders: Array<{
       folderId: string;
@@ -9549,10 +9489,6 @@ export type FilesTrashListOut = {
       };
       git: boolean;
       reviewChanges: boolean;
-      subject?: {
-        kind: "agent" | "project" | "space";
-        id?: string;
-      };
     }>;
   next?: string;
   total?: number;
@@ -9565,10 +9501,6 @@ export type FilesTreeOut = {
       kind: "folder" | "virtual";
       folderId?: string;
       count: number;
-      subject?: {
-        kind: "agent" | "project" | "space";
-        id?: string;
-      };
     }>;
 };
 export type FilesUploadUrlIn = {
@@ -9618,8 +9550,6 @@ export type FilesViewerDataOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
-    starred?: boolean;
-    conflict?: boolean;
   };
   text?: string;
   pages?: number;
@@ -9670,8 +9600,6 @@ export type FilesWriteOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
-    starred?: boolean;
-    conflict?: boolean;
   };
   versionId?: string;
   changesetId?: string;
@@ -13713,6 +13641,13 @@ export type KitsInstallSheetOut = {
     networkDomains: Array<string>;
     vaultNames: Array<string>;
     scripts: number;
+    problems: Array<{
+        item: string;
+        step: "apply" | "undo";
+        cap: string;
+        input: Record<string, unknown>;
+        message: string;
+      }>;
   };
 };
 export type KitsListIn = {
@@ -15520,6 +15455,7 @@ export type MemoryCountsOut = {
   current: number;
   proposed: number;
   fromMe: number;
+  autoMerged: number;
 };
 export type MemoryEraseIn = {
   factIds?: Array<string>;
@@ -15875,6 +15811,16 @@ export type MemoryMaintainOut = {
   merged: number;
   closed: number;
   maps: number;
+};
+export type MemoryMapGetIn = {
+  agentId: string;
+};
+export type MemoryMapGetOut = {
+  map?: {
+    body: string;
+    lines: number;
+    updatedAt: number;
+  };
 };
 export type MemoryNotesListIn = {
   agentId?: string;
@@ -18007,6 +17953,7 @@ export type RecordsExportIn = {
   fields?: Array<string>;
   offset?: number;
   limit?: number;
+  recordIds?: Array<string>;
 };
 export type RecordsExportOut = {
   fileId: string;
@@ -18847,6 +18794,11 @@ export type RunsFinishOut = {
     threadId?: string;
     traceId: string;
     summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
   };
 };
 export type RunsGetIn = {
@@ -18875,6 +18827,11 @@ export type RunsGetOut = {
     threadId?: string;
     traceId: string;
     summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
   };
 };
 export type RunsListIn = {
@@ -18913,6 +18870,11 @@ export type RunsListOut = {
       threadId?: string;
       traceId: string;
       summary?: string;
+      trigger?: {
+        messageId: string;
+        threadId: string;
+        channelId?: string;
+      };
     }>;
   next?: string;
   total?: number;
@@ -18946,6 +18908,11 @@ export type RunsMarkWaitingOut = {
     threadId?: string;
     traceId: string;
     summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
   };
 };
 export type RunsPreviewUndoIn = {
@@ -18993,6 +18960,11 @@ export type RunsRecordKeyOut = {
     threadId?: string;
     traceId: string;
     summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
   };
 };
 export type RunsRecordStepIn = {
@@ -19047,6 +19019,11 @@ export type RunsResumeOut = {
     threadId?: string;
     traceId: string;
     summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
   };
 };
 export type RunsRetryIn = {
@@ -19069,6 +19046,11 @@ export type RunsStartIn = {
   threadId?: string;
   keyUsed?: string;
   modelUsed?: string;
+  trigger?: {
+    messageId: string;
+    threadId: string;
+    channelId?: string;
+  };
   idempotencyKey: string;
 };
 export type RunsStartOut = {
@@ -19133,6 +19115,11 @@ export type RunsStopOut = {
     threadId?: string;
     traceId: string;
     summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
   };
 };
 export type RunsUndoIn = {
@@ -20171,8 +20158,6 @@ export type SheetsCreateOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
-    starred?: boolean;
-    conflict?: boolean;
   };
 };
 export type SheetsDeleteRowIn = {
@@ -24350,6 +24335,8 @@ export type ThreadsAddAgentOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -24389,6 +24376,8 @@ export type ThreadsCloseOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -24428,6 +24417,8 @@ export type ThreadsGetOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -24472,6 +24463,8 @@ export type ThreadsListOut = {
         }>;
       createdAt: number;
       closedAt?: number;
+      replyCount?: number;
+      lastMessageAt?: number;
       path?: Array<{
           title: string;
           threadId: string;
@@ -24554,6 +24547,8 @@ export type ThreadsMembersAddOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -24594,6 +24589,8 @@ export type ThreadsMembersRemoveOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -24634,6 +24631,8 @@ export type ThreadsRemoveAgentOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -24673,6 +24672,8 @@ export type ThreadsReopenOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -24713,6 +24714,8 @@ export type ThreadsSetFolderOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -24753,6 +24756,8 @@ export type ThreadsSetPlanModeOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -24793,6 +24798,8 @@ export type ThreadsUpdateOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
     path?: Array<{
         title: string;
         threadId: string;
@@ -25106,7 +25113,7 @@ export type VaultExportsRevokeOut = {
 export type VaultFillIn = {
   handle: string;
   target: {
-    kind: "env" | "http_header" | "browser" | "terminal" | "file";
+    kind: "env" | "http_header" | "browser" | "terminal" | "file" | "git_credential" | "container_env" | "route_auth";
     ref: string;
   };
   returnValue?: boolean;
@@ -26755,7 +26762,6 @@ export interface CapMap {
   "files.share": { in: FilesShareIn; out: FilesShareOut };
   "files.share_external": { in: FilesShareExternalIn; out: FilesShareExternalOut };
   "files.shared_with_me": { in: FilesSharedWithMeIn; out: FilesSharedWithMeOut };
-  "files.star": { in: FilesStarIn; out: FilesStarOut };
   "files.trash.empty": { in: FilesTrashEmptyIn; out: FilesTrashEmptyOut };
   "files.trash.list": { in: FilesTrashListIn; out: FilesTrashListOut };
   "files.tree": { in: FilesTreeIn; out: FilesTreeOut };
@@ -27149,6 +27155,7 @@ export interface CapMap {
   "memory.layout.get": { in: MemoryLayoutGetIn; out: MemoryLayoutGetOut };
   "memory.layout.save": { in: MemoryLayoutSaveIn; out: MemoryLayoutSaveOut };
   "memory.maintain": { in: MemoryMaintainIn; out: MemoryMaintainOut };
+  "memory.map.get": { in: MemoryMapGetIn; out: MemoryMapGetOut };
   "memory.notes.list": { in: MemoryNotesListIn; out: MemoryNotesListOut };
   "memory.pointer": { in: MemoryPointerIn; out: MemoryPointerOut };
   "memory.promote": { in: MemoryPromoteIn; out: MemoryPromoteOut };
@@ -28659,11 +28666,6 @@ export type FileSharedExternalPayload = {
   linkId: string;
   expiresAt?: number;
 };
-export type FileStarredPayload = {
-  fileId: string;
-  by: string;
-  starred: boolean;
-};
 export type FileVersionAddedPayload = {
   fileId: string;
   versionId: string;
@@ -29030,8 +29032,8 @@ export type ItemMovedPayload = {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
-  fromFolderId?: string;
-  toFolderId?: string;
+  fromFolderId?: string | string;
+  toFolderId?: string | string;
 };
 export type JourneyCompletedPayload = {
   journeyId: string;
@@ -31185,7 +31187,6 @@ export interface EventMap {
   "file.renamed": FileRenamedPayload;
   "file.restored": FileRestoredPayload;
   "file.shared_external": FileSharedExternalPayload;
-  "file.starred": FileStarredPayload;
   "file.version_added": FileVersionAddedPayload;
   "folder.created": FolderCreatedPayload;
   "folder.deleted": FolderDeletedPayload;

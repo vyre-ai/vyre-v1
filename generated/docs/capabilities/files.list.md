@@ -59,8 +59,6 @@ type Out = {
       deletedAt?: number;
       thumb: boolean;
       holds: number;
-      starred?: boolean;
-      conflict?: boolean;
     }>;
   folders: Array<{
       folderId: string;
@@ -77,10 +75,6 @@ type Out = {
       };
       git: boolean;
       reviewChanges: boolean;
-      subject?: {
-        kind: "agent" | "project" | "space";
-        id?: string;
-      };
     }>;
   next?: string;
   total?: number;
@@ -111,7 +105,6 @@ type Out = {
   "output": {
     "files": [
       {
-        "conflict": true,
         "createdAt": 1760000000000,
         "deletedAt": 1760000000000,
         "fileId": "fil_a1b2c3",
@@ -127,7 +120,6 @@ type Out = {
           "mountId": "mnt_a1b2c3",
           "provider": "example"
         },
-        "starred": true,
         "thumb": true,
         "updatedAt": 1760000000000,
         "updatedBy": "example",
@@ -149,10 +141,6 @@ type Out = {
         "source": {
           "mountId": "mnt_a1b2c3",
           "provider": "example"
-        },
-        "subject": {
-          "id": "agt_a1b2c3",
-          "kind": "agent"
         }
       }
     ],
