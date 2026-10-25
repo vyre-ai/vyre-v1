@@ -32,7 +32,7 @@ test("Draft ready leads the preview of a line an agent has a draft for, and only
 
 test("the lines are the tall Row, and an unread name is bold", () => {
   const out = wrap({}, <ContactList />);
-  const row = (k: string): string => out.match(new RegExp(`<div[^>]*data-testid="row-line:${k}"[^>]*>`))?.[0] ?? "";
+  const row = (k: string): string => out.match(new RegExp(`<[a-z]+[^>]*data-testid="row-line:${k}"[^>]*>`))?.[0] ?? "";
   assert.ok(row("elena").includes("62px"), `62 px rows: ${row("elena").slice(0, 400)}`);
   assert.ok(out.includes("font-weight:600"), "bold unread titles");
 });
