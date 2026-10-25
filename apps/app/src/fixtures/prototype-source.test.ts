@@ -87,3 +87,33 @@ test("Harbor Studio and Personal rows are the prototype's seedSpaces rows", () =
   assert.deepEqual(PROTO_SPACE_TYPES["hclients"]?.rows.map((r) => r["name"]), ["Kestrel Coffee", "Tidewater Books", "Alder Pottery"]);
   assert.deepEqual(PROTO_SPACE_TYPES["hjobs"]?.rows.map((r) => r["title"]), ["Menu redesign", "Shop front signage", "Launch poster set"]);
 });
+
+/** The text of the bracketed literal that opens at `start`, strings and template strings respected. */
+function balancedAt(src: string, start: number): string {
+  let depth = 0, i = start, q: string | null = null;
+  for (;; i++) {
+    const c = src[i] as string;
+    if (q) { if (c === "\\") i++; else if (c === q) q = null; continue; }
+    if (c === '"' || c === "'" || c === "`") q = c;
+    else if (c === "(" || c === "{" || c === "[") depth++;
+    else if (c === ")" || c === "}" || c === "]") { depth--; if (depth === 0) return src.slice(start, i + 1); }
+  }
+}
+
+test("the chat seed of all three Spaces is what the prototype's own seed and seedFor draw, flags included", async () => {
+  const { PROTO_CHAT } = await import("./prototype-chat.ts");
+  const i = TEXT.indexOf('  const seed = () => ({\n    space: "nw"');
+  assert.ok(i > 0, "the prototype has the chat seed");
+  const lit = balancedAt(TEXT, TEXT.indexOf("({", i));
+  const f = TEXT.indexOf("  function seedFor(sp) {", i);
+  const end = TEXT.indexOf("\n  }\n", f) + 4;
+  const code = `const SPID = { team: "nw", personal: "me", harbor: "hb" };\nconst seed = () => ${lit};\n${TEXT.slice(f, end)}\n({ nw: seedFor("team"), hb: seedFor("harbor"), me: seedFor("personal") })`;
+  const ran = JSON.parse(JSON.stringify(vm.runInNewContext(code, { window: {} })));
+  // the prototype sets b.space to the Space's short id; so does the extractor
+  assert.deepEqual(PROTO_CHAT, ran);
+  const ch = (PROTO_CHAT["nw"] as { channels: { n: string; project?: boolean; followed?: boolean; starred?: boolean }[] }).channels;
+  assert.deepEqual(ch.map((c) => [c.n, c.project === true, c.followed === true, c.starred === true]), [["intake", false, false, false], ["billing", false, false, false], ["pruitt-matter", true, true, false], ["atp-q4", true, false, false], ["rivera-matter", false, false, false]], "the followed project channel is the one the sidebar shows");
+  assert.equal((PROTO_CHAT["nw"] as { needs: unknown[] }).needs.length, 8);
+  assert.equal((PROTO_CHAT["hb"] as { needs: unknown[] }).needs.length, 2);
+  assert.equal((PROTO_CHAT["me"] as { chats: unknown[] }).chats.length, 3);
+});
