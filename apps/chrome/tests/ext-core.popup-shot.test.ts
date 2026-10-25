@@ -155,4 +155,4 @@ test("the popup and the save card in a real Chrome, paper and graphite", { skip:
   }
 });
 
-// Final run on the last commit of P-L10_05: this file reports its own ok line.
+// Final run on the last commit of P-L10_05: this file reports its own ok line (second pass after the popup footer fix).

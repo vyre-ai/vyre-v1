@@ -594,4 +594,4 @@ test("the card masks the password, peeks for five seconds, and clears it on ever
   }
 });
 
-// Final run on the last commit of P-L10_05: this file reports its own ok line.
+// Final run on the last commit of P-L10_05: this file reports its own ok line (second pass after the popup footer fix).
