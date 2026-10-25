@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Viewer, stripInline, inlineRuns, ZOOM_MAX, ZOOM_MIN, boxFrom, clampZoom, findMatches, markRuns, pinAt, sheetFoot, sortRows, stepZoom, toUnit, VIEWER_KINDS, MARKUP_TOOLS } from "./index.tsx";
 import type { DocBlock, MarkupBox, ViewerViewProps } from "./index.tsx";
+import Mount, { title as mountTitle } from "../../../scripts/shots/mounts/P-L9_10.tsx";
 
 const BOXES: readonly MarkupBox[] = [{ id: "b1", x: 0.08, y: 0.32, w: 0.44, h: 0.32, text: "Is this offer still live?" }, { id: "b2", x: 0.6, y: 0.2, w: 0.2, h: 0.2, text: "Crop here" }];
 const BLOCKS: readonly DocBlock[] = [
@@ -148,4 +149,9 @@ test("a picture shows when src is given and strokes draw over it; the first cell
   const sheet = renderToStaticMarkup(<Viewer fileId="c" title="c.csv" kind="csv" sheet={SHEET} initialCell={{ r: 0, c: 1 }} />);
   assert.match(tag(sheet, "vw-cell-0-1"), /aria-selected="true"|selected/);
   assert.match(sheet, /Amount: sum 2,400, average 800\.0/);
+});
+
+test("the shots mount renders without throwing (its query is read after mount) and names itself", () => {
+  assert.equal(mountTitle, "Viewer");
+  assert.doesNotThrow(() => renderToStaticMarkup(<Mount />));
 });
