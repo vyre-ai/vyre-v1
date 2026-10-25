@@ -60,6 +60,29 @@ test("prefix queries, ranking and type filters", () => {
   assert.equal(kindOf("something_custom"), "record");
 });
 
+test("a broad prefix of one or two characters returns the newest exact-prefix item first; from three characters bm25 ranks", () => {
+  const d = plainFts();
+  put(d, "client_plan", "rec_old", "Bravo oldest plan", "");
+  for (let i = 0; i < 3000; i++) put(d, "client_plan", `rec_fill${i}`, `Filler ${i} note`, i % 2 === 0 ? "bright background" : "");
+  put(d, "client_plan", "rec_mid", "Bravo middle plan", "");
+  put(d, "client_plan", "rec_body", "Quarterly", "bravo only in the body");
+  put(d, "client_plan", "rec_new", "Brave newest plan", "");
+  const idx = createSearchIndex(d);
+  idx.rebuild();
+  for (const q of ["b", "br"]) {
+    const ids = idx.search(q, { limit: 5 }).hits.map((h) => h.id);
+    assert.equal(ids[0], "rec_new", `"${q}": the newest title match comes first (${ids.join(", ")})`);
+    assert.deepEqual(ids.slice(0, 3), ["rec_new", "rec_mid", "rec_old"], `"${q}": title matches newest first, before the body match`);
+  }
+  // an edit after the rebuild is the newest item
+  put(d, "client_plan", "rec_edit", "Bridge edited just now", "");
+  idx.update("client_plan", "rec_edit");
+  assert.equal(idx.search("b").hits[0]?.id, "rec_edit");
+  // three characters and up: every match is ranked, so the title hit with the rarest word leads, not the newest row
+  const ranked = idx.search("brave").hits.map((h) => h.id);
+  assert.equal(ranked[0], "rec_new");
+});
+
 test("the > prefix is answered by the action list, every typed word must start a word", () => {
   const idx = createSearchIndex(plainFts());
   const r = idx.search(">new");

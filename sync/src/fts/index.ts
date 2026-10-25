@@ -17,10 +17,10 @@ export function kindOf(entity: string): SearchKind {
   return KIND_OF_ENTITY[entity] ?? "record";
 }
 
-const PRIORITY: readonly SearchKind[] = ["person", "agent", "chat", "record", "file", "inbox", "event", "mail", "memory", "call", "other"];
-const priority = (k: SearchKind): number => PRIORITY.indexOf(k);
-/** Candidates read in static-rank order before bm25 reorders them. Rare queries have fewer matches than this, so they are ranked exactly. */
-export const CANDIDATES = 400;
+/** A query whose longest word has this many characters or fewer is type-ahead: it is answered by recency (newest first, an early-stopped index scan), not by bm25. From one more character, bm25 ranks every match. */
+export const SHORT_QUERY = 2;
+/** SQL that maps an entity to its Cmd-K kind, so the ranked index can be filled in one recency-ordered pass. */
+const KIND_SQL = `CASE entity ${Object.entries(KIND_OF_ENTITY).map(([e, k]) => `WHEN '${e}' THEN '${k}'`).join(" ")} ELSE 'record' END`;
 /** Rows added or changed since the last rebuild live in a small second index that is always searched in full, so a just-created record is found by its first letter. */
 export const RECENT_MAX = 500;
 
@@ -77,10 +77,10 @@ export function splitPrefix(q: string): { prefix: string | null; rest: string } 
 export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceClass; limit?: number } = {}): SearchIndex {
   if (!driver.sync) throw new ReplicaError("not_ready", "local search needs a driver that reads synchronously");
   driver.exec(
-    "CREATE VIRTUAL TABLE IF NOT EXISTS search_idx USING fts5(title, body, kind, entity UNINDEXED, id UNINDEXED, tokenize='unicode61 remove_diacritics 2', prefix='1 2 3 4')",
+    "CREATE VIRTUAL TABLE IF NOT EXISTS search_idx USING fts5(title, body, kind, entity UNINDEXED, id UNINDEXED, tokenize='unicode61 remove_diacritics 2', prefix='1 2 3')",
   );
   driver.exec(
-    "CREATE VIRTUAL TABLE IF NOT EXISTS search_recent USING fts5(title, body, kind, entity UNINDEXED, id UNINDEXED, tokenize='unicode61 remove_diacritics 2', prefix='1 2 3 4')",
+    "CREATE VIRTUAL TABLE IF NOT EXISTS search_recent USING fts5(title, body, kind, entity UNINDEXED, id UNINDEXED, tokenize='unicode61 remove_diacritics 2', prefix='1 2 3')",
   );
   const delRecent = driver.prepare("DELETE FROM search_recent WHERE entity = ? AND id = ?");
   const insRecent = driver.prepare("INSERT INTO search_recent (title, body, entity, id, kind) VALUES (?, ?, ?, ?, ?)");
@@ -89,7 +89,6 @@ export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceCl
   const readFts = driver.prepare("SELECT title, body FROM fts WHERE entity = ? AND id = ?");
   const del = driver.prepare("DELETE FROM search_idx WHERE entity = ? AND id = ?");
   const ins = driver.prepare("INSERT INTO search_idx (title, body, entity, id, kind) VALUES (?, ?, ?, ?, ?)");
-  const entities = driver.prepare("SELECT DISTINCT entity FROM fts");
   const total = driver.prepare("SELECT count(*) AS n FROM search_idx");
   const defaultLimit = o.limit ?? 20;
   const scope = o.deviceClass === "phone" ? "replica" : "full";
@@ -100,12 +99,8 @@ export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceCl
       driver.transaction(() => {
         driver.exec("DELETE FROM search_idx");
         driver.exec("DELETE FROM search_recent");
-        // Rows are inserted in priority order (people and agents, then chats, records, files, the rest; newest first inside an entity), so rowid order IS the static rank.
-        // A search reads candidates in rowid order and stops early; that is what keeps a one-letter prefix fast.
-        const names = entities.all([]).map((r) => String(r.entity)).sort((a, b) => priority(kindOf(a)) - priority(kindOf(b)) || a.localeCompare(b));
-        for (const entity of names) {
-          driver.prepare("INSERT INTO search_idx (title, body, entity, id, kind) SELECT title, body, entity, id, ? FROM fts WHERE entity = ? ORDER BY rowid DESC").run([kindOf(entity), entity]);
-        }
+        // Rows go in newest first (the replica's fts rowid grows with every write, so it is the recency order), so rowid order IS recency: a type-ahead query reads rowid order and stops early.
+        driver.exec(`INSERT INTO search_idx (title, body, entity, id, kind) SELECT title, body, entity, id, ${KIND_SQL} FROM fts ORDER BY rowid DESC`);
         n = Number(total.get([])?.n ?? 0);
         driver.exec("INSERT INTO search_idx (search_idx) VALUES ('optimize')");
       });
@@ -145,16 +140,23 @@ export function createSearchIndex(driver: SqlDriver, o: { deviceClass?: DeviceCl
       const recent = driver.prepare(
         `SELECT entity, id, kind, title, snippet(search_recent, 1, '[', ']', '…', 12) AS snip, bm25(search_recent, 8.0, 1.0, 0.0) AS score FROM search_recent WHERE search_recent MATCH ? ORDER BY score LIMIT ?`,
       ).all([`${text(match)}${kindMatch}`, limit]).map(toHit);
-      // The ranked index, in one pass per query: the first CANDIDATES matches in static rank (rowid) order, scored with bm25 (title over body) only for those, best first. The inner LIMIT
-      // stops the scan early, so a one-letter prefix costs what a narrow one does. Title matches are searched first and matches anywhere second, so a title hit is never crowded out.
-      const ranked = (m: string): SearchHit[] => driver.prepare(
-        `SELECT * FROM (SELECT entity, id, kind, title, snippet(search_idx, 1, '[', ']', '…', 12) AS snip, bm25(search_idx, 8.0, 1.0, 0.0) AS score FROM search_idx WHERE search_idx MATCH ? ORDER BY rowid LIMIT ${CANDIDATES}) ORDER BY score LIMIT ?`,
-      ).all([m, limit]).map(toHit);
-      const seen = new Set<string>();
       const rows: SearchHit[] = [];
-      for (const h of [...ranked(`title : (${match})${kindMatch}`), ...ranked(`${text(match)}${kindMatch}`)].sort((x, y) => x.score - y.score)) {
-        const k = `${h.entity}\u0000${h.id}`;
-        if (!seen.has(k)) { seen.add(k); rows.push(h); }
+      const longest = Math.max(...(rest.match(TOKEN) ?? [""]).map((w) => [...w].length));
+      if (longest <= SHORT_QUERY) {
+        // Type-ahead: newest first. A title match beats a body match; inside each, the newest row wins. The scan stops at LIMIT, so a one-letter prefix costs what a narrow one does.
+        const newest = (m: string): SearchHit[] => driver.prepare(
+          `SELECT entity, id, kind, title, snippet(search_idx, 1, '[', ']', '…', 12) AS snip, 0 AS score FROM search_idx WHERE search_idx MATCH ? ORDER BY rowid LIMIT ?`,
+        ).all([m, limit]).map(toHit);
+        const seen = new Set<string>();
+        for (const h of [...newest(`title : (${match})${kindMatch}`), ...newest(`${text(match)}${kindMatch}`)]) {
+          const k = `${h.entity}\u0000${h.id}`;
+          if (!seen.has(k)) { seen.add(k); rows.push(h); }
+        }
+      } else {
+        // From three characters the matches are few enough to rank all of them: bm25, title over body.
+        rows.push(...driver.prepare(
+          `SELECT entity, id, kind, title, snippet(search_idx, 1, '[', ']', '…', 12) AS snip, bm25(search_idx, 8.0, 1.0, 0.0) AS score FROM search_idx WHERE search_idx MATCH ? ORDER BY score LIMIT ?`,
+        ).all([`${text(match)}${kindMatch}`, limit]).map(toHit));
       }
       return { hits: [...recent, ...rows].slice(0, limit), prefix, scope, actions: false };
     },
