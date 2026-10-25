@@ -25,9 +25,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with: { node-version: 24 }
-          fetch-depth: 0
       - name: Pick the base (last green main run on a push, none for a full run), shard by measured time (up to 8 fast shards, slow list as parallel jobs)
         id: sel
         env:
