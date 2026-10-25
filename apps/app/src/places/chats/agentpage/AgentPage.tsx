@@ -42,6 +42,8 @@ export interface AgentPageProps {
 export const NOTICE_MS = 8000;
 /** Below this window width the header stacks and the strip wraps. */
 export const NARROW = 640;
+/** The page strip pads its tabs wider than the pane model counts (16 px each side), so the fit takes this much off the column: at 390 px nothing clips. */
+const STRIP_SLACK = 40;
 
 export function AgentPage(props: AgentPageProps): ReactElement {
   const ctx = useOptionalAgentPageData();
@@ -84,7 +86,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
 
   // The page's tab strip folds like the pane's: the same fit and More menu (rightpane/fit.ts), at the page column's own width (390 px phone: Settings never clips).
   const pageW = colW > 0 ? colW : win.width > 0 ? Math.min(win.width, 760) : 760;
-  const { strip, select } = useFittedTabs(TABS, tab, pageW, {
+  const { strip, select } = useFittedTabs(TABS, tab, pageW - STRIP_SLACK, {
     menu, left: Math.max(0, (win.width - pageW) / 2) + 16, top: 330,
     pick: (key) => { setOwn(key); onTab?.(key); },
   });
