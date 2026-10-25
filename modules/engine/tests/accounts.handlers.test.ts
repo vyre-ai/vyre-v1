@@ -57,7 +57,7 @@ test("account.resolve: the starter's key, then the Space's fallback key when it 
 
 test("account.resolve: the steerer pays when the call acts for them; Dana's Mine key is never in their list", async () => {
   const sam = fake(routes([prov({ id: "prv_9", handle: "#Sam_Anthropic" })]), { actingFor: "usr_sam" });
-  assert.deepEqual(await accountResolve(sam.ctx, { threadId: "thr_1", agentId: "agt_1", askerId: "usr_sam" }), { accountRef: "#Sam_Anthropic", payer: "usr_sam", reason: "steerer", allowed: true });
+  assert.deepEqual(await accountResolve(sam.ctx, { threadId: "thr_1", agentId: "agt_1", askerId: "usr_sam" }), { accountRef: "#Sam_Anthropic", payer: "usr_sam", reason: "steerer", allowed: true, itemId: "vit_prv_9" });
 });
 
 test("account.resolve: a step key makes it a task; Company only drops personal accounts; a device run needs no subscription switch", async () => {
