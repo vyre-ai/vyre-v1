@@ -312,8 +312,19 @@ test("the drivers must be wired", async () => {
   assert.equal((await failed(call("reports.preview", w.ctx, { context: { place: "x" } }))).error.code, "internal.unavailable");
 });
 
+test("impl.ts registers every reports-client capability as deferred: it refuses with the shared message", async () => {
+  const w = world();
+  for (const name of Object.keys(impl.handlers)) {
+    let err: { error?: { code?: string; message?: string } } | null = null;
+    try { await (impl.handlers as Record<string, (c: unknown, i: unknown) => unknown>)[name]!(w.ctx, {}); } catch (e) { err = e as { error?: { code?: string; message?: string } }; }
+    assert.equal(err?.error?.code, "internal.unavailable", name);
+    assert.equal(err?.error?.message, "Not in this version yet", name);
+  }
+});
+
 test("impl.ts exposes every reports-client handler, the host wiring and no projections", () => {
-  assert.equal(impl.handlers, handlers);
+  // Report a problem is deferred (ruling 60): impl.handlers carries the same capabilities as the real table, each registered to refuse; the real table stays in handlers/index.ts
+  assert.deepEqual(Object.keys(impl.handlers).sort(), Object.keys(handlers).sort());
   assert.equal(impl.configureReports, configureReports);
   assert.equal(typeof impl.configureReplay, "function");
   assert.equal(typeof impl.replayRun, "function");
