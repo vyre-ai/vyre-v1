@@ -1,13 +1,36 @@
 name: kits
-# Kit builds (called by release).
+# Kit tests (called by release, and on a push that touches a Kit). A Kit is a folder of record types, layouts, Journeys, forms and optional sandboxed scripts;
+# publishing one runs its tests on the fixture Space and blocks on failure (spec 2.21, ARCH 10.4). This workflow runs the same tests in CI:
+# the kits module (install sheet, versions, rollback, publish gate, sandbox), the Templates module, and every test a Kit folder carries.
+# It fails when it finds no Kit test at all, so a missing suite is never reported as a pass.
 on:
   workflow_call:
   workflow_dispatch:
+  push:
+    branches-ignore: [main]
+    paths:
+      - "kits/**"
+      - "manifests/kits/**"
+      - "modules/kits/**"
+      - "modules/templates/**"
+      - ".github/workflows/kits.yml"
 jobs:
   kits:
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: kits stage
-        run: echo "kits stage placeholder, kit builds land with the kits lane"
+      - name: Find the Kit tests
+        id: find
+        run: |
+          files="$(git ls-files 'modules/kits/tests/*.test.ts' 'modules/templates/tests/*.test.ts' 'kits/*.test.ts' 'kits/**/*.test.ts' 'manifests/kits/*.test.ts' | sort -u | tr '\n' ' ')"
+          count="$(echo $files | wc -w | tr -d ' ')"
+          echo "Kit test files: $count"
+          for f in $files; do echo "  $f"; done
+          if [ "$count" = "0" ]; then echo "no Kit test found: the kits module has not landed in this checkout"; exit 1; fi
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+      - name: Run them (20 s cap per file, the same runner as every shard)
+        env:
+          FILES: ${{ steps.find.outputs.files }}
+        run: node scripts/test-run.mjs --files $FILES

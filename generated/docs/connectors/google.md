@@ -60,6 +60,7 @@ Key google, module google. Mode dwd, owned by a space. Auth service_account_dwd.
 - google.drive.copy_file
 - google.drive.share_file
 - google.drive.trash_file
+- google.drive.changes_start_token
 - google.drive.list_changes
 - google.drive.watch_changes
 - google.drive.stop_watch

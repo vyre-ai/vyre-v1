@@ -9,7 +9,7 @@
     {
       "id": "agents",
       "owner": "L2",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "audit",
@@ -204,7 +204,7 @@
     {
       "id": "memory",
       "owner": "L2",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "microsoft",
@@ -259,7 +259,7 @@
     {
       "id": "runbooks",
       "owner": "L4",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "runs",

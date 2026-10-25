@@ -1,6 +1,9 @@
-// One handler per access capability. Share, folders, requests and reviews land in later packets.
+// One handler per access capability. Share and folders are handlers/share.ts (P-L7_02); requests and reviews land in later packets.
 import type { AccessCtx } from "../projections.ts";
 import { raise } from "../projections.ts";
+import {
+  foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, lists, share, sharesOf, unshare,
+} from "./share.ts";
 import {
   actorsCreate, actorsEngineer, actorsList, actorsRedeem, actorsRevoke, actorsUpdate, check,
   labelsList, labelsSet, policiesList, policiesReset, policiesSet, projectionHealth, viewAs,
@@ -11,6 +14,8 @@ import {
   principalsList, rolesApply, rolesAssign, rolesCreate, rolesDelete, rolesGet, rolesList,
   rolesPreview, rolesUnassign, rolesUpdate,
 } from "./roles.ts";
+import { requestCreate, requestsApprove, requestsDecline, requestsList } from "./request.ts";
+import { reviewsClose, reviewsDecide, reviewsGet, reviewsList, reviewsStart } from "./review.ts";
 
 async function later(ctx: AccessCtx, _input: unknown): Promise<never> {
   raise(ctx.trace.traceId, "internal.not_implemented", "this capability is a later packet");
@@ -37,7 +42,7 @@ export const handlers = {
   "access.groups.update": groupsUpdate,
   "access.labels.list": labelsList,
   "access.labels.set": labelsSet,
-  "access.lists": later,
+  "access.lists": lists,
   "access.policies.list": policiesList,
   "access.policies.reset": policiesReset,
   "access.policies.set": policiesSet,
@@ -46,15 +51,15 @@ export const handlers = {
   "access.principals.list": principalsList,
   "access.projection_health": projectionHealth,
   "access.propose_change": later,
-  "access.request": later,
-  "access.requests.approve": later,
-  "access.requests.decline": later,
-  "access.requests.list": later,
-  "access.reviews.close": later,
-  "access.reviews.decide": later,
-  "access.reviews.get": later,
-  "access.reviews.list": later,
-  "access.reviews.start": later,
+  "access.request": requestCreate,
+  "access.requests.approve": requestsApprove,
+  "access.requests.decline": requestsDecline,
+  "access.requests.list": requestsList,
+  "access.reviews.close": reviewsClose,
+  "access.reviews.decide": reviewsDecide,
+  "access.reviews.get": reviewsGet,
+  "access.reviews.list": reviewsList,
+  "access.reviews.start": reviewsStart,
   "access.roles.apply": rolesApply,
   "access.roles.assign": rolesAssign,
   "access.roles.create": rolesCreate,
@@ -64,15 +69,15 @@ export const handlers = {
   "access.roles.preview": rolesPreview,
   "access.roles.unassign": rolesUnassign,
   "access.roles.update": rolesUpdate,
-  "access.share": later,
-  "access.shares_of": later,
-  "access.unshare": later,
+  "access.share": share,
+  "access.shares_of": sharesOf,
+  "access.unshare": unshare,
   "access.view_as": viewAs,
-  "folders.create": later,
-  "folders.delete": later,
-  "folders.list": later,
-  "folders.move": later,
-  "folders.place": later,
-  "folders.rename": later,
-  "folders.unplace": later,
+  "folders.create": foldersCreate,
+  "folders.delete": foldersDelete,
+  "folders.list": foldersList,
+  "folders.move": foldersMove,
+  "folders.place": foldersPlace,
+  "folders.rename": foldersRename,
+  "folders.unplace": foldersUnplace,
 };
