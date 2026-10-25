@@ -131,3 +131,4 @@ test('every event has vis, label, redact and sv within the catalogue rules', () 
 // rerun on final commit
 // run on the final commit of P-CC_33
 // run on the final commit of the lanes PR
+// run on the final commit of the kit stages PR
