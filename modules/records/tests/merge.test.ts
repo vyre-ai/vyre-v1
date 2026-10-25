@@ -365,3 +365,21 @@ test("export xlsx: a valid package with escaped inline strings, numbers as numbe
   assert.ok(!sheet.includes("sv_secret"));
   assert.ok(sheet.includes('<row r="3">') && sheet.includes('<c r="B3" t="inlineStr"><is><t xml:space="preserve">second</t></is></c>'));
 });
+
+test("export a hand-picked selection: only the picked rows in the view's order; an unknown or deleted id is left out; an empty pick exports no rows (P-CC_35)", async () => {
+  const k = await kit([SHEET]);
+  const a = mintRecordId(), b = mintRecordId(), c = mintRecordId(), gone = mintRecordId();
+  await k.rec.store.create("sheet", a, { name: "Alpha", qty: 1 });
+  await k.rec.store.create("sheet", b, { name: "Bravo", qty: 2 });
+  await k.rec.store.create("sheet", c, { name: "Charlie", qty: 3 });
+  const exp = async (input: Record<string, unknown>): Promise<string> => {
+    await k.h["records.export"](k.ctx, { type: "sheet", format: "csv", fields: ["name"], sort: [{ field: "name", dir: "asc" }], ...input } as never);
+    return decode(k.files.at(-1)!.bytes);
+  };
+  assert.equal(await exp({ recordIds: [c, a] }), "\ufeffName\r\nAlpha\r\nCharlie\r\n", "the view's order, not the order picked");
+  assert.equal(await exp({ recordIds: [b, "rec_unknownunknown", gone] }), "\ufeffName\r\nBravo\r\n", "an id nobody can read is simply not there");
+  assert.equal(await exp({ recordIds: [] }), "\ufeffName\r\n", "an empty pick is an empty export, not the whole view");
+  assert.equal(await exp({ recordIds: [a, b, c], filter: { field: "qty", op: "gt", value: 1 } }), "\ufeffName\r\nBravo\r\nCharlie\r\n", "the pick narrows the view, it does not widen it");
+  assert.equal(await exp({}), "\ufeffName\r\nAlpha\r\nBravo\r\nCharlie\r\n", "without a pick it is the whole view");
+});
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.

@@ -45,7 +45,7 @@ export interface MergeDeps {
 export interface MergeHandlers {
   "records.merge"(ctx: MergeCtx, input: { type: string; survivorId: string; mergedIds: string[]; picks: Record<string, string> }): Promise<{ record: RecordRow; undoUntil: number }>;
   "records.bulk_upsert"(ctx: MergeCtx, input: { type: string; rows: Record<string, unknown>[]; match: string[]; runAutomations?: boolean }): Promise<{ created: number; updated: number; skipped: number }>;
-  "records.export"(ctx: ExportCtx, input: { type: string; format: "csv" | "xlsx" } & ViewSpec): Promise<{ fileId: string }>;
+  "records.export"(ctx: ExportCtx, input: { type: string; format: "csv" | "xlsx"; recordIds?: string[] } & ViewSpec): Promise<{ fileId: string }>;
 }
 
 function bad(ctx: Pick<WriteCtx, "trace">, message: string): never {
@@ -522,7 +522,7 @@ export function toXlsx(sheet: string, columns: readonly FieldDef[], rows: readon
   ]);
 }
 
-async function exportRows(deps: MergeDeps, ctx: ExportCtx, input: { type: string; format: "csv" | "xlsx" } & ViewSpec): Promise<{ fileId: string }> {
+async function exportRows(deps: MergeDeps, ctx: ExportCtx, input: { type: string; format: "csv" | "xlsx"; recordIds?: string[] } & ViewSpec): Promise<{ fileId: string }> {
   const { store, tx } = deps;
   ensure(tx);
   if (!deps.putFile) throw new Error("records.export needs a file store: createMergeHandlers was given no putFile");
@@ -537,17 +537,20 @@ async function exportRows(deps: MergeDeps, ctx: ExportCtx, input: { type: string
   }
   const cap = input.format === "xlsx" ? XLSX_MAX_ROWS - 1 : Number.MAX_SAFE_INTEGER;
   const want = input.limit ?? Number.MAX_SAFE_INTEGER;
+  // a hand-picked selection: only these ids, taken from what the view returns, so an id the caller may not read (or that is gone) simply is not there
+  const picked = input.recordIds === undefined ? null : new Set(input.recordIds);
   const rows: Record<string, unknown>[] = [];
   const first: ViewSpec = { ...(input.filter !== undefined ? { filter: input.filter } : {}), ...(input.sort ? { sort: input.sort } : {}), ...(input.offset ? { offset: input.offset } : {}), limit: MAX_LIMIT };
   let cursor: string | undefined;
   for (;;) {
     const res = runQuery(tx, input.type, { ...first, ...(cursor ? { cursor } : {}) });
     for (const r of res.rows) {
+      if (picked !== null && !picked.has(r.id)) continue;
       if (rows.length >= want) break;
       if (rows.length >= cap) bad(ctx, "Excel holds at most 1,048,575 data rows: export CSV or narrow the view");
       rows.push(r.fields);
     }
-    if (!res.next || rows.length >= want) break;
+    if (!res.next || rows.length >= want || (picked !== null && picked.size === 0)) break;
     cursor = res.next;
   }
   const stamp = new Date((deps.now ?? Date.now)()).toISOString().slice(0, 10);
