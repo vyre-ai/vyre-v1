@@ -7,6 +7,7 @@ import type { AccountQuery, OpenSession, ResolvedAccount, TurnRow } from "../../
 import { open } from "./handlers/control.ts";
 import { bindBridge, createBridge } from "./handlers/bridge.ts";
 import { buildOpener } from "./session.ts";
+import type { SandboxPlan } from "./sandbox.ts";
 import type { EngineSessionPorts } from "./session.ts";
 import type { PostAs } from "./handlers/bridge.ts";
 import { bindEngine, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
@@ -21,6 +22,8 @@ export interface EngineHostSeam {
   openSession?: OpenSession;
   /** The host's ports for the real opener (Vault lookup, loopback MCP, scrub-miss report). With these and no `openSession`, the module builds the opener itself. */
   session?: EngineSessionPorts;
+  /** Where CLI engines run sandboxed (work folders, the wall). Absent: CLI turns fail closed. */
+  sandbox?: SandboxPlan;
   now?: () => number;
   /** Run chat.post as an agent (the host builds the call with the agent as principal). With it the chat bridge is attached: the engine's replies become chat posts. */
   postAs?: PostAs;
@@ -81,7 +84,7 @@ async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: Resolv
 export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | null> {
   if (!host || (!host.openSession && !host.session)) return Promise.resolve(null);   // no way to open a session: the control handlers keep answering internal.unavailable
   const h = host;
-  const opener = host.openSession ? null : buildOpener({ session: host.session as EngineSessionPorts, call: h.call });
+  const opener = host.openSession ? null : buildOpener({ session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}) });
   const openSession = host.openSession ?? (opener as NonNullable<typeof opener>).openSession;
   closeOpener = opener ? () => opener.close() : null;
   building ??= (async () => {

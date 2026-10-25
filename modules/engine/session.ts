@@ -3,7 +3,9 @@
 // agent's tools run through the invoke pipeline. An API-key driver gets the agent's role as its system prompt and no tools yet: running its tools needs the engine's tool runner (callTool),
 // which is a separate packet; until then a chat on an API key answers in words only.
 import { createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
-import type { LocalLauncherOptions } from "../../agent/src/drivers/cli/launcher.ts";
+import { SandboxError } from "../../sandbox/src/index.ts";
+import { sandboxWrap, workFolder } from "./sandbox.ts";
+import type { SandboxPlan } from "./sandbox.ts";
 import { createSessionOpener } from "../../agent/src/drivers/open/index.ts";
 import type { McpPort, SessionOpener } from "../../agent/src/drivers/open/index.ts";
 import type { ValueSource, VaultRunDeps } from "../../agent/src/vault-use/index.ts";
@@ -16,8 +18,8 @@ export interface OpenerHost {
   session: EngineSessionPorts;
   /** Call a capability for a person; used for the agent's role. */
   call(cap: string, input: unknown, as?: string): Promise<unknown>;
-  /** Wrap a CLI engine's argv in the sandbox (the host decides which); default none. */
-  launcher?: LocalLauncherOptions;
+  /** Where and how a CLI engine is sandboxed (the host decides). Without it a CLI turn fails with sandbox.unavailable: the engine never runs unwrapped. */
+  sandbox?: SandboxPlan;
   now?: () => number;
 }
 
@@ -36,7 +38,10 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     source: h.session.source,
     reportMiss: h.session.reportMiss,
     mcp: h.session.mcp,
-    launcher: createLocalLauncher(h.launcher ?? {}),
+    launcher: h.sandbox
+      ? createLocalLauncher({ wrap: sandboxWrap(h.sandbox) })
+      : { spawn: () => Promise.reject(new SandboxError("sandbox.unavailable", "no sandbox is set up for CLI engines on this computer")) },
+    ...(h.sandbox ? { cli: { workFolder: (spec) => workFolder(h.sandbox!.dataDir, spec.asker, spec.threadId) } } : {}),
     apiContext: async (spec) => ({ system: [{ text: await role(spec), stable: true }], tools: [] }),
   });
 }
