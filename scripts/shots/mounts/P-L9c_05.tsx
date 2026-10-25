@@ -39,11 +39,7 @@ export default function Mount(): ReactNode {
       <InboxStateProvider initial={{}}>
         <InboxPhoneDock device={sample.device} placement="dock">
           <View style={{ flex: 1, minHeight: 0 }}>
-          {/* the shell's title bar; the running call is the pill beside the title (the shell places CallTitlePill the same way) */}
-          <View style={{ position: "relative" }}>
-            <TitleBar title="Vyre · Northwind · Inbox" status={null} onUndo={() => undefined} online waiting={0} onOpenWaiting={() => undefined} onSearch={() => undefined} skin="system" onSkin={() => undefined} compact={phone} />
-            <View style={{ position: "absolute", left: phone ? 8 : 24, top: 6 }}><CallTitlePill /></View>
-          </View>
+          <TitleBar title="Vyre · Northwind · Inbox" status={null} onUndo={() => undefined} online waiting={0} onOpenWaiting={() => undefined} onSearch={() => undefined} skin="system" onSkin={() => undefined} compact={phone} call={<CallTitlePill />} />
           <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
             {phone ? null : <View style={{ width: 240 }}><InboxSidebar /></View>}
             {list ? <InboxUnmatched /> : <CallConversation conversationId={who} contactId={contactId} tasks={TASKS[who]} />}
