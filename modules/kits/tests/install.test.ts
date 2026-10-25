@@ -322,3 +322,4 @@ test("sheet check: a record type the Space already has is a problem before insta
   assert.deepEqual(problems.map((p) => [p.item, p.step, p.message]), [["rt.note_board", "apply", "Record type note_board already exists in this Space."]]);
 });
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+// rerun on the final commit
