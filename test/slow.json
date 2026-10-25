@@ -12,7 +12,6 @@
   {"file": "host/tests/kits.live.test.ts", "capSec": 120, "owner": "L10", "reason": "boots the daemon with kits live and installs a Kit over HTTP"},
   {"file": "host/tests/chrome-bridge.live.test.ts", "capSec": 120, "owner": "L10", "reason": "boots the daemon and drives the Chrome bridge endpoints over HTTP"},
   {"file": "apps/chrome/tests/ext-agent.real.test.ts", "capSec": 120, "owner": "L10", "reason": "drives a real Chromium page three times (about 16 s); the chrome-real job requires Chromium, other shards skip it when there is none"},
-  {"file": "host/tests/emailblocks.live.test.ts", "capSec": 120, "owner": "L8", "reason": "boots the daemon with email-builder-api live and saves and lists blocks over HTTP"},
   {"file": "modules/access/tests/check.perf.test.ts", "capSec": 120, "owner": "L2", "reason": "authorize decisions per second budget; node speed numbers count only from the v1-perf runners (ruling 46)", "perf": true},
   {"file": "modules/records/tests/query.perf.test.ts", "capSec": 120, "owner": "L3", "reason": "query speed budget; node speed numbers count only from the v1-perf runners (ruling 46)", "perf": true},
   {"file": "agent/tests/drivers-api.perf.test.ts", "capSec": 120, "owner": "L5", "reason": "speed budget; node speed numbers count only from the v1-perf runners (ruling 46)", "perf": true},
