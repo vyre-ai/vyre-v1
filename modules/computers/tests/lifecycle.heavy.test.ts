@@ -88,10 +88,13 @@ after(async () => {
   bindHost(null);
   if (!ON) return;
   const list = await http({ method: "GET", path: "/containers/json", query: { all: "true", filters: JSON.stringify({ name: [PREFIX] }) } });
-  for (const c of JSON.parse(new TextDecoder().decode(list.body)) as Array<{ Id: string }>) await api.containerRemove(c.Id);
+  const containers = JSON.parse(new TextDecoder().decode(list.body)) as Array<{ Id: string }>;
+  // What the container wrote belongs to its user (uid 10001); remove it from inside before the container goes.
+  for (const c of containers) await api.exec(c.Id, { cmd: ["sh", "-c", `rm -rf ${FILES_GUEST}/work ${FILES_GUEST}/.agentd-ctl`], env: [] }).catch(() => undefined);
+  for (const c of containers) await api.containerRemove(c.Id);
   const vols = await http({ method: "GET", path: "/volumes", query: { filters: JSON.stringify({ name: [PREFIX] }) } });
   for (const v of (JSON.parse(new TextDecoder().decode(vols.body)) as { Volumes?: Array<{ Name: string }> }).Volumes ?? []) await http({ method: "DELETE", path: `/volumes/${v.Name}`, query: { force: "true" } });
-  fs.rmSync(filesRoot, { recursive: true, force: true });
+  try { fs.rmSync(filesRoot, { recursive: true, force: true }); } catch { /* a leftover temp folder is not a failure */ }
 });
 
 test("@heavy computers: provision, wake, take over, record, give back, sleep, wake and remove on a real Docker host", { skip, timeout: 300_000 }, async () => {
@@ -140,11 +143,12 @@ test("@heavy computers: provision, wake, take over, record, give back, sleep, wa
   assert.deepEqual(JSON.parse((await run(name, ["cat", `${STATE}/recording`])).stdout), { recordingId: rec.recordingId });
   const done = await recordStop(h.ctx, { computerId: id });
   assert.equal(done.recording.durationMs, 1500);
-  const dir = path.join(filesRoot, done.recording.folderPath);
-  const events = fs.readFileSync(path.join(dir, "events.jsonl"), "utf8");
+  // The files belong to the container's user (mode 0640, uid 10001), so they are read from inside, where the agent sees them.
+  const inside = `${FILES_GUEST}/${done.recording.folderPath}`;
+  const events = (await run(name, ["cat", `${inside}/events.jsonl`])).stdout;
   assert.match(events, /"key":"\[masked\]"/, "a key typed into a password field is not on disk");
   assert.ok(!/"key":"x"/.test(events));
-  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, "network.har"), "utf8")).log.version, "1.2");
+  assert.equal(JSON.parse((await run(name, ["cat", `${inside}/network.har`])).stdout).log.version, "1.2");
   assert.ok((await run(name, ["ls", `${FILES_GUEST}/${done.recording.folderPath}`])).stdout.includes("events.jsonl"), "the files are where the agent sees them, in its own folder");
 
   // give back
