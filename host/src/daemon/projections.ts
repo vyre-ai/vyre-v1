@@ -40,6 +40,12 @@ export interface ProjectionRunnerDeps {
   db: HostDb;
   log: LogReader;
   projections: readonly ProjectionDef[];
+  /**
+   * Crash recovery, by projection name. A projection's handler may record work and then ask something else to do it (the events module inserts a pending delivery row, then asks the
+   * dispatcher to send it). The cursor moves after the handler returns, so a crash in between repeats the event, but the handler sees its row already there and does nothing: the work is
+   * never started. `run` finds that work (rows pending past `windowMs`) and starts it again; it must be idempotent. It runs once at start and then on every pump, at most once per `windowMs`.
+   */
+  recover?: readonly { name: string; windowMs: number; run(now: number): Promise<number> }[];
   warn(msg: string, attrs?: Record<string, unknown>): void;
 }
 
@@ -49,6 +55,8 @@ export interface ProjectionRunner {
   start(): Promise<void>;
   /** Deliver everything committed since each projection's cursor. */
   pump(): Promise<void>;
+  /** Start again the work a crash left behind (see `recover` in the deps). Returns how many items were started. */
+  recoverNow(): Promise<number>;
   /** The seq each projection has reached. */
   cursors(): Record<string, number>;
 }
@@ -100,6 +108,25 @@ export function createProjectionRunner(d: ProjectionRunnerDeps): ProjectionRunne
     }
   }
 
+  const lastRecover = new Map<string, number>();
+  async function recoverNow(force: boolean): Promise<number> {
+    let started = 0;
+    for (const r of d.recover ?? []) {
+      const t = d.now();
+      const last = lastRecover.get(r.name);
+      if (!force && last !== undefined && t - last < r.windowMs) continue;
+      lastRecover.set(r.name, t);
+      try {
+        const n = await r.run(t);
+        started += n;
+        if (n) d.warn("a projection started work a crash had left behind", { projection: r.name, items: n });
+      } catch (err) {
+        d.warn("crash recovery of a projection failed", { projection: r.name, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    return started;
+  }
+
   let running: Promise<void> | null = null, again = false;
   const run = (): Promise<void> => (async () => {
     try {
@@ -107,6 +134,7 @@ export function createProjectionRunner(d: ProjectionRunnerDeps): ProjectionRunne
       do {
         again = false;
         for (const p of list) await passFor(p);
+        await recoverNow(false);
       } while (again);
     } finally { running = null; }
   })();
@@ -121,12 +149,14 @@ export function createProjectionRunner(d: ProjectionRunnerDeps): ProjectionRunne
         if (!c) setCursor(p, head);
         else if (c.version !== p.version) { p.reset?.(tx); setCursor(p, head); }   // DECISION: a new version does not replay history; webhooks_out would resend every old event to today's webhooks
       }
+      await recoverNow(true);
     },
     pump() {
       if (running) { again = true; return running; }
       running = run();
       return running;
     },
+    recoverNow: () => recoverNow(true),
     cursors() {
       const out: Record<string, number> = {};
       for (const p of list) out[p.name] = row(p.name)?.seq ?? 0;
