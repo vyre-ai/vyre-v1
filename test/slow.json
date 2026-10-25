@@ -1,1 +1,4 @@
-[]
+[
+  { "file": "images/vyred/smoke.heavy.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots two compose roles; about 16-22 s on loaded runners, over the 20 s fast cap" },
+  { "file": "modules/sites/tests/builders.heavy.test.ts", "capSec": 120, "owner": "L8", "reason": "real Docker builds of site images; over the 20 s fast cap" }
+]

@@ -37,6 +37,7 @@ jobs:
       matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/deps
       - name: Run the shard (20 s file cap, pass cache by import hash)
         env:
           FILES: ${{ matrix.files }}
@@ -57,7 +58,7 @@ jobs:
         run: |
           lane=""
           case "$BRANCH" in
-            build/P-CI_02) lane=lead ;;   # contract steward: changes the contract types and the frozen hashes (ruling 25, 27)
+            build/P-CI_02|build/P-CI_08) lane=lead ;;   # contract steward: changes the contract types and the frozen hashes (ruling 25, 27)
             build/P-CI_*|build/P-CI-*) lane=L11 ;;
             build/P-CC_*|build/P-PR_*) lane=lead ;;
             *) lane="$(echo "$BRANCH" | sed -nE 's#^build/P-(L[0-9]+[a-z]?)_[0-9]+[a-z]?(-.*)?$#\1#p')"
@@ -189,6 +190,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/deps
       - name: Golden flows (needs/pending mode lands with scripts/golden.ts, P-PR_63)
         run: npm run golden
   contracts:

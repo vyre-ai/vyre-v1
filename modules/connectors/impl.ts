@@ -8,15 +8,16 @@ import type { ProjectionHost, Tx } from "../../kernel/src/store/projection.ts";
 import { createConnectorsHandlers } from "./handlers/index.ts";
 import type { ConnectorsHandlers } from "./handlers/index.ts";
 import { ensureTables, seedBuiltins } from "./projections.ts";
-import type { BuiltinRow, ConnectorsCtx, ConnectorsDeps } from "./projections.ts";
+import type { BuiltinRow, ConnectorsCtx } from "./projections.ts";
+import type { SyncDeps, SyncEngine } from "./handlers/sync.ts";
 
 export function loadBuiltins(path: URL = new URL("../../generated/registry.json", import.meta.url)): BuiltinRow[] {
   return (JSON.parse(readFileSync(path, "utf8")) as { connectors: BuiltinRow[] }).connectors;
 }
 
-export interface ConnectorsHandle { deps: ConnectorsDeps; tx: Tx; host?: ProjectionHost; handlers: ConnectorsHandlers }
+export interface ConnectorsHandle { deps: SyncDeps; tx: Tx; host?: ProjectionHost; handlers: ConnectorsHandlers }
 
-export function openConnectors(o: Partial<Omit<ConnectorsDeps, "tx">> & { tx?: Tx; path?: string; space?: string } = {}): ConnectorsHandle {
+export function openConnectors(o: Partial<Omit<SyncDeps, "tx">> & { tx?: Tx; path?: string; space?: string } = {}): ConnectorsHandle {
   let tx = o.tx;
   let host: ProjectionHost | undefined;
   if (!tx) {
@@ -24,9 +25,9 @@ export function openConnectors(o: Partial<Omit<ConnectorsDeps, "tx">> & { tx?: T
     host = opened.host;
     tx = opened.host.tx;
   }
-  const { tx: _t, path: _p, space: _s, builtins, ...rest } = o as Partial<ConnectorsDeps> & { path?: string; space?: string };
+  const { tx: _t, path: _p, space: _s, builtins, ...rest } = o as Partial<SyncDeps> & { path?: string; space?: string };
   void _t; void _p; void _s;
-  const deps: ConnectorsDeps = { ...rest, tx, builtins: builtins ?? loadBuiltins() };
+  const deps: SyncDeps = { ...rest, tx, builtins: builtins ?? loadBuiltins() };
   ensureTables(tx);
   seedBuiltins(deps);
   return { deps, tx, ...(host ? { host } : {}), handlers: createConnectorsHandlers(deps) };
@@ -37,6 +38,8 @@ export function openConnectors(o: Partial<Omit<ConnectorsDeps, "tx">> & { tx?: T
 type HostCtx = Omit<ConnectorsCtx, "actor"> & { principal?: { id: string } };
 let shared: ConnectorsHandle | null = null;
 const live = (): ConnectorsHandle => (shared ??= openConnectors());
+/** The host hands the sync engine (modules/sources) to the live handlers: preview, undo, conflict settling, replay, confirm deletes and push need it (boundary B1 keeps this module from importing it). */
+export function setSyncEngine(engine: SyncEngine): void { live().deps.engine = engine; }
 
 function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {
@@ -53,8 +56,11 @@ const NAMES = [
   "connectors.rollback", "connectors.export", "connectors.remove", "connectors.health",
   "connections.list", "connections.get", "connections.create", "connections.update", "connections.pause", "connections.resume", "connections.reconnect", "connections.complete_auth",
   "connections.test", "connections.delete",
+  "sync_types.list", "sync_types.get", "sync_types.discover", "sync_types.create", "sync_types.update", "sync_types.preview", "sync_types.pause", "sync_types.resume", "sync_types.log",
+  "sync_types.schema_changes", "sync_types.review_schema", "sync_types.confirm_deletes", "sync_types.make_native", "sync_types.resolve_conflict", "sync_types.replay_conflict", "sync_types.undo_push",
+  "connectors.sync_now", "connectors.outbox.list", "connectors.outbox.retry", "connectors.outbox.cancel", "connectors.push",
 ] as const satisfies readonly (keyof ConnectorsHandlers)[];
 
 export const handlers = Object.fromEntries(NAMES.map((n) => [n, adapt(n)])) as Record<(typeof NAMES)[number], (ctx: HostCtx, input: never) => Promise<unknown>>;
 export { createConnectorsHandlers };
-export { executeAction, runCases, diffDefs } from "./handlers/index.ts";
+export { executeAction, runCases, diffDefs, noteSchemaChanges, syncRequest } from "./handlers/index.ts";
