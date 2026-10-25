@@ -46716,7 +46716,10 @@
                   "http_header",
                   "browser",
                   "terminal",
-                  "file"
+                  "file",
+                  "git_credential",
+                  "container_env",
+                  "route_auth"
                 ],
                 "type": "string"
               },
