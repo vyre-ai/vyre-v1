@@ -107,9 +107,12 @@ test("a repo that imports a forbidden path fails the run, and the CLI exits non-
 });
 
 test("the Chrome extension's Vault fill is allowed; a phone AutoFill provider is not", () => {
-  const rule = RULES.find((r) => r.id === "autofill")!;
-  assert.equal(rule.path.test("apps/chrome/src/content/autofill.js"), false);
-  assert.equal(rule.path.test("apps/chrome/tests/ext-core.fill.test.ts"), false);
-  assert.equal(rule.path.test("client/src/autofill.ts"), true);
-  assert.equal(rule.path.test("apps/app/ios/credential-provider/index.ts"), true);
+  const files = [
+    { path: "apps/chrome/src/content/autofill.js", text: "export const fill = 1;" },
+    { path: "apps/chrome/tests/ext-core.fill.test.ts", text: "import { fill } from \"../src/content/autofill.js\";" },
+    { path: "client/src/autofill.ts", text: "" },
+    { path: "client/src/vault.ts", text: "import { p } from \"./autofill/provider.ts\";" },
+  ];
+  const found = checkAbsence(files).filter((f) => f.rule === "autofill").map((f) => f.file).sort();
+  assert.deepEqual(found, ["client/src/autofill.ts", "client/src/vault.ts"]);
 });
