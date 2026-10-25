@@ -3,7 +3,7 @@
 // folder and it opens (spring-load). Every line is a ui/Row with an icon in the leading slot and the date in the trailing slot; right-click opens the line's menu.
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
@@ -16,6 +16,7 @@ import {
 import type { Line, Spring } from "../tree/model.ts";
 import { Glyph, IconButton, iconOfKind, pointOf } from "../tree/parts.tsx";
 import { useFilesState } from "../tree/state.tsx";
+import { DragWrap } from "./DragWrap.tsx";
 import { QuickLook } from "./QuickLook.tsx";
 
 const DOUBLE_MS = 450;
@@ -148,46 +149,37 @@ function List(): ReactElement {
     }
   };
 
-  const renderLine = (l: Line): ReactElement => {
-    const trig = menuTrigger((x, y) => lineMenu(l, x, y));
-    const dnd: Record<string, unknown> = {
-      draggable: true,
-      onDragStart: (e: { dataTransfer?: { setData?: (t: string, v: string) => void; effectAllowed?: string } }) => {
-        e.dataTransfer?.setData?.("text/plain", dragPayload(state, l.key));
-        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
-      },
-      ...(l.type === "folder" ? {
-        onDragOver: (e: { preventDefault: () => void }) => { e.preventDefault(); setOver(l.key); spring.current?.enter(l.id); },
-        onDragLeave: () => { setOver((o) => (o === l.key ? null : o)); spring.current?.leave(l.id); },
-        onDrop: (e: { preventDefault: () => void; dataTransfer?: { getData?: (t: string) => string } }) => { e.preventDefault(); drop(l, e.dataTransfer?.getData?.("text/plain") ?? ""); },
-      } : {}),
-    };
-    return (
-      <View
-        {...trig}
-        {...dnd}
-        {...({ onClickCapture: (e: { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean }) => { mods.current = { meta: e.metaKey === true || e.ctrlKey === true, shift: e.shiftKey === true }; } } as object)}
-      >
-        <Row
-          id={`line:${l.key}`}
-          title={l.name}
-          note={l.type === "folder" ? `${l.items} item${l.items === 1 ? "" : "s"}` : `${kindLabel(l.kind)} · ${sizeText(l.size)}${l.source ? ` · ${l.source}` : ""}`}
-          selected={state.selection.includes(l.key)}
-          hovered={over === l.key}
-          leading={<View style={styles.icon}><Glyph name={iconOfKind(l.kind)} size={18} color={l.type === "folder" ? "var(--accent)" : "var(--ink-3)"} /></View>}
-          trailing={<Text style={styles.when}>{updatedText(l.updatedAt, c.now, c.offsetMin)}</Text>}
-          onPress={() => {
-            const now = Date.now();
-            const dbl = last.current.key === l.key && now - last.current.at < DOUBLE_MS;
-            last.current = { key: l.key, at: now };
-            if (dbl) { open(l); return; }
-            dispatch({ type: "click", order, key: l.key, mods: mods.current });
-            mods.current = { meta: false, shift: false };
-          }}
-        />
-      </View>
-    );
-  };
+  const renderLine = (l: Line): ReactElement => (
+    <DragWrap
+      props={menuTrigger((x, y) => lineMenu(l, x, y))}
+      handlers={{
+        payload: () => dragPayload(state, l.key),
+        folder: l.type === "folder",
+        onMods: (m) => { mods.current = m; },
+        onOver: () => { setOver(l.key); spring.current?.enter(l.id); },
+        onLeave: () => { setOver((o) => (o === l.key ? null : o)); spring.current?.leave(l.id); },
+        onDrop: (payload) => drop(l, payload),
+      }}
+    >
+      <Row
+        id={`line:${l.key}`}
+        title={l.name}
+        note={l.type === "folder" ? `${l.items} item${l.items === 1 ? "" : "s"}` : `${kindLabel(l.kind)} \u00b7 ${sizeText(l.size)}${l.source ? ` \u00b7 ${l.source}` : ""}`}
+        selected={state.selection.includes(l.key)}
+        hovered={over === l.key}
+        leading={<View style={styles.icon}><Glyph name={iconOfKind(l.kind)} size={18} color={l.type === "folder" ? "var(--accent)" : "var(--ink-3)"} /></View>}
+        trailing={<Text style={styles.when}>{updatedText(l.updatedAt, c.now, c.offsetMin)}</Text>}
+        onPress={() => {
+          const now = Date.now();
+          const dbl = last.current.key === l.key && now - last.current.at < DOUBLE_MS;
+          last.current = { key: l.key, at: now };
+          if (dbl) { open(l); return; }
+          dispatch({ type: "click", order, key: l.key, mods: mods.current });
+          mods.current = { meta: false, shift: false };
+        }}
+      />
+    </DragWrap>
+  );
 
   const title = state.where.kind === "folder" ? (state.where.id === null ? "Files" : crumbs(nodes.status === "ready" ? nodes.data : [], state.where.id).pop()?.name ?? "Files") : WHERE_LABEL[state.where.kind];
   const path = state.where.kind === "folder" && nodes.status === "ready" ? crumbs(nodes.data, state.where.id) : [];
