@@ -53,8 +53,10 @@ export function WhoCanUse({ shares, you, nameOf, meId, canManage, onLevel, onRem
       trailing={<Text style={s.levelFixed} testID="who-level-you">{LEVEL_LABEL[you.level]}</Text>}
     />,
   ];
-  const others = shares.filter((sh) => !(sh.subject.kind === "person" && sh.subject.id === meId)).map((sh, i) => ({ sh, i })).sort((a, b) => ORDER[a.sh.subject.kind] - ORDER[b.sh.subject.kind] || a.i - b.i);
-  for (const { sh } of others) {
+  const others = shares.filter((sh) => !(sh.subject.kind === "person" && sh.subject.id === meId));
+  // Array.prototype.sort is stable: equal kinds keep the order access.shares_of returned.
+  others.sort((a, b) => ORDER[a.subject.kind] - ORDER[b.subject.kind]);
+  for (const sh of others) {
     const name = nameOf(sh.subject);
     const key = `${sh.subject.kind}:${sh.subject.id}`;
     const direct = sh.through === "direct" && canManage;

@@ -91,8 +91,8 @@ function Body({ itemId, item: got, onClose, onSaved, addField }: { itemId: strin
         <TextInput value={name} onChangeText={setName} accessibilityLabel="Name" style={s.input} testID="edit-name" />
       </View>
       <View style={s.seg} accessibilityRole="tablist">
-        <Pressable accessibilityRole="tab" accessibilityState={{ selected: view === "fields" }} onPress={() => switchTo("fields")} style={[s.segBtn, view === "fields" && s.segOn]} testID="edit-mode-fields"><Text style={s.segText}>Fields</Text></Pressable>
-        <Pressable accessibilityRole="tab" accessibilityState={{ selected: view === "env" }} onPress={() => switchTo("env")} style={[s.segBtn, view === "env" && s.segOn]} testID="edit-mode-env"><Text style={s.segText}>.env</Text></Pressable>
+        <Pressable accessibilityRole="tab" aria-selected={view === "fields"} onPress={() => switchTo("fields")} style={[s.segBtn, view === "fields" && s.segOn]} testID="edit-mode-fields"><Text style={s.segText}>Fields</Text></Pressable>
+        <Pressable accessibilityRole="tab" aria-selected={view === "env"} onPress={() => switchTo("env")} style={[s.segBtn, view === "env" && s.segOn]} testID="edit-mode-env"><Text style={s.segText}>.env</Text></Pressable>
       </View>
       {view === "env" ? (
         <View style={s.field}>
