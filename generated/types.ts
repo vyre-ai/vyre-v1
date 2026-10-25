@@ -1368,12 +1368,56 @@ export type AgentsRoleLineSetOut = {
   };
   undoVersionId: string;
 };
+export type AgentsRoutineDelegateIn = {
+  agentId: string;
+  routineId: string;
+  to?: {
+    kind: "person" | "agent";
+    id: string;
+  };
+  undo?: boolean;
+};
+export type AgentsRoutineDelegateOut = {
+  routine: {
+    routineId: string;
+    agentId: string;
+    title: string;
+    cron: string;
+    prompt: string;
+    channelId?: string;
+    enabled: boolean;
+    ownerId: string;
+    lastRunAt?: number;
+    nextRunAt?: number;
+  };
+  previousOwnerId: string;
+};
 export type AgentsRoutineDeleteIn = {
   agentId: string;
   routineId: string;
 };
 export type AgentsRoutineDeleteOut = {
   deleted: boolean;
+};
+export type AgentsRoutineRunNowIn = {
+  agentId: string;
+  routineId: string;
+  idempotencyKey: string;
+};
+export type AgentsRoutineRunNowOut = {
+  routine: {
+    routineId: string;
+    agentId: string;
+    title: string;
+    cron: string;
+    prompt: string;
+    channelId?: string;
+    enabled: boolean;
+    ownerId: string;
+    lastRunAt?: number;
+    nextRunAt?: number;
+  };
+  runId: string;
 };
 export type AgentsRoutineSaveIn = {
   agentId: string;
@@ -4072,6 +4116,20 @@ export type ChangesetsDiscardIn = {
 export type ChangesetsDiscardOut = {
   discarded: boolean;
 };
+export type ChangesetsEditIn = {
+  changesetId: string;
+  path: string;
+  startLine: number;
+  removeLines: number;
+  lines: Array<string>;
+};
+export type ChangesetsEditOut = {
+  fileCount: number;
+  added: number;
+  removed: number;
+  proposedBy: string;
+  editedBy: string;
+};
 export type ChangesetsGetIn = {
   changesetId: string;
 };
@@ -6671,6 +6729,17 @@ export type ConsoleOverviewOut = {
     costMicrosMonth: number;
     members: number;
     agents: number;
+  };
+  machine?: {
+    cpuPercent?: number;
+    memoryUsedBytes?: number;
+    memoryTotalBytes?: number;
+    diskFreeBytes?: number;
+    diskTotalBytes?: number;
+  };
+  lastBackup?: {
+    at: number;
+    result: "verified" | "unverified";
   };
 };
 export type ConsoleSpeedIn = {
@@ -11625,6 +11694,19 @@ export type HealthIndexDbOut = {
   detail?: string;
   latencyMs?: number;
 };
+export type HealthMachineIn = Record<string, unknown>;
+export type HealthMachineOut = {
+  state: "healthy" | "degraded" | "down";
+  detail?: string;
+  latencyMs?: number;
+  machine?: {
+    cpuPercent?: number;
+    memoryUsedBytes?: number;
+    memoryTotalBytes?: number;
+    diskFreeBytes?: number;
+    diskTotalBytes?: number;
+  };
+};
 export type HealthPausedReasonsIn = Record<string, unknown>;
 export type HealthPausedReasonsOut = {
   paused: Array<{
@@ -12518,6 +12600,11 @@ export type InboxListByContactOut = {
       followed: boolean;
       alertOnReplies: boolean;
       starred?: boolean;
+      organisation?: string;
+      dnd?: boolean;
+      bounced?: boolean;
+      unmatched?: boolean;
+      draftReady?: boolean;
     }>;
   showing: string;
   next?: string;
@@ -12568,6 +12655,11 @@ export type InboxMarkReadOut = {
     followed: boolean;
     alertOnReplies: boolean;
     starred?: boolean;
+    organisation?: string;
+    dnd?: boolean;
+    bounced?: boolean;
+    unmatched?: boolean;
+    draftReady?: boolean;
   };
 };
 export type InboxMatchIn = {
@@ -12593,6 +12685,11 @@ export type InboxMatchOut = {
     followed: boolean;
     alertOnReplies: boolean;
     starred?: boolean;
+    organisation?: string;
+    dnd?: boolean;
+    bounced?: boolean;
+    unmatched?: boolean;
+    draftReady?: boolean;
   };
   undoToken: string;
 };
@@ -12620,6 +12717,11 @@ export type InboxMatchNewOut = {
     followed: boolean;
     alertOnReplies: boolean;
     starred?: boolean;
+    organisation?: string;
+    dnd?: boolean;
+    bounced?: boolean;
+    unmatched?: boolean;
+    draftReady?: boolean;
   };
 };
 export type InboxMatchSuggestionsIn = {
@@ -12656,6 +12758,11 @@ export type InboxNeedsMatchOut = {
         followed: boolean;
         alertOnReplies: boolean;
         starred?: boolean;
+        organisation?: string;
+        dnd?: boolean;
+        bounced?: boolean;
+        unmatched?: boolean;
+        draftReady?: boolean;
       };
       suggestions: Array<{
           recordId: string;
@@ -12720,6 +12827,11 @@ export type InboxThreadOut = {
     followed: boolean;
     alertOnReplies: boolean;
     starred?: boolean;
+    organisation?: string;
+    dnd?: boolean;
+    bounced?: boolean;
+    unmatched?: boolean;
+    draftReady?: boolean;
   };
   items: Array<{
       kind: "email" | "sms" | "call" | "meeting" | "campaign_step" | "record_chip" | "note";
@@ -12756,6 +12868,11 @@ export type InboxUnmatchOut = {
     followed: boolean;
     alertOnReplies: boolean;
     starred?: boolean;
+    organisation?: string;
+    dnd?: boolean;
+    bounced?: boolean;
+    unmatched?: boolean;
+    draftReady?: boolean;
   };
 };
 export type InboxUnmatchedIn = {
@@ -12780,6 +12897,11 @@ export type InboxUnmatchedOut = {
       followed: boolean;
       alertOnReplies: boolean;
       starred?: boolean;
+      organisation?: string;
+      dnd?: boolean;
+      bounced?: boolean;
+      unmatched?: boolean;
+      draftReady?: boolean;
     }>;
   next?: string;
   total?: number;
@@ -16789,6 +16911,16 @@ export type NotificationsDigestCollectOut = {
       count: number;
     }>;
 };
+export type NotificationsKindSetLevelIn = {
+  kind: "approval.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  level?: "interrupt" | "badge" | "digest";
+  channels?: Array<"desktop" | "phone" | "email">;
+};
+export type NotificationsKindSetLevelOut = {
+  kind: "approval.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  level: "interrupt" | "badge" | "digest";
+  channels: Array<"desktop" | "phone" | "email">;
+};
 export type NotificationsKindsListIn = Record<string, unknown>;
 export type NotificationsKindsListOut = {
   kinds: Array<{
@@ -16797,6 +16929,10 @@ export type NotificationsKindsListOut = {
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
       respectHours: boolean;
+      mine?: {
+        level: "interrupt" | "badge" | "digest";
+        channels: Array<"desktop" | "phone" | "email">;
+      };
     }>;
 };
 export type NotificationsListIn = {
@@ -25995,7 +26131,9 @@ export interface CapMap {
   "agents.restore_version": { in: AgentsRestoreVersionIn; out: AgentsRestoreVersionOut };
   "agents.resume": { in: AgentsResumeIn; out: AgentsResumeOut };
   "agents.role_line.set": { in: AgentsRoleLineSetIn; out: AgentsRoleLineSetOut };
+  "agents.routine.delegate": { in: AgentsRoutineDelegateIn; out: AgentsRoutineDelegateOut };
   "agents.routine.delete": { in: AgentsRoutineDeleteIn; out: AgentsRoutineDeleteOut };
+  "agents.routine.run_now": { in: AgentsRoutineRunNowIn; out: AgentsRoutineRunNowOut };
   "agents.routine.save": { in: AgentsRoutineSaveIn; out: AgentsRoutineSaveOut };
   "agents.routines.list": { in: AgentsRoutinesListIn; out: AgentsRoutinesListOut };
   "agents.snapshot.take": { in: AgentsSnapshotTakeIn; out: AgentsSnapshotTakeOut };
@@ -26110,6 +26248,7 @@ export interface CapMap {
   "changesets.comments.list": { in: ChangesetsCommentsListIn; out: ChangesetsCommentsListOut };
   "changesets.diff": { in: ChangesetsDiffIn; out: ChangesetsDiffOut };
   "changesets.discard": { in: ChangesetsDiscardIn; out: ChangesetsDiscardOut };
+  "changesets.edit": { in: ChangesetsEditIn; out: ChangesetsEditOut };
   "changesets.get": { in: ChangesetsGetIn; out: ChangesetsGetOut };
   "changesets.list": { in: ChangesetsListIn; out: ChangesetsListOut };
   "changesets.request_changes": { in: ChangesetsRequestChangesIn; out: ChangesetsRequestChangesOut };
@@ -26612,6 +26751,7 @@ export interface CapMap {
   "health.events_db": { in: HealthEventsDbIn; out: HealthEventsDbOut };
   "health.history": { in: HealthHistoryIn; out: HealthHistoryOut };
   "health.index_db": { in: HealthIndexDbIn; out: HealthIndexDbOut };
+  "health.machine": { in: HealthMachineIn; out: HealthMachineOut };
   "health.paused_reasons": { in: HealthPausedReasonsIn; out: HealthPausedReasonsOut };
   "health.run": { in: HealthRunIn; out: HealthRunOut };
   "health.scheduler": { in: HealthSchedulerIn; out: HealthSchedulerOut };
@@ -26925,6 +27065,7 @@ export interface CapMap {
   "notifications.delegate.resolve": { in: NotificationsDelegateResolveIn; out: NotificationsDelegateResolveOut };
   "notifications.delegate.set": { in: NotificationsDelegateSetIn; out: NotificationsDelegateSetOut };
   "notifications.digest.collect": { in: NotificationsDigestCollectIn; out: NotificationsDigestCollectOut };
+  "notifications.kind.set_level": { in: NotificationsKindSetLevelIn; out: NotificationsKindSetLevelOut };
   "notifications.kinds.list": { in: NotificationsKindsListIn; out: NotificationsKindsListOut };
   "notifications.list": { in: NotificationsListIn; out: NotificationsListOut };
   "notifications.mark_seen": { in: NotificationsMarkSeenIn; out: NotificationsMarkSeenOut };
@@ -27556,6 +27697,20 @@ export type AgentRoutineChangedPayload = {
   routineId: string;
   op: "created" | "updated" | "deleted";
 };
+export type AgentRoutineDelegatedPayload = {
+  agentId: string;
+  routineId: string;
+  from: string;
+  to: string;
+  undo: boolean;
+};
+export type AgentRoutineRunStartedPayload = {
+  agentId: string;
+  routineId: string;
+  runId: string;
+  ownerId: string;
+  requestedBy: string;
+};
 export type AgentSuggestionProposedPayload = {
   suggestionId: string;
   agentId: string;
@@ -27852,6 +28007,14 @@ export type ChangesetDiscardedPayload = {
   changesetId: string;
   folderId: string;
   by: string;
+};
+export type ChangesetEditedPayload = {
+  changesetId: string;
+  folderId: string;
+  path: string;
+  proposedBy: string;
+  by: string;
+  fileCount: number;
 };
 export type ChangesetOpenedPayload = {
   changesetId: string;
@@ -30679,6 +30842,8 @@ export interface EventMap {
   "agent.restored": AgentRestoredPayload;
   "agent.resumed": AgentResumedPayload;
   "agent.routine_changed": AgentRoutineChangedPayload;
+  "agent.routine_delegated": AgentRoutineDelegatedPayload;
+  "agent.routine_run_started": AgentRoutineRunStartedPayload;
   "agent.suggestion_proposed": AgentSuggestionProposedPayload;
   "agent.suggestion_resolved": AgentSuggestionResolvedPayload;
   "agent.task_finished": AgentTaskFinishedPayload;
@@ -30739,6 +30904,7 @@ export interface EventMap {
   "changeset.approved": ChangesetApprovedPayload;
   "changeset.changes_requested": ChangesetChangesRequestedPayload;
   "changeset.discarded": ChangesetDiscardedPayload;
+  "changeset.edited": ChangesetEditedPayload;
   "changeset.opened": ChangesetOpenedPayload;
   "changeset.sent_for_review": ChangesetSentForReviewPayload;
   "changeset.updated": ChangesetUpdatedPayload;

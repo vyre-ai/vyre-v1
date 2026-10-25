@@ -4,6 +4,7 @@
 import { createFakeReplica, createScreenHooks, liveQuery } from "../../../../../client/src/index.ts";
 import type { FakeReplica, LiveQuery, Row, ScreenHooks } from "../../../../../client/src/index.ts";
 import { screensById } from "../../../../../generated/screens.ts";
+import { namesFor, nameOf } from "../../fixtures/index.ts";
 import type { CapMap } from "../../../../../generated/types.ts";
 import type { SettingsData, SettingsNav, SpaceTile } from "./data.tsx";
 import { searchRows } from "./model.ts";
@@ -18,8 +19,11 @@ const d = (key: string, scope: "space" | "person", page: string, title: string, 
 
 /** The person rows of the registry, in its order, plus the one Space row on the Notifications page. */
 export const ROWS: readonly Def[] = [
+  d("appearance.density", "person", "appearance", "Density", "comfortable"),
   d("appearance.mode", "person", "appearance", "Light or dark", "system"),
+  d("appearance.reduce_motion", "person", "appearance", "Reduce motion", false),
   d("appearance.skin", "person", "appearance", "Skin", "classic"),
+  d("appearance.text_size", "person", "appearance", "Text size (percent)", 100),
   d("chat.agent_tabs", "person", "Chats", "Let agents open and switch side tabs for me", true),
   d("chat.ask_agent", "person", "Models and usage", "Agent I last used in Ask panes", null),
   d("chrome.agents_use_my_browser", "person", "This computer", "Let agents use my Chrome (per Space, only that Space agents, with a visible indicator)", {}),
@@ -63,9 +67,9 @@ const hrs = { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:30" };
 
 export const northwind: SampleSpace = {
   id: "northwind", name: "Northwind", me: { id: "usr_irfad", name: "Irfad Imtiaz" },
-  names: { usr_irfad: "Irfad Imtiaz", agt_intake: "Intake", agt_docs: "Docs", agt_billing: "Billing", ch_sales: "#sales" },
+  names: namesFor("northwind", { ch_sales: "#sales" }),
   values: {
-    "appearance.skin": "graphite", "profile.display_name": "Irfad Imtiaz", "profile.handle": "irfad", "profile.title": "Head of operations", "profile.timezone": "America/Los_Angeles",
+    "appearance.skin": "system", "profile.display_name": "Irfad Imtiaz", "profile.handle": "irfad", "profile.title": "Head of operations", "profile.timezone": "America/Los_Angeles",
     "profile.working_hours": hrs, "profile.contact": { email: "irfad@northwind.example", phone: "+1 415 555 0132" }, "engine.subscription_share": false, "engine.runtime_opt_in": false,
     "notifications.working_hours": { days: [1, 2, 3, 4, 5], from: "09:00", to: "18:00", tz: "America/Los_Angeles" },
   },
@@ -79,7 +83,7 @@ export const northwind: SampleSpace = {
 
 export const harbor: SampleSpace = {
   id: "harbor", name: "Harbor Studio", me: { id: "usr_june", name: "June Okafor" },
-  names: { usr_june: "June Okafor", usr_ines: "Ines Costa" },
+  names: namesFor("harbor"),
   values: { "profile.display_name": "June Okafor", "profile.handle": "june", "profile.title": "Designer", "profile.timezone": "Europe/London", "profile.contact": { email: "june@harborstudio.example" } },
   spaces: [
     { id: "harbor", name: "Harbor Studio", addr: "harbor.vyre.run", kind: "team", role: "Member", needsYou: 0, current: true },
@@ -87,6 +91,16 @@ export const harbor: SampleSpace = {
   ],
   other: {},
 };
+
+/** What each Space asks of the sign-in (the prototype's Sign-in and devices). */
+export const securityOf = (_space: SampleSpace): NonNullable<SettingsData["security"]> => ({
+  account: { passwordChanged: "3 months ago", github: "irfad7" },
+  spaces: {
+    northwind: { totp: true, passkeys: ["MacBook Touch ID"], floor: "Authenticator app or passkey", floorBy: "Northwind", sso: "Google Workspace", devices: 4 },
+    harbor: { totp: false, passkeys: [], floor: "None", floorBy: "Harbor Studio", sso: "", devices: 2 },
+    personal: { totp: false, passkeys: [], floor: "", floorBy: "", sso: "", devices: 1 },
+  },
+});
 
 export interface SampleSettings {
   data: SettingsData;
@@ -149,12 +163,12 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   replica.resolve("notifications.mute.list", () => ({ mutes: (replica.rows("mutes") as unknown as { target: { kind: string; id: string }; until: number }[]).map((m) => ({ target: m.target, until: m.until })) }) as CapMap["notifications.mute.list"]["out"]);
   replica.resolve("notifications.kinds.list", () => ({
     kinds: [
-      { key: "approval.requested", level: "interrupt", place: "home", title: "An approval is asked of you", respectHours: false },
-      { key: "dm", level: "interrupt", place: "chats", title: "A direct message", respectHours: true },
-      { key: "mention", level: "interrupt", place: "chats", title: "A mention from a person", respectHours: true },
-      { key: "task.assigned", level: "badge", place: "home", title: "A task given to you", respectHours: true },
-      { key: "reply.followed", level: "badge", place: "chats", title: "Replies on things you follow", respectHours: true },
-      { key: "digest.other", level: "digest", place: "home", title: "Everything else", respectHours: true },
+      { key: "approval.requested", level: "interrupt", place: "home", title: "Needs you", respectHours: false },
+      { key: "mention", level: "interrupt", place: "chats", title: "Mentions", respectHours: true },
+      { key: "reply.followed", level: "badge", place: "chats", title: "Replies in your threads", respectHours: true },
+      { key: "task.assigned", level: "badge", place: "home", title: "Agent finished a long task", respectHours: true },
+      { key: "routine.failed", level: "interrupt", place: "home", title: "Routines", respectHours: true },
+      { key: "digest.other", level: "digest", place: "chats", title: "Channel messages", respectHours: true },
     ],
   }) as unknown as CapMap["notifications.kinds.list"]["out"]);
   replica.resolve("mail.mailbox.list", () => ({ mailboxes: replica.rows("mailboxes") as unknown as CapMap["mail.mailbox.list"]["out"]["mailboxes"] }) as CapMap["mail.mailbox.list"]["out"]);
@@ -207,7 +221,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   };
   const nav: SettingsNav = {
     openVault: () => void opened.push("vault"), openConsole: () => void opened.push("console"), openSpace: (id) => void opened.push(`space:${id}`), connect: (k) => void opened.push(`connect:${k}`),
-    choosePhoto: async () => "fil_sample", previewSkin: (id) => void previews.push(id),
+    choosePhoto: async () => "fil_sample", previewSkin: (id) => void previews.push(id), manageSecurity: (kind, id) => void opened.push(`security:${kind}:${id}`),
   };
   const data: SettingsData = {
     screens,
@@ -221,7 +235,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
       throw new Error(`no handler for ${cap}`);
     },
     peek: (cap, input) => replica.run(cap as keyof CapMap, input as never)?.data,
-    me: space.me, space: { id: space.id, name: space.name }, spaces: space.spaces, name: (id) => space.names[id] ?? id, nav, clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
+    me: space.me, space: { id: space.id, name: space.name }, spaces: space.spaces, name: (id) => space.names[id] ?? nameOf(space.id, id), nav, clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }), security: securityOf(space),
   };
   return { data, replica, space, calls, opened, previews, failNext: (cap) => void failing.add(cap) };
 }
