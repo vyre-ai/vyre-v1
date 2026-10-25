@@ -1,5 +1,6 @@
 // The public form renderer (spec 2.11; ARCH 7.6): multi-step, conditional logic, thank-you and the page the host serves, all drawn from a form definition. Strings in, strings out:
 // nothing here needs a browser. Every value a person or the form author wrote is checked to come out escaped.
+// @reads /apps/forms-embed/src/main.js
 
 import test from "node:test";
 import assert from "node:assert/strict";
