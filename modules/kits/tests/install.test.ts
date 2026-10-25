@@ -68,7 +68,7 @@ test("sheetOf: every capability the Kit calls, record type, domain, Vault name a
   const kit = checkKit(kitManifest()).kit!;
   assert.deepEqual(sheetOf(kit), {
     tools: ["automations.create", "automations.delete", "mail.send", "records.create", "schema.apply"],
-    recordTypes: ["matter"], networkDomains: ["api.stripe.com"], vaultNames: ["#Stripe_Key"], scripts: 1,
+    recordTypes: ["matter"], networkDomains: ["api.stripe.com"], vaultNames: ["#Stripe_Key"], scripts: 1, problems: [],
   });
   const withScriptCaps = checkKit(kitManifest({ scripts: [{ name: "s", source: "return 1", caps: ["records.query", "records.create"] }] })).kit!;
   assert.deepEqual(sheetOf(withScriptCaps).tools, ["automations.create", "automations.delete", "mail.send", "records.create", "records.query", "schema.apply"]);
@@ -98,10 +98,13 @@ test("list and get: shipped Kits appear once, not installed, with their content 
 test("install sheet lists everything the Kit adds, and install needs the sheet confirmed", async () => {
   const h = harness();
   const kitId = await h.shipped();
-  assert.deepEqual((await h.call("kits.install_sheet", { kitId })).sheet, {
+  const { problems, ...listed } = (await h.call("kits.install_sheet", { kitId })).sheet;
+  assert.deepEqual(listed, {
     tools: ["automations.create", "automations.delete", "mail.send", "records.create", "schema.apply"],
     recordTypes: ["matter"], networkDomains: ["api.stripe.com"], vaultNames: ["#Stripe_Key"], scripts: 1,
   });
+  // the fixture's steps are sketches (they do not fit the real contracts), so the sheet check names them before anyone installs
+  assert.ok(problems.length > 0 && problems.every((p: Obj) => typeof p.item === "string" && ["apply", "undo"].includes(p.step) && typeof p.cap === "string" && typeof p.message === "string"));
   await refused(h.call("kits.install", { kitId, accepted: false }, admin, false), "validation.bad_input");
   await refused(h.call("kits.install", { kitId }, admin, false), "validation.bad_input");
   assert.equal(h.callsTo("schema.apply").length, 0, "nothing ran before the sheet was accepted");
@@ -277,3 +280,45 @@ test("builder_open: opens a chat with the builder agent about the Kit; no agent 
   await refused(none.call("kits.builder_open", { idempotencyKey: "k3" }), "validation.precondition_failed");
   configureKits(null);
 });
+
+
+// ---- the sheet check (P-CC_31) ----
+
+const goodType = (type: string): Obj => ({
+  key: `rt.${type}`, content: "structure", type: "record_type", title: type, recordType: type,
+  apply: { cap: "schema.apply", input: { ops: [{ op: "type.create", type, def: { title: type, plural: `${type}s`, icon: "note", titleField: "title", fields: [{ key: "title", type: "text", title: "Title", required: true }] } }], idempotencyKey: `kit.${type}`, reason: "Kit install" } },
+});
+
+test("sheet check: a sound Kit has no problems; a broken step is named with its item, step, capability, input and why", async () => {
+  const h = harness();
+  const ok = await h.shipped(kitManifest({ key: "sound", items: [goodType("matter")] }));
+  assert.deepEqual((await h.call("kits.install_sheet", { kitId: ok })).sheet.problems, []);
+  const broken = kitManifest({
+    key: "broken",
+    items: [
+      goodType("lead"),
+      { key: "x.nocap", content: "steps", type: "automation", title: "No such tool", apply: { cap: "automations.teleport", input: {} } },
+      { key: "x.badinput", content: "steps", type: "automation", title: "Bad input", apply: { cap: "schema.apply", input: { changes: [{ op: "create_type" }] } }, undo: { cap: "schema.apply", input: { ops: "no" } } },
+      goodType("lead"),
+    ].map((it, i) => (i === 3 ? { ...it, key: "rt.lead2" } : it)),
+  });
+  const kitId = await h.shipped(broken);
+  const { problems } = (await h.call("kits.install_sheet", { kitId })).sheet as { problems: Obj[] };
+  const by = (item: string, step: string): Obj | undefined => problems.find((p) => p.item === item && p.step === step);
+  assert.match(by("x.nocap", "apply")!.message, /automations\.teleport is not a capability/);
+  assert.equal(by("x.nocap", "apply")!.cap, "automations.teleport");
+  assert.match(by("x.badinput", "apply")!.message, /does not fit schema\.apply/);
+  assert.deepEqual(by("x.badinput", "apply")!.input, { changes: [{ op: "create_type" }] });
+  assert.match(by("x.badinput", "undo")!.message, /does not fit schema\.apply/);
+  assert.match(by("rt.lead2", "apply")!.message, /Record type lead is created twice/);
+  assert.equal(by("rt.lead", "apply"), undefined, "the first of two is fine");
+});
+
+test("sheet check: a record type the Space already has is a problem before install, not a failure during it", async () => {
+  const h = harness();
+  h.callee("schema.types.get", (i: { type: string }) => (i.type === "note_board" ? { type: { type: "note_board" } } : (() => { throw new Error("not found"); })()));
+  const kitId = await h.shipped(kitManifest({ key: "boards", items: [goodType("note_board"), goodType("commission")] }));
+  const { problems } = (await h.call("kits.install_sheet", { kitId })).sheet as { problems: Obj[] };
+  assert.deepEqual(problems.map((p) => [p.item, p.step, p.message]), [["rt.note_board", "apply", "Record type note_board already exists in this Space."]]);
+});
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
