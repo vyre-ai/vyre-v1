@@ -109,3 +109,36 @@ export async function bootFlowSpace(live: readonly string[]): Promise<FlowSpace>
     stop: () => d.stop(),
   };
 }
+
+/** The steps of a flow, run in order. A step that throws is recorded and the steps after it that need its result are skipped, so one run prints every independent failure. */
+export class Trail {
+  readonly lines: string[] = [];
+  readonly failures: string[] = [];
+  private readonly vals = new Map<string, unknown>();
+
+  /** Runs one step. Returns its value, or undefined when it failed (or when `needs` names a step that did not produce a value). */
+  async step<T>(name: string, fn: () => Promise<T> | T, needs: readonly string[] = []): Promise<T | undefined> {
+    const missing = needs.filter((n) => !this.vals.has(n));
+    if (missing.length) { this.lines.push(`skip  ${name} (needs ${missing.join(", ")})`); return undefined; }
+    try {
+      const v = await fn();
+      this.vals.set(name, v);
+      this.lines.push(`ok    ${name}`);
+      return v;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.failures.push(`${name}: ${msg}`);
+      this.lines.push(`FAIL  ${name}: ${msg}`);
+      return undefined;
+    }
+  }
+
+  report(): string { return this.lines.join("\n"); }
+}
+
+export const short = (x: unknown): string => JSON.stringify(x).slice(0, 300);
+/** Throws unless the reply has the status; the message carries the error code and text so a gap names itself. */
+export function expectStatus(r: Reply, status: number, what: string): any {
+  if (r.status !== status) throw new Error(`${what}: expected ${status}, got ${r.status} ${short(r.body?.error ?? r.body)}`);
+  return r.body?.data;
+}
