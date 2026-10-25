@@ -157,6 +157,11 @@ export interface ConversationRow {
   campaignId?: string;
   followed: boolean;
   alertOnReplies: boolean;
+  organisation?: string;
+  dnd?: boolean;
+  bounced?: boolean;
+  unmatched?: boolean;
+  draftReady?: boolean;
 }
 
 export function getConversation(ctx: Pick<InboxCtx, "db">, id: string): Row | null {
