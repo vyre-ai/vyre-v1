@@ -56,8 +56,12 @@ test("the scrolling cells of a row are plain elements with the same test ids and
 
 test("one continuous list: the footer keeps its count, the header checkbox is a real checkbox, and Go to row is there (ruling 51)", () => {
   const out = render(<TableView type="clients" />, "clients");
-  assert.ok(has(out, 'data-testid="records-count"') && has(out, 'data-testid="records-select-all"') && has(out, 'role="checkbox"') && has(out, 'aria-checked="false"'));
-  assert.ok(has(out, 'data-testid="records-goto"') && has(out, 'aria-label="Go to row"'));
+  assert.ok(has(out, 'data-testid="records-count"'), "the footer count");
+  assert.ok(has(out, 'data-testid="records-select-all"'), "the header checkbox");
+  assert.ok(has(out, 'role="checkbox"'), "it is a checkbox");
+  assert.ok(has(out, 'aria-checked="false"'), "unticked to begin with");
+  assert.ok(has(out, 'data-testid="records-goto"'), "Go to row in the footer");
+  assert.ok(has(out, 'aria-label="Go to row"'), "and named");
   assert.ok(!has(out, 'data-testid="records-pick-bar"'), "no selection bar until the checkbox is ticked");
   assert.ok(!has(out, "Page 1") && !has(out, "Next page"), "no pagination");
 });

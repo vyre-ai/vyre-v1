@@ -147,28 +147,22 @@ function samePiece<T extends PieceProps>(a: T, b: T): boolean {
 const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): ReactElement {
   const { row, n, y, selected, hot, primary, names, onTap, onOpen, onHot, onMenu } = p;
   const bg = bgOf(p);
-  const handlers = { onClick: (e: { metaKey?: boolean; ctrlKey?: boolean }) => { if (row) onTap(row.id, e.metaKey === true || e.ctrlKey === true); }, onContextMenu: (e: { preventDefault(): void; clientX: number; clientY: number }) => { if (row) { e.preventDefault(); onMenu(row, e.clientX, e.clientY); } }, onMouseEnter: () => onHot(row ? row.id : null), onMouseLeave: () => onHot(null) };
-  return (
-    <View
-      accessibilityRole="button"
-      accessibilityLabel={row ? String(row.fields[primary.field.key] ?? row.id) : "Loading"}
-      accessibilityState={{ selected }}
-      testID={row ? `rec-${row.id}` : `rec-pending-${n}`}
-      style={[styles.tr, { top: y, width: GUTTER + primary.width, backgroundColor: bg }]}
-      {...(handlers as object)}
-    >
-      <View style={[styles.rn, { backgroundColor: bg }]}><Text style={styles.rnText}>{n}</Text></View>
-      <View style={[styles.td, styles.tdFirst, { width: primary.width, backgroundColor: bg }]}>
-        {row ? (
-          <>
-            <Text numberOfLines={1} style={[styles.cellText, styles.title]}>{cellText(primary.field, row.fields[primary.field.key], names) || "Untitled"}</Text>
-            {hot || selected ? (
-              <Pressable accessibilityRole="button" accessibilityLabel="Open record" testID={`open-${row.id}`} onPress={() => onOpen(row.id)} style={styles.xopen}><Glyph name="expand" size={13} color="var(--ink-2)" /></Pressable>
-            ) : null}
-          </>
-        ) : <View style={styles.ghostBar} />}
-      </View>
-    </View>
+  const title = row ? cellText(primary.field, row.fields[primary.field.key], names) || "Untitled" : "";
+  // plain elements, like the scrolling cells: this piece is mounted for every row that scrolls in
+  return createElement(
+    "div",
+    {
+      role: "button", "aria-label": row ? String(row.fields[primary.field.key] ?? row.id) : "Loading", "aria-selected": selected, "data-testid": row ? `rec-${row.id}` : `rec-pending-${n}`,
+      onClick: (e: { metaKey?: boolean; ctrlKey?: boolean }) => { if (row) onTap(row.id, e.metaKey === true || e.ctrlKey === true); },
+      onContextMenu: (e: { preventDefault(): void; clientX: number; clientY: number }) => { if (row) { e.preventDefault(); onMenu(row, e.clientX, e.clientY); } },
+      onMouseEnter: () => onHot(row ? row.id : null), onMouseLeave: () => onHot(null),
+      style: { position: "absolute", boxSizing: "border-box", display: "flex", alignItems: "center", left: 0, top: y, width: GUTTER + primary.width, height: ROW_H, borderBottom: "1px solid var(--line)", backgroundColor: bg, contain: "layout style paint" },
+    },
+    createElement("div", { style: { width: GUTTER, height: "100%", display: "flex", alignItems: "center", boxSizing: "border-box", paddingLeft: 10, flex: "none", fontSize: 11.5, color: "var(--ink-4)", fontVariantNumeric: "tabular-nums", backgroundColor: bg } }, String(n)),
+    createElement("div", { style: { width: primary.width, height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, boxSizing: "border-box", padding: "0 10px", overflow: "hidden", flex: "none", backgroundColor: bg } },
+      row ? createElement("span", { style: { ...CELL_TEXT, fontWeight: 500 } }, title) : createElement("div", { style: GHOST }),
+      row && (hot || selected) ? <Pressable accessibilityRole="button" accessibilityLabel="Open record" testID={`open-${row.id}`} onPress={() => onOpen(row.id)} style={styles.xopen}><Glyph name="expand" size={13} color="var(--ink-2)" /></Pressable> : null,
+    ),
   );
 }, samePiece);
 
