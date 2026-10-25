@@ -1,0 +1,42 @@
+// The 35 tool capabilities of the computers module: 22 Chrome, 8 Screen, 5 Files (P-L2_16b). Keys are the capability names in manifests/computers.ts.
+import * as chrome from "./chrome.ts";
+import * as files from "./files.ts";
+import * as screen from "./screen.ts";
+
+export const toolHandlers = {
+  "computers.chrome.snapshot": chrome.snapshot,
+  "computers.chrome.act": chrome.act,
+  "computers.chrome.click": chrome.click,
+  "computers.chrome.type": chrome.type,
+  "computers.chrome.fill": chrome.fill,
+  "computers.chrome.open": chrome.open,
+  "computers.chrome.tabs": chrome.tabs,
+  "computers.chrome.wait": chrome.wait,
+  "computers.chrome.screenshot": chrome.screenshot,
+  "computers.chrome.eval": chrome.evaluate,
+  "computers.chrome.console": chrome.consoleMessages,
+  "computers.chrome.net": chrome.net,
+  "computers.chrome.inspect": chrome.inspect,
+  "computers.chrome.state": chrome.state,
+  "computers.chrome.status": chrome.status,
+  "computers.chrome.stop": chrome.stop,
+  "computers.chrome.resume": chrome.resume,
+  "computers.chrome.send": chrome.send,
+  "computers.chrome.batch": chrome.batch,
+  "computers.chrome.plan": chrome.plan,
+  "computers.chrome.api": chrome.api,
+  "computers.chrome.sources": chrome.sources,
+  "computers.screen.screenshot": screen.screenshot,
+  "computers.screen.click": screen.click,
+  "computers.screen.move": screen.move,
+  "computers.screen.drag": screen.drag,
+  "computers.screen.type": screen.type,
+  "computers.screen.key": screen.key,
+  "computers.screen.scroll": screen.scroll,
+  "computers.screen.wait": screen.wait,
+  "computers.files.list": files.list,
+  "computers.files.read": files.read,
+  "computers.files.write": files.write,
+  "computers.files.move": files.move,
+  "computers.files.delete": files.remove,
+};
