@@ -1,0 +1,20 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_06c-needs-northwind",
+      "route": "/m/P-L9b_06c?sel=n1",
+      "proto": "chat,needs,{skin}",
+      "waitFor": "[data-testid='needs-you']",
+      "note": "Needs you over Northwind with Send 12 invoices open: amber new rate tags on Grant Legal and Brook Studio, the participants button at the top right, Approve black with the A hint, the Withdrawn section under the list.",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_06c-needs-harbor",
+      "route": "/m/P-L9b_06c?v=harbor",
+      "proto": "chat,needs,space:harbor,{skin}",
+      "waitFor": "[data-testid='needs-you']",
+      "note": "Needs you over Harbor Studio: its two requests (Send the Moreno gallery, Saturday call sheet) from the shared fixtures.",
+      "protoSettleMs": 1500
+    }
+  ]
+}
