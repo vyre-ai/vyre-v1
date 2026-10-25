@@ -56900,6 +56900,7 @@ textarea.inp { height: auto; min-height: 150px; padding: 11px 12px; line-height:
     const has = (t) =&gt; toks.includes(t);
     if (has("light") || has("dark")) document.documentElement.dataset.theme = has("dark") ? "dark" : "light";
     { const f0 = autos()[0]; ui.tabs = f0 ? ["a:" + f0.id] : []; ui.active = f0 ? "a:" + f0.id : null; }
+    if (has("jfields") || has("jsettings")) { ui.sTab = "jour"; ui.tabs = ["j:onb"]; ui.active = "j:onb"; ui.jsub["j:onb"] = has("jfields") ? "fields" : "settings"; }
     if (has("journeys") || has("journey") || has("stage")) { ui.sTab = "jour"; ui.tabs = ["j:onb"]; ui.active = "j:onb"; if (has("stage")) { ui.jsel.onb = { g: "g2" }; ui.pane = true; } }
     if (has("automation")) ui.selStep.lead = findLeadAgentStep();
     if (has("paths")) ui.selStep.lead = AUTOS[0].steps[2].id;
@@ -70882,7 +70883,7 @@ const status = (t) =&gt; Apps.status(t);
         else if (t === "pane") ui.pane = true;
         else if (t === "step" &amp;&amp; id) { const f = flatSteps(aOf(id))[0]; if (f) ui.selStep[id] = f.id; ui.pane = true; }
         else if (t.startsWith("mailbox:") &amp;&amp; key === "sending") { const m = t.slice(8); ui.pt.push("mb:" + m); ui.pact = "mb:" + m; ui.pane = true; }
-        else if (/^email(edit|html|focus|preview|checks|ask)$/.test(t) &amp;&amp; id) { const ek = "em:" + id + ":" + campEmails(aOf(id))[0].id; delete EMS[ek]; ui.emInit = { [ek]: { edit: {}, html: { mode: "html" }, focus: { focus: true, tab: "style" }, preview: { tab: "preview" }, checks: { tab: "checks" }, ask: { ask: { agent: "Assistant", text: "Make it warmer and shorter, then add a P.S." }, instant: true } }[t.slice(5)] }; if (t === "emailedit") ui.emInit[ek].select = "button"; if (!ui.tabs.includes(ek)) ui.tabs.push(ek); ui.active = ek; }
+        else if (/^email(edit|html|plain|focus|preview|checks|ask)$/.test(t) &amp;&amp; id) { const ek = "em:" + id + ":" + campEmails(aOf(id))[0].id; delete EMS[ek]; ui.emInit = { [ek]: { edit: {}, html: { mode: "html" }, plain: { mode: "text" }, focus: { focus: true, tab: "style" }, preview: { tab: "preview" }, checks: { tab: "checks" }, ask: { ask: { agent: "Assistant", text: "Make it warmer and shorter, then add a P.S." }, instant: true } }[t.slice(5)] }; if (t === "emailedit") ui.emInit[ek].select = "button"; if (!ui.tabs.includes(ek)) ui.tabs.push(ek); ui.active = ek; }
         else if (t === "email" &amp;&amp; id) { const f = flatSteps(aOf(id)).find((s) =&gt; s.kind === "email"); if (f) ui.selStep[id] = f.id; ui.pane = true; }
       });
       renderAll();

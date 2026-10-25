@@ -1,43 +1,30 @@
 // @reads /generated/registry.json
-// @reads /generated/hash.txt
-// @reads /host/modules.json
-// Freeze review A (P-PR_34): the capability registry matches docs/frozen/capabilities.md, every capability is complete,
-// and the 10 percent per-lane sample recorded in the doc is the sample the rule produces.
+// @reads /docs/frozen/snapshots
+// Freeze review A (P-PR_34): every capability is complete (schemas, examples, errors, effects, level, a gate where it speaks), and the contract of each capability is frozen in
+// docs/frozen/snapshots/<manifest>.json (lib/snapshot.ts): one small file per manifest, so a change to one capability touches one line of one file and two branches that change different
+// manifests never conflict. The regen bot writes the files; this test fails on a missing, changed or stray one, naming the capability.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { SNAPSHOT_DIR, snapshotDrift } from '../../../lib/snapshot.ts';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const read = (f: string) => readFileSync(root + f, 'utf8');
-const registryText = read('generated/registry.json');
-const reg = JSON.parse(registryText) as {
+const reg = JSON.parse(read('generated/registry.json')) as {
   $defs: Record<string, unknown>;
   modules: { id: string; owner: string }[];
-  events: unknown[];
+  events: { name: string; module: string }[];
   capabilities: {
-    name: string; module: string; input: unknown; output: unknown; errors: string[]; effects: string; level: string;
+    name: string; v: number; module: string; input: unknown; output: unknown; errors: string[]; effects: string; level: string;
     permission: string | null; idempotency: string; gate?: { act: string; reason?: string }; examples: unknown[];
   }[];
 };
-const doc = read('docs/frozen/capabilities.md');
-const field = (label: string) => {
-  const m = new RegExp(`^${label}: (.+)$`, 'm').exec(doc);
-  assert.ok(m, `docs/frozen/capabilities.md has no "${label}:" line`);
-  return m[1]!.trim();
-};
-const laneOf = new Map(reg.modules.map((m) => [m.id, m.owner]));
 
-test('registry hash and counts equal docs/frozen/capabilities.md', () => {
-  const hash = createHash('sha256').update(registryText).digest('hex');
-  assert.equal(hash, read('generated/hash.txt').trim(), 'generated/hash.txt is not the hash of registry.json');
-  assert.equal(field('Registry hash'), hash);
-  assert.equal(Number(field('Capabilities')), reg.capabilities.length);
-  assert.equal(Number(field('Events')), reg.events.length);
-  assert.equal(Number(field('Registry modules')), reg.modules.length);
-  const host = (JSON.parse(read('host/modules.json')) as { modules: unknown[] }).modules.length;
-  assert.equal(Number(field('Host modules')), host);
+test('every capability and event matches its snapshot in docs/frozen/snapshots', () => {
+  const have = new Map<string, string>();
+  for (const name of readdirSync(root + SNAPSHOT_DIR)) have.set(`${SNAPSHOT_DIR}/${name}`, read(`${SNAPSHOT_DIR}/${name}`));
+  assert.deepEqual(snapshotDrift(reg, have), [], 'a contract changed without its snapshot: the regen bot writes them (node tools/gen/src/cli.ts --snapshots)');
 });
 
 test('capability names are unique', () => {
@@ -102,15 +89,3 @@ test('the per-lane 10 percent sample in the doc is the sample the rule gives', (
   }
   assert.ok(total >= Math.floor(reg.capabilities.length / 10), 'sample is under 10 percent overall');
 });
-
-// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
-
-// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
-
-// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
-
-// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
-
-// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
-// rerun on final commit
-// run on the final commit of P-CC_22b

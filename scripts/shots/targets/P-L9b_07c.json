@@ -1,0 +1,36 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_07c-pane-files",
+      "route": "/m/P-L9b_07c?tab=files",
+      "proto": "chat,at:demo-agent-files,{skin}",
+      "waitFor": "[data-testid='chats-right-pane']",
+      "note": "Files as a tree: AGENT.md and agent.toml, then memory (open: MAP.md, notes, proposed, recipes, journal), skills, routines (open), knowledge, inbox, work, downloads, logs and chats with locks, counts on the right. The prototype side is its Files tab.",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_07c-pane-memory",
+      "route": "/m/P-L9b_07c?tab=memory",
+      "proto": "chat,at:demo-agent-memory,{skin}",
+      "waitFor": "[data-testid='chats-right-pane']",
+      "note": "Memory: the MAP.md block with its key rows and 5 / 200, proposed facts as cards saying where from and when, then what Intake knows.",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_07c-pane-routines",
+      "route": "/m/P-L9b_07c?tab=routines",
+      "proto": "chat,at:demo-agent-routines,{skin}",
+      "waitFor": "[data-testid='chats-right-pane']",
+      "note": "Routines: Morning lead sweep, Watch #intake for new clients, Chase missing intake forms (paused), green switches, the New routine starts.",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L9b_07c-pane-threads",
+      "route": "/m/P-L9b_07c?tab=threads",
+      "proto": "chat,at:demo-agent-threads,{skin}",
+      "waitFor": "[data-testid='chats-right-pane']",
+      "note": "Threads: the thread it worked in, then its chats with clock time and weekday.",
+      "protoSettleMs": 1500
+    }
+  ]
+}

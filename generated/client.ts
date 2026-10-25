@@ -1290,6 +1290,9 @@ export function createClient(transport: Transport) {
         save: call("memory.layout.save", 1),
       },
       maintain: call("memory.maintain", 1),
+      map: {
+        get: call("memory.map.get", 1),
+      },
       notes: {
         list: call("memory.notes.list", 1),
       },

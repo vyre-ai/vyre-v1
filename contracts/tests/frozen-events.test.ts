@@ -1,13 +1,12 @@
+// @reads /generated/registry.json
+// @reads /docs/frozen/snapshots
 // Freeze of the event catalogue (ARCH 3.3, spec 2.22, AC24).
 // A name is <primitive>.<verb>. Every event has an owner module and an object payload schema.
-// vis, label, redact and sv are checked here. The count and the canonical hash are frozen.
+// vis, label, redact and sv are checked here. Each event is frozen in docs/frozen/snapshots/<manifest>.json (lib/snapshot.ts), not by one hash of the whole catalogue.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { canonical } from '../../lib/canonical.ts';
-
-const FROZEN_COUNT = 602;
-const FROZEN_HASH = '6dfba8aaf915a7413840d3a24f244695fd88eff04a1a1ff8b7c414d48d02eb94';
+import { readFileSync, readdirSync } from 'node:fs';
+import { SNAPSHOT_DIR, snapshotDrift } from '../../lib/snapshot.ts';
 
 const NAME_RE = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
 const VIS = new Set(['space', 'participants', 'owner', 'private']);
@@ -73,16 +72,14 @@ function pointerSchema(schema: Schema, pointer: string, defs: Record<string, Sch
   return cur;
 }
 
-async function sha256Hex(text: string): Promise<string> {
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return Buffer.from(digest).toString('hex');
-}
-
 const catalogue = load();
 
-test('event count and canonical hash are frozen', async () => {
-  assert.equal(catalogue.events.length, FROZEN_COUNT);
-  assert.equal(await sha256Hex(canonical(catalogue.events)), FROZEN_HASH);
+test('every event matches its snapshot, and no snapshot is missing or stray', () => {
+  const root = new URL('../../', import.meta.url);
+  const raw = JSON.parse(readFileSync(new URL('generated/registry.json', root), 'utf8')) as Parameters<typeof snapshotDrift>[0];
+  const have = new Map<string, string>();
+  for (const name of readdirSync(new URL(`${SNAPSHOT_DIR}/`, root))) have.set(`${SNAPSHOT_DIR}/${name}`, readFileSync(new URL(`${SNAPSHOT_DIR}/${name}`, root), 'utf8'));
+  assert.deepEqual(snapshotDrift(raw, have), [], 'a contract changed without its snapshot: the regen bot writes them (node tools/gen/src/cli.ts --snapshots)');
 });
 
 test('event names match <primitive>.<verb> and are unique', () => {
@@ -118,15 +115,3 @@ test('every event has vis, label, redact and sv within the catalogue rules', () 
     }
   }
 });
-
-// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
-
-// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
-
-// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
-
-// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
-
-// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
-// rerun on final commit
-// run on the final commit of P-CC_22b

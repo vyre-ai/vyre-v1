@@ -3,6 +3,7 @@
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { onFileVersion, onTurn } from "./handlers/crud.ts";
+import { onMessageReceived } from "./handlers/routines.ts";
 import type { FileVersionEvent, TurnEvent } from "./handlers/crud.ts";
 import type { AgentsCtx } from "./projections.ts";
 
@@ -15,6 +16,11 @@ export const consumers = {
     run: (ctx: AgentsCtx, event: FileVersionEvent): Promise<string[]> => onFileVersion(ctx, event),
   },
   /** The engine's turns keep the status honest: Working while a turn runs, Awake for two minutes after. */
+  /** A message was posted: a watcher on that channel starts a run under its owner (P-CC_34). */
+  "agents.watchers": {
+    on: ["message.received"],
+    run: (ctx: AgentsCtx, event: Parameters<typeof onMessageReceived>[1]): Promise<string[]> => onMessageReceived(ctx, event),
+  },
   "agents.turn_started": {
     on: ["turn.started"],
     run: async (ctx: AgentsCtx, event: TurnEvent): Promise<void> => { onTurn(ctx, "started", event); },

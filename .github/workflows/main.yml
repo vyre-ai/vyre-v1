@@ -1,8 +1,9 @@
 name: main
 # Merge to main, budget 10 minutes (ARCH-DECISIONS 13). P-CI_06: about 30 merges an hour saturated the runners, so
-#   push            affected tests since the last green main run (plus the contracts gate); a red run re-includes its changes next time
-#   schedule        the whole suite, golden flows and perf, hourly
-#   dispatch        the whole suite, golden flows and perf (also run before a release tag)
+#   push            tests affected since the previous main commit (plus the contracts gate)
+#   schedule        the whole suite and golden flows, hourly (perf files excluded: perf.yml runs them)
+#   dispatch        the same (also run before a release tag)
+# Lead decision (25 Oct): main runs no perf jobs at all (perf.yml is the full perf set, hourly and on dispatch; PRs run the affected perf files), and a push selects against the previous main commit (github.event.before).
 on:
   push:
     branches: [main]
@@ -28,27 +29,30 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with: { node-version: 24 }
-      - name: Pick the base (last green main run on a push, none for a full run), shard by measured time (up to 8 fast shards, slow list as parallel jobs)
+      - name: Pick the base (the previous main commit on a push, none for a full run), shard by measured time (up to 8 fast shards, slow list as parallel jobs)
         id: sel
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
           REPO: ${{ github.repository }}
+          BEFORE: ${{ github.event.before }}
         run: |
           base=""
           if [ "$EVENT" = "push" ]; then
-            base="$(node -e 'fetch("https://api.github.com/repos/"+process.env.REPO+"/actions/workflows/main.yml/runs?branch=main&status=success&per_page=1",{headers:{authorization:"Bearer "+process.env.GH_TOKEN,accept:"application/vnd.github+json"}}).then((r)=>r.json()).then((j)=>console.log(j.workflow_runs?.[0]?.head_sha??"")).catch(()=>console.log(""))')"
+            base="$BEFORE"   # the previous main commit: each push verifies exactly what it brought, not everything since the last green run (lead decision, 25 Oct)
+            echo "$base" | grep -Eq '^0+$' && base=""
             git cat-file -e "${base:-x}^{commit}" 2>/dev/null || base=""
           fi
-          if [ -n "$base" ]; then echo "select: affected since last green main $base"; echo "full=false" >> "$GITHUB_OUTPUT"
+          if [ -n "$base" ]; then echo "select: affected since the previous main commit $base"; echo "full=false" >> "$GITHUB_OUTPUT"
           else echo "select: whole suite ($EVENT)"; echo "full=true" >> "$GITHUB_OUTPUT"; fi
-          node scripts/ci-select.ts "$base" --matrix --max 8 --perf-always > select.json
+          # Lead decision: main runs no perf jobs at all; perf is perf.yml (hourly, dispatch) and the affected perf files on PRs.
+          node scripts/ci-select.ts "$base" --matrix --max 8 --no-perf > select.json
           node -e 'const r=JSON.parse(require("fs").readFileSync("select.json","utf8"));const n=r.matrix.include.length;console.log("select: "+n+" jobs; "+(r.all?"everything":r.files.length+" affected files"));const o=process.env.GITHUB_OUTPUT;require("fs").appendFileSync(o,"has_tests="+(n>0)+"\nmatrix="+JSON.stringify(n>0?r.matrix:{include:[{name:"none",files:"",slow:"false"}]})+"\n")'
   shards:
     name: ${{ matrix.name }}
     needs: select
     if: needs.select.outputs.has_tests == 'true'
-    runs-on: ${{ (matrix.runner == 'v1-perf' || matrix.slow == true) && fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.runner == 'hosted' && 'ubuntu-latest' || fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -63,6 +67,7 @@ jobs:
         env:
           FILES: ${{ matrix.files }}
           SLOW: ${{ matrix.slow }}
+          VYRE_PERF_RUN: ${{ matrix.runner == 'v1-perf' && '1' || '' }}   # perf files run only on the pinned perf host (test-run skips them elsewhere)
         run: |
           if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else NC=""; [ "$RUNNER_ENVIRONMENT" = "github-hosted" ] && NC="--no-cache"; node scripts/test-run.mjs --files $FILES $NC; fi  # a hosted VM never reads a shared pass cache
   golden-main:
@@ -74,15 +79,6 @@ jobs:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/deps
       - run: npm run golden
-  perf:
-    needs: select
-    if: needs.select.outputs.full == 'true'
-    runs-on: [self-hosted, linux, v1]
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v5
-      - uses: ./.github/actions/deps
-      - run: npm run perf
   contracts:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -92,7 +88,7 @@ jobs:
         with: { node-version: 24 }
       - run: tools/gen/check.sh
   merge-ok:
-    needs: [select, shards, golden-main, perf, contracts]
+    needs: [select, shards, golden-main, contracts]
     # a skipped job (affected run: golden and perf; no affected tests: shards) is fine, a failed or cancelled one is not
     if: ${{ !cancelled() && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
@@ -101,7 +97,7 @@ jobs:
       - run: echo "merge ok"
   budget-main:
     permissions: { contents: read, actions: read }
-    needs: [shards, golden-main, perf, contracts, merge-ok]
+    needs: [shards, golden-main, contracts, merge-ok]
     if: always()
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
