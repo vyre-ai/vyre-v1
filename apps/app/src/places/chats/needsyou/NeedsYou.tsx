@@ -343,5 +343,5 @@ function keyOfItem(i: Item): string {
 
 /** The list of requests: ui/VirtualList over ui/Row, 44 high because every row has its second line. */
 function NeedList({ items, render, window }: { items: readonly Item[]; render: (i: Item) => ReactElement; window?: VirtualWindow }): ReactElement {
-  return <View style={{ flex: 1, minHeight: 0, overflow: "hidden" }}><VirtualList data={items} rowHeight={44} keyOf={keyOfItem} renderItem={render} {...(window ? { window } : {})} /></View>;
+  return <VirtualList data={items} rowHeight={44} keyOf={keyOfItem} renderItem={render} {...(window ? { window } : {})} />;
 }

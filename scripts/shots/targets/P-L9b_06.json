@@ -19,9 +19,9 @@
     {
       "id": "P-L9b_06-helper-done",
       "route": "/m/P-L9b_06?screen=helper",
-      "proto": "chat,at:chat-c2,{skin}",
+      "proto": "chat,at:demo-helper,{skin}",
       "waitFor": "[data-testid='helper-chat']",
-      "note": "A finished helper (Research, Firms 1-3): the address bar, the brief, Worked for 31s with three steps, the result, and the read-only note with Reply in the parent. The prototype has no deep link to its helper page (it opens by a click on the helper block), so its side shows the parent chat that holds that block.",
+      "note": "A finished helper (Research, Firms 1-3): the address bar, the brief, Worked for 31s with three steps, the result, and the read-only note with Reply in the parent. The prototype side is its helper page (hash demo-helper, added to the prototype copy).",
       "protoSettleMs": 1500
     }
   ]
