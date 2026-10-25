@@ -1,10 +1,9 @@
 // Test harness for the engine handlers: a real in-memory SQLite behind the host's ctx.db guard (engine_* tables only), a recording ctx, a scripted
 // stand-in for the capabilities the handlers call (threads.get, tasks.create), and checks against the frozen contract.
 import { ProjectionHost } from "../../../kernel/src/store/projection.ts";
-import { registry } from "../../../generated/registry.ts";
 import { scopedDb } from "../../../host/src/ctx/db.ts";
 import type { RawDb } from "../../../host/src/ctx/db.ts";
-import { validate } from "../../../packages/contracts/src/jsonschema.ts";
+import { eventErrors } from "./contract.ts";
 import { createEngineRuntime } from "../impl.ts";
 import { bindEngine } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
@@ -98,19 +97,7 @@ export function harness(o: HarnessOptions = {}) {
 
 export type Harness = ReturnType<typeof harness>;
 
-/** Errors of an event payload against the frozen event schema. */
-export function eventErrors(name: string, payload: unknown): string[] {
-  const def = registry.events.find((e) => e.name === name);
-  if (!def) return [`${name} is not in the registry`];
-  return validate(def.payload, payload, "", registry.$defs);
-}
-
-/** Errors of a value against the frozen input or output of a capability. */
-export function contractErrors(cap: string, side: "in" | "out", value: unknown): string[] {
-  const def = registry.capabilities.filter((c) => c.name === cap).sort((a, b) => b.v - a.v)[0];
-  if (!def) return [`${cap} is not in the registry`];
-  return validate(side === "in" ? def.input : def.output, value, "", registry.$defs);
-}
+export { contractErrors, eventErrors } from "./contract.ts";
 
 /** Every event the harness saw conforms to its schema. */
 export function assertEventsConform(h: Harness): string[] {

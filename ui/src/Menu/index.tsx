@@ -10,6 +10,7 @@ import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from
 import type { ViewStyle } from "react-native";
 import { isHead, isItem, isReportItem, isSeparator, resolveMenuItems } from "./props.ts";
 import type { MenuEntry, MenuItem, MenuProps, MenuSource } from "./props.ts";
+import { MenuPortal } from "./portal.tsx";
 
 export type { MenuEntry, MenuHead, MenuItem, MenuProps, MenuSeparator, MenuSource } from "./props.ts";
 export { REPORT_A_PROBLEM, appendReportProblem, resolveMenuItems } from "./props.ts";
@@ -314,6 +315,7 @@ export function Menu(props: MenuViewProps): ReactElement | null {
   }
 
   return (
+    <MenuPortal>
     <View style={styles.layer} testID="menu-layer" pointerEvents="box-none">
       <Pressable
         accessibilityLabel="Close menu"
@@ -335,6 +337,7 @@ export function Menu(props: MenuViewProps): ReactElement | null {
         {rows}
       </View>
     </View>
+    </MenuPortal>
   );
 }
 

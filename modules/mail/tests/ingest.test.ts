@@ -219,6 +219,22 @@ test("a pull from a person's mailbox writes a read log row for that person; hook
   assert.deepEqual(log.map((r) => [r.actor, r.mailboxId, r.action]), [["usr_maya01", mbx, "ingest"]]);
 });
 
+test("a message that arrives by a pull moves a Pending mailbox to syncing; a paused one stays paused; a hook delivery changes nothing", async () => {
+  const h = harness();
+  const fresh = await mailbox(h, "maya@vyre.test");
+  const stopped = await mailbox(h, "sam@vyre.test");
+  h.ctx.db.run(`UPDATE mail_mailbox SET paused = ?, state = ? WHERE id = ?`, 1, "paused", stopped);
+  shared(h, "mbx_hello", "hello@vyre.test");
+  h.advance(5000);
+  await ingest(h.ctx, letter("pat@acme.test", "<p1@acme.test>", "g-p1", { mailboxId: fresh }));
+  await ingest(h.ctx, letter("pat@acme.test", "<p2@acme.test>", "g-p2", { mailboxId: stopped }));
+  await ingest(h.ctx, letter("pat@acme.test", "<p3@acme.test>", "rs-p3", { source: "resend", envelopeTo: "hello@vyre.test" }));
+  const state = (id: string) => h.rows(`SELECT state, "lastSyncAt" FROM mail_mailbox WHERE id = ?`, id)[0]!;
+  assert.deepEqual(state(fresh), { state: "syncing", lastSyncAt: NOW + 5000 });
+  assert.deepEqual(state(stopped), { state: "paused", lastSyncAt: null });
+  assert.deepEqual(state("mbx_hello"), { state: "pending", lastSyncAt: null });
+});
+
 test("bad input is refused before anything is written", async () => {
   const h = harness();
   const mbx = await mailbox(h, "maya@vyre.test");

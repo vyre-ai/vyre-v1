@@ -1,0 +1,32 @@
+{
+  "targets": [
+    {
+      "id": "P-L9f_07c-setup-done",
+      "route": "/m/P-L9f_07?view=setuprun&space=northwind",
+      "proto": "join,at:setup,{skin}",
+      "waitFor": "[data-testid='open-space']",
+      "note": "Setup runs its lines and ends on You're all set with Open Northwind in the middle of the bar, not clipped. The prototype's setup token also ends there."
+    },
+    {
+      "id": "P-L9f_07c-done",
+      "route": "/m/P-L9f_07?view=done&space=northwind",
+      "proto": "join,at:done,{skin}",
+      "waitFor": "[data-testid='open-space']",
+      "note": "You're all set: the Open Northwind button on one line, centred in the bar."
+    },
+    {
+      "id": "P-L9f_07c-landing",
+      "route": "/m/P-L9f_07?view=accept&space=northwind",
+      "proto": "join,{skin}",
+      "waitFor": "[data-testid='open-app']",
+      "note": "The invite landing in both skins: graphite is dark like the prototype."
+    },
+    {
+      "id": "P-L9f_07c-checklist",
+      "route": "/m/P-L9f_07?view=checklist&space=northwind",
+      "proto": "home,at:firstrun,{skin}",
+      "waitFor": "[data-testid='s-first']",
+      "note": "The checklist on the Home first-run layout: greeting, date line and the Get started card of rows, on the page (not a modal)."
+    }
+  ]
+}

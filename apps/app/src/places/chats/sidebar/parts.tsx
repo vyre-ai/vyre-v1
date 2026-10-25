@@ -3,6 +3,7 @@
 import { createElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 
 export const ICON = {
   chev: ["M4 6l4 4 4-4"],
@@ -32,22 +33,11 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)", fill }: { name:
   );
 }
 
-export function hash(s: string): number {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
-  return h;
-}
-
-/** A person is a circle, an agent a rounded square; the colour comes from the name, mixed into the surface so it reads in every skin. `pulse` rings it while an agent works; `online` adds the presence dot. */
+/** A person is a round marble, an agent a pixel face on a soft tint: the shared Avatar. `pulse` rings it while an agent works; `online` adds the presence dot. */
 export function Face({ name, kind, size = 18, pulse = false, online = false }: { name: string; kind: "person" | "agent"; size?: number; pulse?: boolean; online?: boolean }): ReactElement {
-  const hue = (hash(name) % 12) * 30;
-  const tint = `hsla(${hue}, 65%, 52%, 0.22)`;
-  const ink = `hsl(${hue}, 55%, 46%)`;
   return (
     <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0, flexGrow: 0 }}>
-      <View style={{ width: size, height: size, borderRadius: kind === "person" ? size : Math.round(size * 0.3), backgroundColor: tint as string, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ color: ink as string, fontSize: Math.max(9, Math.round(size * 0.5)), fontWeight: "600" }}>{(name.trim()[0] ?? "?").toUpperCase()}</Text>
-      </View>
+      <Avatar name={name} kind={kind} size={size} />
       {pulse ? <View testID="pulse" style={[s.pulse, { width: size + 6, height: size + 6, borderRadius: kind === "person" ? size : Math.round(size * 0.4) }]} /> : null}
       {online ? <View testID="presence" style={s.presence} /> : null}
     </View>
