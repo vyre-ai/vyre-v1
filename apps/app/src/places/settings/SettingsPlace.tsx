@@ -59,7 +59,7 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
   useEffect(() => {
     if (!found) return undefined;
     const doc = (globalThis as { document?: { querySelector(s: string): { scrollIntoView?: (o: unknown) => void } | null } }).document;
-    const t = setTimeout(() => doc?.querySelector(`[data-sid="${found}"]`)?.scrollIntoView?.({ block: "center" }), 60);
+    const t = setTimeout(() => (doc?.querySelector(`[data-sid="${found}"]`) ?? doc?.querySelector(`[data-sid^="${found}."]`))?.scrollIntoView?.({ block: "center" }), 60);
     return () => clearTimeout(t);
   }, [found, page]);
 
@@ -84,12 +84,27 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
         </View>,
       );
     }
-    pageRows.push(<Row key={p.key} id={`page-${p.key}`} title={p.title} selected={page === p.key} leading={<IconBox name={p.icon} />} onPress={() => open(p.key)} />);
+    pageRows.push(<Row key={p.key} id={`page-${p.key}`} title={p.title} selected={!q.trim() && page === p.key} leading={<IconBox name={p.icon} />} onPress={() => open(p.key)} />);
   }
+  const searching = q.trim().length > 0;
   const hitRows: ReactElement[] = [];
   hits.forEach((h: Hit, i) => hitRows.push(
-    <Row key={h.key} id={`hit-${h.key}`} title={h.title} note={pageByKey(h.page).title} selected={i === cursor} leading={<IconBox name={pageByKey(h.page).icon} />} onPress={() => open(h.page, h.key)} />,
+    <Row
+      key={h.key} id={`hit-${h.key}`} title={h.title} {...(h.sub ? { note: h.sub } : {})} selected={i === cursor} leading={<IconBox name={pageByKey(h.page).icon} />}
+      trailing={<View style={n.hitPage}><Text style={n.hitPageText}>{pageByKey(h.page).title}</Text><Glyph name="chevR" size={12} color="var(--ink-3)" /></View>}
+      onPress={() => open(h.page, h.key)}
+    />,
   ));
+  const searchPage = (
+    <View testID="search-results" accessibilityLabel="Search results">
+      {hits.length > 0 ? (
+        <>
+          <Text accessibilityRole="header" style={n.count} testID="search-count">{`${hits.length} ${hits.length === 1 ? "setting" : "settings"}`}</Text>
+          <View style={n.hitCard}>{hitRows}</View>
+        </>
+      ) : <Text style={n.none} testID="search-none">{`Nothing matches "${q.trim()}"`}</Text>}
+    </View>
+  );
 
   const nav = (
     <View style={[n.nav, phone && { width: "100%" as unknown as number, borderRightWidth: 0 }]} testID="settings-nav">
@@ -112,11 +127,7 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
         </View>
       </View>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={n.scroll} keyboardShouldPersistTaps="handled">
-        {q ? (
-          <View testID="search-results" accessibilityLabel="Search results">
-            {hits.length > 0 ? hitRows : <Text style={n.none} testID="search-none">No setting matches</Text>}
-          </View>
-        ) : pageRows}
+        {phone && searching ? searchPage : pageRows}
       </ScrollView>
     </View>
   );
@@ -137,22 +148,22 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
   })();
 
   const main = (
-    <View style={n.main} testID={`page-${page}`} accessibilityLabel={def.title}>
+    <View style={n.main} testID={searching ? "page-search" : `page-${page}`} accessibilityLabel={searching ? "Search" : def.title}>
       <View style={n.head}>
         {phone ? <Pressable accessibilityRole="button" accessibilityLabel="Settings" testID="back" onPress={() => setView("nav")} style={[n.back, pointer]}><View style={{ transform: [{ rotate: "90deg" }] }}><Glyph name="chevD" size={14} color="var(--ink-2)" /></View></Pressable> : null}
-        <Text accessibilityRole="header" aria-level={1} style={n.title}>{def.title}</Text>
+        <Text accessibilityRole="header" aria-level={1} style={n.title}>{searching ? "Search" : def.title}</Text>
       </View>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={n.content}>
         <View style={n.column}>
           <SavedBar />
-          {list.status === "ready" ? body : <Text style={n.none} accessibilityRole="progressbar">Loading</Text>}
+          {searching ? searchPage : list.status === "ready" ? body : <Text style={n.none} accessibilityRole="progressbar">Loading</Text>}
         </View>
       </ScrollView>
     </View>
   );
   return (
     <View style={n.frame} testID="settings-place">
-      {phone ? (view === "nav" ? nav : main) : (<>{nav}{main}</>)}
+      {phone ? (view === "nav" || searching ? nav : main) : (<>{nav}{main}</>)}
     </View>
   );
 }
@@ -170,6 +181,10 @@ const n = StyleSheet.create({
   scroll: { paddingHorizontal: 8, paddingBottom: 24 },
   groupHead: { flexDirection: "row", alignItems: "center", gap: 7, height: 30, paddingHorizontal: 8, marginTop: 8 },
   groupTitle: { fontSize: 12, fontWeight: "600", color: "var(--ink-3)" as string },
+  count: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string, marginTop: 14, marginBottom: 8, paddingHorizontal: 2 },
+  hitCard: { borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string, overflow: "hidden" },
+  hitPage: { flexDirection: "row", alignItems: "center", gap: 4 },
+  hitPageText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   none: { fontSize: 13, color: "var(--ink-3)" as string, padding: 14 },
   main: { flex: 1, minWidth: 0 },
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },

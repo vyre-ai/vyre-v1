@@ -6,7 +6,8 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { SandboxError, chooseSandbox, createDockerApi, demux, startDockerSandbox, tarFiles, untar, unixSocketHttp } from "../src/index.ts";
+import { SandboxError, chooseSandbox, createDockerApi, demux, tarFiles, untar, unixSocketHttp } from "../src/index.ts";
+import { startDockerSandbox } from "../src/docker.ts";
 import type { DockerRequest, DockerResponse, ProxyHandle } from "../src/index.ts";
 import { ROOTS, fakeDocker, spec } from "./helpers.ts";
 
