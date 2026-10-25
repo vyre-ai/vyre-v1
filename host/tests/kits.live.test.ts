@@ -99,29 +99,9 @@ test("kits seam: createKitsHost reads the shipped Kits from kits/<key>/kit.json,
   assert.deepEqual(await createKitsHost({ root: path.join(root, "nowhere") }).source.catalog(), []);
 });
 
-/**
- * The kits module does not create its `kit` resources in the access projection yet (nothing in the booted host emits resource.created for them, so kits.get, kits.install_sheet and kits.install answer
- * "not found" for everyone). Until the access module does, this test plays that part: it lists the Kits once (which gives each shipped Kit a row), appends one resource.created per Kit to the log,
- * and boots again, so the daemon's access fold sees them.
- */
-async function withKitResources(dir: string, root: string): Promise<void> {
-  const d = await boot(dir, root);
-  try {
-    const listed = await call(d, "kits.list", {});
-    assert.equal(listed.status, 200, JSON.stringify(listed.data));
-    for (const k of listed.data.kits as { kitId: string }[]) {
-      await d.log!.append({
-        id: `evt_kitres_${k.kitId}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_seed", vis: "space", entity: "resource", entity_id: k.kitId,
-        payload: { id: k.kitId, type: "kit", parent_id: "spc_core", label: 0, owner_id: "usr_olivia", holds: 0 },
-      });
-    }
-  } finally { await d.stop(); }
-}
-
 test("kits live: a booted daemon wires setKitsHost, reports nothing as not set up, lists the shipped Kits, installs one over HTTP, applies its step and reads it back", async () => {
   const dir = seededDir();
   const root = codeRootWithKitsLive();
-  await withKitResources(dir, root);
   const d = await boot(dir, root);
   try {
     assert.ok(d.seams?.wired.includes("setKitsHost"), "setKitsHost is wired by the generic loader and daemon");
@@ -159,4 +139,30 @@ test("kits live: a booted daemon wires setKitsHost, reports nothing as not set u
     const events = await d.log!.read({ type: "kit.installed" });
     assert.equal(events.length, 1, "kit.installed was emitted once");
   } finally { await d.stop(); }
+});
+
+test("kits live: each Kit becomes one resource in the access projection, once, and a reboot neither repeats it nor loses it", async () => {
+  const dir = seededDir();
+  const root = codeRootWithKitsLive();
+  const kitResources = async (d: Daemon): Promise<string[]> =>
+    (await d.log!.read({ type: "resource.created" })).filter((e) => (e.payload as { type?: string }).type === "kit").map((e) => (e.payload as { id: string }).id).sort();
+  let first: string[] = [];
+  const a = await boot(dir, root);
+  try {
+    const listed = await call(a, "kits.list", {});
+    assert.equal(listed.status, 200, JSON.stringify(listed.data));
+    first = await kitResources(a);
+    assert.equal(first.length, listed.data.total, "one resource per Kit");
+    assert.deepEqual([...new Set(first)], first, "no Kit twice");
+    await call(a, "kits.list", {});
+    assert.deepEqual(await kitResources(a), first, "listing again adds none");
+  } finally { await a.stop(); }
+  const b = await boot(dir, root);
+  try {
+    const listed = await call(b, "kits.list", {});
+    assert.deepEqual(await kitResources(b), first, "a reboot adds none");
+    const kit = (listed.data.kits as { kitId: string }[])[0]!;
+    const got = await call(b, "kits.get", { kitId: kit.kitId });
+    assert.equal(got.status, 200, "and the Kit is still visible to authorize after the reboot");
+  } finally { await b.stop(); }
 });

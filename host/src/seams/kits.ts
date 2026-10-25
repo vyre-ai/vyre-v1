@@ -10,12 +10,12 @@ export interface KitsHostSource {
   read(key: string, version: string): Promise<unknown | null>;
   working(key: string): Promise<unknown | null>;
 }
-export interface KitsHostSeam { source: KitsHostSource }
+export interface KitsHostSeam { source: KitsHostSource; resources?: { ensure(kitId: string): Promise<void> } }
 
 const KEY = /^[a-z][a-z0-9_.-]{0,60}$/;
 
 /** Reads every kits/<key>/kit.json under `root`. A folder with no kit.json, or one that is not JSON, is skipped (the module checks the rest and warns about a Kit that fails its own check). */
-export function createKitsHost(deps: { root: string }): KitsHostSeam {
+export function createKitsHost(deps: { root: string; resources?: { ensure(kitId: string): Promise<void> } }): KitsHostSeam {
   const dir = path.join(deps.root, "kits");
   const load = (): { key: string; raw: unknown }[] => {
     let names: string[];
@@ -28,6 +28,7 @@ export function createKitsHost(deps: { root: string }): KitsHostSeam {
     return out;
   };
   return {
+    ...(deps.resources ? { resources: deps.resources } : {}),
     source: {
       catalog: () => Promise.resolve(load().map((k) => k.raw)),
       read: (key, version) => {
