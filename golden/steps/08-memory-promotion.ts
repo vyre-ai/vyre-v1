@@ -16,8 +16,7 @@ export async function runMemory(live: readonly string[]): Promise<{ events: Obse
   const s = await bootFlowSpace(live);
   const trail = new Trail();
   try {
-    const admin = s.d.token;
-    const noah = s.signedIn("usr_noah"), sana = s.signedIn("usr_sana");
+    const noah = s.signedIn("usr_noah"), sana = s.signedIn("usr_sana"), mia = s.signedIn("usr_mia");   // Mia owns the Helper agent, so she is its approver
     const fact = await trail.step("Noah proposes a fact in his own layer", async () => {
       const out = expectStatus(await s.call("memory.propose_fact", noah, { idempotencyKey: "golden-8-fact", layer: "person", agentId: "agt_scout", text: TEXT, sourceKind: "manual", sourceRef: "golden-8" }), 200, "memory.propose_fact");
       return { id: out.fact.factId as string, merged: out.merged as boolean };
@@ -44,10 +43,10 @@ export async function runMemory(live: readonly string[]): Promise<{ events: Obse
     }, ["Noah asks to promote it to Helper's memory"]);
     await trail.step("the approver approves", async () => {
       if (promo!.promoted) return;
-      expectStatus(await s.call("memory.promotion.approve", admin, { promotionId: promo!.id }), 200, "memory.promotion.approve");
+      expectStatus(await s.call("memory.promotion.approve", mia, { promotionId: promo!.id }), 200, "memory.promotion.approve");
     }, ["Noah asks to promote it to Helper's memory"]);
     await trail.step("the fact is in Helper's layer and Noah's own copy stays", async () => {
-      const list = expectStatus(await s.call("memory.facts.list", admin, { layer: "agent", agentId: "agt_helper" }), 200, "memory.facts.list").facts as { text: string }[];
+      const list = expectStatus(await s.call("memory.facts.list", mia, { layer: "agent", agentId: "agt_helper" }), 200, "memory.facts.list").facts as { text: string }[];
       assert.ok(list.some((f) => f.text === TEXT), `Helper's layer lists it: ${short(list)}`);
       const got = expectStatus(await s.call("memory.fact.get", noah, { factId: fact!.id }), 200, "memory.fact.get");
       assert.equal(got.fact.layer, "person");
