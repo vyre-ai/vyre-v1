@@ -1,7 +1,6 @@
 // createTestSpace (ARCH 10.1): boots from a copied template under 80 ms, runs the real kernel and host in-process, isolates Spaces, fake clock.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { performance } from "node:perf_hooks";
 import { createTestSpace, createClock, SPACE_ID } from "../src/index.ts";
 import { registry } from "../../generated/registry.ts";
 import { validateEvent } from "../../generated/validators.ts";
@@ -30,22 +29,16 @@ const emitter = usable.find((c) => perms.get(c.permission!)!["member"] === true 
 const emitName = emitter.emits.find((e) => validateEvent(e, sample(evDefs.find((x) => x.name === e)!.payload)).length === 0)!;
 const emitPayload = sample(evDefs.find((x) => x.name === emitName)!.payload);
 
-const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]!;
 
-test("a blank Space boots in under 80 ms (median of 5) and returns api, events, clock, close", async () => {
-  const warm = await createTestSpace(); await warm.close();   // builds the template once per machine; not part of the measurement
-  const ms: number[] = [];
-  for (let i = 0; i < 5; i++) {
-    const t0 = performance.now();
+test("a blank Space boots and returns api, events, clock, close (the 80 ms boot budget is in createTestSpace.perf.test.ts)", async () => {
+  const warm = await createTestSpace(); await warm.close();
+  for (let i = 0; i < 3; i++) {
     const s = await createTestSpace();
-    ms.push(performance.now() - t0);
     assert.equal(typeof s.api, "function"); assert.equal(typeof s.close, "function");
     assert.equal(typeof s.clock.now(), "number"); assert.equal((await s.events.head()).seq, 0);
     assert.equal(await s.events.verify(), true);
     await s.close();
   }
-  console.log(`createTestSpace blank boot: ${ms.map((x) => x.toFixed(1)).join(", ")} ms, median ${median(ms).toFixed(1)} ms (budget 80)`);
-  assert.ok(median(ms) < 80, `median ${median(ms).toFixed(1)} ms is over the 80 ms budget`);
 });
 
 test("api(asPrincipal): a stub answers its example; the role decides who may call", async () => {

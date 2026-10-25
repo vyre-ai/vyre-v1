@@ -128,6 +128,10 @@ export class FakeSpace implements SpaceSource {
     return [...out, ...this.extraExport];
   }
 
+  async owner(): Promise<string> {
+    return "usr_owner";
+  }
+
   async secretValues(): Promise<string[]> {
     return [...this.vault.values()];
   }

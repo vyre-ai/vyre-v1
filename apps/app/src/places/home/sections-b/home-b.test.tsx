@@ -148,7 +148,8 @@ test("a failed ask returns null and says so", async () => {
 
 test("the Ask box is a composer for the assistant; without an AI account it is locked and says how to unlock", () => {
   const open = html(createSampleHomeB());
-  assert.ok(has(open, 'data-testid="ask-box"') && has(open, "Assistant will reply") && has(open, "Ask your assistant…"));
+  assert.ok(has(open, 'data-testid="ask-box"') && has(open, "Ask your assistant…"));
+  assert.ok(has(open, 'data-testid="ask-agent"') && !has(open, "will reply"), "the agent is the Ask pill beside the box, not a line under it");
   assert.ok(!has(open, 'data-testid="ask-locked"'));
   const locked = html(createSampleHomeB("firstrun"));
   assert.ok(has(locked, 'data-testid="ask-locked"') && has(locked, "Connect an AI account to ask your assistant"));
