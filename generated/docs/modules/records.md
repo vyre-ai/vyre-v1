@@ -13,7 +13,7 @@ Requires: nothing.
 - [records.counts](../capabilities/records.counts.md): Cached row count for a view
 - [records.create](../capabilities/records.create.md): Create a record
 - [records.delete](../capabilities/records.delete.md): Move a record to Trash
-- [records.export](../capabilities/records.export.md): Export rows as CSV or Excel (permissioned)
+- [records.export](../capabilities/records.export.md): Export rows as CSV or Excel (permissioned), the whole view or only the picked recordIds
 - [records.gap_check](../capabilities/records.gap_check.md): Run the gap-check rules of a type over one record or all of them: finds missing or stale fields and names the fill route (AI field, agent lookup, teammate task or collection form)
 - [records.get](../capabilities/records.get.md): Read one record by id
 - [records.history](../capabilities/records.history.md): Field history of a record: previous values and merge losers

@@ -117,6 +117,38 @@ export const PROTO_NEXTS: readonly unknown[] = [
  "send the October statement"
 ];
 
+export const PROTO_KINDS: readonly unknown[] = [
+ "engagement",
+ "annual review",
+ "document set",
+ "transfer",
+ "renewal",
+ "onboarding"
+];
+
+export const PROTO_TASKT: readonly unknown[] = [
+ "Collect signed forms",
+ "Send welcome pack",
+ "Schedule review call",
+ "Draft summary",
+ "Confirm payment",
+ "Request ID document",
+ "Prepare agenda",
+ "Update the file",
+ "Chase missing details",
+ "Send reminder",
+ "Review draft",
+ "Book follow-up"
+];
+
+export const PROTO_AGS: readonly unknown[] = [
+ "Intake",
+ "Billing",
+ "Research",
+ "Docs",
+ "Scout"
+];
+
 export const PROTO_TEAM: readonly unknown[] = [
  "Maya Chen",
  "Omar Haddad",
@@ -279,6 +311,2465 @@ export const PROTO_HAND: readonly unknown[] = [
   "addr": "310 Lakeview Drive, Madison, WI",
   "taxId": "tax_0cc3f9",
   "summary": "Engagement completed in September. Final invoice paid."
+ }
+];
+
+export const PROTO_HP: readonly unknown[] = [
+ [
+  "Rivera engagement",
+  "c0",
+  "Drafting",
+  "Maya Chen",
+  "2026-10-23",
+  "2026-11-13",
+  9500,
+  [
+   "Priority",
+   "Referral"
+  ]
+ ],
+ [
+  "Rivera annual review",
+  "c0",
+  "Intake",
+  "Lena Ortiz",
+  "2026-11-02",
+  "2026-12-04",
+  5000,
+  [
+   "Fixed fee"
+  ]
+ ],
+ [
+  "Webb group renewal",
+  "c1",
+  "In review",
+  "Omar Haddad",
+  "2026-09-14",
+  "2026-10-30",
+  22000,
+  [
+   "Hourly"
+  ]
+ ],
+ [
+  "Webb document set",
+  "c1",
+  "Drafting",
+  "Omar Haddad",
+  "2026-10-05",
+  "2026-11-20",
+  8500,
+  [
+   "Fixed fee",
+   "Rush"
+  ]
+ ],
+ [
+  "Eriksen transfer",
+  "c3",
+  "Drafting",
+  "Maya Chen",
+  "2026-10-12",
+  "2026-11-27",
+  6200,
+  []
+ ]
+];
+
+export const PROTO_HI: readonly unknown[] = [
+ [
+  "c0",
+  "p0",
+  250,
+  "Paid",
+  "2026-10-23",
+  "2026-10-23",
+  "Card"
+ ],
+ [
+  "c0",
+  "p0",
+  2400,
+  "Sent",
+  "2026-10-23",
+  "2026-10-30",
+  "Bank"
+ ],
+ [
+  "c0",
+  "p1",
+  750,
+  "Draft",
+  "2026-10-24",
+  "2026-11-07",
+  "Bank"
+ ],
+ [
+  "c1",
+  "p2",
+  6400,
+  "Overdue",
+  "2026-09-20",
+  "2026-10-04",
+  "Bank"
+ ],
+ [
+  "c1",
+  "p3",
+  3100,
+  "Sent",
+  "2026-10-12",
+  "2026-10-26",
+  "Bank"
+ ]
+];
+
+export const PROTO_HM: readonly unknown[] = [
+ [
+  "Consult · Elena Rivera",
+  "2026-10-27T14:00",
+  "c0",
+  "Maya Chen",
+  "Consult",
+  "Bring the draft engagement letter. Elena prefers afternoons."
+ ],
+ [
+  "Intro call · Elena Rivera",
+  "2026-10-20T11:00",
+  "c0",
+  "Omar Haddad",
+  "Check-in",
+  "Short call. Referred by Maya. Wants to move quickly."
+ ],
+ [
+  "Quarterly review · Webb Group",
+  "2026-10-28T10:30",
+  "c1",
+  "Omar Haddad",
+  "Review",
+  ""
+ ]
+];
+
+export const PROTO_HT: readonly unknown[] = [
+ [
+  "Request ID document",
+  "p0",
+  "Intake",
+  "To do",
+  "2026-10-26"
+ ],
+ [
+  "Send engagement letter",
+  "p0",
+  "Docs",
+  "Doing",
+  "2026-10-27"
+ ],
+ [
+  "Run the conflict check",
+  "p0",
+  "Lena Ortiz",
+  "Doing",
+  "2026-10-26"
+ ],
+ [
+  "Send welcome pack",
+  "p0",
+  "Intake",
+  "Done",
+  "2026-10-23"
+ ],
+ [
+  "Schedule the annual review",
+  "p1",
+  "Maya Chen",
+  "To do",
+  "2026-11-02"
+ ]
+];
+
+export const PROTO_TYPES: Readonly<Record<string, unknown>> = {
+ "clients": {
+  "id": "clients",
+  "n": "Clients",
+  "one": "Client",
+  "pre": "c",
+  "primary": "name",
+  "needLabel": "Intake",
+  "fields": [
+   {
+    "id": "name",
+    "n": "Name",
+    "t": "text",
+    "w": 214,
+    "need": 1
+   },
+   {
+    "id": "status",
+    "n": "Status",
+    "t": "status",
+    "w": 136,
+    "o": [
+     [
+      "Lead",
+      220
+     ],
+     [
+      "Consult booked",
+      270
+     ],
+     [
+      "Active",
+      145
+     ],
+     [
+      "On hold",
+      35
+     ],
+     [
+      "Closed",
+      null
+     ]
+    ]
+   },
+   {
+    "id": "owner",
+    "n": "Owner",
+    "t": "person",
+    "w": 138,
+    "need": 1
+   },
+   {
+    "id": "fit",
+    "n": "Fit",
+    "t": "rating",
+    "w": 90
+   },
+   {
+    "id": "since",
+    "n": "Client since",
+    "t": "date",
+    "w": 152,
+    "need": 1
+   },
+   {
+    "id": "openBal",
+    "n": "Open balance",
+    "t": "rollup",
+    "w": 142,
+    "rt": "money",
+    "expr": "SUM(Invoices.Amount) where Status is Sent or Overdue",
+    "path": [
+     [
+      "Clients",
+      ""
+     ],
+     [
+      "Invoices",
+      "linked by Client"
+     ],
+     [
+      "Amount",
+      "sum of unpaid"
+     ]
+    ]
+   },
+   {
+    "id": "nextMeet",
+    "n": "Next meeting",
+    "t": "lookup",
+    "w": 150,
+    "rt": "datetime",
+    "expr": "Meetings.When, earliest that has not happened",
+    "path": [
+     [
+      "Clients",
+      ""
+     ],
+     [
+      "Meetings",
+      "linked by Client"
+     ],
+     [
+      "When",
+      "earliest upcoming"
+     ]
+    ]
+   },
+   {
+    "id": "taxId",
+    "n": "Tax ID",
+    "t": "sealed",
+    "w": 150,
+    "need": 1
+   },
+   {
+    "id": "bank",
+    "n": "Bank account (IBAN)",
+    "t": "sealed",
+    "w": 170
+   },
+   {
+    "id": "summary",
+    "n": "Summary",
+    "t": "ai",
+    "w": 270
+   },
+   {
+    "id": "projects",
+    "n": "Projects",
+    "t": "relation",
+    "w": 220,
+    "rev": [
+     "projects",
+     "client"
+    ],
+    "to": "projects"
+   },
+   {
+    "id": "health",
+    "n": "Health",
+    "t": "formula",
+    "w": 96,
+    "expr": "IF({Open balance} > 5000, \"Review\", \"Good\")",
+    "path": [
+     [
+      "Clients",
+      ""
+     ],
+     [
+      "Open balance",
+      "rollup of Invoices"
+     ]
+    ]
+   },
+   {
+    "id": "source",
+    "n": "How did you hear about us",
+    "t": "choice",
+    "w": 200,
+    "key": "heard_from",
+    "need": 1,
+    "o": [
+     [
+      "Referral",
+      160
+     ],
+     [
+      "Website",
+      205
+     ],
+     [
+      "Event",
+      330
+     ],
+     [
+      "Partner",
+      35
+     ]
+    ]
+   },
+   {
+    "id": "email",
+    "n": "Email",
+    "t": "text",
+    "w": 214,
+    "need": 1,
+    "kind": "email"
+   },
+   {
+    "id": "phone",
+    "n": "Phone",
+    "t": "text",
+    "w": 130,
+    "need": 1,
+    "kind": "phone"
+   },
+   {
+    "id": "key",
+    "n": "Key account",
+    "t": "check",
+    "w": 100
+   },
+   {
+    "id": "ltv",
+    "n": "Lifetime value",
+    "t": "rollup",
+    "w": 136,
+    "rt": "money",
+    "expr": "SUM(Invoices.Amount) where Status is Paid",
+    "path": [
+     [
+      "Clients",
+      ""
+     ],
+     [
+      "Invoices",
+      "linked by Client"
+     ],
+     [
+      "Amount",
+      "sum of paid"
+     ]
+    ]
+   },
+   {
+    "id": "refby",
+    "n": "Referred by",
+    "t": "person",
+    "w": 138
+   },
+   {
+    "id": "dob",
+    "n": "Date of birth",
+    "t": "date",
+    "w": 116,
+    "need": 1,
+    "imp": 1
+   },
+   {
+    "id": "addr",
+    "n": "Address",
+    "t": "text",
+    "w": 250,
+    "need": 1,
+    "imp": 1
+   },
+   {
+    "id": "idDoc",
+    "n": "ID document",
+    "t": "files",
+    "w": 140,
+    "need": 1,
+    "imp": 1
+   },
+   {
+    "id": "pref",
+    "n": "Best time to reach",
+    "t": "choice",
+    "w": 140,
+    "need": 1,
+    "o": [
+     [
+      "Mornings",
+      205
+     ],
+     [
+      "Afternoons",
+      35
+     ],
+     [
+      "Evenings",
+      270
+     ]
+    ]
+   },
+   {
+    "id": "sendform",
+    "n": "Send intake form",
+    "t": "button",
+    "w": 150,
+    "auto": "Intake reminder"
+   }
+  ],
+  "hidden": [
+   "email",
+   "phone",
+   "key",
+   "ltv",
+   "refby",
+   "dob",
+   "addr",
+   "idDoc",
+   "pref",
+   "sendform"
+  ],
+  "sections": [
+   [
+    "Contact",
+    [
+     "email",
+     "phone",
+     "addr",
+     "pref",
+     "owner",
+     "refby"
+    ]
+   ],
+   [
+    "Relationship",
+    [
+     "status",
+     "source",
+     "since",
+     "fit",
+     "key",
+     "dob",
+     "idDoc"
+    ]
+   ],
+   [
+    "Sealed",
+    [
+     "taxId",
+     "bank"
+    ]
+   ],
+   [
+    "Calculated",
+    [
+     "openBal",
+     "ltv",
+     "nextMeet",
+     "health"
+    ]
+   ],
+   [
+    "Actions",
+    [
+     "sendform"
+    ]
+   ]
+  ],
+  "related": [
+   [
+    "projects",
+    "client",
+    "Projects"
+   ],
+   [
+    "invoices",
+    "client",
+    "Invoices"
+   ],
+   [
+    "meetings",
+    "client",
+    "Meetings"
+   ]
+  ]
+ },
+ "projects": {
+  "id": "projects",
+  "n": "Projects",
+  "one": "Project",
+  "pre": "p",
+  "primary": "title",
+  "fields": [
+   {
+    "id": "title",
+    "n": "Title",
+    "t": "text",
+    "w": 230
+   },
+   {
+    "id": "client",
+    "n": "Client",
+    "t": "relation",
+    "w": 180,
+    "to": "clients"
+   },
+   {
+    "id": "stage",
+    "n": "Stage",
+    "t": "status",
+    "w": 128,
+    "o": [
+     [
+      "Intake",
+      220
+     ],
+     [
+      "Drafting",
+      270
+     ],
+     [
+      "In review",
+      35
+     ],
+     [
+      "Delivered",
+      145
+     ],
+     [
+      "On hold",
+      null
+     ]
+    ]
+   },
+   {
+    "id": "lead",
+    "n": "Lead",
+    "t": "person",
+    "w": 138
+   },
+   {
+    "id": "start",
+    "n": "Start",
+    "t": "date",
+    "w": 100
+   },
+   {
+    "id": "due",
+    "n": "Due",
+    "t": "date",
+    "w": 100
+   },
+   {
+    "id": "health",
+    "n": "Health",
+    "t": "choice",
+    "w": 112,
+    "o": [
+     [
+      "On track",
+      145
+     ],
+     [
+      "At risk",
+      35
+     ],
+     [
+      "Late",
+      0
+     ]
+    ]
+   },
+   {
+    "id": "budget",
+    "n": "Budget",
+    "t": "money",
+    "w": 118
+   },
+   {
+    "id": "template",
+    "n": "Template",
+    "t": "choice",
+    "w": 150,
+    "o": [
+     [
+      "Client onboarding",
+      160
+     ],
+     [
+      "Annual review",
+      205
+     ],
+     [
+      "Blank",
+      null
+     ]
+    ]
+   },
+   {
+    "id": "billed",
+    "n": "Billed",
+    "t": "rollup",
+    "w": 118,
+    "rt": "money",
+    "expr": "SUM(Invoices.Amount) where Status is not Draft",
+    "path": [
+     [
+      "Projects",
+      ""
+     ],
+     [
+      "Invoices",
+      "linked by Project"
+     ],
+     [
+      "Amount",
+      "sum, not drafts"
+     ]
+    ]
+   },
+   {
+    "id": "progress",
+    "n": "Progress",
+    "t": "formula",
+    "w": 120,
+    "rt": "pct",
+    "expr": "COUNT(Tasks where Done) / COUNT(Tasks)",
+    "path": [
+     [
+      "Projects",
+      ""
+     ],
+     [
+      "Tasks",
+      "linked by Project"
+     ],
+     [
+      "Done",
+      "share checked"
+     ]
+    ]
+   },
+   {
+    "id": "tags",
+    "n": "Tags",
+    "t": "multi",
+    "w": 170,
+    "o": [
+     [
+      "Priority",
+      0
+     ],
+     [
+      "Fixed fee",
+      205
+     ],
+     [
+      "Hourly",
+      270
+     ],
+     [
+      "Rush",
+      35
+     ],
+     [
+      "Referral",
+      160
+     ]
+    ]
+   },
+   {
+    "id": "tasks",
+    "n": "Tasks",
+    "t": "relation",
+    "w": 180,
+    "rev": [
+     "tasks",
+     "project"
+    ],
+    "to": "tasks"
+   }
+  ],
+  "hidden": [
+   "template",
+   "billed",
+   "tags"
+  ],
+  "sections": [
+   [
+    "Details",
+    [
+     "client",
+     "stage",
+     "lead",
+     "start",
+     "due",
+     "health",
+     "budget",
+     "template",
+     "tags"
+    ]
+   ],
+   [
+    "Calculated",
+    [
+     "billed",
+     "progress"
+    ]
+   ]
+  ],
+  "related": [
+   [
+    "tasks",
+    "project",
+    "Tasks"
+   ],
+   [
+    "invoices",
+    "project",
+    "Invoices"
+   ]
+  ]
+ },
+ "invoices": {
+  "id": "invoices",
+  "n": "Invoices",
+  "one": "Invoice",
+  "pre": "i",
+  "primary": "no",
+  "fields": [
+   {
+    "id": "no",
+    "n": "Number",
+    "t": "auto",
+    "w": 112
+   },
+   {
+    "id": "client",
+    "n": "Client",
+    "t": "relation",
+    "w": 190,
+    "to": "clients"
+   },
+   {
+    "id": "project",
+    "n": "Project",
+    "t": "relation",
+    "w": 190,
+    "to": "projects"
+   },
+   {
+    "id": "amount",
+    "n": "Amount",
+    "t": "money",
+    "w": 128
+   },
+   {
+    "id": "status",
+    "n": "Status",
+    "t": "status",
+    "w": 110,
+    "o": [
+     [
+      "Draft",
+      null
+     ],
+     [
+      "Sent",
+      220
+     ],
+     [
+      "Paid",
+      145
+     ],
+     [
+      "Overdue",
+      0
+     ]
+    ]
+   },
+   {
+    "id": "issued",
+    "n": "Issued",
+    "t": "date",
+    "w": 112
+   },
+   {
+    "id": "due",
+    "n": "Due",
+    "t": "date",
+    "w": 112
+   },
+   {
+    "id": "method",
+    "n": "Method",
+    "t": "choice",
+    "w": 110,
+    "o": [
+     [
+      "Card",
+      270
+     ],
+     [
+      "Bank",
+      205
+     ],
+     [
+      "Cheque",
+      35
+     ]
+    ]
+   }
+  ],
+  "hidden": [],
+  "sections": [
+   [
+    "Details",
+    [
+     "client",
+     "project",
+     "amount",
+     "status",
+     "issued",
+     "due",
+     "method"
+    ]
+   ]
+  ],
+  "related": []
+ },
+ "meetings": {
+  "id": "meetings",
+  "n": "Meetings",
+  "one": "Meeting",
+  "pre": "m",
+  "primary": "title",
+  "fields": [
+   {
+    "id": "title",
+    "n": "Title",
+    "t": "text",
+    "w": 240
+   },
+   {
+    "id": "when",
+    "n": "When",
+    "t": "datetime",
+    "w": 170
+   },
+   {
+    "id": "client",
+    "n": "Client",
+    "t": "relation",
+    "w": 190,
+    "to": "clients"
+   },
+   {
+    "id": "host",
+    "n": "Host",
+    "t": "person",
+    "w": 138
+   },
+   {
+    "id": "kind",
+    "n": "Kind",
+    "t": "choice",
+    "w": 110,
+    "o": [
+     [
+      "Consult",
+      270
+     ],
+     [
+      "Check-in",
+      205
+     ],
+     [
+      "Review",
+      35
+     ],
+     [
+      "Signing",
+      145
+     ]
+    ]
+   },
+   {
+    "id": "done",
+    "n": "Held",
+    "t": "check",
+    "w": 76
+   },
+   {
+    "id": "rec",
+    "n": "Recording",
+    "t": "files",
+    "w": 130
+   },
+   {
+    "id": "notes",
+    "n": "Notes",
+    "t": "long",
+    "w": 240
+   }
+  ],
+  "hidden": [],
+  "sections": [
+   [
+    "Details",
+    [
+     "when",
+     "client",
+     "host",
+     "kind",
+     "done",
+     "rec",
+     "notes"
+    ]
+   ]
+  ],
+  "related": []
+ },
+ "tasks": {
+  "id": "tasks",
+  "n": "Tasks",
+  "one": "Task",
+  "pre": "t",
+  "primary": "title",
+  "fields": [
+   {
+    "id": "title",
+    "n": "Task",
+    "t": "text",
+    "w": 260
+   },
+   {
+    "id": "project",
+    "n": "Project",
+    "t": "relation",
+    "w": 200,
+    "to": "projects"
+   },
+   {
+    "id": "assignee",
+    "n": "Assigned",
+    "t": "person",
+    "w": 138
+   },
+   {
+    "id": "stage",
+    "n": "Stage",
+    "t": "choice",
+    "w": 120,
+    "o": [
+     [
+      "Intake",
+      220
+     ],
+     [
+      "Drafting",
+      270
+     ],
+     [
+      "In review",
+      35
+     ],
+     [
+      "Delivered",
+      145
+     ]
+    ]
+   },
+   {
+    "id": "status",
+    "n": "Status",
+    "t": "status",
+    "w": 110,
+    "o": [
+     [
+      "To do",
+      null
+     ],
+     [
+      "Doing",
+      220
+     ],
+     [
+      "Blocked",
+      35
+     ],
+     [
+      "Done",
+      145
+     ]
+    ]
+   },
+   {
+    "id": "due",
+    "n": "Due",
+    "t": "date",
+    "w": 100
+   },
+   {
+    "id": "done",
+    "n": "Done",
+    "t": "check",
+    "w": 70
+   },
+   {
+    "id": "reviewer",
+    "n": "Reviewer",
+    "t": "person",
+    "w": 138
+   },
+   {
+    "id": "approver",
+    "n": "Approver",
+    "t": "person",
+    "w": 138
+   }
+  ],
+  "hidden": [
+   "reviewer",
+   "approver"
+  ],
+  "sections": [
+   [
+    "Details",
+    [
+     "project",
+     "stage",
+     "assignee",
+     "reviewer",
+     "approver",
+     "status",
+     "due",
+     "done"
+    ]
+   ]
+  ],
+  "related": []
+ }
+};
+
+export const PROTO_INBOXES: readonly unknown[] = [
+ {
+  "id": "work",
+  "name": "Work Gmail",
+  "addr": "irfad@northwind.example",
+  "grp": "mine",
+  "ch": "mail",
+  "prov": "Gmail"
+ },
+ {
+  "id": "pers",
+  "name": "Personal",
+  "addr": "irfad.imtiaz@mail.example",
+  "grp": "mine",
+  "ch": "mail",
+  "priv": true,
+  "prov": "Gmail"
+ },
+ {
+  "id": "tw",
+  "name": "+1 415 555 0132",
+  "addr": "+1 415 555 0132",
+  "grp": "mine",
+  "ch": "sms",
+  "note": "Assigned to Irfad"
+ },
+ {
+  "id": "hello",
+  "name": "hello@",
+  "addr": "hello@northwind.example",
+  "grp": "shared",
+  "ch": "mail",
+  "note": "Shared with members"
+ },
+ {
+  "id": "support",
+  "name": "support@",
+  "addr": "support@northwind.example",
+  "grp": "shared",
+  "ch": "mail",
+  "note": "Shared with members"
+ },
+ {
+  "id": "intake",
+  "name": "intake@",
+  "addr": "intake@northwind.example",
+  "grp": "agent",
+  "ch": "mail",
+  "agent": "Intake"
+ },
+ {
+  "id": "bnum",
+  "name": "Billing's number",
+  "addr": "+1 415 555 0177",
+  "grp": "agent",
+  "ch": "sms",
+  "agent": "Billing"
+ }
+];
+
+export const PROTO_CONTACTS: readonly unknown[] = [
+ {
+  "id": "elena",
+  "name": "Elena Rivera",
+  "co": "Rivera Holdings",
+  "email": "elena@riveraholdings.example",
+  "phone": "+1 415 555 0161",
+  "rec": "Rivera matter",
+  "owner": "Irfad Imtiaz",
+  "follow": true,
+  "sug": "Intake",
+  "tasks": [
+   {
+    "t": "Review lease draft v3",
+    "due": "Thu"
+   },
+   {
+    "t": "Countersign engagement letter",
+    "due": "Fri"
+   }
+  ],
+  "msgs": [
+   {
+    "id": "m1",
+    "t": "mail",
+    "dir": "in",
+    "inb": "hello",
+    "a": 4320,
+    "subj": "Client intake form",
+    "body": "Hi, here is the completed intake form and the signed engagement letter. Let me know if anything is missing.\n\nElena",
+    "to": [
+     "hello@northwind.example",
+     "maya@northwind.example"
+    ],
+    "cc": [
+     "marcus@webbgroup.example",
+     "lena@northwind.example",
+     "irfad@northwind.example"
+    ],
+    "att": [
+     [
+      "client-intake.pdf",
+      "184 KB"
+     ]
+    ],
+    "chips": [
+     "Rivera matter"
+    ],
+    "q": "On Mon, Oct 19, Intake wrote:\n> Please send the intake form and a signed copy of the engagement letter when you can."
+   },
+   {
+    "id": "m2",
+    "t": "mail",
+    "dir": "out",
+    "inb": "work",
+    "a": 4200,
+    "subj": "Re: Client intake form",
+    "body": "Thank you, Elena. We have everything. Lena Ortiz will reach out about the lease review this week.\n\nIrfad",
+    "q": "On Mon, Oct 19, Elena Rivera wrote:\n> Hi, here is the completed intake form and the signed engagement letter."
+   },
+   {
+    "id": "m3",
+    "t": "step",
+    "dir": "out",
+    "inb": "intake",
+    "a": 3000,
+    "text": "Welcome series, step 2 sent",
+    "camp": "Welcome series",
+    "agent": "Intake"
+   },
+   {
+    "id": "m4",
+    "t": "call",
+    "dir": "in",
+    "inb": "tw",
+    "a": 2900,
+    "dur": "4:12",
+    "rec": true,
+    "sum": "Elena sends the lease Thursday. She wants Lena Ortiz on the review and asked about fees for a second property.",
+    "tr": [
+     [
+      "Elena",
+      "Hi Irfad, I wanted to confirm the lease goes to you on Thursday."
+     ],
+     [
+      "You",
+      "Yes, send it over. Lena will review it the same day."
+     ],
+     [
+      "Elena",
+      "Good. Is there a separate fee for the second property?"
+     ],
+     [
+      "You",
+      "I will put that in writing today."
+     ]
+    ]
+   },
+   {
+    "id": "m5",
+    "t": "sms",
+    "dir": "in",
+    "inb": "tw",
+    "a": 2870,
+    "body": "Thanks for the call. I'll send the lease Thursday."
+   },
+   {
+    "id": "m6",
+    "t": "sms",
+    "dir": "out",
+    "inb": "tw",
+    "a": 2860,
+    "body": "Perfect. We'll watch for it."
+   },
+   {
+    "id": "m7",
+    "t": "mail",
+    "dir": "in",
+    "inb": "work",
+    "a": 25,
+    "subj": "Lease documents for Thursday",
+    "body": "Hi Irfad,\n\nAttached is draft 3 of the lease. Marcus at the property company asked for a reply by Friday, so Thursday works if you can fit it in. Invoice 1042 is also attached for your records.\n\nElena",
+    "unread": true,
+    "att": [
+     [
+      "lease-draft-v3.pdf",
+      "412 KB"
+     ],
+     [
+      "invoice-1042.pdf",
+      "58 KB"
+     ]
+    ],
+    "chips": [
+     "Rivera matter",
+     "Invoice 1042"
+    ],
+    "q": "On Fri, Oct 23, Irfad Imtiaz wrote:\n> Thursday works. Send the latest draft and we will start the review.\n>\n> Irfad"
+   }
+  ]
+ },
+ {
+  "id": "marcus",
+  "name": "Marcus Pruitt",
+  "co": "Pruitt & Co.",
+  "email": "marcus@pruittco.example",
+  "phone": "+1 312 555 0148",
+  "rec": "Pruitt & Co.",
+  "owner": "Omar Haddad",
+  "follow": false,
+  "sug": "Billing",
+  "tasks": [
+   {
+    "t": "Reconcile invoice 1041",
+    "due": "Today"
+   }
+  ],
+  "msgs": [
+   {
+    "id": "m8",
+    "t": "mail",
+    "dir": "out",
+    "inb": "work",
+    "a": 9000,
+    "subj": "Invoice 1038",
+    "body": "Hi Marcus, invoice 1038 for September is attached. Net 15.\n\nIrfad",
+    "att": [
+     [
+      "invoice-1038.pdf",
+      "61 KB"
+     ]
+    ],
+    "chips": [
+     "Invoice 1038"
+    ]
+   },
+   {
+    "id": "m9",
+    "t": "mail",
+    "dir": "in",
+    "inb": "work",
+    "a": 8600,
+    "subj": "Re: Invoice 1038",
+    "body": "Paid on the 12th by wire. Can you confirm it landed?\n\nMarcus",
+    "q": "On Mon, Oct 12, Irfad Imtiaz wrote:\n> Hi Marcus, invoice 1038 for September is attached. Net 15."
+   },
+   {
+    "id": "m10",
+    "t": "sms",
+    "dir": "in",
+    "inb": "bnum",
+    "a": 18,
+    "body": "Can you resend invoice 1041? I can't find it.",
+    "unread": true
+   },
+   {
+    "id": "m11",
+    "t": "draft",
+    "dir": "out",
+    "inb": "bnum",
+    "a": 15,
+    "ch": "sms",
+    "agent": "Billing",
+    "body": "Hi Marcus, resending invoice 1041 now. It is also in your portal under Billing. Anything else you need?"
+   }
+  ]
+ },
+ {
+  "id": "priya",
+  "name": "Priya Nair",
+  "co": "Nair Studio",
+  "email": "priya@nairstudio.example",
+  "phone": "+1 646 555 0119",
+  "rec": "Nair Studio",
+  "owner": "Maya Chen",
+  "follow": false,
+  "sug": "Intake",
+  "tasks": [
+   {
+    "t": "Book spring review",
+    "due": "Tue"
+   }
+  ],
+  "msgs": [
+   {
+    "id": "m12",
+    "t": "mail",
+    "dir": "out",
+    "inb": "work",
+    "a": 7200,
+    "subj": "Brand refresh proposal",
+    "body": "Hi Priya, the proposal is attached. Scope, timeline and fees are on pages 2 to 4.\n\nIrfad",
+    "att": [
+     [
+      "brand-refresh-proposal.pdf",
+      "1.2 MB"
+     ]
+    ],
+    "chips": [
+     "Nair Studio"
+    ]
+   },
+   {
+    "id": "m13",
+    "t": "mail",
+    "dir": "in",
+    "inb": "work",
+    "a": 7000,
+    "subj": "Re: Brand refresh proposal",
+    "body": "Thanks. We are aligned on scope. Pausing until the spring budget is set.\n\nPriya",
+    "q": "On Thu, Oct 19, Irfad Imtiaz wrote:\n> Hi Priya, the proposal is attached."
+   },
+   {
+    "id": "m14",
+    "t": "mail",
+    "dir": "out",
+    "inb": "intake",
+    "a": 6000,
+    "subj": "Spring check-in",
+    "body": "Hi Priya, a quick check-in from Northwind. Is a spring review still useful for Nair Studio?",
+    "camp": "Spring check-in",
+    "agent": "Intake"
+   },
+   {
+    "id": "m15",
+    "t": "step",
+    "dir": "out",
+    "inb": "intake",
+    "a": 5990,
+    "text": "Spring check-in, step 1 sent",
+    "camp": "Spring check-in",
+    "agent": "Intake"
+   },
+   {
+    "id": "m16",
+    "t": "mail",
+    "dir": "in",
+    "inb": "intake",
+    "a": 70,
+    "subj": "Re: Spring check-in",
+    "body": "Yes, we would like to book a review for next week. Tuesday morning works best.\n\nPriya",
+    "unread": true,
+    "camp": "Spring check-in",
+    "chips": [
+     "Nair Studio"
+    ],
+    "q": "On Mon, Oct 19, Intake wrote:\n> Hi Priya, a quick check-in from Northwind. Is a spring review still useful for Nair Studio?"
+   },
+   {
+    "id": "m17",
+    "t": "draft",
+    "dir": "out",
+    "inb": "intake",
+    "a": 60,
+    "ch": "mail",
+    "agent": "Intake",
+    "subj": "Re: Spring check-in",
+    "body": "Hi Priya, Tuesday at 10:00 works. I sent a calendar invite and the agenda. Maya Chen will join.\n\nIntake, for Northwind"
+   }
+  ]
+ },
+ {
+  "id": "dana",
+  "name": "Dana Whitfield",
+  "co": "Whitfield Group",
+  "email": "dana@whitfieldgroup.example",
+  "phone": "+1 917 555 0126",
+  "rec": "Whitfield Group",
+  "owner": "Irfad Imtiaz",
+  "follow": false,
+  "sug": "Assistant",
+  "tasks": [
+   {
+    "t": "Send renewal quote",
+    "due": "Today"
+   }
+  ],
+  "msgs": [
+   {
+    "id": "m18",
+    "t": "sms",
+    "dir": "out",
+    "inb": "tw",
+    "a": 3000,
+    "body": "Hi Dana, the renewal quote is coming Monday."
+   },
+   {
+    "id": "m19",
+    "t": "vm",
+    "dir": "in",
+    "inb": "tw",
+    "a": 95,
+    "unread": true,
+    "dur": "0:42",
+    "sum": "Dana asks about the renewal quote and wants a call back before 3 pm.",
+    "tr": [
+     [
+      "Dana",
+      "Hi Irfad, it is Dana at Whitfield. Calling about the renewal quote. Give me a ring back before three if you can."
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "id": "tomas",
+  "name": "Tomas Berg",
+  "co": "Berg Logistics",
+  "email": "tomas@berglogistics.example",
+  "phone": "+1 213 555 0173",
+  "rec": "Berg Logistics",
+  "owner": "Omar Haddad",
+  "follow": false,
+  "sug": "Assistant",
+  "tasks": [],
+  "msgs": [
+   {
+    "id": "m20",
+    "t": "mail",
+    "dir": "in",
+    "inb": "support",
+    "a": 260,
+    "subj": "Login link not working",
+    "body": "Hi, the login link in my email says it expired. Can you send a new one?\n\nTomas"
+   },
+   {
+    "id": "m21",
+    "t": "mail",
+    "dir": "out",
+    "inb": "support",
+    "a": 240,
+    "subj": "Re: Login link not working",
+    "body": "Hi Tomas, I sent a fresh link. It works for 24 hours.\n\nOmar, Northwind Support",
+    "q": "On Sat, Oct 24, Tomas Berg wrote:\n> Hi, the login link in my email says it expired."
+   },
+   {
+    "id": "m22",
+    "t": "mail",
+    "dir": "in",
+    "inb": "support",
+    "a": 120,
+    "subj": "Re: Login link not working",
+    "body": "Thanks, but I still see an error after I click it. Screenshot attached.\n\nTomas",
+    "unread": true,
+    "att": [
+     [
+      "error-screenshot.png",
+      "96 KB"
+     ]
+    ],
+    "q": "On Sat, Oct 24, Omar Haddad wrote:\n> Hi Tomas, I sent a fresh link. It works for 24 hours."
+   }
+  ]
+ },
+ {
+  "id": "hannah",
+  "name": "Hannah Cole",
+  "co": "Cole Dental",
+  "email": "hannah@coledental.example",
+  "phone": "+1 408 555 0102",
+  "rec": "Cole Dental",
+  "owner": "Lena Ortiz",
+  "follow": true,
+  "sug": "Assistant",
+  "tasks": [],
+  "msgs": [
+   {
+    "id": "m23",
+    "t": "sms",
+    "dir": "in",
+    "inb": "tw",
+    "a": 1500,
+    "body": "Running 10 min late for our 2pm"
+   },
+   {
+    "id": "m24",
+    "t": "call",
+    "dir": "in",
+    "inb": "tw",
+    "a": 1480,
+    "dur": "0:00",
+    "missed": true
+   },
+   {
+    "id": "m25",
+    "t": "sms",
+    "dir": "out",
+    "inb": "tw",
+    "a": 1470,
+    "body": "No problem. See you then."
+   }
+  ]
+ },
+ {
+  "id": "wei",
+  "name": "Wei Zhang",
+  "co": "Zhang Imports",
+  "email": "wei@zhangimports.example",
+  "phone": "+1 510 555 0150",
+  "rec": "Zhang Imports",
+  "owner": "Maya Chen",
+  "follow": false,
+  "sug": "Research",
+  "tasks": [],
+  "msgs": [
+   {
+    "id": "m26",
+    "t": "mail",
+    "dir": "in",
+    "inb": "hello",
+    "a": 330,
+    "subj": "Partnership inquiry",
+    "body": "Hello,\n\nWe import specialty goods and are looking for a firm to support our contracts and compliance work across three states. A colleague at Pruitt & Co. suggested we write to you. Could we set up a short call this week?\n\nBest,\nWei Zhang",
+    "unread": true
+   }
+  ]
+ },
+ {
+  "id": "grace",
+  "name": "Grace Mbeki",
+  "co": "Mbeki Design",
+  "email": "grace@mbekidesign.example",
+  "phone": "+1 206 555 0188",
+  "rec": "Mbeki Design",
+  "owner": "Irfad Imtiaz",
+  "follow": false,
+  "sug": "Assistant",
+  "tasks": [],
+  "msgs": [
+   {
+    "id": "m27",
+    "t": "mail",
+    "dir": "in",
+    "inb": "pers",
+    "a": 600,
+    "subj": "Dinner on Friday?",
+    "body": "Are you free Friday at 7? The new place on Valencia has a table."
+   },
+   {
+    "id": "m28",
+    "t": "mail",
+    "dir": "out",
+    "inb": "pers",
+    "a": 560,
+    "subj": "Re: Dinner on Friday?",
+    "body": "Yes. Send the address and I will be there.",
+    "q": "On Sat, Oct 24, Grace Mbeki wrote:\n> Are you free Friday at 7?"
+   }
+  ]
+ },
+ {
+  "id": "jonas",
+  "name": "Jonas Keller",
+  "co": "Keller Bakery",
+  "email": "jonas@kellerbakery.example",
+  "phone": "+1 415 555 0175",
+  "rec": "Keller Bakery",
+  "owner": "Sam Patel",
+  "follow": false,
+  "sug": "Intake",
+  "tasks": [
+   {
+    "t": "Check back in June",
+    "due": "Jun 1"
+   }
+  ],
+  "msgs": [
+   {
+    "id": "m29",
+    "t": "mail",
+    "dir": "out",
+    "inb": "intake",
+    "a": 4400,
+    "subj": "Spring check-in",
+    "body": "Hi Jonas, a quick check-in from Northwind. Is a spring review still useful for Keller Bakery?",
+    "camp": "Spring check-in",
+    "agent": "Intake"
+   },
+   {
+    "id": "m30",
+    "t": "mail",
+    "dir": "in",
+    "inb": "intake",
+    "a": 1300,
+    "subj": "Re: Spring check-in",
+    "body": "Not right now, but check back with me in June.\n\nJonas",
+    "camp": "Spring check-in",
+    "chips": [
+     "Keller Bakery"
+    ],
+    "q": "On Mon, Oct 19, Intake wrote:\n> Hi Jonas, a quick check-in from Northwind."
+   }
+  ]
+ },
+ {
+  "id": "sofia",
+  "name": "Sofia Alvarez",
+  "co": "Alvarez Design",
+  "email": "sofia@alvarezdesign.example",
+  "phone": "+1 305 555 0166",
+  "rec": "Alvarez Design",
+  "owner": "Maya Chen",
+  "follow": false,
+  "sug": "Docs",
+  "tasks": [],
+  "msgs": [
+   {
+    "id": "m31",
+    "t": "mail",
+    "dir": "in",
+    "inb": "work",
+    "a": 2200,
+    "subj": "Updated NDA",
+    "body": "Hi Irfad, our side signed. The countersigned NDA is attached.\n\nSofia",
+    "att": [
+     [
+      "nda-signed.pdf",
+      "142 KB"
+     ]
+    ],
+    "chips": [
+     "Alvarez Design"
+    ]
+   },
+   {
+    "id": "m32",
+    "t": "mail",
+    "dir": "out",
+    "inb": "work",
+    "a": 2100,
+    "subj": "Re: Updated NDA",
+    "body": "Received, thank you Sofia. It is filed.\n\nIrfad",
+    "q": "On Thu, Oct 22, Sofia Alvarez wrote:\n> Hi Irfad, our side signed."
+   }
+  ]
+ },
+ {
+  "id": "nina",
+  "name": "Nina Petrova",
+  "co": "Petrova Studio",
+  "email": "nina@petrovastudio.example",
+  "phone": "+1 718 555 0121",
+  "rec": "Petrova Studio",
+  "owner": "Irfad Imtiaz",
+  "follow": true,
+  "sug": "Assistant",
+  "tasks": [],
+  "msgs": [
+   {
+    "id": "m33",
+    "t": "sms",
+    "dir": "out",
+    "inb": "tw",
+    "a": 5000,
+    "body": "Hi Nina, your files are in the shared folder."
+   },
+   {
+    "id": "m34",
+    "t": "sms",
+    "dir": "in",
+    "inb": "tw",
+    "a": 4980,
+    "body": "Got it, thanks!"
+   }
+  ]
+ },
+ {
+  "id": "ben",
+  "name": "Ben Okafor",
+  "co": "Unsure match",
+  "email": "ben.okafor@okaforco.example",
+  "phone": "",
+  "rec": "",
+  "owner": "",
+  "follow": false,
+  "unsure": true,
+  "sug": "Intake",
+  "tasks": [],
+  "cands": [
+   {
+    "name": "Ben Okafor",
+    "co": "Okafor Legal",
+    "pct": 70
+   },
+   {
+    "name": "Ben Okafor",
+    "co": "Okafor Plumbing",
+    "pct": 55
+   }
+  ],
+  "msgs": [
+   {
+    "id": "m35",
+    "t": "mail",
+    "dir": "in",
+    "inb": "hello",
+    "a": 900,
+    "subj": "Question about onboarding",
+    "body": "Hi, I filled out your form yesterday. What happens next, and how long does onboarding take?\n\nBen",
+    "unread": true
+   }
+  ]
+ },
+ {
+  "id": "unk",
+  "name": "+1 628 555 0194",
+  "co": "",
+  "email": "",
+  "phone": "+1 628 555 0194",
+  "rec": "",
+  "owner": "",
+  "follow": false,
+  "unk": true,
+  "sug": "Assistant",
+  "tasks": [],
+  "cands": [
+   {
+    "name": "Hannah Cole",
+    "co": "Cole Dental",
+    "pct": 62,
+    "target": "hannah"
+   }
+  ],
+  "msgs": [
+   {
+    "id": "m36",
+    "t": "sms",
+    "dir": "in",
+    "inb": "tw",
+    "a": 35,
+    "body": "Hi, is this the Northwind office? I got a missed call from this number.",
+    "unread": true
+   }
+  ]
+ }
+];
+
+export const PROTO_TEMPLATES: readonly unknown[] = [
+ [
+  "Intro and next steps",
+  "Hi {first},\n\nThanks for reaching out. Here is what happens next: we review your details, send a short plan within two business days, and set a call to go over it.\n\n",
+  "Next steps"
+ ],
+ [
+  "Resend an invoice",
+  "Hi {first}, resending the invoice now. It is also in your portal under Billing.",
+  "Your invoice"
+ ],
+ [
+  "Meeting follow-up",
+  "Hi {first},\n\nThanks for your time today. Notes and the next steps are below. Tell me if I missed anything.\n\n",
+  "Notes from our meeting"
+ ],
+ [
+  "Out of office",
+  "Hi {first}, I am out until Monday and will reply then. For anything urgent, write to support@northwind.example.",
+  "Out of office"
+ ]
+];
+
+export const PROTO_SNIPPETS: readonly unknown[] = [
+ [
+  "Booking link",
+  "https://northwind.example/book"
+ ],
+ [
+  "Office hours",
+  "Our office hours are Monday to Friday, 9 am to 5 pm Pacific."
+ ],
+ [
+  "Portal link",
+  "https://portal.northwind.example"
+ ],
+ [
+  "Phone",
+  "+1 415 555 0132"
+ ]
+];
+
+export const PROTO_JOURNEYS: readonly unknown[] = [
+ {
+  "id": "onb",
+  "name": "Client onboarding",
+  "abbr": "CO",
+  "hue": 250,
+  "rec": "Client onboarding",
+  "desc": "From first consult to a signed client with a kickoff on the calendar.",
+  "ws": true,
+  "own": [
+   [
+    "Matter type",
+    "choice"
+   ],
+   [
+    "Referral source",
+    "choice"
+   ],
+   [
+    "Engagement signed",
+    "date"
+   ],
+   [
+    "ID verified",
+    "check"
+   ]
+  ],
+  "stages": [
+   {
+    "id": "g1",
+    "name": "Consult booked",
+    "n": 3,
+    "late": 0,
+    "owner": "Lena Ortiz",
+    "enter": [
+     "intake"
+    ],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k101",
+      "title": "Confirm the consult time",
+      "doer": "Lena Ortiz",
+      "reviewer": "",
+      "approver": "",
+      "due": "1 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     },
+     {
+      "id": "k102",
+      "title": "Send the intake form",
+      "doer": "Send intake form",
+      "reviewer": "",
+      "approver": "",
+      "due": "0",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "auto": true
+     }
+    ]
+   },
+   {
+    "id": "g2",
+    "name": "Intake",
+    "n": 4,
+    "late": 1,
+    "owner": "Lena Ortiz",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k103",
+      "title": "Review the intake answers",
+      "doer": "Intake",
+      "reviewer": "Lena Ortiz",
+      "approver": "",
+      "due": "1 d",
+      "req": true,
+      "keys": {
+       "claude": 1
+      },
+      "brief": "",
+      "kd": {
+       "key": "claude",
+       "backup": "anth"
+      }
+     },
+     {
+      "id": "k104",
+      "title": "Run the conflict check",
+      "doer": "Research",
+      "reviewer": "",
+      "approver": "Maya Chen",
+      "due": "2 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kd": {
+       "key": "anth",
+       "backup": "claude"
+      }
+     },
+     {
+      "id": "k105",
+      "title": "Collect the client's ID",
+      "doer": "Lena Ortiz",
+      "reviewer": "",
+      "approver": "",
+      "due": "3 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     }
+    ]
+   },
+   {
+    "id": "g3",
+    "name": "Engagement letter",
+    "n": 3,
+    "late": 0,
+    "owner": "Maya Chen",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k106",
+      "title": "Draft the engagement letter",
+      "doer": "Docs",
+      "reviewer": "Omar Haddad",
+      "approver": "Maya Chen",
+      "due": "2 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kd": {
+       "key": "anth",
+       "backup": "claude"
+      }
+     },
+     {
+      "id": "k107",
+      "title": "Sign engagement letter",
+      "doer": "Lena Ortiz",
+      "reviewer": "",
+      "approver": "",
+      "due": "3 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kind": "sign",
+      "signers": [
+       {
+        "n": "Elena Rivera",
+        "role": "Client",
+        "st": "Viewed",
+        "at": "yesterday 16:40"
+       },
+       {
+        "n": "Maya Chen",
+        "role": "Firm",
+        "st": "Signed",
+        "at": "yesterday 17:02"
+       }
+      ],
+      "doc": "Engagement letter, Rivera.docx"
+     },
+     {
+      "id": "k108",
+      "title": "Note any special terms",
+      "doer": "Omar Haddad",
+      "reviewer": "",
+      "approver": "",
+      "due": "3 d",
+      "req": false,
+      "keys": {},
+      "brief": ""
+     }
+    ]
+   },
+   {
+    "id": "g4",
+    "name": "Kickoff",
+    "n": 2,
+    "late": 0,
+    "owner": "Omar Haddad",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k109",
+      "title": "Book the kickoff call",
+      "doer": "Lena Ortiz",
+      "reviewer": "",
+      "approver": "",
+      "due": "2 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     },
+     {
+      "id": "k110",
+      "title": "Prepare the kickoff notes",
+      "doer": "Assistant",
+      "reviewer": "Omar Haddad",
+      "approver": "",
+      "due": "1 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kd": {
+       "key": "claude",
+       "backup": "oai"
+      }
+     }
+    ]
+   },
+   {
+    "id": "g5",
+    "name": "Onboarded",
+    "n": 2,
+    "late": 0,
+    "owner": "Omar Haddad",
+    "enter": [
+     "welcome"
+    ],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k111",
+      "title": "Hand over to the client's team",
+      "doer": "Omar Haddad",
+      "reviewer": "",
+      "approver": "",
+      "due": "1 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "atp",
+  "name": "ATP",
+  "abbr": "AT",
+  "hue": 160,
+  "rec": "ATP",
+  "desc": "A 12-week programme run once per client, with a weekly check-in.",
+  "ws": true,
+  "own": [
+   [
+    "Programme week",
+    "num"
+   ],
+   [
+    "Coach",
+    "person"
+   ],
+   [
+    "Package",
+    "choice"
+   ]
+  ],
+  "stages": [
+   {
+    "id": "a1",
+    "name": "Kickoff",
+    "n": 1,
+    "late": 0,
+    "owner": "Sam Patel",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k112",
+      "title": "Set the goals together",
+      "doer": "Sam Patel",
+      "reviewer": "",
+      "approver": "",
+      "due": "2 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     },
+     {
+      "id": "k113",
+      "title": "Share the programme plan",
+      "doer": "Docs",
+      "reviewer": "Sam Patel",
+      "approver": "",
+      "due": "1 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kd": {
+       "key": "anth",
+       "backup": "claude"
+      }
+     }
+    ]
+   },
+   {
+    "id": "a2",
+    "name": "Weeks 1 to 4",
+    "n": 2,
+    "late": 0,
+    "owner": "Sam Patel",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k114",
+      "title": "Weekly check-in",
+      "doer": "Sam Patel",
+      "reviewer": "",
+      "approver": "",
+      "due": "7 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     },
+     {
+      "id": "k115",
+      "title": "Progress note",
+      "doer": "Research",
+      "reviewer": "Sam Patel",
+      "approver": "",
+      "due": "7 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kd": {
+       "key": "anth",
+       "backup": "claude"
+      }
+     }
+    ]
+   },
+   {
+    "id": "a3",
+    "name": "Weeks 5 to 8",
+    "n": 2,
+    "late": 1,
+    "owner": "Sam Patel",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k116",
+      "title": "Weekly check-in",
+      "doer": "Sam Patel",
+      "reviewer": "",
+      "approver": "",
+      "due": "7 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     },
+     {
+      "id": "k117",
+      "title": "Mid-programme review",
+      "doer": "Sam Patel",
+      "reviewer": "",
+      "approver": "Maya Chen",
+      "due": "3 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     }
+    ]
+   },
+   {
+    "id": "a4",
+    "name": "Weeks 9 to 12",
+    "n": 1,
+    "late": 0,
+    "owner": "Sam Patel",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k118",
+      "title": "Weekly check-in",
+      "doer": "Sam Patel",
+      "reviewer": "",
+      "approver": "",
+      "due": "7 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     }
+    ]
+   },
+   {
+    "id": "a5",
+    "name": "Wrap-up",
+    "n": 0,
+    "late": 0,
+    "owner": "Maya Chen",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k119",
+      "title": "Write the final report",
+      "doer": "Docs",
+      "reviewer": "Sam Patel",
+      "approver": "Maya Chen",
+      "due": "3 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kd": {
+       "key": "anth",
+       "backup": "claude"
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "hire",
+  "name": "Hire",
+  "abbr": "HI",
+  "hue": 28,
+  "rec": "Hire",
+  "desc": "One open role from posting to a first day.",
+  "ws": true,
+  "own": [
+   [
+    "Role",
+    "text"
+   ],
+   [
+    "Candidate",
+    "text"
+   ],
+   [
+    "Salary band",
+    "choice"
+   ]
+  ],
+  "stages": [
+   {
+    "id": "h1",
+    "name": "Posted",
+    "n": 1,
+    "late": 0,
+    "owner": "Maya Chen",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k120",
+      "title": "Write the job post",
+      "doer": "Docs",
+      "reviewer": "Maya Chen",
+      "approver": "",
+      "due": "2 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kd": {
+       "key": "claude",
+       "backup": "anth"
+      }
+     }
+    ]
+   },
+   {
+    "id": "h2",
+    "name": "Screening",
+    "n": 1,
+    "late": 0,
+    "owner": "Omar Haddad",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k121",
+      "title": "Screen the applications",
+      "doer": "Research",
+      "reviewer": "Omar Haddad",
+      "approver": "",
+      "due": "3 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kd": {
+       "key": "anth",
+       "backup": "claude"
+      }
+     }
+    ]
+   },
+   {
+    "id": "h3",
+    "name": "Interviews",
+    "n": 1,
+    "late": 0,
+    "owner": "Omar Haddad",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k122",
+      "title": "Schedule the interviews",
+      "doer": "Lena Ortiz",
+      "reviewer": "",
+      "approver": "",
+      "due": "2 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     },
+     {
+      "id": "k123",
+      "title": "Collect interview notes",
+      "doer": "Omar Haddad",
+      "reviewer": "",
+      "approver": "",
+      "due": "1 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     }
+    ]
+   },
+   {
+    "id": "h4",
+    "name": "Offer",
+    "n": 0,
+    "late": 0,
+    "owner": "Maya Chen",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k124",
+      "title": "Send the offer",
+      "doer": "Docs",
+      "reviewer": "",
+      "approver": "Maya Chen",
+      "due": "1 d",
+      "req": true,
+      "keys": {},
+      "brief": "",
+      "kd": {
+       "key": "anth",
+       "backup": "claude"
+      }
+     }
+    ]
+   },
+   {
+    "id": "h5",
+    "name": "Onboarding",
+    "n": 0,
+    "late": 0,
+    "owner": "Lena Ortiz",
+    "enter": [],
+    "leave": [],
+    "tasks": [
+     {
+      "id": "k125",
+      "title": "Set up accounts and a desk",
+      "doer": "Lena Ortiz",
+      "reviewer": "",
+      "approver": "",
+      "due": "3 d",
+      "req": true,
+      "keys": {},
+      "brief": ""
+     }
+    ]
+   }
+  ]
  }
 ];
 
