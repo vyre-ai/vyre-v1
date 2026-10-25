@@ -79,7 +79,7 @@ test("incremental updates follow the replica's own writes, edits, hides and remo
   assert.equal(idx.rebuild(), 0);
   // The replica commits a write on flush; the index follows the committed row.
   const write = async (id: string, title: string, n: number): Promise<void> => {
-    replica.write({ entity: "calendar_event", id, fields: { title }, hlc: hlc(10 + n), actor: "usr_ada", origin: "mirror" });
+    replica.write({ entity: "calendar_event", id, fields: { title }, hlc: hlc(10 + n), actor: "usr_ada", origin: "local" });
     await replica.flush();
     idx.update("calendar_event", id);
   };
