@@ -12,6 +12,10 @@ import type { EngineCtx } from "../projections.ts";
 type Row = Record<string, unknown>;
 interface CallCtx extends EngineCtx { call(cap: string, input: unknown): Promise<unknown> }
 
+// DECISION: a device's role comes from its class. Desktop apps and daemons are daemons (they run CLI engines); phones, browsers and extensions are clients (they run none), so their private chats run on the Space.
+// DECISION: a device is online when the server heard from it in the last two minutes (ONLINE_MS below).
+// DECISION: until a device reports which engines it runs, every daemon device counts as running the three CLI drivers (claude_code, codex, grok).
+// DECISION: engine.local_runs is on for everyone (placeTurn's default); there is no setting to turn it off yet.
 const KINDS = new Set<string>(["chat", "channel", "thread", "ask", "run", "helper", "console"]);
 const CLI_ENGINES = ["claude_code", "codex", "grok"] as const;
 /** A device counts as online when the server heard from it this recently. */
