@@ -179,7 +179,7 @@ function Pane({ type, row, def, tab, onTab }: { type: string; row: RecordRow; de
   ) : <Text style={p.paneEmpty}>Loading</Text>;
   return (
     <View style={p.pane} testID="record-pane" accessibilityLabel="Record details">
-      <TabStrip tabs={PANE_TABS.map((t) => ({ key: t.key, title: t.title }))} active={tab} onSelect={(k) => onTab(k as PaneKey)} />
+      <TabStrip tabs={each(PANE_TABS, (t) => ({ key: t.key, title: t.title }))} active={tab} onSelect={(k) => onTab(k as PaneKey)} />
       <ScrollView style={p.paneScroll}>{body}</ScrollView>
     </View>
   );
@@ -190,7 +190,7 @@ function Pane({ type, row, def, tab, onTab }: { type: string; row: RecordRow; de
 function RelationMap({ nodes, edges, onOpen }: { nodes: readonly RelNode[]; edges: { from: string; to: string; field: string }[]; onOpen: (n: RelNode) => void }): ReactElement | null {
   if (Platform.OS !== "web") return null;
   const placed = mapLayout(nodes);
-  const at = new Map(placed.map((n) => [n.recordId, n]));
+  const at = new Map(each(placed, (n): [string, typeof n] => [n.recordId, n]));
   const kids: ReactElement[] = [];
   for (const e of edges) {
     const a = at.get(e.from), b = at.get(e.to);
@@ -263,7 +263,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const showSource = (f: FieldDef, x: number, y: number): void => {
     sourceOf(data, type, row.id, f.key).then((s) => menu.show([{ head: sourceText(s as Parameters<typeof sourceText>[0]) }], x, y)).catch(() => menu.show([{ head: "No source recorded for this value." }], x, y));
   };
-  const fold = (s: Section): void => { void savePrefs(data, type, { folded: toggleFold(sections.filter((x) => x.folded).map((x) => x.key), s.key) }); };
+  const fold = (s: Section): void => { void savePrefs(data, type, { folded: toggleFold(each(sections.filter((x) => x.folded), (x) => x.key), s.key) }); };
 
   const fieldProps = { row, type, editing, nodes, show: menu.show, onEdit: (f: FieldDef) => setEditing({ key: f.key, text: inputText(f, row.fields[f.key]) }), onText: (t: string) => setEditing((e) => (e ? { ...e, text: t, ...(e.error ? { error: "" } : {}) } : e)), onCommit: commit, onCancel: () => setEditing(null), onValue: setValue, onSource: showSource };
 
@@ -274,7 +274,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
     for (const f of sh.fields) fields.push(<View key={f.key} style={wide ? p.half : p.full}><FieldRow field={f} {...fieldProps} /></View>);
     body.push(
       <View key={s.key} testID={`section-${s.key}`}>
-        <Pressable accessibilityRole="button" accessibilityState={{ expanded: !s.folded }} accessibilityLabel={s.title} testID={`fold-${s.key}`} onPress={() => fold(s)} style={({ hovered }: { hovered?: boolean }) => [p.sh, hovered === true && p.cardOver]}>
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: !s.folded }} aria-expanded={!s.folded} accessibilityLabel={s.title} testID={`fold-${s.key}`} onPress={() => fold(s)} style={({ hovered }: { hovered?: boolean }) => [p.sh, hovered === true && p.cardOver]}>
           <View style={s.folded ? p.shut : undefined}><Glyph name="chevd" size={10} /></View>
           <Text style={p.st}>{s.title}</Text>
           <Text style={p.sn}>{s.fields.length}</Text>

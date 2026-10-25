@@ -75,7 +75,7 @@ export function createSamplePage(space: PageSpace = northwind, o: { fail?: strin
   const typeOf = (k: string): TypeDef | undefined => space.types.find((t) => t.key === k);
   const rowsOf = (type: string): RecordRow[] => replica.rows(`records:${type}`) as unknown as RecordRow[];
 
-  replica.resolve("records.get", (_t, i: CapMap["records.get"]["in"]) => { const r = rowsOf(i.type).find((x) => x.id === i.recordId); if (!r) throw new Error("record not found"); return { record: r as never }; });
+  replica.resolve("records.get", (_t, i: CapMap["records.get"]["in"]) => { return { record: rowsOf(i.type).find((x) => x.id === i.recordId) as never }; });
   replica.resolve("schema.describe", (_t, i: CapMap["schema.describe"]["in"]) => ({ types: space.types.filter((t) => !i.type || t.key === i.type) }));
   replica.resolve("schema.layout.get", (_t, i: CapMap["schema.layout.get"]["in"]) => LAYOUT[i.type] ?? { sections: [] });
   replica.resolve("records.page_prefs.get", () => ({ folded: [...prefs.folded], keepVisible: [...prefs.keepVisible] }));
