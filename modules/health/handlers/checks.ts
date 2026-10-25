@@ -182,6 +182,35 @@ export function readProbe(ctx: HealthCtx, name: string): ProbeOut {
   return out;
 }
 
+export interface MachineOut { state: State; detail?: string; latencyMs?: number; machine?: Record<string, number> }
+const MACHINE_FIELDS = ["cpuPercent", "memoryUsedBytes", "memoryTotalBytes", "diskFreeBytes", "diskTotalBytes"] as const;
+
+/** The server's CPU, memory and disk as the host last reported them (probe name machine). A report that is missing or stale carries no numbers. */
+export function readMachine(ctx: HealthCtx): MachineOut {
+  const r = asRow(ctx.db.all("SELECT state, detail, latency_ms, values_json, at FROM health_probe WHERE name = 'machine'")[0]);
+  if (!r) return { state: "degraded", detail: "The host has not reported this yet." };
+  const age = ctx.now() - (num(r["at"]) ?? 0);
+  if (age > PROBE_DEFAULT_AGE_MS) return { state: "degraded", detail: `The host has not reported for ${Math.max(1, Math.round(age / 60_000))} minutes.` };
+  const out: MachineOut = { state: isState(r["state"]) ? r["state"] : "down" };
+  const detail = str(r["detail"]);
+  if (detail) out.detail = detail;
+  const latency = num(r["latency_ms"]);
+  if (latency !== undefined) out.latencyMs = Math.trunc(latency);
+  if (typeof r["values_json"] === "string") {
+    try {
+      const v = asRow(JSON.parse(r["values_json"]));
+      const machine: Record<string, number> = {};
+      for (const k of MACHINE_FIELDS) {
+        const n = v ? num(v[k]) : undefined;
+        if (n === undefined || n < 0) continue;
+        machine[k] = k === "cpuPercent" ? Math.min(100, n) : Math.trunc(n);
+      }
+      if (Object.keys(machine).length) out.machine = machine;
+    } catch { /* a malformed report carries no numbers */ }
+  }
+  return out;
+}
+
 /** Called by the host daemon's jobs (or a test) to publish a probe. */
 export function reportProbe(ctx: Pick<HealthCtx, "db" | "now">, name: string, p: { state: State; detail?: string; latencyMs?: number; values?: Record<string, number> }): void {
   ctx.db.run(

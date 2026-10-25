@@ -242,7 +242,7 @@ jobs:
           path: installer-*.out
           if-no-files-found: ignore
   l2-heavy:
-    # P-L2_HEAVY (security sign-off, spec S8): real Docker, real bubblewrap and real tmux against the sandbox and the terminal module. The tests skip unless VYRE_HEAVY_DOCKER=1 and, with it on,
+    # P-L2_HEAVY (security sign-off, spec S8): real Docker, real bubblewrap and real tmux against the sandbox and the terminal module; P-L2_16b adds the agent computers module (lifecycle and the 35 tools). The tests skip unless VYRE_HEAVY_DOCKER=1 and, with it on,
     # fail instead of skipping when Docker, the image, bwrap or tmux is missing, so a green job means the proofs ran. Not part of the `check` gate below: it reports its own result on the run.
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 30
@@ -254,7 +254,7 @@ jobs:
         run: |
           git fetch -q origin main
           base="$(git merge-base origin/main HEAD)"
-          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|images/person-sandbox/|agent/tests/sandbox\.(net\.)?heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
+          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|modules/computers/|images/person-sandbox/|agent/tests/sandbox\.(net\.)?heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
       - name: Install bubblewrap and tmux when the runner does not have them
         if: steps.scope.outputs.changed == 'true'
         run: |
@@ -276,6 +276,8 @@ jobs:
         if: steps.scope.outputs.changed == 'true'
         run: |
           docker ps -aq --filter name=vyre-sbx-hv | xargs -r docker rm -f
+          docker ps -aq --filter name=vyre-comp-hv | xargs -r docker rm -f
+          docker volume ls -q --filter name=vyre-comp-hv | xargs -r docker volume rm -f
           docker network ls -q --filter name=vyre-sbx-hv | xargs -r docker network rm
           docker network ls --format '{{.Name}} {{.Driver}} {{.CreatedAt}}' | head -60
           docker network prune -f --filter until=1h || true
@@ -293,8 +295,39 @@ jobs:
           set -o pipefail
           node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.net.heavy.test.ts 2>&1 | tee net-heavy.out
           grep -E "^ℹ skipped 0$" net-heavy.out
+      - name: Agent computers on real Docker, none skipped (modules/computers/tests/lifecycle.heavy.test.ts and tools.heavy.test.ts)
+        if: always() && steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+        run: |
+          set -o pipefail
+          node --test --test-force-exit --test-timeout=600000 --test-reporter=spec modules/computers/tests/lifecycle.heavy.test.ts modules/computers/tests/tools.heavy.test.ts 2>&1 | tee computers-heavy.out
+          grep -E "^ℹ skipped 0$" computers-heavy.out
+          grep -E "^ℹ pass 2$" computers-heavy.out
+  chrome-real:
+    # P-L10_06b: the Chrome extension's agent tools against a real Chromium page. VYRE_REQUIRE_CHROME=1 turns a missing Chromium into a failure (a skip is not a pass), so a green job means the
+    # three real-page tests ran. Chromium comes from playwright-core the way scripts/shots does (cached by playwright after the first run); CHROME_BIN points the test at it. Gates `check`.
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/deps
+      - name: Chromium (playwright-core, cached on the runner)
+        run: |
+          npx playwright-core install chromium
+          CHROME_BIN="$(node -e 'import("playwright-core").then((p) => console.log((p.chromium ?? p.default.chromium).executablePath()))')"
+          test -x "$CHROME_BIN"
+          echo "CHROME_BIN=$CHROME_BIN" >> "$GITHUB_ENV"
+          echo "chromium: $CHROME_BIN"
+      - name: Extension agent tools against a real page (ext-agent.real.test.ts)
+        env:
+          VYRE_REQUIRE_CHROME: "1"
+        run: |
+          set -o pipefail
+          node scripts/test-run.ts --slow --no-cache --files apps/chrome/tests/ext-agent.real.test.ts 2>&1 | tee chrome-real.out
+          grep -q '^ok .*apps/chrome/tests/ext-agent.real.test.ts' chrome-real.out
   check:
-    needs: [select, shards, gates]
+    needs: [select, shards, gates, chrome-real]
     if: always()
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
@@ -304,9 +337,11 @@ jobs:
           SELECT: ${{ needs.select.result }}
           SHARDS: ${{ needs.shards.result }}
           GATES: ${{ needs.gates.result }}
+          CHROME: ${{ needs.chrome-real.result }}
         run: |
           [ "$GATES" = "success" ] || { echo "gates (ownership, boundaries, lint, typecheck): $GATES"; exit 1; }
           [ "$SELECT" = "success" ] || { echo "select: $SELECT"; exit 1; }
+          [ "$CHROME" = "success" ] || { echo "chrome-real (the extension against a real Chromium): $CHROME"; exit 1; }
           case "$SHARDS" in success|skipped) ;; *) echo "shards: $SHARDS"; exit 1;; esac
   golden:
     runs-on: [self-hosted, linux, v1]

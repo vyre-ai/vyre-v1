@@ -2950,6 +2950,62 @@
     },
     {
       "blocks": [],
+      "cap": "agents.routine.delegate",
+      "deferred": false,
+      "description": "Hand a routine to another person or agent (a person becomes its owner, an agent runs it); undo (no `to`) hands it back to the previous owner and agent",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "routineId": {
+            "examples": [
+              "rtn_a1b2c3"
+            ],
+            "pattern": "^rtn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "to": {
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "person",
+                  "agent"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          "undo": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "agentId",
+          "routineId"
+        ],
+        "type": "object"
+      },
+      "name": "agents_routine_delegate",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.routine.delete",
       "deferred": false,
       "description": "Delete a routine",
@@ -2978,6 +3034,48 @@
         "type": "object"
       },
       "name": "agents_routine_delete",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.routine.run_now",
+      "deferred": false,
+      "description": "Run a routine now. The run starts as the routine owner, never as the caller, so its reach and its \"Sent by <agent> on a routine <person> set\" line are the owner's",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "routineId": {
+            "examples": [
+              "rtn_a1b2c3"
+            ],
+            "pattern": "^rtn_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "routineId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "agents_routine_run_now",
       "planMode": "blocked",
       "toolset": "agents",
       "v": 1
@@ -7677,6 +7775,53 @@
         "type": "object"
       },
       "name": "changesets_discard",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "changesets.edit",
+      "deferred": false,
+      "description": "Edit a proposed change in place before accepting it: replace a run of lines in one staged file. The proposer stays recorded and so does the editor; Approve still goes through its own Gate",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "changesetId": {
+            "examples": [
+              "chg_a1b2c3"
+            ],
+            "pattern": "^chg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "path": {
+            "type": "string"
+          },
+          "removeLines": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "startLine": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "changesetId",
+          "path",
+          "startLine",
+          "removeLines",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "name": "changesets_edit",
       "planMode": "blocked",
       "toolset": "files",
       "v": 1
@@ -12490,7 +12635,7 @@
       "blocks": [],
       "cap": "console.overview",
       "deferred": false,
-      "description": "Overview: health, attention items, recent admin activity, usage",
+      "description": "Overview: health, attention items, recent admin activity, usage, server CPU, memory and disk, and the last backup",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -22869,6 +23014,21 @@
     },
     {
       "blocks": [],
+      "cap": "health.machine",
+      "deferred": false,
+      "description": "Probe: CPU load, memory and disk of the server as the host last reported them (Console Overview tiles)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "health_machine",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "health.run",
       "deferred": false,
       "description": "Run one health check or all of them now",
@@ -32176,6 +32336,73 @@
         "type": "object"
       },
       "name": "notifications_delegate_set",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "notifications.kind.set_level",
+      "deferred": false,
+      "description": "Set how one kind of notification reaches me: its level and which of desktop, phone and email carry it. Give a level, channels, or both; channels alone pick the level (desktop or phone interrupt, otherwise badge). Approval reminders and owned incidents never go below Interrupt",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "channels": {
+            "items": {
+              "enum": [
+                "desktop",
+                "phone",
+                "email"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "approval.requested",
+              "approval.backstop",
+              "dm",
+              "mention",
+              "call.incoming",
+              "agent.blocked",
+              "incident.owned",
+              "task.assigned",
+              "reply.followed",
+              "agent.task_finished",
+              "campaign.reply",
+              "digest.away",
+              "mention.thread",
+              "run.failed",
+              "conflict.needs_you",
+              "access.requested",
+              "access.decided",
+              "sync.attention",
+              "health.degraded",
+              "problem.report",
+              "member.joined",
+              "limit.hit",
+              "vault.rotation_due"
+            ],
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "interrupt",
+              "badge",
+              "digest"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "name": "notifications_kind_set_level",
       "planMode": "blocked",
       "toolset": "meta",
       "v": 1

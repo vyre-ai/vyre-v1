@@ -11,6 +11,8 @@ import { BridgeFailure, wordsFor } from "./protocol.js";
 import { createRules } from "./rules.js";
 import { createSave } from "./save.js";
 import { createStore } from "./store.js";
+// Agent control (P-L10_06): starts itself in the extension when Chrome has granted the optional debugger permission, and does nothing otherwise.
+import "../agent/index.js";
 
 /** A web address we will open for a Space: https, or http on this computer. @param {unknown} u */
 function openable(u) {
