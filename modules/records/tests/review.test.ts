@@ -3,7 +3,7 @@
 // relations_map, value_source, values.pending, values.review and view.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mintUuid } from "../../../lib/ids.ts";
+import { mintRecordId } from "../../../lib/ids.ts";
 import { openRecords } from "../impl.ts";
 import { createReviewHandlers, propose } from "../handlers/review.ts";
 import type { RvCtx } from "../handlers/review.ts";
@@ -80,7 +80,7 @@ test("completeness: filled of total over the fields a person fills, with the mis
   await k.rec.handlers["records.update"](k.ctx, { type: "person", recordId: id, patch: { phone: "555", status: "open" } });
   const d = await k.review["records.completeness"](k.ctx, { type: "person", recordId: id });
   assert.deepEqual([d.filled, d.total, d.missing.length], [4, 5, 1]);
-  await assert.rejects(k.review["records.completeness"](k.ctx, { type: "person", recordId: mintUuid() }), code("validation.not_found"));
+  await assert.rejects(k.review["records.completeness"](k.ctx, { type: "person", recordId: mintRecordId() }), code("validation.not_found"));
 });
 
 test("value source and Needs review: a proposed value waits, shows its source, and is accepted or rejected", async () => {
@@ -150,7 +150,7 @@ test("relate: links both ends of a two-way relation, is idempotent, and unlinks 
   assert.deepEqual(gone.record.fields["company"], []);
   assert.deepEqual((await k.rec.store.get("company", co))!.data["people"], []);
   await assert.rejects(k.review["records.relate"](k.ctx, { type: "person", recordId: p, field: "email", toId: co }), code("validation.bad_input"));
-  await assert.rejects(k.review["records.relate"](k.ctx, { type: "person", recordId: p, field: "company", toId: mintUuid() }), code("validation.not_found"));
+  await assert.rejects(k.review["records.relate"](k.ctx, { type: "person", recordId: p, field: "company", toId: mintRecordId() }), code("validation.not_found"));
 });
 
 test("relations_map: records linked out to two hops, each edge named by its field", async () => {
@@ -166,7 +166,7 @@ test("relations_map: records linked out to two hops, each edge named by its fiel
   const two = await k.views["records.relations_map"](k.ctx, { type: "person", recordId: p1 });
   assert.deepEqual(two.nodes.map((n) => [n.title, n.hop]).sort(), [["Acme", 1], ["Ann", 0], ["Bo", 2]]);
   assert.ok(two.edges.some((e) => e.from === co && e.to === p2 && e.field === "people"));
-  await assert.rejects(k.views["records.relations_map"](k.ctx, { type: "person", recordId: mintUuid() }), code("validation.not_found"));
+  await assert.rejects(k.views["records.relations_map"](k.ctx, { type: "person", recordId: mintRecordId() }), code("validation.not_found"));
 });
 
 test("gap_check: missing and stale rules name the fill route and announce record.gaps_found", async () => {

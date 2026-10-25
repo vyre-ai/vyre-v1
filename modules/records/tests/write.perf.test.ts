@@ -3,7 +3,7 @@ import test from "node:test";
 import { appendFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
-import { mintUuid } from "../../../lib/ids.ts";
+import { mintRecordId } from "../../../lib/ids.ts";
 import { openRecordStore } from "../../../kernel/src/store/records.ts";
 import { openRecords } from "../impl.ts";
 import { ITEM } from "../fixtures/seed.ts";
@@ -17,7 +17,7 @@ const pct = (xs: number[], p: number) => {
 /** 200 creates at 5 ms spacing against one store; returns the latencies and the wall time. */
 async function drive(store: { create(type: string, id: string, data: Record<string, unknown>): Promise<unknown>; define(d: never): Promise<unknown> }, tag: string): Promise<{ lat: number[]; wall: number }> {
   await store.define({ add_types: [ITEM] } as never);
-  for (let i = 0; i < 20; i++) await store.create("item", mintUuid(), { name: `w${i}` });
+  for (let i = 0; i < 20; i++) await store.create("item", mintRecordId(), { name: `w${i}` });
   const N = 200;
   const lat: number[] = [];
   const t0 = performance.now();
@@ -25,7 +25,7 @@ async function drive(store: { create(type: string, id: string, data: Record<stri
     const wait = t0 + i * 5 - performance.now();
     if (wait > 0) await sleep(wait);
     const sent = performance.now();
-    await store.create("item", mintUuid(), { name: `${tag}${i}` });
+    await store.create("item", mintRecordId(), { name: `${tag}${i}` });
     lat.push(performance.now() - sent);
   }
   return { lat, wall: (performance.now() - t0) / 1000 };
