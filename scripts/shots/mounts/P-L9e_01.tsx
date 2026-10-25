@@ -33,7 +33,8 @@ export default function Mount(): ReactNode {
       ...(q.get("select") === "1" ? { selection: ["file:fil_deck", "file:fil_logo"], anchor: "file:fil_deck" } : first ? { selection: [first], anchor: first } : {}), quickLook: first,
     };
   }, [q, space]);
-  const phone = useWindowDimensions().width < 720;
+  const width = useWindowDimensions().width;
+  const phone = width > 0 && width < 720; // 0 is "not measured yet" (the static page)
   useEffect(() => {
     if (q.get("menu") !== "sort") return;
     const g = globalThis as { document?: { querySelector(s: string): { click?: () => void } | null } };
