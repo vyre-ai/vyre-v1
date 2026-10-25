@@ -158,3 +158,26 @@ test("erasing the source erases its promoted copy too, and the shared copy was s
   assert.equal(h.rows("SELECT id FROM memory_facts").length, 0);
   assert.equal((await search(omar.ctx, { q: "quarter hours billing" })).hits.length, 0);
 });
+
+test("golden 8 trace: a person-layer fact, a promotion task for the approver, the project layer", async () => {
+  // Steps of golden flow 8 (golden/flows/08-memory-promotion.flow.ts): the events are the ones the flow lists, in order.
+  const h = harness({ respond, readOnly: ["folder:fld_harlow"] });
+  const fact = await proposeFact(h.ctx, { text: "Harlow wants proofs a day early", kind: "preference", sourceKind: "chat", sourceRef: "thr_golden", agentId: "agt_intake" });
+  assert.equal(fact.fact.layer, "person");
+  assert.equal(fact.merged, true);
+  const ask = await promote(h.ctx, { factId: fact.fact.factId, toLayer: "project", projectId: "prj_harlow", note: "the whole team should know" });
+  assert.equal(ask.promoted, false);
+  assert.ok(ask.taskId);
+  assert.equal((await factsList(h.ctx, { layer: "project" })).facts.length, 0, "nothing is shared before the approver says yes");
+  const lead = asPerson(h, { kind: "person", id: "usr_lead" }, { respond });
+  const done = await promotionApprove(lead.ctx, { promotionId: ask.promotionId });
+  assert.equal(done.fact.layer, "project");
+  assert.equal(done.fact.ownerRef, "prj_harlow");
+  const names = [...h.emitted, ...lead.emitted].map((e) => e.name);
+  assert.deepEqual(names, ["memory.fact_proposed", "memory.fact_accepted", "memory.promotion_requested", "memory.promoted"]);
+  const promoted = lead.named("memory.promoted")[0]!.payload;
+  assert.equal(promoted["by"], "usr_lead");
+  assert.equal(h.rows("SELECT promoted_by FROM memory_facts WHERE layer = 'project'")[0]?.["promoted_by"], "usr_lead");
+  assert.deepEqual(assertEventsConform(h), []);
+  assert.deepEqual(assertEventsConform(lead), []);
+});
