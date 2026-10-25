@@ -200,7 +200,7 @@ function RelationMap({ nodes, edges, onOpen }: { nodes: readonly RelNode[]; edge
     const hue = hueOf(n.type);
     kids.push(createElement("g", { key: n.recordId, "data-testid": `map-${n.recordId}`, "data-hop": n.hop, tabIndex: 0, role: "link", "aria-label": `${n.title}, ${n.type}`, style: { cursor: "pointer", outline: "none" }, onClick: () => onOpen(n), onKeyDown: (e: { key: string }) => { if (e.key === "Enter") onOpen(n); } },
       createElement("circle", { cx: n.x, cy: n.y, r: n.hop === 0 ? 11 : 8, style: { fill: `hsl(${hue}, 60%, 52%)`, stroke: n.hop === 0 ? "var(--accent)" : "var(--win)", strokeWidth: n.hop === 0 ? 3 : 2 } }),
-      createElement("text", { x: n.x, y: n.y + (n.hop === 0 ? 24 : 21), textAnchor: "middle", style: { fill: "var(--ink-2)", fontSize: 11, fontFamily: "inherit" } }, n.title)));
+      createElement("text", { x: n.x, y: n.y + (n.hop === 0 ? 24 : 21), textAnchor: "middle", style: { fill: "var(--ink-2)", fontSize: 11, fontFamily: "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif" } }, n.title)));
   }
   return createElement("svg", { viewBox: "0 0 360 260", width: "100%", height: 260, role: "img", "aria-label": "Relationships, two hops out", "data-testid": "relation-map", style: { display: "block" } }, ...kids);
 }
