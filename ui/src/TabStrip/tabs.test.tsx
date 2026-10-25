@@ -1,8 +1,9 @@
 // ui/TabStrip: one strip for main tabs and side panes. Select, close, reorder, menu and keyboard behaviour. Roving tab order, reorder and the tab menu are covered here.
+// @reads ../../../scripts/shots/mounts/P-UI_13.tsx
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { TAB_STRIP_HEIGHT, TabStrip, afterClose, closableKeys, reorderKeys, stepKey, tabMenuEntries } from "./index.tsx";
+import { TAB_STRIP_HEIGHT, TabStrip, foldTabs, isMeasured, moreEntries, MORE_BUTTON_W, TAB_ESTIMATE_W, OVERFLOW_GAP, afterClose, closableKeys, reorderKeys, stepKey, tabMenuEntries } from "./index.tsx";
 import type { TabSpec } from "./index.tsx";
 import { isItem, isSeparator } from "../Menu/props.ts";
 
@@ -112,4 +113,64 @@ test("the + sits right after the last tab and before the spacer and the options 
   assert.ok(at('data-testid="tab-b"') > 0 && at('data-testid="tab-strip-plus"') > at('data-testid="tab-b"'), "the + follows the last tab");
   assert.ok(at('data-testid="tab-strip-plus"') < at('data-testid="tab-strip-more"'), "the + comes before the options button");
   assert.ok(html.includes('id="ic-a"'), "a tab shows its icon");
+});
+
+const MANY = [{ key: "home", title: "Home", pinned: true }, { key: "a", title: "Chats" }, { key: "b", title: "Records" }, { key: "c", title: "Files" }, { key: "d", title: "Apps" }, { key: "e", title: "Vault" }];
+const W100 = { home: 100, a: 100, b: 100, c: 100, d: 100, e: 100 };
+
+test("foldTabs: everything fits, nothing folds; narrower widths fold the rest left to right and keep order", () => {
+  assert.deepEqual(foldTabs(MANY, W100, "a", 1000), { visible: ["home", "a", "b", "c", "d", "e"], folded: [] });
+  const f = foldTabs(MANY, W100, "a", 6 * (100 + OVERFLOW_GAP) - 1);
+  assert.ok(f.folded.length > 0 && f.visible.length + f.folded.length === 6);
+  assert.deepEqual(f.visible, MANY.map((t) => t.key).filter((k) => f.visible.includes(k)), "visible tabs keep the strip order");
+  assert.deepEqual(foldTabs(MANY, W100, "a", 0), { visible: ["home", "a", "b", "c", "d", "e"], folded: [] }, "unmeasured strip folds nothing");
+});
+
+test("foldTabs: the active tab always stays visible, pinned tabs next; the More button's width is reserved", () => {
+  const avail = MORE_BUTTON_W + 2 * (100 + OVERFLOW_GAP);
+  const f = foldTabs(MANY, W100, "e", avail);
+  assert.ok(f.visible.includes("e") && f.visible.includes("home"), "the active and the pinned tab stay");
+  assert.deepEqual(f.visible, ["home", "e"]);
+  assert.deepEqual(f.folded, ["a", "b", "c", "d"]);
+  const tiny = foldTabs(MANY, W100, "d", 10);
+  assert.ok(tiny.visible.includes("d"), "even with no room the active tab stays");
+  assert.equal(foldTabs(MANY, {}, "a", 3 * (TAB_ESTIMATE_W + OVERFLOW_GAP) ).visible.includes("a"), true);
+});
+
+function OVERFLOW_GAP: number { return OVERFLOW_GAP; }
+
+test("foldTabs refits: a wider strip brings tabs back, a different active tab swaps which one stays", () => {
+  const narrow = foldTabs(MANY, W100, "a", MORE_BUTTON_W + 3 * 102);
+  const wide = foldTabs(MANY, W100, "a", 700);
+  assert.ok(narrow.folded.length > wide.folded.length && wide.folded.length === 0);
+  const other = foldTabs(MANY, W100, "e", MORE_BUTTON_W + 3 * 102);
+  assert.ok(other.visible.includes("e") && !narrow.visible.includes("e"));
+});
+
+test("the More menu lists the folded tabs in strip order with the active one checked; choosing one selects it", () => {
+  const picked: string[] = [];
+  const entries = moreEntries(MANY, ["b", "d"], "d", (k) => picked.push(k));
+  assert.deepEqual(entries.map((e) => ("label" in e ? e.label : "")), ["Records", "Apps"]);
+  const first = entries[0];
+  assert.ok(first !== undefined && "onSelect" in first && first.onSelect !== undefined);
+  first.onSelect();
+  assert.deepEqual(picked, ["b"]);
+  assert.equal(entries.map((e) => ("checked" in e ? e.checked : undefined)).join(), "false,true");
+});
+
+test("overflow='more' renders the same strip (nothing folds before it is measured) and without the prop nothing changes", () => {
+  const more = renderToStaticMarkup(<TabStrip tabs={MANY} active="a" overflow="more" />);
+  const plain = renderToStaticMarkup(<TabStrip tabs={MANY} active="a" />);
+  for (const t of MANY) assert.ok(more.includes(`tab-${t.key}`) && plain.includes(`tab-${t.key}`), t.key);
+  assert.ok(!more.includes("tab-strip-folded") && !plain.includes("tab-strip-folded"));
+});
+
+test("the strip is hidden but laid out until it has a width and every tab is measured, so folding never shifts what is on screen", () => {
+  assert.equal(isMeasured(MANY, W100, 0), false, "no width yet");
+  assert.equal(isMeasured(MANY, { home: 100 }, 500), false, "tabs not all measured");
+  assert.equal(isMeasured(MANY, W100, 500), true);
+  assert.equal(isMeasured([], {}, 500), true, "no tabs, nothing to wait for");
+  const first = renderToStaticMarkup(<TabStrip tabs={MANY} active="a" overflow="more" />);
+  assert.match(first, /visibility:hidden/, "the first frame is laid out but hidden");
+  assert.ok(!renderToStaticMarkup(<TabStrip tabs={MANY} active="a" />).includes("visibility:hidden"), "the scrolling strip is never hidden");
 });
