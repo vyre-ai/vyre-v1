@@ -27,7 +27,8 @@ export type BackupCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" 
 // ---- the drivers the host supplies
 
 export interface Tombstone { kind: string; subject: string; at: number }
-export interface SnapshotEntry { path: string; bytes: Uint8Array }
+/** `resource` names the item an export entry holds (a record, a file, a chat); an export includes the entry only on an explicit view allow for it. */
+export interface SnapshotEntry { path: string; bytes: Uint8Array; resource?: { type: string; id: string } }
 export interface SpaceSnapshot { fromSeq: number; toSeq: number; headHash: string; entries: SnapshotEntry[] }
 export interface ApplyResult {
   /** events whose hash chain was checked after the data was put back */
@@ -744,17 +745,19 @@ function contains(hay: Uint8Array, needle: string): boolean {
 export async function export_start(ctx: BackupCtx, _input: Record<string, unknown>) {
   const d = need(ctx);
   const runId = ctx.run ?? mint("run");
-  if (ctx.authorize) {
-    const decision = ctx.authorize({ perm: "records.export", level: "manage" }, { type: "space", id: null });
-    if (decision.effect !== "allow") return failWith(ctx.trace.traceId, "permission.role_lacks_permission", "A full export needs the Space-wide export permission.");
-  }
+  // Fail closed: a context with no authorize cannot prove the caller may export, so nothing is packed (P-SEC_07).
+  if (typeof ctx.authorize !== "function") return failWith(ctx.trace.traceId, "permission.role_lacks_permission", "A full export needs the Space-wide export permission.");
+  const decision = ctx.authorize({ perm: "records.export", level: "manage" }, { type: "space", id: null });
+  if (decision.effect !== "allow") return failWith(ctx.trace.traceId, "permission.role_lacks_permission", "A full export needs the Space-wide export permission.");
   const at = ctx.now();
   const secrets = (await d.source.secretValues()).filter((s) => s.length >= 6);
   const keep: SnapshotEntry[] = [];
   let skipped = 0;
   for (const e of await d.source.exportEntries()) {
     if (exportBlocked(e.path) || secrets.some((s) => contains(e.bytes, s) || e.path.includes(s))) { skipped++; continue; }
-    keep.push(e);
+    // An entry that names an item goes in only on an explicit view allow for that item; a deny or a hold leaves it out.
+    if (e.resource && ctx.authorize({ perm: null, level: "view" }, { type: e.resource.type, id: e.resource.id }).effect !== "allow") { skipped++; continue; }
+    keep.push(e.resource ? { path: e.path, bytes: e.bytes } : e);
   }
   const readme = enc.encode(`Vyre export of ${ctx.space}\nTaken ${new Date(at).toISOString()} by ${ctx.principal.id}.\n${keep.length} files. ${skipped} left out (secrets, keys and private items are never exported).\n`);
   const bytes = zip([{ path: "README.txt", bytes: readme }, ...keep], at);
