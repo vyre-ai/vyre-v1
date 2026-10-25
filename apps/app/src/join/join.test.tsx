@@ -3,12 +3,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Checklist } from "../src/join/Checklist.tsx";
-import { JoinFlow, makeRecoveryCode } from "../src/join/JoinFlow.tsx";
-import { aiOptions } from "../src/join/ConnectAI.tsx";
-import { DARK, LIGHT, paletteOf } from "../src/join/palette.ts";
-import { RUN_STEPS, initialState, meter, reduce, signInValid, strength, suggestions, usernameOk, valid } from "../src/join/logic.ts";
-import type { Action, FlowState, JoinInvite } from "../src/join/logic.ts";
+import { Checklist } from "./Checklist.tsx";
+import { JoinFlow, makeRecoveryCode } from "./JoinFlow.tsx";
+import { aiOptions } from "./ConnectAI.tsx";
+import { DARK, LIGHT, paletteOf } from "./palette.ts";
+import { RUN_STEPS, initialState, meter, reduce, signInValid, strength, suggestions, usernameOk, valid } from "./logic.ts";
+import type { Action, FlowState, JoinInvite } from "./logic.ts";
 
 const INVITE: JoinInvite = {
   space: "Northwind", host: "northwind", by: "Irfad Imtiaz", role: "Member", email: "irfad@northwind.example", names: { first: "Dana", last: "Whitfield" }, deviceName: "Dana's MacBook",
