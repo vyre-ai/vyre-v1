@@ -1,0 +1,537 @@
+{
+  "chain: self-trigger allowed, the ninth hop does not start": {
+    "decisions": [
+      {
+        "event": "evt_chain0",
+        "results": [
+          "Chain -> run_t1"
+        ]
+      },
+      {
+        "event": "evt_chain1",
+        "results": [
+          "Chain -> run_t2"
+        ]
+      },
+      {
+        "event": "evt_chain2",
+        "results": [
+          "Chain -> run_t3"
+        ]
+      },
+      {
+        "event": "evt_chain3",
+        "results": [
+          "Chain -> run_t4"
+        ]
+      },
+      {
+        "event": "evt_chain4",
+        "results": [
+          "Chain -> run_t5"
+        ]
+      },
+      {
+        "event": "evt_chain5",
+        "results": [
+          "Chain -> run_t6"
+        ]
+      },
+      {
+        "event": "evt_chain6",
+        "results": [
+          "Chain -> run_t7"
+        ]
+      },
+      {
+        "event": "evt_chain7",
+        "results": [
+          "Chain -> run_t8"
+        ]
+      },
+      {
+        "event": "evt_chain8",
+        "results": [
+          "Chain -> dropped:depth_limit"
+        ]
+      }
+    ],
+    "runs": [
+      {
+        "automation": "Chain",
+        "depth": 0,
+        "eventId": "evt_chain0",
+        "kind": "automation",
+        "origin": "user",
+        "parentRun": null,
+        "payload": {
+          "n": 0
+        },
+        "principal": "person:usr_alice",
+        "run": "run_t1",
+        "test": false,
+        "trigger": "chat_message",
+        "version": 1
+      },
+      {
+        "automation": "Chain",
+        "depth": 1,
+        "eventId": "evt_chain1",
+        "kind": "automation",
+        "origin": "automation:Chain",
+        "parentRun": null,
+        "payload": {
+          "n": 1
+        },
+        "principal": "person:usr_alice",
+        "run": "run_t2",
+        "test": false,
+        "trigger": "chat_message",
+        "version": 1
+      },
+      {
+        "automation": "Chain",
+        "depth": 2,
+        "eventId": "evt_chain2",
+        "kind": "automation",
+        "origin": "automation:Chain",
+        "parentRun": null,
+        "payload": {
+          "n": 2
+        },
+        "principal": "person:usr_alice",
+        "run": "run_t3",
+        "test": false,
+        "trigger": "chat_message",
+        "version": 1
+      },
+      {
+        "automation": "Chain",
+        "depth": 3,
+        "eventId": "evt_chain3",
+        "kind": "automation",
+        "origin": "automation:Chain",
+        "parentRun": null,
+        "payload": {
+          "n": 3
+        },
+        "principal": "person:usr_alice",
+        "run": "run_t4",
+        "test": false,
+        "trigger": "chat_message",
+        "version": 1
+      },
+      {
+        "automation": "Chain",
+        "depth": 4,
+        "eventId": "evt_chain4",
+        "kind": "automation",
+        "origin": "automation:Chain",
+        "parentRun": null,
+        "payload": {
+          "n": 4
+        },
+        "principal": "person:usr_alice",
+        "run": "run_t5",
+        "test": false,
+        "trigger": "chat_message",
+        "version": 1
+      },
+      {
+        "automation": "Chain",
+        "depth": 5,
+        "eventId": "evt_chain5",
+        "kind": "automation",
+        "origin": "automation:Chain",
+        "parentRun": null,
+        "payload": {
+          "n": 5
+        },
+        "principal": "person:usr_alice",
+        "run": "run_t6",
+        "test": false,
+        "trigger": "chat_message",
+        "version": 1
+      },
+      {
+        "automation": "Chain",
+        "depth": 6,
+        "eventId": "evt_chain6",
+        "kind": "automation",
+        "origin": "automation:Chain",
+        "parentRun": null,
+        "payload": {
+          "n": 6
+        },
+        "principal": "person:usr_alice",
+        "run": "run_t7",
+        "test": false,
+        "trigger": "chat_message",
+        "version": 1
+      },
+      {
+        "automation": "Chain",
+        "depth": 7,
+        "eventId": "evt_chain7",
+        "kind": "automation",
+        "origin": "automation:Chain",
+        "parentRun": null,
+        "payload": {
+          "n": 7
+        },
+        "principal": "person:usr_alice",
+        "run": "run_t8",
+        "test": false,
+        "trigger": "chat_message",
+        "version": 1
+      }
+    ],
+    "said": [
+      "automation.run_started:Chain",
+      "automation.run_started:Chain",
+      "automation.run_started:Chain",
+      "automation.run_started:Chain",
+      "automation.run_started:Chain",
+      "automation.run_started:Chain",
+      "automation.run_started:Chain",
+      "automation.run_started:Chain",
+      "automation.trigger_dropped:Chain:depth_limit"
+    ]
+  },
+  "definitions: the shapes the 0.6 decide, repeat, parallel and wait scenarios became": {
+    "cycle": {
+      "issues": [
+        "error:b:This path loops back to a without a Loop step."
+      ],
+      "ok": false
+    },
+    "dangling": {
+      "issues": [
+        "error:i:This step points at gone, which does not exist."
+      ],
+      "ok": false
+    },
+    "decide": {
+      "issues": [],
+      "ok": true
+    },
+    "empty": {
+      "issues": [
+        "warning:-:This Automation has no steps yet."
+      ],
+      "ok": true
+    },
+    "missing": {
+      "issues": [
+        "error:a:Update a record needs recordId.",
+        "error:a:Update a record needs patch."
+      ],
+      "ok": false
+    },
+    "orphan": {
+      "issues": [
+        "warning:orphan:No path reaches this step."
+      ],
+      "ok": true
+    },
+    "parallel": {
+      "issues": [],
+      "ok": true
+    },
+    "repeat": {
+      "issues": [],
+      "ok": true
+    }
+  },
+  "draft, off and paused: only an enabled Automation starts, a paused one says why": {
+    "decisions": [
+      {
+        "event": "evt_p1",
+        "results": [
+          "Halted -> dropped:paused",
+          "Live -> run_t1"
+        ]
+      }
+    ],
+    "runs": [
+      {
+        "automation": "Live",
+        "depth": 0,
+        "eventId": "evt_p1",
+        "kind": "automation",
+        "origin": null,
+        "parentRun": null,
+        "payload": {
+          "text": "x"
+        },
+        "principal": "person:usr_alice",
+        "run": "run_t1",
+        "test": false,
+        "trigger": "chat_message",
+        "version": 1
+      }
+    ],
+    "said": [
+      "automation.run_started:Live",
+      "automation.trigger_dropped:Halted:paused"
+    ]
+  },
+  "record changes: the filter picks type, operation and changed field": {
+    "decisions": [
+      {
+        "event": "evt_1",
+        "results": [
+          "Won -> run_t1"
+        ]
+      },
+      {
+        "event": "evt_2",
+        "results": []
+      },
+      {
+        "event": "evt_3",
+        "results": []
+      },
+      {
+        "event": "evt_4",
+        "results": [
+          "Deals -> run_t2"
+        ]
+      }
+    ],
+    "runs": [
+      {
+        "automation": "Won",
+        "depth": 0,
+        "eventId": "evt_1",
+        "kind": "automation",
+        "origin": null,
+        "parentRun": null,
+        "payload": {
+          "changed": {
+            "status": "won"
+          },
+          "fields": [
+            "status"
+          ],
+          "op": "updated",
+          "record": {
+            "status": "won"
+          },
+          "recordId": "rec_1",
+          "type": "contact",
+          "version": 3
+        },
+        "principal": "person:usr_alice",
+        "run": "run_t1",
+        "test": false,
+        "trigger": "record_change",
+        "version": 1
+      },
+      {
+        "automation": "Deals",
+        "depth": 0,
+        "eventId": "evt_4",
+        "kind": "automation",
+        "origin": null,
+        "parentRun": null,
+        "payload": {
+          "changed": {
+            "status": "won"
+          },
+          "fields": [
+            "status"
+          ],
+          "op": "updated",
+          "record": {
+            "status": "won"
+          },
+          "recordId": "rec_4",
+          "type": "deal",
+          "version": 5
+        },
+        "principal": "person:usr_alice",
+        "run": "run_t2",
+        "test": false,
+        "trigger": "record_change",
+        "version": 1
+      }
+    ],
+    "said": [
+      "automation.run_started:Won",
+      "automation.run_started:Deals"
+    ]
+  },
+  "self-trigger: dropped for the Automation that caused the event, not for another": {
+    "decisions": [
+      {
+        "event": "evt_s1",
+        "results": [
+          "Other -> run_t1",
+          "Solo -> dropped:self_trigger"
+        ]
+      }
+    ],
+    "runs": [
+      {
+        "automation": "Other",
+        "depth": 1,
+        "eventId": "evt_s1",
+        "kind": "automation",
+        "origin": "automation:Solo",
+        "parentRun": null,
+        "payload": {
+          "text": "hi"
+        },
+        "principal": "person:usr_alice",
+        "run": "run_t1",
+        "test": false,
+        "trigger": "chat_message",
+        "version": 1
+      }
+    ],
+    "said": [
+      "automation.run_started:Other",
+      "automation.trigger_dropped:Solo:self_trigger"
+    ]
+  },
+  "versions: a Run keeps the version it started on, replay picks same or current": {
+    "decisions": [
+      {
+        "event": "evt_v1",
+        "results": [
+          "Versioned -> run_t1"
+        ]
+      },
+      {
+        "version": 2
+      },
+      {
+        "event": "evt_v2",
+        "results": [
+          "Versioned -> run_t2"
+        ]
+      }
+    ],
+    "runs": [
+      {
+        "automation": "Versioned",
+        "depth": 0,
+        "eventId": "evt_v1",
+        "kind": "automation",
+        "origin": null,
+        "parentRun": null,
+        "payload": {
+          "changed": {
+            "status": "won"
+          },
+          "fields": [
+            "status"
+          ],
+          "op": "updated",
+          "record": {
+            "status": "won"
+          },
+          "recordId": "rec_1",
+          "type": "contact",
+          "version": 3
+        },
+        "principal": "person:usr_alice",
+        "run": "run_t1",
+        "test": false,
+        "trigger": "record_change",
+        "version": 1
+      },
+      {
+        "automation": "Versioned",
+        "depth": 0,
+        "eventId": "evt_v2",
+        "kind": "automation",
+        "origin": null,
+        "parentRun": null,
+        "payload": {
+          "changed": {
+            "status": "lost"
+          },
+          "fields": [
+            "status"
+          ],
+          "op": "updated",
+          "record": {
+            "status": "lost"
+          },
+          "recordId": "rec_2",
+          "type": "contact",
+          "version": 1
+        },
+        "principal": "person:usr_alice",
+        "run": "run_t2",
+        "test": false,
+        "trigger": "record_change",
+        "version": 2
+      },
+      {
+        "automation": "Versioned",
+        "depth": 0,
+        "eventId": "evt_v1",
+        "kind": "automation",
+        "origin": null,
+        "parentRun": "run_t1",
+        "payload": {
+          "changed": {
+            "status": "won"
+          },
+          "fields": [
+            "status"
+          ],
+          "op": "updated",
+          "record": {
+            "status": "won"
+          },
+          "recordId": "rec_1",
+          "type": "contact",
+          "version": 3
+        },
+        "principal": "person:usr_alice",
+        "run": "run_t3",
+        "test": false,
+        "trigger": "record_change",
+        "version": 1
+      },
+      {
+        "automation": "Versioned",
+        "depth": 0,
+        "eventId": "evt_v1",
+        "kind": "automation",
+        "origin": null,
+        "parentRun": "run_t1",
+        "payload": {
+          "changed": {
+            "status": "won"
+          },
+          "fields": [
+            "status"
+          ],
+          "op": "updated",
+          "record": {
+            "status": "won"
+          },
+          "recordId": "rec_1",
+          "type": "contact",
+          "version": 3
+        },
+        "principal": "person:usr_alice",
+        "run": "run_t4",
+        "test": false,
+        "trigger": "record_change",
+        "version": 2
+      }
+    ],
+    "said": [
+      "automation.run_started:Versioned",
+      "automation.run_started:Versioned",
+      "automation.run_started:Versioned",
+      "automation.run_started:Versioned"
+    ]
+  }
+}

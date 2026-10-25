@@ -452,6 +452,24 @@ class Replica implements ReplicaStore {
     return { applied: true, reason: "ok" };
   }
 
+  keep(entity: string, id: string, flags: { starred?: boolean; follows?: boolean }): void {
+    this.alive();
+    const key = pair(entity, id);
+    if (flags.starred === true) this.starred.add(key);
+    else if (flags.starred === false) this.starred.delete(key);
+    if (flags.follows === true) this.follows.add(key);
+    else if (flags.follows === false) this.follows.delete(key);
+    if (flags.starred === undefined && flags.follows === undefined) return;
+    const s = this.starred.has(key) ? 1 : 0, f = this.follows.has(key) ? 1 : 0;
+    if (s === 0 && f === 0) this.sql.keepDelete.run([entity, id]);
+    else this.sql.keepUpsert.run([entity, id, s, f]);
+  }
+
+  isKept(entity: string, id: string): { starred: boolean; follows: boolean } {
+    const key = pair(entity, id);
+    return { starred: this.starred.has(key), follows: this.follows.has(key) };
+  }
+
   read(entity: string, id: string): SqlRow | null {
     this.alive();
     const key = pair(entity, id);

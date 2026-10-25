@@ -92,8 +92,8 @@ test("a scaffolded module builds: it is written, registered, and its generated t
   assert.match(run.stdout, /# pass 1\b/);
   assert.match(run.stdout, /# skipped 1\b/, "no testkit yet");
   // the manifest it wrote loads and is the one the registry would read
-  const again = spawnSync(process.execPath, ["--input-type=module", "-e", "import('./manifests/widgets.ts').then((m) => console.log(m.default.id, m.default.owner, m.default.status, m.default.capabilities.length))"], { cwd: root, encoding: "utf8" });
-  assert.equal(again.stdout.trim(), "widgets L1 stub 2", again.stderr);
+  const again = spawnSync(process.execPath, ["--input-type=module", "-e", "import('./manifests/widgets.ts').then((m) => console.log(m.default.id, m.default.owner, m.default.capabilities.length))"], { cwd: root, encoding: "utf8" });
+  assert.equal(again.stdout.trim(), "widgets L1 2", again.stderr);
 });
 
 test("the contract test the scaffold writes has teeth: a handler missing from impl.ts fails it", () => {

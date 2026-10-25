@@ -1,0 +1,12 @@
+{
+  "written": "2026-10-25",
+  "note": "Floors for the 50-question proof set, measured in CI on 25 Oct 2026 (all 50 answered as expected, pointer p95 3.6 ms on the world). The test fails when a metric falls more than 0.02 below its floor. Raise a floor when a change improves the measured value; never lower one to make a change pass.",
+  "metrics": {
+    "search.hit_at_3": 1,
+    "pointer.top1": 1,
+    "pointer.empty_rate": 1,
+    "stale.ok": 1,
+    "leakage": 0,
+    "closed.offered": 0
+  }
+}

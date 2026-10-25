@@ -1,0 +1,77 @@
+# Documenso for a Space (ARCH 8.4): the unmodified container, a Postgres sidecar, and an internal-only network between them.
+# Started with:  docker compose --env-file images/documenso/documenso.lock --env-file <secrets from the Vault filler> -f images/documenso/compose.yml up -d
+# The database has no published port and no route out. Documenso is published on 127.0.0.1 only; Caddy and the Vyre host reach it there.
+# Documenso needs outbound mail to send signing emails, so it also sits on the default egress network.
+name: vyre-documenso
+
+services:
+  documenso-db:
+    image: ${POSTGRES_IMAGE}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: documenso
+      POSTGRES_DB: documenso
+      POSTGRES_PASSWORD: ${DOCUMENSO_DB_PASSWORD}
+    volumes:
+      - documenso-db:/var/lib/postgresql/data
+    networks:
+      - documenso-internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U documenso -d documenso"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  documenso:
+    image: ${DOCUMENSO_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      documenso-db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${DOCUMENSO_PORT:-3010}:3000"
+    environment:
+      PORT: "3000"
+      NEXTAUTH_URL: ${DOCUMENSO_PUBLIC_URL}
+      NEXT_PUBLIC_WEBAPP_URL: ${DOCUMENSO_PUBLIC_URL}
+      NEXT_PRIVATE_INTERNAL_WEBAPP_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ${DOCUMENSO_AUTH_SECRET}
+      NEXT_PRIVATE_ENCRYPTION_KEY: ${DOCUMENSO_ENCRYPTION_KEY}
+      NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY: ${DOCUMENSO_ENCRYPTION_SECONDARY_KEY}
+      NEXT_PRIVATE_DATABASE_URL: postgres://documenso:${DOCUMENSO_DB_PASSWORD}@documenso-db:5432/documenso
+      NEXT_PRIVATE_DIRECT_DATABASE_URL: postgres://documenso:${DOCUMENSO_DB_PASSWORD}@documenso-db:5432/documenso
+      NEXT_PUBLIC_UPLOAD_TRANSPORT: database
+      NEXT_PRIVATE_SIGNING_TRANSPORT: local
+      NEXT_PRIVATE_SIGNING_LOCAL_FILE_PATH: /opt/documenso/cert.p12
+      NEXT_PRIVATE_SIGNING_PASSPHRASE: ${DOCUMENSO_SIGNING_PASSPHRASE}
+      NEXT_PRIVATE_SMTP_TRANSPORT: smtp-auth
+      NEXT_PRIVATE_SMTP_HOST: ${DOCUMENSO_SMTP_HOST}
+      NEXT_PRIVATE_SMTP_PORT: ${DOCUMENSO_SMTP_PORT:-587}
+      NEXT_PRIVATE_SMTP_USERNAME: ${DOCUMENSO_SMTP_USERNAME}
+      NEXT_PRIVATE_SMTP_PASSWORD: ${DOCUMENSO_SMTP_PASSWORD}
+      NEXT_PRIVATE_SMTP_FROM_ADDRESS: ${DOCUMENSO_SMTP_FROM}
+      NEXT_PRIVATE_SMTP_FROM_NAME: Vyre
+      NEXT_PUBLIC_DISABLE_SIGNUP: "true"
+    volumes:
+      - documenso-cert:/opt/documenso
+    networks:
+      - documenso-internal
+      - documenso-edge
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+networks:
+  documenso-internal:
+    internal: true
+  documenso-edge: {}
+
+volumes:
+  documenso-db: {}
+  documenso-cert: {}
