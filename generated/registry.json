@@ -143239,6 +143239,7 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "permission.role_lacks_permission",
         "validation.bad_input"
       ],
       "examples": [
@@ -143289,7 +143290,7 @@
         ],
         "type": "object"
       },
-      "level": "edit",
+      "level": "manage",
       "module": "sync",
       "name": "sync.epoch.bump",
       "output": {
@@ -143303,7 +143304,7 @@
         ],
         "type": "object"
       },
-      "permission": null,
+      "permission": "access.manage",
       "resource": {
         "type": "space"
       },

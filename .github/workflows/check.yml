@@ -65,8 +65,7 @@ jobs:
         run: |
           lane=""
           case "$BRANCH" in
-            build/P-CI_02|build/P-CI_08|build/P-CI_27|build/P-CI_31|build/P-CI_34|build/P-CI_37|build/P-CI_38|build/P-CI_35|build/P-CI_39|build/P-CI_36) lane=lead ;;   # contract steward: changes the contract types and the frozen hashes (ruling 25, 27)
-            build/P-CI_*|build/P-CI-*) lane=L11 ;;
+            build/P-CI_*|build/P-CI-*) lane=lead ;;   # CI packets change workflows, scripts and test/slow.json, which no module lane owns; they are the lead's (ruling 25, 27). A pattern, so a new P-CI number never conflicts here.
             build/P-CC_*|build/P-PR_*) lane=lead ;;
             *) lane="$(echo "$BRANCH" | sed -nE 's#^build/P-(L[0-9]+[a-z]?)_[0-9]+[a-z]?(-.*)?$#\1#p')"
               case "$lane" in L7) lane=L7a ;; L9) lane=L9a ;; esac ;;
