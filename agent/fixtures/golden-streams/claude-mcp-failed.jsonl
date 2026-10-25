@@ -1,0 +1,1 @@
+{"type":"system","subtype":"init","cwd":"/work","session_id":"{{SESSION}}","tools":[],"mcp_servers":[{"name":"vyre","status":"failed"}],"model":"claude-sonnet-5-5","permissionMode":"default"}
