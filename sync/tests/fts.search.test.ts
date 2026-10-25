@@ -63,7 +63,7 @@ test("the > prefix is answered by the action list, every typed word must start a
   assert.deepEqual(searchActions(">phone", actions).map((a) => a.id), ["call"], "keywords count, label words count more");
   assert.deepEqual(searchActions(">", actions).length, 5);
   assert.deepEqual(splitPrefix("  #abc"), { prefix: "#", rest: "abc" });
-  assert.equal(matchText("a\"b c"), '"ab"* "c"*');
+  assert.equal(matchText("a\"b c"), '"a"* "b"* "c"*');
   assert.equal(matchText("***"), null);
 });
 
