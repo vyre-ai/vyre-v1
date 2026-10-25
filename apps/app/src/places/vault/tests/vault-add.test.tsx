@@ -128,7 +128,7 @@ test("item page: Fields and .env tabs, Copy as .env, and who can use it with a l
   assert.ok(has(out, 'data-testid="env-copy-all"') && has(out, "Copy as .env"));
   assert.ok(at(out, 'data-testid="env-card"') < at(out, 'data-testid="item-who"') && at(out, 'data-testid="item-who"') < at(out, ">Recent use<"), "who can use it sits between the card and Recent use");
   assert.ok(has(out, ">Who can use it<") && has(out, 'data-testid="who-share"'), "a Share button for someone who manages the item");
-  assert.ok(has(out, 'data-testid="who-empty"'), "before the grants arrive the list says only you");
+  assert.ok(has(out, 'data-testid="row-who:you"') && !has(out, 'data-testid="row-who:agent:'), "before the grants arrive the list is only you");
 });
 
 test("who can use it: the grants of the sample item, a level menu with the current one checked, and Stop sharing", async () => {
@@ -140,7 +140,7 @@ test("who can use it: the grants of the sample item, a level menu with the curre
     return list;
   };
   const before = await read();
-  assert.deepEqual(before.map((s) => `${s.subject.id}:${s.level}:${s.through}`), ["usr_irfad:manage:owner", "agt_intake:use:direct", "agt_research:use:direct", "agt_billing:use:direct", "usr_omar:view:direct", "usr_maya:edit:direct"]);
+  assert.deepEqual(before.map((s) => `${s.subject.id}:${s.level}:${s.through}`), ["usr_irfad:manage:owner", "usr_maya:edit:direct", "usr_omar:view:direct", "agt_intake:use:direct", "agt_research:use:direct", "aut_weekly:use:direct"]);
   const picked: string[] = [];
   const entries = levelEntries("view", (l) => void picked.push(l), () => void picked.push("remove"));
   const items = entries.filter(isItem) as MenuItem[];
@@ -150,8 +150,8 @@ test("who can use it: the grants of the sample item, a level menu with the curre
   assert.deepEqual(Object.values(LEVEL_LABEL), ["Use", "View", "Edit", "Manage"]);
   await v.data.call("vault.share", { resource: { type: "vault_item", id: "vit_ghl" }, subject: { kind: "person", id: "usr_omar" }, level: "edit" });
   assert.equal((await read()).find((s) => s.subject.id === "usr_omar")?.level, "edit", "the level changed in place");
-  await v.data.call("vault.unshare", { resource: { type: "vault_item", id: "vit_ghl" }, subject: { kind: "agent", id: "agt_billing" } });
-  assert.ok(!(await read()).some((s) => s.subject.id === "agt_billing"), "stopped sharing removes the line");
+  await v.data.call("vault.unshare", { resource: { type: "vault_item", id: "vit_ghl" }, subject: { kind: "agent", id: "agt_research" } });
+  assert.ok(!(await read()).some((s) => s.subject.id === "agt_research"), "stopped sharing removes the line");
   assert.deepEqual(v.calls.map((c) => c.cap), ["access.shares_of", "vault.share", "access.shares_of", "vault.unshare", "access.shares_of"]);
 });
 

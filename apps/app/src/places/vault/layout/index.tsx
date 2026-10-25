@@ -56,6 +56,7 @@ function Page({ initial, sheet, view }: { initial?: Selection | undefined; sheet
   const [detailOpen, setDetailOpen] = useState(false);
   const [adding, setAdding] = useState<{ paste?: string; app?: string } | null>(sheet?.add ?? null);
   const [editing, setEditing] = useState<string | null>(sheet?.edit ?? null);
+  const [addField, setAddField] = useState(false);
   const [lastFolder, setLastFolder] = useState<string | undefined>(undefined);
   const [askDelete, setAskDelete] = useState(0);
   const [note, setNote] = useState<QuietNote | null>(null);
@@ -200,7 +201,7 @@ function Page({ initial, sheet, view }: { initial?: Selection | undefined; sheet
   );
 
   const detail = effectiveId ? (
-    <ItemEnv key={effectiveId} itemId={effectiveId} askDelete={askDelete} initialMode={view} onEdit={() => setEditing(effectiveId)} onGone={() => { setSelectedId(null); setDetailOpen(false); }} onNote={showNote} onBack={twoPane ? undefined : () => setDetailOpen(false)} />
+    <ItemEnv key={effectiveId} itemId={effectiveId} askDelete={askDelete} initialMode={view} onEdit={() => { setAddField(false); setEditing(effectiveId); }} onAddField={() => { setAddField(true); setEditing(effectiveId); }} onGone={() => { setSelectedId(null); setDetailOpen(false); }} onNote={showNote} onBack={twoPane ? undefined : () => setDetailOpen(false)} />
   ) : <NoItem text={loading ? "" : visible.length === 0 ? "" : "Select an item to see its fields"} />;
 
   return (
@@ -220,7 +221,7 @@ function Page({ initial, sheet, view }: { initial?: Selection | undefined; sheet
           }}
         />
       ) : null}
-      {editing ? <EditSheet itemId={editing} onClose={() => setEditing(null)} onSaved={(text) => showNote(text)} /> : null}
+      {editing ? <EditSheet itemId={editing} addField={addField} onClose={() => { setEditing(null); setAddField(false); }} onSaved={(text) => showNote(text)} /> : null}
     </View>
   );
 }

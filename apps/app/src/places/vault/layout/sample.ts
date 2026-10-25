@@ -38,7 +38,7 @@ export interface SampleSpace {
 const people: Principal[] = [
   { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" }, { id: "usr_maya", name: "Maya Chen", kind: "person" }, { id: "usr_omar", name: "Omar Haddad", kind: "person" },
   { id: "agt_intake", name: "Intake", kind: "agent" }, { id: "agt_research", name: "Research", kind: "agent" }, { id: "agt_billing", name: "Billing", kind: "agent" },
-  { id: "aut_weekly", name: "Weekly lead report", kind: "automation" },
+  { id: "aut_weekly", name: "Weekly lead report", kind: "automation" }, { id: "agt_assistant", name: "Assistant", kind: "agent" },
 ];
 const harborPeople: Principal[] = [
   { id: "usr_nora", name: "Nora Quill", kind: "person" }, { id: "usr_june", name: "June Abel", kind: "person" }, { id: "agt_proofer", name: "Proofer", kind: "agent" },
@@ -86,7 +86,7 @@ export const northwind: SampleSpace = {
   ],
   requests: [{ id: "req_twilio", name: "Twilio", forAutomation: "New lead follow-up", agoMin: 120 }],
   grants: {
-    vit_ghl: [["agent", "agt_intake", "use"], ["agent", "agt_research", "use"], ["agent", "agt_billing", "use"], ["person", "usr_omar", "view"], ["person", "usr_maya", "edit"]],
+    vit_ghl: [["person", "usr_maya", "edit"], ["person", "usr_omar", "view"], ["agent", "agt_intake", "use"], ["agent", "agt_research", "use"], ["service", "aut_weekly", "use"]],
     vit_stripe: [["agent", "agt_billing", "use"], ["person", "usr_maya", "edit"]],
   },
 };
@@ -288,7 +288,7 @@ export function createSampleVault(space: SampleSpace = northwind, o: { online?: 
   };
 
   const nav: VaultNav = {
-    openShare: (id) => void opened.push(`share:${id}`), openExport: (id) => void opened.push(`export:${id}`), openAdvanced: () => void opened.push("advanced"),
+    openShare: (id) => void opened.push(`share:${id}`), openExport: (id) => void opened.push(`export:${id}`), openAdvanced: () => void opened.push("advanced"), ask: (agentId, mode, about) => void opened.push(`ask:${agentId}:${mode}:${about.id}`),
     openRequests: () => void opened.push("requests"), openAgent: (id) => void opened.push(`agent:${id}`),
   };
   const connection: Connection = { get: () => (online ? "online" : "offline"), subscribe: (l) => { listeners.add(l); return () => void listeners.delete(l); } };

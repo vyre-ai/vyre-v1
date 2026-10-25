@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { AskButton } from "../../../../../../ui/src/AskButton/index.tsx";
+import type { AskAgent } from "../../../../../../ui/src/AskButton/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { copyText, useOnline, usePrincipals, useScreenQuery, useVaultData } from "../layout/data.tsx";
@@ -32,6 +34,8 @@ const SEP: MenuEntry = { separator: true };
 export interface ItemEnvProps {
   itemId: string;
   onEdit: () => void;
+  /** Opens the Edit sheet in Fields with a new empty field ready to type in. */
+  onAddField?: (() => void) | undefined;
   /** After the item went to Trash (the list picks the next row). */
   onGone: () => void;
   /** The quiet line for a change, with its Undo. */
@@ -52,7 +56,7 @@ export function useRevealStore(itemId: string): RevealStore {
   return store;
 }
 
-export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, initialMode }: ItemEnvProps): ReactElement {
+export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, askDelete, initialMode }: ItemEnvProps): ReactElement {
   const data = useVaultData();
   const online = useOnline();
   const names = usePrincipals();
@@ -124,6 +128,10 @@ export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, ini
     } catch (e) { fail(e); }
   };
   const subjectName = (sub: Share["subject"]): string => names.name(sub.id);
+  const askAgents: AskAgent[] = names.all.filter((p) => p.kind === "agent").map((p) => ({ id: p.id, name: p.name, ...(p.id === "agt_assistant" ? { assistant: true } : {}) }));
+  if (!askAgents.some((a) => a.assistant)) askAgents.unshift({ id: "assistant", name: "Assistant", assistant: true });
+  const suggested = (shares ?? []).find((x) => x.subject.kind === "agent" && askAgents.some((a) => a.id === x.subject.id))?.subject.id;
+  const meShare = (shares ?? []).find((x) => x.subject.kind === "person" && x.subject.id === data.me.id);
   const setLevel = async (sh: Share, level: Share["level"]): Promise<void> => {
     try { await data.call("vault.share", { resource: { type: "vault_item", id: itemId }, subject: sh.subject, level }); setSharesAt((n) => n + 1); } catch (e) { fail(e); }
   };
@@ -169,6 +177,10 @@ export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, ini
       <View style={s.bar}>
         {onBack ? <IconBtn icon="back" label="Back to the list" onPress={onBack} testID="item-back" /> : null}
         <View style={{ flex: 1 }} />
+        <AskButton
+          place="vault" context={{ kind: "vault_item", id: itemId, title: item.name, access: item.yourLevel }} agents={askAgents} {...(suggested ? { suggested } : {})} testID="item-ask"
+          onAsk={(agent, mode, about) => data.nav.ask?.(agent.id, mode, { kind: about.kind, id: about.id, title: about.title })}
+        />
         {canEdit ? <Btn label="Edit" icon="edit" onPress={onEdit} testID="item-edit" /> : null}
         <IconBtn icon="more" label="More" testID="item-more" onPress={(e) => { const r = rectOf(e); menu.show(moreItems, r.x, r.y); }} />
       </View>
@@ -202,8 +214,15 @@ export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, ini
               ) : null}
             </View>
             {view === "env" ? <Text style={s.comment} testID="env-comment">{`# ${item.name} · agents ask for ${item.handle}`}</Text> : null}
-            {fields.length === 0 ? <Text style={s.empty} testID="env-empty">No fields yet. Edit the item to add one.</Text> : null}
+            {fields.length === 0 ? <Text style={s.empty} testID="env-empty">No fields yet.</Text> : null}
             {fieldLines}
+            {canEdit && onAddField ? (
+              <View style={s.cardFoot}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Add field" testID="env-add-field" onPress={onAddField} style={s.addField}>
+                  <Glyph name="plus" size={12} color="var(--accent)" /><Text style={s.addFieldText}>Add field</Text>
+                </Pressable>
+              </View>
+            ) : null}
             {rv.asking ? (
               <View style={s.agree} testID="env-agree" accessibilityRole="alert">
                 <Glyph name="eye" size={15} />
@@ -234,7 +253,7 @@ export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, ini
           {failure ? <Text style={s.error} accessibilityRole="alert" testID="item-error">{failure}</Text> : null}
 
           <WhoCanUse
-            shares={shares ?? []} nameOf={subjectName} meId={data.me.id} canManage={item.yourLevel === "manage"}
+            shares={shares ?? []} you={{ name: data.me.name, level: meShare?.level ?? item.yourLevel, owner: meShare?.through === "owner" }} nameOf={subjectName} meId={data.me.id} canManage={item.yourLevel === "manage"}
             onLevel={(sh, l) => { void setLevel(sh, l); }} onRemove={(sh) => { void stopSharing(sh); }} onShare={() => data.nav.openShare(itemId)}
             onMenu={(entries, x, y) => menu.show(entries, x, y, "other")}
           />
@@ -344,6 +363,9 @@ const s = StyleSheet.create({
   segOn: { backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-1)" as string },
   segText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-3)" as string },
   comment: { fontFamily: "var(--mono)" as string, fontSize: 12.5, color: "var(--ink-3)" as string, paddingHorizontal: 8, paddingVertical: 8 },
+  cardFoot: { marginTop: 4, paddingTop: 6, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  addField: { flexDirection: "row", alignItems: "center", gap: 6, height: 26, alignSelf: "flex-start" },
+  addFieldText: { fontSize: 13, color: "var(--accent)" as string },
   empty: { fontSize: 13, color: "var(--ink-3)" as string, padding: 10 },
   line: { minHeight: 34, flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7 },
   lineMain: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 },
