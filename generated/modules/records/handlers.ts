@@ -33,4 +33,5 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "records.values.pending": Handler<"records.values.pending", X>;
   "records.values.review": Handler<"records.values.review", X>;
   "records.versions": Handler<"records.versions", X>;
+  "records.view": Handler<"records.view", X>;
 }
