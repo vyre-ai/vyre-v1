@@ -20,7 +20,7 @@ export const CSV = [
   "Full Name,E-mail,Phone,Company,Joined,VIP,Amount,Stage",
   "Ada Lovelace,ada@example.com,+1 555 010 0101,Analytical,2026-01-05,yes,\"1,200.50\",Lead",
   "Grace Hopper,GRACE@example.com,(555) 010-0102,Navy,01/06/2026,no,300,Client",
-  "Alan Turing,alan@example.com,555-010-0103,Bletchley,Jan 7, 2026,,15,Lead",
+  "Alan Turing,alan@example.com,555-010-0103,Bletchley,\"Jan 7, 2026\",,15,Lead",
 ].join("\n");
 export const MAPPING = [
   { column: "Full Name", field: "name" }, { column: "E-mail", field: "email" }, { column: "Phone", field: "phone" }, { column: "Company", field: "company" },

@@ -109,7 +109,7 @@ test("rows that match existing records are updates through the match key; skip l
   const text = `${CSV}\nAda Again,ada@example.com,,,,,,`;
   const upd = harness();
   upd.world.seed("contact", { name: "Old Ada", email: "ada@example.com" });
-  const a = await ready(upd, text, { match: ["email"] });
+  const a = await ready(upd, text, { match: ["email"] }, MAPPING);
   await run(upd, "import.commit", a);
   assert.deepEqual(upd.only("records.bulk_upsert")[0]!.input.match, ["email"]);
   assert.equal(upd.only("records.bulk_upsert")[0]!.input.rows.length, 4);
@@ -120,7 +120,7 @@ test("rows that match existing records are updates through the match key; skip l
 
   const skip = harness();
   skip.world.seed("contact", { name: "Old Ada", email: "ada@example.com" });
-  const b = await ready(skip, text, { match: ["email"], onMatch: "skip" });
+  const b = await ready(skip, text, { match: ["email"], onMatch: "skip" }, MAPPING);
   await run(skip, "import.commit", b);
   assert.equal(skip.only("records.bulk_upsert")[0]!.input.rows.length, 2, "Grace and Alan; both Adas are left alone");
   assert.equal(skip.world.rows("contact")[0]!["name"], "Old Ada");
@@ -128,7 +128,7 @@ test("rows that match existing records are updates through the match key; skip l
 
   const make = harness();
   make.world.seed("contact", { name: "Old Ada", email: "ada@example.com" });
-  const c = await ready(make, text, { match: ["email"], onMatch: "create" });
+  const c = await ready(make, text, { match: ["email"], onMatch: "create" }, MAPPING);
   await run(make, "import.commit", c);
   assert.deepEqual(make.only("records.bulk_upsert")[0]!.input.match, [], "no match key: every row is new");
   assert.equal(make.world.rows("contact").length, 5);
