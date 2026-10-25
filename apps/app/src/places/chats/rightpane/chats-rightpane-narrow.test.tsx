@@ -96,9 +96,9 @@ test("the routine page offers Run Now beside Change by Asking", () => {
 test("Delegate lists the Space's people from the shared picker, without the current owner", () => {
   const out = routineView(createSample(), "r3", "delegate");
   assert.ok(has(out, ">Give this routine to<"));
-  assert.ok(has(out, 'data-testid="delegate-usr_irfad"') && has(out, ">Irfad Imtiaz<"));
-  assert.ok(has(out, 'data-testid="delegate-usr_maya"') && has(out, ">Maya Chen<"));
-  assert.ok(!has(out, 'data-testid="delegate-usr_omar"'), "the owner is not offered");
+  assert.ok(has(out, 'data-testid="row-delegate-usr_irfad"') && has(out, ">Irfad Imtiaz<"));
+  assert.ok(has(out, 'data-testid="row-delegate-usr_maya"') && has(out, ">Maya Chen<"));
+  assert.ok(!has(out, 'data-testid="row-delegate-usr_omar"'), "the owner is not offered");
   assert.ok(has(out, 'data-testid="delegate-cancel"'));
 });
 
