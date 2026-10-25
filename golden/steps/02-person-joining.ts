@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { bootFlowSpace, expectStatus, short, Trail } from "./02-space.ts";
 import type { FlowSpace } from "./02-space.ts";
+import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 /** The modules this flow touches: members and identity (invite, account), devices (the session), access (role and group), spaces (the profile the join page reads and the checklist), home. */
@@ -10,6 +11,13 @@ export const LIVE_FOR_JOIN = ["members", "identity", "devices", "access", "space
 
 /** Opaque key bundle: the server stores ciphertext and never opens it, so any base64 will do. */
 const KEYS = { personKeyByPassword: "d3JhcHBlZA==", publicKey: "cHVibGlj", privateKeyWrapped: "d3JhcHBlZA==", spaceKeys: [{ epoch: 0, wrapped: "d3JhcHBlZA==" }] };
+
+/** Why this flow is a todo today (ruling 53: each LIVE packet cannot close until it passes). */
+export const GAPS: Gap[] = [
+  { packet: "P-L7_LIVE", lane: "L7", what: "spaces.get is a 'later' stub in modules/spaces/handlers/index.ts, so members.invites.create and preview answer 501" },
+  { packet: "P-L7_LIVE", lane: "L7", what: "the host never builds identity ctx.invites from members invitesSeam, so the accept raises 'invites are not wired'" },
+  { packet: "P-SEC_05", lane: "L7b", what: "identity mints its own tokens and never calls devices.register, so the token a new member gets back is 401 at the gateway" },
+];
 
 export async function runJoining(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const s = await bootFlowSpace(live);

@@ -142,3 +142,14 @@ export function expectStatus(r: Reply, status: number, what: string): any {
   if (r.status !== status) throw new Error(`${what}: expected ${status}, got ${r.status} ${short(r.body?.error ?? r.body)}`);
   return r.body?.data;
 }
+
+/** A known reason a flow cannot pass yet: the packet that owns the fix, its lane, and what is missing. A flow with gaps runs as a node:test todo (it still runs and prints its trail). */
+export interface Gap { packet: string; lane: string; what: string }
+
+/** The `todo` option for node:test: the gaps in one line, or false when the flow has none. */
+export const todoOf = (gaps: readonly Gap[]): string | false => (gaps.length ? gaps.map((g) => `${g.packet} (${g.lane}): ${g.what}`).join("; ") : false);
+
+/** The steps that must be ok whatever the gaps are (they are real, passing proof). */
+export function okSteps(trail: Trail): string[] {
+  return trail.lines.filter((l) => l.startsWith("ok    ")).map((l) => l.slice(6));
+}

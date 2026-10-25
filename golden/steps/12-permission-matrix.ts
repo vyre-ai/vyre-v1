@@ -3,12 +3,19 @@
 import assert from "node:assert/strict";
 import { PERMISSIONS } from "../../manifests/permissions.ts";
 import { bootFlowSpace, expectStatus, short, Trail } from "./02-space.ts";
+import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_MATRIX = ["access", "members", "files", "devices", "spaces", "tasks"];
 
 const TESS = { kind: "person", id: "usr_tess" } as const;
 const CHANNEL = { type: "channel", id: "chn_general" } as const;
+
+/** Why this flow is a todo today (ruling 53). */
+export const GAPS: Gap[] = [
+  { packet: "P-L11_04", lane: "L11", what: "the core seed is kernel events only: the live access module does not know its people or folders (view_as 404 no such person, share 404 no such resource)" },
+  { packet: "CONTRACT-CHANGE", lane: "L7", what: "access.request needs level view on the resource being asked for, so a person who cannot see it gets 403 instead of asking" },
+];
 
 export async function runMatrix(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const s = await bootFlowSpace(live);

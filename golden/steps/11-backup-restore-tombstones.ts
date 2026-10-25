@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { bootFlowSpace, expectStatus, short, Trail } from "./02-space.ts";
+import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_RESTORE = ["backup", "governance", "devices", "access", "spaces", "tasks", "gate", "search", "inbox", "contacts-link", "files"];
@@ -14,13 +15,23 @@ const CONTACT = {
   def: { title: "Contact", plural: "Contacts", icon: "user", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "email", type: "text", title: "Email" }] },
 };
 
+/** Why this flow is a todo today (ruling 53). */
+export const GAPS: Gap[] = [
+  { packet: "P-L7b_LIVE", lane: "L7b", what: "backup.* answer 503: configureBackup is never called by the host, so there is no Space source, export sink or S3 driver" },
+  { packet: "P-L7_LIVE", lane: "L7", what: "governance migrations create gov_* tables; a live module may only use governance_*, so erase and tombstones answer 403" },
+];
+
 export async function runRestore(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const s = await bootFlowSpace(live);
   const trail = new Trail();
   try {
     const admin = s.d.token;
     const target = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-golden-backup-"));
-    await trail.step("the contact type exists", async () => { expectStatus(await s.call("schema.apply", admin, { idempotencyKey: "golden-11-type", ops: [CONTACT] }), 200, "schema.apply"); });
+    await trail.step("the contact type exists", async () => {
+      // the records module ships a built-in contact type; make it only when this Space has none
+      if ((await s.call("schema.types.get", admin, { type: "contact" })).status === 200) return;
+      expectStatus(await s.call("schema.apply", admin, { idempotencyKey: "golden-11-type", ops: [CONTACT] }), 200, "schema.apply");
+    });
     const rec = await trail.step("a contact is created", async () =>
       expectStatus(await s.call("records.create", admin, { idempotencyKey: "golden-11-rec", type: "contact", fields: { name: "Ann Example", email: "ann@example.com" } }), 200, "records.create").record.id as string,
     ["the contact type exists"]);
@@ -48,11 +59,11 @@ export async function runRestore(live: readonly string[]): Promise<{ events: Obs
       assert.equal(r.status, 404, `records.get after the erase: ${r.status}`);
       const t = expectStatus(await s.call("governance.tombstones.list", admin, {}), 200, "governance.tombstones.list").tombstones as unknown[];
       assert.ok(t.length >= 1, "a tombstone is listed");
-    }, ["the contact is found for erasure", "a backup runs"]);
+    }, ["the contact is found for erasure"]);
     await trail.step("the restore preview counts the tombstone", async () => {
       const p = expectStatus(await s.call("backup.restore_preview", admin, { backupId: backupId! }), 200, "backup.restore_preview");
       assert.ok(p.tombstones >= 1, `preview ${short(p)}`);
-    }, ["the contact is erased and a tombstone is written"]);
+    }, ["the contact is erased and a tombstone is written", "a backup runs"]);
     await trail.step("refusal: a Member cannot restore", async () => {
       const r = await s.call("backup.restore", s.signedIn("usr_noah"), { backupId: backupId!, confirm: true });
       assert.equal(r.status, 403, `backup.restore as a Member: ${r.status} ${short(r.body?.error ?? r.body)}`);
