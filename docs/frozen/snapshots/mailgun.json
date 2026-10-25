@@ -1,0 +1,22 @@
+{
+  "module": "mailgun",
+  "capabilities": {
+    "mailgun.domains.create@1": "7ea68be6e5c221954cd1f5090c512c818a61d4055e63066f5e40bd36d94be2a2",
+    "mailgun.domains.delete@1": "caf85be7985a6ef71ef869706ea72540deddb149caf1efd655e174471b2a1bb2",
+    "mailgun.domains.get@1": "3947026af246d21c45508940862e9fdcb24295e3687649be6552338d53d2e058",
+    "mailgun.domains.list@1": "4a5e40751ad92a86c02f6822c0d6dfa89eb9febb0ec631b84aa7a972fa125a70",
+    "mailgun.domains.verify@1": "d01e53e8ace3ba5b8b3b0f6ec12adc9612dcefdae134bb98516e23f06324977b",
+    "mailgun.events.list@1": "f643c3d76c354eb8010e1a2dc6b7eec1030206f761d188345a47dec42baa7820",
+    "mailgun.health@1": "71dc2872be36886efe81c0b6956330fe6550e22e824f6445debbbbe1e67b3e0a",
+    "mailgun.receive_inbound@1": "8c1cd0285ef49b73df2008f90bc1e58019e57979253b25d41cbd6d27157c7b18",
+    "mailgun.receive_webhook@1": "3fbfe1c6d5a290c146a46c95dae8374bb2f4854ad597d9248b2e9f255524d53f",
+    "mailgun.routes.create@1": "92bb7863f997e11e73280e9d4d9c135b1939e9ca4dfb2a4870610f69277e97dd",
+    "mailgun.routes.delete@1": "273921657da4c30f163059e8faa176cbf3c6192a011f4f7e81d426c5790cf08e",
+    "mailgun.routes.list@1": "6937e76fe6f717b92dd5efb9ecc1d0c42e5068ef8396592a10858d005b7140ca",
+    "mailgun.send_email@1": "7c39914289421e3014c48475a4ca09ef19125974ae125ad20d660862300487ec"
+  },
+  "events": {
+    "mailgun.event_received": "c6c10091fc8f82b56922187cef2317aafdf3bd2cbba1060543e12048be0f797c",
+    "mailgun.inbound_received": "9a068315a4b4003913de269e3f196eaeb05ddbaa3cee03949b3e280c76c5064a"
+  }
+}

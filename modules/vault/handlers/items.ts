@@ -303,8 +303,8 @@ export async function itemMove(ctx: VaultCtx, input: { itemId: string; folderId:
   patchMeta(ctx, str(r, "id"), { folderId: str(target, "id"), scope: to });
   record(ctx, str(r, "id"), "moved", { detail: `${from} to ${str(target, "id")}` });
   ctx.emit("vault.item_moved", `vault_item/${str(r, "id")}`, { itemId: str(r, "id"), fromFolderId: from, toFolderId: str(target, "id") }, { vis: "participants" });
-  // item.moved names generic fld_ folders; vault folders are vfd_, so the event carries the resource only (vault.item_moved has the folders)
-  ctx.emit("item.moved", `vault_item/${str(r, "id")}`, { resource: { type: "vault_item", id: str(r, "id") } });
+  // item.moved takes fld_ and vfd_ folders alike (P-CC_28), so a Vault move carries from and to on the shared event too
+  ctx.emit("item.moved", `vault_item/${str(r, "id")}`, { resource: { type: "vault_item", id: str(r, "id") }, fromFolderId: from, toFolderId: str(target, "id") });
   return { item: metaOut(ctx, liveItem(ctx, str(r, "id"))) };
 }
 

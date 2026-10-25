@@ -3084,7 +3084,7 @@
       "blocks": [],
       "cap": "agents.routine.save",
       "deferred": false,
-      "description": "Create or change a routine; messages it causes carry \"Sent by <agent> on a routine <person> set\"",
+      "description": "Create or change a routine, a schedule (cron) or a watcher (kind watch: runs on each new message in a channel); messages it causes carry \"Sent by <agent> on a routine <person> set\"",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -3118,6 +3118,13 @@
             "minLength": 1,
             "type": "string"
           },
+          "kind": {
+            "enum": [
+              "schedule",
+              "watch"
+            ],
+            "type": "string"
+          },
           "prompt": {
             "type": "string"
           },
@@ -3130,12 +3137,33 @@
           },
           "title": {
             "type": "string"
+          },
+          "watch": {
+            "properties": {
+              "channelId": {
+                "examples": [
+                  "chn_a1b2c3"
+                ],
+                "pattern": "^chn_[a-z0-9]+$",
+                "type": "string"
+              },
+              "on": {
+                "enum": [
+                  "message"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "on",
+              "channelId"
+            ],
+            "type": "object"
           }
         },
         "required": [
           "agentId",
           "title",
-          "cron",
           "prompt",
           "idempotencyKey"
         ],
@@ -25941,7 +25969,7 @@
       "blocks": [],
       "cap": "kits.install_sheet",
       "deferred": false,
-      "description": "The install sheet: tools, record types, network domains, vault names",
+      "description": "The install sheet: tools, record types, network domains, vault names, scripts, and the steps the sheet check found broken",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -29279,7 +29307,7 @@
       "blocks": [],
       "cap": "memory.counts",
       "deferred": false,
-      "description": "Counts for the agent strip: current facts, proposed facts and facts from the caller",
+      "description": "Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -29824,6 +29852,32 @@
       },
       "name": "memory_layout_save",
       "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.map.get",
+      "deferred": false,
+      "description": "The MAP.md block of an agent as the nightly job last wrote it (agent layer only, never personal memory); absent before the first night",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_map_get",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -34989,7 +35043,7 @@
       "blocks": [],
       "cap": "records.export",
       "deferred": false,
-      "description": "Export rows as CSV or Excel (permissioned)",
+      "description": "Export rows as CSV or Excel (permissioned), the whole view or only the picked recordIds",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -35020,6 +35074,18 @@
           "offset": {
             "minimum": 0,
             "type": "integer"
+          },
+          "recordIds": {
+            "description": "Export only these rows (a hand-picked selection), in the order of the view; a row the caller may not read is left out",
+            "items": {
+              "examples": [
+                "rec_a1b2c3"
+              ],
+              "pattern": "^rec_[a-z0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 5000,
+            "type": "array"
           },
           "sort": {
             "items": {

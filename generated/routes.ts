@@ -16994,6 +16994,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/memory/map/get",
+    "cap": "memory.map.get",
+    "v": 1,
+    "module": "memory",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/memory/notes/list",
     "cap": "memory.notes.list",
     "v": 1,
@@ -23808,8 +23826,8 @@ export const routes: Route[] = [
     "v": 1,
     "module": "sync",
     "effects": "write",
-    "permission": null,
-    "level": "edit",
+    "permission": "access.manage",
+    "level": "manage",
     "resource": {
       "type": "space"
     },
