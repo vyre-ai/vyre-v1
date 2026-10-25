@@ -20,8 +20,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 /** Every migration in file order, as the host runs them; a table created again later replaces the earlier definition. */
 export function readMigration(): string {
   const dir = join(here, "../migrations");
-  return readdirSync(dir).filter((f) => f.endsWith(".sql")).sort().map((f) => readFileSync(join(dir, f), "utf8")).join("
-");
+  return readdirSync(dir).filter((f) => f.endsWith(".sql")).sort().map((f) => readFileSync(join(dir, f), "utf8")).join("\n");
 }
 
 function parseDefault(text: string): unknown {
