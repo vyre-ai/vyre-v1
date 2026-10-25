@@ -194921,6 +194921,34 @@
         },
         {
           "key": "stage",
+          "options": {
+            "stages": [
+              {
+                "key": "intake",
+                "title": "Intake"
+              },
+              {
+                "key": "drafting",
+                "title": "Drafting"
+              },
+              {
+                "key": "review",
+                "title": "Review"
+              },
+              {
+                "key": "signing",
+                "title": "Signing"
+              },
+              {
+                "key": "funding",
+                "title": "Funding"
+              },
+              {
+                "key": "complete",
+                "title": "Complete"
+              }
+            ]
+          },
           "title": "Stage",
           "type": "status"
         },
@@ -194966,6 +194994,26 @@
         },
         {
           "key": "status",
+          "options": {
+            "stages": [
+              {
+                "key": "brief",
+                "title": "Brief"
+              },
+              {
+                "key": "concept",
+                "title": "Concept"
+              },
+              {
+                "key": "review",
+                "title": "In review"
+              },
+              {
+                "key": "delivered",
+                "title": "Delivered"
+              }
+            ]
+          },
           "title": "Status",
           "type": "status"
         },
