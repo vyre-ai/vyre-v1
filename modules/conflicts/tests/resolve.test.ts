@@ -214,5 +214,5 @@ test("an agent that resolves for the person signs as itself", async () => {
   const agent = asPerson(h, { kind: "agent", id: "agt_assistant" });
   agent.ctx.actingFor = "usr_dana";
   await resolve(agent.ctx, { conflictId: id, choice: "theirs", summary: "Used the newer edit" });
-  assert.equal(h.named("conflict.resolved")[0]?.payload["by"], "agt_assistant");
+  assert.equal(agent.named("conflict.resolved")[0]?.payload["by"], "agt_assistant");
 });
