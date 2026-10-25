@@ -16,9 +16,9 @@ interface Ort {
 
 export interface Embedder { (texts: readonly string[]): Promise<Float32Array[]>; readonly maxTokens: number }
 
-export async function createEmbedder(o: { dir?: string; fetch?: Fetch; batch?: number; maxTokens?: number } = {}): Promise<Embedder> {
+export async function createEmbedder(o: { dir?: string; fetch?: Fetch; batch?: number; maxTokens?: number; threads?: number } = {}): Promise<Embedder> {
   const ort = (await import("onnxruntime-web")) as unknown as Ort;
-  ort.env.wasm.numThreads = 1;
+  ort.env.wasm.numThreads = o.threads ?? 1;
   const files = { dir: o.dir, fetch: o.fetch } as { dir?: string; fetch?: Fetch };
   const [model, tok] = await Promise.all([fetchModelFile(MODEL_FILES.model, files), fetchModelFile(MODEL_FILES.tokenizer, files)]);
   const vocab = vocabOf(new TextDecoder().decode(tok));
@@ -28,6 +28,7 @@ export async function createEmbedder(o: { dir?: string; fetch?: Fetch; batch?: n
 
   async function run(texts: readonly string[]): Promise<Float32Array[]> {
     const rows = texts.map((t) => encode(t, vocab, maxTokens));
+    // (texts of similar length are batched together by the caller, so padding is small)
     const T = Math.max(...rows.map((r) => r.length));
     const B = rows.length;
     const ids = new BigInt64Array(B * T).fill(BigInt(vocab.pad));
@@ -52,8 +53,15 @@ export async function createEmbedder(o: { dir?: string; fetch?: Fetch; batch?: n
 
   const embed = (async (texts: readonly string[]) => {
     const all: Float32Array[] = [];
-    for (let i = 0; i < texts.length; i += batch) all.push(...(await run(texts.slice(i, i + batch))));
-    return all;
+    // batch by length so a short text is not padded to a long one, then put the vectors back in the order asked
+    const order = texts.map((t, i) => ({ i, n: t.length })).sort((a, b) => a.n - b.n);
+    const out = new Array<Float32Array>(texts.length);
+    for (let s = 0; s < order.length; s += batch) {
+      const part = order.slice(s, s + batch);
+      const vs = await run(part.map((x) => texts[x.i]!));
+      part.forEach((x, j) => { out[x.i] = vs[j]!; });
+    }
+    return out;
   }) as Embedder;
   (embed as { maxTokens: number }).maxTokens = maxTokens;
   return embed;

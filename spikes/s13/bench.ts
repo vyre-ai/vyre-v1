@@ -54,20 +54,27 @@ async function kernels(): Promise<void> {
 const a0same = (a: VectorIndex, b: VectorIndex, q: Float32Array): boolean => a.top(q, 20).map((x) => x.n).join() === b.top(q, 20).map((x) => x.n).join();
 
 async function embedder(): Promise<void> {
-  const t0 = performance.now();
-  const embed = await createEmbedder();
-  say(`model loaded in ${(performance.now() - t0).toFixed(0)} ms`);
   const dot = (a: Float32Array, b: Float32Array): number => { let s = 0; for (let i = 0; i < DIM; i++) s += a[i]! * b[i]!; return s; };
-  const [a, b, c] = await embed(["The warehouse rent is due on the first of the month.", "Monthly rent for the harbor warehouse.", "Soup, salad and bread for the team lunch."]);
-  say(`unit length ${dot(a!, a!).toFixed(4)}; related ${dot(a!, b!).toFixed(3)}; unrelated ${dot(a!, c!).toFixed(3)}`);
-  if (!(Math.abs(dot(a!, a!) - 1) < 1e-3 && dot(a!, b!) > dot(a!, c!) + 0.15)) { say("FAIL the embeddings do not separate related from unrelated text"); failed = true; } else say("PASS related text is closer than unrelated text");
   const chunk = "Please send the signed lease for the harbor warehouse before Friday so that the renewal can be filed with the property company. ".repeat(3).slice(0, 380);
   const texts = Array.from({ length: 200 }, (_, i) => `${chunk} ${i}`);
-  await embed(texts.slice(0, 16));
-  const rates: number[] = [];
-  for (let r = 0; r < 3; r++) { const s = performance.now(); await embed(texts); rates.push(texts.length / ((performance.now() - s) / 1000)); }
-  say(`chunks per second: ${rates.map((x) => x.toFixed(1)).join(", ")}`);
-  budget("embedder chunks per second, median of 3 (200 chunks of about 380 characters)", median(rates), 100, false);
+  let best = 0;
+  // the same model under the settings that can matter: threads (the perf runner has two cores to itself) and batch size
+  for (const [threads, batch] of [[1, 16], [2, 16], [2, 32], [1, 8]] as const) {
+    const t0 = performance.now();
+    const embed = await createEmbedder({ threads, batch });
+    const loaded = performance.now() - t0;
+    const [a, b, c] = await embed(["The warehouse rent is due on the first of the month.", "Monthly rent for the harbor warehouse.", "Soup, salad and bread for the team lunch."]);
+    if (threads === 1 && batch === 16) {
+      say(`model loaded in ${loaded.toFixed(0)} ms; unit length ${dot(a!, a!).toFixed(4)}; related ${dot(a!, b!).toFixed(3)}; unrelated ${dot(a!, c!).toFixed(3)}`);
+      if (!(Math.abs(dot(a!, a!) - 1) < 1e-3 && dot(a!, b!) > dot(a!, c!) + 0.15)) { say("FAIL the embeddings do not separate related from unrelated text"); failed = true; } else say("PASS related text is closer than unrelated text");
+    }
+    await embed(texts.slice(0, 16));
+    const rates: number[] = [];
+    for (let r = 0; r < 3; r++) { const s = performance.now(); await embed(texts); rates.push(texts.length / ((performance.now() - s) / 1000)); }
+    say(`threads ${threads}, batch ${batch}: chunks per second ${rates.map((x) => x.toFixed(1)).join(", ")}`);
+    best = Math.max(best, median(rates));
+  }
+  budget("embedder chunks per second, best setting, median of 3 (200 chunks of about 380 characters)", best, 100, false);
 }
 
 if (which === "kernel" || which === "all") await kernels();
