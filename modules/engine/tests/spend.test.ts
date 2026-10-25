@@ -261,3 +261,26 @@ test("the handler table covers the spend capabilities", () => {
     assert.equal(typeof handlers[name], "function", name);
   }
 });
+
+
+// ---- usage by Vault item (P-CC_36) ----
+
+test("record_usage keeps the Vault item a turn ran on, usage.query filters by it, and a person still sees only their own turns", async () => {
+  const h = harness();
+  const { engine, hold, next } = await start(h);
+  const t1 = await next();
+  assert.deepEqual(await recordUsage(h.ctx, { turnId: t1, tokensIn: 10, tokensOut: 5, costMicros: 3, itemId: "vit_aaaaaaaaaaaa" }), {});
+  assert.deepEqual(h.db.all("SELECT turn_id, item_id FROM engine_usage_item"), [{ turn_id: t1, item_id: "vit_aaaaaaaaaaaa" }]);
+  await recordUsage(h.ctx, { turnId: t1, tokensIn: 1, tokensOut: 1, costMicros: 1, itemId: "vit_bbbbbbbbbbbb" });
+  assert.deepEqual(h.db.all("SELECT item_id FROM engine_usage_item"), [{ item_id: "vit_aaaaaaaaaaaa" }], "the first key seen for a turn stays");
+  h.db.run("INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", "trn_other", THREAD, "agt_docs", "usr_sam", "gpt-5", 1_760_000_000_000, 7, 7, 1);
+  const onKey = usageQuery(h.ctx, { by: "agent", itemId: "vit_aaaaaaaaaaaa" });
+  assert.deepEqual(onKey.rows.map((r) => [r.key, r.totals.turns, r.totals.tokensIn + r.totals.tokensOut]), [[AGENT, 1, 18]], "only the turns on that key");
+  assert.equal(usageQuery(h.ctx, { by: "agent", itemId: "vit_nokeyatall00" }).totals.turns, 0);
+  assert.equal(usageQuery(h.ctx, { by: "agent" }).totals.turns, 2, "without the filter every turn counts");
+  h.setManager(false);
+  assert.deepEqual(usageQuery(h.ctx, { by: "person", itemId: "vit_aaaaaaaaaaaa" }).rows.map((r) => r.key).every((k) => k === h.ctx.principal.id), true, "a person sees only their own turns on the key");
+  hold.release(0);
+  await engine.idle(THREAD);
+});
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.

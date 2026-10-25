@@ -1,4 +1,5 @@
 // @reads /modules/engine/migrations/0001_init.sql
+// @reads /modules/engine/migrations/0002_usage_item.sql
 // Durable rows of the engine module: the SQL behind the turn engine's ports (messages, thread queue, thread lease, parked tool calls),
 // plus the id minting and the period keys the handlers share. Every statement names an engine_* table, which is all ctx.db lets a module touch.
 // The migration file is the one source of the schema: ensure() runs it statement by statement (all IF NOT EXISTS), so a handler call on a fresh database works.
@@ -51,7 +52,7 @@ export function boundEngine(ctx: Pick<EngineCtx, "trace">): TurnEngine {
   return bound;
 }
 
-const SCHEMA = readFileSync(new URL("./migrations/0001_init.sql", import.meta.url), "utf8")
+const SCHEMA = ["0001_init.sql", "0002_usage_item.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 
@@ -62,6 +63,7 @@ export function ensure(db: Db): void {
   if (ready.has(db)) return;
   try {
     db.all("SELECT note_text FROM engine_incident_notes WHERE incident_id = ?", "probe");
+    db.all("SELECT item_id FROM engine_usage_item WHERE turn_id = ?", "probe");
   } catch {
     for (const stmt of SCHEMA) db.run(stmt);
   }
