@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Marks the shell as ES modules so the .tsx tests load react-native through the react-native-web alias (apps/app has no type field)."
+}

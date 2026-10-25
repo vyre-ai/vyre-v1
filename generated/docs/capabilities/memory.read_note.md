@@ -10,7 +10,7 @@ Read one memory note as Markdown
 | Permission | grant only |
 | Grant level | view |
 | Risk | low |
-| Resource | file (/noteId) |
+| Resource | note (/noteId) |
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |

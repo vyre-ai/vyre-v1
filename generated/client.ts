@@ -1514,6 +1514,7 @@ export function createClient(transport: Transport) {
         review: call("records.values.review", 1),
       },
       versions: call("records.versions", 1),
+      view: call("records.view", 1),
     },
     reports: {
       get: call("reports.get", 1),
