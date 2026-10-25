@@ -14,7 +14,7 @@ export default function Mount(): ReactNode {
   const q = useMemo(() => new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""), []);
   const space = q.get("space") === "harbor" ? harbor : northwind;
   const sample = useMemo(() => createContactTabSample(space), [space]);
-  const id = q.get("c") ?? (space === harbor ? "kai" : "elena");
+  const id = q.get("c") ?? (space === harbor ? "clara" : "elena");
   const contactId = (sample.replica.rows("contacts") as unknown as { id: string; contactId?: string }[]).find((c) => c.id === id)?.contactId;
   useEffect(() => {
     if (q.get("mail") === "held") sample.mailStatus.next = "held";

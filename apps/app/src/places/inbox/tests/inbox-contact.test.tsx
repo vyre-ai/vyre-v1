@@ -177,6 +177,11 @@ test("screen: the Harbor Studio space has its own conversation and no numbers to
   assert.ok(has(out, 'aria-label="Text"') && has(out, 'aria-disabled="true"'), "no number, so Text is off");
 });
 
+test("screen: Harbor Studio's Clara Voss opens with her one email, as the prototype's Harbor Inbox shows her", () => {
+  const { out } = tab("clara", harbor);
+  assert.ok(has(out, "Clara Voss") && has(out, "Studio session for the autumn range") && has(out, 'data-testid="email:cv1"'));
+});
+
 test("the loading frame has the header, a feed and the composer so nothing moves when the thread lands", () => {
   const out = renderToStaticMarkup(<TabLoading />);
   assert.ok(has(out, 'data-testid="contact-tab-loading"') && has(out, 'aria-label="Loading"'));

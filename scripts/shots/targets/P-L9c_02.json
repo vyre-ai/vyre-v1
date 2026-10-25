@@ -23,10 +23,10 @@
     },
     {
       "id": "P-L9c_02-contacttab-harbor",
-      "route": "/m/P-L9c_02?space=harbor&c=kai",
-      "proto": "inbox,space:harbor,at:contact:kai,{skin}",
-      "waitFor": "[data-testid='email:km1']",
-      "note": "The Harbor Studio space: Kai Moreno's one email and the composer with a single mailbox and no Text."
+      "route": "/m/P-L9c_02?space=harbor&c=clara",
+      "proto": "inbox,space:harbor,at:contact:clara,{skin}",
+      "waitFor": "[data-testid='email:cv1']",
+      "note": "The Harbor Studio space: Clara Voss's one email and the composer with a single mailbox and no Text."
     }
   ]
 }

@@ -49,6 +49,9 @@ export const threads: Record<string, ThreadItem[]> = {
     { kind: "email", id: "pm1", at: ago(70), direction: "in", title: "Re: Spring check-in", preview: "Yes, we would like to book a review for next week.", ref: {
       subject: "Re: Spring check-in", body: "Yes, we would like to book a review for next week. Tuesday morning works best.", via: "intake@", campaign: "Spring check-in", quoted: "On Mon, Oct 20 Intake wrote:\n> Do you want to book a review this spring?" } },
   ],
+  clara: [
+    { kind: "email", id: "cv1", at: ago(55), direction: "in", title: "Studio session for the autumn range", preview: "Hi, we need a two day shoot for the autumn range.", ref: { subject: "Studio session for the autumn range", body: "Hi, we need a two day shoot for the autumn range. Do you have a slot in the first week of November?\n\nClara", via: "Studio Gmail" } },
+  ],
   kai: [
     { kind: "email", id: "km1", at: ago(40), direction: "in", title: "Logo round two", preview: "These are close.", ref: { subject: "Logo round two", body: "These are close. Can we see the mark on the ceramics tag?", via: "Studio Gmail" } },
   ],
@@ -82,13 +85,16 @@ export function createContactTabSample(space: SampleSpace = northwind, o: { onli
   const sent: { cap: string; input: unknown }[] = [];
   const mailStatus: ContactTabSample["mailStatus"] = { next: "queued" };
 
-  const stored = space.id === "northwind" ? Object.entries(threads).filter(([k]) => k !== "kai") : [["kai", threads["kai"]!] as const];
+  const stored = space.id === "northwind" ? Object.entries(threads).filter(([k]) => k !== "kai" && k !== "clara") : [["kai", threads["kai"]!] as const, ["clara", threads["clara"]!] as const];
   const itemRows: Item[] = [];
   for (const [conv, list] of stored) for (const i of list) itemRows.push(item(conv, i));
   replica.put("thread_items", itemRows as unknown as Row[]);
   replica.put("drafts", (space.id === "northwind" ? draftSeeds : []).map((d) => draftRow(d)) as unknown as Row[]);
 
   const contacts = (): ContactRow[] => replica.rows("contacts") as unknown as ContactRow[];
+  // Harbor Studio's other client, Clara Voss, whose one email the prototype's Harbor Inbox opens
+  const kaiRow = space.id === "harbor" ? contacts().find((c) => c.id === "kai") : undefined;
+  if (kaiRow) replica.put("contacts", [...contacts(), { ...kaiRow, id: "clara", contactId: "ct_clara", address: "clara@vossceramics.example", displayName: "Clara Voss", lastPreview: "Studio session for the autumn range" }] as unknown as Row[]);
   const find = (conversationId?: string, contactId?: string): ContactRow | undefined => contacts().find((c) => c.id === conversationId || (contactId !== undefined && c.contactId === contactId));
 
   replica.resolve("inbox.thread", (_t, i) => {
