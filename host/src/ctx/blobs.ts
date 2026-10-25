@@ -3,8 +3,8 @@
 // refused, an id nobody stored is absent. Each blob and each module's total is capped.
 import fs from "node:fs";
 import path from "node:path";
-import crypto from "node:crypto";
-import { aesUnwrap, aesWrap, hkdf32 } from "../../../kernel/src/seal/index.ts";
+import { mintUuid } from "../../../lib/ids.ts";
+import { aesUnwrap, aesWrap, hkdf32, sha256b64 } from "../../../kernel/src/seal/index.ts";
 import type { BlobMeta, Blobs } from "../../../packages/contracts/src/ctx.ts";
 import { fail } from "../routes/errors.ts";
 
@@ -82,10 +82,10 @@ export function createBlobStore(o: BlobStoreOptions): BlobStore {
           scan();
           const total = used.get(moduleId) ?? 0;
           if (total + bytes.byteLength > maxModule) throw fail("validation.too_large", traceId, { message: "This module has used all its blob storage.", details: { used: total, cap: maxModule } });
-          const id = `blb_${crypto.randomBytes(16).toString("hex")}`;
+          const id = `blb_${mintUuid(now()).replaceAll("-", "")}`;
           const box = aesWrap(keyFor(moduleId), bytes, id);
           const sealed = Buffer.concat([Buffer.from(box.iv, "base64url"), Buffer.from(box.tag, "base64url"), Buffer.from(box.ct, "base64url")]);
-          const meta: Stored = { id, module: moduleId, contentType, size: bytes.byteLength, sha256: crypto.createHash("sha256").update(bytes).digest("hex"), createdAt: now() };
+          const meta: Stored = { id, module: moduleId, contentType, size: bytes.byteLength, sha256: Buffer.from(sha256b64(bytes), "base64url").toString("hex"), createdAt: now() };
           fs.mkdirSync(o.dir, { recursive: true, mode: 0o700 });
           fs.writeFileSync(bin(id), sealed, { mode: 0o600 });
           fs.writeFileSync(metaFile(id), JSON.stringify(meta), { mode: 0o600 });   // the metadata lands last: a blob without it does not exist
