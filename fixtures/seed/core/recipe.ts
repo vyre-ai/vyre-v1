@@ -3,6 +3,11 @@
 // Changing anything here changes `CORE_SHAPE_HASH` in core.seed.test.ts, which only the lead updates.
 import type { NewEvent } from "../../../kernel/src/log/types.ts";
 import { ROLE_IDS, ROLE_PERMS } from "../../../kernel/src/grants/roles.ts";
+import { withCatalogue } from "../../../kernel/src/authorize/roles.ts";
+import { PERMISSIONS } from "../../../manifests/permissions.ts";
+
+/** The built-in roles: the kernel bundles plus the permission catalogue (P-H_15), so a new catalogue row reaches the seed without a hand edit. */
+export const SEED_ROLE_PERMS = withCatalogue(ROLE_PERMS, PERMISSIONS);
 
 export const CORE_SPACE = "spc_core";
 const TRACE = "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0";
@@ -50,7 +55,7 @@ export function coreEvents(): NewEvent[] {
   n = 0;
   const out: NewEvent[] = [];
   out.push(ev("space.created", "space", CORE_SPACE, { id: CORE_SPACE, name: "Core" }));
-  for (const role of ROLE_IDS) out.push(ev("role.defined", "role", role, { id: role, clearance: CLEARANCE[role], perms: [...ROLE_PERMS[role]], name: role }));
+  for (const role of ROLE_IDS) out.push(ev("role.defined", "role", role, { id: role, clearance: CLEARANCE[role], perms: [...SEED_ROLE_PERMS[role]], name: role }));
   for (const p of PEOPLE) {
     out.push(ev("principal.created", "principal", p.id, { id: p.id, kind: "person", status: "active", name: p.name }));
     out.push(ev("principal.role_set", "principal", p.id, { holder: p.id, role: p.role }));
