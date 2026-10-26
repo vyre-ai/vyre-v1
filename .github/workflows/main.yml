@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   select:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     permissions: { contents: read, actions: read }
     outputs:
@@ -52,7 +52,7 @@ jobs:
     name: ${{ matrix.name }}
     needs: select
     if: needs.select.outputs.has_tests == 'true'
-    runs-on: ${{ matrix.runner == 'hosted' && 'ubuntu-latest' || fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
+    runs-on: ${{ fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -67,14 +67,14 @@ jobs:
   golden-main:
     needs: select
     if: needs.select.outputs.full == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, v1]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/deps
       - run: npm run golden
   contracts:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, v1]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -85,7 +85,7 @@ jobs:
     needs: [select, shards, golden-main, contracts]
     # a skipped job (affected run: golden and perf; no affected tests: shards) is fine, a failed or cancelled one is not
     if: ${{ !cancelled() && !contains(needs.*.result, 'failure') }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
       - run: echo "merge ok"

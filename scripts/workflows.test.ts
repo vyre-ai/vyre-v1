@@ -100,6 +100,12 @@ test("check, main and release run their shards through the one run-shard action:
   assert.match(action, /test-run\.ts --slow --files/);
   for (const n of ["check", "main", "release"]) { const t = wf(n).text; assert.match(t, /uses: \.\/\.github\/actions\/run-shard/); assert.match(t, /ci-select\.ts/); }
   assert.doesNotMatch(wf("release").text, /--max \d/, "release uses the same shard plan as check: no --max");
+  // The org is out of GitHub Actions minutes (25 Oct): a hosted job dies with 0 steps, so none of the three workflows may name a GitHub-hosted runner, in a runs-on or in the matrix choice.
+  for (const n of ["check", "main", "release"]) {
+    const t = wf(n).text;
+    assert.doesNotMatch(t, /runs-on:[^\n]*\b(?:ubuntu|windows|macos)-/i, `${n}.yml names a GitHub-hosted runner`);
+    assert.doesNotMatch(t, /'hosted'|"hosted"/, `${n}.yml picks a hosted runner from the matrix`);
+  }
 });
 
 // P-L11_23: security.yml runs the gates for real, and each scan fails on a seeded bad input.

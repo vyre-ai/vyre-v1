@@ -20,8 +20,8 @@ jobs:
   suite:
     name: ${{ matrix.name }}
     needs: select
-    # The same plan and the same runner choice as check.yml (fast shards on hosted runners, slow and heavy files on the v1 runners, one job per heavy file), run by the same action.
-    runs-on: ${{ matrix.runner == 'hosted' && 'ubuntu-latest' || fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
+    # The same plan and the same runner choice as check.yml (every shard on the self-hosted v1 runners, one job per heavy file), run by the same action.
+    runs-on: ${{ fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
     timeout-minutes: 15
     strategy:
       fail-fast: false

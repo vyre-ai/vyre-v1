@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   select:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     outputs:
       matrix: ${{ steps.sel.outputs.matrix }}
@@ -37,7 +37,7 @@ jobs:
     name: ${{ matrix.name }}
     needs: select
     if: needs.select.outputs.count != '0'
-    runs-on: ${{ matrix.runner == 'hosted' && 'ubuntu-latest' || fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
+    runs-on: ${{ fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -51,7 +51,7 @@ jobs:
           runner: ${{ matrix.runner }}
   gates:
     # P-CI_03: ownership, boundaries, lint and typecheck run on every push, so evidence that claims them is verified here.
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -308,7 +308,7 @@ jobs:
   check:
     needs: [select, shards, gates, chrome-real]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
       - name: Every shard passed or there was nothing to run
@@ -323,7 +323,7 @@ jobs:
           [ "$CHROME" = "success" ] || { echo "chrome-real (the extension against a real Chromium): $CHROME"; exit 1; }
           case "$SHARDS" in success|skipped) ;; *) echo "shards: $SHARDS"; exit 1;; esac
   golden:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -331,7 +331,7 @@ jobs:
       - name: Golden flows (needs/pending mode lands with scripts/golden.ts, P-PR_63)
         run: npm run golden
   contracts:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -363,7 +363,7 @@ jobs:
     permissions: { contents: read, actions: read }
     needs: [select, shards, check, golden]
     if: always() && github.event_name != 'merge_group' && github.event_name != 'schedule'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
