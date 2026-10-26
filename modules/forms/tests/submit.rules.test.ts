@@ -10,7 +10,7 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import { createFormsPageRoute, renderFormPage } from "../../../host/src/routes/forms-page.ts";
 import type { PageCaller, PublicFormView } from "../../../host/src/routes/forms-page.ts";
-import { logicState, publicFormView, typeAllowed } from "../handlers/submit.ts";
+import { logicState, publicFormView, recordUpload, reserveUpload, typeAllowed } from "../handlers/submit.ts";
 import { formPrincipal } from "../handlers/submit.ts";
 import { harness } from "../fixtures/world.ts";
 import type { World } from "../fixtures/world.ts";
@@ -19,19 +19,6 @@ import type { OpenForm } from "../fixtures/seed.ts";
 
 interface SubmitOut { recordId: string; thankYou?: string }
 const submit = (f: { slug: string; public: Ctx }, input: Record<string, unknown>) => run<SubmitOut>(f.public, "forms.submit", { slug: f.slug, ...input });
-
-/** The public ctx, with files.get answering from a table (the fake world has no Files module). */
-function withFiles(ctx: Ctx, files: Record<string, { size: number; mime: string; name: string }>): Ctx {
-  const base = ctx.call.bind(ctx) as (cap: string, input: unknown) => Promise<unknown>;
-  const call = (async (cap: string, input: unknown) => {
-    if (cap !== "files.get") return base(cap, input);
-    const id = String((input as { fileId: unknown }).fileId);
-    const f = files[id];
-    if (!f) throw new VyreErr({ code: "validation.not_found", message: "No such file.", retryable: false, traceId: "0".repeat(32), next: [] });
-    return { file: { fileId: id, ...f } };
-  }) as Ctx["call"];
-  return { ...ctx, call };
-}
 
 const LOGIC = {
   rules: [
@@ -102,51 +89,86 @@ test("logic: a hidden question is never required, and an answer to a hidden ques
 });
 
 // ---- upload policy ------------------------------------------------------------------------------------------------
+// A file answer is an upload id the form issued (recordUpload, called by the upload route after it stored the file as the host), never a Space file id.
 
 async function uploadForm(w: World, policy: Record<string, unknown>): Promise<OpenForm> {
   const f = await openForm(w, { fields: [{ field: "email", mode: "ask" }, { field: "resume", mode: "ask" }] });
-  await run(w.ctx, "forms.update", { formId: f.formId, uploadPolicy: policy });
+  await run(w.ctx, "forms.update", { formId: f.formId, uploadPolicy: { folderId: "fld_up", ...policy } });
   return f;
 }
 const FILES = {
-  fil_small_pdf: { size: 10_000, mime: "application/pdf", name: "cv.pdf" },
-  fil_big_pdf: { size: 5_000_000, mime: "application/pdf", name: "big.pdf" },
-  fil_exe: { size: 10_000, mime: "application/x-msdownload", name: "run.exe" },
-  fil_png: { size: 10_000, mime: "image/png", name: "me.png" },
+  small_pdf: { fileId: "fil_real_pdf", size: 10_000, mime: "application/pdf", name: "cv.pdf" },
+  big_pdf: { fileId: "fil_real_big", size: 5_000_000, mime: "application/pdf", name: "big.pdf" },
+  exe: { fileId: "fil_real_exe", size: 10_000, mime: "application/x-msdownload", name: "run.exe" },
+  png: { fileId: "fil_real_png", size: 10_000, mime: "image/png", name: "me.png" },
 };
+/** What the upload route does for a visitor: record the stored file against the form and the visitor, and hand back the id for the answer. */
+const upload = (f: OpenForm, file: (typeof FILES)[keyof typeof FILES], token?: string, ctx: Ctx = f.public) => recordUpload(ctx, { slug: f.slug, ...file, token });
+const answerWith = (f: OpenForm, email: string, uploadId: string, extra: Record<string, unknown> = {}, ctx: Ctx = f.public) =>
+  run<SubmitOut>(ctx, "forms.submit", { slug: f.slug, ...extra, answers: { email, resume: { fileId: uploadId } } });
 
 test("upload policy: a file over the size limit is refused as too large and nothing is written", async () => {
   const w = harness();
   const f = await uploadForm(w, { fields: ["resume"], maxBytes: 1_000_000, types: ["application/pdf"] });
-  const ctx = withFiles(f.public, FILES);
-  const over = run(ctx, "forms.submit", { slug: f.slug, answers: { email: "a@x.example", resume: { fileId: "fil_big_pdf" } } });
-  assert.equal(await code(over), "validation.too_large");
+  assert.equal(await code(answerWith(f, "a@x.example", await upload(f, FILES.big_pdf))), "validation.too_large");
   assert.equal(w.records.size, 0);
 });
 
-test("upload policy: a file of a type that is not listed is refused, a family and an extension both match", async () => {
+test("upload policy: a file of a type that is not listed is refused, a family and an extension both match, and the record gets the stored file id", async () => {
   const w = harness();
   const f = await uploadForm(w, { fields: ["resume"], types: ["application/pdf", "image/*"] });
-  const ctx = withFiles(f.public, FILES);
-  const send = (fileId: string, email: string) => run<SubmitOut>(ctx, "forms.submit", { slug: f.slug, answers: { email, resume: { fileId } } });
-  assert.equal(await code(send("fil_exe", "a@x.example")), "validation.bad_input");
-  assert.equal(await code(send("fil_small_pdf", "b@x.example")), "none");
-  assert.equal(await code(send("fil_png", "c@x.example")), "none");
+  assert.equal(await code(answerWith(f, "a@x.example", await upload(f, FILES.exe))), "validation.bad_input");
+  const pdfUpload = await upload(f, FILES.small_pdf);
+  const out = await answerWith(f, "b@x.example", pdfUpload);
+  assert.deepEqual(w.records.get(out.recordId)?.fields.resume, { fileId: "fil_real_pdf" }, "the record names the Space file, not the upload id");
+  assert.equal(await code(answerWith(f, "c@x.example", await upload(f, FILES.png))), "none");
   assert.equal(typeAllowed([".pdf"], "application/octet-stream", "CV.PDF"), true);
   assert.equal(typeAllowed([], "anything/at-all", "x"), true);
   assert.equal(typeAllowed(["image/*"], "imagery/x", "x"), false);
 });
 
-test("upload policy: a file the store does not know is refused, and with no policy a file answer is not looked up", async () => {
+test("uploads are bound to the form and the visitor: a Space file id, another visitor's upload, another form's upload, a spent or old one are all refused", async () => {
   const w = harness();
-  const f = await uploadForm(w, { maxBytes: 1_000_000 });
-  const ctx = withFiles(f.public, FILES);
-  assert.equal(await code(run(ctx, "forms.submit", { slug: f.slug, answers: { email: "a@x.example", resume: { fileId: "fil_nope" } } })), "validation.bad_input");
-  const w2 = harness();
-  const open = await openForm(w2, { fields: [{ field: "email", mode: "ask" }, { field: "resume", mode: "ask" }] });
-  const out = await submit(open, { answers: { email: "z@x.example", resume: { fileId: "fil_any" } } });
-  assert.match(out.recordId, /^rec_/);
-  assert.equal(w2.calls.filter((c) => c.cap === "files.get").length, 0);
+  const f = await uploadForm(w, { fields: ["resume"] });
+  const other = await uploadForm(w, { fields: ["resume"] });
+  const mine = await upload(f, FILES.small_pdf);
+  assert.equal(await code(answerWith(f, "a@x.example", "fil_real_pdf")), "validation.bad_input", "a bare Space file id is not an upload id");
+  assert.equal(await code(answerWith(f, "a@x.example", "fil_somebody_elses")), "validation.bad_input");
+  const stranger = w.as({ kind: "actor", id: "act_anon_0123456789abcdef" });
+  assert.equal(await code(answerWith(f, "a@x.example", mine, {}, stranger)), "validation.bad_input", "another visitor cannot use it");
+  assert.equal(await code(answerWith(other, "a@x.example", mine)), "validation.bad_input", "another form cannot use it");
+  assert.equal(await code(answerWith(f, "a@x.example", mine, { token: "x.y" })), "auth.invalid_code", "a signed link that does not exist is refused before the upload is looked at");
+  assert.equal(w.records.size, 0);
+  const ok = await answerWith(f, "a@x.example", mine);
+  assert.match(ok.recordId, /^rec_/);
+  w.advance(120_000);
+  assert.equal(await code(answerWith(f, "b@x.example", mine)), "validation.bad_input", "an upload is used once");
+  const old = await upload(f, FILES.small_pdf);
+  w.advance(25 * 60 * 60_000);
+  assert.equal(await code(answerWith(f, "c@x.example", old)), "validation.bad_input", "an upload expires after a day");
+});
+
+test("uploads: a signed-link upload is usable only on that link, and a link-free upload only without one", async () => {
+  const w = harness();
+  const f = await uploadForm(w, { fields: ["resume"] });
+  const plain = await upload(f, FILES.small_pdf);
+  const linked = await upload(f, FILES.small_pdf, "rec_x.sig");
+  const rows = w.db.rows("forms_upload");
+  assert.equal(rows.find((r) => r.id === plain)?.token_hash, null);
+  assert.match(String(rows.find((r) => r.id === linked)?.token_hash), /^[0-9a-f]{64}$/);
+  assert.notEqual(String(rows.find((r) => r.id === linked)?.token_hash), "rec_x.sig", "the link itself is never stored");
+});
+
+test("uploads: a form with no upload folder takes no uploads, and a form's daily cap stops the upload before any file is made", async () => {
+  const w = harness();
+  const none = await openForm(w, { fields: [{ field: "email", mode: "ask" }, { field: "resume", mode: "ask" }] });
+  assert.throws(() => reserveUpload(none.public, none.slug), VyreErr);
+  assert.equal(await code(answerWith(none, "a@x.example", await upload(none, FILES.small_pdf))), "validation.bad_input", "no policy, no uploads");
+  const f = await uploadForm(w, { fields: ["resume"] });
+  for (let i = 0; i < 200; i++) await upload(f, FILES.small_pdf);
+  assert.throws(() => reserveUpload(f.public, f.slug), (e: unknown) => e instanceof VyreErr && e.error.code === "rate_limit.exceeded");
+  w.advance(25 * 60 * 60_000);
+  assert.deepEqual(reserveUpload(f.public, f.slug), { formId: f.formId, folderId: "fld_up" });
 });
 
 // ---- consent and captcha ------------------------------------------------------------------------------------------
@@ -242,24 +264,25 @@ test("rendered page: steps, captcha widget, file chooser, hidden prefill, theme 
 
 // ---- the routes ---------------------------------------------------------------------------------------------------
 
-interface Served { base: string; callers: PageCaller[]; close(): Promise<void> }
+interface Served { base: string; callers: PageCaller[]; uploads: { slug: string; token: string | undefined; caller: PageCaller }[]; close(): Promise<void> }
 
-async function serve(w: World, o: { perMinute?: number; uploads?: boolean; clock?: () => number } = {}): Promise<Served> {
+async function serve(w: World, o: { perMinute?: number; uploadsPerMinute?: number; uploads?: boolean; clock?: () => number } = {}): Promise<Served> {
   const callers: PageCaller[] = [];
-  const stored: { slug: string; name: string; type: string; size: number }[] = [];
+  const uploads: Served["uploads"] = [];
   const route = createFormsPageRoute({
     async read(slug, page, caller) {
       callers.push(caller);
       try { return publicFormView(w.ctx, slug, page); } catch (e) { if (e instanceof VyreErr) return null; throw e; }
     },
     async link(slug, token) { return token === "good" ? { fields: [{ field: "name", step: 0 }] } : null; },
-    ...(o.uploads ? { async upload(slug: string, file: { name: string; type: string; bytes: Uint8Array; folderId: string }) { stored.push({ slug, name: file.name, type: file.type, size: file.bytes.length }); return "fil_up_1"; } } : {}),
+    ...(o.uploads ? { async upload(slug: string, file: { name: string; type: string; bytes: Uint8Array; folderId: string }, caller: PageCaller, token?: string) { assert.equal(file.folderId, "fld_up", "a file goes only to the policy's folder"); uploads.push({ slug, token, caller }); return "upl_1"; } } : {}),
     ...(o.perMinute !== undefined ? { perMinute: o.perMinute } : {}),
+    ...(o.uploadsPerMinute !== undefined ? { uploadsPerMinute: o.uploadsPerMinute } : {}),
     ...(o.clock ? { now: o.clock } : {}),
   });
   const server = http.createServer((req, res) => { if (!route.handle(req, res)) { res.writeHead(418); res.end(); } });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-  return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, callers, close: () => new Promise<void>((r) => { server.closeAllConnections(); server.close(() => r()); }) };
+  return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, callers, uploads, close: () => new Promise<void>((r) => { server.closeAllConnections(); server.close(() => r()); }) };
 }
 
 test("GET /f/<slug> serves the page to a signed-out visitor as an actor, with a nonce policy and no caching", async () => {
@@ -378,7 +401,7 @@ test("GET /book/<slug> serves a booking page with the day and time pickers", asy
 
 test("POST /f/upload/<slug> applies the form's size and type policy before it stores anything", async () => {
   const w = harness();
-  const f = await uploadForm(w, { fields: ["resume"], folderId: "fld_up", maxBytes: 100, types: ["application/pdf"] });
+  const f = await uploadForm(w, { fields: ["resume"], maxBytes: 100, types: ["application/pdf"] });
   const s = await serve(w, { uploads: true });
   try {
     const post = (body: string, type: string, name = "cv.pdf") => fetch(`${s.base}/f/upload/${f.slug}`, { method: "POST", headers: { "content-type": type, "x-file-name": encodeURIComponent(name) }, body });
@@ -392,17 +415,36 @@ test("POST /f/upload/<slug> applies the form's size and type policy before it st
     assert.equal((await post("", "application/pdf")).status, 400);
     const ok = await post("%PDF-1", "application/pdf");
     assert.equal(ok.status, 200);
-    assert.deepEqual(await ok.json(), { data: { fileId: "fil_up_1" } });
+    assert.deepEqual(await ok.json(), { data: { fileId: "upl_1" } });
+    assert.equal(s.uploads.length, 1, "only the accepted file reached the store");
+    assert.match(s.uploads[0]?.caller.id ?? "", /^act_anon_[0-9a-f]{16}$/, "the store is told which visitor sent it");
     assert.equal((await fetch(`${s.base}/f/upload/${f.slug}`)).status, 405);
   } finally { await s.close(); }
 });
 
 test("without an upload store the page draws no file chooser and the upload address is a 404", async () => {
   const w = harness();
-  const f = await uploadForm(w, { fields: ["resume"], folderId: "fld_up" });
+  const f = await uploadForm(w, { fields: ["resume"] });
   const s = await serve(w);
   try {
     assert.doesNotMatch(await (await fetch(`${s.base}/f/${f.slug}`)).text(), /type="file"/);
     assert.equal((await fetch(`${s.base}/f/upload/${f.slug}`, { method: "POST", body: "x" })).status, 404);
+  } finally { await s.close(); }
+});
+
+test("uploads have their own per-source budget, carry the link token to the store, and a refusal from the forms module keeps its code", async () => {
+  const w = harness();
+  const f = await uploadForm(w, { fields: ["resume"] });
+  const s = await serve(w, { uploads: true, uploadsPerMinute: 2 });
+  try {
+    const post = (q = "") => fetch(`${s.base}/f/upload/${f.slug}${q}`, { method: "POST", headers: { "content-type": "application/pdf", "x-file-name": "cv.pdf" }, body: "%PDF" });
+    assert.equal((await post()).status, 200);
+    assert.equal((await post("?t=abc.def")).status, 200);
+    assert.deepEqual(s.uploads.map((u) => u.token), [undefined, "abc.def"]);
+    const over = await post();
+    assert.equal(over.status, 429);
+    assert.ok(Number(over.headers.get("retry-after")) >= 1);
+    assert.equal(s.uploads.length, 2);
+    assert.equal((await fetch(`${s.base}/f/${f.slug}`)).status, 200, "pages still have their own budget");
   } finally { await s.close(); }
 });

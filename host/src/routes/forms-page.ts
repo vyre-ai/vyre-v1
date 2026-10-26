@@ -5,15 +5,15 @@
 //      own page-view budget (ruling 64: the per-source rate scope). Over budget is 429 with Retry-After.
 //   2. what is served: the module's read (deps.read) answers for a form that is published and of the right kind; anything else is the same 404 whether the slug never existed, is a draft or is closed.
 //   3. one-use forms open from a link: GET /f/<slug>?t=<token> asks deps.link for the questions that link still needs and the answers saved so far; without a token a one-use form says so.
-//   4. uploads: POST /f/upload/<slug> takes one file as the raw body (x-file-name names it), refuses it over the form's size or type policy before storing a byte, and returns { data: { fileId } }
-//      for the answer. The store behind it is deps.upload and the folder is the form's upload policy folderId; without both the page draws no file chooser.
+//   4. uploads: POST /f/upload/<slug>[?t=<token>] takes one file as the raw body (x-file-name names it), refuses it over the form's size or type policy while it streams (before any byte is stored),
+//      has its own per-source budget beside the page's, and returns { data: { fileId } } where fileId is an upload id the forms module issued for this form and this visitor, never a Space file id. The store behind it is deps.upload and the folder is the form's upload policy folderId; without both the page draws no file chooser.
 // The page is served with a strict content security policy (its own nonce for its one script, no outside scripts but the captcha's), no-store caching and nosniff. Anything else on these paths
 // is 405 (GET and HEAD only; upload takes POST). The route is a request hook like the blob route: true when it answered, false when the daemon should carry on.
 import type http from "node:http";
 import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 import type { ErrorCode } from "../../../packages/contracts/src/types.ts";
 import { sourceOf } from "../daemon/preauth.ts";
-import { makeError } from "./errors.ts";
+import { httpOf, isKnownCode, makeError } from "./errors.ts";
 
 /** What the forms module's publicFormView answers (modules/forms/handlers/submit.ts); the host takes it as data, so the two sides meet only in this shape. */
 export interface PublicFormView {
@@ -56,10 +56,12 @@ export interface FormsPageDeps {
   /** One-use forms: what a link still asks. Null when the link is not valid. */
   link?(slug: string, token: string, caller: PageCaller): Promise<LinkQuestions | null>;
   /** Store an uploaded file for a form; the policy was already applied to the size and declared type. Returns the file's id. */
-  upload?(slug: string, file: { name: string; type: string; bytes: Uint8Array; folderId: string }, caller: PageCaller): Promise<string>;
+  upload?(slug: string, file: { name: string; type: string; bytes: Uint8Array; folderId: string }, caller: PageCaller, token?: string): Promise<string>;
   captcha?: CaptchaWidget;
   /** Page views per source address per minute; default 120. */
   perMinute?: number;
+  /** Uploads per source address per minute (its own budget beside the page's); default 10. */
+  uploadsPerMinute?: number;
   now?(): number;
 }
 
@@ -69,6 +71,7 @@ const UPLOAD = /^\/f\/upload\/([a-z0-9][a-z0-9-]{0,63})$/;
 /** /book/availability and /book/create are capabilities, not pages; they are never a slug. */
 const RESERVED = new Set(["availability", "create", "submit", "partial", "upload"]);
 const DEFAULT_PER_MINUTE = 120;
+const DEFAULT_UPLOADS_PER_MINUTE = 10;
 const UPLOAD_CAP = 25 * 1024 * 1024;
 
 const esc = (s: string): string => s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
@@ -284,7 +287,7 @@ const SCRIPT = String.raw`
     delete files[f]; if (!file) return;
     var u = D.upload || {};
     if (u.maxBytes !== undefined && file.size > u.maxBytes) { el.value = ""; fieldError(f, "That file is over the " + Math.floor(u.maxBytes / 1024) + " KB limit."); return; }
-    fetch("/f/upload/" + encodeURIComponent(D.slug), { method: "POST", headers: { "content-type": file.type || "application/octet-stream", "x-file-name": encodeURIComponent(file.name) }, body: file })
+    fetch("/f/upload/" + encodeURIComponent(D.slug) + (D.token ? "?t=" + encodeURIComponent(D.token) : ""), { method: "POST", headers: { "content-type": file.type || "application/octet-stream", "x-file-name": encodeURIComponent(file.name) }, body: file })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok || j.error) throw new Error((j.error && j.error.message) || "The file did not upload."); return j.data; }); })
       .then(function (d) { files[f] = { fileId: d.fileId }; if (hint) hint.textContent = file.name; }, function (e) { el.value = ""; fieldError(f, e.message); });
   }
@@ -412,16 +415,19 @@ function policyHeader(nonce: string, cap?: CaptchaWidget): string {
 
 export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } {
   const perMinute = deps.perMinute ?? DEFAULT_PER_MINUTE;
+  const uploadsPerMinute = deps.uploadsPerMinute ?? DEFAULT_UPLOADS_PER_MINUTE;
   const clock = deps.now ?? Date.now;
   const hits = new Map<string, number[]>();
 
   /** Per-source page budget (ruling 64): one address cannot spend another's. A refused view is not counted, so a flood does not extend its own wait. */
-  function allowed(source: string): number {
+  function allowed(source: string, bucket: "page" | "upload" = "page"): number {
     const t = clock();
-    const mine = (hits.get(source) ?? []).filter((at) => at > t - 60_000);
-    if (mine.length >= perMinute) { hits.set(source, mine); return Math.max(1, Math.ceil(((mine[0] as number) + 60_000 - t) / 1000)); }
+    const limit = bucket === "page" ? perMinute : uploadsPerMinute;
+    const key = `${bucket}:${source}`;
+    const mine = (hits.get(key) ?? []).filter((at) => at > t - 60_000);
+    if (mine.length >= limit) { hits.set(key, mine); return Math.max(1, Math.ceil(((mine[0] as number) + 60_000 - t) / 1000)); }
     mine.push(t);
-    hits.set(source, mine);
+    hits.set(key, mine);
     if (hits.size > 10_000) for (const [k, v] of hits) if (!v.some((at) => at > t - 60_000)) hits.delete(k);
     return 0;
   }
@@ -462,9 +468,9 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
     res.end(method === "HEAD" ? undefined : html);
   }
 
-  async function upload(req: http.IncomingMessage, res: http.ServerResponse, slug: string): Promise<void> {
+  async function upload(req: http.IncomingMessage, res: http.ServerResponse, slug: string, token: string | undefined): Promise<void> {
     const { caller, source } = callerOf(req);
-    const wait = allowed(source);
+    const wait = Math.max(allowed(source), allowed(source, "upload"));
     if (wait > 0) return reply(res, "rate_limit.exceeded", 429, "Too many uploads just now. Try again in a minute.", { "retry-after": String(wait) });
     const view = await deps.read(slug, "form", caller);
     if (!view || !deps.upload || !view.upload?.folderId) return reply(res, "validation.not_found", 404, "That form is not open.");
@@ -484,7 +490,15 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
       chunks.push(c as Buffer);
     }
     if (size === 0) return reply(res, "validation.bad_input", 400, "That file is empty.");
-    const fileId = await deps.upload(slug, { name, type, bytes: new Uint8Array(Buffer.concat(chunks)), folderId: view.upload.folderId }, caller);
+    let fileId: string;
+    try {
+      fileId = await deps.upload(slug, { name, type, bytes: new Uint8Array(Buffer.concat(chunks)), folderId: view.upload.folderId }, caller, token);
+    } catch (e) {
+      // the forms module's own refusals (this form takes no more files today) keep their code and status
+      const err = (e as { error?: { code?: string; message?: string } }).error;
+      if (err?.code !== undefined && isKnownCode(err.code)) return reply(res, err.code, httpOf(err.code), err.message);
+      throw e;
+    }
     const body = JSON.stringify({ data: { fileId } });
     res.writeHead(200, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(body), "cache-control": "no-store" });
     res.end(body);
@@ -501,7 +515,7 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
       const fail500 = (): void => { if (!res.headersSent) reply(res, "internal.unexpected", 500); else res.end(); };
       if (up) {
         if (method !== "POST") { reply(res, "validation.bad_input", 405, "Files are sent with POST.", { allow: "POST" }); return true; }
-        void upload(req, res, up[1] as string).catch(fail500);
+        void upload(req, res, up[1] as string, url.searchParams.get("t") ?? undefined).catch(fail500);
         return true;
       }
       if (method !== "GET" && method !== "HEAD") {

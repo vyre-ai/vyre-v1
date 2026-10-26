@@ -53,8 +53,10 @@ async function makeForm(d: Daemon, name: string, publish: boolean): Promise<{ fo
   const made = await call<{ form: { formId: string; slug: string } }>(d, "/v1/forms/create", { name, recordType: RECORD_TYPE, kind: "public", idempotencyKey: `forms-page-${name}` });
   assert.equal(made.status, 200, JSON.stringify(made));
   const { formId, slug } = made.data!.form;
-  const fields = await call(d, "/v1/forms/fields_set", { formId, fields: [{ field: "email", mode: "ask" }, { field: "kind", mode: "ask" }, { field: "company_name", mode: "ask" }] });
+  const fields = await call(d, "/v1/forms/fields_set", { formId, fields: [{ field: "email", mode: "ask" }, { field: "kind", mode: "ask" }, { field: "company_name", mode: "ask" }, { field: "resume", mode: "ask" }] });
   assert.equal(fields.status, 200, JSON.stringify(fields));
+  const policy = await call(d, "/v1/forms/update", { formId, uploadPolicy: { fields: ["resume"], folderId: "fld_forms_uploads", maxBytes: 1_000_000 } });
+  assert.equal(policy.status, 200, JSON.stringify(policy));
   const design = await call(d, "/v1/forms/design_set", { formId, logic: { rules: [{ when: { field: "kind", op: "eq", value: "company" }, show: ["company_name"] }] } });
   assert.equal(design.status, 200, JSON.stringify(design));
   if (publish) assert.equal((await call(d, "/v1/forms/publish", { formId })).status, 200);
@@ -93,5 +95,10 @@ test("a booted daemon serves a published form to a signed-out visitor, hides a d
     assert.equal(rec.data!.record.fields["email"], "visitor@x.example");
     assert.equal(rec.data!.record.fields["kind"], "person");
     assert.equal(rec.data!.record.fields["company_name"], undefined, "the answer to a hidden question is never written");
+
+    // a visitor cannot attach a file that already exists in the Space: a file answer must be an upload id this form issued to this visitor
+    const stolen = await call(d, "/f/submit", { slug: open.slug, idempotencyKey: "forms-page-submit-2", answers: { email: "thief@x.example", resume: { fileId: "fil_internal_secret" } } }, null);
+    assert.equal(stolen.status, 400, JSON.stringify(stolen));
+    assert.equal(stolen.error?.code, "validation.bad_input");
   } finally { await d.stop(); }
 });

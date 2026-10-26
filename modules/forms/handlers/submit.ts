@@ -3,7 +3,7 @@
 // records.create / records.update as that principal, so every value is counted as coming from the link holder.
 // Order of checks: form open, principal, rate limit, consent, captcha, link, answers (conditional logic), uploads (upload_policy), duplicate, then the write. A refused call writes nothing.
 // A single-use link is consumed before the write and released if the write fails, so one link can never make two records.
-// @reads ../migrations/0001_forms.sql
+// @reads ../migrations/0001_forms.sql ../migrations/0002_forms_uploads.sql
 
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { Attribution, FormKind, Row } from "../projections.ts";
@@ -150,7 +150,7 @@ export function checkAnswers(ctx: Ctx, form: Row, link: Row | null, raw: Record<
 // ---- upload policy ---------------------------------------------------------------------------------------------
 // forms.update stores `upload_policy` as { fields?: string[], folderId?: string, maxBytes?: number, types?: string[] }. `types` hold MIME types ("application/pdf"), MIME families ("image/*") or
 // extensions (".pdf"); `maxBytes` is the most one file may be. The policy covers every answer that is a file ({ fileId }), whatever the question; `fields` names the questions the public
-// page draws as a file chooser. Each file is looked up as the form's service principal (files.get), so the size and type checked are the stored ones, not what the browser claimed.
+// page draws as a file chooser. The size and type checked are the ones the upload route measured and recorded (forms_upload), not what the browser claimed, and a file answer is an upload id the form itself issued, never a Space file id.
 
 export interface UploadPolicy { fields: string[]; maxBytes?: number; types: string[]; /** the Files folder public uploads land in; without it the page offers no file chooser */ folderId?: string }
 
@@ -171,25 +171,59 @@ export function typeAllowed(types: readonly string[], mime: string, name: string
   return types.some((t) => (t.startsWith(".") ? n.endsWith(t) : t.endsWith("/*") ? m.startsWith(t.slice(0, -1)) : m === t));
 }
 
-export async function checkUploads(ctx: Ctx, form: Row, answers: Record<string, Answer>): Promise<void> {
+const UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;
+/** Uploads one form accepts in a day from every visitor together; the upload route also limits each source address per minute. */
+const UPLOADS_PER_FORM_PER_DAY = 200;
+
+/** The upload route asks before it stores a byte: is this form taking uploads, and is today's cap spent? Throws the refusal; nothing is written. */
+export function reserveUpload(ctx: Ctx, slug: string): { formId: string; folderId: string } {
+  const form = publishedBySlug(ctx, slug, ["public", "one_use", "survey"]);
+  const folderId = uploadPolicyOf(form)?.folderId;
+  if (folderId === undefined) fail(ctx, "validation.not_found", "That form is not open.");
+  const since = ctx.now() - UPLOAD_TTL_MS;
+  if (many(ctx, "SELECT * FROM forms_upload WHERE form_id = ?", str(form.id)).filter((u) => num(u.created_at) > since).length >= UPLOADS_PER_FORM_PER_DAY) {
+    fail(ctx, "rate_limit.exceeded", "This form has taken all the files it accepts today. Try again tomorrow.", { retryAfterSeconds: 3600 });
+  }
+  return { formId: str(form.id), folderId };
+}
+
+/**
+ * The upload route stored a file in the form's folder as the host; this records it against the form and the visitor (ctx.principal: the act_anon_* actor) and returns the id the page puts
+ * in its answer. The visitor never sees the Space file id, and forms.submit takes nothing else.
+ */
+export async function recordUpload(ctx: Ctx, f: { slug: string; fileId: string; name: string; mime: string; size: number; token?: string | undefined }): Promise<string> {
+  const form = publishedBySlug(ctx, f.slug, ["public", "one_use", "survey"]);
+  const id = nid(ctx, "upl");
+  ctx.db.run(
+    "INSERT INTO forms_upload (id, form_id, actor, token_hash, file_id, name, mime, size, created_at, used_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    id, str(form.id), ctx.principal.id, f.token !== undefined && f.token.length > 0 ? await sha256hex(f.token) : null, f.fileId, f.name, f.mime, f.size, ctx.now(), null,
+  );
+  return id;
+}
+
+/**
+ * Turn each file answer ({ fileId: <upload id> }) into the file it stands for. An upload counts only if this form took it from this visitor (and the same signed link), it is unused and under a
+ * day old, and it fits the form's policy. A Space file id the visitor makes up is not an upload id and is refused. Returns the answers with the Space file ids, and the upload ids to mark used.
+ */
+export function checkUploads(ctx: Ctx, form: Row, answers: Record<string, Answer>, tokenHash: string | null): { answers: Record<string, Answer>; used: string[] } {
   const policy = uploadPolicyOf(form);
-  if (!policy) return;
+  const out: Record<string, Answer> = { ...answers };
+  const used: string[] = [];
   for (const [key, a] of Object.entries(answers)) {
     if (a === null || typeof a !== "object" || Array.isArray(a)) continue;
     const field = `answers.${key}`;
-    let file: Row | undefined;
-    try {
-      const got = (await ctx.call("files.get", { fileId: a.fileId })) as { file?: unknown };
-      file = isRec(got.file) ? got.file : undefined;
-    } catch {
-      file = undefined;
-    }
-    if (!file) fail(ctx, "validation.bad_input", "That file could not be found. Choose it again.", { field });
-    if (policy.maxBytes !== undefined && num(file.size) > policy.maxBytes) {
+    const bad = (): never => fail(ctx, "validation.bad_input", "That file could not be found. Choose it again.", { field });
+    const row = one(ctx, "SELECT * FROM forms_upload WHERE id = ?", a.fileId);
+    if (!row || row.form_id !== form.id || row.actor !== ctx.principal.id || !isNull(row.used_at) || num(row.created_at) <= ctx.now() - UPLOAD_TTL_MS) return bad();
+    if ((isNull(row.token_hash) ? null : str(row.token_hash)) !== tokenHash || used.includes(a.fileId) || !policy) return bad();
+    if (policy.maxBytes !== undefined && num(row.size) > policy.maxBytes) {
       fail(ctx, "validation.too_large", `That file is over the ${Math.floor(policy.maxBytes / 1024)} KB limit.`, { field, maxBytes: policy.maxBytes });
     }
-    if (!typeAllowed(policy.types, str(file.mime), str(file.name))) fail(ctx, "validation.bad_input", "That kind of file is not accepted here.", { field, types: policy.types });
+    if (!typeAllowed(policy.types, str(row.mime), str(row.name))) fail(ctx, "validation.bad_input", "That kind of file is not accepted here.", { field, types: policy.types });
+    out[key] = { fileId: str(row.file_id) };
+    used.push(a.fileId);
   }
+  return { answers: out, used };
 }
 
 export function principalOk(ctx: Ctx, form: Row): void {
@@ -306,8 +340,8 @@ async function submit(ctx: Ctx, input: unknown): Promise<{ recordId: string; tha
   if (token !== undefined) link = await resolveLink(ctx, form, token);
   else if (form.kind === "one_use") fail(ctx, "auth.invalid_code", "This form opens only from the link that was sent to you.");
 
-  const answers = checkAnswers(ctx, form, link, rawAnswers);
-  await checkUploads(ctx, form, answers);
+  const checked = checkAnswers(ctx, form, link, rawAnswers);
+  const { answers, used } = checkUploads(ctx, form, checked, token !== undefined ? await sha256hex(token) : null);
   const attribution = cleanAttribution(ctx, o.attribution, consent);
 
   const digest = await digestOf(form, link, answers);
@@ -325,6 +359,7 @@ async function submit(ctx: Ctx, input: unknown): Promise<{ recordId: string; tha
     throw e;
   }
 
+  for (const u of used) ctx.db.run("UPDATE forms_upload SET used_at = ? WHERE id = ?", now, u);
   ctx.db.run(
     "INSERT INTO forms_submission (id, form_id, record_id, at, matched, principal, link_id, consent, digest, answers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     nid(ctx, "sub"), formId, written.recordId, now, written.matched ? 1 : 0, formPrincipal(formId), link ? str(link.id) : null, consent ? 1 : 0, digest,

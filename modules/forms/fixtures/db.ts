@@ -19,7 +19,7 @@ interface TableDef {
 const here = dirname(fileURLToPath(import.meta.url));
 
 export function readMigration(): string {
-  return readFileSync(join(here, "../migrations/0001_forms.sql"), "utf8");
+  return ["0001_forms.sql", "0002_forms_uploads.sql"].map((f) => readFileSync(join(here, "../migrations", f), "utf8")).join("\n");
 }
 
 function parseDefault(text: string): unknown {
