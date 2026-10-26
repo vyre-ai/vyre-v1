@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
 import { restoreAgentFiles } from "../handlers/crud.ts";
 import { AGENT_MD_DEFAULT } from "../projections.ts";
-import { harness } from "../fixtures/harness.ts";
+import { DANA, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -67,4 +67,35 @@ test("every agent is checked, a deleted agent is not, and one that Files cannot 
   assert.ok(hn.warned.length > 0, "and it says so in the log");
   hn.world.answer("files.create", create);
   assert.deepEqual((await restoreAgentFiles(hn.ctx)).sort(), ["Alpha/AGENT.md", "Beta/AGENT.md"], "Files is back: every live agent is put right, the deleted one is left alone");
+});
+
+test("an agent access knows with no record gets one, with Agents/<name>, both files and the decided tree; one with no owner or a name already taken is left alone", async () => {
+  const hn = harness();
+  hn.world.principals.push(
+    { id: "agt_scout", kind: "agent", name: "Scout", owner: DANA, status: "active" },
+    { id: "agt_orphan", kind: "agent", name: "Orphan", status: "active" },
+    { id: "agt_gone", kind: "agent", name: "Gone", owner: DANA, status: "removed" },
+  );
+  await make(hn, "Taken");
+  hn.world.principals.push({ id: "agt_twin", kind: "agent", name: "Taken", owner: DANA, status: "active" });
+  assert.deepEqual((await restoreAgentFiles(hn.ctx)).sort(), ["Scout/AGENT.md", "Scout/agent.toml"]);
+  const rec = hn.rows("SELECT * FROM agents_agent WHERE id = 'agt_scout'")[0]!;
+  assert.equal(rec["name"], "Scout");
+  assert.equal(rec["ownerId"], DANA);
+  const home = String(rec["folderId"]);
+  assert.equal(hn.world.fileIn(home, "AGENT.md")?.fileId, rec["agentMdFileId"]);
+  assert.equal(hn.world.fileIn(home, "agent.toml")?.fileId, rec["tomlFileId"]);
+  assert.ok(hn.world.tree(home).includes("memory/"), "the decided tree is there");
+  assert.equal(hn.rows("SELECT * FROM agents_agent WHERE id IN ('agt_orphan', 'agt_gone', 'agt_twin')").length, 0);
+  assert.deepEqual(await restoreAgentFiles(hn.ctx), [], "the next pass finds nothing to do");
+});
+
+test("a record with no folder or no file ids is given Agents/<name> and both files", async () => {
+  const hn = harness();
+  const a = await make(hn, "Lost");
+  hn.ctx.db.run("UPDATE agents_agent SET folderId = NULL, tomlFileId = NULL, agentMdFileId = NULL WHERE id = ?", a.agentId);
+  assert.deepEqual((await restoreAgentFiles(hn.ctx)).sort(), ["Lost/AGENT.md", "Lost/agent.toml"]);
+  const r = record(hn, a.agentId);
+  assert.ok(r["folderId"] && r["tomlFileId"] && r["agentMdFileId"], "the record points at them again");
+  assert.equal(hn.world.text(String(r["tomlFileId"])), String(r["tomlText"]));
 });

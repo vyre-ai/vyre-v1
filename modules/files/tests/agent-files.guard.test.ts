@@ -28,15 +28,16 @@ function world() {
   return { ctx, sql };
 }
 
-async function agentFolder(ctx: Ctx, name = "Scout") {
+async function agentFolder(ctx: Ctx, name = "Scout", subject = true) {
   const tree = (await run["files.tree"]!(ctx, {})) as { roots: { key: string; folderId?: string }[] };
   const agentsId = tree.roots.find((r) => r.key === "agents")!.folderId!;
-  const home = (await run["files.folder.create"]!(ctx, { parentId: agentsId, name, idempotencyKey: `f-${name}` })).folder.folderId as string;
+  const home = (await run["files.folder.create"]!(ctx, { parentId: agentsId, name, ...(subject ? { subject: { kind: "agent", id: `agt_${name.toLowerCase()}1` } } : {}), idempotencyKey: `f-${name}` })).folder.folderId as string;
   const memory = (await run["files.folder.create"]!(ctx, { parentId: home, name: "memory", idempotencyKey: `m-${name}` })).folder.folderId as string;
-  const make = async (folderId: string, fname: string): Promise<string> => (await run["files.create"]!(ctx, { folderId, name: fname, content: { text: `# ${fname}\n` }, idempotencyKey: `c-${folderId}-${fname}` })).file.fileId as string;
+  const make = async (folderId: string, fname: string): Promise<string> => (await run["files.create"]!(ctx, { folderId, name: fname, content: { text: `# ${fname}\n` }, idempotencyKey: `c-${folderId}-${fname}-${++made}` })).file.fileId as string;
   return { agentsId, home, memory, make };
 }
 
+let made = 0;
 const refusal = async (p: Promise<unknown>): Promise<{ code: string; message: string; details?: Record<string, unknown> }> => {
   try { await p; } catch (e) { return (e as { error: { code: string; message: string; details?: Record<string, unknown> } }).error; }
   assert.fail("the call was accepted");
@@ -73,4 +74,21 @@ test("editing them stays open, and so does everything else: the same names deepe
   assert.equal((await run["files.delete"]!(w.ctx, { fileId: deeper })).deleted, true, "AGENT.md in a subfolder is only a file");
   assert.equal((await run["files.delete"]!(w.ctx, { fileId: personal })).deleted, true, "agent.toml outside an agent's own folder is only a file");
   assert.equal((await run["files.folder.delete"]!(w.ctx, { folderId: a.home })).deleted, true, "deleting the agent takes its folder, files and all");
+});
+
+test("a folder made before agents carried a key counts when it sits under Agents/ and holds both files; a person's folder with one of them is only a folder", async () => {
+  const w = world();
+  const old = await agentFolder(w.ctx, "Legacy", false);
+  const mdOld = await old.make(old.home, "AGENT.md");
+  assert.equal((await run["files.delete"]!(w.ctx, { fileId: mdOld })).deleted, true, "with only AGENT.md in it, it is a person's folder");
+  const mdAgain = await old.make(old.home, "AGENT.md");
+  await old.make(old.home, "agent.toml");
+  assert.match((await refusal(run["files.delete"]!(w.ctx, { fileId: mdAgain }))).message, /part of the agent/, "with both files it is an agent's");
+});
+
+test("a folder with the agent as its subject is the agent's even before both files exist", async () => {
+  const w = world();
+  const a = await agentFolder(w.ctx, "Keyed");
+  const md = await a.make(a.home, "AGENT.md");
+  assert.match((await refusal(run["files.rename"]!(w.ctx, { fileId: md, name: "x.md" }))).message, /part of the agent/);
 });
