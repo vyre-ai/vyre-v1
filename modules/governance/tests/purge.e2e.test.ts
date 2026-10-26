@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { eraseItem, purgeKind } from "../handlers/erasers.ts";
 import { heldFor, jobsList, seedTicks } from "../handlers/retention.ts";
 import { harness } from "../fixtures/harness.ts";
+import { ensure } from "../projections.ts";
 import type { GovCtx } from "../projections.ts";
 
 const DAY = 86_400_000;
@@ -69,7 +70,7 @@ function world(s: Stores, missing: string[] = []): GovCtx {
       case "runs.erase": return { erased: s.runs.delete(String(i["runId"])) };
       case "runs.purge": return { removed: purgeBy(s.runs, Number(i["before"])), more: false };
       case "chat.transcript.purge": return { removed: purgeBy(s.transcripts, Number(i["before"])), more: false };
-      case "files.versions.purge": return { removed: purgeBy(s.versions, Number(i["before"])), more: false };
+      case "files.versions_purge": return { removed: purgeBy(s.versions, Number(i["before"])), more: false };
       case "logs.purge": return { removed: purgeBy(s.logs, Number(i["before"])), more: false };
       case "events.compact": return { removed: purgeBy(s.events, Number(i["before"])), more: false };
       case "records.purge_trashed": return { removed: purgeBy(s.trashedRecords, Number(i["before"])), more: false };
@@ -187,6 +188,7 @@ test("boot seeds the first daily tick for every kind once: a second boot schedul
 
 test("holds keep data out of an age purge: held files and threads are passed by id, and a hold on a person or a folder keeps the whole kind", async () => {
   const h = harness();
+  ensure(h.ctx);
   const hold = (kind: string, id: string) => h.ctx.db.run(`INSERT INTO gov_hold ("kind", "targetId", "reason", "by", "at") VALUES (?, ?, ?, ?, ?)`, kind, id, "litigation", "usr_owner0001", NOW);
   assert.deepEqual(await heldFor(h.ctx, "file_versions"), { all: false, count: 0, extra: {} });
   hold("file", "fil_held0001");
