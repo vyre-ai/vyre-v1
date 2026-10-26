@@ -12,7 +12,10 @@ const TESS = { kind: "person", id: "usr_tess" } as const;
 const CHANNEL = { type: "channel", id: "chn_general" } as const;
 
 /** Why this flow is a todo today (ruling 53). */
-export const GAPS: Gap[] = [];
+export const GAPS: Gap[] = [
+  { packet: "P-CC_42 follow-up", lane: "L7", what: "folders.create answers 500: it emits access.changed (after grant.created was added), which its manifest does not declare in emits" },
+  { packet: "L7 access / L6 tasks", lane: "L7", what: "a member's access.request answers 422 'A unblock task has no action called approve': the request opens an unblock task whose actions do not include approve, so the request cannot be made" },
+];
 
 export async function runMatrix(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const s = await bootFlowSpace(live);
