@@ -173,7 +173,9 @@ test("booking makes the record, the calendar event and the booking, and fires bo
   assert.equal(b.endsAt - b.startsAt, 30 * MIN);
   assert.deepEqual(w.records.get(b.recordId)?.fields, { email: "lee@x.example", name: "Lee" });
   const ev = w.calendarEvents[0];
-  assert.deepEqual(ev?.input, { calendarId: "cld_host1", title: "Call: Lee", startsAt: TEN_UTC, endsAt: TEN_UTC + 30 * MIN, attendees: [{ email: "lee@x.example" }], recordIds: [b.recordId], fromBookingPage: p.formId });
+  const { idempotencyKey: eventKey, ...eventInput } = ev?.input as Record<string, unknown>;
+  assert.match(String(eventKey), /^forms\.book:.*:event$/);
+  assert.deepEqual(eventInput, { calendarId: "cld_host1", title: "Call: Lee", startsAt: TEN_UTC, endsAt: TEN_UTC + 30 * MIN, attendees: [{ email: "lee@x.example" }], recordIds: [b.recordId], fromBookingPage: p.formId });
   assert.deepEqual(w.events.find((e) => e.name === "booking.created")?.payload, { bookingId: b.bookingId, formId: p.formId, recordId: b.recordId });
   const create = w.calls.find((c) => c.cap === "records.create");
   assert.equal(create?.principal.id, formPrincipal(p.formId));

@@ -148,6 +148,7 @@ async function alertOwner(ctx: Ctx, form: Row, page: Row, hosts: string[]): Prom
   ctx.db.run("UPDATE forms_booking_page SET alerted_at = ? WHERE form_id = ?", now, str(form.id));
   try {
     await ctx.call("tasks.create", {
+      idempotencyKey: `forms.booking_alert:${str(form.id)}:${Math.floor(now / ALERT_EVERY_MS)}`,
       title: `The booking page ${str(form.name)} shows unavailable`,
       summary: `No host calendar is connected (${hosts.join(", ")}). Reconnect a calendar so visitors can book again.`,
       assigned: { kind: "person", id: str(form.created_by) },
@@ -259,14 +260,15 @@ async function book(ctx: Ctx, input: unknown): Promise<{ booking: BookingOut }> 
   const slot = w.slots.find((s) => s.startsAt === startsAt);
   if (!slot) fail(ctx, "validation.precondition_failed", "That time is no longer available. Pick another.");
 
-  const written = await writeAnswers(ctx, form, answers, null);
+  const bookKey = `forms.book:${formId}:${startsAt}:${email}:${ctx.trace.traceId}`;
+  const written = await writeAnswers(ctx, form, answers, null, bookKey);
 
   const calendarId = await hostCalendar(ctx, slot.hostId);
   let eventId: string | null = null;
   if (calendarId) {
     const name = typeof answers.name === "string" && answers.name.length > 0 ? answers.name : email;
     const res = (await ctx.call("calendar.create_event", {
-      calendarId, title: `${str(form.name)}: ${name}`, startsAt, endsAt, attendees: [{ email }], recordIds: [written.recordId], fromBookingPage: formId,
+      idempotencyKey: `${bookKey}:event`, calendarId, title: `${str(form.name)}: ${name}`, startsAt, endsAt, attendees: [{ email }], recordIds: [written.recordId], fromBookingPage: formId,
     })) as { event?: { id?: unknown } };
     eventId = res.event && typeof res.event.id === "string" ? res.event.id : null;
   } else {
