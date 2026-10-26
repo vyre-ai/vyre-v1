@@ -352,7 +352,7 @@ function PageBody({ type, recordId, start = {}, order }: RecordPageProps): React
   const fieldProps = { now: data.now(), onReview: review, row, type, editing, nodes, show: menu.show, onEdit: (f: FieldDef) => setEditing({ key: f.key, text: inputText(f, row.fields[f.key]) }), onText: (t: string) => setEditing((e) => (e ? { ...e, text: t, ...(e.error ? { error: "" } : {}) } : e)), onCommit: commit, onCancel: () => setEditing(null), onValue: setValue, onSource: showSource };
 
   const body: ReactElement[] = [];
-  for (const s of sections) {
+  for (const s of late ? sections : []) {
     const sh = shownFields(s, row, prefs.keepVisible, all);
     const fields: ReactElement[] = [];
     for (const f of sh.fields) fields.push(<View key={f.key} style={wide ? p.half : p.full}><FieldRow field={f} proposal={proposals.find((x) => x.field === f.key)} {...fieldProps} /></View>);
@@ -408,19 +408,19 @@ function PageBody({ type, recordId, start = {}, order }: RecordPageProps): React
           </Pressable>
             </View>
           </View>
-          <View style={p.chips} testID="record-chips">
+          <View style={p.chips} testID="record-chips">{late ? (<>
             {statusField && row.fields[statusField.key] ? <Tag field={statusField} value={String(row.fields[statusField.key])} /> : null}
             {ownerField && row.fields[ownerField.key] ? <View style={p.person}><Face name={data.nameOf(String(row.fields[ownerField.key]))} size={18} /><Text style={p.value}>{data.nameOf(String(row.fields[ownerField.key]))}</Text></View> : null}
             <Text style={p.updated} testID="record-updated">{`Updated ${ago(row.updatedAt, data.now())}`}</Text>
-          </View>
+          </>) : null}</View>
           {summary ? <Text style={p.summary} testID="summary">{summary}</Text> : null}
-          <View style={p.tabs} accessibilityRole="tablist">
+          <View style={p.tabs} accessibilityRole="tablist">{late ? (<>
             <Pressable accessibilityRole="tab" aria-selected={view === "overview"} accessibilityState={{ selected: view === "overview" }} testID="tab-overview" onPress={() => setView("overview")} style={[p.tab, view === "overview" && p.tabOn]}><Text style={[p.tabText, view === "overview" && p.tabTextOn]}>Overview</Text></Pressable>
             <Pressable accessibilityRole="tab" aria-selected={view === "conversation"} accessibilityState={{ selected: view === "conversation" }} testID="tab-conversation" onPress={() => { setView("conversation"); setPane(true); setTab("chat"); }} style={[p.tab, view === "conversation" && p.tabOn]}><Text style={[p.tabText, view === "conversation" && p.tabTextOn]}>Conversation</Text></Pressable>
             <View style={p.grow} />
             <Pressable accessibilityRole="button" testID="open-chat-link" onPress={() => data.nav.openChat(type, row.id)}><Text style={p.ringLink}>Open in Chats</Text></Pressable>
-          </View>
-          {ring ? (
+          </>) : null}</View>
+          {!late ? <View style={p.ringHold} /> : ring ? (
             <View style={p.ringRow} testID="completeness">
               {Platform.OS === "web" ? createElement("svg", { viewBox: "0 0 24 24", width: 24, height: 24, role: "img", "aria-label": `Completeness ${ring.label}`, "data-testid": "ring" },
                 createElement("circle", { cx: 12, cy: 12, r: RING_R, fill: "none", style: { stroke: "var(--line-2)", strokeWidth: 3 } }),
@@ -429,7 +429,7 @@ function PageBody({ type, recordId, start = {}, order }: RecordPageProps): React
               {cq.status === "ready" && cq.data.missing.length > 0 ? <Pressable accessibilityRole="button" testID="ask-missing" onPress={() => data.nav.openChat(type, row.id, askText(cq.data, title))}><Text style={p.ringLink}>Ask for these</Text></Pressable> : null}
             </View>
           ) : null}
-          {view === "overview" ? body : <Text style={p.paneEmpty} testID="conversation-hint">The conversation about this record is in the pane, and in its chat.</Text>}
+          {!late ? <View style={p.bodyHold} testID="record-body-hold" /> : view === "overview" ? body : <Text style={p.paneEmpty} testID="conversation-hint">The conversation about this record is in the pane, and in its chat.</Text>}
           {all ? <Pressable accessibilityRole="button" testID="hide-empty" onPress={() => setAll(false)}><Text style={p.more}>Hide empty fields</Text></Pressable> : null}
         </ScrollView>}
         {paneOpen && late ? <Pane type={type} row={row} def={def} tab={tab} onTab={setTab} /> : null}
@@ -460,9 +460,11 @@ const p = StyleSheet.create({
   kind: { fontSize: 12.5, color: "var(--ink-3)" as string, marginBottom: 6 },
   heroRow: { flexDirection: "row", alignItems: "center", gap: 14 },
   heroText: { flex: 1, minWidth: 0 },
-  chips: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 12, marginTop: 8 },
+  chips: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 12, marginTop: 8, minHeight: 24 },
+  ringHold: { height: 42, marginTop: 12, marginBottom: 6 },
+  bodyHold: { height: 620 },
   updated: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  tabs: { flexDirection: "row", alignItems: "center", gap: 18, marginTop: 14, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  tabs: { flexDirection: "row", alignItems: "center", gap: 18, marginTop: 14, minHeight: 37, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   tab: { paddingVertical: 8, borderBottomWidth: 2, borderBottomColor: "transparent" },
   tabOn: { borderBottomColor: "var(--ink)" as string },
   tabText: { fontSize: 13, color: "var(--ink-3)" as string },
