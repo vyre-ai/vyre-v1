@@ -35,7 +35,7 @@ function Body({ q }: { q: URLSearchParams }): ReactNode {
   useEffect(() => { if (q.get("file") === "1" && slot.hasSidebar) slot.openBody(); }, [slot.hasSidebar]);
   return (
     <FilesDataProvider value={files.data}>
-      <FilesStateProvider initial={{ where: { kind: "folder", id: "fld_pj_rivera" } }}>
+      <FilesStateProvider initial={{ where: { kind: "folder", id: "fld_pjrivera" } }}>
         <View testID="files-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
           <SidebarContent title="Files" searchPlaceholder="Search files">{(query, slot) => <FilesTree query={query} slot={slot} />}</SidebarContent>
           <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>

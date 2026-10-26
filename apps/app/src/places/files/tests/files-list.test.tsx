@@ -47,7 +47,7 @@ test("screen: the sidebar lists Recent, Starred and Shared with me, then Knowled
 
 test("the tree selects what the list shows", () => {
   assert.ok(has(tree({ where: { kind: "recent" } }), "background-color:var(--sel)"));
-  assert.ok(has(wrap(createSampleFiles(undefined, { subjects: true }), folder("fld_ag_docs"), <FilesTree />), "background-color:var(--sel)"));
+  assert.ok(has(wrap(createSampleFiles(undefined, { subjects: true }), folder("fld_agdocs"), <FilesTree />), "background-color:var(--sel)"));
   assert.equal(tree().split("background-color:var(--sel)").length - 1, 1, "at the root only All files is selected");
   assert.deepEqual(reduce(INITIAL_STATE, { type: "go", where: { kind: "shared" } }).where, { kind: "shared" });
   assert.deepEqual(crumbs([{ id: "a", name: "A", parentId: null }, { id: "b", name: "B", parentId: "a" }], "b").map((c) => c.name), ["A", "B"]);
@@ -257,8 +257,8 @@ test("sizes, kinds, dates and sources read plainly", () => {
 
 test("harbor studio draws its own folders and files", () => {
   const out = list({}, harbor);
-  assert.deepEqual(lines(out), ["folder:fld_h_assets", "folder:fld_h_clients"]);
-  const clients = list(folder("fld_h_clients"), harbor);
+  assert.deepEqual(lines(out), ["folder:fld_hassets", "folder:fld_hclients"]);
+  const clients = list(folder("fld_hclients"), harbor);
   assert.ok(has(clients, "Moreno logo round two.png") && has(clients, "Abel homepage copy.docx") && !has(clients, "Pitch deck"));
 });
 

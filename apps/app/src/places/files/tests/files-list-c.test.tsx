@@ -144,13 +144,13 @@ test("starring a file goes through files.star and changes the Starred count", as
 test("the Space's root folders Files registers (Agents, Projects, People, Channels) are rows, an agent's folder with its face", () => {
   const out = tree(subjects());
   for (const id of ["fld_agents", "fld_projects", "fld_people", "fld_channels"]) assert.ok(has(out, `data-testid="row-folder-${id}"`), id);
-  assert.ok(has(out, 'data-testid="row-folder-fld_ag_docs-trailing"'), "a folder with files has its count in the trailing slot");
-  for (const id of ["fld_ag_docs", "fld_ag_research", "fld_ag_assistant", "fld_ag_intake", "fld_ag_billing"]) assert.ok(has(out, `data-testid="row-folder-${id}"`), `${id}: Agents opens to its agents`);
-  for (const id of ["fld_pj_rivera", "fld_pj_launch"]) assert.ok(has(out, `data-testid="row-folder-${id}"`), `${id}: Projects opens to its projects`);
+  assert.ok(has(out, 'data-testid="row-folder-fld_agdocs-trailing"'), "a folder with files has its count in the trailing slot");
+  for (const id of ["fld_agdocs", "fld_agresearch", "fld_agassistant", "fld_agintake", "fld_agbilling"]) assert.ok(has(out, `data-testid="row-folder-${id}"`), `${id}: Agents opens to its agents`);
+  for (const id of ["fld_pjrivera", "fld_pjlaunch"]) assert.ok(has(out, `data-testid="row-folder-${id}"`), `${id}: Projects opens to its projects`);
   assert.ok(has(out, 'data-testid="face-Docs"') && has(out, 'data-avatar="agent"'), "the agent's face, shared Avatar");
-  assert.ok(!has(out, 'data-testid="face-Rivera matter"') && !has(out, 'data-testid="face-Agents"'), "a project, and the Agents folder itself, have the folder icon, not a face");
-  assert.ok(has(out, 'data-testid="folder-count-fld_pj_launch"') && !has(out, 'data-testid="folder-count-fld_ag_docs"'), "a folder shows its count, an agent's folder shows no count");
-  assert.ok(has(out, 'data-testid="folder-toggle-fld_agents"') && has(out, 'data-testid="folder-toggle-fld_pj_rivera"') && !has(out, 'data-testid="folder-toggle-fld_ag_docs"'), "only a folder with subfolders opens");
+  assert.ok(!has(out, 'data-testid="face-Client onboarding"') && !has(out, 'data-testid="face-Agents"'), "a project, and the Agents folder itself, have the folder icon, not a face");
+  assert.ok(has(out, 'data-testid="folder-count-fld_pjlaunch"') && !has(out, 'data-testid="folder-count-fld_agdocs"'), "a folder shows its count, an agent's folder shows no count");
+  assert.ok(has(out, 'data-testid="folder-toggle-fld_agents"') && has(out, 'data-testid="folder-toggle-fld_pjrivera"') && !has(out, 'data-testid="folder-toggle-fld_agdocs"'), "only a folder with subfolders opens");
   assert.ok(!has(out, ">Contracts<"), "a closed project keeps its subfolders out");
   assert.ok(!has(out, 'data-testid="row-folder-fld_sales"') && !has(out, 'data-testid="row-folder-fld_daily"') && !has(out, 'data-testid="row-folder-fld_maya"'), "only the registered Space roots are listed: no Personal, shared or old sample folders");
   const order = ["row-folder-all", "row-folder-fld_agents", "row-folder-fld_projects", "row-folder-fld_people", "row-folder-fld_channels"].map((t) => pos(out, `data-testid="${t}"`));
@@ -161,10 +161,10 @@ test("the Space's root folders Files registers (Agents, Projects, People, Channe
 });
 
 test("the selected agent or project folder is the selected row", () => {
-  const out = tree(subjects(), folder("fld_ag_docs"));
+  const out = tree(subjects(), folder("fld_agdocs"));
   assert.ok(has(out, "background-color:var(--sel)"));
   assert.equal(tree(subjects()).split("background-color:var(--sel)").length - 1, 1, "at the root only All files is selected");
-  assert.ok(has(list(subjects(), folder("fld_ag_docs")), "Engagement letter notes.md"), "its files");
+  assert.ok(has(list(subjects(), folder("fld_agdocs")), "Engagement letter notes.md"), "its files");
 });
 
 test("without agents or projects the sidebar has none of those rows, and nothing starred shows no count", () => {
@@ -244,9 +244,9 @@ test("the sidebar is the shared slot's content: Knowledge and Space open and clo
 
 test("the search field filters the sidebar rows", () => {
   const s = subjects();
-  const hit = tree2(s, "riv");
-  assert.ok(has(hit, "Rivera matter") && !has(hit, ">Daily<") && !has(hit, ">Recent<"));
-  assert.ok(has(hit, 'data-testid="face-Docs"') === false, "Docs does not match riv");
+  const hit = tree2(s, "onb");
+  assert.ok(has(hit, "Client onboarding") && !has(hit, ">Daily<") && !has(hit, ">Recent<"));
+  assert.ok(has(hit, 'data-testid="face-Docs"') === false, "Docs does not match onb");
   const agent = tree2(s, "docs");
   assert.ok(has(agent, 'data-testid="face-Docs"') && has(agent, 'data-avatar="agent"'), "an agent folder keeps its face in a search");
   assert.ok(has(tree2(s, "zzzz"), 'data-testid="files-tree-empty"'), "nothing matches says so");
@@ -262,8 +262,8 @@ test("the more menu carries the Trash, with its count only when it holds somethi
   assert.equal(empty[0]?.checked, true);
 });
 
-test("the Rivera matter folder is as the prototype has it: its files, the staged banner, the star and the Conflict tag", () => {
-  const out = list(subjects(), folder("fld_pj_rivera"));
+test("the client onboarding folder is as the prototype has its Rivera matter: its files, the staged banner, the star and the Conflict tag", () => {
+  const out = list(subjects(), folder("fld_pjrivera"));
   for (const name of ["client-intake.pdf", "consult-prep.md", "engagement-checklist.csv", "id-scan.png", "Rivera onboarding plan", "rivera-engagement-letter.docx", "site-photo.png"]) assert.ok(has(out, name), name);
   assert.ok(has(out, 'data-testid="staged-banner"') && has(out, 'data-testid="conflict-tag"') && has(out, 'data-testid="star-mark"'));
 });
@@ -280,34 +280,34 @@ test("each file leads with a type tile: PDF, MD, CSV, DOCX on a tint, an icon fo
   assert.equal(tileLabel("Rivera onboarding plan", "document"), null, "no extension, no label");
   assert.ok(has(renderToStaticMarkup(<TypeTile label="PDF" icon="doc" folder={false} />), ">PDF<"));
   assert.ok(!has(renderToStaticMarkup(<TypeTile label={null} icon="folder" folder />), 'data-testid="type-tile-label"'));
-  const out = list(subjects(), folder("fld_pj_rivera"));
+  const out = list(subjects(), folder("fld_pjrivera"));
   for (const label of ["PDF", "MD", "CSV", "DOCX"]) assert.ok(has(out, `>${label}<`), label);
   assert.equal(out.split('data-testid="type-tile"').length - 1, 6, "a labelled or thumbnail tile leads the PDF, MD, CSV and DOCX lines and the two pictures; the folder and the plan have an icon");
 });
 
 test("an empty folder shows no count, and the Scout, Billing and Intake agents are in the Agents folder", () => {
   const out = tree(subjects());
-  assert.ok(!has(out, 'data-testid="folder-count-fld_people"') && !has(out, 'data-testid="folder-count-fld_ag_assistant"'), "no 0");
-  assert.ok(has(out, 'data-testid="folder-count-fld_pj_launch"'));
-  for (const id of ["fld_ag_scout", "fld_ag_billing", "fld_ag_intake"]) assert.ok(has(out, `data-testid="row-folder-${id}"`), id);
+  assert.ok(!has(out, 'data-testid="folder-count-fld_people"') && !has(out, 'data-testid="folder-count-fld_agassistant"'), "no 0");
+  assert.ok(has(out, 'data-testid="folder-count-fld_pjlaunch"'));
+  for (const id of ["fld_agscout", "fld_agbilling", "fld_agintake"]) assert.ok(has(out, `data-testid="row-folder-${id}"`), id);
   assert.ok(has(out, 'data-testid="face-Scout"'));
 });
 
 test("a picture with a thumbnail leads with its preview, the one the viewer shows; other files keep the type tile", () => {
-  const out = list(subjects(), folder("fld_pj_rivera"));
+  const out = list(subjects(), folder("fld_pjrivera"));
   assert.equal(out.split('data-testid="thumb-image"').length - 1, 2, "id-scan.png and site-photo.png have thumbnails");
   assert.ok(has(out, "data:image/svg+xml"), "the preview address from files.viewer_data");
   assert.ok(has(out, ">PDF<") && has(out, ">DOCX<"), "files without a thumbnail keep their tile");
   const s = subjects();
-  const one = wrap(s, {}, <ThumbTile fileId="fil_pj_id" label={null} icon="image" />);
+  const one = wrap(s, {}, <ThumbTile fileId="fil_pjid" label={null} icon="image" />);
   assert.ok(has(one, 'data-testid="thumb-image"'));
-  const none = wrap(s, {}, <ThumbTile fileId="fil_pj_intake" label="PDF" icon="doc" />);
+  const none = wrap(s, {}, <ThumbTile fileId="fil_pjintake" label="PDF" icon="doc" />);
   assert.ok(!has(none, 'data-testid="thumb-image"') && has(none, ">PDF<"), "no previewUrl, the tile");
 });
 
 test("a plan file with no known extension is a Document with the document icon, until a real writer exists", () => {
   assert.equal(tileLabel("Rivera onboarding plan", "document"), null);
-  const out = list(subjects(), folder("fld_pj_rivera"));
+  const out = list(subjects(), folder("fld_pjrivera"));
   assert.ok(has(out, "Rivera onboarding plan") && has(out, ">Document<"));
   assert.ok(!has(out, ">PLAN<") && !has(out, ">Plan<"));
   assert.ok(has(out, 'data-testid="type-page"'), "a small page, not a pill");
@@ -315,6 +315,6 @@ test("a plan file with no known extension is a Document with the document icon, 
 
 test("an agent's folder shows the attention dot when a change set of its own waits, and never a count", () => {
   const out = tree(subjects());
-  assert.ok(has(out, 'data-testid="folder-attention-fld_ag_docs"') && has(out, 'aria-label="Waiting for you"'), "Docs staged writes that wait for review");
-  assert.ok(!has(out, 'data-testid="folder-attention-fld_ag_research"') && !has(out, 'data-testid="folder-count-fld_ag_research"'), "Research has nothing waiting, and no count");
+  assert.ok(has(out, 'data-testid="folder-attention-fld_agdocs"') && has(out, 'aria-label="Waiting for you"'), "Docs staged writes that wait for review");
+  assert.ok(!has(out, 'data-testid="folder-attention-fld_agresearch"') && !has(out, 'data-testid="folder-count-fld_agresearch"'), "Research has nothing waiting, and no count");
 });
