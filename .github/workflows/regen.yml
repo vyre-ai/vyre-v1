@@ -1,5 +1,5 @@
 name: regen
-# Ruling 22: workers never regenerate locally. When manifests/ or host/modules.json change on a build/* branch,
+# Ruling 22: workers never regenerate locally. On every push to a build/* branch, whatever paths changed (a test-only push on top of a manifest change must still find generated/ current),
 # this job runs the generator, commits generated/ back as Irfad Imtiaz ("chore(gen): regenerate") and reruns the checks.
 # A package.json change also refreshes package-lock.json (npm install --package-lock-only), committed in the same bot commit.
 # A push made with GITHUB_TOKEN does not start other workflows, so the reruns happen inside scripts/regen-bot.sh
@@ -7,17 +7,6 @@ name: regen
 on:
   push:
     branches: ['build/**']
-    paths:
-      - 'manifests/**'
-      - 'host/modules.json'
-      - 'package.json'
-      - '**/package.json'
-      - 'tools/gen/**'
-      - 'lib/snapshot.ts'
-      - 'scripts/shots/prototype/vyre-v1.html'
-      - 'scripts/shots/gen-prototype-seed.mjs'
-      - '.github/workflows/regen.yml'
-      - 'scripts/regen-bot.sh'
 concurrency:
   group: regen-${{ github.ref }}
   cancel-in-progress: false
