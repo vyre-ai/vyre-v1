@@ -94,7 +94,7 @@ test("erase: records, files and memory facts go, one tombstone each, the audit e
   const trail = JSON.stringify([h.emitted, h.rows(`SELECT * FROM gov_erase`), h.rows(`SELECT * FROM gov_tombstone`)]);
   assert.ok(!trail.includes("Pat Lee") && !trail.includes(EMAIL), "the trail has ids, never names or addresses");
   const run = h.world.runs.get(String(done.runId));
-  assert.deepEqual([run?.status, run?.summary], ["succeeded", "6 erased; no eraser yet for chats (2), mail (2), which the next backup rotation purges"]);
+  assert.deepEqual([run?.status, run?.summary], ["succeeded", "6 erased; no eraser yet for memory (1), chats (2), mail (2), which the next backup rotation purges; 1 record moved to Trash, not hard-deleted yet"]);
 
   const past = out(await g.eraseList(h.ctx, {}));
   assert.deepEqual(contractErrors("governance.erase.list", "out", past), []);
