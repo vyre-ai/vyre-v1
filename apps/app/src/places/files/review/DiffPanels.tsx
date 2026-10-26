@@ -6,7 +6,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { DiffTab } from "../../../../../../ui/src/DiffTab/index.tsx";
 import type { Density, DiffFile } from "../../../../../../ui/src/DiffTab/index.tsx";
 import { useCap, useCapMany, useReviewData } from "./data.tsx";
-import { changedLine, commentsOf, commitFiles, diffFileOf } from "./model.ts";
+import { commentsOf, commitFiles, diffFileOf } from "./model.ts";
 import { Skeleton } from "./parts.tsx";
 
 const LOADING_HEIGHT = 240;
@@ -63,7 +63,7 @@ export function ChangesetDiff({ changesetId, density = "regular", path }: Change
   if (!files.length) return <Empty text="Nothing to review in this changeset." />;
   return (
     <DiffTab
-      title={changedLine(data.nameOf(cs.data.changeset.by), cs.data.changeset.fileCount)}
+      title={data.nameOf(cs.data.changeset.folderId)}
       layout="unified"
       wordMarks
       files={files}

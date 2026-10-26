@@ -200,9 +200,13 @@ export function lintItems(out: LintOut): LintItem[] {
     const list = out.overrides.map((o): LintPlace => ({ line: o.line, msg: o.text }));
     items.push({ k: "overrides", sev: list.length ? "info" : "ok", label: list.length ? plural(list.length, "override", "overrides") : "No overrides", line: list[0]?.line ?? 1, list, tip: "Only an Override: line may loosen a VYRE.md rule" });
   }
+  if (out.file === "agent_md") {
+    const dups = out.problems.filter((p) => p.rule === "duplicates" || p.rule === "dups");
+    items.push({ k: "dups", sev: dups.length ? "warn" : "ok", label: dups.length ? `${dups.length} also in agent.toml` : "Nothing repeated from agent.toml", line: dups[0]?.line ?? 1, list: dups.map((p): LintPlace => ({ line: p.line ?? 1, msg: p.message })), tip: "Model names, limits, tools and vault keys live in agent.toml only" });
+  }
   const secrets = out.secrets.map((s): LintPlace => ({ line: s.line, msg: `Possible ${s.kind}` }));
   items.push({ k: "secrets", sev: secrets.length ? "err" : "ok", label: secrets.length ? plural(secrets.length, "possible secret", "possible secrets") : "No secrets", line: secrets[0]?.line ?? 1, list: secrets, tip: "Never put a secret in a file; use the vault key name" });
-  const problems = out.problems;
+  const problems = out.problems.filter((p) => p.rule !== "duplicates" && p.rule !== "dups");
   const list = problems.map((p): LintPlace => ({ line: p.line ?? 1, msg: p.message }));
   const errs = problems.filter((p) => p.severity === "error").length;
   const warns = problems.filter((p) => p.severity === "warn").length;
@@ -384,4 +388,43 @@ export function errorWords(e: unknown, what: string): string {
   if (code === "auth.forbidden" || code === "auth.denied") return `You cannot ${what} here.`;
   if (code === "validation.precondition_failed") return `That is no longer possible, so ${what} did not happen.`;
   return `Could not ${what}. Try again.`;
+}
+
+/* ---------- an agent's suggestion for its file ---------- */
+
+/** A suggestion's unified diff as hunks: each "@@" starts one; " " lines are context, "-" removed, "+" added. */
+export function suggestionHunks(diff: string): DiffHunk[] {
+  const hunks: DiffHunk[] = [];
+  let cur: { id: string; context: string; before: string[]; removed: string[]; added: string[]; after: string[]; seen: boolean } | null = null;
+  const flush = (): void => {
+    if (!cur) return;
+    const before = cur.before.join("\n");
+    const after = cur.after.join("\n");
+    hunks.push({ id: cur.id, context: cur.context, removed: cur.removed.join("\n"), added: cur.added.join("\n"), ...(before ? { before } : {}), ...(after ? { after } : {}) });
+  };
+  for (const l of diff.split("\n")) {
+    if (l.startsWith("@@")) { flush(); const m = /\+(\d+)/.exec(l); cur = { id: `s${hunks.length + 1}`, context: `Line ${m?.[1] ?? "1"}`, before: [], removed: [], added: [], after: [], seen: false }; continue; }
+    if (!cur) continue;
+    if (l.startsWith("-")) { cur.removed.push(l.slice(1)); cur.seen = true; }
+    else if (l.startsWith("+")) { cur.added.push(l.slice(1)); cur.seen = true; }
+    else if (l.startsWith(" ")) (cur.seen ? cur.after : cur.before).push(l.slice(1));
+  }
+  flush();
+  return hunks;
+}
+
+export function suggestsLine(agent: string, n: number, file: string): string {
+  return `${agent} suggests ${plural(n, "change", "changes")} to ${file}`;
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** "Oct 24", in UTC so a server and a browser agree. */
+export function shortDay(ms: number): string {
+  const d = new Date(ms);
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
+}
+
+/** The newest version of a file. */
+export function latestVersion(rows: readonly VersionRow[]): VersionRow | null {
+  return rows.reduce<VersionRow | null>((a, v) => (a === null || v.n > a.n ? v : a), null);
 }

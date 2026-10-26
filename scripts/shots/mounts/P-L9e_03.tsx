@@ -1,35 +1,39 @@
-// Mount for P-L9e_03: the Files review surfaces over the Northwind sample Space (or Harbor Studio with ?space=harbor).
+// Mount for P-L9e_03: the Files review surfaces over the Northwind sample Space (or Harbor Studio with ?space=harbor), inside the Files place: its sidebar (FilesTree) at 240 px (a phone shows the view alone)
+// and a tab strip above the view, as in the prototype.
 // ?part=review (default)  the changeset header and the diff of "Docs changed 3 files"; ?repo=1 makes the folder a git repository (commit message and Push), ?protected=1 puts it on a protected main (the Gate row,
 // Approve off), ?panel=discard|request opens the Discard confirm or the Request changes note.
-// ?part=git  the git row; ?part=history  AGENT.md's versions; ?part=lint  AGENT.md with its lint bar; ?part=form  agent.toml in the Form view with an edit and the diff before the save.
+// ?part=git  the git row; ?part=history  AGENT.md's versions; ?part=lint  AGENT.md with its header, lint chips, suggestion card and body; ?part=form  agent.toml in the Form view with an edit and the diff before the save.
 // The query is read after mount (rule 25): the static export keeps its pre-rendered markup, so a first-render read shows stale state.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { ScrollView, View, useWindowDimensions } from "react-native";
-import { AgentFileEditor, ChangesetDiff, ChangesetHeader, GitRow, HistoryPanel, ReviewDataProvider } from "../../../apps/app/src/places/files/review/index.ts";
+import { TabStrip } from "../../../ui/src/TabStrip/index.tsx";
+import { createSampleFiles, harbor as filesHarbor, northwind as filesNorthwind } from "../../../apps/app/src/places/files/list/sample.ts";
+import { FilesDataProvider, FilesStateProvider, FilesTree } from "../../../apps/app/src/places/files/tree/index.ts";
+import { AgentFileEditor, AgentFilePage, ChangesetDiff, ChangesetHeader, GitRow, HistoryPanel, ReviewDataProvider } from "../../../apps/app/src/places/files/review/index.ts";
 import { AGENT_MD, AGENT_TOML, createSampleReview } from "../../../apps/app/src/places/files/review/sample.ts";
 
 export const title = "Files: review";
 
 type Part = "review" | "git" | "history" | "lint" | "form";
 const PARTS: readonly Part[] = ["review", "git", "history", "lint", "form"];
+const TAB: Record<Part, string> = { review: "rivera-engagement-letter.docx", git: "Rivera matter", history: "AGENT.md", lint: "AGENT.md", form: "agent.toml" };
 
-export default function Mount(): ReactNode {
-  const [q, setQ] = useState<URLSearchParams | null>(null);
-  useEffect(() => setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")), []);
+function Page({ q }: { q: URLSearchParams }): ReactNode {
+  const harborSpace = q.get("space") === "harbor";
   const width = useWindowDimensions().width;
-  const compact = width > 0 && width < 720; // 0 is "not measured yet" (the static page)
-  const sample = useMemo(() => (q ? createSampleReview({
-    variant: q.get("space") === "harbor" ? "harbor" : "northwind", repo: q.get("repo") === "1" || q.get("part") === "git", protectedBranch: q.get("protected") === "1",
-  }) : null), [q]);
-  if (!q || !sample) return <View style={{ flex: 1 }} />;
+  const phone = width > 0 && width < 720; // 0 is "not measured yet" (the static page)
+  const sample = useMemo(() => createSampleReview({
+    variant: harborSpace ? "harbor" : "northwind", repo: q.get("repo") === "1" || q.get("part") === "git", protectedBranch: q.get("protected") === "1",
+  }), [q, harborSpace]);
+  const files = useMemo(() => createSampleFiles(harborSpace ? filesHarbor : filesNorthwind), [harborSpace]);
   const part = PARTS.find((p) => p === q.get("part")) ?? "review";
   const panel = q.get("panel") === "discard" ? "discard" : q.get("panel") === "request" ? "request" : undefined;
-  const density = compact ? "compact" : "regular";
+  const density = phone ? "compact" : "regular";
   let body: ReactNode;
   if (part === "git") body = <GitRow folderId={sample.folderId} />;
   else if (part === "history") body = <HistoryPanel fileId={sample.fileIds.agent} density={density} />;
-  else if (part === "lint") body = <AgentFileEditor fileId={sample.fileIds.agent} name="AGENT.md" saved={AGENT_MD} version={4} density={density} />;
+  else if (part === "lint") body = <AgentFilePage fileId={sample.fileIds.agent} name="AGENT.md" path="Agents/Intake" agentId="agt_intake" saved={AGENT_MD} version={4} density={density} />;
   else if (part === "form") {
     body = (
       <AgentFileEditor
@@ -46,9 +50,26 @@ export default function Mount(): ReactNode {
       </>
     );
   }
+  const tabs = [{ key: "files", title: "Files" }, { key: "view", title: TAB[part] }];
   return (
-    <ReviewDataProvider value={sample.data}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>{body}</ScrollView>
-    </ReviewDataProvider>
+    <FilesDataProvider value={files.data}>
+      <FilesStateProvider initial={{ where: { kind: "folder", id: harborSpace ? "fld_h_clients" : "fld_sales" } }}>
+        <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
+          {phone ? null : <View style={{ width: 240 }}><FilesTree /></View>}
+          <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+            <TabStrip tabs={tabs} active="view" />
+            <ReviewDataProvider value={sample.data}>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>{body}</ScrollView>
+            </ReviewDataProvider>
+          </View>
+        </View>
+      </FilesStateProvider>
+    </FilesDataProvider>
   );
+}
+
+export default function Mount(): ReactNode {
+  const [q, setQ] = useState<URLSearchParams | null>(null);
+  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  return q ? <Page q={q} /> : <View style={{ flex: 1 }} />;
 }

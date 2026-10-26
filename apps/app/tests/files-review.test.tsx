@@ -5,9 +5,9 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import {
-  AgentFileEditor, ChangesetDiff, ChangesetHeader, CommitDiff, FileDiff, GateRow, GitRow, HistoryPanel, LintBar, ReviewDataProvider, TomlForm,
+  AgentFileEditor, AgentFilePage, SuggestionCard, ChangesetDiff, ChangesetHeader, CommitDiff, FileDiff, GateRow, GitRow, HistoryPanel, LintBar, ReviewDataProvider, TomlForm,
   approveBlocked, approveChangeset, approveInput, blockedReason, branchChoices, changedLine, commitFiles, diffFileOf, discardChangeset, draftDiff, errorWords, gateWords, hunkOf, historyVersions, initRepo, lineHunks,
-  lintItems, needsGate, nameVersion, parseToml, pushBranch, rawFromForm, requestChanges, requestLabel, restoreVersion, reviewExternally, saveFile, saveBlocked, setTomlValue, switchBranch, tomlGroups, tomlKind,
+  lintItems, needsGate, nameVersion, parseToml, pushBranch, rawFromForm, requestChanges, requestLabel, suggestionHunks, acceptSuggestion, dismissSuggestion, restoreVersion, reviewExternally, saveFile, saveBlocked, setTomlValue, switchBranch, tomlGroups, tomlKind,
 } from "../src/places/files/review/index.ts";
 import { lineRange } from "../src/places/files/review/index.ts";
 import { AGENT_MD, AGENT_TOML, createSampleReview } from "../src/places/files/review/sample.ts";
@@ -220,7 +220,8 @@ test("diff tabs: a changeset's files with their changes and the comment; a versi
   for (const p of ["rivera-engagement-letter.docx", "consult-prep.md", "id-scan.png"]) assert.ok(has(out, `data-testid="row-diff-file-${p}"`), p);
   assert.ok(has(text(out), "Ask for a photo ID before the consult."), "an added line");
   assert.ok(has(text(out), "Please put this above the intake form line.") && has(text(out), "Maya Chen"), "the comment sits on its change");
-  assert.ok(has(out, 'aria-label="Changes to Docs changed 3 files"'));
+  assert.ok(has(out, 'aria-label="Changes to Projects/Rivera matter"'), "the toolbar is named for the folder, not a second Docs changed row");
+  assert.ok(!has(text(out), "Docs changed 3 files"), "no duplicate of the header inside the diff");
   assert.ok(has(out, 'data-testid="diff-revert-h_prep"'), "revert and comment per change");
   const one = html(s, <FileDiff fileId={s.fileIds.agent} name="AGENT.md" />);
   assert.ok(has(one, 'data-testid="file-diff"') && has(text(one), "- Promise an outcome."), "a version compare is bare: the changed line in the page");
@@ -252,7 +253,7 @@ test("lint bar: lines against the limit, Inherits VYRE.md, overrides, secrets; e
   assert.ok(has(out, 'data-testid="lint-bar"') && has(out, 'aria-label="Checks for AGENT.md"') && has(out, 'role="status"'));
   const lines = AGENT_MD.split("\n").length - 1;
   assert.ok(has(text(out), `${lines} / 150 lines`), "lines against the limit");
-  for (const t of ["Inherits VYRE.md", "1 override", "No secrets"]) assert.ok(has(text(out), t), t);
+  for (const t of ["Inherits VYRE.md", "1 override", "Nothing repeated from agent.toml", "No secrets"]) assert.ok(has(text(out), t), t);
   for (const k of ["len", "inherits", "overrides", "secrets"]) assert.ok(has(out, `data-testid="lint-${k}"`), k);
   assert.ok(!has(out, 'data-testid="lint-view"'), "the Text and Form switch is for agent.toml only");
   const long = html(s, <LintBar fileId={s.fileIds.agent} name="AGENT.md" text={`${AGENT_MD}${"more\n".repeat(160)}`} onJump={() => undefined} />);
@@ -272,7 +273,7 @@ test("lint bar on agent.toml: schema, the Text and Form switch with a real check
 
 test("lint items: severity, the lines a press jumps to, and what blocks a save", () => {
   const ok = lintItems({ file: "agent_md", lines: 40, state: "ok", inherits: true, overrides: [], secrets: [], problems: [] });
-  assert.deepEqual(ok.map((i) => [i.k, i.sev]), [["len", "ok"], ["inherits", "ok"], ["overrides", "ok"], ["secrets", "ok"]]);
+  assert.deepEqual(ok.map((i) => [i.k, i.sev]), [["len", "ok"], ["inherits", "ok"], ["overrides", "ok"], ["dups", "ok"], ["secrets", "ok"]]);
   const noisy = lintItems({ file: "agent_md", lines: 210, state: "red", overrides: [{ line: 4, text: "Override: a" }, { line: 9, text: "Override: b" }], secrets: [{ line: 12, kind: "API key" }], problems: [{ severity: "warn", line: 2, rule: "r", message: "m" }] });
   const by = Object.fromEntries(noisy.map((i) => [i.k, i]));
   assert.equal(by["len"]?.sev, "err");
@@ -378,4 +379,35 @@ test("every screen the surfaces implement is in the registry with the capabiliti
     const have = Object.values(screen.actions).map((a) => a.cap);
     for (const c of caps) assert.ok(have.includes(c), `${id} has ${c}`);
   }
+});
+
+test("agent file page: header with where it lives and who saved it, View and Edit, the shared Ask, the chips, the suggestion card, the rendered body", () => {
+  const s = sample();
+  const out = html(s, <AgentFilePage fileId={s.fileIds.agent} name="AGENT.md" path="Agents/Intake" agentId="agt_intake" saved={AGENT_MD} version={4} />);
+  assert.ok(has(text(out), "AGENT.md") && has(text(out), "Agents/Intake") && has(text(out), "Irfad Imtiaz") && has(text(out), "Oct 24"), "name, path, author, date");
+  assert.ok(has(tag(out, "agent-file-mode-view"), 'aria-checked="true"') && has(tag(out, "agent-file-mode-edit"), 'aria-checked="false"'), "opens on View");
+  for (const id of ["agent-file-find", "agent-file-info", "agent-file-history", "agent-file-ask"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  assert.ok(has(text(out), "Nothing repeated from agent.toml") && has(text(out), "No secrets"), "the chips");
+  assert.ok(has(out, 'data-testid="suggestion-card"') && has(text(out), "Intake suggests 2 changes to AGENT.md"), "the suggestion");
+  assert.ok(has(out, 'data-testid="suggestion-dismiss"') && has(text(out), "Apply to AGENT.md"));
+  assert.ok(has(out, 'data-testid="agent-file-view"') && has(text(out), "Books consults") && !has(out, 'aria-label="Text of AGENT.md"'), "View is the rendered note");
+  const edit = html(s, <AgentFilePage fileId={s.fileIds.agent} name="AGENT.md" path="Agents/Intake" agentId="agt_intake" saved={AGENT_MD} version={4} edit />);
+  assert.ok(has(edit, 'aria-label="Text of AGENT.md"'), "Edit is the text box");
+});
+
+test("suggestions: the diff reads as hunks; Apply and Dismiss call the agent suggestion capabilities", async () => {
+  const s = sample();
+  const hunks = suggestionHunks((await import("../src/places/files/review/sample.ts")).SUGGESTION_DIFF);
+  assert.equal(hunks.length, 2);
+  assert.equal(hunks[0]?.removed, "- No exclamation marks.");
+  assert.equal(hunks[1]?.added, "- Quote a fee before the consult.");
+  assert.ok(has(html(s, <SuggestionCard agentId="agt_intake" file="AGENT.md" />), 'data-testid="suggestion-card"'));
+  const r = await acceptSuggestion(s.data.call, "sug_1");
+  assert.ok(r.ok);
+  assert.deepEqual(lastCall(s), { cap: "agents.suggestion.accept", input: { suggestionId: "sug_1" } });
+  assert.equal(s.suggestionState(), "accepted");
+  assert.equal(html(s, <SuggestionCard agentId="agt_intake" file="AGENT.md" />), "", "an applied suggestion leaves the card");
+  const t = sample();
+  assert.ok((await dismissSuggestion(t.data.call, "sug_1")).ok);
+  assert.equal(t.suggestionState(), "dismissed");
 });

@@ -15,6 +15,9 @@ export const ICON = {
   restore: ["M3 8a5 5 0 105-5M3 3.5V8h4.500"],
   tag: ["M2.5 8.5V3.5h5l6 6-5 5z", "M5.500 6h.01"],
   compare: ["M5 3v10M11 3v10M2.5 6H5M2.5 10H5M11 6h2.5M11 10h2.5"],
+  search: ["M11.5 7a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z", "M10.5 10.5L14 14"],
+  info: ["M13.5 8a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z", "M8 7.5v3.5M8 5.2h.01"],
+  history: ["M13.5 8a5.5 5.5 0 11-1.6-3.9", "M13 2.5v2.8h-2.8", "M8 5v3l2 1.5"],
   warn: ["M8 2.5l6 10.5H2z", "M8 6.5v3M8 11.5h.01"],
 } as const;
 export type IconName = keyof typeof ICON;

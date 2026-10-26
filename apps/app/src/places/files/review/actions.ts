@@ -79,3 +79,11 @@ export function initRepo(call: Call, folderId: string): Promise<Result<CapMap["g
 export function commitChanges(call: Call, folderId: string, message: string, key: string, paths?: readonly string[]): Promise<Result<CapMap["git.commit"]["out"]>> {
   return run(call, "git.commit", { folderId, message: message.trim(), ...(paths ? { paths: [...paths] } : {}), idempotencyKey: key }, "commit");
 }
+
+export function acceptSuggestion(call: Call, suggestionId: string): Promise<Result<CapMap["agents.suggestion.accept"]["out"]>> {
+  return run(call, "agents.suggestion.accept", { suggestionId }, "apply the suggestion");
+}
+
+export function dismissSuggestion(call: Call, suggestionId: string): Promise<Result<CapMap["agents.suggestion.dismiss"]["out"]>> {
+  return run(call, "agents.suggestion.dismiss", { suggestionId }, "dismiss the suggestion");
+}

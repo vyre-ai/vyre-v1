@@ -44,6 +44,11 @@ export const AGENT_TOML = [
   'to = "Docs"', "",
 ].join("\n");
 
+export const SUGGESTION_DIFF = [
+  "@@ -11,3 +11,3 @@", " - Warm and brief. Two sentences, then a question.", "-- No exclamation marks.", "+- No exclamation marks. Keep replies under five lines.", " - Say what happens next, always.",
+  "@@ -16,2 +16,3 @@", " - Take payment details. Ever.", " - Promise an outcome.", "+- Quote a fee before the consult.",
+].join("\n");
+
 const SVG = (fill: string): string => `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200"><rect width="320" height="200" fill="${fill}"/><rect x="40" y="40" width="240" height="24" fill="#fff" opacity=".7"/><rect x="40" y="80" width="180" height="16" fill="#fff" opacity=".5"/></svg>`)}`;
 
 const L = (op: "ctx" | "add" | "del", text: string): { op: "ctx" | "add" | "del"; text: string } => ({ op, text });
@@ -120,6 +125,7 @@ export interface SampleReview {
   text(fileId: string): string;
   version(fileId: string): number;
   changeset(): Changeset;
+  suggestionState(): string;
   /** Make the next call of a capability fail with this code. */
   failNext(cap: string, code: string): void;
 }
@@ -172,6 +178,9 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
     { name: "intake-copy", remote: false, sha: "c3f5e40", protected: false },
   ];
 
+  const suggestion: CapMap["agents.suggestions.list"]["out"]["suggestions"][number] = {
+    suggestionId: "sug_1", agentId: "agt_intake", kind: "agent_md", file: "AGENT.md", diff: SUGGESTION_DIFF, reason: "Replies ran long in four of the last ten consults.", widening: false, state: "open", proposedBy: "agt_intake", proposedAt: SAMPLE_NOW - 3_600_000,
+  };
   const ids = { agent: "file_agent_md", toml: "file_agent_toml" };
   const t0 = SAMPLE_NOW;
   const versions = new Map<string, Version[]>([
@@ -204,6 +213,7 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
   replica.resolve("changesets.comments.list", () => ({ comments: [...comments] }));
   replica.resolve("git.status", () => statusOut());
   replica.resolve("git.list_branches", () => ({ current: git.branch, branches: branches.map((b) => ({ ...b, protected: b.name === "main" ? true : b.protected })) }));
+  replica.resolve("agents.suggestions.list", (_t, i) => ({ suggestions: [suggestion].filter((x) => (!i.agentId || x.agentId === i.agentId) && (!i.state || i.state.includes(x.state))) }));
   replica.resolve("git.log", () => ({ commits: [] }));
   replica.resolve("git.show", (_t, i) => ({
     commit: { sha: i.sha, message: "Raise the retainer to $2,400", author: { name: "Docs", kind: "agent" as const, id: "agt_docs" }, at: t0 - 2 * 3_600_000, files: 1, parents: ["a1f3c2e"] },
@@ -263,6 +273,8 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
       touch();
       return { versionId: next.versionId, n: next.n, lint, added: Math.max(0, i.text.split("\n").length - top.text.split("\n").length), removed: 0 };
     },
+    "agents.suggestion.accept": () => { suggestion.state = "accepted"; touch(); return { suggestion: { ...suggestion } }; },
+    "agents.suggestion.dismiss": () => { suggestion.state = "dismissed"; touch(); return { suggestion: { ...suggestion } }; },
     "git.branch": (i: CapMap["git.branch"]["in"]) => { git.branch = i.name; git.prot = i.name === "main"; touch(); return { branch: i.name }; },
     "git.push": () => { git.ahead = 0; touch(); return { pushed: true, sha: "b2e4d3f" }; },
     "git.pull": () => { git.behind = 0; touch(); return { updated: true, sha: "b2e4d3f", conflicts: [] }; },
@@ -277,6 +289,9 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
     compare: (fileId, from, to) => void navLog.push({ cap: "compare", args: [fileId, from, to] }),
     openCommit: (folderId, sha) => void navLog.push({ cap: "openCommit", args: [folderId, sha] }),
     settled: (id, state) => void navLog.push({ cap: "settled", args: [id, state] }),
+    openHistory: (id) => void navLog.push({ cap: "openHistory", args: [id] }),
+    findInFile: (id) => void navLog.push({ cap: "findInFile", args: [id] }),
+    ask: (agentId, mode, about) => void navLog.push({ cap: "ask", args: [agentId, mode, about] }),
   };
   const data: ReviewData = {
     live,
@@ -292,11 +307,14 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
     key: () => `key_${++keys}`,
     clock: () => ({ now: SAMPLE_NOW }),
     reviewers: variant === "harbor" ? [{ id: "agt_assistant", name: "Assistant" }] : [{ id: "agt_research", name: "Research" }, { id: "agt_assistant", name: "Assistant" }],
+    agents: variant === "harbor"
+      ? [{ id: "agt_assistant", name: "Assistant", assistant: true }, { id: "agt_scheduler", name: "Scheduler" }, { id: "agt_proofer", name: "Proofer" }]
+      : [{ id: "agt_assistant", name: "Assistant", assistant: true }, { id: "agt_intake", name: "Intake" }, { id: "agt_billing", name: "Billing" }, { id: "agt_research", name: "Research" }, { id: "agt_docs", name: "Docs" }, { id: "agt_scout", name: "Scout" }],
     nav,
   };
   return {
     data, replica, calls, nav: navLog, changesetId, folderId: seed.folderId, fileIds: ids,
-    text: (id) => current(id).text, version: (id) => current(id).n, changeset: () => ({ ...cs }),
+    text: (id) => current(id).text, version: (id) => current(id).n, changeset: () => ({ ...cs }), suggestionState: () => suggestion.state,
     failNext: (cap, code) => void failing.set(cap, code),
   };
 }

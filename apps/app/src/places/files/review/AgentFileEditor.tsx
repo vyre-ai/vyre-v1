@@ -2,11 +2,13 @@
 // Save asks files.save with the version the draft started from (baseVersion), so a save over someone else's newer version is refused, never lost. A red check blocks the save; amber saves after the diff.
 import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
+import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { DiffTab } from "../../../../../../ui/src/DiffTab/index.tsx";
 import type { Density } from "../../../../../../ui/src/DiffTab/index.tsx";
 import { saveFile } from "./actions.ts";
 import { useCap, useReviewData } from "./data.tsx";
+import { Prose } from "../runbook/Prose.tsx";
 import { LintBar } from "./LintBar.tsx";
 import type { EditView } from "./LintBar.tsx";
 import { draftDiff, saveBlocked } from "./model.ts";
@@ -24,6 +26,10 @@ export interface AgentFileEditorProps {
   onSaved?(versionId: string, n: number): void;
   /** Where the editor opens (the screenshot mount and the tests): the Form view, an edited draft, the diff before the save. */
   start?: { view?: EditView; draft?: string; review?: boolean };
+  /** Shown between the lint bar and the text (the agent's suggestion card). */
+  above?: ReactNode;
+  /** "view": the file as read (a rendered note), "edit": the text box. The page's View and Edit switch drives it. */
+  mode?: "view" | "edit";
 }
 
 /** Where a line starts in the text, so a jump from the lint bar can select it. */
@@ -34,7 +40,7 @@ export function lineRange(text: string, line: number): { start: number; end: num
   return { start, end: start + (lines[line - 1] ?? "").length };
 }
 
-export function AgentFileEditor({ fileId, name, saved, version, density = "regular", onSaved, start }: AgentFileEditorProps): ReactElement {
+export function AgentFileEditor({ fileId, name, saved, version, density = "regular", onSaved, start, above, mode = "edit" }: AgentFileEditorProps): ReactElement {
   const data = useReviewData();
   const isToml = name.endsWith(".toml");
   const [base, setBase] = useState({ text: saved, version });
@@ -75,7 +81,10 @@ export function AgentFileEditor({ fileId, name, saved, version, density = "regul
   return (
     <View style={st.wrap} testID="agent-file-editor">
       <LintBar fileId={fileId} name={name} text={draft} {...(isToml ? { view, onView: setView } : {})} onJump={jump} />
-      {isToml && view === "form" ? (
+      {above}
+      {mode === "view" && !(isToml && view === "form") ? (
+        <View style={st.body} testID="agent-file-view">{isToml ? <Text style={st.mono}>{draft}</Text> : <Prose text={draft} />}</View>
+      ) : isToml && view === "form" ? (
         <TomlForm text={draft} onChange={edit} />
       ) : (
         <View style={st.body}>
@@ -90,7 +99,7 @@ export function AgentFileEditor({ fileId, name, saved, version, density = "regul
           </View>
         </View>
       ) : null}
-      <View style={st.bar}>
+      {mode === "view" && !changed && !line ? null : <View style={st.bar}>
         <Text style={st.status} testID="agent-file-status">{changed ? `Edited · based on version ${base.version}` : `Version ${base.version}`}</Text>
         <View style={st.grow} />
         {changed ? <Btn label="Discard edits" onPress={discard} testID="agent-file-discard" /> : null}
@@ -102,7 +111,7 @@ export function AgentFileEditor({ fileId, name, saved, version, density = "regul
           onPress={save}
           testID="agent-file-save"
         />
-      </View>
+      </View>}
       {line ? <Note text={line.text} kind={line.kind} /> : null}
     </View>
   );
@@ -116,4 +125,5 @@ const st = StyleSheet.create({
   bar: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
   status: { fontSize: 12, color: "var(--ink-3)" as string },
   grow: { flex: 1 },
+  mono: { fontFamily: "var(--mono)", fontSize: 12.5, color: "var(--ink)" as string },
 });

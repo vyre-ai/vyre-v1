@@ -8,7 +8,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 export type ReviewCap =
   | "changesets.get" | "changesets.diff" | "changesets.comments.list"
   | "git.status" | "git.list_branches" | "git.log" | "git.show"
-  | "files.versions" | "files.diff" | "files.lint";
+  | "files.versions" | "files.diff" | "files.lint" | "agents.suggestions.list";
 
 /** Where a click goes. The shell decides how a diff tab or a conflict opens. */
 export interface ReviewNav {
@@ -20,6 +20,12 @@ export interface ReviewNav {
   openCommit(folderId: string, sha: string): void;
   /** The changeset left the review (approved, discarded or sent back). */
   settled(changesetId: string, state: "approved" | "discarded" | "changes_requested"): void;
+  /** The file's History tab (the clock icon of the file header). */
+  openHistory?(fileId: string): void;
+  /** Find in the file (the magnifier of the file header). */
+  findInFile?(fileId: string): void;
+  /** Ask control: start a thread with this agent about the file. */
+  ask?(agentId: string, mode: "chat" | "do", about: { kind: string; id: string; title: string }): void;
 }
 
 export interface ReviewData {
@@ -35,6 +41,8 @@ export interface ReviewData {
   clock(): { now: number };
   /** Agents a changeset can be sent to for an outside review, id and name. */
   reviewers?: readonly { id: string; name: string }[];
+  /** Every agent the person can ask (the Ask control of the file header), assistant included. */
+  agents?: readonly { id: string; name: string; role?: string; assistant?: boolean }[];
   nav: ReviewNav;
 }
 
