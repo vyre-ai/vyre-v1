@@ -30,7 +30,7 @@ async function post(ctx: Ctx, input: unknown): Promise<{ messageId: string }> {
   const threadId = ch.channel?.mainThreadId;
   if (typeof threadId !== "string" || ch.channel?.archived === true) fail(ctx, "validation.precondition_failed", "This conversation is closed.");
 
-  const sent = (await ctx.call("chat.post", { threadId, body: `From ${acct.email} (client portal)\n\n${text}` })) as { message?: { messageId?: unknown } };
+  const sent = (await ctx.call("chat.post", { idempotencyKey: `portal.post:${acct.id}:${recordId}:${ctx.trace.traceId}`, threadId, body: `From ${acct.email} (client portal)\n\n${text}` })) as { message?: { messageId?: unknown } };
   const messageId = sent.message?.messageId;
   if (typeof messageId !== "string") fail(ctx, "internal.unexpected", "The message could not be posted.");
   gate.bump();

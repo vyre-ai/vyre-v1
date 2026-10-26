@@ -225,7 +225,7 @@ export async function domainRemove(ctx: MailCtx, input: { domainId: string }): P
   for (const route of routes) {
     const ext = first(ctx.db.all(`SELECT "providerRouteId" FROM mail_route_ext WHERE "routeId" = ?`, str(route, "id")));
     const providerRoute = ext ? str(ext, "providerRouteId") : "";
-    if (providerRoute && provider === "mailgun") await forgive(() => ctx.call("mailgun.routes.delete", { routeId: providerRoute }));
+    if (providerRoute && provider === "mailgun") await forgive(() => ctx.call("mailgun.routes.delete", { idempotencyKey: `mail.domains.remove:${id}:route:${str(route, "id")}`, routeId: providerRoute }));
   }
   if (stored.ref) {
     await forgive(() => ctx.call(`${provider}.domains.delete`, provider === "resend" ? { providerDomainId: stored.ref } : { name: stored.ref }));

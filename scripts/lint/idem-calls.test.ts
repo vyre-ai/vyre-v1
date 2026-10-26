@@ -31,3 +31,10 @@ test("idem-calls: an input the lint cannot see is a warning (unseen), never a fa
   assert.deepEqual(run(`await ctx.call("tasks.create", { ...base, title: "x" });`).map((h) => h.kind), ["unseen"]);
   assert.deepEqual(run(`await ctx.call("tasks.create", { ...base, idempotencyKey: "k" });`), []);
 });
+
+test("idem-calls: an as never cast on the name and an apostrophe in a comment do not hide the key", () => {
+  assert.deepEqual(run(`await ctx.call("tasks.create" as never, { idempotencyKey: "k", title: "x" });`), []);
+  assert.equal(run(`await ctx.call("tasks.create" as never, { title: "x" });`).length, 1);
+  assert.deepEqual(run("await ctx.call(\"tasks.create\", {\n  title: \"x\",\n  // the caller's own key\n  idempotencyKey: k,\n});"), []);
+  assert.deepEqual(run("await ctx.call(\"tasks.create\", { /* it's */ title: \"x\", idempotencyKey: k });"), []);
+});

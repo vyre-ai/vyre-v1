@@ -3786,6 +3786,7 @@ export type CampaignsAudienceSetOut = {
 export type CampaignsCreateIn = {
   name: string;
   kind: "one_time" | "sequence" | "triggered";
+  folderId?: string;
   idempotencyKey: string;
 };
 export type CampaignsCreateOut = {
@@ -7426,6 +7427,7 @@ export type EmailBuilderAskDiffOut = {
 export type EmailBuilderCreateIn = {
   name: string;
   mode: "blocks" | "html" | "plain";
+  folderId?: string;
   idempotencyKey: string;
 };
 export type EmailBuilderCreateOut = {
@@ -20236,6 +20238,7 @@ export type SitesCreateIn = {
   kind: "site" | "app" | "api" | "worker" | "artifact";
   repoUrl?: string;
   templateKit?: string;
+  folderId?: string;
   idempotencyKey: string;
 };
 export type SitesCreateOut = {
@@ -28154,6 +28157,10 @@ export type CallVoicemailLeftPayload = {
 export type CampaignCompletedPayload = {
   campaignId: string;
 };
+export type CampaignCreatedPayload = {
+  campaignId: string;
+  name: string;
+};
 export type CampaignLaunchedPayload = {
   campaignId: string;
   audienceCount: number;
@@ -28726,6 +28733,11 @@ export type FollowRemovedPayload = {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
+};
+export type FormCreatedPayload = {
+  formId: string;
+  name: string;
+  kind: string;
 };
 export type FormLinkCreatedPayload = {
   formId: string;
@@ -31082,6 +31094,7 @@ export interface EventMap {
   "call.transferred": CallTransferredPayload;
   "call.voicemail_left": CallVoicemailLeftPayload;
   "campaign.completed": CampaignCompletedPayload;
+  "campaign.created": CampaignCreatedPayload;
   "campaign.launched": CampaignLaunchedPayload;
   "campaign.paused": CampaignPausedPayload;
   "campaign.replied": CampaignRepliedPayload;
@@ -31198,6 +31211,7 @@ export interface EventMap {
   "folder.shared": FolderSharedPayload;
   "follow.added": FollowAddedPayload;
   "follow.removed": FollowRemovedPayload;
+  "form.created": FormCreatedPayload;
   "form.link_created": FormLinkCreatedPayload;
   "form.published": FormPublishedPayload;
   "form.submitted": FormSubmittedPayload;

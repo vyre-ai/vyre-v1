@@ -317,11 +317,11 @@ export async function requestStop(ctx: Ctx, runId: string): Promise<boolean> {
   return true;
 }
 
-async function openSession(ctx: Ctx, target: Target, fileName: string): Promise<string> {
+async function openSession(ctx: Ctx, target: Target, fileName: string, runId: string): Promise<string> {
   const name = `Runbook ${fileName}`.slice(0, 80);
   const opened = (target.kind === "server"
-    ? await ctx.call("terminal.open_server", { name })
-    : await ctx.call("terminal.open", { host: "agent_computer", computerId: target.computerId, name })) as { terminal?: { terminalId?: unknown } };
+    ? await ctx.call("terminal.open_server", { idempotencyKey: `runbooks.run:${runId}:open`, name })
+    : await ctx.call("terminal.open", { idempotencyKey: `runbooks.run:${runId}:open`, host: "agent_computer", computerId: target.computerId, name })) as { terminal?: { terminalId?: unknown } };
   const id = opened.terminal?.terminalId;
   if (typeof id !== "string") return fail(ctx, "provider.unavailable", "The terminal did not open.");
   return id;
@@ -347,7 +347,7 @@ async function runbooksRun(ctx: Ctx, input: unknown): Promise<{ runId: string }>
   if (!target) return fail(ctx, "validation.precondition_failed", "Pick where this runbook runs: the server or an agent computer.", { fileId });
 
   const runId = ctx.run ?? mint("run");
-  const terminalId = await openSession(ctx, target, src.name);
+  const terminalId = await openSession(ctx, target, src.name, runId);
   const startedAt = ctx.now();
   ctx.db.run(
     "INSERT INTO runbooks_run (run_id, file_id, version_id, by_principal, target_kind, computer_id, terminal_id, at, duration_ms, state, exit_code, all_blocks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -376,7 +376,7 @@ async function runbooksRun(ctx: Ctx, input: unknown): Promise<{ runId: string }>
       let ms = 0;
       let text = "";
       try {
-        const r = (await ctx.call("terminal.run", { command: b.code, terminalId, timeoutSec: DEFAULT_BLOCK_TIMEOUT_SEC })) as { exitCode?: unknown; output?: unknown; durationMs?: unknown };
+        const r = (await ctx.call("terminal.run", { idempotencyKey: `runbooks.run:${runId}:${b.blockId}`, command: b.code, terminalId, timeoutSec: DEFAULT_BLOCK_TIMEOUT_SEC })) as { exitCode?: unknown; output?: unknown; durationMs?: unknown };
         code = typeof r.exitCode === "number" ? r.exitCode : -1;
         ms = typeof r.durationMs === "number" ? r.durationMs : Math.max(0, ctx.now() - t0);
         text = typeof r.output === "string" ? r.output : "";
