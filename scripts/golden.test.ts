@@ -14,7 +14,7 @@ function steps(files: Record<string, string>): string {
   for (const [name, body] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), body);
   return dir;
 }
-const run = (dir: string) => spawnSync(process.execPath, [SCRIPT, "--dir", dir, "--no-ready"], { encoding: "utf8" });
+const run = (dir: string) => spawnSync(process.execPath, [SCRIPT, "--dir", dir, "--no-ready"], { encoding: "utf8", env: { ...process.env, NODE_TEST_CONTEXT: "" } });
 
 const PASS = `import test from "node:test"; test("flow a", () => {});`;
 const READY_FAIL = `import test from "node:test"; import assert from "node:assert/strict"; test("flow b is ready", () => { assert.equal(1, 2); });`;

@@ -8,6 +8,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+/** The environment for a child test run: the parent's, without the marker that makes node:test refuse to start a run inside a test (the golden test runs this script from a test). */
+const childEnv = (): NodeJS.ProcessEnv => { const env = { ...process.env }; delete env["NODE_TEST_CONTEXT"]; return env; };
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /** The step tests in a directory, sorted: *.test.ts, not *.heavy.test.ts. */
@@ -27,7 +30,7 @@ export function runGolden(o: GoldenOptions = {}): number {
     return 1;
   }
   // one process: the steps boot daemons and run one after another, and --test-force-exit keeps a leftover handle from holding the job until its timeout
-  const tests = spawnSync(process.execPath, ["--test", "--test-force-exit", "--test-reporter=spec", ...files], { cwd: ROOT, stdio: "inherit" });
+  const tests = spawnSync(process.execPath, ["--test", "--test-force-exit", "--test-reporter=spec", ...files], { cwd: ROOT, stdio: "inherit", env: childEnv() });
   let code = tests.status === 0 ? 0 : 1;
   if (tests.error) { console.error(`golden: could not run node --test: ${tests.error.message}`); code = 1; }
   if (o.ready !== false) {
