@@ -146,3 +146,9 @@ test("the marble as CSS is seeded like the svg: same name same string, different
 test("server markup keeps the inline svg marble; only the browser draws the CSS marble", () => {
   assert.match(renderToStaticMarkup(<Avatar name="Maya Chen" kind="person" size={18} />), /<svg/);
 });
+
+test("the marble colours are three non-empty CSS colours, the same for the same name, so a table cell can paint a face from them without an svg", () => {
+  const m = marbleSpec("Elena Rivera");
+  for (const c of [m.base, m.c1, m.c2]) assert.ok(typeof c === "string" && c.length > 3, String(c));
+  assert.deepEqual(marbleSpec("Elena Rivera"), m);
+});
