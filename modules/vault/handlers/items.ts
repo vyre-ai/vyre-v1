@@ -72,7 +72,7 @@ async function sealFor(ctx: VaultCtx, itemId: string, scope: string, owner: stri
 // ---- visibility
 
 /** Mine items are the owner's alone; anything else is visible when authorize allows Use. */
-/** A turn an agent runs for a person reaches that person's Mine items at use level only (ruling 62: the key exists on a node only where they unlocked it). Never for listing, viewing or editing. */
+/** A turn an agent runs for a person: ctx.actingFor comes from the server-side seed, never from input. */
 export const turnFor = (ctx: VaultCtx, r: Row): boolean => ctx.principal.kind === "agent" && ctx.actingFor !== undefined && str(r, "owner") === ctx.actingFor;
 
 export function visible(ctx: VaultCtx, r: Row): boolean {
@@ -82,7 +82,6 @@ export function visible(ctx: VaultCtx, r: Row): boolean {
 }
 
 export function levelOf(ctx: VaultCtx, r: Row) {
-  if (str(r, "scope") === "mine" && turnFor(ctx, r)) return "use" as const;
   return str(r, "owner") === ctx.principal.id ? "manage" as const : levelOn(ctx, "vault_item", str(r, "id"));
 }
 
@@ -90,8 +89,10 @@ export function levelOf(ctx: VaultCtx, r: Row) {
 export function reachable(ctx: VaultCtx, id: string, need: "use" | "view" | "edit" | "manage", opts: { trashed?: boolean } = {}): Row {
   if (!isId("vit", id)) bad(ctx, "Item id is not valid.");
   const r = opts.trashed ? anyItem(ctx, id) : liveItem(ctx, id);
-  if (str(r, "scope") === "mine" && str(r, "owner") !== ctx.principal.id && !turnFor(ctx, r)) throw fail("validation.not_found", ctx.trace.traceId, { message: "That item is not in this Vault." });
-  if (!atLeast(levelOf(ctx, r), need)) throw fail("permission.no_grant", ctx.trace.traceId, { message: `That needs ${need} access to the item.` });
+  // ruling 96: an agent acting for the owner uses the owner's own Mine item at "use" and nothing more (not listed, viewed, edited or revealed)
+  const turn = str(r, "scope") === "mine" && str(r, "owner") !== ctx.principal.id && need === "use" && turnFor(ctx, r);
+  if (str(r, "scope") === "mine" && str(r, "owner") !== ctx.principal.id && !turn) throw fail("validation.not_found", ctx.trace.traceId, { message: "That item is not in this Vault." });
+  if (!turn && !atLeast(levelOf(ctx, r), need)) throw fail("permission.no_grant", ctx.trace.traceId, { message: `That needs ${need} access to the item.` });
   return r;
 }
 

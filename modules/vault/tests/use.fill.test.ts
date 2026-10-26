@@ -210,5 +210,10 @@ test("an agent acting for the owner may use a Mine item, an agent acting for som
   h.ctx.actingFor = MAYA;
   assert.equal(out(await u.use(h.ctx, { item: "Maya Claude" })).itemId, id, "acting for the owner");
   assert.equal(out(await u.use(h.ctx, { item: id })).itemId, id, "by id too");
+  assert.ok(!JSON.stringify(await v.itemsList(h.ctx, {})).includes(id), "the agent cannot list it");
+  assert.equal(await refusedWith(v.itemReveal(h.ctx, { itemId: id })), "validation.not_found", "view and reveal stay the owner's");
+  h.actAs("person", ROB);
+  h.ctx.actingFor = MAYA;
+  assert.equal(await refusedWith(u.use(h.ctx, { item: "Maya Claude" })), "validation.not_found", "a person acting for someone gets no change");
   h.cleanup();
 });
