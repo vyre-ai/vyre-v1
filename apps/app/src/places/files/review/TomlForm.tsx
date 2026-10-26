@@ -2,10 +2,11 @@
 // Computer, Routines, Watchers, Handoff, Logging), each key a ui/Row with its words on the left and a full-width control: a text box, a switch, or a picker whose menu changes the draft (Owner with the person's face,
 // Primary and Fallback by model name). A key the file does not have yet reads Not set and is written into its table when it gets a value. Keys the form has no field for still show, as text.
 // Every edit rewrites its own line of the text, so the Form and the Text view are the same file and the history pane's diff shows exactly what the form changed.
-import { createElement, useState } from "react";
+import { useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { marbleGradient, marbleSpec } from "../../../../../../ui/src/Avatar/index.tsx";
+import type { ViewStyle } from "react-native";
+import { Avatar, marbleGradient } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
@@ -109,7 +110,7 @@ function Control({ slot, shared, people }: { slot: Slot; shared: Shared; people:
     const items: MenuEntry[] = who.map((p) => ({ label: p.name, checked: p.id === value, onSelect: () => write(`"${p.id}"`) }));
     return (
       <>
-        <PickerButton label={label} shown={name || "Not set"} onPress={open(items)} testID={tid} {...(name ? { leading: createElement("span", { "aria-hidden": true, "data-testid": "toml-owner-face", style: { display: "block", width: 18, height: 18, flex: "none", borderRadius: 9, backgroundColor: marbleSpec(value).base, backgroundImage: marbleGradient(value) } }) } : {})} />
+        <PickerButton label={label} shown={name || "Not set"} onPress={open(items)} testID={tid} {...(name ? { leading: <View style={[st.face, { backgroundImage: marbleGradient(value) } as unknown as ViewStyle]} testID="toml-owner-face"><Avatar name={name} seedId={value} kind="person" size={18} /></View> } : {})} />
         {element}
       </>
     );
@@ -221,6 +222,7 @@ const st = StyleSheet.create({
   count: { fontWeight: "500", color: "var(--ink-4)" as string },
   block: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "var(--line)", borderStyle: "dashed" },
   blockName: { fontSize: 12, color: "var(--ink-3)" as string, paddingHorizontal: 8, paddingBottom: 6 },
+  face: { width: 18, height: 18, flexShrink: 0, borderRadius: 9, overflow: "hidden" },
   ctl: { justifyContent: "center" },
   box: { width: "100%" },
   sw: { flexDirection: "row", alignItems: "center", height: 30 },
