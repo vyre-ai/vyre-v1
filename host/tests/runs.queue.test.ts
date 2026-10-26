@@ -52,3 +52,19 @@ test("recover queues what the last server left, and shutdown does not wait for e
   await t.host.settle(50);
   assert.ok(Date.now() - began < 1000, "settle gave up after its limit although two drives never finished");
 });
+
+test("a step denied because its person was removed or suspended fails the Run with the catalogued code and the reason, whatever the step's own error rule says", async () => {
+  const denied = (reason: string, code: string) => Promise.reject({ error: { code, message: "denied", retryable: true, details: { reason } } });
+  for (const [reason, code] of [["not_a_member", "auth.unauthenticated"], ["suspended", "permission.suspended"], ["revoked", "permission.revoked"]] as const) {
+    const host = createRunsHost({
+      call: (name) => {
+        if (name === "automations.run_plan") return Promise.resolve({ link: { principal: { kind: "person", id: "usr_noah" }, automationId: "aut_1" }, definition: { nodes: [{ id: "a", key: "records.create", input: {}, onError: { mode: "continue" } }] } });
+        return denied(reason, code);
+      },
+    });
+    const r = await host.resolve({ id: "run_1" });
+    assert.ok(r);
+    await assert.rejects(r.exec({ id: "a" }, { attempt: 1, key: "k" } as never), (e: { error?: { code?: string; details?: { reason?: string }; retryable?: boolean } }) =>
+      e.error?.code === code && e.error?.details?.reason === reason && e.error?.retryable === false, `${reason} is refused, not swallowed by "continue"`);
+  }
+});
