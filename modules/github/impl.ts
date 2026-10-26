@@ -3,6 +3,9 @@
 // verifyWebhook is what the host's /hooks/github route calls first: it refuses a body GitHub did not sign and returns the input of github.receive_webhook.
 import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
+import { hostOnly } from "../../host/src/ctx/host-only.ts";
+import type { Ctx } from "../../packages/contracts/src/ctx.ts";
+import type { WebhookAccept } from "../../host/src/routes/webhooks.ts";
 import { setGithubHost } from "./projections.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 
@@ -38,10 +41,19 @@ export const handlers: Record<string, Handler> = {
   "github.issue.comment": (ctx, i) => h.issueComment(ctx, i),
   "github.issue.close": (ctx, i) => h.issueClose(ctx, i),
   "github.issue.assign_agent": (ctx, i) => h.issueAssignAgent(ctx, i),
-  "github.receive_webhook": (ctx, i) => h.receiveWebhook(ctx, i),
+  "github.receive_webhook": async (ctx, i) => { hostOnly(ctx, "github.receive_webhook"); return h.receiveWebhook(ctx, i); },
 };
 
 export const projections = { inline: {}, consumers: {} };
 
 /** Where the host registers its half at boot (ruling 31). */
 export const hostSeams: SeamSetters = { setGithubHost };
+
+/** /hooks/github (P-L5_17): the signature covers the raw body; a delivery of an event Vyre does not act on is acknowledged and ignored. */
+export const hostCalls = {
+  "github.accept_webhook": async (ctx: Ctx, a: WebhookAccept): Promise<unknown> => {
+    hostOnly(ctx, "github.accept_webhook");   // a host call: the webhook route is the only way in
+    const input = await h.verifyWebhook(ctx, { signature: a.headers["x-hub-signature-256"], event: a.headers["x-github-event"], deliveryId: a.headers["x-github-delivery"], body: a.body });
+    return input === null ? { accepted: true } : h.receiveWebhook(ctx, input);
+  },
+};

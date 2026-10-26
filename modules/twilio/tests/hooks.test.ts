@@ -348,7 +348,7 @@ test("every capability of the twilio manifest has a handler, and none is extra",
 
 test("receive_webhook through the registered handler lands a delivery like the function does", async () => {
   const h = harness();
-  const out = (await handlers["twilio.receive_webhook"]!(h.ctx as never, hookInput(h.ctx, "sms", HOOKS.sms) as never)) as { accepted: boolean };
+  const out = (await handlers["twilio.receive_webhook"]!({ ...h.ctx, origin: "hook", depth: 0 } as never, hookInput(h.ctx, "sms", HOOKS.sms) as never)) as { accepted: boolean };
   assert.equal(out.accepted, true);
   assert.equal(h.calls("telephony.ingest_sms").length, 1);
 });
