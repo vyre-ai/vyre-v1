@@ -34,6 +34,8 @@ export interface ToolbarProps {
   onMore?: ((x: number, y: number) => void) | undefined;
   /** The side pane's toggle, at the far right of the header. */
   pane?: { open: boolean; toggle(): void } | undefined;
+  /** The phone: the title, New and one "..." menu (the sort, view, upload and options live in it). */
+  compact?: boolean | undefined;
 }
 
 /** The crumbs of a place: Files and each folder down to this one for a folder, the place's own name for Recent, Shared with me, Trash or Knowledge. */
@@ -108,7 +110,23 @@ function anchorOf(e: unknown): { x: number; y: number } {
   return pointOf(e);
 }
 
-export function Toolbar({ crumbs, count, sortLabel, view, onGo, onSort, onView, onBack, onForward, onUpload, onNew, onMore, pane }: ToolbarProps): ReactElement {
+export function Toolbar({ crumbs, count, sortLabel, view, onGo, onSort, onView, onBack, onForward, onUpload, onNew, onMore, pane, compact }: ToolbarProps): ReactElement {
+  if (compact === true) {
+    return (
+      <View style={styles.head} testID="files-head">
+        <Breadcrumb crumbs={crumbs.slice(-1)} onGo={onGo} />
+        <View style={styles.grow} />
+        {onNew ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="New" accessibilityHint="Opens the New menu" testID="files-new" onPress={(e) => { const p = anchorOf(e); onNew(p.x, p.y); }}
+            style={({ hovered }: { hovered?: boolean }) => [styles.pri, hovered === true && styles.priOver]}>
+            <Glyph name="plus" size={13} color="var(--accent-ink)" width={1.8} />
+            <Text style={styles.priText}>New</Text>
+          </Pressable>
+        ) : null}
+        {onMore ? <HeadIcon icon="more" label="More options" testID="files-more" onPress={onMore} /> : null}
+      </View>
+    );
+  }
   return (
     <View style={styles.head} testID="files-head">
       <View style={styles.nav} testID="files-history">
