@@ -156,7 +156,7 @@ function unsubscribeLine(ctx: Ctx, url: string): { text: string; html: string } 
   return { text: `\n\nTo stop these emails: ${url}`, html: `<p style="font-size:12px;color:#666"><a href="${url}">Unsubscribe</a></p>` };
 }
 
-async function sendEmail(p: Pass, m: Row, cfg: Record<string, unknown>, fields: Record<string, unknown>): Promise<{ status: string; ref: string | null; domain: string }> {
+async function sendEmail(p: Pass, m: Row, stepKey: string, cfg: Record<string, unknown>, fields: Record<string, unknown>): Promise<{ status: string; ref: string | null; domain: string }> {
   const { ctx } = p;
   const mailboxId = str(cfg.mailboxId);
   const token = randomToken();
@@ -164,7 +164,7 @@ async function sendEmail(p: Pass, m: Row, cfg: Record<string, unknown>, fields: 
   const url = `${base}/u/${token}`;
   const foot = unsubscribeLine(ctx, url);
   const body: Record<string, unknown> = {
-    mailboxId, to: [{ address: str(m.address), ...(typeof fields.name === "string" && fields.name ? { name: fields.name } : {}), contactId: str(m.record_id) }],
+    idempotencyKey: `campaign:${str(p.row.id)}:${str(m.id)}:${stepKey}:email`, mailboxId, to: [{ address: str(m.address), ...(typeof fields.name === "string" && fields.name ? { name: fields.name } : {}), contactId: str(m.record_id) }],
     subject: render(str(cfg.subject), fields), contactId: str(m.record_id), campaignId: str(p.row.id),
   };
   // Every email has a plain-text part: the author's text, or the HTML with its tags removed.
@@ -294,7 +294,7 @@ async function walk(p: Pass, m: Row): Promise<void> {
     let ref: string | null;
     try {
       if (channel === "email") {
-        const r = await sendEmail(p, m, cfg, f);
+        const r = await sendEmail(p, m, step.key, cfg, f);
         status = r.status;
         ref = r.ref;
         domain = r.domain || domain;

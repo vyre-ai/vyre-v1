@@ -11,17 +11,18 @@ import { States } from "../../../../../../ui/src/States/index.tsx";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
-import { useFilesData, useFolderNodes, useOnline, useOptionalFilesData, useSource } from "../tree/data.tsx";
+import { useFilesData, useFolderNodes, useLive, useOnline, useOptionalFilesData, useSource } from "../tree/data.tsx";
 import {
-  SORTS, SORT_LABEL, WHERE_LABEL, createSpring, crumbs, dragPayload, dropMoves, emptyText, fileLine, folderLine, kindLabel, parsePayload, sizeText, sortLines, sourceOf, updatedText,
+  SORTS, SORT_LABEL, WHERE_LABEL, createSpring, crumbs, dragPayload, dropMoves, emptyText, fileLine, folderLine, kindLabel, parsePayload, tileLabel, sizeText, sortLines, sourceOf, updatedText,
 } from "../tree/model.ts";
 import type { Line, SortKey, Spring } from "../tree/model.ts";
 import { iconOfKind } from "../tree/parts.tsx";
 import { useFilesState } from "../tree/state.tsx";
-import { ColumnHeader, GridRow, LIST_ROW, LineIcon, RowCells, Tile, WIDE, chunk, gridKey, gridLayout } from "../FileList.tsx";
+import { ColumnHeader, GridRow, LIST_ROW, LineMarks, RowCells, ThumbTile, Tile, TypeTile, WIDE, chunk, gridKey, gridLayout } from "../FileList.tsx";
 import { Toolbar, crumbTrail } from "../Toolbar.tsx";
 import { DragWrap, dragAttrs, useDragDelegation } from "./DragWrap.tsx";
 import type { DragHandlers, DragRegistry } from "./DragWrap.tsx";
+import { StagedBanner } from "./StagedBanner.tsx";
 import { QuickLook } from "./QuickLook.tsx";
 
 const DOUBLE_MS = 450;
@@ -33,18 +34,37 @@ const LINE_STYLE = { margin: "5px 6px", width: "calc(100% - 12px)" } as const;
 export function lineMenuEntries(
   lines: readonly Line[],
   inTrash: boolean,
-  h: { open(l: Line): void; quickLook(l: Line): void; share(l: Line): void; rename(l: Line): void; trash(ls: readonly Line[]): void; restore(ls: readonly Line[]): void },
+  h: { open(l: Line): void; quickLook(l: Line): void; share(l: Line): void; rename(l: Line): void; trash(ls: readonly Line[]): void; restore(ls: readonly Line[]): void; star?(l: Line): void; resolve?(l: Line): void },
 ): MenuEntry[] {
   const one = lines.length === 1 ? lines[0] : undefined;
   const out: MenuEntry[] = [];
   if (inTrash) return [{ label: lines.length === 1 ? "Restore" : `Restore ${lines.length} Items`, onSelect: () => h.restore(lines) }];
   if (one) {
+    if (one.conflict === true && h.resolve) out.push({ label: "Resolve Conflict…", onSelect: () => h.resolve?.(one) }, { separator: true });
     out.push({ label: "Open", onSelect: () => h.open(one) }, { label: "Quick Look", onSelect: () => h.quickLook(one) });
+    if (one.type === "file" && h.star) out.push({ label: one.starred === true ? "Remove Star" : "Star", onSelect: () => h.star?.(one) });
     if (one.type === "folder") out.push({ label: "Share…", onSelect: () => h.share(one) });
     out.push({ label: "Rename…", onSelect: () => h.rename(one) });
     out.push({ separator: true });
   }
   out.push({ label: lines.length === 1 ? "Move to Trash" : `Move ${lines.length} Items to Trash`, danger: true, onSelect: () => h.trash(lines) });
+  return out;
+}
+
+/** The more menu: hidden files, Select All, and the Trash (it left the sidebar), with how many it holds. */
+export function moreMenuEntries(h: { showHidden: boolean; trashCount: number; toggleHidden(): void; selectAll(): void; openTrash(): void }): MenuEntry[] {
+  return [
+    { label: "Show Hidden Files", checked: h.showHidden, onSelect: h.toggleHidden },
+    { label: "Select All", onSelect: h.selectAll },
+    { separator: true },
+    { label: "Trash", ...(h.trashCount > 0 ? { count: h.trashCount } : {}), onSelect: h.openTrash },
+  ];
+}
+
+/** The New menu: a folder, and an upload where the place has one. Each opens the shell's sheet for it. */
+export function newMenuEntries(h: { newFolder(): void; upload?: (() => void) | undefined }): MenuEntry[] {
+  const out: MenuEntry[] = [{ label: "New Folder", onSelect: h.newFolder }];
+  if (h.upload) out.push({ label: "Upload Files…", onSelect: h.upload });
   return out;
 }
 
@@ -75,6 +95,8 @@ function List(): ReactElement {
   const online = useOnline();
   const nodes = useFolderNodes();
   const src = useSource(sourceOf(state.where));
+  const treeRoots = useLive("files.tree", {});
+  const trashCount = treeRoots.status === "ready" ? treeRoots.data.roots.find((r) => r.key === "trash")?.count ?? 0 : 0;
   const mods = useRef({ meta: false, shift: false });
   const registry = useRef<DragRegistry>(new Map());
   const box = useRef<View | null>(null);
@@ -90,9 +112,9 @@ function List(): ReactElement {
     if (src.status !== "ready") return [];
     const all: Line[] = [];
     for (const f of src.data.folders ?? []) all.push(folderLine(f));
-    for (const f of src.data.files) all.push(fileLine(f));
-    return sortLines(all, state.sort, state.dir, data.nameOf);
-  }, [src, state.sort, state.dir, data]);
+    for (const f of src.data.files) if (state.where.kind !== "starred" || f.starred === true) all.push(fileLine(f));
+    return sortLines(state.showHidden ? all : all.filter((l) => !l.name.startsWith(".")), state.sort, state.dir, data.nameOf);
+  }, [src, state.sort, state.dir, state.showHidden, state.where.kind, data]);
   const order = useMemo(() => lines.map((l) => l.key), [lines]);
   const byKey = useMemo(() => new Map(lines.map((l) => [l.key, l] as const)), [lines]);
   const c = data.clock();
@@ -120,6 +142,8 @@ function List(): ReactElement {
     const picked = state.selection.includes(l.key) ? selectedLines() : [l];
     menu.show(lineMenuEntries(picked, inTrash, {
       open, quickLook: (t) => dispatch({ type: "quicklook", key: t.key }), share: (t) => data.nav.shareFolder(t.id), rename: (t) => data.nav.renameEntry(t.type, t.id, t.name), trash: toTrash, restore,
+      star: (t) => void data.call("files.star", { fileId: t.id, starred: t.starred !== true }),
+      ...(data.nav.resolveConflict ? { resolve: (t: Line) => data.nav.resolveConflict?.(t.id) } : {}),
     }), x, y);
   };
 
@@ -193,9 +217,10 @@ function List(): ReactElement {
       <Row
         id={`line:${l.key}`}
         title={l.name}
+        {...(l.starred === true || l.conflict === true ? { titleMarks: <LineMarks starred={l.starred === true} conflict={l.conflict === true} onResolve={data.nav.resolveConflict ? () => data.nav.resolveConflict?.(l.id) : undefined} /> } : {})}
         selected={state.selection.includes(l.key)}
         hovered={over === l.key}
-        leading={<LineIcon icon={iconOfKind(l.kind)} folder={l.type === "folder"} />}
+        leading={l.type === "file" && l.thumb ? <ThumbTile fileId={l.id} label={tileLabel(l.name, l.kind)} icon={iconOfKind(l.kind)} /> : <TypeTile label={tileLabel(l.name, l.kind)} icon={iconOfKind(l.kind)} folder={l.type === "folder"} />}
         trailing={<RowCells wide={wide} cells={{ when: whenOf(l), by: byOf(l), size: sizeOfLine(l), kind: kindOfLine(l) }} />}
         onPress={() => press(l)}
         domProps={{ ...dragAttrs(l.key), ...menuTrigger((x, y) => lineMenu(l, x, y)), style: LINE_STYLE }}
@@ -221,6 +246,16 @@ function List(): ReactElement {
   const path = state.where.kind === "folder" && nodes.status === "ready" ? crumbs(nodes.data, state.where.id) : [];
   const trail = crumbTrail(state.where.kind === "folder" ? path : null, title, state.where.kind);
   const sortBy = (k: SortKey): void => dispatch({ type: "sort", key: k });
+  const here = state.where.kind === "folder" ? state.where.id : undefined; // the open folder, null at the top of Files; undefined where the list is not a folder
+  const scopeHere = (here ? (nodes.status === "ready" ? nodes.data.find((n) => n.id === here)?.scope : undefined) : undefined) ?? (here === null ? "personal" : "space");
+  const upload = here !== undefined && data.nav.upload ? (): void => { data.nav.upload?.(here); } : undefined;
+  const newMenu = here !== undefined
+    ? (x: number, y: number): void => { menu.show(newMenuEntries({ newFolder: () => data.nav.newFolder(scopeHere, here), upload }), x, y); }
+    : undefined;
+  const moreMenu = (x: number, y: number): void => menu.show(moreMenuEntries({
+    showHidden: state.showHidden, trashCount, toggleHidden: () => dispatch({ type: "hidden", on: !state.showHidden }), selectAll: () => dispatch({ type: "all", order }),
+    openTrash: () => dispatch({ type: "go", where: { kind: "trash" } }),
+  }), x, y);
   const ql = state.quickLook !== null ? byKey.get(state.quickLook) : undefined;
 
   return (
@@ -233,7 +268,14 @@ function List(): ReactElement {
         onGo={(id) => dispatch({ type: "go", where: { kind: "folder", id } })}
         onSort={(x, y) => menu.show(sortMenuEntries(state.sort, state.dir, (k) => dispatch({ type: "sort", key: k }), (d) => dispatch({ type: "dir", dir: d })), x, y)}
         onView={(view) => dispatch({ type: "view", view })}
+        onBack={state.back.length > 0 ? () => dispatch({ type: "back" }) : undefined}
+        onForward={state.forward.length > 0 ? () => dispatch({ type: "forward" }) : undefined}
+        onUpload={upload}
+        onNew={newMenu}
+        onMore={moreMenu}
+        pane={data.pane ? { open: data.pane.open, toggle: data.pane.toggle } : undefined}
       />
+      {here ? <StagedBanner folderId={here} /> : null}
       {ql ? <QuickLook line={ql} now={c.now} offsetMin={c.offsetMin} nameOf={data.nameOf} onClose={() => dispatch({ type: "quicklook", key: null })} onOpen={() => { dispatch({ type: "quicklook", key: null }); open(ql); }} /> : null}
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="files-offline">Offline, showing your saved copy</Text>}
       {src.status !== "ready" ? <ListLoading bare /> : lines.length === 0 ? (

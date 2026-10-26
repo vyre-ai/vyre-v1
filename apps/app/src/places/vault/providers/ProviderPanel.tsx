@@ -56,7 +56,7 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
 
         <Text accessibilityRole="header" style={s.head}>{`Used by ${countWords(provider.agentsUsing.length, "agent or Automation", "agents and Automations")}`}</Text>
         {provider.agentsUsing.length === 0 ? <Text style={s.none} testID="provider-nobody">Nothing uses it yet.</Text> : provider.agentsUsing.map((id) => (
-          <Row key={id} id={`use:${id}`} title={people.name(id)} note={userKind(id) === "automation" ? "Automation" : "Agent"} leading={<View style={s.face}><Avatar name={people.name(id)} kind={userKind(id)} size={24} /></View>}
+          <Row key={id} id={`use:${id}`} title={people.name(id)} note={userKind(id) === "automation" ? "Automation" : "Agent"} leading={<View style={s.face}><Avatar name={people.name(id)} seedId={id} kind={userKind(id)} size={24} /></View>}
             {...(userKind(id) === "agent" ? { trailing: <Glyph name="chevron" size={11} />, onPress: () => data.nav.openAgent(id) } : {})} />
         ))}
 

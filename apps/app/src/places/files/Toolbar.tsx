@@ -2,6 +2,7 @@
 // Matches the prototype's Files header (.bc, .hm, .segsm). Colours are skin tokens, so a skin switch repaints with no re-render.
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { ReactElement } from "react";
+import { PaneToggleButton } from "../../../../../ui/src/SidePane/index.tsx";
 import { Glyph, pointOf } from "./tree/parts.tsx";
 import type { ViewMode } from "./tree/model.ts";
 
@@ -22,6 +23,17 @@ export interface ToolbarProps {
   onGo(id: string | null): void;
   onSort(x: number, y: number): void;
   onView(view: ViewMode): void;
+  /** Back and forward through where the list has been; a missing handler greys the arrow. */
+  onBack?: (() => void) | undefined;
+  onForward?: (() => void) | undefined;
+  /** Upload into the open folder. Absent where the place has no upload (Recent, Trash). */
+  onUpload?: (() => void) | undefined;
+  /** The filled New button; the menu opens under it. */
+  onNew?: ((x: number, y: number) => void) | undefined;
+  /** The more menu (the folder's options). */
+  onMore?: ((x: number, y: number) => void) | undefined;
+  /** The side pane's toggle, at the far right of the header. */
+  pane?: { open: boolean; toggle(): void } | undefined;
 }
 
 /** The crumbs of a place: Files and each folder down to this one for a folder, the place's own name for Recent, Shared with me, Trash or Knowledge. */
@@ -63,10 +75,10 @@ export function ViewToggle({ view, onView }: { view: ViewMode; onView(view: View
   return <View accessibilityRole="radiogroup" accessibilityLabel="View" style={styles.segs} testID="files-view">{one("list", "As List")}{one("grid", "As Grid")}</View>;
 }
 
-/** The sort button: the sort icon, the name of the current sort, a chevron. It opens the sort menu under the pointer. */
+/** The sort button: the sort icon, the name of the current sort, a chevron. It opens the sort menu under the button. */
 export function SortButton({ label, onSort }: { label: string; onSort(x: number, y: number): void }): ReactElement {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Sort by ${label}`} testID="files-sort" onPress={(e) => { const p = pointOf(e); onSort(p.x, p.y); }}
+    <Pressable accessibilityRole="button" accessibilityLabel={`Sort by ${label}`} testID="files-sort" onPress={(e) => { const p = anchorOf(e); onSort(p.x, p.y); }}
       style={({ hovered }: { hovered?: boolean }) => [styles.hm, hovered === true && styles.over]}>
       <Glyph name="sort" size={15} color="var(--ink-2)" />
       <Text style={styles.sortText} testID="files-sort-label">{label}</Text>
@@ -75,14 +87,49 @@ export function SortButton({ label, onSort }: { label: string; onSort(x: number,
   );
 }
 
-export function Toolbar({ crumbs, count, sortLabel, view, onGo, onSort, onView }: ToolbarProps): ReactElement {
+/** A quiet icon button of the header; greyed and inert without a handler. */
+function HeadIcon({ icon, label, onPress, testID, flip = false }: { icon: "back" | "chev" | "upload" | "more"; label: string; onPress: ((x: number, y: number) => void) | undefined; testID: string; flip?: boolean }): ReactElement {
+  const off = onPress === undefined;
+  return (
+    <Pressable
+      accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: off }} disabled={off} testID={testID}
+      onPress={(e) => { const p = anchorOf(e); onPress?.(p.x, p.y); }}
+      style={({ hovered }: { hovered?: boolean }) => [styles.ib, hovered === true && !off && styles.over, off && styles.dis]}
+    >
+      <Glyph name={icon} size={flip ? 14 : 15} color="var(--ink-2)" width={icon === "more" ? 2.4 : 1.4} />
+    </Pressable>
+  );
+}
+
+/** Where a menu opened from a button goes: under the button's left edge, whether it was pressed or opened from the keyboard (rule 26). */
+function anchorOf(e: unknown): { x: number; y: number } {
+  const box = (e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.();
+  if (box && Number.isFinite(box.left) && Number.isFinite(box.bottom)) return { x: box.left, y: box.bottom + 4 };
+  return pointOf(e);
+}
+
+export function Toolbar({ crumbs, count, sortLabel, view, onGo, onSort, onView, onBack, onForward, onUpload, onNew, onMore, pane }: ToolbarProps): ReactElement {
   return (
     <View style={styles.head} testID="files-head">
+      <View style={styles.nav} testID="files-history">
+        <HeadIcon icon="back" label="Back" testID="files-back" onPress={onBack ? () => onBack() : undefined} />
+        <HeadIcon icon="chev" label="Forward" testID="files-forward" onPress={onForward ? () => onForward() : undefined} />
+      </View>
       <Breadcrumb crumbs={crumbs} onGo={onGo} />
       {count !== null ? <Text style={styles.meta} testID="files-count">{count}</Text> : null}
       <View style={styles.grow} />
       <SortButton label={sortLabel} onSort={onSort} />
       <ViewToggle view={view} onView={onView} />
+      {onUpload ? <HeadIcon icon="upload" label="Upload files" testID="files-upload" onPress={() => onUpload()} /> : null}
+      {onNew ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="New" accessibilityHint="Opens the New menu" testID="files-new" onPress={(e) => { const p = anchorOf(e); onNew(p.x, p.y); }}
+          style={({ hovered }: { hovered?: boolean }) => [styles.pri, hovered === true && styles.priOver]}>
+          <Glyph name="plus" size={13} color="var(--accent-ink)" width={1.8} />
+          <Text style={styles.priText}>New</Text>
+        </Pressable>
+      ) : null}
+      {onMore ? <HeadIcon icon="more" label="Folder options" testID="files-more" onPress={onMore} /> : null}
+      {pane ? <PaneToggleButton open={pane.open} onPress={pane.toggle} /> : null}
     </View>
   );
 }
@@ -101,6 +148,12 @@ const styles = StyleSheet.create({
   over: { backgroundColor: "var(--hover)" as string },
   meta: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 0 },
   grow: { flex: 1 },
+  nav: { flexDirection: "row", alignItems: "center", flexShrink: 0 },
+  ib: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  dis: { opacity: 0.35 },
+  pri: { height: 28, paddingHorizontal: 10, borderRadius: 7, flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "var(--accent)" as string, flexShrink: 0 },
+  priOver: { opacity: 0.9 },
+  priText: { fontSize: 12.5, fontWeight: "600", color: "var(--accent-ink)" as string },
   hm: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 7 },
   sortText: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
   segs: { height: 28, padding: 2, borderRadius: 8, flexDirection: "row", backgroundColor: "var(--hover)" as string },
