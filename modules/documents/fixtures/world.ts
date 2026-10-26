@@ -5,6 +5,10 @@ import { createRequire } from "node:module";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
+import { strictGuard } from "../../../packages/contracts/src/contract-check.ts";
+import { registry as strictRegistry } from "../../../generated/registry.ts";
+import { validateInput as strictValidate } from "../../../generated/validators.ts";
+const assertStrictInput = strictGuard(strictRegistry, strictValidate);
 
 type Row = Record<string, unknown>;
 
@@ -128,6 +132,7 @@ export function world(): World {
       };
     },
     call: async (cap: string, input: unknown): Promise<unknown> => {
+      assertStrictInput(cap, input);
       const i = (input ?? {}) as Record<string, unknown>;
       calls.push({ cap, input: i });
       switch (cap) {

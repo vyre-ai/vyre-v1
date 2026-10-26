@@ -2,6 +2,10 @@
 // stand-ins that answer what the handlers ask and record every call, so a test can read exactly what left the module (and see that no value did).
 import { MemoryDb } from "./db.ts";
 import type { PKind, VaultReqCtx } from "../projections.ts";
+import { strictGuard } from "../../../packages/contracts/src/contract-check.ts";
+import { registry as strictRegistry } from "../../../generated/registry.ts";
+import { validateInput as strictValidate } from "../../../generated/validators.ts";
+const assertStrictInput = strictGuard(strictRegistry, strictValidate);
 
 export const NOW = 1_700_000_000_000;
 export const FOLDER = "vfd_team";
@@ -29,6 +33,7 @@ export function world(over: Partial<Script> = {}) {
   const script: Script = { managers: { [FOLDER]: ["usr_mira"] }, owners: ["usr_owner"], admins: ["usr_admin"], items: { vit_have: ["api_key", "account"], vit_thin: ["account"] }, fail: {}, ...over };
   let task = 0;
   const call = async (cap: string, input: unknown): Promise<unknown> => {
+    assertStrictInput(cap, input);
     const i = input as Record<string, unknown>;
     calls.push({ cap, input: i });
     const f = script.fail[cap];

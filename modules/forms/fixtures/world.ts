@@ -9,6 +9,10 @@ import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import { configureForms } from "../projections.ts";
 import type { CaptchaVerifier } from "../projections.ts";
 import { MemoryDb } from "./db.ts";
+import { strictGuard } from "../../../packages/contracts/src/contract-check.ts";
+import { registry as strictRegistry } from "../../../generated/registry.ts";
+import { validateInput as strictValidate } from "../../../generated/validators.ts";
+const assertStrictInput = strictGuard(strictRegistry, strictValidate);
 
 /** Thursday 2025-10-09 08:53:20 UTC. The first open slot of a 09:00 to 17:00 UTC page is 10:00 UTC (one hour of notice). */
 export const NOW = 1_760_000_000_000;
@@ -77,6 +81,7 @@ export function harness(o: { principal?: Principal; now?: number; captcha?: bool
       return {} as EventEnvelope<T>;
     },
     async call(cap, input) {
+      assertStrictInput(cap, input);
       calls.push({ cap, input, principal: this.principal });
       const i = input as Record<string, unknown>;
       switch (cap) {

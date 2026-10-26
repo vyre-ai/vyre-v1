@@ -113,3 +113,45 @@ export function moduleContracts(
     });
   }
 }
+
+/** The capability families a test fake checks (see strictGuard). */
+export const STRICT_PREFIXES: readonly string[] = ['records.', 'tasks.'];
+
+/**
+ * The guard a module test's fake for records.* and tasks.* runs before it answers: the input must pass the generated validator, and a tasks.create action key must be in the action list of its
+ * kind (the real handler refuses it with validation.precondition_failed). Without it a unit test passes on a call the booted daemon answers with 422. Three bugs passed that way in a week:
+ * vault.request card actions (#584), access.request task actions (golden 12), and meetings writing epoch ms where records wants ISO (#630).
+ * `validateInput` is generated/validators.ts's, passed in so this file stays free of generated imports. The guard throws `{ error: { code, message, errors } }` like the host, and ignores every other capability.
+ */
+export function strictGuard(registry: Registry, validateInput: (cap: string, v: number, input: unknown) => string[]): (cap: string, input: unknown) => void {
+  const latest = new Map<string, number>();
+  for (const c of registry.capabilities) latest.set(c.name, Math.max(latest.get(c.name) ?? 0, c.v));
+  const kindActions = new Map<string, Set<string>>();
+  for (const k of registry.taskKinds) kindActions.set(k.key, new Set(k.actions.map((a) => a.key)));
+  const actionErrors = (input: unknown): string[] => {
+    if (input === null || typeof input !== 'object') return [];
+    const o = input as { kind?: unknown; actions?: unknown };
+    if (!Array.isArray(o.actions)) return [];
+    const kind = typeof o.kind === 'string' ? o.kind : 'work';
+    const allowed = kindActions.get(kind);
+    if (!allowed) return [];
+    const out: string[] = [];
+    for (const a of o.actions) {
+      const key = a !== null && typeof a === 'object' ? (a as { key?: unknown }).key : undefined;
+      if (typeof key === 'string' && !allowed.has(key)) out.push(`/actions: a ${kind} task has no action called ${key}`);
+    }
+    return out;
+  };
+  return (cap, input) => {
+    if (!STRICT_PREFIXES.some((p) => cap.startsWith(p))) return;
+    const v = latest.get(cap);
+    if (v === undefined) return;
+    const schema = validateInput(cap, v, input);
+    const actions = cap === 'tasks.create' ? actionErrors(input) : [];
+    const errors = [...schema, ...actions];
+    if (errors.length === 0) return;
+    const code = schema.length === 0 ? 'validation.precondition_failed' : 'validation.bad_input';
+    const message = `${cap} refused its input: ${errors.slice(0, 5).join('; ')}`;
+    throw Object.assign(new Error(message), { error: { code, message, errors } });
+  };
+}

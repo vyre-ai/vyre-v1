@@ -11,6 +11,10 @@ import type { PushMessage, PushPort } from "../impl.ts";
 import type { Db, NotifCtx } from "../projections.ts";
 import { NOW } from "./seed.ts";
 import type { Caller } from "./seed.ts";
+import { strictGuard } from "../../../packages/contracts/src/contract-check.ts";
+import { registry as strictRegistry } from "../../../generated/registry.ts";
+import { validateInput as strictValidate } from "../../../generated/validators.ts";
+const assertStrictInput = strictGuard(strictRegistry, strictValidate);
 
 // Boundary B2 keeps the node:sqlite module out of the import lines of modules: only the host builds a ctx and opens databases. A test still needs a real SQL engine behind the host's table
 // guard, so the fixture asks the runtime for the built-in. Swap this for the testkit's in-memory database when it exports one.
@@ -81,6 +85,7 @@ export function harness(o: HarnessOptions = {}) {
         return { id: ev.id };
       },
       async call(c, input) {
+        assertStrictInput(c, input);
         calls.push({ cap: c, input });
         const f = callees[c];
         if (!f) throw new Error(`unexpected call to ${c}`);

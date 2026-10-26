@@ -7,6 +7,10 @@ import type { RawDb } from "../../../host/src/ctx/db.ts";
 import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 import { checkToml } from "../projections.ts";
 import type { AgentsCtx, Principal } from "../projections.ts";
+import { strictGuard } from "../../../packages/contracts/src/contract-check.ts";
+import { registry as strictRegistry } from "../../../generated/registry.ts";
+import { validateInput as strictValidate } from "../../../generated/validators.ts";
+const assertStrictInput = strictGuard(strictRegistry, strictValidate);
 
 export const NOW = 1_760_000_000_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
@@ -191,6 +195,7 @@ export function harness(o: HarnessOptions = {}) {
     db,
     emit(name, subject, payload) { emitted.push({ name, subject, payload: payload as Record<string, unknown> }); return null; },
     async call(cap, input, opts) {
+      assertStrictInput(cap, input);
       world.calls.push({ cap, input });
       const f = world.handlers[cap];
       if (!f) throw Object.assign(new Error(`${cap} is not available`), { error: { code: "internal.unavailable", message: `${cap} is not available` } });
