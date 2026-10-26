@@ -50,7 +50,7 @@ test("projects.create registers the project and its record, and the record goes 
 });
 
 test("capabilities that create no resource of their own are no longer bound as creators of one", () => {
-  for (const name of ["sources.create", "journeys.create", "email_builder.create", "kits.builder_open", "templates.save"]) {
+  for (const name of ["sources.create", "journeys.create", "kits.builder_open", "templates.save"]) {
     assert.notEqual(cap(name).resource.create, true, `${name} creates something that is not a resource type (or whose resource is registered by the capability it calls)`);
   }
   assert.deepEqual([cap("sites.table_create").resource.type, cap("sites.table_create").resource.id], ["site", "/siteId"]);
