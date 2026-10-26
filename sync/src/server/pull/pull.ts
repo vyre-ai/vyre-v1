@@ -144,6 +144,11 @@ function rescanChanged(d: PullDeps, who: Who, viewer: Viewer, window: Window, cu
   const stamp = d.cache.stamp(who.person, d.now());
   const had = db.get<{ stamp: string }>("SELECT stamp FROM sync_scope_stamp WHERE person = ? AND device = ?", who.person, who.device)?.stamp;
   if (had === stamp || !d.append) return;
+  if (had === undefined) {
+    // a device the server has not checked yet holds nothing it has not been sent by the feed: record the stamp and let the scan do the work
+    db.run("INSERT INTO sync_scope_stamp (person, device, stamp) VALUES (?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET stamp = excluded.stamp", who.person, who.device, stamp);
+    return;
+  }
   const sees = (row: RowRec): boolean => {
     const cfg = d.catalog.get(row.entity);
     const mode = cfg.profile[who.deviceClass];
