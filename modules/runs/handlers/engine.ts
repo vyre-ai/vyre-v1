@@ -601,12 +601,13 @@ async function failRun(ctx: RunsCtx, run: Run, e: { code: string; message: strin
 export function interrupted(db: Db): string[] {
   return (db.all("SELECT id FROM runs_items WHERE status IN ('queued', 'running') AND deleted_at IS NULL ORDER BY started_at ASC, id ASC") as { id: string }[]).map((r) => r.id);
 }
-export type Resolver = (run: Run) => { plan: readonly PlanStep[]; exec: Executor; opts?: DriveOptions } | undefined;
+export type Resolved = { plan: readonly PlanStep[]; exec: Executor; opts?: DriveOptions } | undefined;
+export type Resolver = (run: Run) => Resolved | Promise<Resolved>;
 export async function recoverRuns(ctx: RunsCtx, resolve: Resolver): Promise<Record<string, DriveResult>> {
   const out: Record<string, DriveResult> = {};
   for (const id of interrupted(ctx.db)) {
     const run = findRun(ctx.db, id)!;
-    const r = resolve(run);
+    const r = await resolve(run);
     if (r) out[id] = await drive(ctx, id, r.plan, r.exec, r.opts);
   }
   return out;

@@ -92,24 +92,24 @@ jobs:
       - id: sel
         run: |
           # A tag has no base to select against: the whole suite, always listing tracked files. Perf is measured by perf.yml (hourly, dispatch), not by the tag (same as main.yml).
-          node scripts/ci-select.ts "" --matrix --max 8 --no-perf > select.json
+          node scripts/ci-select.ts "" --matrix --no-perf > select.json
           node -e 'const r=JSON.parse(require("fs").readFileSync("select.json","utf8"));const n=r.matrix.include.length;if(n===0){console.error("select: an empty matrix on a tag run is an error");process.exit(1)}console.log("select: "+n+" jobs; "+r.files.length+" files");require("fs").appendFileSync(process.env.GITHUB_OUTPUT,"matrix="+JSON.stringify(r.matrix)+"\n")'
   suite:
     name: ${{ matrix.name }}
     needs: select
-    runs-on: [self-hosted, linux, v1]
+    # The same plan and the same runner choice as check.yml (every shard on the self-hosted v1 runners, one job per heavy file), run by the same action.
+    runs-on: ${{ fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/deps   # the dependency set (main.yml and check.yml have it; without it a test that imports yjs fails on a runner whose workspace has none)
-      - env:
-          FILES: ${{ matrix.files }}
-          SLOW: ${{ matrix.slow }}
-        run: |
-          if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else node scripts/test-run.mjs --files $FILES; fi
+      - uses: ./.github/actions/run-shard
+        with:
+          files: ${{ matrix.files }}
+          slow: ${{ matrix.slow }}
+          runner: ${{ matrix.runner }}
   client:
     uses: ./.github/workflows/client.yml
   kits:
