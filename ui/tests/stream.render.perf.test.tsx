@@ -35,6 +35,30 @@ function manualFrames() {
 
 // ---- the coalescer
 
+const DOC = [
+  "# Plan for the intake form",
+  "",
+  "The form has **three steps** and one `submit` button. Read the [guide](https://example.com/guide) first, or _skip it_.",
+  "",
+  "1. Collect the name",
+  "2. Ask for a phone number",
+  "3. Send a confirmation",
+  "",
+  "```ts",
+  "const ok = true;",
+  "",
+  "if (ok) send();",
+  "```",
+  "",
+  "> Keep it short.",
+  "",
+  "- first point",
+  "- second point that runs on and on",
+  "",
+  "Done.",
+  "",
+].join("\n");
+
 test("stream_render: 100 deltas a second through the store are one notification per frame, and a frame's work stays small", () => {
   const f = manualFrames();
   const store = createStreamStore(f.scheduler);

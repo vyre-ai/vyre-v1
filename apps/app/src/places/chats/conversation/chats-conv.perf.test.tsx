@@ -26,6 +26,12 @@ const thread = (s: Sample): Thread => (s.data.screens.query("chats.conversation"
 const msgs = (s: Sample): Message[] => (s.data.screens.query("chats.conversation", "messages", { threadId: s.data.threadId }).getSnapshot() as { data: { messages: Message[] } }).data.messages;
 const ctx = (s: Sample) => ({ meId: "usr_irfad", nameOf: s.data.nameOf, kindOf: s.data.kindOf, clock: s.data.clock() });
 
+const noActions = {
+  copy: () => undefined, edit: () => undefined, setPinned: () => undefined, react: () => undefined, openThread: () => undefined, remove: () => undefined, openAgent: () => undefined, openBeside: () => undefined,
+  answer: () => undefined, approvePlan: () => undefined, retryTurn: () => undefined, errorNext: () => undefined, retrySend: () => undefined, discardSend: () => undefined, showMenu: () => undefined,
+  host: { invoke: () => undefined, open: () => undefined },
+};
+
 test("chat open: the last 50 messages are read, windowed and laid out in under 100 ms; the full server draw is reported", () => {
   const s = createSample("long");
   const open = (): number => {
