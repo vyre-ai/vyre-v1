@@ -60059,6 +60059,7 @@
           "output": {
             "accountRef": "#Team_Anthropic_Key",
             "allowed": true,
+            "itemId": "vit_a1b2c3",
             "payer": "usr_a1b2c3",
             "reason": "starter"
           }
@@ -60119,6 +60120,13 @@
           },
           "allowed": {
             "type": "boolean"
+          },
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
           },
           "payer": {
             "anyOf": [
@@ -64296,6 +64304,7 @@
         {
           "input": {
             "costMicros": 1,
+            "itemId": "vit_a1b2c3",
             "tokensIn": 1,
             "tokensOut": 1,
             "turnId": "trn_a1b2c3"
@@ -64311,6 +64320,13 @@
         "properties": {
           "costMicros": {
             "type": "integer"
+          },
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
           },
           "tokensIn": {
             "type": "integer"
@@ -64842,6 +64858,7 @@
             "agentId": "agt_a1b2c3",
             "by": "day",
             "from": 1760000000000,
+            "itemId": "vit_a1b2c3",
             "personId": "usr_a1b2c3",
             "to": 1760000000000
           },
@@ -64894,6 +64911,13 @@
             ],
             "minimum": 0,
             "type": "integer"
+          },
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
           },
           "personId": {
             "examples": [
@@ -160920,6 +160944,134 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Change fields or settings of an item: set and remove fields, Space only lock, inject into deployments, rotation reminder",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "vault"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "itemId": "vit_a1b2c3",
+            "since": 1760000000000
+          },
+          "name": "example",
+          "output": {
+            "actors": [
+              {
+                "actor": {
+                  "id": "usr_a1b2c3",
+                  "kind": "person"
+                },
+                "tokens": 1,
+                "turns": 1
+              }
+            ],
+            "total": {
+              "tokens": 1,
+              "turns": 1
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
+          },
+          "since": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "vault",
+      "name": "vault.item.usage",
+      "output": {
+        "properties": {
+          "actors": {
+            "items": {
+              "properties": {
+                "actor": {
+                  "$ref": "#/$defs/s_6c1eb10d98"
+                },
+                "tokens": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "turns": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "actor",
+                "turns",
+                "tokens"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "total": {
+            "properties": {
+              "tokens": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "turns": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "turns",
+              "tokens"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "actors",
+          "total"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/itemId",
+        "type": "vault_item"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Who used a key or sign-in and how much: turns and tokens per agent and per person, and the total, from the turns the engine metered on the item; a person sees their own turns, a manager of AI spend all of them",
       "surfaces": {
         "http": "auto",
         "mcp": {

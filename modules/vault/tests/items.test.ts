@@ -432,6 +432,32 @@ test("item.moved takes a Files folder (fld_) and a Vault folder (vfd_) on from a
   assert.notDeepEqual(validateEvent("item.moved", { resource: res, toFolderId: "chn_a1b2c3" }), [], "another kind of id is refused");
 });
 
-// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+test("vault.item.usage totals turns and tokens per actor from the turns metered on the item, needs View, and counts each turn once (P-CC_36)", async () => {
+  const h = harness();
+  const shared = await folder(h, "shared", "Team keys");
+  const id = await put(h, shared, "Team Anthropic key");
+  h.setUsage("agent", id, [{ key: "agt_intake", turns: 5, tokensIn: 1000, tokensOut: 200 }, { key: "agt_docs", turns: 2, tokensIn: 300, tokensOut: 50 }]);
+  h.setUsage("person", id, [{ key: MAYA, turns: 6, tokensIn: 1100, tokensOut: 230 }, { key: ROB, turns: 1, tokensIn: 200, tokensOut: 20 }]);
+  const got = out(await v.itemUsage(h.ctx, { itemId: id, since: NOW - 1000 }));
+  assert.deepEqual(contractErrors("vault.item.usage", "out", got), []);
+  assert.deepEqual((got.actors as Json[]).map((a) => [out(a.actor).kind, out(a.actor).id, a.turns, a.tokens]), [
+    ["person", MAYA, 6, 1330], ["agent", "agt_intake", 5, 1200], ["agent", "agt_docs", 2, 350], ["person", ROB, 1, 220],
+  ], "biggest first");
+  assert.deepEqual(got.total, { turns: 7, tokens: 1550 }, "the total counts each turn once, by agent");
+  const asked = h.calls("engine.usage.query");
+  assert.deepEqual(asked.map((c) => [c.input.by, c.input.itemId, c.input.from]), [["agent", id, NOW - 1000], ["person", id, NOW - 1000]], "the item and the start of the range go to the engine");
+  assert.deepEqual(out(await v.itemUsage(h.ctx, { itemId: id })).total, { turns: 7, tokens: 1550 });
+  // a key nobody used has an empty list and a zero total
+  const quiet = await put(h, shared, "Quiet key");
+  assert.deepEqual(out(await v.itemUsage(h.ctx, { itemId: quiet })), { actors: [], total: { turns: 0, tokens: 0 } });
+  // View is needed: Use is not enough, and someone with no grant is refused
+  h.actAs("person", ROB);
+  assert.equal(await refusedWith(v.itemUsage(h.ctx, { itemId: id })), "permission.no_grant", "no grant");
+  h.grant(ROB, id, "use");
+  assert.equal(await refusedWith(v.itemUsage(h.ctx, { itemId: id })), "permission.no_grant", "Use is not View");
+  h.grant(ROB, id, "view");
+  assert.equal(Array.isArray(out(await v.itemUsage(h.ctx, { itemId: id })).actors), true, "View is enough");
+  assert.equal(await refusedWith(v.itemUsage(h.ctx, { itemId: "vit_notanitem" })), "validation.not_found");
+});
 
-// run on the final commit of P-CC_28
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
