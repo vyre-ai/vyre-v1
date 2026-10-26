@@ -21,7 +21,7 @@ function world(over: { logFails?: boolean; lookupThrows?: boolean } = {}) {
     log: (u) => { if (over.logFails) throw new Error("disk full"); uses.push(u); },
     now: () => 1_760_000_000_000,
   });
-  return { svc, uses, asked };
+  return { svc, uses, asked, items };
 }
 
 async function serve(svc: ReturnType<typeof createFillService>): Promise<{ url: string; close(): Promise<void> }> {
