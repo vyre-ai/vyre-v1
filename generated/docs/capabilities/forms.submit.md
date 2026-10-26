@@ -10,7 +10,7 @@ Public submit: writes through as principal svc_form_<id> with source link holder
 | Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
-| Resource | record (create under /slug) |
+| Resource | space |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |

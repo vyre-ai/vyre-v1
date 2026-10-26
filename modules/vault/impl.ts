@@ -26,6 +26,7 @@ export const handlers: Record<string, Handler> = {
   "vault.item.get": (ctx, i) => h.itemGet(ctx, i),
   "vault.item.reveal": (ctx, i) => h.itemReveal(ctx, i),
   "vault.item.history": (ctx, i) => h.itemHistory(ctx, i),
+  "vault.item.usage": (ctx, i) => h.itemUsage(ctx, i),
   "vault.item.put": (ctx, i) => h.itemPut(ctx, i),
   "vault.item.update": (ctx, i) => h.itemUpdate(ctx, i),
   "vault.item.move": (ctx, i) => h.itemMove(ctx, i),

@@ -2048,6 +2048,7 @@ export function stubs(ctx: CallCtx) {
         restore: call("vault.item.restore"),
         reveal: call("vault.item.reveal"),
         update: call("vault.item.update"),
+        usage: call("vault.item.usage"),
       },
       items: {
         export_mine: call("vault.items.export_mine"),

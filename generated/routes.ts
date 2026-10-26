@@ -37,9 +37,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "record",
-      "create": true,
-      "parent": "/slug"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -75,9 +73,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "record",
-      "create": true,
-      "parent": "/slug"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -7626,7 +7622,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "folder",
+      "type": "email",
       "create": true,
       "parent": "/folderId"
     },
@@ -26801,6 +26797,25 @@ export const routes: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/vault/item/usage",
+    "cap": "vault.item.usage",
+    "v": 1,
+    "module": "vault",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "vault_item",
+      "id": "/itemId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
     "teamOnly": false,
     "gate": null
   },
