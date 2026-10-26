@@ -4,6 +4,8 @@
 // Host never imports a module (layer rule, and boundaries.ts rejects a non-literal import()), so the three registration functions arrive as arguments: the daemon passes
 // setGoogleHost and setImapSecretResolver from the module files it already imports for the loader, a test passes fakes. A setter that is not given (the Microsoft module is not in the
 // tree yet) leaves that seam "absent"; it is reported in the result, not a boot failure.
+import { createComputersHost } from "./computers-host.ts";
+import type { ComputersHostDeps, ComputersHostSeam } from "./computers-host.ts";
 import { createEngineHost } from "./engine.ts";
 import type { EngineHostDeps, EngineHostSeam, EngineInvoke, EngineSessionPorts } from "./engine.ts";
 import { createGoogleHost } from "./google.ts";
@@ -23,8 +25,8 @@ import type { FetchedResponse, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, 
 
 export { createGithubHost, createStripeHost, createTwilioHost };
 export type { GithubHostSeam, StripeHostSeam, TwilioHostSeam, FillerPort };
-export { createEngineHost, createGoogleHost, createImapSecretResolver, createMailgunHost, createMsHost, createResendHost, createSourcesSecretResolver };
-export type { EngineHostDeps, EngineHostSeam, EngineInvoke, EngineSessionPorts, FetchedResponse, GoogleHostSeam, MailgunHostSeam, ResendHostSeam, GoogleSeamDeps, ImapSecretResolver, MsHostSeam, SourcesSecretResolver, MsSeamDeps, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort };
+export { createComputersHost, createEngineHost, createGoogleHost, createImapSecretResolver, createMailgunHost, createMsHost, createResendHost, createSourcesSecretResolver };
+export type { ComputersHostDeps, ComputersHostSeam, EngineHostDeps, EngineHostSeam, EngineInvoke, EngineSessionPorts, FetchedResponse, GoogleHostSeam, MailgunHostSeam, ResendHostSeam, GoogleSeamDeps, ImapSecretResolver, MsHostSeam, SourcesSecretResolver, MsSeamDeps, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort };
 
 /** Every host driver is built from the same deps; a driver may return anything the setter accepts (a seam object, a function, a config). */
 export type SeamDriver = (d: SeamDriverDeps) => unknown;
@@ -41,6 +43,8 @@ export interface SeamDriverDeps extends SeamDeps {
 export interface SeamSetters {
   /** the engine runtime's host half: a way to run capabilities for a person, and the session opener's ports (P-L2_23) */
   setEngineHost?: ((h: EngineHostSeam | null) => void) | undefined;
+  /** the agent computers' machine: Docker socket, image and the agents' Files folders */
+  setComputerHost?: ((h: ComputersHostSeam | null) => void) | undefined;
   setGoogleHost?: ((h: GoogleHostSeam | null) => void) | undefined;
   setMsHost?: ((h: MsHostSeam | null) => void) | undefined;
   setImapSecretResolver?: ((fn: ImapSecretResolver | null) => void) | undefined;
