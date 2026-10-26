@@ -51,7 +51,10 @@ export async function runPersonal(live: readonly string[]): Promise<{ events: Ob
       for (;;) {
         const eps = expectStatus(await space.call("network.endpoints", admin, {}), 200, "network.endpoints").endpoints as { kind: string; url: string; health: string }[];
         const e = eps.find((x) => x.kind === "relay" && x.health === "healthy");
-        if (e) return e;
+        if (e) {
+          assert.match(e.url, /#box=[A-Za-z0-9_-]{43}$/, `the relay entry carries the pinned box key: ${e.url}`);   // kept from #575 (P-L7b_16)
+          return e;
+        }
         if (Date.now() > end) throw new Error(`no healthy relay endpoint after 15 s: ${short(eps)}`);
         await new Promise((r) => setTimeout(r, 100));
       }
