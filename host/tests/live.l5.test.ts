@@ -31,7 +31,8 @@ const MEMBER = "tok-usr_noah";
 const AT = 1_790_000_000_000;
 
 // [module, read, write]: each a path and a body. The reads and writes need no provider account; the answers come from the module's own tables.
-const CALLS: [string, [string, unknown], [string, unknown]][] = [
+// A null write: the connector's writes need the provider's account, so they are checked below as clean refusals. receive_webhook is not a write anyone makes here: only the server records a webhook (webhooks.live.test.ts).
+const CALLS: [string, [string, unknown], [string, unknown] | null][] = [
   ["calendar", ["/v1/calendar/list_calendars", {}], ["/v1/calendar/create_calendar", { idempotencyKey: "l5-cal", title: "Team" }]],
   ["contacts-link", ["/v1/contacts/suppression/list", {}], ["/v1/contacts/suppression/add", { channel: "email", addresses: ["optout@example.com"], reason: "manual" }]],
   ["github", ["/v1/github/health", {}], ["/v1/github/app/create_manifest", { org: "acme" }]],
@@ -40,10 +41,10 @@ const CALLS: [string, [string, unknown], [string, unknown]][] = [
   ["mail", ["/v1/mail/mailbox/list", {}], ["/v1/mail/mailbox/create", { idempotencyKey: "l5-mbx", kind: "shared", address: "team@example.com", title: "Team", provider: "inbound_only" }]],
   ["meetings", ["/v1/meetings/list", {}], ["/v1/meetings/ingest", { source: "zoom", providerRef: "8123456789", startsAt: AT, attendees: [{ email: "client@example.com", name: "Client" }] }]],
   ["telephony", ["/v1/telephony/number/list", {}], ["/v1/telephony/registration/save", { legalName: "Northwind Legal LLC" }]],
-  ["zoom", ["/v1/zoom/health", {}], ["/v1/zoom/receive_webhook", { eventId: "evt_zoom_check", type: "endpoint.url_validation", plainToken: "qgg8vlvZRS6UYooatFL8Aw", at: AT }]],
+  ["zoom", ["/v1/zoom/health", {}], null],
   ["microsoft", ["/v1/ms/health", {}], ["/v1/ms/consent/disable", {}]],
-  ["stripe", ["/v1/stripe/health", {}], ["/v1/stripe/receive_webhook", { eventId: "evt_1", type: "checkout.session.completed", objectId: "cs_1", amount: 100, currency: "USD", at: AT }]],
-  ["twilio", ["/v1/twilio/health", {}], ["/v1/twilio/receive_webhook", { kind: "sms", dedupeKey: "sms:SM1", sid: "SM1", params: { MessageSid: "SM1", From: "+14155550100", To: "+14155550101", Body: "hello" } }]],
+  ["stripe", ["/v1/stripe/health", {}], null],
+  ["twilio", ["/v1/twilio/health", {}], null],
 ];
 
 test("l5 live: host/modules.json has every finished L5 module live", () => {
@@ -88,7 +89,7 @@ test("l5 live: a booted daemon has no L5 module not set up, and a read and a wri
     // every module is tried, and every failure is reported together
     const failures: string[] = [];
     for (const [module, read, write] of CALLS) {
-      for (const [kind, [p, body]] of [["read", read], ["write", write]] as const) {
+      for (const [kind, [p, body]] of ([["read", read], ["write", write]] as const).filter((x): x is readonly ["read" | "write", [string, unknown]] => x[1] !== null)) {
         const r = await post(OWNER, p, body);
         const text = await r.text();
         if (r.status !== 200) failures.push(`${module} ${kind} ${p}: ${r.status} ${text}${why(text)}`);
@@ -97,7 +98,10 @@ test("l5 live: a booted daemon has no L5 module not set up, and a read and a wri
     assert.deepEqual(failures, [], "every read and write answers through the live handler");
 
     // an account the Space has not set up refuses cleanly: a 4xx with a provider or precondition code, never a crash
-    for (const [p, body] of [["/v1/zoom/meetings/create", { idempotencyKey: "l5-zoom-no-key", topic: "Intake" }], ["/v1/twilio/number/search", {}]] as const) {
+    for (const [p, body] of [
+      ["/v1/zoom/meetings/create", { idempotencyKey: "l5-zoom-no-key", topic: "Intake" }], ["/v1/twilio/number/search", {}],
+      ["/v1/stripe/customer/create", { idempotencyKey: "l5-stripe-no-key" }], ["/v1/twilio/sms/send", { idempotencyKey: "l5-sms-no-key", from: "+14155550100", to: "+14155550101", body: "hi" }],
+    ] as const) {
       const r = await post(OWNER, p, body);
       const text = await r.text();
       assert.ok(r.status >= 400 && r.status < 500, `${p} with no key answers a refusal, got ${r.status} ${text}${why(text)}`);
