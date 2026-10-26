@@ -2,7 +2,6 @@
   "module": "identity",
   "capabilities": {
     "identity.change_password@1": "fdf8fce5dac2833e9b29c9d05382e98ff915f734cb8115f9a9153a576b4315e0",
-    "identity.claim_owner@1": "0ff8699cc82bd138df83666542b2bdd8f96c06cdc6a322ba8b71063be9e21be9",
     "identity.github_link@1": "b896dfac176aa58b4f10fd5ba8fdebc411444b3409ae5981541ed32d1e5bdc66",
     "identity.github_sign_in@1": "4bc3ba6208c5c0ae6898451861d4b6f3c39f087ec6f783588d97ee4279a21262",
     "identity.github_unlink@1": "f3026e99170c4af0c4a4c135880b7f006b6c55ad5cfdc992b7a986813a75cc22",
@@ -12,7 +11,7 @@
     "identity.pair_redeem@1": "f67a379f5d6e877629d0cdbe192797acf8073fa026a781020282619901caa12f",
     "identity.passkey_register@1": "7d4bfc5a7993d6960446748c3884fb1094cdad3641aa64010a67c6cf0041798c",
     "identity.passkey_remove@1": "6d5c0535bdee82a51fc4a359cd2c90e75ed7a0ce11ae7aad113a1a977a16358a",
-    "identity.recovery_restore@1": "7edf47fdbc22fa6bcb983405631fdf581ef7830b7b932bced385e052d6f60a59",
+    "identity.recovery_restore@1": "cc3cb48d30c80a54e2fd9f7b229c26e83f6393884833a129df5df248847f5682",
     "identity.recovery_save@1": "c9dc50cf18498c849e267f4634db9e748d698b23fadc97c100fd77df6daecdbf",
     "identity.reset_complete@1": "f4dee504725019fb9675f957765de4594b554ada30fa86668e304f06c3280596",
     "identity.reset_preview@1": "e3589ba9793787ea7d6ce327c9fb8a6996c8e1f4d14f62a9474454b60e48f161",
