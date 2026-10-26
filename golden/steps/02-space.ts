@@ -35,6 +35,14 @@ export function codeRootWithLive(live: readonly string[]): string {
   return root;
 }
 
+/** The next weekday at 10:00 UTC after `from`: inside every default send window, whatever hour CI runs at. */
+export function nextWeekdayTen(from: number): number {
+  const d = new Date(from);
+  let t = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 10);
+  while (t <= from || [0, 6].includes(new Date(t).getUTCDay())) t += 24 * 3600 * 1000;
+  return t;
+}
+
 /** A private data directory holding the small seed: the core Space grown to 500 contacts and 12 agents, with the access and identity modules' own tables filled from it, so the live modules know the seeded people and folders. */
 async function seededDir(): Promise<string> {
   return (await bootSmall()).dir;
@@ -64,11 +72,16 @@ export interface FlowSpace {
 }
 
 /** Boots a daemon on the `core` seed with `live` flipped in a temporary code root. Rejects with the host's own refusal text when the boot is refused. */
-export async function bootFlowSpace(live: readonly string[], opts: { engineCli?: unknown; spaceKind?: "personal" | "team"; relay?: string; fetch?: FetchFn & SeamFetch; vault?: { secret(handle: string): Promise<string>; signRs256(): Promise<string> } } = {}): Promise<FlowSpace> {
+export async function bootFlowSpace(live: readonly string[], opts: { engineCli?: unknown; spaceKind?: "personal" | "team"; relay?: string; realClock?: boolean; fetch?: FetchFn & SeamFetch; vault?: { secret(handle: string): Promise<string>; signRs256(): Promise<string> } } = {}): Promise<FlowSpace> {
   const dir = await seededDir();
+  // Every flow runs on a clock that reads a weekday at 10:00 UTC when the Space boots and then ticks as real time does, so no flow depends on the hour CI runs at (windows, hours, expiries)
+  // `realClock`: a flow whose far end is a real process with a clock of its own (the relay) stays on real time
+  const shift = opts.realClock ? 0 : nextWeekdayTen(Date.now()) - Date.now();
+  const clock = (): number => Date.now() + shift;
   const start = (port: string): Promise<Daemon> => startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", port, ...(opts.spaceKind ? ["--space-kind", opts.spaceKind] : []), ...(opts.relay ? ["--relay", opts.relay] : [])], {}, "1.2.3"),
     codeRoot: codeRootWithLive(live),
+    now: clock,
     platform: fakePlatform({
       os: "linux", hostname: "golden", free: 80e9,
       commands: {
@@ -110,7 +123,7 @@ export async function bootFlowSpace(live: readonly string[], opts: { engineCli?:
       return { status: res.status, body: parsed, trace: res.headers.get("x-vyre-trace") };
     },
     signedIn(person, device = `dev_${person.slice(4)}1`) {
-      const now = Date.now(), session = `ses_${device.slice(4)}`;
+      const now = clock(), session = `ses_${device.slice(4)}`;
       d.db!.run(`INSERT OR IGNORE INTO devices_device (id, person, name, class, epoch, lastSeenAt, location, revokedAt, version, updated_at, deleted_at) VALUES (?, ?, ?, 'desktop', 0, ?, NULL, NULL, 0, ?, NULL)`, device, person, `${person} laptop`, now, now);
       d.db!.run(`INSERT OR IGNORE INTO devices_session (id, person, kind, principal_kind, device_id, started_at, last_seen_at, location, revoked_at) VALUES (?, ?, 'device', 'person', ?, ?, ?, NULL, NULL)`, session, person, device, now, now);
       return issueSessionToken(d.db!, session);
