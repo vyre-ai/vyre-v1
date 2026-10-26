@@ -114,3 +114,19 @@ test("an entity is found by its id in other events' payloads, and by entity type
   const none = await compact(typed.store, { entities: [{ type: "thread", id: "rec_dana" }] }, { db: typed.db });
   assert.ok(!none.erased.includes(1), "a different entity type does not match the record events by envelope");
 });
+
+test("a projection rebuild skips an erased event: the erased subject's rows do not come back, the others' do", async () => {
+  const { ProjectionHost, payloadOf } = await import("../src/store/projection.ts");
+  const p = {
+    name: "test.names", version: 1, mode: "inline" as const, rebuild: "replay" as const,
+    init: (tx: { exec(sql: string): void }) => tx.exec("CREATE TABLE IF NOT EXISTS tn (id TEXT PRIMARY KEY, name TEXT NOT NULL)"),
+    reset: (tx: { exec(sql: string): void }) => tx.exec("DELETE FROM tn"),
+    on: { "person.added": (tx: { run(sql: string, ...a: unknown[]): unknown }, e: Parameters<typeof payloadOf>[0]) => { const v = payloadOf<{ id: string; name: string }>(e); tx.run("INSERT INTO tn (id, name) VALUES (?, ?)", v.id, v.name); } },
+  };
+  const host = ProjectionHost.open({ path: ":memory:", space: "sp_1", projections: [p as never] });
+  host.store.appendBatch([ev({ type: "person.added", entity: "person", entity_id: "p_dana", payload: { id: "p_dana", name: NAME } }), ev({ type: "person.added", entity: "person", entity_id: "p_maya", payload: { id: "p_maya", name: "Maya" } })]);
+  assert.equal(host.tx.all("SELECT * FROM tn").length, 2);
+  await compact(host.store, { entities: [{ type: "person", id: "p_dana" }] });
+  host.rebuild("test.names");
+  assert.deepEqual(host.tx.all<{ id: string }>("SELECT id FROM tn").map((r) => r.id), ["p_maya"]);
+});
