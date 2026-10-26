@@ -212,9 +212,9 @@ export async function matrix(ctx: ExtraCtx, _input: Record<string, unknown>) {
 }
 
 /** The owner's export is the Space-wide export of the backup module: one zip, never secret values, never other people's private chats or personal memory. */
-export async function exportAll(ctx: ExtraCtx, _input: Record<string, unknown>) {
+export async function exportAll(ctx: ExtraCtx, input: { idempotencyKey?: string }) {
   live(ctx);
-  const out = asRow(await ctx.call("backup.export_start" as never, {}));
+  const out = asRow(await ctx.call("backup.export_start" as never, { idempotencyKey: `spaces.export:${input.idempotencyKey ?? ctx.trace.traceId}` }));
   const runId = str(out?.["runId"]);
   if (!runId) return failWith(ctx.trace.traceId, "internal.unexpected", "The export did not start.");
   return { runId };

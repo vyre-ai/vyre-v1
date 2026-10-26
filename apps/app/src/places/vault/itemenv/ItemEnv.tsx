@@ -3,14 +3,17 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { AskButton } from "../../../../../../ui/src/AskButton/index.tsx";
+import type { AskAgent } from "../../../../../../ui/src/AskButton/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { copyText, useOnline, usePrincipals, useScreenQuery, useVaultData } from "../layout/data.tsx";
-import { accessLine, agoLabel, KIND_LABEL, rotation } from "../layout/model.ts";
-import type { Folder, Item } from "../layout/model.ts";
+import { agoLabel, KIND_LABEL, rotation, whoLine } from "../layout/model.ts";
+import type { Folder, Item, Share } from "../layout/model.ts";
 import { Btn, Glyph, IconBtn, LogoTile, Mono } from "../layout/parts.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { MASK, keysOf } from "./env.ts";
+import { MASK, formatEnv, keysOf } from "./env.ts";
+import { WhoCanUse } from "./WhoCanUse.tsx";
 import { createRevealStore } from "./reveal.ts";
 import type { RevealStore } from "./reveal.ts";
 
@@ -31,6 +34,8 @@ const SEP: MenuEntry = { separator: true };
 export interface ItemEnvProps {
   itemId: string;
   onEdit: () => void;
+  /** Opens the Edit sheet in Fields with a new empty field ready to type in. */
+  onAddField?: (() => void) | undefined;
   /** After the item went to Trash (the list picks the next row). */
   onGone: () => void;
   /** The quiet line for a change, with its Undo. */
@@ -51,7 +56,7 @@ export function useRevealStore(itemId: string): RevealStore {
   return store;
 }
 
-export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, initialMode }: ItemEnvProps): ReactElement {
+export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, askDelete, initialMode }: ItemEnvProps): ReactElement {
   const data = useVaultData();
   const online = useOnline();
   const names = usePrincipals();
@@ -65,6 +70,20 @@ export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, ini
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const [shares, setShares] = useState<Share[] | null>(null);
+  const [sharesAt, setSharesAt] = useState(0);
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const out = (await data.call("access.shares_of", { resource: { type: "vault_item", id: itemId } })) as { shares: { grant: { subject: Share["subject"]; level: Share["level"] }; through: Share["through"] }[] };
+        const list: Share[] = [];
+        for (const x of out.shares) list.push({ subject: x.grant.subject, level: x.grant.level, through: x.through });
+        if (live) setShares(list);
+      } catch { if (live) setShares([]); }
+    })();
+    return () => { live = false; };
+  }, [data, itemId, sharesAt]);
   useEffect(() => { if (askDelete) setConfirmDelete(true); }, [askDelete]);
 
   if (got.status !== "ready") return <DetailSkeleton />;
@@ -96,6 +115,31 @@ export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, ini
     try {
       await data.call("vault.item.update", { itemId, spaceOnly: to });
       onNote(to ? `${item.name} now fills on the Space only` : `${item.name} can fill on your computer again`, async () => { await data.call("vault.item.update", { itemId, spaceOnly: !to }); });
+    } catch (e) { fail(e); }
+  };
+
+  const copyEnv = async (): Promise<void> => {
+    try {
+      const out = (await data.call("vault.item.reveal", { itemId })) as { fields: { key: string; value: string }[] };
+      const values = new Map<string, string>();
+      for (const f of out.fields) values.set(f.key, f.value);
+      await copyText(data, formatEnv(fields, values));
+      onNote(`Copied ${item.name} as .env`, () => undefined);
+    } catch (e) { fail(e); }
+  };
+  const subjectName = (sub: Share["subject"]): string => names.name(sub.id);
+  const askAgents: AskAgent[] = names.all.filter((p) => p.kind === "agent").map((p) => ({ id: p.id, name: p.name, ...(p.id === "agt_assistant" ? { assistant: true } : {}) }));
+  if (!askAgents.some((a) => a.assistant)) askAgents.unshift({ id: "assistant", name: "Assistant", assistant: true });
+  const suggested = (shares ?? []).find((x) => x.subject.kind === "agent" && askAgents.some((a) => a.id === x.subject.id))?.subject.id;
+  const meShare = (shares ?? []).find((x) => x.subject.kind === "person" && x.subject.id === data.me.id);
+  const setLevel = async (sh: Share, level: Share["level"]): Promise<void> => {
+    try { await data.call("vault.share", { resource: { type: "vault_item", id: itemId }, subject: sh.subject, level }); setSharesAt((n) => n + 1); } catch (e) { fail(e); }
+  };
+  const stopSharing = async (sh: Share): Promise<void> => {
+    try {
+      await data.call("vault.unshare", { resource: { type: "vault_item", id: itemId }, subject: sh.subject });
+      setSharesAt((n) => n + 1);
+      onNote(`Stopped sharing ${item.name} with ${subjectName(sh.subject)}`, async () => { await data.call("vault.share", { resource: { type: "vault_item", id: itemId }, subject: sh.subject, level: sh.level }); setSharesAt((n) => n + 1); });
     } catch (e) { fail(e); }
   };
 
@@ -133,6 +177,10 @@ export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, ini
       <View style={s.bar}>
         {onBack ? <IconBtn icon="back" label="Back to the list" onPress={onBack} testID="item-back" /> : null}
         <View style={{ flex: 1 }} />
+        <AskButton
+          place="vault" context={{ kind: "vault_item", id: itemId, title: item.name, access: item.yourLevel }} agents={askAgents} {...(suggested ? { suggested } : {})} testID="item-ask"
+          onAsk={(agent, mode, about) => data.nav.ask?.(agent.id, mode, { kind: about.kind, id: about.id, title: about.title })}
+        />
         {canEdit ? <Btn label="Edit" icon="edit" onPress={onEdit} testID="item-edit" /> : null}
         <IconBtn icon="more" label="More" testID="item-more" onPress={(e) => { const r = rectOf(e); menu.show(moreItems, r.x, r.y); }} />
       </View>
@@ -150,7 +198,7 @@ export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, ini
               </View>
             </View>
           </View>
-          <Text style={s.access} testID="item-access">{accessLine(item as Item, folder)}</Text>
+          <Text style={s.access} testID="item-access">{whoLine(item as Item, folder, shares ?? [], data.me.id, subjectName)}</Text>
 
           <View style={s.card} testID="env-card">
             <View style={s.cardTop}>
@@ -159,14 +207,22 @@ export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, ini
                 <SegBtn label=".env" on={view === "env"} onPress={() => setMode("env")} testID="env-mode-env" />
               </View>
               <View style={{ flex: 1 }} />
+              {fields.length > 0 && canSee ? <Btn label="Copy as .env" icon="copy" disabled={!online} onPress={() => { void copyEnv(); }} testID="env-copy-all" /> : null}
               {fields.length > 0 && canSee ? (
                 <Btn label={rv.shown.size > 0 ? "Hide values" : "Reveal all"} icon={rv.shown.size > 0 ? "eyeOff" : "eye"} disabled={!online || rv.busy} testID="env-reveal-all"
                   onPress={() => { if (rv.shown.size > 0) store.hide(); else void store.reveal(keysOf(fields)); }} />
               ) : null}
             </View>
             {view === "env" ? <Text style={s.comment} testID="env-comment">{`# ${item.name} · agents ask for ${item.handle}`}</Text> : null}
-            {fields.length === 0 ? <Text style={s.empty} testID="env-empty">No fields yet. Edit the item to add one.</Text> : null}
+            {fields.length === 0 ? <Text style={s.empty} testID="env-empty">No fields yet.</Text> : null}
             {fieldLines}
+            {canEdit && onAddField ? (
+              <View style={s.cardFoot}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Add field" testID="env-add-field" onPress={onAddField} style={s.addField}>
+                  <Glyph name="plus" size={12} color="var(--accent)" /><Text style={s.addFieldText}>Add field</Text>
+                </Pressable>
+              </View>
+            ) : null}
             {rv.asking ? (
               <View style={s.agree} testID="env-agree" accessibilityRole="alert">
                 <Glyph name="eye" size={15} />
@@ -195,6 +251,12 @@ export function ItemEnv({ itemId, onEdit, onGone, onNote, onBack, askDelete, ini
             </View>
           ) : null}
           {failure ? <Text style={s.error} accessibilityRole="alert" testID="item-error">{failure}</Text> : null}
+
+          <WhoCanUse
+            shares={shares ?? []} you={{ name: data.me.name, level: meShare?.level ?? item.yourLevel, owner: meShare?.through === "owner" }} nameOf={subjectName} meId={data.me.id} canManage={item.yourLevel === "manage"}
+            onLevel={(sh, l) => { void setLevel(sh, l); }} onRemove={(sh) => { void stopSharing(sh); }} onShare={() => data.nav.openShare(itemId)}
+            onMenu={(entries, x, y) => menu.show(entries, x, y, "other")}
+          />
 
           <View style={s.sectionHead}><Text style={s.h2}>Recent use</Text></View>
           {hist.status !== "ready" ? <Text style={s.note}>Loading</Text> : entries.length === 0 ? <Text style={s.note} testID="history-empty">Nothing has used this item yet.</Text> : (
@@ -301,6 +363,9 @@ const s = StyleSheet.create({
   segOn: { backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-1)" as string },
   segText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-3)" as string },
   comment: { fontFamily: "var(--mono)" as string, fontSize: 12.5, color: "var(--ink-3)" as string, paddingHorizontal: 8, paddingVertical: 8 },
+  cardFoot: { marginTop: 4, paddingTop: 6, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  addField: { flexDirection: "row", alignItems: "center", gap: 6, height: 26, alignSelf: "flex-start" },
+  addFieldText: { fontSize: 13, color: "var(--accent)" as string },
   empty: { fontSize: 13, color: "var(--ink-3)" as string, padding: 10 },
   line: { minHeight: 34, flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7 },
   lineMain: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 },

@@ -47,6 +47,7 @@ jobs:
         env:
           FILES: ${{ matrix.files }}
           SLOW: ${{ matrix.slow }}
+          VYRE_PERF_RUN: ${{ matrix.runner == 'v1-perf' && '1' || '' }}   # perf files run only on the pinned perf host (test-run skips them elsewhere)
         run: |
           if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else NC=""; [ "$RUNNER_ENVIRONMENT" = "github-hosted" ] && NC="--no-cache"; node scripts/test-run.mjs --files $FILES $NC; fi  # a hosted VM never reads a shared pass cache
   gates:
@@ -101,6 +102,12 @@ jobs:
         run: |
           git fetch -q origin main
           node scripts/lint/run.ts --base "$(git merge-base origin/main HEAD)"
+      - name: make-emits (enforced); a capability that makes a resource must emit an event whose subject is that type
+        run: node scripts/lint/make-emits.ts --enforce
+      - name: idem-calls (report mode until main reports 0 missing); ctx.call to a capability with idempotency key must pass idempotencyKey
+        run: node scripts/lint/idem-calls.ts
+      - name: perf-files (a perf file may hold only speed tests, since every shard outside the perf host skips it)
+        run: node scripts/lint/perf-files.ts
       - name: Typecheck every package that has a tsconfig.json above a changed file
         run: |
           git fetch -q origin main
@@ -200,7 +207,7 @@ jobs:
         run: |
           git fetch -q origin main
           base="$(git merge-base origin/main HEAD)"
-          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|modules/computers/|images/person-sandbox/|images/agent-computer/|agent/tests/sandbox\.(net\.)?heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
+          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|modules/computers/|modules/engine/(sandbox|tests/(sandbox|cli))|host/tests/chat\.live|images/person-sandbox/|images/agent-computer/|agent/tests/sandbox\.(net\.)?heavy|golden/steps/07-(reply|gate)\.heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
       - name: Install bubblewrap and tmux when the runner does not have them
         if: steps.scope.outputs.changed == 'true'
         run: |
@@ -232,7 +239,7 @@ jobs:
         if: steps.scope.outputs.changed == 'true'
         env:
           VYRE_HEAVY_DOCKER: "1"
-        run: node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts
+        run: node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts modules/engine/tests/sandbox.heavy.test.ts modules/engine/tests/cli.heavy.test.ts golden/steps/07-reply.heavy.test.ts golden/steps/07-gate.heavy.test.ts host/tests/chat.live.test.ts
       - name: The network wall, none skipped (agent/tests/sandbox.net.heavy.test.ts)
         if: always() && steps.scope.outputs.changed == 'true'
         env:
@@ -287,6 +294,12 @@ jobs:
           set -o pipefail
           node scripts/test-run.ts --slow --no-cache --files apps/chrome/tests/ext-agent.real.test.ts 2>&1 | tee chrome-real.out
           grep -q '^ok .*apps/chrome/tests/ext-agent.real.test.ts' chrome-real.out
+      - name: Popup and save card in a real Chrome, paper and graphite (ext-core.popup-shot.test.ts)
+        # Moved here from the fast shards: a real Chrome with screenshots in two skins does not fit 30 s beside other files on a shared runner. CHROME_BIN comes from the Chromium step above.
+        run: |
+          set -o pipefail
+          node scripts/test-run.ts --slow --no-cache --files apps/chrome/tests/ext-core.popup-shot.test.ts 2>&1 | tee chrome-popup.out
+          grep -q '^ok .*apps/chrome/tests/ext-core.popup-shot.test.ts' chrome-popup.out
   check:
     needs: [select, shards, gates, chrome-real]
     if: always()

@@ -9,8 +9,10 @@ import type { SlowEntry } from "./slow-check.ts";
 
 export const MAX_SHARDS = 24;
 export const TARGET_SEC = 25;
-// P-CI_39: shards scale with the number of selected files, not a fixed 24: GitHub caps free hosted runners at 20 concurrent jobs and the self-hosted fleet is 25, so a small change must not fan out 24 jobs.
-export const FILES_PER_SHARD = 8;
+// Shards scale with the number of selected files, not a fixed count: GitHub caps free hosted runners at 20 concurrent jobs and the self-hosted fleet is 41, so a small change takes 1 to 3 jobs, not 15.
+// One fast shard per 40 files (min 1, max MAX_SHARDS); non-perf slow files are grouped 8 to a job; a perf file keeps its own job on the pinned perf host.
+export const FILES_PER_SHARD = 40;
+export const SLOW_FILES_PER_JOB = 8;
 export const FALLBACK_SEC = 3;
 // Ruling 52 (P-CI_31): 30 s, was 20 s. Cold pass caches on the new hosts and hosted runners made real 20-22 s UI files hit the old cap; CI hygiene only, speed budgets stay on v1-perf (ruling 46).
 export const FAST_CAP_SEC = 30;
@@ -40,7 +42,7 @@ function medianSec(files: string[], timings: Timings): number {
   return known.length ? known[Math.floor(known.length / 2)]! / 1000 : FALLBACK_SEC;
 }
 
-/** Greedy longest-first placement of the fast files into min(24, ceil(total/25)) shards; slow files get their own jobs. */
+/** Greedy longest-first placement of the fast files into ceil(files/40) shards (max 24); the slow files are listed here and grouped into jobs by toMatrix. */
 export function shardFiles(files: string[], timings: Timings, slow: SlowEntry[], opts: { max?: number; target?: number } = {}): Shards {
   const slowBy = new Map(slow.map((s) => [s.file, s]));
   const uniq = [...new Set(files)].sort();
@@ -62,10 +64,19 @@ export function shardFiles(files: string[], timings: Timings, slow: SlowEntry[],
 
 /** The select job's output: plain jobs, not matrix-expanded workflows. */
 export function toMatrix(s: Shards): { include: { name: string; files: string; slow: boolean; runner: "hosted" | "v1" | "v1-perf" }[] } {
+  const perf = s.slow.filter((j) => j.perf);
+  const plain = [...s.slow.filter((j) => !j.perf)].sort((a, b) => b.capSec - a.capSec || (a.file < b.file ? -1 : 1));
+  const groups = Array.from({ length: Math.ceil(plain.length / SLOW_FILES_PER_JOB) }, () => ({ files: [] as string[], cap: 0 }));
+  for (const j of plain) {   // longest cap first into the group with the least total cap
+    let best = groups[0]!;
+    for (const g of groups) if (g.cap < best.cap) best = g;
+    best.files.push(j.file); best.cap += j.capSec;
+  }
   return {
     include: [
       ...s.fast.map((b, i) => ({ name: `fast-${i + 1}`, files: b.files.join(" "), slow: false, runner: "hosted" as const })),
-      ...s.slow.map((j, i) => ({ name: `slow-${i + 1}`, files: j.file, slow: true, runner: j.perf ? ("v1-perf" as const) : ("v1" as const) })),
+      ...groups.map((g, i) => ({ name: `slow-${i + 1}`, files: g.files.sort().join(" "), slow: true, runner: "v1" as const })),
+      ...perf.map((j, i) => ({ name: `perf-${i + 1}`, files: j.file, slow: true, runner: "v1-perf" as const })),
     ],
   };
 }

@@ -7020,6 +7020,13 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -13864,6 +13871,13 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -39307,6 +39321,13 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -46728,7 +46749,10 @@
                   "http_header",
                   "browser",
                   "terminal",
-                  "file"
+                  "file",
+                  "git_credential",
+                  "container_env",
+                  "route_auth"
                 ],
                 "type": "string"
               },

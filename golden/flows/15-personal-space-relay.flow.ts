@@ -6,5 +6,5 @@ export default defineFlow({
   name: "personal-space-relay",
   title: "Personal Space via the relay",
   needs: ["spaces", "sync", "devices", "network"],
-  events: ["device.registered", "sync.scope_changed", "doc.updated", "device.revoked"],
+  events: ["device.registered", "session.started", "doc.updated", "device.revoked"],
 });

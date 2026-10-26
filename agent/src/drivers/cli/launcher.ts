@@ -10,8 +10,11 @@ export class LaunchError extends Error {
 }
 
 export interface LocalLauncherOptions {
-  /** Wrap the argv for a sandbox (`sandbox-exec -f profile ...`, `bwrap ...`). Default: run it as given. */
-  wrap?: (argv: readonly string[]) => readonly string[];
+  /**
+   * Wrap the argv for a sandbox (`sandbox-exec -f profile ...`, `bwrap ...`). Default: run it as given. `start` is what this spawn asked for: its environment (the key and the MCP token
+   * are in it) and its working folder, so a sandbox that rebuilds the environment (bwrap --clearenv) can carry them in.
+   */
+  wrap?: (argv: readonly string[], start: { env: Readonly<Record<string, string>>; cwd?: string }) => readonly string[];
   /** Environment every process gets. Default: PATH, HOME, LANG and TMPDIR of this process. */
   baseEnv?: Readonly<Record<string, string>>;
 }
@@ -27,7 +30,7 @@ function defaultBase(): Record<string, string> {
 export function createLocalLauncher(o: LocalLauncherOptions = {}): Launcher {
   return {
     spawn(spec: LaunchSpec): Promise<CliProcess> {
-      const argv = o.wrap ? o.wrap(spec.argv) : spec.argv;
+      const argv = o.wrap ? o.wrap(spec.argv, { env: spec.env, ...(spec.cwd !== undefined ? { cwd: spec.cwd } : {}) }) : spec.argv;
       const [cmd, ...args] = argv;
       if (cmd === undefined) return Promise.reject(new LaunchError("engine.cli_missing", "No program to start."));
       return new Promise<CliProcess>((resolve, reject) => {

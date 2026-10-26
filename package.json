@@ -28,13 +28,17 @@
     "test": "node scripts/test-run.mjs --all",
     "test:affected": "node scripts/test-run.mjs --affected",
     "select": "node scripts/ci-select.mjs",
-    "gen": "node -e \"console.log('gen: placeholder until lane L11 lands scripts/gen.mjs')\"",
+    "gen": "node tools/gen/src/cli.ts",
     "check": "node scripts/test-run.mjs --affected",
-    "perf": "node -e \"console.log('perf: placeholder until lane L11 lands scripts/perf.mjs')\"",
-    "golden": "node -e \"console.log('golden: placeholder until lane L11 lands scripts/golden.mjs')\"",
-    "release": "node -e \"console.log('release: placeholder until lane L11 lands scripts/release.mjs')\"",
+    "perf": "VYRE_PERF_RUN=1 node scripts/test-run.mjs --all --slow",
+    "golden": "node scripts/golden.ts",
+    "release": "node scripts/release/cli.ts",
     "shots": "node scripts/shots/shots.mjs",
     "theme-flash": "node scripts/shots/theme-flash.mjs"
+  },
+  "dependencies": {
+    "y-protocols": "1.0.6",
+    "yjs": "13.6.27"
   },
   "devDependencies": {
     "@expo/metro-runtime": "~58.0.15",

@@ -67,8 +67,13 @@ export function removeFact(d: PaneDeps, f: Fact): Promise<boolean> {
 
 /* ---------- routines ---------- */
 
+/** What a routine saves as: a schedule keeps its cron, a watcher its trigger. */
+export function routineBody(r: Routine): { cron?: string; kind?: "schedule" | "watch"; watch?: { on: "message"; channelId: string } } {
+  return { ...(r.cron !== undefined ? { cron: r.cron } : {}), ...(r.kind !== undefined ? { kind: r.kind } : {}), ...(r.watch !== undefined ? { watch: r.watch } : {}) };
+}
+
 function routineInput(r: Routine, enabled: boolean): Record<string, unknown> {
-  return { agentId: r.agentId, routineId: r.routineId, title: r.title, cron: r.cron, prompt: r.prompt, ...(r.channelId ? { channelId: r.channelId } : {}), enabled };
+  return { agentId: r.agentId, routineId: r.routineId, title: r.title, ...routineBody(r), prompt: r.prompt, ...(r.channelId ? { channelId: r.channelId } : {}), enabled };
 }
 
 /** Turn a routine on or off. Undo flips it back. */
@@ -89,20 +94,20 @@ export function runNow(d: PaneDeps, r: Routine): Promise<boolean> {
 
 /**
  * Give a routine to another person: it then runs with the agent's access intersected with theirs (spec 7, rule 5). Undo gives it back to the person it came from.
- * Needs `agents.routine.delegate` (agentId, routineId, ownerId), which the manifest does not have yet: asked of the contract steward on P-L9b_09.
+ * `agents.routine.delegate` takes the new owner as `to` and `undo: true` to give it back (P-CC_20); the server remembers who had it.
  */
 export function delegateRoutine(d: PaneDeps, r: Routine, ownerId: string, name: string): Promise<boolean> {
   if (ownerId === r.ownerId) return Promise.resolve(false);
   return attempt(d, "hand it over", async () => {
-    await d.call("agents.routine.delegate", { agentId: r.agentId, routineId: r.routineId, ownerId });
-    d.note(`${r.title} now belongs to ${name}`, () => attempt(d, "undo that", async () => { await d.call("agents.routine.delegate", { agentId: r.agentId, routineId: r.routineId, ownerId: r.ownerId }); }).then(() => undefined));
+    await d.call("agents.routine.delegate", { agentId: r.agentId, routineId: r.routineId, to: { kind: "person", id: ownerId } });
+    d.note(`${r.title} now belongs to ${name}`, () => attempt(d, "undo that", async () => { await d.call("agents.routine.delegate", { agentId: r.agentId, routineId: r.routineId, undo: true }); }).then(() => undefined));
   });
 }
 
 /** Duplicate a routine, paused until you turn it on. */
 export function duplicateRoutine(d: PaneDeps, r: Routine): Promise<boolean> {
   return attempt(d, "duplicate it", async () => {
-    await d.call("agents.routine.save", { agentId: r.agentId, title: `${r.title} copy`, cron: r.cron, prompt: r.prompt, ...(r.channelId ? { channelId: r.channelId } : {}), enabled: false, idempotencyKey: key("routine-copy", r.routineId) });
+    await d.call("agents.routine.save", { agentId: r.agentId, title: `${r.title} copy`, ...routineBody(r), prompt: r.prompt, ...(r.channelId ? { channelId: r.channelId } : {}), enabled: false, idempotencyKey: key("routine-copy", r.routineId) });
     d.note("Duplicated, paused until you turn it on");
   });
 }
@@ -119,7 +124,7 @@ export function deleteRoutine(d: PaneDeps, r: Routine): Promise<boolean> {
   return attempt(d, "delete it", async () => {
     await d.call("agents.routine.delete", { agentId: r.agentId, routineId: r.routineId });
     d.note(`Deleted ${r.title}`, () => attempt(d, "undo that", async () => {
-      await d.call("agents.routine.save", { agentId: r.agentId, title: r.title, cron: r.cron, prompt: r.prompt, ...(r.channelId ? { channelId: r.channelId } : {}), enabled: r.enabled, idempotencyKey: key("routine-undo", r.routineId) });
+      await d.call("agents.routine.save", { agentId: r.agentId, title: r.title, ...routineBody(r), prompt: r.prompt, ...(r.channelId ? { channelId: r.channelId } : {}), enabled: r.enabled, idempotencyKey: key("routine-undo", r.routineId) });
     }).then(() => undefined));
   });
 }

@@ -10,7 +10,7 @@ Save an agent, Automation, Journey, record type, runbook or project as a templat
 | Permission | kits.publish |
 | Grant level | edit |
 | Risk | medium |
-| Resource | kit (create under /ref) |
+| Resource | space |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |

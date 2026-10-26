@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS "conflicts_conflict__fm" (
 CREATE INDEX IF NOT EXISTS "conflicts_conflict__owner" ON "conflicts_conflict" ("person");
 
 -- entity contact_address (contacts-link)
-CREATE TABLE IF NOT EXISTS "contacts_address" (
+CREATE TABLE IF NOT EXISTS "contacts_link_address" (
   "id" TEXT PRIMARY KEY,
   "contactId" TEXT,
   "kind" TEXT,
@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS "contacts_address" (
   "updated_at" INTEGER,
   "deleted_at" INTEGER
 );
-CREATE TABLE IF NOT EXISTS "contacts_address__fm" (
+CREATE TABLE IF NOT EXISTS "contacts_link_address__fm" (
   "id" TEXT NOT NULL,
   "field" TEXT NOT NULL,
   "hlc" TEXT NOT NULL,
@@ -145,7 +145,7 @@ CREATE TABLE IF NOT EXISTS "contacts_address__fm" (
   "seq" INTEGER,
   PRIMARY KEY ("id", "field")
 );
-CREATE INDEX IF NOT EXISTS "contacts_address__parent" ON "contacts_address" ("contactId");
+CREATE INDEX IF NOT EXISTS "contacts_link_address__parent" ON "contacts_link_address" ("contactId");
 
 -- entity conversation (inbox)
 CREATE TABLE IF NOT EXISTS "inbox_conversation" (
@@ -923,8 +923,8 @@ CREATE TABLE IF NOT EXISTS "rt_client_plan" (
   "holds" INTEGER NOT NULL DEFAULT 0,
   "client" TEXT,
   "stage" TEXT,
-  "trustName" TEXT,
-  "taxId" TEXT,
+  "trust_name" TEXT,
+  "tax_id" TEXT,
   "signed" TEXT
 );
 CREATE TABLE IF NOT EXISTS "rt_client_plan__fm" (
@@ -1104,7 +1104,7 @@ CREATE TABLE IF NOT EXISTS "rt_lead" (
   "email" TEXT,
   "phone" TEXT,
   "stage" TEXT,
-  "practiceArea" TEXT
+  "practice_area" TEXT
 );
 CREATE TABLE IF NOT EXISTS "rt_lead__fm" (
   "id" TEXT NOT NULL,
