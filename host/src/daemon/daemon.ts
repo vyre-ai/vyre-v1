@@ -163,6 +163,8 @@ export interface DaemonOptions {
   } & Partial<Omit<SeamDeps, "vault" | "drivers" | "owners">>;
   /** The address an agent computer reaches this daemon at (its container is not on localhost). Default http://host.docker.internal:<port>. */
   computersBaseUrl?: string;
+  /** How often an agent computer mirrors its home with Files while it runs (tests set it long and trigger passes by waking and sleeping). Default 3 s. */
+  computersHomeIntervalMs?: number;
   /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
   engineSandbox?: unknown;
   /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
@@ -607,7 +609,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           mint: (sessionId: string) => issueSessionToken(db!, sessionId, now),
           end: (sessionId: string) => { db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", now(), sessionId); },
         }),
-        setComputerHost: () => createComputersHost({ dataDir: paths.root }),
+        setComputerHost: () => createComputersHost({
+          dataDir: paths.root,
+          // the home mirror runs as the agent: the same pipeline as any call, so access, review rules and the scrubber apply
+          callAs: async (agentId, cap, input) => {
+            const r = await invoke(cap, input, { space: spaceId, principal: { kind: "agent", id: agentId }, origin: "computers" });
+            if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
+            return r.output;
+          },
+          putBytes: async (url, bytes) => {
+            const res = await fetch(`http://127.0.0.1:${boundPort}${url}`, { method: "PUT", headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream" }, body: bytes });
+            if (!res.ok) throw new Error(`the upload was refused (${res.status})`);
+          },
+          log: (level, msg, attrs) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "computers", ...(attrs ? { attrs } : {}) }),
+          ...(o.computersHomeIntervalMs !== undefined ? { homeIntervalMs: o.computersHomeIntervalMs } : {}),
+        }),
         // the Vault channel of agent computers (P-L2_21): agentd posts one #Handle.field at a time to /computers/fill with its own token; without a Vault the channel is not offered
         setComputersFill: (d) => d.vault ? createComputersFillHost({
           space: spaceId, invoke, vault: d.vault, now,

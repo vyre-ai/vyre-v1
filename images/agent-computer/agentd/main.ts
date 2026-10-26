@@ -9,6 +9,8 @@
 //   tool          { tool, args, timeoutMs } -> the tool's answer
 //
 // Not done in this build, said so rather than faked: WebRTC for the live view (only if MJPEG misses S9). #Handle.field is filled from the host over its channel (vault.ts, set by configure fillUrl and fillToken); nothing is written to disk. Vyre for Chrome is loaded from /opt/vyre-chrome when the image was built with the `ext` context.
+// Every process of the computer (the browser, the Terminal) makes files and folders anyone may change: the home folder is shared with the daemon, which mirrors it into Files as another user.
+process.umask(0o000);
 import { spawn } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { createServer as createNetServer } from "node:net";
