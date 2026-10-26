@@ -19,7 +19,7 @@ Create a booking page with host or round-robin pool, length, buffer and question
 | HTTP | POST /v1/bookings/page_create |
 | MCP tool | bookings_page_create (automations) |
 | CLI | none |
-| Emits | none |
+| Emits | form.created |
 
 ## Input
 

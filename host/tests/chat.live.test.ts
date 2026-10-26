@@ -78,7 +78,7 @@ test("chat live: a person's message to an agent on a booted daemon gets a stream
     // STOPGAP, remove when #472 (files live) lands: the Files module is still a stub, so the Agents folder cannot be found by search. Name one for the agents module with the daemon's own
     // modules.db handle; its file steps are answered by the stub. After #472, merge main, delete these two lines and the test goes through the real Agents folder.
     d.db!.run("CREATE TABLE IF NOT EXISTS agents_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
-    d.db!.run("INSERT OR REPLACE INTO agents_meta (key, value) VALUES (?, ?)", "agents.root", "fld_a1b2c3");
+    d.db!.run("INSERT OR REPLACE INTO agents_meta (key, value) VALUES (?, ?)", "agents.root", "fld_root");
     const made = await call(d, "agents.create", { name: "Intake", role: "You answer intake questions.", idempotencyKey: "chat-live-agent" });
     assert.equal(made.status, 200, JSON.stringify(made.data));
     const agentId = made.data.agent.agentId as string;

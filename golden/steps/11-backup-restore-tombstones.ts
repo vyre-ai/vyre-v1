@@ -40,7 +40,7 @@ export async function runRestore(live: readonly string[]): Promise<{ events: Obs
       expectStatus(await s.call("backup.config_set", admin, { target: { kind: "local", path: target }, schedule: "0 3 * * *", enabled: true }), 200, "backup.config_set");
     });
     const backupId = await trail.step("a backup runs", async () => {
-      const out = expectStatus(await s.call("backup.run", admin, {}), 200, "backup.run");
+      const out = expectStatus(await s.call("backup.run", admin, { idempotencyKey: "golden-11-run" }), 200, "backup.run");
       assert.ok(out.backupId, `backup.run answers a backup id: ${short(out)}`);
       return out.backupId as string;
     }, ["backups go to a local target", "a contact is created"]);
