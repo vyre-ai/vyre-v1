@@ -10,7 +10,7 @@ export const LIVE_FOR_GATE_REPLY = ["vault", "engine", "agents", "files", "acces
 
 /** Why this is a todo today. Each line names the PR it waits on. */
 export const GATE_GAPS: Gap[] = [
-  { packet: "steward (fake CLI)", lane: "L2", what: "host/tests/fixtures/fake-cli-driver/fake-cli.mjs has no scenario that calls a tool: it streams text only, so the agent can never ask to send mail; it needs a 'send <address>' scenario that calls the mail tool over the loopback MCP session" },
+  { packet: "PR 560 (P-L2_28)", lane: "L2", what: "the fake CLI gets a 'send <address>' scenario that calls mail_send over the loopback MCP session; until it lands the agent can never ask to send mail" },
   { packet: "PR 472 (P-L4_LIVE)", lane: "L4", what: "files migrations never create files_file, so agents.create answers 500" },
   { packet: "PR 471 (P-L7_LIVE)", lane: "L7", what: "the vault module and the signed-in steps need the L7 modules live" },
 ];
@@ -47,7 +47,7 @@ export async function runAgentGate(live: readonly string[], opts: Parameters<typ
       return id;
     }, ["an agent exists"]);
     const ask = (key: string) => async (): Promise<void> => {
-      expectStatus(await s.call("chat.post", admin, { idempotencyKey: key, threadId: thread!, body: "send pat@acme.test the weekly note", mentions: [{ kind: "agent", id: agent! }] }), 200, "chat.post");
+      expectStatus(await s.call("chat.post", admin, { idempotencyKey: key, threadId: thread!, body: "send pat@acme.test", mentions: [{ kind: "agent", id: agent! }] }), 200, "chat.post");
     };
     await trail.step("she asks it to send an email", ask("golden-7g-ask-1"), ["she starts a chat with it and the engine is bound"]);
     const first = await trail.step("the Gate holds the send and opens an Approve task for her", async () => {
