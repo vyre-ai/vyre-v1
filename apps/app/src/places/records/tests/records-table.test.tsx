@@ -260,3 +260,10 @@ test("a face in a cell reaches the stylesheet only as a hash class and a checked
   assert.ok(faceRule("Maya Chen", png).includes(`url("${png}")`));
   assert.ok(!faceRule("Maya Chen", "javascript:alert(1)").includes("javascript"));
 });
+
+test("a cell face is seeded by the person's id: two people called Maya Chen have two faces, and a rename keeps the face", async () => {
+  const { faceClassOf, faceRule } = await import("../table/model.ts");
+  assert.notEqual(faceClassOf("usr_maya_1"), faceClassOf("usr_maya_2"), "two ids, two faces, whatever they are called");
+  assert.notEqual(faceRule("usr_maya_1"), faceRule("usr_maya_2"));
+  assert.equal(faceRule("usr_maya_1"), faceRule("usr_maya_1"), "one id always gets the same face, so a rename changes nothing");
+});

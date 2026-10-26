@@ -162,7 +162,7 @@ const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): 
     },
     createElement("div", { className: "vrt-g" }, String(n)),
     createElement("div", { style: { width: primary.width, height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, boxSizing: "border-box", padding: "0 10px", overflow: "hidden", flex: "none" } },
-      row ? createElement("span", { className: "vrt-p", style: { ...CELL_TEXT, fontWeight: 500 } }, dot(title), title) : createElement("div", { style: GHOST }),
+      row ? createElement("span", { className: "vrt-p", style: { ...CELL_TEXT, fontWeight: 500 } }, dot(row.id, title), title) : createElement("div", { style: GHOST }),
       row && (hot || selected) ? <Pressable accessibilityRole="button" accessibilityLabel="Open record" testID={`open-${row.id}`} onPress={() => onOpen(row.id)} style={styles.xopen}><Glyph name="expand" size={13} color="var(--ink-2)" /></Pressable> : null,
     ),
   );
@@ -222,34 +222,34 @@ function findRule(sheet: FaceSheet, cls: string): number {
 let faceSheet: FaceSheet | null = null;
 const faceDoc = (): FaceDoc | undefined => (globalThis as { document?: FaceDoc }).document;
 /**
- * A person's face in a cell: the real marble (the blurred svg the Avatar draws), rendered once per person into the shared face cache and then painted as a plain background image. Until its
+ * A person's face in a cell, seeded by the person's id (the record id for the Name cell), never the name, so two people with one name have two faces and a rename keeps a face: the real marble (the blurred svg the Avatar draws), rendered once per person into the shared face cache and then painted as a plain background image. Until its
  * bitmap is ready the disc wears the CSS marble gradient. The look sits in one CSS rule per person, so when a bitmap lands every cell with that face changes at once and no row re-renders.
  * A page with no document (server render, tests) gets the same disc as an inline style.
  */
-function dot(name: string): ReactElement {
+function dot(seed: string, label: string): ReactElement {
   const look = { width: 18, height: 18, flex: "none", borderRadius: 9 } as const;
   const doc = faceDoc();
   if (doc === undefined) {
-    let st = dots.get(name);
-    if (!st) { st = { ...look, backgroundColor: marbleSpec(name).base, backgroundImage: marbleGradient(name) }; dots.set(name, st); }
-    return createElement("span", { "aria-hidden": true, "data-testid": `face-${name}`, style: st });
+    let st = dots.get(seed);
+    if (!st) { st = { ...look, backgroundColor: marbleSpec(seed).base, backgroundImage: marbleGradient(seed) }; dots.set(seed, st); }
+    return createElement("span", { "aria-hidden": true, "data-testid": `face-${label}`, style: st });
   }
-  const cls = faceClassOf(name);
+  const cls = faceClassOf(seed);
   if (!faceClasses.has(cls)) {
     if (faceSheet === null) { const el = doc.createElement("style"); doc.head.appendChild(el); faceSheet = el.sheet; }
     if (faceSheet !== null) {
       const sheet = faceSheet;
-      sheet.insertRule(faceRule(name), sheet.cssRules.length);
+      sheet.insertRule(faceRule(seed), sheet.cssRules.length);
       faceClasses.set(cls, true);
-      const key = faceKey(name, "person", 18, currentSkin());
-      requestFace(key, wrapSvg(marbleInner(name), "0 0 80 80", 18), 18, () => {
+      const key = faceKey(seed, "person", 18, currentSkin());
+      requestFace(key, wrapSvg(marbleInner(seed), "0 0 80 80", 18), 18, () => {
         // the bitmap replaces the rule: same class, the look with the real marble
         const at = findRule(sheet, cls);
-        if (at >= 0 && safeBitmapUrl(cachedFace(key)) !== null) { sheet.deleteRule(at); sheet.insertRule(faceRule(name, cachedFace(key)), at); }
+        if (at >= 0 && safeBitmapUrl(cachedFace(key)) !== null) { sheet.deleteRule(at); sheet.insertRule(faceRule(seed, cachedFace(key)), at); }
       });
     }
   }
-  return createElement("span", { "aria-hidden": true, "data-testid": `face-${name}`, className: cls });
+  return createElement("span", { "aria-hidden": true, "data-testid": `face-${label}`, className: cls });
 }
 
 function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string, width: number): ReactElement | null {
@@ -267,7 +267,7 @@ function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string,
     return createElement("span", { className: "vrt-chip", style: { "--h": hue, backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)`, color: `color-mix(in srgb, hsl(${hue}, 65%, 50%) 60%, var(--ink))` } }, fit(opt?.title ?? v, width - 27, 6.2));
   }
   if (field.type === "checkbox") return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;
-  if (field.type === "person") return createElement("span", { className: "vrt-p" }, dot(names(String(v))), fit(names(String(v)), width - 25));
+  if (field.type === "person") return createElement("span", { className: "vrt-p" }, dot(String(v), names(String(v))), fit(names(String(v)), width - 25));
   return createElement("span", { className: isNumeric(field) ? "vrt-c vrt-n" : "vrt-c" }, fit(cellText(field, v, names), width));
 }
 
