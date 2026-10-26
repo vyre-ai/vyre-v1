@@ -39,12 +39,12 @@
     {
       "id": "chat",
       "owner": "L2",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "computers",
       "owner": "L2",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "conflicts",
