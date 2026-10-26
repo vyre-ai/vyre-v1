@@ -5,6 +5,7 @@ import type { Handlers } from './handlers.ts';
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
   "identity.change_password": async () => ({"ok":true} as unknown) as never,
+  "identity.claim_owner": async () => ({"challengeId":"chl_a1b2c3","keys":{"personKeyByPassword":"d3JhcHBlZA==","personKeyByRecovery":"d3JhcHBlZA==","privateKeyWrapped":"d3JhcHBlZA==","publicKey":"cHVibGlj","spaceKeys":[{"epoch":1,"wrapped":"d3JhcHBlZA=="}]},"session":{"deviceId":"dev_a1b2c3","epoch":1,"expiresAt":1760000000000,"sessionId":"ses_a1b2c3","token":"example"},"status":"ok"} as unknown) as never,
   "identity.github_link": async () => ({"login":"example"} as unknown) as never,
   "identity.github_sign_in": async () => ({"challengeId":"chl_a1b2c3","keys":{"personKeyByPassword":"d3JhcHBlZA==","personKeyByRecovery":"d3JhcHBlZA==","privateKeyWrapped":"d3JhcHBlZA==","publicKey":"cHVibGlj","spaceKeys":[{"epoch":1,"wrapped":"d3JhcHBlZA=="}]},"session":{"deviceId":"dev_a1b2c3","epoch":1,"expiresAt":1760000000000,"sessionId":"ses_a1b2c3","token":"example"},"status":"ok"} as unknown) as never,
   "identity.github_unlink": async () => ({"ok":true} as unknown) as never,

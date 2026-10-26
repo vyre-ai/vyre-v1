@@ -13271,6 +13271,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/identity/claim_owner",
+    "cap": "identity.claim_owner",
+    "v": 1,
+    "module": "identity",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/identity/github_link",
     "cap": "identity.github_link",
     "v": 1,

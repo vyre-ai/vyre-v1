@@ -4,9 +4,10 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access, members.
 
-## Capabilities (26)
+## Capabilities (27)
 
 - [identity.change_password](../capabilities/identity.change_password.md): Change my own password; keys are re-wrapped on the device first
+- [identity.claim_owner](../capabilities/identity.claim_owner.md): Claim a fresh Space as its owner with the one-time link: pick a username and password, store the wrapped keys, and sign in
 - [identity.github_link](../capabilities/identity.github_link.md): Link a GitHub account so it can sign in once the Space is named
 - [identity.github_sign_in](../capabilities/identity.github_sign_in.md): Sign in with GitHub once the Space is named
 - [identity.github_unlink](../capabilities/identity.github_unlink.md): Remove the GitHub link
