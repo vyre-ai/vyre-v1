@@ -55,6 +55,8 @@ function emitsOf(source: string, body: { text: string; start: number }, depth = 
   return out;
 }
 
+export let HANDLERS_READ = 0;   // handlers whose body was found, printed so a lint that reads nothing cannot pass silently
+
 export function checkEmitsDeclared(file: string, source: string, caps: ReadonlyMap<string, Cap>, moduleId: string): EmitFinding[] {
   const out: EmitFinding[] = [];
   for (const key of source.matchAll(/(["'`])([a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+)\1\s*:\s*/g)) {
@@ -67,6 +69,7 @@ export function checkEmitsDeclared(file: string, source: string, caps: ReadonlyM
     if (ident) body = functionBody(source, ident[1]!);
     else if (/^(?:async\b|\(|function\b|[A-Za-z_$][\w$]*\s*=>)/.test(rest)) body = inlineBody(source, valueAt);
     if (!body) continue;
+    HANDLERS_READ++;
     const declared = new Set(cap.emits ?? []);
     const seen = new Set<string>();
     for (const e of emitsOf(source, body)) {
@@ -92,6 +95,6 @@ if (directRun()) {
   for (const f of files) all.push(...checkEmitsDeclared(f, fs.readFileSync(path.join(repo, f), "utf8"), caps, f.split("/")[1]!));
   for (const h of all) console.log(`emits-declared ${h.file}:${h.line}: ${h.message}`);
   const enforce = process.argv.includes("--enforce");
-  console.log(`emits-declared: ${all.length} undeclared emit(s)${enforce ? "" : " (report mode, exit 0)"}`);
+  console.log(`emits-declared: ${all.length} undeclared emit(s) in ${HANDLERS_READ} handlers read of ${caps.size} capabilities${enforce ? "" : " (report mode, exit 0)"}`);
   if (enforce && all.length) process.exit(1);
 }
