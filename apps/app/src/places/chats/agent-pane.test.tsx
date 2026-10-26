@@ -3,7 +3,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
+import { TabStrip } from "../../../../../ui/src/TabStrip/index.tsx";
 import { AGENT_PANE_W, AgentPane } from "./AgentPane.tsx";
+import { CHEVRON } from "./rightpane/fit.tsx";
 import { createGo, wirePane } from "./mounts/data.ts";
 import { PEOPLE, createMountSample } from "./mounts/sample.ts";
 import { offsetLabel } from "./rightpane/ComputerTab.tsx";
@@ -45,4 +47,19 @@ test("a sleeping computer shows its frame with a Wake button, and the last sessi
   assert.equal(offsetLabel(2_000), "0:02");
   assert.equal(offsetLabel(83_000), "1:23");
   assert.equal(offsetLabel(-5), "0:00");
+});
+
+test("the pane's top row is the open item as a tab: the agent's face and name with a close x, above the agent's header and the tabs", () => {
+  const out = pane({ width: AGENT_PANE_W });
+  assert.ok(out.includes('data-testid="tab-open-selected"') && out.includes('aria-label="Intake"'), "the open item as a tab");
+  assert.ok(out.includes('data-testid="tab-close-open"'), "with its close x");
+  assert.ok(out.indexOf('data-testid="tab-open-selected"') < out.indexOf('data-testid="pane-agent"'), "above the agent's header");
+  assert.ok(out.indexOf('data-testid="pane-agent"') < out.indexOf('data-testid="tab-computer-selected"'), "the tabs sit under the header");
+});
+
+test("the folded tabs are a down chevron named More tabs, with no word beside it", () => {
+  const tabs = [{ key: "more", title: "More tabs", label: "More tabs", iconOnly: true, icon: CHEVRON, pinned: true }];
+  const out = clean(renderToStaticMarkup(<TabStrip tabs={tabs} active="x" tight />));
+  assert.ok(out.includes('aria-label="More tabs"') && out.includes("<svg"));
+  assert.ok(!out.includes(">More tabs<"), "the name is spoken, not drawn");
 });

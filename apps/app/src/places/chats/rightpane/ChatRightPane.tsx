@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { TabStrip } from "../../../../../../ui/src/TabStrip/index.tsx";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -44,10 +45,8 @@ export interface ChatRightPaneProps {
 
 export const NOTICE_MS = 8000;
 /** What the pane header holds besides tabs: the toggle, the strip's padding and the options button. */
-export const PANE_CHROME = 64;
-/** The mark of the folded tabs, as the prototype draws it: a small mark, not the word, because four tabs and the word do not fit 340 px. It opens the menu of the rest. Drawn once the titles are measured on screen; the first frame, and a phone, keep the word. */
-export const MORE_MARK = "\u2026";
-const withMore = (w: ReadonlyMap<string, number>): ReadonlyMap<string, number> => new Map(w).set("More", 8).set(MORE_MARK, 8);
+export const PANE_CHROME = 56;
+const withMore = (w: ReadonlyMap<string, number>): ReadonlyMap<string, number> => new Map(w).set("More", 14).set("More tabs", 14);
 /** A pane tab is pinned and tight: no close slot, so it adds 7 + 7 padding, 2 border and the 2 px between tabs around its text, not TAB_EXTRA's 45. */
 export const PANE_TAB_EXTRA = 16;
 /** The prototype's pane: 340 px, room for Computer, Threads, Files and Memory with its count; Routines waits behind More at this width. */
@@ -65,52 +64,10 @@ export function ChatRightPane(props: ChatRightPaneProps): ReactElement {
 /** The frame before data: the pane header and a body the size of the real one, so nothing moves when the data arrives. */
 export function ChatRightPaneLoading({ open, onToggle }: { open: boolean; onToggle: () => void }): ReactElement {
   return (
-    <SidePane paneKey={PANE_KEY} toggle={{ open, onPress: onToggle }} title="Agent" tabs={TABS} activeTab={DEFAULT_TAB}>
-      <View testID="right-pane-loading" accessibilityLabel="Loading" style={st.sk}><View style={st.skFace} /><View style={st.skScreen} /></View>
-    </SidePane>
-  );
-}
-
-function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, paneWidth, openRoutine }: ChatRightPaneProps): ReactElement {
-  const data = usePaneData();
-  const online = useOnline();
-  const menu = useMenu();
-  const win = useWindowDimensions();
-  const narrow = win.width > 0 && win.width < NARROW;
-  const [own, setOwn] = useState<TabKey>(initialTab ?? DEFAULT_TAB);
-  const tab = controlled ?? own;
-  const [paneW, setPaneW] = useState(PANE_WIDTH_GUESS);
-  const [notice, setNotice] = useState<{ text: string; undo?: () => Promise<void> | void } | null>(null);
-  const deps: PaneDeps = useMemo(() => ({
-    call: data.call,
-    note: (text: string, undo?: () => Promise<void> | void) => setNotice(undo ? { text, undo } : { text }),
-  }), [data.call]);
-  useEffect(() => {
-    if (notice === null) return;
-    const t = setTimeout(() => setNotice(null), NOTICE_MS);
-    return () => clearTimeout(t);
-  }, [notice]);
-
-  const agentQ = useScreenQuery<AgentOut>(AGENT_PAGE_SCREEN, "agent", { agentId: data.agent.agentId });
-  const agent = agentQ.status === "ready" ? agentQ.data.agent : null;
-  const summaryQ = useScreenQuery<CapMap["agents.summary"]["out"]>(AGENT_PAGE_SCREEN, "summary", { agentId: data.agent.agentId });
-  const facts = summaryQ.status === "ready" ? summaryQ.data.memoryFacts : 0;
-  const tabs = useMemo(() => TABS.map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Memory ${facts}` } : {}) })), [facts]);
-  const titles = useTitleWidths();
-  const paneNow = paneWidth ?? (narrow ? win.width : paneW);
-  const { strip, select } = useFittedTabs(tabs, tab, paneNow, {
-    extra: PANE_TAB_EXTRA, chrome: PANE_CHROME, ...(titles.widths.size > 0 ? { moreTitle: MORE_MARK } : {}), menu, left: Math.max(0, win.width - paneNow) + 40, top: 40, measured: withMore(titles.widths),
-    pick: (key) => { setOwn(key); onTab?.(key); },
-  });
-  const moreMenu = (x: number, y: number): void => {
-    menu.show([
-      { label: `Open ${data.agent.name}'s Page`, onSelect: () => data.nav.openAgentPage(data.agent.agentId) },
-      { label: "Chat With It", onSelect: () => data.nav.openThread(data.threadId, "here") },
-    ], x, y, "other");
-  };
-
-  return (
-    <SidePane paneKey={PANE_KEY} toggle={{ open, onPress: onToggle }} title={data.agent.name} tabs={strip} activeTab={tab} onSelectTab={select} tight {...(narrow ? { max: 1, defaultWidth: win.width } : { defaultWidth: WIDE_PANE_W })}>
+    <SidePane
+      paneKey={PANE_KEY} toggle={{ open, onPress: onToggle }} title={data.agent.name} tabs={[openTab]} activeTab="open" onSelectTab={() => undefined} onCloseTab={onToggle}
+      {...(narrow ? { max: 1, defaultWidth: win.width } : { defaultWidth: WIDE_PANE_W })}
+    >
       <View testID="chats-right-pane" style={st.root} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}>
         <TabMeasure titles={tabs.map((x) => x.title)} onWidth={titles.set} />
         <View testID="pane-agent" style={st.who}>
@@ -121,6 +78,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
           </View>
           <Tool icon="more" label="More" onPress={moreMenu} testID="pane-more" />
         </View>
+        <TabStrip tabs={strip} active={tab} onSelect={select} tight label={`${data.agent.name}'s tabs`} />
         {online ? null : <Text testID="pane-offline" style={st.offline}>Offline. Showing what this device keeps.</Text>}
         <View testID={`pane-body-${tab}`} style={st.body}>
           {tab === "computer" ? <ComputerTab deps={deps} {...(window ? { window } : {})} /> : null}

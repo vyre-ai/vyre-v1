@@ -316,13 +316,15 @@ function TabItem({ tab, on, tight, dropTarget, canClose, nodeRef, onPress: press
   const [over, setOver] = useState(false);
   const pinned = tab.pinned === true;
   const ink = on ? "var(--ink)" : over ? "var(--ink-2)" : "var(--ink-3)";
+  const extraTab = tab as TabSpec & { lead?: ReactNode; iconOnly?: boolean; label?: string };
+  const name = extraTab.label ?? tab.title;
   const showClose = !pinned && canClose && (over || on);
   return (
     <Pressable
       ref={nodeRef}
       role="tab"
       aria-selected={on}
-      aria-label={tab.title}
+      aria-label={name}
       testID={on ? `tab-${tab.key}-selected` : `tab-${tab.key}`}
       onPress={press}
       onHoverIn={() => setOver(true)}
@@ -331,7 +333,7 @@ function TabItem({ tab, on, tight, dropTarget, canClose, nodeRef, onPress: press
       style={[styles.tab, pinned ? styles.tabPinned : null, pinned && tight ? styles.tabTight : null, over && !on ? HOVER : null, on ? ACTIVE : null, dropTarget ? DROP : null]}
       {...trigger}
       {...webProps({
-        title: tab.title,
+        title: name,
         tabIndex: on ? 0 : -1,
         onKeyDown: (event: EventLike) => { onKeyDown(event); (trigger["onKeyDown"] as ((e: unknown) => void) | undefined)?.(event); },
         onPointerDown: (event: EventLike) => { if (event.button === undefined || event.button === 0) onDragStart(); },
@@ -345,8 +347,9 @@ function TabItem({ tab, on, tight, dropTarget, canClose, nodeRef, onPress: press
         },
       })}
     >
+      {extraTab.lead !== undefined ? extraTab.lead : null}
       {tab.icon !== undefined && tab.icon.length > 0 ? <MenuIcon icon={tab.icon} color={ink} size={14} /> : null}
-      <Text numberOfLines={1} style={[styles.title, { color: ink }]}>{tab.title}</Text>
+      {extraTab.iconOnly === true ? null : <Text numberOfLines={1} style={[styles.title, { color: ink }]}>{tab.title}</Text>}
       {pinned ? null : (
         <Pressable
           role="button"
