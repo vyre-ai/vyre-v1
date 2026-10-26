@@ -1477,6 +1477,7 @@ export function stubs(ctx: CallCtx) {
       post_update: call("projects.post_update"),
       reschedule: call("projects.reschedule"),
       share_out: call("projects.share_out"),
+      shared_view: call("projects.shared_view"),
       stages: {
         set: call("projects.stages.set"),
       },
@@ -1485,6 +1486,7 @@ export function stubs(ctx: CallCtx) {
       },
       unlink_tasks: call("projects.unlink_tasks"),
       unpin_file: call("projects.unpin_file"),
+      unshare_out: call("projects.unshare_out"),
     },
     providers: {
       add: call("providers.add"),
