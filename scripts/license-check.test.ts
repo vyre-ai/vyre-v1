@@ -13,6 +13,12 @@ test('AGPL and GPL are blocked and the allowlist licenses pass', () => {
     { name: 'gpl', license: 'GPL-3.0-only' },
     { name: 'sspl', license: 'SSPL-1.0' },
     { name: 'mit', license: 'MIT' },
+    { name: 'mit0', license: 'MIT-0' },
+    { name: 'blueoak', license: 'BlueOak-1.0.0' },
+    { name: 'unlicense', license: 'Unlicense' },
+    { name: 'zlib', license: 'Zlib' },
+    { name: 'pako', license: '(MIT AND Zlib)' },
+    { name: 'mixed', license: 'MIT AND GPL-3.0-only' },
     { name: 'apache', license: 'Apache-2.0' },
     { name: 'bsd2', license: 'BSD-2-Clause' },
     { name: 'bsd3', license: 'BSD-3-Clause' },
@@ -21,6 +27,9 @@ test('AGPL and GPL are blocked and the allowlist licenses pass', () => {
     { name: 'none', license: '' },
   ]);
   const by = new Map(hits.map((h) => [h.name, h]));
+  assert.equal(by.get('mit0')?.ok, true, 'MIT-0 (nodemailer) is permissive');
+  for (const n of ['blueoak', 'unlicense', 'zlib', 'pako']) assert.equal(by.get(n)?.ok, true, `${n} is allowed`);
+  assert.equal(by.get('mixed')?.ok, false, 'an AND expression needs every part allowed');
   assert.equal(by.get('agpl')?.ok, false);
   assert.match(by.get('agpl')?.reason ?? '', /AGPL/);
   assert.equal(by.get('gpl')?.ok, false);

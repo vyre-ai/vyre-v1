@@ -286,15 +286,15 @@ export function sessionOfToken(ctx: IdentityCtx, token: string): { sessionId: st
   return { sessionId: r.id, personId: r.person_id, deviceId: r.device_id };
 }
 
-// ---- one-time codes (pair, reset)
-export function putCode(ctx: IdentityCtx, kind: "pair" | "reset", personId: string, code: string, ttl: number, purpose?: string): number {
+// ---- one-time codes (pair, reset, claim)
+export function putCode(ctx: IdentityCtx, kind: "pair" | "reset" | "claim", personId: string, code: string, ttl: number, purpose?: string): number {
   const expiresAt = ctx.now() + ttl;
   ctx.db.run(`INSERT INTO identity_codes (code_hash, kind, person_id, purpose, expires_at, used_at) VALUES (?, ?, ?, ?, ?, ?)`,
     sha(`${kind}:${code}`), kind, personId, purpose ?? null, expiresAt, null);
   return expiresAt;
 }
 /** Spend a code once. Unknown, spent and expired codes all read the same to the caller except expired. */
-export function spendCode(ctx: IdentityCtx, kind: "pair" | "reset", code: string): { personId: string; purpose: string | null } {
+export function spendCode(ctx: IdentityCtx, kind: "pair" | "reset" | "claim", code: string): { personId: string; purpose: string | null } {
   const h = sha(`${kind}:${code}`);
   const r = ctx.db.all(`SELECT person_id, purpose, expires_at, used_at FROM identity_codes WHERE code_hash = ?`, h)[0] as
     { person_id: string; purpose: string | null; expires_at: number; used_at: number | null } | undefined;

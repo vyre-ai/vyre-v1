@@ -41,6 +41,7 @@ type Out = {
   deviceId?: string;
   epoch: number;
   spaceId: string;
+  deferred?: Array<string>;
 };
 ```
 
@@ -58,6 +59,9 @@ type Out = {
   "name": "example",
   "input": {},
   "output": {
+    "deferred": [
+      "example"
+    ],
     "deviceId": "dev_a1b2c3",
     "epoch": 1,
     "groups": [
