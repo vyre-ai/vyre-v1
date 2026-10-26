@@ -251,7 +251,11 @@ export function CmdK({ data, initialQuery = "", platform = "mac", onClose, onTim
 /** Screen shell.new-tab: the same search, inline in a new tab. Enter fills the tab (open), Cmd-Enter opens a new tab. */
 export function NewTabSearch({ data, platform = "mac" }: { data: CmdKData; platform?: KeyPlatform }): ReactElement {
   const ctl = useCmdK(data);
-  return <CmdKBody controller={ctl} platform={platform} inline placeholder={"Open anything, or start something…"} />;
+  return (
+    <View testID="newtab-page" style={styles.newtab}>
+      <CmdKBody controller={ctl} platform={platform} inline placeholder={"Open anything, or start something…"} />
+    </View>
+  );
 }
 
 const FIXED = (Platform.OS === "web" ? "fixed" : "absolute") as unknown as "absolute";
@@ -260,7 +264,8 @@ const styles = StyleSheet.create({
   veil: { position: FIXED, top: 0, left: 0, right: 0, bottom: 0, zIndex: 70, backgroundColor: "rgba(10,10,12,0.22)", alignItems: "center", paddingTop: (Platform.OS === "web" ? "14vh" : 72) as unknown as number },
   sheet: { width: "100%", maxWidth: 632, paddingHorizontal: 16 },
   card: { width: "100%", backgroundColor: "var(--raised)", borderRadius: 14, overflow: "hidden", boxShadow: "var(--sh-pop), 0 30px 60px -20px rgba(0,0,0,0.35)" } as object,
-  cardInline: { maxWidth: 600, alignSelf: "center", borderRadius: 14 },
+  cardInline: { width: "100%", maxWidth: 640, alignSelf: "center", borderRadius: 14, boxShadow: "none", borderWidth: 1, borderColor: "var(--line)" } as object,
+  newtab: { flex: 1, width: "100%", alignItems: "center", paddingTop: 40, paddingHorizontal: 16 },
   head: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "var(--line)" },
   input: { flex: 1, height: 52, paddingHorizontal: 18, fontSize: 16, color: "var(--ink)", backgroundColor: "transparent" },
   filterBtn: { height: 26, paddingHorizontal: 9, marginRight: 12, borderRadius: 6, justifyContent: "center" },
