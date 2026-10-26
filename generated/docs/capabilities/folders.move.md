@@ -19,7 +19,7 @@ Move a folder under another folder, or to the top
 | HTTP | POST /v1/folders/move |
 | MCP tool | folders_move (meta) |
 | CLI | none |
-| Emits | folder.moved, item.moved |
+| Emits | folder.moved, item.moved, access.changed |
 
 ## Input
 
