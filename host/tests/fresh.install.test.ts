@@ -67,7 +67,7 @@ test("a fresh install: claim link, claim, sign in, work, invite a member who joi
     assert.equal(who.status, 200, JSON.stringify(who.body));
 
     // the support bundle and the logs never hold the code
-    const bundle = await post(owner, "/v1/health/support_bundle", {});
+    const bundle = await post(owner, "/v1/health/support_bundle", { idempotencyKey: "fresh-bundle" });
     assert.equal(bundle.status, 200, JSON.stringify(bundle.body));
     for (const row of d.db!.all("SELECT body FROM health_bundle") as { body: string }[]) assert.ok(!row.body.includes(code), "the support bundle does not hold the claim code");
     assert.ok(!logText().includes(code), "no log line holds the claim code after the claim either");
