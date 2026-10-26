@@ -20,7 +20,7 @@ What stays in the log: envelopes (ids, event type, actor, times, the names of ch
 
 A projection rebuild reads an erased event as a no-op (`isErased`, applied in `ProjectionHost.fold` and in the host's consumers). The erased subject's rows are purged and do not come back. A row of someone else that an erased event touched keeps its last written values until it is next rebuilt, then loses only what the erased event wrote.
 
-Projection tables keep their own copies of values until they are rebuilt or purged: for example `sync_changes.fields` holds field values of past changes. `records.purge` and `governance.erase` remove the rows; a rebuild clears history.
+The sync tables keep field values of their own: `sync_changes.fields` for every change and `sync_rows.fields` for the current row. Erase blanks them (`modules/sync/erase.ts`, called by the events port right after the log is compacted and again when a restore replays the seqs): every change of an erased id and every change made by an erased event gets `fields = {}`, and the erased rows too. The rows themselves stay, so device cursors still land on a change and a device that holds the row still gets its delete. Other projection tables are rebuilt from the log (where the erased events are no-ops) or purged with their rows.
 
 ## Sync
 
