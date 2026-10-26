@@ -101,11 +101,13 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       if (gap) { todo.push(gap); s.todo(gap); return; }
       await step("chats", async () => {
         await page.getByTestId("rail-chats").or(page.getByTestId("rail-chats-selected")).first().click();
-        const field = page.getByTestId("composer-field");
-        await field.waitFor({ timeout: 15_000 });
+        await page.getByTestId("chats-place").waitFor({ timeout: 15_000 });
+        // A claimed Space starts with no chats: the sidebar then says so (the shared empty state) and there is no composer to type in. With a chat open, a sent message must appear.
+        const composer = page.getByTestId("composer-field");
+        if (await composer.count() === 0) { await page.getByTestId("state-empty").first().waitFor({ timeout: 15_000 }); return; }
         const text = `real app check ${Date.now()}`;
-        await field.fill(text);
-        await field.press("Enter");
+        await composer.fill(text);
+        await composer.press("Enter");
         await page.getByText(text).first().waitFor({ timeout: 15_000 });
       });
     });
@@ -115,7 +117,8 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       if (gap) { todo.push(gap); s.todo(gap); return; }
       await step("records", async () => {
         await page.getByTestId("rail-records").or(page.getByTestId("rail-records-selected")).first().click();
-        await page.locator('[data-testid^="rec-"]').first().waitFor({ timeout: 15_000 });
+        await page.getByTestId("records-place").waitFor({ timeout: 15_000 });
+        await page.locator('[data-testid^="rec-"], [data-testid="state-empty"]').first().waitFor({ timeout: 15_000 });
       });
     });
 
@@ -124,7 +127,8 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       if (gap) { todo.push(gap); s.todo(gap); return; }
       await step("files", async () => {
         await page.getByTestId("rail-files").or(page.getByTestId("rail-files-selected")).first().click();
-        await page.getByTestId("files-list").waitFor({ timeout: 15_000 });
+        await page.getByTestId("files-place").waitFor({ timeout: 15_000 });
+        await page.locator('[data-testid="files-list"], [data-testid="state-empty"]').first().waitFor({ timeout: 15_000 });
       });
     });
 
