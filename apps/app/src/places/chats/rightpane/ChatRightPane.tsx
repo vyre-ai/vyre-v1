@@ -45,8 +45,8 @@ export interface ChatRightPaneProps {
 export const NOTICE_MS = 8000;
 /** What the pane header holds besides tabs: the toggle, the strip's padding and the options button. */
 export const PANE_CHROME = 64;
-/** A pane tab is pinned: no close slot, so it adds 10 + 10 padding, 2 border and the 2 px between tabs around its text, not TAB_EXTRA's 45. */
-export const PANE_TAB_EXTRA = 22;
+/** A pane tab is pinned and tight: no close slot, so it adds 7 + 7 padding, 2 border and the 2 px between tabs around its text, not TAB_EXTRA's 45. */
+export const PANE_TAB_EXTRA = 16;
 /** The prototype's pane: 340 px, room for Computer, Threads, Files and Memory with its count; Routines waits behind More at this width. */
 export const WIDE_PANE_W = 340;
 /** Below this window width the pane fills it (a phone shows it as a screen of its own); above, it is a resizable column. */
@@ -107,7 +107,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   };
 
   return (
-    <SidePane paneKey={PANE_KEY} toggle={{ open, onPress: onToggle }} title={data.agent.name} tabs={strip} activeTab={tab} onSelectTab={select} {...(narrow ? { max: 1, defaultWidth: win.width } : { defaultWidth: WIDE_PANE_W })}>
+    <SidePane paneKey={PANE_KEY} toggle={{ open, onPress: onToggle }} title={data.agent.name} tabs={strip} activeTab={tab} onSelectTab={select} tight {...(narrow ? { max: 1, defaultWidth: win.width } : { defaultWidth: WIDE_PANE_W })}>
       <View testID="chats-right-pane" style={st.root} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}>
         <TabMeasure titles={tabs.map((x) => x.title)} onWidth={titles.set} />
         <View testID="pane-agent" style={st.who}>

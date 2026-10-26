@@ -140,6 +140,8 @@ const TAB_MAX_WIDTH = 210;
 export interface TabStripViewProps extends TabStripProps {
   /** Accessible name for the strip. */
   label?: string;
+  /** Pinned tabs with 7 px padding instead of 10: a narrow side pane that has to fit four tabs (the prototype's agent pane). */
+  tight?: boolean;
 }
 
 export function TabStrip(props: TabStripViewProps): ReactElement {
@@ -220,6 +222,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
         key={tab.key}
         tab={tab}
         on={on}
+        tight={props.tight === true}
         dropTarget={drag !== null && drag.over === tab.key && drag.from !== tab.key}
         canClose={onClose !== undefined}
         nodeRef={(node) => { nodes.current[tab.key] = node; }}
@@ -294,9 +297,10 @@ function IconButton({ name, label, onPress: press, nodeRef }: { name: string; la
   );
 }
 
-function TabItem({ tab, on, dropTarget, canClose, nodeRef, onPress: press, onClose, trigger, onKeyDown, onDragStart, onDragOver, onDragEnd, onLayout }: {
+function TabItem({ tab, on, tight, dropTarget, canClose, nodeRef, onPress: press, onClose, trigger, onKeyDown, onDragStart, onDragOver, onDragEnd, onLayout }: {
   tab: TabSpec;
   on: boolean;
+  tight: boolean;
   dropTarget: boolean;
   canClose: boolean;
   nodeRef: (node: unknown) => void;
@@ -324,7 +328,7 @@ function TabItem({ tab, on, dropTarget, canClose, nodeRef, onPress: press, onClo
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
       onLayout={(event) => onLayout(event.nativeEvent.layout.x, event.nativeEvent.layout.width)}
-      style={[styles.tab, pinned ? styles.tabPinned : null, over && !on ? HOVER : null, on ? ACTIVE : null, dropTarget ? DROP : null]}
+      style={[styles.tab, pinned ? styles.tabPinned : null, pinned && tight ? styles.tabTight : null, over && !on ? HOVER : null, on ? ACTIVE : null, dropTarget ? DROP : null]}
       {...trigger}
       {...webProps({
         title: tab.title,
@@ -387,6 +391,7 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   tabPinned: { paddingRight: 10 },
+  tabTight: { paddingLeft: 7, paddingRight: 7 },
   title: { flexShrink: 1, fontSize: 12.5, lineHeight: 16 },
   close: { width: 18, height: 18, borderRadius: 5, alignItems: "center", justifyContent: "center" },
   iconButton: { width: 26, height: 26, marginBottom: 4, borderRadius: 7, alignItems: "center", justifyContent: "center" },
