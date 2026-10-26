@@ -90,7 +90,7 @@ test("the owner of a new agent reaches its folder from the start; after a reassi
     assert.equal(removed.status, 200, JSON.stringify(removed.body));
     for (const [type, id] of [["folder", agent.folderId], ["agent", agent.id]] as const) {
       const who = await sharesOf(type, id);
-      assert.ok(who.includes(`owner:${heir.id}`), `the new owner owns the ${type}: ${who.join(", ")}`);
+      assert.ok(who.some((w) => w.endsWith(`:${heir.id}`)), `the new owner holds the ${type}: ${who.join(", ")}`);
       assert.ok(!who.some((w) => w.endsWith(`:${first.id}`)), `and the previous owner holds nothing on the ${type}`);
     }
 

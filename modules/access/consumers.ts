@@ -198,7 +198,9 @@ export const hostCalls = {
     const actx = ctx as unknown as AccessCtx;
     const store = storeOf(actx);
     const r = store.resources.get(input.resource.id);
-    if (!r || r.type !== input.resource.type || r.ownerId !== input.from) return false;
+    if (!r || r.type !== input.resource.type) return false;
+    const held = [...store.grants.values()].some((g) => g.resource.type === r.type && g.resource.id === r.id && g.subject.kind === "person" && g.subject.id === input.from);
+    if (r.ownerId !== input.from && !held) return false;   // the previous owner has nothing here: nothing moves
     r.ownerId = input.to;
     for (const [id, g] of [...store.grants]) {
       if (g.resource.type === r.type && g.resource.id === r.id && g.subject.kind === "person" && g.subject.id === input.from) store.grants.delete(id);

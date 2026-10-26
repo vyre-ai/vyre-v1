@@ -82,6 +82,12 @@ export function fillAccessTables(db: AccessTableDb, events: readonly AnyEvent[])
         db.run("INSERT OR IGNORE INTO access_resources (id,type,parent_id,label,owner_id,holds,row_json) VALUES (?,?,?,?,?,?,?)", String(p["id"]), String(p["type"]), p["parent_id"] ?? null, LABELS[Number(p["label"] ?? 0)] ?? "public", p["owner_id"] ?? null, Number(p["holds"] ?? 0), null);
         break;
       case "grant.created": {
+        // a share made through access.share announces itself in the module's own shape ({ grantId, subject, resource, level }); the seed's rows carry subject_kind
+        if (p["subject_kind"] === undefined && typeof p["grantId"] === "string") {
+          const subject = (p["subject"] ?? {}) as { kind?: string; id?: string }, resource = (p["resource"] ?? {}) as { type?: string; id?: string };
+          db.run("INSERT OR IGNORE INTO access_grants (id,subjectKind,subjectId,resourceType,resourceId,level,conditions,expiresAt,by,source,version) VALUES (?,?,?,?,?,?,?,?,?,?,?)", p["grantId"], String(subject.kind ?? "person"), String(subject.id ?? ""), String(resource.type ?? ""), resource.id ?? "*", String(p["level"] ?? "view"), "{}", null, "svc_seed", (p["source"] as string | undefined) ?? null, 1);
+          break;
+        }
         const kind = String(p["subject_kind"]), id = String(p["subject_id"]);
         const subjectKind = kind === "actor" ? kindOf(id) : kind;
         const subjectId = kind === "role" ? (ROLE_OF[id] ?? `rol_${id}`) : id;
