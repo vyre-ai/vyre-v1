@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { LogStore } from "./store.ts";
 import { IdempotencyTable } from "../idempotency/table.ts";
 import type { NewEvent } from "./types.ts";
+import { compact, compactSeqs } from "../events/compact.ts";
 
 export interface WorkerInit { path: string; space: string; windowMs: number; maxBatch: number }
 const init = workerData as WorkerInit;
@@ -44,6 +45,16 @@ port.on("message", (m: { req: number; op: string; args?: any }) => {
       case "verify": return port.postMessage({ req: m.req, ok: true, value: store.verify(m.args) });
       case "proves": return port.postMessage({ req: m.req, ok: true, value: store.proves(m.args.seq) });
       case "erase": return port.postMessage({ req: m.req, ok: true, value: store.erase(m.args.seq) });
+      case "compact":
+        flush();
+        compact(store, m.args.subject, { db: store.db, ...(m.args.vacuum === undefined ? {} : { vacuum: m.args.vacuum }) })
+          .then((value) => port.postMessage({ req: m.req, ok: true, value }), (e: Error) => port.postMessage({ req: m.req, ok: false, error: { code: (e as { code?: string }).code ?? "internal", message: e.message } }));
+        return;
+      case "compact_seqs":
+        flush();
+        compactSeqs(store, m.args.seqs, { db: store.db, ...(m.args.vacuum === undefined ? {} : { vacuum: m.args.vacuum }) })
+          .then((value) => port.postMessage({ req: m.req, ok: true, value }), (e: Error) => port.postMessage({ req: m.req, ok: false, error: { code: (e as { code?: string }).code ?? "internal", message: e.message } }));
+        return;
       case "head": return port.postMessage({ req: m.req, ok: true, value: store.head });
       case "idem_get": return port.postMessage({ req: m.req, ok: true, value: idem.get(m.args.key, Date.now()) });
       case "idem_put": return port.postMessage({ req: m.req, ok: true, value: idem.put(m.args.key, m.args.principal, m.args.cap, m.args.rec, Date.now()) });

@@ -477,6 +477,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           blobs: { put: async (bytes, type) => (await blobs.forModule("backup").put(bytes, type)).id }, secrets: () => [token],
         }),
         setEventsDispatch: () => system,
+        // erase reaches the append-only log (P-CC_41): governance asks the log worker to tombstone payloads, and a restore replays the seqs it kept
+        setEventsCompact: () => {
+          // the sync tables keep field values of their own (sync_changes, sync_rows): blank them too, keeping the rows so device cursors and deletes still work
+          const blank = loaded.moduleExports.get("sync")?.["blankErased"] as ((db: unknown, scope: { ids?: readonly string[]; seqs?: readonly number[] }) => void) | undefined;
+          const scrub = (scope: { ids?: readonly string[]; seqs?: readonly number[] }): void => { try { if (db) blank?.(db, scope); } catch { /* sync is not live here, so there are no sync tables */ } };
+          return {
+            compact: async (subject: Parameters<typeof spaceLog.compact>[0]) => { const out = await spaceLog.compact(subject); scrub({ ids: (subject.entities ?? []).map((e) => e.id), seqs: out.erased }); return out; },
+            compactSeqs: async (seqs: readonly number[]) => { const out = await spaceLog.compactSeqs(seqs); scrub({ seqs: out.erased }); return out; },
+          };
+        },
         // identity opens a device session at sign-in: the token is minted here for that devices session, and ending a session stops it at the gateway (P-SEC_05)
         setSessionTokens: () => ({
           mint: (sessionId: string) => issueSessionToken(db!, sessionId, now),
