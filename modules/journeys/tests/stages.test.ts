@@ -117,7 +117,7 @@ test("start makes the Journey record with its channel, enters the first stage, m
   assert.deepEqual(h.events[1]!.payload, { journeyId: j.id, recordId: r.recordId, stage: "intake", version: 1, manual: false });
   const rec = h.only("records.create")[0]!.input;
   assert.equal(rec.type, "journey_client_intake");
-  assert.deepEqual({ ...rec.fields, name: undefined }, { name: undefined, stage: "intake", subject: "rec_s1", owner: alice.id, entered_at: NOW });
+  assert.deepEqual({ ...rec.fields, name: undefined }, { name: undefined, stage: "intake", subject: [{ urn: `vyre://spc_test/contact/rec_s1` }], owner: alice.id, entered_at: new Date(NOW).toISOString() });
   assert.equal(h.only("channels.create")[0]!.input.recordId, r.recordId);
   assert.equal(h.tasks.length, 2);
   const t = h.tasks[0]!.input;
@@ -179,7 +179,7 @@ test("move_stage needs a reason, leaves the old stage, enters the new, runs the 
   assert.deepEqual(h.events[0]!.payload, { journeyId: j.id, recordId: rec, stage: "intake", toStage: "review" });
   assert.deepEqual(h.events[1]!.payload, { journeyId: j.id, recordId: rec, stage: "review", previousStage: "intake", version: 1, manual: true, reason: "Papers came by post" });
   assert.deepEqual(h.events[2]!.payload, { journeyId: j.id, recordId: rec, fromStage: "intake", toStage: "review", reason: "Papers came by post", by: alice.id });
-  assert.deepEqual(h.only("records.update")[0]!.input, { type: "journey_client_intake", recordId: rec, patch: { stage: "review", entered_at: NOW } });
+  assert.deepEqual(h.only("records.update")[0]!.input, { type: "journey_client_intake", recordId: rec, patch: { stage: "review", entered_at: new Date(NOW).toISOString() } });
   const fire = h.only("automations.fire")[0]!.input;
   assert.deepEqual([fire.automationId, fire.payload.manual, fire.payload.previousStage, fire.payload.stage], ["aut_review1", true, "intake", "review"]);
   assert.deepEqual(h.only("tasks.withdraw").map((c) => c.input.taskId).sort(), oldTasks.sort(), "the old stage's open tasks went with it");
