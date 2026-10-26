@@ -3,6 +3,9 @@
 // acceptHook is what the host's /hooks/twilio/* route calls first: it refuses a request Twilio did not sign and hands the rest to twilio.receive_webhook.
 import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
+import { hostOnly } from "../../host/src/ctx/host-only.ts";
+import type { Ctx } from "../../packages/contracts/src/ctx.ts";
+import type { WebhookAccept } from "../../host/src/routes/webhooks.ts";
 import { setTwilioHost } from "./projections.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 
@@ -31,10 +34,19 @@ export const handlers: Record<string, Handler> = {
   "twilio.a2p.status": (ctx, i) => h.a2pStatus(ctx, i),
   "twilio.a2p.attach_number": (ctx, i) => h.a2pAttachNumber(ctx, i),
   "twilio.health": (ctx) => h.health(ctx),
-  "twilio.receive_webhook": (ctx, i) => h.receiveWebhook(ctx, i),
+  "twilio.receive_webhook": (ctx, i) => { hostOnly(ctx, "twilio.receive_webhook"); return h.receiveWebhook(ctx, i); },
 };
 
 export const projections = { inline: {}, consumers: {} };
 
 /** Where the host registers its half at boot (ruling 31). */
 export const hostSeams: SeamSetters = { setTwilioHost };
+
+/** /hooks/twilio/<voice|sms|status|recording> (P-L5_17): Twilio signs the URL it called and the form fields, so the host passes both as they arrived. The answer carries the TwiML a call is owed. */
+export const hostCalls = {
+  "twilio.accept_webhook": async (ctx: Ctx, a: WebhookAccept): Promise<unknown> => {
+    const params = Object.fromEntries(new URLSearchParams(a.body)) as Record<string, string>;
+    const input = await h.acceptHook(ctx, { kind: a.kind ?? "", url: a.url, params, signature: a.headers["x-twilio-signature"] });
+    return h.receiveWebhook(ctx, input);
+  },
+};
