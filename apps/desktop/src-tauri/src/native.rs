@@ -10,6 +10,8 @@ use crate::commands::{self, AppState};
 use crate::links;
 use rusqlite::{Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -125,13 +127,15 @@ pub struct PickOptions {
 #[serde(rename_all = "camelCase")]
 pub struct CodexDiscoveryOptions {
     pub codex_home: Option<String>,
+    pub claude_home: Option<String>,
+    pub claude_desktop_home: Option<String>,
 }
 
 /// Metadata from Codex's state database. Transcript bodies remain unread until a user selects this source.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CodexSessionSource {
-    pub provider: &'static str,
+pub struct SessionSource {
+    pub provider: String,
     pub session_id: String,
     pub session_key: String,
     pub project_key: String,
@@ -143,10 +147,23 @@ pub struct CodexSessionSource {
     pub git_origin_url: Option<String>,
 }
 
-/// Read `state_5.sqlite` only. SQLite opens it immutable when the platform accepts a file URI, then falls back to read-only.
+/// Read `state_5.sqlite` only, through SQLite's immutable file URI.
 #[tauri::command]
-pub fn discover_codex_sessions(options: CodexDiscoveryOptions) -> Result<Vec<CodexSessionSource>, String> {
-    let Some(root) = codex_root(options.codex_home.as_deref()) else { return Ok(Vec::new()); };
+pub fn discover_codex_sessions(options: CodexDiscoveryOptions) -> Result<Vec<SessionSource>, String> {
+    codex_sources(options.codex_home.as_deref())
+}
+
+/// Metadata-only source discovery for packaged clients. Provider roots are resolved independently and transcript bodies are never opened here.
+#[tauri::command]
+pub fn discover_session_sources(options: CodexDiscoveryOptions) -> Result<Vec<SessionSource>, String> {
+    let mut out = codex_sources(options.codex_home.as_deref())?;
+    out.extend(claude_sources(options.claude_home.as_deref(), options.claude_desktop_home.as_deref()));
+    out.sort_by(|a, b| a.session_key.cmp(&b.session_key));
+    Ok(out)
+}
+
+fn codex_sources(configured: Option<&str>) -> Result<Vec<SessionSource>, String> {
+    let Some(root) = codex_root(configured) else { return Ok(Vec::new()); };
     let state = root.join("state_5.sqlite");
     if !contained_file(&root, &state) { return Ok(Vec::new()); }
     let db = open_codex_state(&state)?;
@@ -165,9 +182,86 @@ pub fn discover_codex_sessions(options: CodexDiscoveryOptions) -> Result<Vec<Cod
         let transcript = transcript_path(&root, &rollout);
         if !contained_file(&root, &transcript) { continue; }
         let project_key = cwd.as_deref().map(|value| format!("codex:{value}")).unwrap_or_else(|| "codex:unknown".to_string());
-        out.push(CodexSessionSource { provider: "codex", session_key: format!("codex:{id}"), session_id: id, project_key, transcript_path: transcript.to_string_lossy().into_owned(), cwd, created_at, updated_at, git_branch, git_origin_url });
+        out.push(SessionSource { provider: "codex".to_string(), session_key: format!("codex:{id}"), session_id: id, project_key, transcript_path: transcript.to_string_lossy().into_owned(), cwd, created_at, updated_at, git_branch, git_origin_url });
     }
     Ok(out)
+}
+
+fn claude_sources(configured: Option<&str>, configured_desktop: Option<&str>) -> Vec<SessionSource> {
+    let Some(root) = claude_root(configured) else { return Vec::new(); };
+    // Claude Desktop lives outside ~/.claude. It receives its own containment root, never the provider root.
+    let metadata = claude_desktop_metadata(claude_desktop_root(configured_desktop));
+    let mut out = Vec::new();
+    for area in ["projects", "projects-archive"] {
+        let base = root.join(area);
+        for file in contained_files(&root, &base) {
+            let Some(id) = claude_session_id(file.file_name().and_then(|name| name.to_str())) else { continue; };
+            let project = file.strip_prefix(&base).ok().and_then(|relative| relative.components().next()).and_then(|part| part.as_os_str().to_str()).unwrap_or("unknown");
+            let extra = metadata.get(&id);
+            out.push(SessionSource {
+                provider: "claude".to_string(), session_key: format!("claude:{id}"), session_id: id,
+                project_key: format!("claude:{project}"), transcript_path: file.to_string_lossy().into_owned(),
+                cwd: extra.and_then(|value| value.0.clone()), created_at: None, updated_at: extra.and_then(|value| value.1.clone()), git_branch: None, git_origin_url: None,
+            });
+        }
+    }
+    out.sort_by(|a, b| a.session_key.cmp(&b.session_key));
+    out.dedup_by(|a, b| a.session_key == b.session_key);
+    out
+}
+
+fn claude_root(configured: Option<&str>) -> Option<PathBuf> {
+    configured.map(PathBuf::from).or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".claude")))?.canonicalize().ok().filter(|path| path.is_dir())
+}
+
+fn claude_desktop_root(configured: Option<&str>) -> Option<PathBuf> {
+    configured.map(PathBuf::from).or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join("Library").join("Application Support").join("Claude")))?.canonicalize().ok().filter(|path| path.is_dir())
+}
+
+fn claude_desktop_metadata(root: Option<PathBuf>) -> HashMap<String, (Option<String>, Option<String>)> {
+    let Some(root) = root else { return HashMap::new(); };
+    let mut out = HashMap::new();
+    for folder in ["claude-code-sessions", "local-agent-mode-sessions"] {
+        for file in contained_files(&root, &root.join(folder)) {
+            let Some(name) = file.file_name().and_then(|name| name.to_str()) else { continue; };
+            if !name.starts_with("local_") || !name.ends_with(".json") { continue; }
+            let Ok(text) = fs::read_to_string(file) else { continue; };
+            let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else { continue; };
+            let Some(id) = value.get("sessionId").and_then(|value| value.as_str()) else { continue; };
+            let cwd = value.get("cwd").and_then(|value| value.as_str()).map(ToOwned::to_owned);
+            let updated = value.get("updatedAt").and_then(|value| value.as_str()).map(ToOwned::to_owned);
+            out.insert(id.to_ascii_lowercase(), (cwd, updated));
+        }
+    }
+    out
+}
+
+fn contained_files(root: &Path, start: &Path) -> Vec<PathBuf> {
+    let Ok(base) = root.canonicalize() else { return Vec::new(); };
+    let Ok(start) = start.canonicalize() else { return Vec::new(); };
+    if !start.starts_with(&base) { return Vec::new(); }
+    let mut out = Vec::new();
+    let mut walk = vec![start];
+    while let Some(dir) = walk.pop() {
+        let Ok(entries) = fs::read_dir(dir) else { continue; };
+        for entry in entries.flatten() {
+            let Ok(kind) = entry.file_type() else { continue; };
+            if kind.is_symlink() { continue; }
+            if kind.is_dir() { walk.push(entry.path()); }
+            else if kind.is_file() {
+                if let Ok(real) = entry.path().canonicalize() { if real.starts_with(&base) { out.push(real); } }
+            }
+        }
+    }
+    out
+}
+
+fn claude_session_id(name: Option<&str>) -> Option<String> {
+    let mut stem = name?.strip_suffix(".gz").unwrap_or(name?);
+    stem = stem.strip_suffix(".jsonl")?;
+    let id = stem.strip_prefix("agent-").unwrap_or(stem);
+    let valid = id.len() == 36 && id.chars().enumerate().all(|(index, ch)| match index { 8 | 13 | 18 | 23 => ch == '-', _ => ch.is_ascii_hexdigit() });
+    valid.then(|| id.to_ascii_lowercase())
 }
 
 fn codex_root(configured: Option<&str>) -> Option<PathBuf> {
@@ -188,9 +282,7 @@ fn contained_file(root: &Path, candidate: &Path) -> bool {
 fn open_codex_state(path: &Path) -> Result<Connection, String> {
     let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI;
     let immutable = format!("file:{}?immutable=1", path.to_string_lossy());
-    Connection::open_with_flags(&immutable, flags)
-        .or_else(|_| Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY))
-        .map_err(|e| format!("cannot open Codex state read-only: {e}"))
+    Connection::open_with_flags(&immutable, flags).map_err(|e| format!("cannot open immutable Codex state: {e}"))
 }
 
 #[tauri::command]

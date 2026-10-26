@@ -19,6 +19,8 @@ export type Bridge = {
   setBadge(count: number): Promise<void>;
   /** Finds Codex sessions from state_5.sqlite without opening transcript files. */
   discoverCodexSessions(options?: { codexHome?: string }): Promise<SessionSource[]>;
+  /** Finds Codex and Claude sources natively; no packaged web code traverses local provider roots. */
+  discoverSessionSources(options?: { codexHome?: string; claudeHome?: string; claudeDesktopHome?: string }): Promise<SessionSource[]>;
 };
 
 export function makeBridge(invoke: Invoke): Bridge {
@@ -39,6 +41,10 @@ export function makeBridge(invoke: Invoke): Bridge {
     },
     async discoverCodexSessions(options = {}) {
       const got = await invoke("discover_codex_sessions", { options });
+      return Array.isArray(got) ? got.filter((source): source is SessionSource => typeof source === "object" && source !== null) : [];
+    },
+    async discoverSessionSources(options = {}) {
+      const got = await invoke("discover_session_sources", { options });
       return Array.isArray(got) ? got.filter((source): source is SessionSource => typeof source === "object" && source !== null) : [];
     },
   };

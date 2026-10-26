@@ -122,6 +122,7 @@ pub fn run() {
             commands::page_report,
             native::notify,
             native::discover_codex_sessions,
+            native::discover_session_sources,
             native::pick_paths,
             native::set_badge
         ])
