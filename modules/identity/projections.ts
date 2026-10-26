@@ -22,7 +22,7 @@ export interface IdentityCtx {
   trace: { traceId: string };
   now(): number;
   db: Db;
-  emit(name: string, subject: string, payload: unknown): unknown;
+  emit(name: string, subject: string, payload: unknown, opts?: { afterFailure?: boolean }): unknown;
   /** The host's capability call. Sign-in registers the device and its session through it (devices.register). */
   call?(name: string, input: unknown): Promise<unknown>;
   /** GitHub OAuth code exchange, built by the host from ctx.http (egress github.com). */
@@ -220,7 +220,8 @@ export function noteFail(ctx: IdentityCtx, a: Account | undefined, username: str
     const until = fails >= LOCK_AFTER ? ctx.now() + Math.min(15 * 60_000, 15_000 * 2 ** (fails - LOCK_AFTER)) : a.locked_until;
     ctx.db.run(`UPDATE identity_accounts SET fails = ?, locked_until = ? WHERE person_id = ?`, fails, until, a.person_id);
   }
-  ctx.emit("signin.failed", username, { username, reason });
+  // the call that refuses is about to throw, which drops what it buffered: this one is written regardless
+  ctx.emit("signin.failed", username, { username, reason }, { afterFailure: true });
 }
 export function clearFails(ctx: IdentityCtx, a: Account): void {
   if (a.fails > 0 || a.locked_until > 0) ctx.db.run(`UPDATE identity_accounts SET fails = 0, locked_until = 0 WHERE person_id = ?`, a.person_id);
