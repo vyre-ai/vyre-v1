@@ -62,6 +62,7 @@ type Out = {
 - permission.guest_cannot_request
 - permission.needs_team
 - permission.no_grant
+- rate_limit.exceeded
 - validation.bad_input
 - validation.duplicate
 

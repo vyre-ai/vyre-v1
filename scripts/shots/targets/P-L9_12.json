@@ -1,0 +1,20 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_12-blocks-memory-vault-model-helper",
+      "route": "/m/P-L9_12?part=a",
+      "proto": "chat,at:agentnative,{skin}",
+      "waitFor": "[data-testid^='blk-helper-']",
+      "note": "The sub-task card with its Model and Effort menus, the vault use line, the memory line with Propose for team, and a helper card. The prototype image is its agent-native chat, which shows the same sub-task card and the same vault line; its memory line and helper card are the matching ones.",
+      "protoSettleMs": 2500
+    },
+    {
+      "id": "P-L9_12-blocks-secret-access-diff",
+      "route": "/m/P-L9_12?part=b",
+      "proto": "chat,at:agentnative,{skin}",
+      "waitFor": "[data-testid^='blk-diff_card-']",
+      "note": "The secret input card (masked field, Save to Vault), the access request with Approve and Decline, and the diff card with Apply and Reject. The prototype has none of these three; its agent-native chat is the reference for the card frame, spacing and buttons.",
+      "protoSettleMs": 2500
+    }
+  ]
+}

@@ -180,7 +180,9 @@ test("cancel: the provider is told, signers and the task end, saying it twice is
   assert.deepEqual(await h.call("esign.cancel", { envelopeId }), { cancelled: true });
   assert.deepEqual(h.provider.cancelled, ["doc_1"]);
   assert.deepEqual(await h.call("esign.status", { envelopeId }), { status: "cancelled", signers: [{ name: "Dana Whitfield", status: "cancelled" }, { name: "Sam Ortiz", status: "cancelled" }] });
-  assert.deepEqual(h.callsTo("tasks.transition")[0]!.input, { taskId: "tsk_sig1", to: "canceled", note: "The envelope was cancelled." });
+  const { idempotencyKey, ...transition } = h.callsTo("tasks.transition")[0]!.input as Record<string, unknown>;
+  assert.match(String(idempotencyKey), /^esign-task-env_[a-f0-9]+-canceled$/, "the write carries its own idempotency key");
+  assert.deepEqual(transition, { taskId: "tsk_sig1", to: "canceled", note: "The envelope was cancelled." });
   await h.call("esign.cancel", { envelopeId });
   assert.equal(h.provider.cancelled.length, 1, "no second call to the provider");
 

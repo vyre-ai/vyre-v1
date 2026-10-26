@@ -10,7 +10,7 @@ Create a campaign (one-time, sequence or triggered)
 | Permission | automations.space |
 | Grant level | edit |
 | Risk | medium |
-| Resource | campaign (create under /name) |
+| Resource | campaign (create under /folderId) |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |
@@ -19,7 +19,7 @@ Create a campaign (one-time, sequence or triggered)
 | HTTP | POST /v1/campaigns/create |
 | MCP tool | campaigns_create (automations) |
 | CLI | none |
-| Emits | none |
+| Emits | campaign.created |
 
 ## Input
 
@@ -27,6 +27,7 @@ Create a campaign (one-time, sequence or triggered)
 type In = {
   name: string;
   kind: "one_time" | "sequence" | "triggered";
+  folderId?: string;
   idempotencyKey: string;
 };
 ```
@@ -63,6 +64,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "folderId": "fld_a1b2c3",
     "idempotencyKey": "idem_1",
     "kind": "one_time",
     "name": "example"
