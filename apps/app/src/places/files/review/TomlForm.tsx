@@ -64,7 +64,7 @@ function TextBox({ slot, shared, label }: { slot: Slot; shared: Shared; label: s
   };
   return (
     <View style={st.box}>
-      <TextField form mono={field.kind === "number"} value={draft} onChange={write} label={label} placeholder={entry ? "" : "Not set"} testID={`toml-field:${slot.id}`} />
+      <TextField form value={draft} onChange={write} label={label} placeholder={entry ? "" : "Not set"} testID={`toml-field:${slot.id}`} />
       {bad ? <Text style={[st.hint, st.hintErr]} testID={`toml-hint:${slot.id}`} role="alert">That field needs a number</Text> : null}
     </View>
   );

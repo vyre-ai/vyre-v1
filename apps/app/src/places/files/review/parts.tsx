@@ -111,7 +111,7 @@ export function TextField({ value, onChange, label, placeholder, onSubmit, onEsc
       numberOfLines={multiline ? rows : 1}
       {...(selection ? { selection } : {})}
       testID={testID}
-      style={[s.input, compact && s.inputCompact, form && s.inputForm, disabled && s.pkOff, multiline && s.inputMulti, multiline && { minHeight: rows * 19 + 16 }, mono && s.mono, width === undefined ? s.inputFlex : { width }, focus && s.inputFocus]}
+      style={[s.input, compact && s.inputCompact, disabled && s.pkOff, multiline && s.inputMulti, multiline && { minHeight: rows * 19 + 16 }, mono && s.mono, width === undefined ? s.inputFlex : { width }, focus && s.inputFocus, form && s.inputForm]}
     />
   );
 }
@@ -228,7 +228,7 @@ const s = StyleSheet.create({
   }),
   inputCompact: { height: 26, borderRadius: 7, fontSize: 12.5 },
   mono: style({ fontFamily: "var(--mono)", fontSize: 12.5 }),
-  inputForm: { height: 30, fontSize: 13 },
+  inputForm: { height: 30, fontSize: 13, flexBasis: "auto" },
   inputFlex: { flex: 1, minWidth: 0 },
   inputMulti: style({ height: "auto", minHeight: 64, paddingVertical: 8, lineHeight: 19 }),
   inputFocus: style({ boxShadow: "inset 0 0 0 1px var(--accent-line), 0 0 0 3px var(--accent-wash)" }),
