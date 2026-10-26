@@ -146,6 +146,7 @@ function samePiece<T extends PieceProps>(a: T, b: T): boolean {
 
 const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): ReactElement {
   const { row, n, y, selected, hot, primary, names, onTap, onOpen, onHot, onMenu } = p;
+  ensureRowCss();
   const bg = bgOf(p);
   const title = row ? cellText(primary.field, row.fields[primary.field.key], names) || "Untitled" : "";
   // plain elements, like the scrolling cells: this piece is mounted for every row that scrolls in
@@ -154,11 +155,11 @@ const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): 
     {
       role: "button", "aria-label": row ? String(row.fields[primary.field.key] ?? row.id) : "Loading", "aria-selected": selected, "data-testid": row ? `rec-${row.id}` : `rec-pending-${n}`,
       onClick: (e: { metaKey?: boolean; ctrlKey?: boolean }) => { if (row) onTap(row.id, e.metaKey === true || e.ctrlKey === true); },
-      onContextMenu: (e: { preventDefault(): void; clientX: number; clientY: number }) => { if (row) { e.preventDefault(); onMenu(row, e.clientX, e.clientY); } },
+      ...menuTrigger((x, y) => { if (row) onMenu(row, x, y); }),
       onMouseEnter: () => onHot(row ? row.id : null), onMouseLeave: () => onHot(null),
-      style: { position: "absolute", boxSizing: "border-box", display: "flex", alignItems: "center", left: 0, top: y, width: GUTTER + primary.width, height: ROW_H, borderBottom: "1px solid var(--line)", backgroundColor: bg, contain: "layout style paint" },
+      className: "vrt-r", style: { left: 0, top: y, width: GUTTER + primary.width, backgroundColor: bg },
     },
-    createElement("div", { style: { width: GUTTER, height: "100%", display: "flex", alignItems: "center", boxSizing: "border-box", paddingLeft: 10, flex: "none", fontSize: 11.5, color: "var(--ink-4)", fontVariantNumeric: "tabular-nums", backgroundColor: bg } }, String(n)),
+    createElement("div", { className: "vrt-g", style: { backgroundColor: bg } }, String(n)),
     createElement("div", { style: { width: primary.width, height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, boxSizing: "border-box", padding: "0 10px", overflow: "hidden", flex: "none", backgroundColor: bg } },
       row ? createElement("span", { style: { ...CELL_TEXT, fontWeight: 500 } }, title) : createElement("div", { style: GHOST }),
       row && (hot || selected) ? <Pressable accessibilityRole="button" accessibilityLabel="Open record" testID={`open-${row.id}`} onPress={() => onOpen(row.id)} style={styles.xopen}><Glyph name="expand" size={13} color="var(--ink-2)" /></Pressable> : null,
@@ -178,9 +179,26 @@ const CELL_STARS = { fontSize: 12, color: "var(--warn)", letterSpacing: 1, white
 const CELL_PERSON = { display: "flex", alignItems: "center", gap: 7, minWidth: 0 } as const;
 const GHOST = { height: 9, width: "55%", borderRadius: 5, backgroundColor: "var(--hover)" } as const;
 
-const FLAT = { boxSizing: "border-box", flex: "none", padding: "0 10px", fontSize: 13, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
-const FLAT_NUM = { ...FLAT, fontVariantNumeric: "tabular-nums", textAlign: "right" } as const;
-const FLAT_SEALED = { ...FLAT, color: "var(--ink-3)", letterSpacing: 1 } as const;
+/**
+ * The scrolling rows are styled by classes from one stylesheet, set once: an inline style of ten properties on each of the 500 elements a fling mounts was a good part of the scroll cost. Only
+ * what changes per element (position, width, background) stays inline. Rows are only drawn after the page is live, so the static export needs none of it.
+ */
+const CSS_ID = "vyre-records-rows";
+let cssDone = false;
+function ensureRowCss(): void {
+  if (cssDone) return;
+  const d = (globalThis as { document?: { getElementById(id: string): unknown; createElement(t: string): { id: string; textContent: string }; head?: { appendChild(n: unknown): void } } }).document;
+  if (!d || !d.head || d.getElementById(CSS_ID)) return;
+  const el = d.createElement("style");
+  el.id = CSS_ID;
+  el.textContent = `.vrt-r{position:absolute;box-sizing:border-box;display:flex;align-items:center;height:${ROW_H}px;border-bottom:1px solid var(--line);contain:layout style paint}`
+    + ".vrt-c{box-sizing:border-box;flex:none;padding:0 10px;font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+    + ".vrt-n{font-variant-numeric:tabular-nums;text-align:right}.vrt-s{color:var(--ink-3);letter-spacing:1px}"
+    + ".vrt-g{width:" + GUTTER + "px;height:100%;display:flex;align-items:center;box-sizing:border-box;padding-left:10px;flex:none;font-size:11.5px;color:var(--ink-4);font-variant-numeric:tabular-nums}";
+  d.head.appendChild(el);
+  cssDone = true;
+}
+
 /** The field types webCell draws as plain text (everything but chips, ticks, faces and stars). */
 function isPlainText(f: FieldDef): boolean {
   return f.type !== "choice" && f.type !== "status" && f.type !== "checkbox" && f.type !== "person" && f.type !== "rating";
@@ -215,6 +233,7 @@ function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string)
 
 const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: number; cols: readonly Column[]; from: number; to: number; pad: number }): ReactElement {
   const { row, n, y, left, width, cols, from, to, pad, names, onTap, onHot, onMenu } = p;
+  ensureRowCss();
   const bg = bgOf(p);
   const cells: ReactElement[] = [];
   for (let i = from; i < to; i++) {
@@ -222,7 +241,7 @@ const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: num
     // a plain text cell is one element, not a box with a span in it: the scroll trace (run 40232405129) had the whole cost in the cells, 33.4 ms p95 with them and 16.8 ms without
     if (row && isPlainText(c.field)) {
       const v = row.fields[c.field.key];
-      cells.push(createElement("div", { key: c.field.key, style: { ...(isNumeric(c.field) ? FLAT_NUM : c.field.type === "sealed" ? FLAT_SEALED : FLAT), width: c.width } }, v === undefined || v === null || v === "" ? null : cellText(c.field, v, names)));
+      cells.push(createElement("div", { key: c.field.key, className: isNumeric(c.field) ? "vrt-c vrt-n" : c.field.type === "sealed" ? "vrt-c vrt-s" : "vrt-c", style: { width: c.width } }, v === undefined || v === null || v === "" ? null : cellText(c.field, v, names)));
       continue;
     }
     cells.push(createElement("div", { key: c.field.key, style: isNumeric(c.field) ? { ...CELL_BOX, width: c.width, justifyContent: "flex-end" } : { ...CELL_BOX, width: c.width } }, row ? webCell(c.field, row, names) : createElement("div", { style: GHOST })));
@@ -231,9 +250,9 @@ const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: num
     "div",
     {
       "data-testid": row ? `recb-${row.id}` : `recb-pending-${n}`,
-      onClick: (e: { metaKey?: boolean; ctrlKey?: boolean }) => { if (row) onTap(row.id, e.metaKey === true || e.ctrlKey === true); }, onContextMenu: (e: { preventDefault(): void; clientX: number; clientY: number }) => { if (row) { e.preventDefault(); onMenu(row, e.clientX, e.clientY); } },
+      onClick: (e: { metaKey?: boolean; ctrlKey?: boolean }) => { if (row) onTap(row.id, e.metaKey === true || e.ctrlKey === true); }, ...menuTrigger((x, y) => { if (row) onMenu(row, x, y); }),
       onMouseEnter: () => onHot(row ? row.id : null), onMouseLeave: () => onHot(null),
-      style: { position: "absolute", boxSizing: "border-box", display: "flex", alignItems: "center", top: y, left, width, height: ROW_H, borderBottom: "1px solid var(--line)", backgroundColor: bg, contain: "layout style paint" },
+      className: "vrt-r", style: { top: y, left, width, backgroundColor: bg },
     },
     pad > 0 ? createElement("div", { key: "pad", style: { width: pad, flex: "none" } }) : null,
     ...cells,
@@ -575,6 +594,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
             <Pressable accessibilityRole="button" testID="records-select-every" onPress={() => setSel({ ids: new Set(), every: true })} style={styles.pickLink}><Text style={styles.pickLinkText}>{`Select all ${count.toLocaleString("en-US")}`}</Text></Pressable>
           ) : null}
           <View style={styles.grow} />
+          {/* ui-rows-lint: not a list (the bulk action buttons of the selection bar) */}
           {actionEntries(sel.every ? [] : [...sel.ids], sel.every).filter((e) => "label" in e).map((e) => {
             const it = e as { label: string; onSelect?: () => void; danger?: boolean };
             const off = false;
@@ -595,7 +615,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
             handle={scroller} width={width} height={total * ROW_H} onScroll={onScroll}
             header={(
               <View style={[styles.thr, { width }]}>
-                <View style={[styles.rn, STICKY(0), styles.headBg]}><Pressable accessibilityRole="checkbox" accessibilityLabel="Select all" accessibilityState={{ checked: picked !== "none" || sel.ids.size > 0 }} testID="records-select-all" onPress={() => setSel((cur) => toggleHeader(cur, orderIds))} style={[styles.cb, (picked !== "none" || sel.ids.size > 0) && styles.cbOn]} /></View>
+                <View style={[styles.rn, STICKY(0), styles.headBg]}><Pressable accessibilityRole="checkbox" accessibilityLabel="Select all" aria-checked={picked !== "none" || sel.ids.size > 0} accessibilityState={{ checked: picked !== "none" || sel.ids.size > 0 }} testID="records-select-all" onPress={() => setSel((cur) => toggleHeader(cur, orderIds))} style={[styles.cb, (picked !== "none" || sel.ids.size > 0) && styles.cbOn]} /></View>
                 {primary ? <HeadCell col={primary} dir={sortKey?.field === primary.field.key ? sortKey.dir : null} first onSort={() => set(cycleSort(v, primary.field.key))} onMenu={(x, y) => colMenu(primary.field, x, y)} /> : null}
                 {colWin.pad > 0 ? <View style={{ width: colWin.pad }} /> : null}
                 {headCells}
