@@ -12,7 +12,8 @@ import type { EraseKind, GovCtx, Kind } from "../projections.ts";
 export type Outcome = "erased" | "gone" | "trashed" | "no_eraser";
 
 const missingCap = (e: unknown): boolean => codeOf(e) === "validation.unknown_capability";
-const gone = (e: unknown): boolean => codeOf(e) === "validation.not_found";
+/** The pipeline answers a resource-bound call on something that does not exist as permission.not_found (existence is not leaked); for an erase both mean there is nothing left to remove. */
+const gone = (e: unknown): boolean => codeOf(e) === "validation.not_found" || codeOf(e) === "permission.not_found";
 
 interface Eraser { cap: string; input(type: string, id: string, key: string): Record<string, unknown> }
 /** One eraser per kind and item type. `key` is a stable idempotency key, so a replay after a restore is one call. */
