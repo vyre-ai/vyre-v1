@@ -282,7 +282,7 @@ test("each file leads with a type tile: PDF, MD, CSV, DOCX on a tint, an icon fo
   assert.ok(!has(renderToStaticMarkup(<TypeTile label={null} icon="folder" folder />), 'data-testid="type-tile-label"'));
   const out = list(subjects(), folder("fld_pj_rivera"));
   for (const label of ["PDF", "MD", "CSV", "DOCX"]) assert.ok(has(out, `>${label}<`), label);
-  assert.equal(out.split('data-testid="type-tile"').length - 1, 7, "a labelled or thumbnail tile leads every line but the folder");
+  assert.equal(out.split('data-testid="type-tile"').length - 1, 6, "a labelled or thumbnail tile leads the PDF, MD, CSV and DOCX lines and the two pictures; the folder and the plan have an icon");
 });
 
 test("an empty folder shows no count, and the Scout, Billing and Intake agents are in the Agents folder", () => {
