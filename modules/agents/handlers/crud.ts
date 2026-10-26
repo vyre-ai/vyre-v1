@@ -100,10 +100,14 @@ async function agentsRoot(ctx: AgentsCtx): Promise<string> {
 const LEVEL_RANK: Record<string, number> = { view: 0, use: 1, edit: 2, manage: 3 };
 
 /**
- * Ruling 99: an agent holds Edit on its own Agents/<name> (not Manage, so it cannot share its home out) and its owner holds Manage there. Only these two grants, written once: a grant that is
- * already held at that level or higher is left alone, so the boot pass adds the missing ones and nothing else. Returns how many it wrote.
+ * Ruling 99: an agent holds Edit on its own Agents/<name> (not Manage, so it cannot share its home out) and its owner holds Manage there. This is applied ONCE per agent: when it is made, or the
+ * first pass that sees an agent made before the ruling. A marker (agents.home_grants.v1:<agentId>) records that it was done, and an agent with the marker is never touched again, so a person who
+ * lowers or removes one of these grants on purpose is not overruled by the boot pass. Within that one application a grant already held at the level or higher is left as it is. A failure writes no
+ * marker, so the next pass tries again. Returns how many grants it wrote.
  */
 export async function ensureHomeGrants(ctx: AgentsCtx, agentId: string, ownerId: string, folderId: string): Promise<number> {
+  const marker = `agents.home_grants.v1:${agentId}`;
+  if (meta(ctx.db, marker) !== undefined) return 0;
   const resource = { type: "folder", id: folderId };
   const have = await tolerant<{ shares?: Array<{ grant: { subject: { kind: string; id: string }; level: string } }> }>(ctx, "access.shares_of", { resource }, {});
   const holds = (kind: string, id: string, level: string): boolean =>
@@ -117,6 +121,7 @@ export async function ensureHomeGrants(ctx: AgentsCtx, agentId: string, ownerId:
     await call(ctx, "access.share", { resource, subject: { kind: "person", id: ownerId }, level: "manage", source: `agent:${agentId}` }, { idempotencyKey: `agent-home:${agentId}:owner:${ownerId}` });
     wrote += 1;
   }
+  setMeta(ctx.db, marker, String(ctx.now()));
   return wrote;
 }
 
