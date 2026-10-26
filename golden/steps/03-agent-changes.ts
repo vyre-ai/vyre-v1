@@ -1,5 +1,5 @@
 // Golden flow 3: agent changes reviewed and pushed (spec 2.16, 4.6; ARCH 4.6). Work in a git folder is committed, the branch is protected, the push to it is held by the Gate as an Approve line,
-// a person approves and the push goes out once. Through the gateway; the remote is a local bare repository. The agent turn that makes the change is flow 7's half.
+// the owner approves and the push goes out once. Through the gateway; the remote is a local bare repository. The agent turn that makes the change is flow 7's half.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -47,16 +47,16 @@ export async function runChanges(live: readonly string[]): Promise<{ events: Obs
       expectStatus(await s.call("git.protect", admin, { folderId: folder!, branches: ["main"] }), 200, "git.protect");
       expectStatus(await s.call("git.remote_add", admin, { folderId: folder!, name: "origin", url: remote }), 200, "git.remote_add");
     }, ["a change is committed"]);
-    const held = await trail.step("the push to the protected branch is held by the Gate", async () => {
-      const r = await s.call("git.push", admin, { idempotencyKey: "golden-3-push", folderId: folder!, remote: "origin", branch: "main" });
+    const held = await trail.step("a member's push to the protected branch is held by the Gate", async () => {
+      const r = await s.call("git.push", s.signedIn("usr_noah"), { idempotencyKey: "golden-3-push", folderId: folder!, remote: "origin", branch: "main" });
       assert.ok(r.status === 202 && r.body?.data?.status === "held" && r.body.data.taskId, `git.push should be held: ${r.status} ${short(r.body)}`);
       return r.body.data.taskId as string;
     }, ["the main branch is protected and the remote added"]);
-    await trail.step("a person approves and the push goes out", async () => {
+    await trail.step("the owner approves and the push goes out", async () => {
       expectStatus(await s.call("tasks.act", admin, { taskId: held!, action: "approve" }), 200, "tasks.act");
       const log = spawnSync("git", ["-C", bare, "log", "--oneline", "main"], { encoding: "utf8" });
       assert.match(log.stdout, /Reword the home page/, `remote log: ${log.stdout}${log.stderr}`);
-    }, ["the push to the protected branch is held by the Gate"]);
+    }, ["a member's push to the protected branch is held by the Gate"]);
     return { events: await s.events(), trail };
   } finally { if (savedConfig === undefined) delete process.env["GIT_CONFIG_GLOBAL"]; else process.env["GIT_CONFIG_GLOBAL"] = savedConfig; await s.stop(); }
 }
