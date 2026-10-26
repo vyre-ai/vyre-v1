@@ -13,9 +13,7 @@ export const LIVE_FOR_JOIN = ["members", "identity", "devices", "access", "space
 const KEYS = { personKeyByPassword: "d3JhcHBlZA==", publicKey: "cHVibGlj", privateKeyWrapped: "d3JhcHBlZA==", spaceKeys: [{ epoch: 0, wrapped: "d3JhcHBlZA==" }] };
 
 /** Why this flow is a todo today (ruling 53: each LIVE packet cannot close until it passes). */
-export const GAPS: Gap[] = [
-  { packet: "L7/host trace", lane: "L7", what: "every step passes, but the events of the anonymous accept (member.joined, keys.stored, session.started) do not carry the caller's x-vyre-trace id, so the flow's one-trace event chain finds only member.invited" },
-];
+export const GAPS: Gap[] = [];
 
 /** A Space needs an address before it can invite (the join link carries it); a person with server.network sets one. */
 export async function setAddress(s: FlowSpace, trail: Trail): Promise<void> {
