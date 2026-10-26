@@ -25,7 +25,7 @@ export function ChatsTab({ summary, window }: { summary: Summary; window?: Virtu
   else if (list.length === 0) entries.push({ key: "no-chats", type: "empty", text: `No chats with ${data.agent.name} yet. Press Chat to start one.`, testID: "chats-empty" });
   for (const t of list) {
     entries.push({
-      key: `c-${t.threadId}`, type: "row", title: t.title ?? "New chat", note: chatNote(t, clock), leading: <Face name={data.agent.name} size={16} />,
+      key: `c-${t.threadId}`, type: "row", title: t.title ?? "New chat", note: chatNote(t, clock), leading: <Face name={data.agent.name} seedId={data.agent.agentId} size={16} />,
       onPress: () => data.nav.openChat(t.threadId), testID: `chat-${t.threadId}`,
       menu: [{ label: "Open", onSelect: () => data.nav.openChat(t.threadId) }, { label: "Open to the Side", onSelect: () => data.nav.openThread(t.threadId, "side") }],
     });

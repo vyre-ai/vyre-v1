@@ -72,7 +72,7 @@ function HelperView(): ReactElement {
     const hasWork = m.blocks.length > 0;
     feed.push(
       <View key={m.messageId} testID={`msg-${m.messageId}`} style={st.msg}>
-        <View style={st.by}><Face name={who} size={20} /><Text style={st.who}>{who}</Text><Text style={st.time}>{whenLabel(m.createdAt, clock)}</Text></View>
+        <View style={st.by}><Face name={who} seedId={m.author.id} size={20} /><Text style={st.who}>{who}</Text><Text style={st.time}>{whenLabel(m.createdAt, clock)}</Text></View>
         {hasWork && !workShown ? <Work summary={summary} messages={work} /> : null}
         {m.body ? <Text style={st.body}>{m.body}</Text> : null}
       </View>,

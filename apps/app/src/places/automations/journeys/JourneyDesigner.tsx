@@ -258,7 +258,7 @@ function TaskRow({ g, t, state, selected, onOpen, onMenu, name }: { g: Stage; t:
               {each(seats, (r, i) => (
                 <View key={`${r.kind}:${r.id}:${i}`} style={s.seat}>
                   {i > 0 ? <Glyph name="arrow" size={11} color="var(--ink-4)" /> : null}
-                  <Face name={name(r.id)} kind={r.kind === "person" ? "person" : "agent"} size={20} />
+                  <Face name={name(r.id)} seedId={r.id} kind={r.kind === "person" ? "person" : "agent"} size={20} />
                 </View>
               ))}
             </View>
