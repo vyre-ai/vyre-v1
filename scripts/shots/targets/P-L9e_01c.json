@@ -17,21 +17,21 @@
     {
       "id": "P-L9e_01c-files-sidebar",
       "route": "/m/P-L9e_01b?subjects=1&where=root",
-      "proto": "agents-open,{skin}",
+      "proto": "files,agents-open,{skin}",
       "waitFor": "[data-testid='files-agents']",
       "note": "The sidebar: Recent, Starred with its count, Shared with me, the Space folders, then the Agents tree (an agent's face on each folder) and the Projects tree, Knowledge (Memory, Graph). The prototype side is its Files place with the same sidebar in the same skin."
     },
     {
       "id": "P-L9e_01c-files-starred",
       "route": "/m/P-L9e_01b?subjects=1&where=starred",
-      "proto": "starred,{skin}",
+      "proto": "files,starred,{skin}",
       "waitFor": "[data-testid='star-mark']",
       "note": "Starred opened: the starred files, with the star after the name. The prototype side is its Files place after pressing Starred."
     },
     {
       "id": "P-L9e_01c-files-conflict",
       "route": "/m/P-L9e_01b?subjects=1&where=pj_rivera",
-      "proto": "rivera,{skin}",
+      "proto": "files,rivera,{skin}",
       "waitFor": "[data-testid='conflict-tag']",
       "note": "A file with two edits carries the Conflict tag after its name (click to resolve). The prototype side is its Rivera matter folder, where site-photo.png has the tag (new hash token rivera in the prototype copy, ruling 42)."
     }

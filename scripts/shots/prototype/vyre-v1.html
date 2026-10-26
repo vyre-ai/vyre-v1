@@ -16140,6 +16140,9 @@ mark.wd { color: inherit; border-radius: 3px; padding: 1px 0; } .dfr.add mark.wd
     const hs = (location.hash || "").slice(1).split(","), has = (t) =&gt; hs.includes(t);
     if (has("runbook")) { go("rb"); openFile("rb-deploy", "full"); }
     else if (has("runbook-ran")) { go("rb"); const f = N["rb-deploy"]; rbSeedRan(f); ui.col["rb-deploy"] = "versions"; openFile("rb-deploy", "full"); renderAll(); }
+    else if (has("starred")) { ui.main = { k: "starred" }; renderAll(); }
+    else if (has("rivera")) { go("pj-rivera"); ui.open["pj"] = true; ui.open["pj-rivera"] = true; renderAll(); }
+    else if (has("agents-open")) { ui.open["ag"] = true; ui.open["pj"] = true; renderAll(); }
     else if (has("noteedit")) { go("rb"); ui.vmode["rb-deploy"] = "edit"; openFile("rb-deploy", "full"); renderAll(); }
     else if (has("runbook-fail")) { go("rb"); const f = N["rb-deploy"]; rbOf(f.id).where = "Intake"; openFile("rb-deploy", "full"); setTimeout(() =&gt; rbAll(f), 200); }
   }, 190);
@@ -16341,7 +16344,7 @@ mark.wd { color: inherit; border-radius: 3px; padding: 1px 0; } .dfr.add mark.wd
       case "starred": ui.main = { k: "starred" }; break;
       case "signed": full("reng-letter", () =&gt; { ui.col["reng-letter"] = "versions"; }); break;
       case "gsnap": full("mk-brief"); break;
-      case "conflict": full("rv-scan2"); break; case "rivera": go("pj-rivera"); ui.open["pj"] = true; ui.open["pj-rivera"] = true; break; case "agents-open": ui.open["ag"] = true; ui.open["pj"] = true; break;
+      case "conflict": full("rv-scan2"); break;
       case "terminals": go("tm"); break;
       case "grouped": go("rb"); break;
       case "folder-menu": go("pj"); setTimeout(() =&gt; { const r = document.querySelector('#main [data-id="pj-rivera"]'); if (r) { const b = r.getBoundingClientRect(); openPop(itemMenu(["pj-rivera"], "pj-rivera"), b.left + 240, b.top + 10, { ctx: 1 }); } }, 60); break;
