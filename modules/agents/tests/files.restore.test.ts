@@ -123,6 +123,7 @@ test("an outside agent is never adopted: it is an outside actor, not an agent of
 // ---- ruling 99: the agent edits its own home, its owner manages it ----------------------------------------------------------------------------------------
 
 const onHome = (hn: Harness, home: string): string[] => hn.world.homeGrants.filter((g) => g.resource.id === home).map((g) => `${g.subject.kind}:${g.subject.id}:${g.level}:${g.source}`).sort();
+const shareCalls = (hn: Harness) => hn.world.calls.filter((c) => c.cap === "access.share");
 
 test("create gives the agent Edit on its own folder (not Manage) and its owner Manage, and nothing else", async () => {
   const hn = harness();
@@ -130,6 +131,11 @@ test("create gives the agent Edit on its own folder (not Manage) and its owner M
   const home = String(record(hn, a.agentId)["folderId"]);
   assert.deepEqual(onHome(hn, home), [`agent:${a.agentId}:edit:agent:${a.agentId}`, `person:${DANA}:manage:agent:${a.agentId}`].sort());
   assert.equal(hn.world.homeGrants.length, 2, "two grants in all");
+  assert.deepEqual(shareCalls(hn).map((c) => [(c.input as { idempotencyKey: string }).idempotencyKey, c.opts?.idempotencyKey]), [
+    [`agent-home:${a.agentId}:agent`, `agent-home:${a.agentId}:agent`],
+    [`agent-home:${a.agentId}:owner:${DANA}`, `agent-home:${a.agentId}:owner:${DANA}`],
+    [`agent-owner:${a.agentId}:${DANA}`, `agent-owner:${a.agentId}:${DANA}`],
+  ]);
 });
 
 test("the boot pass adds the grants an agent made before the ruling lacks, once, and only those two", async () => {
@@ -141,7 +147,11 @@ test("the boot pass adds the grants an agent made before the ruling lacks, once,
   hn.clear();
   assert.deepEqual(await restoreAgentFiles(hn.ctx), ["Intake/grants"]);
   assert.deepEqual(onHome(hn, home), [`agent:${a.agentId}:edit:agent:${a.agentId}`, `person:${DANA}:manage:agent:${a.agentId}`].sort());
-  assert.equal(hn.world.calls.filter((c) => c.cap === "access.share").length, 2);
+  assert.equal(shareCalls(hn).length, 2);
+  assert.deepEqual(shareCalls(hn).map((c) => [(c.input as { idempotencyKey: string }).idempotencyKey, c.opts?.idempotencyKey]), [
+    [`agent-home:${a.agentId}:agent`, `agent-home:${a.agentId}:agent`],
+    [`agent-home:${a.agentId}:owner:${DANA}`, `agent-home:${a.agentId}:owner:${DANA}`],
+  ]);
   hn.clear();
   assert.deepEqual(await restoreAgentFiles(hn.ctx), [], "the next pass writes nothing");
   assert.equal(hn.world.calls.filter((c) => c.cap === "access.share").length, 0);
