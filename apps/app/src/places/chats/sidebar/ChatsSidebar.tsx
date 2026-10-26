@@ -4,6 +4,7 @@
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { SidebarContent } from "../../../shell/sidebar/index.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
+import { portalInto } from "../../../shell/sidebar/portal.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -309,16 +310,25 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
     }
   };
 
+  // In the shell the assistant's new-chat button sits in the slot's header, right of the title beside the collapse button (the prototype's "Chats ... V [panel]"); alone it sits in a row of its own.
+  const inHeader = slot?.actionsOutlet !== undefined && slot.actionsOutlet !== null;
+  const headBusy = data.space.otherNeedsYou || !online;
+  const newChatButton = (
+    <Pressable accessibilityRole="button" accessibilityLabel={`New chat with ${data.space.assistant.name}`} {...{ title: `New chat with ${data.space.assistant.name}` }} onPress={() => { void api.newChat(); leave(); }} testID="new-chat" style={({ hovered }: { hovered?: boolean }) => [st.assistant, hovered === true && st.assistantOver]}>
+      <Avatar name={data.space.assistant.name} kind="assistant" size={18} />
+    </Pressable>
+  );
   return (
     <View testID="chats-sidebar" accessibilityRole="list" accessibilityLabel="Chats" style={st.root} {...{ tabIndex: 0, onKeyDown }}>
-      <View style={st.top} testID="sidebar-head" accessibilityLabel={`Chats, ${data.space.name}`}>
-        {data.space.otherNeedsYou ? <View testID="other-space-dot" accessibilityLabel="Another Space needs you" style={st.red} /> : null}
-        {online ? null : <Text testID="sidebar-offline" style={st.quiet}>Offline</Text>}
-        <View style={{ flex: 1 }} />
-        <Pressable accessibilityRole="button" accessibilityLabel={`New chat with ${data.space.assistant.name}`} {...{ title: `New chat with ${data.space.assistant.name}` }} onPress={() => { void api.newChat(); leave(); }} testID="new-chat" style={({ hovered }: { hovered?: boolean }) => [st.assistant, hovered === true && st.assistantOver]}>
-          <Avatar name={data.space.assistant.name} kind="assistant" size={18} />
-        </Pressable>
-      </View>
+      {headBusy || !inHeader ? (
+        <View style={st.top} testID="sidebar-head" accessibilityLabel={`Chats, ${data.space.name}`}>
+          {data.space.otherNeedsYou ? <View testID="other-space-dot" accessibilityLabel="Another Space needs you" style={st.red} /> : null}
+          {online ? null : <Text testID="sidebar-offline" style={st.quiet}>Offline</Text>}
+          <View style={{ flex: 1 }} />
+          {inHeader ? null : newChatButton}
+        </View>
+      ) : null}
+      {inHeader ? portalInto(slot?.actionsOutlet, newChatButton) : null}
       <View style={st.list}>
         {loading ? <ChatsSidebarLoading /> : (
           <VirtualList data={entries} rowHeight={ROW_H} keyOf={(e) => e.key} renderItem={(e) => renderEntry(e)} {...(window ? { window } : {})} />

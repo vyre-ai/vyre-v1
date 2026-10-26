@@ -29,6 +29,8 @@ export interface SidebarSlotApi {
   back(): void;
   view: PhoneView;
   title: string;
+  /** The header's spot for a place's own button(s), left of the collapse button (portal into it with portalInto). Absent where there is no slot. */
+  actionsOutlet?: unknown;
 }
 
 const Ctx = createContext<SidebarSlotApi | null>(null);
@@ -58,6 +60,7 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
   const [query, setQuery] = useState("");
   const [bodyOpen, setBodyOpen] = useState(p.initialBodyOpen === true);
   const [outlet, setOutlet] = useState<unknown>(null);
+  const [actionsOutlet, setActionsOutlet] = useState<unknown>(null);
   useEffect(() => { setCollapsedState(read()); setQuery(""); setBodyOpen(false); }, [key, p.epoch]);
   const setCollapsed = useCallback((v: boolean) => {
     setCollapsedState(v);
@@ -66,19 +69,19 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
   const hasSidebar = entry !== null;
   const api = useMemo<SidebarSlotApi>(() => ({
     query, collapsed, setCollapsed, hasSidebar, compact: p.compact, openBody: () => setBodyOpen(true), back: () => setBodyOpen(false),
-    view: phoneView(hasSidebar, p.compact, bodyOpen), title: entry?.title ?? "",
-  }), [query, collapsed, setCollapsed, hasSidebar, p.compact, bodyOpen, entry?.title]);
+    view: phoneView(hasSidebar, p.compact, bodyOpen), title: entry?.title ?? "", actionsOutlet,
+  }), [query, collapsed, setCollapsed, hasSidebar, p.compact, bodyOpen, entry?.title, actionsOutlet]);
   const reg = useMemo(() => ({ register: setEntry, outlet }), [outlet]);
   return (
     <Ctx.Provider value={api}>
       <Reg.Provider value={reg}>
-        <OutletContext.Provider value={{ entry, query, setQuery, setOutlet }}>{p.children}</OutletContext.Provider>
+        <OutletContext.Provider value={{ entry, query, setQuery, setOutlet, setActionsOutlet }}>{p.children}</OutletContext.Provider>
       </Reg.Provider>
     </Ctx.Provider>
   );
 }
 
-const OutletContext = createContext<{ entry: SidebarEntry | null; query: string; setQuery(q: string): void; setOutlet(n: unknown): void } | null>(null);
+const OutletContext = createContext<{ entry: SidebarEntry | null; query: string; setQuery(q: string): void; setOutlet(n: unknown): void; setActionsOutlet(n: unknown): void } | null>(null);
 
 export function useSidebarSlot(): SidebarSlotApi {
   const v = useContext(Ctx);
@@ -112,6 +115,7 @@ export function SidebarSlot(): ReactElement | null {
     <View style={[s.slot, full ? s.full : s.side, away && s.away]} testID="place-sidebar" accessibilityLabel={`${o.entry.title} sidebar`} aria-hidden={away}>
       <View style={s.head}>
         <Text style={s.title} accessibilityRole="header" numberOfLines={1}>{o.entry.title}</Text>
+        <View style={s.actions} testID="sidebar-actions" ref={(n) => { if (n !== null) o.setActionsOutlet(n); }} />
         {full ? null : (
           <Pressable accessibilityRole="button" accessibilityLabel="Collapse sidebar" testID="sidebar-collapse" onPress={() => slot.setCollapsed(true)}
             style={({ hovered }: { hovered?: boolean }) => [s.icon, hovered === true && s.hover]}>
@@ -179,6 +183,7 @@ const s = StyleSheet.create({
   away: { display: "none" },
   head: { height: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14 },
   title: { color: "var(--ink)" as string, fontSize: 15, fontWeight: "600", flexShrink: 1 },
+  actions: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4 },
   icon: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
   hover: { backgroundColor: "var(--hover)" as string },
   search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, marginHorizontal: 10, marginBottom: 8, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
