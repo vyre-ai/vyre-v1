@@ -179,6 +179,13 @@ test("a custom role made by access.roles.create confers its permissions when ass
     assert.equal(made.status, 200, `the custom role is in force on the next call: ${JSON.stringify(made.body)}`);
     assert.equal((await post(OWNER_TOKEN, "/v1/access/roles/unassign", { subject, roleId })).status, 200);
     assert.equal((await create()).status, 403, "unassigned, it is refused again");
+
+    // a custom role with no permissions confers nothing, and neither does the built-in Temp role
+    const empty = await post(OWNER_TOKEN, "/v1/access/roles/create", { name: "Nothing", idempotencyKey: "authz-nothing" });
+    assert.equal(empty.status, 200, JSON.stringify(empty.body));
+    assert.deepEqual(empty.body.data.role.permissions, [], "a role made without a clone holds no permissions");
+    assert.equal((await post(OWNER_TOKEN, "/v1/access/roles/assign", { subject, roleId: empty.body.data.role.id })).status, 200);
+    assert.equal((await create()).status, 403, "a role with no permissions confers nothing");
   });
 });
 

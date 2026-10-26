@@ -159,8 +159,8 @@ function apply(ctx: AccessCtx, store: AccessStore, events: readonly LogEvent[]):
 const GRANTED = new WeakSet<AccessSnapshot>();
 
 /**
- * A role carries permissions; the Space-level grant is what lets them act. The seeded roles arrive with one, a role made through access.roles.create (and the built-in rol_* ones) does
- * not, so each role that holds permissions and has no Space grant of its own gets one here: Manage for Owner and Admin, Edit for the rest. A role with no permissions confers nothing.
+ * A role carries permissions; the Space-level grant is what lets them act. The seeded roles arrive with their grants and keep exactly those; a role made through access.roles.create has
+ * none, so each such custom role that holds permissions gets an Edit grant on the Space here (Manage when it is an elevated role). A role with no permissions confers nothing.
  */
 function withRoleGrants(snap: AccessSnapshot, store: AccessStore, space: string): AccessSnapshot {
   if (GRANTED.has(snap)) return snap;
@@ -168,7 +168,8 @@ function withRoleGrants(snap: AccessSnapshot, store: AccessStore, space: string)
   const have = new Set<string>();
   for (const g of store.grants.values()) if (g.subject.kind === "role" && g.resource.type === "space") have.add(g.subject.id);
   for (const r of store.roles.values()) {
-    if (have.has(r.id) || r.permissions.length === 0) continue;
+    // only roles made by access.roles.create (rol_*, not built in): the built-in and seeded roles keep exactly the grants they have, so Temp and Guest never gain a Space grant here
+    if (r.builtIn || !r.id.startsWith("rol_") || have.has(r.id) || r.permissions.length === 0) continue;
     snap.putGrant({ id: `gr_role_${r.id}`, subject_kind: "role", subject_id: r.id, resource_type: "space", resource_id: space, level: isElevatedRole(r.id, r.name) ? "manage" : "edit", by: "svc_host" });
   }
   return snap;
