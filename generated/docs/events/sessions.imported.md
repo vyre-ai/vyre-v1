@@ -22,7 +22,7 @@ type Payload = {
   provider: "codex" | "claude_code";
   sourceKey: string;
   projectId?: string;
-  scope: "personal" | "team";
+  scope: "personal";
   spaceId: string;
   messages: number;
 };

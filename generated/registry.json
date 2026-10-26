@@ -135595,8 +135595,7 @@
           },
           "destinationScope": {
             "enum": [
-              "personal",
-              "team"
+              "personal"
             ],
             "type": "string"
           },
@@ -135682,9 +135681,7 @@
               "previewedAt": 1760000000000
             },
             "destination": {
-              "confirmedAt": 1760000000000,
-              "kind": "personal",
-              "spaceId": "spc_a1b2c3"
+              "kind": "personal"
             },
             "idempotencyKey": "idem_1",
             "provider": "codex",
@@ -135758,26 +135755,10 @@
           },
           "destination": {
             "properties": {
-              "confirmedAt": {
-                "description": "Milliseconds since the Unix epoch",
-                "examples": [
-                  1760000000000
-                ],
-                "minimum": 0,
-                "type": "integer"
-              },
               "kind": {
                 "enum": [
-                  "personal",
-                  "team"
+                  "personal"
                 ],
-                "type": "string"
-              },
-              "spaceId": {
-                "examples": [
-                  "spc_a1b2c3"
-                ],
-                "pattern": "^spc_[a-z0-9]+$",
                 "type": "string"
               }
             },
@@ -135923,8 +135904,7 @@
                     },
                     "scope": {
                       "enum": [
-                        "personal",
-                        "team"
+                        "personal"
                       ],
                       "type": "string"
                     },
@@ -187512,8 +187492,7 @@
           },
           "scope": {
             "enum": [
-              "personal",
-              "team"
+              "personal"
             ],
             "type": "string"
           },
