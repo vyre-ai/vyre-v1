@@ -12,6 +12,8 @@ import type { ClaimFailure, Details, Problem } from "./logic.ts";
 export interface ClaimOwnerProps {
   /** The Space's name when the server told us (the preflight), else its address. */
   space: string;
+  /** The Space's key fingerprint from the link, to compare with the one the server printed. */
+  fingerprint?: string | null;
   /** A fresh recovery code (16 characters in four groups). */
   newCode(): string;
   /** Makes the key bundle, claims the Space and signs in. Rejects with a ClaimError. Resolves when Home may open. */
@@ -57,7 +59,7 @@ function Dead({ failure, onSignIn }: { failure: ClaimFailure; onSignIn?: () => v
   );
 }
 
-function DetailsStep({ s, space, dispatch, next }: { s: State; space: string; dispatch: (a: Action) => void; next: () => void }): ReactElement {
+function DetailsStep({ s, space, fingerprint, dispatch, next }: { s: State; space: string; fingerprint?: string | null; dispatch: (a: Action) => void; next: () => void }): ReactElement {
   const set = (patch: Partial<Details>): void => dispatch({ t: "set", patch });
   const problem = problemOf(s);
   const showUser = !!s.username && problem === "username";
@@ -74,6 +76,7 @@ function DetailsStep({ s, space, dispatch, next }: { s: State; space: string; di
       </Group>
       {showUser ? <ErrorLine testID="claim-username-error">{LINES.username}</ErrorLine> : mism ? <ErrorLine testID="claim-mismatch">{LINES.mismatch}</ErrorLine> : s.error ? <ErrorLine testID="claim-error">{s.error}</ErrorLine> : null}
       <Meter level={meter(strength(s.password))} />
+      {fingerprint ? <Foot testID="claim-fingerprint">{`Space fingerprint ${fingerprint}. It should match what the server printed.`}</Foot> : null}
       <Foot>Vyre never sees your password. If you forget it, your recovery code gets you back in; without both, your private items are lost.</Foot>
     </Step>
   );
@@ -108,7 +111,8 @@ export function ClaimOwner(props: ClaimOwnerProps): ReactElement {
       await props.onClaim({ name: s.name, username: s.username, password: s.password, recoveryCode: s.code });
     } catch (e) {
       const failure = (e as { failure?: ClaimFailure }).failure ?? "other";
-      dispatch({ t: "fail", failure, line: FAILURE_LINE[failure] });
+      const said = (e as Error).message;
+      dispatch({ t: "fail", failure, line: (failure === "other" || failure === "weak") && said ? said : FAILURE_LINE[failure] });
     } finally {
       setBusy(false);
     }
@@ -137,7 +141,7 @@ export function ClaimOwner(props: ClaimOwnerProps): ReactElement {
     <JoinFrame>
       <Panel bar={bar}>
         {onDetails
-          ? <DetailsStep s={s} space={props.space} dispatch={dispatch} next={() => { if (problem === null) dispatch({ t: "to", stage: "recovery", dir: 1 }); }} />
+          ? <DetailsStep s={s} space={props.space} fingerprint={props.fingerprint ?? null} dispatch={dispatch} next={() => { if (problem === null) dispatch({ t: "to", stage: "recovery", dir: 1 }); }} />
           : <RecoveryStep s={s} dispatch={dispatch} {...(props.onCopyCode ? { onCopyCode: props.onCopyCode } : {})} {...(props.onSaveCode ? { onSaveCode: props.onSaveCode } : {})} />}
       </Panel>
     </JoinFrame>

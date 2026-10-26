@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { ClaimError, claimOwner } from "./claim.ts";
 import type { ClaimDeps } from "./claim.ts";
 import { CapError } from "../shell/session/caps.ts";
-import { FAILURE_LINE, claimToken, failureOf, isDeadLink, problemOf } from "./logic.ts";
+import { FAILURE_LINE, claimToken, failureOf, fingerprintOf, isDeadLink, problemOf } from "./logic.ts";
 
 const bundle = { personKeyByPassword: "pw", personKeyByRecovery: "rc", publicKey: "pk", privateKeyWrapped: "sk" };
 
@@ -28,9 +28,10 @@ test("claim: the bundle is made on this device and only its wrapped halves are s
   assert.deepEqual(out, { token: "vst_owner", personId: "usr_owner" });
   assert.equal(calls[0]!.cap, "identity.claim_owner");
   const sent = calls[0]!.input;
-  assert.equal(sent["token"], "tok_abcdefgh");
+  assert.equal(sent["code"], "tok_abcdefgh");
+  assert.ok(!("token" in sent), "the field is code");
   assert.equal(sent["displayName"], "Irfad Imtiaz");
-  assert.deepEqual(sent["keys"], bundle);
+  assert.deepEqual(sent["keys"], { ...bundle, spaceKeys: [] });
   assert.ok(!("personKey" in (sent["keys"] as object)), "the unwrapped person key is never in the call");
 });
 
@@ -58,6 +59,9 @@ test("claim: no network is unreachable; no session in the answer is an error", a
 
 test("claim logic: a spent or expired link has no form; other failures keep the form", () => {
   assert.equal(failureOf("auth.claim_used", false), "used");
+  assert.equal(failureOf("auth.invalid_code", false), "used");
+  assert.equal(failureOf("auth.expired", false), "expired");
+  assert.equal(failureOf("validation.duplicate", false), "taken");
   assert.equal(failureOf("auth.claim_expired", false), "expired");
   assert.equal(failureOf("validation.username_taken", false), "taken");
   assert.equal(failureOf(null, true), "unreachable");
@@ -81,4 +85,10 @@ test("claim logic: the token comes from /claim/<token> and nothing else", () => 
   assert.equal(claimToken("/claim/abc"), null);
   assert.equal(claimToken("/home"), null);
   assert.equal(claimToken("/claim/abcDEF123456/extra"), null);
+});
+
+test("claim logic: the fingerprint in the link is grouped in fours for comparing", () => {
+  assert.equal(fingerprintOf("#fp=ABCD1234ef567890"), "abcd 1234 ef56 7890");
+  assert.equal(fingerprintOf("#other=1"), null);
+  assert.equal(fingerprintOf(""), null);
 });

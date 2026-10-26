@@ -31,8 +31,8 @@ export function failureOf(code: string | null, network: boolean): ClaimFailure {
   if (network) return "unreachable";
   const c = (code ?? "").toLowerCase();
   if (c.includes("expired")) return "expired";
-  if (c.includes("used") || c.includes("spent") || c.includes("claimed") || c.includes("consumed")) return "used";
-  if (c.includes("taken") || c.includes("exists") || c.includes("conflict")) return "taken";
+  if (c.includes("invalid_code") || c.includes("used") || c.includes("spent") || c.includes("claimed") || c.includes("consumed")) return "used";
+  if (c.includes("taken") || c.includes("duplicate") || c.includes("exists") || c.includes("conflict")) return "taken";
   if (c.includes("weak") || c.includes("password")) return "weak";
   return "other";
 }
@@ -48,3 +48,9 @@ export const FAILURE_LINE: Readonly<Record<ClaimFailure, string>> = {
 
 /** Failures that end the flow: the link cannot be used again, so no form is shown. */
 export const isDeadLink = (f: ClaimFailure): boolean => f === "used" || f === "expired";
+
+/** The Space fingerprint in the claim link (`#fp=<hex>`), grouped in fours for comparing against what the owner was shown, or null. */
+export function fingerprintOf(hash: string): string | null {
+  const m = /(?:^|[#&])fp=([0-9a-fA-F]{8,128})(?:&|$)/.exec(hash);
+  return m?.[1] ? (m[1].toLowerCase().match(/.{1,4}/g) ?? []).join(" ") : null;
+}

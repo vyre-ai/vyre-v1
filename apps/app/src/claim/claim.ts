@@ -1,6 +1,6 @@
 // The owner claim, end to end (ruling 71): the person key bundle is made on this device from the password and a recovery code, identity.claim_owner creates the owner with that bundle,
 // and the answer is a signed-in session. The password and the person key never leave this function except as the wrapped bundle; the unwrapped key goes to the local daemon only.
-import type { KeyBundle, MadeBundle } from "../../../../client/src/crypto/keys.ts";
+import type { MadeBundle } from "../../../../client/src/crypto/keys.ts";
 import { CapError } from "../shell/session/caps.ts";
 import type { CapCall } from "../shell/session/caps.ts";
 import { failureOf } from "./logic.ts";
@@ -32,11 +32,13 @@ type ClaimOut = { status?: string; session?: { token: string }; principal?: { id
 
 export async function claimOwner(deps: ClaimDeps, i: ClaimInput): Promise<Claimed> {
   const made = await deps.makeBundle(i.password, i.recoveryCode);
-  const keys: KeyBundle = { personKeyByPassword: made.personKeyByPassword, personKeyByRecovery: made.personKeyByRecovery, publicKey: made.publicKey, privateKeyWrapped: made.privateKeyWrapped };
+  // identity.claim_owner wants the wrapped halves only, plus the wrapped Space key epochs (spaceKeys) when makeBundle supplies them.
+  const spaceKeys = (made as { spaceKeys?: { epoch: number; wrapped: string }[] }).spaceKeys ?? [];
+  const keys = { personKeyByPassword: made.personKeyByPassword, personKeyByRecovery: made.personKeyByRecovery, publicKey: made.publicKey, privateKeyWrapped: made.privateKeyWrapped, spaceKeys };
   try {
     let out: ClaimOut;
     try {
-      out = (await deps.call("identity.claim_owner", { token: i.token, displayName: i.name.trim(), username: i.username, password: i.password, deviceName: i.deviceName, deviceClass: "web", keys })) as ClaimOut;
+      out = (await deps.call("identity.claim_owner", { code: i.token, displayName: i.name.trim(), username: i.username, password: i.password, deviceName: i.deviceName, deviceClass: "web", keys })) as ClaimOut;
     } catch (e) {
       if (e instanceof CapError) throw new ClaimError(failureOf(e.code, false), e.message);
       throw new ClaimError("unreachable", "The Space did not answer.");
