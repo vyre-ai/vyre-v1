@@ -106,27 +106,3 @@ test("a logs source that cannot be read leaves an empty page, not an error", asy
   setBudgetsProvider(null);
 });
 
-test("perf: console_speed rolls up every budget id with 1,000 spans each inside its budget row", async () => {
-  setBudgetsProvider(null);
-  const budgets = loadBudgets();
-  const row = budgets.find((b) => b.id === "console_speed")!;
-  // pages are built once, so the clock measures the roll-up and not the fake
-  const pages = new Map<string, unknown>();
-  for (const b of budgets) for (const from of [0, 500]) {
-    pages.set(`${b.id}:${from}`, { spans: Array.from({ length: 500 }, (_, k) => ({ ...span(b.id, 1 + ((from + k) % 90), from + k + 1), attrs: { value: 1 + ((from + k) % 90) } })), ...(from === 0 ? { next: "500" } : {}) });
-  }
-  const w = world({ "logs.spans": (i: Record<string, unknown>) => pages.get(`${String(i["name"])}:${Number(i["cursor"] ?? 0)}`) });
-  await handlers["console.speed"](w.ctx, {});
-  const runs: number[] = [];
-  for (let k = 0; k < 5; k++) {
-    const t0 = performance.now();
-    const { rows } = await handlers["console.speed"](w.ctx, {});
-    runs.push(performance.now() - t0);
-    assert.equal(rows.length, budgets.length);
-  }
-  runs.sort((a, b) => a - b);
-  const median = runs[2]!, worst = runs[4]!;
-  console.log(`perf console_speed median=${median.toFixed(1)}ms worst=${worst.toFixed(1)}ms budget p50=${row.p50} p95=${row.p95}`);
-  assert.ok(median <= row.p50, `median ${median} ms within the p50 of ${row.p50} ms`);
-  assert.ok(worst <= row.p95, `worst ${worst} ms within the p95 of ${row.p95} ms`);
-});

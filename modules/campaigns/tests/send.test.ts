@@ -249,7 +249,9 @@ test("a branch on open sends thanks to those who opened and a text nudge to thos
   assert.deepEqual(w.mail.map((m) => m.input.subject), ["Hello", "Hello", "Thanks for reading"]);
   assert.equal(w.mail[2]!.input.contactId, "rec_c001");
   assert.equal(w.sms.length, 1);
-  assert.deepEqual(w.sms[0], { numberId: "num_1", to: "+15550102", body: "Did you see my note, Person? Reply STOP to opt out.", contactId: "rec_c002", campaignId });
+  const { idempotencyKey: smsKey, ...sms0 } = w.sms[0] as Record<string, unknown>;
+  assert.match(String(smsKey), new RegExp(`^campaign:${campaignId}:mem_[0-9a-f]+:nudge:sms$`));
+  assert.deepEqual(sms0, { numberId: "num_1", to: "+15550102", body: "Did you see my note, Person? Reply STOP to opt out.", contactId: "rec_c002", campaignId });
   assert.equal(await stateOf(w, campaignId), "completed");
 });
 
@@ -287,7 +289,8 @@ test("task and call task steps open tasks for the contact; the owner is the defa
   const { campaignId } = await build(w, { steps });
   await launch(w, campaignId);
   await pass(w, campaignId);
-  assert.deepEqual(w.tasks, [
+  assert.deepEqual(w.tasks.map((t) => String((t as Record<string, unknown>).idempotencyKey).replace(/:mem_[0-9a-f]+:/, ":MEM:")), [`campaign:${campaignId}:MEM:t:task`, `campaign:${campaignId}:MEM:c:task`]);
+  assert.deepEqual(w.tasks.map((t) => { const { idempotencyKey: _k, ...rest } = t as Record<string, unknown>; return rest; }), [
     { title: "Check in with Person 1", assigned: { kind: "person", id: "usr_owner" }, recordId: "rec_c001", source: { kind: "manual", id: campaignId } },
     { title: "Call: Phone Person", assigned: { kind: "person", id: "usr_closer" }, recordId: "rec_c001", source: { kind: "manual", id: campaignId } },
   ]);

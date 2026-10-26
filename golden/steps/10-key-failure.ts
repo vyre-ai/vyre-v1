@@ -8,7 +8,7 @@ import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_KEYFAIL = ["identity", "members", "devices", "tasks", "access", "spaces"];
 export const GAPS: Gap[] = [
-  { packet: "PR 471 (P-L7_LIVE)", lane: "L7", what: "spaces.get is a later stub so members.invites.create answers 501, and the gateway has no preAuth, so sign-in and recovery restore answer 401" },
+  { packet: "P-L7_22 (w12a)", lane: "L7", what: "a newly joined person stays unauthorized, so Kay cannot act as herself after joining" },
 ];
 const KEYS = { personKeyByPassword: "bmV3d3JhcHBlZA==", publicKey: "cHVibGlj", privateKeyWrapped: "d3JhcHBlZA==", spaceKeys: [{ epoch: 0, wrapped: "d3JhcHBlZA==" }] };
 
