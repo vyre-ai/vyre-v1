@@ -47,7 +47,13 @@ export async function runAgentReply(live: readonly string[], opts: Parameters<ty
         await s.d.hooks?.pump?.();   // the bridge consumer runs on the hook interval; force a pass the way the daemon's own timer does
         const msgs = expectStatus(await s.call("chat.messages.list", admin, { threadId: thread! }), 200, "chat.messages.list").messages as { author?: { kind?: string }; body?: string }[];
         if (msgs.some((m) => m.author?.kind === "agent" && (m.body ?? "").includes("Hello from the fake engine."))) return;
-        if (Date.now() > end) throw new Error(`no reply from the agent after 40 s: ${short(msgs)}`);
+        if (Date.now() > end) {
+          // what the host logged while this flow ran: a consumer that failed, a bridge that skipped, an engine that could not open a session
+          s.d.sink.flush();
+          const logs = s.d.sink.trace(s.trace).logs.filter((l) => l.level >= 30 || /engine|bridge|consumer|session/.test(String(l.msg))).slice(-25).map((l) => `${l.msg} ${JSON.stringify(l.attrs ?? {}).slice(0, 300)}`);
+          const turns = await s.call("engine.turns.list", admin, { threadId: thread! });
+          throw new Error(`no reply from the agent after 40 s: ${short(msgs)}; turns ${short(turns.body?.data ?? turns.body)}; host log ${JSON.stringify(logs)}`);
+        }
         await new Promise((r) => setTimeout(r, 100));
       }
     }, ["she says hello"]);
