@@ -186,18 +186,27 @@ test("l7 live: an invite made by the owner is accepted by a stranger through the
     assert.equal(joined.status, 200, await joined.clone().text());
     // offboarding (golden 9): the removal wizard lists what the joined member owns, a legal hold on them stops a delete, and lifting it lets the plan through
     const newbie = ((await joined.json()) as { data: { personId: string } }).data.personId;
+    // the new member owns an agent; the removal plan hands it to the owner through the agents module's host call
+    const agent = await post(OWNER_TOKEN, "/v1/agents/create", { name: "Newbie helper", ownerId: newbie, idempotencyKey: "l7-join-agent" });
+    assert.equal(agent.status, 200, await agent.clone().text());
     const preview = await post(OWNER_TOKEN, "/v1/members/remove_preview", { personId: newbie });
     assert.equal(preview.status, 200, await preview.clone().text());
     const items = ((await preview.json()) as { data: { items: { kind: string; count: number }[] } }).data.items;
     assert.ok(["agents", "automations", "records", "projects", "vault_mine"].every((k) => items.some((i) => i.kind === k)), "every kind the wizard knows is listed");
+    assert.equal(items.find((i) => i.kind === "agents")?.count, 1, "the agent the person owns is listed");
     const held = await post(OWNER_TOKEN, "/v1/governance/holds/place", { target: { kind: "person", id: newbie }, reason: "litigation" });
     assert.equal(held.status, 200, await held.clone().text());
     const blocked = await post(OWNER_TOKEN, "/v1/members/remove", { personId: newbie, plan: [{ kind: "agents", action: "delete" }] });
     assert.equal(((await blocked.json()) as { error?: { code?: string } }).error?.code, "permission.on_hold", "a hold blocks the delete");
     const lifted = await post(OWNER_TOKEN, "/v1/governance/holds/release", { target: { kind: "person", id: newbie } });
     assert.equal(lifted.status, 200, await lifted.clone().text());
-    const removed = await post(OWNER_TOKEN, "/v1/members/remove", { personId: newbie, plan: [] });
+    const removed = await post(OWNER_TOKEN, "/v1/members/remove", { personId: newbie, plan: [{ kind: "agents", action: "reassign", to: "usr_olivia" }] });
     assert.equal(removed.status, 200, await removed.clone().text());
+    const mine = await post(OWNER_TOKEN, "/v1/agents/list", {});
+    const listed = JSON.stringify(await mine.json());
+    assert.ok(listed.includes("Newbie helper"), "the agent is still there after the removal");
+    const row = (JSON.parse(listed) as { data: { agents: { name: string; ownerId?: string; owner?: string }[] } }).data.agents.find((x) => x.name === "Newbie helper");
+    assert.equal(row?.ownerId ?? row?.owner, "usr_olivia", "and its owner is now the owner of the Space");
     const again = await join(code, "newbie2");
     assert.notEqual(again.status, 200, "an accepted invite cannot be used again");
     const bad = await join("NOPE-NOPE", "newbie3");
