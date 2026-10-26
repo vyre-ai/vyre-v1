@@ -314,7 +314,7 @@ test("promote with a pull request: an already merged one is not merged twice, a 
   w2.runtime.outcomes.set("feature-z", { pullRequest: 3 });
   const p2 = (await run<{ deployment: DepOut }>(w2.ctx, "sites.preview_rebuild", { siteId: site2, branch: "feature-z" })).deployment;
   await promote(w2, site2, p2.deploymentId);
-  assert.deepEqual(w2.gh.filter((g) => g.cap === "github.pull_request.merge").map((g) => g.input), [{ repo: "acme/harbor", number: 3, method: "rebase" }]);
+  assert.deepEqual(w2.gh.filter((g) => g.cap === "github.pull_request.merge").map((g) => g.input), [{ idempotencyKey: "sites.promote:acme/harbor#3:merge", repo: "acme/harbor", number: 3, method: "rebase" }]);
 });
 
 test("githubRepo: reads owner/name from https, ssh and git@ addresses and nothing else", () => {
