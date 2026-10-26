@@ -69,12 +69,13 @@ export function noteCursor(db: Tx, person: string, device: string, deviceClass: 
   db.run("INSERT INTO sync_device_cursor (person, device, class, cursor, last_seen) VALUES (?, ?, ?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET cursor = max(cursor, excluded.cursor), class = excluded.class, last_seen = excluded.last_seen", person, device, deviceClass, cursor, at);
 }
 
-/** The merge rule a Space-defined record type gives one of its fields (schema.apply `merge`), read from the type definition in the Space store; none when the type or the rule is not there. */
+/** The merge rule a Space-defined record type gives one of its fields (schema.apply `merge`), read from the type definition in the Space store; a protected or sealed field goes to the assistant like the records module's own rule; none when the type or the rule is not there. */
 function typeMerge(db: Tx, entity: string, field: string): Policy | undefined {
   try {
     const row = db.get<{ def: string }>("SELECT def FROM rs_types WHERE name = ?", entity);
     if (!row) return undefined;
-    const f = (JSON.parse(row.def) as { fields?: { name?: string; merge?: string }[] }).fields?.find((x) => x.name === field);
+    const f = (JSON.parse(row.def) as { fields?: { name?: string; merge?: string; kind?: string; protected?: boolean }[] }).fields?.find((x) => x.name === field);
+    if (f && f.merge === undefined && (f.protected === true || f.kind === "sealed")) return "assistant";
     return f?.merge === "lww" || f?.merge === "assistant" || f?.merge === "append" || f?.merge === "text-crdt" ? f.merge : undefined;
   } catch { return undefined; }
 }

@@ -6,15 +6,13 @@ import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_CONFLICT = ["sync", "conflicts", "records", "schema", "devices", "access", "spaces"];
-export const GAPS: Gap[] = [
-  { packet: "L1/L3 push policy", lane: "L1", what: "two devices editing the same field of a user record merge last-writer-wins and open no conflict: the push policy reads only the generated catalog's protectedFields (system entities), and the record type's own policy callback is not wired in the daemon" },
-];
+export const GAPS: Gap[] = [];
 
-const NOTE = { op: "type.create", type: "note_item", def: { title: "Note", plural: "Notes", icon: "file", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "status", type: "text", title: "Status" }] } };
+const NOTE = { op: "type.create", type: "note_item", def: { title: "Note", plural: "Notes", icon: "file", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "status", type: "text", title: "Status", merge: "assistant" }] } };
 const TRACE = "4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a";
 const opFor = (n: number, device: string, recordId: string, value: string, base: number) => ({
-  opId: `0192f3a0-7b1c-7000-8000-00000000000${n}`, traceId: TRACE, hlc: `00000000000${n}-0000-${device}`, cap: "records.update", v: 1, entity: "record", id: recordId,
-  input: { type: "note_item", recordId, patch: { status: value }, idempotencyKey: `golden-4-op-${n}` }, baseSeq: { record: base },
+  opId: `0192f3a0-7b1c-7000-8000-00000000000${n}`, traceId: TRACE, hlc: `00000000000${n}-0000-${device}`, cap: "records.update", v: 1, entity: "note_item", id: recordId,
+  input: { type: "note_item", recordId, patch: { status: value }, fields: { status: value }, idempotencyKey: `golden-4-op-${n}` }, baseSeq: { status: base },
 });
 
 export async function runConflict(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
@@ -30,15 +28,22 @@ export async function runConflict(live: readonly string[]): Promise<{ events: Ob
     const rec = await trail.step("a record exists", async () =>
       expectStatus(await s.call("records.create", admin, { idempotencyKey: "golden-4-rec", type: "note_item", fields: { name: "Shared note", status: "draft" } }), 200, "records.create").record.id as string,
     ["the note type exists"]);
+    // the sequence the record has in the sync feed: the base both devices edit from
+    const base = await trail.step("the record is in the sync feed", async () => {
+      const out = expectStatus(await s.call("sync.pull", admin, { cursor: 0, epoch: 0 }), 200, "sync.pull");
+      const seq = (out.changes as { id: string; seq: number }[]).find((c) => c.id === rec)?.seq;
+      assert.ok(seq !== undefined, `the record is in the feed ${short(out)}`);
+      return seq as number;
+    }, ["a record exists"]);
     const a = s.signedIn("usr_noah", "dev_noaha1"), b = s.signedIn("usr_noah", "dev_noahb1");
     await trail.step("device A pushes its offline edit", async () => {
-      const out = expectStatus(await s.call("sync.push", a, { deviceId: "dev_noaha1", epoch: 0, ops: [opFor(1, "noaha1", rec!, "sent", 0)] }), 200, "sync.push");
+      const out = expectStatus(await s.call("sync.push", a, { deviceId: "dev_noaha1", epoch: 0, ops: [opFor(1, "noaha1", rec!, "sent", base!)] }), 200, "sync.push");
       assert.equal(out.applied.length, 1, `A applied ${short(out)}`);
-    }, ["a record exists"]);
+    }, ["the record is in the sync feed"]);
     const conflict = await trail.step("device B pushes a competing edit from the same base and a conflict opens", async () => {
-      const out = expectStatus(await s.call("sync.push", b, { deviceId: "dev_noahb1", epoch: 0, ops: [opFor(2, "noahb1", rec!, "lost", 0)] }), 200, "sync.push");
+      const out = expectStatus(await s.call("sync.push", b, { deviceId: "dev_noahb1", epoch: 0, ops: [opFor(2, "noahb1", rec!, "lost", base!)] }), 200, "sync.push");
       assert.ok(out.conflicts.length >= 1, `B conflicts ${short(out)}`);
-      return out.conflicts[0].conflictId as string;
+      return out.conflicts[0].id as string;
     }, ["device A pushes its offline edit"]);
     const resolution = await trail.step("a person resolves it", async () =>
       expectStatus(await s.call("conflicts.resolve", admin, { conflictId: conflict!, choice: "theirs", summary: "keep the first edit" }), 200, "conflicts.resolve").resolutionId as string,
