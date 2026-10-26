@@ -4,7 +4,7 @@ Lane L4. Kind module. Version 0.1.0.
 
 Requires: mounts.
 
-## Capabilities (65)
+## Capabilities (66)
 
 - [changesets.approve](../capabilities/changesets.approve.md): Approve and commit a changeset: 3-way merge on the recorded base, conflicts go to the reviewer; optionally push
 - [changesets.comments.add](../capabilities/changesets.comments.add.md): Add an inline comment to a changeset with @ people and agents (an @ agent answers in the thread)
@@ -61,6 +61,7 @@ Requires: mounts.
 - [files.tree](../capabilities/files.tree.md): The roots of the file tree: Agents, Projects, People, Channels, shared knowledge, Agent template, Deployments, GitHub, plus Recent, Shared with me, Trash and Knowledge
 - [files.upload_url](../capabilities/files.upload_url.md): Get a one-time address to upload bytes; the result is a blobId for files.create or files.write
 - [files.versions](../capabilities/files.versions.md): List versions of a file with who and why
+- [files.versions_purge](../capabilities/files.versions_purge.md): Remove file versions older than a time except the newest of each file and any named version; files listed in skipFileIds (held ones) are left whole (retention)
 - [files.viewer_data](../capabilities/files.viewer_data.md): Everything the one viewer needs for any file type: text projection, pages, preview address, sheet info, export snapshot for Google-native files, and what the caller may do
 - [files.write](../capabilities/files.write.md): Replace the content of a file. In a Review changes folder an agent write lands in a changeset and syncs only on Approve
 - [sheets.add_sheet](../capabilities/sheets.add_sheet.md): Add a sheet (tab) to a workbook
@@ -72,7 +73,7 @@ Requires: mounts.
 - [sheets.update_row](../capabilities/sheets.update_row.md): Update one row by row id or by a key column value
 - [sheets.upsert_row](../capabilities/sheets.upsert_row.md): Update the row that matches the given columns, or append a new one
 
-## Events (30)
+## Events (31)
 
 - [changeset.approved](../events/changeset.approved.md): A changeset was approved and committed
 - [changeset.changes_requested](../events/changeset.changes_requested.md): The reviewer asked the agent for changes
@@ -95,6 +96,7 @@ Requires: mounts.
 - [file.shared_external](../events/file.shared_external.md): A link outside the Space was made for a file
 - [file.starred](../events/file.starred.md): A person starred a file or took the star off
 - [file.version_added](../events/file.version_added.md): A file got a new version
+- [file_versions.purged](../events/file_versions.purged.md): Old file versions were removed by retention (a count)
 - [folder.created](../events/folder.created.md): A folder was created
 - [folder.deleted](../events/folder.deleted.md): A folder and its files moved to Trash
 - [folder.moved](../events/folder.moved.md): A folder moved
