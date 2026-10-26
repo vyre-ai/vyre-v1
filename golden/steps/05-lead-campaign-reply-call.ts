@@ -3,6 +3,7 @@
 // fetch seam is given, and the DNS lookups behind the sending-domain check answer from the records the fake Resend published.
 import assert from "node:assert/strict";
 import { bootTolerant, expectStatus, short, Trail } from "./02-space.ts";
+import { signatureOf } from "../../modules/twilio/handlers/hooks.ts";
 import { setDefaultDns } from "../../modules/mail/handlers/extra/dns.ts";
 import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
@@ -193,11 +194,15 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
       assert.ok(out.callId, `a call is placed: ${short(out)}`);
       assert.ok(net.requests.includes("POST api.twilio.com/2010-04-01/Accounts/fake-Twilio_Account/Calls.json"), `Twilio was asked to place the call: ${short(net.requests)}`);
     }, ["the Twilio number is brought in", "a lead is made"]);
-    await trail.step("the lead picks up and Twilio reports it", async () => {
-      // the host route that checks Twilio's signature is not wired in the daemon yet, so the verified delivery is handed to the module the way that route would
-      expectStatus(await s.call("twilio.receive_webhook", admin, {
-        kind: "status", dedupeKey: "status:CAfake1:in-progress", sid: "CAfake1", params: { CallSid: "CAfake1", CallStatus: "in-progress" },
-      }), 200, "twilio.receive_webhook");
+    await trail.step("the lead picks up and Twilio reports it through the signed hook", async () => {
+      // what Twilio sends: a form body, and a signature of the full address and the sorted fields made with the account's auth token
+      const params = { CallSid: "CAfake1", CallStatus: "in-progress" };
+      const url = `${s.d.url}/hooks/twilio/status`;
+      const res = await fetch(url, {
+        method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", "x-twilio-signature": await signatureOf("fake-Twilio_Auth", url, params) },
+        body: new URLSearchParams(params).toString(),
+      });
+      assert.equal(res.status, 200, `the hook is accepted: ${res.status} ${(await res.text()).slice(0, 300)}`);
       await s.d.hooks?.pump();
     }, ["a person calls the lead"]);
     return { events: await s.events(), trail, net };
