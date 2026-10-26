@@ -40,9 +40,7 @@ test("a removed member cannot sign in again, their old session token answers 401
   };
   const owner = d.token;   // the local admin token acts as the Space owner
   try {
-    const role = await post(owner, "/v1/access/roles/create", { name: "Newcomer", idempotencyKey: "removed-role" });
-    assert.equal(role.status, 200, JSON.stringify(role.body));
-    const invite = await post(owner, "/v1/members/invites/create", { role: role.body.data.role.id, idempotencyKey: "removed-invite" });
+    const invite = await post(owner, "/v1/members/invites/create", { role: "rol_member", idempotencyKey: "removed-invite" });
     assert.equal(invite.status, 200, JSON.stringify(invite.body));
     const code = decodeURIComponent(new URL(invite.body.data.link as string).pathname.split("/").pop() ?? "");
     const joined = await post(null, "/v1/members/accept", { code, username: "leaver", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop", keys: KEYS });
