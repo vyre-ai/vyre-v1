@@ -24,8 +24,11 @@ const realFetch: ApiFetch = async (url, init) => {
 };
 
 export class GithubReleases {
+  // plain fields: node runs this file by stripping types, which does not support constructor parameter properties
+  private readonly repo: string;
+  private readonly token: string;
   private readonly f: ApiFetch;
-  constructor(private readonly repo: string, private readonly token: string, f?: ApiFetch) { this.f = f ?? realFetch; }
+  constructor(repo: string, token: string, f?: ApiFetch) { this.repo = repo; this.token = token; this.f = f ?? realFetch; }
 
   private headers(extra: Record<string, string> = {}): Record<string, string> {
     return { authorization: `Bearer ${this.token}`, accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28", ...extra };

@@ -15,6 +15,7 @@ import type { FeedEntry, Releases, UpdateChannel } from "./channels.ts";
 import { assetsFor, feedBase } from "./feed.ts";
 import { APP_TARBALL, EXTENSION_ZIP, KITS_TARBALL, packExtension, packFolder, packServer, releasesFrom } from "./pack.ts";
 import type { ImageKey } from "./pack.ts";
+import { imageHasChrome, stageChrome } from "./computer.ts";
 import { GithubReleases, publishRelease, updateRolling } from "./publish.ts";
 import { smokeRelease } from "./smoke.ts";
 import { lineage, newestStable } from "./lineage.ts";
@@ -86,6 +87,13 @@ export function main(argv: string[]): number {
         console.log(`release: packed ${made.join(", ")}`);
         return 0;
       }
+      case "stage-chrome": { console.log(`release: staged ${stageChrome(root).length} Vyre for Chrome files into images/agent-computer/vyre-chrome`); return 0; }
+      case "image-has-chrome": {
+        if (a === undefined) { console.error("usage: image-has-chrome <image>"); return 2; }
+        imageHasChrome(a, stageChrome(root));
+        console.log(`release: ${a} holds Vyre for Chrome`);
+        return 0;
+      }
       case "feed-base": {
         if (!(UPDATE_CHANNELS as readonly string[]).includes(a ?? "")) { console.error("usage: feed-base <stable|beta|nightly>"); return 2; }
         console.log(feedBase(a as UpdateChannel));
@@ -98,7 +106,7 @@ export function main(argv: string[]): number {
         console.log(`release: wrote ${names.join(", ")}`);
         return 0;
       }
-      default: console.error("usage: counter | bump | tag | lineage | pack | pubkey | sign | assets | feed-base | smoke"); return 2;
+      default: console.error("usage: counter | bump | tag | lineage | pack | stage-chrome | image-has-chrome | pubkey | sign | assets | feed-base | publish | rolling | unpublish | smoke"); return 2;
     }
   } catch (e) { console.error(`release: ${e instanceof Error ? e.message : "failed"}`); return 1; }
 }

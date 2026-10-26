@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { main } from "./cli.ts";
 import { EXTENSION_ZIP, SERVER_FILES, imagesLock, packExtension, packFolder, packServer, releasesFrom, sha256File, tarList, zipNames, zipRead } from "./pack.ts";
+import { imageHasChrome, stageChrome } from "./computer.ts";
 import { publishRelease, updateRolling } from "./publish.ts";
 import type { ApiFetch } from "./publish.ts";
 import { smokeRelease } from "./smoke.ts";
@@ -328,4 +329,28 @@ test("the rolling release is created on first use and its same-named assets are 
   await updateRolling({ repo: "o/r", token: "tok", dir, channel: "beta", fetch: again.fetch });
   assert.ok(!again.calls.some((c) => c === "POST /repos/o/r/releases"), "not created again");
   assert.ok(again.calls.includes("DELETE /repos/o/r/releases/assets/900"), "the asset of the same name was replaced");
+});
+
+test("Vyre for Chrome is staged into the agent-computer build context without its tests, and the image check names what is missing", () => {
+  const root = fakeRepo();
+  fs.mkdirSync(path.join(root, "images/agent-computer/vyre-chrome"), { recursive: true });
+  fs.writeFileSync(path.join(root, "images/agent-computer/vyre-chrome/.gitkeep"), "");
+  const files = stageChrome(root);
+  assert.deepEqual(files, ["manifest.json", "src/content/fill.js"]);
+  assert.ok(fs.existsSync(path.join(root, "images/agent-computer/vyre-chrome/.gitkeep")), "the placeholder stays");
+  assert.ok(!fs.existsSync(path.join(root, "images/agent-computer/vyre-chrome/tests")));
+
+  const inImage = new Map<string, string>([["manifest.json", JSON.stringify({ version: "1.4.0" })], ["src/content/fill.js", "x"]]);
+  const run = (_cmd: string, args: string[]): string => {
+    if (args.includes("cat")) { const v = inImage.get("manifest.json"); if (v === undefined) throw new Error("no such file"); return v; }
+    return [...inImage.keys()].map((k) => `/opt/vyre-chrome/${k}`).join("\n") + "\n/opt/vyre-chrome/.gitkeep\n";
+  };
+  assert.doesNotThrow(() => imageHasChrome("img", files, run));
+  inImage.delete("src/content/fill.js");
+  assert.throws(() => imageHasChrome("img", files, run), /missing 1 extension file/);
+  inImage.delete("manifest.json");
+  assert.throws(() => imageHasChrome("img", files, run), /Vyre for Chrome is not in the image/);
+  inImage.set("manifest.json", "{}");
+  assert.throws(() => imageHasChrome("img", files, run), /no version/);
+  assert.throws(() => stageChrome(fs.mkdtempSync(path.join(os.tmpdir(), "empty-"))), /manifest\.json is missing/);
 });

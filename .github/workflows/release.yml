@@ -61,6 +61,19 @@ jobs:
         run: |
           if docker buildx version >/dev/null 2>&1; then docker buildx bake -f images/vyred/docker-bake.hcl --print > /dev/null; else echo "::warning::this runner has no docker buildx, so the bake file was not checked; a real release needs it"; fi
           echo "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:$(printf '0%.0s' $(seq 64))" >> "$GITHUB_ENV"
+      - name: Agent computer image with Vyre for Chrome baked in, and the proof it is in there
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/release/cli.ts stage-chrome
+          img="ghcr.io/vyre-ai/agent-computer:$VERSION"
+          docker build -t "$img" images/agent-computer
+          node scripts/release/cli.ts image-has-chrome "$img"   # fails the release when the extension is not in /opt/vyre-chrome
+          if [ "$DRYRUN" != true ]; then
+            echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+            docker push "$img"
+            echo "VYRE_AGENT_IMAGE=$(docker inspect --format '{{index .RepoDigests 0}}' "$img")" >> "$GITHUB_ENV"
+          fi
       - name: Pack the server, the app web export, the Chrome extension and the Kits; write releases.json
         env:
           APP_DIST: apps/app/dist
