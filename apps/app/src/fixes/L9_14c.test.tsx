@@ -45,9 +45,9 @@ test("the sidebar has Needs you, Agents, Channels and Chats in the prototype's o
   assert.ok(has(out, "Send 12 invoices") && has(out, "Waiting on you"));
 });
 
-test("the open chat is Rivera intake with its composer, and the pane follows its agent on shared tabs", () => {
+test("the open chat is Acme intake with its composer, and the pane follows its agent on shared tabs", () => {
   const out = place();
-  assert.ok(has(out, "Rivera intake") && has(out, 'data-testid="chats-right-pane"'));
+  assert.ok(has(out, "Acme intake") && has(out, 'data-testid="chats-right-pane"'));
   for (const tab of [">Computer<", ">Threads<", ">Files<"]) assert.ok(has(out, tab), tab);
 });
 
