@@ -26,8 +26,11 @@ test("the list names each person's organisation next to the name", () => {
 
 test("Draft ready leads the preview of a line an agent has a draft for, and only that line", () => {
   const out = wrap({}, <ContactList />);
-  assert.ok(has(out, "Draft ready · Can you resend invoice 1041?") && has(out, "Draft ready · Re: Spring check-in"));
-  assert.ok(!has(out, "Draft ready · Lease documents"));
+  assert.ok(has(out, 'data-testid="row-line:marcus-notelead"') && has(out, 'data-testid="row-line:priya-notelead"'), "the Row's accent lead-in on Marcus and Priya");
+  assert.ok(!has(out, 'data-testid="row-line:elena-notelead"'), "not on a line with no draft");
+  assert.ok(has(out, "Draft ready</span> \u00b7 ") || has(out, "Draft ready</span>"), "the words, then the middle dot and the preview");
+  assert.ok(has(out, "color:var(--accent)"), "in the accent colour");
+  assert.ok(!has(out, "Draft ready \u00b7 Can you resend"), "no longer joined into the preview text");
 });
 
 test("the lines are the tall Row, and an unread name is bold", () => {
@@ -41,6 +44,23 @@ test("an unmatched sender is its own accent-wash block with the match button on 
   const out = wrap({}, <ContactList />);
   assert.ok(has(out, 'data-testid="row-line:unk"') && !has(out, 'data-testid="row-line:unk-leading"'), "no Row slots on the banner");
   assert.ok(has(out, "background-color:var(--accent-wash)") && has(out, 'data-testid="match-unk"') && has(out, 'data-testid="face-ghost"'));
+});
+
+test("the marks follow the name on the title line: star, bell and the DND and Bounced tags, and an unconfirmed organisation in the warning colour", () => {
+  const out = wrap({}, <ContactList />);
+  const marks = (k: string): string => out.match(new RegExp(`data-testid="row-line:${k}-marks"[^>]*>([\\s\\S]*?)</div></div>`))?.[1] ?? "";
+  assert.ok(marks("marcus").includes('data-testid="star-marcus"'), "Marcus's star after his name");
+  assert.ok(marks("elena").includes('data-testid="bell-elena"'), "Elena's bell");
+  assert.ok(marks("jonas").includes('data-testid="dnd-jonas"') && marks("ben").includes('data-testid="bounced-ben"'), "the tags");
+  assert.ok(marks("ben").includes('data-testid="org-unsure-ben"') && marks("ben").includes("Unsure match"), "Ben's unconfirmed organisation, in the marks");
+  assert.ok(!has(out, 'data-testid="match-ben"'), "no inline match link on a line; the pinned unmatched sender has the button");
+});
+
+test("agent inboxes in the sidebar show the agent's shared face", () => {
+  const s = createSampleInbox();
+  const out = renderToStaticMarkup(<InboxDataProvider value={s.data}><InboxStateProvider initial={{}}><InboxSidebar /></InboxStateProvider></InboxDataProvider>).replaceAll("<!-- -->", "");
+  const agents = out.slice(out.indexOf(">Agents<"), out.indexOf(">Lists<"));
+  assert.ok(agents.includes("<svg") && agents.includes("Billing"), "an agent face for Billing's number");
 });
 
 test("bell and star marks, DND and Bounced tags show on their lines", () => {

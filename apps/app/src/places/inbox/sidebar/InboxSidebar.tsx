@@ -11,6 +11,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { useInboxData, useOptionalInboxData, useScreenQuery } from "./data.tsx";
 import { SCREENS, calendarIds, navGroups, sameScope } from "./model.ts";
 import type { ContactRow, NavInbox, Scope, View as ViewKind } from "./model.ts";
+import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Glyph, IconButton, Unread } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
 import { useInboxState } from "./state.tsx";
@@ -109,7 +110,7 @@ function Sidebar(): ReactElement {
       sections.push(
         <SideRow
           key={b.id} id={`inbox:${b.id}`} title={b.label} selected={scoped(b.scope)} count={b.unread}
-          glyph={<Glyph name={b.channel === "sms" ? "call" : "mail"} />}
+          glyph={b.agent ? <Avatar name={b.label.replace(/@$/, "").replace(/\u2019?'?s number$/, "")} kind="agent" size={18} /> : <Glyph name={b.channel === "sms" ? "call" : "mail"} />}
           trailing={b.lock ? <Glyph name="lock" size={12} /> : null}
           onPress={() => pick(b.scope)}
           onMenu={(x, y) => inboxMenu(b, x, y)}

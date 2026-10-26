@@ -75,16 +75,7 @@ function Meta({ e, x, now, offsetMin, narrow: slim, lit, onMore }: { e: Entry; x
   const data = useInboxData();
   return (
     <View style={styles.meta}>
-      {e.needsMatch && e.kind === "contact" ? (
-        <Pressable accessibilityRole="link" accessibilityLabel="Match to a record" testID={`match-${e.key}`} onPress={() => data.nav.openMatch(e.openId)} style={styles.match}>
-          <Glyph name="link" size={12} color="var(--accent)" /><Text style={styles.matchText}>Match to a record</Text>
-        </Pressable>
-      ) : null}
       <View style={styles.timeLine}>
-        {x?.dnd ? <Tag id={`dnd-${e.key}`} label="DND" tip={`Do not disturb: ${x.dnd}`} /> : null}
-        {x?.bounced ? <Tag id={`bounced-${e.key}`} label="Bounced" tip={`An email to ${x.bounced} bounced`} warn /> : null}
-        {e.followed ? <View testID={`bell-${e.key}`} accessibilityLabel="Following"><Glyph name="bell" size={12} /></View> : null}
-        {e.starred ? <View testID={`star-${e.key}`} accessibilityLabel="Starred"><Glyph name="star" size={12} fill color="var(--warn)" /></View> : null}
         {lit ? (
           <Pressable accessibilityRole="button" accessibilityLabel="More" testID={`more-${e.key}`} onPress={(ev) => { const p = pointOf(ev); onMore(p.x, p.y); }} style={({ hovered }: { hovered?: boolean }) => [styles.more, hovered === true && styles.moreOver]}>
             <Glyph name="more" size={14} />
@@ -135,17 +126,28 @@ function Banner({ e, now, offsetMin, selected, onPress, onMore }: { e: Entry; no
 function Line({ e, x, selected, slim, now, offsetMin, onPress, onMore }: { e: Entry; x: RowExtras | undefined; selected: boolean; slim: boolean; now: number; offsetMin: number; onPress: () => void; onMore: (px: number, py: number) => void }): ReactElement {
   const [over, setOver] = useState(false);
   if (pinned(e)) return <Banner e={e} now={now} offsetMin={offsetMin} selected={selected} onPress={onPress} onMore={onMore} />;
-  // "Draft ready" leads the note as plain text until the Row's accent lead-in lands (P-UI_09b)
   const draft = x?.draftReady === true && e.kind === "contact";
+  // after the name: an unconfirmed organisation in the warning colour, the star and bell, then the DND and Bounced tags (they keep their size when the name truncates)
+  const marks = (e.followed || e.starred || x?.dnd || x?.bounced || x?.orgUnsure) ? (
+    <>
+      {x?.orgUnsure && x.org ? <Text testID={`org-unsure-${e.key}`} numberOfLines={1} style={styles.orgUnsure}>{x.org}</Text> : null}
+      {e.starred ? <View testID={`star-${e.key}`} accessibilityLabel="Starred"><Glyph name="star" size={12} fill color="var(--ink-3)" /></View> : null}
+      {e.followed ? <View testID={`bell-${e.key}`} accessibilityLabel="Following"><Glyph name="bell" size={12} /></View> : null}
+      {x?.dnd ? <Tag id={`dnd-${e.key}`} label="DND" tip={`Do not disturb: ${x.dnd}`} /> : null}
+      {x?.bounced ? <Tag id={`bounced-${e.key}`} label="Bounced" tip={`An email to ${x.bounced} bounced`} warn /> : null}
+    </>
+  ) : null;
   return (
     <View {...menuTrigger(onMore)} {...({ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) } as object)}>
       <Row
         id={`line:${e.key}`}
         title={e.name}
-        {...(x?.org ? { titleSuffix: x.org } : {})}
+        {...(x?.org && !x.orgUnsure ? { titleSuffix: x.org } : {})}
+        {...(marks ? { titleMarks: marks } : {})}
+        {...(draft ? { noteLead: "Draft ready" } : {})}
         tall
         emphasis={e.unread > 0}
-        note={`${draft ? "Draft ready \u00b7 " : ""}${e.snippet || "No preview"}`}
+        note={e.snippet || "No preview"}
         selected={selected}
         leading={<View style={styles.face}><Face name={e.name} size={36} /></View>}
         trailing={<Meta e={e} x={x} now={now} offsetMin={offsetMin} narrow={slim} lit={over || selected} onMore={onMore} />}
@@ -336,6 +338,7 @@ const styles = StyleSheet.create({
   timeLine: { flexDirection: "row", alignItems: "center", gap: 6 },
   time: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   timeUnread: { color: "var(--accent)" as string, fontWeight: "500" },
+  orgUnsure: { color: "var(--warn)" as string, fontSize: 12, lineHeight: 18 },
   tag: { fontSize: 10.5, fontWeight: "600", letterSpacing: 0.2, paddingVertical: 1, paddingHorizontal: 5, borderRadius: 5, color: "var(--ink-3)" as string, backgroundColor: "var(--sunk)" as string, boxShadow: "inset 0 0 0 1px var(--line)" as string },
   tagWarn: { color: "var(--warn)" as string },
   more: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sel-strong)" as string },
