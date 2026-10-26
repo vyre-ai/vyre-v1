@@ -66876,10 +66876,12 @@ if (g4290 === 'object') { const o4290 = x4290 as Record<string, unknown>;
 if (!("agentId" in o4290)) e.push(p + "/agentId" + ': required');
 if (!("name" in o4290)) e.push(p + "/name" + ': required');
 if (!("ownerId" in o4290)) e.push(p + "/ownerId" + ': required');
+if (!("folderId" in o4290)) e.push(p + "/folderId" + ': required');
 if (!("templateVersion" in o4290)) e.push(p + "/templateVersion" + ': required');
 if ("agentId" in o4290) lf(o4290["agentId"], p + "/agentId", e, L12);
 if ("name" in o4290) lf(o4290["name"], p + "/name", e, L2);
 if ("ownerId" in o4290) lf(o4290["ownerId"], p + "/ownerId", e, L20);
+if ("folderId" in o4290) lf(o4290["folderId"], p + "/folderId", e, L2);
 if ("templateVersion" in o4290) lf(o4290["templateVersion"], p + "/templateVersion", e, L13);
 }
 }

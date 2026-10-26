@@ -37,7 +37,7 @@
   "events": {
     "agent.config_changed": "7c928543a20c07e6adcdedb7fade1a78d79b2885f422825ddb697d1e13a3616c",
     "agent.config_error": "4ef993c9554ab5ab0166846264537067eaae0683d3fd42852ab4cc41acc22717",
-    "agent.created": "e782ea2e3afffcdd710c91ece80dc24b4819adc36523f93b7ccc27262a395619",
+    "agent.created": "7f451db0721a8358ff9d325264983d351838e54b381c6ee2ee31998e9dd8736d",
     "agent.deleted": "d2922e5affd1868f9f5c6b5fef4da50ff0ac86ba18ecfd71369669952880cd3a",
     "agent.paused": "ac14848359ac741e61c17bd9890febda6b5c207cceff6c155f0584a541ae9513",
     "agent.restored": "f145bd6462c269a4869095b5950c8c4d118a06433eaadc396849e7fe59816e36",
