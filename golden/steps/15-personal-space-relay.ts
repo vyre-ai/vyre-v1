@@ -50,7 +50,12 @@ export async function runPersonal(live: readonly string[]): Promise<{ events: Ob
     }, ["the phone pairs with a code from the signed-in device"]);
     await trail.step("a document edited on the host reaches the phone", async () => {
       assert.ok(synced, "needs sync live");
-      throw new Error("not reachable until sync is live: no document update has been pushed or pulled");
+      const doc = "not_golden15";
+      const update = Buffer.from([0, 0]).toString("base64");   // an empty Yjs update: the server appends what an accepted device sends
+      const sent = expectStatus(await space.call("sync.doc.update", admin, { doc, update }), 200, "sync.doc.update");
+      assert.ok(sent.seq >= 1, `update ${short(sent)}`);
+      const opened = expectStatus(await space.call("sync.doc.open", phone!.token, { doc }), 200, "sync.doc.open");
+      assert.ok((opened.updates as string[]).includes(update) || opened.snapshot, `the phone opens the host's update: ${short(opened)}`);
     }, ["the phone's replica scope is set and it pulls"]);
     await trail.step("refusal: the phone cannot revoke the host's other devices", async () => {
       const r = await space.call("devices.revoke", phone!.token, { deviceId: "dev_hostcomputer" });
