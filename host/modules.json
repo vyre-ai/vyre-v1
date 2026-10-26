@@ -34,7 +34,7 @@
     {
       "id": "campaigns",
       "owner": "L8",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "chat",
@@ -84,7 +84,7 @@
     {
       "id": "email-builder-api",
       "owner": "L8",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "engine",
@@ -94,7 +94,7 @@
     {
       "id": "esign",
       "owner": "L8",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "events",
@@ -109,7 +109,7 @@
     {
       "id": "forms",
       "owner": "L8",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "gate",
@@ -289,7 +289,7 @@
     {
       "id": "sites",
       "owner": "L8",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "sources",
@@ -329,7 +329,7 @@
     {
       "id": "templates",
       "owner": "L8",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "terminal",
