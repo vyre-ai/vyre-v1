@@ -27,16 +27,14 @@ export function ensureLineCss(): void {
     + ".vfl-cs{flex:none;display:flex;align-items:center;gap:" + COL.gap + "px;margin-left:8px}"
     + ".vfl-c{flex:none;white-space:nowrap;color:var(--ink-3);font-size:12.5px;font-variant-numeric:tabular-nums}.vfl-n{text-align:right}"
     + ".vfl-w{flex:none;display:flex;align-items:center;gap:7px;white-space:nowrap;color:var(--ink-2);font-size:12.5px}"
-    + ".vfl-f{flex:none;width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--sunk);color:var(--ink-2);font-size:9px;font-weight:600}";
+    + ".vfl-x{overflow:hidden;text-overflow:ellipsis}.vfl-b{min-width:0}.vfl-b.vfl-x{flex:1}.vfl-f{flex:none;width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--sunk);color:var(--ink-2);font-size:9px;font-weight:600}";
   d.head.appendChild(el);
   cssDone = true;
 }
 
-/** A text cut to what its column holds (a little over the average glyph), ending in an ellipsis: no clip box on the cell. */
-function fit(text: string, width: number): string {
-  const room = Math.floor(width / 6.6);
-  return text.length > room ? `${text.slice(0, Math.max(1, room - 1))}…` : text;
-}
+/** The class of a cell's text: plain when it fits its column (a little over the average glyph), and only a text that is too long gets the clip box and its ellipsis. The words stay whole in the page. */
+const roomOf = (width: number): number => Math.floor(width / 6.6);
+const longer = (text: string, width: number): string => (text.length > roomOf(width) ? " vfl-x" : "");
 
 export interface PlainLineProps {
   /** The Row's id (`line:<key>`): the test ids follow it. */
@@ -59,12 +57,12 @@ export interface PlainLineProps {
 export function PlainLine(p: PlainLineProps): ReactElement {
   ensureLineCss();
   const c = p.cells;
-  const cells: ReactElement[] = [createElement("span", { key: "m", className: "vfl-c", "data-testid": "cell-modified", style: { width: COL.modified } }, fit(c.when, COL.modified))];
+  const cells: ReactElement[] = [createElement("span", { key: "m", className: `vfl-c${longer(c.when, COL.modified)}`, "data-testid": "cell-modified", style: { width: COL.modified } }, c.when)];
   if (p.wide) {
     cells.push(
-      createElement("span", { key: "b", className: "vfl-w", "data-testid": "cell-by", style: { width: COL.by } }, ...(c.by ? [createElement("span", { key: "f", className: "vfl-f", "aria-hidden": true }, c.by.slice(0, 1).toUpperCase()), fit(c.by, COL.by - 23)] : [])),
-      createElement("span", { key: "s", className: "vfl-c vfl-n", "data-testid": "cell-size", style: { width: COL.size } }, fit(c.size, COL.size)),
-      createElement("span", { key: "k", className: "vfl-c", "data-testid": "cell-kind", style: { width: COL.kind } }, fit(c.kind, COL.kind)),
+      createElement("span", { key: "b", className: "vfl-w", "data-testid": "cell-by", style: { width: COL.by } }, ...(c.by ? [createElement("span", { key: "f", className: "vfl-f", "aria-hidden": true }, c.by.slice(0, 1).toUpperCase()), createElement("span", { key: "n", className: `vfl-b${longer(c.by, COL.by - 23)}` }, c.by)] : [])),
+      createElement("span", { key: "s", className: `vfl-c vfl-n${longer(c.size, COL.size)}`, "data-testid": "cell-size", style: { width: COL.size } }, c.size),
+      createElement("span", { key: "k", className: `vfl-c${longer(c.kind, COL.kind)}`, "data-testid": "cell-kind", style: { width: COL.kind } }, c.kind),
     );
   }
   const handlers: Record<string, unknown> = {
