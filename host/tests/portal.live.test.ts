@@ -159,9 +159,13 @@ test("portal live: the session a claim makes is the client's portal session only
     const done = await fetch(`${d.url}${link}`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
     const session = ((await done.json()) as { data?: { session?: string } }).data?.session ?? "";
     assert.ok(session.length >= 20);
-    for (const cap of ["portal.accounts", "portal.rules", "schema.types.list"]) {
-      const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${session}` }, body: JSON.stringify({ siteId: SITE }) });
-      assert.equal(r.status, 401, `${cap} does not take a portal session as a Space caller`);
+    const calls: Array<[string, Record<string, unknown>]> = [["portal.accounts", { siteId: SITE }], ["portal.rules", { siteId: SITE }], ["schema.types.list", {}]];
+    const as = (token: string, cap: string, body: Record<string, unknown>) => fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+    for (const [cap, body] of calls) {
+      const member = await as(OWNER_TOKEN, cap, body);
+      assert.equal(member.status, 200, `${cap} answers a Space member (the control): ${await member.text()}`);
+      const portal = await as(session, cap, body);
+      assert.ok(portal.status === 401 || portal.status === 403, `${cap} refuses the portal session (got ${portal.status})`);
     }
   } finally { await d.stop(); }
 });
