@@ -140,6 +140,10 @@ const TAB_MAX_WIDTH = 210;
 export interface TabStripViewProps extends TabStripProps {
   /** Accessible name for the strip. */
   label?: string;
+  /** Pinned tabs with 7 px padding instead of 10: a narrow side pane that has to fit four tabs (the prototype's agent pane). */
+  tight?: boolean;
+  /** No bar of its own: no fill and no rule under the tabs, for a strip that sits inside a pane's body (the prototype's agent pane). */
+  bare?: boolean;
 }
 
 export function TabStrip(props: TabStripViewProps): ReactElement {
@@ -220,6 +224,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
         key={tab.key}
         tab={tab}
         on={on}
+        tight={props.tight === true}
         dropTarget={drag !== null && drag.over === tab.key && drag.from !== tab.key}
         canClose={onClose !== undefined}
         nodeRef={(node) => { nodes.current[tab.key] = node; }}
@@ -241,7 +246,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
 
   const current = activeTab(props);
   return (
-    <View style={styles.strip} testID="tab-strip" {...webProps({ onPointerLeave: () => setDrag(null), onPointerUp: finishDrag })}>
+    <View style={[styles.strip, props.bare === true ? styles.stripBare : null]} testID="tab-strip" {...webProps({ onPointerLeave: () => setDrag(null), onPointerUp: finishDrag })}>
       <ScrollView
         ref={(node) => { scroller.current = node as unknown as typeof scroller.current; }}
         horizontal
@@ -294,9 +299,10 @@ function IconButton({ name, label, onPress: press, nodeRef }: { name: string; la
   );
 }
 
-function TabItem({ tab, on, dropTarget, canClose, nodeRef, onPress: press, onClose, trigger, onKeyDown, onDragStart, onDragOver, onDragEnd, onLayout }: {
+function TabItem({ tab, on, tight, dropTarget, canClose, nodeRef, onPress: press, onClose, trigger, onKeyDown, onDragStart, onDragOver, onDragEnd, onLayout }: {
   tab: TabSpec;
   on: boolean;
+  tight: boolean;
   dropTarget: boolean;
   canClose: boolean;
   nodeRef: (node: unknown) => void;
@@ -312,22 +318,24 @@ function TabItem({ tab, on, dropTarget, canClose, nodeRef, onPress: press, onClo
   const [over, setOver] = useState(false);
   const pinned = tab.pinned === true;
   const ink = on ? "var(--ink)" : over ? "var(--ink-2)" : "var(--ink-3)";
+  const extraTab = tab as TabSpec & { lead?: ReactNode; iconOnly?: boolean; label?: string };
+  const name = extraTab.label ?? tab.title;
   const showClose = !pinned && canClose && (over || on);
   return (
     <Pressable
       ref={nodeRef}
       role="tab"
       aria-selected={on}
-      aria-label={tab.title}
+      aria-label={name}
       testID={on ? `tab-${tab.key}-selected` : `tab-${tab.key}`}
       onPress={press}
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
       onLayout={(event) => onLayout(event.nativeEvent.layout.x, event.nativeEvent.layout.width)}
-      style={[styles.tab, pinned ? styles.tabPinned : null, over && !on ? HOVER : null, on ? ACTIVE : null, dropTarget ? DROP : null]}
+      style={[styles.tab, pinned ? styles.tabPinned : null, pinned && tight ? styles.tabTight : null, over && !on ? HOVER : null, on ? ACTIVE : null, dropTarget ? DROP : null]}
       {...trigger}
       {...webProps({
-        title: tab.title,
+        title: name,
         tabIndex: on ? 0 : -1,
         onKeyDown: (event: EventLike) => { onKeyDown(event); (trigger["onKeyDown"] as ((e: unknown) => void) | undefined)?.(event); },
         onPointerDown: (event: EventLike) => { if (event.button === undefined || event.button === 0) onDragStart(); },
@@ -341,8 +349,9 @@ function TabItem({ tab, on, dropTarget, canClose, nodeRef, onPress: press, onClo
         },
       })}
     >
+      {extraTab.lead !== undefined ? extraTab.lead : null}
       {tab.icon !== undefined && tab.icon.length > 0 ? <MenuIcon icon={tab.icon} color={ink} size={14} /> : null}
-      <Text numberOfLines={1} style={[styles.title, { color: ink }]}>{tab.title}</Text>
+      {extraTab.iconOnly === true ? null : <Text numberOfLines={1} style={[styles.title, { color: ink }]}>{tab.title}</Text>}
       {pinned ? null : (
         <Pressable
           role="button"
@@ -368,6 +377,7 @@ const HIDDEN = { opacity: 0 };
 
 const styles = StyleSheet.create({
   strip: { height: TAB_STRIP_HEIGHT, flexDirection: "row", backgroundColor: "var(--side)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  stripBare: { backgroundColor: "transparent", borderBottomWidth: 0 },
   scroll: { flex: 1 },
   content: { flexGrow: 1, alignItems: "flex-end", paddingHorizontal: 6, gap: 2 },
   tabs: { flexDirection: "row", alignItems: "flex-end", gap: 2 },
@@ -387,6 +397,7 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   tabPinned: { paddingRight: 10 },
+  tabTight: { paddingLeft: 7, paddingRight: 7 },
   title: { flexShrink: 1, fontSize: 12.5, lineHeight: 16 },
   close: { width: 18, height: 18, borderRadius: 5, alignItems: "center", justifyContent: "center" },
   iconButton: { width: 26, height: 26, marginBottom: 4, borderRadius: 7, alignItems: "center", justifyContent: "center" },

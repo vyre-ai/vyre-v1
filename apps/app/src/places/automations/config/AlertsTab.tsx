@@ -51,7 +51,7 @@ export function AlertsTab({ automation }: { automation: Automation }): ReactElem
   const whoRows = al.who.map((w, i) => (
     <Row
       key={subjectKey(w)} id={`who-${w.id}`} title={data.name(w.id)} note={w.kind === "role" ? "Role" : w.kind === "group" ? "Group" : undefined}
-      leading={<View style={t.lead}><Face name={data.name(w.id)} kind={w.kind === "person" ? "person" : "agent"} size={20} /></View>}
+      leading={<View style={t.lead}><Face name={data.name(w.id)} seedId={w.id} kind={w.kind === "person" ? "person" : "agent"} size={20} /></View>}
       trailing={al.who.length > 1 ? <IconButton icon="x" label={`Stop telling ${data.name(w.id)}`} size={22} testID={`who-remove-${i}`} onPress={() => save(removeWho(al, w), `${data.name(w.id)} will not be told`)} /> : undefined}
     />
   ));
@@ -65,7 +65,7 @@ export function AlertsTab({ automation }: { automation: Automation }): ReactElem
       <Lab>Who</Lab>
       <Group testID="alert-who">
         {personal ? (
-          <SRow label="Only you, it is yours" last minHeight={44}><View style={t.you}><Face name={data.me.name} size={16} /><Text style={t.youText}>You</Text></View></SRow>
+          <SRow label="Only you, it is yours" last minHeight={44}><View style={t.you}><Face name={data.me.name} seedId={data.me.id} size={16} /><Text style={t.youText}>You</Text></View></SRow>
         ) : (
           <>
             {whoRows}
@@ -122,7 +122,7 @@ export function AlertsTab({ automation }: { automation: Automation }): ReactElem
             {al.escalation.map((step, i) => (
               <Row
                 key={`${i}-${subjectKey(step.to)}`} id={`step-${i}`} title={subjectTitle(step.to, data.name)} note={`After ${hoursWords(step.afterHours)}`}
-                leading={<View style={t.lead}><Face name={data.name(step.to.id)} kind={step.to.kind === "person" ? "person" : "agent"} size={20} /></View>}
+                leading={<View style={t.lead}><Face name={data.name(step.to.id)} seedId={step.to.id} kind={step.to.kind === "person" ? "person" : "agent"} size={20} /></View>}
                 trailing={<View style={t.stepTr}>
                   <PickButton label={`When and who for step ${i + 1}`} value={hoursWords(step.afterHours)} testID={`step-hours-${i}`} onPress={(x, y) => pick([{ head: "After" }, ...hoursMenu(step.afterHours, (h) => save(setStepHours(al, i, h), `Escalates after ${hoursWords(h)}`)), { separator: true }, { head: "Tell" }, ...whoMenu((w) => save(setStepTo(al, i, w), `${data.name(w.id)} is told after ${hoursWords(step.afterHours)}`), () => false)], x, y, "When and who")} />
                   <IconButton icon="x" label={`Remove step ${i + 1}`} size={22} testID={`step-remove-${i}`} onPress={() => save(removeStep(al, i), "Removed the step")} />

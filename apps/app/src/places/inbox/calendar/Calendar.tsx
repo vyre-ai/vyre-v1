@@ -246,7 +246,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
           {b.one ? null : <Text numberOfLines={1} style={s.cevSmall}>{range(span.startsAt, span.endsAt, off)}</Text>}
         </Pressable>
         <View testID={`resize:${e.id}`} {...({ onPointerDown: startEvent(e, "resize") } as object)} style={s.grip} />
-        {e.bookedByAgentId && b.height >= 24 ? <View style={s.af}><Face name={e.bookedByAgentId.replace(/^agt_/, "")} size={14} round={false} /></View> : null}
+        {e.bookedByAgentId && b.height >= 24 ? <View style={s.af}><Face name={e.bookedByAgentId.replace(/^agt_/, "")} seedId={e.bookedByAgentId} size={14} round={false} /></View> : null}
       </View>
     );
   };
@@ -274,7 +274,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
 
   const availBar = line ? (
     <View style={s.avail} testID="cal-avail-bar">
-      <View style={s.faces}>{each(shaded, (e, i) => <View key={e} style={i > 0 ? s.faceOver : undefined}><Face name={names.get(e) ?? e} size={18} /></View>)}</View>
+      <View style={s.faces}>{each(shaded, (e, i) => <View key={e} style={i > 0 ? s.faceOver : undefined}><Face name={names.get(e) ?? e} seedId={e} size={18} /></View>)}</View>
       <Text style={s.availText} numberOfLines={1}><Text style={s.availBold}>{line.who.replace(" busy times shaded", "")}</Text> busy times shaded</Text>
       <Text style={s.sep}>{"·"}</Text>
       <Text style={s.free} numberOfLines={1} testID="cal-free">{line.free}</Text>

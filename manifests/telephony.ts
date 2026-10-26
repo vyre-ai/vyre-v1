@@ -186,7 +186,7 @@ export default defineManifest({
     }),
     write('telephony.ingest_status', 'Apply a call or text status callback (ended, missed, voicemail, delivered, undelivered, failed)', {
       in: { sid: t.str(), kind: t.enm('call', 'sms'), status: t.str(), errorCode: t.opt(t.str()), durationSec: t.opt(t.int()), at: t.ts() },
-      out: { applied: t.bool() }, emits: ['call.ended', 'call.missed', 'call.voicemail_left', 'message.delivered', 'message.bounced', 'message.failed'], idem: 'natural', offline: 'online',
+      out: { applied: t.bool() }, emits: ['call.started', 'call.ended', 'call.missed', 'call.voicemail_left', 'message.delivered', 'message.bounced', 'message.failed'], idem: 'natural', offline: 'online',
     }),
     write('telephony.ingest_recording', 'Download a finished recording or voicemail into Files and attach it to the call', {
       in: { callSid: t.str(), recordingSid: t.str(), url: t.str(), durationSec: t.opt(t.int()) }, out: { callId: id.call, fileId: id.file }, emits: ['call.recording_ready'], idem: 'natural', offline: 'online',
