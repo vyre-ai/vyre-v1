@@ -14,7 +14,7 @@ const KEYS = { personKeyByPassword: "d3JhcHBlZA==", publicKey: "cHVibGlj", priva
 
 /** Why this flow is a todo today (ruling 53: each LIVE packet cannot close until it passes). */
 export const GAPS: Gap[] = [
-  { packet: "P-L7_22 (w12a)", lane: "L7", what: "a newly joined person stays unauthorized, so the steps where Maya acts as herself cannot pass yet" },
+  { packet: "L7/host trace", lane: "L7", what: "every step passes, but the events of the anonymous accept (member.joined, keys.stored, session.started) do not carry the caller's x-vyre-trace id, so the flow's one-trace event chain finds only member.invited" },
 ];
 
 /** A Space needs an address before it can invite (the join link carries it); a person with server.network sets one. */
@@ -59,7 +59,7 @@ export async function runJoining(live: readonly string[]): Promise<{ events: Obs
     }, ["owner invites a Member into Sales"]);
     await trail.step("the new session works: whoami names Maya", async () => {
       const w = expectStatus(await s.call("identity.whoami", maya!.token, {}), 200, "identity.whoami");
-      assert.equal(w.person?.id ?? w.personId ?? w.id, maya!.id);
+      assert.equal(w.principal?.id, maya!.id);
     }, ["the invited person accepts and gets a session"]);
     await trail.step("the invite is spent: the same code is refused", async () => {
       const r = await s.call("members.invites.preview", null, { code: invite!.code });
