@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The window manager of an agent computer: windows, no desktop menus, no extra keys. The dock is tint2 (desktop.ts writes its launchers). -->
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+  <focus><focusNew>yes</focusNew><followMouse>no</followMouse></focus>
+  <placement><policy>Smart</policy></placement>
+  <theme><name>Clearlooks</name><titleLayout>NLIMC</titleLayout><keepBorder>yes</keepBorder></theme>
+  <desktops><number>1</number></desktops>
+  <keyboard/>
+  <mouse><context name="Root"/></mouse>
+</openbox_config>

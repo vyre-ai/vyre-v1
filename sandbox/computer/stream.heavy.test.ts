@@ -54,7 +54,7 @@ function config(): ContainerConfig {
       Binds: [`${NAME}-profile:/home/agent/.profile-disk:rw`, `${filesRoot}:${FILES_GUEST}:rw`],
       ReadonlyRootfs: false,
       Tmpfs: { "/tmp": "rw,nosuid,nodev,noexec,size=1g,uid=10001,gid=10001,mode=1777", "/dev/shm": "rw,nosuid,nodev,noexec,size=1g" },
-      CapDrop: ["ALL"], CapAdd: [], SecurityOpt: ["no-new-privileges:true"], Privileged: false, NetworkMode: "bridge", PidMode: "", IpcMode: "private", UsernsMode: "", Devices: [],
+      CapDrop: ["ALL"], CapAdd: [], SecurityOpt: ["no-new-privileges:true", `seccomp=${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, "images/agent-computer/seccomp.json"), "utf8")))}`], Privileged: false, NetworkMode: "bridge", PidMode: "", IpcMode: "private", UsernsMode: "", Devices: [],
       PidsLimit: 1024, Memory: memory, MemorySwap: memory, NanoCpus: 2e9, Init: true, AutoRemove: false,
       Ulimits: [{ Name: "nofile", Soft: 8192, Hard: 16384 }, { Name: "core", Soft: 0, Hard: 0 }],
       LogConfig: { Type: "json-file", Config: { "max-size": "10m", "max-file": "3" } },

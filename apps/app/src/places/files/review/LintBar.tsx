@@ -49,7 +49,7 @@ export function LintBar({ fileId, name, text, view, onView, onJump }: LintBarPro
   const q = useCap("files.lint", { fileId, text });
   const { element: menu, show } = useMenu();
   if (q.status !== "ready") return <Skeleton height={34} testID="lint-loading" />;
-  const items = lintItems(q.data);
+  const items = lintItems(q.data, text);
   const press = (item: LintItem) => (e: unknown): void => {
     if (item.list.length > 1) {
       const at = anchorOf(e);

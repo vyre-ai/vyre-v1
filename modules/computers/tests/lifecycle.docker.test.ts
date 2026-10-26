@@ -53,7 +53,8 @@ test("the container is built inside its profile and a config outside it is refus
   assert.deepEqual(reviewComputerConfig(c), []);
   assert.equal(c.Image, DEFAULT_COMPUTER_IMAGE);
   assert.deepEqual(c.HostConfig.CapDrop, ["ALL"]);
-  assert.deepEqual(c.HostConfig.SecurityOpt, ["no-new-privileges:true"]);
+  assert.equal(c.HostConfig.SecurityOpt[0], "no-new-privileges:true");
+  assert.ok(c.HostConfig.SecurityOpt[1]?.startsWith("seccomp={"), "a seccomp profile is given inline, and it is not unconfined");
   assert.equal(c.HostConfig.Privileged, false);
   assert.equal(c.HostConfig.Devices.length, 0);
   assert.equal(c.HostConfig.NetworkMode, "bridge");
