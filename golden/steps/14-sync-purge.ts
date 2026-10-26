@@ -7,7 +7,9 @@ import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_PURGE = ["sync", "access", "search", "records", "schema", "devices", "spaces"];
-export const GAPS: Gap[] = [];
+export const GAPS: Gap[] = [
+  { packet: "unassigned (access/sync wiring)", lane: "L7/L4", what: "access.unshare appends no sync.row_rescan, so the guest's next pull returns hide: [] (cursor 501, no changes); sync/src/purge/server.ts reindexScope exists but nothing calls it on a revoke (ARCH 5.7)" },
+];
 
 export async function runPurge(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const trail = new Trail();
