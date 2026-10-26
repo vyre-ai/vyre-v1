@@ -61,7 +61,7 @@ const str = (v: unknown): string => (typeof v === "string" ? v : "");
 export function scrub(text: string): string {
   return text.slice(0, 300)
     .replace(/\bsk-[A-Za-z0-9_-]{8,}/g, "[key]")
-    .replace(/\b(?:Bearer|Token)\s+\S+/gi, "$1 [token]")
+    .replace(/\b(Bearer|Token)\s+\S+/gi, "$1 [token]")
     .replace(/[A-Za-z0-9+/_=-]{32,}/g, "[token]")
     .replace(/(?:\/(?:home|Users|var|tmp|work|root|etc)\/[^\s"')]+)/g, "[path]");
 }
