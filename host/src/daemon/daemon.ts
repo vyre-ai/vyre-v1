@@ -256,7 +256,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // hands them over, adopts the snapshot it answers and runs after every commit that may have changed access, so the next call already sees a join, a role change, a share or a removal.
   let accessPending: { seq: number; type: string; payload: unknown }[] = [];
   let syncAccess: (force?: boolean) => Promise<void> = async () => {};
-  let accessStale = false, kicking = false;
+  let accessStale = false, kicking = false, noAccessModule = false;
   /** While the snapshot is stale only the owner is answered, and each refused call tries the sync again, so the Space heals itself as soon as the module can take the events. */
   const staleFor = (principal: string): boolean => {
     if (!accessStale || principal === (cfg.owner ?? access.owner())) return false;
@@ -450,11 +450,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       closers.push(() => projectionRunner.pump().catch(() => {}));
       await hookRunner.start();
       syncAccess = async (force) => {
+        if (noAccessModule) return;
         const events = accessPending;
         if (!events.length && !force && access.adopted() && !accessStale) return;
         accessPending = [];
         const attempt = async (): Promise<void> => { access.adopt((await hookRunner.call("access.sync", { events })) as AccessSnapshot); };
-        try { await attempt(); } catch {
+        try { await attempt(); } catch (first) {
+          // a code root whose hooks do not include the access module (a test's own hooks) keeps answering from the seed-shaped fold
+          if (first instanceof Error && first.message.startsWith("no host call named access.sync")) { noAccessModule = true; return; }
           try { await attempt(); } catch (e) {
             accessPending = [...events, ...accessPending];   // the module could not take them: keep them for the next pass
             const error = e instanceof Error ? e.message : String(e);

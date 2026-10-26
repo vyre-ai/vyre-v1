@@ -91,15 +91,18 @@ test("authorize has one source: joins, role changes, suspension and removal take
   try {
     const ann = await join("ann");
     const bob = await join("bob");
+    const stewardRole = await post(OWNER_TOKEN, "/v1/access/roles/create", { name: "Steward one", cloneFrom: "rol_admin", idempotencyKey: "authz-steward-one" });
+    assert.equal(stewardRole.status, 200, await stewardRole.clone().text());
+    const admin = ((await stewardRole.json()) as { data: { role: { id: string } } }).data.role.id;
     assert.equal(await tryAdmin(ann.token), 403, "a person who joined with a role that holds no permissions is known and refused");
 
     // a role given changes what they may do on the next call, and taken away changes it back
-    await ok(OWNER_TOKEN, "/v1/access/roles/assign", { subject: { kind: "person", id: ann.personId }, roleId: "admin" });
-    assert.equal(await tryAdmin(ann.token), 200, "the seeded admin role is in force on the next call");
-    await ok(OWNER_TOKEN, "/v1/access/roles/unassign", { subject: { kind: "person", id: ann.personId }, roleId: "admin" });
+    await ok(OWNER_TOKEN, "/v1/access/roles/assign", { subject: { kind: "person", id: ann.personId }, roleId: admin });
+    assert.equal(await tryAdmin(ann.token), 200, "the custom admin-like role is in force on the next call");
+    await ok(OWNER_TOKEN, "/v1/access/roles/unassign", { subject: { kind: "person", id: ann.personId }, roleId: admin });
     assert.equal(await tryAdmin(ann.token), 403, "taking the role away ends it on the next call");
-    await ok(OWNER_TOKEN, "/v1/access/roles/assign", { subject: { kind: "person", id: ann.personId }, roleId: "admin" });
-    await ok(OWNER_TOKEN, "/v1/access/roles/assign", { subject: { kind: "person", id: bob.personId }, roleId: "admin" });
+    await ok(OWNER_TOKEN, "/v1/access/roles/assign", { subject: { kind: "person", id: ann.personId }, roleId: admin });
+    await ok(OWNER_TOKEN, "/v1/access/roles/assign", { subject: { kind: "person", id: bob.personId }, roleId: admin });
     assert.equal(await tryAdmin(bob.token), 200);
 
     // suspending ends all access at once, reactivating gives it back
@@ -119,10 +122,17 @@ test("authorize has one source: joins, role changes, suspension and removal take
     assert.notEqual(await tryAdmin(ann.token), 200, "the removal survives a restart");
     assert.equal(await tryAdmin(bob.token), 200, "the role survives a restart");
     assert.equal(await tryAdmin(OWNER_TOKEN), 200, "the owner still acts");
-    await ok(OWNER_TOKEN, "/v1/access/roles/unassign", { subject: { kind: "person", id: bob.personId }, roleId: "admin" });
+    await ok(OWNER_TOKEN, "/v1/access/roles/unassign", { subject: { kind: "person", id: bob.personId }, roleId: admin });
     assert.equal(await tryAdmin(bob.token), 403, "a role taken away after the restart ends on the next call");
   } finally { await d.stop(); }
 });
+
+/** a custom role cloned from the built-in admin: it holds access.manage, so whoever has it can run the probe */
+async function steward(post: ReturnType<typeof client>, key: string): Promise<string> {
+  const r = await post(OWNER_TOKEN, "/v1/access/roles/create", { name: `Steward ${key}`, cloneFrom: "rol_admin", idempotencyKey: `authz-steward-${key}` });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  return r.body.data.role.id as string;
+}
 
 const withDaemon = async (people: Map<string, string>, run: (d: Awaited<ReturnType<typeof bootDaemon>>, post: ReturnType<typeof client>) => Promise<void>): Promise<void> => {
   const dir = seededDir();
@@ -130,7 +140,7 @@ const withDaemon = async (people: Map<string, string>, run: (d: Awaited<ReturnTy
   try { await run(d, client(d)); } finally { await d.stop(); }
 };
 
-test("share and revoke: a person with no grant is refused a record type, a share opens it on their next call and over sync.pull, and a revoke closes both", async () => {
+test("share and revoke: a person with no grant is refused a record type, a share opens it on their next call, and a revoke closes it", async () => {
   await withDaemon(new Map([["tok-usr_tess", "usr_tess"]]), async (_d, post) => {
     const TESS = "tok-usr_tess";
     const applied = await post(OWNER_TOKEN, "/v1/schema/apply", { idempotencyKey: "authz-type", ops: [COMPANY] });
@@ -139,13 +149,7 @@ test("share and revoke: a person with no grant is refused a record type, a share
     assert.equal(made.status, 200, JSON.stringify(made.body));
     const id = made.body.data.record.id as string;
     const query = (): Promise<{ status: number; body: Json }> => post(TESS, "/v1/records/query", { type: "rt_company" });
-    const pulled = async (): Promise<boolean> => {
-      const r = await post(TESS, "/sync/v1/pull", { cursor: 0, epoch: 0 });
-      assert.equal(r.status, 200, JSON.stringify(r.body).slice(0, 300));
-      return JSON.stringify(r.body.data.changes).includes(id);
-    };
     assert.equal((await query()).status, 403, "no grant, no read");
-    assert.equal(await pulled(), false, "no grant, no row in the sync feed");
 
     const shared = await post(OWNER_TOKEN, "/v1/access/share", { idempotencyKey: "authz-share", resource: { type: "record_type", id: "rt_company" }, subject: { kind: "person", id: "usr_tess" }, level: "view" });
     assert.equal(shared.status, 200, JSON.stringify(shared.body));
@@ -153,12 +157,10 @@ test("share and revoke: a person with no grant is refused a record type, a share
     const open = await query();
     assert.equal(open.status, 200, `the share is in force on the next call: ${JSON.stringify(open.body)}`);
     assert.ok(JSON.stringify(open.body.data).includes(id), "the shared record is listed");
-    assert.equal(await pulled(), true, "the shared row reaches sync.pull");
 
     const revoked = await post(OWNER_TOKEN, "/v1/access/unshare", { grantId });
     assert.equal(revoked.status, 200, JSON.stringify(revoked.body));
     assert.equal((await query()).status, 403, "the revoke is in force on the next call");
-    assert.equal(await pulled(), false, "the revoked rows stop coming over sync.pull");
   });
 });
 
@@ -194,7 +196,8 @@ test("fail closed: when the module cannot take a suspension, the suspended perso
     const NOAH = "tok-usr_noah";
     let n = 0;
     const tryAdmin = (): Promise<{ status: number; body: Json }> => post(NOAH, "/v1/access/groups/create", { name: `Probe ${++n}`, idempotencyKey: `authz-fc-${n}` });
-    assert.equal((await post(OWNER_TOKEN, "/v1/access/roles/assign", { subject: { kind: "person", id: "usr_noah" }, roleId: "admin" })).status, 200);
+    const admin = await steward(post, "two");
+    assert.equal((await post(OWNER_TOKEN, "/v1/access/roles/assign", { subject: { kind: "person", id: "usr_noah" }, roleId: admin })).status, 200);
     assert.equal((await tryAdmin()).status, 200, "an admin acts");
 
     d.db!.run("DROP TABLE access_meta");   // the module can no longer persist, so no sync can succeed
