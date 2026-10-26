@@ -141,8 +141,9 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
         const m = await s.call("mail.message.list", admin, { mailboxId: mailbox! });
         s.d.sink.flush();
         const logs = (s.d.sink.db.prepare("SELECT msg, attrs FROM logs WHERE level >= 40 ORDER BY id DESC LIMIT 8").all() as { msg: string; attrs: string | null }[]).map((l) => `${l.msg} ${l.attrs ?? ""}`.slice(0, 350));
+        const probe = await s.call("mail.send", adam, { idempotencyKey: "golden-5-probe", mailboxId: mailbox!, to: [{ address: LEAD.email, contactId: lead! }], subject: "probe", text: "probe", contactId: lead!, campaignId: campaign! });
         const members = s.d.db!.all("SELECT state, step_key, due_at, address FROM campaigns_member");
-        assert.fail(`members ${short(members)} logs ${short(logs)} the lead got the email: ${short(stats)} campaign ${short(c.body?.data?.campaign)} mail ${short(m.body?.data ?? m.body)} net ${short(net.requests)}`.slice(0, 4000));
+        assert.fail(`probe ${probe.status} ${short(probe.body)} members ${short(members)} logs ${short(logs)} the lead got the email: ${short(stats)} campaign ${short(c.body?.data?.campaign)} mail ${short(m.body?.data ?? m.body)} net ${short(net.requests)}`.slice(0, 4000));
       }
       assert.ok(net.requests.includes("POST api.resend.com/emails"), `Resend was asked to send: ${short(net.requests)}`);
     }, ["launching is held by the Gate for approval"]);
