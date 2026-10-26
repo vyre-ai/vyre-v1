@@ -61,7 +61,7 @@ export function launchChrome(screen: Screen, profileDir: string, extensionDir: s
       const bounds = browserBounds(screen);
       const args = [
         "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", `--user-data-dir=${profileDir}`, `--remote-debugging-port=${PORT}`, "--remote-debugging-address=127.0.0.1",
-        `--window-position=${bounds.x},${bounds.y}`, `--window-size=${bounds.width},${bounds.height}`, "--no-first-run", "--no-default-browser-check", "--password-store=basic", "--disable-features=Translate,MediaRouter",
+        `--window-position=${bounds.x},${bounds.y}`, `--window-size=${bounds.width},${bounds.height}`, "--no-first-run", "--test-type", "--no-default-browser-check", "--password-store=basic", "--disable-features=Translate,MediaRouter",
         ...(extensionDir && existsSync(join(extensionDir, "manifest.json")) ? [`--load-extension=${extensionDir}`] : []),
         "about:blank",
       ];
