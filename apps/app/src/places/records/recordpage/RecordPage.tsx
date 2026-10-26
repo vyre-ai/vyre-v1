@@ -310,8 +310,8 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
         <Text style={p.slash}>/</Text>
         <Text accessibilityRole="header" aria-level={1} style={p.h1} numberOfLines={1} testID="record-title-crumb">{title}</Text>
         <View style={p.grow} />
-        <Pressable accessibilityRole="button" accessibilityState={{ selected: map }} testID="toggle-map" onPress={() => setMap(!map)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, map && p.hbOn]}><Glyph name="map" size={14} color={map ? "var(--accent)" : "var(--ink-2)"} /><Text style={[p.hbText, map && p.lit]}>Relationships</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityState={{ selected: paneOpen }} testID="toggle-pane" onPress={() => setPane(!paneOpen)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, paneOpen && p.hbOn]}><Glyph name="expand" size={14} color={paneOpen ? "var(--accent)" : "var(--ink-2)"} /><Text style={[p.hbText, paneOpen && p.lit]}>Details</Text></Pressable>
+        {late ? <><Pressable accessibilityRole="button" accessibilityState={{ selected: map }} testID="toggle-map" onPress={() => setMap(!map)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, map && p.hbOn]}><Glyph name="map" size={14} color={map ? "var(--accent)" : "var(--ink-2)"} /><Text style={[p.hbText, map && p.lit]}>Relationships</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityState={{ selected: paneOpen }} testID="toggle-pane" onPress={() => setPane(!paneOpen)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, paneOpen && p.hbOn]}><Glyph name="expand" size={14} color={paneOpen ? "var(--accent)" : "var(--ink-2)"} /><Text style={[p.hbText, paneOpen && p.lit]}>Details</Text></Pressable></> : null}
       </View>
       {flash ? (
         <View style={[p.flash, flash.bad === true && p.flashBad]} accessibilityRole="alert" testID="record-flash">
