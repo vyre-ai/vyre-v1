@@ -3,7 +3,7 @@ import type { ResourceBinding } from '../packages/contracts/src/types.ts';
 
 export interface Route {
   method: string; path: string; cap: string; v: number; module: string;
-  effects: 'read' | 'write' | 'outward'; permission: string | null; level: 'view' | 'use' | 'edit' | 'manage';
+  effects: 'read' | 'write' | 'outward'; permission: string | null; level: 'view' | 'use' | 'edit' | 'manage' | 'member';
   resource: ResourceBinding; idempotency: 'key' | 'natural' | 'none'; risk: 'low' | 'medium' | 'high';
   offline: 'patch' | 'queue' | 'online' | null; teamOnly: boolean; gate: string | null;
 }
@@ -165,7 +165,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -183,7 +183,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -201,7 +201,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "write",
     "permission": null,
-    "level": "edit",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -219,7 +219,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -237,7 +237,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -23718,7 +23718,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "write",
     "permission": null,
-    "level": "edit",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -23736,7 +23736,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "write",
     "permission": null,
-    "level": "edit",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -23754,7 +23754,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -23772,7 +23772,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "write",
     "permission": null,
-    "level": "edit",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -23790,7 +23790,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -23808,7 +23808,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -23862,7 +23862,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
