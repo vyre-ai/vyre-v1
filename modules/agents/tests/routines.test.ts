@@ -146,10 +146,22 @@ test("run now starts one run as the routine owner, never the caller, and leaves 
   assert.equal(out.runId, "run_a1b2c3");
   assert.equal(started.length, 1);
   assert.deepEqual([started[0].kind, started[0].owner, started[0].name], ["routine", DANA, "Morning digest"]);
+  assert.equal(started[0].idempotencyKey, `routine-run-now:${routine.routineId}:rn1`, "runs.start declares a key, so it is in the input, not only in the call options");
   assert.equal(out.routine.lastRunAt, hn.clock.t);
   assert.equal(out.routine.nextRunAt, routine.nextRunAt, "the schedule did not move");
   assert.deepEqual(hn.named("agent.routine_run_started")[0]!.payload, { agentId: id, routineId: routine.routineId, runId: "run_a1b2c3", ownerId: DANA, requestedBy: MAYA });
   assert.deepEqual(assertEventsConform(hn), []);
+});
+
+test("run now without a caller key uses the routine and the minute, in the input", async () => {
+  const { hn, id } = await setup();
+  const { routine } = await save(hn, id);
+  const started: any[] = [];
+  hn.world.answer("runs.start", (i: any) => { started.push(i); return { runId: "run_a1b2c3" }; });
+  hn.clear();
+  hn.advance(60_000);
+  await call(hn, "agents.routine.run_now", { agentId: id, routineId: routine.routineId });
+  assert.equal(started[0].idempotencyKey, `routine-run-now:${routine.routineId}:${Math.floor(hn.clock.t / 60_000)}`);
 });
 
 test("delegate hands a routine to another person and undo hands it back; a second hand-over still undoes to the original", async () => {

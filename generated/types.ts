@@ -12023,46 +12023,6 @@ export type IdentityChangePasswordIn = {
 export type IdentityChangePasswordOut = {
   ok: boolean;
 };
-export type IdentityClaimOwnerIn = {
-  code: string;
-  spaceId: string;
-  username: string;
-  displayName?: string;
-  password: string;
-  deviceName: string;
-  deviceClass: "desktop" | "phone" | "web" | "extension" | "daemon";
-  keys: {
-    personKeyByPassword: string;
-    personKeyByRecovery?: string;
-    publicKey: string;
-    privateKeyWrapped: string;
-    spaceKeys: Array<{
-        epoch: number;
-        wrapped: string;
-      }>;
-  };
-};
-export type IdentityClaimOwnerOut = {
-  status: "ok" | "second_factor_required";
-  challengeId?: string;
-  session?: {
-    sessionId: string;
-    deviceId: string;
-    token: string;
-    expiresAt: number;
-    epoch: number;
-  };
-  keys?: {
-    personKeyByPassword: string;
-    personKeyByRecovery?: string;
-    publicKey: string;
-    privateKeyWrapped: string;
-    spaceKeys: Array<{
-        epoch: number;
-        wrapped: string;
-      }>;
-  };
-};
 export type IdentityGithubLinkIn = {
   code: string;
 };
@@ -26995,7 +26955,6 @@ export interface CapMap {
   "hubspot.push_object": { in: HubspotPushObjectIn; out: HubspotPushObjectOut };
   "hubspot.test_connection": { in: HubspotTestConnectionIn; out: HubspotTestConnectionOut };
   "identity.change_password": { in: IdentityChangePasswordIn; out: IdentityChangePasswordOut };
-  "identity.claim_owner": { in: IdentityClaimOwnerIn; out: IdentityClaimOwnerOut };
   "identity.github_link": { in: IdentityGithubLinkIn; out: IdentityGithubLinkOut };
   "identity.github_sign_in": { in: IdentityGithubSignInIn; out: IdentityGithubSignInOut };
   "identity.github_unlink": { in: IdentityGithubUnlinkIn; out: IdentityGithubUnlinkOut };
