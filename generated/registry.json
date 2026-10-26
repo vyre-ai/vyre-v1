@@ -100597,9 +100597,7 @@
       },
       "permission": "policy.manage",
       "resource": {
-        "entity": "mail_message",
-        "id": "/messageId",
-        "type": "entity"
+        "type": "space"
       },
       "risk": "high",
       "since": "1.0.0",
