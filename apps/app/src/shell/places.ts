@@ -10,23 +10,22 @@ export interface ShellPlace {
   label: string;
   /** The `place` field of this place's screens in generated/screens.ts. */
   screens: string;
-  /** Loads the place. Home is its own screen; the others mount the place's first list from the replica until their own screens register. */
+  /** Loads the place's provider module (src/shell/providers/<place>.tsx). A place whose full layout is not composed yet re-exports the first list from the replica. */
   load: PlaceLoader;
 }
 
 const home: PlaceLoader = () => import("./providers/home.tsx");
-const list: PlaceLoader = () => import("./providers/first-list.tsx");
 
 export const SHELL_PLACES: readonly ShellPlace[] = [
   { id: "home", label: "Home", screens: "home", load: home },
-  { id: "chat", label: "Chats", screens: "chats", load: list },
-  { id: "mail", label: "Inbox", screens: "inbox", load: list },
-  { id: "records", label: "Records", screens: "records", load: list },
-  { id: "files", label: "Files", screens: "files", load: list },
-  { id: "sites", label: "Apps", screens: "apps", load: list },
-  { id: "automations", label: "Automations", screens: "automations", load: list },
-  { id: "vault", label: "Vault", screens: "vault", load: list },
-  { id: "settings", label: "Settings", screens: "settings", load: list },
+  { id: "chat", label: "Chats", screens: "chats", load: () => import("./providers/chats.tsx") },
+  { id: "mail", label: "Inbox", screens: "inbox", load: () => import("./providers/inbox.tsx") },
+  { id: "records", label: "Records", screens: "records", load: () => import("./providers/records.tsx") },
+  { id: "files", label: "Files", screens: "files", load: () => import("./providers/files.tsx") },
+  { id: "sites", label: "Apps", screens: "apps", load: () => import("./providers/apps.tsx") },
+  { id: "automations", label: "Automations", screens: "automations", load: () => import("./providers/automations.tsx") },
+  { id: "vault", label: "Vault", screens: "vault", load: () => import("./providers/vault.tsx") },
+  { id: "settings", label: "Settings", screens: "settings", load: () => import("./providers/settings.tsx") },
 ];
 
 export function shellPlace(id: string): ShellPlace | undefined {

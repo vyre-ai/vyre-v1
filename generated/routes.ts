@@ -781,8 +781,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "dynamic",
-      "ref": "/resource"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",

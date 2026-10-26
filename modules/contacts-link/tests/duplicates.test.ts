@@ -76,8 +76,8 @@ test("a dismissed pair is not suggested again, in either order, and dismissing t
   const h = world();
   assert.deepEqual(await duplicatesDismiss(h.ctx, { suggestionId: "rec_a02|rec_a01" }), { dismissed: true });
   assert.deepEqual(await duplicatesDismiss(h.ctx, { suggestionId: "rec_a01|rec_a02" }), { dismissed: true });
-  assert.equal(h.rows(`SELECT * FROM contacts_dismissed`).length, 1);
-  assert.equal(h.rows(`SELECT * FROM contacts_dismissed`)[0]!.suggestionId, suggestionIdOf("rec_a01", "rec_a02"));
+  assert.equal(h.rows(`SELECT * FROM contacts_link_dismissed`).length, 1);
+  assert.equal(h.rows(`SELECT * FROM contacts_link_dismissed`)[0]!.suggestionId, suggestionIdOf("rec_a01", "rec_a02"));
   const out = await duplicatesList(h.ctx, {});
   assert.deepEqual(out.suggestions.map((s) => s.suggestionId), ["rec_a01|rec_b01", "rec_co1|rec_co2", "rec_c01|rec_c02"]);
   assert.equal(h.records.size, 9, "dismissing keeps every record");

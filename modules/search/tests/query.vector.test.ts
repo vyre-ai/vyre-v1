@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { embedRun } from "../handlers/index.ts";
-import { DIM, VectorIndex, decodeVector, embed, encodeVector, forgetVectors, hashEmbed, jsKernel, normalise, setVectorKernel, vectorsOf, writeVector } from "../projections.ts";
+import { CHUNK, DIM, VectorIndex, decodeVector, embed, encodeVector, forgetVectors, hashEmbed, jsKernel, normalise, setVectorKernel, vectorsOf, writeVector } from "../projections.ts";
 import type { VectorKernel } from "../projections.ts";
 import { harness, randomUnit, seed } from "../fixtures/harness.ts";
 
@@ -33,11 +33,12 @@ test("a faster kernel can be given to the index and to the module, and gives the
   const plain = new VectorIndex(64);
   const fast = new VectorIndex(64, mirror);
   const v = new Float32Array(DIM);
-  for (let i = 0; i < 6_000; i++) { randomUnit(i + 1, v); plain.set(i + 1, v); fast.set(i + 1, v); }
+  const N = CHUNK + 1_904;   // one full chunk and a remainder, whatever the chunk size is
+  for (let i = 0; i < N; i++) { randomUnit(i + 1, v); plain.set(i + 1, v); fast.set(i + 1, v); }
   const q = randomUnit(99);
   assert.equal(fast.kernel, "mirror");
   assert.deepEqual(fast.top(q, 5), plain.top(q, 5));
-  assert.deepEqual(calls, [4096, 1904], "scanned in chunks");
+  assert.deepEqual(calls, [CHUNK, 1904], "scanned in chunks");
   setVectorKernel(mirror);
   try { assert.equal(new VectorIndex(8).kernel, "mirror"); } finally { setVectorKernel(null); }
   assert.equal(new VectorIndex(8).kernel, "js");
