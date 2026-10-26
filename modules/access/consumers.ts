@@ -6,7 +6,7 @@
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import type { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 import { isElevatedRole } from "../../kernel/src/authorize/snapshot.ts";
-import { AccessStore, EVERYONE, labelOf, storeOf } from "./projections.ts";
+import { AccessStore, EVERYONE, changed, labelOf, storeOf } from "./projections.ts";
 import type { AccessCtx, Cond, GrantRec, Level, PKind, Ref, Status, SubjectKind } from "./projections.ts";
 
 export interface LogEvent { seq: number; type: string; payload: unknown }
@@ -189,6 +189,19 @@ export const hostCalls = {
     const store = storeOf(actx);
     apply(actx, store, input.events);
     return withRoleGrants(store.snapshot(), store, actx.space);
+  },
+  /** Ruling 88: a resource changes owner (an agent's folder follows its owner). The previous owner keeps nothing on it: their direct grants on the resource go too. Answers whether anything moved. */
+  "access.transfer_ownership": (ctx: Ctx, input: { resource: { type: string; id: string }; from: string; to: string }): boolean => {
+    const actx = ctx as unknown as AccessCtx;
+    const store = storeOf(actx);
+    const r = store.resources.get(input.resource.id);
+    if (!r || r.type !== input.resource.type || r.ownerId !== input.from) return false;
+    r.ownerId = input.to;
+    for (const [id, g] of [...store.grants]) {
+      if (g.resource.type === r.type && g.resource.id === r.id && g.subject.kind === "person" && g.subject.id === input.from) store.grants.delete(id);
+    }
+    changed(actx, store, "assignment");
+    return true;
   },
   /** The authorize snapshot as the tables hold it now (a share, a revoke or a role change made by a capability is already there). */
   "access.snapshot": (ctx: Ctx): AccessSnapshot => { const a = ctx as unknown as AccessCtx; const store = storeOf(a); return withRoleGrants(store.snapshot(), store, a.space); },

@@ -145,6 +145,10 @@ export async function create(ctx: AgentsCtx, input: {
   const starter = template.items.find((i) => i.kind === "file" && i.path === "AGENT.md")?.text;
   const agentMd = starter !== undefined ? starter.replaceAll("{{name}}", name).replaceAll("{{role}}", input.role?.trim() ?? "") : AGENT_MD_DEFAULT(name, input.role);
   const tree = await createTree(ctx, id, name, tomlText, agentMd);
+  // ruling 88: the folder is the asker's (they made it); the owner they named manages it too, from the start, so the owner can approve memory into the agent and edit its files
+  if (owner !== askerOf(ctx)) {
+    await call(ctx, "access.share", { resource: { type: "folder", id: tree.folderId }, subject: { kind: "person", id: owner }, level: "manage", source: `agent-owner:${id}`, idempotencyKey: `agent-owner:${id}:${owner}` });
+  }
   const rec: AgentRec = {
     id, name, face: input.face?.trim() || slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: input.computer === true,
     templateVersion: await templateVersion(ctx, template), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
