@@ -8,7 +8,9 @@
 
 use crate::commands::{self, AppState};
 use crate::links;
-use serde::Deserialize;
+use rusqlite::{Connection, OpenFlags};
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -116,6 +118,79 @@ pub struct PickOptions {
     pub directory: bool,
     pub filters: Vec<Filter>,
     pub start_in: Option<String>,
+}
+
+/// Configuration supplied by the page. No transcript path is accepted from the page.
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexDiscoveryOptions {
+    pub codex_home: Option<String>,
+}
+
+/// Metadata from Codex's state database. Transcript bodies remain unread until a user selects this source.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexSessionSource {
+    pub provider: &'static str,
+    pub session_id: String,
+    pub session_key: String,
+    pub project_key: String,
+    pub transcript_path: String,
+    pub cwd: Option<String>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+    pub git_branch: Option<String>,
+    pub git_origin_url: Option<String>,
+}
+
+/// Read `state_5.sqlite` only. SQLite opens it immutable when the platform accepts a file URI, then falls back to read-only.
+#[tauri::command]
+pub fn discover_codex_sessions(options: CodexDiscoveryOptions) -> Result<Vec<CodexSessionSource>, String> {
+    let Some(root) = codex_root(options.codex_home.as_deref()) else { return Ok(Vec::new()); };
+    let state = root.join("state_5.sqlite");
+    if !contained_file(&root, &state) { return Ok(Vec::new()); }
+    let db = open_codex_state(&state)?;
+    let mut stmt = db.prepare("SELECT id, rollout_path, cwd, created_at, updated_at, git_branch, git_origin_url FROM threads")
+        .map_err(|e| format!("cannot read Codex thread metadata: {e}"))?;
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?, row.get::<_, Option<String>>(2)?,
+            row.get::<_, Option<String>>(3)?, row.get::<_, Option<String>>(4)?, row.get::<_, Option<String>>(5)?, row.get::<_, Option<String>>(6)?,
+        ))
+    }).map_err(|e| format!("cannot query Codex thread metadata: {e}"))?;
+    let mut out = Vec::new();
+    for row in rows {
+        let (id, rollout, cwd, created_at, updated_at, git_branch, git_origin_url) = row.map_err(|e| e.to_string())?;
+        let Some(rollout) = rollout else { continue; };
+        let transcript = transcript_path(&root, &rollout);
+        if !contained_file(&root, &transcript) { continue; }
+        let project_key = cwd.as_deref().map(|value| format!("codex:{value}")).unwrap_or_else(|| "codex:unknown".to_string());
+        out.push(CodexSessionSource { provider: "codex", session_key: format!("codex:{id}"), session_id: id, project_key, transcript_path: transcript.to_string_lossy().into_owned(), cwd, created_at, updated_at, git_branch, git_origin_url });
+    }
+    Ok(out)
+}
+
+fn codex_root(configured: Option<&str>) -> Option<PathBuf> {
+    let root = configured.map(PathBuf::from).or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".codex")))?;
+    root.canonicalize().ok().filter(|path| path.is_dir())
+}
+
+fn transcript_path(root: &Path, rollout: &str) -> PathBuf {
+    let candidate = PathBuf::from(rollout);
+    if candidate.is_absolute() { candidate } else { root.join(candidate) }
+}
+
+fn contained_file(root: &Path, candidate: &Path) -> bool {
+    let Ok(real) = candidate.canonicalize() else { return false; };
+    real.is_file() && real.starts_with(root)
+}
+
+fn open_codex_state(path: &Path) -> Result<Connection, String> {
+    let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI;
+    let immutable = format!("file:{}?immutable=1", path.to_string_lossy());
+    Connection::open_with_flags(&immutable, flags)
+        .or_else(|_| Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY))
+        .map_err(|e| format!("cannot open Codex state read-only: {e}"))
 }
 
 #[tauri::command]

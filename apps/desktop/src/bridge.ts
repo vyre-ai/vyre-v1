@@ -6,6 +6,7 @@ import type { PickRequest } from "./files.ts";
 import { osNotification } from "./notify.ts";
 import type { NotificationInput } from "./notify.ts";
 import { badgeText } from "./notify.ts";
+import type { SessionSource } from "./session-import/types.ts";
 
 export type Invoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 
@@ -16,6 +17,8 @@ export type Bridge = {
   pick(req: PickRequest): Promise<string[]>;
   /** The Needs you count for the tray and the dock. */
   setBadge(count: number): Promise<void>;
+  /** Finds Codex sessions from state_5.sqlite without opening transcript files. */
+  discoverCodexSessions(options?: { codexHome?: string }): Promise<SessionSource[]>;
 };
 
 export function makeBridge(invoke: Invoke): Bridge {
@@ -33,6 +36,10 @@ export function makeBridge(invoke: Invoke): Bridge {
     },
     async setBadge(count) {
       await invoke("set_badge", { count: Math.max(0, Math.floor(Number.isFinite(count) ? count : 0)), text: badgeText(count) });
+    },
+    async discoverCodexSessions(options = {}) {
+      const got = await invoke("discover_codex_sessions", { options });
+      return Array.isArray(got) ? got.filter((source): source is SessionSource => typeof source === "object" && source !== null) : [];
     },
   };
 }

@@ -121,6 +121,7 @@ pub fn run() {
             commands::take_pending_link,
             commands::page_report,
             native::notify,
+            native::discover_codex_sessions,
             native::pick_paths,
             native::set_badge
         ])
