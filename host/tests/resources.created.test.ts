@@ -107,3 +107,12 @@ test("pipeline: without the registrar the same call leaves an unknown object, wh
   assert.deepEqual(r.commits[0]!.events.map((e) => e.type), ["record.created"]);
   await assert.rejects(r.invoke("records.update", { recordId: REC }, seed), (e: unknown) => e instanceof HostError && e.error.code === "permission.not_found");
 });
+
+test("registrar: a birth event that names an ownerId makes that person the owner, not the caller (agents.create for someone else); a malformed ownerId is ignored", () => {
+  const events: SubjectDef[] = [{ name: "agent.created", subject: { type: "agent", id: "/agentId" } }];
+  const r = createResourceRegistrar({ events, exists: (id) => id === "spc_1" });
+  const call = (payload: unknown) => r.register({ cap: { name: "agents.create", resource: { type: "space" } }, input: {}, space: "spc_1", owner: "usr_admin", events: [ev("agent.created", payload)] });
+  assert.equal(call({ agentId: "agt_a1b2c3", ownerId: "usr_mia" })[0]?.owner_id, "usr_mia");
+  assert.equal(call({ agentId: "agt_a1b2c4" })[0]?.owner_id, "usr_admin", "no ownerId: the caller");
+  assert.equal(call({ agentId: "agt_a1b2c5", ownerId: "not a person" })[0]?.owner_id, "usr_admin", "a malformed ownerId is ignored");
+});

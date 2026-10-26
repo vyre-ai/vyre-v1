@@ -56,6 +56,21 @@ test("the owner of a new agent can approve memory into it; after a reassign the 
     assert.equal(made.status, 200, JSON.stringify(made.body));
     const agent = made.body.data.agent as { id: string; folderId: string };
 
+    const sharesOf = async (type: string, id: string): Promise<string[]> => {
+      const r = await post(owner, "/v1/access/shares_of", { resource: { type, id } });
+      assert.equal(r.status, 200, JSON.stringify(r.body));
+      return (r.body.data.shares as { grant: { subject: { id: string } }; through: string }[]).map((x) => `${x.through}:${x.grant.subject.id}`);
+    };
+    assert.ok((await sharesOf("agent", agent.id)).includes(`owner:${first.id}`), "the agent resource is the named owner's from the start");
+    assert.ok((await sharesOf("folder", agent.folderId)).includes(`manage:${first.id}`) || (await sharesOf("folder", agent.folderId)).some((w) => w.endsWith(`:${first.id}`)), "and so is the folder (a Manage share)");
+
+    // moving ownership drops grants, so it is the server's alone: nobody reaches it over the gateway, whoever they are
+    for (const token of [asker.token, owner]) {
+      const direct = await post(token, "/v1/access/transfer_ownership", { resource: { type: "folder", id: agent.folderId }, from: first.id, to: asker.id });
+      assert.notEqual(direct.status, 200, "a direct call to transfer_ownership is refused");
+    }
+    assert.ok((await sharesOf("folder", agent.folderId)).some((w) => w.endsWith(`:${first.id}`)), "and nothing moved");
+
     const promote = async (key: string, text: string): Promise<string> => {
       const fact = await post(asker.token, "/v1/memory/propose_fact", { idempotencyKey: `gf10-fact-${key}`, layer: "person", agentId: agent.id, text, sourceKind: "manual", sourceRef: `gf10-${key}` });
       assert.equal(fact.status, 200, JSON.stringify(fact.body));
@@ -72,11 +87,11 @@ test("the owner of a new agent can approve memory into it; after a reassign the 
     // the owner moves: the wizard reassigns the agent and the folder goes with it
     const removed = await post(owner, "/v1/members/remove", { personId: first.id, plan: [{ kind: "agents", action: "reassign", to: heir.id }] });
     assert.equal(removed.status, 200, JSON.stringify(removed.body));
-    const shares = await post(owner, "/v1/access/shares_of", { resource: { type: "folder", id: agent.folderId } });
-    assert.equal(shares.status, 200, JSON.stringify(shares.body));
-    const who = (shares.body.data.shares as { grant: { subject: { id: string } }; through: string }[]).map((s) => `${s.through}:${s.grant.subject.id}`);
-    assert.ok(who.includes(`owner:${heir.id}`), `the new owner owns the folder: ${who.join(", ")}`);
-    assert.ok(!who.some((w) => w.endsWith(`:${first.id}`)), "and the previous owner holds nothing on it");
+    for (const [type, id] of [["folder", agent.folderId], ["agent", agent.id]] as const) {
+      const who = await sharesOf(type, id);
+      assert.ok(who.includes(`owner:${heir.id}`), `the new owner owns the ${type}: ${who.join(", ")}`);
+      assert.ok(!who.some((w) => w.endsWith(`:${first.id}`)), `and the previous owner holds nothing on the ${type}`);
+    }
 
     const two = await promote("two", "Scout Two signs off with the date.");
     assert.equal((await post(heir.token, "/v1/memory/promotion/approve", { promotionId: two })).status, 200, "the new owner approves");

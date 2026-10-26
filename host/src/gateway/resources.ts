@@ -6,7 +6,7 @@
 // is a resource type, whose id is well formed for that type and is not in the access snapshot yet, registers that subject. Events that end an object (deleted, dropped, removed ...) never
 // register one. The first event about an object is its birth, whatever it is called (`record.created`, `schema.type_changed` for a new record type, `kit.installed`).
 //   parent  the capability's own container (the `parent` pointer of its resource binding, read from the input) when that container is a known resource, else the Space
-//   owner   the person the call acts for (the principal when nobody is acted for)
+//   owner   the person the birth event names as ownerId, else the person the call acts for (the principal when nobody is acted for)
 import type { ResourceRow } from "../../../kernel/src/authorize/index.ts";
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
 import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
@@ -75,7 +75,9 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
         if (typeof id !== "string" || !idFits(s.type, id) || seen.has(id) || deps.exists(id)) continue;
         seen.add(id);
         const container = typeof given === "string" && given !== id && (deps.exists(given) || seen.has(given)) ? given : a.space;
-        out.push({ id, type: s.type, parent_id: s.type === "space" ? null : container, label: 0, owner_id: a.owner, holds: 0 });
+        // a birth event that names its owner (agent.created names ownerId) says whose the object is; otherwise the person the call acts for
+        const named = pointer(ev.payload, "/ownerId");
+        out.push({ id, type: s.type, parent_id: s.type === "space" ? null : container, label: 0, owner_id: typeof named === "string" && /^usr_[a-z0-9]+$/.test(named) ? named : a.owner, holds: 0 });
       }
       return out;
     },

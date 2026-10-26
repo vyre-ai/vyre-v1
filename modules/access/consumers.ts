@@ -6,6 +6,7 @@
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import type { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 import { isElevatedRole } from "../../kernel/src/authorize/snapshot.ts";
+import { fail } from "../../host/src/routes/errors.ts";
 import { AccessStore, EVERYONE, changed, labelOf, storeOf } from "./projections.ts";
 import type { AccessCtx, Cond, GrantRec, Level, PKind, Ref, Status, SubjectKind } from "./projections.ts";
 
@@ -192,6 +193,8 @@ export const hostCalls = {
   },
   /** Ruling 88: a resource changes owner (an agent's folder follows its owner). The previous owner keeps nothing on it: their direct grants on the resource go too. Answers whether anything moved. */
   "access.transfer_ownership": (ctx: Ctx, input: { resource: { type: string; id: string }; from: string; to: string }): boolean => {
+    // host only: it moves ownership and drops grants. The host runs it at depth 0 with origin "hook"; a module reaching it through ctx.call arrives deeper, and the gateway has no route to it.
+    if (ctx.origin !== "hook" || ctx.depth !== 0) throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only the server itself may do that." });
     const actx = ctx as unknown as AccessCtx;
     const store = storeOf(actx);
     const r = store.resources.get(input.resource.id);
