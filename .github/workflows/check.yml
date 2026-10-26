@@ -206,13 +206,17 @@ jobs:
           git fetch -q origin main
           base="$(git merge-base origin/main HEAD)"
           if [ "${{ github.ref_name }}" = main ] || git diff --name-only --no-renames "$base"...HEAD -- scripts/install/ images/vyred/ .github/workflows/check.yml | grep -q .; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the installer proofs cover changed"; fi
-      - name: Docker Compose (the self-hosted runners have no compose plugin; a pinned standalone binary, checksum-checked, in this job's temp directory)
+      - name: Docker Compose (the self-hosted runners have no compose plugin; a pinned standalone binary, checked against a literal sha256, in this job's temp directory)
         if: steps.scope.outputs.changed == 'true'
         run: |
           v=v2.29.7; arch="$(uname -m)"; f="docker-compose-linux-$arch"
           curl -fsSL -o "$RUNNER_TEMP/$f" "https://github.com/docker/compose/releases/download/$v/$f"
-          curl -fsSL -o "$RUNNER_TEMP/$f.sha256" "https://github.com/docker/compose/releases/download/$v/$f.sha256"
-          (cd "$RUNNER_TEMP" && sha256sum -c "$f.sha256")
+          case "$arch" in
+            x86_64) sum=383ce6698cd5d5bbf958d2c8489ed75094e34a77d340404d9f32c4ae9e12baf0 ;;
+            aarch64) sum=6e9fbd5daa20dca5d7d89145081ae8155d68ef2928b497d9f85b54fe0f9dbb2c ;;
+            *) echo "no pinned docker-compose checksum for $arch"; exit 1 ;;
+          esac
+          (cd "$RUNNER_TEMP" && echo "$sum  $f" | sha256sum -c -)
           chmod +x "$RUNNER_TEMP/$f"
           echo "VYRE_COMPOSE_BIN=$RUNNER_TEMP/$f" >> "$GITHUB_ENV"
       - name: The host
