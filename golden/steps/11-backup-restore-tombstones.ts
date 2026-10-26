@@ -51,7 +51,7 @@ export async function runRestore(live: readonly string[]): Promise<{ events: Obs
       return out.findingId as string;
     }, ["a contact is created"]);
     await trail.step("the contact is erased and a tombstone is written", async () => {
-      expectStatus(await s.call("governance.erase.apply", admin, { findingId: finding! }), 200, "governance.erase.apply");
+      expectStatus(await s.call("governance.erase.apply", admin, { idempotencyKey: "golden-11-erase", findingId: finding!, include: ["records"] }), 200, "governance.erase.apply");
       const r = await s.call("records.get", admin, { type: "contact", recordId: rec! });
       assert.equal(r.status, 404, `records.get after the erase: ${r.status}`);
       const t = expectStatus(await s.call("governance.tombstones.list", admin, {}), 200, "governance.tombstones.list").tombstones as unknown[];
