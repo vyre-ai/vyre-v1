@@ -20,12 +20,14 @@ import { Glyph, iconOfKind } from "../tree/parts.tsx";
 import { useFilesState } from "../tree/state.tsx";
 import { ColumnHeader, GridRow, LIST_ROW, RowCells, Tile, WIDE, chunk, gridKey, gridLayout } from "../FileList.tsx";
 import { Toolbar, crumbTrail } from "../Toolbar.tsx";
-import { DragWrap } from "./DragWrap.tsx";
-import { PlainLine } from "./PlainLine.tsx";
+import { DragWrap, dragAttrs, useDragDelegation } from "./DragWrap.tsx";
+import type { DragHandlers, DragRegistry } from "./DragWrap.tsx";
 import { QuickLook } from "./QuickLook.tsx";
 
 const DOUBLE_MS = 450;
 const lineKey = (l: Line): string => l.key;
+/** The slot a line sits in: the list row is 38 px and the Row paints 28 inside it, 6 px in from each side. */
+const LINE_STYLE = { margin: "5px 6px", width: "calc(100% - 12px)" } as const;
 
 /** The line's menu: open, Quick Look, share and rename where they apply, and the Trash (or Restore from it). */
 export function lineMenuEntries(
@@ -74,6 +76,9 @@ function List(): ReactElement {
   const nodes = useFolderNodes();
   const src = useSource(sourceOf(state.where));
   const mods = useRef({ meta: false, shift: false });
+  const registry = useRef<DragRegistry>(new Map());
+  const box = useRef<View | null>(null);
+  useDragDelegation(box, registry);
   const last = useRef<{ key: string; at: number }>({ key: "", at: 0 });
   const [over, setOver] = useState<string | null>(null);
   const [width, setWidth] = useState(0);
@@ -163,18 +168,16 @@ function List(): ReactElement {
     dispatch({ type: "click", order, key: l.key, mods: mods.current });
     mods.current = { meta: false, shift: false };
   };
+  const handlersOf = (l: Line): DragHandlers => ({
+    payload: () => dragPayload(state, l.key),
+    folder: l.type === "folder",
+    onMods: (m) => { mods.current = m; },
+    onOver: () => { setOver(l.key); spring.current?.enter(l.id); },
+    onLeave: () => { setOver((o) => (o === l.key ? null : o)); spring.current?.leave(l.id); },
+    onDrop: (payload) => drop(l, payload),
+  });
   const dragged = (l: Line, child: ReactElement): ReactElement => (
-    <DragWrap
-      props={menuTrigger((x, y) => lineMenu(l, x, y))}
-      handlers={{
-        payload: () => dragPayload(state, l.key),
-        folder: l.type === "folder",
-        onMods: (m) => { mods.current = m; },
-        onOver: () => { setOver(l.key); spring.current?.enter(l.id); },
-        onLeave: () => { setOver((o) => (o === l.key ? null : o)); spring.current?.leave(l.id); },
-        onDrop: (payload) => drop(l, payload),
-      }}
-    >
+    <DragWrap fkey={l.key} registry={registry} props={menuTrigger((x, y) => lineMenu(l, x, y))} handlers={handlersOf(l)}>
       {child}
     </DragWrap>
   );
@@ -183,20 +186,10 @@ function List(): ReactElement {
   const sizeOfLine = (l: Line): string => (l.type === "folder" ? `${l.items} item${l.items === 1 ? "" : "s"}` : sizeText(l.size));
   const kindOfLine = (l: Line): string => `${kindLabel(l.kind)}${l.source ? ` \u00b7 ${l.source}` : ""}`;
 
-  // on the web a line is one plain element (PlainLine); off it the shared Row draws it
-  const renderLine = (l: Line): ReactElement => Platform.OS === "web" ? (
-    <PlainLine
-      id={`line:${l.key}`} name={l.name} icon={iconOfKind(l.kind)} folder={l.type === "folder"} selected={state.selection.includes(l.key)} hovered={over === l.key} wide={wide}
-      cells={{ when: whenOf(l), by: byOf(l), size: sizeOfLine(l), kind: kindOfLine(l) }}
-      payload={() => dragPayload(state, l.key)}
-      onPress={(m) => { mods.current = m; press(l); }}
-      onMenu={(x, y) => lineMenu(l, x, y)}
-      onOver={() => { setOver(l.key); spring.current?.enter(l.id); }}
-      onLeave={() => { setOver((o) => (o === l.key ? null : o)); spring.current?.leave(l.id); }}
-      onDrop={(payload) => drop(l, payload)}
-    />
-  ) : dragged(l, (
-    <View style={styles.lineSlot}>
+  // on the web the line is the shared Row (one plain element) carrying the drag attributes and the menu trigger; the drag itself is delegated from the list's box
+  const renderLine = (l: Line): ReactElement => {
+    registry.current.set(l.key, handlersOf(l));
+    const row = (
       <Row
         id={`line:${l.key}`}
         title={l.name}
@@ -205,9 +198,11 @@ function List(): ReactElement {
         leading={<View style={styles.icon}><Glyph name={iconOfKind(l.kind)} size={18} color={l.type === "folder" ? "var(--accent)" : "var(--ink-3)"} /></View>}
         trailing={<RowCells wide={wide} cells={{ when: whenOf(l), by: byOf(l), size: sizeOfLine(l), kind: kindOfLine(l) }} />}
         onPress={() => press(l)}
+        domProps={{ ...dragAttrs(l.key), ...menuTrigger((x, y) => lineMenu(l, x, y)), style: LINE_STYLE }}
       />
-    </View>
-  ));
+    );
+    return Platform.OS === "web" ? row : dragged(l, <View style={styles.lineSlot}>{row}</View>);
+  };
   const renderTile = (l: Line): ReactElement => dragged(l, (
     <Tile
       id={l.key} name={l.name} folder={l.type === "folder"} icon={iconOfKind(l.kind)} width={layout.tile}
@@ -244,7 +239,7 @@ function List(): ReactElement {
       {src.status !== "ready" ? <ListLoading bare /> : lines.length === 0 ? (
         <States kind="empty" title={emptyText(state.where)} icon="files" />
       ) : (
-        <View style={styles.listBox} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))} {...({ onKeyDown, tabIndex: 0 } as object)}>
+        <View ref={box} style={styles.listBox} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))} {...({ onKeyDown, tabIndex: 0 } as object)}>
           {grid ? (
             <VirtualList data={gridRows} rowHeight={layout.height} keyOf={gridKey} renderItem={renderGridRow} />
           ) : (
