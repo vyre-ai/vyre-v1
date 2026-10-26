@@ -2,6 +2,7 @@
 // The routes (index, [place]) still exist for the static export and deep links: the shell draws the place, and the address follows it (UrlSync).
 import { useState } from "react";
 import { SessionGate } from "../src/shell/session/SessionGate.tsx";
+import { loadTwilioDevice } from "../src/shell/session/voice.ts";
 import { UrlSync } from "../src/shell/session/UrlSync.tsx";
 import type { ShellHub } from "../src/shell/spaces/hub.ts";
 import { registerShellPlaces } from "../src/shell/places.ts";
@@ -12,7 +13,7 @@ export default function Layout() {
   const [hub, setHub] = useState<ShellHub | null>(null);
   return (
     <>
-      <SessionGate onHub={setHub} />
+      <SessionGate onHub={setHub} voice={loadTwilioDevice} />
       {hub ? <UrlSync hub={hub} /> : null}
     </>
   );

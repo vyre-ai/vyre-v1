@@ -242,3 +242,49 @@ test("harbor studio draws its own types, people and a shorter table", () => {
   assert.ok(has(sidebar, ">Clients<") && has(sidebar, ">Projects<") && !has(sidebar, ">Companies<"));
   assert.equal(GUTTER, 56);
 });
+
+test("a face in a cell reaches the stylesheet only as a hash class and a checked bitmap, never as text of a name", async () => {
+  const { faceClassOf, faceRule, safeBitmapUrl } = await import("../table/model.ts");
+  const nasty = ["Evil\" } body { display:none } /*", "Line\nbreak {x}", "a'b\"c", "}</style><script>x</script>", "名前   (x)"];
+  for (const name of nasty) {
+    assert.match(faceClassOf(name), /^vrt-f[a-z0-9]+$/, name);
+    const css = faceRule(name);
+    assert.ok(css.startsWith(`.${faceClassOf(name)}{`), "the selector is the hash class");
+    assert.ok(css.endsWith("}") && css.split("{").length === 2 && css.split("}").length === 2, `one rule, no stray braces: ${css}`);
+    for (const piece of ["display:none", "script", "style>", "\n", " ", "Evil"]) assert.ok(!css.includes(piece), `${piece} must not reach the rule`);
+  }
+  assert.notEqual(faceClassOf("Maya Chen"), faceClassOf("Omar Haddad"));
+  const png = "data:image/png;base64,iVBORw0KGgo=";
+  assert.equal(safeBitmapUrl(png), png);
+  for (const bad of ["data:image/png;base64,AAA\") ;} body{x:y", "javascript:alert(1)", "https://evil.example/x.png", "data:image/svg+xml;utf8,<svg/>", "", undefined]) assert.equal(safeBitmapUrl(bad), null, String(bad));
+  assert.ok(faceRule("Maya Chen", png).includes(`url("${png}")`));
+  assert.ok(!faceRule("Maya Chen", "javascript:alert(1)").includes("javascript"));
+});
+
+test("a cell face is seeded by the person's id: two people called Maya Chen have two faces, and a rename keeps the face", async () => {
+  const { faceClassOf, faceRule } = await import("../table/model.ts");
+  assert.notEqual(faceClassOf("usr_maya_1"), faceClassOf("usr_maya_2"), "two ids, two faces, whatever they are called");
+  assert.notEqual(faceRule("usr_maya_1"), faceRule("usr_maya_2"));
+  assert.equal(faceRule("usr_maya_1"), faceRule("usr_maya_1"), "one id always gets the same face, so a rename changes nothing");
+});
+
+test("the face rules are an LRU: 450 new faces keep 400 at most, a touched face survives, the 40 oldest go together", async () => {
+  const { FaceLru } = await import("../table/model.ts");
+  const lru = new FaceLru(400, 40);
+  const dropped: string[] = [];
+  for (let i = 0; i < 450; i++) {
+    if (i === 399) lru.use("f0"); // f0 is the oldest; using it moves it to the newest end
+    const r = lru.use(`f${i}`);
+    dropped.push(...r.evicted);
+    assert.ok(lru.size <= 400, `size ${lru.size} after ${i + 1}`);
+  }
+  assert.equal(lru.has("f0"), true, "a face used again survives");
+  assert.ok(dropped.length >= 40 && dropped.length % 40 === 0, "faces go in batches of 40");
+  assert.ok(!dropped.includes("f0"));
+  assert.equal(dropped[0], "f1", "the oldest unused face goes first");
+  const again = new FaceLru(3, 2);
+  again.use("a"); again.use("b"); again.use("c");
+  assert.deepEqual(again.use("d").evicted, ["a", "b"], "two oldest together when full");
+  assert.deepEqual(again.use("d").evicted, [], "a known face evicts nothing");
+  assert.equal(again.size, 2);
+});

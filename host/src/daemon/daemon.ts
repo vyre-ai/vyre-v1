@@ -20,7 +20,12 @@ import { createCtxSeal } from "../ctx/seal.ts";
 import { ScheduleQueue } from "../ctx/schedule.ts";
 import type { ScheduledCall } from "../ctx/schedule.ts";
 import { createBlobStore } from "../ctx/blobs.ts";
+import { scopedDb } from "../ctx/db.ts";
 import { createBlobRoute } from "../routes/blobs.ts";
+import { createShareRoute } from "../routes/share.ts";
+import type { SharedView } from "../routes/share.ts";
+import { createFormsPageRoute } from "../routes/forms-page.ts";
+import type { PublicFormView } from "../routes/forms-page.ts";
 import { deferredCaps, deferredModules } from "../routes/deferred.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
 import { createGateway, indexRoutes } from "../gateway.ts";
@@ -50,6 +55,8 @@ import { createKitsHost } from "../seams/kits.ts";
 import { startRelayBox } from "../seams/relay.ts";
 import { createSyncSeam } from "../seams/sync.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
+import { createWebhookRoute } from "../routes/webhooks.ts";
+import type { WebhookAccept } from "../routes/webhooks.ts";
 import { sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { createLocalKeyRoute } from "../routes/local-key.ts";
 import { createKeyring } from "../seams/keyring.ts";
@@ -255,9 +262,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let claim: { url: string; expiresAt: number } | null = null;
   let gateway: ReturnType<typeof createGateway> | null = null;
   let blobRoute: ReturnType<typeof createBlobRoute> | null = null;
+  let shareRoute: ReturnType<typeof createShareRoute> | null = null;
+  let formsPageRoute: ReturnType<typeof createFormsPageRoute> | null = null;
   // GET /exports/<id>?token= (P-L7_16): the vault module checks the token; until it is configured every pull is refused
   let pullVaultExport: (exportId: string, token: string) => string = () => { throw new Error("the Vault is not live on this server"); };
   const exportRoute = createVaultExportRoute({ pull: (id, t) => pullVaultExport(id, t) });
+  // POST /hooks/<connector> (P-L5_17): a provider's signed webhook; the connector module's host call `<connector>.accept_webhook` verifies the signature and records the event once
+  let webhooks: { has(c: string): boolean; accept(c: string, a: WebhookAccept): Promise<unknown> } = { has: () => false, accept: () => Promise.reject(new Error("webhooks are not ready")) };
+  const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), publicBase: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } });
   // Ruling 62: the person's own key, handed over by their client on their own node (POST /local/vault/key/unlock, loopback only), held in memory only. A device-role daemon is the computer of whoever signs in on it;
   // a Space server holds the key of its owner alone.
   let ownerOfSpace: () => string | null = () => cfg.owner;
@@ -357,6 +369,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         warn: (msg, attrs) => sink.log({ space: space!, level: 30, msg, place: "hooks", ...(attrs ? { attrs } : {}) }),
       });
       hooks = hookRunner;
+      const acceptors = new Set([...loaded.moduleExports].flatMap(([id, ns]) => (ns["hostCalls"] && typeof ns["hostCalls"] === "object" && `${id}.accept_webhook` in (ns["hostCalls"] as object) ? [id] : [])));
+      webhooks = { has: (c) => acceptors.has(c), accept: (c, a) => hookRunner.call(`${c}.accept_webhook`, a) };
       // the async projections the live modules export (P-H_07): the events module's webhooks_out turns subscribed events into signed deliveries
       // crash recovery: a webhook delivery row inserted but never dispatched (the daemon died between the two) is sent again; the send is idempotent per attempt
       let dispatchSystem: ((cap: string, input: unknown) => Promise<unknown>) | null = null;
@@ -697,6 +711,41 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         session: async (h) => { const s = await session(h); return s ? { space: s.space, principal: s.principal, ...(s.actingFor ? { actingFor: s.actingFor } : {}) } : null; },
         allow: (c, r) => !staleFor(c.principal.id) && authorize(access.snap, { principal: c.principal.id, ...(c.actingFor ? { actingFor: c.actingFor } : {}), action: { perm: null, level: "view" }, resource: { type: r.type, id: r.id } }).effect === "allow",
       });
+      // GET /share/project/<token>: the read-only link a client opens without signing in; the projects module decides whether the token still works (P-SEC_10)
+      shareRoute = createShareRoute({
+        view: async (token) => {
+          if (!dispatchSystem) return null;
+          try { return (await dispatchSystem("projects.shared_view", { token })) as SharedView; } catch { return null; }
+        },
+      });
+      // GET /f/<slug> and /book/<slug> (P-L8_19): the public form pages. A visitor is an act_anon actor; the forms module answers for a published form of the right kind, and an upload goes to the form's Files folder
+      {
+        const formsNs = loaded.moduleExports.get("forms");
+        const viewOf = formsNs?.["publicFormView"] as ((ctx: unknown, slug: string, page: "form" | "booking") => PublicFormView) | undefined;
+        const linkOf = formsNs?.["linkView"] as ((ctx: unknown, slug: string, token: string) => Promise<{ fields: { field: string; step?: number }[]; partial?: { answers: Record<string, unknown>; step?: number } }>) | undefined;
+        const reserveUpload = formsNs?.["reserveUpload"] as ((ctx: unknown, slug: string) => { formId: string; folderId: string }) | undefined;
+        const recordUpload = formsNs?.["recordUpload"] as ((ctx: unknown, f: { slug: string; fileId: string; name: string; mime: string; size: number; token?: string | undefined }) => Promise<string>) | undefined;
+        const formCtx = (principal: { kind: string; id: string }): unknown => ({
+          space: spaceId, principal, origin: "api", depth: 0, now, db: scopedDb("forms", db!, "0".repeat(32)),
+          trace: { traceId: "0".repeat(32), spanId: "0".repeat(16) }, log: { debug() {}, info() {}, warn() {}, error() {} },
+        });
+        if (viewOf) {
+          formsPageRoute = createFormsPageRoute({
+            // a visitor has no session, so the pipeline could not authorize them: the host runs the three public capabilities as itself and the module is told which visitor (forms.visitorOf)
+            call: (cap, input) => invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)))),
+            read: async (slug, page, caller) => { try { return viewOf(formCtx(caller), slug, page); } catch { return null; } },
+            ...(linkOf ? { link: async (slug, token, caller) => { try { return await linkOf(formCtx(caller), slug, token); } catch { return null; } } } : {}),
+            // the file is stored as the host (system), never as the visitor or the forms module; the forms module keeps the binding of the upload to this form and this visitor and issues the id the page gets back
+            ...(reserveUpload && recordUpload ? { upload: async (slug: string, file: { name: string; type: string; bytes: Uint8Array; folderId: string }, caller: { kind: string; id: string }, token?: string) => {
+              const ctx = formCtx(caller);
+              reserveUpload(ctx, slug);
+              const out = await system("files.create", { folderId: file.folderId, name: file.name, mime: file.type, content: { base64: Buffer.from(file.bytes).toString("base64") } }) as { file: { fileId: string } };
+              return recordUpload(ctx, { slug, fileId: out.file.fileId, name: file.name, mime: file.type, size: file.bytes.length, token });
+            } } : {}),
+            now,
+          });
+        }
+      }
       routeIndex = indexRoutes([...routes, ...(o.extra?.routes ?? [])]);   // a duplicate route is a boot error, not a first-request error
       capIndex = indexCapabilities(caps);
 
@@ -815,7 +864,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
     });
-    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || exportRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return; listener(req, res); });
+    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return; listener(req, res); });
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error): void => reject(err);
       server.once("error", onError);

@@ -1,6 +1,7 @@
 // Records table model: the pure part. The columns of a type with their widths, the window of rows and columns to draw, the view (filter, sort, group, hidden fields, colour) and the
 // query it compiles to, the text of a cell, and the groups. No React and no clock; every rule here is tested without a renderer.
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { hash, marbleGradient, marbleSpec } from "../../../../../../ui/src/Avatar/faces.ts";
 
 export type TypeDef = CapMap["schema.describe"]["out"]["types"][number];
 export type FieldDef = TypeDef["fields"][number];
@@ -315,3 +316,45 @@ export const isPickedRow = (p: RowPick, id: string): boolean => p.every || p.ids
 
 /** How many the pick holds, given the table's count. */
 export const pickCount = (p: RowPick, total: number): number => (p.every ? total : p.ids.size);
+
+
+// ---------------------------------------------------------------- faces in cells
+
+/** The CSS class of a person's face: a hash of the name in base 36, [a-z0-9] only, so no text of a name ever reaches a stylesheet. */
+export function faceClassOf(name: string): string {
+  return `vrt-f${hash(name).toString(36)}`;
+}
+
+/** A bitmap the face cache made (a PNG data url from canvas.toDataURL); anything else is refused, so the rule cannot be written to by a stray string. */
+export function safeBitmapUrl(url: string | undefined): string | null {
+  return url !== undefined && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(url) ? url : null;
+}
+
+/** The rule for one face: the colours and gradient come from the name's hash (fixed palette, numbers), the class from faceClassOf, the bitmap from safeBitmapUrl. */
+export function faceRule(name: string, bitmap?: string): string {
+  const url = safeBitmapUrl(bitmap);
+  const m = marbleSpec(name);
+  const image = url !== null ? `url("${url}")` : marbleGradient(name);
+  return `.${faceClassOf(name)}{width:18px;height:18px;flex:none;border-radius:9px;background-color:${m.base};background-image:${image};background-size:cover}`;
+}
+
+/**
+ * The set of faces that have a CSS rule, as plain logic with no DOM: oldest use first. `use` says whether the face is new and which faces to drop; when `max` are held, the `batch` oldest
+ * go together, so the cost of finding their rules is spread over many new faces. A face used again moves to the newest end.
+ */
+export class FaceLru {
+  private readonly keys = new Map<string, true>();
+  constructor(readonly max: number, readonly batch: number) {}
+  get size(): number { return this.keys.size; }
+  has(key: string): boolean { return this.keys.has(key); }
+  use(key: string): { added: boolean; evicted: string[] } {
+    if (this.keys.has(key)) { this.keys.delete(key); this.keys.set(key, true); return { added: false, evicted: [] }; }
+    const evicted: string[] = [];
+    if (this.keys.size >= this.max) {
+      for (const old of this.keys.keys()) { if (evicted.length >= this.batch) break; evicted.push(old); }
+      for (const old of evicted) this.keys.delete(old);
+    }
+    this.keys.set(key, true);
+    return { added: true, evicted };
+  }
+}

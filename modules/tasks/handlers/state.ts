@@ -1,6 +1,7 @@
 // Tasks state machine and the capabilities that change or read a task (ARCH 4.7, spec 2.8, 4.1, 4.2).
 // `tasks.transition` is the only writer of the status field; `tasks.act` (handlers/act.ts) and the Gate reach the same applyMove. The table of 4.7 lives in planMove.
 // Group and role slots: the pipeline authorizes the call at level use on the task, so holders pass; the first Take locks the task to one person (tasks.take).
+import { isTrustedService } from "../../../lib/trust.ts";
 import {
   actionableByMe, allTasks, clean, emitTask, findTask, getTask, historyOf, holds, isBlocked, isOpen, isRequest, listTasks, myWork, needsYou, newTaskId, openIndex,
   out, page, raise, readPolicy, sameAssignee, toOut, touch, visibleTo, whoIs,
@@ -76,7 +77,7 @@ const LABELS: Record<TaskState, string> = { todo: "To do", doing: "Doing", in_re
 export const label = (s: TaskState): string => LABELS[s];
 
 function mayAct(t: Task, move: Move, who: Who): boolean {
-  if (who.kind === "service") return true;
+  if (isTrustedService(who)) return true;
   const me = (id: string | undefined): boolean => id !== undefined && (id === who.id || id === who.actingFor);
   return move.actors.some((a) => (a === "creator" ? me(t.createdBy) : a === "responsible" ? me(t.responsible) : holds(t, a, who)));
 }
@@ -98,7 +99,7 @@ export function checkMove(ctx: TasksCtx, t: Task, to: TaskState, o: { note?: str
   const note = o.note?.trim();
   if (move.noteRequired && !note) raise(ctx, "validation.precondition_failed", "Add a note so the sender knows what to change.", { reason: "note_required", action: move.action });
   const judging = move.action === "approve_review" || move.action === "approve" || move.action === "send_back" || move.action === "reject";
-  if (judging && who.kind !== "service") {
+  if (judging && !isTrustedService(who)) {
     if (t.kind === "work" && !policy.allowSelfReview && holds(t, "assigned", who) && (t.assigned.kind === "person" || t.assigned.kind === "agent")) {
       raise(ctx, "validation.precondition_failed", "You cannot review or approve your own work.", { reason: "self_review" });
     }
@@ -307,7 +308,7 @@ export async function transition(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
   const who = whoIs(ctx);
   // a held act is approved or sent back through tasks.act, which mints the approval token and releases or drops the hold
-  if (t.source?.kind === "gate" && who.kind !== "service" && t.state === "awaiting_approval" && (input.to === "done" || input.to === "doing")) {
+  if (t.source?.kind === "gate" && !isTrustedService(who) && t.state === "awaiting_approval" && (input.to === "done" || input.to === "doing")) {
     raise(ctx, "validation.precondition_failed", "Approve or send back a held act from the request itself.", { reason: "use_act" });
   }
   applyMove(ctx, t, input.to as TaskState, { note: input.note, expectedFrom: input.expectedFrom });
@@ -341,7 +342,7 @@ export async function assign(ctx: TasksCtx, input: In): Promise<unknown> {
 export async function snooze(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
   if (!isRequest(t.kind) || !isOpen(t.state)) raise(ctx, "validation.precondition_failed", "Only an open request can be snoozed.", { reason: "not_a_request" });
-  if (!actionableByMe(ctx, t) && ctx.principal.kind !== "service") raise(ctx, "validation.precondition_failed", "Only the person this request is waiting on can snooze it.", { reason: "wrong_actor" });
+  if (!actionableByMe(ctx, t) && !isTrustedService(ctx.principal)) raise(ctx, "validation.precondition_failed", "Only the person this request is waiting on can snooze it.", { reason: "wrong_actor" });
   const until: number | null = input.until ?? null;
   if (until !== null && until <= ctx.now()) raise(ctx, "validation.precondition_failed", "Pick a time in the future.", { reason: "past_time" });
   if (until === null) delete t.snoozedUntil; else t.snoozedUntil = until;
@@ -367,7 +368,7 @@ export async function release(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
   const me = ctx.principal.id;
   if (t.takenBy === undefined) raise(ctx, "validation.precondition_failed", "Nobody has taken this task.", { reason: "not_taken" });
-  if (t.takenBy !== me && t.takenBy !== ctx.actingFor && ctx.principal.kind !== "service") raise(ctx, "validation.precondition_failed", `Only ${t.takenBy} can give it back.`, { reason: "wrong_actor" });
+  if (t.takenBy !== me && t.takenBy !== ctx.actingFor && !isTrustedService(ctx.principal)) raise(ctx, "validation.precondition_failed", `Only ${t.takenBy} can give it back.`, { reason: "wrong_actor" });
   const by = t.takenBy;
   delete t.takenBy; delete t.takenAt;
   touch(ctx, ctx.db, t);

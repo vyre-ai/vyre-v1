@@ -4,7 +4,7 @@ Lane L3. Kind module. Version 0.1.0.
 
 Requires: records, tasks.
 
-## Capabilities (22)
+## Capabilities (24)
 
 - [projects.apply_cascade](../capabilities/projects.apply_cascade.md): Apply a cascade proposal, or keep the dates
 - [projects.cascade](../capabilities/projects.cascade.md): Propose the cascade after something slips: which later tasks move and which dates still hold (an agent may call this too)
@@ -23,13 +23,15 @@ Requires: records, tasks.
 - [projects.plan](../capabilities/projects.plan.md): The plan: stages, tasks, milestones, dependency links and a today marker; one payload for Timeline, Board, List and Calendar
 - [projects.post_update](../capabilities/projects.post_update.md): Post the status update (by the lead, or drafted weekly by an agent) to the project channel and keep it on the Overview
 - [projects.reschedule](../capabilities/projects.reschedule.md): Move a task bar or resize it on the timeline; if it slips, the response carries a cascade proposal
-- [projects.share_out](../capabilities/projects.share_out.md): Make a read-only link to the project Overview for a client
+- [projects.share_out](../capabilities/projects.share_out.md): Make a read-only link to the project Overview for a client; it expires in 30 days unless expiresAt or expiresInDays says otherwise
+- [projects.shared_view](../capabilities/projects.shared_view.md): System: what a shared link shows a client (title, status, goal, status update, next milestones; no people, threads or files). Only the host calls it, for /share/project/<token>
 - [projects.stages.set](../capabilities/projects.stages.set.md): Create, rename, reorder or remove the stages of a plan
 - [projects.templates.list](../capabilities/projects.templates.list.md): Project templates: record types derived from Project and template projects from installed Kits
 - [projects.unlink_tasks](../capabilities/projects.unlink_tasks.md): Remove a dependency arrow
 - [projects.unpin_file](../capabilities/projects.unpin_file.md): Unpin a file from the Overview
+- [projects.unshare_out](../capabilities/projects.unshare_out.md): Revoke a read-only link to the project Overview; the link answers not found at once
 
-## Events (16)
+## Events (17)
 
 - [project.cascade_applied](../events/project.cascade_applied.md): A cascade proposal was applied
 - [project.cascade_proposed](../events/project.cascade_proposed.md): The plan proposed moving later tasks after a slip
@@ -46,4 +48,5 @@ Requires: records, tasks.
 - [project.task_thread_opened](../events/project.task_thread_opened.md): A task got its thread in the project channel
 - [project.tasks_linked](../events/project.tasks_linked.md): A dependency was added between two tasks
 - [project.tasks_unlinked](../events/project.tasks_unlinked.md): A dependency was removed
+- [project.unshared_out](../events/project.unshared_out.md): A read-only link to the project Overview was revoked
 - [project.update_posted](../events/project.update_posted.md): A status update was posted to the project channel

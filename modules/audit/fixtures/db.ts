@@ -331,6 +331,7 @@ export function harness(now = NOW): Harness {
   const base = {
     space: SPACE,
     trace: { traceId: TRACE, spanId: "abcdef0123456789" },
+    depth: 1,   // a call another capability made: the system halves refuse a direct call (P-SEC_10)
     now: () => clock,
     db,
     emit(name: string, subject: string, payload: unknown) { events.push({ name, subject, payload }); return {} as never; },
