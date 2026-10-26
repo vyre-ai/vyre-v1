@@ -102,10 +102,10 @@ export default defineManifest({
     }),
     write('sessions.import', 'Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply only visible user and assistant text', {
       in: { provider: sessionProvider, sourceKey: t.str(), consent: t.obj({ previewedAt: t.ts(), confirmedAt: t.ts() }), sessions: t.arr(importedSession, { minItems: 1 }) },
-      out: { imported: t.int(), updated: t.int(), sessions: t.arr(importedConversation) }, perm: 'chats.private', idem: 'key', audit: 'always', emits: ['sessions.imported'], tool: 'chats', errors: ['validation.precondition_failed'],
+      out: { imported: t.int(), updated: t.int(), sessions: t.arr(importedConversation) }, perm: 'chats.private', idem: 'key', audit: 'always', emits: ['sessions.imported'], tool: 'chats', errors: ['validation.precondition_failed', 'validation.bad_input'],
     }),
     write('sessions.continue', 'Start a separate live Vyre chat linked to an immutable imported conversation; it never writes back to the local provider store', {
-      in: { conversationId: t.id('isc'), agentId: id.agent, first: t.opt(t.str()) }, out: { threadId: id.thread, linkedFrom: t.id('isc') }, perm: 'chats.private', emits: ['sessions.continued'], tool: 'chats',
+      in: { conversationId: t.id('isc'), agentId: id.agent, first: t.opt(t.str()) }, out: { threadId: id.thread, linkedFrom: t.id('isc') }, perm: 'chats.private', emits: ['sessions.continued'], tool: 'chats', errors: ['validation.not_found', 'validation.bad_input'],
     }),
   ],
   screens: [
