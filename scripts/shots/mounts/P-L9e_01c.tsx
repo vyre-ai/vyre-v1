@@ -2,7 +2,7 @@
 // Agents, Projects, People and Channels folders. ?where=pj_rivera|starred|recent|shared|trash|knowledge|root (default the Rivera matter folder). The shell is opened on the Files place before it first draws, so the place and its sidebar mount once.
 import { useMemo } from "react";
 import type { ReactNode } from "react";
-import { View, useWindowDimensions } from "react-native";
+import { View } from "react-native";
 import { createThemeController } from "../../../ui/src/theme/index.ts";
 import type { ThemeRoot } from "../../../ui/src/theme/index.ts";
 import { Shell } from "../../../apps/app/src/shell/spaces/Shell.tsx";
@@ -42,7 +42,6 @@ function FilesBody({ initial }: { initial: Partial<FilesState> }): ReactNode {
 }
 
 export default function Mount(): ReactNode {
-  const height = useWindowDimensions().height;
   const made = useMemo(() => {
     const g = globalThis as { location?: { search?: string }; document?: { documentElement?: RootLike } };
     const query = new URLSearchParams(g.location?.search ?? "");
@@ -60,7 +59,7 @@ export default function Mount(): ReactNode {
   }, []);
   const renderPlace = (ctx: PlaceContext): ReactNode => (ctx.place === "files" ? <FilesBody key={ctx.spaceId} initial={made.initial} /> : samplePlace(ctx));
   return (
-    <View style={{ height }}>
+    <View style={{ flex: 1, minHeight: 0 }}>
       <Shell hub={made.hub} theme={made.theme} renderPlace={renderPlace} />
     </View>
   );
