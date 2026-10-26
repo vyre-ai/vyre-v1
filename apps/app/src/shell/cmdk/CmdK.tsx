@@ -12,6 +12,7 @@ import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { CmdKController } from "./controller.ts";
 import type { CmdKData, CmdKOptions, CmdKState } from "./controller.ts";
 import { filterEntries, filterLabels } from "./view.ts";
+import { GROUPS } from "./model.ts";
 import type { CmdAction, Hit, RowModel } from "./model.ts";
 import { formatCombo } from "../keyboard/map.ts";
 import type { Platform as KeyPlatform } from "../keyboard/map.ts";
@@ -21,6 +22,10 @@ const webOnly = (props: Record<string, unknown>): Record<string, unknown> => (Pl
 /* ---------- icons by kind ---------- */
 
 const SVG = (d: string): string => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const KIND_LABEL: ReadonlyMap<Hit["kind"], string> = new Map(GROUPS);
+// The highlighted row takes the accent with white text (the prototype palette, ruling 82); the tokens the row reads are re-pointed inside it.
+// A plain object, not StyleSheet.create, like the shared Row's own wash: it is written inline, so it is in the markup and not behind a generated class.
+const LIT = { backgroundColor: "var(--accent)", borderRadius: 6, "--ink": "#FFFFFF", "--ink-2": "rgba(255,255,255,0.86)", "--ink-3": "rgba(255,255,255,0.74)" } as object;
 const KIND_ICON: Partial<Record<Hit["kind"], string>> = {
   file: SVG('<path d="M4 2.500h5l3 3v8H4z"/><path d="M9 2.500v3h3"/>'),
   record: SVG('<rect x="2.500" y="3" width="11" height="10" rx="1.800"/><path d="M2.500 6.500h11M6.500 6.500v6.500"/>'),
@@ -204,16 +209,17 @@ function renderRow(
   const on = i === state.active;
   let row: ReactElement;
   if (r.type === "hit") {
-    const note = r.hit.snippet ?? r.hit.path;
-    row = <Row id={r.key} title={r.hit.title} {...(note ? { note } : {})} selected={on} leading={<Tile hit={r.hit} />} onPress={() => ctl.choose(i, false)} />;
+    // One line, as the prototype draws it: the title, the grey meta after it, the kind right aligned.
+    const meta = r.hit.snippet ?? r.hit.path;
+    row = <Row id={r.key} title={r.hit.title} {...(meta ? { titleSuffix: meta } : {})} leading={<Tile hit={r.hit} />} trailing={<Text style={styles.kind}>{KIND_LABEL.get(r.hit.kind) ?? ""}</Text>} onPress={() => ctl.choose(i, false)} />;
   } else if (r.type === "action") {
-    row = <Row id={r.key} title={r.action.title} selected={on} leading={<ActionTile action={r.action} />} trailing={r.action.keys ? <Text style={styles.keys}>{formatCombo(r.action.keys, platform)}</Text> : undefined} onPress={() => ctl.choose(i, false)} />;
+    row = <Row id={r.key} title={r.action.title} leading={<ActionTile action={r.action} />} trailing={r.action.keys ? <Text style={styles.keys}>{formatCombo(r.action.keys, platform)}</Text> : undefined} onPress={() => ctl.choose(i, false)} />;
   } else {
-    row = <Row id={r.key} title={r.name} selected={on} leading={<View style={styles.tile}><View style={[styles.dot, { backgroundColor: r.swatch ?? "var(--accent)" }]} /></View>} trailing={r.current ? <Text style={styles.keys}>Current</Text> : undefined} onPress={() => ctl.choose(i, false)} />;
+    row = <Row id={r.key} title={r.name} leading={<View style={styles.tile}><View style={[styles.dot, { backgroundColor: r.swatch ?? "var(--accent)" }]} /></View>} trailing={r.current ? <Text style={styles.keys}>Current</Text> : undefined} onPress={() => ctl.choose(i, false)} />;
   }
   const trigger = r.type === "hit" ? menuTrigger((x, y) => rowMenu(i, x, y)) : {};
   return (
-    <View key={r.key} {...webOnly({ onPointerMove: () => ctl.hover(i), role: "option", "aria-selected": on })} {...(trigger as object)}>
+    <View key={r.key} style={on ? LIT : null} {...webOnly({ onPointerMove: () => ctl.hover(i), role: "option", "aria-selected": on })} {...(trigger as object)}>
       {row}
     </View>
   );
@@ -239,7 +245,7 @@ export function CmdK({ data, initialQuery = "", platform = "mac", onClose, onTim
     <View testID="cmdk-veil" style={styles.veil}>
       <Pressable accessibilityLabel="Close search" onPress={() => ctl.close()} style={StyleSheet.absoluteFill} />
       <View style={styles.sheet}>
-        <CmdKBody controller={ctl} platform={platform} />
+        <CmdKBody controller={ctl} platform={platform} {...(data.spaceName ? { placeholder: `Search ${data.spaceName()}` } : {})} />
       </View>
     </View>
   );
@@ -248,7 +254,11 @@ export function CmdK({ data, initialQuery = "", platform = "mac", onClose, onTim
 /** Screen shell.new-tab: the same search, inline in a new tab. Enter fills the tab (open), Cmd-Enter opens a new tab. */
 export function NewTabSearch({ data, platform = "mac" }: { data: CmdKData; platform?: KeyPlatform }): ReactElement {
   const ctl = useCmdK(data);
-  return <CmdKBody controller={ctl} platform={platform} inline placeholder={"Open anything, or start something…"} />;
+  return (
+    <View testID="newtab-page" style={styles.newtab}>
+      <CmdKBody controller={ctl} platform={platform} inline placeholder={"Open anything, or start something…"} />
+    </View>
+  );
 }
 
 const FIXED = (Platform.OS === "web" ? "fixed" : "absolute") as unknown as "absolute";
@@ -257,7 +267,8 @@ const styles = StyleSheet.create({
   veil: { position: FIXED, top: 0, left: 0, right: 0, bottom: 0, zIndex: 70, backgroundColor: "rgba(10,10,12,0.22)", alignItems: "center", paddingTop: (Platform.OS === "web" ? "14vh" : 72) as unknown as number },
   sheet: { width: "100%", maxWidth: 632, paddingHorizontal: 16 },
   card: { width: "100%", backgroundColor: "var(--raised)", borderRadius: 14, overflow: "hidden", boxShadow: "var(--sh-pop), 0 30px 60px -20px rgba(0,0,0,0.35)" } as object,
-  cardInline: { maxWidth: 600, alignSelf: "center", borderRadius: 14 },
+  cardInline: { width: "100%", maxWidth: 640, alignSelf: "center", borderRadius: 14, boxShadow: "none", borderWidth: 1, borderColor: "var(--line)" } as object,
+  newtab: { flex: 1, width: "100%", alignItems: "center", paddingTop: 40, paddingHorizontal: 16 },
   head: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "var(--line)" },
   input: { flex: 1, height: 52, paddingHorizontal: 18, fontSize: 16, color: "var(--ink)", backgroundColor: "transparent" },
   filterBtn: { height: 26, paddingHorizontal: 9, marginRight: 12, borderRadius: 6, justifyContent: "center" },
@@ -269,6 +280,7 @@ const styles = StyleSheet.create({
   none: { padding: 14, fontSize: 13, color: "var(--ink-3)" },
   tile: { width: 20, height: 20, marginRight: 10, alignItems: "center", justifyContent: "center" },
   dot: { width: 12, height: 12, borderRadius: 6 },
+  kind: { fontSize: 11.5, color: "var(--ink-3)" },
   keys: { fontSize: 11.5, color: "var(--ink-3)" },
   foot: { flexDirection: "row", gap: 14, paddingVertical: 8, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: "var(--line)" },
   footText: { fontSize: 11.5, color: "var(--ink-3)" },

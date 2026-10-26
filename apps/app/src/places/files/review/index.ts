@@ -1,0 +1,25 @@
+// Files > Review: the changeset header, the git row and the Gate row, the history and diff tabs wired to their capabilities, and the lint bar with the agent file editor (spec 3.5, 2.16, 2.14).
+export { ChangesetHeader } from "./ChangesetHeader.tsx";
+export type { ChangesetHeaderProps } from "./ChangesetHeader.tsx";
+export { GitRow } from "./GitRow.tsx";
+export type { GitRowProps } from "./GitRow.tsx";
+export { GateRow } from "./GateRow.tsx";
+export type { GateRowProps } from "./GateRow.tsx";
+export { HistoryPanel } from "./HistoryPanel.tsx";
+export type { HistoryPanelProps } from "./HistoryPanel.tsx";
+export { ChangesetDiff, CommitDiff, FileDiff } from "./DiffPanels.tsx";
+export type { ChangesetDiffProps, CommitDiffProps, FileDiffProps } from "./DiffPanels.tsx";
+export { LintBar, SEV_COLOR } from "./LintBar.tsx";
+export type { EditView, LintBarProps } from "./LintBar.tsx";
+export { AgentFileEditor, lineRange } from "./AgentFileEditor.tsx";
+export type { AgentFileEditorProps } from "./AgentFileEditor.tsx";
+export { AgentFilePage, extOf } from "./AgentFilePage.tsx";
+export type { AgentFilePageProps } from "./AgentFilePage.tsx";
+export { SuggestionCard } from "./SuggestionCard.tsx";
+export type { SuggestionCardProps } from "./SuggestionCard.tsx";
+export { TomlForm } from "./TomlForm.tsx";
+export type { TomlFormProps } from "./TomlForm.tsx";
+export { ReviewDataProvider, useCap, useCapMany, useReviewData, useReviewLayout } from "./data.tsx";
+export type { Many, ReviewCap, ReviewData, ReviewLayout, ReviewNav } from "./data.tsx";
+export * from "./actions.ts";
+export * from "./model.ts";

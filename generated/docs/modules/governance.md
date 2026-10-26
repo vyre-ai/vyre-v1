@@ -20,7 +20,7 @@ Requires: access.
 - [governance.retention.reset](../capabilities/governance.retention.reset.md): Put one kind back to its default
 - [governance.retention.set](../capabilities/governance.retention.set.md): Set retention for one kind (for example 90d, 2y, forever), or for one record type when the kind is records
 - [governance.tombstones.list](../capabilities/governance.tombstones.list.md): Tombstones that a restore will replay (kinds and times only)
-- [governance.tombstones.reapply](../capabilities/governance.tombstones.reapply.md): System: replay every tombstone after a restore, before the Space opens for traffic
+- [governance.tombstones.reapply](../capabilities/governance.tombstones.reapply.md): System: replay every tombstone after a restore, before the Space opens for traffic; `tombstones` are the ones the Space held before the restore, which the restored database does not have
 
 ## Events (6)
 

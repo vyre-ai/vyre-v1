@@ -18,7 +18,7 @@ export interface AuditSeams {
   /** Saves an export into Files and returns its file id. */
   exports?: { save(name: string, csv: string): Promise<string> };
 }
-export type AuditCtx = Pick<Ctx, "space" | "principal" | "trace" | "now" | "db" | "emit"> & { authorize?: Ctx["authorize"] } & AuditSeams;
+export type AuditCtx = Pick<Ctx, "space" | "principal" | "trace" | "now" | "db" | "emit"> & { authorize?: Ctx["authorize"]; depth?: number } & AuditSeams;
 
 export type Klass = "change" | "sensitive" | "deny" | "admin" | "erase" | "sign_in";
 export type Ref = { kind: "person" | "agent" | "actor" | "service"; id: string };

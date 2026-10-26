@@ -287,3 +287,26 @@ test("cara and bob are strangers to a hold they did not ask for or approve", asy
 });
 // ok
 // ok2
+
+test("gate.park is the pipeline's call: a direct call from a person or an agent is refused and writes no hold", async () => {
+  const h = harness();
+  for (const who of [as(alice, { depth: 0, origin: "user" }), as(bot, { depth: 0, origin: "user" }), as(bob, { depth: 0, origin: "mcp" }), as(bob, { depth: 0, origin: "hook" })]) {
+    await refused(h.call("gate.park", parkInput({ principal: alice, actingFor: undefined }), who), "permission.role_lacks_permission", "system_only");
+  }
+  assert.equal(holdsWhere(h.db, "1 = 1").length, 0);
+  assert.deepEqual(h.events, []);
+});
+
+test("gate.park from a capability the Gate hook ran (origin gate, depth above zero) or any nested call is refused", async () => {
+  const h = harness();
+  await refused(h.call("gate.park", parkInput(), as(alice, { depth: 1, origin: "gate" })), "permission.role_lacks_permission", "system_only");
+  await refused(h.call("gate.park", parkInput(), as(alice, { depth: 1 })), "permission.role_lacks_permission", "system_only");
+  assert.equal(holdsWhere(h.db, "1 = 1").length, 0);
+});
+
+test("gate.park from the Gate hook (origin gate, depth zero) and from the host parks as before", async () => {
+  const h = harness();
+  await park(h, { decisionId: "dec_a" }, as(alice, { depth: 0, origin: "gate" }));
+  await park(h, { decisionId: "dec_b" }, { ...svc, depth: 0, origin: "user" });
+  assert.equal(holdsWhere(h.db, "1 = 1").length, 2);
+});

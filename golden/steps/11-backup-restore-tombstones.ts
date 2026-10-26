@@ -17,7 +17,6 @@ const CONTACT = {
 
 /** Why this flow is a todo today (ruling 53). */
 export const GAPS: Gap[] = [
-  { packet: "P-GF_11", lane: "L7b", what: "after the restart the staged restore is applied (the contact is back, 200) but nothing replays the tombstones: host/src/seams/backup.ts applyPendingRestore moves the database files and deletes the stage including tombstones.json, and the daemon never calls governance.tombstones.reapply once the Space opens, so no tombstones.reapplied and an erased contact returns (spec 2.26, ARCH 7.10)" },
 ];
 
 export async function runRestore(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {

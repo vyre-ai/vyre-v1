@@ -1,6 +1,7 @@
 // Notifications projections (spec 2.24, ARCH 3.5): the kind table, the person's rules, mutes, away and delegate chain, working hours, and the item rows.
 // Durable tables: the generated notifications_items plus migrations/0001_notifications_state.sql. Every statement names only notifications_* tables (ctx.db refuses anything else, ARCH B2).
 // The KINDS table below mirrors manifests/notifications.ts notificationKinds (frozen, ruling 9); the contract test of this module compares them.
+import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 
 export type Level = "interrupt" | "badge" | "digest";
@@ -94,7 +95,7 @@ export function clean<T extends Record<string, unknown>>(o: T): T {
 }
 /** The person a call is for: an agent acting for someone is that someone; anything else is the caller. */
 export const meOf = (ctx: NotifCtx): string => ctx.actingFor ?? ctx.principal.id;
-export const isService = (ctx: NotifCtx): boolean => ctx.principal.kind === "service" || ctx.principal.kind === "automation";
+export const isService = (ctx: NotifCtx): boolean => isTrustedService(ctx.principal);
 const parse = <T>(s: unknown, fallback: T): T => { try { return JSON.parse(String(s)) as T; } catch { return fallback; } };
 
 // ---- text ----

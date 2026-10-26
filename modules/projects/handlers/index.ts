@@ -1,9 +1,9 @@
-// Handler table of the projects module: all 22 capabilities of manifests/projects.ts. Making, reading, people and the Overview are in project.ts; the plan (stages, bars, arrows, task threads)
+// Handler table of the projects module: all 24 capabilities of manifests/projects.ts. Making, reading, people and the Overview are in project.ts; the plan (stages, bars, arrows, task threads)
 // is in plan.ts; the cascade proposed when something slips, and its Apply or Keep, is in cascade.ts.
 import { applyCascade, cascade } from "./cascade.ts";
 import { linkTasks, openTaskThread, plan, reschedule, stagesSet, unlinkTasks } from "./plan.ts";
 import {
-  create, fileChat, fromChannel, get, list, membersList, membersRemove, membersSet, overview, pinFile, postUpdate, shareOut, templatesList, unpinFile,
+  create, fileChat, fromChannel, get, list, membersList, membersRemove, membersSet, overview, pinFile, postUpdate, shareOut, sharedView, unshareOut, templatesList, unpinFile,
 } from "./project.ts";
 
 export const handlers = {
@@ -25,6 +25,8 @@ export const handlers = {
   "projects.post_update": postUpdate,
   "projects.reschedule": reschedule,
   "projects.share_out": shareOut,
+  "projects.unshare_out": unshareOut,
+  "projects.shared_view": sharedView,
   "projects.stages.set": stagesSet,
   "projects.templates.list": templatesList,
   "projects.unlink_tasks": unlinkTasks,
