@@ -74,7 +74,9 @@ export function ensure(db: Db): void {
 
 export async function call<T>(ctx: ProjectsCtx, cap: string, input: unknown, opts?: { idempotencyKey?: string }): Promise<T> {
   if (!ctx.call) raise(ctx, "internal.unexpected", "That part of the app is not available right now.", { cap });
-  return (await ctx.call(cap, input, opts)) as T;
+  // a capability that declares idempotency "key" reads the key from its input: call options never reach it, so the key given as an option is put in the input too
+  const body = opts?.idempotencyKey !== undefined && input !== null && typeof input === "object" && !Array.isArray(input) && !("idempotencyKey" in input) ? { ...input, idempotencyKey: opts.idempotencyKey } : input;
+  return (await ctx.call(cap, body, opts)) as T;
 }
 /** Like `call`, but a neighbour that is not there (or refuses) gives the fallback: what a page shows must not fail because a neighbour is down. */
 export async function tolerant<T>(ctx: ProjectsCtx, cap: string, input: unknown, fallback: T): Promise<T> {
