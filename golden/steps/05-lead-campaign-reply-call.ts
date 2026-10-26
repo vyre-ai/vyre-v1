@@ -125,7 +125,7 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
 
     const held = await trail.step("launching is held by the Gate for approval", async () => {
       const r = await s.call("campaigns.launch", admin, { idempotencyKey: "golden-5-launch", campaignId: campaign! });
-      expectStatus(r, 200, "campaigns.launch");
+      expectStatus(r, 202, "campaigns.launch");
       assert.equal(r.body?.data?.status, "held", `the launch is held: ${short(r.body)}`);
       assert.ok(r.body?.data?.taskId, `a task waits for the approver: ${short(r.body)}`);
       return r.body.data.taskId as string;
