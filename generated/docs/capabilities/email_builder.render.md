@@ -27,6 +27,7 @@ Render desktop, mobile, dark and plain-text previews, optionally as a record
 type In = {
   emailId: string;
   asRecordId?: string;
+  recordType?: string;
   variant: "desktop" | "mobile" | "dark" | "plain";
 };
 ```
@@ -55,6 +56,7 @@ type Out = {
   "input": {
     "asRecordId": "rec_a1b2c3",
     "emailId": "eml_a1b2c3",
+    "recordType": "contact",
     "variant": "desktop"
   },
   "output": {

@@ -28,6 +28,7 @@ type In = {
   templateFileId: string;
   values?: Record<string, unknown>;
   recordId?: string;
+  recordType?: string;
   mapping?: Record<string, string>;
   signingDate?: string;
 };
@@ -66,6 +67,7 @@ type Out = {
   "input": {
     "mapping": {},
     "recordId": "rec_a1b2c3",
+    "recordType": "contact",
     "signingDate": "2026-10-24",
     "templateFileId": "fil_a1b2c3",
     "values": {}

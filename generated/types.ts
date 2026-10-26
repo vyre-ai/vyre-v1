@@ -7304,6 +7304,7 @@ export type DocumentsFillIn = {
   templateFileId: string;
   values?: Record<string, unknown>;
   recordId?: string;
+  recordType?: string;
   mapping?: Record<string, string>;
   signingDate?: string;
   intoFolderId: string;
@@ -7331,6 +7332,7 @@ export type DocumentsPreviewFillIn = {
   templateFileId: string;
   values?: Record<string, unknown>;
   recordId?: string;
+  recordType?: string;
   mapping?: Record<string, string>;
   signingDate?: string;
 };
@@ -7506,6 +7508,7 @@ export type EmailBuilderMergeFieldsOut = {
 export type EmailBuilderRenderIn = {
   emailId: string;
   asRecordId?: string;
+  recordType?: string;
   variant: "desktop" | "mobile" | "dark" | "plain";
 };
 export type EmailBuilderRenderOut = {

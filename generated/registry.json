@@ -57937,6 +57937,7 @@
             "mapping": {},
             "name": "example",
             "recordId": "rec_a1b2c3",
+            "recordType": "contact",
             "signingDate": "2026-10-24",
             "templateFileId": "fil_a1b2c3",
             "values": {}
@@ -57996,6 +57997,13 @@
               "rec_a1b2c3"
             ],
             "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordType": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
             "type": "string"
           },
           "signingDate": {
@@ -58170,6 +58178,7 @@
           "input": {
             "mapping": {},
             "recordId": "rec_a1b2c3",
+            "recordType": "contact",
             "signingDate": "2026-10-24",
             "templateFileId": "fil_a1b2c3",
             "values": {}
@@ -58212,6 +58221,13 @@
               "rec_a1b2c3"
             ],
             "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordType": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
             "type": "string"
           },
           "signingDate": {
@@ -59504,6 +59520,7 @@
           "input": {
             "asRecordId": "rec_a1b2c3",
             "emailId": "eml_a1b2c3",
+            "recordType": "contact",
             "variant": "desktop"
           },
           "name": "example",
@@ -59530,6 +59547,13 @@
               "eml_a1b2c3"
             ],
             "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordType": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
             "type": "string"
           },
           "variant": {
