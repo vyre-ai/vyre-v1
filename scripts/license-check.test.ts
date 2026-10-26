@@ -13,6 +13,7 @@ test('AGPL and GPL are blocked and the allowlist licenses pass', () => {
     { name: 'gpl', license: 'GPL-3.0-only' },
     { name: 'sspl', license: 'SSPL-1.0' },
     { name: 'mit', license: 'MIT' },
+    { name: 'mit0', license: 'MIT-0' },
     { name: 'apache', license: 'Apache-2.0' },
     { name: 'bsd2', license: 'BSD-2-Clause' },
     { name: 'bsd3', license: 'BSD-3-Clause' },
@@ -21,6 +22,7 @@ test('AGPL and GPL are blocked and the allowlist licenses pass', () => {
     { name: 'none', license: '' },
   ]);
   const by = new Map(hits.map((h) => [h.name, h]));
+  assert.equal(by.get('mit0')?.ok, true, 'MIT-0 (nodemailer) is permissive');
   assert.equal(by.get('agpl')?.ok, false);
   assert.match(by.get('agpl')?.reason ?? '', /AGPL/);
   assert.equal(by.get('gpl')?.ok, false);
