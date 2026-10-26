@@ -23,6 +23,8 @@ export interface DirectoryEntry {
   name: string;
   email: string;
   kind: RecipientKind;
+  /** The person's or agent's id: the face is seeded by it (the name or address is the fallback). */
+  id?: string;
   sub?: string;
   /** Record the address belongs to; its menu offers Open record. */
   rec?: string;
@@ -38,6 +40,8 @@ export interface Token {
   name: string;
   email: string;
   kind: RecipientKind;
+  /** The person's or agent's id: the face is seeded by it (the name or address is the fallback). */
+  id?: string;
   sub?: string;
   rec?: string;
   /** Name of the group this address came from. */
@@ -251,7 +255,7 @@ const HOVER = { backgroundColor: "var(--hover)" };
 
 /** A recipient's face: a marble for a person, a pixel face for an agent, the group glyph for a group (the shared Avatar). */
 function TokenFace({ token, size = 18 }: { token: Token; size?: number }): ReactElement {
-  return <Avatar name={token.name || token.email} kind={token.kind === "group" ? "group" : token.kind === "agent" ? "agent" : "person"} size={size} />;
+  return <Avatar name={token.name || token.email} {...(token.id !== undefined ? { seedId: token.id } : {})} kind={token.kind === "group" ? "group" : token.kind === "agent" ? "agent" : "person"} size={size} />;
 }
 
 export function Recipients(props: RecipientsViewProps): ReactElement {

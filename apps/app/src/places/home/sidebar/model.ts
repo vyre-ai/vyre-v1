@@ -9,6 +9,8 @@ export interface HomeSidebarItem {
   title: string;
   note?: string;
   kind: HomeItemKind;
+  /** For a person or an agent: their id, so the face matches every other place (the title is the fallback). */
+  personId?: string;
   /** Where choosing the row goes: the place and the item's route hash. */
   target: { place: string; hash?: string };
 }

@@ -6,6 +6,8 @@ export type PlanStatus = "todo" | "doing" | "blocked" | "review" | "approval" | 
 export interface PlanWho {
   name: string;
   kind: "person" | "agent" | "group" | "role";
+  /** The person's or agent's id: the face is seeded by it, so one person has one face everywhere (the name is the fallback). */
+  id?: string;
 }
 
 export interface PlanStage {
