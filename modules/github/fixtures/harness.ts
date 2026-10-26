@@ -31,7 +31,7 @@ const pr = (over: Json = {}): Json => ({
 export const RECORDED = {
   conversion: {
     id: 424242, slug: "vyre-abc123", name: "Vyre abc123", client_id: "Iv1.clientid", client_secret: "client_secret_not_real", webhook_secret: "hook_secret_from_github",
-    pem: "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEAnotarealkey\n-----END RSA PRIVATE KEY-----\n", permissions: { contents: "write", issues: "write", metadata: "read", pull_requests: "write", checks: "read" },
+    pem: "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEAnotarealkey\n-----END RSA PRIVATE KEY-----\n", permissions: { contents: "write", issues: "write", metadata: "read", pull_requests: "write", checks: "read" }, // secret-scan: fake
     events: ["push", "pull_request", "issues", "check_run", "workflow_run"], html_url: "https://github.com/apps/vyre-abc123",
   },
   app: { id: 424242, slug: "vyre-abc123", name: "Vyre abc123", permissions: { contents: "write", metadata: "read", pull_requests: "write" }, events: ["push", "pull_request"] },

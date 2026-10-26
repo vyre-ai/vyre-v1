@@ -53,7 +53,7 @@ function populated(): Harness {
 }
 
 test("a real handler exists for exactly the capabilities the registry declares for logs", () => {
-  assert.equal(caps.length, 10);
+  assert.equal(caps.length, 11);
   assert.deepEqual(Object.keys(handlers).sort(), caps.map((c) => c.name).sort());
 });
 

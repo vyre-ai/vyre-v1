@@ -7,6 +7,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "inbox.counts": async () => ({"byInbox":[{"id":"example","kind":"mailbox","name":"example","unread":1}],"needsMatch":1,"total":1} as unknown) as never,
   "inbox.follow_set": async () => ({"alertOnReplies":true,"following":true} as unknown) as never,
   "inbox.following": async () => ({"next":"example","rows":[{"alertOnReplies":true,"contactId":"rec_a1b2c3","reasons":["owner"]}],"total":1} as unknown) as never,
+  "inbox.item.erase": async () => ({"erased":true} as unknown) as never,
   "inbox.link_message": async () => ({"contactId":"rec_a1b2c3","conversationId":"cnv_a1b2c3","linked":"sure","taskId":"tsk_a1b2c3"} as unknown) as never,
   "inbox.list_by_contact": async () => ({"next":"example","rows":[{"address":"maya@example.com","alertOnReplies":true,"bounced":true,"campaignId":"cmp_a1b2c3","contactId":"rec_a1b2c3","displayName":"example","dnd":true,"draftReady":true,"followed":true,"id":"cnv_a1b2c3","lastChannel":"email","lastMessageAt":1760000000000,"lastPreview":"example","mailboxIds":["mbx_a1b2c3"],"needsMatch":true,"organisation":"Acme Legal","ownerId":"usr_a1b2c3","starred":true,"unmatched":true,"unreadCount":1}],"showing":"example","total":1} as unknown) as never,
   "inbox.list_by_thread": async () => ({"next":"example","showing":"example","threads":[{"channel":"email","contactId":"rec_a1b2c3","lastAt":1760000000000,"mailboxId":"mbx_a1b2c3","participants":["example"],"subject":"example","threadId":"example","unread":1}],"total":1} as unknown) as never,

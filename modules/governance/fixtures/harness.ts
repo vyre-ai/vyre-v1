@@ -149,6 +149,17 @@ export function harness() {
         notes: (world.notes.get(String(i["subject"])) ?? []).map((n) => ({ layer: "agent", path: "x.md", title: "Note", updatedAt: NOW, ...n })),
       };
     },
+    // The erasers and purgers of P-CC_39 are in the contract now. The erasers that the tests of find and apply count on being absent stay refused, as a module without them answers; the age purgers remove nothing.
+    "records.purge": () => { throw err("validation.unknown_capability", "records.purge is not served by this module"); },
+    "threads.erase": () => { throw err("validation.unknown_capability", "threads.erase is not served by this module"); },
+    "channels.erase": () => { throw err("validation.unknown_capability", "channels.erase is not served by this module"); },
+    "mail.message.erase": () => { throw err("validation.unknown_capability", "mail.message.erase is not served by this module"); },
+    "memory.notes.erase": () => { throw err("validation.unknown_capability", "memory.notes.erase is not served by this module"); },
+    "runs.purge": () => ({ removed: 0, more: false }),
+    "chat.transcript.purge": () => ({ removed: 0, more: false }),
+    "files.versions_purge": () => ({ removed: 0, more: false }),
+    "logs.purge": () => ({ removed: 0, more: false }),
+    "records.purge_trashed": () => ({ removed: 0, more: false }),
     "memory.erase": (i) => {
       for (const f of (i["factIds"] as string[]) ?? []) world.erasedFacts.push(f);
       return { erased: ((i["factIds"] as string[]) ?? []).length };

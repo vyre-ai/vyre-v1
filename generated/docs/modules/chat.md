@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine.
 
-## Capabilities (62)
+## Capabilities (65)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -12,6 +12,7 @@ Requires: engine.
 - [channels.archive](../capabilities/channels.archive.md): Archive a channel (project and Journey channels archive when the record completes)
 - [channels.connect_outside_agent](../capabilities/channels.connect_outside_agent.md): Connect an outside agent (Claude Code, Codex) to a channel: returns the MCP address, a one-time token (once, 10 minutes) and the run command
 - [channels.create](../capabilities/channels.create.md): Create a channel: public to the Team Space or invite-only, with any mix of people and agents
+- [channels.erase](../capabilities/channels.erase.md): Erase one channel for good with all its messages (governance erase)
 - [channels.get](../capabilities/channels.get.md): Read one channel with members, agents and unread count
 - [channels.join](../capabilities/channels.join.md): Join a public channel
 - [channels.leave](../capabilities/channels.leave.md): Leave a channel
@@ -50,6 +51,7 @@ Requires: engine.
 - [chat.thread](../capabilities/chat.thread.md): Open or create the inline thread under a message; an @mentioned agent works inside it
 - [chat.transcript.append](../capabilities/chat.transcript.append.md): Append canonical transcript rows for a turn (every engine writes here, API drivers directly and CLI drivers through hooks)
 - [chat.transcript.get](../capabilities/chat.transcript.get.md): Read one turn of a transcript verbatim
+- [chat.transcript.purge](../capabilities/chat.transcript.purge.md): Remove messages and blocks older than a time from chats and channels, a batch at a time; threads listed in skipThreadIds (held ones) are left whole (retention)
 - [chat.transcript.read](../capabilities/chat.transcript.read.md): Read a window of a transcript as Markdown (the chats/<id>/transcript.md view)
 - [chat.transcript.search](../capabilities/chat.transcript.search.md): Search transcripts the asker may see: keyword, semantic or hybrid (default), snippets with links, never raw files
 - [chat.transcript.summarize](../capabilities/chat.transcript.summarize.md): Refresh the rolling summary on a cheap model in the background
@@ -57,6 +59,7 @@ Requires: engine.
 - [chat.unpin](../capabilities/chat.unpin.md): Remove the pinned marker from a message
 - [threads.add_agent](../capabilities/threads.add_agent.md): Add an agent to a thread as listening (or leading when it is the only agent)
 - [threads.close](../capabilities/threads.close.md): Close a thread (idle with nothing waiting, or done)
+- [threads.erase](../capabilities/threads.erase.md): Erase one chat thread for good: messages, blocks, pins, reactions, attachment links, transcript rows, summaries and search entries (governance erase)
 - [threads.get](../capabilities/threads.get.md): Read one thread with its members, agents, modes, plan mode and (for helpers) the address bar path
 - [threads.list](../capabilities/threads.list.md): List threads by kind, folder, scope or record
 - [threads.make_channel](../capabilities/threads.make_channel.md): Make a private chat into a channel with another person; the new channel links back to the chat
@@ -69,7 +72,7 @@ Requires: engine.
 - [threads.set_plan_mode](../capabilities/threads.set_plan_mode.md): Switch plan mode for a thread: the agent may read and plan but changes nothing until a plan is approved
 - [threads.update](../capabilities/threads.update.md): Rename a thread
 
-## Events (34)
+## Events (37)
 
 - [agent.disengaged](../events/agent.disengaged.md): An agent left a thread
 - [agent.engaged](../events/agent.engaged.md): An agent joined a thread as lead or listener
@@ -81,6 +84,7 @@ Requires: engine.
 - [channel.agent_watch_changed](../events/channel.agent_watch_changed.md): An agent started or stopped watching a channel
 - [channel.archived](../events/channel.archived.md): A channel was archived
 - [channel.created](../events/channel.created.md): A channel was created
+- [channel.erased](../events/channel.erased.md): A channel was erased for good with its messages (ids only)
 - [channel.member_added](../events/channel.member_added.md): A person joined a channel or thread
 - [channel.member_removed](../events/channel.member_removed.md): A person left or was removed from a channel or thread
 - [channel.unarchived](../events/channel.unarchived.md): A channel was brought back
@@ -99,9 +103,11 @@ Requires: engine.
 - [plan.step_done](../events/plan.step_done.md): A plan step finished
 - [tab.opened](../events/tab.opened.md): An agent opened a side tab for a person (delivered live to that person devices)
 - [thread.closed](../events/thread.closed.md): A thread was closed
+- [thread.erased](../events/thread.erased.md): A chat thread was erased for good with its messages, blocks, pins and transcript (ids only)
 - [thread.plan_mode_changed](../events/thread.plan_mode_changed.md): Plan mode was switched for a thread
 - [thread.promoted](../events/thread.promoted.md): A private chat became a channel with another person
 - [thread.reopened](../events/thread.reopened.md): A thread was reopened
 - [thread.replied](../events/thread.replied.md): A reply landed in a thread someone follows
 - [thread.started](../events/thread.started.md): A thread, chat or channel main thread was started
 - [thread.updated](../events/thread.updated.md): A thread title, folder or listing changed
+- [transcripts.purged](../events/transcripts.purged.md): Chat transcripts past their retention were removed (a count)

@@ -341,7 +341,7 @@ test("the module reaches only logs_* tables: the host guard refuses anything els
 
 test("every handler is registered under its capability name", () => {
   assert.deepEqual(Object.keys(handlers).sort(), [
-    "logs.client_upload", "logs.export", "logs.query", "logs.replay_get", "logs.replay_start", "logs.settings_get", "logs.settings_set",
+    "logs.client_upload", "logs.export", "logs.purge", "logs.query", "logs.replay_get", "logs.replay_start", "logs.settings_get", "logs.settings_set",
     "logs.spans", "logs.tail", "logs.trace",
   ]);
   for (const fn of Object.values(handlers)) assert.equal(typeof fn, "function");
