@@ -56,5 +56,9 @@
   {"file": "sync/tests/replica.store.perf.test.ts", "capSec": 120, "owner": "CI", "reason": "the speed tests split out of replica.store.test.ts; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
   {"file": "ui/src/Composer/composer.perf.test.tsx", "capSec": 120, "owner": "L9", "reason": "the speed tests split out of composer.test.tsx; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
   {"file": "ui/tests/stream.render.perf.test.tsx", "capSec": 120, "owner": "L9", "reason": "the speed tests split out of stream.render.test.tsx; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
-  {"file": "apps/app/src/shell/cmdk/cmdk.perf.test.tsx", "capSec": 120, "owner": "L9", "reason": "the speed test split out of cmdk.test.tsx; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true}
+  {"file": "apps/app/src/shell/cmdk/cmdk.perf.test.tsx", "capSec": 120, "owner": "L9", "reason": "the speed test split out of cmdk.test.tsx; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
+  {"file": "golden/harness.test.ts", "capSec": 120, "owner": "L11", "reason": "boots a daemon and several flows; over the 30 s fast cap on a loaded runner (w2q's release runs), so it gets its own job and a 120 s cap"},
+  {"file": "fixtures/seed/small/small.seed.test.ts", "capSec": 120, "owner": "L11", "reason": "boots a daemon and several flows; over the 30 s fast cap on a loaded runner (w2q's release runs), so it gets its own job and a 120 s cap"},
+  {"file": "fixtures/seed/perf/perf.seed.test.ts", "capSec": 120, "owner": "L11", "reason": "past the 30 s per-file watchdog in the release suite (w2q's dry run 40260709483); the release suite uses the same slow list as check.yml, so listing it here gives it its own job and a 120 s cap on tags and PRs"},
+  {"file": "golden/steps/14-purge.test.ts", "capSec": 120, "owner": "L11", "reason": "past the 30 s per-file watchdog in the release suite (w2q's dry run 40260709483); the release suite uses the same slow list as check.yml, so listing it here gives it its own job and a 120 s cap on tags and PRs"}
 ]

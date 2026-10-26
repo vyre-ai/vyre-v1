@@ -16,6 +16,8 @@
     "records.merge@1": "c5d330c2051d8b48bb3c24f1a8cbf99c79d0bd863fa5fbc78588e11541bcb336",
     "records.page_prefs.get@1": "b28118ad4e9d5ef8806b096a8373a93f8e974cc9d7f21b53ebc5a887958c01c6",
     "records.page_prefs.set@1": "1be2d2384e304c9acae7434f35535ef051714aafd2df414a2f20ebac27db89ea",
+    "records.purge@1": "08e26e728b3b699ecc1ad35bc8dac61decc15ff24249eb62ab3f887c31e5bab0",
+    "records.purge_trashed@1": "91f7e3273cba50c79c45285706023340e2ba8ced2a449dc681b4c67f69e52fe0",
     "records.query@1": "611113c8c26440f5bfbf37a27e8675f9d69c75ff410ac345330e56496e0d0182",
     "records.relate@1": "4959e29b51dfebd00bd8dedfeccbe1884634af1bfd34be5d0cee190e82cda002",
     "records.relations_map@1": "623e5aa9cbe3547bcf7b476ee15f286fb6b0d6d952d2138aacbd5a920de8a1fc",
@@ -39,9 +41,11 @@
     "record.held": "c47a4e1ccb635ee223df3f95d8869d544907b844512c81cd6d26e98dbb8db6b8",
     "record.hold_released": "da1b8d4b639cbb7c0891e878d5962b601f1fccff56353459b203d0822fc551d4",
     "record.merged": "a9f8dc541fd40b98ab09a7797ea028c28e5d856e304e448db2b53d60b85dd3e5",
+    "record.purged": "47ed29a98c1faa2ae07e8d2fd849c7c4fd9ed73f8d9a22d02acd3c4d0128db88",
     "record.restored": "c2768e84762e3ccf38aaf608c59c24105aabb332ee4e564d5a4c5571b791a88e",
     "record.updated": "c86e1b64ddfafc7ec70413b109f46191868ed293e8218263395472df82eca644",
     "record.value_proposed": "99940822ae8d3c63ff7a557eca65088dd26a8a6dbe2820babafa30472780f2c2",
-    "record.value_reviewed": "ce0985ecd52c411f6ec318418ab012faccaefa18d9fbeca3ac30d9cc03875601"
+    "record.value_reviewed": "ce0985ecd52c411f6ec318418ab012faccaefa18d9fbeca3ac30d9cc03875601",
+    "records.trash_purged": "b29b593989bb82d00a00cf60f21e9cd773513e502cc9cc9f327f18e07b55d9bd"
   }
 }

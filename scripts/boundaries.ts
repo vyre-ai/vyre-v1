@@ -30,7 +30,11 @@ export interface BoundariesFile {
   };
   exceptions?: Array<{ id?: string; from: string[]; to: string[]; via?: string }>;
   forbidden?: Array<{ from: string[]; to: string[]; reason?: string }>;
+  /** violations that exist today and are accepted until fixed, each with the reason; matched on rule and file (and spec when given). A known entry nothing matches any more is itself a failure. */
+  known?: KnownViolation[];
 }
+
+export interface KnownViolation { rule: string; file: string; spec?: string; reason: string; until: string }
 
 export interface AllowlistFile {
   allowedLicenses?: string[];
@@ -425,6 +429,19 @@ function dedupe(list: Violation[]): Violation[] {
   return out;
 }
 
+/** Split violations into those that fail, those accepted as known (with a reason), and known entries that no longer match anything. An entry with no reason, or past its until date, matches nothing. */
+export function applyKnown(violations: readonly Violation[], known: readonly KnownViolation[], now: Date = new Date()): { failing: Violation[]; accepted: Violation[]; stale: KnownViolation[] } {
+  const usable = known.filter((k) => typeof k.reason === 'string' && k.reason.trim().length >= 10 && Date.parse(k.until) >= now.getTime());
+  const used = new Set<KnownViolation>();
+  const failing: Violation[] = [];
+  const accepted: Violation[] = [];
+  for (const v of violations) {
+    const k = usable.find((x) => x.rule === v.rule && x.file === v.file && (x.spec === undefined || x.spec === v.spec));
+    if (k) { used.add(k); accepted.push(v); } else failing.push(v);
+  }
+  return { failing, accepted, stale: known.filter((k) => !used.has(k)) };
+}
+
 function main(): number {
   const root = repoRoot();
   const cfgPath = resolve(root, 'scripts/boundaries.json');
@@ -442,12 +459,15 @@ function main(): number {
     files[file] = readFileSync(resolve(root, file), 'utf8');
   }
   const violations = dedupe([...checkSources(files, config, allowlist), ...absenceViolations(names)]);
-  if (violations.length === 0) {
-    console.log(`boundaries: ${Object.keys(files).length} files, no violations`);
+  const { failing, accepted, stale } = applyKnown(violations, config.known ?? []);
+  for (const v of accepted) console.log(`  known: ${v.rule} ${v.file}${v.spec ? ` ${v.spec}` : ''}`);
+  for (const k of stale) console.error(`stale known entry ${k.rule} ${k.file}${k.spec ? ` ${k.spec}` : ''}: nothing matches it (fixed already, or no reason given); remove it from scripts/boundaries.json`);
+  if (failing.length === 0 && stale.length === 0) {
+    console.log(`boundaries: ${Object.keys(files).length} files, no new violations (${accepted.length} known)`);
     return 0;
   }
-  for (const v of violations) console.error(`${v.rule} ${v.file}${v.spec ? ` ${v.spec}` : ''}: ${v.message}`);
-  console.error(`boundaries: ${violations.length} violation(s)`);
+  for (const v of failing) console.error(`${v.rule} ${v.file}${v.spec ? ` ${v.spec}` : ''}: ${v.message}`);
+  console.error(`boundaries: ${failing.length} violation(s), ${stale.length} stale known entr${stale.length === 1 ? 'y' : 'ies'}`);
   return 1;
 }
 

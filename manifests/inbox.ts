@@ -48,6 +48,8 @@ const manifest = defineManifest({
     }),
   ],
   events: [
+    // ---- erase (P-CC_39)
+    ev('inbox.item_erased', 'The conversation entries of one message, text or call were erased for good (ids only)', { p: { refId: t.str({ examples: ['sms_a1b2c3'] }), removed: t.int({ minimum: 0 }) }, subject: ['entity', '/refId'], retention: 'audit' }),
     ev('conversation.created', 'A conversation row was opened for a new address or contact', { p: { conversationId: cnvId, contactId: t.opt(id.record), channel }, subject: ['entity', '/conversationId'], label: 'subject' }),
     ev('conversation.matched', 'A sender was linked to a contact or company record', {
       p: { conversationId: cnvId, recordId: id.record, by: t.enm('rule', 'person', 'agent'), undoable: t.bool() }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A sender is matched to a record', fields: ['/by'] },
@@ -65,6 +67,8 @@ const manifest = defineManifest({
     }),
   ],
   capabilities: [
+    // ---- erase (P-CC_39)
+    write('inbox.item.erase', 'Erase the conversation entries of one message, text or call for good: previews, subjects and participants go, the conversation keeps only what other items still say (governance erase)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { refId: t.str({ examples: ['sms_a1b2c3'] }) }, out: { erased: t.bool() }, emits: ['inbox.item_erased'], audit: 'always', risk: 'high' }),
     read('inbox.list_by_contact', 'Inbox default view: one row per person, newest message across email, text and calls', {
       in: { ...listFilter, ...pageIn }, out: { rows: t.arr(conversationRow), showing: t.str({ description: 'Plain words for the header: what is showing' }), ...pageOut },
       tool: 'inbox', label: 'filter', cli: 'vyre inbox list',

@@ -19,7 +19,7 @@ Put an item in a folder; a shared folder shares it, nothing is copied
 | HTTP | POST /v1/folders/place |
 | MCP tool | folders_place (meta) |
 | CLI | none |
-| Emits | item.moved |
+| Emits | item.moved, access.changed |
 
 ## Input
 

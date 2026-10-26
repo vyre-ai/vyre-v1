@@ -21,6 +21,7 @@ HTTP 422. Retryable: no.
 - forms.submit
 - git.branch
 - git.remote_add
+- identity.claim_owner
 - invites.accept_create_account
 - journeys.create
 - journeys.start
@@ -30,4 +31,3 @@ HTTP 422. Retryable: no.
 - members.accept
 - mounts.add
 - providers.add
-- records.update
