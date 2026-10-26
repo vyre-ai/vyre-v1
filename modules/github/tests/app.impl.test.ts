@@ -21,7 +21,7 @@ test("a read, a write and the webhook go through the entry the host loads and an
   assert.deepEqual(contractErrors("github.repo.get", "out", await handlers["github.repo.get"]!(ctx, { repo: "vyre-ai/website" })), []);
   const body = JSON.stringify({ zen: "Keep it logically awesome." });
   const input = await verifyWebhook(h.ctx, { signature: await signatureOf(WEBHOOK_SECRET, body), event: "ping", deliveryId: "dlv-1", body });
-  const out = await handlers["github.receive_webhook"]!(ctx, input);
+  const out = await handlers["github.receive_webhook"]!({ ...ctx, origin: "hook", depth: 0 }, input);   // only the server records a webhook (host-only)
   assert.deepEqual(contractErrors("github.receive_webhook", "out", out), []);
   assert.deepEqual(h.emitted.map((e) => e.name), ["github.event_received"]);
 });
