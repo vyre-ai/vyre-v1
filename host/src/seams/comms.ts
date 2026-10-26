@@ -2,7 +2,9 @@
 // setGithubHost (they arrive as hostSeams, ruling 31); this file builds them from the Vault and the Space ports, so a secret or a byte never passes through a module.
 //   stripe   the restricted key and the webhook signing secret, one call at a time, only the handles the manifest declares
 //   twilio   the account Sid, auth token and API key Sid; a recording downloaded with the account's credentials; the Space's public address
+//   portal   the mailer for portal invitations and sign-in links: mail.send through the Space's service mailbox
 //   github   the webhook secret; the App JWT signed in the Vault (the key never leaves it); the manifest-flow secrets written to the Vault; the installation token held behind a filler handle
+import type { Invoke } from "../invoke.ts";
 import { fail } from "../routes/errors.ts";
 import { checked, getToBlob, secretOf } from "./mail-providers.ts";
 import type { FillerPort } from "./filler.ts";
@@ -96,5 +98,53 @@ export function createGithubHost(d: CommsDeps): GithubHostSeam {
       return d.filler.hold(a.token, a.expiresAt);
     },
     publicUrl: (ctx) => publicUrlOf(d, ctx, "GitHub"),
+  };
+}
+
+// ---- portal (P-L8_17): the mailer behind configurePortal
+
+/** What the portal module hands the mailer (modules/portal/handlers/accounts.ts LinkMessage), kept structural so the host never imports a module. */
+export interface PortalLinkMessage { siteId: string; accountId: string; email: string; purpose: "invite" | "sign_in" | "reset"; token: string; expiresAt: number }
+/** The config configurePortal takes (the part the host owns). */
+export interface PortalHostSeam { mailer: { sendLink(msg: PortalLinkMessage): Promise<void> } }
+
+export interface PortalHostDeps {
+  invoke: Invoke;
+  space: string;
+  /** The address people reach the Space at; the link in an email is built from it. */
+  publicUrl?: ((space: string) => Promise<string>) | undefined;
+}
+
+const SYSTEM = { kind: "service", id: "svc_host" } as const;
+const TRACE_ZERO = "0".repeat(32);
+
+const SUBJECT: Record<PortalLinkMessage["purpose"], string> = { invite: "You are invited to sign in", sign_in: "Your sign-in link", reset: "Reset your password" };
+const LEAD: Record<PortalLinkMessage["purpose"], string> = {
+  invite: "You have been invited. Use this link to set up your account.",
+  sign_in: "Use this link to sign in.",
+  reset: "Use this link to choose a new password.",
+};
+
+/**
+ * Portal links go out as email from the Space's service mailbox (a mailbox of kind `service`, created in Console, Comms) by mail.send through the same pipeline as every other send: caps,
+ * suppression, windows and the audit row all apply. The host makes the call as itself because the person asking for a link is not signed in. With no service mailbox the send fails with
+ * a message that says what to create, and the portal module removes the account it had just made.
+ */
+export function createPortalHost(d: PortalHostDeps): PortalHostSeam {
+  const seed = { space: d.space, principal: { ...SYSTEM }, preAuth: true, origin: "portal" } as const;
+  return {
+    mailer: {
+      async sendLink(msg) {
+        if (!d.publicUrl) throw fail("internal.unavailable", TRACE_ZERO, { message: "This server has no public address yet, so a portal link cannot point at it." });
+        const boxes = await d.invoke("mail.mailbox.list", { kind: "service", scope: "all" }, seed);
+        const first = boxes.status === "ok" ? ((boxes.output as { mailboxes?: Array<{ id?: unknown }> } | null)?.mailboxes ?? [])[0] : undefined;
+        if (typeof first?.id !== "string") throw fail("validation.precondition_failed", TRACE_ZERO, { message: "No service mailbox is set up to send portal emails from. Create one in Console, Comms." });
+        const base = (await d.publicUrl(d.space)).replace(/\/+$/, "");
+        const url = `${base}/portal/${encodeURIComponent(msg.siteId)}/link/${encodeURIComponent(msg.token)}?purpose=${msg.purpose}`;
+        const sent = await d.invoke("mail.send", { mailboxId: first.id, route: "space_domain", to: [{ address: msg.email }], subject: SUBJECT[msg.purpose], text: `${LEAD[msg.purpose]}\n\n${url}\n\nThe link works once and expires.` }, seed);
+        const status = sent.status === "ok" ? (sent.output as { status?: unknown } | null)?.status : "held";
+        if (status !== "queued" && status !== "sent") throw fail("provider.unavailable", TRACE_ZERO, { message: `The portal email was not sent (${typeof status === "string" ? status : "unknown"}).` });
+      },
+    },
   };
 }
