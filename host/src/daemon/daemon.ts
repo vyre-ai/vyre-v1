@@ -20,6 +20,7 @@ import { ScheduleQueue } from "../ctx/schedule.ts";
 import type { ScheduledCall } from "../ctx/schedule.ts";
 import { createBlobStore } from "../ctx/blobs.ts";
 import { createBlobRoute } from "../routes/blobs.ts";
+import { createPortalLinkRoute } from "../routes/portal-link.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
 import { createGateway, indexRoutes } from "../gateway.ts";
 import { withEventIds } from "../ids.ts";
@@ -241,6 +242,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let boundPort = cfg.port;
   let gateway: ReturnType<typeof createGateway> | null = null;
   let blobRoute: ReturnType<typeof createBlobRoute> | null = null;
+  let portalLinkRoute: ReturnType<typeof createPortalLinkRoute> | null = null;
   // GET /exports/<id>?token= (P-L7_16): the vault module checks the token; until it is configured every pull is refused
   let pullVaultExport: (exportId: string, token: string) => string = () => { throw new Error("the Vault is not live on this server"); };
   const exportRoute = createVaultExportRoute({ pull: (id, t) => pullVaultExport(id, t) });
@@ -452,7 +454,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const hostDrivers: Record<string, SeamDriver> = {
         setPushPort: () => createPushPort(o.seams?.push),
         // portal invitations and sign-in links go out through mail.send from the service mailbox (P-L8_17)
-        configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: d.publicUrl }),
+        configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: d.publicUrl, owner: () => cfg.owner ?? access.owner() ?? null }),
         // the updates module: the compiled-in release key, the GitHub Releases feed and the vyre-server installer (P-L7b_17)
         configureUpdates: () => createUpdatesHost(),
         // A Kit is a resource in the access projection (type "kit") so that the capabilities on it can be authorized. The module cannot create resources, so the host does: one
@@ -590,6 +592,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         session: async (h) => { const s = await session(h); return s ? { space: s.space, principal: s.principal, ...(s.actingFor ? { actingFor: s.actingFor } : {}) } : null; },
         allow: (c, r) => authorize(access.snap, { principal: c.principal.id, ...(c.actingFor ? { actingFor: c.actingFor } : {}), action: { perm: null, level: "view" }, resource: { type: r.type, id: r.id } }).effect === "allow",
       });
+      // the landing page of a portal invitation or sign-in link (P-L8_17): sites is deferred, so the Space host serves it; null while the portal module is not live
+      const peekLink = loaded.moduleExports.get("portal")?.["peekLink"] as ((ctx: { db: unknown }, now: number, siteId: string, token: string) => Promise<never>) | undefined;
+      if (peekLink) portalLinkRoute = createPortalLinkRoute({ peek: (siteId, token) => peekLink({ db: db! }, now(), siteId, token) as never });
       routeIndex = indexRoutes([...routes, ...(o.extra?.routes ?? [])]);   // a duplicate route is a boot error, not a first-request error
       capIndex = indexCapabilities(caps);
 
@@ -706,7 +711,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
     });
-    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || exportRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return; listener(req, res); });
+    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return; listener(req, res); });
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error): void => reject(err);
       server.once("error", onError);

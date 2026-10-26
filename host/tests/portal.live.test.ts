@@ -35,7 +35,8 @@ function seededDir(): string {
 
 interface Sent { mailboxId: string; route: string; to: { address: string }[]; subject: string; text: string }
 
-function boot(dir: string, mailboxes: { id: string }[], sent: Sent[]): Promise<Daemon> {
+/** Mail is live, so the service mailbox is a real one (created below through the gateway). Only mail.send is replaced: a real send needs a DNS-verified sending domain and a provider key. */
+function boot(dir: string, sent: Sent[]): Promise<Daemon> {
   return startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({
@@ -49,7 +50,6 @@ function boot(dir: string, mailboxes: { id: string }[], sent: Sent[]): Promise<D
     fetch: caddyFetch,
     extra: {
       handlers: {
-        "mail.mailbox.list": async () => ({ mailboxes }),
         "mail.send": async (_ctx: unknown, input: unknown) => { sent.push(input as Sent); return { messageId: "eml_1", status: "queued", suppressed: [] }; },
       },
     },
@@ -70,41 +70,97 @@ async function post(d: Daemon, token: string, cap: string, body: Record<string, 
   return { status: r.status, data: json.data ?? json };
 }
 
+async function serviceMailbox(d: Daemon): Promise<string> {
+  const r = await post(d, OWNER_TOKEN, "mail.mailbox.create", { kind: "service", address: "portal@space.example", title: "Portal", provider: "inbound_only" });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  return r.data.mailbox.id as string;
+}
+const invite = (d: Daemon, token = OWNER_TOKEN, email = "pat@client.test") => post(d, token, "portal.account_create", { siteId: SITE, email, method: "magic_link" });
+const linkOf = (sent: Sent[]): string => /(https:\/\/space\.example)(\/portal\/[^\s?]+)/.exec(sent.at(-1)?.text ?? "")?.[2] ?? "";
+const get = async (d: Daemon, p: string) => { const r = await fetch(`${d.url}${p}`); return { status: r.status, headers: r.headers, text: await r.text() }; };
+
 test("portal live: portal is live in host/modules.json and the daemon wires its mailer", async () => {
   const list = JSON.parse(fs.readFileSync(new URL("../modules.json", import.meta.url), "utf8")) as { modules: { id: string; status: string }[] };
   assert.equal(list.modules.find((m) => m.id === "portal")?.status, "live");
-  const d = await boot(seededDir(), [{ id: "mbx_service" }], []);
+  const d = await boot(seededDir(), []);
   try {
     assert.ok(d.seams?.wired.includes("configurePortal"), "configurePortal is wired by the generic loader and daemon");
     assert.deepEqual((d.seams?.missing ?? []).filter((m) => m.module === "portal"), [], "portal is not reported as not set up");
   } finally { await d.stop(); }
 });
 
-test("portal live: an invitation is emailed from the service mailbox with a link that carries a one-use token", async () => {
+test("portal live: an invitation is emailed from the real service mailbox with a link that carries a one-use token", async () => {
   const sent: Sent[] = [];
-  const d = await boot(seededDir(), [{ id: "mbx_service" }], sent);
+  const d = await boot(seededDir(), sent);
   try {
-    const r = await post(d, OWNER_TOKEN, "portal.account_create", { siteId: SITE, email: "pat@client.test", method: "magic_link" });
+    const mailbox = await serviceMailbox(d);
+    const r = await invite(d);
     assert.equal(r.status, 200, JSON.stringify(r.data));
     assert.equal(r.data.account.email, "pat@client.test");
     assert.equal(sent.length, 1, "one email went through mail.send");
-    assert.equal(sent[0]?.mailboxId, "mbx_service");
+    assert.equal(sent[0]?.mailboxId, mailbox);
     assert.equal(sent[0]?.route, "space_domain");
     assert.deepEqual(sent[0]?.to, [{ address: "pat@client.test" }]);
-    assert.match(sent[0]?.text ?? "", new RegExp(`https://space\\.example/portal/${SITE}/link/[A-Za-z0-9_-]{20,}\\?purpose=invite`));
+    assert.match(linkOf(sent), new RegExp(`^/portal/${SITE}/link/[A-Za-z0-9_-]{20,}$`));
+    assert.match(sent[0]?.text ?? "", /\?purpose=invite/);
     const listed = await post(d, OWNER_TOKEN, "portal.accounts", { siteId: SITE });
-    assert.equal(listed.status, 200, JSON.stringify(listed.data));
     assert.equal(listed.data.accounts.length, 1);
+  } finally { await d.stop(); }
+});
+
+test("portal live: the invitation link opens a landing page for the invited client, and a bad, wrong-site or used token is a 404", async () => {
+  const sent: Sent[] = [];
+  const d = await boot(seededDir(), sent);
+  try {
+    await serviceMailbox(d);
+    const made = await invite(d);
+    assert.equal(made.status, 200, JSON.stringify(made.data));
+    const link = linkOf(sent);
+    const token = link.split("/").at(-1) ?? "";
+
+    const page = await get(d, link);
+    assert.equal(page.status, 200);
+    assert.match(page.headers.get("content-type") ?? "", /text\/html/);
+    assert.match(page.headers.get("cache-control") ?? "", /no-store/);
+    assert.match(page.headers.get("content-security-policy") ?? "", /script-src 'nonce-[^']+'/);
+    assert.match(page.text, /pat@client\.test/);
+    assert.match(page.text, /Shared with you/);
+    assert.match(page.text, /Nothing has been shared with you yet/);
+    assert.match(page.text, /Open my portal/);
+    assert.equal((await get(d, link)).status, 200, "looking at the page does not use the link up");
+
+    assert.equal((await get(d, `/portal/${SITE}/link/${token.slice(0, -1)}x`)).status, 404, "a wrong token");
+    assert.equal((await get(d, `/portal/sit_other/link/${token}`)).status, 404, "the right token on another site");
+
+    const done = await fetch(`${d.url}/portal/sign-in`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ siteId: SITE, email: "pat@client.test", token, idempotencyKey: "portal-live-signin" }) });
+    assert.equal(done.status, 200, await done.text());
+    assert.equal((await get(d, link)).status, 404, "a used link is gone");
+  } finally { await d.stop(); }
+});
+
+test("portal live: the landing page shows what is shared with the client once their record is linked", async () => {
+  const sent: Sent[] = [];
+  const d = await boot(seededDir(), sent);
+  try {
+    await serviceMailbox(d);
+    const made = await invite(d);
+    const rec = await post(d, OWNER_TOKEN, "records.create", { type: "rt_contact", fields: { name: "Pat Client" } });
+    assert.equal(rec.status, 200, JSON.stringify(rec.data));
+    const linked = await post(d, OWNER_TOKEN, "portal.link_record", { accountId: made.data.account.id, recordId: rec.data.record.id, rowRule: { recordType: "rt_contact" } });
+    assert.equal(linked.status, 200, JSON.stringify(linked.data));
+    const page = await get(d, linkOf(sent));
+    assert.equal(page.status, 200);
+    assert.match(page.text, /Your records/);
+    assert.match(page.text, /Shared rt contact records/);
   } finally { await d.stop(); }
 });
 
 test("portal live: with no service mailbox the invitation fails with a message that says what to create, and no account is left behind", async () => {
   const sent: Sent[] = [];
-  const d = await boot(seededDir(), [], sent);
+  const d = await boot(seededDir(), sent);
   try {
-    const r = await post(d, OWNER_TOKEN, "portal.account_create", { siteId: SITE, email: "pat@client.test", method: "magic_link" });
+    const r = await invite(d);
     assert.notEqual(r.status, 200);
-    assert.match(JSON.stringify(r.data), /service mailbox/);
     assert.equal(sent.length, 0);
     const listed = await post(d, OWNER_TOKEN, "portal.accounts", { siteId: SITE });
     assert.equal(listed.data.accounts.length, 0, "the account made for the invitation was removed");
@@ -113,9 +169,10 @@ test("portal live: with no service mailbox the invitation fails with a message t
 
 test("portal live: a member without sites.deploy cannot invite", async () => {
   const sent: Sent[] = [];
-  const d = await boot(seededDir(), [{ id: "mbx_service" }], sent);
+  const d = await boot(seededDir(), sent);
   try {
-    const r = await post(d, MEMBER_TOKEN, "portal.account_create", { siteId: SITE, email: "pat@client.test", method: "magic_link" });
+    await serviceMailbox(d);
+    const r = await invite(d, MEMBER_TOKEN);
     assert.equal(r.status, 403, JSON.stringify(r.data));
     assert.equal(sent.length, 0);
   } finally { await d.stop(); }

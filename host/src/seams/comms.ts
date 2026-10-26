@@ -113,9 +113,10 @@ export interface PortalHostDeps {
   space: string;
   /** The address people reach the Space at; the link in an email is built from it. */
   publicUrl?: ((space: string) => Promise<string>) | undefined;
+  /** The Space owner: the person the portal email is sent as. The person who asks for a link is an outside client who is not signed in, and the host's service identity sees no mailbox. */
+  owner(): string | null;
 }
 
-const SYSTEM = { kind: "service", id: "svc_host" } as const;
 const TRACE_ZERO = "0".repeat(32);
 
 const SUBJECT: Record<PortalLinkMessage["purpose"], string> = { invite: "You are invited to sign in", sign_in: "Your sign-in link", reset: "Reset your password" };
@@ -127,14 +128,16 @@ const LEAD: Record<PortalLinkMessage["purpose"], string> = {
 
 /**
  * Portal links go out as email from the Space's service mailbox (a mailbox of kind `service`, created in Console, Comms) by mail.send through the same pipeline as every other send: caps,
- * suppression, windows and the audit row all apply. The host makes the call as itself because the person asking for a link is not signed in. With no service mailbox the send fails with
+ * suppression, windows and the audit row all apply. The host makes both calls as the Space owner, a normal authorized call (not a bypass): the outside person asking for a link is not signed in. With no service mailbox the send fails with
  * a message that says what to create, and the portal module removes the account it had just made.
  */
 export function createPortalHost(d: PortalHostDeps): PortalHostSeam {
-  const seed = { space: d.space, principal: { ...SYSTEM }, preAuth: true, origin: "portal" } as const;
   return {
     mailer: {
       async sendLink(msg) {
+        const owner = d.owner();
+        if (owner === null) throw fail("internal.unavailable", TRACE_ZERO, { message: "This Space has no owner to send portal email as." });
+        const seed = { space: d.space, principal: { kind: "person", id: owner }, origin: "portal" } as const;
         if (!d.publicUrl) throw fail("internal.unavailable", TRACE_ZERO, { message: "This server has no public address yet, so a portal link cannot point at it." });
         const boxes = await d.invoke("mail.mailbox.list", { kind: "service", scope: "all" }, seed);
         const first = boxes.status === "ok" ? ((boxes.output as { mailboxes?: Array<{ id?: unknown }> } | null)?.mailboxes ?? [])[0] : undefined;

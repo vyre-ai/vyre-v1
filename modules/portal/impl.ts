@@ -3,7 +3,7 @@
 
 export { handlers } from "./handlers/index.ts";
 export { inline, consumers } from "./projections.ts";
-export { configurePortal, filterRecords, resolveSession } from "./handlers/index.ts";
+export { configurePortal, filterRecords, resolveSession, peekLink } from "./handlers/index.ts";
 
 // Ruling 32: the host registers the mailer under this name (host/src/seams/comms.ts createPortalHost).
 import { configurePortal as configure } from "./handlers/index.ts";
