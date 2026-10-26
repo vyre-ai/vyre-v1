@@ -85115,7 +85115,9 @@
     {
       "audit": "always",
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "retention.purged"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
