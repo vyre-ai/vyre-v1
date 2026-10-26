@@ -6594,8 +6594,9 @@ kbd { font: 500 11px/16px var(--ui); color: var(--ink-3); padding: 0 4px; border
     const hs = (location.hash || "").slice(1).split(","), tok = ["agent-md", "toml-form"].find((t) => hs.includes(t));
     if (!tok) return;
     const fid = ensureFile("Intake", tok === "agent-md" ? "AGENT.md" : "agent.toml");
-    ui.fvMode[fid] = "edit"; openFile(fid, "pane"); renderAll();
-  } catch (e) { /* the hash is only for screenshots */ } }, 260);
+    if (ui.fvMode) ui.fvMode[fid] = "edit";
+    openFile(fid, "pane"); renderAll();
+  } catch (e) { console.error("prototype hash " + e); } }, 600);
   function settingsHtml(a) {
     const n = a.n, c = (ui.cfgDraft &amp;&amp; ui.cfgDraft[n]) || cfgOf(n), cnt = mdLines(n), pend = Object.entries(S.agentEdits || {}).filter(([, e]) =&gt; e.agent === n &amp;&amp; e.state === "open");
     const ops = cfgChanged(n) ? lineDiff(tomlText(n, cfgOf(n)), tomlText(n, c)) : null;
