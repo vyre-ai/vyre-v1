@@ -6,7 +6,7 @@
 // call `slot.openBody()` when an item is chosen so the phone leaves the list for the body. A place without <SidebarContent> has no sidebar and no slot.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { MenuIcon } from "../../../../../ui/src/Menu/index.tsx";
 import { iconMarkup } from "../rail/icons.tsx";
 import { collapseKey, phoneView, readCollapsed, writeCollapsed } from "./model.ts";
@@ -45,6 +45,8 @@ export interface SidebarSlotProviderProps {
   storage?: SidebarStorage | null;
   /** For tests and shots: start with an entry registered. */
   initialEntry?: SidebarEntry;
+  /** For tests and shots: start on the phone's body view (an item already open). */
+  initialBodyOpen?: boolean;
   children?: ReactNode;
 }
 
@@ -54,7 +56,7 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
   const [collapsed, setCollapsedState] = useState<boolean>(read);
   const [entry, setEntry] = useState<SidebarEntry | null>(p.initialEntry ?? null);
   const [query, setQuery] = useState("");
-  const [bodyOpen, setBodyOpen] = useState(false);
+  const [bodyOpen, setBodyOpen] = useState(p.initialBodyOpen === true);
   const [outlet, setOutlet] = useState<unknown>(null);
   useEffect(() => { setCollapsedState(read()); setQuery(""); setBodyOpen(false); }, [key, p.epoch]);
   const setCollapsed = useCallback((v: boolean) => {
@@ -104,8 +106,10 @@ export function SidebarSlot(): ReactElement | null {
   if (o === null || o.entry === null) return null;
   if (slot.collapsed && !slot.compact) return null;
   const full = slot.compact;
+  // On the phone an opened body replaces the list. The slot stays mounted (display none) because the place's sidebar content is portalled into its outlet.
+  const away = slot.compact && slot.view === "body";
   return (
-    <View style={[s.slot, full ? s.full : s.side]} testID="place-sidebar" accessibilityLabel={`${o.entry.title} sidebar`}>
+    <View style={[s.slot, full ? s.full : s.side, away && s.away]} testID="place-sidebar" accessibilityLabel={`${o.entry.title} sidebar`} aria-hidden={away}>
       <View style={s.head}>
         <Text style={s.title} accessibilityRole="header" numberOfLines={1}>{o.entry.title}</Text>
         {full ? null : (
@@ -135,16 +139,36 @@ export function SidebarExpand(): ReactElement | null {
   );
 }
 
-/** On the phone, in the body: the way back to the list. */
+/** True when a key press should take the phone from the body back to the list: Escape that nothing else (a menu, a dialog, a field's own handler) has taken. */
+export function escapeGoesBack(e: { key: string; defaultPrevented: boolean }, overlayOpen: boolean): boolean {
+  return e.key === "Escape" && !e.defaultPrevented && !overlayOpen;
+}
+
+/** On the phone, in the body: the way back to the list. A button with an arrow and the place's name; Escape does the same. */
 export function SidebarBack(): ReactElement | null {
   const slot = useSidebarSlot();
-  if (!slot.hasSidebar || !slot.compact || slot.view !== "body") return null;
+  const on = slot.hasSidebar && slot.compact && slot.view === "body";
+  const back = slot.back;
+  useEffect(() => {
+    if (!on || Platform.OS !== "web") return undefined;
+    const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void; querySelector(q: string): unknown } }).document;
+    if (doc === undefined) return undefined;
+    const onKey = (e: KeyboardEvent): void => {
+      if (escapeGoesBack(e, doc.querySelector('[role="menu"],[role="dialog"],[aria-modal="true"]') !== null)) back();
+    };
+    doc.addEventListener("keydown", onKey);
+    return () => doc.removeEventListener("keydown", onKey);
+  }, [on, back]);
+  if (!on) return null;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Back to ${slot.title}`} testID="sidebar-back" onPress={slot.back} style={({ hovered }: { hovered?: boolean }) => [s.back, hovered === true && s.hover]}>
-      <Text style={s.backText}>{`‹ ${slot.title}`}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel="Back" testID="sidebar-back" onPress={back} style={({ hovered }: { hovered?: boolean }) => [s.back, hovered === true && s.hover]}>
+      <MenuIcon icon={CHEVRON_LEFT} color="var(--accent)" />
+      <Text style={s.backText}>{slot.title}</Text>
     </Pressable>
   );
 }
+
+const CHEVRON_LEFT = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.500L5.500 8l4.500 4.500"/></svg>';
 
 const PANEL = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.500" y="3" width="11" height="10" rx="1.500"/><path d="M6 3v10"/></svg>';
 
@@ -152,6 +176,7 @@ const s = StyleSheet.create({
   slot: { backgroundColor: "var(--side)" as string, minHeight: 0 },
   side: { width: 248, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
   full: { flex: 1 },
+  away: { display: "none" },
   head: { height: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14 },
   title: { color: "var(--ink)" as string, fontSize: 15, fontWeight: "600", flexShrink: 1 },
   icon: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
@@ -160,6 +185,6 @@ const s = StyleSheet.create({
   input: { flex: 1, minWidth: 0, color: "var(--ink)" as string, fontSize: 13, padding: 0 },
   outlet: { flex: 1, minHeight: 0 },
   expand: { position: "absolute", left: 8, top: 8, width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center", zIndex: 3 },
-  back: { height: 36, justifyContent: "center", paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  back: { height: 40, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   backText: { color: "var(--accent)" as string, fontSize: 14, fontWeight: "500" },
 });
