@@ -607,7 +607,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           mint: (sessionId: string) => issueSessionToken(db!, sessionId, now),
           end: (sessionId: string) => { db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", now(), sessionId); },
         }),
-        setComputerHost: () => createComputersHost({ dataDir: paths.root }),
+        setComputerHost: () => createComputersHost({ dataDir: paths.root, log: (level, msg, attrs) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "computers", ...(attrs ? { attrs } : {}) }) }),
         // the Vault channel of agent computers (P-L2_21): agentd posts one #Handle.field at a time to /computers/fill with its own token; without a Vault the channel is not offered
         setComputersFill: (d) => d.vault ? createComputersFillHost({
           space: spaceId, invoke, vault: d.vault, now,
