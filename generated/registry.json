@@ -89802,6 +89802,9 @@
           "input": {},
           "name": "example",
           "output": {
+            "deferred": [
+              "example"
+            ],
             "deviceId": "dev_a1b2c3",
             "epoch": 1,
             "groups": [
@@ -89829,6 +89832,12 @@
       "name": "identity.whoami",
       "output": {
         "properties": {
+          "deferred": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "deviceId": {
             "examples": [
               "dev_a1b2c3"
