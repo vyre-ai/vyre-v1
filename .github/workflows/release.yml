@@ -1,10 +1,71 @@
 name: release
 # Tag to live under 25 minutes (ARCH-DECISIONS 13). Live needs the suite, client, kits, images and security; never native or desktop.
+# After live: sign (in the `release` Environment, after its reviewer approves), publish to the GitHub Release of the tag, and a post-publish smoke. docs/release/runbook.md says how and why.
+# A tag whose name contains "dryrun" is a practice run: it builds and packs everything, validates the bake file and stops before sign, publish and smoke. No image is pushed.
 on:
   push:
     tags:
       - "v*"
 jobs:
+  guard:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      channel: ${{ steps.tag.outputs.channel }}
+      dryrun: ${{ steps.tag.outputs.dryrun }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - id: tag
+        env:
+          TAG: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          case "$TAG" in
+            *dryrun*) echo "practice run: no tag/version check, no lineage; version 0.0.0-rc.1"; { echo "version=0.0.0-rc.1"; echo "channel=beta"; echo "dryrun=true"; } >> "$GITHUB_OUTPUT"; exit 0 ;;
+          esac
+          out=$(node scripts/release/cli.ts tag "$TAG")   # the tag must be a release version equal to package.json
+          { echo "version=${out% *}"; echo "channel=${out#* }"; echo "dryrun=false"; } >> "$GITHUB_OUTPUT"
+          # a commit that is not on main must be the next patch of the newest published stable release, on origin/hotfix/<tag>
+          if git merge-base --is-ancestor "$SHA" origin/main; then echo "lineage: $SHA is on main"; else node scripts/release/cli.ts lineage "$SHA" "$TAG"; fi
+  package:
+    needs: guard
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 20
+    permissions: { contents: read, packages: write }
+    env:
+      VERSION: ${{ needs.guard.outputs.version }}
+      DRYRUN: ${{ needs.guard.outputs.dryrun }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/deps
+      - name: App web export
+        run: cd apps/app && npx expo export --platform web --output-dir dist
+      - name: Server image, pushed by digest
+        if: env.DRYRUN != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          TAG="$VERSION" docker buildx bake -f images/vyred/docker-bake.hcl --push --metadata-file bake.json
+          digest=$(jq -r '.vyred["containerimage.digest"]' bake.json)
+          case "$digest" in sha256:*) ;; *) echo "no image digest in the bake metadata"; exit 1 ;; esac
+          echo "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@$digest" >> "$GITHUB_ENV"
+      - name: Server image, practice run (the bake file is checked, nothing is built or pushed)
+        if: env.DRYRUN == 'true'
+        run: |
+          docker buildx bake -f images/vyred/docker-bake.hcl --print > /dev/null
+          echo "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:$(printf '0%.0s' $(seq 64))" >> "$GITHUB_ENV"
+      - name: Pack the server, the app web export, the Chrome extension and the Kits; write releases.json
+        env:
+          APP_DIST: apps/app/dist
+        run: node scripts/release/cli.ts pack dist "$VERSION"
+      - name: The installers go with the release unchanged
+        run: cp scripts/install/linux/install.sh scripts/install/windows/install.ps1 dist/
+      - uses: actions/upload-artifact@v4
+        with: { name: release-files, path: dist, if-no-files-found: error, retention-days: 7 }
   select:
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
@@ -47,17 +108,82 @@ jobs:
   desktop:
     uses: ./.github/workflows/desktop.yml
   live:
-    needs: [suite, client, kits, images, heavy, security]
+    needs: [guard, package, suite, client, kits, images, heavy, security]
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
       - run: echo "live gate passed"
+  sign:
+    needs: [guard, package, live]
+    if: needs.guard.outputs.dryrun != 'true'
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 15
+    # The key is only in this Environment (required reviewer, main and v* tags only). A practice run never gets here.
+    environment: release
+    permissions: { contents: read }
+    env:
+      CHANNEL: ${{ needs.guard.outputs.channel }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: release-files, path: dist }
+      - name: The release key the servers have compiled in
+        id: key
+        run: |
+          pub=$(sed -n 's/^export const RELEASE_PUBLIC_KEY_HEX = "\([0-9a-f]*\)";.*/\1/p' host/src/seams/updates.ts)
+          [ "${#pub}" = 64 ] || { echo "RELEASE_PUBLIC_KEY_HEX in host/src/seams/updates.ts is empty: run the runbook's owner action first"; exit 1; }
+          echo "pub=$pub" >> "$GITHUB_OUTPUT"
+      - name: Sign every channel entry (refuses a key that is not the compiled-in one)
+        env:
+          VYRE_SIGNING_KEY: ${{ secrets.VYRE_SIGNING_KEY }}
+        run: |
+          node scripts/release/cli.ts sign dist "$CHANNEL" "${{ steps.key.outputs.pub }}"
+          node scripts/release/cli.ts assets dist
+      - uses: actions/upload-artifact@v4
+        with: { name: release-signed, path: dist, if-no-files-found: error, retention-days: 7 }
+  publish:
+    needs: [guard, sign]
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 15
+    permissions: { contents: write }
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      CHANNEL: ${{ needs.guard.outputs.channel }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: release-signed, path: dist }
+      - name: Attach everything to the release of the tag (a prerelease for beta)
+        run: |
+          flags=""; [ "$CHANNEL" = stable ] || flags="--prerelease"
+          rm -f dist/feed.json dist/releases.json
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes "Release $TAG. Signed manifests: $CHANNEL.json and $CHANNEL.json.sig." $flags
+      - name: The rolling release a prerelease channel is read from
+        if: env.CHANNEL != 'stable'
+        run: |
+          gh release view "channel-$CHANNEL" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create "channel-$CHANNEL" --repo "$GITHUB_REPOSITORY" --prerelease --title "channel-$CHANNEL" --notes "Rolling release the $CHANNEL channel is read from."
+          gh release upload "channel-$CHANNEL" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+  smoke:
+    needs: [guard, publish]
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: A fresh reader fetches the published channel, verifies it with the compiled-in key and unpacks the server tarball
+        env:
+          VERSION: ${{ needs.guard.outputs.version }}
+          CHANNEL: ${{ needs.guard.outputs.channel }}
+        run: |
+          pub=$(sed -n 's/^export const RELEASE_PUBLIC_KEY_HEX = "\([0-9a-f]*\)";.*/\1/p' host/src/seams/updates.ts)
+          base=$(node scripts/release/cli.ts feed-base "$CHANNEL")
+          node scripts/release/cli.ts smoke "$base" "$CHANNEL" "$pub" "$VERSION"
   deploy:
     needs: live
     uses: ./.github/workflows/deploy.yml
   budget-tag:
     permissions: { contents: read, actions: read }
-    needs: [suite, client, kits, images, heavy, security, native, desktop, live, deploy]
+    # Sign waits for a person to approve, so the budget is measured to the live gate and the deploy, not to publish and smoke.
+    needs: [guard, package, suite, client, kits, images, heavy, security, native, desktop, live, deploy]
     if: always()
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
