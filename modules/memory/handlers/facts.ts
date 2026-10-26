@@ -588,12 +588,13 @@ export async function restoreVersion(ctx: MemCtx, input: { noteId: string; versi
   // Shared memory only: a person's own notes have no owner or admin above them to restore for.
   if (layer === "person") raise(ctx, "permission.no_grant", "Personal memory is restored by its owner in Files.");
   if (!(await access.can(layer, str(r["owner_ref"]), orNull(r["agent_id"]), orNull(r["project_id"]), "edit"))) raise(ctx, "permission.no_grant", "Owners and admins restore shared memory.");
-  await ctx.call("files.restore_version", { fileId: str(r["file_id"]), versionId: input.versionId });
-  ctx.db.run("UPDATE memory_notes SET updated_at = ? WHERE note_id = ?", ctx.now(), input.noteId);
-  ctx.emit("memory.note_restored", str(r["file_id"]), { noteId: input.noteId, versionId: input.versionId, by: actorOf(ctx) });
-  const fresh = rowsOf(ctx.db, "SELECT * FROM memory_notes WHERE note_id = ?", input.noteId)[0]!;
-  const note = noteRowOut(ctx, fresh);
+  // The answer is built, and may refuse, before the first write: a refused call leaves the note as it was.
+  const at = ctx.now();
+  const note = noteRowOut(ctx, { ...r, updated_at: at });
   if (!note) raise(ctx, "validation.not_found", "There is no such note.", { noteId: input.noteId });
+  await ctx.call("files.restore_version", { fileId: str(r["file_id"]), versionId: input.versionId });
+  ctx.db.run("UPDATE memory_notes SET updated_at = ? WHERE note_id = ?", at, input.noteId);
+  ctx.emit("memory.note_restored", str(r["file_id"]), { noteId: input.noteId, versionId: input.versionId, by: actorOf(ctx) });
   return { note };
 }
 
