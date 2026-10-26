@@ -57,6 +57,15 @@ interface Ready { blocks: PostBlock[]; text: string; mentions: number; routineOw
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
+/** An engine error can echo a token or a path. It goes to the log only, so it is stripped of both and cut to 300 characters first (the key is `why`: the sink drops a key named message). */
+export function scrub(text: string): string {
+  return text.slice(0, 300)
+    .replace(/\bsk-[A-Za-z0-9_-]{8,}/g, "[key]")
+    .replace(/\b(?:Bearer|Token)\s+\S+/gi, "$1 [token]")
+    .replace(/[A-Za-z0-9+/_=-]{32,}/g, "[token]")
+    .replace(/(?:\/(?:home|Users|var|tmp|work|root|etc)\/[^\s"')]+)/g, "[path]");
+}
+
 export function createBridge(o: BridgeOptions): Bridge {
   let engine: TurnEngine | null = null;
   const opened = new Set<string>();
@@ -107,7 +116,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       }
       case "turn.failed": case "turn.cancelled": case "turn.waiting": {
         if (e.type === "turn.waiting" && e.reason !== "approval") return;
-        if (e.type === "turn.failed") warn("a turn failed", { threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, code: e.code, ...(e.message ? { message: e.message } : {}) });
+        if (e.type === "turn.failed") warn("a turn failed", { threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, code: e.code, ...(e.message ? { why: scrub(e.message) } : {}) });
         const parked = e.type === "turn.waiting";
         const seg = live.get(e.turnId);
         const routineOwner = turns.get(e.turnId)?.routineOwner ?? null;

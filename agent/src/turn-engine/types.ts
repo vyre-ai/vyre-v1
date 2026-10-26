@@ -103,7 +103,7 @@ export type EngineEvent =
   /** A tool call was held at the Gate (ARCH 6.7): the turn parks on the approval task and a wake continues it once the task is answered. */
   | { type: "turn.waiting"; threadId: string; reason: "approval"; turnId: string; agentId: string; taskId: string; runId?: string }
   | { type: "turn.completed"; threadId: string; turnId: string; agentId: string }
-  | { type: "turn.failed"; threadId: string; turnId: string; agentId: string; code: string; /** what the engine knows of the failure, for the log; never shown to the person */ message?: string }
+  | { type: "turn.failed"; threadId: string; turnId: string; agentId: string; code: string; /** what the engine knows of the failure, for the log only: never stored in an event, never shown to the person, scrubbed by the bridge before it is written */ message?: string }
   | { type: "turn.cancelled"; threadId: string; turnId: string; agentId: string }
   | { type: "agent.handoff"; threadId: string; to: Placement }
   | { type: "queue.consumed"; threadId: string; qseq: number; messageId: string | null };
