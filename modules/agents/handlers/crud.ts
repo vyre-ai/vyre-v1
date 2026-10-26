@@ -130,11 +130,10 @@ export async function ensureHomeGrants(ctx: AgentsCtx, agentId: string, ownerId:
 export interface TreeResult { folderId: string; tomlFileId: string; agentMdFileId: string }
 
 /** Agents/<name> with the decided tree, its two files, the Vyre guide and whatever the Agent template adds. */
-async function createTree(ctx: AgentsCtx, agentId: string, name: string, tomlText: string, agentMd: string, ownerId: string): Promise<TreeResult> {
+async function createTree(ctx: AgentsCtx, agentId: string, name: string, tomlText: string, agentMd: string): Promise<TreeResult> {
   const root = await agentsRoot(ctx);
   // the home folder carries the agent as its subject (system_key agent:<id>): that is how Files knows AGENT.md and agent.toml in it are the agent's own
   const home = await makeFolder(ctx, root, name, `agents:${agentId}:folder`, { kind: "agent", id: agentId });
-  await ensureHomeGrants(ctx, agentId, ownerId, home.folderId);
   const ids = new Map<string, string>([["", home.folderId]]);
   const template = await readTemplate(ctx);
   const folders = [...new Set([...TREE_FOLDERS, ...template.items.filter((i) => i.kind === "folder").map((i) => i.path)])]
@@ -180,7 +179,7 @@ export async function create(ctx: AgentsCtx, input: {
   const template = await readTemplate(ctx);
   const starter = template.items.find((i) => i.kind === "file" && i.path === "AGENT.md")?.text;
   const agentMd = starter !== undefined ? starter.replaceAll("{{name}}", name).replaceAll("{{role}}", input.role?.trim() ?? "") : AGENT_MD_DEFAULT(name, input.role);
-  const tree = await createTree(ctx, id, name, tomlText, agentMd, owner);
+  const tree = await createTree(ctx, id, name, tomlText, agentMd);
   // ruling 88: the owner manages the folder from the start, by a grant of their own whoever made it (the asker, when they are the owner, gets the same Manage share), so the owner can approve memory into the agent and edit its files
   {
     const idempotencyKey = `agent-owner:${id}:${owner}`;
@@ -194,6 +193,7 @@ export async function create(ctx: AgentsCtx, input: {
     templateVersion: await templateVersion(ctx, template), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
   };
   insertAgent(ctx.db, rec);
+  await ensureHomeGrants(ctx, id, owner, tree.folderId);
   ctx.emit("agent.created", id, { agentId: id, name, ownerId: owner, templateVersion: rec.templateVersion });
   return { agent: agentOut(rec, now) };
 }
@@ -507,7 +507,7 @@ export async function restoreAgentFiles(ctx: AgentsCtx): Promise<string[]> {
     if (a.folderId === undefined) {
       // a record with no home: make Agents/<name> with the decided tree and both files, and point the record at them
       try {
-        const tree = await createTree(ctx, a.id, a.name, a.tomlText, AGENT_MD_DEFAULT(a.name, a.config.description), a.ownerId);
+        const tree = await createTree(ctx, a.id, a.name, a.tomlText, AGENT_MD_DEFAULT(a.name, a.config.description));
         ctx.db.run("UPDATE agents_agent SET folderId = ?, tomlFileId = ?, agentMdFileId = ?, updatedAt = ? WHERE id = ?", tree.folderId, tree.tomlFileId, tree.agentMdFileId, ctx.now(), a.id);
         put.push(`${a.name}/agent.toml`, `${a.name}/AGENT.md`);
         ctx.log.warn("agents: an agent had no folder and has been given one", { agent: a.id });
@@ -572,12 +572,13 @@ async function adoptAgentPrincipals(ctx: AgentsCtx, put: string[]): Promise<void
     try {
       const config = newConfig({ name });
       const tomlText = tomlFor(writeConfig({}, config));
-      const tree = await createTree(ctx, p.id, name, tomlText, AGENT_MD_DEFAULT(name, undefined), owner);
+      const tree = await createTree(ctx, p.id, name, tomlText, AGENT_MD_DEFAULT(name, undefined));
       const now = ctx.now();
       insertAgent(ctx.db, {
         id: p.id, name, face: slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: false,
         templateVersion: await templateVersion(ctx), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
       });
+      await ensureHomeGrants(ctx, p.id, owner, tree.folderId);
       put.push(`${name}/agent.toml`, `${name}/AGENT.md`);
       ctx.log.warn("agents: an agent principal had no record, folder or files and has been given them", { agent: p.id });
     } catch (e) {
