@@ -1,6 +1,6 @@
 # Release practice run (P-L11_14)
 
-Throwaway tags, no real release: `v0.0.0-dryrun.1` (main at ceb4ea72) and `v0.0.0-dryrun.2` (build/P-L11_14 with the release.yml select fix). release.yml runs on a `v*` tag; nothing in it publishes or signs, so the tags had no outward effect. Delete both tags when this is read: `git push origin :refs/tags/v0.0.0-dryrun.1 :refs/tags/v0.0.0-dryrun.2`.
+Throwaway tags, no real release: `v0.0.0-dryrun.1` (main at ceb4ea72) and `v0.0.0-dryrun.2` (build/P-L11_14 with the release.yml select fix). release.yml runs on a `v*` tag; nothing in it publishes or signs, so the tags had no outward effect. Both tags were deleted after the runs.
 
 ## Runs
 
