@@ -172,7 +172,7 @@ export const handlers = {
   "sync.entities": (ctx: SessionCtx, input: never) => infoHandlers()["sync.entities"](ctx, input),
   "sync.devices.lag": (ctx: SessionCtx, input: never) => infoHandlers()["sync.devices.lag"](ctx, input),
   "sync.doc.open": async (ctx: SessionCtx, input: never) => (await docHandlers())["sync.doc.open"]({ trace: ctx.trace, principal: ctx.principal.id }, input),
-  "sync.doc.update": async (ctx: SessionCtx, input: never) => (await docHandlers())["sync.doc.update"]({ trace: ctx.trace, principal: ctx.principal.id }, input),
+  "sync.doc.update": async (ctx: SessionCtx, input: never) => (await docHandlers())["sync.doc.update"]({ trace: ctx.trace, principal: ctx.principal.id, emit: ctx.emit ? (n, s, p) => ctx.emit!(n as never, s, p as never) : undefined }, input),
   "sync.doc.close": async (ctx: SessionCtx, input: never) => (await docHandlers())["sync.doc.close"]({ trace: ctx.trace, principal: ctx.principal.id }, input),
   "sync.doc.compact": async (ctx: SessionCtx, input: never) => (await docHandlers())["sync.doc.compact"]({ trace: ctx.trace, principal: ctx.principal.id }, input),
 };
