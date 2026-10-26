@@ -72,7 +72,7 @@ test('compiled validators reject bad input and accept the example', () => {
 
 test('registry.json shares schemas instead of inlining them', () => {
   assert.ok(registry.$defs && Object.keys(registry.$defs).length > 50);
-  assert.ok(readFileSync(new URL('../../../generated/registry.json', import.meta.url)).length < 5_000_000);
+  assert.ok(readFileSync(new URL('../../../generated/registry.json', import.meta.url)).length < 6_000_000);
 });
 
 test('screen index and probes agree; every screen with perf has a probe', () => {

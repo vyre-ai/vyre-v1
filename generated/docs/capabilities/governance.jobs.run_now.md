@@ -19,7 +19,7 @@ Run one retention job now
 | HTTP | POST /v1/governance/jobs/run_now |
 | MCP tool | governance_jobs_run_now (engineer) |
 | CLI | none |
-| Emits | none |
+| Emits | retention.purged |
 
 ## Input
 

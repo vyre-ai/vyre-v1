@@ -40,6 +40,7 @@ type Out = {
   payer: string | null;
   reason: "starter" | "steerer" | "step_key" | "backup_key" | "none";
   allowed: boolean;
+  itemId?: string;
 };
 ```
 
@@ -65,6 +66,7 @@ type Out = {
   "output": {
     "accountRef": "#Team_Anthropic_Key",
     "allowed": true,
+    "itemId": "vit_a1b2c3",
     "payer": "usr_a1b2c3",
     "reason": "starter"
   }

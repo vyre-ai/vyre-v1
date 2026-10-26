@@ -16,11 +16,13 @@ export interface RailProps {
   onSelect: (place: PlaceId) => void;
   /** Cmd-click and the right-click menu open the place as a tab beside the current one. */
   onOpenInTab?: (place: PlaceId) => void;
+  /** Pointer-enter or keyboard focus on a place: the session reads that place's first queries ahead of the click. Idempotent, safe on every hover. */
+  onPrefetch?: (place: PlaceId) => void;
   /** The Space tile, drawn above the places. */
   header?: ReactNode;
 }
 
-export function Rail({ groups, active, onSelect, onOpenInTab, header }: RailProps): ReactElement {
+export function Rail({ groups, active, onSelect, onOpenInTab, onPrefetch, header }: RailProps): ReactElement {
   const { element, show } = useMenu();
   const button = (e: RailEntry): ReactElement => (
     <RailButton
@@ -28,6 +30,7 @@ export function Rail({ groups, active, onSelect, onOpenInTab, header }: RailProp
       entry={e}
       on={e.place === active}
       onPress={() => onSelect(e.place)}
+      onPrefetch={onPrefetch === undefined ? undefined : () => onPrefetch(e.place)}
       trigger={menuTrigger((x, y) => show(
         [
           { label: `Open ${e.title}`, icon: iconMarkup(e.place), onSelect: () => onSelect(e.place) },
@@ -53,7 +56,7 @@ export function Rail({ groups, active, onSelect, onOpenInTab, header }: RailProp
   );
 }
 
-function RailButton({ entry, on, onPress, trigger }: { entry: RailEntry; on: boolean; onPress: () => void; trigger: Record<string, unknown> }): ReactElement {
+function RailButton({ entry, on, onPress, onPrefetch, trigger }: { entry: RailEntry; on: boolean; onPress: () => void; onPrefetch?: (() => void) | undefined; trigger: Record<string, unknown> }): ReactElement {
   const [over, setOver] = useState(false);
   const web = Platform.OS === "web" ? { title: entry.title } : {};
   return (
@@ -62,8 +65,9 @@ function RailButton({ entry, on, onPress, trigger }: { entry: RailEntry; on: boo
       aria-label={entry.count > 0 ? `${entry.title}, ${entry.count} waiting` : entry.title}
       testID={on ? `rail-${entry.place}-selected` : `rail-${entry.place}`}
       onPress={onPress}
-      onHoverIn={() => setOver(true)}
+      onHoverIn={() => { setOver(true); onPrefetch?.(); }}
       onHoverOut={() => setOver(false)}
+      onFocus={() => onPrefetch?.()}
       style={[styles.button, over && !on ? styles.over : null, on ? styles.on : null]}
       {...(on ? { "aria-current": "page" as const } : {})}
       {...trigger}

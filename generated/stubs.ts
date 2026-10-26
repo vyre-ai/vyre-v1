@@ -288,6 +288,7 @@ export function stubs(ctx: CallCtx) {
       archive: call("channels.archive"),
       connect_outside_agent: call("channels.connect_outside_agent"),
       create: call("channels.create"),
+      erase: call("channels.erase"),
       get: call("channels.get"),
       join: call("channels.join"),
       leave: call("channels.leave"),
@@ -349,6 +350,7 @@ export function stubs(ctx: CallCtx) {
       transcript: {
         append: call("chat.transcript.append"),
         get: call("chat.transcript.get"),
+        purge: call("chat.transcript.purge"),
         read: call("chat.transcript.read"),
         search: call("chat.transcript.search"),
         summarize: call("chat.transcript.summarize"),
@@ -751,6 +753,7 @@ export function stubs(ctx: CallCtx) {
       share: call("files.share"),
       share_external: call("files.share_external"),
       shared_with_me: call("files.shared_with_me"),
+      star: call("files.star"),
       trash: {
         empty: call("files.trash.empty"),
         list: call("files.trash.list"),
@@ -758,6 +761,7 @@ export function stubs(ctx: CallCtx) {
       tree: call("files.tree"),
       upload_url: call("files.upload_url"),
       versions: call("files.versions"),
+      versions_purge: call("files.versions_purge"),
       viewer_data: call("files.viewer_data"),
       write: call("files.write"),
     },
@@ -1011,6 +1015,7 @@ export function stubs(ctx: CallCtx) {
     },
     identity: {
       change_password: call("identity.change_password"),
+      claim_owner: call("identity.claim_owner"),
       github_link: call("identity.github_link"),
       github_sign_in: call("identity.github_sign_in"),
       github_unlink: call("identity.github_unlink"),
@@ -1054,6 +1059,9 @@ export function stubs(ctx: CallCtx) {
       counts: call("inbox.counts"),
       follow_set: call("inbox.follow_set"),
       following: call("inbox.following"),
+      item: {
+        erase: call("inbox.item.erase"),
+      },
       link_message: call("inbox.link_message"),
       list_by_contact: call("inbox.list_by_contact"),
       list_by_thread: call("inbox.list_by_thread"),
@@ -1111,6 +1119,7 @@ export function stubs(ctx: CallCtx) {
     logs: {
       client_upload: call("logs.client_upload"),
       export: call("logs.export"),
+      purge: call("logs.purge"),
       query: call("logs.query"),
       replay_get: call("logs.replay_get"),
       replay_start: call("logs.replay_start"),
@@ -1152,6 +1161,7 @@ export function stubs(ctx: CallCtx) {
         update: call("mail.mailbox.update"),
       },
       message: {
+        erase: call("mail.message.erase"),
         get: call("mail.message.get"),
         list: call("mail.message.list"),
         search: call("mail.message.search"),
@@ -1294,6 +1304,7 @@ export function stubs(ctx: CallCtx) {
         get: call("memory.map.get"),
       },
       notes: {
+        erase: call("memory.notes.erase"),
         list: call("memory.notes.list"),
       },
       pointer: call("memory.pointer"),
@@ -1514,6 +1525,8 @@ export function stubs(ctx: CallCtx) {
         get: call("records.page_prefs.get"),
         set: call("records.page_prefs.set"),
       },
+      purge: call("records.purge"),
+      purge_trashed: call("records.purge_trashed"),
       query: call("records.query"),
       relate: call("records.relate"),
       relations_map: call("records.relations_map"),
@@ -1572,11 +1585,13 @@ export function stubs(ctx: CallCtx) {
     },
     runs: {
       count: call("runs.count"),
+      erase: call("runs.erase"),
       finish: call("runs.finish"),
       get: call("runs.get"),
       list: call("runs.list"),
       mark_waiting: call("runs.mark_waiting"),
       preview_undo: call("runs.preview_undo"),
+      purge: call("runs.purge"),
       record_key: call("runs.record_key"),
       record_step: call("runs.record_step"),
       replay: call("runs.replay"),
@@ -1892,6 +1907,7 @@ export function stubs(ctx: CallCtx) {
       answer: call("telephony.answer"),
       call: {
         attach_summary: call("telephony.call.attach_summary"),
+        erase: call("telephony.call.erase"),
         get: call("telephony.call.get"),
         list: call("telephony.call.list"),
         log_task: call("telephony.call.log_task"),
@@ -1925,6 +1941,7 @@ export function stubs(ctx: CallCtx) {
       },
       send_sms: call("telephony.send_sms"),
       sms: {
+        erase: call("telephony.sms.erase"),
         list: call("telephony.sms.list"),
       },
       transfer: call("telephony.transfer"),
@@ -1960,6 +1977,7 @@ export function stubs(ctx: CallCtx) {
     threads: {
       add_agent: call("threads.add_agent"),
       close: call("threads.close"),
+      erase: call("threads.erase"),
       get: call("threads.get"),
       list: call("threads.list"),
       make_channel: call("threads.make_channel"),
@@ -2047,6 +2065,7 @@ export function stubs(ctx: CallCtx) {
         restore: call("vault.item.restore"),
         reveal: call("vault.item.reveal"),
         update: call("vault.item.update"),
+        usage: call("vault.item.usage"),
       },
       items: {
         export_mine: call("vault.items.export_mine"),

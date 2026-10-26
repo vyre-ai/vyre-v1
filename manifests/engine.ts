@@ -119,7 +119,7 @@ export default defineManifest({
       out: { turn: turnRow }, emits: ['turn.completed', 'turn.failed', 'turn.cancelled', 'agent.task_finished', 'agent.blocked'], idem: 'natural', risk: 'low',
     }),
     write('engine.turn.record_usage', 'Meter usage during a turn; over an agent.toml or Space limit it stops the turn and raises agent.limit_hit', {
-      in: { turnId: id.turn, tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int() },
+      in: { turnId: id.turn, tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), itemId: t.opt(id.vaultItem) },
       out: { overLimit: t.opt(t.enm('run', 'day', 'month', 'turns', 'time')) }, emits: ['agent.limit_hit'], idem: 'none', risk: 'low',
     }),
     write('engine.turn.fallback', 'Record a fallback during a turn error: another model or the backup key', {
@@ -143,7 +143,7 @@ export default defineManifest({
     }),
     read('engine.account.resolve', 'Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock', {
       in: { ...threadT, agentId: id.agent, askerId: t.opt(id.user), stepKey: t.opt(t.str()) },
-      out: { accountRef: t.nullable(accountRef), payer: t.nullable(id.user), reason: t.enm('starter', 'steerer', 'step_key', 'backup_key', 'none'), allowed: t.bool() }, on: ['thread', '/threadId'],
+      out: { accountRef: t.nullable(accountRef), payer: t.nullable(id.user), reason: t.enm('starter', 'steerer', 'step_key', 'backup_key', 'none'), allowed: t.bool(), itemId: t.opt(id.vaultItem) }, on: ['thread', '/threadId'],
     }),
     // ---- accounts and models
     read('engine.accounts.list', 'Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status', {
@@ -206,7 +206,7 @@ export default defineManifest({
       out: { raised: t.bool() }, perm: 'ai.spend', level: 'manage', emits: ['spend.raised'], gate: { act: 'spend_raise', when: "actor.kind != 'person'" }, tool: 'meta', audit: 'always', risk: 'high',
     }),
     read('engine.usage.query', 'Usage by day, person, agent or model; people see their own, managers their agents, admins all', {
-      in: { by: t.enm('day', 'person', 'agent', 'model'), from: t.opt(t.ts()), to: t.opt(t.ts()), personId: t.opt(id.user), agentId: t.opt(id.agent) },
+      in: { by: t.enm('day', 'person', 'agent', 'model'), from: t.opt(t.ts()), to: t.opt(t.ts()), personId: t.opt(id.user), agentId: t.opt(id.agent), itemId: t.opt(id.vaultItem) },
       out: { rows: t.arr(t.obj({ key: t.str(), title: t.str(), totals: usageTotals })), totals: usageTotals }, label: 'filter', tool: 'meta',
     }),
     read('engine.incidents.list', 'AI incidents for review', {

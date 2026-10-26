@@ -11,11 +11,10 @@ export const LIVE_FOR_REPLY = ["vault", "engine", "agents", "files", "access", "
 
 /** Why this is a todo today. Each line names the PR it waits on. */
 export const REPLY_GAPS: Gap[] = [
-  { packet: "PR 472 (P-L4_LIVE)", lane: "L4", what: "files migrations never create files_file, so agents.create answers 500 (chat.live.test.ts names a stopgap agents_meta row until it lands)" },
-  { packet: "PR 471 (P-L7_LIVE)", lane: "L7", what: "the vault module and the signed-in steps need the L7 modules live" },
+  { packet: "L2 engine (steward)", lane: "L2", what: "in the l2-heavy job every step up to the message passes (account in the Vault, agent, chat, engine bound), but the agent never answers within 40 s: the thread is created private (the stored message reads enc 2) and the engine has no runtime key to open it, or the reply is not delivered; the steward's own chat.live test fails in the same job" },
 ];
 
-const TOKEN = "sk-ant-oat01-GOLDENFAKE0123456789abcdefXYZ";
+const TOKEN = "sk-ant-oat01-GOLDENFAKE0123456789abcdefXYZ"; // secret-scan: fake
 
 export async function runAgentReply(live: readonly string[], opts: Parameters<typeof bootFlowSpace>[1] = {}): Promise<{ events: Observed[]; trail: Trail }> {
   const s = await bootFlowSpace(live, opts);

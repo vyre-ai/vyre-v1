@@ -55,6 +55,8 @@ export interface DaemonConfig {
   address: string | null;
   /** `personal` while this daemon hosts a Personal Space (one person's desktop, ARCH 5.13); anything else, or absent, is a Team Space. */
   spaceKind?: "personal" | "team";
+  /** the name a fresh Space is made with (--space-name or VYRE_SPACE_NAME); the Space id when absent */
+  spaceName?: string;
 }
 
 export const DEFAULTS = { host: "127.0.0.1", port: 8420, caddyAdmin: "http://127.0.0.1:2019" } as const;
@@ -89,6 +91,7 @@ export function loadConfig(argv: readonly string[], env: NodeJS.ProcessEnv = pro
     relayUrl: flag(argv, "relay") ?? env["VYRE_RELAY_URL"] ?? null,
     address: flag(argv, "address") ?? env["VYRE_ADDRESS"] ?? null,
     ...spaceKindOf(flag(argv, "space-kind") ?? env["VYRE_SPACE_KIND"]),
+    ...((flag(argv, "space-name") ?? env["VYRE_SPACE_NAME"]) ? { spaceName: (flag(argv, "space-name") ?? env["VYRE_SPACE_NAME"])! } : {}),
   };
 }
 

@@ -2,7 +2,7 @@
   "module": "forms",
   "capabilities": {
     "bookings.availability@1": "72299c4cb7efd28afee6343c5cef131e360a8635f591fa1d42271215c264f615",
-    "bookings.book@1": "2fca578a2df84ab9140180a364991620afddca174da79107cba7b1d606215561",
+    "bookings.book@1": "f948d54e6664b24fdac07d3e91212be1c5e5c40f3ff4ee81b6e1854dfbf0400c",
     "bookings.cancel@1": "5682a422ed76eff3bb99303d1e45491706a0c19c8fc3031230de0e6e3bcde645",
     "bookings.list@1": "c978481f6d02bea6d23ab9ccad3cdeb52d6bb3696547e3d4ca5c6397a0fcceba",
     "bookings.page_create@1": "b83d84f4cbc429c5bf5ef0e55ab685afe8bbc7bc024aa6182dc5b776cd23f5d6",
@@ -18,7 +18,7 @@
     "forms.publish@1": "2cb37482a7c807f32b09565777d76303dd9ed6827ea43bcbb44449236dda9982",
     "forms.save_partial@1": "f7f658f73e81d434a4cf73ce920ae120c698fcb5f528985380d5d5f1f5a46454",
     "forms.submissions@1": "ec66be18dac7b3edf2a45e7ad6b8792d9c769a6a35142bf87e79ee85cfe80c96",
-    "forms.submit@1": "1d6aa6a1b37b29eb817426eaad41351f1c58cfba0a102c2608c19e580f4d53e3",
+    "forms.submit@1": "7b507fc0f82f6275cfd2bdf6662b603f0497e875dd91947d0b3c68dac42aab53",
     "forms.survey_results@1": "57a65613372d22eda96f23e256b84d43807ece42db53fdff7964fc3aaab6d60f",
     "forms.unpublish@1": "956770ad3cbae7970529adee1466c4b9e4c512d2dc9e9ba6cec4707ffa2ff6ec",
     "forms.update@1": "4660ffcb5921efdda49683efdd93eddcf095cd6af273ba3f940d5b3560572100",

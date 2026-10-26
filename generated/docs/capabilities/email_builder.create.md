@@ -10,7 +10,7 @@ Create an email design
 | Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
-| Resource | folder (create under /folderId) |
+| Resource | email (create under /folderId) |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |
@@ -19,7 +19,7 @@ Create an email design
 | HTTP | POST /v1/email_builder/create |
 | MCP tool | email_builder_create (inbox) |
 | CLI | none |
-| Emits | none |
+| Emits | email.created |
 
 ## Input
 
