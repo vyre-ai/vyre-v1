@@ -173,7 +173,7 @@ function rescanChanged(d: PullDeps, who: Who, viewer: Viewer, window: Window, cu
   for (const row of missing) if (sees(row)) ask(row.entity, row.id);
   // clients refetch the range of an entity whose rows changed hands for this person (the same event reindexScope writes for a grant that moves many rows)
   for (const [entity, rows] of [...asked].sort(([a], [b]) => (a < b ? -1 : 1))) {
-    d.append({ type: "sync.scope_changed", sv: 1, trace_id: trace, actor: "svc_host", vis: "participants", entity, payload: { entity, personId: who.person, rows } });
+    d.append({ type: "sync.scope_changed", sv: 1, trace_id: trace, actor: "svc_host", vis: "private", entity, payload: { entity, personId: who.person, rows } });
   }
   db.run("INSERT INTO sync_scope_stamp (person, device, stamp) VALUES (?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET stamp = excluded.stamp", who.person, who.device, stamp);
 }
