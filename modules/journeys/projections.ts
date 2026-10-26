@@ -10,7 +10,7 @@ export interface TaskTemplate {
 }
 export interface TimeLimit { hours: number; escalateTo?: { kind: string; id: string } }
 export interface Stage {
-  key: string; title: string; order: number; exit: { requireTasks: boolean; manualOnly?: boolean }; timeLimit?: TimeLimit; tasks: TaskTemplate[]; automations: string[]; final?: boolean; onLeaving?: string[];
+  key: string; title: string; order: number; exit: { requireTasks: boolean; manualOnly?: boolean }; timeLimit?: TimeLimit; tasks: TaskTemplate[]; automations: string[]; final?: boolean; makesProject?: boolean; onLeaving?: string[];
 }
 export interface StartRule { event: string; filter?: unknown; enabled: boolean }
 export interface Journey {

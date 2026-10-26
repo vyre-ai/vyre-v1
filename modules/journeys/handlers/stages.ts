@@ -230,6 +230,12 @@ async function onEnter(ctx: JourneysCtx, j: Journey, rec: JRecord, stage: Stage,
       }
     } catch { /* the Journey record is in the stage; the missing task shows in the module that failed */ }
   }
+  // a stage that makes a project gives the record its own Project (record, channel, folder, plan); once per record, however often it comes back to the stage
+  if (stage.makesProject) {
+    try {
+      await ctx.call("projects.create", { type: "project", title: `${j.name} ${rec.recordId.slice(-6)}`, idempotencyKey: `jrn-project:${rec.recordId}` });
+    } catch { /* the Journey record is in the stage; the missing Project shows in the module that failed */ }
+  }
   for (const aid of stage.automations) {
     try {
       await ctx.call("automations.fire", clean({

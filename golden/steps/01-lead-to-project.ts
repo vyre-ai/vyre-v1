@@ -27,8 +27,13 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
       const pub = expectStatus(await s.call("forms.publish", admin, { formId: made.formId }), 200, "forms.publish");
       return { id: made.formId as string, slug: (pub.form?.slug ?? made.slug) as string };
     }, ["the lead record type exists"]);
+    // the client stage is the one that makes the project: a designer's choice per stage, not something every Journey does
+    const STAGES = [
+      { key: "client", title: "Client", order: 0, exit: { requireTasks: false }, tasks: [], automations: [], makesProject: true },
+      { key: "done", title: "Done", order: 1, exit: { requireTasks: false }, tasks: [], automations: [], final: true },
+    ];
     const journey = await trail.step("a Journey on leads is designed", async () =>
-      expectStatus(await s.call("journeys.create", admin, { idempotencyKey: "golden-1-journey", name: "Client onboarding", subjectType: "lead" }), 200, "journeys.create").journey.id as string,
+      expectStatus(await s.call("journeys.create", admin, { idempotencyKey: "golden-1-journey", name: "Client onboarding", subjectType: "lead", stages: STAGES }), 200, "journeys.create").journey.id as string,
     ["the lead record type exists"]);
     const lead = await trail.step("a visitor submits the form with no token", async () => {
       const out = expectStatus(await s.call("forms.submit", null, { slug: form!.slug, answers: { name: "Ann Example", email: "ann@example.com" } }), 200, "forms.submit");
