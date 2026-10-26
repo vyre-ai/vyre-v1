@@ -33,7 +33,7 @@ export function startDesktop(screen: Screen, home: string, profileDir: string, l
   writeFileSync(`${dir}/files.desktop`, launcher("Files", `pcmanfm --no-desktop ${home}/Vyre`, "files"));
   writeFileSync(`${dir}/tint2rc`, [
     "rounded = 18", "border_width = 0", "background_color = #2a2c52 100", "border_color = #000000 0",
-    "panel_items = L", "panel_position = bottom center horizontal", `panel_size = 236 ${DOCK_HEIGHT}`, "panel_margin = 0 12", "panel_padding = 12 8 12", "panel_background_id = 1",
+    "panel_items = L", "panel_position = bottom center horizontal", `panel_size = 214 ${DOCK_HEIGHT}`, "panel_margin = 0 12", "panel_padding = 12 8 12", "panel_background_id = 1",
     "panel_layer = top", "strut_policy = none", "wm_menu = 0", "autohide = 0", "disable_transparency = 1",
     "launcher_padding = 10 6 18", "launcher_background_id = 0", "launcher_icon_size = 52", "launcher_icon_theme = hicolor", "launcher_tooltip = 1",
     `launcher_item_app = ${dir}/chrome.desktop`, `launcher_item_app = ${dir}/terminal.desktop`, `launcher_item_app = ${dir}/files.desktop`,
