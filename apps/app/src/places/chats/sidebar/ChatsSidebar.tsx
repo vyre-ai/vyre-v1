@@ -293,14 +293,16 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
   return (
     <View testID="chats-sidebar" accessibilityRole="list" accessibilityLabel="Chats" style={st.root} {...{ tabIndex: 0, onKeyDown }}>
       <View style={st.top}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${data.space.name}, switch Space`} onPress={() => data.nav.openSpaceSwitcher()} testID="space-switcher" style={st.space}>
-          <Avatar name={data.space.name} kind="space" size={20} />
-          <Text numberOfLines={1} style={st.spaceName}>{data.space.name}</Text>
+        <View testID="sidebar-head" accessibilityRole="header" accessibilityLabel={`Chats, ${data.space.name}`} style={st.space}>
+          <Text accessibilityRole="header" style={st.spaceName}>Chats</Text>
           {data.space.otherNeedsYou ? <View testID="other-space-dot" accessibilityLabel="Another Space needs you" style={st.red} /> : null}
-          <Glyph name="chev" size={12} color="var(--ink-4)" />
-          <View style={{ flex: 1 }} />
           {online ? null : <Text testID="sidebar-offline" style={st.quiet}>Offline</Text>}
-        </Pressable>
+          <View style={{ flex: 1 }} />
+          <Pressable accessibilityRole="button" accessibilityLabel={`New chat with ${data.space.assistant.name}`} {...{ title: `New chat with ${data.space.assistant.name}` }} onPress={() => void api.newChat()} testID="new-chat" style={({ hovered }: { hovered?: boolean }) => [st.assistant, hovered === true && st.assistantOver]}>
+            <Avatar name={data.space.assistant.name} kind="assistant" size={18} />
+          </Pressable>
+          {data.nav.toggleSidebar ? <Tool icon="panel" label="Hide the sidebar" onPress={() => data.nav.toggleSidebar?.()} testID="sidebar-toggle" /> : null}
+        </View>
         <View style={st.searchRow}>
           <Pressable accessibilityRole="search" accessibilityLabel="Search" onPress={() => data.nav.openSearch()} testID="sidebar-search" style={st.search}>
             <Glyph name="search" size={14} color="var(--ink-3)" />
@@ -308,7 +310,6 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
             <View style={{ flex: 1 }} />
             <Text style={st.digit}>⌘K</Text>
           </Pressable>
-          <Tool icon="compose" label={`New chat with ${data.space.assistant.name}`} onPress={() => void api.newChat()} testID="new-chat" />
         </View>
       </View>
       <View style={st.list}>
@@ -328,7 +329,9 @@ const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--side)" as string, paddingHorizontal: 8, paddingTop: 6 },
   top: { gap: 6, paddingBottom: 6 },
   space: { height: 32, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 6, borderRadius: 7 },
-  spaceName: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string, flexShrink: 1 },
+  assistant: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  assistantOver: { backgroundColor: "var(--press)" as string },
+  spaceName: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string, flexShrink: 1 },
   red: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--danger)" as string },
   searchRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   search: { flex: 1, height: 30, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 9, borderRadius: 7, backgroundColor: "var(--sunk)" as string },
