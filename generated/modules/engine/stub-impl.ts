@@ -4,7 +4,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
-  "engine.account.resolve": async () => ({"accountRef":"#Team_Anthropic_Key","allowed":true,"payer":"usr_a1b2c3","reason":"starter"} as unknown) as never,
+  "engine.account.resolve": async () => ({"accountRef":"#Team_Anthropic_Key","allowed":true,"itemId":"vit_a1b2c3","payer":"usr_a1b2c3","reason":"starter"} as unknown) as never,
   "engine.accounts.list": async () => ({"accounts":[{"driver":"anthropic","kind":"api_key","lastProbeAt":1760000000000,"mine":true,"ownerId":"usr_a1b2c3","ref":"#Team_Anthropic_Key","status":"ok","title":"example"}]} as unknown) as never,
   "engine.defaults.get": async () => ({"effort":"low","fallback":[{"accountRef":"#Team_Anthropic_Key","model":"example","provider":"example"}],"model":"example","provider":"example"} as unknown) as never,
   "engine.defaults.set": async () => ({"ok":true} as unknown) as never,

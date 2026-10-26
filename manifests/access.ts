@@ -130,7 +130,10 @@ export default defineManifest({
 
     // ---- Ask for access (4.13)
     write('access.request', 'Ask the Manage holders of a resource (or the admins, for a permission) for access; one open request per person and resource', {
-      ...V, idem: 'key', in: { resource: resourceRef, level, note: t.opt(t.str()) }, out: { request: requestRow }, emits: ['access.requested'], tool: 'meta', errors: ['permission.guest_cannot_request', 'validation.duplicate'], team: true,
+      // Any member may ask for any resource id (space: true binds the Space, not the thing asked for): a link to something you cannot see must still let you ask. The answer is the same whether or not
+      // the resource exists or the asker can view it, and the handler rate-limits each requester across real and made-up ids alike.
+      // level 'member' (ruling 69): view on the Space is not needed to ask, any role or grant is, so a guest or temp whose only grant is one folder can still ask for another thing.
+      ...V, level: 'member', space: true, idem: 'key', in: { resource: resourceRef, level, note: t.opt(t.str()) }, out: { request: requestRow }, emits: ['access.requested'], tool: 'meta', errors: ['permission.guest_cannot_request', 'validation.duplicate', 'rate_limit.exceeded'], team: true,
     }),
     read('access.requests.list', 'Access requests I made, or waiting on me to decide', { ...V, in: { mine: t.opt(t.bool()), state: t.opt(t.enm('waiting', 'granted', 'declined')), ...pageIn }, out: { requests: t.arr(requestRow), ...pageOut }, tool: 'meta' }),
     write('access.requests.approve', 'Approve an access request: shares as the approver and tells the requester', { ...V, in: { requestId: t.id('arq'), level: t.opt(level) }, out: { grant: grantRow }, emits: ['access.granted', 'grant.created', 'access.changed'], audit: 'always', tool: 'meta', team: true, errors: ['permission.not_contained'] }),
@@ -172,7 +175,7 @@ export default defineManifest({
 
     // ---- folders and placement (4.12)
     read('folders.list', 'Folders of one type with item counts, as a tree', { ...V, in: { type: resourceType, scope: t.opt(t.enm('personal', 'space')) }, out: { folders: t.arr(folderRow) }, tool: 'meta' }),
-    write('folders.create', 'Make a folder for one type of thing (Personal, or Space when the person may share)', { ...V, idem: 'key', in: { type: resourceType, name: t.str(), parentId: t.opt(id.folder), scope: t.opt(t.enm('personal', 'space')) }, out: { folder: folderRow }, emits: ['folder.created'], tool: 'meta', offline: 'queue' }),
+    write('folders.create', 'Make a folder for one type of thing (Personal, or Space when the person may share)', { ...V, idem: 'key', in: { type: resourceType, name: t.str(), parentId: t.opt(id.folder), scope: t.opt(t.enm('personal', 'space')) }, out: { folder: folderRow }, emits: ['folder.created', 'grant.created', 'access.changed'], tool: 'meta', offline: 'queue' }),
     write('folders.rename', 'Rename a folder', { in: { folderId: id.folder, name: t.str() }, out: { folder: folderRow }, on: ['folder', '/folderId'], level: 'manage', emits: ['folder.renamed'], tool: 'meta', offline: 'queue' }),
     write('folders.move', 'Move a folder under another folder, or to the top', { in: { folderId: id.folder, parentId: t.nullable(id.folder) }, out: { folder: folderRow }, on: ['folder', '/folderId'], level: 'manage', emits: ['folder.moved', 'item.moved'], tool: 'meta', offline: 'queue' }),
     write('folders.delete', 'Delete a folder; its items go back to their owners', { in: { folderId: id.folder }, out: { deleted: t.bool() }, on: ['folder', '/folderId'], level: 'manage', emits: ['folder.deleted', 'item.moved'], gate: { act: 'delete', when: "actor.kind != 'person'" }, tool: 'meta', offline: 'queue' }),

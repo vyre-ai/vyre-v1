@@ -92,6 +92,8 @@ export interface InvokeDeps {
   validateEvent?(name: string, payload: unknown): string[];
   /** kernel authorize bound to the Space's access snapshot */
   authorize(req: AuthReq): KernelDecision;
+  /** Is this person (or the person an agent acts for) a member or guest of the Space: any role or any grant. Needed by capabilities at level 'member' (ruling 69); without it they fall back to view on the Space. */
+  membership?(principal: string, actingFor?: string): boolean;
   handler(cap: string, v: number): Handler | undefined;
   commit(batch: CommitBatch): Promise<EventEnvelope[]>;
   /** deny and hold audit rows (an allow row rides in the commit) */
@@ -100,6 +102,11 @@ export interface InvokeDeps {
   idem?: { once<T>(principal: string, cap: string, key: string | undefined | null, input: unknown, run: () => Promise<T>): Promise<T> };
   rate?: { take(key: string, spec: { n: number; perSeconds: number }, now: number): boolean };
   gate?: GateHook;
+  /**
+   * The Personal Space gate (P-H_19, spec 2.1): asked first for every capability. In a Personal Space it throws `permission.needs_team` for a team-only capability, before validation,
+   * authorize or any handler work. The sync module's `createPersonalHost(...)` satisfies this; a Team Space passes nothing, or a gate that never throws.
+   */
+  personal?: { gate(cap: string, traceId: string): void };
   /** vault name or handle to item id, for `resolve` bindings */
   resolveItem?(type: string, kind: "name" | "handle", value: string): string | null;
   /** spend so far per meter, for the spend policies */
@@ -138,12 +145,32 @@ export function createRateLimiter(): NonNullable<InvokeDeps["rate"]> {
   };
 }
 
+/**
+ * The Personal Space matrix as an invoke gate (spec 2.1): in a Personal Space a capability whose manifest says `teamOnly` is refused with `permission.needs_team`. Same rule and wording as
+ * the sync module's createPersonalHost(...).gate (host never imports a module, so the daemon builds this one from the registry's rows and the Space kind).
+ */
+export function personalMatrix(o: { kind: () => "personal" | "team"; caps: Iterable<{ name: string; teamOnly?: boolean }> }): NonNullable<InvokeDeps["personal"]> {
+  const teamOnly = new Set<string>();
+  for (const c of o.caps) if (c.teamOnly === true) teamOnly.add(c.name);
+  return {
+    gate(cap, traceId) {
+      if (o.kind() !== "personal" || !teamOnly.has(cap)) return;
+      throw fail("permission.needs_team", traceId, { message: `Needs a Team Space. ${cap} works in a Team Space; create or join one to use it.`, details: { capability: cap }, next: [{ kind: "open_settings", label: "Create or join a Team Space" }] });
+    },
+  };
+}
+
 export type Invoke = (cap: string, input: unknown, seed: CtxSeed) => Promise<InvokeResult>;
+
+/** The decision for a capability that needs membership only: allowed, with no scope (the handler narrows). */
+const memberAllow = (decisionId: string): KernelDecision => ({ effect: "allow", reason: "ok", steps: [], scope: undefined, obligations: [], decisionId });
 
 export function createInvoke(deps: InvokeDeps): Invoke {
   const now = deps.now ?? Date.now;
   const hex = deps.randomHex ?? defaultHex;
   const log = deps.log ?? nullLogger;
+  /** events a handler marked afterFailure (EmitOpts): written even when the call is refused */
+  const survivors = new WeakSet<EventEnvelope>();
   let lastHlc: Hlc | null = null;
   const nextHlc = (): string => { lastHlc = tickHlc("server", now(), lastHlc); return formatHlc(lastHlc); };
 
@@ -161,6 +188,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       cap = deps.caps.get(capName, seed.v);
       if (!cap) throw fail("validation.unknown_capability", traceId, { message: "There is no such capability.", details: { cap: capName, v: seed.v ?? null } });
       const c = cap;
+      deps.personal?.gate(c.name, traceId);
       const depth = seed.depth ?? 0;
       if (depth >= MAX_DEPTH) throw fail("validation.precondition_failed", traceId, { message: "Calls nest too deeply.", details: { depth, limit: MAX_DEPTH } });
 
@@ -209,12 +237,14 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         throw e;
       }
       approved = seed.approval !== undefined && deps.gate !== undefined && deps.gate.verify(seed.approval, { cap: c, input, seed });
+      const memberOnly = c.level === "member";
       const req: AuthReq = {
         principal: seed.principal.id, actingFor: seed.actingFor,
-        action: { perm: c.permission, level: c.level, destructive: DESTRUCTIVE.test(c.name) },
+        action: { perm: c.permission, level: c.level === "member" ? "view" : c.level, destructive: DESTRUCTIVE.test(c.name) },
         resource, provider: seed.provider, cap: c.name, input, spendMicros: deps.spend?.(seed.principal.id), approved, now: t,
       };
-      const d = deps.authorize(req);
+      // level 'member' (ruling 69): any role or grant in the Space is enough, so a person whose only grant is one folder can sync that folder; the handler filters rows per resource. A stranger is refused as before.
+      const d = memberOnly && deps.membership ? (deps.membership(seed.principal.id, seed.actingFor) ? memberAllow(mintId("dec", t)) : deps.authorize(req)) : deps.authorize(req);
       kd = d;
       const audit = (cls: AuditRow["class"], reason: string): AuditRow => ({
         class: cls, cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: d.decisionId, reason,
@@ -244,7 +274,18 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     if (!h) throw fail("internal.not_implemented", traceId, { details: { cap: c.name } });
     const events: EventEnvelope[] = [];
     const ctx = makeCtx(c, seed, trace, depth, events);
-    const output = await h(ctx, input);   // a throw here is mapped by the outer catch: VyreErr and HostError keep their code, anything else is internal.unexpected
+    let output: unknown;
+    try {
+      output = await h(ctx, input);   // a throw here is mapped by the outer catch: VyreErr and HostError keep their code, anything else is internal.unexpected
+    } catch (e) {
+      // events the handler marked afterFailure (a refused sign-in's signin.failed) are written on their own, then the error goes on; nothing else the call buffered is
+      const keep = events.filter((ev) => survivors.has(ev));
+      if (keep.length) {
+        try { deps.publish?.(await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events: keep, audit: null })); }
+        catch (ce) { log.warn("after-failure events were not written", { cap: c.name, traceId, error: ce instanceof Error ? ce.message : String(ce) }); }
+      }
+      throw e;
+    }
     // P-H_16: every object this call created becomes a resource in the same commit, so it is authorizable at once (one place for every module)
     if (deps.resources && events.length) {
       for (const row of deps.resources.register({ cap: c, input, space: seed.space, owner: seed.actingFor ?? seed.principal.id, events })) {
@@ -298,6 +339,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         if (bad?.length) throw fail("internal.unexpected", trace.traceId, { message: "Something went wrong on our side.", details: { cap: c.name, event: name, errors: bad.slice(0, 5) } });
         const ev = envelope(name, subject, payload, seed, trace, depth, opts);
         buf.push(ev as EventEnvelope);
+        if (opts?.afterFailure) survivors.add(ev as EventEnvelope);
         return ev;
       },
       async call<C extends CapName>(name: C, callInput: unknown, opts?: CallOpts): Promise<unknown> {

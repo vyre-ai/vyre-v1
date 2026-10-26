@@ -751,6 +751,7 @@ export function stubs(ctx: CallCtx) {
       share: call("files.share"),
       share_external: call("files.share_external"),
       shared_with_me: call("files.shared_with_me"),
+      star: call("files.star"),
       trash: {
         empty: call("files.trash.empty"),
         list: call("files.trash.list"),
@@ -1011,6 +1012,7 @@ export function stubs(ctx: CallCtx) {
     },
     identity: {
       change_password: call("identity.change_password"),
+      claim_owner: call("identity.claim_owner"),
       github_link: call("identity.github_link"),
       github_sign_in: call("identity.github_sign_in"),
       github_unlink: call("identity.github_unlink"),
@@ -2047,6 +2049,7 @@ export function stubs(ctx: CallCtx) {
         restore: call("vault.item.restore"),
         reveal: call("vault.item.reveal"),
         update: call("vault.item.update"),
+        usage: call("vault.item.usage"),
       },
       items: {
         export_mine: call("vault.items.export_mine"),

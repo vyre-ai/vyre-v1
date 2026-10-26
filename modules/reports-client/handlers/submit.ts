@@ -230,7 +230,7 @@ function rowOf(r: unknown): ReportRow | null {
 }
 
 export function findReport(ctx: ReportsCtx, reportId: string): ReportRow | null {
-  return rowOf(ctx.db.all("SELECT * FROM reports_report WHERE report_id = ?", reportId)[0]);
+  return rowOf(ctx.db.all("SELECT * FROM reports_client_report WHERE report_id = ?", reportId)[0]);
 }
 
 const isAdmin = (ctx: ReportsCtx): boolean => ctx.authorize({ perm: "policy.manage", level: "view" }, { type: "space", id: null }).effect === "allow";
@@ -273,13 +273,14 @@ export async function submit(ctx: ReportsCtx, input: { bundle: unknown }) {
   const policy = await readPolicy(ctx);
   const summary = [bundle.note ? `"${bundle.note}"` : "No note.", `Where: ${bundle.context.place}.`, policy === "ask" ? "Send it to the Vyre team? Open the report and choose Send." : policy === "off" ? "It stays in this Space." : "It was sent to the Vyre team."].join(" ");
   const made = asRow(await ctx.call("tasks.create" as never, {
+    idempotencyKey: `reports.submit:${reportId}:review-task`,
     kind: "review", title, summary, why: "A person reported a problem.", assigned: { kind: "role", id: "admin" }, source: { kind: "manual", id: reportId },
   }));
   const taskId = str(asRow(made?.["task"])?.["id"]);
   if (!taskId) return failWith(ctx.trace.traceId, "internal.unexpected", "The review task for the report could not be made.");
 
   ctx.db.run(
-    "INSERT INTO reports_report (report_id, title, status, reporter, at, trace_ids, bundle_json, redactions, task_id, issue_number, sent_at, fixed_in) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO reports_client_report (report_id, title, status, reporter, at, trace_ids, bundle_json, redactions, task_id, issue_number, sent_at, fixed_in) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     reportId, title, "new", ctx.principal.id, ctx.now(), JSON.stringify(bundle.traceIds), JSON.stringify(bundle), redactions, taskId, null, null, null,
   );
   ctx.emit("report.submitted" as never, `entity/${reportId}`, { reportId, by: ctx.principal.id, traceIds: bundle.traceIds });
@@ -288,7 +289,7 @@ export async function submit(ctx: ReportsCtx, input: { bundle: unknown }) {
   let sentToVyre = false;
   if (policy === "on") {
     try {
-      const out = asRow(await ctx.call("reports.send_to_vyre" as never, { reportId }));
+      const out = asRow(await ctx.call("reports.send_to_vyre" as never, { reportId, idempotencyKey: `reports.submit:${reportId}:send` }));
       sentToVyre = out?.["stored"] === true;
     } catch { /* the report and its task exist; an admin can send it from the report page */ }
   }
@@ -312,7 +313,7 @@ export async function send_to_vyre(ctx: ReportsCtx, input: { reportId: string })
     if (code === "rate_limit" || code === "rate_limit.exceeded") return failWith(ctx.trace.traceId, "rate_limit.exceeded", "The Vyre team's report service asked to slow down. The report is kept and can be sent again in a little while.");
     return failWith(ctx.trace.traceId, "provider.unavailable", "The Vyre team's report service could not be reached. The report is kept and can be sent again.");
   }
-  ctx.db.run("UPDATE reports_report SET status = ?, sent_at = ?, issue_number = ? WHERE report_id = ?", "sent", ctx.now(), out.issueNumber ?? null, report.reportId);
+  ctx.db.run("UPDATE reports_client_report SET status = ?, sent_at = ?, issue_number = ? WHERE report_id = ?", "sent", ctx.now(), out.issueNumber ?? null, report.reportId);
   ctx.emit("report.sent_to_vyre" as never, `entity/${report.reportId}`, { reportId: report.reportId, ...(out.issueNumber !== undefined ? { issueNumber: out.issueNumber } : {}) });
   return { ...(out.issueNumber !== undefined ? { issueNumber: out.issueNumber } : {}), stored: out.stored };
 }
@@ -322,9 +323,9 @@ export async function list(ctx: ReportsCtx, input: { cursor?: string; limit?: nu
   const size = typeof input.limit === "number" && input.limit >= 1 ? Math.min(Math.floor(input.limit), 500) : 50;
   const admin = isAdmin(ctx);
   const rows = admin
-    ? ctx.db.all("SELECT * FROM reports_report ORDER BY at DESC LIMIT ? OFFSET ?", size, offset)
-    : ctx.db.all("SELECT * FROM reports_report WHERE reporter = ? ORDER BY at DESC LIMIT ? OFFSET ?", ctx.principal.id, size, offset);
-  const total = num(asRow(admin ? ctx.db.all("SELECT COUNT(*) AS n FROM reports_report")[0] : ctx.db.all("SELECT COUNT(*) AS n FROM reports_report WHERE reporter = ?", ctx.principal.id)[0])?.["n"]);
+    ? ctx.db.all("SELECT * FROM reports_client_report ORDER BY at DESC LIMIT ? OFFSET ?", size, offset)
+    : ctx.db.all("SELECT * FROM reports_client_report WHERE reporter = ? ORDER BY at DESC LIMIT ? OFFSET ?", ctx.principal.id, size, offset);
+  const total = num(asRow(admin ? ctx.db.all("SELECT COUNT(*) AS n FROM reports_client_report")[0] : ctx.db.all("SELECT COUNT(*) AS n FROM reports_client_report WHERE reporter = ?", ctx.principal.id)[0])?.["n"]);
   const reports = rows.map(rowOf).filter((r): r is ReportRow => r !== null).map((r) => ({ reportId: r.reportId, title: r.title, status: r.status, at: r.at, ...(r.issueNumber !== undefined ? { issueNumber: r.issueNumber } : {}) }));
   return { reports, ...(offset + size < total ? { next: String(offset + size) } : {}), total };
 }
@@ -342,7 +343,7 @@ export async function resolved(ctx: ReportsCtx, input: { reportId: string; issue
   if (!report) return failWith(ctx.trace.traceId, "validation.not_found", "There is no report with that id.", { reportId: input.reportId });
   if (report.issueNumber === undefined || report.issueNumber !== input.issueNumber) return failWith(ctx.trace.traceId, "validation.precondition_failed", "That issue number is not the one this report was sent as.", { reportId: input.reportId });
   if (report.status === "resolved") return { ok: true };
-  ctx.db.run("UPDATE reports_report SET status = ?, fixed_in = ? WHERE report_id = ?", "resolved", input.fixedIn ?? null, report.reportId);
+  ctx.db.run("UPDATE reports_client_report SET status = ?, fixed_in = ? WHERE report_id = ?", "resolved", input.fixedIn ?? null, report.reportId);
   ctx.emit("report.resolved" as never, `entity/${report.reportId}`, { reportId: report.reportId, issueNumber: input.issueNumber, ...(input.fixedIn !== undefined ? { fixedIn: input.fixedIn } : {}) });
   return { ok: true };
 }

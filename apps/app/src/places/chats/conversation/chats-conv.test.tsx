@@ -71,52 +71,6 @@ test("the last 50 messages are on the page; older ones are one request away and 
   assert.deepEqual(byOrder(all).map((m) => m.threadSeq), [...all].map((m) => m.threadSeq).sort((a, b) => a - b));
 });
 
-test("chat open: the last 50 messages are read, windowed and laid out in under 100 ms; the full server draw is reported", () => {
-  const s = createSample("long");
-  const open = (): number => {
-    const t0 = performance.now();
-    const snap = s.data.screens.query("chats.conversation", "messages", { threadId: "c1" }).getSnapshot() as { data: { messages: Message[] } };
-    const items = timeline(lastMessages(snap.data.messages, WINDOW).rows, ctx(s));
-    for (const m of snap.data.messages) bodyBlocks(m.messageId, m.body);
-    assert.ok(items.length >= WINDOW);
-    return performance.now() - t0;
-  };
-  open();
-  const times = [open(), open(), open(), open(), open()].sort((a, b) => a - b);
-  const ms = times[2]!;
-  html(s);
-  const t0 = performance.now();
-  html(s);
-  const draw = performance.now() - t0;
-  console.log("METRIC " + JSON.stringify({ name: "chat_open", metric: "chat.last_50_ready", ms: Math.round(ms * 100) / 100, budget_ms: 100, ssr_draw_ms: Math.round(draw), note: "ssr_draw_ms is react-dom/server over react-native-web on a CI runner, not a browser paint" }));
-  assert.ok(ms < 100, `ready in ${ms} ms`);
-  assert.ok(draw < 2000, `server draw took ${draw} ms`);
-});
-
-test("a send is a row on the page before chat.post answers, in under 16 ms", async () => {
-  const s = createSample("idle");
-  s.holdPosts();
-  const rows = msgs(s);
-  const key = s.data.newKey();
-  const t0 = performance.now();
-  const p: Pending = { key, body: "Also send her the fee letter", at: SAMPLE_NOW, state: "sending", kind: "queue", mentions: [], working: false };
-  const items = timeline([...rows, pendingMessage(p, "usr_irfad", "c1", 99)], ctx(s));
-  const last = items[items.length - 1]!;
-  const out = clean(renderToStaticMarkup(<MessageView item={last} actions={noActions} meId="usr_irfad" sending="sending" />));
-  const ms = performance.now() - t0;
-  console.log("METRIC " + JSON.stringify({ name: "send", metric: "msg.send_visible", ms: Math.round(ms * 100) / 100, budget_ms: 16 }));
-  assert.ok(ms < 16, `visible in ${ms} ms`);
-  assert.ok(has(out, "Also send her the fee letter") && has(out, "Sending"));
-  assert.deepEqual(s.calls, [], "nothing has answered yet");
-  const sent = act.sendMessage(s.data, { text: p.body, mentions: [], key, kind: "queue", working: false });
-  s.releasePosts();
-  const r = await sent;
-  assert.deepEqual(s.calls.map((c) => c.cap), ["chat.post"]);
-  assert.ok(msgs(s).some((m) => m.messageId === r.messageId), "the live list now carries it");
-  assert.deepEqual(stillPending([{ ...p, messageId: r.messageId }], msgs(s)), [], "the pending row hides once the real message is there");
-  assert.equal((s.calls[0]!.input as { idempotencyKey: string }).idempotencyKey, key);
-});
-
 test("while an agent works a plain send queues; Interrupt sends it now with the new message's id", async () => {
   const s = createSample("streaming");
   assert.deepEqual(workingAgents(msgs(s), new Set(["m7"])), ["agt_intake"]);

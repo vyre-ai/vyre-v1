@@ -21,7 +21,7 @@ export function buildCatalog(caps: readonly RegistryCapRow[], tools: readonly Mc
     const effects = EFFECT_RANK[cap.effects] >= EFFECT_RANK[t.effects] ? cap.effects : t.effects;
     defs.push({
       name: t.name, cap: cap.name, v: cap.v, toolset: t.toolset, summary: t.description, inputSchema: t.inputSchema, effects, planMode: t.planMode,
-      level: cap.level, deferred: t.deferred, blocks: [...(t.blocks ?? [])], local, gated: cap.gate !== undefined,
+      level: cap.level === 'member' ? 'view' : cap.level, deferred: t.deferred, blocks: [...(t.blocks ?? [])], local, gated: cap.gate !== undefined,
     });
   }
   const byName = new Map(defs.map((d) => [d.name, d] as const));

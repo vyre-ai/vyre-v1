@@ -13,7 +13,7 @@ import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { hexOf } from "../handlers/deploy.ts";
 import { githubRepo, productionHost } from "../handlers/promote.ts";
-import { handlers } from "../impl.ts";
+import { handlers } from "../handlers/index.ts";
 import { SPACE_DOMAIN } from "../fixtures/fakes.ts";
 import { MemoryDb, readMigration } from "../fixtures/db.ts";
 import { harness } from "../fixtures/world.ts";
@@ -286,7 +286,7 @@ test("promote with a pull request: failing or running checks block it, passing c
   w.pr.mergeOk = true;
   const prod = await promote(w, siteId, preview.deploymentId);
   const merge = w.gh.filter((g) => g.cap === "github.pull_request.merge");
-  assert.deepEqual(merge[merge.length - 1]?.input, { repo: "acme/harbor", number: 7, method: "squash" });
+  assert.deepEqual(merge[merge.length - 1]?.input, { idempotencyKey: "sites.promote:acme/harbor#7:merge", repo: "acme/harbor", number: 7, method: "squash" });
   assert.equal(prod.branch, "feature-x");
   assert.deepEqual(rows(w, "sites_promotion").map((p) => [p.source_id, p.pr_number, p.merge_sha]), [[preview.deploymentId, 7, "deadbeef"]]);
   const production = prodRows(w, siteId)[0] as Row;
@@ -314,7 +314,7 @@ test("promote with a pull request: an already merged one is not merged twice, a 
   w2.runtime.outcomes.set("feature-z", { pullRequest: 3 });
   const p2 = (await run<{ deployment: DepOut }>(w2.ctx, "sites.preview_rebuild", { siteId: site2, branch: "feature-z" })).deployment;
   await promote(w2, site2, p2.deploymentId);
-  assert.deepEqual(w2.gh.filter((g) => g.cap === "github.pull_request.merge").map((g) => g.input), [{ repo: "acme/harbor", number: 3, method: "rebase" }]);
+  assert.deepEqual(w2.gh.filter((g) => g.cap === "github.pull_request.merge").map((g) => g.input), [{ idempotencyKey: "sites.promote:acme/harbor#3:merge", repo: "acme/harbor", number: 3, method: "rebase" }]);
 });
 
 test("githubRepo: reads owner/name from https, ssh and git@ addresses and nothing else", () => {

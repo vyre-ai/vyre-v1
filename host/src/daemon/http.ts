@@ -41,6 +41,7 @@ export function requestListener(d: HttpDeps): http.RequestListener {
         if (url.pathname === "/healthz" && (method === "GET" || method === "HEAD")) { send(res, 200, d.health()); return; }
         const headers: Record<string, string | undefined> = {};
         for (const [k, v] of Object.entries(req.headers)) headers[k] = Array.isArray(v) ? v.join(", ") : v;
+        headers["x-vyre-remote"] = req.socket.remoteAddress ?? "";   // after the copy: the socket's word, never the client's
         let body: unknown;
         if (method !== "GET" && method !== "HEAD") {
           const b = await readBody(req);

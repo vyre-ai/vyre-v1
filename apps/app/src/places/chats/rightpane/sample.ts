@@ -203,6 +203,7 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     return strip(next, ["fromMe"]);
   };
   let seq = 0;
+  const delegatedFrom = new Map<string, string>();
   const MAP_MD = ["# Intake memory map", "", "- `elena-rivera` client referred by Maya, call Thursday", "- `consult-rules` length, host and fee", "- `maya-calendar` when Maya is free and what she blocks",
     "- `intake-form-site` how the web intake form reaches us", "- `weekly-lead-report` what the Friday report holds"].join("\n");
   const mapOut = () => ({ map: { body: MAP_MD, lines: MAP_MD.split("\n").filter((l) => l.startsWith("- `")).length, updatedAt: at(10, 24, 9, 31) } });
@@ -237,13 +238,17 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     "agents.routine.run_now": (i: { routineId: string }) => {
       const cur = rowsOf<Routine & Row>("routines").find((x) => x.routineId === i.routineId);
       if (!cur) throw new Error("no such routine");
-      replica.put("routines", [{ ...cur, lastRunAt: SAMPLE_NOW }]);
-      return { runId: `run_${++seq}` };
+      const next = { ...cur, lastRunAt: SAMPLE_NOW } as Routine & Row;
+      replica.put("routines", [next]);
+      return { routine: strip(next, []) };
     },
-    "agents.routine.delegate": (i: { routineId: string; ownerId: string }) => {
+    "agents.routine.delegate": (i: { routineId: string; to?: { kind: string; id: string }; undo?: boolean }) => {
       const cur = rowsOf<Routine & Row>("routines").find((x) => x.routineId === i.routineId);
       if (!cur) throw new Error("no such routine");
-      const next = { ...cur, ownerId: i.ownerId } as Routine & Row;
+      // the server keeps who had it before, so `undo: true` gives it back
+      const owner = i.undo === true ? (delegatedFrom.get(i.routineId) ?? cur.ownerId) : i.to?.id ?? cur.ownerId;
+      if (i.undo !== true) delegatedFrom.set(i.routineId, cur.ownerId);
+      const next = { ...cur, ownerId: owner } as Routine & Row;
       replica.put("routines", [next]);
       return { routine: strip(next, []) };
     },

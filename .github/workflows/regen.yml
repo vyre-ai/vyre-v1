@@ -24,6 +24,7 @@ concurrency:
 permissions:
   contents: write
   statuses: write
+  actions: write   # gh workflow run check.yml on the bot's head
 jobs:
   regen:
     # The bot's own commit never retriggers this (it only touches generated/), the guard is for a hand-made copy of that message.
@@ -38,6 +39,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/setup-node@v4
         with: { node-version: 24 }
+      - uses: ./.github/actions/deps   # a hosted VM has no node_modules: the bot's generator, contracts gate and affected tests import workspace packages such as exceljs (modules/files)
       - name: Regenerate, commit generated/ back, rerun the checks
         env:
           BRANCH: ${{ github.ref_name }}

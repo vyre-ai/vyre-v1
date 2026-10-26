@@ -16,19 +16,35 @@ export interface IdentityCtx {
   /** Absent on pre-auth calls (caller 'anonymous'). */
   principal?: { kind: string; id: string };
   /** The session the call arrived on, when there is one. */
-  session?: { id: string; deviceId: string };
+  session?: { id?: string; deviceId: string };
+  /** The device the gateway resolved the call's token to (the host's ctx.device). */
+  device?: string;
   trace: { traceId: string };
   now(): number;
   db: Db;
-  emit(name: string, subject: string, payload: unknown): unknown;
+  emit(name: string, subject: string, payload: unknown, opts?: { afterFailure?: boolean }): unknown;
+  /** The host's capability call. Sign-in registers the device and its session through it (devices.register). */
+  call?(name: string, input: unknown): Promise<unknown>;
   /** GitHub OAuth code exchange, built by the host from ctx.http (egress github.com). */
   github?: Github;
   /** Roles and groups of a person, read through the access projection by the host. */
+  /** The person key this node holds for the signed-in person (ruling 62, 63). Absent: nothing to clear. */
+  keyring?: Keyring;
   directory?: { of(personId: string): { roles: string[]; groups: string[] } };
+  /**
+   * Whether the Space still counts the person as an active member (the host reads it from the access projection): "refused" for a suspended, removed or unknown person, "unavailable"
+   * while the host cannot vouch for its access snapshot. `joining` is the call that creates the person (invite accept, owner claim), the one place a person is not known yet.
+   */
+  membership?: { check(personId: string, o?: { joining?: boolean }): "ok" | "refused" | "unavailable" };
   /** Invites, supplied by the members module through the host: peek never spends, accept marks the invite accepted and puts the person in the Space with its role and groups. */
-  invites?: { peek(code: string): Invite | "invalid" | "expired"; accept(inviteId: string, personId: string): void };
+  invites?: { peek(code: string): Invite | "invalid" | "expired" | Promise<Invite | "invalid" | "expired">; accept(inviteId: string, personId: string): void | Promise<void> };
   /** Counts for the reset preview, supplied by the vault, chat and memory modules through the host. */
   losses?: { of(personId: string): { vault_mine: number; private_chats: number; personal_memory: number } };
+}
+
+export interface Keyring {
+  /** Take the person's key out of this node's memory (sign-out, password change or reset; ruling 62). The key itself is handed over by their client (POST /local/vault/key/unlock), never made here. */
+  clear(personId: string): void;
 }
 
 export interface Invite { inviteId: string; role: string; groups: string[]; invitedBy: string }
@@ -204,19 +220,38 @@ export function noteFail(ctx: IdentityCtx, a: Account | undefined, username: str
     const until = fails >= LOCK_AFTER ? ctx.now() + Math.min(15 * 60_000, 15_000 * 2 ** (fails - LOCK_AFTER)) : a.locked_until;
     ctx.db.run(`UPDATE identity_accounts SET fails = ?, locked_until = ? WHERE person_id = ?`, fails, until, a.person_id);
   }
-  ctx.emit("signin.failed", username, { username, reason });
+  // the call that refuses is about to throw, which drops what it buffered: this one is written regardless
+  ctx.emit("signin.failed", username, { username, reason }, { afterFailure: true });
 }
 export function clearFails(ctx: IdentityCtx, a: Account): void {
   if (a.fails > 0 || a.locked_until > 0) ctx.db.run(`UPDATE identity_accounts SET fails = 0, locked_until = 0 WHERE person_id = ?`, a.person_id);
 }
 
 // ---- sessions
-export function issueSession(ctx: IdentityCtx, a: Account, dev: Device, method: Method): SignInOut {
+/**
+ * The two halves of a session that live in the host: the gateway resolves a bearer token through the host's own token table to a devices_session row, so a token only works when it is minted
+ * there for a session the devices module holds. `mint` creates that token for a devices session id; `end` stops the session at the gateway (devices_session.revoked_at). The host calls
+ * configureSessionTokens once at boot. Without it sign-in refuses: a token nothing honors would sign a person in to an app that gets 401 on every call (P-SEC_05).
+ */
+export interface SessionTokens { mint(sessionId: string): string; end(sessionId: string): void }
+let sessionTokens: SessionTokens | null = null;
+export function configureSessionTokens(t: SessionTokens | null): void { sessionTokens = t; }
+
+/** Open a per-device session: devices.register makes the device and its session, the host mints the token for that session, and identity keeps the row that sign-out and reset act on. */
+export async function issueSession(ctx: IdentityCtx, a: Account, dev: Device, method: Method, opts: { joining?: boolean } = {}): Promise<SignInOut> {
+  const tid = ctx.trace.traceId;
+  if (!sessionTokens || typeof ctx.call !== "function") raise(tid, "internal.unavailable", "Sign-in cannot open a device session on this server yet.");
+  // a suspended or removed person gets no session by any route (password, pair code, reset, recovery, GitHub): they are told what a wrong password is told
+  const member = ctx.membership?.check(a.person_id, opts);
+  if (member === "unavailable") raise(tid, "internal.unavailable", "Access is being re-checked on this server. Try again in a moment.");
+  if (member === "refused") raise(tid, "auth.bad_credentials");
+  const reg = (await ctx.call("devices.register", { person: a.person_id, name: dev.deviceName, class: dev.deviceClass, idempotencyKey: nid("sin") })) as { device?: { id?: unknown }; sessionId?: unknown };
+  const deviceId = typeof reg?.device?.id === "string" ? reg.device.id : "";
+  const sessionId = typeof reg?.sessionId === "string" ? reg.sessionId : "";
+  if (!deviceId || !sessionId) raise(tid, "internal.unexpected", "The device could not be registered.");
   clearFails(ctx, a);
   const now = ctx.now();
-  const sessionId = nid("ses");
-  const deviceId = nid("dev");
-  const token = newToken();
+  const token = sessionTokens.mint(sessionId);
   const expiresAt = now + SESSION_TTL_MS;
   ctx.db.run(
     `INSERT INTO identity_sessions (id, person_id, device_id, device_name, device_class, token_hash, method, created_at, expires_at, revoked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -225,9 +260,24 @@ export function issueSession(ctx: IdentityCtx, a: Account, dev: Device, method: 
   const keys = bundleOf(a);
   return { status: "ok", session: { sessionId, deviceId, token, expiresAt, epoch: a.epoch }, ...(keys ? { keys } : {}) };
 }
-/** Revoke every live session of a person, except one when given. */
+/** The caller's own session: the one the call names, else the live session of the device the gateway resolved the token to. */
+export function currentSessionId(ctx: IdentityCtx, personId: string): string | undefined {
+  if (ctx.session?.id) return ctx.session.id;
+  if (!ctx.device) return undefined;
+  const r = ctx.db.all(`SELECT id FROM identity_sessions WHERE device_id = ? AND person_id = ? AND revoked_at IS NULL ORDER BY created_at DESC`, ctx.device, personId)[0] as { id: string } | undefined;
+  return r?.id;
+}
+/** End one session here and at the gateway. */
+export function endSessionRow(ctx: IdentityCtx, personId: string, sessionId: string): void {
+  const got = ctx.db.run(`UPDATE identity_sessions SET revoked_at = ? WHERE id = ? AND person_id = ? AND revoked_at IS NULL`, ctx.now(), sessionId, personId);
+  if (got.changes > 0) sessionTokens?.end(sessionId);
+}
+/** Revoke every live session of a person, except one when given, here and at the gateway. A password change or reset also takes their key out of memory. */
 export function revokeSessions(ctx: IdentityCtx, personId: string, except?: string): void {
+  ctx.keyring?.clear(personId);
+  const live = ctx.db.all(`SELECT id FROM identity_sessions WHERE person_id = ? AND revoked_at IS NULL AND id != ?`, personId, except ?? "") as { id: string }[];
   ctx.db.run(`UPDATE identity_sessions SET revoked_at = ? WHERE person_id = ? AND revoked_at IS NULL AND id != ?`, ctx.now(), personId, except ?? "");
+  for (const r of live) sessionTokens?.end(r.id);
 }
 /** Resolve a bearer token to its live session; the host gateway calls this to build the principal. */
 export function sessionOfToken(ctx: IdentityCtx, token: string): { sessionId: string; personId: string; deviceId: string } | undefined {
@@ -237,15 +287,15 @@ export function sessionOfToken(ctx: IdentityCtx, token: string): { sessionId: st
   return { sessionId: r.id, personId: r.person_id, deviceId: r.device_id };
 }
 
-// ---- one-time codes (pair, reset)
-export function putCode(ctx: IdentityCtx, kind: "pair" | "reset", personId: string, code: string, ttl: number, purpose?: string): number {
+// ---- one-time codes (pair, reset, claim)
+export function putCode(ctx: IdentityCtx, kind: "pair" | "reset" | "claim", personId: string, code: string, ttl: number, purpose?: string): number {
   const expiresAt = ctx.now() + ttl;
   ctx.db.run(`INSERT INTO identity_codes (code_hash, kind, person_id, purpose, expires_at, used_at) VALUES (?, ?, ?, ?, ?, ?)`,
     sha(`${kind}:${code}`), kind, personId, purpose ?? null, expiresAt, null);
   return expiresAt;
 }
 /** Spend a code once. Unknown, spent and expired codes all read the same to the caller except expired. */
-export function spendCode(ctx: IdentityCtx, kind: "pair" | "reset", code: string): { personId: string; purpose: string | null } {
+export function spendCode(ctx: IdentityCtx, kind: "pair" | "reset" | "claim", code: string): { personId: string; purpose: string | null } {
   const h = sha(`${kind}:${code}`);
   const r = ctx.db.all(`SELECT person_id, purpose, expires_at, used_at FROM identity_codes WHERE code_hash = ?`, h)[0] as
     { person_id: string; purpose: string | null; expires_at: number; used_at: number | null } | undefined;
@@ -274,3 +324,4 @@ export async function provisionAccount(ctx: IdentityCtx, p: { personId: string; 
     p.personId, p.username, p.name, verifier, null, 0, null, null, null, null, 0, 0, 0, ctx.now());
   return mustAccount(ctx, p.personId);
 }
+

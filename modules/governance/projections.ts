@@ -119,7 +119,7 @@ export function statements(sql: string): string[] {
 export function ensure(ctx: Pick<GovCtx, "db">): void {
   if (ready.has(ctx.db)) return;
   try {
-    ctx.db.all(`SELECT "key" FROM gov_state WHERE "key" = ?`, "probe");
+    ctx.db.all(`SELECT "key" FROM governance_state WHERE "key" = ?`, "probe");
   } catch {
     for (const statement of statements(migrationSql)) ctx.db.run(statement);
   }
@@ -127,12 +127,12 @@ export function ensure(ctx: Pick<GovCtx, "db">): void {
 }
 
 export function getState(ctx: Pick<GovCtx, "db">, key: string): string | null {
-  const row = first(ctx.db.all(`SELECT * FROM gov_state WHERE "key" = ?`, key));
+  const row = first(ctx.db.all(`SELECT * FROM governance_state WHERE "key" = ?`, key));
   return row && typeof row.value === "string" ? row.value : null;
 }
 export function setState(ctx: Pick<GovCtx, "db">, key: string, value: string): void {
-  if (getState(ctx, key) === null) ctx.db.run(`INSERT OR IGNORE INTO gov_state ("key", "value") VALUES (?, ?)`, key, value);
-  else ctx.db.run(`UPDATE gov_state SET "value" = ? WHERE "key" = ?`, value, key);
+  if (getState(ctx, key) === null) ctx.db.run(`INSERT OR IGNORE INTO governance_state ("key", "value") VALUES (?, ?)`, key, value);
+  else ctx.db.run(`UPDATE governance_state SET "value" = ? WHERE "key" = ?`, value, key);
 }
 
 // ---- retention definitions (a copy of manifests/governance.ts; the retention test compares the two)
@@ -169,7 +169,7 @@ export function ageOf(value: string): number | null {
 // ---- holds
 
 export function holdRow(ctx: Pick<GovCtx, "db">, kind: string, targetId: string): Row | null {
-  return first(ctx.db.all(`SELECT * FROM gov_hold WHERE "kind" = ? AND "targetId" = ?`, kind, targetId));
+  return first(ctx.db.all(`SELECT * FROM governance_hold WHERE "kind" = ? AND "targetId" = ?`, kind, targetId));
 }
 
 // ---- small shared pieces
