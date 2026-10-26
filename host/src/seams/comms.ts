@@ -144,7 +144,7 @@ export function createPortalHost(d: PortalHostDeps): PortalHostSeam {
     if (typeof first?.id !== "string") throw fail("validation.precondition_failed", TRACE_ZERO, { message: "No service mailbox is set up to send portal emails from. Create one in Console, Comms." });
     const base = (await d.publicUrl(d.space)).replace(/\/+$/, "");
     const url = `${base}/portal/${encodeURIComponent(msg.siteId)}/link/${encodeURIComponent(msg.token)}?purpose=${msg.purpose}`;
-    const sent = await d.invoke("mail.send", { mailboxId: first.id, route: "space_domain", to: [{ address: msg.email }], subject: SUBJECT[msg.purpose], text: `${LEAD[msg.purpose]}\n\n${url}\n\nThe link works once and expires.` }, seed);
+    const sent = await d.invoke("mail.send", { mailboxId: first.id, route: "space_domain", to: [{ address: msg.email }], idempotencyKey: `portal:${msg.accountId}:${msg.purpose}:${msg.expiresAt}`, subject: SUBJECT[msg.purpose], text: `${LEAD[msg.purpose]}\n\n${url}\n\nThe link works once and expires.` }, seed);
     const status = sent.status === "ok" ? (sent.output as { status?: unknown } | null)?.status : "held";
     if (status !== "queued" && status !== "sent") throw fail("provider.unavailable", TRACE_ZERO, { message: `The portal email was not sent (${typeof status === "string" ? status : "unknown"}).` });
   }
