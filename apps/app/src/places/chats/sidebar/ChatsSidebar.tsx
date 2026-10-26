@@ -293,7 +293,7 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
   return (
     <View testID="chats-sidebar" accessibilityRole="list" accessibilityLabel="Chats" style={st.root} {...{ tabIndex: 0, onKeyDown }}>
       <View style={st.top}>
-        <View testID="sidebar-head" accessibilityRole="header" style={st.space}>
+        <View testID="sidebar-head" accessibilityRole="header" accessibilityLabel={`Chats, ${data.space.name}`} style={st.space}>
           <Text accessibilityRole="header" style={st.spaceName}>Chats</Text>
           {data.space.otherNeedsYou ? <View testID="other-space-dot" accessibilityLabel="Another Space needs you" style={st.red} /> : null}
           {online ? null : <Text testID="sidebar-offline" style={st.quiet}>Offline</Text>}
