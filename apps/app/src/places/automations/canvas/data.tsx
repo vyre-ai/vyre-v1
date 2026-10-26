@@ -8,6 +8,8 @@ import type { KeyChoice } from "./model.ts";
 export interface AutomationsNav {
   openAutomation(id: string): void;
   openJourney(id: string): void;
+  /** Opens the New Journey type sheet. Without it the plus on the Journey types header is not drawn. */
+  newJourney?(): void;
   openFailedRuns(): void;
   openRun(runId: string): void;
   /** The Ask box scoped to this Automation. */
