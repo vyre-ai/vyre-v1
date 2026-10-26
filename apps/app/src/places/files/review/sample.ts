@@ -61,8 +61,8 @@ interface Seed { by: string; folderId: string; files: ChangesetFile[]; diffs: Re
 const NORTHWIND: Seed = {
   by: "agt_docs", folderId: "fld_rivera", added: 6, removed: 4,
   files: [
-    { path: "rivera-engagement-letter.docx", status: "modified", added: 4, removed: 3, conflict: false },
-    { path: "consult-prep.md", status: "modified", added: 2, removed: 1, conflict: false },
+    { path: "rivera-engagement-letter.docx", fileId: "fil_letter", status: "modified", added: 4, removed: 3, conflict: false },
+    { path: "consult-prep.md", fileId: "fil_prep", status: "modified", added: 2, removed: 1, conflict: false },
     { path: "id-scan.png", status: "added", added: 0, removed: 0, conflict: false },
   ],
   diffs: {
@@ -230,7 +230,7 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
   replica.resolve("git.log", () => ({ commits: [] }));
   replica.resolve("git.show", (_t, i) => ({
     commit: { sha: i.sha, message: "Raise the retainer to $2,400", author: { name: "Docs", kind: "agent" as const, id: "agt_docs" }, at: t0 - 2 * 3_600_000, files: 1, parents: ["a1f3c2e"] },
-    files: [{ path: "rivera-engagement-letter.docx", status: "modified" as const, added: 1, removed: 1, staged: false }],
+    files: [{ path: "rivera-engagement-letter.docx", fileId: "fil_letter", status: "modified" as const, added: 1, removed: 1, staged: false }],
     hunks: (seed.diffs["rivera-engagement-letter.docx"]?.hunks ?? []).slice(0, 1).map((h) => ({ hunkId: h.hunkId, oldStart: h.oldStart, oldLines: h.oldLines, newStart: h.newStart, newLines: h.newLines, lines: h.lines.map((l) => ({ op: l.op, text: l.text })) })),
   }));
   replica.resolve("files.versions", (_t, i) => ({ versions: [...(versions.get(i.fileId) ?? [])].sort((a, b) => b.n - a.n).map(({ versionId, n, by, at, reason, name }) => ({ versionId, n, by, at, ...(reason ? { reason } : {}), ...(name ? { name } : {}) })) }));

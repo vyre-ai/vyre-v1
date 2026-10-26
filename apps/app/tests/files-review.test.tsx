@@ -615,3 +615,10 @@ test("a picture's before is the file's preview at the version the changeset star
   assert.equal(await basePreviewUrl(call, "fil_1", 9), null, "a version that is gone has no picture");
   assert.equal(await basePreviewUrl(async () => { throw new Error("no"); }, "fil_1", 1), null);
 });
+
+test("changesets.get names the file of each staged change, so the review can read its versions and pictures", () => {
+  const s = sample();
+  const got = s.replica.run("changesets.get", { changesetId: s.changesetId });
+  assert.ok(got);
+  assert.deepEqual(got.data.files.map((f) => [f.path, f.fileId]), [["rivera-engagement-letter.docx", "fil_letter"], ["consult-prep.md", "fil_prep"], ["id-scan.png", undefined]]);
+});
