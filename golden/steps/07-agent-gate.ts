@@ -32,7 +32,8 @@ export async function runAgentGate(live: readonly string[], opts: Parameters<typ
           s.d.sink.flush();
           const logs = new DatabaseSync(s.d.paths.logs, { readOnly: true }).prepare("SELECT level, place, cap, msg, attrs FROM logs WHERE level >= 30 OR msg LIKE '%consumer%' OR msg LIKE '%bridge%' OR msg LIKE '%engine%' ORDER BY id DESC LIMIT 30").all().map((r) => `${r.level} ${r.place ?? ""} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 300)}`);
           const rows = (sql: string): unknown => { try { return s.d.db?.all(sql); } catch (e) { return String(e); } };
-          throw new Error(`no hold ${n} after 40 s: ${short(holds)}; host log ${JSON.stringify(logs)}; diag ${JSON.stringify({ queue: rows("SELECT * FROM engine_thread_queue LIMIT 5"), unblock: rows("SELECT * FROM engine_unblock LIMIT 5") })}`);
+          const agentsKnown = await s.call("access.principals.list", admin, { kind: "agent" }); const agentRow = await s.call("agents.list", admin, {});
+          throw new Error(`no hold ${n} after 40 s: ${short(holds)}; principals(agent) ${short(agentsKnown.body?.data ?? agentsKnown.body)}; agents ${short(agentRow.body?.data ?? agentRow.body)}; host log ${JSON.stringify(logs)}; diag ${JSON.stringify({ queue: rows("SELECT * FROM engine_thread_queue LIMIT 5"), unblock: rows("SELECT * FROM engine_unblock LIMIT 5") })}`);
         }
         await new Promise((r) => setTimeout(r, 200));
       }
