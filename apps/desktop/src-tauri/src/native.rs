@@ -393,4 +393,16 @@ mod tests {
         assert_eq!(tooltip(1), "Vyre, 1 thing needs you");
         assert_eq!(tooltip(3), "Vyre, 3 things need you");
     }
+
+    #[test]
+    fn immutable_sqlite_uri_escapes_path_delimiters() {
+        assert_eq!(immutable_sqlite_uri(Path::new("/tmp/a b?#%.sqlite")), "file:///tmp/a%20b%3F%23%25.sqlite?immutable=1");
+    }
+
+    #[test]
+    fn git_remote_never_carries_userinfo_into_session_metadata() {
+        assert_eq!(safe_git_remote(Some("https://token:secret@example.com/acme/vyre.git".to_string())), Some("https://example.com/acme/vyre.git".to_string()));
+        assert_eq!(safe_git_remote(Some("git@github.com:acme/vyre.git".to_string())), Some("github.com:acme/vyre.git".to_string()));
+        assert_eq!(safe_git_remote(Some("https://github.com/acme/vyre.git".to_string())), Some("https://github.com/acme/vyre.git".to_string()));
+    }
 }
