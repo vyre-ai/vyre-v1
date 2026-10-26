@@ -12025,6 +12025,7 @@ export type IdentityChangePasswordOut = {
 };
 export type IdentityClaimOwnerIn = {
   code: string;
+  spaceId: string;
   username: string;
   displayName?: string;
   password: string;

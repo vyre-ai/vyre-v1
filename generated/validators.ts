@@ -38287,12 +38287,14 @@ const b2404: string[] = []; lf(x2404, p, b2404, L0); if (b2404.length) e.push(..
 if (g2404 === "object") {
 if (g2404 === 'object') { const o2404 = x2404 as Record<string, unknown>;
 if (!("code" in o2404)) e.push(p + "/code" + ': required');
+if (!("spaceId" in o2404)) e.push(p + "/spaceId" + ': required');
 if (!("username" in o2404)) e.push(p + "/username" + ': required');
 if (!("password" in o2404)) e.push(p + "/password" + ': required');
 if (!("deviceName" in o2404)) e.push(p + "/deviceName" + ': required');
 if (!("deviceClass" in o2404)) e.push(p + "/deviceClass" + ': required');
 if (!("keys" in o2404)) e.push(p + "/keys" + ': required');
 if ("code" in o2404) lf(o2404["code"], p + "/code", e, L2);
+if ("spaceId" in o2404) lf(o2404["spaceId"], p + "/spaceId", e, L2);
 if ("username" in o2404) lf(o2404["username"], p + "/username", e, L304);
 if ("displayName" in o2404) lf(o2404["displayName"], p + "/displayName", e, L2);
 if ("password" in o2404) lf(o2404["password"], p + "/password", e, L2);

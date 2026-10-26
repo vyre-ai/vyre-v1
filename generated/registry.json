@@ -87885,6 +87885,7 @@
               ]
             },
             "password": "example",
+            "spaceId": "spc_a1b2c3",
             "username": "olivia"
           },
           "name": "example",
@@ -87941,6 +87942,13 @@
           "password": {
             "type": "string"
           },
+          "spaceId": {
+            "description": "The Space id from the claim link (#s=); the first Space key is sealed to it and a different Space is refused",
+            "examples": [
+              "spc_a1b2c3"
+            ],
+            "type": "string"
+          },
           "username": {
             "examples": [
               "olivia"
@@ -87951,6 +87959,7 @@
         },
         "required": [
           "code",
+          "spaceId",
           "username",
           "password",
           "deviceName",

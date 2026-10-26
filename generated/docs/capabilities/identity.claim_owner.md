@@ -26,6 +26,7 @@ Claim a fresh Space as its owner with the one-time link: pick a username and pas
 ```ts
 type In = {
   code: string;
+  spaceId: string;
   username: string;
   displayName?: string;
   password: string;
@@ -103,6 +104,7 @@ type Out = {
       ]
     },
     "password": "example",
+    "spaceId": "spc_a1b2c3",
     "username": "olivia"
   },
   "output": {
