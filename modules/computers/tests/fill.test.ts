@@ -142,3 +142,59 @@ test("issuing again for a computer ends its earlier token, and revoke ends the c
     assert.equal(w.svc.live(), 0);
   } finally { await s.close(); }
 });
+
+// ---- the wiring: a computer that wakes gets its Vault channel, and loses it when it sleeps or is removed -------------------------------------------------------------------------
+
+import { setComputersFill } from "../impl.ts";
+import { sleep, wake, provision, remove } from "../handlers/lifecycle.ts";
+import { bindFill, bindHost } from "../projections.ts";
+import { harness as chatHarness, INTAKE } from "../fixtures/harness.ts";
+
+function seam(h: ReturnType<typeof world>) {
+  let mounted: ((req: http.IncomingMessage, res: http.ServerResponse) => void) | null = null;
+  setComputersFill({ source: { lookup: async (handle, who) => { h.asked.push({ handle, who }); return h.items[handle] ?? { kind: "unknown" }; } }, log: (u) => { h.uses.push(u); }, url: () => "http://host.docker.internal:7000/computers/fill", mount: (m) => { mounted = m; } });
+  return () => mounted;
+}
+
+test("waking a computer passes fillUrl and a fillToken of at least 16 characters to agentd, and the token works against the mounted route; sleeping ends it", async () => {
+  const w = world();
+  const hn = chatHarness({ respond: { "agents.get": (i: Record<string, unknown>) => ({ agent: { agentId: i["agentId"], ownerId: "usr_dana", folderId: "fld_x" } }) } });
+  bindHost(hn.fake);
+  const mounted = seam(w);
+  try {
+    const p = await provision(hn.ctx, { agentId: INTAKE, idempotencyKey: "kf" });
+    const id = p.computer.computerId;
+    await wake(hn.ctx, { computerId: id });
+    const cfg = hn.fake.named("configure").map((c) => c.args as { computerId: string; fillUrl?: string; fillToken?: string }).find((a) => a.fillToken !== undefined)!;
+    assert.equal(cfg.computerId, id);
+    assert.equal(cfg.fillUrl, "http://host.docker.internal:7000/computers/fill");
+    assert.ok(cfg.fillToken!.length >= 16);
+    const server = http.createServer((req, res) => mounted()!(req, res));
+    await new Promise<void>((ok) => server.listen(0, "127.0.0.1", ok));
+    const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/fill`;
+    try {
+      const ok = await post(url, cfg.fillToken!, { handle: "Stripe", field: "api_key", computerId: id });
+      assert.deepEqual([ok.status, ok.json], [200, { value: SECRET, itemId: "vit_stripe" }]);
+      assert.deepEqual(w.asked[0]!.who, { agentId: INTAKE, asker: "usr_dana", where: "computer" });
+      await sleep(hn.ctx, { computerId: id });
+      assert.equal((await post(url, cfg.fillToken!, { handle: "Stripe", field: "api_key", computerId: id })).status, 401, "the token ends when the computer sleeps");
+      await wake(hn.ctx, { computerId: id });
+      const again = hn.fake.named("configure").map((c) => c.args as { fillToken?: string }).filter((a) => a.fillToken !== undefined);
+      assert.equal(again.length, 2);
+      assert.notEqual(again[1]!.fillToken, cfg.fillToken, "a new wake gets a new token");
+      await remove(hn.ctx, { computerId: id });
+      assert.equal((await post(url, again[1]!.fillToken!, { handle: "Stripe", field: "api_key", computerId: id })).status, 401, "the token ends when the computer is removed");
+    } finally { await new Promise<void>((ok) => server.close(() => ok())); }
+  } finally { bindFill(null); setComputersFill(null); bindHost(null); }
+});
+
+test("without a Vault channel a computer wakes as before and gets no fill settings", async () => {
+  const hn = chatHarness({ respond: { "agents.get": (i: Record<string, unknown>) => ({ agent: { agentId: i["agentId"], ownerId: "usr_dana", folderId: "fld_x" } }) } });
+  bindHost(hn.fake);
+  setComputersFill(null);
+  try {
+    const p = await provision(hn.ctx, { agentId: INTAKE, idempotencyKey: "kg" });
+    await wake(hn.ctx, { computerId: p.computer.computerId });
+    assert.equal(hn.fake.named("configure").filter((c) => (c.args as { fillToken?: string }).fillToken !== undefined).length, 0);
+  } finally { bindHost(null); }
+});
