@@ -21,6 +21,7 @@ function setup(opts: { online?: boolean; fail?: boolean } = {}) {
   const calls: { cap: string; input: unknown }[] = [];
   const serverHits = [hit("file", "fil_ref", "Referral policy.docx", { score: 0.9 })];
   const rt = {
+    space: { id: "spc_nw", kind: "team", name: "Northwind" },
     principals: live([{ id: "usr_maya", name: "Maya Chen", kind: "person" }, { id: "agt_intake", name: "Intake", kind: "agent" }, { id: "grp_all", name: "Everyone", kind: "group" }]),
     screens: { query: (screen: string) => live(screen === "chats.sidebar"
       ? { starred: [], today: [{ threadId: "thr_ref", title: "Referral questions", kind: "chat" }], yesterday: [], earlier: [] }
@@ -93,6 +94,7 @@ test("the sheet draws Recent when it opens, and the new-tab page draws the same 
   const sheet = renderToStaticMarkup(<CmdK data={data} />).replaceAll("<!-- -->", "");
   assert.ok(sheet.includes('data-testid="cmdk-veil"'));
   assert.ok(sheet.includes("Recent"), "the Recent heading");
+  assert.ok(sheet.includes("Search Northwind"), "the placeholder names the Space");
   assert.ok(sheet.includes("Referral questions") && sheet.includes("Maya Chen"));
   const tab = renderToStaticMarkup(<NewTabSearch data={data} />).replaceAll("<!-- -->", "");
   assert.ok(tab.includes("Open anything, or start something"));
