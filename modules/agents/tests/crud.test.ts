@@ -46,7 +46,7 @@ test("create makes the record, Agents/<name> with the decided tree, AGENT.md and
   assert.match(hn.world.text(hn.world.fileIn(vyreDir.folderId, "guide.md")!.fileId), /How Vyre works for you/);
 
   assert.deepEqual(hn.names(), ["agent.created"]);
-  assert.deepEqual(hn.named("agent.created")[0]!.payload, { agentId: a.agentId, name: "Intake", ownerId: DANA, templateVersion: 1 });
+  assert.deepEqual(hn.named("agent.created")[0]!.payload, { agentId: a.agentId, name: "Intake", ownerId: DANA, folderId: a.folderId, templateVersion: 1 });
   assert.deepEqual(assertEventsConform(hn), []);
   const got = await call(hn, "agents.get", { agentId: a.agentId });
   assert.deepEqual(got.agent, out.agent);

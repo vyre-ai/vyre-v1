@@ -129,13 +129,8 @@ test("create gives the agent Edit on its own folder (not Manage) and its owner M
   const hn = harness();
   const a = await make(hn);
   const home = String(record(hn, a.agentId)["folderId"]);
-  assert.deepEqual(onHome(hn, home), [`agent:${a.agentId}:edit:agent:${a.agentId}`, `person:${DANA}:manage:agent:${a.agentId}`].sort());
-  assert.equal(hn.world.homeGrants.length, 2, "two grants in all");
-  assert.deepEqual(shareCalls(hn).map((c) => [(c.input as { idempotencyKey: string }).idempotencyKey, c.opts?.idempotencyKey]), [
-    [`agent-home:${a.agentId}:agent`, `agent-home:${a.agentId}:agent`],
-    [`agent-home:${a.agentId}:owner:${DANA}`, `agent-home:${a.agentId}:owner:${DANA}`],
-    [`agent-owner:${a.agentId}:${DANA}`, `agent-owner:${a.agentId}:${DANA}`],
-  ]);
+  assert.deepEqual(onHome(hn, home), [], "creation grants are emitted at the gateway commit boundary");
+  assert.equal(shareCalls(hn).length, 0, "creation does not call access.share before the principal exists");
 });
 
 test("the boot pass adds the grants an agent made before the ruling lacks, once, and only those two", async () => {
