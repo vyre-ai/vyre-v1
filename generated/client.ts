@@ -1488,6 +1488,7 @@ export function createClient(transport: Transport) {
       post_update: call("projects.post_update", 1),
       reschedule: call("projects.reschedule", 1),
       share_out: call("projects.share_out", 1),
+      shared_view: call("projects.shared_view", 1),
       stages: {
         set: call("projects.stages.set", 1),
       },
@@ -1496,6 +1497,7 @@ export function createClient(transport: Transport) {
       },
       unlink_tasks: call("projects.unlink_tasks", 1),
       unpin_file: call("projects.unpin_file", 1),
+      unshare_out: call("projects.unshare_out", 1),
     },
     providers: {
       add: call("providers.add", 1),

@@ -1,6 +1,6 @@
 # projects.share_out
 
-Make a read-only link to the project Overview for a client
+Make a read-only link to the project Overview for a client; it expires in 30 days unless expiresAt or expiresInDays says otherwise
 
 | | |
 |---|---|
@@ -27,6 +27,7 @@ Make a read-only link to the project Overview for a client
 type In = {
   projectId: string;
   expiresAt?: number;
+  expiresInDays?: number;
   idempotencyKey: string;
 };
 ```
@@ -58,6 +59,7 @@ type Out = {
   "name": "example",
   "input": {
     "expiresAt": 1760000000000,
+    "expiresInDays": 1,
     "idempotencyKey": "idem_1",
     "projectId": "prj_a1b2c3"
   },

@@ -55,7 +55,7 @@ export function harness(o: HarnessOptions = {}) {
     const allowed = emitsOf(cap);
     return {
       space: "spc_test", principal: { kind: who.kind ?? "person", id: who.id }, ...(who.actingFor ? { actingFor: who.actingFor } : {}),
-      trace: { traceId: TRACE }, ...(who.device ? { device: who.device } : {}),
+      trace: { traceId: TRACE }, depth: who.depth ?? 1, ...(who.device ? { device: who.device } : {}),
       now: () => clock,
       db: scopedDb("runs", raw, TRACE),
       emit(name, subject, payload, opts) {

@@ -5,6 +5,7 @@
 // Graph subscriptions last about three days at most (4230 minutes for mail and calendar), so the renewal Run cannot wait three days: it runs
 // every twelve hours and extends anything that would expire within a day. A notification only says that something changed; the mailbox pull
 // reads the change from the delta query, so a missed notification costs a poll interval, not a message.
+import { isTrustedService } from "../../../lib/trust.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
   api, apiRaw, bad, CONFIG_ID, config, EMAIL, enc, ensure, first, forgetTokens, GRAPH, int, needHost, newId, normalizeEmail, num, obj, PERMISSIONS, refusal, resolveSubject, rowsOf,
@@ -97,7 +98,7 @@ export async function unsubscribe(ctx: MsCtx, a: Act & { subscriptionId: string 
   if (!row) throw fail("validation.not_found", ctx.trace.traceId, { message: "No such subscription." });
   const owner = strOrNull(row, "mailbox");
   const sub = resolveSubject(ctx, { connectionId: a.connectionId, ...(a.as ? { as: a.as } : {}) });
-  if ((owner === null || owner !== sub) && ctx.principal.kind !== "service" &&
+  if ((owner === null || owner !== sub) && !isTrustedService(ctx.principal) &&
     ctx.authorize({ perm: "connectors.manage", level: "manage" }, { type: "connection", id: a.connectionId }).effect !== "allow") {
     throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only the member it watches or an admin can remove this subscription." });
   }
