@@ -1,6 +1,6 @@
 // An agent's instruction file with its lint bar (spec 2.14, 3.5; screen files.lint-bar): the bar on top, the text (or, for agent.toml, the Form) below, and a save that shows the diff first.
 // Save asks files.save with the version the draft started from (baseVersion), so a save over someone else's newer version is refused, never lost. A red check blocks the save; amber saves after the diff.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -30,6 +30,11 @@ export interface AgentFileEditorProps {
   above?: ReactNode;
   /** "view": the file as read (a rendered note), "edit": the text box. The page's View and Edit switch drives it. */
   mode?: "view" | "edit";
+  /**
+   * Where the diff before a save is shown. Given, the page owns a place for it (the History pane beside the file) and gets the diff and the reason box as a node, or null when there is nothing to review;
+   * the editor draws nothing under the file. Missing, the diff sits under the file.
+   */
+  onReviewPane?(node: ReactNode | null): void;
 }
 
 /** Where a line starts in the text, so a jump from the lint bar can select it. */
@@ -40,7 +45,7 @@ export function lineRange(text: string, line: number): { start: number; end: num
   return { start, end: start + (lines[line - 1] ?? "").length };
 }
 
-export function AgentFileEditor({ fileId, name, saved, version, density = "regular", onSaved, start, above, mode = "edit" }: AgentFileEditorProps): ReactElement {
+export function AgentFileEditor({ fileId, name, saved, version, density = "regular", onSaved, start, above, mode = "edit", onReviewPane }: AgentFileEditorProps): ReactElement {
   const data = useReviewData();
   const isToml = name.endsWith(".toml");
   const [base, setBase] = useState({ text: saved, version });
@@ -78,6 +83,23 @@ export function AgentFileEditor({ fileId, name, saved, version, density = "regul
 
   const discard = (): void => { setDraft(base.text); setSel(null); setReview(false); setLine(null); };
 
+  // The newest save, for the reason box that lives in the page's pane and was built an edit ago.
+  const saveNow = useRef(save);
+  saveNow.current = save;
+  const reviewing = review && changed;
+  useEffect(() => {
+    onReviewPane?.(reviewing ? (
+      <View style={st.pane} testID="agent-file-diff">
+        <DiffTab title={name} layout="unified" wordMarks files={[diff]} comments={[]} selectedPath={name} density="compact" bare />
+        <View style={st.reason}>
+          <TextField value={reason} onChange={setReason} label="Why this change" placeholder="Why? (optional)" onSubmit={() => saveNow.current()} onEscape={() => setReview(false)} testID="agent-file-reason" />
+        </View>
+      </View>
+    ) : null);
+  }, [onReviewPane, reviewing, diff, name, reason]);
+  // The page keeps no diff of a file that is gone.
+  useEffect(() => () => onReviewPane?.(null), [onReviewPane]);
+
   return (
     <View style={st.wrap} testID="agent-file-editor">
       <LintBar fileId={fileId} name={name} text={draft} {...(isToml ? { view, onView: setView } : {})} onJump={jump} />
@@ -85,13 +107,13 @@ export function AgentFileEditor({ fileId, name, saved, version, density = "regul
       {mode === "view" && !(isToml && view === "form") ? (
         <View style={st.body} testID="agent-file-view">{isToml ? <Text style={st.mono}>{draft}</Text> : <Prose text={draft} />}</View>
       ) : isToml && view === "form" ? (
-        <TomlForm text={draft} onChange={edit} />
+        <TomlForm text={draft} onChange={edit} issues={lint.status === "ready" ? lint.data.problems : []} />
       ) : (
         <View style={st.body}>
           <TextField multiline mono rows={14} value={draft} onChange={edit} label={`Text of ${name}`} testID="agent-file-text" {...(sel ? { selection: sel } : {})} />
         </View>
       )}
-      {review && changed ? (
+      {reviewing && !onReviewPane ? (
         <View style={st.diff} testID="agent-file-diff">
           <DiffTab title={name} layout="unified" wordMarks files={[diff]} comments={[]} selectedPath={name} density={density} bare />
           <View style={st.reason}>
@@ -99,7 +121,7 @@ export function AgentFileEditor({ fileId, name, saved, version, density = "regul
           </View>
         </View>
       ) : null}
-      {mode === "view" && !changed && !line ? null : <View style={st.bar}>
+      {(mode === "view" || isToml) && !changed && !line ? null : <View style={st.bar}>
         <Text style={st.status} testID="agent-file-status">{changed ? `Edited · based on version ${base.version}` : `Version ${base.version}`}</Text>
         <View style={st.grow} />
         {changed ? <Btn label="Discard edits" onPress={discard} testID="agent-file-discard" /> : null}
@@ -122,6 +144,7 @@ const st = StyleSheet.create({
   body: { paddingHorizontal: 16, paddingVertical: 12 },
   diff: { paddingHorizontal: 16, paddingBottom: 8 },
   reason: { paddingTop: 8 },
+  pane: { paddingHorizontal: 12, paddingBottom: 8 },
   bar: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
   status: { fontSize: 12, color: "var(--ink-3)" as string },
   grow: { flex: 1 },
