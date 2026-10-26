@@ -110,8 +110,8 @@ jobs:
         run: node scripts/lint/idem-calls.ts
       - name: perf-files (a perf file may hold only speed tests, since every shard outside the perf host skips it)
         run: node scripts/lint/perf-files.ts
-      - name: emits-declared (report mode, never fails yet); a handler may emit only the events its capability declares
-        run: node scripts/lint/emits-declared.ts
+      - name: emits-declared (enforced); a handler may emit only the events its capability declares
+        run: node scripts/lint/emits-declared.ts --enforce
       - name: Typecheck every package that has a tsconfig.json above a changed file
         run: |
           git fetch -q origin main
