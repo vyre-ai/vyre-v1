@@ -138,7 +138,9 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
       if (stats.sent !== 1) {
         const c = await s.call("campaigns.get", adam, { campaignId: campaign! });
         const m = await s.call("mail.message.list", admin, { mailboxId: mailbox! });
-        assert.fail(`the lead got the email: ${short(stats)} campaign ${short(c.body?.data?.campaign)} mail ${short(m.body?.data ?? m.body)} net ${short(net.requests)}`);
+        s.d.sink.flush();
+        const logs = s.d.sink.trace(s.trace).logs.filter((l) => /^campaigns|mail|send/i.test(String(l.msg))).map((l) => `${l.msg} ${short(l.attrs)}`).slice(-6);
+        assert.fail(`logs ${short(logs)} the lead got the email: ${short(stats)} campaign ${short(c.body?.data?.campaign)} mail ${short(m.body?.data ?? m.body)} net ${short(net.requests)}`);
       }
       assert.ok(net.requests.includes("POST api.resend.com/emails"), `Resend was asked to send: ${short(net.requests)}`);
     }, ["launching is held by the Gate for approval"]);
