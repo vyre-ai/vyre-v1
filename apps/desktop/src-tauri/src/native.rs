@@ -182,7 +182,7 @@ fn codex_sources(configured: Option<&str>) -> Result<Vec<SessionSource>, String>
         let transcript = transcript_path(&root, &rollout);
         if !contained_file(&root, &transcript) { continue; }
         let project_key = cwd.as_deref().map(|value| format!("codex:{value}")).unwrap_or_else(|| "codex:unknown".to_string());
-        out.push(SessionSource { provider: "codex".to_string(), session_key: format!("codex:{id}"), session_id: id, project_key, transcript_path: transcript.to_string_lossy().into_owned(), cwd, created_at, updated_at, git_branch, git_origin_url });
+        out.push(SessionSource { provider: "codex".to_string(), session_key: format!("codex:{id}"), session_id: id, project_key, transcript_path: transcript.to_string_lossy().into_owned(), cwd, created_at, updated_at, git_branch, git_origin_url: safe_git_remote(git_origin_url) });
     }
     Ok(out)
 }
@@ -281,8 +281,38 @@ fn contained_file(root: &Path, candidate: &Path) -> bool {
 
 fn open_codex_state(path: &Path) -> Result<Connection, String> {
     let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI;
-    let immutable = format!("file:{}?immutable=1", path.to_string_lossy());
+    let immutable = immutable_sqlite_uri(path);
     Connection::open_with_flags(&immutable, flags).map_err(|e| format!("cannot open immutable Codex state: {e}"))
+}
+
+/// SQLite URI paths treat `?`, `#` and `%` as syntax, so every non-path-safe byte is percent encoded before immutable mode is requested.
+fn immutable_sqlite_uri(path: &Path) -> String {
+    let display = path.to_string_lossy().replace('\\', "/");
+    let mut encoded = String::with_capacity(display.len());
+    for byte in display.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/') { encoded.push(char::from(byte)); }
+        else { encoded.push_str(&format!("%{byte:02X}")); }
+    }
+    format!("file://{encoded}?immutable=1")
+}
+
+/// Git URLs may embed a token or password as userinfo. Preserve the host/path mapping but never return that material to the page.
+fn safe_git_remote(raw: Option<String>) -> Option<String> {
+    raw.map(|value| {
+        if let Some(scheme_end) = value.find("://") {
+            let rest = &value[scheme_end + 3..];
+            let authority_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+            let authority = &rest[..authority_end];
+            if let Some(at) = authority.rfind('@') {
+                return format!("{}://{}{}", &value[..scheme_end], &authority[at + 1..], &rest[authority_end..]);
+            }
+            return value;
+        }
+        if let Some(at) = value.find('@') {
+            if value[at + 1..].contains(':') { return value[at + 1..].to_string(); }
+        }
+        value
+    })
 }
 
 #[tauri::command]
