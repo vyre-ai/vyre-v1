@@ -3,3 +3,6 @@
 export { handlers, configureUpdates } from "./handlers/index.ts";
 export { consumers, inline, projections } from "./projections.ts";
 export const codecs = {};
+// Ruling 32: the host registers its release key, feed and installer drivers under this name (host/src/seams/updates.ts).
+import { configureUpdates as configure } from "./handlers/index.ts";
+export const hostSeams = { configureUpdates: configure };

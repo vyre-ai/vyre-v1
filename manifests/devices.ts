@@ -44,7 +44,7 @@ export default defineManifest({
     }),
 
     // system halves, called by identity, members and sync
-    write('devices.register', 'System: create the device and session rows at sign-in', { ...V, idem: 'key', in: { person: id.user, name: t.str(), class: klass }, out: { device: deviceRow, sessionId: id.session }, emits: ['device.registered', 'session.started'] }),
+    write('devices.register', 'Host only (svc_host): create the device and session rows at sign-in; every person, admin, agent and other service is refused', { ...V, idem: 'key', in: { person: id.user, name: t.str(), class: klass }, out: { device: deviceRow, sessionId: id.session }, emits: ['device.registered', 'session.started'] }),
     write('devices.touch', 'System: update last seen and location of a device', { ...V, in: { deviceId: id.device, location: t.opt(t.str()) }, out: ok, offline: 'online' }),
     read('devices.epoch', 'System: the person epoch and Space key epoch a client compares in hello', { ...V, in: {}, out: { personEpoch: t.int({ minimum: 0 }), spaceEpoch: t.int({ minimum: 0 }), revoked: t.bool() } }),
     write('devices.epoch_bump', 'System: advance a person epoch (device revoked, suspended, removed, password reset, clearance lowered)', { ...V, in: { person: id.user, reason: epochReason }, out: { epoch: t.int({ minimum: 0 }) }, emits: ['epoch.bumped'], audit: 'always' }),

@@ -12,6 +12,7 @@ import { SIDEBAR, useAutomationsData, useScreenQuery } from "../canvas/data.tsx"
 import { Glyph } from "../canvas/icons.tsx";
 import { Badge, Dot, IconButton, SubTabs, pointer, webOnly } from "../canvas/parts.tsx";
 import type { KeyEventLike } from "../canvas/parts.tsx";
+import { initials } from "../journeys/model.ts";
 import { allGroupKeys, failedTotal, journeyNote, nextId, noteOf, sectionsOf, visibleOrder } from "./model.ts";
 import type { AutoRow, GroupBlock, GroupRow, JourneyRow, Section, SectionKey } from "./model.ts";
 
@@ -41,6 +42,7 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set(initialOpen));
   const [collapsed, setCollapsed] = useState<ReadonlySet<SectionKey>>(new Set());
+  const [typesClosed, setTypesClosed] = useState(false);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -185,7 +187,16 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
   const journeyRows: ReactElement[] = [];
   for (const j of journeys) {
     if (q && !j.name.toLowerCase().includes(q.trim().toLowerCase())) continue;
-    journeyRows.push(<Row key={j.id} id={`journey-${j.id}`} title={j.name} note={journeyNote(j)} selected={selectedJourneyId === j.id} leading={<View style={sb.lead}><Glyph name="journey" size={15} color="var(--ink-3)" /></View>} onPress={() => data.nav.openJourney(j.id)} />);
+    journeyRows.push(
+      <View key={j.id} {...webOnly({ title: journeyNote(j) })}>
+        <Row
+          id={`journey-${j.id}`} title={j.name} selected={selectedJourneyId === j.id}
+          leading={<View aria-hidden style={sb.jtile}><Text style={sb.jtileText}>{initials(j.name)}</Text></View>}
+          trailing={<Badge n={j.inFlight} testID={`journey-count-${j.id}`} />}
+          onPress={() => data.nav.openJourney(j.id)}
+        />
+      </View>,
+    );
   }
 
   const tabs = [{ key: "automations", label: "Automations", note: String(autos.length) }, { key: "journeys", label: "Journeys", note: String(journeys.length) }];
@@ -219,11 +230,20 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
           </>
         ) : (
           <>
-            <View style={sb.section}>
-              <View style={sb.sHead}><Text accessibilityRole="header" style={sb.sTitle}>Journeys</Text><Text style={sb.sCount}>{String(journeys.length)}</Text></View>
-              {journeyRows}
+            <View testID="section-types" accessibilityLabel="Journey types" style={sb.section}>
+              <View style={sb.sHead}>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Journey types, ${typesClosed ? "closed" : "open"}`} accessibilityState={{ expanded: !typesClosed }} testID="head-types" onPress={() => setTypesClosed((c) => !c)} style={[sb.sHeadBtn, pointer]}>
+                  <Glyph name={typesClosed ? "chevR" : "chevD"} size={11} color="var(--ink-3)" />
+                  <Text accessibilityRole="header" style={sb.sTitle}>Journey types</Text>
+                  <Text style={sb.sCount}>{String(journeys.length)}</Text>
+                </Pressable>
+                <View style={{ flex: 1 }} />
+                {data.nav.newJourney ? <IconButton icon="plus" label="New Journey type" size={22} testID="add-types" onPress={() => data.nav.newJourney?.()} /> : null}
+              </View>
+              {typesClosed ? null : journeyRows}
               {journeys.length === 0 && journeysQ.status === "ready" ? <Text style={sb.empty}>No Journeys yet</Text> : null}
             </View>
+            {journeys.length > 0 ? <Text testID="journeys-note" style={sb.sidenote}>Each Journey is a record type cloned from the Projects template. Its records live in Records, each with its own channel and folder.</Text> : null}
           </>
         )}
       </ScrollView>
@@ -259,6 +279,9 @@ const sb = StyleSheet.create({
   n: { fontSize: 12, color: "var(--ink-3)" as string, minWidth: 10, textAlign: "right" },
   rename: { height: 28, paddingHorizontal: 8, justifyContent: "center" },
   renameInput: { height: 24, borderRadius: 6, borderWidth: 1, borderColor: "var(--accent)" as string, paddingHorizontal: 6, fontSize: 13, color: "var(--ink)" as string },
+  jtile: { width: 20, height: 20, borderRadius: 6, backgroundColor: "var(--accent-wash)" as string, alignItems: "center", justifyContent: "center", marginRight: 6 },
+  jtileText: { fontSize: 8.5, fontWeight: "700", color: "var(--accent)" as string },
+  sidenote: { marginTop: 14, marginHorizontal: 10, fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
   empty: { fontSize: 12.5, color: "var(--ink-3)" as string, padding: 12 },
   note: { fontSize: 12, color: "var(--ink-2)" as string, padding: 10, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
 });

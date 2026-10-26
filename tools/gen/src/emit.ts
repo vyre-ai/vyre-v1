@@ -134,7 +134,7 @@ ${renderTree(t, 2, (c) => `call(${q(c)})`)}
 
 export interface Route {
   method: string; path: string; cap: string; v: number; module: string;
-  effects: 'read' | 'write' | 'outward'; permission: string | null; level: 'view' | 'use' | 'edit' | 'manage';
+  effects: 'read' | 'write' | 'outward'; permission: string | null; level: 'view' | 'use' | 'edit' | 'manage' | 'member';
   resource: ResourceBinding; idempotency: 'key' | 'natural' | 'none'; risk: 'low' | 'medium' | 'high';
   offline: 'patch' | 'queue' | 'online' | null; teamOnly: boolean; gate: string | null;
 }

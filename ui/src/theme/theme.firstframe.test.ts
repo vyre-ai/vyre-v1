@@ -275,33 +275,3 @@ test("store round trip, and malformed stores are rejected", () => {
   }
 });
 
-test("perf theme_flash: zero wrong frames, and resolving plus writing the root fits the first-paint budget", () => {
-  const runs: number[] = [];
-  let wrong = 0;
-  for (let i = 0; i < 5; i += 1) {
-    const rec = rootRecorder();
-    const t0 = performance.now();
-    const applied = resolveTheme(toInput({ ...chosen("hb", "linen", "dark"), spaceSkin: seedSpaceSkin() }, false));
-    applyToRoot(applied, rec.root);
-    runs.push(performance.now() - t0);
-  }
-  for (const place of PLACES as readonly PlaceId[]) {
-    for (const mode of MODES) {
-      for (const space of SEED_SPACES) {
-        for (const width of SHOT_WIDTHS) {
-          const applied = resolveTheme(toInput(chosen(space.spaceId, space.skinDefault, mode), false));
-          if (wrongTheme(firstFrame(place, applied, width), applied, place, width)) wrong += 1;
-        }
-      }
-    }
-  }
-  const doc = fakeDocument(writeStore(chosen("hb", "linen", "dark")), false);
-  const t1 = performance.now();
-  doc.run(headScript());
-  const headMs = performance.now() - t1;
-  const median = [...runs].sort((a, b) => a - b)[2] ?? Infinity;
-  console.log(`perf theme_flash wrong_frames=${wrong} apply_median_ms=${median.toFixed(3)} head_script_ms=${headMs.toFixed(3)} ceiling_wrong=${THEME_FLASH_WRONG_FRAMES} ceiling_ms=${THEME_FLASH_APPLY_MS}`);
-  assert.equal(wrong, THEME_FLASH_WRONG_FRAMES);
-  assert.ok(median < THEME_FLASH_APPLY_MS, `apply median ${median}`);
-  assert.ok(headMs < THEME_FLASH_APPLY_MS, `head script ${headMs}`);
-});

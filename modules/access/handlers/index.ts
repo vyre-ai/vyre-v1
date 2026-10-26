@@ -1,6 +1,4 @@
-// One handler per access capability. Share and folders are handlers/share.ts (P-L7_02); requests and reviews land in later packets.
-import type { AccessCtx } from "../projections.ts";
-import { raise } from "../projections.ts";
+// One handler per access capability. Share and folders are handlers/share.ts (P-L7_02); requests, reviews and proposals are request.ts, review.ts and propose.ts.
 import {
   foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, lists, share, sharesOf, unshare,
 } from "./share.ts";
@@ -14,12 +12,9 @@ import {
   principalsList, rolesApply, rolesAssign, rolesCreate, rolesDelete, rolesGet, rolesList,
   rolesPreview, rolesUnassign, rolesUpdate,
 } from "./roles.ts";
+import { proposeChange } from "./propose.ts";
 import { requestCreate, requestsApprove, requestsDecline, requestsList } from "./request.ts";
 import { reviewsClose, reviewsDecide, reviewsGet, reviewsList, reviewsStart } from "./review.ts";
-
-async function later(ctx: AccessCtx, _input: unknown): Promise<never> {
-  raise(ctx.trace.traceId, "internal.not_implemented", "this capability is a later packet");
-}
 
 export const handlers = {
   "access.actors.create": actorsCreate,
@@ -50,7 +45,7 @@ export const handlers = {
   "access.principals.get": principalsGet,
   "access.principals.list": principalsList,
   "access.projection_health": projectionHealth,
-  "access.propose_change": later,
+  "access.propose_change": proposeChange,
   "access.request": requestCreate,
   "access.requests.approve": requestsApprove,
   "access.requests.decline": requestsDecline,

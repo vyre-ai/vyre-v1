@@ -72,7 +72,7 @@ export interface CapOpts {
   space?: boolean;                                 // force the Space binding even when the input carries a resource ref
   caller?: 'principal' | 'anonymous' | 'pending';  // pre-auth capabilities; never exposed to agents
   perm?: string | null;
-  level?: Level;
+  level?: Level | 'member';
   risk?: Risk;
   emits?: EventName[];
   gate?: string | { act: string; when?: string; reason?: string };
@@ -108,7 +108,7 @@ function makeCap(kind: CapabilityDef['effects'], name: string, summary: string, 
   let input = toSchema(o.in ?? {});
   if (idem === 'key') input = withIdempotency(input);
   const output = toSchema(o.out ?? {});
-  const level: Level = o.level ?? (kind === 'read' ? 'view' : kind === 'write' ? 'edit' : 'use');
+  const level: Level | 'member' = o.level ?? (kind === 'read' ? 'view' : kind === 'write' ? 'edit' : 'use');
   const risk: Risk = o.risk ?? (kind === 'read' ? 'low' : kind === 'write' ? 'medium' : 'high');
   const permission = o.perm === undefined ? null : o.perm;
   let resource: ResourceBinding = { type: 'space' };

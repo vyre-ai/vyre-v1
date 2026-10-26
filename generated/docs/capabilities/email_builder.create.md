@@ -10,7 +10,7 @@ Create an email design
 | Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
-| Resource | folder (create under /name) |
+| Resource | email (create under /folderId) |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |
@@ -19,7 +19,7 @@ Create an email design
 | HTTP | POST /v1/email_builder/create |
 | MCP tool | email_builder_create (inbox) |
 | CLI | none |
-| Emits | none |
+| Emits | email.created |
 
 ## Input
 
@@ -27,6 +27,7 @@ Create an email design
 type In = {
   name: string;
   mode: "blocks" | "html" | "plain";
+  folderId?: string;
   idempotencyKey: string;
 };
 ```
@@ -63,6 +64,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "folderId": "fld_a1b2c3",
     "idempotencyKey": "idem_1",
     "mode": "blocks",
     "name": "example"

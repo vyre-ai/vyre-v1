@@ -258,7 +258,7 @@ export async function duplicatesList(
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) bad(ctx, "Limit must be from 1 to 500.");
   const offset = input.cursor === undefined ? 0 : Number(input.cursor);
   if (!Number.isSafeInteger(offset) || offset < 0) bad(ctx, "Cursor is not valid.");
-  const dismissed = new Set(rowsOf(ctx.db.all(`SELECT "suggestionId" FROM contacts_dismissed`)).map((r) => str(r, "suggestionId")));
+  const dismissed = new Set(rowsOf(ctx.db.all(`SELECT "suggestionId" FROM contacts_link_dismissed`)).map((r) => str(r, "suggestionId")));
 
   const found = new Map<string, Suggestion>();
   for (const type of input.type ? [input.type] : (["contact", "company"] as const)) {
@@ -320,6 +320,6 @@ export async function duplicatesDismiss(ctx: ContactsCtx, input: { suggestionId:
   if (typeof input.suggestionId !== "string" || !SUGGESTION.test(input.suggestionId)) bad(ctx, "Suggestion id is not valid.");
   const [a, b] = input.suggestionId.split("|") as [string, string];
   if (a === b) bad(ctx, "A record is not a duplicate of itself.");
-  ctx.db.run(`INSERT OR IGNORE INTO contacts_dismissed ("suggestionId", "dismissedBy", "dismissedAt") VALUES (?, ?, ?)`, suggestionIdOf(a, b), ctx.principal.id, ctx.now());
+  ctx.db.run(`INSERT OR IGNORE INTO contacts_link_dismissed ("suggestionId", "dismissedBy", "dismissedAt") VALUES (?, ?, ?)`, suggestionIdOf(a, b), ctx.principal.id, ctx.now());
   return { dismissed: true };
 }

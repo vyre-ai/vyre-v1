@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { ensureDeps, ensureChromium } from "./ensure-deps.mjs";
 import { parseArgs } from "./lib.mjs";
 import { serve } from "./serve.mjs";
+import { exportEnv } from "../lib/registry-hash.mjs";
 
 export const BUDGET_MS = { desktop: 1000, phone: 1500 };
 export const CPU = { desktop: 1, phone: 4 };
@@ -75,7 +76,7 @@ export async function main(argv) {
   ensureChromium(REPO);
   if (!args["skip-export"]) {
     fs.rmSync(dist, { recursive: true, force: true });
-    execSync("npx expo export --platform web --output-dir dist --source-maps", { cwd: appDir, stdio: "inherit", env: { ...process.env, CI: "1", EXPO_NO_TELEMETRY: "1" } });
+    execSync("npx expo export --platform web --output-dir dist --source-maps", { cwd: appDir, stdio: "inherit", env: exportEnv() });
   }
   const rep = report(dist);
   console.log(rep.text);

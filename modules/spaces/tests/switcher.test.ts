@@ -86,9 +86,16 @@ test("steps finish by themselves when their event happens", async () => {
   assert.equal(steps.find((s) => s.key === "connect_mailbox")!.done, true);
 });
 
-test("capabilities that belong to later packets answer not implemented", async () => {
+test("the eight administration capabilities are real in the module's handler map: none answers not implemented any more", async () => {
   const h = harness();
   for (const cap of ["spaces.get", "spaces.update", "spaces.matrix", "spaces.export", "spaces.leave", "spaces.delete", "spaces.transfer_ownership", "spaces.switch_address"] as const) {
-    await assert.rejects(handlers[cap](h.as(MAYA), {} as never), (e) => codeOf(e) === "internal.not_implemented", cap);
+    // without the host's drivers they refuse as unavailable (a server that has not given them), never as a later packet
+    await assert.rejects(handlers[cap](h.as(MAYA), {} as never), (e) => codeOf(e) !== "internal.not_implemented", cap);
   }
+});
+
+test("the tile takes its counts from an attention source that answers later", async () => {
+  const h = harness();
+  const tile = await handlers["spaces.switcher"]({ ...h.as(MAYA), attention: { of: async () => ({ needsYou: 2, unread: 5 }) } }, {});
+  assert.deepEqual([tile.needsYou, tile.unread], [2, 5]);
 });

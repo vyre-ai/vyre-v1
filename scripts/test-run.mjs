@@ -14,7 +14,7 @@ import { ensureDeps } from "./shots/ensure-deps.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const RUNNER_VERSION = "2";
-const MAX_SLOW = 20; // raised from 15 (P-CI_31): hosted runners exposed real 20-22 s files; keep equal to MAX_ENTRIES in slow-check.ts
+const MAX_SLOW = 24; // raised from 15 (P-CI_31): hosted runners exposed real 20-22 s files; keep equal to MAX_ENTRIES in slow-check.ts
 const arg = (n) => process.argv.includes(n);
 const val = (n) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
 

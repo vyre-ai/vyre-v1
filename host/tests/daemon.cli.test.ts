@@ -314,9 +314,13 @@ test("`vyre server start|status|stop` starts the daemon with the flags given, re
 
     // the token file the daemon wrote lets the CLI call it with no flags at all
     const call = mkIo({ VYRE_DATA_DIR: dir });
-    assert.equal(await main(["logs", "--limit", "1"], call.io), 1, "the seeded roles of a new Space do not include server.logs");
-    assert.match(call.err(), /permission\.|auth\./);
-    assert.match(call.err(), /Trace: [0-9a-f]{32}/);
+    // ruling 71: a new Space starts with an owner holding the Owner role, and the local admin token acts as that owner, so the call is answered
+    assert.equal(await main(["logs", "--limit", "1"], call.io), 0, "the owner the admin token acts as may read the server logs");
+    // a call the owner may not make still shows the refusal with its trace
+    const refused = mkIo({ VYRE_DATA_DIR: dir, VYRE_TOKEN: "nope" });
+    assert.notEqual(await main(["logs", "--limit", "1"], refused.io), 0, "a wrong token is refused");
+    assert.match(refused.err(), /permission\.|auth\./);
+    assert.match(refused.err(), /Trace: [0-9a-f]{32}/);
 
     assert.equal(await main(["server", "stop", "--data-dir", dir], io.io), 0);
     assert.match(io.out(), /vyred stopped/);

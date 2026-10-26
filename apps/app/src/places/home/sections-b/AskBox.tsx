@@ -48,7 +48,7 @@ export function AskBox(): ReactElement {
       </View>
       <View style={local.askRow}>
         <View style={local.pill}>
-          {locked ? null : (
+          {(
             <AskButton
               place="home"
               testID="ask-agent"
