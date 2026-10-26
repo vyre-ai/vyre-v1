@@ -86,11 +86,11 @@ export function levelOf(ctx: VaultCtx, r: Row) {
 }
 
 /** An item the caller can see, at least at `need`; a Mine item of someone else does not exist for them. */
-export function reachable(ctx: VaultCtx, id: string, need: "use" | "view" | "edit" | "manage", opts: { trashed?: boolean } = {}): Row {
+export function reachable(ctx: VaultCtx, id: string, need: "use" | "view" | "edit" | "manage", opts: { trashed?: boolean; forTurn?: boolean } = {}): Row {
   if (!isId("vit", id)) bad(ctx, "Item id is not valid.");
   const r = opts.trashed ? anyItem(ctx, id) : liveItem(ctx, id);
-  // ruling 96: an agent acting for the owner uses the owner's own Mine item at "use" and nothing more (not listed, viewed, edited or revealed)
-  const turn = str(r, "scope") === "mine" && str(r, "owner") !== ctx.principal.id && need === "use" && turnFor(ctx, r);
+  // rulings 62 and 96: only the engine's account lookup (vault.use, forTurn) lets an agent acting for the owner reach the owner's own Mine item, at "use" and nothing more (never listed, viewed, edited, revealed, filled or injected)
+  const turn = opts.forTurn === true && str(r, "scope") === "mine" && str(r, "owner") !== ctx.principal.id && need === "use" && turnFor(ctx, r);
   if (str(r, "scope") === "mine" && str(r, "owner") !== ctx.principal.id && !turn) throw fail("validation.not_found", ctx.trace.traceId, { message: "That item is not in this Vault." });
   if (!turn && !atLeast(levelOf(ctx, r), need)) throw fail("permission.no_grant", ctx.trace.traceId, { message: `That needs ${need} access to the item.` });
   return r;
