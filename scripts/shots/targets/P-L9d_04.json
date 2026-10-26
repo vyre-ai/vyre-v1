@@ -52,6 +52,50 @@
       "probes": {
         "navigate": {}
       }
+    },
+    {
+      "id": "P-L9d_04-navigate-pv-nosections",
+      "route": "/m/P-L9d_04?probe=navigate&pv=nosections",
+      "proto": "records,record,{skin}",
+      "waitFor": "[data-testid='navigate-probe']",
+      "protoSettleMs": 3000,
+      "note": "Diagnostic: the navigate probe with part of the page left out (nosections).",
+      "probes": {
+        "navigate": {}
+      }
+    },
+    {
+      "id": "P-L9d_04-navigate-pv-noring",
+      "route": "/m/P-L9d_04?probe=navigate&pv=noring",
+      "proto": "records,record,{skin}",
+      "waitFor": "[data-testid='navigate-probe']",
+      "protoSettleMs": 3000,
+      "note": "Diagnostic: the navigate probe with part of the page left out (noring).",
+      "probes": {
+        "navigate": {}
+      }
+    },
+    {
+      "id": "P-L9d_04-navigate-pv-nohead",
+      "route": "/m/P-L9d_04?probe=navigate&pv=nohead",
+      "proto": "records,record,{skin}",
+      "waitFor": "[data-testid='navigate-probe']",
+      "protoSettleMs": 3000,
+      "note": "Diagnostic: the navigate probe with part of the page left out (nohead).",
+      "probes": {
+        "navigate": {}
+      }
+    },
+    {
+      "id": "P-L9d_04-navigate-pv-floor",
+      "route": "/m/P-L9d_04?probe=navigate&pv=floor",
+      "proto": "records,record,{skin}",
+      "waitFor": "[data-testid='navigate-probe']",
+      "protoSettleMs": 3000,
+      "note": "Diagnostic: the navigate probe with part of the page left out (floor).",
+      "probes": {
+        "navigate": {}
+      }
     }
   ]
 }

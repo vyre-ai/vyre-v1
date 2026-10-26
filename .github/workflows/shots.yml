@@ -118,5 +118,5 @@ jobs:
           T=all
           case "$BRANCH" in build/P-*) T="${BRANCH#build/}" ;; esac
           node scripts/shots/probes/open.mjs --target "$T"
-          VYRE_TRACE_MOUNT=1 node scripts/shots/probes/browser.mjs --target "$T" --size desktop
+          node scripts/shots/probes/browser.mjs --target "$T" --size desktop
           node scripts/shots/probes/browser.mjs --target "$T" --size phone
