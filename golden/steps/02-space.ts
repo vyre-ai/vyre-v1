@@ -103,7 +103,7 @@ export async function bootFlowSpace(live: readonly string[], opts: { engineCli?:
       return { status: res.status, body: parsed, trace: res.headers.get("x-vyre-trace") };
     },
     signedIn(person, device = `dev_${person.slice(4)}1`) {
-      const now = Date.now(), session = `ses_${person.slice(4)}1`;
+      const now = Date.now(), session = `ses_${device.slice(4)}`;
       d.db!.run(`INSERT OR IGNORE INTO devices_device (id, person, name, class, epoch, lastSeenAt, location, revokedAt, version, updated_at, deleted_at) VALUES (?, ?, ?, 'desktop', 0, ?, NULL, NULL, 0, ?, NULL)`, device, person, `${person} laptop`, now, now);
       d.db!.run(`INSERT OR IGNORE INTO devices_session (id, person, kind, principal_kind, device_id, started_at, last_seen_at, location, revoked_at) VALUES (?, ?, 'device', 'person', ?, ?, ?, NULL, NULL)`, session, person, device, now, now);
       return issueSessionToken(d.db!, session);
