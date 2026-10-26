@@ -30,7 +30,7 @@ test("a share given after the device synced delivers the row, and unshare hides 
     assert.ok(hidden.length >= 2, `the owner pulls rows Tess does not see: ${hidden.length} of ${all.length}`);
     const [inside, outside] = [hidden[0]!, hidden[1]!];
     const rt = loadCatalog().get(inside.entity).resource;
-    const folder = expectStatus(await s.call("folders.create", admin, { idempotencyKey: "hide-folder", type: rt, name: "Shared out", scope: "space" }), 200, "folders.create").folder.id as string;
+    const folder = expectStatus(await s.call("folders.create", admin, { idempotencyKey: "hide-folder", type: rt, name: "Shared out", scope: "personal" }), 200, "folders.create").folder.id as string;
     expectStatus(await s.call("folders.place", admin, { resource: { type: rt, id: inside.id }, folderId: folder }), 200, "folders.place");
     // Tess has already synced past every row when the share is given
     const before = await pull(tess, 0);
