@@ -151,9 +151,19 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     const HOME = "/home/agent/Vyre";
     const folderId = (await call(d, "agents.get", { agentId })).data.agent.folderId as string;
     const inBox = (sh: string) => docker(["exec", "-u", "10001", box, "sh", "-c", sh], 30_000);
+    // what the mirror and the computer look like, for a failure message: the daemon's computers log, the home as the container sees it and as the host has it, the mounts, and Files' own listing
+    const diag = async (): Promise<string> => {
+      d.sink.flush();
+      const logs = d.sink.db.prepare("SELECT msg, attrs FROM logs WHERE place = 'computers' ORDER BY at DESC LIMIT 12").all();
+      const ls = await inBox(`ls -laR ${HOME} | head -40`);
+      const mounts = await docker(["inspect", box, "--format", "{{json .Mounts}}"], 30_000);
+      const hostHome = path.join(dir, "computers", agentId, "Vyre");
+      const listed = await call(d, "files.list", { folder: folderId, limit: 50 });
+      return JSON.stringify({ logs, ls: ls.out, mounts: mounts.out.slice(0, 600), host: fs.existsSync(hostHome) ? fs.readdirSync(hostHome) : "missing", files: listed.data }).slice(0, 4000);
+    };
     const until = async <T>(what: string, f: () => Promise<T | null | undefined | false>, ms = 45_000): Promise<T> => {
       for (const end = Date.now() + ms; Date.now() < end; await new Promise<void>((r) => setTimeout(r, 750))) { const v = await f(); if (v) return v as T; }
-      throw new Error(`never happened: ${what}`);
+      throw new Error(`never happened: ${what}. ${await diag()}`);
     };
     const filesIn = async (folder: string) => (await call(d, "files.list", { folder, limit: 200 })).data as { files: Array<{ fileId: string; name: string; version: number }>; folders: Array<{ folderId: string; name: string }> };
     const textOf = async (fileId: string) => (await call(d, "files.read", { fileId, as: "text" })).data.text as string;

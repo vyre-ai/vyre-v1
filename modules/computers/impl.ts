@@ -195,7 +195,10 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
   async function homePass(computerId: string, agentId: string | undefined): Promise<void> {
     const h = homeOf(computerId, agentId);
     if (!h) return;
-    try { await h.sync.pass(); } catch (e) { o.home?.deps.log("warn", "computers.home.pass_failed", { computer: computerId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); }
+    try {
+      const r = await h.sync.pass();
+      if (r.down + r.up + r.conflicts + r.removed + r.suggested + r.refused.length > 0) o.home?.deps.log("info", "computers.home.pass", { computer: computerId, ...r, refused: r.refused.slice(0, 10) });
+    } catch (e) { o.home?.deps.log("warn", "computers.home.pass_failed", { computer: computerId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); }
   }
 
   const host: ComputerHost & ToolHost = {
