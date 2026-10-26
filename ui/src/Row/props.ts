@@ -21,4 +21,6 @@ export interface RowProps {
   /** After the title, right aligned (count, level picker, controls). */
   trailing?: ReactNode;
   onPress?: () => void;
+  /** Handlers that open the row's menu (right-click, long press, the menu key): `menuTrigger(...)` from ui/Menu. Spread on the row, so the whole row is the target. */
+  trigger?: Record<string, unknown>;
 }

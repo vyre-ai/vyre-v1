@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Avatar } from "../../../../../ui/src/Avatar/index.tsx";
-import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
+import { menuTrigger, useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { VirtualList } from "../../../../../ui/src/VirtualList/index.tsx";
@@ -12,7 +12,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import { useConsoleData, useScreenQuery } from "../../shell/data.tsx";
 import { ago } from "../../shell/format.ts";
 import { Glyph } from "../../shell/glyphs.tsx";
-import { Empty, pointer, web } from "../../shell/ui.tsx";
+import { Empty, pointer } from "../../shell/ui.tsx";
 import { CLASSES, NO_FILTER, classIcon, classLabel, isFiltered, rowTitle, snapshotLines, stateOf } from "./model.ts";
 import type { AuditClass, AuditFilter, AuditRow } from "./model.ts";
 
@@ -106,7 +106,6 @@ export function Audit({ initialFilter = NO_FILTER, initialOpen = null }: AuditPr
             <VirtualList<AuditRow>
               data={rows} rowHeight={44} keyOf={(r) => r.id}
               renderItem={(r) => (
-                <View {...(web ? { onContextMenu: (e: { preventDefault?: () => void; clientX?: number; clientY?: number }) => { e.preventDefault?.(); menu.show(rowMenu(r), e.clientX ?? 0, e.clientY ?? 0, "context", { label: "Audit event" }); } } : {})}>
                   <Row
                     id={r.id}
                     title={rowTitle(r, name)}
@@ -115,8 +114,8 @@ export function Audit({ initialFilter = NO_FILTER, initialOpen = null }: AuditPr
                     leading={<Avatar name={name(r.actor.id)} size={26} />}
                     trailing={<View style={s.trail}><Text style={s.time}>{ago(now, r.at)}</Text><Glyph name={classIcon(r.class)} size={14} color="var(--ink-3)" /></View>}
                     onPress={() => setOpen(r.id)}
+                    trigger={menuTrigger((x, y) => menu.show(rowMenu(r), x, y, "context", { label: "Audit event" }))}
                   />
-                </View>
               )}
             />
           )}
@@ -162,7 +161,7 @@ function Block({ title, lines }: { title: string; lines: string[] }): ReactEleme
   return (
     <View style={s.block} testID={`audit-${title.toLowerCase()}`}>
       <Text style={s.k}>{title}</Text>
-      {lines.length === 0 ? <Text style={s.v}>Empty</Text> : lines.map((l) => <Text key={l} style={s.mono}>{l}</Text>)}
+      {lines.length === 0 ? <Text style={s.v}>Empty</Text> : <Text style={s.mono}>{lines.join("\n")}</Text>}
     </View>
   );
 }
