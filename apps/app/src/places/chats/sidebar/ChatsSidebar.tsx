@@ -229,7 +229,7 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
             {(over) => (
               <Row
                 id={e.key} title={e.item.task.title} selected={sel} onPress={() => open(e)}
-                leading={<Face name={who} kind="agent" size={16} />}
+                leading={<Face name={who} seedId={e.item.task.createdBy} kind="agent" size={16} />}
                 trailing={over && e.item.task.actions.length && k.tone === "accent"
                   ? <Tool icon="check" label={`${e.item.task.actions[0]!.label} ${e.item.task.title}`} onPress={() => guard(api.act(e.item))} testID={`need-act-${e.item.task.id}`} />
                   : <Text style={[st.kind, k.tone === "warn" && st.kindWarn]}>{k.label}</Text>}
@@ -243,7 +243,7 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
           {(over) => (
             <Row
               id={e.key} title={e.agent.name} selected={sel} onPress={() => open(e)}
-              leading={<Face name={e.agent.name} kind="agent" size={18} pulse={e.working} />}
+              leading={<Face name={e.agent.name} seedId={e.agent.agentId} kind="agent" size={18} pulse={e.working} />}
               trailing={over
                 ? <View style={st.tools}>{e.digit !== undefined ? <Text style={st.digit}>{`⌘${e.digit}`}</Text> : null}<Tool icon="plus" label={`New chat with ${e.agent.name}`} onPress={() => void api.newChat({ agentId: e.agent.agentId, name: e.agent.name })} testID={`face-new-${e.agent.agentId}`} /></View>
                 : e.waiting ? <Text style={st.waiting}>Waiting on you</Text> : e.working ? <Text style={st.quiet}>Working</Text> : null}
@@ -261,7 +261,7 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
             {(over) => (
               <Row
                 id={e.key} title={r.title} selected={sel} emphasis={r.unread > 0} onPress={() => open(e)}
-                leading={<Face name={r.who} kind={r.kind} size={18} pulse={r.working} />}
+                leading={<Face name={r.who} seedId={r.whoId} kind={r.kind} size={18} pulse={r.working} />}
                 trailing={
                   <View style={st.tools}>
                     {r.starred && !over ? <Glyph name="star" size={12} color="var(--ink-4)" fill="var(--ink-4)" /> : null}

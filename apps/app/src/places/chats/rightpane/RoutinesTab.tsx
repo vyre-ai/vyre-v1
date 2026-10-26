@@ -123,7 +123,7 @@ export function RoutinesTab({ deps, window, initial }: { deps: PaneDeps; window?
       for (const m of picks) {
         if (!("label" in m)) continue;
         const who = others[at++];
-        entries.push({ key: `who-${who?.id ?? at}`, type: "row", title: m.label, ...(who?.sub ? { note: who.sub } : {}), leading: <Face name={m.label} size={20} />, ...(m.onSelect ? { onPress: m.onSelect } : {}), testID: `delegate-${who?.id ?? at}` });
+        entries.push({ key: `who-${who?.id ?? at}`, type: "row", title: m.label, ...(who?.sub ? { note: who.sub } : {}), leading: <Face name={m.label} seedId={who?.id} size={20} />, ...(m.onSelect ? { onPress: m.onSelect } : {}), testID: `delegate-${who?.id ?? at}` });
       }
       entries.push({ key: "delegate-cancel", type: "block", node: <View style={st.acts}><TextButton label="Cancel" onPress={() => setMode("view")} testID="delegate-cancel" /></View> });
     }

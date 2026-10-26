@@ -195,7 +195,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
     <View style={s.main} testID="contact-tab" accessibilityLabel={`Conversation with ${conv.displayName}`}>
       <View style={s.head} testID="contact-head">
         <View style={s.hid}>
-          {unmatched ? <Ghost size={28} /> : <Face name={conv.displayName} size={28} />}
+          {unmatched ? <Ghost size={28} /> : <Face name={conv.displayName} seedId={conv.contactId ?? undefined} size={28} />}
           <Text accessibilityRole="header" aria-level={1} style={s.name} numberOfLines={1}>{conv.displayName}</Text>
           {phone ? null : <Text style={s.co} numberOfLines={1}>{hdr?.company ?? conv.address}</Text>}
         </View>

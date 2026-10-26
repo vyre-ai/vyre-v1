@@ -1,6 +1,7 @@
 // Tasks projections (ARCH 4.7). The task row (tasks_core + tasks_meta), its history, the Space policy and the read queries behind
 // tasks.get, tasks.list, tasks.needs_you, tasks.count_needs_you, tasks.my_work and tasks.history.
 // Durable tables: migrations/0001_tasks_state.sql. Every statement names only tasks_* tables (ctx.db refuses anything else, ARCH B2).
+import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { makeId } from "../../packages/contracts/src/ids.ts";
 
@@ -284,7 +285,7 @@ export const sameAssignee = (a: Assignee | undefined, b: Assignee | undefined): 
 /** Does the caller stand behind this slot? Persons, agents and automations by id. A group or role slot is open to any holder (the pipeline already authorized
  *  the call at level use on the task) until one of them takes it. A service caller (Gate, Journeys, e-sign) acts for every slot. */
 export function holds(t: Task, slot: Slot, who: Who): boolean {
-  if (who.kind === "service") return true;
+  if (isTrustedService(who)) return true;
   const a = t[slot];
   if (!a) return false;
   const me = (id: string): boolean => id === who.id || id === who.actingFor;

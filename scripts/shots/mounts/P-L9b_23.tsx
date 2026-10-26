@@ -21,7 +21,7 @@ export default function Mount(): ReactNode {
   const screen = params.get("screen") ?? "agent";
   const owner = params.get("as") === "owner" || screen === "agent";
   const sample = useMemo(() => {
-    const s = createMountSample({ who: owner ? "owner" : "member" });
+    const s = createMountSample({ who: owner ? "owner" : "member", asleep: params.get("asleep") === "1" });
     if (screen === "waiting") s.startWait("build 42");
     if (params.get("locked") === "1") s.refuseServer(true);
     return s;

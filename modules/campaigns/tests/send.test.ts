@@ -336,11 +336,11 @@ test("stop on reply: a contact who replies gets nothing more, the reply is annou
   await pass(w, campaignId);
   assert.deepEqual(w.mail.map((m) => [m.input.contactId, m.input.subject]), [["rec_c001", "First"], ["rec_c002", "First"], ["rec_c002", "Second"]]);
   assert.deepEqual(w.db.rows("campaigns_member").map((m) => [m.record_id, m.state]), [["rec_c001", "replied"], ["rec_c002", "completed"]]);
-  assert.deepEqual(w.ofName("campaign.replied").map((e) => e.payload), [{ campaignId, recordId: "rec_c001", messageId: "msg_9001" }]);
+  assert.deepEqual(w.ofName("campaign.replied").map((e) => e.payload), [{ campaignId, recordId: "rec_c001", messageId: "eml_9001" }]);
   await pass(w, campaignId);
   assert.equal(w.ofName("campaign.replied").length, 1);
   const list = await run<{ replies: { recordId: string; messageId: string; at: number }[]; total: number }>(w.ctx, "campaigns.replies", { campaignId });
-  assert.deepEqual(list.replies.map((r) => [r.recordId, r.messageId]), [["rec_c001", "msg_9001"]]);
+  assert.deepEqual(list.replies.map((r) => [r.recordId, r.messageId]), [["rec_c001", "eml_9001"]]);
   assert.equal(list.total, 1);
   assert.equal((await stats(w, campaignId)).replied, 1);
   assert.equal((await run<{ campaign: { replies: number } }>(w.ctx, "campaigns.get", { campaignId })).campaign.replies, 1);
@@ -369,7 +369,7 @@ test("an SMS reply counts too, using the conversation as its reference", async (
   w.advance(DAY);
   await pass(w, campaignId);
   assert.equal(w.mail.length, 0, "stopped by the text reply");
-  assert.deepEqual(w.ofName("campaign.replied").map((e) => (e.payload as { messageId: string }).messageId), ["msg_77"]);
+  assert.deepEqual(w.ofName("campaign.replied").map((e) => (e.payload as { messageId: string }).messageId), ["eml_77"]);
 });
 
 test("unsubscribe: the link in the email puts the address on the suppression list, ends the contact in every campaign, and announces it once", async () => {

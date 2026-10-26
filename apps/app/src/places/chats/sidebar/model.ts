@@ -37,6 +37,8 @@ export interface ChatRow {
   threadId: string;
   title: string;
   who: string;
+  /** The agent's id when the chat is with an agent: the face is seeded by it. */
+  whoId?: string | undefined;
   kind: "person" | "agent";
   unread: number;
   working: boolean;
@@ -52,6 +54,7 @@ export function rowOf(item: RecentItem, agentName: (id: string) => string): Chat
     threadId: item.threadId,
     title: item.title,
     who: agent !== undefined ? agentName(agent) : item.title,
+    ...(agent !== undefined ? { whoId: agent } : {}),
     kind: agent !== undefined ? "agent" : "person",
     unread: item.unread,
     working: item.working,
