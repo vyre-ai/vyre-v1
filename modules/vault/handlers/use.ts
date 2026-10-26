@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { fail } from "../../../host/src/routes/errors.ts";
 import type { Field } from "./crypto.ts";
 import { currentFiller } from "./crypto.ts";
-import { filler, openFields, reachable, visible } from "./items.ts";
+import { filler, live, openFields, reachable, turnFor, visible } from "./items.ts";
 import {
   atLeast, bad, denied, ensure, first, isId, levelOn, liveFolder, newId, num, obj, parseJson, patchMeta, record, rowsOf, statements, str,
 } from "../projections.ts";
@@ -102,7 +102,7 @@ function ensureExports(ctx: VaultCtx): void {
 function itemBy(ctx: VaultCtx, ref: string): Row {
   if (isId("vit", ref)) return reachable(ctx, ref, "use");
   const want = ref.replace(/^#/, "").toLowerCase();
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => visible(ctx, r));
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => visible(ctx, r) || (str(r, "scope") === "mine" && live(r) && turnFor(ctx, r)));
   const hit = rows.find((r) => str(r, "handle").replace(/^#/, "").toLowerCase() === want) ?? rows.find((r) => str(r, "name").toLowerCase() === ref.trim().toLowerCase());
   if (!hit) throw fail("validation.not_found", ctx.trace.traceId, { message: "That item is not in this Vault, or you cannot use it." });
   return reachable(ctx, str(hit, "id"), "use");
