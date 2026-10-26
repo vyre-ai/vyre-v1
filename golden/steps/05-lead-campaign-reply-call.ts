@@ -169,8 +169,9 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
     await trail.step("the campaign announces the reply", async () => {
       expectStatus(await s.call("campaigns.resume", admin, { campaignId: campaign! }), 200, "campaigns.resume");
       const replies = expectStatus(await s.call("campaigns.replies", admin, { campaignId: campaign! }), 200, "campaigns.replies").replies as unknown[];
-      const got = expectStatus(await s.call("mail.message.get", admin, { messageId: reply! }), 200, "mail.message.get").message;
-      assert.equal(got.campaignId, campaign, `the reply carries the campaign: ${short(got)}`);
+      const inbox = expectStatus(await s.call("mail.message.list", admin, { mailboxId: mailbox!, contactId: lead! }), 200, "mail.message.list").messages as { id: string; campaignId?: string; direction: string }[];
+      const got = inbox.find((m) => m.id === reply);
+      assert.equal(got?.campaignId, campaign, `the reply carries the campaign: ${short(inbox)}`);
       assert.ok(replies.length >= 1, `the campaign lists the reply ${reply!}: ${short(replies)}`);
     }, ["the lead replies and the reply is matched to the lead and the campaign"]);
 
