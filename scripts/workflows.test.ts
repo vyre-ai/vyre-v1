@@ -108,6 +108,10 @@ test("security.yml has no placeholder and runs license-check, the secret scan, t
   assert.match(w.text, /^\s+run: node scripts\/boundaries\.ts\s*$/m, "boundaries run on the whole tree");
   for (const l of w.text.split("\n")) if (/scripts\/(license-check|boundaries|security\/)/.test(l) && !/^\s*#/.test(l)) assert.doesNotMatch(l, /\|\|\s*true/, `a gate that cannot fail: ${l.trim()}`);
   for (const j of w.jobs) assert.ok(j.timeout, `security.yml job ${j.name} has timeout-minutes`);
+  // a gate that skips is the placeholder again: the cargo step fails when it cannot run, never exits 0 on a missing tool
+  assert.match(w.text, /cargo-deny \$CARGO_DENY_VERSION cannot be installed[^\n]*exit 1/);
+  assert.match(w.text, /cargo install --locked --version "\$CARGO_DENY_VERSION"/);
+  assert.doesNotMatch(w.text, /::warning::[^\n]*(not installed|not checked)/);
 });
 
 test("seeded bad input: a blocked license, a secret, a high advisory and an unlisted boundary violation each fail", () => {

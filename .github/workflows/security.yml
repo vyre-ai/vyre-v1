@@ -26,12 +26,21 @@ jobs:
       - uses: ./.github/actions/deps
       - name: npm licenses over the installed packages
         run: node scripts/license-check.ts
-      - name: cargo licenses over the desktop shell (cargo deny with scripts/security/deny.toml)
+      - name: cargo licenses over the desktop shell (cargo deny, a pinned version kept on the host; a runner that cannot run it fails the job)
+        env:
+          CARGO_DENY_VERSION: "0.16.1"
         run: |
-          if [ ! -f apps/desktop/src-tauri/Cargo.toml ]; then echo "no Cargo.toml, nothing to check"; exit 0; fi
-          if ! command -v cargo-deny >/dev/null 2>&1; then echo "::warning::cargo-deny is not installed on this runner; the cargo licenses were not checked"; exit 0; fi
-          cargo deny --manifest-path apps/desktop/src-tauri/Cargo.toml check licenses --config scripts/security/deny.toml > cargo-deny.out 2>&1 || true
+          [ -f apps/desktop/src-tauri/Cargo.toml ] || { echo "no Cargo.toml, nothing to check"; exit 0; }
+          TOOLS="${VYRE_TOOLS_CACHE:-/var/lib/ci-run/tools}/cargo-deny-$CARGO_DENY_VERSION"
+          if [ ! -x "$TOOLS/bin/cargo-deny" ]; then
+            command -v cargo >/dev/null 2>&1 || { echo "::error::this runner has no Rust toolchain, so cargo-deny $CARGO_DENY_VERSION cannot be installed and the cargo licenses cannot be checked; install Rust on the runner or cargo-deny into $TOOLS/bin"; exit 1; }
+            mkdir -p "$TOOLS" && cargo install --locked --version "$CARGO_DENY_VERSION" --root "$TOOLS" cargo-deny
+          fi
+          rc=0
+          "$TOOLS/bin/cargo-deny" --manifest-path apps/desktop/src-tauri/Cargo.toml check licenses --config scripts/security/deny.toml > cargo-deny.out 2>&1 || rc=$?
           node scripts/license-check.ts --cargo cargo-deny.out
+          # cargo deny failing for any reason license-check did not parse (no network, a bad lockfile) is a failed check, not a pass
+          [ "$rc" = "0" ] || { echo "cargo deny exited $rc"; tail -n 20 cargo-deny.out; exit 1; }
   secrets:
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 10
