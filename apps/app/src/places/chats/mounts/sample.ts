@@ -13,6 +13,7 @@ import { createSample as createComputer } from "../computer/sample.ts";
 import { createSample as createConversation } from "../conversation/sample.ts";
 import type { Variant as ConversationVariant } from "../conversation/sample.ts";
 import { createSample as createHelper } from "../helper/sample.ts";
+import { createSample as createPane } from "../rightpane/sample.ts";
 import { createSample as createNeeds } from "../needsyou/sample.ts";
 import { createSampleSidebar } from "../sidebar/sample.ts";
 
@@ -66,13 +67,14 @@ export interface MountSample {
   startWait(label: string): void;
 }
 
-export function createMountSample(o: { conversation?: ConversationVariant; who?: Who; online?: boolean } = {}): MountSample {
+export function createMountSample(o: { conversation?: ConversationVariant; who?: Who; online?: boolean; asleep?: boolean } = {}): MountSample {
   const who = o.who ?? "member";
   const side = createSampleSidebar(undefined, o.online === undefined ? {} : { online: o.online });
   const conv = createConversation(o.conversation ?? "busy", o.online === undefined ? {} : { online: o.online });
   const agent = createAgent("owner", o.online === undefined ? {} : { online: o.online });
   const needs = createNeeds("northwind", o.online === undefined ? {} : { online: o.online });
   const comp = createComputer("working", o.online === undefined ? {} : { online: o.online });
+  const sleeping = o.asleep ? createPane("asleep", o.online === undefined ? {} : { online: o.online }) : null;
   const help = createHelper("done", o.online === undefined ? {} : { online: o.online });
 
   const replica = createFakeReplica("northwind");
@@ -198,11 +200,12 @@ export function createMountSample(o: { conversation?: ConversationVariant; who?:
   for (const id of ["chats.sidebar", "chats.all-agents", "home.needs-you-top3"]) hooks[id] = side.data.screens;
   hooks["chats.conversation"] = conv.data.screens;
   for (const id of ["chats.agent-page", "chats.agent-memory", "chats.right-pane"]) hooks[id] = agent.data.screens;
-  hooks["chats.agent-computer"] = agent.data.screens;
+  hooks["chats.agent-computer"] = (sleeping ?? agent).data.screens;
   hooks["tasks.needs-you"] = needs.data.screens;
   hooks["chats.computer-popup"] = comp.data.screens;
   hooks["chats.helper-chat"] = help.data.screens;
-  const screens: ScreenHooks = { query: (id, name, state) => (hooks[id] ?? own).query(id, name, state) };
+  // The agent pane reads the computer's steps through the popup's screen; the pane's own sample holds them.
+  const screens: ScreenHooks = { query: (id, name, state) => (id === "chats.computer-popup" && name === "timeline" ? (sleeping ?? agent).data.screens : hooks[id] ?? own).query(id, name, state) };
 
   const everyone: QueryState<Principal[]> = { status: "ready", data: PEOPLE };
   const principals: LiveQuery<Principal[]> = { subscribe: () => () => undefined, getSnapshot: () => everyone };

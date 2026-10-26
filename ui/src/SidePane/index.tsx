@@ -124,6 +124,8 @@ export interface PaneViewProps extends PaneProps {
   tabMenu?: (key: string) => readonly TabMenuExtra[];
   onPlus?: () => void;
   plusTitle?: string;
+  /** Tighter padding on pinned tabs, for a narrow pane that must fit four of them. */
+  tight?: boolean;
 }
 
 export interface SidePaneViewProps extends SidePaneProps, Omit<PaneViewProps, keyof PaneProps> {
@@ -163,6 +165,7 @@ function PaneHeader(props: PaneViewProps & { innerToggleHidden: boolean }): Reac
       tabs={list}
       active={activeTab ?? list[0]?.key ?? ""}
       label={title}
+      {...(props.tight === true ? { tight: true } : {})}
       {...(props.onSelectTab === undefined ? {} : { onSelect: props.onSelectTab })}
       {...(props.onCloseTab === undefined ? {} : { onClose: props.onCloseTab })}
       {...(props.onReorderTabs === undefined ? {} : { onReorder: props.onReorderTabs })}

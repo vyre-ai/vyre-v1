@@ -48,6 +48,7 @@ export function filesData(rt: ShellRuntime): FilesData {
       newFolder: (scope, parentId) => rt.open({ screen: "files.list", args: { newFolder: scope, ...(parentId ? { parentId } : {}) } }),
       openMemory: () => rt.open({ screen: "files.memory-proposed" }),
       openGraph: () => rt.open({ screen: "files.memory-graph" }),
+      resolveConflict: (fileId) => rt.open({ screen: "shell.conflicts-tab", args: { entity: "file", recordId: fileId } }),
     },
   };
 }

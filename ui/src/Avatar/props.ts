@@ -6,6 +6,8 @@ export type AvatarKind = "person" | "agent" | "assistant" | "automation" | "grou
 export interface AvatarProps {
   /** The name the face is seeded from. The same name draws the same face everywhere. */
   name: string;
+  /** The person's id. When given, the face (marble, Notionists face, tint, cache key) is seeded by it, so a rename keeps the face and two people with one name get two; the name then only gives the letters and the label. Without it the name seeds the face. */
+  seedId?: string | undefined;
   kind?: AvatarKind;
   /** Edge in px. Defaults to 18, the size of a list row face. */
   size?: number;

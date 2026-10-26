@@ -52,7 +52,7 @@ function AssigneeFace({ task, onOpen }: { task: Task; onOpen: (x: number, y: num
       onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
       style={[local.face, over && local.faceOver]}
     >
-      {task.assigned ? <Face name={name(task.assigned.id)} kind={kindOf(task.assigned)} size={20} /> : <View style={local.noOne} />}
+      {task.assigned ? <Face name={name(task.assigned.id)} seedId={task.assigned.id} kind={kindOf(task.assigned)} size={20} /> : <View style={local.noOne} />}
     </Pressable>
   );
 }

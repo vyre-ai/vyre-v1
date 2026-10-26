@@ -19,7 +19,7 @@ Launch a campaign (Gate act for agents, automations and humans alike)
 | HTTP | POST /v1/campaigns/launch |
 | MCP tool | campaigns_launch (automations) |
 | CLI | none |
-| Emits | campaign.launched |
+| Emits | campaign.launched, campaign.completed, campaign.replied, campaign.paused |
 
 ## Input
 

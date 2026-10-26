@@ -20,7 +20,7 @@ export interface TelCtx {
   now(): number;
   db: TelDb;
   emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
-  call(cap: string, input: unknown): Promise<unknown>;
+  call(cap: string, input: unknown, opts?: { traceId?: string }): Promise<unknown>;
   schedule?(at: number, cap: string, input: unknown): Promise<string>;
   log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
 }
