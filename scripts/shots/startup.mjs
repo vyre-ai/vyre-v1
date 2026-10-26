@@ -118,7 +118,13 @@ export async function main(argv) {
       }
     }
   } finally { /* profile below uses the same browser */ }
-  try { await coldProfile(browser, server.origin, args.route || "/home"); } catch (e) { console.log(`cold profile failed: ${e.message}`); }
+  // the profile reads function names, so it runs on an unminified export of the same app
+  try {
+    const profDist = path.join(appDir, "dist-prof");
+    if (!args["skip-export"]) { fs.rmSync(profDist, { recursive: true, force: true }); execSync("npx expo export --platform web --output-dir dist-prof --no-minify", { cwd: appDir, stdio: "inherit", env: exportEnv() }); }
+    const profServer = await serve(profDist, { spa: true });
+    try { await coldProfile(browser, profServer.origin, args.route || "/home"); } finally { profServer.close(); }
+  } catch (e) { console.log(`cold profile failed: ${e.message}`); }
   await browser.close(); server.close();
   console.log("\n| size | cpu | cold ms | warm ms | budget |\n|---|---:|---:|---:|---:|");
   for (const size of ["desktop", "phone"]) console.log(`| ${size} | ${CPU[size]}x | ${rows.find((r) => r.size === size && r.kind === "cold")?.ms?.toFixed(0)} | ${rows.find((r) => r.size === size && r.kind === "warm")?.ms?.toFixed(0)} | ${BUDGET_MS[size]} |`);

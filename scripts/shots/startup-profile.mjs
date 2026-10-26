@@ -35,5 +35,21 @@ export async function coldProfile(browser, origin, route, { cpu = 4, top = 18 } 
   console.log(`\nCold phone profile (4x CPU, sampled self time, ${(total / 1000).toFixed(0)} ms total, marks ${JSON.stringify(timing.marks)}, domContentLoaded ${timing.dcl}, load ${timing.load})`);
   console.log("| script | self ms |\n|---|---:|\n" + rows(byUrl));
   console.log("\n| function | self ms |\n|---|---:|\n" + rows(byFn));
+  // inclusive time: a node's own samples plus its children's; the heaviest path from the root and the heaviest functions (a function counts once per call stack, so recursion is not added twice)
+  const total = new Map();
+  const sumOf = (id) => { if (total.has(id)) return total.get(id); const n = byId.get(id); let t = self.get(id) || 0; for (const c of n.children || []) t += sumOf(c); total.set(id, t); return t; };
+  const root = profile.nodes[0];
+  sumOf(root.id);
+  const label = (n) => { const cf = n.callFrame; return `${cf.functionName || "(anon)"} ${(cf.url || "").split("/").pop().slice(0, 40)}:${cf.lineNumber + 1}`; };
+  const path = [];
+  for (let n = root, d = 0; n && d < 45; d++) {
+    path.push(`${"  ".repeat(Math.min(d, 12))}${label(n)}  total ${(total.get(n.id) / 1000).toFixed(0)} ms, self ${((self.get(n.id) || 0) / 1000).toFixed(0)} ms`);
+    n = (n.children || []).map((c) => byId.get(c)).sort((a, b) => total.get(b.id) - total.get(a.id))[0];
+  }
+  console.log("\nHeaviest call path:\n" + path.join("\n"));
+  const incl = new Map();
+  const walk = (id, seen) => { const n = byId.get(id), k = label(n); const fresh = !seen.has(k); if (fresh) incl.set(k, (incl.get(k) || 0) + total.get(id)); const next = fresh ? new Set(seen).add(k) : seen; for (const c of n.children || []) walk(c, next); };
+  walk(root.id, new Set());
+  console.log("\n| function (inclusive) | ms |\n|---|---:|\n" + [...incl.entries()].sort((a, b) => b[1] - a[1]).slice(0, 45).map(([k, us]) => `| ${k} | ${(us / 1000).toFixed(0)} |`).join("\n"));
   console.log("\nscript fetch (start-end ms): " + timing.res.map((r) => `${r.f} ${r.start}-${r.end}`).join("; "));
 }
