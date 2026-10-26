@@ -452,7 +452,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }),
         setEventsDispatch: () => system,
         // erase reaches the append-only log (P-CC_41): governance asks the log worker to tombstone payloads, and a restore replays the seqs it kept
-        setEventsCompact: () => ({ compact: (subject: Parameters<typeof spaceLog.compact>[0]) => spaceLog.compact(subject), compactSeqs: (seqs: readonly number[]) => spaceLog.compactSeqs(seqs) }),
+        setEventsCompact: () => {
+          // the sync tables keep field values of their own (sync_changes, sync_rows): blank them too, keeping the rows so device cursors and deletes still work
+          const blank = loaded.moduleExports.get("sync")?.["blankErased"] as ((db: unknown, scope: { ids?: readonly string[]; seqs?: readonly number[] }) => void) | undefined;
+          const scrub = (scope: { ids?: readonly string[]; seqs?: readonly number[] }): void => { try { if (db) blank?.(db, scope); } catch { /* sync is not live here, so there are no sync tables */ } };
+          return {
+            compact: async (subject: Parameters<typeof spaceLog.compact>[0]) => { const out = await spaceLog.compact(subject); scrub({ ids: (subject.entities ?? []).map((e) => e.id), seqs: out.erased }); return out; },
+            compactSeqs: async (seqs: readonly number[]) => { const out = await spaceLog.compactSeqs(seqs); scrub({ seqs: out.erased }); return out; },
+          };
+        },
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
         setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
         // the import module reads an Airtable or Notion key from the Vault by handle, for one call

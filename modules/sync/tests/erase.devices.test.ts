@@ -55,3 +55,33 @@ test("a device that never held the erased row hears nothing about it", async () 
   assert.deepEqual(fresh.changes, []);
   assert.deepEqual(pullHides(fresh), []);
 });
+
+import { blankErased } from "../erase.ts";
+
+test("erase blanks the values the sync tables keep, and keeps the rows: no change or row holds the person's text, the cursor still lands and the delete still reaches the device", async () => {
+  const access = buildAccess();
+  const s = openSync({ access: () => access, clock: () => NOW });
+  await s.store.define({ add_types: [CONTACT_TYPE] });
+  const id = mintRecordId();
+  const other = mintRecordId();
+  const rec = await s.store.create("contact", id, { name: "Pat Lee", email: "pat@client.example", phone: "+14155550177", region: "eu", stage: "lead", owner: ADA });
+  await s.store.create("contact", other, { name: "Maya Other", email: "maya@other.example", phone: "+1", region: "eu", stage: "lead", owner: ADA });
+  const laptop = await pull(s, ctx(ADA, "dev_laptop"), 0);
+  assert.equal(laptop.changes.length, 2);
+  await s.store.remove("contact", id, rec.version);
+
+  const dump = (): string => JSON.stringify([s.host.tx.all("SELECT * FROM sync_changes"), s.host.tx.all("SELECT * FROM sync_rows")]);
+  assert.ok(dump().includes("Pat Lee"), "before: the sync tables hold the values");
+  const changesBefore = (s.host.tx.all("SELECT seq FROM sync_changes") as unknown[]).length;
+  const rowsBefore = (s.host.tx.all("SELECT id FROM sync_rows") as unknown[]).length;
+
+  blankErased({ run: (sql, ...a) => s.host.tx.run(sql, ...a) }, { ids: [id] });
+
+  const after = dump();
+  for (const text of ["Pat Lee", "pat@client.example", "+14155550177"]) assert.equal(after.includes(text), false, `${text} is not in sync_changes or sync_rows`);
+  assert.ok(after.includes("Maya Other"), "another row keeps its own values");
+  assert.equal((s.host.tx.all("SELECT seq FROM sync_changes") as unknown[]).length, changesBefore, "no change row was dropped");
+  assert.equal((s.host.tx.all("SELECT id FROM sync_rows") as unknown[]).length, rowsBefore, "no row was dropped");
+  const next = await pull(s, ctx(ADA, "dev_laptop"), laptop.next);
+  assert.deepEqual(next.changes.map((c) => [c.op, c.id]), [["delete", id]], "the device that held the row still gets its delete");
+});
