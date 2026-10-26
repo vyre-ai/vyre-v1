@@ -1,0 +1,25 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_35-files-opened",
+      "route": "/m/P-L9_35?place=files&open=1",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='sidebar-back']",
+      "note": "Phone: a folder chosen in the Files sidebar. The body fills the screen with the Back arrow and the place name; the sidebar is gone. The prototype side is its Files place at the same width. A computer shows both."
+    },
+    {
+      "id": "P-L9_35-files-sidebar",
+      "route": "/m/P-L9_35?place=files",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='row-folder-fld_agents']",
+      "note": "Phone: the Files sidebar as the list, full width, with no body beside it. On a computer the sidebar sits left of the list."
+    },
+    {
+      "id": "P-L9_35-chats-opened",
+      "route": "/m/P-L9_35?place=chats",
+      "proto": "chat,channel-rivera,{skin}",
+      "waitFor": "[data-testid='shell-place']",
+      "note": "Phone: the Chats place with a conversation open. Chats draws its own sidebar, so this shows its current phone behaviour for comparison with the prototype's phone."
+    }
+  ]
+}

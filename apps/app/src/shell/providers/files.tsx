@@ -6,7 +6,9 @@ import type { ReactElement } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { FilesList, ListLoading } from "../../places/files/list/index.ts";
 import { FilesDataProvider, FilesStateProvider, FilesTree, TreeLoading } from "../../places/files/tree/index.ts";
+import { ReviewDataProvider } from "../../places/files/review/index.ts";
 import { filesData } from "./files-data.ts";
+import { reviewData } from "./files-review.ts";
 import { SidebarContent } from "../sidebar/index.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 
@@ -15,9 +17,10 @@ const TREE_W = 240;
 export default function FilesPlace(_props: { place: string }): ReactElement {
   const rt = useOptionalShellRuntime();
   const data = useMemo(() => (rt ? filesData(rt) : null), [rt]);
+  const review = useMemo(() => (rt ? reviewData(rt) : null), [rt]);
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < 720;
-  if (!data) {
+  if (!data || !review) {
     return (
       <View testID="files-place-loading" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
         {phone ? null : <View style={{ width: TREE_W }}><TreeLoading /></View>}
@@ -27,12 +30,14 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
   }
   return (
     <FilesDataProvider value={data}>
-      <FilesStateProvider>
-        <View testID="files-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-          <SidebarContent title="Files" searchPlaceholder="Search files">{(query, slot) => <FilesTree query={query} slot={slot} />}</SidebarContent>
-          <FilesList />
-        </View>
-      </FilesStateProvider>
+      <ReviewDataProvider value={review}>
+        <FilesStateProvider>
+          <View testID="files-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
+            <SidebarContent title="Files" searchPlaceholder="Search files">{(query, slot) => <FilesTree query={query} slot={slot} />}</SidebarContent>
+            <FilesList />
+          </View>
+        </FilesStateProvider>
+      </ReviewDataProvider>
     </FilesDataProvider>
   );
 }

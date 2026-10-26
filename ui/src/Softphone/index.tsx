@@ -832,7 +832,7 @@ export function Softphone(p: SoftphoneViewProps): ReactElement | null {
     </View>
   );
   switch (p.mode) {
-    case "incoming": return wrap(<Incoming {...p} via={from?.label ?? "your number"} />);
+    case "incoming": return wrap(<Incoming {...p} via={from?.num ?? from?.label ?? "your number"} />);
     case "live": case "held": return wrap(<CallBar {...p} />);
     case "ended": return wrap(<Ended {...p} />);
     case "dialer": return wrap(<Dialer {...p} />);

@@ -19,18 +19,22 @@ export function starKind(s: Star, typeOf: (recordId: string) => string | undefin
 /** People are shown as faces; everything else as a tile of its type. */
 const PEOPLE = new Set(["clients", "contacts", "agent", "hires"]);
 
-export function StarredGroup({ query, typeOf, onOpen, closed = false, onToggle }: {
+export function StarredGroup({ query, typeOf, onOpen, closed = false, onToggle, match }: {
   query: LiveQuery<StarsOut>;
   typeOf: (recordId: string) => string | undefined;
   onOpen: (s: Star) => void;
   closed?: boolean;
   onToggle?: () => void;
+  /** The sidebar's search: a star whose title this refuses is left out, and the group with it when none is left. */
+  match?: (title: string) => boolean;
 }): ReactElement | null {
   const snap = useSyncExternalStore(query.subscribe, query.getSnapshot, query.getSnapshot);
   if (snap.status !== "ready" || snap.data.stars.length === 0) return null;
+  const stars = match ? snap.data.stars.filter((x) => match(x.title)) : snap.data.stars;
+  if (stars.length === 0) return null;
   const rows: ReactElement[] = [];
   if (!closed) {
-    for (const s of snap.data.stars) {
+    for (const s of stars) {
       const kind = starKind(s, typeOf);
       const lead = PEOPLE.has(kind) ? <Face name={s.title} seedId={s.resource.id} size={18} /> : <TypeTile icon={typeIcon(kind)} hue={typeHue(kind)} />;
       rows.push(<Row key={`${s.resource.type}:${s.resource.id}`} id={`nav:star:${s.resource.id}`} title={s.title} leading={<View style={styles.glyph}>{lead}</View>} trailing={<View />} selected={false} onPress={() => onOpen(s)} />);
