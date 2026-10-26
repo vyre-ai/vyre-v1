@@ -134,9 +134,9 @@ test("erase a person end to end: found in every store, erased, and nothing of th
     world.transcriptPath = `chats/${chat}/transcript.md`;
     // a file that stands at the transcript path: the fake files.resolve answers with its id. The call to files.delete and files.purge is authorized against that file as a resource, so it must exist in Files for real
     // (an id the access snapshot does not know is hidden as permission.not_found, which the purge swallows as "nothing to remove").
-    const roots = await ok<{ folders: { id: string }[] }>(d, "/v1/files/list", { section: "space" });
-    const transcript = await ok<{ file: { id: string } }>(d, "/v1/files/create", { idempotencyKey: "erase-transcript-file", folderId: roots.folders[0]!.id, name: "transcript.md", content: { text: "Pat Lee is going through a divorce" } });
-    world.transcriptFileId = transcript.file.id;
+    const roots = await ok<{ folders: { folderId: string }[] }>(d, "/v1/files/list", { section: "space" });
+    const transcript = await ok<{ file: { fileId: string } }>(d, "/v1/files/create", { idempotencyKey: "erase-transcript-file", folderId: roots.folders[0]!.folderId, name: "transcript.md", content: { text: "Pat Lee is going through a divorce" } });
+    world.transcriptFileId = transcript.file.fileId;
     world.hits.push({ id: chat, kind: "chat", title: "Pat Lee" }, { id: channel, kind: "channel", title: "Pat Lee matter" });
     // ---- a text, a call with a recording, a mail message, their inbox entries
     for (const [id, who, body] of [["sms_pat00001", "+14155550177", "call me back about the divorce"], ["sms_other001", "+14155550188", "see you at noon"]] as const) {
