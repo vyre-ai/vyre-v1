@@ -4,10 +4,11 @@
 // DECISION: a job does only what a capability exists for, through ctx.call (modules are leaf nodes): trash purges files that have been in Trash longer than the retention (files.purge), audit moves rows
 // past the retention into the archive (audit.archive). run_logs, transcripts, file_versions, logs, events, backups, memory and records have no purge or compaction capability in the frozen contract yet, so
 // their job runs, removes nothing and says so; each is a contract gap for the steward (reported on the packet). A value that is not an age (forever, per_policy, the compound file-version rule) removes nothing.
-// DECISION: a job is scheduled for tomorrow the first time it runs and again each time its scheduled call fires; run now does the same work in a Run without adding a second schedule.
+// DECISION: seedTicks (called by the host's boot hook) gives every kind its first daily tick; a job is scheduled for tomorrow the first time it runs and again each time its scheduled call fires; run now does the same work in a Run without adding a second schedule.
 // DECISION: a hold on a file also covers it through its folders, and a hold on a person covers everything they own; a held item is skipped and counted, never removed.
 import { DEFS, HOLD_KINDS, KINDS, ageOf, bad, codeOf, ensure, finishRun, first, holdRow, isId, list, num, numOrNull, obj, pageOf, paging, refuse, rowsOf, startRun, str, text, missing } from "../projections.ts";
 import type { Def, GovCtx, HoldKind, Json, Kind, Row } from "../projections.ts";
+import { purgeKind } from "./erasers.ts";
 
 const DAY = 86_400_000;
 const VALUE = /^(forever|per_policy|[0-9]+[dwmy])$/;
@@ -215,7 +216,51 @@ async function work(ctx: GovCtx, kind: Kind, value: string): Promise<{ removed: 
   if (age === null) return { removed: 0, skipped: 0 };
   if (kind === "trash") return purgeTrash(ctx, age);
   if (kind === "audit") return { removed: num(obj(await ctx.call("audit.archive", { before: ctx.now() - age })) as Row, "archived"), skipped: 0 };
-  return { removed: 0, skipped: 0 };   // no purge or compaction capability for this kind yet (see the header)
+  // run_logs, transcripts, file_versions, logs, events, records and memory: the owning module's purger (erasers.ts). One that is not in the contract yet removes nothing and says so in the job's numbers.
+  const day = new Date(ctx.now()).toISOString().slice(0, 10);
+  const held = await heldFor(ctx, kind);
+  if (held.all) return { removed: 0, skipped: held.count };
+  const done = await purgeKind(ctx, kind, ctx.now() - age, day, held.extra);
+  return done.status === "purged" ? { removed: done.removed, skipped: (done.skipped ?? 0) + held.count } : { removed: 0, skipped: 0 };
+}
+
+/**
+ * What a hold keeps out of an age purge. Holds are governance's, so it tells the owning module. A kind it cannot map a hold onto safely is kept whole (`all`): a hold on a person covers everything they own,
+ * a hold on a folder covers files by their place, and the owning modules cannot answer that, so those kinds wait until the hold is released. Held files and threads are passed by id.
+ */
+export async function heldFor(ctx: GovCtx, kind: Kind): Promise<{ all: boolean; count: number; extra: Record<string, unknown> }> {
+  const holds = rowsOf(ctx.db.all(`SELECT * FROM gov_hold`));
+  const of = (k: string): string[] => holds.filter((h) => str(h, "kind") === k).map((h) => str(h, "targetId"));
+  if (kind === "file_versions") {
+    if (of("person").length > 0 || of("folder").length > 0) return { all: true, count: of("person").length + of("folder").length, extra: {} };
+    return { all: false, count: of("file").length, extra: of("file").length ? { skipFileIds: of("file") } : {} };
+  }
+  if (kind === "transcripts") {
+    if (of("person").length > 0) return { all: true, count: of("person").length, extra: {} };
+    const threads = [...of("thread")];
+    for (const channelId of of("channel")) {
+      try { const main = text(obj(obj(await ctx.call("channels.get", { channelId }))["channel"])["mainThreadId"]); if (main) threads.push(main); } catch (e) { if (codeOf(e) !== "validation.not_found") throw e; }
+    }
+    return { all: false, count: threads.length, extra: threads.length ? { skipThreadIds: threads } : {} };
+  }
+  if (kind === "run_logs" || kind === "records") return of("person").length > 0 ? { all: true, count: of("person").length, extra: {} } : { all: false, count: 0, extra: {} };
+  return { all: false, count: 0, extra: {} };
+}
+
+/** Boot: give every kind its first daily tick, so a Space that never pressed Run now still has retention running. A kind that already has a tick scheduled is left alone; calling this twice schedules nothing new. */
+export async function seedTicks(ctx: GovCtx): Promise<{ scheduled: number }> {
+  ensure(ctx);
+  if (!ctx.schedule) return { scheduled: 0 };
+  let scheduled = 0;
+  for (const kind of KINDS) {
+    const job = jobOf(ctx, kind);
+    if (job && numOrNull(job, "nextRunAt") !== null && num(job, "nextRunAt") > ctx.now()) continue;
+    const at = ctx.now() + DAY;
+    saveJob(ctx, kind, { nextRunAt: at });
+    await ctx.schedule(at, "governance.jobs.tick", { kind });
+    scheduled++;
+  }
+  return { scheduled };
 }
 
 /** One run of one job: the work, the numbers in the job row, the event, and the next day's call. */
