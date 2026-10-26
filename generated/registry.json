@@ -88498,7 +88498,8 @@
       "emits": [
         "password.reset",
         "keys.stored",
-        "signin.succeeded"
+        "signin.succeeded",
+        "signin.failed"
       ],
       "errors": [
         "auth.invalid_code",
