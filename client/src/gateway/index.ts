@@ -78,10 +78,11 @@ export function createCapCaller(o: CapCallerOptions): CapCall {
   let index: Promise<Map<string, RouteRow>> | null = null;
 
   return async function call(cap, input = {}, opts = {}) {
+    // The session token is read when the call is made, before anything is awaited: a session that ends while the route table loads must not send this call out without it.
+    const token = o.token();
     index ??= load().then(indexByCap);
     const route = (await index).get(cap);
     if (!route) throw new CapError({ code: "validation.unknown_capability", message: "There is no such endpoint.", traceId: "", status: 404, details: { cap } });
-    const token = o.token();
     const headers: Record<string, string> = { accept: "application/json" };
     if (token) headers["authorization"] = `Bearer ${token}`;
     if (opts.idempotencyKey) headers["idempotency-key"] = opts.idempotencyKey;

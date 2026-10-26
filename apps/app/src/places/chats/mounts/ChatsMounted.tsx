@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
+import { States } from "../../../../../../ui/src/States/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { Principal } from "../../home/sections-a/data.tsx";
@@ -121,7 +122,13 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   if (route.view === "needs") main = <NeedsYou data={needs} {...(route.taskId ? { initialSelected: route.taskId } : {})} {...(window ? { window } : {})} />;
   else if (route.view === "helper") main = helperId === "" ? <HelperChatLoading /> : <HelperChat key={helperId} data={helper} />;
   else if (route.view === "agent") main = agentId === "" ? <AgentPageLoading /> : <AgentPage key={agentId} data={agentPage} initialTab={route.tab ?? "chats"} {...(window ? { window } : {})} />;
-  else main = conv ? <Conversation key={conv.threadId} data={conv} /> : <ConversationLoading />;
+  else if (conv) main = <Conversation key={conv.threadId} data={conv} />;
+  else if (threadId === null && recent.status === "ready") {
+    // A Space with no chats yet: the shared empty state with the way to start one, not a skeleton for ever.
+    main = <States kind="empty" title="No chats yet. Start one with your assistant." icon="chat" action={{ label: "New chat", onPress: () => go.agentChat(rt.assistant.id) }} />;
+  } else if (threadId === null && recent.status === "loading" && recent.error) {
+    main = <States kind="error" message="Couldn't load your chats" cause={recent.error.message} {...(recent.error.traceId ? { traceId: recent.error.traceId } : {})} retryable />;
+  } else main = <ConversationLoading />;
 
   /* ---------- the right ---------- */
   let right: ReactElement | null = null;

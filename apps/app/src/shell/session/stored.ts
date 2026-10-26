@@ -4,7 +4,7 @@ import type { SpaceDef } from "../spaces/model.ts";
 
 const KEY = "vyre.session.v1";
 
-export interface StoredSession { baseUrl: string; token: string; def: SpaceDef; personId: string }
+export interface StoredSession { baseUrl: string; token: string; def: SpaceDef; personId: string; /** The sync epoch this device agreed with the server; absent until the first live hello. */ syncEpoch?: number }
 export interface KeyValueStore { getItem(k: string): string | null; setItem(k: string, v: string): void; removeItem(k: string): void }
 
 const browserStore = (): KeyValueStore | undefined => (globalThis as { localStorage?: KeyValueStore }).localStorage;

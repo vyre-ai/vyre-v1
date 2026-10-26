@@ -1,10 +1,55 @@
-// The live link of the open Space (ARCH 5.9), in the form the shell needs today: one WebSocket to the Space's server, authenticated by the session token in the query (host/src/ws.ts
-// accepts `?token=`), hello with the last seq seen, an ack for every numbered `ev` batch, a heartbeat, and a reconnect with backoff. Each batch tells the session "something changed"
-// and the session re-reads the queries on screen. The full connection manager (client/src/connection) is not used here: it expects a richer hello_ok than ws.ts sends today
-// (epoch, serverHlc, entityVersions), so it cannot complete a hello against the daemon yet. When both ends agree, this file is replaced by the manager and nothing else changes.
+// The live link of the open Space (ARCH 5.9): the client connection manager (client/src/connection) over a WebSocket to the Space's live socket (`/sync/v1/ws?token=`). The manager says
+// hello with the cursor, acks each numbered batch after it is applied, keeps the heartbeat, fails over between endpoints and reconnects with backoff. Here a batch only tells the session
+// "something changed" and the session re-reads the queries on screen; the replica that applies rows replaces that later. A server that answers anything but live (update required, resync)
+// leaves the link offline for the session, which then polls.
+import { createConnection, endpoint } from "../../../../../client/src/connection/index.ts";
+import type { Connection, Dial, Scheduler, Status, Transport } from "../../../../../client/src/connection/index.ts";
+
 export type LiveStatus = "connecting" | "live" | "offline";
 
-export interface SocketLike {
+export interface LiveLinkOptions {
+  /** The Space's address (http or https); the socket address is derived from it. */
+  baseUrl: string;
+  token(): string | null;
+  /** This device, from identity.whoami. */
+  deviceId: string;
+  /**
+   * The sync epoch this device last agreed with the server (kept in the stored session), or undefined on a fresh sign-in. It is NOT identity.whoami's epoch: that counts the key epochs,
+   * the server's purge test counts sync epochs. A fresh device has nothing local to wipe, so its first purge answer is the server telling it the current epoch: it adopts that and says hello
+   * again. A device that has agreed before is purged for real when its epoch is behind (a revoke, a bump), as before.
+   */
+  epoch?: number;
+  /** True when this device holds anything locally (a replica with rows). Adopting a purge answer's epoch is only for a device with nothing to wipe; the web shell keeps no replica, so the default is false. */
+  hasLocalData?(): boolean;
+  /** The epoch this device adopted from the server; the session keeps it for the next hello. */
+  onEpoch?(epoch: number): void;
+  /** The contract hash this build was made with; the server answers update_required when it is too old. */
+  registryHash: string;
+  appVersion?: string;
+  /** A numbered batch arrived: something in the Space changed. */
+  onChange(seq: number): void;
+  onStatus?(s: LiveStatus): void;
+  /** The server told this device to purge (a revoke or an epoch bump, ARCH 5.7); the manager halts after it. */
+  onPurge?(epoch: number): void;
+  /** Injectable for tests. */
+  dial?: Dial;
+  scheduler?: Scheduler;
+}
+
+export interface LiveLink { start(): void; stop(): void; status(): LiveStatus }
+
+/** ws(s)://host, the base the manager dials. */
+export function socketBase(baseUrl: string): string {
+  const u = new URL(baseUrl);
+  u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
+  u.pathname = "";
+  u.search = "";
+  return u.toString().replace(/\/$/, "");
+}
+
+export const socketPath = (base: string, token: string): string => `${base}/sync/v1/ws?token=${encodeURIComponent(token)}`;
+
+interface SocketLike {
   send(data: string): void;
   close(code?: number, reason?: string): void;
   onopen: (() => void) | null;
@@ -12,119 +57,88 @@ export interface SocketLike {
   onclose: (() => void) | null;
   onerror: (() => void) | null;
 }
-export type SocketFactory = (url: string) => SocketLike;
 
-export interface LiveLinkOptions {
-  /** The Space's address (http or https); the socket URL is derived from it. */
-  baseUrl: string;
-  token(): string | null;
-  /** A numbered batch arrived: something in the Space changed. */
-  onChange(seq: number): void;
-  onStatus?(s: LiveStatus): void;
-  /** The server told this device to purge ({t:"purge", epoch}: a revoke or an epoch bump, ARCH 5.7); the socket closes after it. */
-  onPurge?(epoch: number): void;
-  socket?: SocketFactory;
-  /** Injectable timers for tests. */
-  setTimer?(fn: () => void, ms: number): () => void;
-  heartbeatMs?: number;
-  backoffBaseMs?: number;
-  backoffCapMs?: number;
-}
-
-export interface LiveLink { start(): void; stop(): void; status(): LiveStatus }
-
-export function socketUrl(baseUrl: string, token: string): string {
-  const u = new URL(baseUrl);
-  u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
-  u.pathname = "/live";
-  u.search = `?token=${encodeURIComponent(token)}`;
-  return u.toString();
-}
-
-const platformSocket: SocketFactory = (url) => {
-  const WS = (globalThis as { WebSocket?: new (u: string) => SocketLike }).WebSocket;
-  if (!WS) throw new Error("no WebSocket on this platform");
-  return new WS(url);
-};
-
-const defaultTimer = (fn: () => void, ms: number): (() => void) => { const h = setTimeout(fn, ms); return () => clearTimeout(h); };
-
-export function createLiveLink(o: LiveLinkOptions): LiveLink {
-  const timer = o.setTimer ?? defaultTimer;
-  const hbMs = o.heartbeatMs ?? 15_000;
-  const base = o.backoffBaseMs ?? 500;
-  const cap = o.backoffCapMs ?? 30_000;
-  let status: LiveStatus = "offline";
-  let wanted = false;
-  let sock: SocketLike | null = null;
-  let cursor = 0;
-  let attempts = 0;
-  let cancelRetry: (() => void) | null = null;
-  let cancelBeat: (() => void) | null = null;
-
-  const set = (s: LiveStatus): void => { if (s !== status) { status = s; o.onStatus?.(s); } };
-
-  const beat = (): void => {
-    cancelBeat?.();
-    cancelBeat = timer(() => { try { sock?.send(JSON.stringify({ t: "hb" })); } catch { /* the close handler retries */ } beat(); }, hbMs);
-  };
-
-  const retry = (): void => {
-    cancelBeat?.();
-    cancelBeat = null;
-    sock = null;
-    set("offline");
-    if (!wanted) return;
-    const wait = Math.min(cap, base * 2 ** Math.min(attempts, 10));
-    attempts++;
-    cancelRetry = timer(open, wait);
-  };
-
-  function open(): void {
-    cancelRetry = null;
-    const token = o.token();
-    if (!wanted || !token) return;
-    set("connecting");
-    let s: SocketLike;
-    try { s = (o.socket ?? platformSocket)(socketUrl(o.baseUrl, token)); } catch { retry(); return; }
-    sock = s;
-    s.onopen = () => { s.send(JSON.stringify({ t: "hello", cursor })); };
-    s.onmessage = (e) => {
+/** A WebSocket as the manager's Transport. Rejects when the socket cannot open. */
+export function webSocketDial(token: () => string | null): Dial {
+  return (ep, signal) => new Promise<Transport>((resolve, reject) => {
+    const t = token();
+    const WS = (globalThis as { WebSocket?: new (u: string) => SocketLike }).WebSocket;
+    if (!t || !WS) { reject(new Error(t ? "no WebSocket on this platform" : "not signed in")); return; }
+    const ws = new WS(socketPath(ep.url, t));
+    const frames: ((f: unknown) => void)[] = [];
+    const closes: ((reason: string) => void)[] = [];
+    let opened = false;
+    ws.onopen = () => {
+      opened = true;
+      resolve({
+        send: (f) => ws.send(JSON.stringify(f)),
+        close: (reason) => { try { ws.close(1000, reason); } catch { /* already closed */ } },
+        onFrame: (cb) => { frames.push(cb); },
+        onClose: (cb) => { closes.push(cb); },
+      });
+    };
+    ws.onmessage = (e) => {
       if (typeof e.data !== "string") return;
       let f: unknown;
       try { f = JSON.parse(e.data); } catch { return; }
-      if (f === null || typeof f !== "object") return;
-      const t = (f as { t?: unknown }).t;
-      if (t === "purge") {
-        const epoch = (f as { epoch?: unknown }).epoch;
-        o.onPurge?.(typeof epoch === "number" ? epoch : 0);
-        return;
-      }
-      if (t === "hello_ok") { attempts = 0; set("live"); beat(); return; }
-      if (t === "ev") {
-        const seq = (f as { seq?: unknown }).seq;
-        if (typeof seq === "number") {
-          if (seq > cursor) cursor = seq;
-          try { s.send(JSON.stringify({ t: "ack", seq })); } catch { /* the close handler retries */ }
-          o.onChange(seq);
-        }
-      }
+      for (const cb of frames) cb(f);
     };
-    s.onclose = () => { if (sock === s) retry(); };
-    s.onerror = () => { /* onclose follows */ };
-  }
+    ws.onclose = () => { if (!opened) reject(new Error("closed before it opened")); for (const cb of closes) cb("closed"); };
+    ws.onerror = () => { /* onclose follows */ };
+    signal.addEventListener("abort", () => { try { ws.close(1000, "superseded"); } catch { /* closed */ } }, { once: true });
+  });
+}
 
-  return {
-    start() { if (wanted) return; wanted = true; attempts = 0; open(); },
+const toLive = (s: Status): LiveStatus => (s === "live" ? "live" : s === "connecting" || s === "reconnecting" ? "connecting" : "offline");
+
+export function createLiveLink(o: LiveLinkOptions): LiveLink {
+  let status: LiveStatus = "offline";
+  let cursor = 0;
+  let conn: Connection | null = null;
+  let epoch = o.epoch ?? 0;
+  let trusted = o.epoch !== undefined;
+  let adopted = false;
+  const set = (s: LiveStatus): void => { if (s !== status) { status = s; o.onStatus?.(s); } };
+
+  const link: LiveLink = {
+    start() {
+      if (conn) return;
+      conn = createConnection({
+        space: o.baseUrl,
+        endpoints: [endpoint("direct", socketBase(o.baseUrl))],
+        dial: o.dial ?? webSocketDial(o.token),
+        hello: () => ({ deviceId: o.deviceId, deviceClass: "web", appVersion: o.appVersion ?? "0.0.0", registryHash: o.registryHash, epoch, replica: { entities: {} } }),
+        cursor: { get: () => cursor, set: (n) => { cursor = n; } },
+        apply: (batch) => { o.onChange(batch.seq); },
+        ...(o.scheduler ? { scheduler: o.scheduler } : {}),
+        on: {
+          status: (s) => set(toLive(s)),
+          purge: (e) => {
+            // Adopt only when all three hold: no agreed epoch yet, an empty local replica (cursor 0, nothing held) and this is the first hello of this session. Anything else is a real purge.
+            if (!trusted && !adopted && cursor === 0 && !(o.hasLocalData?.() ?? false)) {
+              // a fresh device: nothing here to wipe, so adopt the server's epoch and say hello again
+              trusted = true;
+              adopted = true;
+              epoch = e;
+              o.onEpoch?.(e);
+              const old = conn;
+              conn = null;
+              queueMicrotask(() => { old?.stop(); restart(); });
+              return;
+            }
+            o.onPurge?.(e);
+          },
+        },
+      });
+      conn.start();
+    },
     stop() {
-      wanted = false;
-      cancelRetry?.();
-      cancelBeat?.();
-      const s = sock;
-      sock = null;
-      try { s?.close(1000, "bye"); } catch { /* already closed */ }
+      conn?.stop();
+      conn = null;
       set("offline");
     },
     status: () => status,
   };
+  const restart = (): void => link.start();
+  return link;
 }
