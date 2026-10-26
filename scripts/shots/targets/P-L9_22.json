@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_22-home-sidebar",
+      "route": "/m/P-L9_22",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='home-sidebar']",
+      "note": "The shared place sidebar with the Home content: title and collapse button, the search field, Home, My work with Assigned by you and Runs, then the Starred, Following and Recent folders. On a phone it fills the screen as the landing list."
+    },
+    {
+      "id": "P-L9_22-collapsed",
+      "route": "/m/P-L9_22?collapsed=1",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='sidebar-expand']",
+      "note": "The sidebar collapsed (remembered on this device): the place body takes the width and a button at its left edge brings the sidebar back. The prototype side is its Home with the sidebar open; the collapse state has no prototype frame."
+    }
+  ]
+}

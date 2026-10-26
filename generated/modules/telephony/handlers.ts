@@ -7,6 +7,7 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "telephony.answer": Handler<"telephony.answer", X>;
   "telephony.call.attach_summary": Handler<"telephony.call.attach_summary", X>;
+  "telephony.call.erase": Handler<"telephony.call.erase", X>;
   "telephony.call.get": Handler<"telephony.call.get", X>;
   "telephony.call.list": Handler<"telephony.call.list", X>;
   "telephony.call.log_task": Handler<"telephony.call.log_task", X>;
@@ -34,6 +35,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "telephony.registration.save": Handler<"telephony.registration.save", X>;
   "telephony.registration.submit": Handler<"telephony.registration.submit", X>;
   "telephony.send_sms": Handler<"telephony.send_sms", X>;
+  "telephony.sms.erase": Handler<"telephony.sms.erase", X>;
   "telephony.sms.list": Handler<"telephony.sms.list", X>;
   "telephony.transfer": Handler<"telephony.transfer", X>;
   "telephony.voice_token": Handler<"telephony.voice_token", X>;

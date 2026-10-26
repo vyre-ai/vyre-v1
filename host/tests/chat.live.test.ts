@@ -31,7 +31,7 @@ function seededDir(): string {
 const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
 const skip: string | false = ON ? false : "needs VYRE_HEAVY_DOCKER=1 (the CLI runs in the real sandbox)";
 const FAKE_CLI = fileURLToPath(new URL("./fixtures/fake-cli-driver/fake-cli.mjs", import.meta.url));
-const KEY = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ";
+const KEY = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"; // secret-scan: fake
 
 async function boot(dir: string): Promise<Daemon> {
   return startDaemon({

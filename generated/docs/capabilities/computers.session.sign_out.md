@@ -19,7 +19,7 @@ Sign out of a site on the profile disk
 | HTTP | POST /v1/computers/session/sign_out |
 | MCP tool | computers_session_sign_out (computer) |
 | CLI | none |
-| Emits | computer.session_signed_out |
+| Emits | computer.session_signed_out, computer.started |
 
 ## Input
 

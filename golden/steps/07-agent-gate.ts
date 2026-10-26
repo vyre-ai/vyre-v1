@@ -14,7 +14,7 @@ export const GATE_GAPS: Gap[] = [
   { packet: "L2 engine (steward)", lane: "L2", what: "the same as the reply half: the agent never answers the 'send pat@acme.test <mailbox>' message, so no mail_send reaches the Gate and no hold appears within 40 s" },
 ];
 
-const TOKEN = "sk-ant-oat01-GOLDENFAKE0123456789abcdefXYZ";
+const TOKEN = "sk-ant-oat01-GOLDENFAKE0123456789abcdefXYZ"; // secret-scan: fake
 type Hold = { id: string; taskId: string; state: string; capName?: string };
 
 export async function runAgentGate(live: readonly string[], opts: Parameters<typeof bootFlowSpace>[1] = {}): Promise<{ events: Observed[]; trail: Trail }> {

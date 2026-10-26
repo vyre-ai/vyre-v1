@@ -9,7 +9,7 @@ import { consumers, handlers } from "../impl.ts";
 const mine = registry.capabilities.filter((c) => c.module === "records").map((c) => c.name).sort();
 
 test("records live: every capability of the manifest has a handler, and no handler is outside it", () => {
-  assert.equal(mine.length, 29);
+  assert.equal(mine.length, 31);
   assert.deepEqual(Object.keys(handlers).sort(), mine);
   for (const name of mine) assert.equal(typeof (handlers as Record<string, unknown>)[name], "function", `${name} has a handler function`);
 });
