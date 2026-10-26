@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { NOW, kit } from "../fixtures/kit.ts";
 import type { Kit } from "../fixtures/kit.ts";
 import { ensureSyncTables } from "../handlers/sync.ts";
-import { ACTIVE_WINDOW_MS, DEFAULT_POLLING, DORMANT_AFTER_MS, conflictDefault, dueSyncs, runDue, useStateOf } from "../handlers/cadence.ts";
+import { ACTIVE_WINDOW_MS, DEFAULT_POLLING, DORMANT_AFTER_MS, USE_WRITE_EVERY_MS, conflictDefault, dueSyncs, noteUse, runDue, usedAtOf, useStateOf } from "../handlers/cadence.ts";
 import { periodic } from "../impl.ts";
 
 const SOURCES_SQL = readFileSync(new URL("../../sources/migrations/0001_sources.sql", import.meta.url), "utf8");
@@ -129,4 +129,33 @@ test("a new synced type's conflict rule is newest, but asks when it mirrors a se
   assert.equal(conflictDefault([f("ssn", "off")], undefined), "newest", "a sensitive field that is Off is not mirrored, so nothing to ask about");
   assert.equal(conflictDefault([f("ssn")], "vyre"), "vyre", "a rule the person chose is kept");
   void NOW;
+});
+
+test("a type a person read polls at 2 minutes and one nobody read at 15; reading is written at most once a minute", () => {
+  const k = world();
+  const read = bind(k, "read_t", { lastRun: NOON - 3 * MIN });
+  const unread = bind(k, "unread_t", { lastRun: NOON - 3 * MIN });
+  assert.equal(usedAtOf(k.tx, "read_t"), undefined);
+  noteUse(k.tx, "read_t", NOON - MIN);
+  assert.equal(usedAtOf(k.tx, "read_t"), NOON - MIN);
+  assert.deepEqual(dueSyncs({ tx: k.tx, now: () => NOON }).map((x) => [x.syncTypeId, x.useState]), [[read, "active"]], "the one somebody read is due at 3 minutes, the other is not");
+  assert.ok(!dueSyncs({ tx: k.tx, now: () => NOON }).some((x) => x.syncTypeId === unread));
+  assert.deepEqual(dueSyncs({ tx: k.tx, now: () => NOON + 13 * MIN }).map((x) => x.syncTypeId).sort(), [read, unread].sort(), "the unread type is due at 15 minutes");
+  noteUse(k.tx, "read_t", NOON - MIN + 10_000);
+  assert.equal(usedAtOf(k.tx, "read_t"), NOON - MIN, "a second look inside a minute writes nothing");
+  noteUse(k.tx, "read_t", NOON - MIN + USE_WRITE_EVERY_MS);
+  assert.equal(usedAtOf(k.tx, "read_t"), NOON - MIN + USE_WRITE_EVERY_MS, "and one a minute later does");
+  assert.equal(useStateOf(NOON - MIN + USE_WRITE_EVERY_MS + ACTIVE_WINDOW_MS + 1, NOON + 20 * MIN), "idle");
+});
+
+test("looking at a synced type through sync_types.get and sync_types.log marks it as in use", async () => {
+  const k = world();
+  k.tx.exec("DELETE FROM cn_synced_types");
+  bind(k, "viewed_t");
+  assert.equal(usedAtOf(k.tx, "viewed_t"), undefined);
+  await k.hs["sync_types.get"](k.ctx, { type: "viewed_t" });
+  assert.equal(usedAtOf(k.tx, "viewed_t"), k.clock.t);
+  k.tx.run("DELETE FROM cn_type_use");
+  await k.hs["sync_types.log"](k.ctx, { type: "viewed_t" });
+  assert.equal(usedAtOf(k.tx, "viewed_t"), k.clock.t);
 });

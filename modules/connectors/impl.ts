@@ -79,7 +79,7 @@ export const handlers = Object.fromEntries(NAMES.map((n) => [n, adapt(n)])) as R
 export { createConnectorsHandlers };
 export { executeAction, runCases, diffDefs, noteSchemaChanges, syncRequest } from "./handlers/index.ts";
 
-export { DEFAULT_POLLING, dueSyncs, runDue, useStateOf, conflictDefault } from "./handlers/cadence.ts";
+export { DEFAULT_POLLING, dueSyncs, runDue, useStateOf, conflictDefault, noteUse, usedAtOf } from "./handlers/cadence.ts";
 
 /**
  * Cursor polling (spec 2.10): every 30 seconds the host asks which synced types are due (2 min in use, 15 idle, 1 h dormant; a nightly reconcile) and starts one run for each through

@@ -7,7 +7,7 @@
 // The engine's tables (sy_log, sy_outbox, sy_conflicts, sy_state) are read here and the outbox and conflict status flips below are the only writes to them.
 // @reads /modules/connectors/migrations/0001_connectors.sql
 // @reads /modules/sources/migrations/0001_sources.sql
-import { DEFAULT_POLLING, conflictDefault } from "./cadence.ts";
+import { DEFAULT_POLLING, conflictDefault, noteUse } from "./cadence.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { ensureTables, mintShort, nowOf, PAGE, refuse, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
@@ -262,7 +262,11 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       return { syncedTypes: rows.slice(start, start + limit).map(rowOf), ...(start + limit < rows.length ? { next: String(start + limit) } : {}), total: rows.length };
     },
 
-    "sync_types.get": async (ctx, input) => ({ syncedType: rowOf(dbByType(ctx, input.type)) }),
+    "sync_types.get": async (ctx, input) => {
+      const r = dbByType(ctx, input.type);
+      noteUse(tx, r.type, nowOf(deps));   // a person looking at a type is what puts it on the 2 minute tier
+      return { syncedType: rowOf(r) };
+    },
 
     "sync_types.discover": async (ctx, input) => {
       prep();
@@ -358,6 +362,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
 
     "sync_types.log": async (ctx, input) => {
       const r = dbByType(ctx, input.type);
+      noteUse(tx, r.type, nowOf(deps));
       if (!has("sy_log")) return { entries: [], total: 0 };
       const total = count("SELECT count(*) AS n FROM sy_log WHERE sync_type = ?", r.sync_type_id);
       const { start, limit } = PAGE(input);

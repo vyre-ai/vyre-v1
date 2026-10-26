@@ -1,7 +1,7 @@
 // Sync cadence (spec 2.10: cursor polling 2 min in use, 15 min idle, 1 h dormant, plus a nightly reconcile). Nothing else calls connectors.sync_now on a timer; the periodic hook in impl.ts
 // asks `dueSyncs` which synced types are due and starts one run for each through the same capability a person uses, so the Gate, the permissions and the audit all apply.
-// "In use" is read from a signal the host can hand over (`usedAt`: the last time a person looked at the type); without one every type counts as idle, never as active, so nothing polls
-// faster than a person asked for.
+// "In use" is the last time a person looked at the type (noteUse, written by sync_types.get and sync_types.log, at most once a minute), or a signal the host hands over (`usedAt`); a type
+// nobody has looked at counts as idle, never as active, so nothing polls faster than a person asked for.
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import type { ConflictRule, FieldMapRow, PollingRow, SyncMode } from "./sync.ts";
 
@@ -28,6 +28,30 @@ const SENSITIVE = /(ssn|social_security|password|passwd|secret|token|tax_?id|bir
 export function conflictDefault(fields: readonly FieldMapRow[], given: ConflictRule | undefined): ConflictRule {
   if (given !== undefined) return given;
   return fields.some((f) => f.dir !== "off" && (SENSITIVE.test(f.remote) || SENSITIVE.test(f.key))) ? "ask" : "newest";
+}
+
+// ---- in use ----
+
+/** A person looking at a type is written at most once a minute: the cheapest real signal for the 2 minute tier. */
+export const USE_WRITE_EVERY_MS = 60_000;
+const USE_SQL = "CREATE TABLE IF NOT EXISTS cn_type_use (type TEXT PRIMARY KEY, at INTEGER NOT NULL)";
+const useReady = new WeakSet<object>();
+function ensureUse(tx: Tx): void {
+  if (useReady.has(tx)) return;
+  tx.exec(USE_SQL);
+  useReady.add(tx);
+}
+/** Record that a person just looked at this synced type (its page, its log). Throttled to one write a minute. */
+export function noteUse(tx: Tx, type: string, now: number): void {
+  ensureUse(tx);
+  const have = tx.get<{ at: number }>("SELECT at FROM cn_type_use WHERE type = ?", type);
+  if (have && now - have.at < USE_WRITE_EVERY_MS) return;
+  tx.run("INSERT INTO cn_type_use (type, at) VALUES (?, ?) ON CONFLICT(type) DO UPDATE SET at = excluded.at", type, now);
+}
+/** When a person last looked at this synced type, or undefined when nobody has. */
+export function usedAtOf(tx: Tx, type: string): number | undefined {
+  ensureUse(tx);
+  return tx.get<{ at: number }>("SELECT at FROM cn_type_use WHERE type = ?", type)?.at;
 }
 
 export interface DueSync { syncTypeId: string; type: string; mode: Extract<SyncMode, "incremental" | "reconcile">; useState: UseState; slot: number }
@@ -59,7 +83,7 @@ export function dueSyncs(d: CadenceDeps): DueSync[] {
     if (!conn || conn.state === "needs_reconnect" || conn.state === "paused" || conn.state === "pending") continue;
     // the last turn this type had: a run the engine finished, or a run already asked for (so a slow run is not asked for again)
     const last = Math.max(r.created_at, r.last_run_at ?? 0, r.last_req_at ?? 0);
-    const use = useStateOf(d.usedAt?.(r.type), now);
+    const use = useStateOf((d.usedAt ?? ((t: string) => usedAtOf(d.tx, t)))(r.type), now);
     const polling = JSON.parse(r.polling) as PollingRow;
     const nightlyDue = r.nightly === 1 && now >= dayStart + NIGHTLY_HOUR_UTC * 3_600_000 && (r.last_reconcile_at ?? 0) < dayStart + NIGHTLY_HOUR_UTC * 3_600_000;
     if (nightlyDue) { out.push({ syncTypeId: r.sync_type_id, type: r.type, mode: "reconcile", useState: use, slot: Math.floor(now / 86_400_000) }); continue; }
