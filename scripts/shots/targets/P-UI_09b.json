@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-UI_09b-row-leadin",
+      "route": "/m/P-UI_09b",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid='rows']",
+      "note": "The shared Row with a lead-in before its note (Draft ready and Waiting on you in the accent, Unsure match in the warning colour) and star and bell marks after the title. The prototype side is its Inbox list in the same skin: rows of the same shape."
+    }
+  ]
+}
