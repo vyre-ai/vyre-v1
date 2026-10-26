@@ -17,8 +17,7 @@ const CONTACT = {
 
 /** Why this flow is a todo today (ruling 53). */
 export const GAPS: Gap[] = [
-  { packet: "P-L7_15 (L7)", lane: "L7", what: "governance.erase.find answers 404 'There is no conversation with that person yet' when inbox.thread has nothing for the contact; a missing conversation must read as an empty one" },
-  { packet: "P-L7b_18 (L7b)", lane: "L7b", what: "the restore steps are not reached yet; backup.list now lists the run" },
+  { packet: "unassigned (lead)", lane: "L7b", what: "every step passes, but tombstones.reapplied never appears: a live restore only stages the archive (host/src/seams/backup.ts restore) and governance.tombstones.reapply runs when the Space reopens, which this flow never does; the erased-contact step passes only because the live data was never replaced" },
 ];
 
 export async function runRestore(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
@@ -54,7 +53,7 @@ export async function runRestore(live: readonly string[]): Promise<{ events: Obs
       return out.findingId as string;
     }, ["a contact is created"]);
     await trail.step("the contact is erased and a tombstone is written", async () => {
-      expectStatus(await s.call("governance.erase.apply", admin, { findingId: finding! }), 200, "governance.erase.apply");
+      expectStatus(await s.call("governance.erase.apply", admin, { idempotencyKey: "golden-11-erase", findingId: finding!, include: ["records"] }), 200, "governance.erase.apply");
       const r = await s.call("records.get", admin, { type: "contact", recordId: rec! });
       assert.equal(r.status, 404, `records.get after the erase: ${r.status}`);
       const t = expectStatus(await s.call("governance.tombstones.list", admin, {}), 200, "governance.tombstones.list").tombstones as unknown[];
