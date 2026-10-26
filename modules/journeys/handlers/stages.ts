@@ -230,10 +230,11 @@ async function onEnter(ctx: JourneysCtx, j: Journey, rec: JRecord, stage: Stage,
       }
     } catch { /* the Journey record is in the stage; the missing task shows in the module that failed */ }
   }
-  // a stage that makes a project gives the record its own Project (record, channel, folder, plan); once per record, however often it comes back to the stage
+  // a stage that makes a project gives the record its own Project (record, channel, folder, plan); once per record, however often it comes back to the stage.
+  // The title is not the Journey record's channel name ("<Journey> <suffix>"): the Project's channel takes its title as a name and a channel name is unique.
   if (stage.makesProject) {
     try {
-      await ctx.call("projects.create", { type: "project", title: `${j.name} ${rec.recordId.slice(-6)}`, idempotencyKey: `jrn-project:${rec.recordId}` });
+      await ctx.call("projects.create", { type: "project", title: `${j.name} project ${rec.recordId.slice(-6)}`, idempotencyKey: `jrn-project:${rec.recordId}` });
     } catch (e) {
       // the Journey carries on, but never silently: the reason goes to the log with the trace id and to the Journey owner as a task
       const err = (e as { error?: { message?: string; code?: string; details?: unknown } } | null)?.error;

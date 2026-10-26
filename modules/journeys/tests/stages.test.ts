@@ -175,7 +175,9 @@ test("a stage that makes a project gives the record a Project once; a stage that
   const rec = await begin(h, j, "rec_s2");
   assert.equal(made.length, 1);
   assert.equal(made[0]!.type, "project");
-  assert.match(String(made[0]!.title), /^Client onboarding /);
+  assert.match(String(made[0]!.title), /^Client onboarding project [a-z0-9_]+$/);
+  const journeyChannel = h.only("channels.create").find((c) => c.input.recordId === rec)!.input.name;
+  assert.notEqual(made[0]!.title, journeyChannel, "the Project's channel must not take the name of the Journey record's channel");
   assert.equal(made[0]!.idempotencyKey, `jrn-project:${rec}`, "one project per record");
   const h2 = harness({ calls: { "projects.create": () => { throw Object.assign(new Error("x"), { error: { code: "validation.bad_input", message: "projects is down", details: { errors: ["/title: too short"] } } }); } } });
   const j2 = await mk(h2, { stages: threeStages({ intake: { makesProject: true, tasks: [] } }) });
