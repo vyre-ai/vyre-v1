@@ -256,6 +256,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // hands them over, adopts the snapshot it answers and runs after every commit that may have changed access, so the next call already sees a join, a role change, a share or a removal.
   let accessPending: { seq: number; type: string; payload: unknown }[] = [];
   let syncAccess: (force?: boolean) => Promise<void> = async () => {};
+  let accessStale = false, kicking = false;
+  /** While the snapshot is stale only the owner is answered, and each refused call tries the sync again, so the Space heals itself as soon as the module can take the events. */
+  const staleFor = (principal: string): boolean => {
+    if (!accessStale || principal === (cfg.owner ?? access.owner())) return false;
+    if (!kicking) { kicking = true; void syncAccess(true).catch(() => {}).finally(() => { kicking = false; }); }
+    return true;
+  };
 
   const writeProbe = (name: ProbeName, r: ProbeResult): void => {
     probeState.set(name, r);
@@ -387,7 +394,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         caps: indexCapabilities(caps),
         validateInput: (cap, v, input) => (extraCaps.has(cap) ? [] : validateInput(cap, v, input)),
         validateEvent: (name, payload) => (extraEvents.has(name) ? [] : validateEvent(name, payload)),
-        authorize: (r) => authorize(access.snap, r),
+        authorize: (r) => {
+          if (staleFor(r.principal)) throw fail("internal.unavailable", ZERO_TRACE, { message: "Access is being re-checked on this server. Try again in a moment." });
+          return authorize(access.snap, r);
+        },
         resolveItem: (type, kind, value) => resolveVaultItem(db!, type, kind, value),
         handler: (cap, v) => {
           const h = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
@@ -441,13 +451,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       await hookRunner.start();
       syncAccess = async (force) => {
         const events = accessPending;
-        if (!events.length && !force && access.adopted()) return;
+        if (!events.length && !force && access.adopted() && !accessStale) return;
         accessPending = [];
-        try { access.adopt((await hookRunner.call("access.sync", { events })) as AccessSnapshot); } catch (e) {
-          accessPending = [...events, ...accessPending];   // the module could not take them: keep them for the next pass and keep answering from the last snapshot
-          sink.log({ space: spaceId, level: 40, msg: "access.sync_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } });
-          if (!access.adopted()) throw e;   // a Space that never had the module's snapshot cannot answer; later, the last good snapshot stands and the next commit tries again
+        const attempt = async (): Promise<void> => { access.adopt((await hookRunner.call("access.sync", { events })) as AccessSnapshot); };
+        try { await attempt(); } catch {
+          try { await attempt(); } catch (e) {
+            accessPending = [...events, ...accessPending];   // the module could not take them: keep them for the next pass
+            const error = e instanceof Error ? e.message : String(e);
+            sink.log({ space: spaceId, level: 50, msg: "access.sync_failed", place: "boot", attrs: { error, stale: access.adopted() } });
+            if (!access.adopted()) throw e;   // a Space that never had the module's snapshot cannot answer
+            // Fail closed (ruling 70): the last snapshot may still let a revoked or removed person through, so everyone but the owner is refused until a sync succeeds.
+            accessStale = true;
+            return;
+          }
         }
+        accessStale = false;
       };
       await syncAccess();
       // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
@@ -597,7 +615,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       blobRoute = createBlobRoute({
         space: spaceId, store: blobs,
         session: async (h) => { const s = await session(h); return s ? { space: s.space, principal: s.principal, ...(s.actingFor ? { actingFor: s.actingFor } : {}) } : null; },
-        allow: (c, r) => authorize(access.snap, { principal: c.principal.id, ...(c.actingFor ? { actingFor: c.actingFor } : {}), action: { perm: null, level: "view" }, resource: { type: r.type, id: r.id } }).effect === "allow",
+        allow: (c, r) => !staleFor(c.principal.id) && authorize(access.snap, { principal: c.principal.id, ...(c.actingFor ? { actingFor: c.actingFor } : {}), action: { perm: null, level: "view" }, resource: { type: r.type, id: r.id } }).effect === "allow",
       });
       routeIndex = indexRoutes([...routes, ...(o.extra?.routes ?? [])]);   // a duplicate route is a boot error, not a first-request error
       capIndex = indexCapabilities(caps);

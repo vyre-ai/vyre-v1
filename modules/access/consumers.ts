@@ -5,6 +5,7 @@
 // store makes the replay safe at every boot: an event at or below it is already applied, so a revoke made since is never undone by a restart.
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import type { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
+import { isElevatedRole } from "../../kernel/src/authorize/snapshot.ts";
 import { AccessStore, EVERYONE, labelOf, storeOf } from "./projections.ts";
 import type { AccessCtx, Cond, GrantRec, Level, PKind, Ref, Status, SubjectKind } from "./projections.ts";
 
@@ -155,16 +156,34 @@ function apply(ctx: AccessCtx, store: AccessStore, events: readonly LogEvent[]):
   return { cursor, changed };
 }
 
+const GRANTED = new WeakSet<AccessSnapshot>();
+
+/**
+ * A role carries permissions; the Space-level grant is what lets them act. The seeded roles arrive with one, a role made through access.roles.create (and the built-in rol_* ones) does
+ * not, so each role that holds permissions and has no Space grant of its own gets one here: Manage for Owner and Admin, Edit for the rest. A role with no permissions confers nothing.
+ */
+function withRoleGrants(snap: AccessSnapshot, store: AccessStore, space: string): AccessSnapshot {
+  if (GRANTED.has(snap)) return snap;
+  GRANTED.add(snap);
+  const have = new Set<string>();
+  for (const g of store.grants.values()) if (g.subject.kind === "role" && g.resource.type === "space") have.add(g.subject.id);
+  for (const r of store.roles.values()) {
+    if (have.has(r.id) || r.permissions.length === 0) continue;
+    snap.putGrant({ id: `gr_role_${r.id}`, subject_kind: "role", subject_id: r.id, resource_type: "space", resource_id: space, level: isElevatedRole(r.id, r.name) ? "manage" : "edit", by: "svc_host" });
+  }
+  return snap;
+}
+
 export const hostCalls = {
   /** Fold events the store has not seen and answer the authorize snapshot, in one call so a commit pays for one pass over the tables. */
   "access.sync": (ctx: Ctx, input: { events: LogEvent[] }): AccessSnapshot => {
     const actx = ctx as unknown as AccessCtx;
     const store = storeOf(actx);
     apply(actx, store, input.events);
-    return store.snapshot();
+    return withRoleGrants(store.snapshot(), store, actx.space);
   },
   /** The authorize snapshot as the tables hold it now (a share, a revoke or a role change made by a capability is already there). */
-  "access.snapshot": (ctx: Ctx): AccessSnapshot => storeOf(ctx as unknown as AccessCtx).snapshot(),
+  "access.snapshot": (ctx: Ctx): AccessSnapshot => { const a = ctx as unknown as AccessCtx; const store = storeOf(a); return withRoleGrants(store.snapshot(), store, a.space); },
 };
 
 export const consumers = {};

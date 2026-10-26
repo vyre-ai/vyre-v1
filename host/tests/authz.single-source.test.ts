@@ -24,10 +24,14 @@ function seededDir(): string {
   return dir;
 }
 
-test("authorize has one source: joins, role changes, suspension and removal take effect on the next call, and survive a restart", async () => {
-  const dir = seededDir();
-  const people = new Map<string, string>();   // token -> person, filled as people join
-  const boot = () => startDaemon({
+const COMPANY = {
+  op: "type.create", type: "rt_company",
+  def: { title: "Company", plural: "Companies", icon: "building", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "industry", type: "text", title: "Industry" }] },
+};
+
+/** token -> person for everyone but the owner; the test fills it as people join */
+function bootDaemon(dir: string, people: Map<string, string>) {
+  return startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "team.example.com"], {}, "1.2.3"),
     platform: fakePlatform({
       os: "linux", hostname: "authz-single", free: 80e9,
@@ -45,6 +49,21 @@ test("authorize has one source: joins, role changes, suspension and removal take
     },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
+}
+
+type Json = { data?: any; error?: { code?: string } };   // eslint-disable-line @typescript-eslint/no-explicit-any
+function client(d: { url: string }) {
+  return async (token: string | null, p: string, body: unknown): Promise<{ status: number; body: Json }> => {
+    const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
+    const text = await r.text();
+    return { status: r.status, body: text ? JSON.parse(text) as Json : {} };
+  };
+}
+
+test("authorize has one source: joins, role changes, suspension and removal take effect on the next call, and survive a restart", async () => {
+  const dir = seededDir();
+  const people = new Map<string, string>();   // token -> person, filled as people join
+  const boot = () => bootDaemon(dir, people);
   let d = await boot();
   const post = (token: string | null, p: string, body: unknown) =>
     fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
@@ -103,4 +122,89 @@ test("authorize has one source: joins, role changes, suspension and removal take
     await ok(OWNER_TOKEN, "/v1/access/roles/unassign", { subject: { kind: "person", id: bob.personId }, roleId: "admin" });
     assert.equal(await tryAdmin(bob.token), 403, "a role taken away after the restart ends on the next call");
   } finally { await d.stop(); }
+});
+
+const withDaemon = async (people: Map<string, string>, run: (d: Awaited<ReturnType<typeof bootDaemon>>, post: ReturnType<typeof client>) => Promise<void>): Promise<void> => {
+  const dir = seededDir();
+  const d = await bootDaemon(dir, people);
+  try { await run(d, client(d)); } finally { await d.stop(); }
+};
+
+test("share and revoke: a person with no grant is refused a record type, a share opens it on their next call and over sync.pull, and a revoke closes both", async () => {
+  await withDaemon(new Map([["tok-usr_tess", "usr_tess"]]), async (_d, post) => {
+    const TESS = "tok-usr_tess";
+    const applied = await post(OWNER_TOKEN, "/v1/schema/apply", { idempotencyKey: "authz-type", ops: [COMPANY] });
+    assert.equal(applied.status, 200, JSON.stringify(applied.body));
+    const made = await post(OWNER_TOKEN, "/v1/records/create", { idempotencyKey: "authz-rec", type: "rt_company", fields: { name: "Acme", industry: "Law" } });
+    assert.equal(made.status, 200, JSON.stringify(made.body));
+    const id = made.body.data.record.id as string;
+    const query = (): Promise<{ status: number; body: Json }> => post(TESS, "/v1/records/query", { type: "rt_company" });
+    const pulled = async (): Promise<boolean> => {
+      const r = await post(TESS, "/sync/v1/pull", { cursor: 0, epoch: 0 });
+      assert.equal(r.status, 200, JSON.stringify(r.body).slice(0, 300));
+      return JSON.stringify(r.body.data.changes).includes(id);
+    };
+    assert.equal((await query()).status, 403, "no grant, no read");
+    assert.equal(await pulled(), false, "no grant, no row in the sync feed");
+
+    const shared = await post(OWNER_TOKEN, "/v1/access/share", { idempotencyKey: "authz-share", resource: { type: "record_type", id: "rt_company" }, subject: { kind: "person", id: "usr_tess" }, level: "view" });
+    assert.equal(shared.status, 200, JSON.stringify(shared.body));
+    const grantId = shared.body.data.grant.id as string;
+    const open = await query();
+    assert.equal(open.status, 200, `the share is in force on the next call: ${JSON.stringify(open.body)}`);
+    assert.ok(JSON.stringify(open.body.data).includes(id), "the shared record is listed");
+    assert.equal(await pulled(), true, "the shared row reaches sync.pull");
+
+    const revoked = await post(OWNER_TOKEN, "/v1/access/unshare", { grantId });
+    assert.equal(revoked.status, 200, JSON.stringify(revoked.body));
+    assert.equal((await query()).status, 403, "the revoke is in force on the next call");
+    assert.equal(await pulled(), false, "the revoked rows stop coming over sync.pull");
+  });
+});
+
+test("a custom role made by access.roles.create confers its permissions when assigned and stops when unassigned", async () => {
+  await withDaemon(new Map([["tok-usr_tess", "usr_tess"]]), async (_d, post) => {
+    const TESS = "tok-usr_tess";
+    assert.equal((await post(OWNER_TOKEN, "/v1/schema/apply", { idempotencyKey: "authz-type2", ops: [COMPANY] })).status, 200);
+    let n = 0;
+    const create = (): Promise<{ status: number; body: Json }> => post(TESS, "/v1/records/create", { idempotencyKey: `authz-tess-${++n}`, type: "rt_company", fields: { name: `Tess ${n}` } });
+    assert.equal((await create()).status, 403, "a temp person cannot create records");
+    const role = await post(OWNER_TOKEN, "/v1/access/roles/create", { name: "Writer", cloneFrom: "rol_member", idempotencyKey: "authz-writer" });
+    assert.equal(role.status, 200, JSON.stringify(role.body));
+    const roleId = role.body.data.role.id as string;
+    assert.ok((role.body.data.role.permissions as string[]).includes("records.create"), "the clone holds records.create");
+    const subject = { kind: "person", id: "usr_tess" };
+    assert.equal((await post(OWNER_TOKEN, "/v1/access/roles/assign", { subject, roleId })).status, 200);
+    const made = await create();
+    assert.equal(made.status, 200, `the custom role is in force on the next call: ${JSON.stringify(made.body)}`);
+    assert.equal((await post(OWNER_TOKEN, "/v1/access/roles/unassign", { subject, roleId })).status, 200);
+    assert.equal((await create()).status, 403, "unassigned, it is refused again");
+  });
+});
+
+test("fail closed: when the module cannot take a suspension, the suspended person is never let through and the owner keeps access; the Space heals once it can", async () => {
+  await withDaemon(new Map([["tok-usr_noah", "usr_noah"]]), async (d, post) => {
+    const NOAH = "tok-usr_noah";
+    let n = 0;
+    const tryAdmin = (): Promise<{ status: number; body: Json }> => post(NOAH, "/v1/access/groups/create", { name: `Probe ${++n}`, idempotencyKey: `authz-fc-${n}` });
+    assert.equal((await post(OWNER_TOKEN, "/v1/access/roles/assign", { subject: { kind: "person", id: "usr_noah" }, roleId: "admin" })).status, 200);
+    assert.equal((await tryAdmin()).status, 200, "an admin acts");
+
+    d.db!.run("DROP TABLE access_meta");   // the module can no longer persist, so no sync can succeed
+    const suspended = await post(OWNER_TOKEN, "/v1/members/suspend", { personId: "usr_noah" });
+    assert.equal(suspended.status, 200, JSON.stringify(suspended.body));
+    const held = await tryAdmin();
+    assert.notEqual(held.status, 200, "a suspended person is not let through on a stale snapshot");
+    assert.equal(held.body.error?.code, "internal.unavailable", JSON.stringify(held.body));
+    assert.equal((await post(OWNER_TOKEN, "/v1/access/roles/list", {})).status, 200, "the owner keeps access to fix it");
+
+    d.db!.run('CREATE TABLE IF NOT EXISTS "access_meta" ("id" TEXT PRIMARY KEY, "epoch" INTEGER NOT NULL)');
+    let last = held;
+    for (let i = 0; i < 40 && last.body.error?.code === "internal.unavailable"; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      last = await tryAdmin();
+      assert.notEqual(last.status, 200, "never let through while healing");
+    }
+    assert.equal(last.status, 403, `healed, the suspension is in force: ${JSON.stringify(last.body)}`);
+  });
 });
