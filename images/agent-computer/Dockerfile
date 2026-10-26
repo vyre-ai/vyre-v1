@@ -32,9 +32,9 @@ RUN rsvg-convert -w 2560 -h 1600 /opt/desktop/wallpaper.svg -o /opt/desktop/wall
 # Vyre for Chrome: the release build and the heavy test copy the extension (manifest.json and src) into vyre-chrome/ of the build context first. A plain checkout has only the placeholder, and then
 # agentd runs the browser without the extension (it loads /opt/vyre-chrome only when it has a manifest.json). No BuildKit feature is needed: the runners have the legacy builder only.
 COPY vyre-chrome/ /opt/vyre-chrome/
-# Vyre for Chrome sits in the toolbar (owner rule): an unpacked extension's id comes from its path, and the managed policy pins that id.
+# Vyre for Chrome sits in the toolbar (owner rule): an unpacked extension's id comes from its path, and the managed policy pins that id. An agent's browser never signs in to Google or syncs.
 RUN mkdir -p /etc/chromium/policies/managed \
- && node -e 'const h=require("crypto").createHash("sha256").update("/opt/vyre-chrome").digest("hex").slice(0,32);const id=[...h].map((c)=>String.fromCharCode(97+parseInt(c,16))).join("");require("fs").writeFileSync("/etc/chromium/policies/managed/vyre.json",JSON.stringify({ExtensionSettings:{[id]:{toolbar_pin:"force_pinned"}}}))'
+ && node -e 'const h=require("crypto").createHash("sha256").update("/opt/vyre-chrome").digest("hex").slice(0,32);const id=[...h].map((c)=>String.fromCharCode(97+parseInt(c,16))).join("");require("fs").writeFileSync("/etc/chromium/policies/managed/vyre.json",JSON.stringify({BrowserSignin:0,SyncDisabled:true,ExtensionSettings:{[id]:{toolbar_pin:"force_pinned"}}}))'
 RUN chmod 0755 /opt/agentd/ctl && chmod 0644 /opt/agentd/*.ts /opt/agentd/*.py /opt/agentd/package.json
 
 ENV HOME=/home/agent \

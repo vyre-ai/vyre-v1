@@ -133,6 +133,8 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     assert.ok((ext?.workers ?? 0) >= 1, `the extension's worker runs: ${status.out}`);
     const policy = (await docker(["exec", box, "cat", "/etc/chromium/policies/managed/vyre.json"], 30_000)).out;
     assert.match(policy, /"toolbar_pin":"force_pinned"/, "the extension is pinned to the toolbar");
+    assert.match(policy, /"BrowserSignin":0/, "the browser never offers to sign in");
+    assert.match(policy, /"SyncDisabled":true/, "the browser never syncs");
     // a real frame of the desktop, kept for the lead to look at (the wallpaper, the browser and the dock)
     const shotDir = process.env["VYRE_SHOT_DIR"];
     if (shotDir) {
