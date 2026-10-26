@@ -5,7 +5,7 @@
 // packet's FileList.tsx and Toolbar.tsx sit beside the list/ folder, and the wiring is here.)
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
@@ -28,6 +28,9 @@ import { QuickLook } from "./QuickLook.tsx";
 const DOUBLE_MS = 450;
 const lineKey = (l: Line): string => l.key;
 /** The slot a line sits in: the list row is 38 px and the Row paints 28 inside it, 6 px in from each side. */
+/** The phone shows a name and one secondary line: the Row with a note is 44 px, in the same 5 px slot. */
+const PHONE_ROW = 54;
+const PHONE_BELOW = 700;
 const LINE_STYLE = { margin: "5px 6px", width: "calc(100% - 12px)" } as const;
 
 /** The line's menu: open, Quick Look, share and rename where they apply, and the Trash (or Restore from it). */
@@ -104,6 +107,8 @@ function List(): ReactElement {
   const last = useRef<{ key: string; at: number }>({ key: "", at: 0 });
   const [over, setOver] = useState<string | null>(null);
   const [width, setWidth] = useState(0);
+  const phoneW = useWindowDimensions().width;
+  const phone = phoneW > 0 && phoneW < PHONE_BELOW; // 0 is "not measured yet" (the static page)
   const spring = useRef<Spring | null>(null);
   if (spring.current === null) spring.current = createSpring((id) => dispatch({ type: "go", where: { kind: "folder", id } }));
   useEffect(() => () => spring.current?.cancel(), []);
@@ -221,7 +226,7 @@ function List(): ReactElement {
         selected={state.selection.includes(l.key)}
         hovered={over === l.key}
         leading={l.type === "file" && l.thumb ? <ThumbTile fileId={l.id} label={tileLabel(l.name, l.kind)} icon={iconOfKind(l.kind)} /> : <TypeTile label={tileLabel(l.name, l.kind)} icon={iconOfKind(l.kind)} folder={l.type === "folder"} />}
-        trailing={<RowCells wide={wide} cells={{ when: whenOf(l), by: byOf(l), size: sizeOfLine(l), kind: kindOfLine(l) }} />}
+        {...(phone ? { note: [whenOf(l), sizeOfLine(l)].filter((x) => x !== "").join(" \u00b7 ") } : { trailing: <RowCells wide={wide} cells={{ when: whenOf(l), by: byOf(l), size: sizeOfLine(l), kind: kindOfLine(l) }} /> })}
         onPress={() => press(l)}
         domProps={{ ...dragAttrs(l.key), ...menuTrigger((x, y) => lineMenu(l, x, y)), style: LINE_STYLE }}
       />
@@ -256,6 +261,19 @@ function List(): ReactElement {
     showHidden: state.showHidden, trashCount, toggleHidden: () => dispatch({ type: "hidden", on: !state.showHidden }), selectAll: () => dispatch({ type: "all", order }),
     openTrash: () => dispatch({ type: "go", where: { kind: "trash" } }),
   }), x, y);
+  // On the phone the header keeps New and one "..." menu: sort, the list or grid view, upload, then the folder's own options.
+  const phoneMenu = (x: number, y: number): void => menu.show([
+    ...sortMenuEntries(state.sort, state.dir, sortBy, (d) => dispatch({ type: "dir", dir: d })),
+    { separator: true },
+    { label: "As List", checked: state.view === "list", onSelect: () => dispatch({ type: "view", view: "list" }) },
+    { label: "As Grid", checked: state.view === "grid", onSelect: () => dispatch({ type: "view", view: "grid" }) },
+    ...(upload ? [{ separator: true } as MenuEntry, { label: "Upload Files\u2026", onSelect: upload } as MenuEntry] : []),
+    { separator: true },
+    ...moreMenuEntries({
+      showHidden: state.showHidden, trashCount, toggleHidden: () => dispatch({ type: "hidden", on: !state.showHidden }), selectAll: () => dispatch({ type: "all", order }),
+      openTrash: () => dispatch({ type: "go", where: { kind: "trash" } }),
+    }),
+  ], x, y);
   const ql = state.quickLook !== null ? byKey.get(state.quickLook) : undefined;
 
   return (
@@ -272,7 +290,8 @@ function List(): ReactElement {
         onForward={state.forward.length > 0 ? () => dispatch({ type: "forward" }) : undefined}
         onUpload={upload}
         onNew={newMenu}
-        onMore={moreMenu}
+        onMore={phone ? phoneMenu : moreMenu}
+        compact={phone}
         pane={data.pane ? { open: data.pane.open, toggle: data.pane.toggle } : undefined}
       />
       {here ? <StagedBanner folderId={here} /> : null}
@@ -286,8 +305,8 @@ function List(): ReactElement {
             <VirtualList data={gridRows} rowHeight={layout.height} keyOf={gridKey} renderItem={renderGridRow} />
           ) : (
             <>
-              <ColumnHeader sort={state.sort} dir={state.dir} wide={wide} onSort={sortBy} />
-              <VirtualList data={lines} rowHeight={LIST_ROW} keyOf={lineKey} renderItem={renderLine} />
+              {phone ? null : <ColumnHeader sort={state.sort} dir={state.dir} wide={wide} onSort={sortBy} />}
+              <VirtualList data={lines} rowHeight={phone ? PHONE_ROW : LIST_ROW} keyOf={lineKey} renderItem={renderLine} />
             </>
           )}
         </View>
