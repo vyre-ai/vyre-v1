@@ -2,6 +2,7 @@
   "module": "identity",
   "capabilities": {
     "identity.change_password@1": "fdf8fce5dac2833e9b29c9d05382e98ff915f734cb8115f9a9153a576b4315e0",
+    "identity.claim_owner@1": "0ff8699cc82bd138df83666542b2bdd8f96c06cdc6a322ba8b71063be9e21be9",
     "identity.github_link@1": "b896dfac176aa58b4f10fd5ba8fdebc411444b3409ae5981541ed32d1e5bdc66",
     "identity.github_sign_in@1": "4bc3ba6208c5c0ae6898451861d4b6f3c39f087ec6f783588d97ee4279a21262",
     "identity.github_unlink@1": "f3026e99170c4af0c4a4c135880b7f006b6c55ad5cfdc992b7a986813a75cc22",

@@ -6,6 +6,7 @@ import type { Handlers } from './handlers.ts';
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
   "identity.change_password": async (ctx) => { throw new VyreErr(notImplemented("identity.change_password", ctx.trace)); },
+  "identity.claim_owner": async (ctx) => { throw new VyreErr(notImplemented("identity.claim_owner", ctx.trace)); },
   "identity.github_link": async (ctx) => { throw new VyreErr(notImplemented("identity.github_link", ctx.trace)); },
   "identity.github_sign_in": async (ctx) => { throw new VyreErr(notImplemented("identity.github_sign_in", ctx.trace)); },
   "identity.github_unlink": async (ctx) => { throw new VyreErr(notImplemented("identity.github_unlink", ctx.trace)); },
