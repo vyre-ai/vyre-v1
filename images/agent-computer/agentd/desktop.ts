@@ -6,15 +6,16 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import type { Screen } from "./x11.ts";
 
 export const DOCK_HEIGHT = 72;
-/** The wallpaper stays visible around the browser: this much on each side and above, the dock below. */
-export const MARGIN = 32;
+/** The browser takes this share of the desktop in each direction, centred above the dock, so the wallpaper shows around it. */
+export const BROWSER_SHARE = 0.7;
 const ASSETS = "/opt/desktop";
 
 export interface Desktop { stop(): void }
 
 /** Where Chromium sits so the wallpaper and the dock stay in view. */
 export function browserBounds(screen: Pick<Screen, "width" | "height">): { x: number; y: number; width: number; height: number } {
-  return { x: MARGIN, y: MARGIN, width: screen.width - 2 * MARGIN, height: screen.height - MARGIN - DOCK_HEIGHT - MARGIN };
+  const width = Math.round(screen.width * BROWSER_SHARE), height = Math.round((screen.height - DOCK_HEIGHT) * BROWSER_SHARE);
+  return { x: Math.round((screen.width - width) / 2), y: Math.round((screen.height - DOCK_HEIGHT - height) / 2), width, height };
 }
 
 function launcher(name: string, exec: string, icon: string): string {
@@ -27,11 +28,11 @@ export function startDesktop(screen: Screen, home: string, profileDir: string, l
   mkdirSync(`${home}/Vyre`, { recursive: true });
   const b = browserBounds(screen);
   // Chrome: the same profile and instance the agent drives, so a second window is a window of the same browser.
-  writeFileSync(`${dir}/chrome.desktop`, launcher("Chrome", `chromium --no-sandbox --disable-dev-shm-usage --disable-gpu --user-data-dir=${profileDir} --window-position=${b.x},${b.y} --window-size=${b.width},${b.height}`, "chrome"));
+  writeFileSync(`${dir}/chrome.desktop`, launcher("Chrome", `chromium --disable-dev-shm-usage --disable-gpu --user-data-dir=${profileDir} --window-position=${b.x},${b.y} --window-size=${b.width},${b.height}`, "chrome"));
   writeFileSync(`${dir}/terminal.desktop`, launcher("Terminal", `xterm -fa Monospace -fs 11 -bg #1f2430 -fg #e8ecf8 -e /bin/bash`, "terminal"));
   writeFileSync(`${dir}/files.desktop`, launcher("Files", `pcmanfm --no-desktop ${home}/Vyre`, "files"));
   writeFileSync(`${dir}/tint2rc`, [
-    "rounded = 18", "border_width = 0", "background_color = #1c202c 100", "border_color = #000000 0",
+    "rounded = 18", "border_width = 0", "background_color = #2a2c52 100", "border_color = #000000 0",
     "panel_items = L", "panel_position = bottom center horizontal", `panel_size = 236 ${DOCK_HEIGHT}`, "panel_margin = 0 12", "panel_padding = 12 8 12", "panel_background_id = 1",
     "panel_layer = top", "strut_policy = none", "wm_menu = 0", "autohide = 0", "disable_transparency = 1",
     "launcher_padding = 10 6 18", "launcher_background_id = 0", "launcher_icon_size = 52", "launcher_icon_theme = hicolor", "launcher_tooltip = 1",

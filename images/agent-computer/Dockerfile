@@ -15,8 +15,8 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
  && rm -f /usr/bin/su /bin/su /usr/bin/passwd /usr/bin/chsh /usr/bin/chfn /usr/bin/newgrp /usr/bin/gpasswd /usr/bin/mount /usr/bin/umount
 
-# No setuid or setgid program is left (no-new-privileges stops them at run time; this removes them from the image). Chromium's own sandbox helper is one of them: the container is the sandbox
-# (agentd starts Chromium with --no-sandbox), so it goes too.
+# No setuid or setgid program is left (no-new-privileges stops them at run time; this removes them from the image). Chromium's setuid sandbox helper is one of them: Chromium runs sandboxed through user
+# namespaces instead, which the container's seccomp profile (seccomp.json, set by modules/computers) allows. No capability is added and the browser never starts with --no-sandbox.
 RUN find / -xdev \( -perm -4000 -o -perm -2000 \) -type f -exec chmod a-s {} +
 
 RUN groupadd --gid 10001 agent \
@@ -32,6 +32,9 @@ RUN rsvg-convert -w 2560 -h 1600 /opt/desktop/wallpaper.svg -o /opt/desktop/wall
 # Vyre for Chrome: the release build and the heavy test copy the extension (manifest.json and src) into vyre-chrome/ of the build context first. A plain checkout has only the placeholder, and then
 # agentd runs the browser without the extension (it loads /opt/vyre-chrome only when it has a manifest.json). No BuildKit feature is needed: the runners have the legacy builder only.
 COPY vyre-chrome/ /opt/vyre-chrome/
+# Vyre for Chrome sits in the toolbar (owner rule): an unpacked extension's id comes from its path, and the managed policy pins that id.
+RUN mkdir -p /etc/chromium/policies/managed \
+ && node -e 'const h=require("crypto").createHash("sha256").update("/opt/vyre-chrome").digest("hex").slice(0,32);const id=[...h].map((c)=>String.fromCharCode(97+parseInt(c,16))).join("");require("fs").writeFileSync("/etc/chromium/policies/managed/vyre.json",JSON.stringify({ExtensionSettings:{[id]:{toolbar_pin:"force_pinned"}}}))'
 RUN chmod 0755 /opt/agentd/ctl && chmod 0644 /opt/agentd/*.ts /opt/agentd/*.py /opt/agentd/package.json
 
 ENV HOME=/home/agent \
