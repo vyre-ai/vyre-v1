@@ -17,7 +17,7 @@ function personOf(ctx: VaultReqCtx): string | null {
 }
 const requesterOf = (ctx: VaultReqCtx): Ref => ({ kind: ctx.principal.kind as Ref["kind"], id: ctx.principal.id });
 
-/** The people who may decide a request: the managers of the folder, else the Space's owners and admins. The requester is never one of them. */
+/** The people who may decide a request: the managers of the folder, else the Space owner and its owners and admins. The requester is never one of them. */
 export async function managersFor(ctx: VaultReqCtx, folderId: string | undefined, requester: string): Promise<string[]> {
   const out = new Set<string>();
   if (folderId) {
@@ -34,6 +34,17 @@ export async function managersFor(ctx: VaultReqCtx, folderId: string | undefined
     }
   }
   if (out.size === 0 || out.size === 1 && out.has(requester)) {
+    // ruling 74: when no folder claims the key, the Space owner decides (the Space resource's owner, whatever the Space's roles are called)
+    try {
+      const got = asRow(await ctx.call("access.shares_of", { resource: { type: "space", id: ctx.space } }));
+      const shares = Array.isArray(got?.["shares"]) ? (got["shares"] as unknown[]) : [];
+      for (const s of shares) {
+        const row = asRow(s), subject = asRow(asRow(row?.["grant"])?.["subject"]);
+        if (row?.["through"] === "owner" && subject?.["kind"] === "person") out.add(String(subject["id"]));
+      }
+    } catch (e) {
+      ctx.log.warn("vault request: the Space owner could not be read", { error: e instanceof Error ? e.message : String(e) });
+    }
     for (const roleId of ["rol_owner", "rol_admin"]) {
       try {
         const got = asRow(await ctx.call("access.roles.get", { roleId }));

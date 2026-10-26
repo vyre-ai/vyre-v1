@@ -88,6 +88,17 @@ test("without a folder, or when the folder's managers cannot be read, the Space'
   assert.equal(none.db.dump().includes("Dana_Lawmatics"), false, "a request nobody can decide is not saved");
 });
 
+test("ruling 74: a key no folder claims is decided by the Space owner, even when the Space names its roles differently and no role holds Owner or Admin", async () => {
+  const w = world({ owners: [], admins: [], managers: {}, spaceOwner: "usr_olivia" });
+  const out = await ask(w, "agt_helper", { folderId: undefined });
+  assert.deepEqual(w.called("tasks.create").map((t) => t.input["assigned"]), [{ kind: "person", id: "usr_olivia" }], "the owner is the one decider");
+  assert.equal(out.request.folderId, undefined);
+  // the owner asking for their own key has nobody else to decide, so the request is refused rather than saved
+  const own = world({ owners: [], admins: [], managers: {}, spaceOwner: "usr_olivia" });
+  assert.equal(await failed(handlers["vault.request"](own.as("usr_olivia"), { name: "Mine", reason: "I need it", idempotencyKey: "own" } as never)), "validation.precondition_failed");
+  assert.equal(own.db.dump().includes("Mine"), false);
+});
+
 test("a manager supplies the key by saving fields in the folder: the value goes to the vault once, the requester gets Use, the cards close and the waiting Run resumes", async () => {
   const w = world();
   const { request } = await ask(w, "agt_helper", { forRun: "run_intake", fields: ["api_key"] });
