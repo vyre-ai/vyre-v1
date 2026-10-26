@@ -1,7 +1,7 @@
 // Projects: make a project (record, one channel, one folder, roles as grants), from a channel, read it, the Overview, people, pins, filed chats and the read-only link (spec 3.4, 2.4).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DAY, NOW, DANA, LEO, MAYA, BOT, harness, codeOf, reasonOf } from "../fixtures/harness.ts";
+import { DAY, NOW, DANA, LEO, MAYA, BOT, contractErrors, harness, codeOf, reasonOf } from "../fixtures/harness.ts";
 import { key, mkProject, run } from "../fixtures/seed.ts";
 
 async function refused(p: Promise<unknown>, code: string, reason?: string): Promise<void> {
@@ -53,6 +53,20 @@ test("members given at the start get their roles as grants, and the channel star
   const made = h.only("channels.create")[0]!.input;
   assert.deepEqual([...made.memberIds].sort(), [DANA, LEO, MAYA]);
   assert.deepEqual(made.agentIds, [BOT]);
+});
+
+test("every neighbour call create makes passes the frozen contract, with a key derived from the create's own", async () => {
+  const h = harness();
+  const k = key();
+  await run(h, "projects.create", { type: "project", title: "Contract", idempotencyKey: k });
+  for (const cap of ["records.create", "channels.create", "files.folder.create"]) {
+    const sent = h.world.calls.filter((c) => c.cap === cap);
+    assert.equal(sent.length, 1, cap);
+    assert.deepEqual(contractErrors(cap, "in", sent[0]!.input), [], `${cap} input against the contract`);
+  }
+  assert.equal(h.only("records.create")[0]!.input.idempotencyKey, `prj-rec:${k}`);
+  assert.equal(h.only("channels.create")[0]!.input.idempotencyKey, `prj-channel:${k}`);
+  assert.equal(h.only("files.folder.create")[0]!.input.idempotencyKey, `prj-folder:${k}`);
 });
 
 test("the same key makes the project once", async () => {
