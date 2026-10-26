@@ -6,11 +6,13 @@ import type { Handlers } from './handlers.ts';
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
   "runs.count": async (ctx) => { throw new VyreErr(notImplemented("runs.count", ctx.trace)); },
+  "runs.erase": async (ctx) => { throw new VyreErr(notImplemented("runs.erase", ctx.trace)); },
   "runs.finish": async (ctx) => { throw new VyreErr(notImplemented("runs.finish", ctx.trace)); },
   "runs.get": async (ctx) => { throw new VyreErr(notImplemented("runs.get", ctx.trace)); },
   "runs.list": async (ctx) => { throw new VyreErr(notImplemented("runs.list", ctx.trace)); },
   "runs.mark_waiting": async (ctx) => { throw new VyreErr(notImplemented("runs.mark_waiting", ctx.trace)); },
   "runs.preview_undo": async (ctx) => { throw new VyreErr(notImplemented("runs.preview_undo", ctx.trace)); },
+  "runs.purge": async (ctx) => { throw new VyreErr(notImplemented("runs.purge", ctx.trace)); },
   "runs.record_key": async (ctx) => { throw new VyreErr(notImplemented("runs.record_key", ctx.trace)); },
   "runs.record_step": async (ctx) => { throw new VyreErr(notImplemented("runs.record_step", ctx.trace)); },
   "runs.replay": async (ctx) => { throw new VyreErr(notImplemented("runs.replay", ctx.trace)); },

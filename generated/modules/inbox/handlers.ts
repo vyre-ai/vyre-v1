@@ -8,6 +8,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "inbox.counts": Handler<"inbox.counts", X>;
   "inbox.follow_set": Handler<"inbox.follow_set", X>;
   "inbox.following": Handler<"inbox.following", X>;
+  "inbox.item.erase": Handler<"inbox.item.erase", X>;
   "inbox.link_message": Handler<"inbox.link_message", X>;
   "inbox.list_by_contact": Handler<"inbox.list_by_contact", X>;
   "inbox.list_by_thread": Handler<"inbox.list_by_thread", X>;

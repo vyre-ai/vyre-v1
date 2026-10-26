@@ -72,6 +72,8 @@ const manifest = defineManifest({
     }),
   ],
   events: [
+    // ---- erase and purge (P-CC_39): governance removes data through these; each hard-deletes inside its own store
+    ev('mail.message_erased', 'A mail message was erased for good: body, attachments and search entries (ids only)', { p: { messageId: t.id('eml') }, subject: ['entity', '/messageId'], retention: 'audit' }),
     ev('mail.received', 'An email arrived in a mailbox (deduped across inboxes)', {
       p: { messageId: emlId, mailboxId: id.mailbox, from: email, subject: t.str(), contactId: t.opt(id.record), campaignId: t.opt(id.campaign) },
       subject: ['mailbox', '/mailboxId'], label: 'subject', redact: ['/subject'], trigger: { title: 'An email arrives', fields: ['/mailboxId', '/from', '/campaignId'] },
@@ -115,6 +117,8 @@ const manifest = defineManifest({
     ev('inbound_route.removed', 'An inbound route was removed', { p: { routeId: rteId, domainId: id.domain }, subject: ['domain', '/domainId'] }),
   ],
   capabilities: [
+    // ---- erase and purge (P-CC_39)
+    write('mail.message.erase', 'Erase one mail message for good (governance erase)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { messageId: t.id('eml') }, out: { erased: t.bool() }, emits: ['mail.message_erased'], audit: 'always', risk: 'high' }),
     // ---- mailboxes
     read('mail.mailbox.list', 'List mailboxes the caller can see (own, shared with the Space, agent and service mailboxes)', {
       in: { scope: t.opt(t.enm('mine', 'shared', 'all')), kind: t.opt(mailboxKind), ...pageIn }, out: { mailboxes: t.arr(mailboxRow), ...pageOut }, tool: 'inbox', label: 'filter',
@@ -286,4 +290,7 @@ const manifest = defineManifest({
   ],
 });
 
-export default { ...manifest, capabilities: bindInputs(manifest.capabilities ?? [], { messageId: { row: 'mail_message' }, mailboxId: { on: 'mailbox' } }) };
+// DECISION (main fix after #329): mail.message.erase is bound to the Space, like every other governance eraser: it needs policy.manage, and a message row the access snapshot has not registered as a resource
+// would answer permission.not_found, which governance reads as "already gone" and leaves the message in the store.
+const bound = bindInputs(manifest.capabilities ?? [], { messageId: { row: 'mail_message' }, mailboxId: { on: 'mailbox' } });
+export default { ...manifest, capabilities: bound.map((c) => (c.name === 'mail.message.erase' ? { ...c, resource: { type: 'space' as const } } : c)) };
