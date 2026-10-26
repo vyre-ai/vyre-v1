@@ -70,7 +70,7 @@ export function PlaceHost({ place, runtime, hash = "", opened }: { place: PlaceI
   const Place = lazyFor(routeId);
   const body = (
     <PlaceHashProvider hash={hash} opened={stable}>
-      <PlaceBoundary place={routeId}>
+      <PlaceBoundary key={routeId} place={routeId}>
         <Suspense fallback={null}>
           <Place place={routeId} />
           <Usable place={routeId} />
