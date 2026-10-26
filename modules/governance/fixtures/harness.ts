@@ -185,7 +185,7 @@ export function harness() {
       const body = (input ?? {}) as Record<string, unknown>;
       called.push({ cap, input: body });
       const d = registry.capabilities.filter((c) => c.name === cap).sort((a, b) => b.v - a.v)[0];
-      if (!d) throw new Error(`${cap} is not in the registry`);
+      if (!d) throw err("validation.unknown_capability", `${cap} is not in the registry`);   // what the invoke pipeline answers for a capability the contract does not have
       const misfit = validate(d.input, body, "", registry.$defs);
       if (misfit.length) throw new Error(`${cap} was called with input its contract refuses: ${misfit.join("; ")}`);
       const script = scripts.get(cap) ?? defaults[cap];

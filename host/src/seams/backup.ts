@@ -46,7 +46,8 @@ export interface BackupHostDeps {
   root: string;
   space: string;
   log: { currentHead(): Promise<{ seq: number; hash: string }>; read(q: { after?: number; limit?: number }): Promise<{ seq: number; id: string; type: string; at: number; vis: string; enc: number; label: number; payload: Uint8Array }[]> };
-  owner: () => string;
+  /** the Space owner from the access layer, or null when it has none; with none, every full export refuses (P-SEC_07) */
+  owner: () => string | null;
   /** the cap-call a host service makes as itself (governance.tombstones.list) */
   system: (cap: string, input: unknown) => Promise<unknown>;
   vault: VaultPort;
@@ -153,7 +154,8 @@ export function createBackupHost(deps: BackupHostDeps): BackupHostSeam {
         }
         return [{ path: "records/events.jsonl", bytes: new TextEncoder().encode(lines.join("\n")) }];
       },
-      owner: () => Promise.resolve(deps.owner()),
+      // no owner is the empty string, which no principal id equals: the module compares the caller to it and refuses
+      owner: () => Promise.resolve(deps.owner() ?? ""),
       secretValues: () => Promise.resolve(deps.secrets?.() ?? []),
     },
     exports: {

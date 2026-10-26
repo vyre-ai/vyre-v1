@@ -28,9 +28,10 @@ Requires: nothing.
 - [warmup.start](../capabilities/warmup.start.md): Start warming a new domain or mailbox
 - [warmup.status](../capabilities/warmup.status.md): Warmup state and health per mailbox: bounce, spam placement, reply
 
-## Events (6)
+## Events (7)
 
 - [campaign.completed](../events/campaign.completed.md): A campaign finished
+- [campaign.created](../events/campaign.created.md): A campaign was created as a draft
 - [campaign.launched](../events/campaign.launched.md): A campaign was launched after approval
 - [campaign.paused](../events/campaign.paused.md): A campaign paused
 - [campaign.replied](../events/campaign.replied.md): A contact replied to a campaign
