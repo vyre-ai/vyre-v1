@@ -30,6 +30,7 @@ type In = {
   to?: number;
   personId?: string;
   agentId?: string;
+  itemId?: string;
 };
 ```
 
@@ -72,6 +73,7 @@ type Out = {
     "agentId": "agt_a1b2c3",
     "by": "day",
     "from": 1760000000000,
+    "itemId": "vit_a1b2c3",
     "personId": "usr_a1b2c3",
     "to": 1760000000000
   },

@@ -5,3 +5,4 @@ import { draft, draftsDiscard, draftsList } from "./drafts.ts";
 import { send, sendAs, sendPreview } from "./send.ts";
 
 export { connect, ingest, syncNow, draft, draftsDiscard, draftsList, send, sendAs, sendPreview };
+export { messageErase } from "./purge.ts";

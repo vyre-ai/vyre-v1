@@ -14,7 +14,7 @@ const TRACE = "c".repeat(32);
 const dec = new TextDecoder();
 const code = (c: string) => (e: unknown): boolean => e instanceof HostError && e.error.code === c;
 
-const SA = JSON.stringify({ type: "service_account", client_id: "1234567890", client_email: "vyre@proj.iam.gserviceaccount.com", private_key: "-----BEGIN PRIVATE KEY-----\nSECRETKEYMATERIAL\n-----END PRIVATE KEY-----\n" });
+const SA = JSON.stringify({ type: "service_account", client_id: "1234567890", client_email: "vyre@proj.iam.gserviceaccount.com", private_key: "-----BEGIN PRIVATE KEY-----\nSECRETKEYMATERIAL\n-----END PRIVATE KEY-----\n" }); // secret-scan: fake
 const MSAPP = JSON.stringify({ clientId: "app-1", clientSecret: "s3cr3t-value", tenantId: "contoso.onmicrosoft.com" });
 
 interface Sent { url: string; method: string | undefined; headers: Record<string, string>; body: string | Uint8Array | undefined }

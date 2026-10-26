@@ -76,6 +76,8 @@ export interface FileOut {
   holds: number;
   deletedAt?: number;
   source?: { mountId: string; provider: string };
+  starred?: boolean;
+  conflict?: boolean;
 }
 
 export interface FolderOut {
@@ -90,7 +92,10 @@ export interface FolderOut {
   git: boolean;
   reviewChanges: boolean;
   source?: { mountId: string; provider: string };
+  subject?: Subject;
 }
+
+interface Subject { kind: "agent" | "project" | "space"; id?: string }
 
 type Content =
   | { kind: "empty" }
@@ -315,6 +320,64 @@ export function fileOut(row: Row): FileOut {
   return out;
 }
 
+// ---- the caller's stars and the files with a collided staged change ----
+
+interface FileFlags { starred: Set<string>; conflict: Set<string> }
+const flagCache = new WeakMap<object, FileFlags>();
+
+/** Stars are mine alone; a file is in conflict while an open (or sent back) changeset holds a staged change to it that no longer merges. Read once per call. */
+function fileFlags(ctx: Ctx): FileFlags {
+  const hit = flagCache.get(ctx);
+  if (hit) return hit;
+  const starred = new Set(many(ctx, "SELECT * FROM files_star WHERE person = ?", ctx.principal.id).map((r) => String(r.file_id)));
+  const live = new Set([...many(ctx, "SELECT * FROM files_changeset WHERE state = ?", "open"), ...many(ctx, "SELECT * FROM files_changeset WHERE state = ?", "changes_requested")].map((r) => String(r.id)));
+  const conflict = new Set<string>();
+  if (live.size > 0) for (const e of many(ctx, "SELECT * FROM files_changeset_file WHERE conflict = ?", 1)) if (live.has(String(e.changeset_id)) && !isNull(e.file_id)) conflict.add(String(e.file_id));
+  const flags = { starred, conflict };
+  flagCache.set(ctx, flags);
+  return flags;
+}
+
+function fileOutC(ctx: Ctx, row: Row): FileOut {
+  const out = fileOut(row);
+  const flags = fileFlags(ctx);
+  out.starred = flags.starred.has(out.fileId);
+  out.conflict = flags.conflict.has(out.fileId);
+  return out;
+}
+
+async function filesStar(ctx: Ctx, input: unknown): Promise<{ file: FileOut }> {
+  ensureReady(ctx);
+  const o = rec(ctx, input);
+  const file = liveFile(ctx, reqStr(ctx, o, "fileId"));
+  if (typeof o.starred !== "boolean") fail(ctx, "validation.bad_input", "The input is not valid.", { field: "starred" });
+  const me = ctx.principal.id;
+  const had = many(ctx, "SELECT * FROM files_star WHERE person = ? AND file_id = ?", me, String(file.id)).length > 0;
+  if (o.starred && !had) ctx.db.run("INSERT INTO files_star (person, file_id, at) VALUES (?, ?, ?)", me, String(file.id), ctx.now());
+  if (!o.starred && had) ctx.db.run("DELETE FROM files_star WHERE person = ? AND file_id = ?", me, String(file.id));
+  if (o.starred !== had) ctx.emit("file.starred", `file/${String(file.id)}`, { fileId: String(file.id), by: me, starred: o.starred }, { vis: "owner" });
+  flagCache.delete(ctx);
+  return { file: fileOutC(ctx, file) };
+}
+
+// ---- what a folder belongs to ----
+
+const SUBJECT_KEY = /^(agent|project):(.+)$/;
+const ROOT_SUBJECT: Record<string, "agent" | "project"> = { agents: "agent", projects: "project" };
+
+/** A folder made for an agent or project carries its id in system_key (agent:<id>, project:<id>); folders below it, and the Agents and Projects roots, belong to the same kind. */
+function subjectOf(ctx: Ctx, row: Row): Subject {
+  let cur: Row | undefined = row;
+  for (let hops = 0; cur && hops < 64; hops += 1) {
+    const m = SUBJECT_KEY.exec(isNull(cur.system_key) ? "" : String(cur.system_key));
+    if (m) return { kind: m[1] as "agent" | "project", id: m[2]! };
+    const root = isNull(cur.root_key) ? undefined : ROOT_SUBJECT[String(cur.root_key)];
+    if (root) return { kind: root };
+    cur = isNull(cur.parent_id) ? undefined : one(ctx, "SELECT * FROM files_folder WHERE id = ?", String(cur.parent_id));
+  }
+  return { kind: "space" };
+}
+
 export function folderOut(ctx: Ctx, row: Row): FolderOut {
   const counts = childCounts(ctx, String(row.id));
   const out: FolderOut = {
@@ -329,6 +392,7 @@ export function folderOut(ctx: Ctx, row: Row): FolderOut {
     reviewChanges: flag(row.review_changes),
   };
   if (!isNull(row.parent_id)) out.parentId = String(row.parent_id);
+  out.subject = subjectOf(ctx, row);
   if (!isNull(row.source_mount) && !isNull(row.source_provider)) {
     out.source = { mountId: String(row.source_mount), provider: String(row.source_provider) };
   }
@@ -624,9 +688,9 @@ function trashTop(ctx: Ctx): { files: Row[]; folders: Row[] } {
   return { files, folders };
 }
 
-async function filesTree(ctx: Ctx): Promise<{ roots: { key: string; title: string; kind: "folder" | "virtual"; folderId?: string; count: number }[] }> {
+async function filesTree(ctx: Ctx): Promise<{ roots: { key: string; title: string; kind: "folder" | "virtual"; folderId?: string; count: number; subject?: Subject }[] }> {
   ensureReady(ctx);
-  const roots: { key: string; title: string; kind: "folder" | "virtual"; folderId?: string; count: number }[] = [];
+  const roots: { key: string; title: string; kind: "folder" | "virtual"; folderId?: string; count: number; subject?: Subject }[] = [];
   for (const root of TREE_ROOTS) {
     if (root.kind === "virtual") {
       let count = 0;
@@ -644,7 +708,7 @@ async function filesTree(ctx: Ctx): Promise<{ roots: { key: string; title: strin
       : one(ctx, "SELECT * FROM files_folder WHERE root_key = ?", root.key);
     if (!row) continue;
     const counts = childCounts(ctx, String(row.id));
-    roots.push({ key: root.key, title: root.title, kind: "folder", folderId: String(row.id), count: counts.fileCount + counts.folderCount });
+    roots.push({ key: root.key, title: root.title, kind: "folder", folderId: String(row.id), count: counts.fileCount + counts.folderCount, subject: subjectOf(ctx, row) });
   }
   return { roots };
 }
@@ -709,7 +773,7 @@ async function filesList(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]; 
   }
   const paged = slicePage(items, offset, limit);
   const out: { files: FileOut[]; folders: FolderOut[]; total: number; next?: string } = {
-    files: paged.rows.filter((i) => i.kind === "file").map((i) => fileOut(i.row)),
+    files: paged.rows.filter((i) => i.kind === "file").map((i) => fileOutC(ctx, i.row)),
     folders: paged.rows.filter((i) => i.kind === "folder").map((i) => folderOut(ctx, i.row)),
     total: paged.total,
   };
@@ -729,7 +793,7 @@ async function filesRecent(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]
     if (files.length >= limit) break;
     const file = one(ctx, "SELECT * FROM files_file WHERE id = ?", row.file_id);
     if (!file || !isNull(file.deleted_at)) continue;
-    files.push(fileOut(file));
+    files.push(fileOutC(ctx, file));
   }
   return { files };
 }
@@ -767,7 +831,7 @@ async function filesResolve(ctx: Ctx, input: unknown): Promise<{ kind: "file" | 
 async function filesGet(ctx: Ctx, input: unknown): Promise<{ file: FileOut }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
-  return { file: fileOut(mustFile(ctx, reqStr(ctx, o, "fileId"))) };
+  return { file: fileOutC(ctx, mustFile(ctx, reqStr(ctx, o, "fileId"))) };
 }
 
 async function filesRead(ctx: Ctx, input: unknown): Promise<{ text?: string; base64?: string; url?: string; mime: string; size: number; version: number; truncated: boolean }> {
@@ -845,12 +909,19 @@ async function trashList(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]; 
   ].sort((a, b) => b.at - a.at || a.id.localeCompare(b.id));
   const paged = slicePage(items, offset, limit);
   const out: { files: FileOut[]; folders: FolderOut[]; total: number; next?: string } = {
-    files: paged.rows.filter((i) => i.kind === "file").map((i) => fileOut(i.row)),
+    files: paged.rows.filter((i) => i.kind === "file").map((i) => fileOutC(ctx, i.row)),
     folders: paged.rows.filter((i) => i.kind === "folder").map((i) => folderOut(ctx, i.row)),
     total: paged.total,
   };
   if (paged.next !== undefined) out.next = paged.next;
   return out;
+}
+
+function subjectIn(ctx: Ctx, o: Row): { kind: "agent" | "project"; id: string } | undefined {
+  if (o.subject === undefined) return undefined;
+  const s = o.subject as Row | null;
+  if (!s || typeof s !== "object" || (s.kind !== "agent" && s.kind !== "project") || typeof s.id !== "string" || s.id.length === 0) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "subject" });
+  return { kind: s!.kind as "agent" | "project", id: String(s!.id) };
 }
 
 async function folderCreate(ctx: Ctx, input: unknown): Promise<{ folder: FolderOut }> {
@@ -860,6 +931,7 @@ async function folderCreate(ctx: Ctx, input: unknown): Promise<{ folder: FolderO
   const name = cleanName(ctx, reqStr(ctx, o, "name"));
   if (nameTaken(ctx, String(parent.id), name)) fail(ctx, "validation.duplicate", "That name is already in this folder.");
   const review = optBool(ctx, o, "reviewChanges");
+  const subject = subjectIn(ctx, o);
   const id = nid(ctx, "fld");
   insertFolder(ctx, {
     id,
@@ -872,7 +944,7 @@ async function folderCreate(ctx: Ctx, input: unknown): Promise<{ folder: FolderO
     git: flag(parent.git) ? 1 : 0,
     review: review === undefined ? (flag(parent.review_changes) ? 1 : 0) : (review ? 1 : 0),
     rootKey: null,
-    systemKey: null,
+    systemKey: subject ? `${subject.kind}:${subject.id}` : null,
   });
   ctx.emit("folder.created", `folder/${id}`, { folderId: id, parentId: String(parent.id), name });
   ctx.log.info("files.folder.create", { folderId: id });
@@ -1043,7 +1115,7 @@ async function filesCreate(ctx: Ctx, input: unknown): Promise<{ file: FileOut; c
   ctx.emit("file.created", `file/${id}`, { fileId: id, folderId: String(folder.id), name, kind, by: ctx.principal.id });
   ctx.emit("file.version_added", `file/${id}`, { fileId: id, versionId, n: 1, by: ctx.principal.id });
   ctx.log.info("files.create", { fileId: id, folderId: String(folder.id), bytes: blob.size });
-  return { file: fileOut(mustFile(ctx, id)) };
+  return { file: fileOutC(ctx, mustFile(ctx, id)) };
 }
 
 async function filesWrite(ctx: Ctx, input: unknown): Promise<{ file: FileOut; versionId?: string; changesetId?: string }> {
@@ -1073,7 +1145,7 @@ async function filesWrite(ctx: Ctx, input: unknown): Promise<{ file: FileOut; ve
   if (reason !== undefined) payload.reason = reason;
   ctx.emit("file.version_added", `file/${String(file.id)}`, payload);
   ctx.log.info("files.write", { fileId: String(file.id), version: n, bytes: blob.size });
-  return { file: fileOut(mustFile(ctx, String(file.id))), versionId };
+  return { file: fileOutC(ctx, mustFile(ctx, String(file.id))), versionId };
 }
 
 async function filesRename(ctx: Ctx, input: unknown): Promise<{ file: FileOut }> {
@@ -1082,7 +1154,7 @@ async function filesRename(ctx: Ctx, input: unknown): Promise<{ file: FileOut }>
   const file = liveFile(ctx, reqStr(ctx, o, "fileId"));
   const name = cleanName(ctx, reqStr(ctx, o, "name"));
   const from = String(file.name);
-  if (name === from) return { file: fileOut(file) };
+  if (name === from) return { file: fileOutC(ctx, file) };
   if (nameTaken(ctx, String(file.folder_id), name, { kind: "file", id: String(file.id) })) {
     fail(ctx, "validation.duplicate", "That name is already in this folder.");
   }
@@ -1090,7 +1162,7 @@ async function filesRename(ctx: Ctx, input: unknown): Promise<{ file: FileOut }>
   ctx.db.run("UPDATE files_file SET name = ?, updated_at = ?, updated_by = ? WHERE id = ?", name, now, ctx.principal.id, file.id);
   noteOpen(ctx, String(file.id));
   ctx.emit("file.renamed", `file/${String(file.id)}`, { fileId: String(file.id), from, to: name });
-  return { file: fileOut(mustFile(ctx, String(file.id))) };
+  return { file: fileOutC(ctx, mustFile(ctx, String(file.id))) };
 }
 
 async function filesMove(ctx: Ctx, input: unknown): Promise<{ file: FileOut }> {
@@ -1101,7 +1173,7 @@ async function filesMove(ctx: Ctx, input: unknown): Promise<{ file: FileOut }> {
   const nextName = optStr(ctx, o, "name");
   const name = nextName === undefined ? String(file.name) : cleanName(ctx, nextName);
   const fromFolder = String(file.folder_id);
-  if (fromFolder === String(dest.id) && name === String(file.name)) return { file: fileOut(file) };
+  if (fromFolder === String(dest.id) && name === String(file.name)) return { file: fileOutC(ctx, file) };
   if (nameTaken(ctx, String(dest.id), name, { kind: "file", id: String(file.id) })) {
     fail(ctx, "validation.duplicate", "That name is already in this folder.");
   }
@@ -1113,7 +1185,7 @@ async function filesMove(ctx: Ctx, input: unknown): Promise<{ file: FileOut }> {
   noteOpen(ctx, String(file.id));
   ctx.emit("file.moved", `file/${String(file.id)}`, { fileId: String(file.id), fromFolderId: fromFolder, toFolderId: String(dest.id) });
   if (name !== String(file.name)) ctx.emit("file.renamed", `file/${String(file.id)}`, { fileId: String(file.id), from: String(file.name), to: name });
-  return { file: fileOut(mustFile(ctx, String(file.id))) };
+  return { file: fileOutC(ctx, mustFile(ctx, String(file.id))) };
 }
 
 async function filesCopy(ctx: Ctx, input: unknown): Promise<{ file: FileOut }> {
@@ -1138,7 +1210,7 @@ async function filesCopy(ctx: Ctx, input: unknown): Promise<{ file: FileOut }> {
   noteOpen(ctx, id);
   ctx.emit("file.created", `file/${id}`, { fileId: id, folderId: String(dest.id), name, kind: String(file.kind), by: ctx.principal.id });
   ctx.emit("file.version_added", `file/${id}`, { fileId: id, versionId, n: 1, by: ctx.principal.id });
-  return { file: fileOut(mustFile(ctx, id)) };
+  return { file: fileOutC(ctx, mustFile(ctx, id)) };
 }
 
 async function filesDelete(ctx: Ctx, input: unknown): Promise<{ deleted: boolean }> {
@@ -1178,7 +1250,7 @@ async function filesRestore(ctx: Ctx, input: unknown): Promise<{ file: FileOut }
   ctx.db.run("DELETE FROM files_trash WHERE id = ?", file.id);
   noteOpen(ctx, String(file.id));
   ctx.emit("file.restored", `file/${String(file.id)}`, { fileId: String(file.id), folderId });
-  return { file: fileOut(mustFile(ctx, String(file.id))) };
+  return { file: fileOutC(ctx, mustFile(ctx, String(file.id))) };
 }
 
 function purgeFile(ctx: Ctx, file: Row): void {
@@ -1270,7 +1342,7 @@ async function filesRestoreVersion(ctx: Ctx, input: unknown): Promise<{ file: Fi
   const nextId = addVersion(ctx, String(file.id), n, blobId, "restore", undefined);
   noteOpen(ctx, String(file.id));
   ctx.emit("file.version_added", `file/${String(file.id)}`, { fileId: String(file.id), versionId: nextId, n, by: ctx.principal.id, reason: "restore" });
-  return { file: fileOut(mustFile(ctx, String(file.id))), versionId: nextId };
+  return { file: fileOutC(ctx, mustFile(ctx, String(file.id))), versionId: nextId };
 }
 
 async function filesNameVersion(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
@@ -1343,6 +1415,7 @@ export const treeHandlers = {
   "files.recent": (ctx: Ctx, input: unknown) => filesRecent(ctx, input),
   "files.resolve": (ctx: Ctx, input: unknown) => filesResolve(ctx, input),
   "files.get": (ctx: Ctx, input: unknown) => filesGet(ctx, input),
+  "files.star": (ctx: Ctx, input: unknown) => filesStar(ctx, input),
   "files.read": (ctx: Ctx, input: unknown) => filesRead(ctx, input),
   "files.folder.get": (ctx: Ctx, input: unknown) => folderGet(ctx, input),
   "files.folder.search": (ctx: Ctx, input: unknown) => folderSearch(ctx, input),

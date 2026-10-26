@@ -45,7 +45,7 @@ export default defineManifest({
       label: 'check', tool: 'meta',
     }),
     write('conflicts.assist', 'Start the assistant run that compares both sides of a non-restricted conflict (never started for Restricted fields)', {
-      in: target, out: { runId: id.run }, emits: ['conflict.proposed'], run: { kind: 'conflict_assist', stoppable: true },
+      in: target, out: { runId: id.run }, emits: ['conflict.proposed', 'conflict.confirmation_needed', 'conflict.resolved'], run: { kind: 'conflict_assist', stoppable: true },
       idem: 'natural', risk: 'low', errors: ['permission.provider_label'],
     }),
     write('conflicts.propose', 'Store the assistant proposal for a conflict; protected fields (status, money, owner, locked, sealed) go to Needs you for confirmation, others resolve', {
