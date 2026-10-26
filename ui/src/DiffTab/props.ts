@@ -20,6 +20,10 @@ export interface DiffHunk {
   context: string;
   added: string;
   removed: string;
+  /** Unchanged lines just above the change, shown as context (a version compare shows them). */
+  before?: string;
+  /** Unchanged lines just below the change. */
+  after?: string;
 }
 
 export interface DiffFile {

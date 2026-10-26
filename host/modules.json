@@ -24,12 +24,12 @@
     {
       "id": "backup",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "calendar",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "campaigns",
@@ -49,7 +49,7 @@
     {
       "id": "conflicts",
       "owner": "L1",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "connectors",
@@ -59,17 +59,17 @@
     {
       "id": "console-assistant",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "console-views",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "contacts-link",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "devices",
@@ -124,12 +124,12 @@
     {
       "id": "github",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "google",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "governance",
@@ -139,7 +139,7 @@
     {
       "id": "health",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "home",
@@ -159,7 +159,7 @@
     {
       "id": "inbox",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "journeys",
@@ -174,12 +174,12 @@
     {
       "id": "logs",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "mail",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "mailgun",
@@ -209,7 +209,7 @@
     {
       "id": "microsoft",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "mounts",
@@ -219,7 +219,7 @@
     {
       "id": "network",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "notifications",
@@ -249,7 +249,7 @@
     {
       "id": "reports-client",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "resend",
@@ -279,7 +279,7 @@
     {
       "id": "search",
       "owner": "L1",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "settings",
@@ -309,12 +309,12 @@
     {
       "id": "stripe",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "sync",
       "owner": "L1",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "tasks",
@@ -339,7 +339,7 @@
     {
       "id": "twilio",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "updates",

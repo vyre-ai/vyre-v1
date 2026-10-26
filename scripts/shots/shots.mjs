@@ -12,6 +12,7 @@ import { ensureDeps, ensureChromium } from "./ensure-deps.mjs";
 import { parseArgs, SKINS, SIZES, MAX_EXPORT_S, protoHash, routeUrl, loadTargets, sideBySideHtml } from "./lib.mjs";
 import { serve } from "./serve.mjs";
 import { measureScroll, withinBudget, SCROLL_P95_MS } from "./probes/scroll.mjs";
+import { exportEnv } from "../lib/registry-hash.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)), REPO = path.resolve(HERE, "../..");
 const args = parseArgs(process.argv.slice(2));
@@ -40,7 +41,7 @@ let exportSeconds = 0;
 if (!args["skip-export"]) {
   fs.rmSync(dist, { recursive: true, force: true });
   const t0 = Date.now();
-  execSync("npx expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: { ...process.env, CI: "1", EXPO_NO_TELEMETRY: "1" } });
+  execSync("npx expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
   exportSeconds = (Date.now() - t0) / 1000;
   console.log(`METRIC ${JSON.stringify({ name: "expo_web_export", seconds: exportSeconds, budget_seconds: maxExport })}`);
 }

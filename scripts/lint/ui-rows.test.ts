@@ -153,3 +153,17 @@ test("ui-rows lint: the rest of the file is not read as the callback: a map by r
   assert.deepEqual(hitsOf(`const a = items.map(toRow);\nexport const b = () => (\n  <View />\n);`), []);
   assert.deepEqual(hitsOf(`const a = items.map(Number); const b = (x: number) => <View>{x}</View>;`), []);
 });
+
+test("ui-rows lint: `ui-rows-lint: not a list (<reason>)` on the line above a .map exempts it, and a reason is required", () => {
+  const tiles = (comment: string) => `export const view = (\n  <Grid>\n    ${comment}\n    {stats.map((s) => <View key={s.id}>{s.label}</View>)}\n  </Grid>\n);`;
+  assert.equal(hitsOf(tiles("{/* nothing here */}")).length, 1, "without the comment a JSX map is a list item");
+  assert.deepEqual(hitsOf(tiles("{/* ui-rows-lint: not a list (Overview stat tiles) */}")), []);
+  assert.deepEqual(hitsOf(`// ui-rows-lint: not a list (a card grid)\nexport const a = items.map((item) => <View key={item.id} />);`), []);
+  const noReason = hitsOf(`// ui-rows-lint: not a list\nexport const a = items.map((item) => <View key={item.id} />);`);
+  assert.equal(noReason.length, 1);
+  assert.equal(noReason[0]!.message, "ui-rows-lint: not a list needs a reason in parentheses");
+  assert.equal(hitsOf(`// ui-rows-lint: not a list ()\nexport const a = items.map((item) => <View key={item.id} />);`).length, 1, "an empty reason is no reason");
+  // only the line just above counts, and it exempts only the map below it
+  assert.equal(hitsOf(`// ui-rows-lint: not a list (tiles)\n\nexport const a = items.map((item) => <View key={item.id} />);`).length, 1);
+  assert.equal(hitsOf(`// ui-rows-lint: not a list (tiles)\nexport const a = items.map((i) => <View key={i.id} />);\nexport const b = items.map((i) => <View key={i.id} />);`).length, 1);
+});

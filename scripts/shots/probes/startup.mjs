@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { ensureDeps, ensureChromium } from "../ensure-deps.mjs";
 import { parseArgs } from "../lib.mjs";
 import { serve } from "../serve.mjs";
+import { exportEnv } from "../../lib/registry-hash.mjs";
 
 export const STARTUP_MS_DESKTOP = 1000;
 export const STARTUP_MS_PHONE = 1500;
@@ -29,7 +30,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   ensureChromium(REPO);
   if (!args["skip-export"]) {
     fs.rmSync(dist, { recursive: true, force: true });
-    execSync("npx expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: { ...process.env, CI: "1", EXPO_NO_TELEMETRY: "1" } });
+    execSync("npx expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
   }
   const server = await serve(dist, { spa: true });
   const { chromium } = await import("playwright-core");
