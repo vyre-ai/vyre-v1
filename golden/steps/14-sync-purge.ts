@@ -7,7 +7,9 @@ import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_PURGE = ["sync", "access", "search", "records", "schema", "devices", "spaces"];
-export const GAPS: Gap[] = [];
+export const GAPS: Gap[] = [
+  { packet: "PR 607 (P-GF_03)", lane: "L1", what: "folders.place answers 404 'no such folder' for the seed's fld_clients: the access module's folders table does not hold the seeded folders; vaultB's booted test sets this up in #607" },
+];
 
 export async function runPurge(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const trail = new Trail();
