@@ -162,7 +162,7 @@ const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): 
     },
     createElement("div", { className: "vrt-g" }, String(n)),
     createElement("div", { style: { width: primary.width, height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, boxSizing: "border-box", padding: "0 10px", overflow: "hidden", flex: "none" } },
-      row ? createElement("span", { className: "vrt-p", style: { ...CELL_TEXT, fontWeight: 500 } }, dot(row.id, title), title) : createElement("div", { style: GHOST }),
+      row ? createElement("span", { className: "vrt-p", style: { ...CELL_TEXT, fontWeight: 500 } }, dot(row.id, title, false), title) : createElement("div", { style: GHOST }),
       row && (hot || selected) ? <Pressable accessibilityRole="button" accessibilityLabel="Open record" testID={`open-${row.id}`} onPress={() => onOpen(row.id)} style={styles.xopen}><Glyph name="expand" size={13} color="var(--ink-2)" /></Pressable> : null,
     ),
   );
@@ -228,11 +228,13 @@ const faceDoc = (): FaceDoc | undefined => (globalThis as { document?: FaceDoc }
  * rule per face, made when its row is first drawn (the table is virtual, so never for rows off screen), and the rules are an LRU of 400 (FaceLru in model.ts), so a table of 100,000 records holds a few hundred.
  * When a bitmap lands every cell with that face changes at once and no row re-renders. A page with no document (server render, tests) gets the same disc as an inline style.
  */
-function dot(seed: string, label: string): ReactElement {
+function dot(seed: string, label: string, shared = true): ReactElement {
   const doc = faceDoc();
-  if (doc === undefined) {
-    let st = dots.get(seed);
-    if (!st) { st = { width: 18, height: 18, flex: "none", borderRadius: 9, backgroundColor: marbleSpec(seed).base, backgroundImage: marbleGradient(seed) }; dots.set(seed, st); }
+  if (doc === undefined || !shared) {
+    // no document (server render, tests), or a face that belongs to one record only (the Name cell: a 100,000 row table has 100,000 of them, and the scroll trace put a bitmap and a rule for each
+    // at 50 ms p95): the same marble as a plain inline gradient, built once per seed on the server and per drawn row in the browser, with no rule, no bitmap and no stylesheet write
+    let st = doc === undefined ? dots.get(seed) : undefined;
+    if (!st) { st = { width: 18, height: 18, flex: "none", borderRadius: 9, backgroundColor: marbleSpec(seed).base, backgroundImage: marbleGradient(seed) }; if (doc === undefined) dots.set(seed, st); }
     return createElement("span", { "aria-hidden": true, "data-testid": `face-${label}`, style: st });
   }
   const cls = faceClassOf(seed);
