@@ -10,6 +10,8 @@ import { Terminal, TerminalFeed, hostMenu, keyToData } from "../../../ui/src/Ter
 import type { TerminalFrame } from "../../../ui/src/Terminal/index.tsx";
 import { PEOPLE, CHANNEL, COMPUTER, HELPER, RECORDING, SERVER_TERMINAL, TERMINAL, createMountSample } from "../src/places/chats/mounts/sample.ts";
 import type { MountSample } from "../src/places/chats/mounts/sample.ts";
+import ChatsPlace from "../src/shell/providers/chats.tsx";
+import { ShellRuntimeProvider } from "../src/shell/providers/runtime.tsx";
 import { ChatsMounted } from "../src/places/chats/mounts/ChatsMounted.tsx";
 import { AllAgents, pickAgents } from "../src/places/chats/mounts/AllAgents.tsx";
 import type { AgentRow } from "../src/places/chats/mounts/AllAgents.tsx";
@@ -445,4 +447,12 @@ test("the whole place with a runtime draws the sidebar and the open chat, and ev
   assert.ok(has(out, 'data-testid="chats-place"') && has(out, 'data-testid="chats-sidebar"') && has(out, 'data-testid="conversation"'));
   for (const id of ["helpers-button", "participants-button", "pane-button", "more-button", "computer-button"]) assert.ok(has(out, `data-testid="${id}"`), id);
   assert.ok(!has(out, "-loading"), "no loading frame once the Space is open");
+});
+
+test("the shipped place, through the shell provider and the runtime's live screens, draws Needs you with its count and the agents that wait on you", () => {
+  const s = createMountSample();
+  const out = clean(renderToStaticMarkup(<ShellRuntimeProvider value={s.rt}><ChatsPlace /></ShellRuntimeProvider>));
+  assert.ok(has(out, 'data-testid="row-needs-parent"') && has(out, 'data-testid="count-needs"') && has(out, ">7<"), "the Needs you entry with its count, read from home.needs-you-top3 through rt.screens");
+  assert.ok(has(out, "Send 12 invoices"), "its requests beneath");
+  assert.equal(out.split("Waiting on you").length - 1, 4, "the four agents with a request say so");
 });
