@@ -245,8 +245,3 @@ test("built-in roles carry their standard Space level where nothing seeded them:
     assert.equal((await create()).status, 403, "unassigned, the access is gone");
   });
 });
-
-test("fail closed at boot: with the access module live, a missing access.sync stops the daemon from starting instead of answering from the seed fold", async () => {
-  const dir = seededDir();
-  await assert.rejects(() => bootDaemon(dir, new Map(), { hooks: [] }), /no host call named access\.sync/);
-});

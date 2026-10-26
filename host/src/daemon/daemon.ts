@@ -322,7 +322,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       let peopleExtras: ReturnType<typeof createPeopleExtras> | null = null;   // set once the hook runner exists
       let invokeRef: Invoke = () => Promise.reject(new Error("the invoke pipeline is not ready"));
       const hookRunner = createHookRunner({
-        space, now, db, hooks: o.hooks ?? [...loaded.moduleExports].map(([id, ns]) => collectHooks(id, ns)),
+        space, now, db,
+        // a hooks override stands in for the module hooks, except the access module's: authorize reads its snapshot (ruling 70), so its host calls are never replaced
+        hooks: o.hooks ? [...o.hooks, ...[...loaded.moduleExports].filter(([id]) => id === "access").map(([id, ns]) => collectHooks(id, ns))] : [...loaded.moduleExports].map(([id, ns]) => collectHooks(id, ns)),
         log: { read: (q) => log!.read(q), currentHead: () => log!.currentHead() },
         invoke: (cap, input, seed) => invokeRef(cap, input, seed),
         emitsOf: (m) => [...new Set(registryCaps.filter((c) => (c as { module?: string }).module === m).flatMap((c) => c.emits as string[]))],
