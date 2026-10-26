@@ -3,11 +3,13 @@ import {
   githubLink, githubSignIn, githubUnlink, pairCreate, pairRedeem, passkeyRegister, passkeyRemove, signIn, signInOptions, signOut, ssoSignIn, totpBegin, totpConfirm,
   totpRemove, usernameAvailable, verifySecondFactor, whoami,
 } from "./signin.ts";
+import { claimOwner } from "./claim.ts";
 import { acceptCreateAccount, changePassword, keysGet, keysPut, recoveryRestore, recoverySave, resetComplete, resetPreview, resetStart } from "./keys.ts";
 
 export const handlers = {
   "invites.accept_create_account": acceptCreateAccount,
   "identity.change_password": changePassword,
+  "identity.claim_owner": claimOwner,
   "identity.github_link": githubLink,
   "identity.github_sign_in": githubSignIn,
   "identity.github_unlink": githubUnlink,

@@ -10,12 +10,10 @@ export const LIVE_FOR_GATE_REPLY = ["vault", "engine", "agents", "files", "acces
 
 /** Why this is a todo today. Each line names the PR it waits on. */
 export const GATE_GAPS: Gap[] = [
-  { packet: "PR 560 (P-L2_28)", lane: "L2", what: "the fake CLI gets a 'send <address>' scenario that calls mail_send over the loopback MCP session; until it lands the agent can never ask to send mail" },
-  { packet: "PR 472 (P-L4_LIVE)", lane: "L4", what: "files migrations never create files_file, so agents.create answers 500" },
-  { packet: "PR 471 (P-L7_LIVE)", lane: "L7", what: "the vault module and the signed-in steps need the L7 modules live" },
+  { packet: "L2 engine (steward)", lane: "L2", what: "the same as the reply half: the agent never answers the 'send pat@acme.test <mailbox>' message, so no mail_send reaches the Gate and no hold appears within 40 s" },
 ];
 
-const TOKEN = "sk-ant-oat01-GOLDENFAKE0123456789abcdefXYZ";
+const TOKEN = "sk-ant-oat01-GOLDENFAKE0123456789abcdefXYZ"; // secret-scan: fake
 type Hold = { id: string; taskId: string; state: string; capName?: string };
 
 export async function runAgentGate(live: readonly string[], opts: Parameters<typeof bootFlowSpace>[1] = {}): Promise<{ events: Observed[]; trail: Trail }> {

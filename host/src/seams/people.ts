@@ -1,5 +1,6 @@
 // The extras identity, members and spaces expect on their ctx besides what the invoke pipeline builds (ruling 31/32): the host reads them from the access projection and the module tables, or hands the work to the
 // module that owns it. Each is a plain object on the ctx of that module's capabilities; a module without the extra answers the way its handler says (empty directory, no invites wired).
+//   identity.membership whether the access projection has the person active; issueSession refuses a suspended, removed or unknown person, and answers unavailable while the snapshot is stale
 //   identity.directory  roles (names) and groups of a person, from the access projection
 //   identity.invites    peek and accept, run by the members module through its host calls (members.invite_peek, members.invite_accept), so identity never touches members tables
 //   identity.github     GitHub sign-in and linking, only when VYRE_GH_OAUTH_CLIENT_ID and _SECRET are set
@@ -20,6 +21,8 @@ export interface PeopleDeps {
   call(name: string, input: unknown, as?: { principal: { kind: "person" | "agent" | "service"; id: string } }): Promise<unknown>;
   /** GitHub sign-in; omitted: identity answers that it is not set up on this server */
   github?: GithubOAuth | null;
+  /** true while the access snapshot cannot be vouched for and this person is not the owner (ruling 70): sessions are not opened */
+  stale?(principalId: string): boolean;
   /** the person key this node holds (ruling 62, 63); identity clears it at sign-out */
   keyring?: Keyring;
 }
@@ -96,6 +99,15 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
   const extras: Record<string, Record<string, unknown>> = {
     identity: {
       directory,
+      // a person the access projection does not know as active gets no session, whatever proves who they are; the one exception is the call that creates the person (the account comes first, the principal event commits with the call)
+      membership: {
+        check: (personId: string, o?: { joining?: boolean }): "ok" | "refused" | "unavailable" => {
+          if (d.stale?.(personId)) return "unavailable";
+          const p = d.access().principal(personId);
+          if (p === undefined) return o?.joining ? "ok" : "refused";   // only the call that creates the person may meet an unknown one
+          return p.status === "active" ? "ok" : "refused";
+        },
+      },
       ...(d.github ? { github: createGithub(d.github) } : {}),
       ...(d.keyring ? { keyring: { clear: (personId: string) => d.keyring!.clear(personId) } } : {}),
       invites: {

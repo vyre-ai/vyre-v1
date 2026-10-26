@@ -10,7 +10,7 @@ import type { VaultPort } from "../src/seams/ports.ts";
 
 const SPACE = "spc_1";
 const TRACE = "b".repeat(32);
-const SECRET = "sk-ant-oat01-HOSTsecretVALUE0123456789abcdefXYZ";
+const SECRET = "sk-ant-oat01-HOSTsecretVALUE0123456789abcdefXYZ"; // secret-scan: fake
 const WHO = { agentId: "intake", asker: "dana", where: "host" as const };
 
 interface Call { cap: string; input: unknown; seed: CtxSeed }

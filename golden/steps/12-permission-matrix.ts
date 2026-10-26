@@ -13,7 +13,8 @@ const CHANNEL = { type: "channel", id: "chn_general" } as const;
 
 /** Why this flow is a todo today (ruling 53). */
 export const GAPS: Gap[] = [
-  { packet: "CONTRACT-CHANGE", lane: "L7", what: "access.request needs level view on the resource being asked for, so a person who cannot see it gets 403 instead of asking" },
+  { packet: "P-CC_42 follow-up", lane: "L7", what: "folders.create answers 500: it emits access.changed (after grant.created was added), which its manifest does not declare in emits" },
+  { packet: "L7 access / L6 tasks", lane: "L7", what: "a member's access.request answers 422 'A unblock task has no action called approve': the request opens an unblock task whose actions do not include approve, so the request cannot be made" },
 ];
 
 export async function runMatrix(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
@@ -60,12 +61,22 @@ export async function runMatrix(live: readonly string[]): Promise<{ events: Obse
       const out = expectStatus(await s.call("access.unshare", admin, { grantId: grant! }), 200, "access.unshare");
       assert.equal(out.revoked, 1);
     }, ["the Clients folder is shared with Tess"]);
-    const request = await trail.step("Tess asks for access", async () =>
-      expectStatus(await s.call("access.request", tess, { idempotencyKey: "golden-12-ask", resource: CHANNEL, level: "view", note: "I need the general channel" }), 200, "access.request").request.id as string);
-    await trail.step("the admin approves and Tess's retry succeeds", async () => {
+    await trail.step("refusal: Tess, a guest, gets the designed refusal when she asks", async () => {
+      const r = await s.call("access.request", tess, { idempotencyKey: "golden-12-guest-ask", resource: CHANNEL, level: "view", note: "I need the general channel" });
+      assert.equal(r.status, 403, short(r.body?.error ?? r.body));
+      assert.equal(r.body?.error?.code, "permission.guest_cannot_request", "guests work inside the access they were given and cannot ask for more");
+    });
+    const noah = s.signedIn("usr_noah");
+    const request = await trail.step("a member asks for access", async () => {
+      const out = expectStatus(await s.call("access.request", noah, { idempotencyKey: "golden-12-ask", resource: CHANNEL, level: "view", note: "I need the general channel" }), 200, "access.request");
+      assert.equal(out.request.requester, "usr_noah", short(out));
+      return out.request.id as string;
+    });
+    await trail.step("the admin approves and the member's retry succeeds", async () => {
       expectStatus(await s.call("access.requests.approve", admin, { requestId: request!, level: "view" }), 200, "access.requests.approve");
-      assert.equal(await allowed("after approval"), true);
-    }, ["Tess asks for access"]);
+      const can = expectStatus(await s.call("access.check", admin, { principal: { kind: "person", id: "usr_noah" }, action: { level: "view" }, resource: CHANNEL }), 200, "access.check").decision.allow === true;
+      assert.equal(can, true);
+    }, ["a member asks for access"]);
     return { events: await s.events(), trail };
   } finally { await s.stop(); }
 }
