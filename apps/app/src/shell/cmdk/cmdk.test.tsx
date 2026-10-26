@@ -13,6 +13,12 @@ import { ACTIONS, LOCAL_HITS, SERVER_HITS, createSampleData } from "./sample.ts"
 import { KEYBOARD_MAP, formatCombo, keyboardRows, matchShortcut } from "../keyboard/map.ts";
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+/** Resolves when the server has answered (status done), however loaded the runner is; the 10 s cap only keeps a hang from stalling the suite. */
+const answered = (c: CmdKController): Promise<void> => new Promise((resolve, reject) => {
+  const stop = setTimeout(() => { off(); reject(new Error("the server answer never arrived")); }, 10_000);
+  const off = c.subscribe(() => { if (c.getState().serverStatus === "done") { clearTimeout(stop); off(); resolve(); } });
+  if (c.getState().serverStatus === "done") { clearTimeout(stop); off(); resolve(); }
+});
 const titles = (c: CmdKController): string[] => c.getState().rows.flatMap((r) => (r.type === "hit" ? [r.hit.title] : r.type === "action" ? [r.action.title] : r.type === "skin" ? [r.name] : []));
 
 test("prefixes route to kinds: @ people and agents, # chats and records, / files, > actions", () => {
@@ -63,7 +69,7 @@ test("local results never wait on the server; the server hits merge in when they
   assert.ok(first.includes("Referral fee log") && first.includes("Referral agreement.pdf"), "local rows are drawn in the same task as the keystroke");
   assert.ok(!first.includes("Referral policy 2026.docx"));
   assert.equal(c.getState().serverStatus, "loading");
-  await wait(220);
+  await answered(c);
   const after = titles(c);
   assert.equal(c.getState().serverStatus, "done");
   assert.ok(after.includes("Referral policy 2026.docx") && after.includes("#referrals"));
