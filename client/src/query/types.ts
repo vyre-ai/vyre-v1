@@ -1,6 +1,8 @@
 import type { Change, LocalDb } from "../store/index.ts";
 
-export type QueryState<T> = { status: "loading" } | { status: "ready"; data: T };
+/** Why a read has no answer: the capability refused it or the server could not answer. A query that failed before it ever answered stays `loading` and carries this, so a place can show the error instead of a skeleton forever. */
+export interface QueryFailure { message: string; code?: string; traceId?: string }
+export type QueryState<T> = { status: "loading"; error?: QueryFailure } | { status: "ready"; data: T };
 /** The shape useSyncExternalStore wants. getSnapshot returns the same object until a change affects the query. */
 export interface LiveQuery<T> { subscribe(listener: () => void): () => void; getSnapshot(): QueryState<T> }
 

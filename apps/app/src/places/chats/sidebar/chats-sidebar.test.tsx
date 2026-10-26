@@ -8,7 +8,8 @@ import { SidebarContent } from "../../../shell/sidebar/index.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import { ChatsSidebar, ChatsSidebarSlot } from "./ChatsSidebar.tsx";
 import { createSidebarApi } from "./actions.ts";
-import { NEW_CHAT_MS, groupRecent, matchesQuery, rowOf } from "./model.ts";
+import { validateInput } from "../../../../../../generated/validators.ts";
+import { FACES_SHOWN, NEW_CHAT_MS, buildEntries, groupRecent, matchesQuery, rowOf } from "./model.ts";
 import type { ChatRow, RecentOut } from "./model.ts";
 import { createSampleSidebar, harbor, northwind, personal } from "./sample.ts";
 import { SECTION_TYPE } from "./parts.tsx";
@@ -100,8 +101,10 @@ test("star, mark read and approve change what the next render shows", async () =
   assert.equal(recentNow(s).today.find((x) => x.threadId === "c4")!.unread, 0);
   assert.equal(recentNow(s).nextUnread, "d1", "next unread moves on (oldest unread first)");
   await api.star("agent", "agt_docs", false);
-  const faces = (s.data.screens.query("chats.all-agents", "agents", { section: "starred" }).getSnapshot() as { data: { agents: { name: string }[] } }).data.agents;
-  assert.ok(!faces.some((a) => a.name === "Docs"), "Docs is no longer a starred face");
+  // agents.list takes no "starred" input (the contract refuses it), so the Agents group is the Space's agents and starring one leaves the group as it was; the star itself is the stars.toggle call below.
+  const faces = (s.data.screens.query("chats.all-agents", "agents", {}).getSnapshot() as { data: { agents: { name: string }[] } }).data.agents;
+  assert.ok(faces.some((a) => a.name === "Docs"), "Docs stays in the Agents group");
+  assert.deepEqual(s.rejected, [], "every read the sidebar sent was accepted by the generated validators");
   const need = (s.data.screens.query("home.needs-you-top3", "items", { limit: 3 }).getSnapshot() as { data: { items: Parameters<typeof api.act>[0][] } }).data.items[0]!;
   await api.act(need);
   assert.ok(!html(s).includes("Send 12 invoices"), "an approved request leaves the sidebar");
@@ -171,4 +174,45 @@ test("one type for every section header: Agents and Channels, and the Starred, T
 test("the sample channels carry the prototype's neutral names", () => {
   const out = html(createSampleSidebar());
   assert.ok(out.includes("rivera-matter") && out.includes("pruitt-matter"));
+});
+
+// ---- reads the contract accepts, and reads that fail (P-L9b_26)
+
+test("the inputs the Chats sidebar and All agents send are accepted by the generated validators", () => {
+  const s = createSampleSidebar();
+  html(s);
+  assert.deepEqual(s.rejected, [], "the sample answers a refused input like the real handler (an error), and none was refused");
+  // the screen queries the sidebar declares, with the state it passes
+  for (const [cap, input] of [["chat.recent", { filter: "all" }], ["channels.list", {}], ["agents.list", {}], ["tasks.needs_you", {}]] as const) {
+    assert.deepEqual(validateInput(cap, 1, input), [], cap);
+  }
+  assert.notDeepEqual(validateInput("agents.list", 1, { section: "starred" }), [], "the input that was refused in the real app (422) is refused here too");
+  assert.throws(() => s.data.screens.query("chats.all-agents", "agents", { section: "starred" }).getSnapshot(), /bad_input/, "the sample refuses it as the server does");
+  assert.equal(s.rejected.length > 0, true);
+});
+
+test("the Agents group shows the first agents and an All agents row for the rest", () => {
+  const agent = (n: number) => ({ agentId: `a${n}`, name: `Agent ${n}` }) as never;
+  const faces = Array.from({ length: FACES_SHOWN }, (_, n) => agent(n));
+  const base = { needs: [], needsTotal: 0, faces, workingAgents: new Set<string>(), groups: [], channels: [], filter: "all" as const, closed: new Set<never>() };
+  const withMore = buildEntries({ ...base, facesMore: 5 });
+  const more = withMore.find((e) => e.type === "more");
+  assert.ok(more && more.type === "more" && more.label === `All agents (${FACES_SHOWN + 5})`);
+  assert.equal(buildEntries(base).some((e) => e.type === "more"), false, "nothing more, no row");
+});
+
+const FAILED = { status: "loading" as const, error: { message: "agents.list: bad_input", code: "validation.bad_input", traceId: "trace-1" } };
+const failing = (s: SampleSidebar, screen: string): string =>
+  renderToStaticMarkup(<ChatsSidebar data={{ ...s.data, screens: { query: (id, name, state) => (id === screen ? { subscribe: () => () => undefined, getSnapshot: () => FAILED } : s.data.screens.query(id, name, state)) } }} window={{ start: 0, end: 500 }} />).replaceAll("<!-- -->", "");
+
+test("a failed read shows the error for that section, the rest still draws, and it is never the empty state", () => {
+  const s = createSampleSidebar();
+  const agents = failing(s, "chats.all-agents");
+  assert.ok(agents.includes('data-testid="section-error-agents"') && agents.includes("Agents could not load") && agents.includes("trace-1"), "the error for the Agents section");
+  assert.ok(agents.includes("Rivera intake") && agents.includes("rivera-matter") && agents.includes("Send 12 invoices"), "chats, channels and Needs you still draw");
+  assert.ok(!agents.includes("chats-sidebar-loading") && !agents.includes("No chats yet"), "no skeleton, no empty state");
+  const chats = failing(s, "chats.sidebar");
+  assert.ok(chats.includes('data-testid="section-error-recent"') && chats.includes("Chats could not load"));
+  assert.ok(!chats.includes("No chats yet") && !chats.includes("Nothing here") && !chats.includes("chats-sidebar-loading"), "a failed Chats read is not 'No chats yet'");
+  assert.ok(chats.includes("Send 12 invoices"), "Needs you still draws");
 });
