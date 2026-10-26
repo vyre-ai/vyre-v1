@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { checkNpmLicenses } from "./license-check.ts";
+import { applyKnown } from "./boundaries.ts";
+import { scanText } from "./security/secret-scan.ts";
+import { failing as auditFailing, findings as auditFindings } from "./security/audit.ts";
 
 const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.github/workflows");
 type Job = { name: string; timeout: boolean; uses: boolean; needs: string[]; continueOnError: boolean; text: string };
@@ -92,4 +96,27 @@ test("no npm install, docker pull or curl outside prewarm", () => {
 
 test("fast shards use the 20 s cap runners: test-run.mjs for cached fast files, test-run.ts for the slow list", () => {
   for (const n of ["check", "main", "release"]) { const t = wf(n).text; assert.match(t, /test-run\.mjs --files/); assert.match(t, /test-run\.ts --slow --files/); assert.match(t, /ci-select\.ts/); }
+});
+
+// P-L11_23: security.yml runs the gates for real, and each scan fails on a seeded bad input.
+test("security.yml has no placeholder and runs license-check, the secret scan, the audit and the boundaries over the whole tree", () => {
+  const w = wf("security");
+  assert.doesNotMatch(w.text, /placeholder/i);
+  assert.match(w.text, /node scripts\/license-check\.ts/);
+  assert.match(w.text, /node scripts\/security\/secret-scan\.ts/);
+  assert.match(w.text, /node scripts\/security\/audit\.ts/);
+  assert.match(w.text, /^\s+run: node scripts\/boundaries\.ts\s*$/m, "boundaries run on the whole tree");
+  for (const l of w.text.split("\n")) if (/scripts\/(license-check|boundaries|security\/)/.test(l) && !/^\s*#/.test(l)) assert.doesNotMatch(l, /\|\|\s*true/, `a gate that cannot fail: ${l.trim()}`);
+  for (const j of w.jobs) assert.ok(j.timeout, `security.yml job ${j.name} has timeout-minutes`);
+});
+
+test("seeded bad input: a blocked license, a secret, a high advisory and an unlisted boundary violation each fail", () => {
+  assert.equal(checkNpmLicenses([{ name: "bad", license: "AGPL-3.0-only" }])[0]!.ok, false);
+  assert.equal(scanText("a.ts", `const k = "${["AK", "IA", "ABCDEFGHIJKLMNOP"].join("")}";`).length, 1);
+  assert.equal(auditFailing(auditFindings({ vulnerabilities: { x: { severity: "high", via: [] } } }), []).length, 1);
+  const v = { rule: "B1", file: "modules/a/x.ts", message: "m", spec: "../b" };
+  assert.equal(applyKnown([v], []).failing.length, 1);
+  assert.equal(applyKnown([v], [{ rule: "B1", file: "modules/a/x.ts", reason: "moves with P-X, until then accepted" }]).failing.length, 0);
+  assert.equal(applyKnown([v], [{ rule: "B1", file: "modules/a/x.ts", reason: "" }]).failing.length, 1, "a known entry without a reason does not count");
+  assert.equal(applyKnown([], [{ rule: "B1", file: "gone.ts", reason: "was needed once, now fixed" }]).stale.length, 1, "a stale known entry fails");
 });

@@ -1,13 +1,63 @@
 name: security
-# Security gates: license check, secret scan, dependency audit from the prewarmed cache.
+# Security gates (P-L11_23): licenses (npm, cargo), secret scan, dependency audit, and the layer boundaries over the whole tree. Each job fails the stage; nothing here is advisory.
+# Called by release.yml; also runs by hand and on a push that touches what these gates read.
 on:
   workflow_call:
   workflow_dispatch:
+  push:
+    branches-ignore: [main, 'gh-readonly-queue/**']
+    paths:
+      - package-lock.json
+      - '**/package.json'
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+      - scripts/license-check.ts
+      - scripts/boundaries.*
+      - scripts/allowlist.json
+      - scripts/security/**
+      - .github/workflows/security.yml
 jobs:
-  security:
+  licenses:
+    # AGPL, GPL, LGPL and SSPL are blocked (scripts/license-check.ts, ARCH 2.2 B6); MIT, Apache-2.0, BSD, ISC pass and MPL-2.0 is accepted at file level.
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: security stage
-        run: echo "security stage placeholder, security gates land with the security lane"
+      - uses: ./.github/actions/deps
+      - name: npm licenses over the installed packages
+        run: node scripts/license-check.ts
+      - name: cargo licenses over the desktop shell (cargo deny with scripts/security/deny.toml)
+        run: |
+          if [ ! -f apps/desktop/src-tauri/Cargo.toml ]; then echo "no Cargo.toml, nothing to check"; exit 0; fi
+          if ! command -v cargo-deny >/dev/null 2>&1; then echo "::warning::cargo-deny is not installed on this runner; the cargo licenses were not checked"; exit 0; fi
+          cargo deny --manifest-path apps/desktop/src-tauri/Cargo.toml check licenses --config scripts/security/deny.toml > cargo-deny.out 2>&1 || true
+          node scripts/license-check.ts --cargo cargo-deny.out
+  secrets:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Secret scan over the tracked files (scripts/security/secret-scan.ts)
+        run: node scripts/security/secret-scan.ts
+  audit:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: npm audit, production dependencies, high and critical fail (scripts/security/audit.ts)
+        run: node scripts/security/audit.ts
+  boundaries:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Layer boundaries B1 to B8 over the whole tree; only violations listed in scripts/boundaries.json known (each with a reason) are tolerated
+        run: node scripts/boundaries.ts
+  tests:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/deps
+      - name: The scans' own tests, each with a seeded bad input that must fail
+        run: node scripts/test-run.ts --files scripts/security/secret-scan.test.ts scripts/security/audit.test.ts scripts/license-check.test.ts scripts/boundaries.test.ts
