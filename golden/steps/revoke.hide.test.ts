@@ -24,8 +24,11 @@ test("a share given after the device synced delivers the row, and unshare hides 
       throw new Error("sync.pull never finished");
     };
     const all = (await pull(admin, 0)).changes;
-    assert.ok(all.length >= 2, `the owner pulls rows: ${all.length}`);
-    const [inside, outside] = [all[0]!, all[1]!];
+    // rows Tess cannot see on her own: the seed already gives her some
+    const hers = new Set((await pull(tess, 0)).changes.map(keyOf));
+    const hidden = all.filter((c) => !hers.has(keyOf(c)));
+    assert.ok(hidden.length >= 2, `the owner pulls rows Tess does not see: ${hidden.length} of ${all.length}`);
+    const [inside, outside] = [hidden[0]!, hidden[1]!];
     const rt = loadCatalog().get(inside.entity).resource;
     const folder = expectStatus(await s.call("folders.create", admin, { idempotencyKey: "hide-folder", type: rt, name: "Shared out", scope: "space" }), 200, "folders.create").folder.id as string;
     expectStatus(await s.call("folders.place", admin, { resource: { type: rt, id: inside.id }, folderId: folder }), 200, "folders.place");
