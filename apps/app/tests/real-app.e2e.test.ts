@@ -169,6 +169,19 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       assert.deepEqual(failures, [], "every place must draw");
     });
 
+    await t.test("8 a session the Space no longer knows lands on sign-in with a calm line, never a blank page", async (s) => {
+      const gap = signedIn ? null : "needs the claimed owner session (step 2)";
+      if (gap) { todo.push(gap); s.todo(gap); return; }
+      const p = await ctx.newPage();
+      await p.goto(`${web.origin}/home`, { waitUntil: "load" });
+      await p.evaluate(() => { const raw = localStorage.getItem("vyre.session.v1"); if (raw) localStorage.setItem("vyre.session.v1", JSON.stringify({ ...JSON.parse(raw), token: "vst_not_a_session" })); });
+      await p.reload({ waitUntil: "load" });
+      await p.getByTestId("si-user").waitFor({ timeout: 15_000 });
+      assert.ok(await p.getByText("You were signed out").first().isVisible(), "the sign-in page says the person was signed out");
+      assert.ok((await p.locator("body").innerText()).trim().length > 0, "not a blank page");
+      await p.close();
+    });
+
     assert.deepEqual(errors, [], "the page threw no errors");
   } finally {
     if (todo.length) console.log(`real-app e2e TODO (not a pass):\n  ${todo.join("\n  ")}`);

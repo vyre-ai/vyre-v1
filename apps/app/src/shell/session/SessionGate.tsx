@@ -62,7 +62,10 @@ async function unlockOwnKey(baseUrl: string, token: string, password: string, ke
   } catch { /* personal keys stay locked; signing in does not depend on them */ }
 }
 
-function SignInScreen({ baseUrl, onSignedIn }: { baseUrl: string; onSignedIn: (s: StoredSession) => void }): ReactElement {
+/** The calm line after the Space ended the session (a 401, a purge): one sentence on the sign-in page, never a blank or a frozen place. */
+export const SIGNED_OUT_LINE = "You were signed out. Sign in again to continue.";
+
+function SignInScreen({ baseUrl, onSignedIn, notice }: { baseUrl: string; onSignedIn: (s: StoredSession) => void; notice?: boolean }): ReactElement {
   useEffect(() => { mark("app.usable"); }, []);
   const invite: JoinInvite = useMemo(() => ({ space: hostOf(baseUrl), host: hostOf(baseUrl), by: "", role: "", sso: [], github: false, adminKey: false }), [baseUrl]);
   const anonymous = useMemo(() => createCapCaller({ baseUrl, token: () => null }), [baseUrl]);
@@ -81,13 +84,14 @@ function SignInScreen({ baseUrl, onSignedIn }: { baseUrl: string; onSignedIn: (s
     onSignedIn(stored);
     return "ok";
   }, [anonymous, baseUrl, onSignedIn]);
-  return <JoinFlow invite={invite} initial={{ stage: "signin" }} onSignIn={signIn} />;
+  return <JoinFlow invite={invite} initial={{ stage: "signin", ...(notice ? { error: SIGNED_OUT_LINE } : {}) }} onSignIn={signIn} />;
 }
 
 export interface ShellHostProps {
   stored: StoredSession;
   open: NonNullable<SessionGateProps["open"]>;
-  onSignedOut: () => void;
+  /** `manual` when the person pressed Sign out; anything else is the Space ending the session (the sign-in page then says so). */
+  onSignedOut: (why?: "manual") => void;
   onHub: (h: ShellHub | null) => void;
   /** For tests: a hub made outside, and the search sheet already open. */
   hub?: ShellHub;
@@ -191,7 +195,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const signOut = (): void => {
     void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined);
     void session?.call("identity.sign_out", {}).catch(() => undefined);
-    onSignedOut();
+    onSignedOut("manual");
   };
   const onSpaceAction = (a: string): void => { if (a === "sign-out") signOut(); };
   const renderNewTab = (): ReactElement => (search ? <NewTabSearch data={search} /> : <States kind="empty" title="Open anything, or start something" icon="search" />);
@@ -210,6 +214,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const onHub = props.onHub ?? noHub;
   const [phase, setPhase] = useState<Phase>({ kind: "signin" });
   const [ready, setReady] = useState(false);
+  const [notice, setNotice] = useState(false);
 
   // Read the stored session after mount, never during the first render: the static export pre-renders the sign-in markup and must match it.
   useEffect(() => {
@@ -218,13 +223,13 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     setReady(true);
   }, [baseUrl]);
 
-  const signedOut = useCallback(() => { clearStored(); setPhase({ kind: "signin" }); }, []);
+  const signedOut = useCallback((why?: "manual") => { clearStored(); setNotice(why !== "manual"); setPhase({ kind: "signin" }); }, []);
   const signedIn = useCallback((stored: StoredSession) => setPhase({ kind: "shell", stored }), []);
 
   if (!ready) return <View style={styles.fill} />;
   if (phase.kind === "shell") return <ShellHost stored={phase.stored} open={open} onSignedOut={signedOut} onHub={onHub} voice={props.voice} />;
   if (!baseUrl) return <States kind="error" message="No Space to connect to" cause="This page has no address for a Space." next="Open it from your Space's address" />;
-  return <SignInScreen baseUrl={baseUrl} onSignedIn={signedIn} />;
+  return <SignInScreen baseUrl={baseUrl} onSignedIn={signedIn} notice={notice} />;
 }
 
 const styles = StyleSheet.create({
