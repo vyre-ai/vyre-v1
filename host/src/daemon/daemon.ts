@@ -527,7 +527,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const mine = await invoke("calendar.list_calendars", { scope: "mine" }, as);
           const calendars = (mine.status === "ok" ? (mine.output as { calendars?: { personal?: boolean }[] }).calendars : undefined) ?? [];
           if (calendars.some((c) => c.personal === true)) return;
-          await invoke("calendar.create_calendar", { title: "Personal", personal: true }, as);
+          await invoke("calendar.create_calendar", { title: "Personal", personal: true, idempotencyKey: `personal-calendar:${person}` }, as);
         } catch (e) {
           sink.log({ space: spaceId, level: 40, msg: "calendar.personal_failed", place: "boot", attrs: { person, error: e instanceof Error ? e.message : String(e) } });
         }
