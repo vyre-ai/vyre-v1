@@ -36615,7 +36615,10 @@
       "audit": "always",
       "effects": "outward",
       "emits": [
-        "campaign.launched"
+        "campaign.launched",
+        "campaign.completed",
+        "campaign.replied",
+        "campaign.paused"
       ],
       "errors": [
         "internal.unexpected",
@@ -37168,7 +37171,11 @@
     },
     {
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "campaign.completed",
+        "campaign.replied",
+        "campaign.paused"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -152090,6 +152097,7 @@
     {
       "effects": "write",
       "emits": [
+        "call.started",
         "call.ended",
         "call.missed",
         "call.voicemail_left",

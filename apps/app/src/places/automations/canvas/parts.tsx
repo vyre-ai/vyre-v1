@@ -111,10 +111,10 @@ export function Dot({ tone, size = 7 }: { tone: "ok" | "warn" | "danger" | "mute
 }
 
 /** A person is a round marble, an agent a pixel face on a soft tint: the shared Avatar. */
-export function Face({ name, kind = "person", size = 18 }: { name: string; kind?: string; size?: number }): ReactElement {
+export function Face({ name, seedId, kind = "person", size = 18 }: { name: string; seedId?: string | undefined; kind?: string; size?: number }): ReactElement {
   return (
     <View aria-hidden style={{ width: size, height: size, flexShrink: 0 }}>
-      <Avatar name={name} kind={kind === "person" ? "person" : "agent"} size={size} />
+      <Avatar name={name} seedId={seedId} kind={kind === "person" ? "person" : "agent"} size={size} />
     </View>
   );
 }

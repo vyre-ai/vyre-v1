@@ -54,7 +54,7 @@ export function AllAgents({ screens, space, x, y, onChat, onOpenPage, onNewAgent
     const word = STATUS[a.status];
     entries.push({
       key: a.agentId, type: "row", title: a.name, testID: `agent-${a.agentId}`, ...(a.role ? { note: a.role } : {}),
-      leading: <Face name={a.name} size={22} pulse={a.status === "working"} />,
+      leading: <Face name={a.name} seedId={a.agentId} size={22} pulse={a.status === "working"} />,
       ...(word ? { trailing: <Text style={st.status}>{word}</Text> } : {}),
       onPress: () => { onChat(a.agentId); onClose(); },
       menu: [

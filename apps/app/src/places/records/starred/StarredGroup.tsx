@@ -32,7 +32,7 @@ export function StarredGroup({ query, typeOf, onOpen, closed = false, onToggle }
   if (!closed) {
     for (const s of snap.data.stars) {
       const kind = starKind(s, typeOf);
-      const lead = PEOPLE.has(kind) ? <Face name={s.title} size={18} /> : <TypeTile icon={typeIcon(kind)} hue={typeHue(kind)} />;
+      const lead = PEOPLE.has(kind) ? <Face name={s.title} seedId={s.resource.id} size={18} /> : <TypeTile icon={typeIcon(kind)} hue={typeHue(kind)} />;
       rows.push(<Row key={`${s.resource.type}:${s.resource.id}`} id={`nav:star:${s.resource.id}`} title={s.title} leading={<View style={styles.glyph}>{lead}</View>} trailing={<View />} selected={false} onPress={() => onOpen(s)} />);
     }
   }
