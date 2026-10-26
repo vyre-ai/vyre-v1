@@ -7,6 +7,7 @@
 // One source of truth: chat_message holds the conversation. engine_messages is a mirror keyed by the SAME id (a person's message is stored under the id chat gave it, an agent reply is posted
 // to chat with the id the engine gave it as clientId), written only by the engine's own store, so the two cannot drift (a later edit is copied by the same consumer).
 // No echo: a message.received for a message the engine already holds, or one the bridge posted itself (id prefix BRIDGE_PREFIX), is never fed back to engine.receive.
+import { redact } from "../../../agent/src/transcript/sanitize.ts";
 import { sqlMessages, withMessageId, mintId } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
@@ -57,14 +58,8 @@ interface Ready { blocks: PostBlock[]; text: string; mentions: number; routineOw
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
-/** An engine error can echo a token or a path. It goes to the log only, so it is stripped of both and cut to 300 characters first (the key is `why`: the sink drops a key named message). */
-export function scrub(text: string): string {
-  return text.slice(0, 300)
-    .replace(/\bsk-[A-Za-z0-9_-]{8,}/g, "[key]")
-    .replace(/\b(Bearer|Token)\s+\S+/gi, "$1 [token]")
-    .replace(/[A-Za-z0-9+/_=-]{32,}/g, "[token]")
-    .replace(/(?:\/(?:home|Users|var|tmp|work|root|etc)\/[^\s"')]+)/g, "[path]");
-}
+/** An engine error can echo a key or a token. It goes to the log only: it passes the shared credential redactor (agent/src/transcript/sanitize.ts, the same rules as every transcript) and is cut to 300 characters. The key is `why`: the sink drops a key named message. */
+export const scrub = (text: string): string => redact(text.slice(0, 600)).text.slice(0, 300);
 
 export function createBridge(o: BridgeOptions): Bridge {
   let engine: TurnEngine | null = null;
