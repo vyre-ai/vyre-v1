@@ -68,9 +68,7 @@ export async function openAnswerTask(ctx: CfCtx, c: Conflict, plain: boolean): P
       : "Your assistant compared both edits and proposed a choice. Nothing changes until you confirm.",
     blocks: [{ type: "conflict_choice", data: { conflictId: c.conflictId, entity: c.entity, field: c.field, plainChoice: plain } }],
     assigned: { kind: "person", id: c.person },
-    actions: plain
-      ? [{ key: "ours", label: "Keep the current value" }, { key: "theirs", label: "Use my edit" }]
-      : [{ key: "confirm", label: "Use the proposal" }, { key: "ours", label: "Keep the current value" }, { key: "theirs", label: "Use my edit" }],
+    // the choices are in the conflict_choice block and are made through conflicts.resolve, which closes the card; an answer task keeps its own actions (answer, dismiss)
     source: { kind: "manual", id: c.conflictId },
   })) as { task?: { id?: string } } | null;
   const taskId = out?.task?.id;
