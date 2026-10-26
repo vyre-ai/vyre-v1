@@ -440,6 +440,7 @@ function ParagraphBody({ hunk, marks, review = false }: { hunk: DiffHunk; marks:
   nodes.push(<Context key="before" text={hunk.before} where="before" />);
   (review ? proseRows(hunk, marks) : paragraphRows(hunk, marks)).forEach((row, index) => {
     if (row.kind === "changed") {
+      // ui-rows-lint: not a list (the marked words of one paragraph, inline text spans)
       const parts: ReactNode[] = row.segments.map((seg, k) => <Text key={k} style={seg.kind === "del" ? styles.inlineDel : seg.kind === "add" ? styles.markAdd : null}>{seg.text}</Text>);
       nodes.push(<View key={index} style={styles.para} testID="diff-para-changed"><Text style={styles.prose}>{parts}</Text></View>);
       return;
