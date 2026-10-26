@@ -9,7 +9,11 @@ import { createSampleFiles } from "../../places/files/list/sample.ts";
 import { createViewsSample } from "../../places/records/views-a/sample.ts";
 import FilesPlace from "./files.tsx";
 import { folderNodes } from "./files-data.ts";
+import { RecordsDataProvider, RecordsSidebarSlot, RecordsStateProvider } from "../../places/records/sidebar/index.ts";
+import { SidebarContent } from "../sidebar/index.ts";
+import type { SidebarSlotApi } from "../sidebar/index.ts";
 import RecordsPlace from "./records.tsx";
+import { recordsData } from "./records-data.ts";
 import { nameLookup } from "./records-live.ts";
 import { ShellRuntimeProvider } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
@@ -31,9 +35,18 @@ const html = (el: ReactElement): string => renderToStaticMarkup(el).replaceAll("
 test("Records draws the record types in the sidebar and the open type as a table from the Space", () => {
   const rt = runtimeOver(createViewsSample());
   const out = html(<ShellRuntimeProvider value={rt}><RecordsPlace place="records" /></ShellRuntimeProvider>);
-  assert.ok(out.includes("Clients"), "the sidebar lists the record types");
+  assert.ok(out.includes("Clients"), "the open type's table shows its rows");
   assert.ok(out.includes('data-testid="records-place"'));
   assert.ok(!out.includes("records-place-loading"));
+  assert.ok(!out.includes('data-testid="records-sidebar"'), "the sidebar is the shell's slot, not a frame in the place");
+  // The slot's content is portalled, so it is read from the element the place registers.
+  const el = RecordsSidebarSlot({}) as ReactElement<{ title: string; searchPlaceholder?: string; children: (q: string, slot: SidebarSlotApi) => ReactElement }>;
+  assert.equal(el.type, SidebarContent, "the place registers its sidebar in the shared slot");
+  assert.deepEqual([el.props.title, el.props.searchPlaceholder], ["Records", "Search records"]);
+  const slot: SidebarSlotApi = { query: "", collapsed: false, setCollapsed: () => undefined, hasSidebar: true, compact: false, openBody: () => undefined, back: () => undefined, view: "body", title: "Records" };
+  const side = (q: string): string => html(<RecordsDataProvider value={recordsData(rt)}><RecordsStateProvider>{el.props.children(q, slot)}</RecordsStateProvider></RecordsDataProvider>);
+  assert.ok(side("").includes("Clients"), "the sidebar lists the record types");
+  assert.ok(!side("zzzz").includes("Clients"), "the slot's search narrows the rows");
 });
 
 test("Records without a runtime draws the sidebar and table loading frames", () => {

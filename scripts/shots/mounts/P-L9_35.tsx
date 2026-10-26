@@ -1,0 +1,77 @@
+// Mount for P-L9_35: the whole shell on a phone. A place with a sidebar shows its list or the opened body, never both, and the body has Back. ?place=files|chats (default files);
+// ?open=1 chooses an item after the first draw (files: the Agents folder in the sidebar), so the body shows with its Back arrow. The query is read after mount (rule 25).
+import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import { View } from "react-native";
+import { createThemeController } from "../../../ui/src/theme/index.ts";
+import type { ThemeRoot } from "../../../ui/src/theme/index.ts";
+import { Shell } from "../../../apps/app/src/shell/spaces/Shell.tsx";
+import type { PlaceContext } from "../../../apps/app/src/shell/spaces/Shell.tsx";
+import { chatsPlace } from "../../../apps/app/src/shell/spaces/sample-chats.tsx";
+import { createSampleShell, samplePlace } from "../../../apps/app/src/shell/spaces/sample.tsx";
+import { FilesList } from "../../../apps/app/src/places/files/list/index.ts";
+import { createSampleFiles } from "../../../apps/app/src/places/files/list/sample.ts";
+import { FilesDataProvider, FilesStateProvider, FilesTree } from "../../../apps/app/src/places/files/tree/index.ts";
+import { SidebarContent } from "../../../apps/app/src/shell/sidebar/index.ts";
+
+export const title = "Shell on a phone";
+
+interface RootLike {
+  setAttribute(name: string, value: string): void;
+  style: { setProperty(name: string, value: string): void; removeProperty(name: string): void };
+}
+type Doc = { querySelector(s: string): { click?: () => void } | null };
+
+function FilesBody(): ReactNode {
+  const sample = useMemo(() => createSampleFiles(undefined, { subjects: true }), []);
+  return (
+    <FilesDataProvider value={sample.data}>
+      <FilesStateProvider>
+        <View testID="files-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
+          <SidebarContent title="Files" searchPlaceholder="Search files">{(query, slot) => <FilesTree query={query} slot={slot} />}</SidebarContent>
+          <FilesList />
+        </View>
+      </FilesStateProvider>
+    </FilesDataProvider>
+  );
+}
+
+function Phone({ q }: { q: URLSearchParams }): ReactNode {
+  const place = q.get("place") === "chats" ? "chats" : "files";
+  const open = q.get("open") === "1";
+  const made = useMemo(() => {
+    const skin = q.get("skin") ?? "paper";
+    const g = globalThis as { document?: { documentElement?: RootLike } };
+    const root = g.document?.documentElement;
+    const themeRoot: ThemeRoot = {
+      setAttribute: (n, v) => { root?.setAttribute(n, v); },
+      setProperty: (n, v) => { root?.style.setProperty(n, v); },
+      removeProperty: (n) => { root?.style.removeProperty(n); },
+    };
+    const theme = createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
+    const hub = createSampleShell({ openId: "nw", theme });
+    hub.go(place);
+    return { hub, theme };
+  }, [q, place]);
+  useEffect(() => {
+    if (!open || place !== "files") return undefined;
+    const t = setTimeout(() => { (globalThis as { document?: Doc }).document?.querySelector('[data-testid="row-folder-fld_agents"]')?.click?.(); }, 500);
+    return () => clearTimeout(t);
+  }, [open, place]);
+  const renderPlace = (ctx: PlaceContext): ReactNode => {
+    if (ctx.place === "files") return <FilesBody key={ctx.spaceId} />;
+    return place === "chats" ? chatsPlace(ctx) : samplePlace(ctx);
+  };
+  return (
+    <View style={{ flex: 1, minHeight: 0 }}>
+      <Shell hub={made.hub} theme={made.theme} renderPlace={renderPlace} />
+    </View>
+  );
+}
+
+export default function Mount(): ReactNode {
+  const [q, setQ] = useState<URLSearchParams | null>(null);
+  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  if (q === null) return <View style={{ flex: 1 }} />;
+  return <Phone q={q} />;
+}

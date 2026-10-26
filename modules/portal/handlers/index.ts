@@ -6,7 +6,7 @@ import { extraHandlers } from "./extra/index.ts";
 
 export const handlers = { ...accountHandlers, ...extraHandlers };
 
-export { redeemFileLink } from "./extra/index.ts";
+export { redeemFileLink, peekLink } from "./extra/index.ts";
 
 export { configurePortal, filterRecords, resolveSession, hashPassword, verifyPassword } from "./accounts.ts";
 export type { PortalConfig, PortalMailer, LinkMessage, RowRule, PortalRecord, PortalScope, AccountOut } from "./accounts.ts";
