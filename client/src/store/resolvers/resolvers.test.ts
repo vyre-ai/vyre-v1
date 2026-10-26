@@ -72,7 +72,7 @@ function seed(w: World, threads = 3, messages = 5): void {
     w.insert("chat_thread_agent", { id: `tha_${t}`, thread: id, agentId: "agt_intake", mode: "lead", model: "claude-sonnet-5-5", version: 1 });
     for (let m = 0; m < messages; m++) {
       w.insert("chat_message", {
-        id: `msg_${t}_${m}`, thread: id, threadSeq: m + 1, author: m % 2 ? "agt_intake" : ME, kind: m % 2 ? "agent" : "text", body: `Message ${m}`, blocks: "[]", depth: 0, attachments: "[]",
+        id: `msg_t${t}m${m}`, thread: id, threadSeq: m + 1, author: m % 2 ? "agt_intake" : ME, kind: m % 2 ? "agent" : "text", body: `Message ${m}`, blocks: "[]", depth: 0, attachments: "[]",
         reactions: "[]", pinned: 0, createdAt: NOW + t * 1000 + m, version: 1,
       });
     }
@@ -193,7 +193,7 @@ test("place open: a conversation and a list open from a populated replica inside
   };
   open1();   // warm-up discarded
   const t: number[] = [];
-  for (let i = 0; i < 5; i++) { w.changes.emit({ entity: "message", id: `msg_${i}` }); t.push(open1()); }
+  for (let i = 0; i < 5; i++) { w.changes.emit({ entity: "message", id: `msg_t0m${i}` }); t.push(open1()); }
   t.sort((a, b) => a - b);
   console.log(`METRIC replica.place_open median=${t[2]!.toFixed(2)}ms worst=${t[4]!.toFixed(2)}ms threads=2000 messages=20000`);
   assert.ok(t[4]! < 50, `place open took ${t[4]!.toFixed(2)} ms against a 50 ms first paint`);
