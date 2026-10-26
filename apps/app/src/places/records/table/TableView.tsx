@@ -18,7 +18,7 @@ import { useRecordsState } from "../sidebar/state.tsx";
 import { Scroller } from "./Scroller.tsx";
 import type { ScrollHandle } from "./Scroller.tsx";
 import {
-  FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, SCROLL_BLOCK, chosen, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, groupable, hasOptions,
+  FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, chosen, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, groupable, hasOptions,
   hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, setSort, sortable, toSaved, toggleHidden, toggleOption, totalWidth,
 } from "./model.ts";
 import { allIds, eachId, recordsWord } from "./bulk.ts";
@@ -183,6 +183,11 @@ const GHOST = { height: 9, width: "55%", borderRadius: 5, backgroundColor: "var(
  * The scrolling rows are styled by classes from one stylesheet, set once: an inline style of ten properties on each of the 500 elements a fling mounts was a good part of the scroll cost. Only
  * what changes per element (position, width, background) stays inline. Rows are only drawn after the page is live, so the static export needs none of it.
  */
+/**
+ * The scroll position the table redraws at, in rows. A hard fling is 3.5 rows a frame: at 8 rows a redraw came every second or third frame and mounted 8 rows at once, and those frames were the
+ * p95 (33 ms, two vsyncs). At 2 rows the redraws are smaller and steadier, so no frame carries the whole block.
+ */
+const ROW_STEP = 2;
 const CSS_ID = "vyre-records-rows";
 let cssDone = false;
 function ensureRowCss(): void {
@@ -465,7 +470,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const onOpen = data.nav.openRecord;
 
   const onScroll = (pos: { top: number; left: number }): void => {
-    const top = Math.floor(pos.top / (ROW_H * SCROLL_BLOCK)) * ROW_H * SCROLL_BLOCK;
+    const top = Math.floor(pos.top / (ROW_H * ROW_STEP)) * ROW_H * ROW_STEP;
     const left = Math.floor(pos.left / 40) * 40;
     setScroll((s) => (s.top === top && s.left === left ? s : { top, left }));
   };
