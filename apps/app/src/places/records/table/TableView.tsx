@@ -18,10 +18,11 @@ import { useRecordsState } from "../sidebar/state.tsx";
 import { Scroller } from "./Scroller.tsx";
 import type { ScrollHandle } from "./Scroller.tsx";
 import {
-  FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, SCROLL_BLOCK, chosen, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, groupable, hasOptions,
-  hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, setSort, sortable, toSaved, toggleHidden, toggleOption, totalWidth,
+  FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, SCROLL_BLOCK, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, groupable, hasOptions,
+  hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, setSort, sortable, toSaved, toggleHidden, totalWidth,
 } from "./model.ts";
 import { allIds, eachId, recordsWord } from "./bulk.ts";
+import { filterMenuEntries } from "./filtermenu.ts";
 import { NO_PICK, isPickedRow, pickCount, toggleHeader, togglePick } from "./model.ts";
 import type { Column, FieldDef, RowPick, RecordRow, TableViewState, TypeDef } from "./model.ts";
 
@@ -37,7 +38,7 @@ function Tag({ field, value }: { field: FieldDef; value: string }): ReactElement
   const hue = opt?.color && /^\d+$/.test(opt.color) ? Number(opt.color) : hueOf(value);
   return (
     <View style={[styles.tag, { backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)` }]}>
-      <Text numberOfLines={1} style={[styles.tagText, { color: `hsl(${hue}, 55%, 40%)` }]}>{opt?.title ?? value}</Text>
+      <Text numberOfLines={1} style={[styles.tagText, { color: `color-mix(in srgb, hsl(${hue}, 65%, 50%) 60%, var(--ink))` }]}>{opt?.title ?? value}</Text>
     </View>
   );
 }
@@ -190,7 +191,8 @@ function ensureRowCss(): void {
     + ".vrt-c{box-sizing:border-box;flex:none;padding:0 10px;font-size:13px;color:var(--ink);white-space:nowrap}"
     + ".vrt-b{box-sizing:border-box;display:flex;align-items:center;flex:none;height:100%;padding:0 10px;min-width:0}.vrt-e{justify-content:flex-end}"
     + ".vrt-chip{box-sizing:border-box;display:inline-block;height:20px;line-height:20px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap}"
-    + ".vrt-p{display:flex;align-items:center;gap:7px;min-width:0;font-size:13px;color:var(--ink);white-space:nowrap}.vrt-st{font-size:12px;color:var(--warn);letter-spacing:1px;white-space:nowrap}"
+    + ".vrt-p{display:flex;align-items:center;gap:7px;min-width:0;font-size:13px;color:var(--ink);white-space:nowrap}.vrt-st{font-size:12px;color:var(--warn);letter-spacing:1px;white-space:nowrap}.vrt-so{color:var(--ink-4)}"
+    + ".vrt-chip::before{content:\"\";display:inline-block;width:6px;height:6px;border-radius:3px;margin-right:5px;vertical-align:middle;position:relative;top:-1px;background:hsl(var(--h) 65% 52%)}"
     + ".vrt-n{font-variant-numeric:tabular-nums;text-align:right}.vrt-s{color:var(--ink-3);letter-spacing:1px}"
     + ".vrt-g{width:" + GUTTER + "px;height:100%;display:flex;align-items:center;box-sizing:border-box;padding-left:10px;flex:none;font-size:11.5px;color:var(--ink-4);font-variant-numeric:tabular-nums}";
   d.head.appendChild(el);
@@ -198,8 +200,8 @@ function ensureRowCss(): void {
 }
 
 /** A plain text cell is cut to what its column holds (7 px a character at 13 px, a little over the average) and ends in an ellipsis: no clip box and no text-overflow on the 400 cells a fling mounts. */
-function fit(text: string, width: number): string {
-  const room = Math.floor((width - 20) / 7);
+function fit(text: string, width: number, charW = 7): string {
+  const room = Math.floor((width - 20) / charW);
   return text.length > room ? `${text.slice(0, Math.max(1, room - 1))}\u2026` : text;
 }
 /** The field types webCell draws as plain text (everything but chips, ticks, faces and stars). */
@@ -221,16 +223,20 @@ function dot(name: string): ReactElement {
 
 function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string, width: number): ReactElement | null {
   const v = row.fields[field.key];
+  // a rating is always five stars: the ones it has filled, the rest outlined (a row with no rating has five outlines)
+  if (field.type === "rating") {
+    const n = typeof v === "number" ? Math.max(0, Math.min(5, v)) : 0;
+    return createElement("span", { className: "vrt-st", "aria-label": `${n} of 5` }, "\u2605".repeat(n), n < 5 ? createElement("span", { className: "vrt-so" }, "\u2606".repeat(5 - n)) : null);
+  }
   if (v === undefined || v === null || v === "") return null;
   // one element per chip, per name, per star run: the cut to the column is made here in text, so no box has to clip
   if ((field.type === "choice" || field.type === "status") && typeof v === "string") {
     const opt = optionsOf(field).find((o) => o.key === v);
     const hue = opt?.color && /^\d+$/.test(opt.color) ? Number(opt.color) : hueOf(v);
-    return createElement("span", { className: "vrt-chip", style: { backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)`, color: `hsl(${hue}, 55%, 40%)` } }, fit(opt?.title ?? v, width - 36));
+    return createElement("span", { className: "vrt-chip", style: { "--h": hue, backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)`, color: `color-mix(in srgb, hsl(${hue}, 65%, 50%) 60%, var(--ink))` } }, fit(opt?.title ?? v, width - 27, 6.2));
   }
   if (field.type === "checkbox") return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;
-  if (field.type === "person") return createElement("span", { className: "vrt-p" }, dot(names(String(v))), fit(names(String(v)), width - 45));
-  if (field.type === "rating" && typeof v === "number") return createElement("span", { className: "vrt-st", "aria-label": `${v} of 5` }, "\u2605".repeat(Math.max(0, Math.min(5, v))));
+  if (field.type === "person") return createElement("span", { className: "vrt-p" }, dot(names(String(v))), fit(names(String(v)), width - 25));
   return createElement("span", { className: isNumeric(field) ? "vrt-c vrt-n" : "vrt-c" }, fit(cellText(field, v, names), width));
 }
 
@@ -271,6 +277,16 @@ export interface TableViewProps {
   view?: Partial<TableViewState>;
   /** What the Records place adds to the header, before New: the switch between the table and the other kinds of view. */
   headerExtra?: ReactNode;
+}
+
+/**
+ * The foot's figure under a column: the average of a rating, over the rows in hand. The sample holds the whole table; the real figure for a long table is a count-style aggregate from the
+ * server (the contract has none yet), so a table with more rows than are loaded shows the average of the loaded window.
+ */
+function aggregateOf(field: FieldDef, rows: readonly RecordRow[]): string {
+  if (field.type !== "rating") return "";
+  const v = rows.map((r) => r.fields[field.key]).filter((x): x is number => typeof x === "number");
+  return v.length === 0 ? "" : `Avg ${(v.reduce((a, b) => a + b, 0) / v.length).toFixed(1)}`;
 }
 
 function Grid({ type, def, views, base, saved, headerExtra }: { type: string; def: TypeDef; views: readonly SavedView[]; base: TableViewState; saved: SavedView | undefined; headerExtra: ReactNode }): ReactElement {
@@ -327,20 +343,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
     const snap = data.live("records.counts", countSpec(type, probe, def.titleField)).getSnapshot();
     return snap.status === "ready" ? snap.data.count : null;
   };
-  const filterEntries = (cur: TableViewState): MenuEntry[] => {
-    const out: MenuEntry[] = [];
-    for (const f of def.fields.filter(hasOptions)) {
-      if (out.length) out.push({ separator: true });
-      out.push({ head: f.title });
-      for (const o of optionsOf(f)) {
-        const n = countOf(f, o.key);
-        out.push({ label: n === null ? o.title : `${o.title} (${n})`, checked: chosen(cur, f.key).includes(optionValue(f, o.key)), onSelect: () => set(toggleOption(cur, f.key, optionValue(f, o.key))) });
-      }
-    }
-    if (out.length === 0) out.push({ head: "Filter" }, { label: "No fields to filter by" });
-    if (cur.clauses.length > 0) out.push({ separator: true }, { label: "Clear filters", onSelect: () => set(clearClauses(cur)) });
-    return out;
-  };
+  const filterEntries = (cur: TableViewState): MenuEntry[] => filterMenuEntries({ def, cur, rows: loaded?.rows ?? [], nameOf: data.nameOf, countOf, set });
   const sortEntries = (): MenuEntry[] => {
     const cur = v.sort[0];
     return [
@@ -566,7 +569,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
         <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={slim} testID="records-fields" onPress={keep("fields")} />
         <HeadButton icon="colour" label="Colour" detail={colourField?.title} on={lit(colourField !== undefined)} bare={slim} testID="records-colour" onPress={keep("colour")} />
         {headerExtra}
-        <HeadButton icon="plus" label="New" bare={slim} testID="records-new" onPress={newRecord} />
+        <HeadButton icon="plus" label="New" bare={slim} filled testID="records-new" onPress={newRecord} />
       </View>
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="records-offline">Offline, showing your saved copy</Text>}
       {work ? (
@@ -630,7 +633,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
               <View style={[styles.tf, { width }]} testID="records-foot">
                 <View style={[styles.rn, STICKY(0), styles.headBg]} />
                 <View style={[styles.td, STICKY(GUTTER), styles.headBg, { width: primary?.width ?? 280 }]}>
-                  <Text style={styles.footText} testID="records-count">{count === null ? "" : `${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()}`}</Text>
+                  <Text style={styles.footText} testID="records-count">{count === null ? "" : `${count.toLocaleString("en-US")} ${count === 1 ? "record" : "records"}`}</Text>
                   {jump === null ? (
                     <Pressable accessibilityRole="button" accessibilityLabel="Go to row" testID="records-goto" onPress={() => setJump("")} style={styles.goto}><Text style={styles.footText}>Go to row</Text></Pressable>
                   ) : (
@@ -641,6 +644,13 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
                     />
                   )}
                 </View>
+                {colWin.pad > 0 ? <View style={{ width: colWin.pad }} /> : null}
+                {/* ui-rows-lint: not a list (the foot has one figure cell per column) */}
+                {cols.slice(colWin.from, colWin.to).map((c) => (
+                  <View key={c.field.key} style={[styles.td, styles.headBg, { width: c.width }, isNumeric(c.field) && styles.tdNum]}>
+                    <Text numberOfLines={1} style={styles.footText} testID={`agg-${c.field.key}`}>{aggregateOf(c.field, loaded?.rows ?? [])}</Text>
+                  </View>
+                ))}
               </View>
             )}
           >
@@ -648,6 +658,11 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
           </Scroller>
         )}
       </View>
+      {count === null ? null : (
+        <View style={styles.statusBar} testID="records-status">
+          <Text style={styles.footText}>{`${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()} · ${v.clauses.length > 0 || v.find ? "filtered" : "every record shown"}`}</Text>
+        </View>
+      )}
       {menu.element}
     </View>
   );
@@ -766,6 +781,7 @@ const styles = StyleSheet.create({
   groupText: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string },
   groupCount: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   chevShut: { transform: [{ rotate: "-90deg" }] },
+  statusBar: { height: 28, justifyContent: "center", paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   tf: { height: 32, flexDirection: "row", alignItems: "center", borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   footText: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   skRow: { flexDirection: "row", alignItems: "center", gap: 18, height: ROW_H, paddingHorizontal: 18 },

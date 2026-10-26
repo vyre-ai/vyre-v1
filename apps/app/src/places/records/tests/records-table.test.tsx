@@ -58,7 +58,7 @@ test("type groups: Records first, other groups in order, Sites last; site tables
     ["Records", ["Clients", "Companies", "Meetings"]], ["Projects", ["Projects"]], ["Sites", ["Northwind site › Orders"]],
   ]);
   assert.equal(compact(14), "14");
-  assert.equal(compact(1500), "1.5k");
+  assert.equal(compact(1500), "1,500", "whole numbers up to 10,000, as the prototype draws them");
   assert.equal(compact(100014), "100k");
   assert.equal(compact(2_500_000), "2.5M");
   assert.deepEqual(sortedViews(northwind.views, "usr_irfad").map((v) => v.title), ["My clients", "Active clients"]);
