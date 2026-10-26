@@ -294,7 +294,7 @@ async function defaultFolder(ctx: MailCtx): Promise<string> {
   const root = await resolveFolder(ctx, "Personal");
   if (!root) preconditionFailed(ctx, "Your Personal files folder is not available.");
   try {
-    const made = (await ctx.call("files.folder.create", { parentId: root, name: FOLDER_NAME })) as { folder?: { folderId?: unknown } } | null;
+    const made = (await ctx.call("files.folder.create", { idempotencyKey: `mail-saved:${ctx.trace.traceId}`, parentId: root, name: FOLDER_NAME })) as { folder?: { folderId?: unknown } } | null;
     if (typeof made?.folder?.folderId === "string") return made.folder.folderId;
   } catch (e) {
     if (codeOf(e) !== "validation.duplicate") throw e;   // made a moment ago by another save: look it up again
@@ -343,7 +343,7 @@ export async function attachmentSave(
   let fileId = "";
   for (let n = 1; n <= 20 && !fileId; n++) {
     try {
-      const made = (await ctx.call("files.create", { folderId, name: numbered(base, n), mime: found.mime, content: { blobId: found.blobId } })) as { file?: { fileId?: unknown } } | null;
+      const made = (await ctx.call("files.create", { idempotencyKey: `mail-save:${ctx.trace.traceId}:${n}`, folderId, name: numbered(base, n), mime: found.mime, content: { blobId: found.blobId } })) as { file?: { fileId?: unknown } } | null;
       if (typeof made?.file?.fileId === "string") fileId = made.file.fileId;
       else throw fail("provider.bad_response", ctx.trace.traceId, { message: "Files did not return the saved file." });
     } catch (e) {
