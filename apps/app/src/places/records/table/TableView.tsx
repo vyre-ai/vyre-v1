@@ -484,6 +484,11 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const web = Platform.OS === "web";
   const primary = cols[0];
   const fw = GUTTER + (primary?.width ?? 0);
+  // A plain table reuses a fixed pool of row elements: row i always lives in slot i % pool, and the slots are emitted in slot order, so a scroll changes the text and the top of the rows that
+  // left and entered instead of unmounting and mounting their elements (the 100,000-row scroll spent its time creating and removing them). The pool is the most rows one window can hold.
+  const pool = Math.ceil(Math.max(0, box.h - HEAD_H) / ROW_H) + 2 * FLING_OVERSCAN + 2;
+  const slotBody: (ReactElement | null)[] = [];
+  const slotFrozen: (ReactElement | null)[] = [];
   for (let i = win.first; i < win.last; i++) {
     const y = i * ROW_H;
     if (items) {
@@ -513,12 +518,15 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
     const r = rowAt(i);
     if (web && primary) {
       const piece = { row: r, n: i + 1, y, selected: r !== null && (selected === r.id || isPicked(r.id)), hot: r !== null && hot === r.id, tint: r ? colourOf(colourField, r) : null, names: data.nameOf, onTap, onOpen, onHot: setHot };
-      frozen.push(<RowFrozen key={r ? r.id : `p${i}`} {...piece} primary={primary} />);
-      rows.push(<RowBody key={r ? r.id : `p${i}`} {...piece} left={fw} width={width - fw} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} />);
+      const slot = i % pool;
+      slotFrozen[slot] = <RowFrozen key={`s${slot}`} {...piece} primary={primary} />;
+      slotBody[slot] = <RowBody key={`s${slot}`} {...piece} left={fw} width={width - fw} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} />;
       continue;
     }
     rows.push(<TableRow key={r ? r.id : `p${i}`} row={r} n={i + 1} y={y} width={width} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} selected={r !== null && (selected === r.id || isPicked(r.id))} tint={r ? colourOf(colourField, r) : null} names={data.nameOf} onSelect={setSelected} onOpen={data.nav.openRecord} />);
   }
+
+  for (let k = 0; k < slotBody.length; k++) { const b = slotBody[k], f = slotFrozen[k]; if (b && f) { rows.push(b); frozen.push(f); } }
 
   const sortKey = v.sort[0];
   const headCells: ReactElement[] = [];

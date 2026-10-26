@@ -1,0 +1,24 @@
+{
+  "targets": [
+    {
+      "id": "P-L9e_26-records-100k",
+      "route": "/m/P-L9d_01?rows=100000",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='records-count']",
+      "scroll": {
+        "selector": "[data-testid=\"records-scroll\"]"
+      },
+      "note": "The Records table over 100,014 clients (the repaired P-L9d_01-records-100k target): its METRIC must print."
+    },
+    {
+      "id": "P-L9e_26-records-100k-norow",
+      "route": "/m/P-L9d_01?rows=100000&sidebar=0",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='records-count']",
+      "scroll": {
+        "selector": "[data-testid=\"records-scroll\"]"
+      },
+      "note": "Control: the Records 100k scroll with the sidebar left out, so no shared Row is on the page at all. Its p95 next to the target above says whether the Row change touches the table's scroll."
+    }
+  ]
+}
