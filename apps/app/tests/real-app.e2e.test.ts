@@ -157,15 +157,16 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         const errs: string[] = [];
         const refused: string[] = [];
         const frames: string[] = [];
+        const crashes: string[] = [];
         p.on("pageerror", (e) => errs.push(e.message.slice(0, 120)));
-        p.on("console", (m) => { if (m.text().startsWith("vyre session closed")) frames.push(m.text()); });
+        p.on("console", (m) => { if (m.text().startsWith("vyre session closed")) frames.push(m.text()); if (m.text().startsWith("vyre place crashed")) crashes.push(m.text().slice(0, 900)); });
         p.on("response", (r) => { const u = new URL(r.url()); if (u.pathname.startsWith("/v1/") || u.pathname.startsWith("/sync/")) void r.request().allHeaders().then((h) => { if (r.status() >= 400) refused.push(`${r.status()} ${u.pathname} auth:${h["authorization"] ? "sent" : "none"}`); else if (!h["authorization"] && !/claim_owner|sign_in/.test(u.pathname)) bareCalls.push(`${u.pathname}`); }).catch(() => undefined); });
         // What the live socket told this page (hello_ok mode and epoch, a purge): a 401 on every call can be a revoked session after a purge.
         p.on("websocket", (ws) => ws.on("framereceived", (f) => { const t = String(f.payload); if (/purge|hello_ok/.test(t)) frames.push(t.slice(0, 140)); }));
         await p.goto(`${web.origin}/${route}`, { waitUntil: "load" });
         await p.getByTestId("shell").waitFor({ timeout: 15_000 }).catch(() => undefined);
         const drew = await p.locator(selector).first().waitFor({ timeout: 10_000 }).then(() => true, () => false);
-        if (!drew || errs.length) failures.push(`${route}: ${drew ? "drew" : "did not draw"}${errs.length ? `, page errors: ${errs.join(" | ")}` : ""}${refused.length ? `, refused: ${[...new Set(refused)].slice(0, 5).join(", ")}` : ""}${frames.length ? `, live: ${frames.slice(0, 3).join(" ")}` : ""}`);
+        if (!drew || errs.length || crashes.length) failures.push(`${route}: ${drew ? "drew" : "did not draw"}${errs.length ? `, page errors: ${errs.join(" | ")}` : ""}${refused.length ? `, refused: ${[...new Set(refused)].slice(0, 5).join(", ")}` : ""}${frames.length ? `, live: ${frames.slice(0, 3).join(" ")}` : ""}${crashes.length ? `, crashed: ${crashes[0]}` : ""}`);
         await p.close();
       }
       assert.deepEqual(bareCalls, [], "no request to the Space leaves without the session token");
