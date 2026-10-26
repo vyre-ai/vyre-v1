@@ -1680,6 +1680,10 @@ export function stubs(ctx: CallCtx) {
       },
       related: call("search.related"),
     },
+    sessions: {
+      continue: call("sessions.continue"),
+      import: call("sessions.import"),
+    },
     settings: {
       copy_profile: call("settings.copy_profile"),
       copy_source: call("settings.copy_source"),
