@@ -43,6 +43,8 @@ export interface RealSession {
   readonly hooks: RemoteHooks;
   readonly runtime: ShellRuntime;
   call: CapCall;
+  /** Hears the server's purge signals (an epoch); returns how to stop. */
+  onPurge(listener: (epoch: number) => void): () => void;
   liveStatus(): LiveStatus;
   /** Re-read everything on screen now. */
   refresh(): void;
@@ -137,6 +139,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     return r;
   };
 
+  const purgeListeners = new Set<(epoch: number) => void>();
   let live: LiveStatus = "offline";
   let everLive = false;
   const link: LiveLink = createLiveLink({
@@ -144,6 +147,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     token: () => token,
     onChange: refresh,
     onStatus: (s) => { live = s; if (s === "live") everLive = true; tell(); },
+    onPurge: (epoch) => { for (const l of [...purgeListeners]) l(epoch); },
     ...(o.socket ? { socket: o.socket } : {}),
   });
   link.start();
@@ -229,6 +233,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
 
   return {
     def, baseUrl: o.baseUrl, me, hooks, runtime, call,
+    onPurge: (l) => { purgeListeners.add(l); return () => { purgeListeners.delete(l); }; },
     liveStatus: () => live,
     refresh,
     close() {
@@ -240,6 +245,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       for (const off of keep) off();
       hooks.close();
       listeners.clear();
+      purgeListeners.clear();
       token = null;
     },
   };

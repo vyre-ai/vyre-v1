@@ -3,17 +3,19 @@
 // Automations and groups get a line glyph on the neutral tile. Radius is 30% for everything but people, who are round (as the prototype's tile.a and tile.p).
 // Web draws inline svg; native has no svg here, so it shows the letters on the face's tint until a native icon set lands.
 
-import { createElement, memo } from "react";
+import { createElement, memo, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Image, Platform, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
-import { faceTint, hueOf, initialsOf, marbleInner } from "./faces.ts";
+import { faceTint, hueOf, initialsOf, marbleGradient, marbleInner } from "./faces.ts";
+import { cachedFace, currentSkin, faceKey, requestFace } from "./cache.ts";
 import { notionistsSvg } from "./notionists.ts";
 import type { AvatarKind, AvatarProps } from "./props.ts";
 
 export type { AvatarKind, AvatarProps } from "./props.ts";
-export { faceTint, hash, hueOf, initialsOf, marbleInner, marbleSpec } from "./faces.ts";
+export { faceTint, hash, hueOf, initialsOf, marbleGradient, marbleInner, marbleSpec } from "./faces.ts";
 export { notionistsSvg } from "./notionists.ts";
+export { cachedFace, cachedFaceCount, clearFaceCache, currentSkin, faceKey, requestFace, wrapSvg } from "./cache.ts";
 
 export const AVATAR_DEFAULT_SIZE = 18;
 
@@ -48,8 +50,20 @@ function svg(markup: string, size: number, viewBox: string, extra: Record<string
   return createElement("svg", { viewBox, width: size, height: size, "aria-hidden": true, style: { display: "block" }, dangerouslySetInnerHTML: { __html: markup }, ...extra });
 }
 
-export const Avatar = memo(function Avatar({ name, kind: kindProp, size = AVATAR_DEFAULT_SIZE, photo, running = false, present = false, testID }: AvatarProps): ReactElement {
+export const Avatar = memo(function Avatar({ name, seedId, kind: kindProp, size = AVATAR_DEFAULT_SIZE, photo, running = false, present = false, testID }: AvatarProps): ReactElement {
   const kind = kindOf(name, kindProp);
+  // One person, one face everywhere: the face is seeded by the id when the caller has one, by the name only as a fallback. Letters and the label still come from the name.
+  const seed = seedId !== undefined && seedId !== "" ? seedId : name;
+  // A person's marble and an agent's face are drawn once to a cached bitmap per seed, kind, size and skin; rows reuse it as an <img>.
+  const browser = web && typeof document !== "undefined";
+  const drawn = web && kind === "agent";
+  const key = faceKey(seed, kind, size, currentSkin());
+  const [, bump] = useState(0);
+  const bitmap = drawn ? cachedFace(key) : undefined;
+  useEffect(() => {
+    if (!drawn || cachedFace(key) !== undefined) return;
+    requestFace(key, sized(notionistsSvg(seed), size), size, () => bump((n) => n + 1));
+  }, [drawn, key, kind, seed, size]);
   const id = testID ?? `avatar-${name}`;
   const round = kind === "person";
   const box: ViewStyle = { width: size, height: size, borderRadius: round ? size / 2 : ("30%" as unknown as number), alignItems: "center", justifyContent: "center", flexShrink: 0 };
@@ -59,12 +73,16 @@ export const Avatar = memo(function Avatar({ name, kind: kindProp, size = AVATAR
 
   if (kind === "person" && photo) {
     face = web ? createElement("img", { src: photo, alt: "", width: size, height: size, draggable: false, style: { display: "block", objectFit: "cover", width: size, height: size } }) : <Image accessibilityIgnoresInvertColors source={{ uri: photo }} style={{ width: size, height: size }} />;
+  } else if (bitmap !== undefined) {
+    face = createElement("img", { src: bitmap, alt: "", width: size, height: size, draggable: false, decoding: "async", style: { display: "block", width: size, height: size }, "data-face": "cached" });
+  } else if (kind === "person" && browser) {
+    face = createElement("span", { style: { display: "block", width: size, height: size, background: marbleGradient(seed) }, "data-face": "gradient" });
   } else if (kind === "person") {
-    face = web ? svg(marbleInner(name), size, "0 0 80 80") : <NativeLetters name={name} size={size} person tint={`hsl(${hueOf(name)}, 45%, 70%)`} />;
+    face = web ? svg(marbleInner(seed), size, "0 0 80 80") : <NativeLetters name={name} size={size} person tint={`hsl(${hueOf(seed)}, 45%, 70%)`} />;
   } else if (kind === "agent") {
-    face = web ? createElement("span", { style: { display: "block", width: size, height: size, lineHeight: 0 }, dangerouslySetInnerHTML: { __html: sized(notionistsSvg(name), size) } }) : <NativeLetters name={name} size={size} tint={`#${faceTint(name)}`} />;
+    face = web ? createElement("span", { style: { display: "block", width: size, height: size, lineHeight: 0 }, dangerouslySetInnerHTML: { __html: sized(notionistsSvg(seed), size) } }) : <NativeLetters name={name} size={size} tint={`#${faceTint(seed)}`} />;
   } else if (kind === "space") {
-    face = <NativeLetters name={name} size={size} tint={`hsla(${hueOf(name)}, 60%, 50%, 0.18)`} ink={`hsl(${hueOf(name)}, 55%, 46%)`} />;
+    face = <NativeLetters name={name} size={size} tint={`hsla(${hueOf(seed)}, 60%, 50%, 0.18)`} ink={`hsl(${hueOf(seed)}, 55%, 46%)`} />;
   } else if (kind === "assistant") {
     const s = Math.round(size * 0.78);
     face = web ? svg(VYRE_MARK, s, "0 0 24 24", { className: "vmark" }) : <Text style={{ color: "var(--ink)" as string, fontWeight: "700", fontSize: Math.round(size * 0.5) }}>V</Text>;

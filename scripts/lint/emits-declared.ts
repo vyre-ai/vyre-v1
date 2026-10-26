@@ -32,10 +32,33 @@ export function stripComments(source: string): string {
       for (; i < stop; i++) out += source[i] === "\n" ? "\n" : " ";
       i--; continue;
     }
+    if (c === "/" && regexAllowed(out)) {
+      // a regex literal: blank its body (an apostrophe in /[a-z']+/g is not a string), keep the slashes and the flags
+      let k = i + 1; let inClass = false; let ok = false;
+      for (; k < source.length && source[k] !== "\n"; k++) {
+        const d = source[k]!;
+        if (d === "\\") { k++; continue; }
+        if (d === "[") inClass = true; else if (d === "]") inClass = false;
+        else if (d === "/" && !inClass) { ok = true; break; }
+      }
+      if (ok) { out += "/" + " ".repeat(k - i - 1) + "/"; i = k; continue; }
+    }
     if (c === "'" || c === "\"" || c === "`") quote = c;
     out += c;
   }
   return out;
+}
+
+/** Can a `/` here start a regex literal? After an operand (identifier, number, `)` or `]`) it is a division; after an operator, an opening bracket, a keyword or the start it is a regex. */
+function regexAllowed(before: string): boolean {
+  let k = before.length - 1;
+  while (k >= 0 && (before[k] === " " || before[k] === "\t")) k--;
+  if (k < 0) return true;
+  const c = before[k]!;
+  if (/[(,=:\[!&|?{};+\-*%<>~^]/.test(c)) return true;
+  if (c === "\n") return true;
+  const word = /[A-Za-z_$][\w$]*$/.exec(before.slice(0, k + 1))?.[0];
+  return word === "return" || word === "typeof" || word === "case" || word === "in" || word === "of" || word === "void";
 }
 
 const lineOf = (source: string, index: number): number => source.slice(0, index).split("\n").length;

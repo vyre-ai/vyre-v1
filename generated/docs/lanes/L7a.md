@@ -157,7 +157,7 @@ Capabilities:
 - governance.retention.reset (write, policy.manage, level view)
 - governance.retention.set (write, policy.manage, level view)
 - governance.tombstones.list (read, policy.manage, level view)
-- governance.tombstones.reapply (write, grant only, level view)
+- governance.tombstones.reapply (write, grant only, level view, gate delete)
 
 Events:
 - erase.completed

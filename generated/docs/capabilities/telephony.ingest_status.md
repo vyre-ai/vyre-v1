@@ -19,7 +19,7 @@ Apply a call or text status callback (ended, missed, voicemail, delivered, undel
 | HTTP | POST /v1/telephony/ingest_status |
 | MCP tool | none |
 | CLI | none |
-| Emits | call.ended, call.missed, call.voicemail_left, message.delivered, message.bounced, message.failed |
+| Emits | call.started, call.ended, call.missed, call.voicemail_left, message.delivered, message.bounced, message.failed |
 
 ## Input
 

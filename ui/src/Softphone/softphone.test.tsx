@@ -360,7 +360,8 @@ test("an incoming call shows the caller, the number it came in on, Accept and De
   assert.match(html, /role="alertdialog"/);
   assert.match(html, /Elena Rivera/);
   assert.match(html, /Rivera Holdings/);
-  assert.match(html, /Incoming to Intake line/);
+  assert.match(html, /Incoming to \+1 415 555 0177/, "the number it came in on (P-L9_34), not the line's label");
+  assert.doesNotMatch(html, /Incoming to Intake line/);
   assert.match(html, /data-testid="softphone-answer"/);
   assert.match(html, /data-testid="softphone-decline"/);
   const unknown = renderToStaticMarkup(<Softphone {...base} open mode="incoming" caller={{ number: "+1 999 555 0100" }} />);

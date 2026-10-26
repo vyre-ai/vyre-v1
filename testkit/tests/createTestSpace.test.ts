@@ -28,7 +28,9 @@ function sample(s: any): unknown {
   return "x";
 }
 const evDefs = registry.events as unknown as { name: string; payload: unknown }[];
-const emitter = usable.find((c) => perms.get(c.permission!)!["member"] === true && c.emits.some((e) => { const d = evDefs.find((x) => x.name === e); return d && validateEvent(e, sample(d.payload)).length === 0; }))!;
+// The emitter is answered by a handler the test passes in, so it need not come from a stub: as modules go live the stubs run out (portal was the last one with a capability that emits a valid sample event).
+const emitterPool = caps.filter((c) => c.resource.type === "space" && c.permission && c.idempotency !== "key" && !c.gate && !c.caller && c.examples.length);
+const emitter = emitterPool.find((c) => perms.get(c.permission!)!["member"] === true && c.emits.some((e) => { const d = evDefs.find((x) => x.name === e); return d && validateEvent(e, sample(d.payload)).length === 0; }))!;
 const emitName = emitter.emits.find((e) => validateEvent(e, sample(evDefs.find((x) => x.name === e)!.payload)).length === 0)!;
 const emitPayload = sample(evDefs.find((x) => x.name === emitName)!.payload);
 

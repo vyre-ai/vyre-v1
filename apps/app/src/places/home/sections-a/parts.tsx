@@ -65,11 +65,11 @@ export function StatusCircle({ status, size = 15, hovered = false }: { status: "
 
 // ---------------------------------------------------------------- faces
 
-/** A person is a round marble, an agent a pixel face on a soft tint: the shared Avatar, seeded by the name so it is the same face everywhere. */
-export function Face({ name, kind = "person", size = 20 }: { name: string; kind?: string; size?: number }): ReactElement {
+/** A person is a round marble, an agent a pixel face on a soft tint: the shared Avatar, seeded by the id (the name only when no id is passed) so it is the same face everywhere. */
+export function Face({ name, seedId, kind = "person", size = 20 }: { name: string; seedId?: string | undefined; kind?: string; size?: number }): ReactElement {
   return (
     <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0 }}>
-      <Avatar name={name} kind={kind === "person" ? "person" : "agent"} size={size} />
+      <Avatar name={name} seedId={seedId} kind={kind === "person" ? "person" : "agent"} size={size} />
     </View>
   );
 }
