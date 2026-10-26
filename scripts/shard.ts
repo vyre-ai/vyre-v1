@@ -44,9 +44,9 @@ function medianSec(files: string[], timings: Timings): number {
 }
 
 /** Greedy longest-first placement of the fast files into ceil(files/40) shards (max 24); the slow files are listed here and grouped into jobs by toMatrix. */
-export function shardFiles(files: string[], timings: Timings, slow: SlowEntry[], opts: { max?: number; target?: number } = {}): Shards {
+export function shardFiles(files: string[], timings: Timings, slow: SlowEntry[], opts: { max?: number; target?: number; read?: (file: string) => string } = {}): Shards {
   const uniq = [...new Set(files)].sort();
-  const slowBy = new Map((withPatternSlow(uniq, slow) as SlowEntry[]).map((s) => [s.file, s]));
+  const slowBy = new Map((withPatternSlow(uniq, slow, opts.read) as SlowEntry[]).map((s) => [s.file, s]));
   const slowJobs = uniq.filter((f) => slowBy.has(f)).map((file) => ({ file, capSec: slowBy.get(file)!.capSec, perf: slowBy.get(file)!.perf === true, heavy: slowBy.get(file)!.heavy === true }));
   const fastFiles = uniq.filter((f) => !slowBy.has(f));
   const median = medianSec(fastFiles, timings);

@@ -13,7 +13,8 @@ import { lineRange } from "../src/places/files/review/index.ts";
 import { inlineMarks, proseRows } from "../../../ui/src/DiffTab/index.tsx";
 import { reviewData, attemptKey } from "../src/shell/providers/files-review.ts";
 import { extOf } from "../src/places/files/review/index.ts";
-import { AGENT_MD, AGENT_TOML, createSampleReview } from "../src/places/files/review/sample.ts";
+import { AGENT_MD, AGENT_TOML, AGENT_TOML_INTAKE, createSampleReview } from "../src/places/files/review/sample.ts";
+import { FORM_GROUPS, addTomlKey, fieldText, isNumberText, listItems, listRaw, rawFor, tablesNamed, tomlTables, writeField } from "../src/places/files/review/index.ts";
 import type { SampleOptions, SampleReview } from "../src/places/files/review/sample.ts";
 import { screensById } from "../../../generated/screens.ts";
 
@@ -621,4 +622,144 @@ test("changesets.get names the file of each staged change, so the review can rea
   const got = s.replica.run("changesets.get", { changesetId: s.changesetId });
   assert.ok(got);
   assert.deepEqual(got.data.files.map((f) => [f.path, f.fileId]), [["rivera-engagement-letter.docx", "fil_letter"], ["consult-prep.md", "fil_prep"], ["id-scan.png", undefined]]);
+});
+
+/* ---------- P-L9e_28: agent.toml as the prototype's Form view ---------- */
+
+const intake = (): SampleReview => sample({ intake: true });
+const fieldOf = (section: string, key: string) => {
+  const f = FORM_GROUPS.find((g) => g.section === section)?.fields.find((x) => x.key === key);
+  assert.ok(f, `${section}.${key} is a field of the form`);
+  return f;
+};
+
+test("agent.toml form: the groups in the prototype's order, a Row per key, Identity with the owner's name, the picks read as words", () => {
+  const s = intake();
+  const out = html(s, <TomlForm text={AGENT_TOML_INTAKE} onChange={() => undefined} />);
+  const groups = [...out.matchAll(/data-testid="toml-group:([a-z_.]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(groups, ["identity", "model", "runs_on", "tools", "permissions", "approvals.rule", "vault", "limits", "memory", "computer", "routines", "watchers", "handoff", "logging", "context"], "the form's groups, then a table it has no group for");
+  assert.deepEqual(groups.slice(0, 3), ["identity", "model", "runs_on"]);
+  for (const w of ["Identity", "ID", "Name", "Handle", "Description", "Owner", "Status", "Model", "Primary", "Fallback", "Effort", "Max output tokens", "Whose AI account", "Mode", "Scheduled runs pay as", "Limits", "Handoff"]) assert.ok(has(text(out), w), w);
+  for (const line of [4, 5, 6, 7, 8, 9]) assert.ok(has(out, `data-testid="row-toml:${line}"`), `identity line ${line} is a ui/Row`);
+  assert.ok(has(out, 'aria-label="Owner: Lena Ortiz"') && has(tag(out, "toml-select:8"), 'aria-haspopup="menu"'), "the owner is a pick that shows the person");
+  for (const label of ["Status: Active", "Primary: Claude Sonnet 5.5", "Fallback: Claude Haiku 4.5", "Effort: Balanced", "Mode: Whoever asks", "Scheduled runs pay as: The owner"]) assert.ok(has(out, `aria-label="${label}"`), label);
+  assert.ok(has(out, 'data-testid="toml-field:15"') && has(tag(out, "toml-field:15"), 'value="3000"'), "max output tokens is a number box");
+  assert.ok(!has(text(out), "schema"), "the schema line above the first table is not a field");
+});
+
+test("agent.toml form: a key the file does not have reads Not set, a table of the form with no table in the file is left out", () => {
+  const s = sample();
+  const out = html(s, <TomlForm text={AGENT_TOML} onChange={() => undefined} />);
+  assert.ok(has(text(out), "Identity") && has(text(out), "Whose AI account"), "the three always-shown groups");
+  assert.ok(has(out, 'aria-label="Owner: Not set"'), "no owner yet");
+  assert.ok(has(out, 'placeholder="Not set"'), "a text key that is missing reads Not set");
+  assert.ok(!has(out, 'data-testid="toml-group:tools"') && !has(out, 'data-testid="toml-group:routines"'), "no tools or routines table, no group");
+});
+
+test("agent.toml form writes: a pick rewrites its own line, a missing key joins its table, a missing table is added at the end", () => {
+  const model = tablesNamed(tomlTables(AGENT_TOML_INTAKE), "model")[0];
+  assert.ok(model);
+  const effort = model.entries.find((e) => e.key === "effort");
+  assert.ok(effort);
+  const next = writeField(AGENT_TOML_INTAKE, fieldOf("model", "effort"), effort, model, "model", '"high"');
+  assert.deepEqual(next.split("\n").filter((l, i) => l !== AGENT_TOML_INTAKE.split("\n")[i]), ['effort = "high"'], "only the one line changes");
+  const without = AGENT_TOML_INTAKE.replace("max_output_tokens = 3000\n", "");
+  const m2 = tablesNamed(tomlTables(without), "model")[0];
+  const added = writeField(without, fieldOf("model", "max_output_tokens"), undefined, m2, "model", "4000");
+  const lines = added.split("\n");
+  assert.equal(lines[lines.indexOf('effort    = "medium"') + 1], "max_output_tokens = 4000", "under the last key of its table");
+  assert.equal(lines.length, without.split("\n").length + 1);
+  const bare = writeField(AGENT_TOML, fieldOf("identity", "name"), undefined, undefined, "identity", '"Intake"');
+  assert.ok(bare.endsWith('\n[identity]\nname = "Intake"\n'), "a new table at the end");
+  assert.equal(addTomlKey("a = 1", undefined, "t", "k", "2"), "a = 1\n\n[t]\nk = 2\n");
+  assert.equal(rawFor(fieldOf("tools", "allow"), "files.read, crm.read , ,x"), '["files.read", "crm.read", "x"]');
+  assert.deepEqual(listItems('["a", "b\\"c"]'), ["a", 'b"c']);
+  assert.equal(listRaw(["a", "b"]), '["a", "b"]');
+  assert.equal(rawFor(fieldOf("identity", "name"), 'say "hi"'), '"say \\"hi\\""');
+  assert.equal(rawFor(fieldOf("model", "max_output_tokens"), " 500 "), "500");
+  assert.equal(fieldText(fieldOf("tools", "allow"), tablesNamed(tomlTables(AGENT_TOML_INTAKE), "tools")[0]?.entries[0]), "calendar.read, calendar.book, crm.read, crm.write, email.draft, knowledge.read, files.workspace");
+  assert.ok(isNumberText("3000") && isNumberText("1.00") && !isNumberText("3k") && !isNumberText(""), "a number box holds back what is not a number");
+});
+
+test("agent.toml tables: a repeated [[table]] is one table per block, each with its own keys", () => {
+  const tables = tomlTables(AGENT_TOML_INTAKE);
+  const rules = tablesNamed(tables, "approvals.rule");
+  assert.deepEqual(rules.map((t) => t.entries.map((e) => e.key)), [["action", "require"], ["action", "require", "approver", "timeout_hours", "on_timeout"], ["action", "require", "reviewer"]]);
+  const out = html(intake(), <TomlForm text={AGENT_TOML_INTAKE} onChange={() => undefined} />);
+  assert.ok(has(text(out), "Approval 1") && has(text(out), "Approval 2") && has(text(out), "Approval 3"), "each block is numbered");
+  assert.ok(has(out, 'value="morning-sweep"') && has(out, 'value="contact-form"'), "a routine and a watcher read by their id");
+});
+
+test("agent.toml form: the lint's problems show under their key; read only shows the values and the owner note", () => {
+  const s = intake();
+  const issues = [{ line: 12, severity: "error" as const, message: "Model name is not known." }, { severity: "warn" as const, message: "No line, so nothing shows" }];
+  const out = html(s, <TomlForm text={AGENT_TOML_INTAKE} onChange={() => undefined} issues={issues} />);
+  assert.ok(has(text(out), "Model name is not known.") && !has(text(out), "No line, so nothing shows"));
+  const ro = html(s, <TomlForm text={AGENT_TOML_INTAKE} onChange={() => undefined} readOnly />);
+  assert.ok(has(ro, 'data-testid="toml-fixed:12"') && !has(ro, 'data-testid="toml-select:12"'), "values, no pickers");
+  assert.ok(has(text(ro), "Only the owner edits agent.toml. Changes go through a diff first."));
+});
+
+test("lint chips over agent.toml: Schema valid, Routine prompts exist, Handoff names exist, Nothing repeated in AGENT.md, No secrets, each with a green dot, then the Text and Form switch", () => {
+  const s = intake();
+  const out = html(s, <LintBar fileId={s.fileIds.toml} name="agent.toml" text={AGENT_TOML_INTAKE} view="form" onView={() => undefined} onJump={() => undefined} />);
+  const want = [["schema", "Schema valid"], ["routines", "Routine prompts exist (2 of 2)"], ["handoff", "Handoff names exist"], ["dups", "Nothing repeated in AGENT.md"], ["secrets", "No secrets"]] as const;
+  const starts = want.map(([k]) => out.indexOf(`data-testid="lint-${k}"`));
+  want.forEach(([k, words], n) => {
+    const i = starts[n] ?? -1;
+    assert.ok(i > (n ? (starts[n - 1] ?? -1) : -1), `${k} comes after the one before`);
+    const chip = out.slice(i, n + 1 < starts.length ? starts[n + 1] : out.length);
+    assert.ok(has(text(chip), words), words);
+    assert.ok(has(chip, "var(--ok)"), `${k} has a green dot`);
+  });
+  assert.ok(!has(text(out), "lines"), "agent.toml has no line limit chip");
+  assert.ok(has(tag(out, "lint-view-form"), 'aria-checked="true"'));
+  const none = lintItems({ file: "agent_toml", lines: 3, state: "ok", overrides: [], secrets: [], problems: [] }, "[model]\nprimary = \"x\"\n");
+  assert.equal(none.find((i) => i.k === "routines")?.label, "No routines");
+});
+
+test("lint items for agent.toml sort the problems: a missing prompt file, an unknown handoff name, a repeat, a secret, the rest is the schema", () => {
+  const text2 = "[[routines]]\nid = \"a\"\nprompt_file = \"x.md\"\n[[watchers]]\nid = \"w\"\n[handoff]\ncan_message = [\"nobody\"]\n";
+  const items = lintItems({
+    file: "agent_toml", lines: 7, state: "red", overrides: [], secrets: [{ line: 3, kind: "API key" }],
+    problems: [
+      { severity: "error", line: 3, rule: "routine.prompt_missing", message: "Routine 1: there is no file x.md next to agent.toml." },
+      { severity: "warn", line: 7, rule: "handoff.unknown", message: "Handoff to nobody: there is no agent with that name in this Space." },
+      { severity: "warn", rule: "dups", line: 2, message: "Model name is also in AGENT.md." },
+      { severity: "error", line: 1, rule: "toml.type", message: "name must be text." },
+    ],
+  }, text2);
+  const by = Object.fromEntries(items.map((i) => [i.k, i]));
+  assert.deepEqual(items.map((i) => i.k), ["schema", "routines", "handoff", "dups", "secrets"]);
+  assert.deepEqual([by["schema"]?.label, by["schema"]?.sev], ["1 schema error", "err"]);
+  assert.deepEqual([by["routines"]?.label, by["routines"]?.sev, by["routines"]?.line], ["1 routine prompt missing", "err", 3]);
+  assert.deepEqual([by["handoff"]?.label, by["handoff"]?.sev, by["handoff"]?.line], ["1 unknown name", "warn", 7]);
+  assert.deepEqual([by["dups"]?.label, by["dups"]?.sev], ["1 also in AGENT.md", "warn"]);
+  assert.deepEqual([by["secrets"]?.label, by["secrets"]?.sev, by["secrets"]?.line], ["1 possible secret", "err", 3]);
+});
+
+test("agent.toml page: the file header with the TOML tile, where it lives, who and when, the version check, find, info, history, Ask and ..., no View and Edit, the chips, the form", () => {
+  const s = intake();
+  const out = html(s, <AgentFilePage fileId={s.fileIds.toml} name="agent.toml" path="Agents / Intake" agentId="agt_intake" saved={AGENT_TOML_INTAKE} version={3} start={{ view: "form" }} />);
+  const tile = out.indexOf('data-testid="agent-file-tile"');
+  assert.ok(tile >= 0 && has(text(out.slice(tile, tile + 400)), "TOML"), "the TOML tile");
+  assert.ok(has(text(out), "agent.toml") && has(text(out), "Agents / Intake") && has(text(out), "Lena Ortiz") && has(text(out), "Oct 20"), "name, path, owner, date");
+  assert.ok(has(tag(out, "agent-file-version"), 'aria-label="Version 3"') && has(text(out), "v3"), "the version check");
+  for (const id of ["agent-file-find", "agent-file-info", "agent-file-history", "agent-file-ask", "agent-file-more"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  assert.ok(!has(out, 'data-testid="agent-file-mode"'), "agent.toml has the Text and Form switch, not View and Edit");
+  assert.ok(has(out, 'data-testid="lint-bar"') && has(out, 'data-testid="toml-form"') && has(text(out), "Whose AI account"), "chips, then the form");
+  assert.ok(!has(out, 'data-testid="agent-file-save"'), "no save bar until something is edited");
+  const edited = html(s, <AgentFilePage fileId={s.fileIds.toml} name="agent.toml" path="Agents / Intake" agentId="agt_intake" saved={AGENT_TOML_INTAKE} version={3} start={{ view: "form", draft: AGENT_TOML_INTAKE.replace("3000", "4000"), review: true }} />);
+  assert.ok(has(text(edited), "Edited") && has(edited, 'data-testid="agent-file-save"'), "an edit brings the save bar");
+  assert.ok(!has(edited, 'data-testid="agent-file-diff"'), "the diff is not drawn under the form: it goes to the History pane");
+});
+
+test("the diff before a save: under the file by itself, in the page's pane when the page gives one", () => {
+  const s = intake();
+  const start = { view: "form" as const, draft: AGENT_TOML_INTAKE.replace("3000", "4000"), review: true };
+  const alone = html(s, <AgentFileEditor fileId={s.fileIds.toml} name="agent.toml" saved={AGENT_TOML_INTAKE} version={3} start={start} />);
+  assert.ok(has(alone, 'data-testid="agent-file-diff"') && has(alone, 'aria-label="Why this change"'), "an editor with no pane keeps its diff under the file");
+  const given = html(s, <AgentFileEditor fileId={s.fileIds.toml} name="agent.toml" saved={AGENT_TOML_INTAKE} version={3} start={start} onReviewPane={() => undefined} />);
+  assert.ok(!has(given, 'data-testid="agent-file-diff"'), "with a pane to put it in, nothing is drawn under the form");
+  assert.ok(has(given, 'data-testid="toml-form"') && has(given, 'data-testid="agent-file-save"'), "the form and the Save button stay");
 });
