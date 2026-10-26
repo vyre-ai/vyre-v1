@@ -32,7 +32,7 @@ export function fakeFiles(clock: { t: number }) {
   /** Agent principals access knows, whether or not the agents module has a record for them (the seed writes some straight to the log). */
   const homeGrants: Array<{ resource: { type: string; id: string }; subject: { kind: string; id: string }; level: string; source?: string }> = [];
   const principals: Array<{ id: string; kind: "agent" | "actor"; name: string; owner?: string; status: "active" | "removed" }> = [];
-  const calls: Array<{ cap: string; input: unknown }> = [];
+  const calls: Array<{ cap: string; input: unknown; opts?: { idempotencyKey?: string } }> = [];
   const settings: Record<string, unknown> = {};
   let n = 0;
   const next = (prefix: string): string => `${prefix}_${(++n).toString(36).padStart(6, "0")}`;
@@ -214,7 +214,7 @@ export function harness(o: HarnessOptions = {}) {
     db,
     emit(name, subject, payload) { emitted.push({ name, subject, payload: payload as Record<string, unknown> }); return null; },
     async call(cap, input, opts) {
-      world.calls.push({ cap, input });
+      world.calls.push({ cap, input, opts });
       const f = world.handlers[cap];
       if (!f) throw Object.assign(new Error(`${cap} is not available`), { error: { code: "internal.unavailable", message: `${cap} is not available` } });
       return f(input, opts);
