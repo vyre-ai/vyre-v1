@@ -91,31 +91,40 @@ try {
     console.log(`shot ${t.id} ${skin} ${sizeName}`);
   }
   // Scroll probe (ruling 29): a target with "scroll": { "selector": "<css>" } is scrolled top to bottom and its p95 frame interval checked.
+  // A probe that throws (a selector that never appears) is a failed probe of that target, not the end of the run: every target is measured, every METRIC prints, and the run fails at the end.
   for (const t of targets) if (t.scroll && !args["no-probes"]) {
-    const ctx = await browser.newContext({ viewport: SIZES.desktop, deviceScaleFactor: 1, reducedMotion: "no-preference" });
-    const page = await ctx.newPage();
-    await page.goto(routeUrl(real.origin, t.route, "paper"), { waitUntil: "load", timeout: 60000 });
-    const r = await measureScroll(page, t.scroll);
-    const ok = withinBudget(r);
-    console.log(`METRIC ${JSON.stringify({ name: "scroll", target: t.id, frames: r.frames, p95_ms: +r.p95.toFixed(2), max_ms: +r.max.toFixed(2), budget_ms: SCROLL_P95_MS, layout_shift: r.layoutShift, height_stable: r.heightStable, ok })}`);
-    if (!ok || !r.heightStable) scrollFailed.push(t.id);
-    await ctx.close();
-    // --trace: the same scroll again on a fresh page under a Chrome trace (where the time goes); the measured pass above stays untraced.
-    if (args.trace) {
-      const tctx = await browser.newContext({ viewport: SIZES.desktop, deviceScaleFactor: 1, reducedMotion: "no-preference" });
-      const tpage = await tctx.newPage();
-      await tpage.goto(routeUrl(real.origin, t.route, "paper"), { waitUntil: "load", timeout: 60000 });
-      await traceScroll(browser, tpage, t.id, t.scroll, path.join(out, "traces"));
-      await tctx.close();
+    try {
+      const ctx = await browser.newContext({ viewport: SIZES.desktop, deviceScaleFactor: 1, reducedMotion: "no-preference" });
+      const page = await ctx.newPage();
+      await page.goto(routeUrl(real.origin, t.route, "paper"), { waitUntil: "load", timeout: 60000 });
+      const r = await measureScroll(page, t.scroll);
+      const ok = withinBudget(r);
+      console.log(`METRIC ${JSON.stringify({ name: "scroll", target: t.id, frames: r.frames, p95_ms: +r.p95.toFixed(2), max_ms: +r.max.toFixed(2), budget_ms: SCROLL_P95_MS, layout_shift: r.layoutShift, height_stable: r.heightStable, ok })}`);
+      if (!ok || !r.heightStable) scrollFailed.push(t.id);
+      await ctx.close();
+      // --trace: the same scroll again on a fresh page under a Chrome trace (where the time goes); the measured pass above stays untraced.
+      if (args.trace) {
+        const tctx = await browser.newContext({ viewport: SIZES.desktop, deviceScaleFactor: 1, reducedMotion: "no-preference" });
+        const tpage = await tctx.newPage();
+        await tpage.goto(routeUrl(real.origin, t.route, "paper"), { waitUntil: "load", timeout: 60000 });
+        await traceScroll(browser, tpage, t.id, t.scroll, path.join(out, "traces"));
+        await tctx.close();
+      }
+    } catch (e) {
+      console.log(`METRIC ${JSON.stringify({ name: "scroll", target: t.id, error: String(e?.message ?? e).split("\n")[0] })}`);
+      scrollFailed.push(t.id);
     }
   }
 } finally { await browser.close(); real.close(); proto.close(); }
 fs.writeFileSync(path.join(out, "index.md"), `# Side-by-side screenshots\n\nExport: ${exportSeconds ? exportSeconds.toFixed(1) + " s" : "skipped"} (budget ${maxExport} s)\n\n| target | skin | size | file |\n|---|---|---|---|\n${rows.join("\n")}\n`);
-if (scrollFailed.length) { console.error(`scroll probe over budget: ${scrollFailed.join(", ")}`); process.exit(1); }
-if (exportSeconds > maxExport) { console.error(`web export took ${exportSeconds.toFixed(1)} s, over ${maxExport} s`); process.exit(1); }
+// Every gate is judged before the run ends, so one red never hides the next measure: the failures are collected and the process exits at the end.
+let failedGate = false;
+if (scrollFailed.length) { console.error(`scroll probe over budget: ${scrollFailed.join(", ")}`); failedGate = true; }
+if (exportSeconds > maxExport) { console.error(`web export took ${exportSeconds.toFixed(1)} s, over ${maxExport} s`); failedGate = true; }
 console.log(`${rows.length} side-by-side images in ${out}`);
 
 // Startup probe on the real app (budget startup). Skipped when a single target or no apps/app is asked for.
 if (want === "all" && !args["skip-startup"] && !args["no-probes"] && fs.existsSync(path.join(REPO, "apps/app/app.json"))) {
-  execSync("node scripts/shots/probes/startup.mjs", { cwd: REPO, stdio: "inherit" });
+  try { execSync("node scripts/shots/probes/startup.mjs", { cwd: REPO, stdio: "inherit" }); } catch { failedGate = true; }
 }
+if (failedGate) process.exit(1);
