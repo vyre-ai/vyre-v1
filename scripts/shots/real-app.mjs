@@ -104,6 +104,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       const page = await ctx.newPage();
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
+      // Per place: the calls the Space refused while it was on screen, so a place that does not draw says why (a refused input, a module that is not there).
+      const refused = [];
+      page.on("response", (r) => { const u = new URL(r.url()); if ((u.pathname.startsWith("/v1/") || u.pathname.startsWith("/sync/")) && r.status() >= 400) refused.push(`${r.status()} ${u.pathname}`); });
       await page.goto(`${web.origin}/home?skin=${skin}`, { waitUntil: "load", timeout: 60000 });
       await page.evaluate((v) => localStorage.setItem("vyre.session.v1", v), session ?? JSON.stringify(ownerSession(space, web.origin)));
       await page.goto(`${web.origin}/home?skin=${skin}`, { waitUntil: "load", timeout: 60000 });
@@ -123,7 +126,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         await page.screenshot({ path: path.join(dir, file) });
         const gaps = p.needs.map((s) => todoFor(s, live)).filter(Boolean);
         rows.push(rowFor({ place: p.id, skin, sizeName, vp, file, drew, gaps }));
-        console.log(`shot ${p.id} ${skin} ${sizeName} ${drew ? "drew" : "did not draw"}`);
+        console.log(`shot ${p.id} ${skin} ${sizeName} ${drew ? "drew" : "did not draw"}${refused.length ? ` refused: ${[...new Set(refused.splice(0))].slice(0, 6).join(", ")}` : ""}`);
       }
       if (errors.length) console.log(`page errors (${skin} ${sizeName}): ${errors.join(" | ")}`);
       await ctx.close();

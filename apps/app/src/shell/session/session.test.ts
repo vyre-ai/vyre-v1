@@ -442,3 +442,19 @@ test("live: adoption happens once per session: a second purge answer after adopt
   assert.deepEqual(purged, [12], "the server moved the epoch again: real purge");
   link.stop();
 });
+
+test("hooks: a read that fails the same way again keeps the same snapshot and does not tell the listener again", async () => {
+  const hooks = createRemoteScreenHooks({ screens: SCREENS, read: async () => { throw new CapError({ code: "validation.bad_input", message: "bad", traceId: `t${Math.random()}`, status: 422 }); } });
+  const q = hooks.query("files.list", "items");
+  let told = 0;
+  q.subscribe(() => { told++; });
+  await wait();
+  const first = q.getSnapshot();
+  hooks.invalidate();
+  await wait();
+  hooks.invalidate();
+  await wait();
+  assert.equal(q.getSnapshot(), first, "same failure, same snapshot object, whatever the trace id");
+  assert.equal(told, 1);
+  hooks.close();
+});

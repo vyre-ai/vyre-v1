@@ -97,7 +97,12 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
     }, (err: unknown) => {
       opts.onError?.(e.cap, err);
       // Never answered: say why (a `ready` query keeps its last answer). The next read, when something changes, replaces this.
-      if (e.snap.status !== "ready") { e.snap = { status: "loading", error: failureOf(err) }; notify(e); }
+      // The same failure again keeps the same snapshot: a re-read that fails the same way must not look like a change (an effect that reacts to the snapshot would call, refresh, fail and react again, for ever).
+      if (e.snap.status !== "ready") {
+        const f = failureOf(err);
+        const was = e.snap.error;
+        if (!was || was.message !== f.message || was.code !== f.code) { e.snap = { status: "loading", error: f }; notify(e); }
+      }
       done();
     });
   };
