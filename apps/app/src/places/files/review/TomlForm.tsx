@@ -26,6 +26,7 @@ export function TomlForm({ text, onChange, readOnly = false }: TomlFormProps): R
   if (!groups.length) return <View style={st.wrap} testID="toml-form"><Text style={st.empty}>Nothing in agent.toml yet. Switch to Text to write the first line.</Text></View>;
   return (
     <View style={st.wrap} testID="toml-form" role="form" aria-label="agent.toml as a form">
+      {/* ui-rows-lint: not a list (table sections; each section is a heading and its ui/Row lines) */}
       {groups.map((g) => (
         <View key={g.section || "top"} style={st.group}>
           <Text accessibilityRole="header" aria-level={3} style={st.head}>{g.section || "General"}</Text>

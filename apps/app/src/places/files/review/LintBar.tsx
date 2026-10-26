@@ -59,6 +59,7 @@ export function LintBar({ fileId, name, text, view, onView, onJump }: LintBarPro
   return (
     <View style={st.bar} testID="lint-bar" role="status" aria-label={`Checks for ${name}`}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.scroll} contentContainerStyle={st.items}>
+        {/* ui-rows-lint: not a list (a bar of check chips in one 34 px line, as in the prototype) */}
         {items.map((i) => <Chip key={i.k} item={i} onPress={press(i)} />)}
       </ScrollView>
       {q.data.file === "agent_toml" && view && onView ? (
