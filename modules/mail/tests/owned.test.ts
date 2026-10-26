@@ -1,4 +1,5 @@
 // What a person owns in Mail, for the removal wizard (P-L7_21): their mailbox connections; revoking ends them and keeps the mail. Real SQLite with the module's own tables.
+// @reads /modules/mail/migrations/0001_mail_core.sql
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

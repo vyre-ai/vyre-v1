@@ -1,4 +1,5 @@
 // What a person owns in Memory, for the removal wizard (P-L7_21): the facts that came from them ("From you"); keep leaves them, delete removes them and their text. Real SQLite with the module's tables.
+// @reads /modules/memory/migrations/0001_init.sql
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

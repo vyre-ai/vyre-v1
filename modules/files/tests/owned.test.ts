@@ -1,16 +1,18 @@
 // What a person owns in Files, for the removal wizard (P-L7_21): their files and their own folders, and what reassigning does to them. Real SQLite with the module's own tables.
+// @reads /generated/modules/files/schema.sql
+// @reads /modules/files/migrations/0001_files_tree.sql
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { ProjectionHost } from "../../../kernel/src/store/projection.ts";
 import { hostCalls } from "../impl.ts";
 
-const read = (rel: string): string => readFileSync(new URL(`../${rel}`, import.meta.url), "utf8");
+const read = (rel: string): string => readFileSync(new URL(rel, import.meta.url), "utf8");
 const statements = (sql: string): string[] => sql.split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n").split(";").map((x) => x.trim()).filter((x) => x.length > 0);
 
 function db() {
   const host = ProjectionHost.open({ path: ":memory:", space: "spc_t", projections: [] });
-  for (const f of ["../../../generated/modules/files/schema.sql", "migrations/0001_files_tree.sql"]) for (const st of statements(read(f))) host.tx.run(st);
+  for (const f of ["../../../generated/modules/files/schema.sql", "../migrations/0001_files_tree.sql"]) for (const st of statements(read(f))) host.tx.run(st);
   const ctx = { now: () => 1_760_000_000_000, db: { all: (sql: string, ...a: unknown[]) => host.tx.all(sql, ...a), run: (sql: string, ...a: unknown[]) => ({ changes: Number(host.tx.run(sql, ...a).changes) }) } };
   return { host, ctx };
 }
