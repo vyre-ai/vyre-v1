@@ -132,7 +132,7 @@ export async function epochBump(ctx: DevicesCtx, input: { person: string; reason
 
 export async function purgeAck(ctx: DevicesCtx, input: { deviceId: string }) {
   const d = deviceById(ctx, input.deviceId);
-  if (!d || (d.person !== ctx.principal.id && !isSystemCall(ctx))) raise(ctx, "validation.not_found", "no such device");   // only the person the device belongs to says it is clean
+  if (!d || (!mayTouch(ctx, d.person) && !isSystemCall(ctx))) raise(ctx, "validation.not_found", "no such device");   // the person the device belongs to, or whoever manages access when that person was removed, says it is clean
   if (d.revokedAt === null) raise(ctx, "validation.precondition_failed", "only a revoked device is purged");
   if (ctx.db.all(`SELECT device_id FROM devices_purge WHERE device_id = ?`, d.id).length === 0) {
     ctx.db.run(`INSERT INTO devices_purge (device_id, acked_at) VALUES (?, ?)`, d.id, ctx.now());
