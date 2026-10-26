@@ -133,13 +133,14 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
       return r.body.data.taskId as string;
     }, ["a campaign is drafted for the lead"]);
     await trail.step("a person approves and the campaign mails the lead", async () => {
-      expectStatus(await s.call("tasks.act", admin, { taskId: held!, action: "approve" }), 200, "tasks.act");
+      const act = expectStatus(await s.call("tasks.act", admin, { taskId: held!, action: "approve" }), 200, "tasks.act");
+      net.requests.push(`tasks.act ${short(act)}`);
       const stats = expectStatus(await s.call("campaigns.stats", admin, { campaignId: campaign! }), 200, "campaigns.stats");
       if (stats.sent !== 1) {
         const c = await s.call("campaigns.get", adam, { campaignId: campaign! });
         const m = await s.call("mail.message.list", admin, { mailboxId: mailbox! });
         s.d.sink.flush();
-        const logs = s.d.sink.trace(s.trace).logs.filter((l) => /^campaigns|mail|send/i.test(String(l.msg))).map((l) => `${l.msg} ${short(l.attrs)}`).slice(-6);
+        const logs = s.d.sink.trace(s.trace).logs.filter((l) => l.level >= 30).map((l) => `${l.msg} ${short(l.attrs)}`.slice(0, 300)).slice(-8);
         assert.fail(`logs ${short(logs)} the lead got the email: ${short(stats)} campaign ${short(c.body?.data?.campaign)} mail ${short(m.body?.data ?? m.body)} net ${short(net.requests)}`);
       }
       assert.ok(net.requests.includes("POST api.resend.com/emails"), `Resend was asked to send: ${short(net.requests)}`);
