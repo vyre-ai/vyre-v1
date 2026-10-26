@@ -10,7 +10,7 @@ Set up a source: a connector source or a generic webhook with a mapping into a r
 | Permission | connectors.manage |
 | Grant level | edit |
 | Risk | medium |
-| Resource | connector (create under /connector) |
+| Resource | space |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |

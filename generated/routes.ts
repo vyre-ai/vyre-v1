@@ -5917,7 +5917,7 @@ export const routes: Route[] = [
     "permission": "connectors.manage",
     "level": "edit",
     "resource": {
-      "type": "connector",
+      "type": "connection",
       "create": true,
       "parent": "/connector"
     },
@@ -7352,7 +7352,7 @@ export const routes: Route[] = [
     "permission": "files.write",
     "level": "edit",
     "resource": {
-      "type": "folder",
+      "type": "file",
       "create": true,
       "parent": "/intoFolderId"
     },
@@ -9158,7 +9158,7 @@ export const routes: Route[] = [
     "permission": "files.write",
     "level": "edit",
     "resource": {
-      "type": "folder",
+      "type": "file",
       "create": true,
       "parent": "/toFolderId"
     },
@@ -14285,9 +14285,7 @@ export const routes: Route[] = [
     "permission": "journeys.manage",
     "level": "edit",
     "resource": {
-      "type": "record_type",
-      "create": true,
-      "parent": "/subjectType"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -14542,9 +14540,7 @@ export const routes: Route[] = [
     "permission": "kits.publish",
     "level": "edit",
     "resource": {
-      "type": "kit",
-      "create": true,
-      "parent": "/brief"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -18953,11 +18949,10 @@ export const routes: Route[] = [
     "module": "portal",
     "effects": "write",
     "permission": null,
-    "level": "edit",
+    "level": "manage",
     "resource": {
       "type": "file",
-      "create": true,
-      "parent": "/fileId"
+      "id": "/fileId"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -19182,7 +19177,7 @@ export const routes: Route[] = [
     "permission": "records.create",
     "level": "edit",
     "resource": {
-      "type": "record_type",
+      "type": "record",
       "create": true,
       "parent": "/type"
     },
@@ -22174,7 +22169,7 @@ export const routes: Route[] = [
     "permission": "files.write",
     "level": "edit",
     "resource": {
-      "type": "folder",
+      "type": "file",
       "create": true,
       "parent": "/folderId"
     },
@@ -22650,9 +22645,8 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "record_type",
-      "create": true,
-      "parent": "/siteId"
+      "type": "site",
+      "id": "/siteId"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -22763,9 +22757,7 @@ export const routes: Route[] = [
     "permission": "connectors.manage",
     "level": "edit",
     "resource": {
-      "type": "connector",
-      "create": true,
-      "parent": "/connector"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -25308,9 +25300,7 @@ export const routes: Route[] = [
     "permission": "kits.publish",
     "level": "edit",
     "resource": {
-      "type": "kit",
-      "create": true,
-      "parent": "/ref"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
