@@ -2,7 +2,7 @@
 # S12 desktop run: launch the Tauri shell, wait for the webview to report through vyred,
 # kill it, launch again, expect the encrypted OPFS replica to read back, screenshot each time.
 # usage: run-shell.sh <app executable> <output dir>
-set -u
+set -euo pipefail
 APP="$1"; OUT="$2"; mkdir -p "$OUT"
 STATE="$OUT/state.log"
 export VYRE_STATE_FILE="$STATE"
@@ -42,7 +42,7 @@ run() { # $1 = label, $2 = expected replica state
   if [ "$ready" -ne 1 ]; then echo "timed out waiting for replica state"; return 124; fi
   sleep 4
   echo "diag health: $(curl -s -m 3 http://127.0.0.1:47211/health || echo none)"
-  ps aux 2>/dev/null | grep -i vyre | grep -v grep | head -5
+  ps aux 2>/dev/null | grep -i vyre | grep -v grep | head -5 || true
   shot "$OUT/$RUNNER_OS-$1.png"
   echo "run $1 state: $(cat "$STATE")"
   grep -q "sidecar=connected replica=$2" "$STATE"
