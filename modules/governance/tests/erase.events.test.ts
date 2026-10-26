@@ -43,10 +43,10 @@ test("erase compacts the log once, with the erased ids and the person's own text
     assert.ok(subject.entities.some((e) => e.id === PAT), "the contact record");
     assert.ok(subject.entities.some((e) => e.id === "fil_pat00001"), "the file");
     assert.ok(subject.identifiers.includes("Pat Lee"), "the name, read from the record before it was deleted");
-    const row = h.rows(`SELECT * FROM gov_tombstone WHERE kind = 'events'`);
+    const row = h.rows(`SELECT * FROM governance_tombstone WHERE kind = 'events'`);
     assert.equal(row.length, 1);
     assert.equal(row[0]!["subjectId"], JSON.stringify([4, 5, 9]));
-    assert.equal(JSON.stringify(h.rows(`SELECT * FROM gov_tombstone`)).includes("Pat Lee"), false, "the tombstones hold ids and seqs, never the name");
+    assert.equal(JSON.stringify(h.rows(`SELECT * FROM governance_tombstone`)).includes("Pat Lee"), false, "the tombstones hold ids and seqs, never the name");
   } finally { g.setEventsCompact(null); }
 });
 
@@ -69,7 +69,7 @@ test("with no event log bound erase works as before, and when the log erased not
   pat(h);
   const f = (await find(h)) as Json;
   await apply(h, String(f["findingId"]), ["records", "files"]);
-  assert.equal(h.rows(`SELECT * FROM gov_tombstone WHERE kind = 'events'`).length, 0);
+  assert.equal(h.rows(`SELECT * FROM governance_tombstone WHERE kind = 'events'`).length, 0);
   const h2 = harness();
   pat(h2);
   const x = port({ erased: [] });
@@ -77,6 +77,6 @@ test("with no event log bound erase works as before, and when the log erased not
   try {
     const f2 = (await find(h2)) as Json;
     await apply(h2, String(f2["findingId"]), ["records", "files"]);
-    assert.equal(h2.rows(`SELECT * FROM gov_tombstone WHERE kind = 'events'`).length, 0);
+    assert.equal(h2.rows(`SELECT * FROM governance_tombstone WHERE kind = 'events'`).length, 0);
   } finally { g.setEventsCompact(null); }
 });

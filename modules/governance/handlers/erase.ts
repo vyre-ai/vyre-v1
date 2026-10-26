@@ -9,11 +9,13 @@
 // DECISION: one tombstone is written per erased item (kind, the item's type and id, time, who); replaying them is the same erasers, idempotent, so a restore that brought data back erases it again before the
 // Space opens (tombstones.reapply, called by backup.restore's host seam). The audit events say who and when and how many, never what.
 // DECISION (P-CC_41): erase reaches the event log. After the erasers, one compaction (kernel/src/events/compact.ts, through the events port the host binds) turns the payloads of every event about the erased
-// items, or naming the person's name, email or phone, into tombstones, and a gov_tombstone row of kind "events" keeps the seqs it erased (never text). A restore that brings an older events.db back replays
+// items, or naming the person's name, email or phone, into tombstones, and a governance_tombstone row of kind "events" keeps the seqs it erased (never text). A restore that brings an older events.db back replays
 // those seqs, so the payloads leave again. Without the port (a host with no log) the log is left alone.
 import { fail } from "../../../host/src/routes/errors.ts";
 import { ERASE_KINDS, bad, codeOf, ensure, finishRun, first, holdRow, isId, list, newId, num, obj, pageOf, paging, parseJson, refuse, rowsOf, startRun, str, text } from "../projections.ts";
 import type { EraseKind, GovCtx, Json, Row } from "../projections.ts";
+import { eraseItem } from "./erasers.ts";
+import type { Outcome } from "./erasers.ts";
 import { fileHeld } from "./retention.ts";
 
 const DAY = 86_400_000;
@@ -67,7 +69,7 @@ export async function eraseFind(ctx: GovCtx, input: { subject: unknown }) {
   ensure(ctx);
   const s = subjectOf(ctx, input.subject);
   const now = ctx.now();
-  for (const old of rowsOf(ctx.db.all(`SELECT * FROM gov_finding`))) if (num(old, "expiresAt") <= now) ctx.db.run(`DELETE FROM gov_finding WHERE "id" = ?`, str(old, "id"));
+  for (const old of rowsOf(ctx.db.all(`SELECT * FROM governance_finding`))) if (num(old, "expiresAt") <= now) ctx.db.run(`DELETE FROM governance_finding WHERE "id" = ?`, str(old, "id"));
   const items: Items = {};
   const recs = await recordsOf(ctx, s);
   for (const r of recs) {
@@ -113,7 +115,7 @@ export async function eraseFind(ctx: GovCtx, input: { subject: unknown }) {
 
   const id = newId("fnd", now);
   const expiresAt = now + DAY;
-  ctx.db.run(`INSERT INTO gov_finding ("id", "by", "at", "expiresAt", "recordIds", "items") VALUES (?, ?, ?, ?, ?, ?)`, id, ctx.principal.id, now, expiresAt, JSON.stringify(recs.map((r) => r.id)), JSON.stringify(idsOnly(items)));
+  ctx.db.run(`INSERT INTO governance_finding ("id", "by", "at", "expiresAt", "recordIds", "items") VALUES (?, ?, ?, ?, ?, ?)`, id, ctx.principal.id, now, expiresAt, JSON.stringify(recs.map((r) => r.id)), JSON.stringify(idsOnly(items)));
   const groups = [];
   for (const kind of ERASE_KINDS) {
     const its = items[kind] ?? [];
@@ -152,7 +154,7 @@ let eventsPort: EventsCompactPort | null = null;
 export function setEventsCompact(p: EventsCompactPort | null): void { eventsPort = p; }
 
 /** Text that names the person in payloads: the name, email and phone of their records. Read before the records go. A record that cannot be read adds nothing. */
-async function identifiersOf(ctx: GovCtx, records: readonly Item[]): Promise<string[]> {
+async function identifiersOf(ctx: GovCtx, records: readonly { type: string; id: string }[]): Promise<string[]> {
   const out = new Set<string>();
   for (const r of records) {
     try {
@@ -163,18 +165,9 @@ async function identifiersOf(ctx: GovCtx, records: readonly Item[]): Promise<str
   return [...out];
 }
 
-const ERASER: ReadonlySet<EraseKind> = new Set<EraseKind>(["records", "files", "memory"]);
-
-async function eraseOne(ctx: GovCtx, kind: EraseKind, subjectType: string, subjectId: string, reason: string): Promise<void> {
-  try {
-    if (kind === "records") await ctx.call("records.delete", { type: subjectType, recordId: subjectId });
-    else if (kind === "files") {
-      await ctx.call("files.delete", { fileId: subjectId });
-      await ctx.call("files.purge", { fileId: subjectId });
-    } else if (kind === "memory" && subjectType === "fact") await ctx.call("memory.erase", { factIds: [subjectId], reason });
-  } catch (e) {
-    if (codeOf(e) !== "validation.not_found") throw e;   // already gone: the erase is done
-  }
+/** Erase one item through the eraser of its store (erasers.ts). `gone` counts as erased: the erase is done. `no_eraser` removes nothing. */
+async function eraseOne(ctx: GovCtx, kind: EraseKind, subjectType: string, subjectId: string, reason: string): Promise<Outcome> {
+  return eraseItem(ctx, kind, subjectType, subjectId, reason);
 }
 
 async function ownerRole(ctx: GovCtx): Promise<boolean> {
@@ -186,9 +179,9 @@ export async function eraseApply(ctx: GovCtx, input: { findingId: string; includ
   ensure(ctx);
   if (typeof input.idempotencyKey !== "string" || input.idempotencyKey === "") bad(ctx, "An idempotency key is required.");
   if (!isId("fnd", input.findingId)) bad(ctx, "The finding id is not valid.");
-  const done = first(ctx.db.all(`SELECT * FROM gov_erase WHERE "findingId" = ?`, input.findingId));
+  const done = first(ctx.db.all(`SELECT * FROM governance_erase WHERE "findingId" = ?`, input.findingId));
   if (done) return { runId: str(done, "runId") };   // the same finding again: already erased
-  const f = first(ctx.db.all(`SELECT * FROM gov_finding WHERE "id" = ?`, input.findingId));
+  const f = first(ctx.db.all(`SELECT * FROM governance_finding WHERE "id" = ?`, input.findingId));
   if (!f || num(f, "expiresAt") <= ctx.now()) return refuse(ctx, "That finding is gone or older than 24 hours. Look for the person again.");
   if (!Array.isArray(input.include) || input.include.length === 0 || input.include.some((k) => !(ERASE_KINDS as readonly string[]).includes(k))) bad(ctx, "Say which kinds to erase.");
   const kinds = [...new Set(input.include)] as EraseKind[];
@@ -209,19 +202,24 @@ export async function eraseApply(ctx: GovCtx, input: { findingId: string; includ
   const reason = heldCount > 0 ? `Erase a person (hold overridden: ${(override as { reason: string }).reason.trim().slice(0, 200)})` : "Erase a person";
   let tombstones = 0;
   const left: string[] = [];
+  let trashed = 0;
   // read before the erasers run: once a record is deleted its name, email and phone cannot be asked for
   const identifiers = eventsPort ? await identifiersOf(ctx, items.records ?? []) : [];
+  const removed: string[] = [];
   try {
     for (const kind of kinds) {
       const its = items[kind] ?? [];
       if (its.length === 0) continue;
-      if (!ERASER.has(kind)) { left.push(`${kind} (${its.length})`); continue; }
+      let noEraser = 0;
       for (const it of its) {
-        if (kind === "memory" && it.type !== "fact") continue;   // notes are not facts: they leave with the next rotation
-        await eraseOne(ctx, kind, it.type, it.id, reason);
-        ctx.db.run(`INSERT INTO gov_tombstone ("id", "kind", "subjectType", "subjectId", "at", "by", "findingId") VALUES (?, ?, ?, ?, ?, ?, ?)`, newId("tmb", ctx.now()), kind, it.type, it.id, ctx.now(), ctx.principal.id, input.findingId);
+        const outcome = await eraseOne(ctx, kind, it.type, it.id, reason);
+        if (outcome === "no_eraser") { noEraser++; continue; }   // nothing was removed: no tombstone, and the Run says so
+        if (outcome !== "trashed") removed.push(it.id);   // an item still in Trash is not gone, so its events keep their payloads (a restore from Trash needs them)
+        if (outcome === "trashed") trashed++;   // out of every view, still in Trash: a tombstone, so a restore takes it out again, and the Run says it is not a hard delete
+        ctx.db.run(`INSERT INTO governance_tombstone ("id", "kind", "subjectType", "subjectId", "at", "by", "findingId") VALUES (?, ?, ?, ?, ?, ?, ?)`, newId("tmb", ctx.now()), kind, it.type, it.id, ctx.now(), ctx.principal.id, input.findingId);
         tombstones++;
       }
+      if (noEraser > 0) left.push(`${kind} (${noEraser})`);
     }
   } catch (e) {
     await finishRun(ctx, runId, { code: codeOf(e) || "internal.unexpected", message: (e as { error?: { message?: string } } | null)?.error?.message ?? "The erase did not finish." });
@@ -229,26 +227,25 @@ export async function eraseApply(ctx: GovCtx, input: { findingId: string; includ
   }
   // the log: everything about the erased items and the person's text goes, and the seqs are remembered for a restore
   if (eventsPort) {
-    const erasedItems = kinds.filter((k) => ERASER.has(k)).flatMap((k) => (items[k] ?? []).filter((it) => !(k === "memory" && it.type !== "fact")).map((it) => ({ id: it.id })));
-    const subject = { entities: [...erasedItems, ...people.map((id) => ({ id }))], identifiers };
+    const subject = { entities: [...removed, ...people].map((id) => ({ id })), identifiers };
     if (subject.entities.length > 0 || identifiers.length > 0) {
       const out = await eventsPort.compact(subject);
       if (out.erased.length > 0) {
-        ctx.db.run(`INSERT INTO gov_tombstone ("id", "kind", "subjectType", "subjectId", "at", "by", "findingId") VALUES (?, ?, ?, ?, ?, ?, ?)`, newId("tmb", ctx.now()), "events", "seqs", JSON.stringify(out.erased), ctx.now(), ctx.principal.id, input.findingId);
+        ctx.db.run(`INSERT INTO governance_tombstone ("id", "kind", "subjectType", "subjectId", "at", "by", "findingId") VALUES (?, ?, ?, ?, ?, ?, ?)`, newId("tmb", ctx.now()), "events", "seqs", JSON.stringify(out.erased), ctx.now(), ctx.principal.id, input.findingId);
         tombstones++;
       }
     }
   }
-  ctx.db.run(`INSERT INTO gov_erase ("findingId", "by", "at", "kinds", "tombstones", "runId") VALUES (?, ?, ?, ?, ?, ?)`, input.findingId, ctx.principal.id, ctx.now(), JSON.stringify(kinds), tombstones, runId);
+  ctx.db.run(`INSERT INTO governance_erase ("findingId", "by", "at", "kinds", "tombstones", "runId") VALUES (?, ?, ?, ?, ?, ?)`, input.findingId, ctx.principal.id, ctx.now(), JSON.stringify(kinds), tombstones, runId);
   ctx.emit("erase.completed", `entity/${input.findingId}`, { findingId: input.findingId, tombstones });
-  await finishRun(ctx, runId, { summary: `${tombstones} erased${left.length ? `; no eraser yet for ${left.join(", ")}, which the next backup rotation purges` : ""}` });
+  await finishRun(ctx, runId, { summary: `${tombstones} erased${left.length ? `; no eraser yet for ${left.join(", ")}, which the next backup rotation purges` : ""}${trashed ? `; ${trashed} record${trashed === 1 ? "" : "s"} moved to Trash, not hard-deleted yet` : ""}` });
   return { runId };
 }
 
 export async function eraseList(ctx: GovCtx, input: { cursor?: string; limit?: number }) {
   ensure(ctx);
   const { cursor, limit } = paging(ctx, obj(input));
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM gov_erase`)).sort((a, b) => num(b, "at") - num(a, "at") || str(a, "findingId").localeCompare(str(b, "findingId")));
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM governance_erase`)).sort((a, b) => num(b, "at") - num(a, "at") || str(a, "findingId").localeCompare(str(b, "findingId")));
   const p = pageOf(rows, cursor, limit);
   return { erasures: p.page.map((r) => ({ findingId: str(r, "findingId"), by: str(r, "by"), at: num(r, "at"), kinds: parseJson<string[]>(r["kinds"], []), tombstones: num(r, "tombstones") })), ...(p.next ? { next: p.next } : {}), total: p.total };
 }
@@ -258,7 +255,7 @@ export async function eraseList(ctx: GovCtx, input: { cursor?: string; limit?: n
 export async function tombstonesList(ctx: GovCtx, input: { cursor?: string; limit?: number }) {
   ensure(ctx);
   const { cursor, limit } = paging(ctx, obj(input));
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM gov_tombstone`)).sort((a, b) => num(b, "at") - num(a, "at") || str(a, "id").localeCompare(str(b, "id")));
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM governance_tombstone`)).sort((a, b) => num(b, "at") - num(a, "at") || str(a, "id").localeCompare(str(b, "id")));
   const p = pageOf(rows, cursor, limit);
   return { tombstones: p.page.map((r) => ({ id: str(r, "id"), kind: str(r, "kind"), at: num(r, "at"), by: str(r, "by") })), ...(p.next ? { next: p.next } : {}), total: p.total };
 }
@@ -266,7 +263,7 @@ export async function tombstonesList(ctx: GovCtx, input: { cursor?: string; limi
 /** After a restore: every tombstone erased again, in the order they were written, before the Space opens for traffic. Idempotent. */
 export async function tombstonesReapply(ctx: GovCtx) {
   ensure(ctx);
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM gov_tombstone`)).sort((a, b) => num(a, "at") - num(b, "at") || str(a, "id").localeCompare(str(b, "id")));
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM governance_tombstone`)).sort((a, b) => num(a, "at") - num(b, "at") || str(a, "id").localeCompare(str(b, "id")));
   for (const r of rows) {
     if (str(r, "kind") === "events") {
       // an older events.db came back with its payloads: erase the same events again, by the seqs the tombstone kept
@@ -274,7 +271,7 @@ export async function tombstonesReapply(ctx: GovCtx) {
       if (eventsPort && seqs.length > 0) await eventsPort.compactSeqs(seqs);
       continue;
     }
-    await eraseOne(ctx, str(r, "kind") as EraseKind, str(r, "subjectType"), str(r, "subjectId"), "Tombstone replayed after a restore");
+    await eraseOne(ctx, str(r, "kind") as EraseKind, str(r, "subjectType"), str(r, "subjectId"), "Tombstone replayed after a restore");   // a store whose eraser is gone from the contract is skipped here, not failed
   }
   ctx.emit("tombstones.reapplied", `entity/${rows.length}`, { count: rows.length });
   return { count: rows.length };

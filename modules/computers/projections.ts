@@ -62,7 +62,8 @@ export interface ComputerHost {
   /** Remove the container and its profile disk. */
   remove(computerId: string): Promise<void>;
   probe(computerId: string): Promise<Probe>;
-  configure(a: { computerId: string; tabLimit?: number }): Promise<void>;
+  /** tabLimit, and the Vault channel (fillUrl and fillToken, held in agentd's memory only): agentd asks the host for one #Handle.field at a time over it. */
+  configure(a: { computerId: string; tabLimit?: number; fillUrl?: string; fillToken?: string }): Promise<void>;
   /** The person's input replaces the agent's: agentd pauses the agent's tools and accepts the person's connection. */
   takeover(a: { computerId: string; personId: string }): Promise<void>;
   giveBack(computerId: string): Promise<void>;
@@ -77,6 +78,19 @@ export interface ComputerHost {
   signOut(a: { computerId: string; site: string }): Promise<boolean>;
   health(): Promise<{ ok: boolean; detail?: string; latencyMs?: number }>;
 }
+
+/** The host's Vault fill channel (P-L2_21): a token per computer and the address agentd posts to. Unbound, a computer has no Vault channel and refuses a #Handle. */
+export interface FillBinding {
+  issue(h: { computerId: string; agentId: string; asker: string }): Promise<{ fillToken: string; revoke(): void }>;
+  url(): string;
+}
+let fill: FillBinding | null = null;
+export function bindFill(b: FillBinding | null): void { fill = b; }
+export const boundFill = (): FillBinding | null => fill;
+/** The live grant per computer, so sleep and remove can end it. */
+const fillGrants = new Map<string, { revoke(): void }>();
+export function holdFill(computerId: string, g: { revoke(): void }): void { fillGrants.get(computerId)?.revoke(); fillGrants.set(computerId, g); }
+export function dropFill(computerId: string): void { fillGrants.get(computerId)?.revoke(); fillGrants.delete(computerId); }
 
 let hostPort: ComputerHost | null = null;
 export function bindHost(h: ComputerHost | null): void { hostPort = h; }
