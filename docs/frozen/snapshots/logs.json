@@ -3,6 +3,7 @@
   "capabilities": {
     "logs.client_upload@1": "b7d236f8429902f32139e070779b1d7f7de9c47fafb601f456427de6c7c79fe2",
     "logs.export@1": "ef16a930cae556b03e9f8c001fd0ffe5dbd5a10190518d985dc642e786294dd6",
+    "logs.purge@1": "e2b8c5f1a40f0e6ecfd5e5502360d026944bd7cfb8cb78a02023af727859d80a",
     "logs.query@1": "49d847665c7aef52d3ec5d48e5c671f9bbf9562483d1cf905f0043dd6f197d06",
     "logs.replay_get@1": "7d2fd7001a587b2e9dfd340e25e709fdd05a9cee1ffe36aefbd5a96e280a8b6f",
     "logs.replay_start@1": "44576f44fe5af5365b37b5633fd9796fa2bfa28b396c4b6a3570007d1202eec5",
@@ -15,6 +16,7 @@
   "events": {
     "client_log.uploaded": "1c3b6a44e28ae10ca8a56695faaae45851f49f61424b28a9cf3fffe3540583f4",
     "log.accessed": "109d41e27139af766031fabbf12ef4716b0054a9d0ffffaa07f4f1a1cb33f141",
+    "logs.purged": "12ff1afa77ae4a6b4f73a5b474487589d200fbc79ac53d151bde35f59b8f7aa4",
     "replay.finished": "ab02e9fa2e3d5cc7e1ea72bc658299655c09fff6eac64ad891146ce23aa3a808",
     "replay.started": "1da5cd7ab412314add2056b2c342006d65b83ad7d7f47f962b9c8cb890a8016f"
   }

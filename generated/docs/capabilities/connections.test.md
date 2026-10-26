@@ -19,7 +19,7 @@ Probe a connection with the connector health call
 | HTTP | POST /v1/connections/test |
 | MCP tool | connections_test (engineer) |
 | CLI | none |
-| Emits | none |
+| Emits | connection.needs_reconnect |
 
 ## Input
 

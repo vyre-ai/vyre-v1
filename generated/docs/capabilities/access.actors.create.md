@@ -19,7 +19,7 @@ Register an outside actor and issue a one-time token (works once, within 10 minu
 | HTTP | POST /v1/access/actors/create |
 | MCP tool | access_actors_create (engineer) |
 | CLI | none |
-| Emits | principal.created |
+| Emits | principal.created, access.changed |
 
 ## Input
 

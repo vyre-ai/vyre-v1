@@ -110,6 +110,8 @@ jobs:
         run: node scripts/lint/idem-calls.ts
       - name: perf-files (a perf file may hold only speed tests, since every shard outside the perf host skips it)
         run: node scripts/lint/perf-files.ts
+      - name: emits-declared (report mode, never fails yet); a handler may emit only the events its capability declares
+        run: node scripts/lint/emits-declared.ts
       - name: Typecheck every package that has a tsconfig.json above a changed file
         run: |
           git fetch -q origin main
@@ -209,7 +211,7 @@ jobs:
         run: |
           git fetch -q origin main
           base="$(git merge-base origin/main HEAD)"
-          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|modules/computers/|modules/engine/(sandbox|tests/(sandbox|cli))|host/tests/chat\.live|images/person-sandbox/|images/agent-computer/|agent/tests/sandbox\.(net\.)?heavy|golden/steps/07-(reply|gate)\.heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
+          if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|modules/computers/|modules/engine/(sandbox|tests/(sandbox|cli))|host/tests/(chat|computers)\.live|images/person-sandbox/|images/agent-computer/|agent/tests/sandbox\.(net\.)?heavy|golden/steps/07-(reply|gate)\.heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
       - name: Install bubblewrap and tmux when the runner does not have them
         if: steps.scope.outputs.changed == 'true'
         run: |
@@ -241,7 +243,7 @@ jobs:
         if: steps.scope.outputs.changed == 'true'
         env:
           VYRE_HEAVY_DOCKER: "1"
-        run: node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts modules/engine/tests/sandbox.heavy.test.ts modules/engine/tests/cli.heavy.test.ts golden/steps/07-reply.heavy.test.ts golden/steps/07-gate.heavy.test.ts host/tests/chat.live.test.ts
+        run: node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts modules/engine/tests/sandbox.heavy.test.ts modules/engine/tests/cli.heavy.test.ts golden/steps/07-reply.heavy.test.ts golden/steps/07-gate.heavy.test.ts host/tests/chat.live.test.ts host/tests/computers.live.test.ts
       - name: The network wall, none skipped (agent/tests/sandbox.net.heavy.test.ts)
         if: always() && steps.scope.outputs.changed == 'true'
         env:

@@ -8462,6 +8462,35 @@
       ],
       "type": "object"
     },
+    "s_744cca82fa": {
+      "properties": {
+        "before": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "examples": [
+            "idem_1"
+          ],
+          "minLength": 1,
+          "type": "string"
+        },
+        "limit": {
+          "maximum": 5000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "before",
+        "idempotencyKey"
+      ],
+      "type": "object"
+    },
     "s_745b46a2f2": {
       "properties": {
         "as": {
@@ -14139,6 +14168,26 @@
       },
       "required": [
         "rowId"
+      ],
+      "type": "object"
+    },
+    "s_c6cb50d174": {
+      "properties": {
+        "more": {
+          "type": "boolean"
+        },
+        "removed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "skippedOnHold": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "removed",
+        "more"
       ],
       "type": "object"
     },
@@ -20159,7 +20208,8 @@
       "audit": "always",
       "effects": "write",
       "emits": [
-        "principal.created"
+        "principal.created",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -39511,6 +39561,81 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "channel.erased"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "channelId": "chn_a1b2c3",
+            "idempotencyKey": "idem_1"
+          },
+          "name": "example",
+          "output": {
+            "erased": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "channelId": {
+            "examples": [
+              "chn_a1b2c3"
+            ],
+            "pattern": "^chn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "chat",
+      "name": "channels.erase",
+      "output": {
+        "properties": {
+          "erased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "erased"
+        ],
+        "type": "object"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Erase one channel for good with all its messages (governance erase)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -43827,6 +43952,95 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "transcripts.purged"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "before": 1760000000000,
+            "idempotencyKey": "idem_1",
+            "limit": 1,
+            "skipThreadIds": [
+              "thr_a1b2c3"
+            ]
+          },
+          "name": "example",
+          "output": {
+            "more": true,
+            "removed": 1,
+            "skippedOnHold": 1
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "before": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 5000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "skipThreadIds": {
+            "items": {
+              "examples": [
+                "thr_a1b2c3"
+              ],
+              "pattern": "^thr_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "before",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "chat",
+      "name": "chat.transcript.purge",
+      "output": {
+        "$ref": "#/$defs/s_c6cb50d174"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Remove messages and blocks older than a time from chats and channels, a batch at a time; threads listed in skipThreadIds (held ones) are left whole (retention)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -47154,7 +47368,8 @@
     {
       "effects": "write",
       "emits": [
-        "computer.given_back"
+        "computer.given_back",
+        "computer.recording_saved"
       ],
       "errors": [
         "internal.unexpected",
@@ -48883,7 +49098,8 @@
       "audit": "sensitive",
       "effects": "write",
       "emits": [
-        "computer.session_signed_out"
+        "computer.session_signed_out",
+        "computer.started"
       ],
       "errors": [
         "internal.unexpected",
@@ -49333,7 +49549,8 @@
       "audit": "sensitive",
       "effects": "write",
       "emits": [
-        "computer.takeover"
+        "computer.takeover",
+        "computer.started"
       ],
       "errors": [
         "internal.unexpected",
@@ -49710,7 +49927,9 @@
     {
       "effects": "write",
       "emits": [
-        "conflict.proposed"
+        "conflict.proposed",
+        "conflict.confirmation_needed",
+        "conflict.resolved"
       ],
       "errors": [
         "internal.unexpected",
@@ -51346,7 +51565,9 @@
     },
     {
       "effects": "read",
-      "emits": [],
+      "emits": [
+        "connection.needs_reconnect"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -52810,7 +53031,9 @@
     {
       "audit": "always",
       "effects": "outward",
-      "emits": [],
+      "emits": [
+        "connection.needs_reconnect"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -70776,6 +70999,95 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "file_versions.purged"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "before": 1760000000000,
+            "idempotencyKey": "idem_1",
+            "limit": 1,
+            "skipFileIds": [
+              "fil_a1b2c3"
+            ]
+          },
+          "name": "example",
+          "output": {
+            "more": true,
+            "removed": 1,
+            "skippedOnHold": 1
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "before": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 5000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "skipFileIds": {
+            "items": {
+              "examples": [
+                "fil_a1b2c3"
+              ],
+              "pattern": "^fil_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "before",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "files",
+      "name": "files.versions_purge",
+      "output": {
+        "$ref": "#/$defs/s_c6cb50d174"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Remove file versions older than a time except the newest of each file and any named version; files listed in skipFileIds (held ones) are left whole (retention)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -71161,7 +71473,9 @@
       "effects": "write",
       "emits": [
         "folder.deleted",
-        "item.moved"
+        "item.moved",
+        "grant.revoked",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -71318,7 +71632,8 @@
       "effects": "write",
       "emits": [
         "folder.moved",
-        "item.moved"
+        "item.moved",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -71404,7 +71719,8 @@
     {
       "effects": "write",
       "emits": [
-        "item.moved"
+        "item.moved",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -71541,7 +71857,8 @@
     {
       "effects": "write",
       "emits": [
-        "item.moved"
+        "item.moved",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -85062,7 +85379,9 @@
     {
       "audit": "always",
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "retention.purged"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -88017,7 +88336,8 @@
       "effects": "write",
       "emits": [
         "password.changed",
-        "keys.stored"
+        "keys.stored",
+        "signin.failed"
       ],
       "errors": [
         "auth.bad_credentials",
@@ -89939,7 +90259,8 @@
       "audit": "sensitive",
       "effects": "write",
       "emits": [
-        "factor.removed"
+        "factor.removed",
+        "signin.failed"
       ],
       "errors": [
         "auth.bad_credentials",
@@ -91853,6 +92174,80 @@
         "mcp": {
           "toolset": "inbox"
         }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "inbox.item_erased"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "refId": "sms_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "erased": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "refId": {
+            "examples": [
+              "sms_a1b2c3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "refId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "inbox",
+      "name": "inbox.item.erase",
+      "output": {
+        "properties": {
+          "erased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "erased"
+        ],
+        "type": "object"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Erase the conversation entries of one message, text or call for good: previews, subjects and participants go, the conversation keeps only what other items still say (governance erase)",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },
@@ -97057,6 +97452,56 @@
     },
     {
       "audit": "always",
+      "effects": "write",
+      "emits": [
+        "logs.purged"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "before": 1760000000000,
+            "idempotencyKey": "idem_1",
+            "limit": 1
+          },
+          "name": "example",
+          "output": {
+            "more": true,
+            "removed": 1,
+            "skippedOnHold": 1
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "$ref": "#/$defs/s_744cca82fa"
+      },
+      "level": "manage",
+      "module": "logs",
+      "name": "logs.purge",
+      "output": {
+        "$ref": "#/$defs/s_c6cb50d174"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Remove log rows older than a time, a batch at a time (retention)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
       "effects": "read",
       "emits": [],
       "errors": [
@@ -100029,6 +100474,83 @@
         "mcp": {
           "toolset": "inbox"
         }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "mail.message_erased"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "messageId": "eml_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "erased": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "messageId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "mail",
+      "name": "mail.message.erase",
+      "output": {
+        "properties": {
+          "erased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "erased"
+        ],
+        "type": "object"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "entity": "mail_message",
+        "id": "/messageId",
+        "type": "entity"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Erase one mail message for good (governance erase)",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },
@@ -108811,6 +109333,81 @@
         "mcp": {
           "toolset": "memory"
         }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "note.erased"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "noteId": "not_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "erased": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "noteId": {
+            "examples": [
+              "not_a1b2c3"
+            ],
+            "pattern": "^not_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "noteId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "memory",
+      "name": "memory.notes.erase",
+      "output": {
+        "properties": {
+          "erased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "erased"
+        ],
+        "type": "object"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Erase one memory note for good, with its graph node and links (governance erase)",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },
@@ -124306,6 +124903,140 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "record.purged"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "recordId": "rec_a1b2c3",
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "erased": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "records",
+      "name": "records.purge",
+      "output": {
+        "properties": {
+          "erased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "erased"
+        ],
+        "type": "object"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Hard-delete one record for good: its fields, history, search entries and Trash row (governance erase; not Trash)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "records.trash_purged"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "before": 1760000000000,
+            "idempotencyKey": "idem_1",
+            "limit": 1
+          },
+          "name": "example",
+          "output": {
+            "more": true,
+            "removed": 1,
+            "skippedOnHold": 1
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "$ref": "#/$defs/s_744cca82fa"
+      },
+      "level": "manage",
+      "module": "records",
+      "name": "records.purge_trashed",
+      "output": {
+        "$ref": "#/$defs/s_c6cb50d174"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Hard-delete records that have been in Trash since before a time (retention)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -128280,6 +129011,81 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "run.erased"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "runId": "run_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "erased": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "runs",
+      "name": "runs.erase",
+      "output": {
+        "properties": {
+          "erased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "erased"
+        ],
+        "type": "object"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Erase one Run for good with its steps, waits and alerts (governance erase)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [
         "run.succeeded",
@@ -128806,6 +129612,56 @@
         "mcp": {
           "toolset": "automations"
         }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "runs.purged"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "before": 1760000000000,
+            "idempotencyKey": "idem_1",
+            "limit": 1
+          },
+          "name": "example",
+          "output": {
+            "more": true,
+            "removed": 1,
+            "skippedOnHold": 1
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "$ref": "#/$defs/s_744cca82fa"
+      },
+      "level": "manage",
+      "module": "runs",
+      "name": "runs.purge",
+      "output": {
+        "$ref": "#/$defs/s_c6cb50d174"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Remove Runs and step logs older than a time, a batch at a time (retention)",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },
@@ -139742,7 +140598,11 @@
       "effects": "write",
       "emits": [
         "source.received",
-        "source.mapping_failed"
+        "source.mapping_failed",
+        "source.rejected",
+        "source.deduped",
+        "source.link_pending",
+        "source.linked"
       ],
       "errors": [
         "internal.unexpected",
@@ -145061,7 +145921,9 @@
     },
     {
       "effects": "read",
-      "emits": [],
+      "emits": [
+        "connection.needs_reconnect"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -150040,6 +150902,81 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "call.erased"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "callId": "cal_a1b2c3",
+            "idempotencyKey": "idem_1"
+          },
+          "name": "example",
+          "output": {
+            "erased": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "callId": {
+            "examples": [
+              "cal_a1b2c3"
+            ],
+            "pattern": "^cal_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "callId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "telephony",
+      "name": "telephony.call.erase",
+      "output": {
+        "properties": {
+          "erased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "erased"
+        ],
+        "type": "object"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Erase one call for good: its transcript, summary and recording file (governance erase)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -152849,6 +153786,81 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "sms.erased"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "smsId": "sms_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "erased": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "smsId": {
+            "examples": [
+              "sms_a1b2c3"
+            ],
+            "pattern": "^sms_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "smsId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "telephony",
+      "name": "telephony.sms.erase",
+      "output": {
+        "properties": {
+          "erased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "erased"
+        ],
+        "type": "object"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Erase one text message for good (governance erase)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -155361,6 +156373,81 @@
         "mcp": {
           "toolset": "chats"
         }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "thread.erased"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "erased": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "chat",
+      "name": "threads.erase",
+      "output": {
+        "properties": {
+          "erased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "erased"
+        ],
+        "type": "object"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Erase one chat thread for good: messages, blocks, pins, reactions, attachment links, transcript rows, summaries and search entries (governance erase)",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },
@@ -171556,6 +172643,34 @@
       "vis": "space"
     },
     {
+      "module": "telephony",
+      "name": "call.erased",
+      "payload": {
+        "properties": {
+          "callId": {
+            "examples": [
+              "cal_a1b2c3"
+            ],
+            "pattern": "^cal_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "callId"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/callId",
+        "type": "entity"
+      },
+      "summary": "A call record was erased for good with its transcript, summary and recording (ids only)",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
       "label": "subject",
       "module": "telephony",
       "name": "call.missed",
@@ -172547,6 +173662,34 @@
       "trigger": {
         "title": "A channel is created"
       },
+      "vis": "space"
+    },
+    {
+      "module": "chat",
+      "name": "channel.erased",
+      "payload": {
+        "properties": {
+          "channelId": {
+            "examples": [
+              "chn_a1b2c3"
+            ],
+            "pattern": "^chn_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelId"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/channelId",
+        "type": "entity"
+      },
+      "summary": "A channel was erased for good with its messages (ids only)",
+      "sv": 1,
       "vis": "space"
     },
     {
@@ -175529,6 +176672,31 @@
     },
     {
       "module": "files",
+      "name": "file_versions.purged",
+      "payload": {
+        "properties": {
+          "removed": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/removed",
+        "type": "entity"
+      },
+      "summary": "Old file versions were removed by retention (a count)",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "files",
       "name": "folder.created",
       "payload": {
         "properties": {
@@ -177703,6 +178871,38 @@
       "vis": "space"
     },
     {
+      "module": "inbox",
+      "name": "inbox.item_erased",
+      "payload": {
+        "properties": {
+          "refId": {
+            "examples": [
+              "sms_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "removed": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "refId",
+          "removed"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/refId",
+        "type": "entity"
+      },
+      "summary": "The conversation entries of one message, text or call were erased for good (ids only)",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
       "module": "engine",
       "name": "incident.assigned",
       "notify": "incident.owned",
@@ -178644,6 +179844,59 @@
       "summary": "Someone read logs (reading logs is itself audited)",
       "sv": 1,
       "vis": "owner"
+    },
+    {
+      "module": "logs",
+      "name": "logs.purged",
+      "payload": {
+        "properties": {
+          "removed": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/removed",
+        "type": "entity"
+      },
+      "summary": "Log rows past their retention were removed (a count)",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "mail",
+      "name": "mail.message_erased",
+      "payload": {
+        "properties": {
+          "messageId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "messageId"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/messageId",
+        "type": "entity"
+      },
+      "summary": "A mail message was erased for good: body, attachments and search entries (ids only)",
+      "sv": 1,
+      "vis": "space"
     },
     {
       "label": "subject",
@@ -181330,6 +182583,34 @@
       "vis": "space"
     },
     {
+      "module": "memory",
+      "name": "note.erased",
+      "payload": {
+        "properties": {
+          "noteId": {
+            "examples": [
+              "not_a1b2c3"
+            ],
+            "pattern": "^not_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "noteId"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/noteId",
+        "type": "entity"
+      },
+      "summary": "A memory note was erased for good (ids only)",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
       "module": "notifications",
       "name": "notification.capped",
       "payload": {
@@ -183383,6 +184664,22 @@
       "vis": "space"
     },
     {
+      "module": "records",
+      "name": "record.purged",
+      "payload": {
+        "$ref": "#/$defs/s_9287e79a4f"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/recordId",
+        "type": "entity"
+      },
+      "summary": "A record was hard-deleted for good (ids only)",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
       "label": "subject",
       "module": "records",
       "name": "record.restored",
@@ -183556,6 +184853,31 @@
         "type": "record"
       },
       "summary": "A reviewer accepted or rejected an agent-filled value",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "records",
+      "name": "records.trash_purged",
+      "payload": {
+        "properties": {
+          "removed": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/removed",
+        "type": "entity"
+      },
+      "summary": "Records past their Trash retention were hard-deleted (a count)",
       "sv": 1,
       "vis": "space"
     },
@@ -184022,6 +185344,34 @@
         "type": "entity"
       },
       "summary": "A sampled turn was reviewed",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "runs",
+      "name": "run.erased",
+      "payload": {
+        "properties": {
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/runId",
+        "type": "entity"
+      },
+      "summary": "A Run was erased for good with its steps (ids only)",
       "sv": 1,
       "vis": "space"
     },
@@ -184550,6 +185900,31 @@
         "type": "file"
       },
       "summary": "The Runs on target of a runbook changed",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "runs",
+      "name": "runs.purged",
+      "payload": {
+        "properties": {
+          "removed": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/removed",
+        "type": "entity"
+      },
+      "summary": "Runs past their retention were removed with their step logs (a count)",
       "sv": 1,
       "vis": "space"
     },
@@ -186017,6 +187392,34 @@
         "type": "site"
       },
       "summary": "A site table became a Space record type",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "telephony",
+      "name": "sms.erased",
+      "payload": {
+        "properties": {
+          "smsId": {
+            "examples": [
+              "sms_a1b2c3"
+            ],
+            "pattern": "^sms_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "smsId"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/smsId",
+        "type": "entity"
+      },
+      "summary": "A text message was erased for good (ids only)",
       "sv": 1,
       "vis": "space"
     },
@@ -188728,6 +190131,34 @@
     },
     {
       "module": "chat",
+      "name": "thread.erased",
+      "payload": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/threadId",
+        "type": "entity"
+      },
+      "summary": "A chat thread was erased for good with its messages, blocks, pins and transcript (ids only)",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "chat",
       "name": "thread.plan_mode_changed",
       "payload": {
         "properties": {
@@ -189155,6 +190586,31 @@
         "type": "entity"
       },
       "summary": "Tombstones were replayed after a restore, before the Space opened for traffic",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "chat",
+      "name": "transcripts.purged",
+      "payload": {
+        "properties": {
+          "removed": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/removed",
+        "type": "entity"
+      },
+      "summary": "Chat transcripts past their retention were removed (a count)",
       "sv": 1,
       "vis": "space"
     },
