@@ -1,8 +1,9 @@
 // Projects: make a project (record, one channel, one folder, roles as grants), from a channel, read it, the Overview, people, pins, filed chats and the read-only link (spec 3.4, 2.4).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DAY, NOW, DANA, LEO, MAYA, BOT, harness, codeOf, reasonOf } from "../fixtures/harness.ts";
+import { DAY, NOW, DANA, LEO, MAYA, BOT, contractErrors, harness, codeOf, reasonOf } from "../fixtures/harness.ts";
 import { key, mkProject, run } from "../fixtures/seed.ts";
+import { grantOnProject } from "../impl.ts";
 
 async function refused(p: Promise<unknown>, code: string, reason?: string): Promise<void> {
   await assert.rejects(p, (e) => { assert.equal(codeOf(e), code); if (reason) assert.equal(reasonOf(e), reason); return true; });
@@ -53,6 +54,71 @@ test("members given at the start get their roles as grants, and the channel star
   const made = h.only("channels.create")[0]!.input;
   assert.deepEqual([...made.memberIds].sort(), [DANA, LEO, MAYA]);
   assert.deepEqual(made.agentIds, [BOT]);
+});
+
+test("every neighbour call create makes passes the frozen contract, with a key derived from the create's own", async () => {
+  const h = harness();
+  const k = key();
+  await run(h, "projects.create", { type: "project", title: "Contract", idempotencyKey: k });
+  for (const cap of ["records.create", "channels.create", "files.folder.create"]) {
+    const sent = h.world.calls.filter((c) => c.cap === cap);
+    assert.equal(sent.length, 1, cap);
+    assert.deepEqual(contractErrors(cap, "in", sent[0]!.input), [], `${cap} input against the contract`);
+  }
+  assert.equal(h.only("records.create")[0]!.input.idempotencyKey, `prj-rec:${k}`);
+  assert.equal(h.only("channels.create")[0]!.input.idempotencyKey, `prj-channel:${k}`);
+  assert.equal(h.only("files.folder.create")[0]!.input.idempotencyKey, `prj-folder:${k}`);
+});
+
+test("create grants on the folder and channel while it runs, and never on the project itself: that is not a resource until the call commits", async () => {
+  const h = harness();
+  const made = await run(h, "projects.create", { type: "project", title: "Order", idempotencyKey: key() });
+  const shares = h.only("access.share").map((c) => c.input.resource.type).sort();
+  assert.deepEqual(shares, ["channel", "folder"], "no access.share names the project before its commit");
+  assert.equal(h.rows("SELECT * FROM projects_member WHERE projectId = ?", made.projectId).length, 1, "the maker is a member at once");
+  await grantOnProject(h.ctx, made.projectId);
+  assert.deepEqual(h.only("access.share").map((c) => c.input.resource.type).sort(), ["channel", "folder", "project"]);
+  const again = h.world.grants.length;
+  await grantOnProject(h.ctx, made.projectId);
+  assert.equal(h.world.grants.length, again, "running the consumer again writes nothing twice");
+});
+
+test("a create that names someone the Space does not know is refused before anything is made", async () => {
+  const h = harness();
+  h.world.unknown.add("usr_ghost");
+  h.world.unknown.add("grp_nobody");
+  for (const bad of [{ lead: "usr_ghost" }, { members: [{ principal: "usr_ghost", role: "member" }] }, { members: [{ principal: "grp_nobody", role: "guest" }] }]) {
+    await refused(run(h, "projects.create", { type: "project", title: "Nope", idempotencyKey: key(), ...bad }), "validation.bad_input");
+  }
+  await refused(run(h, "projects.create", { type: "project", title: "Nope", idempotencyKey: key(), members: [{ principal: LEO, role: "owner" }] }), "validation.bad_input");
+  for (const cap of ["records.create", "channels.create", "files.folder.create", "access.share"]) assert.equal(h.only(cap).length, 0, `${cap} was not called`);
+  assert.equal(h.rows("SELECT * FROM projects_project").length, 0);
+  assert.equal(h.rows("SELECT * FROM projects_member").length, 0);
+  assert.deepEqual(h.names(), []);
+});
+
+test("a second starting member holds the project grant at their role's level once the consumer has run, and not before", async () => {
+  const h = harness();
+  const out = await run(h, "projects.create", { type: "project", title: "Two people", idempotencyKey: key(), members: [{ principal: LEO, role: "member" }] });
+  const onProject = (who: string) => h.world.grants.filter((g) => g.subject.id === who && g.resource.type === "project" && g.resource.id === out.projectId);
+  assert.deepEqual(onProject(LEO), [], "the project is not a resource until the create commits, so nothing is granted on it yet");
+  assert.deepEqual(h.world.grants.filter((g) => g.subject.id === LEO).map((g) => g.resource.type).sort(), ["channel", "folder"], "the folder and channel are granted while it is made");
+  await grantOnProject(h.ctx, out.projectId);
+  assert.deepEqual(onProject(LEO).map((g) => [g.level, g.source]), [["edit", `project:${out.projectId}`]], "a Member holds Edit on the project");
+  assert.deepEqual(onProject(DANA).map((g) => g.level), ["manage"], "the maker leads with Manage");
+});
+
+test("the consumer grants only the members the create stored: a forged or repeated project.created adds nobody", async () => {
+  const h = harness();
+  const out = await mkProject(h, { members: [{ principal: LEO, role: "reviewer" }] });
+  const before = h.world.grants.map((g) => `${g.subject.id}:${g.resource.type}:${g.level}`).sort();
+  await grantOnProject(h.ctx, out.projectId);
+  await grantOnProject(h.ctx, out.projectId);
+  assert.deepEqual(h.world.grants.map((g) => `${g.subject.id}:${g.resource.type}:${g.level}`).sort(), before, "a repeat writes nothing");
+  const callsBefore = h.only("access.share").length;
+  await grantOnProject(h.ctx, "prj_forged0000000000000000000000000");
+  assert.equal(h.only("access.share").length, callsBefore, "a project that does not exist grants nobody");
+  assert.ok(!h.world.grants.some((g) => g.subject.id === MAYA), "nobody beyond the stored members is granted");
 });
 
 test("the same key makes the project once", async () => {

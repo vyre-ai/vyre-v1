@@ -13274,6 +13274,7 @@ export type JourneysCreateIn = {
       automations: Array<string>;
       final?: boolean;
       onLeaving?: Array<string>;
+      makesProject?: boolean;
     }>;
   startRule?: {
     event: string;
@@ -13330,6 +13331,7 @@ export type JourneysCreateOut = {
         automations: Array<string>;
         final?: boolean;
         onLeaving?: Array<string>;
+        makesProject?: boolean;
       }>;
     startRule?: {
       event: string;
@@ -13391,6 +13393,7 @@ export type JourneysDesignIn = {
       automations: Array<string>;
       final?: boolean;
       onLeaving?: Array<string>;
+      makesProject?: boolean;
     }>;
   startRule?: {
     event: string;
@@ -13448,6 +13451,7 @@ export type JourneysDesignOut = {
         automations: Array<string>;
         final?: boolean;
         onLeaving?: Array<string>;
+        makesProject?: boolean;
       }>;
     startRule?: {
       event: string;
@@ -13512,6 +13516,7 @@ export type JourneysGetOut = {
         automations: Array<string>;
         final?: boolean;
         onLeaving?: Array<string>;
+        makesProject?: boolean;
       }>;
     startRule?: {
       event: string;
@@ -13630,6 +13635,7 @@ export type JourneysRenameOut = {
         automations: Array<string>;
         final?: boolean;
         onLeaving?: Array<string>;
+        makesProject?: boolean;
       }>;
     startRule?: {
       event: string;
@@ -13705,6 +13711,7 @@ export type JourneysRulesSetOut = {
         automations: Array<string>;
         final?: boolean;
         onLeaving?: Array<string>;
+        makesProject?: boolean;
       }>;
     startRule?: {
       event: string;
