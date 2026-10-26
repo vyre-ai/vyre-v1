@@ -169,11 +169,10 @@ Events:
 
 ### identity
 
-Capabilities to implement: 27. Events to emit: 10. Contract tests that must go green: `generated/tests/identity/`.
+Capabilities to implement: 26. Events to emit: 10. Contract tests that must go green: `generated/tests/identity/`.
 
 Capabilities:
 - identity.change_password (write, grant only, level view)
-- identity.claim_owner (write, grant only, level view)
 - identity.github_link (write, grant only, level view)
 - identity.github_sign_in (write, grant only, level view)
 - identity.github_unlink (write, grant only, level view)
