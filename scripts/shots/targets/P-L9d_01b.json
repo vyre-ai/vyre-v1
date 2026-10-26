@@ -37,6 +37,26 @@
         "selector": "[data-testid=\"records-scroll\"]:has([data-testid=\"rec-cl_20\"])"
       },
       "note": "100,014 clients: the scroll probe (budget scroll, 16.7 ms) and its layout shift, which must be under 0.05."
+    },
+    {
+      "id": "P-L9d_01b-control-plain",
+      "route": "/m/P-L9d_01b?plain=1",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='plain-scroll']",
+      "scroll": {
+        "selector": "[data-testid=\"plain-scroll\"]"
+      },
+      "note": "Control for ruling 81: 100,000 plain one-line rows scrolled the same way; its p95 is the runner floor. Not a screen to compare."
+    },
+    {
+      "id": "P-L9d_01b-control-namecol",
+      "route": "/m/P-L9d_01b?type=clients&rows=100000&only=name",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='rec-cl_20']",
+      "scroll": {
+        "selector": "[data-testid=\"records-scroll\"]:has([data-testid=\"rec-cl_20\"])"
+      },
+      "note": "Control for ruling 81: the 100,000-row table with only the name column. Not a screen to compare."
     }
   ]
 }

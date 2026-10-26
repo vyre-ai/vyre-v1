@@ -2,7 +2,7 @@
 // ?type=projects|clients  ?kind=table|board|gallery|list  ?rows=100000 (the long table the scroll and layout shift probes run over)  ?menu=kind opens the kind menu on load
 // ?ls=1 draws the layout shifts the page has had (when, how much, which element, from where to where) over the corner, so the cause of a shift can be read from a screenshot.
 // The page reads its query after it is live (the static export keeps the markup it was rendered with).
-import { useEffect, useMemo, useState } from "react";
+import { createElement, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Text, View, useWindowDimensions } from "react-native";
 import { RecordsDataProvider, RecordsSidebar, RecordsStateProvider } from "../../../apps/app/src/places/records/sidebar/index.ts";
@@ -39,9 +39,23 @@ function Shifts(): ReactNode {
   );
 }
 
+// Control for the scroll probe (ruling 81): the same fling over 100,000 plain one-line rows, drawn the way the table draws its rows (a window of absolutely placed rows that follows the scroll in blocks of 8).
+// If this scrolls no faster than the table, the runner's own painting is the floor.
+function PlainList(): ReactNode {
+  const [top, setTop] = useState(0);
+  const ROW = 34, N = 100_000, BLOCK = 8;
+  const first = Math.max(0, Math.floor(top / ROW) - 12), last = Math.min(N, Math.ceil((top + 700) / ROW) + 12);
+  const rows = [];
+  for (let i = first; i < last; i++) rows.push(createElement("div", { key: i, style: { position: "absolute", top: i * ROW, left: 0, right: 0, height: ROW, boxSizing: "border-box", padding: "0 10px", display: "flex", alignItems: "center", borderBottom: "1px solid var(--line)", fontSize: 13, color: "var(--ink)" } }, `Row number ${i + 1}`));
+  return createElement("div", { "data-testid": "plain-scroll", style: { flex: 1, overflow: "auto", position: "relative" }, onScroll: (e: { currentTarget: { scrollTop: number } }) => { const t = Math.floor(e.currentTarget.scrollTop / (ROW * BLOCK)) * ROW * BLOCK; setTop((c) => (c === t ? c : t)); } },
+    createElement("div", { style: { height: N * ROW, position: "relative" } }, ...rows));
+}
+
 function Page({ q }: { q: URLSearchParams }): ReactNode {
   const bulk = Math.min(200_000, Number(q.get("rows") ?? 0) || 0);
   const space = q.get("space") === "harbor" ? harbor : northwind;
+  // ?only=name hides every field but the title (the control that draws one column)
+  const only = q.get("only") === "name" ? { hidden: (space.types.find((t) => t.key === (q.get("type") ?? "clients"))?.fields ?? []).map((f) => f.key) } : null;
   const sample = useMemo(() => createViewsSample(space, { bulk }), [space, bulk]);
   const initial = useMemo(() => ({ type: q.get("type") ?? "clients" }), [q]);
   const width = useWindowDimensions().width;
@@ -58,7 +72,7 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
       <RecordsStateProvider initial={initial}>
         <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
           {phone ? null : <View style={{ width: 240 }}><RecordsSidebar /></View>}
-          <RecordViews kind={q.get("kind") ?? "table"} />
+          {q.get("plain") === "1" ? <PlainList /> : <RecordViews kind={q.get("kind") ?? "table"} {...(only ? { view: only } : {})} />}
         </View>
         {q.get("ls") === "1" ? <Shifts /> : null}
       </RecordsStateProvider>
