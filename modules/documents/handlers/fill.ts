@@ -8,7 +8,7 @@
 // payment or deposit shows a number as $1,234.50. The signing date is an explicit input in ISO form; from it the engine sets signing_date, signing_date_iso, signing_day,
 // signing_day_ordinal, signing_month, signing_month_number and signing_year, unless the caller gave that value itself.
 // Records: when recordId is given the record's fields feed the tags (mapping names which record field feeds which tag; without a mapping a field feeds the tag of the same name).
-// The record type comes from values.recordType when present; otherwise records.get is asked with the id alone.
+// The record type comes from the recordType input (or values.recordType); a recordId without one is refused, because records.get reads a record by type and id.
 // Names: a given name keeps its own spelling; the default is the template name and "(filled)"; a taken name gets " 2", " 3" and so on, an existing file is never replaced.
 // PDF: format "pdf" converts the filled Word file through the converter the host gave to configureDocuments; without one the request is refused and the Word file works anywhere.
 
@@ -507,8 +507,9 @@ async function valuesOf(ctx: Ctx, o: Record<string, unknown>): Promise<{ values:
   let values: Record<string, unknown> = {};
   const given = leafKeys(explicit);
   if (recordId !== undefined) {
-    const type = typeof explicit.recordType === "string" ? explicit.recordType : undefined;
-    const got = (await ctx.call("records.get", type ? { type, recordId } : { recordId })) as { record?: { fields?: unknown } };
+    const type = optStr(ctx, o, "recordType") ?? (typeof explicit.recordType === "string" ? explicit.recordType : undefined);
+    if (type === undefined) fail(ctx, "validation.bad_input", "recordType is required with recordId", { field: "recordType" });
+    const got = (await ctx.call("records.get", { type, recordId })) as { record?: { fields?: unknown } };
     const rawFields = got.record?.fields;
     const fields = isPlain(rawFields) ? rawFields : {};
     if (mapping) {

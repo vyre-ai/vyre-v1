@@ -184,9 +184,9 @@ test("a record feeds the tags through a mapping; explicit values win; without a 
   const w = world();
   w.records.set("rec_1", { full_name: "Dana Harlow", retainer: 2500, city: "Austin", firm: "Acme" });
   const id = w.add("Letter.docx", docx(para("Dear {client.name},") + para("Fee {matter.fee} for {matter.title}.") + para("{firm}")));
-  const out = await filled(w, id, { recordId: "rec_1", mapping: { "client.name": "full_name", "matter.fee": "retainer" }, values: { matter: { title: "Estate plan" }, firm: "Acme" } });
+  const out = await filled(w, id, { recordId: "rec_1", recordType: "contact", mapping: { "client.name": "full_name", "matter.fee": "retainer" }, values: { matter: { title: "Estate plan" }, firm: "Acme" } });
   assert.deepEqual(textOf(out.bytes), ["Dear Dana Harlow,", "Fee $2,500.00 for Estate plan.", "Acme"]);
-  assert.deepEqual(w.calls.filter((c) => c.cap === "records.get").map((c) => c.input), [{ recordId: "rec_1" }]);
+  assert.deepEqual(w.calls.filter((c) => c.cap === "records.get").map((c) => c.input), [{ type: "contact", recordId: "rec_1" }]);
   assert.deepEqual((w.events.at(-1)?.payload as { recordId?: string }).recordId, "rec_1");
 
   const typed = await filled(w, id, { recordId: "rec_1", mapping: { "client.name": "full_name", "matter.fee": "retainer" }, values: { recordType: "contact", client: { name: "Override" }, matter: { title: "T" }, firm: "Acme" }, name: "typed" });
@@ -194,8 +194,9 @@ test("a record feeds the tags through a mapping; explicit values win; without a 
   assert.deepEqual(w.calls.filter((c) => c.cap === "records.get").at(-1)?.input, { type: "contact", recordId: "rec_1" });
 
   const same = w.add("Same.docx", docx(para("{firm} in {city}")));
-  assert.deepEqual(textOf((await filled(w, same, { recordId: "rec_1" })).bytes), ["Acme in Austin"]);
-  await expectCode("validation.not_found", () => handlers["documents.fill"](w.ctx, { templateFileId: same, intoFolderId: FOLDER, recordId: "rec_none" }));
+  assert.deepEqual(textOf((await filled(w, same, { recordId: "rec_1", recordType: "contact" })).bytes), ["Acme in Austin"]);
+  await expectCode("validation.not_found", () => handlers["documents.fill"](w.ctx, { templateFileId: same, intoFolderId: FOLDER, recordId: "rec_none", recordType: "contact" }));
+  await expectCode("validation.bad_input", () => handlers["documents.fill"](w.ctx, { templateFileId: same, intoFolderId: FOLDER, recordId: "rec_1" }));
 });
 
 test("a file that is not a Word document, a template that is too big and a template the caller may not open are refused", async () => {
