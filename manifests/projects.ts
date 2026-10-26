@@ -111,7 +111,7 @@ export default defineManifest({
         type: id.recordType, title: t.str(), summary: t.opt(t.str()), goal: t.opt(t.str()), lead: t.opt(principal), start: t.opt(t.ts()), due: t.opt(t.ts()),
         stages: t.opt(t.arr(stageIn)), members: t.opt(t.arr(t.obj({ principal, role }))), template: t.opt(t.str({ description: 'Template (Kit) id to copy tasks and stages from' })),
       },
-      out: createOut, make: ['record_type', '/type'], perm: 'records.create', emits: ['project.created', 'record.created'], tool: 'records', cli: 'vyre projects create',
+      out: createOut, make: ['record', '/type'], perm: 'records.create', emits: ['project.created', 'record.created'], tool: 'records', cli: 'vyre projects create',
     }),
     write('projects.from_channel', 'Make this channel a project: create the record and attach the channel, a folder and an empty plan', {
       in: { channelId: id.channel, type: t.opt(id.recordType), title: t.opt(t.str()) }, out: createOut,
