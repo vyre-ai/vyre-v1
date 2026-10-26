@@ -19,7 +19,7 @@ Resume a paused campaign
 | HTTP | POST /v1/campaigns/resume |
 | MCP tool | campaigns_resume (automations) |
 | CLI | none |
-| Emits | none |
+| Emits | campaign.completed, campaign.replied, campaign.paused |
 
 ## Input
 
