@@ -23,23 +23,33 @@ function db() {
   fact("fct_person", "person", "usr_pat", "current");
   fact("fct_closed", "space", "usr_pat", "closed");
   fact("fct_other", "space", "usr_maya", "current");
-  const ctx = { now: () => 1_760_000_000_000, db: { all: (q: string, ...a: unknown[]) => host.tx.all(q, ...a), run: (q: string, ...a: unknown[]) => ({ changes: Number(host.tx.run(q, ...a).changes) }) } };
+  const ctx = { space: "spc_t", now: () => 1_760_000_000_000, db: { all: (q: string, ...a: unknown[]) => host.tx.all(q, ...a), run: (q: string, ...a: unknown[]) => ({ changes: Number(host.tx.run(q, ...a).changes) }) } };
   return { host, ctx };
 }
 
-test("owned_by lists the facts that came from the person in shared layers, not their own person-layer facts, closed ones or someone else's", () => {
+test("owned_by lists the facts that came from the person in shared layers and their own person-layer facts, not closed ones or someone else's", () => {
   const { ctx } = db();
-  assert.deepEqual(hostCalls["memory.owned_by"](ctx, { person: "usr_pat" }).memory_from_you.ids.sort(), ["fct_agent", "fct_space"]);
+  assert.deepEqual(hostCalls["memory.owned_by"](ctx, { person: "usr_pat" }).memory_from_you.ids.sort(), ["fct_agent", "fct_person", "fct_space"]);
 });
 
-test("keep leaves them; delete removes the facts and their text, and only the person's", () => {
+test("default removal (keep): a shared fact keeps its text and becomes the Space's, only the authorship link goes; the person's own person-layer facts go", () => {
   const { host, ctx } = db();
-  assert.equal(hostCalls["memory.reassign_owned"](ctx, { person: "usr_pat", kind: "memory_from_you", action: "keep" }), 0);
-  assert.equal(hostCalls["memory.reassign_owned"](ctx, { person: "usr_pat", kind: "memory_from_you", action: "delete" }), 2);
+  assert.equal(hostCalls["memory.reassign_owned"](ctx, { person: "usr_pat", kind: "memory_from_you", action: "keep" }), 3);
+  const rows = host.tx.all<{ id: string; status: string; text: string; source_person: string }>(`SELECT id, status, text, source_person FROM memory_facts ORDER BY id`);
+  const by = Object.fromEntries(rows.map((r) => [r.id, r]));
+  assert.deepEqual([by["fct_space"]!.status, by["fct_space"]!.text, by["fct_space"]!.source_person], ["current", "prefers calls on Tuesdays", "spc_t"], "the shared fact keeps its text and belongs to the Space");
+  assert.deepEqual([by["fct_agent"]!.status, by["fct_agent"]!.text, by["fct_agent"]!.source_person], ["proposed", "prefers calls on Tuesdays", "spc_t"]);
+  assert.deepEqual([by["fct_person"]!.status, by["fct_person"]!.text], ["removed", ""], "their own person-layer fact goes");
+  assert.equal(by["fct_other"]!.source_person, "usr_maya", "someone else's fact is untouched");
+  assert.deepEqual(hostCalls["memory.owned_by"](ctx, { person: "usr_pat" }).memory_from_you.ids, [], "nothing is left under their name");
+});
+
+test("delete, only when the admin picks it: the shared facts go too, with their text", () => {
+  const { host, ctx } = db();
+  assert.equal(hostCalls["memory.reassign_owned"](ctx, { person: "usr_pat", kind: "memory_from_you", action: "delete" }), 3);
   const rows = host.tx.all<{ id: string; status: string; text: string }>(`SELECT id, status, text FROM memory_facts ORDER BY id`);
   const by = Object.fromEntries(rows.map((r) => [r.id, r]));
-  assert.deepEqual([by["fct_space"]!.status, by["fct_space"]!.text], ["removed", ""]);
-  assert.equal(by["fct_agent"]!.status, "removed");
-  assert.equal(by["fct_person"]!.status, "current", "their own person-layer facts are theirs, not the Space's");
+  for (const id of ["fct_space", "fct_agent", "fct_person"]) assert.deepEqual([by[id]!.status, by[id]!.text], ["removed", ""], id);
   assert.equal(by["fct_other"]!.status, "current");
+  assert.equal(hostCalls["memory.reassign_owned"](ctx, { person: "usr_pat", kind: "files", action: "delete" }), 0);
 });
