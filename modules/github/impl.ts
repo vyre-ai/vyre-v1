@@ -52,6 +52,7 @@ export const hostSeams: SeamSetters = { setGithubHost };
 /** /hooks/github (P-L5_17): the signature covers the raw body; a delivery of an event Vyre does not act on is acknowledged and ignored. */
 export const hostCalls = {
   "github.accept_webhook": async (ctx: Ctx, a: WebhookAccept): Promise<unknown> => {
+    hostOnly(ctx, "github.accept_webhook");   // a host call: the webhook route is the only way in
     const input = await h.verifyWebhook(ctx, { signature: a.headers["x-hub-signature-256"], event: a.headers["x-github-event"], deliveryId: a.headers["x-github-delivery"], body: a.body });
     return input === null ? { accepted: true } : h.receiveWebhook(ctx, input);
   },

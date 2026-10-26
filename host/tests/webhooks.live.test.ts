@@ -112,6 +112,20 @@ test("webhook ingress: Zoom, Stripe, GitHub and Twilio take a signed event, refu
         assert.equal((JSON.parse(text) as { error?: { code?: string } }).error?.code, "permission.no_grant");
       }
     }
+    // the host call behind the route is not reachable from outside either: no route names it, and nothing a client sends changes where a call comes from (origin is set by the server)
+    for (const cap of ["zoom", "stripe", "github", "twilio"]) {
+      for (const token of [MEMBER, OWNER]) {
+        for (const p of [`/v1/${cap}/accept_webhook`, `/v1/host/hook/call/${cap}/accept_webhook`]) {
+          const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}`, "x-vyre-origin": "hook", origin: "hook" }, body: JSON.stringify({ headers: {}, body: "{}", url: "x", origin: "hook", depth: 0 }), signal: AbortSignal.timeout(8_000) });
+          const text = await r.text();
+          assert.ok(r.status === 403 || r.status === 404, `${cap} accept_webhook ${p} for ${token === OWNER ? "the owner" : "a member"}: ${r.status} ${text}`);
+          assert.ok(["permission.no_grant", "validation.unknown_capability"].includes((JSON.parse(text) as { error?: { code?: string } }).error?.code ?? ""), text);
+        }
+      }
+    }
+    // a client cannot say it is the server: the headers and the body of a direct receive_webhook call change nothing
+    const forged = await fetch(`${d.url}/v1/zoom/receive_webhook`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}`, "x-vyre-origin": "hook", origin: "hook" }, body: JSON.stringify({ eventId: "e9", type: "endpoint.url_validation", plainToken: "x", at: now, origin: "hook" }), signal: AbortSignal.timeout(8_000) });
+    assert.equal(forged.status, 403, await forged.text());
     // a connector that is not there is not a route
     assert.equal((await post("/hooks/nothing", "{}", {})).status, 404);
   } finally { await d.stop(); }

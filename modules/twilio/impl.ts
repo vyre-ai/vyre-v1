@@ -45,6 +45,7 @@ export const hostSeams: SeamSetters = { setTwilioHost };
 /** /hooks/twilio/<voice|sms|status|recording> (P-L5_17): Twilio signs the URL it called and the form fields, so the host passes both as they arrived. The answer carries the TwiML a call is owed. */
 export const hostCalls = {
   "twilio.accept_webhook": async (ctx: Ctx, a: WebhookAccept): Promise<unknown> => {
+    hostOnly(ctx, "twilio.accept_webhook");   // a host call: the webhook route is the only way in
     const params = Object.fromEntries(new URLSearchParams(a.body)) as Record<string, string>;
     const input = await h.acceptHook(ctx, { kind: a.kind ?? "", url: a.url, params, signature: a.headers["x-twilio-signature"] });
     return h.receiveWebhook(ctx, input);

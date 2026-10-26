@@ -43,6 +43,7 @@ export const hostSeams: SeamSetters = { setStripeHost };
 /** /hooks/stripe (P-L5_17): the host hands the raw request here; a body Stripe did not sign inside its time window is refused, anything else is recorded once. */
 export const hostCalls = {
   "stripe.accept_webhook": async (ctx: Ctx, a: WebhookAccept): Promise<unknown> => {
+    hostOnly(ctx, "stripe.accept_webhook");   // a host call: the webhook route is the only way in
     const input = await h.verifyWebhook(ctx, { signature: a.headers["stripe-signature"], body: a.body });
     return input === null ? { accepted: true } : h.receiveWebhook(ctx, input);   // an event with no object to name is acknowledged and ignored
   },

@@ -37,6 +37,7 @@ export const hostSeams: SeamSetters = { setZoomHost };
 /** /hooks/zoom (P-L5_17): x-zm-signature over `v0:<x-zm-request-timestamp>:<raw body>`, a timestamp within five minutes, and Zoom's URL check answered with the token pair. */
 export const hostCalls = {
   "zoom.accept_webhook": async (ctx: Ctx, a: WebhookAccept): Promise<unknown> => {
+    hostOnly(ctx, "zoom.accept_webhook");   // a host call: the webhook route is the only way in
     const secret = await h.webhookSecret(ctx);
     const v = await h.verifyWebhook(secret, a.headers, a.body, ctx.now());
     if (!v.ok) {
