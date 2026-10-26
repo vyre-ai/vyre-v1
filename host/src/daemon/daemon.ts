@@ -477,6 +477,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           if (claim && events.some((e) => e.type === "keys.stored" && (e.payload as { personId?: string } | undefined)?.personId === access.owner())) {
             claim = null;
             try { fs.rmSync(path.join(paths.logDir, "claim-link.txt"), { force: true }); } catch { /* already gone */ }
+            // ruling 86: the claim also makes sure the owner has their Personal calendar (the first start made it; this covers a start where the calendar module was not ready). Read first, so nothing is duplicated.
+            void ensurePersonalCalendar(access.owner() ?? "");
           }
           recent.push(...events);
           if (recent.length > RING) recent.splice(0, recent.length - RING);
@@ -519,7 +521,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       await syncAccess();
       ensurePersonalCalendar = async (person) => {
-        if (loaded.serving.get("calendar") !== "live") return;
+        if (!person || loaded.serving.get("calendar") !== "live") return;
         const as = { space: spaceId, principal: { kind: "person" as const, id: person }, preAuth: true, origin: "hook" as const };
         try {
           const mine = await invoke("calendar.list_calendars", { scope: "mine" }, as);
