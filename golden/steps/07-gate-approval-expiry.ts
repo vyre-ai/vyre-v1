@@ -7,7 +7,7 @@ import { LIVE_FOR_GATE_REPLY, runAgentGate } from "./07-agent-gate.ts";
 import type { Observed } from "../harness/index.ts";
 
 const FAKE_CLI = fileURLToPath(new URL("../../host/tests/fixtures/fake-cli-driver/fake-cli.mjs", import.meta.url));
-const KEY = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ";
+const KEY = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"; // secret-scan: fake
 
 export default async function steps(): Promise<Observed[]> {
   if (process.env["VYRE_HEAVY_DOCKER"] !== "1") throw new Error("flow 7 needs the sandbox: run it with VYRE_HEAVY_DOCKER=1 (the l2-heavy job)");

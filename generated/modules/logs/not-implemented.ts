@@ -7,6 +7,7 @@ import type { Handlers } from './handlers.ts';
 export const handlers: Handlers<HandlerCtx> = {
   "logs.client_upload": async (ctx) => { throw new VyreErr(notImplemented("logs.client_upload", ctx.trace)); },
   "logs.export": async (ctx) => { throw new VyreErr(notImplemented("logs.export", ctx.trace)); },
+  "logs.purge": async (ctx) => { throw new VyreErr(notImplemented("logs.purge", ctx.trace)); },
   "logs.query": async (ctx) => { throw new VyreErr(notImplemented("logs.query", ctx.trace)); },
   "logs.replay_get": async (ctx) => { throw new VyreErr(notImplemented("logs.replay_get", ctx.trace)); },
   "logs.replay_start": async (ctx) => { throw new VyreErr(notImplemented("logs.replay_start", ctx.trace)); },

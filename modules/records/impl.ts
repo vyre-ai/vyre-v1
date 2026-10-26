@@ -22,6 +22,8 @@ import { createReviewHandlers, propose } from "./handlers/review.ts";
 import type { ReviewHandlers } from "./handlers/review.ts";
 import { createViewHandlers } from "./handlers/views.ts";
 import type { ViewHandlers } from "./handlers/views.ts";
+import { createPurgeHandlers } from "./handlers/purge.ts";
+import type { PurgeHandlers } from "./handlers/purge.ts";
 import { createSiteTableHandlers } from "./handlers/site-tables.ts";
 import type { SiteTableEvent, SiteTableHandlers } from "./handlers/site-tables.ts";
 
@@ -294,7 +296,7 @@ function live(): RecordsHandle {
 // The rest of the live map (P-L3_LIVE): history, versions and holds (handlers/history.ts), merge, bulk upsert and export (handlers/merge.ts), both built once over the live handle.
 // DECISION: reveal has no `unseal` and export no `putFile` until the host hands this module the Vault and the Files port (a host seam); until then they refuse, they do not guess.
 type LiveHistory = Omit<HistoryHandlers, "records.history">;
-let extra: { history: LiveHistory; merge: MergeHandlers; sites: SiteTableHandlers; review: ReviewHandlers; views: ViewHandlers } | null = null;
+let extra: { history: LiveHistory; merge: MergeHandlers; sites: SiteTableHandlers; review: ReviewHandlers; views: ViewHandlers; purge: PurgeHandlers } | null = null;
 function more(): NonNullable<typeof extra> {
   if (!extra) {
     const h = live();
@@ -304,12 +306,13 @@ function more(): NonNullable<typeof extra> {
       sites: createSiteTableHandlers({ store: h.store }),
       review: createReviewHandlers({ tx: h.host.tx, store: h.store, writes: h.handlers, space: h.host.store.space }),
       views: createViewHandlers({ tx: h.host.tx, store: h.store, writes: h.handlers, space: h.host.store.space }),
+      purge: createPurgeHandlers({ store: h.store, tx: h.host.tx }),
     };
   }
   return extra;
 }
 
-export type LiveRecordsHandlers = RecordsHandlers & LiveHistory & MergeHandlers & ReviewHandlers & ViewHandlers;
+export type LiveRecordsHandlers = RecordsHandlers & LiveHistory & MergeHandlers & ReviewHandlers & ViewHandlers & PurgeHandlers;
 
 /** Loader entry. The module stays stub until its manifest flips to live, which is when the host reads this. */
 export const handlers: LiveRecordsHandlers = {
@@ -342,6 +345,8 @@ export const handlers: LiveRecordsHandlers = {
   "records.relations_map": (ctx, input) => more().views["records.relations_map"](ctx, input),
   "records.page_prefs.get": (ctx, input) => more().views["records.page_prefs.get"](ctx, input),
   "records.page_prefs.set": (ctx, input) => more().views["records.page_prefs.set"](ctx, input),
+  "records.purge": (ctx, input) => more().purge["records.purge"](ctx, input),
+  "records.purge_trashed": (ctx, input) => more().purge["records.purge_trashed"](ctx, input),
 };
 
 /** The site tables (P-L3_ST): the sites module announces a table, this module makes the record type. The host runs it once per event after commit (ruling 32). */
