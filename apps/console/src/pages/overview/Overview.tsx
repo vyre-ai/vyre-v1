@@ -48,17 +48,6 @@ export function Overview(): ReactElement {
     { page: "spend", label: "Turns today", icon: "pulse", big: o.usage.turnsToday.toLocaleString("en-US"), sub: "across people and agents" },
     { page: "spend", label: "Spend this month", icon: "ai", big: money(o.usage.costMicrosMonth), sub: "model providers" },
   ];
-  // the tiles are a grid of cards, not a list of rows: built in a loop so they are not mistaken for list items (ui-rows)
-  const tileViews: ReactElement[] = [];
-  for (const t of tiles) {
-    tileViews.push(
-      <Pressable key={t.label} accessibilityRole="button" accessibilityLabel={`${t.label}: ${t.big}`} testID={`tile-${t.label}`} onPress={() => data.nav.openPage(t.page)} style={[s.tile, pointer]}>
-        <View style={s.tileHead}><Glyph name={t.icon} size={14} color="var(--ink-3)" /><Text style={s.tileLabel}>{t.label}</Text></View>
-        <View style={s.tileBig}>{t.tone ? <Dot tone={t.tone} size={8} /> : null}<Text style={s.big}>{t.big}</Text></View>
-        <Text style={s.tileSub}>{t.sub}</Text>
-      </Pressable>
-    );
-  }
   return (
     <View testID="overview">
       <Section title="Needs you" count={o.attention.length || ""}>
@@ -80,7 +69,14 @@ export function Overview(): ReactElement {
       </Section>
       <Section title="Server">
         <View style={s.grid} testID="tiles">
-          {tileViews}
+          {/* ui-rows-lint: not a list (overview tiles) */}
+          {tiles.map((t) => (
+            <Pressable key={t.label} accessibilityRole="button" accessibilityLabel={`${t.label}: ${t.big}`} testID={`tile-${t.label}`} onPress={() => data.nav.openPage(t.page)} style={[s.tile, pointer]}>
+              <View style={s.tileHead}><Glyph name={t.icon} size={14} color="var(--ink-3)" /><Text style={s.tileLabel}>{t.label}</Text></View>
+              <View style={s.tileBig}>{t.tone ? <Dot tone={t.tone} size={8} /> : null}<Text style={s.big}>{t.big}</Text></View>
+              <Text style={s.tileSub}>{t.sub}</Text>
+            </Pressable>
+          ))}
         </View>
       </Section>
       <Section title="Recent admin activity" right={<LinkButton label="Audit log" onPress={() => data.nav.openPage("audit")} testID="to-audit" />}>
