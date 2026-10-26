@@ -18,7 +18,7 @@ export const handlers: Record<string, Handler> = {
   "governance.erase.apply": (ctx, i) => h.eraseApply(ctx, i),
   "governance.erase.list": (ctx, i) => h.eraseList(ctx, i),
   "governance.tombstones.list": (ctx, i) => h.tombstonesList(ctx, i),
-  "governance.tombstones.reapply": (ctx) => h.tombstonesReapply(ctx),
+  "governance.tombstones.reapply": (ctx, input) => h.tombstonesReapply(ctx, input as Parameters<typeof h.tombstonesReapply>[1]),
   "governance.jobs_health": (ctx) => h.jobsHealth(ctx),
 };
 

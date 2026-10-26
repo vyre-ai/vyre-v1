@@ -5,7 +5,7 @@ import { createElement, memo, useCallback, useDeferredValue, useEffect, useMemo,
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
-import { cachedFace, currentSkin, faceKey, marbleGradient, marbleInner, marbleSpec, requestFace, wrapSvg } from "../../../../../../ui/src/Avatar/index.tsx";
+import { cachedFace, currentSkin, faceKey, marbleGradient, marbleInner, requestFace, wrapSvg } from "../../../../../../ui/src/Avatar/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
@@ -282,7 +282,7 @@ function dot(seed: string, label: string, shared = true): ReactElement {
     // no document (server render, tests), or a face that belongs to one record only (the Name cell: a 100,000 row table has 100,000 of them, and the scroll trace put a bitmap and a rule for each
     // at 50 ms p95): the same marble as a plain inline gradient, built once per seed on the server and per drawn row in the browser, with no rule, no bitmap and no stylesheet write
     let st = doc === undefined ? dots.get(seed) : undefined;
-    if (!st) { st = { width: 18, height: 18, flex: "none", borderRadius: 9, backgroundColor: marbleSpec(seed).base, backgroundImage: marbleGradient(seed) }; if (doc === undefined) dots.set(seed, st); }
+    if (!st) { st = { width: 18, height: 18, flex: "none", borderRadius: 9, background: marbleGradient(seed) }; if (doc === undefined) dots.set(seed, st); }
     return createElement("span", { "aria-hidden": true, "data-testid": `face-${label}`, style: st, ...(doc !== undefined ? { "data-face-seed": seed } : {}) });
   }
   const cls = ensureFace(doc, seed);

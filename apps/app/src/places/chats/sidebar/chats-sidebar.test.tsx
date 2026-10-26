@@ -3,9 +3,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ChatsSidebar } from "./ChatsSidebar.tsx";
+import type { ReactElement } from "react";
+import { SidebarContent } from "../../../shell/sidebar/index.ts";
+import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
+import { ChatsSidebar, ChatsSidebarSlot } from "./ChatsSidebar.tsx";
 import { createSidebarApi } from "./actions.ts";
-import { NEW_CHAT_MS, groupRecent, rowOf } from "./model.ts";
+import { NEW_CHAT_MS, groupRecent, matchesQuery, rowOf } from "./model.ts";
 import type { ChatRow, RecentOut } from "./model.ts";
 import { createSampleSidebar, harbor, northwind, personal } from "./sample.ts";
 import type { SampleSidebar } from "./sample.ts";
@@ -27,7 +30,9 @@ test("the sections render from the Northwind sample, in the spec's order", () =>
   const out = html(createSampleSidebar());
   const heads = ["head-needs", "head-faces", "head-channels", "head-recent"].map((id) => at(out, `data-testid="${id}"`));
   assert.deepEqual([...heads].sort((a, b) => a - b), heads, "Needs you, Agents, Channels, Chats (ruling 45)");
-  for (const text of ["Needs you", "Agents", "Chats", "Channels", "Northwind", "Search", "All agents"]) assert.ok(out.includes(text), text);
+  for (const text of ["Needs you", "Agents", "Chats", "Channels", "Northwind", "All agents"]) assert.ok(out.includes(text), text);
+  // The title, the collapse button and the search field are the shared slot's now (the next tests); the content draws none of them.
+  assert.ok(!out.includes("sidebar-toggle") && !out.includes("Hide the sidebar") && !out.includes("Search"), "no frame of its own");
   assert.ok(!out.includes(String.fromCharCode(0x2014)), "no em dash in any copy");
   assert.ok(!out.includes("chats-sidebar-loading"));
 });
@@ -113,4 +118,35 @@ test("a new chat with a starred face asks for that agent; a failed start drops o
   assert.deepEqual(settled, [row.threadId]);
   assert.deepEqual(s.opened, [`chat:${row.threadId}`], "no switch to a real thread");
   assert.equal(rowOf(recentNow(s).today[0]!, (i) => i).local, false);
+});
+
+// ---- the shared place sidebar slot (P-L9b_22)
+
+const slotApi = (): SidebarSlotApi => ({
+  query: "", collapsed: false, setCollapsed: () => undefined, hasSidebar: true, compact: true, openBody: () => undefined, back: () => undefined, view: "list", title: "Chats",
+});
+/** What the place hands the shell: the SidebarContent element and the content its render prop draws for a given search text. */
+const registered = (s: SampleSidebar, query: string, slot: SidebarSlotApi = slotApi()): { entry: { title: string; searchPlaceholder?: string }; out: string } => {
+  const el = ChatsSidebarSlot({ data: s.data, window: { start: 0, end: 500 } }) as ReactElement<{ title: string; searchPlaceholder?: string; children: (q: string, slot: SidebarSlotApi) => ReactElement }>;
+  assert.equal(el.type, SidebarContent, "the Chats sidebar goes into the shared SidebarContent, not a frame of its own");
+  const content = el.props.children(query, slot);
+  return { entry: { title: el.props.title, ...(el.props.searchPlaceholder ? { searchPlaceholder: el.props.searchPlaceholder } : {}) }, out: renderToStaticMarkup(content).replaceAll("<!-- -->", "") };
+};
+
+test("the sidebar registers in the shared slot as Chats with the Search chats field, and draws all its rows inside it", () => {
+  const { entry, out } = registered(createSampleSidebar(), "");
+  assert.deepEqual(entry, { title: "Chats", searchPlaceholder: "Search chats" });
+  for (const text of ["Needs you", "Send 12 invoices", "Intake", "Competitor pricing", "Rivera intake", "rivera-matter"]) assert.ok(out.includes(text), text);
+  assert.ok(out.includes('data-testid="new-chat"') && out.includes('data-testid="filter-chats"'), "the assistant's new chat and the filter keep their place");
+});
+
+test("the slot's search field narrows Needs you, Agents, Channels and Chats; a word nothing holds leaves only the section heads", () => {
+  const s = createSampleSidebar();
+  const out = registered(s, "rivera").out;
+  assert.ok(out.includes("Rivera intake") && out.includes("rivera-matter") && out.includes("Rivera engagement letter"));
+  assert.ok(!out.includes("Competitor pricing") && !out.includes("Send 12 invoices") && !out.includes("data-testid=\"face-Billing\""));
+  const none = registered(s, "zzzz").out;
+  assert.ok(!none.includes("Rivera intake") && !none.includes("rivera-matter") && !none.includes('data-testid="head-needs"'));
+  assert.equal(registered(s, "  ").out, registered(s, "").out, "blank text is no search");
+  assert.ok(matchesQuery("pric comp", "Competitor pricing") && !matchesQuery("pric zzz", "Competitor pricing") && matchesQuery("", "x"));
 });

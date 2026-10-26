@@ -266,7 +266,7 @@ test("an agent delete in a Review changes folder is staged: the file stays, Tras
   sameTree(k, before, "nothing in the tree moved");
   assert.equal(eventsOf(k.events, "file.deleted").length, 0);
   assert.equal(fileRow(k, plan)?.["deleted_at"] ?? null, null);
-  assert.deepEqual(await changesetFiles(ctx, out.changesetId!), [{ path: "plan.txt", status: "deleted", added: 0, removed: 10, conflict: false }]);
+  assert.deepEqual(await changesetFiles(ctx, out.changesetId!), [{ path: "plan.txt", fileId: plan, status: "deleted", added: 0, removed: 10, conflict: false }]);
   assert.deepEqual(eventsOf(k.events, "changeset.opened"), [{ changesetId: out.changesetId, folderId: docs, by: "agt_intake", fileCount: 1, threadId: "thr_1" }]);
 
   // staging it again changes nothing; the file still reads
@@ -314,7 +314,7 @@ test("an agent rename is staged and applied on Approve; renaming again edits the
   assert.match(r.changesetId ?? "", /^chg_/);
   sameTree(k, before, "the tree");
   assert.equal(eventsOf(k.events, "file.renamed").length, 0);
-  assert.deepEqual(await changesetFiles(ctx, r.changesetId!), [{ path: "plan.txt", status: "renamed", added: 0, removed: 0, conflict: false }]);
+  assert.deepEqual(await changesetFiles(ctx, r.changesetId!), [{ path: "plan.txt", fileId: plan, status: "renamed", added: 0, removed: 0, conflict: false }]);
 
   const r2 = await ren(agent, plan, "plan-v3.txt");
   assert.equal(r2.changesetId, r.changesetId);
@@ -362,7 +362,7 @@ test("a rename staged after a write keeps the staged text: Approve renames and t
   const w = await handlers["files.write"](agent, { fileId: plan, content: { text: lines(10, { 1: "ONE" }) }, baseVersion: 1 });
   const r = await ren(agent, plan, "plan-new.txt");
   assert.equal(r.changesetId, w.changesetId);
-  assert.deepEqual(await changesetFiles(ctx, w.changesetId!), [{ path: "plan.txt", status: "renamed", added: 1, removed: 1, conflict: false }]);
+  assert.deepEqual(await changesetFiles(ctx, w.changesetId!), [{ path: "plan.txt", fileId: plan, status: "renamed", added: 1, removed: 1, conflict: false }]);
   const res = await handlers["changesets.approve"](ctx, { changesetId: w.changesetId! });
   assert.equal(res.approved, true);
   assert.equal(fileRow(k, plan)?.["name"], "plan-new.txt");
@@ -383,7 +383,7 @@ test("an agent move is staged: the file keeps its folder, Approve moves it and g
   assert.match(m.changesetId ?? "", /^chg_/);
   sameTree(k, before, "the tree");
   assert.equal(eventsOf(k.events, "file.moved").length, 0);
-  assert.deepEqual(await changesetFiles(ctx, m.changesetId!), [{ path: "plan.txt", status: "renamed", added: 0, removed: 0, conflict: false }]);
+  assert.deepEqual(await changesetFiles(ctx, m.changesetId!), [{ path: "plan.txt", fileId: plan, status: "renamed", added: 0, removed: 0, conflict: false }]);
   // a rename after a move keeps the destination
   await ren(agent, plan, "plan-in-sub.txt");
   assert.equal(k.db.rows("files_changeset_file").find((e) => e["path"] === "plan.txt")?.["new_name"], `${sub}/plan-in-sub.txt`);
@@ -490,7 +490,7 @@ test("an agent save in a Review changes folder is staged after the lint passes: 
   sameTree(k, before, "the tree");
   assert.equal(await versionsOf(ctx, plan), 1);
   assert.deepEqual(eventsOf(k.events, "changeset.opened"), [{ changesetId: out.changesetId, folderId: docs, by: "agt_intake", fileCount: 1, threadId: "thr_1" }]);
-  assert.deepEqual(await changesetFiles(ctx, out.changesetId!), [{ path: "plan.txt", status: "modified", added: 2, removed: 2, conflict: false }]);
+  assert.deepEqual(await changesetFiles(ctx, out.changesetId!), [{ path: "plan.txt", fileId: plan, status: "modified", added: 2, removed: 2, conflict: false }]);
 
   const again = await save(h, agent, { fileId: plan, text: lines(10, { 1: "ONE" }) });
   assert.equal(again.changesetId, out.changesetId);
