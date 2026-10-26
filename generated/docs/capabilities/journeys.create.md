@@ -68,6 +68,7 @@ type In = {
       automations: Array<string>;
       final?: boolean;
       onLeaving?: Array<string>;
+      makesProject?: boolean;
     }>;
   startRule?: {
     event: string;
@@ -129,6 +130,7 @@ type Out = {
         automations: Array<string>;
         final?: boolean;
         onLeaving?: Array<string>;
+        makesProject?: boolean;
       }>;
     startRule?: {
       event: string;
@@ -172,6 +174,7 @@ type Out = {
         },
         "final": true,
         "key": "intake",
+        "makesProject": true,
         "onLeaving": [
           "aut_a1b2c3"
         ],
@@ -236,6 +239,7 @@ type Out = {
           },
           "final": true,
           "key": "intake",
+          "makesProject": true,
           "onLeaving": [
             "aut_a1b2c3"
           ],

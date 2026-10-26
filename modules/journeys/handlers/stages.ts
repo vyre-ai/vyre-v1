@@ -230,6 +230,27 @@ async function onEnter(ctx: JourneysCtx, j: Journey, rec: JRecord, stage: Stage,
       }
     } catch { /* the Journey record is in the stage; the missing task shows in the module that failed */ }
   }
+  // a stage that makes a project gives the record its own Project (record, channel, folder, plan); once per record, however often it comes back to the stage.
+  // The title is not the Journey record's channel name ("<Journey> <suffix>"): the Project's channel takes its title as a name and a channel name is unique.
+  if (stage.makesProject) {
+    try {
+      await ctx.call("projects.create", { type: "project", title: `${j.name} project ${rec.recordId.slice(-6)}`, idempotencyKey: `jrn-project:${rec.recordId}` });
+    } catch (e) {
+      // the Journey carries on, but never silently: the reason goes to the log with the trace id and to the Journey owner as a task
+      const err = (e as { error?: { message?: string; code?: string; details?: unknown } } | null)?.error;
+      const said = err?.message ?? (e instanceof Error ? e.message : "it failed");
+      // the refusal's own details name the field or step, so they go with the reason into the log and the task
+      const where = err?.details !== undefined ? ` (${err.code ?? "error"}: ${JSON.stringify(err.details).slice(0, 400)})` : "";
+      const reason = `${said}${where}`;
+      ctx.log?.warn("journeys: the stage's project could not be made", { journeyId: j.id, recordId: rec.recordId, stage: stage.key, reason, traceId: ctx.trace.traceId });
+      try {
+        await ctx.call("tasks.create", {
+          kind: "unblock", title: `Project for ${rec.subjectRecordId} could not be made: ${reason}`, summary: `The ${j.name} Journey moved on without it. Trace ${ctx.trace.traceId}.`,
+          assigned: { kind: "person", id: rec.ownerId }, recordId: rec.recordId, source: { kind: "journey", id: rec.recordId }, idempotencyKey: `jrn-project-failed:${rec.recordId}:${stage.key}`,
+        });
+      } catch { /* the log line above is the record of it */ }
+    }
+  }
   for (const aid of stage.automations) {
     try {
       await ctx.call("automations.fire", clean({
@@ -271,7 +292,7 @@ export async function moveTo(ctx: JourneysCtx, j: Journey, rec: JRecord, to: Sta
   const next: JRecord = { ...rec, stage: to.key, enteredAt: now };
   if (to.final) next.completedAt = now; else delete next.completedAt;
   // the record is written first: if that fails nothing has changed and nothing has been said
-  if (ctx.call) await ctx.call("records.update", { type: j.recordType, recordId: rec.recordId, patch: { stage: to.key, entered_at: now } });
+  if (ctx.call) await ctx.call("records.update", { type: j.recordType, recordId: rec.recordId, patch: { stage: to.key, entered_at: new Date(now).toISOString() } });
   await closeStageTasks(ctx, rec);
   saveRecord(ctx.db, next);
   const leftId = emitJ(ctx, "journey.stage_exited", `record/${rec.recordId}`, { journeyId: j.id, recordId: rec.recordId, stage: from, toStage: to.key });
@@ -297,7 +318,7 @@ export async function start(ctx: JourneysCtx, input: In): Promise<unknown> {
   const now = ctx.now();
   const owner = me(ctx);
   const made = (await ctx.call("records.create", {
-    type: j.recordType, fields: { name: `${j.name}: ${input.subjectRecordId}`, stage: first.key, subject: input.subjectRecordId, owner, entered_at: now }, idempotencyKey: `jrn-rec:${key}`,
+    type: j.recordType, fields: { name: `${j.name}: ${input.subjectRecordId}`, stage: first.key, subject: [{ urn: `vyre://${ctx.space}/${j.subjectType}/${input.subjectRecordId}` }], owner, entered_at: new Date(now).toISOString() }, idempotencyKey: `jrn-rec:${key}`,
   })) as { record?: { id?: string } };
   const recordId = made?.record?.id;
   if (!recordId) raise(ctx, "internal.unexpected", "The Journey record was not created.");
