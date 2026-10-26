@@ -3,9 +3,9 @@
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
-import { formValue, parseToml, rawFromForm, setTomlValue, tomlGroups, tomlKind } from "./model.ts";
+import { TOML_CHOICES, choiceOf, choiceRaw, formValue, humanKey, parseToml, rawFromForm, setTomlValue, tomlGroups, tomlKind } from "./model.ts";
 import type { TomlEntry } from "./model.ts";
-import { Switch, TextField } from "./parts.tsx";
+import { Select, Switch, TextField } from "./parts.tsx";
 
 export interface TomlFormProps {
   text: string;
@@ -15,10 +15,13 @@ export interface TomlFormProps {
 
 function Control({ entry, text, onChange, readOnly }: { entry: TomlEntry; text: string; onChange(t: string): void; readOnly: boolean }): ReactElement {
   const kind = tomlKind(entry.raw);
-  const label = `${entry.section ? `${entry.section} ` : ""}${entry.key}`;
+  const label = `${entry.section ? `${humanKey(entry.section)} ` : ""}${humanKey(entry.key)}`;
   if (entry.end > entry.line || readOnly) return <Text style={st.fixed} numberOfLines={1} testID={`toml-fixed:${entry.line}`}>{formValue(entry.raw)}</Text>;
+  const pick = choiceOf(entry.key, entry.raw);
+  const choices = TOML_CHOICES[entry.key];
+  if (pick && choices) return <Select value={pick.id} choices={choices} label={humanKey(entry.key)} testID={`toml-select:${entry.line}`} onChange={(id) => onChange(setTomlValue(text, entry, choiceRaw(id, pick.list)))} />;
   if (kind === "bool") return <Switch on={entry.raw.trim() === "true"} onChange={(on) => onChange(setTomlValue(text, entry, on ? "true" : "false"))} label={label} testID={`toml-switch:${entry.line}`} />;
-  return <TextField compact mono={kind !== "string"} width={210} value={formValue(entry.raw)} onChange={(v) => onChange(setTomlValue(text, entry, rawFromForm(kind, v)))} label={label} testID={`toml-field:${entry.line}`} />;
+  return <TextField compact mono={kind !== "string"} width={260} value={formValue(entry.raw)} onChange={(v) => onChange(setTomlValue(text, entry, rawFromForm(kind, v)))} label={label} testID={`toml-field:${entry.line}`} />;
 }
 
 export function TomlForm({ text, onChange, readOnly = false }: TomlFormProps): ReactElement {
@@ -29,9 +32,9 @@ export function TomlForm({ text, onChange, readOnly = false }: TomlFormProps): R
       {/* ui-rows-lint: not a list (table sections; each section is a heading and its ui/Row lines) */}
       {groups.map((g) => (
         <View key={g.section || "top"} style={st.group}>
-          <Text accessibilityRole="header" aria-level={3} style={st.head}>{g.section || "General"}</Text>
+          <Text accessibilityRole="header" aria-level={3} style={st.head}>{humanKey(g.section || "General")}</Text>
           {g.entries.map((e) => (
-            <Row key={e.line} id={`toml:${e.line}`} title={e.key} trailing={<Control entry={e} text={text} onChange={onChange} readOnly={readOnly} />} />
+            <Row key={e.line} id={`toml:${e.line}`} title={humanKey(e.key)} trailing={<Control entry={e} text={text} onChange={onChange} readOnly={readOnly} />} />
           ))}
         </View>
       ))}

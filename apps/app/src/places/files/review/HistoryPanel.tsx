@@ -13,9 +13,12 @@ import { Btn, Note, Skeleton, TextField } from "./parts.tsx";
 export interface HistoryPanelProps {
   fileId: string;
   density?: Density;
+  /** The version the page is showing (the side pane tells the page which one is picked). */
+  onSelect?(versionId: string): void;
+  selectedId?: string | null;
 }
 
-export function HistoryPanel({ fileId, density = "regular" }: HistoryPanelProps): ReactElement {
+export function HistoryPanel({ fileId, density = "regular", onSelect, selectedId = null }: HistoryPanelProps): ReactElement {
   const data = useReviewData();
   const q = useCap("files.versions", { fileId });
   const versions = useMemo(() => (q.status === "ready" ? historyVersions(q.data.versions, data.nameOf) : []), [q, data]);
@@ -27,7 +30,7 @@ export function HistoryPanel({ fileId, density = "regular" }: HistoryPanelProps)
   if (q.status !== "ready") return <Skeleton height={120} testID="history-loading" />;
 
   const top = versions.reduce<HistoryVersion | null>((a, v) => (a === null || v.n > a.n ? v : a), null);
-  const selected = versions.find((v) => v.id === picked) ?? top;
+  const selected = versions.find((v) => v.id === (selectedId ?? picked)) ?? top;
 
   const startNaming = (): void => {
     if (!selected) return;
@@ -51,7 +54,7 @@ export function HistoryPanel({ fileId, density = "regular" }: HistoryPanelProps)
         versions={versions}
         selectedVersionId={selected?.id ?? null}
         density={density}
-        onSelect={setPicked}
+        onSelect={(id) => { setPicked(id); onSelect?.(id); }}
         onCompare={(version, against) => data.nav.compare(fileId, against.id, version.id)}
         invoke={(cap, input) => data.call(cap, input)}
       />

@@ -7,7 +7,7 @@ import type { ReactElement } from "react";
 import {
   AgentFileEditor, AgentFilePage, SuggestionCard, ChangesetDiff, ChangesetHeader, CommitDiff, FileDiff, GateRow, GitRow, HistoryPanel, LintBar, ReviewDataProvider, TomlForm,
   approveBlocked, approveChangeset, approveInput, blockedReason, branchChoices, changedLine, commitFiles, diffFileOf, discardChangeset, draftDiff, errorWords, gateWords, hunkOf, historyVersions, initRepo, lineHunks,
-  lintItems, needsGate, nameVersion, parseToml, pushBranch, rawFromForm, requestChanges, requestLabel, suggestionHunks, acceptSuggestion, dismissSuggestion, restoreVersion, reviewExternally, saveFile, saveBlocked, setTomlValue, switchBranch, tomlGroups, tomlKind,
+  lintItems, needsGate, nameVersion, parseToml, pushBranch, rawFromForm, requestChanges, requestLabel, applySuggestion, choiceOf, choiceRaw, humanKey, suggestionHunks, acceptSuggestion, dismissSuggestion, restoreVersion, reviewExternally, saveFile, saveBlocked, setTomlValue, switchBranch, tomlGroups, tomlKind,
 } from "../src/places/files/review/index.ts";
 import { lineRange } from "../src/places/files/review/index.ts";
 import { AGENT_MD, AGENT_TOML, createSampleReview } from "../src/places/files/review/sample.ts";
@@ -216,13 +216,19 @@ test("history: the shared tab lists versions newest first with who and why; rest
 test("diff tabs: a changeset's files with their changes and the comment; a version compare; a commit", () => {
   const s = sample();
   const out = html(s, <ChangesetDiff changesetId={s.changesetId} path="consult-prep.md" />);
-  assert.ok(has(out, 'data-testid="changeset-diff"') && has(out, 'data-testid="diff-files"'), "the file list shows for more than one file");
-  for (const p of ["rivera-engagement-letter.docx", "consult-prep.md", "id-scan.png"]) assert.ok(has(out, `data-testid="row-diff-file-${p}"`), p);
+  assert.ok(has(out, 'data-testid="changeset-diff"'), "the stack");
+  for (const p of ["rivera-engagement-letter.docx", "consult-prep.md", "id-scan.png"]) assert.ok(has(out, `data-testid="row-diff-card-${p}"`) && has(out, `data-testid="diff-card-toggle-${p}"`), `a card for ${p}`);
+  assert.ok(has(text(out), "v2 \u2192 v3") && has(text(out), "+18") && has(text(out), "\u22124"), "each card says the versions and its counts");
+  assert.ok(has(tag(out, "diff-card-toggle-consult-prep.md"), 'aria-expanded="true"'), "the opened file is expanded");
+  assert.ok(has(tag(out, "diff-card-toggle-id-scan.png"), 'aria-expanded="false"') && !has(out, 'data-testid="changeset-diff-id-scan.png"'), "the others start collapsed when a file is asked for");
+  assert.ok(has(out, 'role="radiogroup"') && has(tag(out, "changeset-layout-unified"), 'aria-checked="true"'), "one Unified and Split switch for the stack");
   assert.ok(has(text(out), "Ask for a photo ID before the consult."), "an added line");
   assert.ok(has(text(out), "Please put this above the intake form line.") && has(text(out), "Maya Chen"), "the comment sits on its change");
   assert.ok(has(out, 'aria-label="Changes to Projects/Rivera matter"'), "the toolbar is named for the folder, not a second Docs changed row");
   assert.ok(!has(text(out), "Docs changed 3 files"), "no duplicate of the header inside the diff");
-  assert.ok(has(out, 'data-testid="diff-revert-h_prep"'), "revert and comment per change");
+  const all = html(s, <ChangesetDiff changesetId={s.changesetId} />);
+  for (const p of ["rivera-engagement-letter.docx", "consult-prep.md", "id-scan.png"]) assert.ok(has(all, `data-testid="changeset-diff-${p}"`), `${p} is open in the stack`);
+  assert.ok(has(text(all), "Retainer:") && has(all, 'data-testid="diff-image"'), "a text change and an image change in one stack");
   const one = html(s, <FileDiff fileId={s.fileIds.agent} name="AGENT.md" />);
   assert.ok(has(one, 'data-testid="file-diff"') && has(text(one), "- Promise an outcome."), "a version compare is bare: the changed line in the page");
   assert.ok(!has(one, 'data-testid="diff-revert-'), "no per-change buttons in a version compare");
@@ -310,8 +316,11 @@ test("agent.toml reader: sections, keys, multi-line lists, and an edit rewrites 
 test("Form view: the keys of each table as Row lines, a switch for true and false, a text box for the rest", () => {
   const s = sample();
   const out = html(s, <TomlForm text={AGENT_TOML} onChange={() => undefined} />);
-  assert.ok(has(out, 'data-testid="toml-form"') && has(text(out), "model") && has(text(out), "limits") && has(text(out), "handoff"));
-  assert.ok(has(out, 'data-testid="row-toml:4"') && has(out, 'data-testid="toml-field:4"'), "primary on line 4");
+  assert.ok(has(out, 'data-testid="toml-form"') && has(text(out), "Model") && has(text(out), "Limits") && has(text(out), "Handoff"));
+  assert.ok(has(out, 'data-testid="row-toml:4"') && has(tag(out, "toml-select:4"), 'aria-haspopup="menu"'), "primary is a dropdown");
+  assert.ok(has(text(out), "Claude Sonnet 5.5") && has(text(out), "Claude Haiku 4.5"), "model ids read as names");
+  assert.ok(has(out, 'data-testid="toml-field:6"'), "a number stays a text box");
+  assert.ok(has(text(out), "Daily budget") && has(text(out), "Ask before send"), "keys read as words");
   const sw = out.match(/<[^>]*role="switch"[^>]*>/);
   assert.ok(sw && has(sw[0], 'aria-checked="true"'), "ask_before_send is on");
   assert.ok(has(text(html(s, <TomlForm text="" onChange={() => undefined} />)), "Nothing in agent.toml yet"));
@@ -410,4 +419,52 @@ test("suggestions: the diff reads as hunks; Apply and Dismiss call the agent sug
   const t = sample();
   assert.ok((await dismissSuggestion(t.data.call, "sug_1")).ok);
   assert.equal(t.suggestionState(), "dismissed");
+});
+
+test("apply: the suggestion's diff goes into the text, so the editor shows the new file", async () => {
+  const s = sample();
+  const diff = (await import("../src/places/files/review/sample.ts")).SUGGESTION_DIFF;
+  const next = applySuggestion(AGENT_MD, diff);
+  assert.ok(has(next, "- No exclamation marks. Keep replies under five lines."), "the changed line");
+  assert.ok(!has(next, "\n- No exclamation marks.\n"), "the old line is gone");
+  assert.ok(has(next, "- Promise an outcome.\n- Quote a fee before the consult."), "an added line lands after its context");
+  assert.equal(next.split("\n").length, AGENT_MD.split("\n").length + 1);
+  assert.equal(applySuggestion("nothing alike\n", diff), "nothing alike\n", "a hunk that no longer matches is left out");
+  const r = await acceptSuggestion(s.data.call, "sug_1");
+  assert.ok(r.ok);
+  assert.equal(s.version(s.fileIds.agent), 5, "the kernel adds a version");
+  assert.equal(s.text(s.fileIds.agent), next, "and the file holds what the editor shows");
+  const page = html(s, <AgentFilePage fileId={s.fileIds.agent} name="AGENT.md" path="Agents/Intake" agentId="agt_intake" saved={AGENT_MD} version={4} edit />);
+  assert.ok(has(text(page), "v5"), "the page reads the new version");
+});
+
+test("agent file page: v5 check, History in the shared side pane with the version banner, find and info", () => {
+  const s = sample();
+  const closed = html(s, <AgentFilePage fileId={s.fileIds.agent} name="AGENT.md" path="Agents/Intake" agentId="agt_intake" saved={AGENT_MD} version={4} />);
+  assert.ok(has(closed, 'data-testid="agent-file-version"') && has(text(closed), "v4"), "the version check");
+  assert.ok(!has(closed, 'data-testid="side-pane"'), "History is closed until asked");
+  const open = html(s, <AgentFilePage fileId={s.fileIds.agent} name="AGENT.md" path="Agents/Intake" agentId="agt_intake" saved={AGENT_MD} version={4} startHistory startViewing="ver_a3" />);
+  assert.ok(has(open, 'data-testid="side-pane"') && has(open, 'data-testid="history-tab"'), "the shared side pane holds the history tab");
+  assert.ok(has(open, 'data-testid="version-banner"') && has(open, 'data-testid="version-restore"') && has(open, 'data-testid="version-back"') && has(open, 'data-testid="version-changes"'), "the banner over the page");
+  assert.ok(has(text(open), "Viewing v3"), "which version");
+  assert.ok(has(open, 'data-testid="file-diff"'), "showing what changed since");
+  assert.ok(!has(open, 'data-testid="agent-file-editor"'), "the editor steps aside while an old version shows");
+});
+
+test("lint chips: each carries its dot, in the color of its severity", () => {
+  const s = sample();
+  const out = html(s, <LintBar fileId={s.fileIds.agent} name="AGENT.md" text={AGENT_MD} onJump={() => undefined} />);
+  assert.ok(/data-testid="lint-len"[\s\S]*?var\(--ok\)/.test(out), "a green dot on a passing chip");
+  const bad = html(s, <LintBar fileId={s.fileIds.agent} name="AGENT.md" text={`${AGENT_MD}key = sk-abcdefghijkl\n`} onJump={() => undefined} />);
+  assert.ok(/data-testid="lint-secrets"[\s\S]*?var\(--danger\)/.test(bad), "a red dot on a secret");
+});
+
+test("agent.toml picks: a model or an effort is a choice from a list, a list key holds one pick", () => {
+  assert.deepEqual(choiceOf("primary", '"claude-sonnet-5-5"'), { id: "claude-sonnet-5-5", list: false });
+  assert.deepEqual(choiceOf("fallback", '["claude-haiku-4-5"]'), { id: "claude-haiku-4-5", list: true });
+  assert.equal(choiceOf("temperature", "0.2"), null);
+  assert.equal(choiceOf("primary", "something odd"), null);
+  assert.equal(choiceRaw("x", true), '["x"]');
+  assert.equal(choiceRaw("x", false), '"x"');
+  assert.equal(humanKey("max_output_tokens"), "Max output tokens");
 });

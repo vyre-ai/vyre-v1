@@ -428,3 +428,52 @@ export function shortDay(ms: number): string {
 export function latestVersion(rows: readonly VersionRow[]): VersionRow | null {
   return rows.reduce<VersionRow | null>((a, v) => (a === null || v.n > a.n ? v : a), null);
 }
+
+/** Put a suggestion's diff into the text: each hunk's unchanged lines above, the removed lines and the unchanged lines below must be found together; they are replaced by the unchanged lines and the added ones. A hunk that no longer matches is left out. */
+export function applySuggestion(text: string, diff: string): string {
+  let lines = text.split("\n");
+  for (const h of suggestionHunks(diff)) {
+    const split = (t: string | undefined): string[] => (t ? t.split("\n") : []);
+    const before = split(h.before);
+    const removed = split(h.removed);
+    const after = split(h.after);
+    const old = [...before, ...removed, ...after];
+    let at = -1;
+    for (let i = 0; i + old.length <= lines.length && at < 0; i++) if (old.every((l, k) => lines[i + k] === l)) at = i;
+    if (at < 0) continue;
+    lines = [...lines.slice(0, at), ...before, ...split(h.added), ...after, ...lines.slice(at + old.length)];
+  }
+  return lines.join("\n");
+}
+
+/** "Max output tokens" from max_output_tokens. */
+export function humanKey(key: string): string {
+  const w = key.replaceAll("_", " ").replaceAll("-", " ").trim();
+  return w ? w.charAt(0).toUpperCase() + w.slice(1) : key;
+}
+
+export interface Choice { id: string; label: string }
+
+export const MODEL_CHOICES: readonly Choice[] = [
+  { id: "claude-opus-4-7", label: "Claude Opus 4.7" }, { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5" }, { id: "claude-haiku-4-5", label: "Claude Haiku 4.5" },
+  { id: "gpt-5", label: "GPT-5" }, { id: "kimi-k2", label: "Kimi K2" },
+];
+
+/** Keys of agent.toml that are a pick from a short list, not free text. A list key (fallback) is a list of one pick. */
+export const TOML_CHOICES: Readonly<Record<string, readonly Choice[]>> = {
+  primary: MODEL_CHOICES, fallback: MODEL_CHOICES,
+  effort: [{ id: "light", label: "Light" }, { id: "balanced", label: "Balanced" }, { id: "deep", label: "Deep" }],
+  mode: [{ id: "asker", label: "Whoever asks" }, { id: "owner", label: "The owner" }],
+};
+
+/** The choice a key currently holds, as its id (a one-item list gives its item). Null when the key is not a pick or holds something else. */
+export function choiceOf(key: string, raw: string): { id: string; list: boolean } | null {
+  if (!TOML_CHOICES[key]) return null;
+  const list = tomlKind(raw) === "list";
+  const m = list ? /^\[\s*"([^"]*)"\s*\]$/.exec(raw.trim()) : /^"([^"]*)"$/.exec(raw.trim());
+  return m ? { id: m[1] ?? "", list } : null;
+}
+
+export function choiceRaw(id: string, list: boolean): string {
+  return list ? `["${id}"]` : `"${id}"`;
+}

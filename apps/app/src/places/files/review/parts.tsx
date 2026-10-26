@@ -2,6 +2,7 @@
 // .lintbar): 30 px quiet buttons, the primary one filled with the accent, 34 px text boxes on the sunk surface. Every colour is a skin token, so a skin switch repaints with no re-render.
 import { useState } from "react";
 import type { ReactElement, ReactNode } from "react";
+import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ViewStyle } from "react-native";
 
@@ -109,6 +110,35 @@ export function TextField({ value, onChange, label, placeholder, onSubmit, onEsc
   );
 }
 
+/** A value with a chevron that opens a menu of choices, the current one checked. The menu opens under the control. */
+export function Select({ value, choices, onChange, label, testID, width = 260 }: { value: string; choices: readonly { id: string; label: string }[]; onChange: (id: string) => void; label: string; testID?: string; width?: number }): ReactElement {
+  const [over, setOver] = useState(false);
+  const { element, show } = useMenu();
+  const shown = choices.find((c) => c.id === value)?.label ?? value;
+  const open = (e: unknown): void => {
+    const at = anchorOf(e);
+    show(choices.map((c) => ({ label: c.label, checked: c.id === value, onSelect: () => onChange(c.id) })), at.x, at.y, "other");
+  };
+  return (
+    <>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${label}: ${shown}`}
+        onPress={open}
+        onHoverIn={() => setOver(true)}
+        onHoverOut={() => setOver(false)}
+        testID={testID}
+        style={[s.select, { width }, over && s.selectOver]}
+        {...webProps({ "aria-haspopup": "menu", title: label })}
+      >
+        <Text numberOfLines={1} style={s.selectText}>{shown}</Text>
+        <Text style={s.selectChev} aria-hidden>{"\u2304"}</Text>
+      </Pressable>
+      {element}
+    </>
+  );
+}
+
 export function Switch({ on, onChange, label, testID }: { on: boolean; onChange: (v: boolean) => void; label: string; testID?: string }): ReactElement {
   return (
     <Pressable role="switch" aria-checked={on} accessibilityLabel={label} accessibilityState={{ checked: on }} onPress={() => onChange(!on)} testID={testID} style={[s.sw, on && s.swOn]} {...webProps({ title: label })}>
@@ -170,11 +200,15 @@ const s = StyleSheet.create({
   inputFlex: { flex: 1, minWidth: 0 },
   inputMulti: style({ height: "auto", minHeight: 64, paddingVertical: 8, lineHeight: 19 }),
   inputFocus: style({ boxShadow: "inset 0 0 0 1px var(--accent-line), 0 0 0 3px var(--accent-wash)" }),
+  select: style({ height: 26, borderRadius: 7, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "var(--sunk)", boxShadow: "inset 0 0 0 1px var(--line)" }),
+  selectOver: style({ boxShadow: "inset 0 0 0 1px var(--accent-line)" }),
+  selectText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink)" as string },
+  selectChev: { fontSize: 12, color: "var(--ink-3)" as string, marginLeft: 6 },
   sw: { width: 34, height: 20, borderRadius: 99, padding: 2, backgroundColor: "var(--ink-4)" as string, justifyContent: "center" },
   swOn: { backgroundColor: "var(--accent)" as string },
   knob: { width: 16, height: 16, borderRadius: 99, backgroundColor: "#fff" },
   knobOn: { alignSelf: "flex-end" },
-  seg: { flexDirection: "row", height: 24, padding: 2, borderRadius: 7, backgroundColor: "var(--hover)" as string, flex: 0 },
+  seg: { flexDirection: "row", height: 24, padding: 2, borderRadius: 7, backgroundColor: "var(--hover)" as string, flexShrink: 0 },
   segBtn: { paddingHorizontal: 9, borderRadius: 5, alignItems: "center", justifyContent: "center" },
   segOn: style({ backgroundColor: "var(--raised)", boxShadow: "var(--sh-1)" }),
   segText: { fontSize: 11.5, fontWeight: "500", color: "var(--ink-3)" as string },
@@ -182,6 +216,6 @@ const s = StyleSheet.create({
   note: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 7, paddingHorizontal: 4 },
   noteDot: { width: 6, height: 6, borderRadius: 99 },
   noteText: { flex: 1, minWidth: 0, fontSize: 12.5, lineHeight: 18, color: "var(--ink-2)" as string },
-  dot: { width: 7, height: 7, borderRadius: 99, flex: 0 },
+  dot: { width: 7, height: 7, borderRadius: 99, flexShrink: 0 },
   skeleton: { width: "100%", borderRadius: 6, backgroundColor: "var(--sunk)" as string },
 });

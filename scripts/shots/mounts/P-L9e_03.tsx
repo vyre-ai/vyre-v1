@@ -2,7 +2,7 @@
 // and a tab strip above the view, as in the prototype.
 // ?part=review (default)  the changeset header and the diff of "Docs changed 3 files"; ?repo=1 makes the folder a git repository (commit message and Push), ?protected=1 puts it on a protected main (the Gate row,
 // Approve off), ?panel=discard|request opens the Discard confirm or the Request changes note.
-// ?part=git  the git row; ?part=history  AGENT.md's versions; ?part=lint  AGENT.md with its header, lint chips, suggestion card and body; ?part=form  agent.toml in the Form view with an edit and the diff before the save.
+// ?part=git  the git row; ?part=history  AGENT.md with its History pane open and an older version showing under the banner; ?part=lint  AGENT.md with its header, lint chips, suggestion card and body; ?part=form  agent.toml in the Form view with an edit and the diff before the save.
 // The query is read after mount (rule 25): the static export keeps its pre-rendered markup, so a first-render read shows stale state.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -10,7 +10,7 @@ import { ScrollView, View, useWindowDimensions } from "react-native";
 import { TabStrip } from "../../../ui/src/TabStrip/index.tsx";
 import { createSampleFiles, harbor as filesHarbor, northwind as filesNorthwind } from "../../../apps/app/src/places/files/list/sample.ts";
 import { FilesDataProvider, FilesStateProvider, FilesTree } from "../../../apps/app/src/places/files/tree/index.ts";
-import { AgentFileEditor, AgentFilePage, ChangesetDiff, ChangesetHeader, GitRow, HistoryPanel, ReviewDataProvider } from "../../../apps/app/src/places/files/review/index.ts";
+import { AgentFileEditor, AgentFilePage, ChangesetDiff, ChangesetHeader, GitRow, ReviewDataProvider } from "../../../apps/app/src/places/files/review/index.ts";
 import { AGENT_MD, AGENT_TOML, createSampleReview } from "../../../apps/app/src/places/files/review/sample.ts";
 
 export const title = "Files: review";
@@ -32,7 +32,7 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
   const density = phone ? "compact" : "regular";
   let body: ReactNode;
   if (part === "git") body = <GitRow folderId={sample.folderId} />;
-  else if (part === "history") body = <HistoryPanel fileId={sample.fileIds.agent} density={density} />;
+  else if (part === "history") body = <AgentFilePage fileId={sample.fileIds.agent} name="AGENT.md" path="Agents/Intake" agentId="agt_intake" saved={AGENT_MD} version={4} density={density} startHistory startViewing="ver_a3" />;
   else if (part === "lint") body = <AgentFilePage fileId={sample.fileIds.agent} name="AGENT.md" path="Agents/Intake" agentId="agt_intake" saved={AGENT_MD} version={4} density={density} />;
   else if (part === "form") {
     body = (

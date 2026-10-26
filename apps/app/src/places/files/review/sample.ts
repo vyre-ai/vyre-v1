@@ -6,7 +6,7 @@ import type { FakeReplica, LiveQuery } from "../../../../../../client/src/index.
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { namesFor } from "../../../fixtures/index.ts";
 import type { ReviewCap, ReviewData, ReviewNav } from "./data.tsx";
-import { LINE_LIMITS, tomlKind } from "./model.ts";
+import { LINE_LIMITS, applySuggestion, tomlKind } from "./model.ts";
 import type { Changeset, ChangesetFile, DiffOut, LintOut } from "./model.ts";
 
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
@@ -273,7 +273,12 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
       touch();
       return { versionId: next.versionId, n: next.n, lint, added: Math.max(0, i.text.split("\n").length - top.text.split("\n").length), removed: 0 };
     },
-    "agents.suggestion.accept": () => { suggestion.state = "accepted"; touch(); return { suggestion: { ...suggestion } }; },
+    "agents.suggestion.accept": () => {
+      suggestion.state = "accepted";
+      const vs = versions.get(ids.agent) ?? [];
+      const top = vs[vs.length - 1] as Version;
+      vs.push({ versionId: `ver_${ids.agent}_${vs.length + 1}`, n: top.n + 1, by: "agt_intake", at: SAMPLE_NOW, reason: "Applied Intake's suggestion", text: applySuggestion(top.text, suggestion.diff) });
+      touch(); return { suggestion: { ...suggestion } }; },
     "agents.suggestion.dismiss": () => { suggestion.state = "dismissed"; touch(); return { suggestion: { ...suggestion } }; },
     "git.branch": (i: CapMap["git.branch"]["in"]) => { git.branch = i.name; git.prot = i.name === "main"; touch(); return { branch: i.name }; },
     "git.push": () => { git.ahead = 0; touch(); return { pushed: true, sha: "b2e4d3f" }; },
@@ -289,8 +294,6 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
     compare: (fileId, from, to) => void navLog.push({ cap: "compare", args: [fileId, from, to] }),
     openCommit: (folderId, sha) => void navLog.push({ cap: "openCommit", args: [folderId, sha] }),
     settled: (id, state) => void navLog.push({ cap: "settled", args: [id, state] }),
-    openHistory: (id) => void navLog.push({ cap: "openHistory", args: [id] }),
-    findInFile: (id) => void navLog.push({ cap: "findInFile", args: [id] }),
     ask: (agentId, mode, about) => void navLog.push({ cap: "ask", args: [agentId, mode, about] }),
   };
   const data: ReviewData = {

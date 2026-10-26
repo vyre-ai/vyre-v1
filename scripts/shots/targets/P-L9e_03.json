@@ -37,7 +37,7 @@
       "id": "P-L9e_03-history",
       "route": "/m/P-L9e_03?part=history",
       "proto": "files,at:versions,{skin}",
-      "waitFor": "[data-testid='history-tab']",
+      "waitFor": "[data-testid='version-banner']",
       "note": "AGENT.md's history: four versions newest first with who and why, the named version, Compare, Restore this version and Name this version. The prototype side is the file's versions column. Shown inside the Files place (sidebar and tab strip), as in the prototype.",
       "protoSettleMs": 4000
     },

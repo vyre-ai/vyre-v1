@@ -15,9 +15,11 @@ export interface SuggestionCardProps {
   /** "AGENT.md". */
   file: string;
   density?: Density;
+  /** The suggestion was applied: the diff that went into the file, so the editor can show the new text. */
+  onApplied?(diff: string): void;
 }
 
-export function SuggestionCard({ agentId, file, density = "regular" }: SuggestionCardProps): ReactElement | null {
+export function SuggestionCard({ agentId, file, density = "regular", onApplied }: SuggestionCardProps): ReactElement | null {
   const data = useReviewData();
   const q = useCap("agents.suggestions.list", { agentId, kind: "agent_md", state: ["open"] });
   const [busy, setBusy] = useState(false);
@@ -32,6 +34,7 @@ export function SuggestionCard({ agentId, file, density = "regular" }: Suggestio
     const p = what === "apply" ? acceptSuggestion(data.call, open.suggestionId) : dismissSuggestion(data.call, open.suggestionId);
     void p.then((r) => {
       setBusy(false);
+      if (r.ok && what === "apply") onApplied?.(open.diff);
       setLine(r.ok ? { kind: "ok", text: what === "apply" ? `Applied to ${file}. The next version shows in History.` : "Dismissed." } : { kind: "error", text: r.error });
     });
   };
