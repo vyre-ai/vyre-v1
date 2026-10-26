@@ -54,7 +54,8 @@ export async function proposeChange(ctx: AskCtx, input: { resource: ResourceRef;
     const made = asRow(await ctx.call("tasks.create", {
       kind: "review", title: `${name} proposes a change to ${title}`, summary: note || "No note.", why: `Proposed change: ${shown}`,
       assigned: { kind: "person", id: reviewer }, source: { kind: "manual", id },
-      actions: [{ key: "done", label: "Done, I made the change" }, { key: "decline", label: "Decline", note: "optional" }],
+      // a review task offers approve and send_back (registry taskKinds); the labels say what they mean here, and nothing reads the key: the card closes through the proposal's own capabilities
+      actions: [{ key: "approve", label: "Done, I made the change" }, { key: "send_back", label: "Decline", note: "optional" }],
       idempotencyKey: `${id}:${reviewer}`,
     }));
     const taskId = asRow(made?.["task"])?.["id"];
