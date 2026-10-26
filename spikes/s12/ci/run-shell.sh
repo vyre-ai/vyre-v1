@@ -6,15 +6,21 @@ set -u
 APP="$1"; OUT="$2"; mkdir -p "$OUT"
 STATE="$OUT/state.log"
 export VYRE_STATE_FILE="$STATE"
+APP_PID=""
 
 killall_app() {
+  if [ -n "$APP_PID" ]; then
+    if [ "$RUNNER_OS" = "Windows" ]; then powershell -NoProfile -Command "Stop-Process -Id $APP_PID -Force -ErrorAction SilentlyContinue"; else kill "$APP_PID" 2>/dev/null || true; fi
+    APP_PID=""
+  fi
   if [ "$RUNNER_OS" = "Windows" ]; then
-    taskkill //F //IM vyre-desktop.exe >/dev/null 2>&1; taskkill //F //IM vyred.exe >/dev/null 2>&1
+    timeout 10 taskkill //F //IM vyre-desktop.exe >/dev/null 2>&1 || true; timeout 10 taskkill //F //IM vyred.exe >/dev/null 2>&1 || true
   else
-    pkill -f vyre-desktop >/dev/null 2>&1; pkill -x vyred >/dev/null 2>&1
+    pkill -f vyre-desktop >/dev/null 2>&1 || true; pkill -x vyred >/dev/null 2>&1 || true
   fi
   sleep 3
 }
+trap killall_app EXIT INT TERM
 
 shot() {
   if [ "$RUNNER_OS" = "Windows" ]; then
@@ -27,10 +33,13 @@ shot() {
 run() { # $1 = label, $2 = expected replica state
   : > "$STATE"
   "$APP" >"$OUT/app-$1.log" 2>&1 &
+  APP_PID=$!
+  local ready=0
   for _ in $(seq 1 25); do
-    grep -q "replica=" "$STATE" 2>/dev/null && break
+    if grep -q "replica=" "$STATE" 2>/dev/null; then ready=1; break; fi
     sleep 2
   done
+  if [ "$ready" -ne 1 ]; then echo "timed out waiting for replica state"; return 124; fi
   sleep 4
   echo "diag health: $(curl -s -m 3 http://127.0.0.1:47211/health || echo none)"
   ps aux 2>/dev/null | grep -i vyre | grep -v grep | head -5
