@@ -187,6 +187,7 @@ test("a recovery code is burned after five wrong tries, whoever made them: the r
 test("recovery_restore emits only the events its manifest declares, and a wrong proof is a signin.failed", async () => {
   const h = await world();
   const { ctx } = await signedIn(h);
+  await handlers["identity.keys_put"](ctx, { keys: KEYS, reason: "first_device" });
   const wrap = "cmVjb3ZlcnktY2lwaGVydGV4dA==";
   await handlers["identity.recovery_save"](ctx, { personKeyByRecovery: wrap });
   const fresh = { ...KEYS, personKeyByPassword: "cmUtd3JhcHBlZC1ieS1uZXc=", personKeyByRecovery: wrap };
