@@ -14,7 +14,7 @@ import {
   BUILDERS_DIR, BuildPlanError, cacheName, detectPlan, dockerRuntime, ensureDockerignore, exposedPort, gitSource, imageName, procfileWeb, pullRequestOf, safeName,
 } from "../handlers/builders.ts";
 import type { Exec, ExecOptions, ExecResult, FetchSource } from "../handlers/builders.ts";
-import { handlers } from "../impl.ts";
+import { handlers } from "../handlers/index.ts";
 import { harness } from "../fixtures/world.ts";
 
 function repo(files: Record<string, string>): string {

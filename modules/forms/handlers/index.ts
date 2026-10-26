@@ -34,7 +34,9 @@ async function create(ctx: Ctx, input: unknown) {
   if (!RECORD_TYPE.test(recordType)) fail(ctx, "validation.bad_input", "That record type is not valid.", { field: "recordType" });
   if (!KINDS.includes(kind)) fail(ctx, "validation.bad_input", "That kind of form is not known.", { field: "kind" });
   if (kind === "booking") fail(ctx, "validation.precondition_failed", "Make a booking page with bookings.page_create.");
-  return { form: formOut(ctx, insertForm(ctx, { name, recordType, kind })) };
+  const form = insertForm(ctx, { name, recordType, kind });
+  ctx.emit("form.created", `form/${str(form.id)}`, { formId: str(form.id), name, kind });
+  return { form: formOut(ctx, form) };
 }
 
 async function get(ctx: Ctx, input: unknown) {

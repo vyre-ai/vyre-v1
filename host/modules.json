@@ -4,7 +4,7 @@
     {
       "id": "access",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "agents",
@@ -14,7 +14,7 @@
     {
       "id": "audit",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "automations",
@@ -34,7 +34,7 @@
     {
       "id": "campaigns",
       "owner": "L8",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "chat",
@@ -74,7 +74,7 @@
     {
       "id": "devices",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "documents",
@@ -84,7 +84,7 @@
     {
       "id": "email-builder-api",
       "owner": "L8",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "engine",
@@ -94,7 +94,7 @@
     {
       "id": "esign",
       "owner": "L8",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "events",
@@ -109,7 +109,7 @@
     {
       "id": "forms",
       "owner": "L8",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "gate",
@@ -134,7 +134,7 @@
     {
       "id": "governance",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "health",
@@ -149,7 +149,7 @@
     {
       "id": "identity",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "import",
@@ -199,7 +199,7 @@
     {
       "id": "members",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "memory",
@@ -284,12 +284,12 @@
     {
       "id": "settings",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "sites",
       "owner": "L8",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "sources",
@@ -299,7 +299,7 @@
     {
       "id": "spaces",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "steps-core",
@@ -329,7 +329,7 @@
     {
       "id": "templates",
       "owner": "L8",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "terminal",
@@ -349,12 +349,12 @@
     {
       "id": "vault",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "vault-requests",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "zoom",
