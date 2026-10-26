@@ -50,6 +50,9 @@ type Row = Record<string, unknown>;
 const rows = (ctx: Ctx, sql: string, ...a: unknown[]): Row[] => { try { return ctx.db.all(sql, ...a) as Row[]; } catch { return []; } };
 const kept = (r: Row[], type: string, title: string) => ({ count: r.length, sample: r.slice(0, 5).map((x) => ({ type, id: String(x["id"]), title: String(x[title] ?? x["id"]) })), ids: r.slice(0, 500).map((x) => String(x["id"])) });
 export const hostCalls = {
+  /** the folders of the agents a person owns, for the removal wizard to move their ownership with the agents (ruling 88) */
+  "agents.folders_of": (ctx: Ctx, i: { person: string }): { agentId: string; folderId: string }[] =>
+    rows(ctx, `SELECT "id", "folderId" FROM agents_agent WHERE "ownerId" = ? AND "deletedAt" IS NULL`, i.person).map((r) => ({ agentId: String(r["id"]), folderId: String(r["folderId"]) })),
   "agents.owned_by": (ctx: Ctx, i: { person: string }) => ({
     agents: kept(rows(ctx, `SELECT "id", "name" FROM agents_agent WHERE "ownerId" = ? AND "deletedAt" IS NULL`, i.person), "agent", "name"),
     routines: kept(rows(ctx, `SELECT "id", "title" FROM agents_routine WHERE "ownerId" = ?`, i.person), "routine", "title"),

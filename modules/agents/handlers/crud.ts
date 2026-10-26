@@ -134,6 +134,10 @@ export async function create(ctx: AgentsCtx, input: {
   if (agentByName(ctx.db, name)) raise(ctx, "validation.duplicate", "An agent with that name already exists.", { name });
   const owner = input.ownerId ?? askerOf(ctx);
   if (!owner.startsWith("usr_")) raise(ctx, "validation.bad_input", "An agent's owner is a person.", { ownerId: owner });
+  // naming someone else as the owner hands them an agent and grants on its folder: that is for whoever manages access (owner and admin, permission access.manage), not for any member
+  if (owner !== askerOf(ctx) && (!ctx.authorize || ctx.authorize({ perm: "access.manage", level: "manage" }, { type: "space", id: ctx.space }).effect !== "allow")) {   // no authorize means no answer: refuse
+    raise(ctx, "permission.no_grant", "Only an owner or an admin can make someone else the owner of an agent.", { ownerId: owner });
+  }
   if (input.limits) for (const [k, v] of Object.entries(input.limits)) if (!LIMIT_KEYS.includes(k as keyof Limits) || typeof v !== "number" || v < 0) raise(ctx, "validation.bad_input", `${k} is not a limit, or is not a number of zero or more.`);
   const config = newConfig({ name, role: input.role, model: input.model, tools: input.tools, limits: input.limits });
   const checked = checkToml(tomlFor(writeConfig({}, config)), { self: name });
@@ -146,6 +150,13 @@ export async function create(ctx: AgentsCtx, input: {
   const starter = template.items.find((i) => i.kind === "file" && i.path === "AGENT.md")?.text;
   const agentMd = starter !== undefined ? starter.replaceAll("{{name}}", name).replaceAll("{{role}}", input.role?.trim() ?? "") : AGENT_MD_DEFAULT(name, input.role);
   const tree = await createTree(ctx, id, name, tomlText, agentMd);
+  // ruling 88: the owner manages the folder from the start, by a grant of their own whoever made it (the asker, when they are the owner, gets the same Manage share), so the owner can approve memory into the agent and edit its files
+  {
+    const grant = call(ctx, "access.share", { resource: { type: "folder", id: tree.folderId }, subject: { kind: "person", id: owner }, level: "manage", source: `agent-owner:${id}`, idempotencyKey: `agent-owner:${id}:${owner}` });
+    // someone else's agent must carry the grant or the call fails; for the asker's own agent the grant only makes explicit what making the folder already gave them
+    if (owner !== askerOf(ctx)) await grant;
+    else await grant.catch((e: unknown) => ctx.log.warn("agent folder grant for the owner was not made", { agentId: id, error: e instanceof Error ? e.message : String(e) }));
+  }
   const rec: AgentRec = {
     id, name, face: input.face?.trim() || slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: input.computer === true,
     templateVersion: await templateVersion(ctx, template), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,

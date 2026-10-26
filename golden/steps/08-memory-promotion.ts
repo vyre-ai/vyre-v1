@@ -49,9 +49,7 @@ export async function runMemory(live: readonly string[]): Promise<{ events: Obse
 }
 
 /** The approver path: a promotion into a layer Noah cannot edit waits as a task for its owner. Helper is Mia's agent. */
-export const APPROVAL_GAPS: Gap[] = [
-  { packet: "P-GF_10", lane: "L7", what: "Mia makes Helper through agents.create (so it has its Agents folder) and still answers 403 on memory.promotion.approve: owning the agent gives no edit on its folder, so memory access (modules/memory/projections.ts makeAccess, authorize edit on agent.folderId) denies the owner" },
-];
+export const APPROVAL_GAPS: Gap[] = [];
 
 export async function runMemoryApproval(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const s = await bootFlowSpace(live);
@@ -61,10 +59,10 @@ export async function runMemoryApproval(live: readonly string[]): Promise<{ even
     // The core seed's agt_helper is a kernel resource with no row in the agents module, so it has no folder to edit. Mia makes the agent through agents.create, which gives it its Agents folder.
     const helper = await trail.step("Mia makes Helper and owns it", async () => {
       const out = expectStatus(await s.call("agents.create", mia, { idempotencyKey: "golden-8b-helper", name: "Helper", role: "Golden flow helper" }), 200, "agents.create");
-      return out.agent.id as string;
+      return out.agent.agentId as string;
     });
     const fact = await trail.step("Noah proposes and accepts a fact", async () => {
-      const out = expectStatus(await s.call("memory.propose_fact", noah, { idempotencyKey: "golden-8b-fact", layer: "person", agentId: "agt_scout", text: TEXT, sourceKind: "manual", sourceRef: "golden-8b" }), 200, "memory.propose_fact");
+      const out = expectStatus(await s.call("memory.propose_fact", noah, { idempotencyKey: "golden-8b-fact", layer: "person", agentId: helper!, text: TEXT, sourceKind: "manual", sourceRef: "golden-8b" }), 200, "memory.propose_fact");
       if (!out.merged) expectStatus(await s.call("memory.fact.accept", noah, { factId: out.fact.factId }), 200, "memory.fact.accept");
       return out.fact.factId as string;
     }, ["Mia makes Helper and owns it"]);

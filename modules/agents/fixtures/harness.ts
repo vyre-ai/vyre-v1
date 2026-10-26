@@ -48,6 +48,8 @@ export function fakeFiles(clock: { t: number }) {
   const agentsRoot = root("Agents");
 
   const handlers: Record<string, Handler> = {
+    // agents.create shares the new folder to an owner who is not the asker (ruling 88): the share is recorded in `calls`
+    "access.share": (i) => ({ grant: { id: "gnt_fake", subject: i["subject"], resource: i["resource"], level: i["level"] } }),
     "files.folder.search": (i) => ({ folders: [...folders.values()].filter((f) => !f.deleted && f.name.toLowerCase().includes(String(i.q).toLowerCase())).map(folderOut) }),
     "files.folder.create": (i, o) => {
       const k = o?.idempotencyKey ? `fc:${o.idempotencyKey}` : undefined;
