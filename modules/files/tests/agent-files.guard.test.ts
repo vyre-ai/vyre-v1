@@ -23,6 +23,7 @@ function world() {
     space: "spc_t", principal: { kind: "person", id: "usr_a" }, trace: { traceId: "t".repeat(32), spanId: "s".repeat(16) }, origin: "api", depth: 0, now: () => (clock += 1000),
     db: { all: (q: string, ...a: unknown[]) => sql.prepare(q).all(...(a as never[])) as unknown[], run: (q: string, ...a: unknown[]) => ({ changes: Number(sql.prepare(q).run(...(a as never[])).changes) }) },
     emit: ((_n: string, _s: string, p: unknown) => ({ payload: p })) as never, call: (async () => ({ rows: [], total: 0 })) as never,
+    seal: { seal(bytes: Uint8Array) { return { keyId: "test", nonce: "test", bytes: Buffer.from(bytes).toString("base64") }; }, unseal(value: { bytes: string }) { return Uint8Array.from(Buffer.from(value.bytes, "base64")); } },
     log: { debug() {}, info() {}, warn() {}, error() {} }, authorize: (() => ({ effect: "allow", reason: "", decisionId: "d" })) as never,
   } as unknown as Ctx;
   return { ctx, sql };
