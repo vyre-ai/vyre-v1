@@ -19,7 +19,7 @@ Give the computer back to the agent
 | HTTP | POST /v1/computers/give_back |
 | MCP tool | computers_give_back (computer) |
 | CLI | none |
-| Emits | computer.given_back |
+| Emits | computer.given_back, computer.recording_saved |
 
 ## Input
 
