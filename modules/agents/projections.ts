@@ -850,8 +850,8 @@ export function visible(ctx: AgentsCtx, id: string, code: ErrorCode = "validatio
   return a;
 }
 
-export async function makeFolder(ctx: AgentsCtx, parentId: string, name: string, key: string): Promise<FolderOut> {
-  return (await call<{ folder: FolderOut }>(ctx, "files.folder.create", { parentId, name, idempotencyKey: key }, { idempotencyKey: key })).folder;
+export async function makeFolder(ctx: AgentsCtx, parentId: string, name: string, key: string, subject?: { kind: "agent"; id: string }): Promise<FolderOut> {
+  return (await call<{ folder: FolderOut }>(ctx, "files.folder.create", { parentId, name, idempotencyKey: key, ...(subject ? { subject } : {}) }, { idempotencyKey: key })).folder;
 }
 export async function makeFile(ctx: AgentsCtx, folderId: string, name: string, text: string, key: string): Promise<FileOut> {
   return (await call<{ file: FileOut }>(ctx, "files.create", { folderId, name, content: { text }, idempotencyKey: key }, { idempotencyKey: key })).file;

@@ -28170,6 +28170,7 @@ export type AgentCreatedPayload = {
   agentId: string;
   name: string;
   ownerId: string;
+  folderId: string;
   templateVersion: number;
 };
 export type AgentDeletedPayload = {

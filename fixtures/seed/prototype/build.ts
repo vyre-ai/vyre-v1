@@ -161,7 +161,7 @@ function handlersFor(spec: SeedSpace, ownerId: string): Record<string, Handler> 
     if (agents.has(id)) throw fail("validation.duplicate", ctx.trace.traceId, { details: { agentId: id } });
     agents.add(id);
     const slug = name.toLowerCase();
-    ctx.emit("agent.created", `agent/${id}`, { agentId: id, name, ownerId: owner, templateVersion: 1 });
+    ctx.emit("agent.created", `agent/${id}`, { agentId: id, name, ownerId: owner, folderId: `fld_${slug}`, templateVersion: 1 });
     return {
       agent: {
         agentId: id, name, face: typeof input.face === "string" ? input.face : slug, status: "awake", ownerId: owner, folderId: `fld_${slug}`,
@@ -297,4 +297,3 @@ export async function bootPrototype(key: SpaceKey, o: BootOptions = {}): Promise
     close: () => { store.close(); fs.rmSync(file, { force: true }); fs.rmSync(`${file}-wal`, { force: true }); fs.rmSync(`${file}-shm`, { force: true }); },
   };
 }
-

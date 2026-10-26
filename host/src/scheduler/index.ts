@@ -88,11 +88,12 @@ export class Scheduler {
     return [...this.jobs.values()].map((j) => ({ name: j.spec.name, running: j.running, runs: j.runs, failures: j.failures, skipped: j.skipped, lastStartedAt: j.lastStartedAt, lastMs: j.lastMs, lastError: j.lastError, nextAt: j.nextAt }));
   }
 
-  start(): void {
+  async start(): Promise<void> {
     if (this.timer) return;
     this.lastTickAt = this.now();
     this.timer = setInterval(() => { void this.tick(); }, this.tickMs);
     this.timer.unref();
+    await this.tick();
   }
 
   async stop(): Promise<void> {

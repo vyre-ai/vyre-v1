@@ -920,7 +920,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     scheduler.add({ name: "schedule.tick", schedule: { everyMs: o.intervals?.tick ?? 1000 }, run: async () => { await queue?.tick(); } });
     scheduler.add({ name: "projections.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await projections?.pump(); } });
     scheduler.add({ name: "hooks.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await hooks?.pump(); } });   // the backstop for a consumer that failed, and for events committed by another process
-    for (const p of hooks?.periodic ?? []) scheduler.add({ name: `hook.${p.name}`, schedule: { everyMs: p.everyMs }, run: async () => { await hooks?.runPeriodic(p.name); } });
+    for (const p of hooks?.periodic ?? []) scheduler.add({ name: `hook.${p.name}`, schedule: { everyMs: p.everyMs, ...(p.immediate ? { immediate: true } : {}) }, run: async () => { await hooks?.runPeriodic(p.name); } });
     scheduler.add({ name: "idempotency.purge", schedule: { daily: { hour: 4, minute: 0 } }, run: async () => { await log?.purgeIdempotency(); } });
   }
 
@@ -963,8 +963,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     });
     return { exited, stop: () => h.close() };
   };
-  const schedulerUnit = (): Promise<RunningUnit> => {
-    scheduler.start();
+  const schedulerUnit = async (): Promise<RunningUnit> => {
+    await scheduler.start();
     return Promise.resolve({ exited: new Promise<UnitExit>(() => {}), stop: () => scheduler.stop() });
   };
 
@@ -1032,4 +1032,3 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     },
   };
 }
-
