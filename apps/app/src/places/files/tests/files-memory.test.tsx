@@ -169,12 +169,17 @@ test("the whole Space draws every agent's notes, still not the personal one", ()
   assert.ok(has(graph(), 'data-testid="graph-agent"'));
 });
 
-test("selecting a node marks it and the notes it links to, for the screen and for a screen reader, and shows its card with Open beside", () => {
+test("selecting a node marks it and the notes it links to, for the screen and for a screen reader, and opens its note in the side pane beside the graph", () => {
   const out = graph({ scope: "space", selected: "elena" });
   assert.equal(count(out, 'aria-selected="true"'), 1, "exactly the selected note says so");
   assert.ok(has(out, 'data-testid="gnode-elena"') && has(out, 'aria-label="Elena Rivera, Clients, 2 links"'));
   assert.equal(count(out, 'data-linked="true"'), 2, "elena links to rivera and prep");
-  assert.ok(has(out, 'data-testid="graph-selected"') && has(out, "Open beside") && has(out, 'data-testid="graph-open"'));
+  assert.ok(has(out, 'data-testid="graph-selected"') && has(out, 'data-testid="side-pane"') && has(out, 'data-testid="viewer"') && has(out, 'data-pane="side"'), "the note is the shared Viewer in the shared SidePane");
+  assert.ok(!has(out, "Open beside") && !has(out, 'data-testid="graph-open"'), "no small card with Open beside any more");
+  assert.ok(has(out, 'data-testid="vw-block-props"') && has(out, ">Client<") && has(out, ">Rivera engagement<") && has(out, "Prefers email over phone calls"), "the property block and the text of the note");
+  assert.ok(has(out, ">Links · 2<") && has(out, "Rivera engagement") && has(out, "Consult prep chat"), "what the note links to");
+  const into = graph({ scope: "space", selected: "rivera" });
+  assert.ok(has(into, 'data-testid="vw-linkedfrom"') && has(into, "Linked from · 1") && has(into, "Elena Rivera"), "and what links to it");
   const none = graph({ scope: "space" });
   assert.equal(count(none, 'aria-selected="true"'), 0);
   assert.equal(count(none, 'data-linked="true"'), 0);
@@ -234,7 +239,7 @@ test("proposed facts are grouped by the layer they would join, newest first, and
   assert.deepEqual(proposedGroups([{ ...facts[0]!, status: "current" }]), [], "only facts that wait");
 });
 
-test("screen: proposed facts are shared Rows with the source under them and Accept and Reject at the right", () => {
+test("screen: proposed facts are shared Rows with the source under them and quiet Accept and Reject text actions at the right", () => {
   const out = proposed();
   assert.ok(has(out, 'data-testid="memory-proposed"') && has(out, ">Proposed<") && has(out, ">5 waiting<"));
   for (const id of ["f1", "f2", "f3", "f4", "f5"]) {
@@ -246,6 +251,7 @@ test("screen: proposed facts are shared Rows with the source under them and Acce
   assert.ok(has(out, ">low risk<") || has(out, "low risk"));
   assert.ok(has(out, 'data-testid="proposed-notes"') && has(out, "Rivera contact preferences") && has(out, "memory/proposed/rivera-contact.md"));
   assert.ok(has(out, 'aria-label="Accept: Elena Rivera prefers email over phone calls"'));
+  assert.ok(has(out, "opacity:0"), "on a desktop the actions wait for hover, focus or selection");
   assert.ok(at(out, 'data-testid="layer-project"') < at(out, 'data-testid="layer-space"') && at(out, 'data-testid="layer-space"') < at(out, 'data-testid="layer-agent"'));
 });
 test("accept promotes a fact to the project layer: it becomes current there, leaves the waiting list and the screen follows", async () => {

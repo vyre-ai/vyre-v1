@@ -1,21 +1,24 @@
 // Files > Knowledge > Graph (spec 2.15, 3.5): the notes of an agent's memory (or of the whole Space) as a graph. Nodes are notes, people, clients, projects, sites, decisions, records and chats, one
 // colour per kind; edges are links, relations and "came from"; clusters take the name of their hub. Layers and Kinds filter it from quiet header menus with checkmarks, the time slider asks what the
-// agent believed on a day, Find lights the notes that match, and a node can be dragged: where it was left is saved for this person. Personal layers are never drawn. A click opens the note beside the graph.
+// agent believed on a day, Find lights the notes that match, and a node can be dragged: where it was left is saved for this person. Personal layers are never drawn. A click opens the note in the side pane beside the graph (the shared Viewer: its properties, its text, what it links to and what links to it).
 // The surface is sigma.js over graphology (GraphSurface.tsx); this file is everything around it.
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
+import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
+import { Viewer } from "../../../../../../ui/src/Viewer/index.tsx";
+import type { DocBlock, ViewerGraph } from "../../../../../../ui/src/Viewer/index.tsx";
 import { errorText, exportGraph, saveLayout } from "./actions.ts";
 import { useLive, useMemoryData, useOptionalMemoryData } from "./data.tsx";
 import { GraphSurface } from "./GraphSurface.tsx";
 import type { SurfaceProps } from "./GraphSurface.tsx";
 import {
-  ALL_LAYERS, GRAPH_LAYERS, KINDS, KIND_LABEL, LAYER_LABEL, SLIDER_DAYS, asOfOf, clustersOf, degrees, each, kindColor, layout, matches, shown, sliderText, statText, tabOrder, toggled,
+  ALL_LAYERS, GRAPH_LAYERS, KINDS, KIND_LABEL, LAYER_LABEL, SLIDER_DAYS, asOfOf, clustersOf, degrees, each, layout, matches, shown, sliderText, statText, tabOrder, toggled,
 } from "./model.ts";
-import type { GraphOut, Positions } from "./model.ts";
+import type { GNode, GraphOut, Positions } from "./model.ts";
 import { Icon, QuietButton, pointOf } from "./parts.tsx";
 
 const EMPTY: GraphOut = { nodes: [], edges: [], clusters: [] };
@@ -33,6 +36,35 @@ export interface MemoryGraphProps {
 
 // ---------------------------------------------------------------- the screen
 
+/** The blocks of a note in the Viewer: the property block, the title and text, then Links (the notes it points to). Linked from is drawn by the Viewer from the graph. */
+function noteBlocks(n: GNode, text: string | undefined, links: number, outs: readonly string[]): DocBlock[] {
+  const props = [`Kind\t${KIND_LABEL[n.kind].replace(/s$/, "")}`, ...(n.layer ? [`Layer\t${LAYER_LABEL[n.layer]}`] : []), ...(n.cluster ? [`Cluster\t${n.cluster}`] : []), `Links\t${links}`];
+  const blocks: DocBlock[] = [{ id: "props", tag: "meta", text: props.join("\n") }, { id: "title", tag: "h1", text: n.title }];
+  const lines = (text ?? "").split("\n").filter((x) => x.trim() !== "" && !x.startsWith("# "));
+  lines.forEach((ln, i) => blocks.push(ln.startsWith("- ") ? { id: `b${i}`, tag: "li", text: ln.slice(2) } : ln.startsWith("## ") ? { id: `b${i}`, tag: "h2", text: ln.slice(3) } : { id: `b${i}`, tag: "p", text: ln }));
+  if (outs.length > 0) {
+    blocks.push({ id: "links", tag: "h2", text: `Links · ${outs.length}` });
+    outs.forEach((t, i) => blocks.push({ id: `l${i}`, tag: "li", text: `[[${t}]]` }));
+  }
+  return blocks;
+}
+
+/** The selected note beside the graph: the shared SidePane around the shared Viewer. The text is read with memory.read_note; a note that cannot be read still shows its properties and links. */
+function NotePane({ node, narrow, winW, links, outs, graph, onClose, onOpenLink }: { node: GNode; narrow: boolean; winW: number; links: number; outs: readonly string[]; graph: ViewerGraph; onClose: () => void; onOpenLink: (id: string) => void }): ReactElement {
+  const q = useLive("memory.read_note", { noteId: node.nodeId });
+  const text = q.status === "ready" ? q.data.markdown : undefined;
+  return (
+    <View style={narrow ? m.paneOver : m.paneCol} testID="graph-selected">
+      <SidePane paneKey={narrow ? "memory-note-phone" : "memory-note"} title={node.title} toggle={{ open: true, onPress: onClose }} defaultWidth={narrow ? Math.max(winW, 280) : 380} max={1}>
+        <Viewer
+          key={node.nodeId} fileId={`note:${node.nodeId}`} title={node.title} kind="document" pane="side" blocks={noteBlocks(node, text, links, outs)}
+          graph={graph} nodeId={node.nodeId} onOpenLink={onOpenLink}
+        />
+      </SidePane>
+    </View>
+  );
+}
+
 function GraphBody({ agentId, scope: scope0 = "agent", selected = null, step: step0 = SLIDER_DAYS, find = "" }: MemoryGraphProps): ReactElement {
   const data = useMemoryData();
   const menu = useMenu();
@@ -47,6 +79,7 @@ function GraphBody({ agentId, scope: scope0 = "agent", selected = null, step: st
   const [command, setCommand] = useState<SurfaceProps["command"]>(null);
   const [note, setNote] = useState<string | null>(null);
   const [narrow, setNarrow] = useState(false);
+  const winW = useWindowDimensions().width;
   const now = data.now();
   const asOf = asOfOf(step, now);
   const agentArg = scope === "agent" && agent ? { agentId: agent } : {};
@@ -63,6 +96,10 @@ function GraphBody({ agentId, scope: scope0 = "agent", selected = null, step: st
   const clusters = useMemo(() => clustersOf(s.nodes, s.edges), [s]);
   const lit = useMemo(() => matches(s.nodes, q), [s, q]);
   const selNode = sel ? s.nodes.find((n) => n.nodeId === sel) : undefined;
+  const vgraph = useMemo<ViewerGraph>(() => ({
+    nodes: s.nodes.map((x) => ({ nodeId: x.nodeId, title: x.title, kind: x.kind, ...(x.link ? { link: x.link } : {}) })),
+    edges: s.edges.map((x) => ({ from: x.from, to: x.to, kind: "link" as const })),
+  }), [s]);
   const agentName = data.agents.find((a) => a.id === agent)?.name ?? "Agent";
 
   // a new picture fits the window again; a pan or zoom by the person is kept until then
@@ -160,7 +197,8 @@ function GraphBody({ agentId, scope: scope0 = "agent", selected = null, step: st
         {asOf !== undefined ? <Pressable accessibilityRole="button" testID="graph-now" onPress={() => setStep(SLIDER_DAYS)}><Text style={m.link}>Back to now</Text></Pressable> : null}
       </View>
       {note ? <Text style={m.note} accessibilityRole="alert" testID="graph-note">{note}</Text> : null}
-      <View style={m.wrap} testID="graph-wrap" onLayout={(e: { nativeEvent: { layout: { width: number } } }) => setNarrow(e.nativeEvent.layout.width < 760)}>
+      <View style={m.body} onLayout={(e: { nativeEvent: { layout: { width: number } } }) => setNarrow(e.nativeEvent.layout.width < 760)}>
+      <View style={m.wrap} testID="graph-wrap">
         {empty ? (
           <States kind="empty" title={g.nodes.length > 0 ? "Every note is filtered out." : "No notes to draw yet"} icon="files" {...(g.nodes.length > 0 ? { action: { label: "Show everything", onPress: () => { setLayers(ALL_LAYERS); setKinds(new Set()); setQ(""); } } } : {})} />
         ) : (
@@ -175,15 +213,16 @@ function GraphBody({ agentId, scope: scope0 = "agent", selected = null, step: st
               <Pressable accessibilityRole="button" accessibilityLabel="Zoom out" testID="zoom-out" onPress={() => send("out")} style={m.zBtn}><Icon name="minus" size={14} color="var(--ink-2)" /></Pressable>
               <Pressable accessibilityRole="button" accessibilityLabel="Fit to window" testID="zoom-fit" onPress={() => send("fit")} style={m.zBtn}><Icon name="fit" size={14} color="var(--ink-2)" /></Pressable>
             </View>
-            {selNode ? (
-              <View style={m.card} testID="graph-selected" accessibilityRole="summary">
-                <View style={m.cardHead}><View style={[m.dot, { backgroundColor: kindColor(selNode.kind) }]} /><Text numberOfLines={1} style={m.cardTitle}>{selNode.title}</Text></View>
-                <Text style={m.cardSub}>{`${KIND_LABEL[selNode.kind].replace(/s$/, "")}${selNode.cluster ? ` in ${selNode.cluster}` : ""} · ${deg.get(selNode.nodeId) ?? 0} links`}</Text>
-                <Pressable accessibilityRole="button" testID="graph-open" onPress={() => open(selNode.nodeId)} style={({ hovered }: { hovered?: boolean }) => [m.openBtn, hovered === true && m.over]}><Text style={m.link}>Open beside</Text></Pressable>
-              </View>
-            ) : null}
           </>
         )}
+      </View>
+      {selNode ? (
+        <NotePane
+          node={selNode} narrow={narrow} winW={winW} links={deg.get(selNode.nodeId) ?? 0} graph={vgraph}
+          outs={s.edges.filter((x) => x.from === selNode.nodeId).map((x) => s.nodes.find((y) => y.nodeId === x.to)?.title ?? "").filter((t) => t !== "")}
+          onClose={() => setSel(null)} onOpenLink={(id) => { setSel(id); send("focus", id); }}
+        />
+      ) : null}
       </View>
       <View style={m.foot}>
         <Text style={m.stat} testID="graph-stat">{statText(s, clusters)}</Text>
@@ -217,15 +256,12 @@ const m = StyleSheet.create({
   timeVal: { minWidth: 44, fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string, fontVariant: ["tabular-nums"] },
   link: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
   note: { fontSize: 12.5, color: "var(--ink-2)" as string, paddingHorizontal: 18, paddingVertical: 6 },
-  wrap: { flex: 1, minHeight: 0, overflow: "hidden" },
+  wrap: { flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden" },
   zoom: { position: "absolute", right: 14, bottom: 14, borderRadius: 9, backgroundColor: "var(--raised)" as string, overflow: "hidden", boxShadow: "var(--sh-1), inset 0 0 0 1px var(--line)" } as object,
   zBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  card: { position: "absolute", left: 14, top: 12, maxWidth: 280, padding: 12, gap: 4, borderRadius: 11, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-2), inset 0 0 0 1px var(--line)" } as object,
-  cardHead: { flexDirection: "row", alignItems: "center", gap: 8 },
-  dot: { width: 9, height: 9, borderRadius: 9 },
-  cardTitle: { flexShrink: 1, fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
-  cardSub: { fontSize: 12, color: "var(--ink-3)" as string },
-  openBtn: { alignSelf: "flex-start", height: 24, justifyContent: "center", paddingHorizontal: 6, borderRadius: 6 },
+  body: { flex: 1, minHeight: 0, flexDirection: "row" },
+  paneCol: { flexShrink: 0, minHeight: 0 },
+  paneOver: { position: "absolute", top: 0, right: 0, bottom: 0 },
   foot: { height: 32, flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 18, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   stat: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   cluster: { fontSize: 12, color: "var(--ink-3)" as string },

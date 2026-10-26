@@ -10,6 +10,15 @@ import type { Fact, GNode, GEdge, NoteRow } from "./model.ts";
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const DAY = 86_400_000, HOUR = 3_600_000;
 
+/** The text of a few notes, as memory.read_note returns it (the first line is the title the Viewer draws itself). */
+const NOTE_TEXT: Record<string, string> = {
+  elena: "# Elena Rivera\nNew client, referred by [[Maya Chen]]. Consult booked for Tuesday at 2:00 pm, she works in Pacific time.\n- Prefers email over phone calls\n- Engagement: [[Rivera engagement]]",
+  rivera: "# Rivera engagement\nThe active matter: a will and a power of attorney for [[Elena Rivera]]. Retainer first, then the engagement letter.",
+  fees: "# Fee schedule\nConsult fee $250 standard. Referrals from partner firms are free. Retainers are due before work starts.",
+  vyre: "# VYRE.md\nThe Space's rules, read in every chat. Anything that leaves the Space needs approval first.",
+  script: "# Intake script\nAsk for the matter, the deadline and who referred them. Send the intake form within 5 minutes of a booking.",
+};
+
 export type Variant = "northwind" | "harbor";
 interface SNode extends GNode { born: number; agents: string[] }
 export interface SampleSpace { id: Variant; name: string; agents: { id: string; name: string }[]; nodes: SNode[]; edges: GEdge[]; facts: Fact[]; notes: NoteRow[]; people: Record<string, string> }
@@ -109,6 +118,14 @@ export function createSampleMemory(space: SampleSpace = northwind, o: { fail?: s
     const clusters = [...by].map(([name, list]) => ({ name, hub: list.slice().sort((a, b) => (degree.get(b.nodeId) ?? 0) - (degree.get(a.nodeId) ?? 0))[0]!.nodeId, size: list.length })).sort((a, b) => b.size - a.size);
     return {
       nodes: nodes.map((x) => ({ nodeId: x.nodeId, kind: x.kind, title: x.title, ...(x.layer ? { layer: x.layer } : {}), ...(x.cluster ? { cluster: x.cluster } : {}) })), edges, clusters,
+    };
+  });
+  replica.resolve("memory.read_note", (t, i: Cap<"memory.read_note">["in"]) => {
+    const x = ([...(t.get("nodes")?.values() ?? [])] as unknown as SNode[]).find((y) => y.nodeId === i.noteId);
+    const title = x?.title ?? i.noteId;
+    return {
+      note: { noteId: i.noteId, path: `memory/notes/${i.noteId}.md`, title, layer: x?.layer ?? "agent", updatedAt: (x?.born ?? SAMPLE_NOW) },
+      markdown: NOTE_TEXT[i.noteId] ?? `# ${title}\n${title} is part of ${x?.cluster ?? "the Space"}'s memory. Each fact in it keeps the chat, task or record it came from.`,
     };
   });
   replica.resolve("memory.layout.get", (t, i: Cap<"memory.layout.get">["in"]) => ({ positions: ((t.get("layout")?.get(i.scope) as unknown as { positions: Record<string, { x: number; y: number }> } | undefined)?.positions) ?? {} }));

@@ -51,7 +51,7 @@ function resolve(el: Element, token: string, fallback: string): string {
   return ctx.fillStyle;
 }
 
-interface Live { sel: string | null; hover: string | null; lit: ReadonlySet<string>; near: ReadonlySet<string> | null; hubs: ReadonlySet<string>; ink: string; ink3: string; line: string; faint: string; accent: string; edgeInk: string; font: string }
+interface Live { sel: string | null; hover: string | null; lit: ReadonlySet<string>; near: ReadonlySet<string> | null; focus: ReadonlySet<string>; hubs: ReadonlySet<string>; ink: string; ink3: string; line: string; faint: string; accent: string; edgeInk: string; font: string }
 
 /** How many of the most linked notes keep their name on screen when nothing is selected. */
 const HUBS = 12;
@@ -62,7 +62,7 @@ export function GraphSurface(p: SurfaceProps): ReactElement | null {
   const el = useRef<HTMLElement | null>(null);
   const sigma = useRef<Sigma | null>(null);
   const graph = useRef<Graph | null>(null);
-  const live = useRef<Live>({ sel: null, hover: null, lit: new Set(), near: null, hubs: new Set(), ink: "#555555", ink3: "#777777", line: "#cccccc", faint: "#aaaaaa", accent: "#5b50e8", edgeInk: "#a1a1aa", font: "sans-serif" });
+  const live = useRef<Live>({ sel: null, hover: null, lit: new Set(), near: null, focus: new Set(), hubs: new Set(), ink: "#555555", ink3: "#777777", line: "#cccccc", faint: "#aaaaaa", accent: "#5b50e8", edgeInk: "#a1a1aa", font: "sans-serif" });
   const props = useRef(p);
   props.current = p;
   const [failed, setFailed] = useState<string | null>(null);
@@ -87,7 +87,8 @@ export function GraphSurface(p: SurfaceProps): ReactElement | null {
             const s = live.current;
             const dim = (s.near !== null && !s.near.has(id)) || (s.lit.size > 0 && !s.lit.has(id));
             const on = s.sel === id || s.hover === id;
-            return { ...d, color: dim ? fade(d.color, s.faint) : d.color, label: dim && !s.lit.has(id) ? "" : d.label, forceLabel: on || s.lit.has(id) || (!dim && s.hubs.has(id)), highlighted: s.sel === id, zIndex: on ? 2 : dim ? 0 : 1 };
+            const named = s.focus.has(id);
+            return { ...d, color: dim ? fade(d.color, s.faint) : d.color, label: dim && !s.lit.has(id) && !named ? "" : d.label, forceLabel: on || named || s.lit.has(id) || (!dim && s.hubs.has(id)), highlighted: s.sel === id, zIndex: on ? 2 : dim ? 0 : 1 };
           },
           edgeReducer: (id, d) => {
             const s = live.current;
@@ -182,8 +183,13 @@ export function GraphSurface(p: SurfaceProps): ReactElement | null {
     live.current.sel = p.sel;
     live.current.lit = p.lit;
     live.current.near = p.sel ? neighborsOf(p.sel, p.edges) : null;
+    // every note in the selected note's cluster keeps its name, and so do the ones it links to
+    const focus = new Set<string>(live.current.near ?? []);
+    const home = p.sel ? p.nodes.find((n) => n.nodeId === p.sel)?.cluster : undefined;
+    if (home) for (const n of p.nodes) if (n.cluster === home) focus.add(n.nodeId);
+    live.current.focus = focus;
     r?.refresh({ skipIndexation: true });
-  }, [p.sel, p.lit, p.edges, ready]);
+  }, [p.sel, p.lit, p.edges, p.nodes, ready]);
 
   // zoom buttons, keys and focus
   useEffect(() => {

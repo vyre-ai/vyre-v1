@@ -1,9 +1,9 @@
 // Files > Knowledge > Proposed (spec 2.15): the facts an agent has proposed and nobody has decided on yet. Grouped by the layer each would join; every row is the shared ui/Row with the fact as its
-// title, where it came from under it, and Accept and Reject at its right (also in its right-click menu). Accepting makes the fact current in the layer it was proposed for, with the person's name and
+// title, where it came from under it, and Accept (accent text) and Reject (plain text) at its right, shown on hover, focus or selection on a desktop and always on a phone (also in its right-click menu). Accepting makes the fact current in the layer it was proposed for, with the person's name and
 // time; rejecting closes it off and keeps it in history. A group has Accept all. Notes waiting in memory/proposed are listed beneath, to open.
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
@@ -18,21 +18,25 @@ export interface MemoryProposedProps { agentId?: string }
 interface Said { text: string; tone: "ok" | "bad" }
 
 /** One proposed fact. Named Row because the rows lint reads a list item by that name; it is the shared ui/Row with Accept and Reject in its trailing slot. */
-function FactRow({ fact, busy, onAccept, onReject, onOpen, now, who }: { fact: Fact; busy: boolean; onAccept: () => void; onReject: () => void; onOpen: () => void; now: number; who: (id: string) => string }): ReactElement {
+function FactRow({ fact, busy, selected, onSelect, onAccept, onReject, onOpen, now, who }: { fact: Fact; busy: boolean; selected: boolean; onSelect: () => void; onAccept: () => void; onReject: () => void; onOpen: () => void; now: number; who: (id: string) => string }): ReactElement {
   const menu = useMenu();
+  const [over, setOver] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const width = useWindowDimensions().width;
+  const shown = (width > 0 && width < 720) || over || focused || selected;
   const trig = menuTrigger((x, y) => menu.show([{ label: "Accept", onSelect: onAccept }, { label: "Reject", onSelect: onReject }, { separator: true }, { label: "Open Source", onSelect: onOpen }], x, y));
   const from = `From ${SOURCE_LABEL[fact.sourceKind]}${fact.layer === "person" ? "" : ` of ${who(fact.ownerRef)}`} · ${ago(fact.learnedAt, now)}${fact.lowRisk === true ? " · low risk" : ""}`;
   return (
-    <View testID={`fact-${fact.factId}`} {...(trig as object)}>
+    <View testID={`fact-${fact.factId}`} onPointerEnter={() => setOver(true)} onPointerLeave={() => setOver(false)} {...(trig as object)}>
       <Row
-        id={`fact:${fact.factId}`} title={fact.text} note={from} onPress={onOpen}
+        id={`fact:${fact.factId}`} title={fact.text} note={from} selected={selected} onPress={() => { onSelect(); onOpen(); }}
         leading={<Icon name="note" size={16} color="var(--ink-3)" />}
         trailing={(
-          <View style={p.acts}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Accept: ${fact.text}`} accessibilityState={{ disabled: busy }} disabled={busy} testID={`accept-${fact.factId}`} onPress={onAccept} style={({ hovered }: { hovered?: boolean }) => [p.accept, hovered === true && p.acceptOver]}>
-              <Icon name="check" size={13} color="var(--accent-ink)" width={1.8} /><Text style={p.acceptText}>Accept</Text>
+          <View style={[p.acts, !shown && HIDDEN]}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Accept: ${fact.text}`} accessibilityState={{ disabled: busy }} disabled={busy} testID={`accept-${fact.factId}`} onPress={onAccept} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={({ hovered }: { hovered?: boolean }) => [p.accept, hovered === true && p.acceptOver]}>
+              <Text style={p.acceptText}>Accept</Text>
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Reject: ${fact.text}`} accessibilityState={{ disabled: busy }} disabled={busy} testID={`reject-${fact.factId}`} onPress={onReject} style={({ hovered }: { hovered?: boolean }) => [p.reject, hovered === true && p.rejectOver]}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Reject: ${fact.text}`} accessibilityState={{ disabled: busy }} disabled={busy} testID={`reject-${fact.factId}`} onPress={onReject} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={({ hovered }: { hovered?: boolean }) => [p.reject, hovered === true && p.rejectOver]}>
               <Text style={p.rejectText}>Reject</Text>
             </Pressable>
           </View>
@@ -47,6 +51,7 @@ export function MemoryProposedBody({ agentId }: MemoryProposedProps): ReactEleme
   const data = useMemoryData();
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
   const [said, setSaid] = useState<Said | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
   const now = data.now();
   const fq = useLive("memory.facts.list", { ...(agentId ? { agentId } : {}), status: ["proposed"] });
   const nq = useLive("memory.notes.list", { ...(agentId ? { agentId } : {}), area: "proposed" });
@@ -67,7 +72,7 @@ export function MemoryProposedBody({ agentId }: MemoryProposedProps): ReactEleme
   const body: ReactElement[] = [];
   for (const g of groups) {
     const rows: ReactElement[] = [];
-    for (const f of g.facts) rows.push(<FactRow key={f.factId} fact={f} busy={busy.has(f.factId)} now={now} who={data.nameOf} onAccept={() => decide(f, true)} onReject={() => decide(f, false)} onOpen={() => data.nav.openSource(f.sourceLink ?? f.sourceRef)} />);
+    for (const f of g.facts) rows.push(<FactRow key={f.factId} fact={f} busy={busy.has(f.factId)} selected={picked === f.factId} onSelect={() => setPicked(f.factId)} now={now} who={data.nameOf} onAccept={() => decide(f, true)} onReject={() => decide(f, false)} onOpen={() => data.nav.openSource(f.sourceLink ?? f.sourceRef)} />);
     body.push(
       <View key={g.layer} testID={`layer-${g.layer}`} accessibilityRole="list" accessibilityLabel={`Proposed for ${LAYER_LABEL[g.layer]}`}>
         <View style={p.gh}>
@@ -117,6 +122,9 @@ export function MemoryProposed(props: MemoryProposedProps): ReactElement {
   return <MemoryProposedBody {...props} />;
 }
 
+/** A plain object (not a StyleSheet id) so the hidden state is in the element's inline style. */
+const HIDDEN = { opacity: 0 };
+
 const p = StyleSheet.create({
   main: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
@@ -134,9 +142,9 @@ const p = StyleSheet.create({
   allOver: { backgroundColor: "var(--hover)" as string },
   allText: { fontSize: 12, fontWeight: "500", color: "var(--accent)" as string },
   acts: { flexDirection: "row", alignItems: "center", gap: 6 },
-  accept: { height: 24, paddingHorizontal: 9, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "var(--accent)" as string },
-  acceptOver: { opacity: 0.9 },
-  acceptText: { fontSize: 12, fontWeight: "500", color: "var(--accent-ink)" as string },
+  accept: { height: 24, paddingHorizontal: 8, borderRadius: 6, justifyContent: "center" },
+  acceptOver: { backgroundColor: "var(--hover)" as string },
+  acceptText: { fontSize: 12, fontWeight: "500", color: "var(--accent)" as string },
   reject: { height: 24, paddingHorizontal: 9, borderRadius: 6, justifyContent: "center" },
   rejectOver: { backgroundColor: "var(--hover)" as string },
   rejectText: { fontSize: 12, fontWeight: "500", color: "var(--ink-2)" as string },

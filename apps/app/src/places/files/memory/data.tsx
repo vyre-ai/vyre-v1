@@ -4,7 +4,7 @@ import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 
-export type LiveCap = "memory.graph" | "memory.layout.get" | "memory.facts.list" | "memory.notes.list";
+export type LiveCap = "memory.graph" | "memory.layout.get" | "memory.facts.list" | "memory.notes.list" | "memory.read_note";
 
 export interface MemoryNav {
   /** A note opens beside the graph (a person, a client, a project, a decision, a record or a chat opens its own place). */
