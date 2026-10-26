@@ -334,8 +334,9 @@ export function safeBitmapUrl(url: string | undefined): string | null {
 export function faceRule(name: string, bitmap?: string): string {
   const url = safeBitmapUrl(bitmap);
   const m = marbleSpec(name);
-  const image = url !== null ? `url("${url}")` : marbleGradient(name);
-  return `.${faceClassOf(name)}{width:18px;height:18px;flex:none;border-radius:9px;background-color:${m.base};background-image:${image};background-size:cover}`;
+  // `background` shorthand: the base colour under the bitmap, or the gradient (which ends in the base colour); never background-image with a colour in it
+  const background = url !== null ? `${m.base} url("${url}") center / cover no-repeat` : marbleGradient(name);
+  return `.${faceClassOf(name)}{width:18px;height:18px;flex:none;border-radius:9px;background:${background}}`;
 }
 
 /**
