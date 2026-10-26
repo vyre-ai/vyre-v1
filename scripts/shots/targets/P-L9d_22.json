@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-L9d_22-records-sidebar",
+      "route": "/m/P-L9d_22",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='records-count']",
+      "note": "The Records place in the shell with its sidebar in the shared place sidebar: the Records title, collapse button and Search records field from the slot, then the record types with counts in their groups, a Sites group, saved views and Manage, beside the Clients table. On a phone the sidebar is the list before the table. The prototype side is its Records place in the same skin."
+    }
+  ]
+}

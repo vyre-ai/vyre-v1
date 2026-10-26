@@ -59,3 +59,9 @@ test("portalInto draws nothing without a target or off the web, so a place whose
   assert.equal(portalInto(null, "x"), null);
   assert.equal(portalInto(undefined, "x"), null);
 });
+
+test("the slot's header has a spot for the place's own buttons between the title and the collapse button (Chats: the assistant's new chat)", () => {
+  const html = renderToStaticMarkup(<SidebarSlotProvider {...props} compact={false} initialEntry={{ title: "Chats", searchPlaceholder: "Search chats" }}><SidebarSlot /></SidebarSlotProvider>);
+  const at = (id: string): number => html.indexOf(`data-testid="${id}"`);
+  assert.ok(at("sidebar-actions") > html.indexOf(">Chats<") && at("sidebar-actions") < at("sidebar-collapse"));
+});

@@ -419,11 +419,11 @@ async function list(ctx: Ctx, input: unknown): Promise<{ changesets: Record<stri
   return out;
 }
 
-async function get(ctx: Ctx, input: unknown): Promise<{ changeset: Record<string, unknown>; files: { path: string; status: Status; added: number; removed: number; conflict: boolean }[] }> {
+async function get(ctx: Ctx, input: unknown): Promise<{ changeset: Record<string, unknown>; files: { path: string; fileId?: string; status: Status; added: number; removed: number; conflict: boolean }[] }> {
   const cs = mustChangeset(ctx, reqStr(ctx, record(ctx, input), "changesetId"));
   return {
     changeset: rowOut(ctx, cs),
-    files: filesOf(ctx, String(cs.id)).map((f) => ({ path: String(f.path), status: String(f.status) as Status, added: num(f.added_lines), removed: num(f.removed_lines), conflict: flag(f.conflict) })),
+    files: filesOf(ctx, String(cs.id)).map((f) => ({ path: String(f.path), ...(isNull(f.file_id) || String(f.status) === "added" ? {} : { fileId: String(f.file_id) }), status: String(f.status) as Status, added: num(f.added_lines), removed: num(f.removed_lines), conflict: flag(f.conflict) })),
   };
 }
 
@@ -454,6 +454,8 @@ async function diff(ctx: Ctx, input: unknown) {
   const e = entryOf(ctx, String(cs.id), reqStr(ctx, o, "path"));
   const mode = optStr(ctx, o, "mode");
   if (mode !== undefined && !["unified", "split", "words", "paragraph"].includes(mode)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "mode" });
+  const context = optStr(ctx, o, "context");
+  if (context !== undefined && context !== "hunks" && context !== "full") fail(ctx, "validation.bad_input", "The input is not valid.", { field: "context" });
   const { base, staged } = await sidesOf(ctx, e);
   const identical = base !== undefined && staged !== undefined && same(base, staged);
   const shape = shapeOf(String(e.name), String(e.mime ?? ""), staged ?? base);
@@ -473,7 +475,7 @@ async function diff(ctx: Ctx, input: unknown) {
     kind: paragraphs ? ("paragraph" as const) : ("text" as const),
     added: ops.filter((x) => x.op === "add").length,
     removed: ops.filter((x) => x.op === "del").length,
-    hunks: hunksOf(ops, marks),
+    hunks: hunksOf(ops, marks, context === "full"),
     identical,
   };
 }

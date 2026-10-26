@@ -6,3 +6,5 @@ import { postHandlers } from "./post.ts";
 export const extraHandlers = { ...fileLinkHandlers, ...postHandlers };
 
 export { redeemFileLink } from "./fileLink.ts";
+export { peekLink } from "./peek.ts";
+export type { PeekDb, PeekedLink } from "./peek.ts";

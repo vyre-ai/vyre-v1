@@ -17,10 +17,12 @@ const DAY = 86_400_000;
 
 export type Variant = "northwind" | "harbor";
 
-interface FolderSeed { id: string; name: string; parent: string | null; section: "personal" | "shared" | "space"; shared?: boolean; knowledge?: boolean; git?: boolean }
-interface FileSeed { id: string; name: string; folder: string; kind: FileKind; size: number; ago: number; by: string; source?: string; shared?: boolean; knowledge?: boolean }
+interface FolderSeed { id: string; name: string; parent: string | null; section: "personal" | "shared" | "space"; shared?: boolean; knowledge?: boolean; git?: boolean; rootKey?: string; subject?: { kind: "agent" | "project"; id?: string } }
+interface FileSeed { id: string; name: string; folder: string; kind: FileKind; size: number; ago: number; by: string; source?: string; shared?: boolean; knowledge?: boolean; starred?: boolean; conflict?: boolean; mime?: string }
 
-export interface SampleSpace { id: Variant; name: string; folders: FolderSeed[]; files: FileSeed[]; people: Record<string, string> }
+interface ChangesetSeed { id: string; folder: string; by: string; files: number }
+
+export interface SampleSpace { id: Variant; name: string; folders: FolderSeed[]; files: FileSeed[]; people: Record<string, string>; changesets?: ChangesetSeed[] }
 
 const F = (id: string, name: string, parent: string | null, section: FolderSeed["section"], o: Partial<FolderSeed> = {}): FolderSeed => ({ id, name, parent, section, ...o });
 const f = (id: string, name: string, folder: string, kind: FileKind, size: number, ago: number, by: string, o: Partial<FileSeed> = {}): FileSeed => ({ id, name, folder, kind, size, ago, by, ...o });
@@ -54,6 +56,8 @@ export const northwind: SampleSpace = {
     f("fil_vyre", "VYRE.md", "fld_knowledge", "markdown", 3_800, 12 * HOUR, "usr_irfad", { knowledge: true }),
     f("fil_voice", "Brand voice.md", "fld_knowledge", "markdown", 6_100, 5 * DAY, "agt_docs", { knowledge: true }),
   ],
+  // Docs staged three writes in Proposals and nothing is saved until they are approved (the prototype's Rivera matter banner)
+  changesets: [{ id: "chg_docs", folder: "fld_proposals", by: "agt_docs", files: 3 }],
 };
 
 export const harbor: SampleSpace = {
@@ -68,10 +72,44 @@ export const harbor: SampleSpace = {
 };
 
 const fileRow = (s: FileSeed): FileRow & Row => ({
-  id: s.id, fileId: s.id, folderId: s.folder, name: s.name, kind: s.kind, mime: "application/octet-stream", size: s.size, version: 1, label: 1, ownerId: s.by,
+  id: s.id, fileId: s.id, folderId: s.folder, name: s.name, kind: s.kind, mime: s.mime ?? "application/octet-stream", size: s.size, version: 1, label: 1, ownerId: s.by,
   createdAt: SAMPLE_NOW - s.ago - DAY, updatedAt: SAMPLE_NOW - s.ago, updatedBy: s.by, ...(s.source ? { source: { mountId: "mnt_1", provider: s.source } } : {}), thumb: s.kind === "image", holds: 0,
+  ...(s.starred === true ? { starred: true } : {}), ...(s.conflict === true ? { conflict: true } : {}),
   ...({ shared: s.shared === true, knowledge: s.knowledge === true } as Record<string, unknown>),
 });
+
+/** The folders Files registers for itself (ruling 65), as the prototype's Space has them: one per agent, one per project, with a subfolder or two. Added with `subjects: true`. */
+const SUBJECT_FOLDERS: FolderSeed[] = [
+  F("fld_agents", "Agents", null, "space", { rootKey: "agents", subject: { kind: "agent" } }),
+  F("fld_ag_assistant", "Assistant", "fld_agents", "space", { subject: { kind: "agent", id: "agt_assistant" } }),
+  F("fld_ag_billing", "Billing", "fld_agents", "space", { subject: { kind: "agent", id: "agt_billing" } }),
+  F("fld_ag_docs", "Docs", "fld_agents", "space", { subject: { kind: "agent", id: "agt_docs" } }),
+  F("fld_ag_intake", "Intake", "fld_agents", "space", { subject: { kind: "agent", id: "agt_intake" } }),
+  F("fld_ag_research", "Research", "fld_agents", "space", { subject: { kind: "agent", id: "agt_research" } }),
+  F("fld_ag_scout", "Scout", "fld_agents", "space", { subject: { kind: "agent", id: "agt_scout" } }),
+  F("fld_projects", "Projects", null, "space", { rootKey: "projects", subject: { kind: "project" } }),
+  F("fld_pj_launch", "Northwind launch", "fld_projects", "space", { subject: { kind: "project", id: "pj_launch" } }),
+  F("fld_pj_rivera", "Rivera matter", "fld_projects", "space", { subject: { kind: "project", id: "pj_rivera" } }),
+  F("fld_pj_rivera_docs", "Contracts", "fld_pj_rivera", "space"),
+  F("fld_people", "People", null, "space", { rootKey: "people" }),
+  F("fld_channels", "Channels", null, "space", { rootKey: "channels" }),
+];
+/** What the person starred, and the picture with two edits (the prototype's site photo), in the rich sample (`subjects: true`). */
+const STARRED = new Set(["fil_deck", "fil_rivera"]);
+const CONFLICT = new Set(["fil_logo"]);
+const SUBJECT_FILES: FileSeed[] = [
+  f("fil_ag_notes", "Engagement letter notes.md", "fld_ag_docs", "markdown", 2_900, 4 * HOUR, "agt_docs"),
+  f("fil_ag_comp", "Competitor pricing.md", "fld_ag_research", "markdown", 5_200, 28 * HOUR, "agt_docs"),
+  // the Rivera matter folder as the prototype has it, the folder its Files opens on
+  f("fil_pj_intake", "client-intake.pdf", "fld_pj_rivera", "pdf", 207_000, 3 * HOUR, "agt_intake"),
+  f("fil_pj_prep", "consult-prep.md", "fld_pj_rivera", "markdown", 188, 2.5 * HOUR, "agt_intake"),
+  f("fil_pj_chk", "engagement-checklist.csv", "fld_pj_rivera", "spreadsheet", 900, 16 * HOUR, "usr_lena"),
+  f("fil_pj_id", "id-scan.png", "fld_pj_rivera", "image", 408_000, 17 * HOUR, "usr_maya"),
+  f("fil_pj_onb", "Rivera onboarding plan", "fld_pj_rivera", "document", 2_000, 2.4 * HOUR, "agt_intake"),
+  f("fil_pj_letter", "rivera-engagement-letter.docx", "fld_pj_rivera", "document", 37_000, 1.2 * HOUR, "agt_docs", { starred: true }),
+  f("fil_pj_scan", "site-photo.png", "fld_pj_rivera", "image", 598_000, 0.8 * HOUR, "usr_maya", { conflict: true }),
+  f("fil_pj_plan", "Launch plan.docx", "fld_pj_launch", "document", 41_000, 2 * DAY, "usr_omar"),
+];
 
 const VIA: Record<FolderSeed["section"], FolderNode["via"]> = { personal: "owner", shared: "grant", space: "space" };
 
@@ -82,21 +120,28 @@ export interface SampleFiles {
   calls: { cap: string; input: unknown }[];
   /** what the nav handlers were asked to open */
   opened: string[];
+  /** every press of the pane toggle */
+  paneToggles: number;
   setOnline(online: boolean): void;
 }
 
 type Seeded = FileRow & { deletedAt?: number; shared?: boolean; knowledge?: boolean };
 type FolderSeedRow = FolderSeed & Row;
 
-export function createSampleFiles(space: SampleSpace = northwind, o: { online?: boolean; bulk?: number } = {}): SampleFiles {
+export function createSampleFiles(space: SampleSpace = northwind, o: { online?: boolean; bulk?: number; subjects?: boolean } = {}): SampleFiles {
   const replica = createFakeReplica(space.id);
   const calls: { cap: string; input: unknown }[] = [];
   const opened: string[] = [];
   let online = o.online ?? true;
   const listeners = new Set<() => void>();
 
-  replica.put("folders", space.folders.map((x): FolderSeedRow => ({ ...x, id: x.id })));
-  const files: Row[] = space.files.map((x) => fileRow(x));
+  const folderSeeds = o.subjects === true && space === northwind ? [...SUBJECT_FOLDERS, ...space.folders] : space.folders;
+  replica.put("folders", folderSeeds.map((x): FolderSeedRow => ({ ...x, id: x.id })));
+  // Docs staged three writes in the Rivera matter folder too, where the prototype shows its banner
+  const changesets = o.subjects === true && space === northwind ? [...(space.changesets ?? []), { id: "chg_rivera", folder: "fld_pj_rivera", by: "agt_docs", files: 3 }] : space.changesets ?? [];
+  replica.put("changesets", changesets.map((c) => ({ id: c.id, changesetId: c.id, folderId: c.folder, state: "open", by: c.by, fileCount: c.files, added: c.files * 12, removed: 0, openedAt: SAMPLE_NOW - HOUR, pushPending: false }) as Row));
+  const rich = o.subjects === true && space === northwind;
+  const files: Row[] = (rich ? [...space.files, ...SUBJECT_FILES] : space.files).map((x) => fileRow(rich ? { ...x, ...(STARRED.has(x.id) ? { starred: true } : {}), ...(CONFLICT.has(x.id) ? { conflict: true } : {}) } : x));
   if (o.bulk) {
     const target = space.folders.find((x) => x.section === "space")?.id ?? space.folders[0]!.id;
     for (let i = 0; i < o.bulk; i++) files.push(fileRow({ id: `bulk${i}`, name: `Scan ${String(i).padStart(5, "0")}.pdf`, folder: target, kind: i % 4 === 0 ? "image" : "pdf", size: 10_000 + (i * 37) % 900_000, ago: HOUR + i * 60_000, by: "usr_irfad" }));
@@ -109,7 +154,7 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
   const folderRow = (x: FolderSeed): FolderRow => {
     const kids = allFolders().filter((k) => k.parent === x.id).length;
     const n = allFiles().filter((fl) => live(fl) && fl.folderId === x.id).length;
-    return { folderId: x.id, ...(x.parent ? { parentId: x.parent } : {}), name: x.name, path: x.name, fileCount: n, folderCount: kids, scope: x.section === "space" ? "space" : "personal", label: 1, git: x.git === true, reviewChanges: false };
+    return { folderId: x.id, ...(x.parent ? { parentId: x.parent } : {}), name: x.name, path: x.name, fileCount: n, folderCount: kids, scope: x.section === "space" ? "space" : "personal", label: 1, git: x.git === true, reviewChanges: false, ...(x.subject ? { subject: x.subject } : {}) };
   };
   const strip = (x: Seeded): FileRow => { const { shared: _s, knowledge: _k, ...rest } = x as Seeded & Record<string, unknown>; void _s; void _k; return rest as unknown as FileRow; };
 
@@ -129,12 +174,29 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
     folders: allFolders().filter((x) => x.knowledge === true).map(folderRow), total: 0,
   }));
   replica.resolve("files.trash.list", () => ({ files: allFiles().filter((x) => !live(x)).map(strip), folders: [], total: 0 }));
+  replica.resolve("stars.list", (_t, i) => {
+    const starred = i.type === undefined || i.type === "file" ? allFiles().filter((x) => live(x) && x.starred === true) : [];
+    return { stars: starred.map((x) => ({ resource: { type: "file" as const, id: x.fileId }, title: x.name, at: x.updatedAt })) };
+  });
+  // the preview the viewer shows for a file with a thumbnail: a small picture as a data address (the real one is a signed address on the Space)
+  replica.resolve("files.viewer_data", (_t, i) => {
+    const x = allFiles().find((fl) => fl.fileId === i.fileId);
+    if (!x) throw new Error(`no such file ${i.fileId}`);
+    const hue = [...x.name].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) % 360, 7);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60"><rect width="60" height="60" fill="hsl(${hue},35%,62%)"/><rect y="36" width="60" height="24" fill="hsl(${hue},30%,40%)"/></svg>`;
+    return { file: strip(x), canEdit: false, canMark: false, canComment: true, pins: 0, ...(x.thumb ? { previewUrl: `data:image/svg+xml;base64,${btoa(svg)}` } : {}) };
+  });
+  replica.resolve("changesets.list", (_t, i) => {
+    const rows = replica.rows("changesets") as unknown as (CapMap["changesets.list"]["out"]["changesets"][number] & { id: string })[];
+    const list = rows.filter((c) => (i.folderId === undefined || c.folderId === i.folderId) && (i.state === undefined || c.state === i.state)).map(({ id: _id, ...c }) => c);
+    return { changesets: list, total: list.length };
+  });
   replica.resolve("files.tree", () => ({
     roots: [
       { key: "recent", title: "Recent", kind: "virtual" as const, count: allFiles().filter(live).length },
       { key: "shared", title: "Shared with me", kind: "virtual" as const, count: allFiles().filter((x) => live(x) && x.shared === true).length },
       { key: "trash", title: "Trash", kind: "virtual" as const, count: allFiles().filter((x) => !live(x)).length },
-      ...allFolders().filter((x) => x.parent === null).map((x) => ({ key: x.id, title: x.name, kind: "folder" as const, folderId: x.id, count: folderRow(x).fileCount })),
+      ...allFolders().filter((x) => x.parent === null).map((x) => ({ key: x.rootKey ?? x.id, title: x.name, kind: "folder" as const, folderId: x.id, count: folderRow(x).fileCount, ...(x.subject ? { subject: x.subject } : {}) })),
     ],
   }));
 
@@ -160,6 +222,7 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
   const writes: Record<string, (i: never) => unknown> = {
     "files.move": (i: { fileId: string; toFolderId: string }) => { patchFile(i.fileId, { folderId: i.toFolderId }); return { file: allFiles().find((x) => x.fileId === i.fileId) }; },
     "files.rename": (i: { fileId: string; name: string }) => { patchFile(i.fileId, { name: i.name }); return { file: allFiles().find((x) => x.fileId === i.fileId) }; },
+    "files.star": (i: { fileId: string; starred: boolean }) => { patchFile(i.fileId, { starred: i.starred }); return { file: allFiles().find((x) => x.fileId === i.fileId) }; },
     "files.delete": (i: { fileId: string }) => { patchFile(i.fileId, { deletedAt: SAMPLE_NOW }); return { ok: true }; },
     "files.restore": (i: { fileId: string }) => {
       const cur = allFiles().find((x) => x.fileId === i.fileId);
@@ -172,6 +235,11 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
       return { ok: true };
     },
     "folders.delete": (i: { folderId: string }) => { replica.remove("folders", [i.folderId]); return { ok: true }; },
+    "changesets.approve": (i: { changesetId: string }) => {
+      const cur = (replica.rows("changesets") as unknown as { id: string }[]).find((c) => c.id === i.changesetId);
+      if (cur) replica.put("changesets", [{ ...cur, state: "approved" } as unknown as Row]);
+      return { ok: true };
+    },
   };
 
   const nav: FilesNav = {
@@ -181,7 +249,11 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
     newFolder: (scope, parent) => void opened.push(`new-folder:${scope}:${parent ?? "root"}`),
     openMemory: () => void opened.push("memory"),
     openGraph: () => void opened.push("graph"),
+    upload: (folderId) => void opened.push(`upload:${folderId ?? "root"}`),
+    reviewChanges: (id) => void opened.push(`review:${id}`),
+    resolveConflict: (id) => void opened.push(`resolve:${id}`),
   };
+  const result: SampleFiles = { data: undefined as unknown as FilesData, replica, calls, opened, paneToggles: 0, setOnline(v) { online = v; for (const l of [...listeners]) l(); } };
   const connection: Connection = { get: () => (online ? "online" : "offline"), subscribe: (l) => { listeners.add(l); return () => void listeners.delete(l); } };
 
   const data: FilesData = {
@@ -195,8 +267,10 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
       return w(input as never);
     },
     connection, nav,
+    pane: { open: true, toggle: () => { result.paneToggles += 1; } },
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
     nameOf: (id) => space.people[id] ?? nameOf(space.id, id),
   };
-  return { data, replica, calls, opened, setOnline(v) { online = v; for (const l of [...listeners]) l(); } };
+  result.data = data;
+  return result;
 }

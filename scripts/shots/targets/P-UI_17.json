@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-UI_17-records",
+      "route": "/m/P-L9d_01b?type=clients",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='rec-cl_20']",
+      "note": "The Records clients table with faces beside Name and Owner: the shared marble gradient is a background value now, so the faces are multi-colour marbles and not flat colour dots. The prototype side is its Clients table."
+    }
+  ]
+}

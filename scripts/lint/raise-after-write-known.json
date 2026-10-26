@@ -1,0 +1,22 @@
+{
+  "modules/telephony/handlers/sms.ts#capCheck": "the SMS cap counts the attempt it refuses; the count must survive the refusal",
+  "modules/forms/projections.ts#rateLimit": "the rate limit counts the submission it refuses; the count must survive the refusal",
+  "modules/identity/projections.ts#spendCode": "single-use claim: the conditional UPDATE changes no row when it refuses, and a spent code stays spent",
+  "modules/mcp/handlers/server.ts#tokenRegister": "single-use claim: the conditional UPDATE changes no row when it refuses",
+  "modules/members/handlers/invite.ts#accept": "single-use claim: the conditional UPDATE changes no row when it refuses",
+  "modules/portal/handlers/accounts.ts#redeem": "single-use link: a link used once stays used even when the redeem is refused afterwards",
+  "modules/calendar/handlers/events.ts#syncNow": "records the attempt: lastTryAt is written first and the refusal sits inside its own try, whose catch stores lastError",
+  "modules/computers/handlers/lifecycle.ts#provision": "the catch deletes the computer row it just inserted before it raises",
+  "modules/connectors/handlers/connections.ts#connections.complete_auth": "single-use sign-in link: the oauth state row is deleted first, so an expired link stays burned",
+  "modules/connectors/handlers/runtime.ts#executeAction": "the request log row (cn_log) is written for every call, refused ones included",
+  "modules/esign/handlers/documenso.ts#hook": "the dedupe row is removed by forget() before the refusal, so the provider retry is not dropped",
+  "modules/google/handlers/workspace.ts#dwdSetup": "the config is saved unconfigured and a failed probe is recorded (lastProbeOk = 0) before it throws",
+  "modules/identity/handlers/keys.ts#recoveryRestore": "failed-attempt counter: a recovery code is burned after too many wrong tries, and the failed sign-in event is written after the failure",
+  "modules/identity/handlers/signin.ts#verifySecondFactor": "failed-attempt counter: the challenge counts the try it refuses",
+  "modules/portal/handlers/accounts.ts#issueLink": "the catch deletes the magic link row it just inserted before it fails",
+  "modules/telephony/handlers/calls.ts#dial": "records the attempt: the call row is marked failed in the catch, then the error goes on",
+  "modules/terminal/handlers/sessions.ts#run": "records the attempt: finish() stores the exit code and emits command_finished before the timeout refusal",
+  "modules/gate/handlers/approve.ts#release": "single-use claim: the conditional UPDATE changes no row when it refuses",
+  "modules/mail/handlers/extra/routes.ts#routeSet": "the write is in the existing-route branch and the refusal in the else branch, which never run together",
+  "modules/sources/handlers/hooks.ts#sources.ingest": "records the attempt: a refused delivery (too large) is stored as a rejected delivery row, and source.rejected is emitted, before the refusal"
+}

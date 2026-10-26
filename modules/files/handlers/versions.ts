@@ -224,7 +224,11 @@ export function addMarks(ops: Op[]): Map<Op, Mark[]> {
   return marks;
 }
 
-export function hunksOf(ops: Op[], marks: Map<Op, Mark[]> | undefined): Hunk[] {
+/**
+ * The changes as hunks with their unchanged lines around them. `full` makes the hunks cover the whole text: the first starts at the top, each starts where the one before ended (so the unchanged lines between two
+ * changes lead the later hunk and are never sent twice) and the last runs to the end. The hunks and their ids are the same as without `full`.
+ */
+export function hunksOf(ops: Op[], marks: Map<Op, Mark[]> | undefined, full = false): Hunk[] {
   const changed: number[] = [];
   ops.forEach((o, idx) => { if (o.op !== "ctx") changed.push(idx); });
   const groups: [number, number][] = [];
@@ -234,8 +238,9 @@ export function hunksOf(ops: Op[], marks: Map<Op, Mark[]> | undefined): Hunk[] {
     else groups.push([idx, idx]);
   }
   return groups.map(([first, last], n) => {
-    const from = Math.max(0, first - CONTEXT);
-    const to = Math.min(ops.length - 1, last + CONTEXT);
+    const prev = groups[n - 1];
+    const from = full ? (prev ? prev[1] + 1 : 0) : Math.max(0, first - CONTEXT);
+    const to = full ? (n === groups.length - 1 ? ops.length - 1 : last) : Math.min(ops.length - 1, last + CONTEXT);
     const slice = ops.slice(from, to + 1);
     const oldLines = slice.filter((o) => o.op !== "add").length;
     const newLines = slice.filter((o) => o.op !== "del").length;

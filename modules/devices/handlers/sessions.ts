@@ -1,5 +1,6 @@
 // Devices and sessions (spec 2.25). Own devices and sessions are the caller's to see and end; anything else needs access.manage (the manifest binds the Space at view and
 // these handlers decide, so a stranger's device reads as missing). Revoking is audited by the invoke pipeline (`audit: always`).
+import { isSystemCall } from "../../../lib/trust.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { DeviceClass, DevicesCtx, EpochReason } from "../projections.ts";
 import {
@@ -109,7 +110,7 @@ export async function register(ctx: DevicesCtx, input: { person: string; name: s
 
 export async function touch(ctx: DevicesCtx, input: { deviceId: string; location?: string }) {
   const d = deviceById(ctx, input.deviceId);
-  if (!d) raise(ctx, "validation.not_found", "no such device");
+  if (!d || (d.person !== ctx.principal.id && !isSystemCall(ctx))) raise(ctx, "validation.not_found", "no such device");   // a person touches only their own devices; a stranger's reads as missing
   if (d.revokedAt !== null) raise(ctx, "auth.device_revoked");
   const now = ctx.now();
   ctx.db.run(`UPDATE devices_device SET lastSeenAt = ?, location = ?, updated_at = ? WHERE id = ?`, now, input.location ?? d.location, now, d.id);
@@ -124,12 +125,14 @@ export async function epoch(ctx: DevicesCtx, _input: Record<string, never>) {
 }
 
 export async function epochBump(ctx: DevicesCtx, input: { person: string; reason: EpochReason }) {
+  // advancing a person's epoch purges their devices: only the server and other modules (members.suspend, a password reset) may, never a direct call from someone else
+  if (!isSystemCall(ctx) && input.person !== ctx.principal.id) raise(ctx, "permission.no_grant", "This is for the server and for other modules, not for a direct call.");
   return { epoch: bumpEpoch(ctx, "person", input.person, input.reason) };
 }
 
 export async function purgeAck(ctx: DevicesCtx, input: { deviceId: string }) {
   const d = deviceById(ctx, input.deviceId);
-  if (!d) raise(ctx, "validation.not_found", "no such device");
+  if (!d || (!mayTouch(ctx, d.person) && !isSystemCall(ctx))) raise(ctx, "validation.not_found", "no such device");   // the person the device belongs to, or whoever manages access when that person was removed, says it is clean
   if (d.revokedAt === null) raise(ctx, "validation.precondition_failed", "only a revoked device is purged");
   if (ctx.db.all(`SELECT device_id FROM devices_purge WHERE device_id = ?`, d.id).length === 0) {
     ctx.db.run(`INSERT INTO devices_purge (device_id, acked_at) VALUES (?, ?)`, d.id, ctx.now());

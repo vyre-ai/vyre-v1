@@ -5,7 +5,7 @@ import { createElement, memo, useCallback, useDeferredValue, useEffect, useMemo,
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
-import { marbleSpec } from "../../../../../../ui/src/Avatar/index.tsx";
+import { cachedFace, currentSkin, faceKey, marbleGradient, marbleInner, requestFace, wrapSvg } from "../../../../../../ui/src/Avatar/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
@@ -19,7 +19,7 @@ import { Scroller } from "./Scroller.tsx";
 import type { ScrollHandle } from "./Scroller.tsx";
 import {
   FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, SCROLL_BLOCK, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, groupable, hasOptions,
-  hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, setSort, sortable, toSaved, toggleHidden, totalWidth,
+  FaceLru, faceClassOf, faceRule, hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, setSort, sortable, toSaved, toggleHidden, totalWidth, safeBitmapUrl,
 } from "./model.ts";
 import { allIds, eachId, recordsWord } from "./bulk.ts";
 import { filterMenuEntries } from "./filtermenu.ts";
@@ -48,7 +48,7 @@ function Cell({ field, row, names }: { field: FieldDef; row: RecordRow; names: (
   if (v === undefined || v === null || v === "") return null;
   if ((field.type === "choice" || field.type === "status") && typeof v === "string") return <Tag field={field} value={v} />;
   if (field.type === "checkbox") return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;
-  if (field.type === "person") return <View style={styles.person}><Face name={names(String(v))} size={18} /><Text numberOfLines={1} style={styles.cellText}>{names(String(v))}</Text></View>;
+  if (field.type === "person") return <View style={styles.person}><Face name={names(String(v))} seedId={String(v)} size={18} /><Text numberOfLines={1} style={styles.cellText}>{names(String(v))}</Text></View>;
   if (field.type === "rating" && typeof v === "number") return <Text style={styles.stars} accessibilityLabel={`${v} of 5`}>{"★".repeat(Math.max(0, Math.min(5, v)))}</Text>;
   return <Text numberOfLines={1} style={[styles.cellText, isNumeric(field) && styles.num, field.type === "sealed" && styles.sealed]}>{cellText(field, v, names)}</Text>;
 }
@@ -162,7 +162,7 @@ const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): 
     },
     createElement("div", { className: "vrt-g" }, String(n)),
     createElement("div", { style: { width: primary.width, height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, boxSizing: "border-box", padding: "0 10px", overflow: "hidden", flex: "none" } },
-      row ? createElement("span", { style: { ...CELL_TEXT, fontWeight: 500 } }, title) : createElement("div", { style: GHOST }),
+      row ? createElement("span", { className: "vrt-p", style: { ...CELL_TEXT, fontWeight: 500 } }, dot(row.id, title, false), title) : createElement("div", { style: GHOST }),
       row && (hot || selected) ? <Pressable accessibilityRole="button" accessibilityLabel="Open record" testID={`open-${row.id}`} onPress={() => onOpen(row.id)} style={styles.xopen}><Glyph name="expand" size={13} color="var(--ink-2)" /></Pressable> : null,
     ),
   );
@@ -210,15 +210,83 @@ function isPlainText(f: FieldDef): boolean {
 }
 
 const dots = new Map<string, Record<string, string | number>>();
-/** A person's face in a cell: a plain disc in the colours of the shared marble (marbleSpec), one cached style per name. The shared Avatar draws a blurred svg, too dear for thirteen cells a row. */
-function dot(name: string): ReactElement {
-  let st = dots.get(name);
-  if (!st) {
-    const m = marbleSpec(name);
-    st = { width: 18, height: 18, flex: "none", borderRadius: 9, background: `radial-gradient(circle at 30% 25%, ${m.c1}, transparent 60%), radial-gradient(circle at 75% 80%, ${m.c2}, transparent 55%), ${m.base}` };
-    dots.set(name, st);
+// the DOM bits the face rules need, typed here because the app's TypeScript config carries no DOM lib
+interface FaceRule { selectorText: string }
+interface FaceSheet { cssRules: { length: number; [i: number]: FaceRule }; insertRule(rule: string, index: number): number; deleteRule(index: number): void }
+interface FaceEl { className: string; getAttribute(name: string): string | null; removeAttribute(name: string): void; setAttribute(name: string, value: string): void }
+interface FaceDoc { createElement(tag: string): { sheet: FaceSheet | null }; head: { appendChild(node: unknown): unknown }; querySelectorAll(selector: string): ArrayLike<FaceEl> }
+/** The faces that have a CSS rule now: an LRU of 400 (the table is virtual, so about forty rows, two or three faces each, are on screen); a full one drops its 40 oldest together. */
+const faceClasses = new FaceLru(400, 40);
+function findRule(sheet: FaceSheet, cls: string): number {
+  for (let i = 0; i < sheet.cssRules.length; i++) if (sheet.cssRules[i]!.selectorText === `.${cls}`) return i;
+  return -1;
+}
+let faceSheet: FaceSheet | null = null;
+const faceDoc = (): FaceDoc | undefined => (globalThis as { document?: FaceDoc }).document;
+/** Makes sure a face has its CSS rule (and asks for its bitmap), moves it to the newest end of the LRU, and returns its class. */
+function ensureFace(doc: FaceDoc, seed: string): string {
+  const cls = faceClassOf(seed);
+  if (faceClasses.has(cls)) {
+    faceClasses.use(cls);
+  } else {
+    if (faceSheet === null) { const el = doc.createElement("style"); doc.head.appendChild(el); faceSheet = el.sheet; }
+    if (faceSheet !== null) {
+      const sheet = faceSheet;
+      for (const old of faceClasses.use(cls).evicted) {
+        const at = findRule(sheet, old);
+        if (at >= 0) sheet.deleteRule(at);
+      }
+      sheet.insertRule(faceRule(seed), sheet.cssRules.length);
+      const key = faceKey(seed, "person", 18, currentSkin());
+      requestFace(key, wrapSvg(marbleInner(seed), "0 0 80 80", 18), 18, () => {
+        // the bitmap replaces the rule: same class, the look with the real marble (a face dropped meanwhile is left alone)
+        const at = findRule(sheet, cls);
+        const url = cachedFace(key);
+        if (at >= 0 && safeBitmapUrl(url) !== null) { sheet.deleteRule(at); sheet.insertRule(faceRule(seed, url), at); }
+      });
+    }
   }
-  return createElement("span", { "aria-hidden": true, "data-testid": `face-${name}`, style: st });
+  return cls;
+}
+
+/**
+ * The idle upgrade of the Name cell faces: while a table scrolls they are plain inline gradients (no rule, no bitmap per record); when scrolling has stopped the ones on screen swap to the real
+ * marble through the shared face rules. Same size, so nothing moves.
+ */
+function upgradeFaces(): void {
+  const doc = faceDoc();
+  if (doc === undefined) return;
+  const found = doc.querySelectorAll("[data-face-seed]");
+  for (let i = 0; i < found.length && i < 160; i++) {
+    const el = found[i]!;
+    const seed = el.getAttribute("data-face-seed");
+    if (seed === null || seed === "") continue;
+    el.className = ensureFace(doc, seed);
+    el.removeAttribute("style");
+    el.removeAttribute("data-face-seed");
+    el.setAttribute("data-face", "real");
+  }
+}
+/** Pause after the last scroll before the Name cell faces upgrade. */
+const FACE_IDLE_MS = 150;
+
+/**
+ * A person's face in a cell, seeded by the id (the person's, or the record's own for the Name cell), never the display name, so two people with one name have two faces and a rename keeps a face.
+ * It is the real marble, drawn once into the shared face cache and then painted as a plain background image; until the bitmap is ready the disc wears the CSS marble gradient. The look is one CSS
+ * rule per face, made when its row is first drawn (the table is virtual, so never for rows off screen), and the rules are an LRU of 400 (FaceLru in model.ts), so a table of 100,000 records holds a few hundred.
+ * When a bitmap lands every cell with that face changes at once and no row re-renders. A page with no document (server render, tests) gets the same disc as an inline style.
+ */
+function dot(seed: string, label: string, shared = true): ReactElement {
+  const doc = faceDoc();
+  if (doc === undefined || !shared) {
+    // no document (server render, tests), or a face that belongs to one record only (the Name cell: a 100,000 row table has 100,000 of them, and the scroll trace put a bitmap and a rule for each
+    // at 50 ms p95): the same marble as a plain inline gradient, built once per seed on the server and per drawn row in the browser, with no rule, no bitmap and no stylesheet write
+    let st = doc === undefined ? dots.get(seed) : undefined;
+    if (!st) { st = { width: 18, height: 18, flex: "none", borderRadius: 9, background: marbleGradient(seed) }; if (doc === undefined) dots.set(seed, st); }
+    return createElement("span", { "aria-hidden": true, "data-testid": `face-${label}`, style: st, ...(doc !== undefined ? { "data-face-seed": seed } : {}) });
+  }
+  const cls = ensureFace(doc, seed);
+  return createElement("span", { "aria-hidden": true, "data-testid": `face-${label}`, className: cls });
 }
 
 function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string, width: number): ReactElement | null {
@@ -236,7 +304,7 @@ function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string,
     return createElement("span", { className: "vrt-chip", style: { "--h": hue, backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)`, color: `color-mix(in srgb, hsl(${hue}, 65%, 50%) 60%, var(--ink))` } }, fit(opt?.title ?? v, width - 27, 6.2));
   }
   if (field.type === "checkbox") return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;
-  if (field.type === "person") return createElement("span", { className: "vrt-p" }, dot(names(String(v))), fit(names(String(v)), width - 25));
+  if (field.type === "person") return createElement("span", { className: "vrt-p" }, dot(String(v), names(String(v))), fit(names(String(v)), width - 25));
   return createElement("span", { className: isNumeric(field) ? "vrt-c vrt-n" : "vrt-c" }, fit(cellText(field, v, names), width));
 }
 
@@ -472,7 +540,14 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   }, [data]);
   const onOpen = data.nav.openRecord;
 
+  const idleFaces = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const upgradeSoon = useCallback((): void => {
+    if (idleFaces.current !== null) clearTimeout(idleFaces.current);
+    idleFaces.current = setTimeout(upgradeFaces, FACE_IDLE_MS);
+  }, []);
+  useEffect(() => { upgradeSoon(); return () => { if (idleFaces.current !== null) clearTimeout(idleFaces.current); }; }, [loaded, upgradeSoon]);
   const onScroll = (pos: { top: number; left: number }): void => {
+    upgradeSoon();
     const top = Math.floor(pos.top / (ROW_H * SCROLL_BLOCK)) * ROW_H * SCROLL_BLOCK;
     const left = Math.floor(pos.left / 40) * 40;
     setScroll((s) => (s.top === top && s.left === left ? s : { top, left }));

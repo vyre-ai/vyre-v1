@@ -123,9 +123,9 @@ export function allProjects(db: Db): Project[] {
   return (db.all("SELECT * FROM projects_project ORDER BY createdAt DESC, projectId DESC") as Row[]).map(toProject);
 }
 
-/** Does the host let the caller do this on the project? Without an authorizer (a hand-built ctx) everything is allowed. */
+/** Does the host let the caller do this on the project? Without an authorizer nothing is allowed: a ctx that cannot ask has no answer to give (P-SEC_10). */
 export function allows(ctx: ProjectsCtx, level: Level, projectId: string): boolean {
-  if (!ctx.authorize) return true;
+  if (!ctx.authorize) return false;
   return ctx.authorize({ perm: null, level }, { type: "project", id: projectId }).effect === "allow";
 }
 /** A project the caller may see, or the same answer as for one that is not there (what exists is not leaked). */

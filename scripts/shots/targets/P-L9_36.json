@@ -1,0 +1,25 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_36-files",
+      "route": "/m/P-L9_36?place=files&open=1",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='shell-rail-bottom']",
+      "note": "Phone: the Files place opened on a folder. The places sit in a bottom bar, there is no tab strip, the header is the folder name with New and a more menu, and each line is a name with one line under it. The prototype side is its Files place."
+    },
+    {
+      "id": "P-L9_36-chats",
+      "route": "/m/P-L9_36?place=chats",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='shell-rail-bottom']",
+      "note": "Phone: the Chats place with the bottom bar and no tab strip; the sidebar is the screen. The prototype side is its Chats place."
+    },
+    {
+      "id": "P-L9_36-records",
+      "route": "/m/P-L9_36?place=records",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='records-head']",
+      "note": "Phone: the Records place as a list of a name with one line each, a header with Find, New and a more menu holding filter, sort and fields, and the bottom bar. The prototype side is its Records place."
+    }
+  ]
+}

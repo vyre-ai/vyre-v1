@@ -57,6 +57,12 @@ export function harness(o: { principal?: string; now?: number } = {}) {
         seq += 1;
         return { folder: { folderId: `fld_site${seq}`, name: inp.name } };
       }
+      if (cap === "access.check") {
+        // the owner's access now: the same levels and hidden resources the caller holds in this world (the owner is the caller)
+        const inp = input as { action: { level: Level }; resource: ResourceRef };
+        const d = ctx.authorize({ perm: null, level: inp.action.level }, inp.resource);
+        return { decision: { effect: d.effect, reason: d.reason, decisionId: d.decisionId } };
+      }
       throw new Error(`unscripted call ${cap}`);
     },
     authorize(action: { perm: string | null; level: Level }, resource: ResourceRef): Decision {

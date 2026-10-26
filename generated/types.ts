@@ -4110,6 +4110,7 @@ export type ChangesetsDiffIn = {
   changesetId: string;
   path: string;
   mode?: "unified" | "split" | "words" | "paragraph";
+  context?: "hunks" | "full";
 };
 export type ChangesetsDiffOut = {
   kind: "text" | "paragraph" | "image" | "binary";
@@ -4177,6 +4178,7 @@ export type ChangesetsGetOut = {
   };
   files: Array<{
       path: string;
+      fileId?: string;
       status: "added" | "modified" | "deleted" | "renamed";
       added: number;
       removed: number;
@@ -11849,7 +11851,17 @@ export type GovernanceTombstonesListOut = {
   next?: string;
   total?: number;
 };
-export type GovernanceTombstonesReapplyIn = Record<string, unknown>;
+export type GovernanceTombstonesReapplyIn = {
+  tombstones?: Array<{
+      id: string;
+      kind: string;
+      subjectType: string;
+      subjectId: string;
+      at: number;
+      by: string;
+      findingId?: string;
+    }>;
+};
 export type GovernanceTombstonesReapplyOut = {
   count: number;
 };
@@ -17885,10 +17897,29 @@ export type ProjectsRescheduleOut = {
 export type ProjectsShareOutIn = {
   projectId: string;
   expiresAt?: number;
+  expiresInDays?: number;
   idempotencyKey: string;
 };
 export type ProjectsShareOutOut = {
   url: string;
+  expiresAt?: number;
+};
+export type ProjectsSharedViewIn = {
+  token: string;
+};
+export type ProjectsSharedViewOut = {
+  title: string;
+  status: string;
+  goal?: string;
+  statusUpdate?: {
+    text: string;
+    at: number;
+  };
+  milestones: Array<{
+      title: string;
+      due?: number;
+      status: string;
+    }>;
   expiresAt?: number;
 };
 export type ProjectsStagesSetIn = {
@@ -17929,6 +17960,13 @@ export type ProjectsUnpinFileIn = {
 };
 export type ProjectsUnpinFileOut = {
   ok: boolean;
+};
+export type ProjectsUnshareOutIn = {
+  projectId: string;
+  url: string;
+};
+export type ProjectsUnshareOutOut = {
+  revoked: boolean;
 };
 export type ProvidersAddIn = {
   providerKey: string;
@@ -27594,10 +27632,12 @@ export interface CapMap {
   "projects.post_update": { in: ProjectsPostUpdateIn; out: ProjectsPostUpdateOut };
   "projects.reschedule": { in: ProjectsRescheduleIn; out: ProjectsRescheduleOut };
   "projects.share_out": { in: ProjectsShareOutIn; out: ProjectsShareOutOut };
+  "projects.shared_view": { in: ProjectsSharedViewIn; out: ProjectsSharedViewOut };
   "projects.stages.set": { in: ProjectsStagesSetIn; out: ProjectsStagesSetOut };
   "projects.templates.list": { in: ProjectsTemplatesListIn; out: ProjectsTemplatesListOut };
   "projects.unlink_tasks": { in: ProjectsUnlinkTasksIn; out: ProjectsUnlinkTasksOut };
   "projects.unpin_file": { in: ProjectsUnpinFileIn; out: ProjectsUnpinFileOut };
+  "projects.unshare_out": { in: ProjectsUnshareOutIn; out: ProjectsUnshareOutOut };
   "providers.add": { in: ProvidersAddIn; out: ProvidersAddOut };
   "providers.catalog": { in: ProvidersCatalogIn; out: ProvidersCatalogOut };
   "providers.list": { in: ProvidersListIn; out: ProvidersListOut };
@@ -30107,6 +30147,9 @@ export type ProjectTasksUnlinkedPayload = {
   fromTaskId: string;
   toTaskId: string;
 };
+export type ProjectUnsharedOutPayload = {
+  projectId: string;
+};
 export type ProjectUpdatePostedPayload = {
   projectId: string;
   by: string;
@@ -31769,6 +31812,7 @@ export interface EventMap {
   "project.task_thread_opened": ProjectTaskThreadOpenedPayload;
   "project.tasks_linked": ProjectTasksLinkedPayload;
   "project.tasks_unlinked": ProjectTasksUnlinkedPayload;
+  "project.unshared_out": ProjectUnsharedOutPayload;
   "project.update_posted": ProjectUpdatePostedPayload;
   "provider.added": ProviderAddedPayload;
   "provider.removed": ProviderRemovedPayload;

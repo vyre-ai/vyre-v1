@@ -37,7 +37,7 @@ export function RoutinesToday(): ReactElement {
           <Text numberOfLines={1} style={s.title}>{r.title}</Text>
           <Text numberOfLines={1} style={[s.sub, subStyle]}>{r.sub}</Text>
         </View>
-        <Face name={p.name(r.agentId)} kind="agent" size={20} />
+        <Face name={p.name(r.agentId)} seedId={r.agentId} kind="agent" size={20} />
       </HRow>,
     );
   }
