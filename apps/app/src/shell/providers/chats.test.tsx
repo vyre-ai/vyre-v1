@@ -27,7 +27,7 @@ function runtime(): { rt: ShellRuntime; calls: { cap: string; input: unknown }[]
   const rt: ShellRuntime = {
     screens, call: async (cap, input) => { calls.push({ cap, input }); return conv.data.call(cap, input); }, connection: conv.data.connection, principals,
     recordTitle: () => undefined, me: PEOPLE[0]!, clock: conv.data.clock,
-    space: { id: "northwind", kind: "team", name: "Northwind" }, assistant: { id: "agt_assistant", name: "Assistant" }, aiConnected: true, calendarConnected: true,
+    space: { id: "northwind", kind: "team", name: "Northwind" }, assistant: { id: "agt_assistant", name: "Assistant" }, aiConnected: true, deferredModules: new Set<string>(), isDeferred: () => false, calendarConnected: true,
     open: (t) => void opened.push(t), openUrl: () => undefined,
   };
   return { rt, calls, opened };

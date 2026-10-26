@@ -11,6 +11,7 @@ import type { PlaceId } from "../rail/kits.ts";
 import type { SpaceDef } from "../spaces/model.ts";
 import { CapError, createCapCaller } from "./caps.ts";
 import type { CapCall, RouteRow } from "./caps.ts";
+import { createDeferred } from "../../../../../client/src/runtime/deferred.ts";
 import { createLiveLink } from "./live.ts";
 import type { LiveLink, LiveStatus } from "./live.ts";
 import { BUILD_REGISTRY_HASH } from "../../../../../client/src/connection/registry-hash.ts";
@@ -127,6 +128,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     (o.screens ?? loadScreens)(),
   ]);
   const space = spaceOut.space;
+  const deferred = createDeferred(who.deferred, who.deferredModules);
   const me: Principal = { id: who.principal.id, name: who.name, kind: "person" };
 
   const hooks = createRemoteScreenHooks({ screens, read: (cap, input) => reach(cap, input) });
@@ -237,6 +239,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     get assistant() { return assistant(); },
     get aiConnected() { return connected(AI_CONNECTORS); },
     get calendarConnected() { return connected(CALENDAR_CONNECTORS); },
+    deferredModules: deferred.deferredModules,
+    isDeferred: deferred.isDeferred,
     open,
     openUrl: (url) => {
       if (o.openUrl) o.openUrl(url);

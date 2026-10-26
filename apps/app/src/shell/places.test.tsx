@@ -38,6 +38,7 @@ function runtimeFor(variant: Variant, seed: boolean, o: { calendarConnected?: bo
     space: { id: sample.replica.spaceId, kind: variant === "personal" ? "personal" : "team", name: sample.extras.space.name },
     assistant: sample.extras.assistant,
     get aiConnected() { return sample.extras.aiConnected; },
+    deferredModules: new Set<string>(), isDeferred: () => false,
     calendarConnected: sample.extras.calendarConnected,
     open: (t) => void opened.push(t),
     openUrl: (u) => void urls.push(u),
