@@ -39,7 +39,7 @@ import type { FetchFn, ProbeName, ProbeResult } from "../platform/probes.ts";
 import { Scheduler } from "../scheduler/index.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
-import { createGateHook } from "./gate-hook.ts";
+import { createGateHook, moduleWhens } from "./gate-hook.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { createComputersFillHost, createFillRoute } from "../seams/computers.ts";
 import { createEngineHost } from "../seams/engine.ts";
@@ -390,6 +390,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             return r.output;
           },
           unseal: (s) => seal.unseal(s), now,
+          evaluators: moduleWhens(loaded.moduleExports, () => db, (cap, input) => system(cap, input)),
           hold: (id) => {
             const r = db?.all("SELECT state, principal_kind, principal_id, acting_for, run_id, thread_id, payload_hash FROM gate_holds WHERE id = ?", id)[0] as
               { state: string; principal_kind: string; principal_id: string; acting_for: string | null; run_id: string | null; thread_id: string | null; payload_hash: string } | undefined;
@@ -513,6 +514,19 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             },
           },
         }),
+        // the files module's root folders are folders in the access projection (ruling 65): one resource.created each, with an id made from the folder's own, so a reboot repeats the same event
+        setFilesHost: () => ({
+          resources: {
+            ensure: async (f: { id: string; type: "folder"; parentId: string | null; ownerId?: string }) => {
+              const r = await spaceLog.appendResult({
+                id: `evt_res_${f.id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: f.id,
+                payload: { id: f.id, type: f.type, parent_id: f.parentId ?? spaceId, label: 0, owner_id: f.ownerId ?? cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 },
+              });
+              if (!r.ok) throw new Error(`could not register the folder: ${r.message}`);
+              if (!r.duplicate) { access.fold(r.event); headSeq = Math.max(headSeq, r.event.seq); }
+            },
+          },
+        }),
         // forms and campaigns build their public links from the address people reach this Space at; unset, the links stay relative
         setFormsHost: () => (cfg.address ? { publicBase: /^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}` } : {}),
         setCampaignsHost: () => (cfg.address ? { publicBase: /^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}` } : {}),
@@ -552,6 +566,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           reader: { source: { read: (q) => spaceLog.read(q), head: async () => (await spaceLog.currentHead()).seq }, access: () => access.snap, owner: () => cfg.owner ?? access.owner() ?? null, now },
           post: { allow: o.seams?.webhookAllow ?? (() => []), now, ...(o.seams?.postFetch ? { fetch: o.seams.postFetch } : {}) },
         }),
+        // the git module: working trees under the data directory; a GitHub token arrives only through ctx.vault.fill (git_credential), which waits on the Vault module (w12a, P-L7_LIVE)
+        setGitHost: () => ({ treesDir: path.join(paths.root, "trees"), takeCredential: () => undefined }),
         ...spaceStoreDrivers(spaceStore),
         configureSpaceAdmin: () => createSpaceAdmin({ access: () => access.snap, owner: () => cfg.owner ?? access.owner() ?? "usr_owner", space: spaceId, db: db!, system, headSeq: () => headSeq }),
         configureSync: () => createSyncSeam({ store: spaceStore, ...(loaded.serving.get("conflicts") === "live" ? { conflicts: { open: (c) => hookRunner.call("conflicts.park", c) as Promise<string>, history: async (e) => { await hookRunner.call("conflicts.record_history", e); } } } : {}), access: () => access.snap, space: spaceId, now, registryHash, invoke: (c, i, seed) => invoke(c, i, seed), keyed: (c, v) => capIndex?.get(c, v)?.idempotency === "key", ...(cfg.address ? { endpoints: () => [{ kind: "direct" as const, url: `wss://${cfg.address}/sync/v1/live` }] } : {}) }),

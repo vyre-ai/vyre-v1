@@ -511,7 +511,8 @@ test("approve with push: commit then push through git; a failed push leaves the 
   assert.deepEqual([res.approved, res.commit], [true, "abc1234"]);
   const gitCalls = ok.k.calls.filter((c) => c.cap.startsWith("git."));
   assert.deepEqual(gitCalls.map((c) => c.cap), ["git.commit", "git.push"]);
-  assert.deepEqual(gitCalls[0]?.input, { folderId: ok.docs, message: "Update plan" });
+  assert.deepEqual(gitCalls[0]?.input, { idempotencyKey: `cs-commit:${cs}`, folderId: ok.docs, message: "Update plan" });
+  assert.deepEqual(gitCalls[1]?.input, { idempotencyKey: `cs-push:${cs}`, folderId: ok.docs }, "the push carries its own key, one per changeset");
   assert.deepEqual(eventsOf(ok.k.events, "changeset.approved").map((e) => (e as { commit?: string }).commit), ["abc1234"]);
 
   const bad = await setup({ "git.commit": { sha: "def5678" }, "git.push": new Error("remote down") });
