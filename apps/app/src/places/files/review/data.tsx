@@ -1,5 +1,5 @@
 // What the review surfaces need from the shell: live queries over the kept copy, the capability door, who is who, where a click goes. The shell fills this in; the screenshot mount and the tests pass their own.
-import { createContext, useCallback, useContext, useMemo, useRef, useSyncExternalStore } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -48,8 +48,19 @@ export interface ReviewData {
 
 const Ctx = createContext<ReviewData | null>(null);
 
+export type ReviewLayout = "unified" | "split";
+const LayoutCtx = createContext<{ layout: ReviewLayout; set(l: ReviewLayout): void }>({ layout: "unified", set: () => undefined });
+
+/** The layout of the open diff (Unified or Split): the page header's switch writes it, the diff reads it. One per provider, so the header and the diff agree wherever the shell puts them. */
+export function useReviewLayout(): [ReviewLayout, (l: ReviewLayout) => void] {
+  const v = useContext(LayoutCtx);
+  return [v.layout, v.set];
+}
+
 export function ReviewDataProvider({ value, children }: { value: ReviewData; children: ReactNode }): ReactElement {
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  const [layout, set] = useState<ReviewLayout>("unified");
+  const lv = useMemo(() => ({ layout, set }), [layout]);
+  return <Ctx.Provider value={value}><LayoutCtx.Provider value={lv}>{children}</LayoutCtx.Provider></Ctx.Provider>;
 }
 
 export function useReviewData(): ReviewData {

@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { DiffTab } from "../../../../../../ui/src/DiffTab/index.tsx";
 import type { Density, DiffFile } from "../../../../../../ui/src/DiffTab/index.tsx";
-import { useCap, useCapMany, useReviewData } from "./data.tsx";
+import { useCap, useCapMany, useReviewData, useReviewLayout } from "./data.tsx";
 import { commentsOf, commitFiles, diffFileOf } from "./model.ts";
 import { Skeleton } from "./parts.tsx";
 
@@ -46,7 +46,7 @@ export interface ChangesetDiffProps {
   path?: string;
 }
 
-/** changesets.get for the files, then changesets.diff for each and the comments: the shared DiffTab, with its file list (name, +added -removed, "image" for a picture) beside the one open file. j and k move between files. */
+/** changesets.get for the files, then changesets.diff for each and the comments: the shared DiffTab in its review form (bare: no toolbar, the page header owns Unified and Split), with its file list (name, +added -removed, "image" for a picture) beside the one open file, headed by that file's row (name, v2 to v3, +added -removed). j and k move between files. */
 export function ChangesetDiff({ changesetId, density = "regular", path }: ChangesetDiffProps): ReactElement {
   const data = useReviewData();
   const cs = useCap("changesets.get", { changesetId });
@@ -59,12 +59,16 @@ export function ChangesetDiff({ changesetId, density = "regular", path }: Change
     return out;
   }, [paths, diffs]);
   const notes = useMemo(() => (comments.status === "ready" ? commentsOf(comments.data.comments, files, data.nameOf) : []), [comments, files, data]);
+  const [layout] = useReviewLayout();
   if (cs.status !== "ready" || !diffs.ready) return <Skeleton height={LOADING_HEIGHT} testID="diff-loading" />;
   if (!files.length) return <Empty text="Nothing to review in this changeset." />;
+  const base = Number(cs.data.changeset.baseVersion);
   return (
     <DiffTab
-      title={data.nameOf(cs.data.changeset.folderId)}
-      layout="unified"
+      key={layout}
+      title={Number.isFinite(base) && base > 0 ? `v${base} \u2192 v${base + 1}` : ""}
+      layout={layout}
+      bare
       wordMarks
       files={files}
       comments={notes}

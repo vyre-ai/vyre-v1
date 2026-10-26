@@ -34,7 +34,8 @@ test("screen: the header reads Docs changed 3 files, Review, with the totals and
   const out = header(s);
   assert.ok(has(text(out), "Docs changed 3 files"), "who and how many");
   assert.ok(has(out, "Review"), "the Review word after the dot");
-  assert.ok(has(out, 'data-testid="changeset-totals"') && has(text(out), "3 files") && has(text(out), "+42") && has(text(out), "−9"), "the totals");
+  assert.ok(has(out, 'data-testid="changeset-totals"') && has(text(out), "3 files") && has(text(out), "+6") && has(text(out), "−4"), "the totals");
+  assert.ok(has(tag(out, "changeset-layout-unified"), 'aria-checked="true"') && has(tag(out, "changeset-layout-split"), 'aria-checked="false"'), "Unified and Split sit in the page header, Unified first");
   for (const label of ["Discard", "Request changes", "Approve and commit", "More"]) assert.ok(has(out, `aria-label="${label}"`), label);
   assert.ok(has(text(out), "Based on version 2 of each file"), "the base version line");
   assert.ok(has(text(out), "Projects/Rivera matter"), "where the changes are");
@@ -221,9 +222,11 @@ test("diff tabs: a changeset's files with their changes and the comment; a versi
   assert.ok(has(out, 'data-testid="changeset-diff"') && has(out, 'data-testid="diff-files"'), "the shared tab with its file list");
   for (const p of ["rivera-engagement-letter.docx", "consult-prep.md", "id-scan.png"]) assert.ok(has(out, `data-testid="row-diff-file-${p}"`), `a line for ${p}`);
   assert.ok(has(tag(out, "row-diff-file-consult-prep.md"), "var(--sel)") && !has(tag(out, "row-diff-file-id-scan.png"), "var(--sel)"), "one file is open, its line carries the quiet selection");
-  assert.ok(has(text(out), "+24 \u22125") && has(text(out), "image"), "each line says its counts, a picture says image");
+  assert.ok(has(text(out), "+2 \u22121") && has(text(out), "+4 \u22123") && has(text(out), "image"), "each line says its counts, a picture says image");
   assert.ok(has(out, 'data-testid="diff-paragraphs"'), "a markdown note reads as prose with word marks, not code lines");
-  assert.ok(has(out, 'data-testid="diff-revert-h_prep"') && has(out, 'data-testid="diff-comment-h_prep"'), "revert and comment on each change");
+  assert.ok(!has(out, 'data-testid="diff-layout-unified"') && !has(out, 'data-testid="diff-wordmarks"'), "the tab has no toolbar of its own, no Word marks button");
+  assert.ok(has(out, 'data-testid="diff-file-header"') && has(text(out), "consult-prep.md") && has(out, 'data-testid="diff-file-toggle"'), "the open file has its header row");
+  assert.ok(has(out, 'data-testid="diff-file-note"') && has(text(out), "v2 \u2192 v3"), "the header says the versions it spans");
   assert.ok(has(out, 'data-testid="diff-note-reply-cmt_1"') && has(text(out), "Reply"), "the comment thread has its Reply link");
   assert.ok(has(text(out), "Ask for a photo ID before the consult."), "an added line");
   assert.ok(has(text(out), "Please put this above the intake form line.") && has(text(out), "Maya Chen"), "the comment sits on its change");
@@ -231,7 +234,12 @@ test("diff tabs: a changeset's files with their changes and the comment; a versi
   const pic = html(s, <ChangesetDiff changesetId={s.changesetId} path="id-scan.png" />);
   assert.ok(has(pic, 'data-testid="diff-image"'), "a picture opens as before and after");
   const letter = html(s, <ChangesetDiff changesetId={s.changesetId} />);
-  assert.ok(has(letter, 'data-testid="diff-para-removed"') && has(letter, 'data-testid="diff-para-added"') && has(text(letter), "Retainer:"), "a letter reads as prose, removed and added paragraphs");
+  assert.ok(has(letter, 'data-testid="diff-para-removed"') && has(letter, 'data-testid="diff-para-added"'), "removed and added paragraphs, struck and filled inline");
+  for (const w of ["Dear Ms. Rivera,", "Thank you for choosing Northwind", "Communication. We reply", "Please sign below"]) assert.ok(has(text(letter), w), `the whole letter reads through: ${w}`);
+  assert.ok(has(letter, 'data-testid="diff-para-context-before"') && has(letter, 'data-testid="diff-para-context-after"'), "unchanged text in full around the changes");
+  assert.ok(!has(text(letter), "Line 6") && !has(letter, 'data-testid="diff-comment-h_date"'), "no hunk boxes");
+  assert.ok(has(letter, 'data-testid="diff-note-cmt_0"') && has(letter, 'data-testid="diff-note-reply-cmt_0"') && has(text(letter), "Can we keep the courtesy line"), "the thread sits in the letter with its Reply link");
+  assert.ok(has(letter, 'data-testid="diff-file-replies"'), "the header counts the replies");
   const one = html(s, <FileDiff fileId={s.fileIds.agent} name="AGENT.md" />);
   assert.ok(has(one, 'data-testid="file-diff"') && has(text(one), "- Promise an outcome."), "a version compare is bare: the changed line in the page");
   assert.ok(!has(one, 'data-testid="diff-revert-'), "no per-change buttons in a version compare");

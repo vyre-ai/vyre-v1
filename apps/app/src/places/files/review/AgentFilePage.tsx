@@ -183,7 +183,7 @@ const st = StyleSheet.create({
   tileText: { fontSize: 9.5, fontWeight: "700", color: "var(--ink-3)" as string, letterSpacing: 0.3 },
   main: { flex: 1, minWidth: 0 },
   head: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" },
-  title: { flex: 1, minWidth: 0, marginRight: 8 },
+  title: { flex: 1, minWidth: 150, marginRight: 8 },
   h2: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },
   meta: { fontSize: 12, color: "var(--ink-3)" as string },
   ver: { flexDirection: "row", alignItems: "center", gap: 4, marginRight: 6 },

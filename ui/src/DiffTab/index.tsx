@@ -371,8 +371,17 @@ function Marked({ segments, mark, style }: { segments: readonly Segment[]; mark:
 }
 
 /** The body of a paragraph change (docx, md): removed paragraphs, then added ones. */
+/** The unchanged text above or below a change in a prose file, as plain paragraphs, so the open file reads as the whole document. */
+function Context({ text, where }: { text: string | undefined; where: "before" | "after" }): ReactElement | null {
+  if (!text) return null;
+  const nodes: ReactNode[] = [];
+  paragraphsOf(text).forEach((p, index) => nodes.push(<View key={index} style={styles.para}><Text style={styles.prose}>{p}</Text></View>));
+  return <View testID={`diff-para-context-${where}`}>{nodes}</View>;
+}
+
 function ParagraphBody({ hunk, marks }: { hunk: DiffHunk; marks: boolean }): ReactElement {
   const nodes: ReactNode[] = [];
+  nodes.push(<Context key="before" text={hunk.before} where="before" />);
   paragraphRows(hunk, marks).forEach((row, index) => {
     nodes.push(
       <View key={index} style={[styles.para, row.kind === "removed" ? styles.lineDel : styles.lineAdd]} testID={`diff-para-${row.kind}`}>
@@ -380,6 +389,7 @@ function ParagraphBody({ hunk, marks }: { hunk: DiffHunk; marks: boolean }): Rea
       </View>,
     );
   });
+  nodes.push(<Context key="after" text={hunk.after} where="after" />);
   return <View testID="diff-paragraphs">{nodes}</View>;
 }
 
@@ -538,6 +548,7 @@ export function DiffTab(props: DiffTabViewProps): ReactElement {
   const [replying, setReplying] = useState<string | null>(null);
   const [imageMode, setImageMode] = useState<"slider" | "side">("slider");
   const [reverted, setReverted] = useState("");
+  const [shut, setShut] = useState<Record<string, boolean>>({});
   const { element: menuElement, show } = useMenu();
 
   useEffect(() => setFiles(props.files), [props.files]);
@@ -678,13 +689,32 @@ export function DiffTab(props: DiffTabViewProps): ReactElement {
           </View>
         ) : null}
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollBody}>
+          {bare && files.length > 1 && file !== null ? (
+            <FileHeader file={file} note={props.title} replies={comments.filter((c) => file.hunks.some((h) => h.id === c.hunkId)).length} shut={shut[file.path] === true} onToggle={() => setShut((m) => ({ ...m, [file.path]: m[file.path] !== true }))} />
+          ) : null}
           {file === null || file.hunks.length === 0
             ? <Text style={styles.empty} testID="diff-empty">No differences</Text>
-            : hunks}
+            : shut[file.path] === true ? null : hunks}
           {reverted !== "" ? <Text style={styles.done} role="status" testID="diff-reverted">{reverted}</Text> : null}
         </ScrollView>
       </View>
       {menuElement}
+    </View>
+  );
+}
+
+/** The open file's header row in a review (a bare tab with several files): chevron, name, the versions it spans (the tab's title), comments, +added -removed. */
+function FileHeader({ file, note, replies, shut, onToggle }: { file: DiffFile; note: string; replies: number; shut: boolean; onToggle: () => void }): ReactElement {
+  return (
+    <View style={styles.fileHead} testID="diff-file-header">
+      <Pressable role="button" aria-label={`${shut ? "Expand" : "Collapse"} ${file.path}`} aria-expanded={!shut} onPress={onToggle} testID="diff-file-toggle" style={styles.fileChev}>
+        <Text style={styles.fileChevText} aria-hidden>{shut ? "\u203a" : "\u2304"}</Text>
+      </Pressable>
+      <Text style={styles.fileName} numberOfLines={1}>{file.path}</Text>
+      {note ? <Text style={styles.fileNote} testID="diff-file-note">{note}</Text> : null}
+      <View style={styles.grow} />
+      {replies > 0 ? <Text style={styles.fileNote} testID="diff-file-replies">{`\u21a9 ${replies}`}</Text> : null}
+      {file.body === "image" ? null : <><Text style={styles.fileAdd}>{`+${file.added}`}</Text><Text style={styles.fileDel}>{`\u2212${file.removed}`}</Text></>}
     </View>
   );
 }
@@ -725,6 +755,13 @@ const styles = StyleSheet.create({
   bodyStack: { flexDirection: "column" },
   files: { width: 220, padding: 8, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
   filesStack: { width: "100%", borderRightWidth: 0, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  fileHead: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 38, paddingHorizontal: 10 },
+  fileChev: { width: 22, height: 22, alignItems: "center", justifyContent: "center" },
+  fileChevText: { fontSize: 14, color: "var(--ink-3)" as string },
+  fileName: { flexShrink: 1, fontFamily: MONO, fontSize: 12.5, fontWeight: "600", color: "var(--ink)" as string },
+  fileNote: { fontSize: 11.5, color: "var(--ink-3)" as string },
+  fileAdd: { fontFamily: MONO, fontSize: 11.5, color: "var(--ok)" as string },
+  fileDel: { fontFamily: MONO, fontSize: 11.5, color: "var(--danger)" as string },
   replyLink: { marginTop: 4, fontSize: 12, color: "var(--accent)" as string },
   fileCounts: { color: "var(--ink-3)" as string, fontSize: 11.5 },
   scroll: { flex: 1 },

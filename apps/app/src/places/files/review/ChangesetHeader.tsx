@@ -8,14 +8,14 @@ import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { approveChangeset, discardChangeset, requestChanges, reviewExternally } from "./actions.ts";
-import { useCap, useReviewData } from "./data.tsx";
+import { useCap, useReviewData, useReviewLayout } from "./data.tsx";
 import { GateRow } from "./GateRow.tsx";
 import { Glyph } from "./icons.tsx";
 import {
   APPROVE_LABEL, approveBlocked, baseLine, blockedReason, changedLine, isOpen, needsGate, requestLabel, settledWords, totalsWords,
 } from "./model.ts";
 import type { GateState, GateView } from "./model.ts";
-import { Btn, IconBtn, Note, Skeleton, Switch, TextField, anchorOf, webProps } from "./parts.tsx";
+import { Btn, IconBtn, Note, Segmented, Skeleton, Switch, TextField, anchorOf, webProps } from "./parts.tsx";
 
 export interface ChangesetHeaderProps {
   changesetId: string;
@@ -45,6 +45,7 @@ export function ChangesetHeader({ changesetId, unsent = 0, panel: startPanel }: 
   const [line, setLine] = useState<Line | null>(null);
   const [gateState, setGateState] = useState<GateState>("waiting");
   const attempt = useRef<string | null>(null);
+  const [layout, setLayout] = useReviewLayout();
   const { element: menu, show } = useMenu();
 
   const push = isRepo && hasRemote && (pushChoice ?? true);
@@ -148,6 +149,7 @@ export function ChangesetHeader({ changesetId, unsent = 0, panel: startPanel }: 
               <Btn label={APPROVE_LABEL} primary disabled={busy || blocked} hint={blockedReason(gate)} onPress={approve} testID="changeset-approve" />
             </>
           ) : null}
+          <Segmented options={[{ id: "unified", label: "Unified" }, { id: "split", label: "Split" }]} value={layout} onChange={setLayout} label="Layout" testID="changeset-layout" />
           <IconBtn label="More" onPress={openMore} menu testID="changeset-more"><Glyph name="more" size={15} color="var(--ink-2)" width={1.8} /></IconBtn>
         </View>
       </View>

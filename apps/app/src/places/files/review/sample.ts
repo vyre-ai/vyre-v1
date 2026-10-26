@@ -59,30 +59,43 @@ const hunk = (hunkId: string, newStart: number, lines: { op: "ctx" | "add" | "de
 interface Seed { by: string; folderId: string; files: ChangesetFile[]; diffs: Record<string, DiffOut>; comments: CapMap["changesets.comments.list"]["out"]["comments"]; added: number; removed: number }
 
 const NORTHWIND: Seed = {
-  by: "agt_docs", folderId: "fld_rivera", added: 42, removed: 9,
+  by: "agt_docs", folderId: "fld_rivera", added: 6, removed: 4,
   files: [
-    { path: "rivera-engagement-letter.docx", status: "modified", added: 18, removed: 4, conflict: false },
-    { path: "consult-prep.md", status: "modified", added: 24, removed: 5, conflict: false },
+    { path: "rivera-engagement-letter.docx", status: "modified", added: 4, removed: 3, conflict: false },
+    { path: "consult-prep.md", status: "modified", added: 2, removed: 1, conflict: false },
     { path: "id-scan.png", status: "added", added: 0, removed: 0, conflict: false },
   ],
   diffs: {
     "rivera-engagement-letter.docx": {
-      kind: "paragraph", added: 18, removed: 4, identical: false,
+      kind: "paragraph", added: 4, removed: 3, identical: false,
       hunks: [
-        hunk("h_fee", 6, [L("ctx", "Scope of work. The firm will represent Elena Rivera in the matter described above."), L("del", "Retainer: $1,500, due on signing."), L("add", "Retainer: $2,400, due on signing, with the balance billed monthly."), L("ctx", "The retainer is held in trust until earned.")]),
-        hunk("h_term", 14, [L("del", "Either party may end this agreement with 14 days notice."), L("add", "Either party may end this agreement with 30 days written notice.")]),
+        hunk("h_date", 1, [
+          L("ctx", "Engagement letter"), L("ctx", ""), L("ctx", "Dear Ms. Rivera,"), L("ctx", ""),
+          L("ctx", "Thank you for choosing Northwind to help with your family matter. This letter sets out the work we will do and how we will work with you."), L("ctx", ""),
+          L("del", "Scope. We will advise you on the parenting plan, prepare the filings the court requires, and attend the hearing set for November 18."),
+          L("add", "Scope. We will advise you on the parenting plan, prepare the filings the court requires, and attend the hearing on November 18 at 9:30 am."),
+        ]),
+        hunk("h_fee", 9, [
+          L("del", "Fees. We will bill for our time as we go and send an invoice at the end of each month."),
+          L("add", "Fees. Our $250 consult fee is waived because you came by referral. After that we bill hourly at the rates below and send an invoice at the end of each month."),
+          L("add", ""), L("add", "Fee schedule. Partner, $320 per hour. Associate, $210 per hour. Paralegal, $95 per hour."),
+          L("ctx", ""), L("ctx", "Communication. We reply to every message within one business day. Urgent matters can be raised by phone."), L("ctx", ""),
+          L("ctx", "Please sign below to confirm that you agree to these terms."),
+        ]),
       ],
     },
     "consult-prep.md": {
-      kind: "text", added: 24, removed: 5, identical: false,
+      kind: "text", added: 2, removed: 1, identical: false,
       hunks: [
         hunk("h_prep", 3, [L("ctx", "## Before the consult"), L("add", "- Ask for a photo ID before the consult."), L("add", "- Confirm the best phone number and the time zone."), L("ctx", "- Send the intake form two days ahead.")]),
-        hunk("h_len", 12, [L("del", "Consults run 30 minutes."), L("add", "Consults run 45 minutes.")]),
       ],
     },
     "id-scan.png": { kind: "image", added: 0, removed: 0, identical: false, hunks: [], images: { left: SVG("#8aa4c8"), right: SVG("#5b7fb0") } },
   },
-  comments: [{ commentId: "cmt_1", changesetId: "cs_rivera", anchor: { kind: "range", path: "consult-prep.md", quote: "Ask for a photo ID" }, text: "Please put this above the intake form line.", by: "usr_maya", at: SAMPLE_NOW - 12 * MIN, resolved: false, mentions: ["agt_docs"] }],
+  comments: [
+    { commentId: "cmt_0", changesetId: "cs_rivera", anchor: { kind: "range", path: "rivera-engagement-letter.docx", quote: "hearing" }, text: "Can we keep the courtesy line about the referral? @Docs", by: "usr_maya", at: SAMPLE_NOW - 30 * MIN, resolved: false, mentions: ["agt_docs"] },
+    { commentId: "cmt_1", changesetId: "cs_rivera", anchor: { kind: "range", path: "consult-prep.md", quote: "Ask for a photo ID" }, text: "Please put this above the intake form line.", by: "usr_maya", at: SAMPLE_NOW - 12 * MIN, resolved: false, mentions: ["agt_docs"] },
+  ],
 };
 
 const HARBOR: Seed = {
