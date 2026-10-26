@@ -45,7 +45,10 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
     }, ["a Journey on leads is designed", "a visitor submits the form with no token"]);
     await trail.step("the project exists with its channel and folder", async () => {
       const list = expectStatus(await s.call("projects.list", admin, {}), 200, "projects.list").projects as { channel?: unknown; folder?: unknown }[];
-      assert.ok(list.some((p) => p.channel && p.folder), `projects ${short(list)}`);
+      // a stage that cannot make its project does not stop the Journey, so when the list is empty say what the pipeline logged about projects on this trace
+      s.d.sink.flush();
+      const logged = s.d.sink.trace(s.trace).logs.filter((l) => JSON.stringify(l.attrs ?? {}).includes("projects.")).map((l) => `${l.msg} ${JSON.stringify(l.attrs)}`).join(" | ");
+      assert.ok(list.some((p) => p.channel && p.folder), `projects ${short(list)}; logged: ${logged || "nothing"}`);
     }, ["the Journey starts on the new lead"]);
     return { events: await s.events(), trail };
   } finally { await s.stop(); }
