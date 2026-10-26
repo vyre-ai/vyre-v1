@@ -37,9 +37,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "record",
-      "create": true,
-      "parent": "/slug"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -75,9 +73,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "record",
-      "create": true,
-      "parent": "/slug"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -779,7 +775,7 @@ export const routes: Route[] = [
     "module": "access",
     "effects": "write",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -7626,7 +7622,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "folder",
+      "type": "email",
       "create": true,
       "parent": "/folderId"
     },

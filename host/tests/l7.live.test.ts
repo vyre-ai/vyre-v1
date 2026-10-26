@@ -47,7 +47,8 @@ const CASES: { module: string; read: [string, unknown]; write?: [string, unknown
   { module: "members", read: ["/v1/members/invites/list", {}], write: ["/v1/members/invites/create", { role: "ROLE", idempotencyKey: "l7-live-invite" }], refused: ["/v1/members/invites/list", {}] },
   { module: "settings", read: ["/v1/settings/list", {}], write: ["/v1/settings/set", { key: "appearance.density", value: "compact" }], refused: ["/v1/settings/set_space", { key: "access.review_every_days", value: 30 }] },
   { module: "vault", read: ["/v1/vault/items/list", {}], write: ["/v1/vault/folders/create", { name: "L7 live folder", scope: "shared", idempotencyKey: "l7-live-vault-folder" }], refused: ["/v1/vault/exports/list", {}] },
-  { module: "vault-requests", read: ["/v1/vault/requests/list", {}], refused: undefined },   // a request is decided by the folder's managers, and the seeded Space has none for an unplaced name: only the read is proved here
+  // a member asks for a key; the Space's vault managers (the owner holds the Space) decide, so the request reaches a real decider and the owner then sees it waiting
+  { module: "vault-requests", read: ["/v1/vault/requests/list", {}], write: ["/v1/vault/request", { name: "L7_Live_Key", reason: "needed for the l7 live test", idempotencyKey: "l7-live-vault-request" }], writeAs: "member", refused: undefined },
   { module: "spaces", read: ["/v1/spaces/get", {}], write: ["/v1/stars/toggle", { resource: { type: "space", id: "spc_core" }, on: true }], refused: ["/v1/spaces/update", { logoFileId: null }] },
 ];
 
@@ -99,6 +100,12 @@ test("l7 live: a booted daemon serves every live L7a module from its own handler
       const refused = await post(MEMBER_TOKEN, c.refused[0], c.refused[1]);
       assert.equal(refused.status, 403, `${c.module}: a member is refused ${c.refused[0]}: ${await refused.clone().text()}`);
     }
+    // the member's key request reached the owner as a card of the real tasks module, offering exactly the actions an unblock task has
+    const cards = await post(OWNER_TOKEN, "/v1/tasks/list", { scope: "mine", kinds: ["unblock"] });
+    assert.equal(cards.status, 200, await cards.clone().text());
+    const card = ((await cards.json()) as { data: { tasks: { title: string; actions: { key: string }[] }[] } }).data.tasks.find((x) => x.title.includes("L7_Live_Key"));
+    assert.ok(card, "the owner has the request card");
+    assert.deepEqual(card!.actions.map((x) => x.key), ["resolved", "cannot"]);
     assert.equal((await post("nope", "/v1/spaces/get", {})).status, 401, "no valid token, no answer");
   } finally { await d.stop(); }
 });
@@ -183,7 +190,29 @@ test("l7 live: an invite made by the owner is accepted by a stranger through the
     const code = decodeURIComponent(new URL(link).pathname.split("/").pop() ?? "");   // the fingerprint rides in the fragment
     const joined = await join(code, "newbie");
     assert.equal(joined.status, 200, await joined.clone().text());
-    // the offboarding wizard (preview, legal hold, remove) needs the removed person in the access module's store, which the daemon does not have yet (P-L7_22 adds it and the booted test)
+    // offboarding (golden 9): the removal wizard lists what the joined member owns, a legal hold on them stops a delete, and lifting it lets the plan through
+    const newbie = ((await joined.json()) as { data: { personId: string } }).data.personId;
+    // the new member owns an agent; the removal plan hands it to the owner through the agents module's host call
+    const agent = await post(OWNER_TOKEN, "/v1/agents/create", { name: "Newbie helper", ownerId: newbie, idempotencyKey: "l7-join-agent" });
+    assert.equal(agent.status, 200, await agent.clone().text());
+    const preview = await post(OWNER_TOKEN, "/v1/members/remove_preview", { personId: newbie });
+    assert.equal(preview.status, 200, await preview.clone().text());
+    const items = ((await preview.json()) as { data: { items: { kind: string; count: number }[] } }).data.items;
+    assert.ok(["agents", "automations", "records", "projects", "vault_mine"].every((k) => items.some((i) => i.kind === k)), "every kind the wizard knows is listed");
+    assert.equal(items.find((i) => i.kind === "agents")?.count, 1, "the agent the person owns is listed");
+    const held = await post(OWNER_TOKEN, "/v1/governance/holds/place", { target: { kind: "person", id: newbie }, reason: "litigation" });
+    assert.equal(held.status, 200, await held.clone().text());
+    const blocked = await post(OWNER_TOKEN, "/v1/members/remove", { personId: newbie, plan: [{ kind: "agents", action: "delete" }] });
+    assert.equal(((await blocked.json()) as { error?: { code?: string } }).error?.code, "permission.on_hold", "a hold blocks the delete");
+    const lifted = await post(OWNER_TOKEN, "/v1/governance/holds/release", { target: { kind: "person", id: newbie } });
+    assert.equal(lifted.status, 200, await lifted.clone().text());
+    const removed = await post(OWNER_TOKEN, "/v1/members/remove", { personId: newbie, plan: [{ kind: "agents", action: "reassign", to: "usr_olivia" }] });
+    assert.equal(removed.status, 200, await removed.clone().text());
+    const mine = await post(OWNER_TOKEN, "/v1/agents/list", {});
+    const listed = JSON.stringify(await mine.json());
+    assert.ok(listed.includes("Newbie helper"), "the agent is still there after the removal");
+    const row = (JSON.parse(listed) as { data: { agents: { name: string; ownerId: string }[] } }).data.agents.find((x) => x.name === "Newbie helper");
+    assert.equal(row?.ownerId, "usr_olivia", "and its owner is now the owner of the Space");
     const again = await join(code, "newbie2");
     assert.notEqual(again.status, 200, "an accepted invite cannot be used again");
     const bad = await join("NOPE-NOPE", "newbie3");

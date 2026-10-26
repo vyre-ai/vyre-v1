@@ -77,3 +77,18 @@ test("a member without the permission is refused before the handler runs", async
     }
   } finally { await s.close(); }
 });
+
+test("email_builder.create registers the design as an email under the folder it goes into, and under the Space without one", () => {
+  const c = cap("email_builder.create");
+  assert.deepEqual([c.resource.type, c.resource.create, c.resource.parent], ["email", true, "/folderId"]);
+  const inFolder = registered("email_builder.create", { name: "Welcome", folderId: "fld_a1" }, { "email.created": { emailId: "eml_new1", folderId: "fld_a1" } }, ["fld_a1"]);
+  assert.deepEqual(inFolder.map((r) => [r.id, r.type, r.parent_id, r.owner_id]), [["eml_new1", "email", "fld_a1", "usr_dana"]]);
+  const top = registered("email_builder.create", { name: "Welcome" }, { "email.created": { emailId: "eml_new2" } });
+  assert.deepEqual(top.map((r) => [r.id, r.type, r.parent_id]), [["eml_new2", "email", SPACE]]);
+});
+
+test("forms.submit and bookings.book do not claim to make a record: the records.create they call registers it", () => {
+  for (const name of ["forms.submit", "bookings.book"]) assert.notEqual(cap(name).resource.create, true, `${name} leaves the record to records.create`);
+  const rows = registered("records.create", { type: "contact" }, { "record.created": { recordId: "rec_sub1" } }, ["contact"]);
+  assert.deepEqual(rows.map((r) => [r.id, r.type]), [["rec_sub1", "record"]]);
+});

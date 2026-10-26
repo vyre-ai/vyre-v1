@@ -2,7 +2,7 @@
   "module": "email-builder-api",
   "capabilities": {
     "email_builder.ask_diff@1": "7704797a8075916abe0ec22f669f85295ea0f8c10c7f93514c5d6fc4c8fee0a6",
-    "email_builder.create@1": "253765ce8d83ce6be49f78828865d74fb4450f6ea939f344b0db141e97affff9",
+    "email_builder.create@1": "e0a0fd8599d2bcc4245041c4655c92316f2df048b4c9ce3e88d574163f005638",
     "email_builder.get@1": "baed0130e5ca45bff530675049739b11a4da3c749665d64adec0e9a71c8d84a8",
     "email_builder.html_set@1": "d7f779031405e314974bde4cf1dbd5519f76b62f17c849df954f4c27e644f864",
     "email_builder.list@1": "d058071b86d1e18aa45775f9555986d2ce4437d88850b3fc5a6f1259f3114aa0",
@@ -19,6 +19,7 @@
     "email_builder.versions@1": "2eaf084b73de2f2950d803e2b5b141e283b55095322c5d8cab884668f97160e4"
   },
   "events": {
+    "email.created": "57b9d1084e048533151f2db0b91790e22dbaf1f0dbc7ee97b6beef0e7eb15032",
     "email_block.saved": "88d171a3a1d32c8e863fe31f50b8cd09b88da30365093ccc0ba68788cd25eced",
     "email_template.saved": "896dd70893cf182ef96a8b367af8d36cf293f06f5bcc764d507e71aa9eb7f38c",
     "email_template.test_sent": "00ae5ad69b1a82325ea8386dbf23161a045ebf0787d77561686f3e950c5d7f54"
