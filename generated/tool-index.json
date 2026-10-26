@@ -7136,6 +7136,12 @@
     },
     {
       "deferred": false,
+      "name": "vault_item_usage",
+      "summary": "Who used a key or sign-in and how much: turns and tokens per agent and per person, and the total, from the turns the engine metered on the item; a person sees their own turns, a manager of AI spend all of them",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
       "name": "vault_items_export_mine",
       "summary": "A person exports their own Mine items (also for 30 days after removal); one pull link, audited",
       "toolset": "vault"
