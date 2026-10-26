@@ -4,7 +4,7 @@
     {
       "id": "access",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "agents",
@@ -14,7 +14,7 @@
     {
       "id": "audit",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "automations",
@@ -74,7 +74,7 @@
     {
       "id": "devices",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "documents",
@@ -134,7 +134,7 @@
     {
       "id": "governance",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "health",
@@ -149,7 +149,7 @@
     {
       "id": "identity",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "import",
@@ -199,7 +199,7 @@
     {
       "id": "members",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "memory",
@@ -284,7 +284,7 @@
     {
       "id": "settings",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "sites",
@@ -299,7 +299,7 @@
     {
       "id": "spaces",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "steps-core",
@@ -349,12 +349,12 @@
     {
       "id": "vault",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "vault-requests",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "zoom",

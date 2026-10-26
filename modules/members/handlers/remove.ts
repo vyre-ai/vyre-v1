@@ -110,7 +110,7 @@ export async function removePreview(ctx: MembersCtx, input: { personId: string }
   const st = statusOf(ctx, input.personId);
   if (st?.status === "removed") raise(tid, "validation.precondition_failed", "that person was already removed");
   await guardTarget(ctx, input.personId, "remove");
-  const owned = ctx.owned?.of(input.personId) ?? {};
+  const owned = (await ctx.owned?.of(input.personId)) ?? {};
   const items = KINDS.map((kind) => {
     const o: OwnedItem = owned[kind] ?? { count: 0, sample: [] };
     const w = WIZARD[kind];
@@ -131,7 +131,7 @@ export async function remove(ctx: MembersCtx, input: { personId: string; plan: {
   const st = statusOf(ctx, input.personId);
   if (st?.status === "removed") return ok;
   await guardTarget(ctx, input.personId, "remove");
-  const owned = ctx.owned?.of(input.personId) ?? {};
+  const owned = (await ctx.owned?.of(input.personId)) ?? {};
 
   // one action per kind: what the plan says, else the wizard default
   const chosen = new Map<RemovalKind, { action: RemovalAction; to?: string }>();
@@ -152,7 +152,7 @@ export async function remove(ctx: MembersCtx, input: { personId: string; plan: {
       if (target.status !== "active" || statusOf(ctx, to)) raise(tid, "validation.precondition_failed", `${kind} must go to an active member`);
       chosen.set(kind, { action: "reassign", to });
     } else if (c.action === "reassign") chosen.set(kind, { action: "reassign", to: c.to ?? who.id });
-    if (c.action === "delete" && (ctx.owned?.holds(input.personId) ?? 0) > 0) raise(tid, "permission.on_hold", `${kind} cannot be deleted while items the person owns are on hold`);
+    if (c.action === "delete" && ((await ctx.owned?.holds(input.personId)) ?? 0) > 0) raise(tid, "permission.on_hold", `${kind} cannot be deleted while items the person owns are on hold`);
   }
 
   // apply: the wizard first, then the person

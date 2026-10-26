@@ -67,7 +67,7 @@ export function harness() {
       if (!world.settings.has(k)) throw err("validation.not_found", "No such setting.");
       return { row: { key: k, title: k, page: "console.data", scope: "space", source: "space", default: {}, floorable: false, value: world.settings.get(k) } };
     },
-    "settings.set": (i) => {
+    "settings.set_space": (i) => {
       const k = String(i["key"]);
       const previous = world.settings.get(k) ?? {};
       world.settings.set(k, i["value"]);
