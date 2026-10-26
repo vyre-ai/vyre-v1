@@ -213,7 +213,8 @@ const dots = new Map<string, Record<string, string | number>>();
 // the DOM bits the face rules need, typed here because the app's TypeScript config carries no DOM lib
 interface FaceRule { selectorText: string }
 interface FaceSheet { cssRules: { length: number; [i: number]: FaceRule }; insertRule(rule: string, index: number): number; deleteRule(index: number): void }
-interface FaceDoc { createElement(tag: string): { sheet: FaceSheet | null }; head: { appendChild(node: unknown): unknown } }
+interface FaceEl { className: string; getAttribute(name: string): string | null; removeAttribute(name: string): void }
+interface FaceDoc { createElement(tag: string): { sheet: FaceSheet | null }; head: { appendChild(node: unknown): unknown }; querySelectorAll(selector: string): ArrayLike<FaceEl> }
 /** The faces that have a CSS rule now: an LRU of 400 (the table is virtual, so about forty rows, two or three faces each, are on screen); a full one drops its 40 oldest together. */
 const faceClasses = new FaceLru(400, 40);
 function findRule(sheet: FaceSheet, cls: string): number {
@@ -222,21 +223,8 @@ function findRule(sheet: FaceSheet, cls: string): number {
 }
 let faceSheet: FaceSheet | null = null;
 const faceDoc = (): FaceDoc | undefined => (globalThis as { document?: FaceDoc }).document;
-/**
- * A person's face in a cell, seeded by the id (the person's, or the record's own for the Name cell), never the display name, so two people with one name have two faces and a rename keeps a face.
- * It is the real marble, drawn once into the shared face cache and then painted as a plain background image; until the bitmap is ready the disc wears the CSS marble gradient. The look is one CSS
- * rule per face, made when its row is first drawn (the table is virtual, so never for rows off screen), and the rules are an LRU of 400 (FaceLru in model.ts), so a table of 100,000 records holds a few hundred.
- * When a bitmap lands every cell with that face changes at once and no row re-renders. A page with no document (server render, tests) gets the same disc as an inline style.
- */
-function dot(seed: string, label: string, shared = true): ReactElement {
-  const doc = faceDoc();
-  if (doc === undefined || !shared) {
-    // no document (server render, tests), or a face that belongs to one record only (the Name cell: a 100,000 row table has 100,000 of them, and the scroll trace put a bitmap and a rule for each
-    // at 50 ms p95): the same marble as a plain inline gradient, built once per seed on the server and per drawn row in the browser, with no rule, no bitmap and no stylesheet write
-    let st = doc === undefined ? dots.get(seed) : undefined;
-    if (!st) { st = { width: 18, height: 18, flex: "none", borderRadius: 9, backgroundColor: marbleSpec(seed).base, backgroundImage: marbleGradient(seed) }; if (doc === undefined) dots.set(seed, st); }
-    return createElement("span", { "aria-hidden": true, "data-testid": `face-${label}`, style: st });
-  }
+/** Makes sure a face has its CSS rule (and asks for its bitmap), moves it to the newest end of the LRU, and returns its class. */
+function ensureFace(doc: FaceDoc, seed: string): string {
   const cls = faceClassOf(seed);
   if (faceClasses.has(cls)) {
     faceClasses.use(cls);
@@ -258,6 +246,45 @@ function dot(seed: string, label: string, shared = true): ReactElement {
       });
     }
   }
+  return cls;
+}
+
+/**
+ * The idle upgrade of the Name cell faces: while a table scrolls they are plain inline gradients (no rule, no bitmap per record); when scrolling has stopped the ones on screen swap to the real
+ * marble through the shared face rules. Same size, so nothing moves.
+ */
+function upgradeFaces(): void {
+  const doc = faceDoc();
+  if (doc === undefined) return;
+  const found = doc.querySelectorAll("[data-face-seed]");
+  for (let i = 0; i < found.length && i < 160; i++) {
+    const el = found[i]!;
+    const seed = el.getAttribute("data-face-seed");
+    if (seed === null || seed === "") continue;
+    el.className = ensureFace(doc, seed);
+    el.removeAttribute("style");
+    el.removeAttribute("data-face-seed");
+  }
+}
+/** Pause after the last scroll before the Name cell faces upgrade. */
+const FACE_IDLE_MS = 150;
+
+/**
+ * A person's face in a cell, seeded by the id (the person's, or the record's own for the Name cell), never the display name, so two people with one name have two faces and a rename keeps a face.
+ * It is the real marble, drawn once into the shared face cache and then painted as a plain background image; until the bitmap is ready the disc wears the CSS marble gradient. The look is one CSS
+ * rule per face, made when its row is first drawn (the table is virtual, so never for rows off screen), and the rules are an LRU of 400 (FaceLru in model.ts), so a table of 100,000 records holds a few hundred.
+ * When a bitmap lands every cell with that face changes at once and no row re-renders. A page with no document (server render, tests) gets the same disc as an inline style.
+ */
+function dot(seed: string, label: string, shared = true): ReactElement {
+  const doc = faceDoc();
+  if (doc === undefined || !shared) {
+    // no document (server render, tests), or a face that belongs to one record only (the Name cell: a 100,000 row table has 100,000 of them, and the scroll trace put a bitmap and a rule for each
+    // at 50 ms p95): the same marble as a plain inline gradient, built once per seed on the server and per drawn row in the browser, with no rule, no bitmap and no stylesheet write
+    let st = doc === undefined ? dots.get(seed) : undefined;
+    if (!st) { st = { width: 18, height: 18, flex: "none", borderRadius: 9, backgroundColor: marbleSpec(seed).base, backgroundImage: marbleGradient(seed) }; if (doc === undefined) dots.set(seed, st); }
+    return createElement("span", { "aria-hidden": true, "data-testid": `face-${label}`, style: st, ...(doc !== undefined ? { "data-face-seed": seed } : {}) });
+  }
+  const cls = ensureFace(doc, seed);
   return createElement("span", { "aria-hidden": true, "data-testid": `face-${label}`, className: cls });
 }
 
@@ -512,7 +539,14 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   }, [data]);
   const onOpen = data.nav.openRecord;
 
+  const idleFaces = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const upgradeSoon = useCallback((): void => {
+    if (idleFaces.current !== null) clearTimeout(idleFaces.current);
+    idleFaces.current = setTimeout(upgradeFaces, FACE_IDLE_MS);
+  }, []);
+  useEffect(() => { upgradeSoon(); return () => { if (idleFaces.current !== null) clearTimeout(idleFaces.current); }; }, [loaded, upgradeSoon]);
   const onScroll = (pos: { top: number; left: number }): void => {
+    upgradeSoon();
     const top = Math.floor(pos.top / (ROW_H * SCROLL_BLOCK)) * ROW_H * SCROLL_BLOCK;
     const left = Math.floor(pos.left / 40) * 40;
     setScroll((s) => (s.top === top && s.left === left ? s : { top, left }));
