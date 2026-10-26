@@ -59,6 +59,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "files.tree": async (ctx) => { throw new VyreErr(notImplemented("files.tree", ctx.trace)); },
   "files.upload_url": async (ctx) => { throw new VyreErr(notImplemented("files.upload_url", ctx.trace)); },
   "files.versions": async (ctx) => { throw new VyreErr(notImplemented("files.versions", ctx.trace)); },
+  "files.versions_purge": async (ctx) => { throw new VyreErr(notImplemented("files.versions_purge", ctx.trace)); },
   "files.viewer_data": async (ctx) => { throw new VyreErr(notImplemented("files.viewer_data", ctx.trace)); },
   "files.write": async (ctx) => { throw new VyreErr(notImplemented("files.write", ctx.trace)); },
   "sheets.add_sheet": async (ctx) => { throw new VyreErr(notImplemented("sheets.add_sheet", ctx.trace)); },

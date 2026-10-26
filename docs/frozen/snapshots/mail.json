@@ -23,6 +23,7 @@
     "mail.mailbox.resume@1": "315f1f94b5dbb71637e1532ca91ae7ea1245f96240911dd85f56663f4d59c054",
     "mail.mailbox.set_privacy@1": "4642b97a45c9557601247c30da67b7903c8f426fb993d5ae49fdef788156956e",
     "mail.mailbox.update@1": "29a8597e66b5284d195488affc73a9a3997a803171021019e5960bd4d670b77f",
+    "mail.message.erase@1": "11c388912c18af24f43b61e80351f9bfe9b5243cb301bf4074927adfdeb50e60",
     "mail.message.get@1": "92c7c031aef866ba74509f73302f1a8f24185d2333a69061495eef8055d005ab",
     "mail.message.list@1": "af3e67583d5d927c54d8183035ac585ce217211d8210f70f30e8c7939b9150b5",
     "mail.message.search@1": "8208dc7bac8d7e5656c24d509bd9a0014fd3355f0db7ec4d953f991a2234a998",
@@ -39,6 +40,7 @@
   "events": {
     "inbound_route.removed": "8c41e457405a9e548b904cfd52a079baed66b8e5b3262c51661b2ea56e3c0077",
     "inbound_route.saved": "c8cbf1444c9af75cd331ca9eb8c89bde1362bd71035b3f5d773d435233382b08",
+    "mail.message_erased": "247c84fe74ca20f2d575cd8ea574408c6d97b66a859ccffae4865868499a24dd",
     "mail.received": "1e957b15923c1018f3316d883c826b1afdec5b2f5e97bdecd48f70c4bd7d9b7d",
     "mail_draft.discarded": "ef385577760f156873e8433579ef9569413356e6ce855dffbfee47a9aa7c1a68",
     "mail_draft.saved": "315f898bcce8fd03476ba31c51d10e23cedbbada9173e20cf09c63c365dfad22",
