@@ -118,7 +118,7 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
       expectStatus(await s.call("campaigns.steps_set", admin, {
         campaignId, steps: [{ key: "hello", type: "email", config: { mailboxId: mailbox!, subject: "Hello {{name}}", text: "Hi {{name}}, can we talk?" } }],
       }), 200, "campaigns.steps_set");
-      const aud = expectStatus(await s.call("campaigns.audience_set", admin, { campaignId, type: "contact" }), 200, "campaigns.audience_set");
+      const aud = expectStatus(await s.call("campaigns.audience_set", admin, { campaignId, type: "contact", filter: { field: "email", op: "eq", value: LEAD.email } }), 200, "campaigns.audience_set");
       assert.equal(aud.count, 1, `the audience is the lead: ${short(aud)}`);
       return campaignId;
     }, ["a lead is made", "a shared mailbox sends from that domain"]);
