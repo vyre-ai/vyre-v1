@@ -24,6 +24,22 @@ export interface InboxNav {
   openInboxSettings(inboxId: string): void;
 }
 
+/** What a line shows beyond the list capability's row: the person's organisation, do-not-disturb, a bounced email, an agent's draft. Read from the replica's record, deliverability and draft tables. */
+export interface RowExtras {
+  org?: string;
+  /** The organisation is a guess the person has not confirmed (drawn in the warning colour). */
+  orgUnsure?: boolean;
+  /** Why the person is on do-not-disturb (the DND tag's tip). */
+  dnd?: string;
+  /** The address an email bounced from. */
+  bounced?: string;
+  /** An agent has a draft reply waiting. */
+  draftReady?: boolean;
+}
+
+/** How a number is named and grouped in the sidebar (an agent's number sits under Agents and is named for the agent). */
+export interface NumberInfo { label: string; group: "mine" | "agent" }
+
 export interface InboxData {
   screens: ScreenHooks;
   /** One capability call as the signed-in person; rejects with the capability's error. */
@@ -31,6 +47,10 @@ export interface InboxData {
   connection: Connection;
   clock(): { now: number; offsetMin: number };
   nav: InboxNav;
+  /** Extras for one line (the line's key). Absent: the line shows only what the list capability returns. */
+  extras?(key: string): RowExtras | undefined;
+  /** Naming and grouping for the Space's numbers. */
+  numbers?(): ReadonlyMap<string, NumberInfo>;
 }
 
 const DataCtx = createContext<InboxData | null>(null);
