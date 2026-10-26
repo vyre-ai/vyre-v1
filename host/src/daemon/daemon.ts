@@ -21,6 +21,7 @@ import { ScheduleQueue } from "../ctx/schedule.ts";
 import type { ScheduledCall } from "../ctx/schedule.ts";
 import { createBlobStore } from "../ctx/blobs.ts";
 import { createBlobRoute } from "../routes/blobs.ts";
+import { deferredCaps, deferredModules } from "../routes/deferred.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
 import { createGateway, indexRoutes } from "../gateway.ts";
 import { withEventIds } from "../ids.ts";
@@ -99,6 +100,12 @@ const refusingVault: VaultPort = {
 };
 
 /** The seal key lives beside the event log, readable by this user only; it is created at the first start and never printed or logged. */
+/** identity.whoami also lists the capabilities this server defers (ruling 60): the one bootstrap a signed-in client already makes, so the app can hide a deferred place. */
+function whoamiWithDeferred(cap: string, h: Handler | undefined): Handler | undefined {
+  if (!h || cap !== "identity.whoami") return h;
+  return (async (ctx, input) => ({ ...((await h(ctx, input)) as object), deferred: deferredCaps(), deferredModules: deferredModules(registry.capabilities) })) as Handler;
+}
+
 function sealKeyFile(file: string): string {
   try {
     const t = fs.readFileSync(file, "utf8").trim();
@@ -408,7 +415,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         membership: (principal, actingFor) => isMemberOrGuest(access.snap, principal) && (actingFor === undefined || isMemberOrGuest(access.snap, actingFor)),
         resolveItem: (type, kind, value) => resolveVaultItem(db!, type, kind, value),
-        handler: (cap, v) => {
+        handler: (cap, v) => whoamiWithDeferred(cap, (() => {
           const h = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
           // The one internal call a module may make with the host's own authority: devices -> sync.epoch.bump (a device was revoked, its replica must purge). The person revoking their own
           // device holds no sync grant, and a revoke that cannot purge would leave the copy on the device. Nothing else is widened: every other ctx.call keeps the caller's authority.
@@ -421,7 +428,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           if (!h || !cap.startsWith("devices.")) return h;
           const wrapped: Handler = (ctx, input) => h({ ...ctx, call: (name, callInput, opts) => (name === "sync.epoch.bump" ? system(name, callInput, ctx.trace) : ctx.call(name, callInput, opts)) } as typeof ctx, input);
           return wrapped;
-        },
+        })()),
         services: hostServices({ base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs, vault: (seed) => createVaultService((c, i, sd) => invokeRef(c, i, sd), spaceId, seed) }),
         idem, rate: createRateLimiter(), now, log: sinkLog,
         ...(gate ? { gate } : {}),
