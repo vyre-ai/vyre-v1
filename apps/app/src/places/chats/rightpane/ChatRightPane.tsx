@@ -43,6 +43,10 @@ export interface ChatRightPaneProps {
 }
 
 export const NOTICE_MS = 8000;
+/** A pane tab has no close slot, so the strip's tab extra (TAB_EXTRA, 45 with the 18 px slot and its 7 px gap) is 20 here. */
+export const PANE_TAB_EXTRA = 20;
+/** The width a wide screen gives the pane: room for Computer, Threads, Files, Memory with its count and Routines, so More shows only when the window is narrow. */
+export const WIDE_PANE_W = 460;
 /** Below this window width the pane fills it (a phone shows it as a screen of its own); above, it is a resizable column. */
 export const NARROW = 640;
 
@@ -84,10 +88,13 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
 
   const agentQ = useScreenQuery<AgentOut>(AGENT_PAGE_SCREEN, "agent", { agentId: data.agent.agentId });
   const agent = agentQ.status === "ready" ? agentQ.data.agent : null;
+  const summaryQ = useScreenQuery<CapMap["agents.summary"]["out"]>(AGENT_PAGE_SCREEN, "summary", { agentId: data.agent.agentId });
+  const facts = summaryQ.status === "ready" ? summaryQ.data.memoryFacts : 0;
+  const tabs = useMemo(() => TABS.map((t) => (t.key === "memory" && facts > 0 ? { ...t, title: `Memory ${facts}` } : t)), [facts]);
   const titles = useTitleWidths();
   const paneNow = paneWidth ?? (narrow ? win.width : paneW);
-  const { strip, select } = useFittedTabs(TABS, tab, paneNow, {
-    menu, left: Math.max(0, win.width - paneNow) + 40, top: 40, measured: titles.widths,
+  const { strip, select } = useFittedTabs(tabs, tab, paneNow, {
+    extra: PANE_TAB_EXTRA, menu, left: Math.max(0, win.width - paneNow) + 40, top: 40, measured: titles.widths,
     pick: (key) => { setOwn(key); onTab?.(key); },
   });
   const moreMenu = (x: number, y: number): void => {
@@ -98,9 +105,9 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   };
 
   return (
-    <SidePane paneKey={PANE_KEY} toggle={{ open, onPress: onToggle }} title={data.agent.name} tabs={strip} activeTab={tab} onSelectTab={select} {...(narrow ? { max: 1, defaultWidth: win.width } : {})}>
+    <SidePane paneKey={PANE_KEY} toggle={{ open, onPress: onToggle }} title={data.agent.name} tabs={strip} activeTab={tab} onSelectTab={select} {...(narrow ? { max: 1, defaultWidth: win.width } : { defaultWidth: WIDE_PANE_W })}>
       <View testID="chats-right-pane" style={st.root} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}>
-        <TabMeasure titles={TAB_TITLES} onWidth={titles.set} />
+        <TabMeasure titles={tabs.map((x) => x.title)} onWidth={titles.set} />
         <View testID="pane-agent" style={st.who}>
           <Face name={data.agent.name} size={30} pulse={agent?.status === "working"} />
           <View style={st.whoText}>
@@ -124,7 +131,6 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   );
 }
 
-const TAB_TITLES: readonly string[] = TABS.map((x) => x.title);
 
 const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--side)" as string },
