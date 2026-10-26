@@ -35,7 +35,7 @@ function rig(rows: number) {
   let n = 0;
   const pull = (entity: string, id: string, fields: Record<string, string | number | null>) =>
     observed.write({ entity, id, fields, hlc: hlc(++n), actor: "usr_ada", origin: "mirror", seq: n });
-  return { driver, replica, store, changes, client: createQueryClient(store), pull };
+  return { driver, replica: observed, store, changes, client: createQueryClient(store), pull };
 }
 
 const calendars: QueryDef<{ prefix: string }, Calendar[]> = {
@@ -115,7 +115,7 @@ test("100,000 rows: a window reads only the rows on screen, scrolling reads the 
   const keep = win.row(ids(10));
   const rebuilds = r.client.stats().listRebuilds;
   let k = 0;
-  const editMs = measure("edit.patch1", () => { r.pull("calendar", ids(5), { title: `Edited ${++k}` }); const s = ready(l.getSnapshot()) as ListWindow<Calendar>; s.rows(0, 50); });
+  const editMs = measure("edit.patch1", () => { r.pull("calendar", ids(5), { title: `Edited ${++k}`, version: 1 + k });   // a server edit carries its new row version const s = ready(l.getSnapshot()) as ListWindow<Calendar>; s.rows(0, 50); });
   assert.ok(editMs < FRAME_MS, `a pulled edit patched in ${editMs.toFixed(2)} ms`);
   assert.equal(ready(l.getSnapshot()).row(ids(5))?.title, `Edited ${k}`);
   assert.equal(r.client.stats().listRebuilds, rebuilds, "a title edit never re-ran the ids query");
@@ -131,6 +131,7 @@ test("a row added or hidden rebuilds the ids once and the window shows it", () =
   r.pull("calendar", "cld_000000a", { title: "Inserted", state: "active" });
   const after = ready(l.getSnapshot());
   assert.equal(after.count, 5001);
+  after.rows(0, 5);
   assert.equal(after.row("cld_000000a")?.title, "Inserted");
   assert.equal(r.client.stats().listRebuilds, before + 1);
   r.replica.hide("calendar", ids(3), 5_000);
