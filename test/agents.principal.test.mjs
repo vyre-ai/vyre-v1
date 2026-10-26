@@ -12,7 +12,7 @@ test("agents.create makes the agent a principal of the Space, owned by its maker
     assert.equal(made.status, 200, JSON.stringify(made.body));
     const agentId = made.body.data.agent.agentId;
     assert.match(agentId, /^agt_[a-z0-9]+$/);
-    const got = await s.call("access.principals.get", admin, { principal: agentId });
+    const got = await s.call("access.principals.get", admin, { principal: { kind: "agent", id: agentId } });
     assert.equal(got.status, 200, `access.principals.get: ${JSON.stringify(got.body)}`);
     const p = got.body.data.principal;
     assert.equal(p.kind, "agent");
@@ -21,12 +21,12 @@ test("agents.create makes the agent a principal of the Space, owned by its maker
     assert.deepEqual(p.roles, ["rol_member"]);
 
     // it acts for a person: the agent acting for its owner may use the Space, the way the engine calls as it
-    const acting = await s.call("access.check", admin, { principal: agentId, actingFor: "usr_olivia", action: { level: "view" }, resource: { type: "space", id: "spc_core" } });
+    const acting = await s.call("access.check", admin, { principal: { kind: "agent", id: agentId }, actingFor: { kind: "person", id: "usr_olivia" }, action: { level: "view" }, resource: { type: "space", id: "spc_core" } });
     assert.equal(acting.status, 200, `access.check: ${JSON.stringify(acting.body)}`);
     assert.equal(acting.body.data.decision.effect, "allow", JSON.stringify(acting.body.data.decision));
 
     // an agent that does not exist is still no member
-    const stranger = await s.call("access.check", admin, { principal: "agt_nobodyhere", actingFor: "usr_olivia", action: { level: "view" }, resource: { type: "space", id: "spc_core" } });
+    const stranger = await s.call("access.check", admin, { principal: { kind: "agent", id: "agt_nobodyhere" }, actingFor: { kind: "person", id: "usr_olivia" }, action: { level: "view" }, resource: { type: "space", id: "spc_core" } });
     assert.ok(stranger.status >= 400 || stranger.body?.data?.decision?.effect === "deny", `an unknown agent is refused: ${JSON.stringify(stranger.body).slice(0, 300)}`);
   } finally { await s.stop(); }
 });
@@ -39,7 +39,7 @@ test("an agent acting for a Guest reaches only what the Guest reaches, and canno
     const made = await s.call("agents.create", admin, { idempotencyKey: "pr-agent-2", name: "Helper Three", role: "Answers questions" });
     const agentId = made.body.data.agent.agentId;
     const check = async (actingFor, level, id) => {
-      const r = await s.call("access.check", admin, { principal: agentId, actingFor, action: { level }, resource: { type: "folder", id } });
+      const r = await s.call("access.check", admin, { principal: { kind: "agent", id: agentId }, actingFor: { kind: "person", id: actingFor }, action: { level }, resource: { type: "folder", id } });
       assert.equal(r.status, 200, JSON.stringify(r.body));
       return r.body.data.decision.effect;
     };
