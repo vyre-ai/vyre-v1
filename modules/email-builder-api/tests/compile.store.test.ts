@@ -122,14 +122,14 @@ test("render: desktop, mobile, dark and plain previews; warnings list what a sen
   assert.match(desktop.html, /Dear friend, welcome\./, "with no record the fallback reads");
   assert.match(desktop.html, /<title>Hi there<\/title>/);
   assert.deepEqual(desktop.warnings, ["Missing. Required by law and by mailbox providers.", "The plain-text part has no unsubscribe link"]);
-  const dana = await render("desktop", { asRecordId: "rec_dana" });
+  const dana = await render("desktop", { asRecordId: "rec_dana", recordType: "contact" });
   assert.match(dana.html, /Dear Dana, welcome\./);
   assert.match(dana.html, /<title>Hi Dana<\/title>/);
-  assert.deepEqual(w.calls.at(-1), { cap: "records.get", input: { recordId: "rec_dana" } });
+  assert.deepEqual(w.calls.at(-1), { cap: "records.get", input: { type: "contact", recordId: "rec_dana" } });
   const mobile = await render("mobile"), dark = await render("dark");
   assert.ok(mobile.html.split(".col{display:block!important").length === 3);
   assert.ok(dark.html.split("background:#0F0F11!important").length === 3);
-  const plain = await render("plain", { asRecordId: "rec_dana" });
+  const plain = await render("plain", { asRecordId: "rec_dana", recordType: "contact" });
   assert.equal(plain.html, "Dear Dana, welcome.\n\nOpen: https://x.example/o\n");
   assert.equal(await code(render("print")), "validation.bad_input");
   assert.equal(await code(run(w.ctx, "email_builder.render", { emailId: "eml_nope", variant: "desktop" })), "validation.not_found");
