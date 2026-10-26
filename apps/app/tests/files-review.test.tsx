@@ -220,7 +220,7 @@ test("diff tabs: a changeset's files with their changes and the comment; a versi
   const out = html(s, <ChangesetDiff changesetId={s.changesetId} path="consult-prep.md" />);
   assert.ok(has(out, 'data-testid="changeset-diff"') && has(out, 'data-testid="diff-files"'), "the shared tab with its file list");
   for (const p of ["rivera-engagement-letter.docx", "consult-prep.md", "id-scan.png"]) assert.ok(has(out, `data-testid="row-diff-file-${p}"`), `a line for ${p}`);
-  assert.ok(has(tag(out, "row-diff-file-consult-prep.md"), 'aria-selected="true"'), "one file is open");
+  assert.ok(has(tag(out, "row-diff-file-consult-prep.md"), "var(--sel)") && !has(tag(out, "row-diff-file-id-scan.png"), "var(--sel)"), "one file is open, its line carries the quiet selection");
   assert.ok(has(text(out), "+24 \u22125") && has(text(out), "image"), "each line says its counts, a picture says image");
   assert.ok(has(out, 'data-testid="diff-paragraphs"'), "a markdown note reads as prose with word marks, not code lines");
   assert.ok(has(out, 'data-testid="diff-revert-h_prep"') && has(out, 'data-testid="diff-comment-h_prep"'), "revert and comment on each change");
