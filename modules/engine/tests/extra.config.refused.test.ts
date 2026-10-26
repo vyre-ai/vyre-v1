@@ -10,7 +10,7 @@ test("engine.policy.set: a bad label refuses the whole call, so the models and p
   const h = harness();
   const ctx = { ...h.ctx, call: async (cap: string, input: unknown) => (cap === "settings.get" ? { row: { value: null } } : cap === "settings.set_space" ? {} : h.ctx.call(cap, input)) };
   const before = JSON.stringify(await H["engine.policy.get"](ctx, {}));
-  h.clear();
+  h.emitted.length = 0;
   let code = "none";
   try { await H["engine.policy.set"](ctx, { allowedAccounts: "company", allowedModels: ["claude-sonnet-5-5"], allowedProviders: ["anthropic"], labelProviders: { secret: ["anthropic"] } }); } catch (e) { code = codeOf(e); }
   assert.equal(code, "validation.bad_input");

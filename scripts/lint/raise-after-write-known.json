@@ -17,5 +17,6 @@
   "modules/telephony/handlers/calls.ts#dial": "records the attempt: the call row is marked failed in the catch, then the error goes on",
   "modules/terminal/handlers/sessions.ts#run": "records the attempt: finish() stores the exit code and emits command_finished before the timeout refusal",
   "modules/gate/handlers/approve.ts#release": "single-use claim: the conditional UPDATE changes no row when it refuses",
-  "modules/mail/handlers/extra/routes.ts#routeSet": "the write is in the existing-route branch and the refusal in the else branch, which never run together"
+  "modules/mail/handlers/extra/routes.ts#routeSet": "the write is in the existing-route branch and the refusal in the else branch, which never run together",
+  "modules/sources/handlers/hooks.ts#sources.ingest": "records the attempt: a refused delivery (too large) is stored as a rejected delivery row, and source.rejected is emitted, before the refusal"
 }
