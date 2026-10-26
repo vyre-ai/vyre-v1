@@ -186,7 +186,7 @@ const failing = (s: SampleSidebar, screen: string): string =>
 test("a failed read puts one compact row under that section's head, the rest still draws, and it is never the empty state", () => {
   const s = createSampleSidebar();
   const agents = failing(s, "chats.all-agents");
-  const at2 = (n: string): number => { const i = agents.indexOf(n); assert.ok(i >= 0, n); return i; };
+  const at2 = (n: string): number => { const i = agents.indexOf(n); assert.ok(i >= 0, `${n} in: ${agents.slice(Math.max(0, agents.indexOf("head-faces") - 100), agents.indexOf("head-faces") + 1500)}`); return i; };
   assert.ok(at2('data-testid="head-faces"') < at2('data-testid="section-error-agents"') && at2('data-testid="section-error-agents"') < at2('data-testid="head-channels"'), "the error row sits under the Agents head, before Channels");
   assert.ok(agents.includes("load agents") && agents.includes('data-testid="retry-agents"') && agents.includes('data-testid="error-more-agents"'), "one row: the words, Retry and the details menu");
   assert.ok(!agents.includes("trace-1") && !agents.includes('data-testid="state-error"'), "the cause and trace id are behind the menu, no States block");
