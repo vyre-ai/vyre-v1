@@ -21,7 +21,7 @@ test("a member's access.request opens a card the owner approves, which creates t
     const mine = expectStatus(await s.call("access.requests.list", noah, { mine: true }), 200, "access.requests.list mine").requests as { id: string; state: string }[];
     assert.equal(mine.find((r) => r.id === asked.request.id)?.state, "granted", short(mine));
     const check = expectStatus(await s.call("access.check", owner, { principal: { kind: "person", id: "usr_noah" }, action: { level: "view" }, resource: { type: "channel", id: "chn_general" } }), 200, "access.check");
-    assert.equal(check.decision.allow, true, short(check));
+    assert.equal(check.decision.effect, "allow", short(check));
 
     const stranger = await s.call("access.requests.approve", noah, { requestId: asked.request.id });
     assert.ok(stranger.status >= 400, `the requester cannot decide their own request: ${stranger.status}`);
