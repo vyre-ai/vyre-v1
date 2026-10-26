@@ -22,6 +22,9 @@ export const handlers: Record<string, Handler> = {
   "governance.jobs_health": (ctx) => h.jobsHealth(ctx),
 };
 
+/** The host binds the event log behind erase (host/src/daemon): erase then reaches the append-only log, and a restore replays it. */
+export const hostSeams = { setEventsCompact: h.setEventsCompact };
+
 export const projections = { inline: {}, consumers: {} };
 
 /**
