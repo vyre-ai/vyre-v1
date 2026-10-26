@@ -263,3 +263,24 @@ test("an event wait left by the last server is still heard after a restart", asy
     await finished(d, runId);
   } finally { await d.stop(); }
 });
+
+test("a Parallel lane that had already made its record before a crash makes no second one when the Run recovers", async () => {
+  const dir = seededDir();
+  let d = await boot(dir, { hooks: [] });   // nothing drives the Run: it is made and left queued, as if the server stopped right after starting it
+  let runId = "";
+  try {
+    const id = await automation(d, "lanes-crash", [
+      { id: "par", key: "parallel", input: { branches: ["l1", "l2"] }, next: ["join"] },
+      mk("l1", "Lane one"), mk("l2", "Lane two"), mk("join", "After the lanes"),
+    ]);
+    runId = await runOf(d, id, "run-lanes-crash");
+    // the first server got as far as lane one's record before it stopped: the same call the lane makes, under the key the lane uses (run:step:attempt, then lane and step)
+    await ok(d, "/v1/records/create", { idempotencyKey: `${runId}:par:1/lane:l1/l1`, type: "note_board", fields: { title: "Lane one" } });
+    assert.deepEqual(await noteTitles(d), ["Lane one"]);
+  } finally { await d.stop(); }
+  d = await boot(dir);
+  try {
+    await finished(d, runId);
+    assert.deepEqual((await noteTitles(d)).sort(), ["After the lanes", "Lane one", "Lane two"], "lane one's record is there once, not twice");
+  } finally { await d.stop(); }
+});
