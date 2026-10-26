@@ -7,7 +7,7 @@ import { registry } from "../../../generated/registry.ts";
 import { codeForReason } from "../routes/errors.ts";
 
 type Row = Record<string, unknown>;
-interface Node { id: string; key: string; input: Record<string, unknown>; next?: string[]; branches?: unknown[]; onError?: { mode: "fail" | "continue" | "retry" | "route"; max?: number; route?: string } }
+interface Node { id: string; key: string; input: Record<string, unknown>; next?: string[]; branches?: { label: string; to: string }[]; onError?: { mode: "fail" | "continue" | "retry" | "route"; max?: number; route?: string } }
 interface Plan { link: { principal: { kind: "person" | "agent" | "service"; id: string }; payload?: unknown; automationId: string }; definition: { nodes: Node[]; start?: string[] } }
 interface PlanStep { id: string; input?: unknown; retry?: { max: number; backoff: "none" | "linear" | "exp"; baseMs: number }; effects?: "read" | "write" | "outward"; sample?: unknown }
 interface StepResult { output?: unknown; next?: string | null; wait?: unknown }
@@ -79,7 +79,16 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
       const nodes = p.definition.nodes;
       const byId = new Map(nodes.map((n) => [n.id, n] as const));
       const first = byId.get(p.definition.start?.[0] ?? "") ?? nodes[0]!;
-      const ordered = [first, ...nodes.filter((n) => n !== first)];
+      // the steps of a parallel lane or a loop body run inside their Parallel or Loop step (steps-core), so they are not steps of the plan: left in it, the plan would run them once more on its own
+      const inner = new Set<string>();
+      const chainFrom = (id: string | undefined): void => {
+        for (let at = id, hops = 0; at !== undefined && !inner.has(at) && hops < 500; hops++) { inner.add(at); at = byId.get(at)?.next?.[0]; }
+      };
+      for (const n of nodes) {
+        if (n.key === "parallel") for (const lane of (n.input["branches"] as unknown[] | undefined) ?? []) if (typeof lane === "string") chainFrom(lane);
+        if (n.key === "loop") chainFrom(n.branches?.find((b) => b.label.trim().toLowerCase() === "body")?.to);
+      }
+      const ordered = [first, ...nodes.filter((n) => n !== first && !inner.has(n.id))];
       const plan: PlanStep[] = ordered.map((n) => {
         const kind = STEPS.get(n.key);
         const retry = n.onError?.mode === "retry" ? { max: Math.max(1, n.onError.max ?? 3), backoff: "exp" as const, baseMs: 1000 } : undefined;
@@ -90,7 +99,7 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
         if (!node) throw new Error(`The plan has no step ${step.id}.`);
         const c = call as unknown as Call;
         try {
-          const r = (await d.call("steps-core.run_step", { node, call: { ...c, trigger: p.link.payload, vars: {} }, run: { id: run.id, automation: p.link.automationId } }, { principal: p.link.principal })) as StepResult;
+          const r = (await d.call("steps-core.run_step", { node, nodes, call: { ...c, trigger: p.link.payload, vars: {} }, run: { id: run.id, automation: p.link.automationId } }, { principal: p.link.principal })) as StepResult;
           // a step that names no next step goes where the definition says; one that names nothing at all goes to the next node in the list
           if (r.next === undefined && !r.wait && node.next && node.next.length > 0) return { ...r, next: node.next[0]! };
           return r;

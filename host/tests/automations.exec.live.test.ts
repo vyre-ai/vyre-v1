@@ -158,3 +158,108 @@ test("a step is authorized when it runs: a person removed while their Run waits 
     const plan = items.map((i) => (i.options.includes("reassign") ? { kind: i.kind, action: "reassign", to: "usr_olivia" } : { kind: i.kind, action: i.defaultAction }));
     await ok(d, "/v1/members/remove", { personId: "usr_noah", plan, reason: "test" });
   }, /no longer a member/, true));
+
+// ---- P-L6_25: Parallel lanes, Loop bodies and waits on an event ----
+
+const noteTitles = async (d: Daemon): Promise<string[]> =>
+  ((await ok(d, "/v1/records/query", { type: "note_board" }))["rows"] as { fields: { title?: string } }[]).map((r) => String(r.fields.title));
+const finished = (d: Daemon, runId: string) => until("the run to succeed", 20_000, async () => {
+  const s = await statusOf(d, runId);
+  return s === "succeeded" ? true : s === "failed" ? assert.fail(`the run failed: ${JSON.stringify(await ok(d, "/v1/runs/steps", { runId }))}`) : undefined;
+});
+const withPayload = async (d: Daemon, id: string, key: string, payload: unknown): Promise<string> => String((await ok(d, "/v1/automations/run", { automationId: id, idempotencyKey: key, payload }))["runId"]);
+
+test("Parallel: both lanes finish, then the step after the join runs", async () => {
+  const d = await boot(seededDir());
+  try {
+    const id = await automation(d, "lanes", [
+      { id: "par", key: "parallel", input: { branches: ["l1", "l2"] }, next: ["join"] },
+      mk("l1", "Lane one"), mk("l2", "Lane two"),
+      mk("join", "After the lanes"),
+    ]);
+    const runId = await runOf(d, id, "run-lanes");
+    await finished(d, runId);
+    assert.deepEqual((await noteTitles(d)).sort(), ["After the lanes", "Lane one", "Lane two"], "each lane made its record once, and the join step ran after them");
+    const steps = ((await ok(d, "/v1/runs/steps", { runId }))["steps"] as { step: string }[]).map((s) => s.step);
+    assert.deepEqual(steps, ["par", "join"], "the lanes' steps are inside the Parallel step, not steps of the plan");
+  } finally { await d.stop(); }
+});
+
+test("Loop: a body that runs once per item makes one record per item", async () => {
+  const d = await boot(seededDir());
+  try {
+    const id = await automation(d, "loop", [
+      { id: "each", key: "loop", input: { items: "trigger.input.items" }, branches: [{ label: "body", to: "make" }] },
+      { id: "make", key: "records.create", input: { type: "note_board", fields: { title: "Item {{ item }}" } } },
+    ]);
+    const runId = await withPayload(d, id, "run-loop", { items: ["a", "b", "c"] });
+    await finished(d, runId);
+    assert.deepEqual((await noteTitles(d)).sort(), ["Item a", "Item b", "Item c"]);
+  } finally { await d.stop(); }
+});
+
+test("a step that waits cannot run inside a lane: the Run fails by name", async () => {
+  const d = await boot(seededDir());
+  try {
+    const id = await automation(d, "lane-wait", [
+      { id: "par", key: "parallel", input: { branches: ["l1", "l2"] } },
+      { id: "l1", key: "wait", input: { forDuration: "1s" } }, mk("l2", "Lane two"),
+    ]);
+    const runId = await runOf(d, id, "run-lane-wait");
+    await until("the run to fail", 15_000, async () => ((await statusOf(d, runId)) === "failed" ? true : undefined));
+    assert.match(JSON.stringify(await ok(d, "/v1/runs/steps", { runId })), /run\.lane_wait|waits, and a step that waits cannot run inside/, "the failure says why");
+  } finally { await d.stop(); }
+});
+
+const waitOnUpdate = (timeout: string) => [
+  { id: "hold", key: "wait", input: { event: { event: "record.updated", filter: { recordId: "{{ trigger.input.recordId }}" } }, timeout } },
+  mk("after", "After the wait"),
+];
+const makeNote = async (d: Daemon, title: string): Promise<string> =>
+  String(((await ok(d, "/v1/records/create", { idempotencyKey: `exec-note-${title}`, type: "note_board", fields: { title } }))["record"] as { id: string }).id);
+
+test("a wait on an event resumes when that record changes, and not when another one does", async () => {
+  const d = await boot(seededDir());
+  try {
+    const watched = await makeNote(d, "Watched");
+    const other = await makeNote(d, "Other");
+    const id = await automation(d, "event-wait", waitOnUpdate("60s"));
+    const runId = await withPayload(d, id, "run-event", { recordId: watched });
+    await until("the run to wait", 10_000, async () => ((await statusOf(d, runId)) === "waiting" ? true : undefined));
+    await ok(d, "/v1/records/update", { type: "note_board", recordId: other, patch: { title: "Other, edited" } });
+    await new Promise((r) => setTimeout(r, 1_500));
+    assert.equal(await statusOf(d, runId), "waiting", "another record's update does not wake it");
+    await ok(d, "/v1/records/update", { type: "note_board", recordId: watched, patch: { title: "Watched, edited" } });
+    await finished(d, runId);
+    assert.equal((await noteTitles(d)).includes("After the wait"), true, "the step after the wait ran");
+  } finally { await d.stop(); }
+});
+
+test("a wait on an event that never comes times out and the Run goes on", async () => {
+  const d = await boot(seededDir());
+  try {
+    const watched = await makeNote(d, "Never touched");
+    const id = await automation(d, "event-timeout", waitOnUpdate("2s"));
+    const runId = await withPayload(d, id, "run-timeout", { recordId: watched });
+    await until("the run to wait", 10_000, async () => ((await statusOf(d, runId)) === "waiting" ? true : undefined));
+    await finished(d, runId);
+    assert.equal((await noteTitles(d)).includes("After the wait"), true, "the Run went on after the timeout");
+  } finally { await d.stop(); }
+});
+
+test("an event wait left by the last server is still heard after a restart", async () => {
+  const dir = seededDir();
+  let d = await boot(dir);
+  let runId = "", watched = "";
+  try {
+    watched = await makeNote(d, "Watched across a restart");
+    const id = await automation(d, "event-restart", waitOnUpdate("120s"));
+    runId = await withPayload(d, id, "run-event-restart", { recordId: watched });
+    await until("the run to wait", 10_000, async () => ((await statusOf(d, runId)) === "waiting" ? true : undefined));
+  } finally { await d.stop(); }
+  d = await boot(dir);
+  try {
+    await ok(d, "/v1/records/update", { type: "note_board", recordId: watched, patch: { title: "Edited after the restart" } });
+    await finished(d, runId);
+  } finally { await d.stop(); }
+});

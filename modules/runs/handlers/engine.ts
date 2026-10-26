@@ -11,6 +11,7 @@ import {
   isTerminalStep, latestSteps, listRuns, manageRun, newRunId, newSpanId, newThreadId, page, patchExtra, raise, readExtra, readTrigger, runOut, saveRun, saveStep, saveWait, seeRun, stepOut, touch,
 } from "../projections.ts";
 import { isSystemCall, isTrustedService } from "../../../lib/trust.ts";
+import { noteWait } from "./waits.ts";
 import type { Db, ResourceRef, Run, RunKind, RunStatus, RunsCtx, StepRow, StepState, WaitReason, WaitRow } from "../projections.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -85,7 +86,9 @@ export async function markWaiting(ctx: RunsCtx, run: Run, w: { reason: WaitReaso
   run.status = "waiting";
   run.waitReason = w.reason;
   touch(ctx, run);
-  saveWait(ctx.db, { runId: run.id, reason: w.reason, createdAt: ctx.now(), ...(taskId ? { taskId } : {}), ...(w.on ? { label: w.on } : {}), ...(w.wait ?? {}) });
+  const row: WaitRow = { runId: run.id, reason: w.reason, createdAt: ctx.now(), ...(taskId ? { taskId } : {}), ...(w.on ? { label: w.on } : {}), ...(w.wait ?? {}) };
+  saveWait(ctx.db, row);
+  noteWait(row);   // the wake consumer starts hearing the events this wait needs
   emitRun(ctx, "run.waiting", run.id, { reason: w.reason, taskId, on: w.on });
   return run;
 }
@@ -303,7 +306,9 @@ export async function waitFor(ctx: RunsCtx, input: In): Promise<unknown> {
   run.status = "waiting";
   run.waitReason = "background";
   touch(ctx, run);
-  saveWait(ctx.db, { runId: run.id, reason: "background", on, untilAt: now + timeout, createdAt: now, ...(input.label ? { label: input.label } : {}) });
+  const row: WaitRow = { runId: run.id, reason: "background", on, untilAt: now + timeout, createdAt: now, ...(input.label ? { label: input.label } : {}) };
+  saveWait(ctx.db, row);
+  noteWait(row);
   emitRun(ctx, "run.waiting", run.id, { reason: "background", on: describeOn(on) });
   // waiting for a Run that already ended is a match: the next sweep ends the wait (a capability may only emit the events it declares)
   return { runId: run.id };

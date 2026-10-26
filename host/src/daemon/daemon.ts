@@ -664,7 +664,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       // Runs the last server left queued or running are driven again from their step log (P-L6_24). Started, not awaited: boot does not wait for a Run, and shutdown waits for it.
       if (loaded.serving.get("runs") === "live") {
-        const recovering = runsHost.recover().catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "runs.recover_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+        const recovering = hookRunner.call("runs.prime_waits", {}).then(() => runsHost.recover()).catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "runs.recover_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
         closers.push(() => recovering);
       }
 

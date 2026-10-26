@@ -49,7 +49,8 @@ export interface HookEvent {
   at: number;
 }
 
-export interface ConsumerDef { name: string; module: string; on: readonly string[]; run(ctx: Ctx, event: HookEvent): Promise<unknown> | unknown }
+/** `match` lets a consumer take events by a rule that changes while the server runs (the Runs that wait on an event): it is asked once per event type, host side, before anything is invoked. */
+export interface ConsumerDef { name: string; module: string; on: readonly string[]; match?: ((type: string) => boolean) | undefined; run(ctx: Ctx, event: HookEvent): Promise<unknown> | unknown }
 export interface PeriodicDef { name: string; module: string; everyMs: number; run(ctx: Ctx): Promise<unknown> | unknown }
 /** A function a module offers the host to run as that module (`export const hostCalls = { "<module>.<name>": (ctx, input) => ... }`): the host's way to hand work to a module that has no capability for it, with the module's own ctx. */
 export interface CallDef { name: string; module: string; run(ctx: Ctx, input: unknown): Promise<unknown> | unknown }
@@ -67,7 +68,8 @@ export function collectHooks(module: string, ns: Record<string, unknown>): Modul
     for (const [name, def] of Object.entries(ns["consumers"])) {
       if (!isRecord(def) || !Array.isArray(def["on"]) || typeof def["run"] !== "function") continue;   // a kernel projection has `mode: "async"` and an object `on`
       const run = def["run"] as (ctx: Ctx, event: HookEvent) => Promise<unknown> | unknown;
-      out.consumers.push({ name, module, on: (def["on"] as unknown[]).filter((x): x is string => typeof x === "string"), run: (ctx, event) => run(ctx, event) });
+      const match = typeof def["match"] === "function" ? (def["match"] as (type: string) => boolean) : undefined;
+      out.consumers.push({ name, module, on: (def["on"] as unknown[]).filter((x): x is string => typeof x === "string"), ...(match ? { match: (t: string) => match(t) } : {}), run: (ctx, event) => run(ctx, event) });
     }
   }
   if (isRecord(ns["periodic"])) {
@@ -211,7 +213,7 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
       if (!page.length) return;
       for (const e of page) {
         // an erased event (events.compact) has no payload to act on: it is skipped, as the projections skip it
-        if (c.on.includes(e.type) && !isErased(e)) {
+        if ((c.on.includes(e.type) || c.match?.(e.type) === true) && !isErased(e)) {
           if (!(await deliver(c, e))) { setCursor(c.name, at); return; }   // stop here: this event is tried again on the next pass, before any later one
           at = e.seq;
           setCursor(c.name, at);   // a delivered event is recorded at once, so a crash repeats at most the one in flight
