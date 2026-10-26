@@ -57,7 +57,7 @@ function WebRow({ id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "
     "div",
     {
       role: "button", tabIndex: 0, "aria-label": title, "aria-selected": selected, "data-testid": tid(""), className: "vyre-row",
-      style: { height: rowHeight(note, tall), ...(selected ? SELECTED : hovered ? HOVER : null), ...extra },
+      style: { width: "100%", height: rowHeight(note, tall), ...(selected ? SELECTED : hovered ? HOVER : null), ...extra },
       ...(onPress ? {
         onClick: (e: unknown) => onPress(e as never),
         onKeyDown: (e: { key?: string; preventDefault?: () => void }) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault?.(); onPress(e as never); } },

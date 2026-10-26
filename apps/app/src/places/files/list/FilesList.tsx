@@ -16,9 +16,9 @@ import {
   SORTS, SORT_LABEL, WHERE_LABEL, createSpring, crumbs, dragPayload, dropMoves, emptyText, fileLine, folderLine, kindLabel, parsePayload, sizeText, sortLines, sourceOf, updatedText,
 } from "../tree/model.ts";
 import type { Line, SortKey, Spring } from "../tree/model.ts";
-import { Glyph, iconOfKind } from "../tree/parts.tsx";
+import { iconOfKind } from "../tree/parts.tsx";
 import { useFilesState } from "../tree/state.tsx";
-import { ColumnHeader, GridRow, LIST_ROW, RowCells, Tile, WIDE, chunk, gridKey, gridLayout } from "../FileList.tsx";
+import { ColumnHeader, GridRow, LIST_ROW, LineIcon, RowCells, Tile, WIDE, chunk, gridKey, gridLayout } from "../FileList.tsx";
 import { Toolbar, crumbTrail } from "../Toolbar.tsx";
 import { DragWrap, dragAttrs, useDragDelegation } from "./DragWrap.tsx";
 import type { DragHandlers, DragRegistry } from "./DragWrap.tsx";
@@ -195,7 +195,7 @@ function List(): ReactElement {
         title={l.name}
         selected={state.selection.includes(l.key)}
         hovered={over === l.key}
-        leading={<View style={styles.icon}><Glyph name={iconOfKind(l.kind)} size={18} color={l.type === "folder" ? "var(--accent)" : "var(--ink-3)"} /></View>}
+        leading={<LineIcon icon={iconOfKind(l.kind)} folder={l.type === "folder"} />}
         trailing={<RowCells wide={wide} cells={{ when: whenOf(l), by: byOf(l), size: sizeOfLine(l), kind: kindOfLine(l) }} />}
         onPress={() => press(l)}
         domProps={{ ...dragAttrs(l.key), ...menuTrigger((x, y) => lineMenu(l, x, y)), style: LINE_STYLE }}
