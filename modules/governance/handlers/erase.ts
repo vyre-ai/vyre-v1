@@ -15,7 +15,6 @@ import { fail } from "../../../host/src/routes/errors.ts";
 import { ERASE_KINDS, bad, codeOf, ensure, finishRun, first, holdRow, isId, list, newId, num, obj, pageOf, paging, parseJson, refuse, rowsOf, startRun, str, text } from "../projections.ts";
 import type { EraseKind, GovCtx, Json, Row } from "../projections.ts";
 import { eraseItem } from "./erasers.ts";
-import { isHostService } from "../../../lib/trust.ts";
 import type { Outcome } from "./erasers.ts";
 import { fileHeld } from "./retention.ts";
 
@@ -270,7 +269,7 @@ export async function tombstonesList(ctx: GovCtx, input: { cursor?: string; limi
 export async function tombstonesReapply(ctx: GovCtx, input: { tombstones?: Array<{ id: string; kind: string; subjectType: string; subjectId: string; at: number; by: string; findingId?: string }> } = {}) {
   ensure(ctx);
   // Only the host replays tombstones, as itself, at start. The list it brings is erased from the Space, so nobody else may name one, the owner included (P-GF_11).
-  if (!isHostService(ctx.principal)) throw fail("permission.role_lacks_permission", ctx.trace.traceId, { message: "Only the server replays tombstones.", details: { reason: "system_only" } });
+  if (ctx.principal.id !== "svc_host" || ctx.principal.kind !== "service") throw fail("permission.role_lacks_permission", ctx.trace.traceId, { message: "Only the server replays tombstones.", details: { reason: "system_only" } });
   // the erasures made after the backup was taken: the restored database has not heard of them, so the host brings them over and they are kept like any other
   for (const t of input.tombstones ?? []) {
     ctx.db.run(`INSERT OR IGNORE INTO governance_tombstone ("id", "kind", "subjectType", "subjectId", "at", "by", "findingId") VALUES (?, ?, ?, ?, ?, ?, ?)`, t.id, t.kind, t.subjectType, t.subjectId, t.at, t.by, t.findingId ?? "");
