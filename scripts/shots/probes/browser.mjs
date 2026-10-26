@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { gotoSafe } from "../lib.mjs";
 // Browser perf probe runner (ruling 43, P-L11_02). Mounts write their measurements to window.__probes:
 //   window.__probes = { startup: ms, navigate: ms, scroll: p95 frame ms, space_switch: ms, layout_shift: score, prefetch: percent, chat_open: ms, ready: true }
 // A value is a number, or a function/promise-free plain number set once the measure finished; `ready: true` marks the object complete.
@@ -97,7 +98,7 @@ export async function readMount(browser, { url, selector, viewport, scheme, thro
   try {
     const page = await ctx.newPage();
     if (throttle > 1) { const cdp = await ctx.newCDPSession(page); await cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle }); }
-    await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
+    await gotoSafe(page, url, { waitUntil: "load", timeout: timeoutMs });
     await page.waitForSelector(selector, { timeout: timeoutMs });
     await page.waitForFunction((ks) => { const p = window.__probes; return !!p && (p.ready === true || ks.every((k) => typeof p[k] === "number")); }, kinds, { timeout: timeoutMs });
     return await page.evaluate(() => ({ ...window.__probes }));

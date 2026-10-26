@@ -9,7 +9,7 @@ import path from "node:path";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ensureDeps, ensureChromium } from "./ensure-deps.mjs";
-import { parseArgs, SKINS, SIZES, MAX_EXPORT_S, protoHash, routeUrl, loadTargets, sideBySideHtml } from "./lib.mjs";
+import { parseArgs, SKINS, SIZES, MAX_EXPORT_S, protoHash, routeUrl, loadTargets, sideBySideHtml, gotoSafe } from "./lib.mjs";
 import { serve } from "./serve.mjs";
 import { measureScroll, withinBudget, SCROLL_P95_MS } from "./probes/scroll.mjs";
 import { exportEnv } from "../lib/registry-hash.mjs";
@@ -66,7 +66,7 @@ try {
     const shoot = async (url, file, settleMs, scheme, click) => {
       const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: scheme, reducedMotion: "reduce" });
       const page = await ctx.newPage();
-      await page.goto(url, { waitUntil: "load", timeout: 60000 });
+      await gotoSafe(page, url, { waitUntil: "load", timeout: 60000 });
       if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 30000 }).catch(() => {});
       await page.waitForTimeout(settleMs);
       // a prototype state with no hash token is reached the way a person does: press the control in whichever frame has it
@@ -93,7 +93,7 @@ try {
   for (const t of targets) if (t.scroll && !args["no-probes"]) {
     const ctx = await browser.newContext({ viewport: SIZES.desktop, deviceScaleFactor: 1, reducedMotion: "no-preference" });
     const page = await ctx.newPage();
-    await page.goto(routeUrl(real.origin, t.route, "paper"), { waitUntil: "load", timeout: 60000 });
+    await gotoSafe(page, routeUrl(real.origin, t.route, "paper"), { waitUntil: "load", timeout: 60000 });
     const r = await measureScroll(page, t.scroll);
     const ok = withinBudget(r);
     console.log(`METRIC ${JSON.stringify({ name: "scroll", target: t.id, frames: r.frames, p95_ms: +r.p95.toFixed(2), max_ms: +r.max.toFixed(2), budget_ms: SCROLL_P95_MS, layout_shift: r.layoutShift, height_stable: r.heightStable, ok })}`);

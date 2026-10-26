@@ -66,3 +66,12 @@ export function budgetOf(budgets, name) {
   if (!b || typeof b !== "object") throw new Error(`budgets.json has no row ${name}`);
   return b;
 }
+
+// Chromium aborts a navigation with net::ERR_NETWORK_CHANGED when the host's interfaces change mid-load (another job on the shared CI host adding a Docker network).
+// That is the runner, not the app: retry that one error, at most twice; every other error throws as before.
+export async function gotoSafe(page, url, opts) {
+  for (let attempt = 0; ; attempt++) {
+    try { return await page.goto(url, opts); }
+    catch (e) { if (attempt >= 2 || !String(e?.message ?? e).includes("ERR_NETWORK_CHANGED")) throw e; }
+  }
+}
