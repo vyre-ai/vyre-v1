@@ -9,14 +9,14 @@ test("two different addresses get separate ids, the same address the same id, an
   const a = idOf({ "x-vyre-remote": "203.0.113.9" }), b = idOf({ "x-vyre-remote": "198.51.100.4" });
   assert.notEqual(a, b);
   assert.equal(a, idOf({ "x-vyre-remote": "203.0.113.9" }));
-  assert.match(a, /^svc_anon_[0-9a-f]{16}$/);
-  assert.match(idOf({ "x-vyre-remote": "203.0.113.9" }, "pending"), /^svc_pending_[0-9a-f]{16}$/);
+  assert.match(a, /^act_anon_[0-9a-f]{16}$/);
+  assert.match(idOf({ "x-vyre-remote": "203.0.113.9" }, "pending"), /^act_pending_[0-9a-f]{16}$/);
   assert.notEqual(a, idOf({ "x-vyre-remote": "203.0.113.9" }, "pending"), "an anonymous and a pending caller from one address are two buckets");
 });
 
-test("the principal is a service, never a person, and carries no address", () => {
+test("the principal is an actor, never a person or a service, and carries no address", () => {
   const s = preAuthSession("spc_x", "anonymous", { "x-vyre-remote": "203.0.113.9" });
-  assert.equal(s.principal.kind, "service");
+  assert.equal(s.principal.kind, "actor");
   assert.ok(!JSON.stringify(s).includes("203.0.113.9"));
 });
 
