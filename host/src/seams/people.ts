@@ -92,7 +92,19 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
       async apply(personId: string, kind: string, action: string, to?: string) {
         const module = OWNERS[kind];
         if (!module) return 0;
-        try { return Number(await d.call(`${module}.reassign_owned`, { person: personId, kind, action, ...(to ? { to } : {}) }, as)); } catch { return 0; }
+        // ruling 88: an agent's folder follows its owner. The folders are read before the reassign (the rows still name the old owner), then ownership of each moves and the old owner keeps nothing on it.
+        let owned: { agentId: string; folderId: string }[] = [];
+        if (kind === "agents" && action === "reassign" && to) {
+          try { owned = (await d.call("agents.folders_of", { person: personId }, as)) as { agentId: string; folderId: string }[]; } catch { owned = []; }
+        }
+        let moved = 0;
+        try { moved = Number(await d.call(`${module}.reassign_owned`, { person: personId, kind, action, ...(to ? { to } : {}) }, as)); } catch { return 0; }
+        for (const a of owned) {
+          for (const resource of [{ type: "folder", id: a.folderId }, { type: "agent", id: a.agentId }]) {
+            try { await d.call("access.transfer_ownership", { resource, from: personId, to }, as); } catch { /* the resource is gone or access is not live: the reassign itself stands */ }
+          }
+        }
+        return moved;
       },
     };
   };
