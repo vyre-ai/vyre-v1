@@ -158,7 +158,7 @@ const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): 
       onClick: (e: { metaKey?: boolean; ctrlKey?: boolean }) => { if (row) onTap(row.id, e.metaKey === true || e.ctrlKey === true); },
       ...menuTrigger((x, y) => { if (row) onMenu(row, x, y); }),
       onMouseEnter: () => onHot(row ? row.id : null), onMouseLeave: () => onHot(null),
-      className: "vrt-r", style: { left: 0, top: y, width: GUTTER + primary.width, backgroundColor: bg },
+      className: "vrt-r", style: { left: 0, transform: `translateY(${y}px)`, width: GUTTER + primary.width, backgroundColor: bg },
     },
     createElement("div", { className: "vrt-g" }, String(n)),
     createElement("div", { style: { width: primary.width, height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, boxSizing: "border-box", padding: "0 10px", overflow: "hidden", flex: "none" } },
@@ -187,7 +187,7 @@ function ensureRowCss(): void {
   if (!d || !d.head || d.getElementById(CSS_ID)) return;
   const el = d.createElement("style");
   el.id = CSS_ID;
-  el.textContent = `.vrt-r{position:absolute;box-sizing:border-box;display:flex;align-items:center;height:${ROW_H}px;border-bottom:1px solid var(--line);contain:layout style}`
+  el.textContent = `.vrt-r{position:absolute;top:0;box-sizing:border-box;display:flex;align-items:center;height:${ROW_H}px;border-bottom:1px solid var(--line);contain:layout style}`
     + ".vrt-c{box-sizing:border-box;flex:none;padding:0 10px;font-size:13px;color:var(--ink);white-space:nowrap}"
     + ".vrt-b{box-sizing:border-box;display:flex;align-items:center;flex:none;height:100%;padding:0 10px;min-width:0}.vrt-e{justify-content:flex-end}"
     + ".vrt-chip{box-sizing:border-box;display:inline-block;height:20px;line-height:20px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap}"
@@ -261,7 +261,7 @@ const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: num
       "data-testid": row ? `recb-${row.id}` : `recb-pending-${n}`,
       onClick: (e: { metaKey?: boolean; ctrlKey?: boolean }) => { if (row) onTap(row.id, e.metaKey === true || e.ctrlKey === true); }, ...menuTrigger((x, y) => { if (row) onMenu(row, x, y); }),
       onMouseEnter: () => onHot(row ? row.id : null), onMouseLeave: () => onHot(null),
-      className: "vrt-r", style: bg === "var(--win)" ? { top: y, left, width } : { top: y, left, width, backgroundColor: bg }, // the window shows through a plain row: nothing to paint but its text
+      className: "vrt-r", style: bg === "var(--win)" ? { transform: `translateY(${y}px)`, left, width } : { transform: `translateY(${y}px)`, left, width, backgroundColor: bg }, // the window shows through a plain row: nothing to paint but its text
     },
     pad > 0 ? createElement("div", { key: "pad", style: { width: pad, flex: "none" } }) : null,
     ...cells,
