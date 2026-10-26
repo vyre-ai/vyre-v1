@@ -102,3 +102,11 @@ test("a small selection takes few jobs: 5 files give 1 fast shard, 12 plain slow
   assert.deepEqual(m.filter((j) => j.runner === "v1-perf").map((j) => j.files).sort(), perf);
   assert.equal(m.length, 5);
 });
+
+test("a heavy test gets a job to itself on the v1 runners; plain slow files still share jobs", () => {
+  const slow = [slowEntry("images/vyred/smoke.heavy.test.ts", 120), slowEntry("a.test.ts", 60), slowEntry("b.test.ts", 60), { ...slowEntry("c.test.ts", 60), heavy: true }];
+  const m = toMatrix(shardFiles(["images/vyred/smoke.heavy.test.ts", "a.test.ts", "b.test.ts", "c.test.ts"], {}, slow)).include;
+  assert.deepEqual(m.filter((j) => j.name.startsWith("heavy-")).map((j) => j.files).sort(), ["c.test.ts", "images/vyred/smoke.heavy.test.ts"]);
+  assert.deepEqual(m.filter((j) => j.name.startsWith("slow-")).map((j) => j.files), ["a.test.ts b.test.ts"]);
+  assert.ok(m.filter((j) => j.slow).every((j) => j.runner === "v1"));
+});

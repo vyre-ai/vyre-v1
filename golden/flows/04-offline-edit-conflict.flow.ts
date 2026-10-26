@@ -6,5 +6,5 @@ export default defineFlow({
   name: "offline-edit-conflict",
   title: "Offline edit and conflict",
   needs: ["sync", "conflicts", "records"],
-  events: ["record.updated", "conflict.opened", "conflict.resolved", "conflict.undone"],
+  events: ["conflict.opened", "conflict.resolved", "record.updated", "conflict.undone"],
 });

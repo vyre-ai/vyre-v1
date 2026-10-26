@@ -117,7 +117,7 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
 
           <Lab>Owner</Lab>
           <Group testID="owner">
-            <SRow last minHeight={44} lead={<Face name={data.name(a.ownerId)} size={20} />} label={data.name(a.ownerId)} sub="The accountable person shown on it." />
+            <SRow last minHeight={44} lead={<Face name={data.name(a.ownerId)} seedId={a.ownerId} size={20} />} label={data.name(a.ownerId)} sub="The accountable person shown on it." />
           </Group>
 
           <Lab right={<TextButton label="Add" icon="plus" testID="add-access" onPress={() => setShare(true)} />}>Access</Lab>
@@ -133,7 +133,7 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
               {a.followers.map((f) => (
                 <Row
                   key={f} id={`follower-${f}`} title={data.name(f)} note="Updates only"
-                  leading={<View style={t.lead}><Face name={data.name(f)} size={20} /></View>}
+                  leading={<View style={t.lead}><Face name={data.name(f)} seedId={f} size={20} /></View>}
                   trailing={<IconButton icon="x" label={`Stop ${data.name(f)} following`} size={22} testID={`unfollow-${f}`} onPress={() => unfollow(f)} />}
                 />
               ))}
@@ -208,7 +208,7 @@ function AccessSummary({ rows }: { rows: readonly AccessRow[] }): ReactElement {
       {rows.map((r) => (
         <Row
           key={`${r.subjectKind}:${r.subjectId}`} id={`access-${r.subjectId}`} title={r.name} note={THROUGH_NOTE[r.through]}
-          leading={<View style={t.lead}><Face name={data.name(r.subjectId)} kind={r.subjectKind === "person" ? "person" : "agent"} size={20} /></View>}
+          leading={<View style={t.lead}><Face name={data.name(r.subjectId)} seedId={r.subjectId} kind={r.subjectKind === "person" ? "person" : "agent"} size={20} /></View>}
           trailing={<Text style={t.value}>{r.level[0]!.toUpperCase() + r.level.slice(1)}</Text>}
         />
       ))}

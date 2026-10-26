@@ -4,6 +4,7 @@
 // DECISION: a definition change appends a version; a name or description change does not.
 // DECISION: Promote keeps the id, history and versions, makes the Automation a Space one owned by the named person and run as its own Service principal. The access it was
 // confirmed with is stored (automations_access) with the vault names it may use (automations_vault); subscription keys must be replaced by shared API keys first.
+import { isTrustedService } from "../../../lib/trust.ts";
 import { registry } from "../../../generated/registry.ts";
 import {
   allAutomations, clean, defaultAlerts, emitAuto, findGroup, getAutomation, isOwner, listGroups, listVersions, markDeleted, markRestored, me, newId, newSecret, out, page,
@@ -103,7 +104,7 @@ export async function get(ctx: AutoCtx, input: In): Promise<unknown> {
 
 /** Who may see an Automation: the owner, a follower, a service caller, or anyone the kernel lets view it. */
 export function canView(ctx: AutoCtx, a: Automation): boolean {
-  if (ctx.principal.kind === "service" || isOwner(ctx, a) || a.followers.includes(me(ctx)) || a.createdBy === ctx.principal.id) return true;
+  if (isTrustedService(ctx.principal) || isOwner(ctx, a) || a.followers.includes(me(ctx)) || a.createdBy === ctx.principal.id) return true;
   return !!ctx.authorize && ctx.authorize({ perm: null, level: "view" }, { type: "automation", id: a.id }).effect === "allow";
 }
 function visible(ctx: AutoCtx, a: Automation): Automation {

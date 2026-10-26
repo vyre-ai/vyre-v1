@@ -40,7 +40,7 @@ async function newRole(url: string, token: string, key: string): Promise<string>
 
 const CASES: { module: string; read: [string, unknown]; write?: [string, unknown]; refused?: [string, unknown]; writeAs?: "member" }[] = [
   { module: "access", read: ["/v1/access/roles/list", {}], write: ["/v1/access/groups/create", { name: "L7 live group", idempotencyKey: "l7-live-group" }], refused: ["/v1/access/groups/create", { name: "Nope", idempotencyKey: "l7-live-nope" }] },
-  { module: "audit", read: ["/v1/audit/chain_health", {}], write: ["/v1/audit/append", { action: "l7.live", class: "admin" }], refused: ["/v1/audit/list", {}] },
+  { module: "audit", read: ["/v1/audit/chain_health", {}], write: ["/v1/audit/verify", {}], refused: ["/v1/audit/append", { action: "l7.live", class: "admin" }] },   // append is a module's act, not an owner's (P-SEC_10): a direct call is refused
   { module: "devices", read: ["/v1/devices/mine", {}], write: ["/v1/devices/revoke_others", {}], refused: ["/v1/devices/list", {}] },
   { module: "governance", read: ["/v1/governance/jobs_health", {}], write: ["/v1/governance/retention/set", { kind: "trash", value: "90d" }], refused: ["/v1/governance/retention/get", {}] },
   { module: "identity", read: ["/v1/identity/sign_in_options", {}], write: ["/v1/identity/username_available", { username: "l7live" }], refused: ["/v1/identity/reset_start", { personId: "usr_olivia", idempotencyKey: "l7-live-reset" }] },
