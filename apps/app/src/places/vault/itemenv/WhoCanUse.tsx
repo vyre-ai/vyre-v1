@@ -49,7 +49,7 @@ export function WhoCanUse({ shares, you, nameOf, meId, canManage, onLevel, onRem
   const rows: ReactElement[] = [
     <Row
       key="you" id="who:you" title="You" note={you.owner ? "Owner" : "Person"}
-      leading={<View style={s.face}><Avatar name={you.name} kind="person" size={28} /></View>}
+      leading={<View style={s.face}><Avatar name={you.name} seedId={meId} kind="person" size={28} /></View>}
       trailing={<Text style={s.levelFixed} testID="who-level-you">{LEVEL_LABEL[you.level]}</Text>}
     />,
   ];
@@ -67,7 +67,7 @@ export function WhoCanUse({ shares, you, nameOf, meId, canManage, onLevel, onRem
           id={`who:${key}`}
           title={name}
           note={sh.through === "folder" ? `${KIND_LABEL[sh.subject.kind]} · from the folder` : sh.through === "group" || sh.through === "role" ? `${KIND_LABEL[sh.subject.kind]} · through a ${sh.through}` : KIND_LABEL[sh.subject.kind]}
-          leading={<View style={s.face}><Avatar name={name} kind={FACE[sh.subject.kind]} size={28} /></View>}
+          leading={<View style={s.face}><Avatar name={name} seedId={sh.subject.id} kind={FACE[sh.subject.kind]} size={28} /></View>}
           trailing={direct ? (
             <Pressable accessibilityRole="button" accessibilityLabel={`${name} can ${LEVEL_LABEL[sh.level]}. Change`} testID={`who-level-${key}`} onPress={(e) => { const r = rectOf(e); open(r.x, r.y); }} style={s.level}>
               <Text style={s.levelText}>{LEVEL_LABEL[sh.level]}</Text><Glyph name="chevd" size={10} />

@@ -32,10 +32,10 @@ export function Icon({ name, size = 15, color = "var(--ink-3)", width = 1.4 }: {
 }
 
 /** An agent is a pixel face on a soft tint, a person a round marble: the shared Avatar. */
-export function Face({ name, kind = "agent", size = 18 }: { name: string; kind?: "agent" | "person"; size?: number }): ReactElement {
+export function Face({ name, seedId, kind = "agent", size = 18 }: { name: string; seedId?: string | undefined; kind?: "agent" | "person"; size?: number }): ReactElement {
   return (
     <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0, flexGrow: 0 }}>
-      <Avatar name={name} kind={kind} size={size} />
+      <Avatar name={name} seedId={seedId} kind={kind} size={size} />
     </View>
   );
 }

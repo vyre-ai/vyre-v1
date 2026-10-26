@@ -132,9 +132,11 @@ function ComputerBody({ deps, computerId, window }: { deps: PaneDeps; computerId
       { separator: true },
       { label: "Make a Skill from Here", onSelect: () => data.nav.skillFromStep(c.computerId, x.stepId) },
     ];
+    // A finished session reads as the prototype's: the tool and how far into the session the step was (Chrome · 0:02); a live one says how long ago.
+    const when = running ? "now" : view.screen === "asleep" ? offsetLabel(x.at - (steps[0]?.at ?? x.at)) : agoLabel(x.at, clock);
     entries.push({
-      key: `step-${x.stepId}`, type: "row", title: x.caption, note: `${stepWho(x)} · ${running ? "now" : agoLabel(x.at, clock)}`, selected: sel === i,
-      leading: <LeadIcon name={x.by === "person" ? "hand" : "watch"} />, onPress: () => setSel(last ? null : i), menu, testID: `step-${x.stepId}`,
+      key: `step-${x.stepId}`, type: "row", title: x.caption, note: `${stepWho(x)} · ${when}`, selected: sel === i,
+      leading: <Thumb dark={x.tool === "Terminal"} person={x.by === "person"} />, onPress: () => setSel(last ? null : i), menu, testID: `step-${x.stepId}`,
     });
   });
   entries.push({ key: "l-sites", type: "label", text: "Signed in on its computer" });
@@ -149,7 +151,27 @@ function ComputerBody({ deps, computerId, window }: { deps: PaneDeps; computerId
   return <View style={st.fill}><PaneList entries={entries} {...(window ? { window } : {})} testID="computer-list" />{headMenu.element}</View>;
 }
 
+/** m:ss from a number of milliseconds. */
+export function offsetLabel(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** The small frame a step shows in its leading slot: a dark window with a bar and two lines, as the prototype's step list draws the screen at that step. */
+function Thumb({ dark, person }: { dark: boolean; person: boolean }): ReactElement {
+  return (
+    <View testID="step-thumb" aria-hidden style={[st.thumb, dark && st.thumbDark, person && st.thumbMine]}>
+      <View style={st.thumbBar} /><View style={st.thumbLine} /><View style={[st.thumbLine, { width: "55%" }]} />
+    </View>
+  );
+}
+
 const st = StyleSheet.create({
+  thumb: { width: 38, height: 26, borderRadius: 4, paddingHorizontal: 4, paddingTop: 4, gap: 3, backgroundColor: "#1c1d21" as string, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
+  thumbDark: { backgroundColor: "#0c0d0f" as string },
+  thumbMine: { borderColor: "var(--accent)" as string },
+  thumbBar: { height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.28)" as string },
+  thumbLine: { height: 2, borderRadius: 1, backgroundColor: "rgba(255,255,255,0.14)" as string, width: "85%" },
   fill: { flex: 1, minHeight: 0 },
   padded: { paddingHorizontal: 8, paddingVertical: 8 },
   none: { fontSize: 12.5, color: "var(--ink-3)" as string, lineHeight: 18 },
