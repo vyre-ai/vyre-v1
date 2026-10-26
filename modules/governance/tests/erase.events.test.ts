@@ -4,6 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as g from "../handlers/index.ts";
+import { hostSeams } from "../impl.ts";
 import { PAT, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -79,4 +80,17 @@ test("with no event log bound erase works as before, and when the log erased not
     await apply(h2, String(f2["findingId"]), ["records", "files"]);
     assert.equal(h2.rows(`SELECT * FROM governance_tombstone WHERE kind = 'events'`).length, 0);
   } finally { g.setEventsCompact(null); }
+});
+
+test("the module hands the host its events port setter, and the setter is the one the handlers use", async () => {
+  assert.equal(hostSeams.setEventsCompact, g.setEventsCompact);
+  const h = harness();
+  pat(h);
+  const x = port();
+  hostSeams.setEventsCompact(x.p);
+  try {
+    const f = (await find(h)) as Json;
+    await apply(h, String(f["findingId"]), ["records"]);
+    assert.equal(x.calls.filter((c) => c.op === "compact").length, 1);
+  } finally { hostSeams.setEventsCompact(null); }
 });
