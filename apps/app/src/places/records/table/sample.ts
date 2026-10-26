@@ -115,12 +115,13 @@ const protoFieldType = (p: ProtoField): string => (p.t === "status" ? "choice" :
 const protoField = (p: ProtoField): FieldDef => f(p.id, protoFieldType(p), p.n, p.o ? hueChoices(p.o) : undefined);
 /** All 23 of the prototype's Client fields (the name and the 22 under Fields), then the first and latest channel the prototype's table also draws. */
 const PROTO_CLIENT_FIELDS: FieldDef[] = [
-  ...protoClientType.fields.map(protoField),
+  ...protoClientType.fields.slice(0, 5).map(protoField),
   f("fch", "choice", "First channel", hueChoices(PROTO_CHN as readonly (readonly [string, number | null])[])),
   f("lch", "choice", "Latest channel", hueChoices(PROTO_CHN as readonly (readonly [string, number | null])[])),
+  ...protoClientType.fields.slice(5).map(protoField),
 ];
-/** The fields the prototype's Clients table opens without (the view's hidden list). */
-export const PROTO_CLIENT_HIDDEN: readonly string[] = protoClientType.hidden;
+/** The fields the prototype's Clients table opens without: its own hidden list, and the sealed and calculated columns, so the table opens on Name, Status, Owner, Fit, Client since and the channels. */
+export const PROTO_CLIENT_HIDDEN: readonly string[] = [...protoClientType.hidden, "openBal", "nextMeet", "taxId", "bank", "summary", "projects", "health"];
 
 function protoNorthwind(): SampleSpace {
   const idOf = Object.fromEntries(Object.entries(namesFor("northwind")).map(([id, name]) => [name, id]));
