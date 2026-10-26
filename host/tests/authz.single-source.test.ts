@@ -209,7 +209,8 @@ test("fail closed: when the module cannot take a suspension, the suspended perso
     assert.equal((await post(OWNER_TOKEN, "/v1/access/roles/assign", { subject: { kind: "person", id: "usr_noah" }, roleId: admin })).status, 200);
     assert.equal((await tryAdmin()).status, 200, "an admin acts");
 
-    d.db!.run("DROP TABLE access_meta");   // the module can no longer persist, so no sync can succeed
+    // reads still work but the module can no longer persist, so no sync can succeed
+    d.db!.run("CREATE TRIGGER authz_block BEFORE DELETE ON access_meta BEGIN SELECT RAISE(ABORT, 'blocked'); END");
     const suspended = await post(OWNER_TOKEN, "/v1/members/suspend", { personId: "usr_noah" });
     assert.equal(suspended.status, 200, JSON.stringify(suspended.body));
     const held = await tryAdmin();
@@ -217,7 +218,7 @@ test("fail closed: when the module cannot take a suspension, the suspended perso
     assert.equal(held.body.error?.code, "internal.unavailable", JSON.stringify(held.body));
     assert.equal((await post(OWNER_TOKEN, "/v1/access/roles/list", {})).status, 200, "the owner keeps access to fix it");
 
-    d.db!.run('CREATE TABLE IF NOT EXISTS "access_meta" ("id" TEXT PRIMARY KEY, "epoch" INTEGER NOT NULL)');
+    d.db!.run("DROP TRIGGER authz_block");
     let last = held;
     for (let i = 0; i < 40 && last.body.error?.code === "internal.unavailable"; i++) {
       await new Promise((r) => setTimeout(r, 100));
