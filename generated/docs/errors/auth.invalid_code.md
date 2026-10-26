@@ -9,6 +9,7 @@ HTTP 401. Retryable: no.
 - access.actors.redeem
 - connections.complete_auth
 - forms.submit
+- identity.claim_owner
 - identity.github_sign_in
 - identity.pair_redeem
 - identity.recovery_restore
