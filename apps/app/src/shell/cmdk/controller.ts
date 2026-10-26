@@ -16,6 +16,8 @@ export interface SkinChoice {
 
 /** What the shell gives the search: the replica, the server, navigation and the theme. */
 export interface CmdKData {
+  /** The open Space's name: the sheet asks "Search <name>". */
+  spaceName?(): string;
   /** "device": a phone, or any window offline, searches only what its replica holds and says so. */
   scope(): "space" | "device";
   online(): boolean;

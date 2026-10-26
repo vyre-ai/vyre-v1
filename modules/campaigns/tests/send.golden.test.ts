@@ -36,7 +36,7 @@ test("golden 5 campaign step: launch, send through mail.send, reply lands, stop 
   w.advance(4 * DAY);
   await pass(w, campaignId);
   assert.deepEqual(w.mail.slice(2).map((m) => m.input.contactId), ["rec_c002"], "the contact who replied gets no nudge");
-  assert.deepEqual(w.ofName("campaign.replied").map((e) => e.payload), [{ campaignId, recordId: "rec_c001", messageId: "msg_9001" }]);
+  assert.deepEqual(w.ofName("campaign.replied").map((e) => e.payload), [{ campaignId, recordId: "rec_c001", messageId: "eml_9001" }]);
   step("stop on reply", { replied: "rec_c001", nudged: "rec_c002" });
   const stats = await run<Record<string, number>>(w.ctx, "campaigns.stats", { campaignId });
   assert.deepEqual(stats, { sent: 3, delivered: 0, bounced: 0, complained: 0, replied: 1, unsubscribed: 0 });

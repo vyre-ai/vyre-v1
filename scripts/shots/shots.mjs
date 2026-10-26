@@ -97,6 +97,13 @@ try {
       const ctx = await browser.newContext({ viewport: SIZES.desktop, deviceScaleFactor: 1, reducedMotion: "no-preference" });
       const page = await ctx.newPage();
       await page.goto(routeUrl(real.origin, t.route, "paper"), { waitUntil: "load", timeout: 60000 });
+      // t.count: after the load, wait and count elements, so a probe run prints proof of a state (the idle face swap: how many faces are real against how many rows are on screen)
+      if (t.count) {
+        await page.waitForSelector(t.waitFor ?? t.scroll.selector, { timeout: 30000 });
+        await page.waitForTimeout(t.count.waitMs ?? 400);
+        const got = await page.evaluate(({ real, rows }) => ({ real: document.querySelectorAll(real).length, rows: document.querySelectorAll(rows).length }), t.count);
+        console.log(`METRIC ${JSON.stringify({ name: t.count.name ?? "count", target: t.id, real: got.real, rows: got.rows, wait_ms: t.count.waitMs ?? 400 })}`);
+      }
       const r = await measureScroll(page, t.scroll);
       const ok = withinBudget(r);
       console.log(`METRIC ${JSON.stringify({ name: "scroll", target: t.id, frames: r.frames, p95_ms: +r.p95.toFixed(2), max_ms: +r.max.toFixed(2), budget_ms: SCROLL_P95_MS, layout_shift: r.layoutShift, height_stable: r.heightStable, ok })}`);
