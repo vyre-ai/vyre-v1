@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_28-chats-sidebar-error",
+      "route": "/m/P-L9b_28?fail=agents",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='section-error-agents']",
+      "note": "The agents read is refused: under the Agents head one compact row says Couldn't load agents, with a details menu (cause, code, trace id; Copy trace id, Report a problem) and Retry on the right. The other sections keep their place; no skeleton, no empty state. The prototype has no error state; its sidebar is shown for the other sections."
+    }
+  ]
+}
