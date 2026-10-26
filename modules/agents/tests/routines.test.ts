@@ -160,7 +160,7 @@ test("run now without a caller key uses the routine and the minute, in the input
   hn.world.answer("runs.start", (i: any) => { started.push(i); return { runId: "run_a1b2c3" }; });
   hn.clear();
   hn.advance(60_000);
-  await call(hn, "agents.routine.run_now", { agentId: id, routineId: routine.routineId, idempotencyKey: undefined as never });
+  await call(hn, "agents.routine.run_now", { agentId: id, routineId: routine.routineId });
   assert.equal(started[0].idempotencyKey, `routine-run-now:${routine.routineId}:${Math.floor(hn.clock.t / 60_000)}`);
 });
 
