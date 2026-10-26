@@ -22,7 +22,8 @@ const webOnly = (props: Record<string, unknown>): Record<string, unknown> => (Pl
 /* ---------- icons by kind ---------- */
 
 const SVG = (d: string): string => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
-const KIND_LABEL: ReadonlyMap<Hit["kind"], string> = new Map(GROUPS);
+const LENS = SVG('<circle cx="7" cy="7" r="4.500"/><path d="M10.500 10.500L14 14"/>');
+export const KIND_LABEL: ReadonlyMap<Hit["kind"], string> = new Map(GROUPS);
 // The highlighted row takes the accent with white text (the prototype palette, ruling 82); the tokens the row reads are re-pointed inside it.
 // A plain object, not StyleSheet.create, like the shared Row's own wash: it is written inline, so it is in the markup and not behind a generated class.
 const LIT = { backgroundColor: "var(--accent)", borderRadius: 6, "--ink": "#FFFFFF", "--ink-2": "rgba(255,255,255,0.86)", "--ink-3": "rgba(255,255,255,0.74)" } as object;
@@ -40,7 +41,7 @@ const KIND_ICON: Partial<Record<Hit["kind"], string>> = {
 };
 
 /** The 20 px tile before a result: the shared face for people and agents, a line icon for everything else. */
-function Tile({ hit }: { hit: Hit }): ReactElement {
+export function Tile({ hit }: { hit: Hit }): ReactElement {
   const named = hit.kind === "person" || hit.kind === "agent";
   const icon = KIND_ICON[hit.kind];
   return (
@@ -80,6 +81,8 @@ export interface CmdKBodyProps {
   /** Inline in a tab (new-tab search) instead of a sheet: no veil, Enter fills the tab. */
   inline?: boolean;
   autoFocus?: boolean;
+  /** Draw no results area while the field is empty (the new-tab page draws its own sections there). */
+  quietWhenEmpty?: boolean;
 }
 
 function scopeLine(state: CmdKState): string | null {
@@ -98,7 +101,7 @@ function scopeLine(state: CmdKState): string | null {
   return lead ?? (note ? note.charAt(0).toUpperCase() + note.slice(1) : null);
 }
 
-export function CmdKBody({ controller, placeholder = "Search agents, chats, people, records, files, actions…", platform = "mac", inline = false, autoFocus = true }: CmdKBodyProps): ReactElement {
+export function CmdKBody({ controller, placeholder = "Search agents, chats, people, records, files, actions…", platform = "mac", inline = false, autoFocus = true, quietWhenEmpty = false }: CmdKBodyProps): ReactElement {
   const state = useCmdKState(controller);
   const [menu, setMenu] = useState<{ items: MenuEntry[]; x: number; y: number } | null>(null);
   const input = useRef<unknown>(null);
@@ -153,7 +156,8 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
   const listMax = inline ? undefined : ((Platform.OS === "web" ? "min(380px, calc(100vh - 220px))" : 380) as unknown as number);
   return (
     <View testID="cmdk" style={[styles.card, inline ? styles.cardInline : null]} accessibilityLabel={inline ? "Open anything" : "Command palette"} {...webOnly({ role: inline ? "search" : "dialog" })}>
-      <View style={styles.head}>
+      <View style={[styles.head, inline ? styles.headInline : null]}>
+        {inline ? <View style={styles.lens}><MenuIcon icon={LENS} color="var(--ink-3)" size={18} /></View> : null}
         <TextInput
           ref={input as never}
           testID="cmdk-input"
@@ -170,7 +174,7 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
           style={[styles.input, webOnly({ outlineStyle: "none", outlineWidth: 0 }) as object]}
           {...webOnly({ onKeyDown: onKey, role: "combobox", "aria-expanded": true, "aria-controls": "cmdk-list" })}
         />
-        <Pressable
+        {inline ? null : <Pressable
           testID="cmdk-filter"
           accessibilityRole="button"
           accessibilityLabel="Filter by type"
@@ -181,12 +185,12 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
           style={({ hovered }: { hovered?: boolean }) => [styles.filterBtn, hovered === true ? { backgroundColor: "var(--hover)" } : null]}
         >
           <Text style={[styles.filterText, state.filter.length ? { color: "var(--accent)" } : null]}>{state.filter.length ? `Filter · ${state.filter.length}` : "Filter"}</Text>
-        </Pressable>
+        </Pressable>}
       </View>
       {line ? <View testID="cmdk-scope" style={styles.scopes}><Text style={styles.scopesText} numberOfLines={2}>{line}</Text></View> : null}
-      <ScrollView nativeID="cmdk-list" testID="cmdk-list" style={[styles.list, listMax ? { maxHeight: listMax } : null]} keyboardShouldPersistTaps="handled" {...webOnly({ role: "listbox" })}>
+      {quietWhenEmpty && state.raw.trim() === "" ? null : <ScrollView nativeID="cmdk-list" testID="cmdk-list" style={[styles.list, listMax ? { maxHeight: listMax } : null]} keyboardShouldPersistTaps="handled" {...webOnly({ role: "listbox" })}>
         {rowNodes}
-      </ScrollView>
+      </ScrollView>}
       {!inline && Platform.OS === "web" ? (
         <View style={styles.foot}>
           <Text style={styles.footText}>{"↑↓ to move"}</Text>
@@ -271,6 +275,9 @@ const styles = StyleSheet.create({
   newtab: { flex: 1, width: "100%", alignItems: "center", paddingTop: 40, paddingHorizontal: 16 },
   head: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "var(--line)" },
   input: { flex: 1, height: 52, paddingHorizontal: 18, fontSize: 16, color: "var(--ink)", backgroundColor: "transparent" },
+  // The new-tab field: the search icon before the text and no Filter button; narrowing is by prefix.
+  headInline: { borderBottomWidth: 0 },
+  lens: { width: 18, marginLeft: 16 },
   filterBtn: { height: 26, paddingHorizontal: 9, marginRight: 12, borderRadius: 6, justifyContent: "center" },
   filterText: { fontSize: 12, color: "var(--ink-3)" },
   scopes: { paddingVertical: 6, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "var(--line)" },
