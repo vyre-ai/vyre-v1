@@ -1,0 +1,35 @@
+{
+  "module": "campaigns",
+  "capabilities": {
+    "campaigns.audience_set@1": "25da1e5014e0684668af4bd3da1eba1aa8d751016e6392c4e11f79e94605cb82",
+    "campaigns.create@1": "3ac0b3655928e9b7104e3ec0fe1e4ec45c2ac1251cfa891ccca32a314da20980",
+    "campaigns.delete@1": "c7ab22072d92c17599248d024b108613c943366abcc0365a31e93cf013ccc71c",
+    "campaigns.get@1": "5f2835306a5c1303e324b981272b0b996301871fc2877b7c830b2371156842f3",
+    "campaigns.launch@1": "4e09dfd1eb31736ec6a1bdd5ba5621f890cca15c5ca7ee9571b2befe66a9544c",
+    "campaigns.link_build@1": "e7cdd76e8f20187ca9cd76f2a141b13c2e69376bdc7cd25fc4165ea7778725a1",
+    "campaigns.list@1": "49709a742984bc24cef2efafbb8b291e475dd69bfbc062b1518558dd946f16a8",
+    "campaigns.pause@1": "ec8aeb8527be891f91bf495beab255a3c77b5bcd6161a7dec2bf21de3fd3132f",
+    "campaigns.preview@1": "d481bdd4613ebd06eea011a21b7fb7d65b25b5ed242fedbe988b970a3b80b4b1",
+    "campaigns.replies@1": "ab44a50bddf7af12a0f3300be845bbe6642ee75c7ee11a160701ae1886a1cf6d",
+    "campaigns.resume@1": "eb170d2bc081e22baf475bfdf6bb375631172b08a88c040803dd42cefb73bf73",
+    "campaigns.schedule_set@1": "147da7a350b192c5e1c4c694899f966d247132ec1cc3e49cf03e32482d1983e0",
+    "campaigns.stats@1": "bd81457506b5570cea4bd0c0be3c8def5d5259056ed56038473b67803893547d",
+    "campaigns.steps_set@1": "f7cd1098f1002c4a517d3b8742a0ad42bef1e70299439a8f9fb9324632368ebd",
+    "campaigns.stop@1": "4b7ada35c45f4d6c6e09db34b0ab76674f97f878a25c375c7b7634ae086f24ad",
+    "campaigns.unsubscribe@1": "e6dd986d145d0400016a4074b665bd94ccdbb662cb9ee31ce49acaa4146bb274",
+    "campaigns.update@1": "afaf3ad66258cd01a38e69cfc231e351b85bc6b0f70b7291e071cfff6726e082",
+    "campaigns.variants_set@1": "820503aa5161f06304405ed1a5eaadd6e26805c2e4c834268e4fcb4d7f102b2b",
+    "warmup.pool_optin_set@1": "78824f408f39e7639b7d0e5879c2032c9de6e8f2ab3ecdbdf1491b222502410e",
+    "warmup.start@1": "f0b96a97a241b40f720248479adf544557ba42e3f6b898e99dcbcf7c12ec4c25",
+    "warmup.status@1": "eca8838ac68dfc255e9a945167e3327a8dcaa0309bdb077bf13a4d4af485427c"
+  },
+  "events": {
+    "campaign.completed": "fe177e25b356c7d853a04fadb5c7707da627a3e806cc5baff9bfcf149d90f419",
+    "campaign.created": "1c36dbe2f3efa5f1c2ae1a71019fb14f9343de2a739f518b26f32b56392e8ff8",
+    "campaign.launched": "5c07ce4a124d89839f60db8880ffcbef829a6b2b3ccdbf46ba4adead921b6910",
+    "campaign.paused": "58015ecfb2c33170aaae7ada8135938d965e44ecdbe39db5a2026a8093e502a7",
+    "campaign.replied": "1541468a927fcb35999db7bf1a4d823b827c99b4e8b1a634cd194dc597b89991",
+    "campaign.unsubscribed": "b906deb8d87a59b03e5a62222024c4e89e751ea67a1e954d6a0161e45c40895f",
+    "warmup.slowed": "262210d94ac6e1af68d1914fde29ade0894e68ba8ff95633478083faa069dcba"
+  }
+}

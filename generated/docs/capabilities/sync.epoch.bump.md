@@ -7,8 +7,8 @@ Raise a person sync epoch (device revoked, person suspended or removed, password
 | Module | sync |
 | Version | 1 (since 1.0.0) |
 | Effects | write |
-| Permission | grant only |
-| Grant level | edit |
+| Permission | access.manage |
+| Grant level | manage |
 | Risk | high |
 | Resource | space |
 | Gate | none |
@@ -44,6 +44,7 @@ type Out = {
 - internal.unexpected
 - permission.above_clearance
 - permission.no_grant
+- permission.role_lacks_permission
 - validation.bad_input
 
 ## Example

@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "P-L9f_05-providers",
+      "route": "/m/P-L9f_05?view=providers",
+      "proto": "vault,at:providers,{skin}",
+      "waitFor": "[data-testid='provider-page']",
+      "note": "The AI providers section: Claude open on its own page (name, handle, Signed in box, Models, Used by with turns and the month's total, Recent use). The prototype side is its AI providers section."
+    },
+    {
+      "id": "P-L9f_05-health",
+      "route": "/m/P-L9f_05?view=health",
+      "proto": "vault,at:health,{skin}",
+      "waitFor": "[data-testid='vault-health']",
+      "note": "The Health section: one summary line, then one row per flagged item with what is wrong. The prototype side is its Health section."
+    }
+  ]
+}

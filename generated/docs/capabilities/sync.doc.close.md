@@ -8,7 +8,7 @@ Close a document session: writes a named history version when the content change
 | Version | 1 (since 1.0.0) |
 | Effects | write |
 | Permission | grant only |
-| Grant level | edit |
+| Grant level | member |
 | Risk | low |
 | Resource | space |
 | Gate | none |

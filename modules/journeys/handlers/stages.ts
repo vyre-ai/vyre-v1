@@ -98,12 +98,13 @@ export async function versions(ctx: JourneysCtx, input: In): Promise<unknown> {
 
 // ---- create and design ----
 
-function typeDef(key: string, name: string, subjectType: string): Record<string, unknown> {
+/** The record type a Journey follows its subject with. The status field names the Journey's stages, which the schema requires (options.stages). */
+function typeDef(key: string, name: string, subjectType: string, stages: readonly Stage[]): Record<string, unknown> {
   return {
     key, title: name, plural: name, icon: "route", label: "internal", titleField: "name", statusField: "stage", ownerField: "owner", group: "Journeys",
     fields: [
       { key: "name", type: "text", title: "Name", required: true },
-      { key: "stage", type: "status", title: "Stage", writeOnlyBy: ["journeys.move_stage", "journeys.advance", "journeys.migrate", "journeys.start"] },
+      { key: "stage", type: "status", title: "Stage", options: { stages: stages.map((s) => ({ key: s.key, title: s.title })) }, writeOnlyBy: ["journeys.move_stage", "journeys.advance", "journeys.migrate", "journeys.start"] },
       { key: "subject", type: "relation", title: "Subject", required: true, options: { target: subjectType } },
       { key: "owner", type: "person", title: "Owner" },
       { key: "entered_at", type: "datetime", title: "In this stage since" },
@@ -126,7 +127,7 @@ export async function create(ctx: JourneysCtx, input: In): Promise<unknown> {
   if (allJourneys(ctx.db).some((j) => j.recordType === recordType)) recordType = `${recordType}_${id.slice(-4)}`;
   if (!ctx.call) raise(ctx, "internal.unavailable", "Records are not available right now.");
   // the record type is made through a controlled path: only journeys.manage is needed, not schema rights
-  await ctx.call("schema.apply", { ops: [{ op: "type.create", type: recordType, def: typeDef(recordType, name, input.subjectType) }], reason: `Journey ${name}`, idempotencyKey: `jrn-type:${id}` });
+  await ctx.call("schema.apply", { ops: [{ op: "type.create", type: recordType, def: typeDef(recordType, name, input.subjectType, stages) }], reason: `Journey ${name}`, idempotencyKey: `jrn-type:${id}` });
   const j: Journey = clean({
     id, name, subjectType: input.subjectType, recordType, version: 1, stages, startRule: input.startRule as StartRule | undefined, createdAt: now, updatedAt: now,
   }) as Journey;

@@ -2624,6 +2624,12 @@
     },
     {
       "deferred": false,
+      "name": "files_star",
+      "summary": "Star a file or take the star off; a star is mine alone",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
       "name": "files_trash_empty",
       "summary": "Delete everything in Trash that the caller may delete",
       "toolset": "files"
@@ -5235,7 +5241,7 @@
     {
       "deferred": false,
       "name": "records_export",
-      "summary": "Export rows as CSV or Excel (permissioned)",
+      "summary": "Export rows as CSV or Excel (permissioned), the whole view or only the picked recordIds",
       "toolset": "records"
     },
     {
@@ -7126,6 +7132,12 @@
       "deferred": false,
       "name": "vault_item_update",
       "summary": "Change fields or settings of an item: set and remove fields, Space only lock, inject into deployments, rotation reminder",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_item_usage",
+      "summary": "Who used a key or sign-in and how much: turns and tokens per agent and per person, and the total, from the turns the engine metered on the item; a person sees their own turns, a manager of AI spend all of them",
       "toolset": "vault"
     },
     {

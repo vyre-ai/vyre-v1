@@ -23,7 +23,7 @@ const live = (r: Row): boolean => r["deleted_at"] === null || r["deleted_at"] ==
 
 // ---- sealed values
 
-function filler(ctx: VaultCtx) {
+export function filler(ctx: VaultCtx) {
   const f = currentFiller();
   if (!f) throw fail("internal.unavailable", ctx.trace.traceId, { message: "The vault service is not running, so values cannot be read or saved. Restart it from Console." });
   return f;
@@ -31,7 +31,9 @@ function filler(ctx: VaultCtx) {
 
 /** The wrap key of the signed-in owner, or a refusal. */
 async function ownerWrap(ctx: VaultCtx, owner: string): Promise<Buffer> {
-  if (ctx.principal.id !== owner || ctx.principal.kind !== "person") return denied(ctx, "A Mine item belongs to one person. Only they can read or change it.");
+  // the owner themselves, or a turn run for them: the key exists only on a node where they unlocked it (ruling 62), so another person's turn never reaches it
+  const theirs = (ctx.principal.id === owner && ctx.principal.kind === "person") || ctx.actingFor === owner;
+  if (!theirs) return denied(ctx, "A Mine item belongs to one person. Only they can read or change it.");
   const key = await currentKeyPort()?.personKey(owner);
   if (!key) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your vault key is locked. Sign in again to open your Mine items." });
   return wrapKeyFromPersonKey(key);
@@ -52,7 +54,7 @@ function storeSealed(ctx: VaultCtx, itemId: string, s: SealedFields): void {
   else ctx.db.run(`INSERT INTO vault_secret ("itemId", "enc", "keyId", "wrapped", "box", "rev") VALUES (?, ?, ?, ?, ?, ?)`, itemId, s.enc, s.keyId, s.wrapped ? JSON.stringify(s.wrapped) : null, JSON.stringify(s.box), s.rev);
 }
 
-async function openFields(ctx: VaultCtx, item: Row): Promise<Field[]> {
+export async function openFields(ctx: VaultCtx, item: Row): Promise<Field[]> {
   const sealed = sealedOf(ctx, str(item, "id"));
   try {
     if (sealed.enc === ENC_MINE) return openMine(str(item, "id"), sealed, await ownerWrap(ctx, str(item, "owner")));
@@ -70,18 +72,18 @@ async function sealFor(ctx: VaultCtx, itemId: string, scope: string, owner: stri
 // ---- visibility
 
 /** Mine items are the owner's alone; anything else is visible when authorize allows Use. */
-function visible(ctx: VaultCtx, r: Row): boolean {
+export function visible(ctx: VaultCtx, r: Row): boolean {
   if (!live(r)) return false;
   if (str(r, "scope") === "mine") return str(r, "owner") === ctx.principal.id;
   return str(r, "owner") === ctx.principal.id || levelOn(ctx, "vault_item", str(r, "id")) !== null;
 }
 
-function levelOf(ctx: VaultCtx, r: Row) {
+export function levelOf(ctx: VaultCtx, r: Row) {
   return str(r, "owner") === ctx.principal.id ? "manage" as const : levelOn(ctx, "vault_item", str(r, "id"));
 }
 
 /** An item the caller can see, at least at `need`; a Mine item of someone else does not exist for them. */
-function reachable(ctx: VaultCtx, id: string, need: "use" | "view" | "edit" | "manage", opts: { trashed?: boolean } = {}): Row {
+export function reachable(ctx: VaultCtx, id: string, need: "use" | "view" | "edit" | "manage", opts: { trashed?: boolean } = {}): Row {
   if (!isId("vit", id)) bad(ctx, "Item id is not valid.");
   const r = opts.trashed ? anyItem(ctx, id) : liveItem(ctx, id);
   if (str(r, "scope") === "mine" && str(r, "owner") !== ctx.principal.id) throw fail("validation.not_found", ctx.trace.traceId, { message: "That item is not in this Vault." });
@@ -159,6 +161,24 @@ export async function itemHistory(ctx: VaultCtx, input: { itemId: string; cursor
     ...(strOrNull(h, "via") ? { via: str(h, "via") } : {}), ...(strOrNull(h, "detail") ? { detail: str(h, "detail") } : {}),
   }));
   return { entries, ...(p.next ? { next: p.next } : {}), total: p.total };
+}
+
+/**
+ * Who used this key or sign-in, and how much (the provider page's Used by): turns and tokens per agent and per person, from the turns the engine metered against this item.
+ * Level View on the item. The rows are the engine's own, so a person sees their own turns and a manager of AI spend sees everyone's; an actor the caller may not see is not listed.
+ * The total counts each turn once (by agent), so people and agents are not added together.
+ */
+export async function itemUsage(ctx: VaultCtx, input: { itemId: string; since?: number }) {
+  ensure(ctx);
+  const r = reachable(ctx, input.itemId, "view");
+  const itemId = str(r, "id");
+  const ask = async (by: "agent" | "person"): Promise<{ rows: Array<{ key: string; totals: { turns: number; tokensIn: number; tokensOut: number } }>; totals: { turns: number; tokensIn: number; tokensOut: number } }> =>
+    (await ctx.call("engine.usage.query", { by, itemId, ...(input.since !== undefined ? { from: input.since } : {}) })) as never;
+  const [agents, people] = await Promise.all([ask("agent"), ask("person")]);
+  const row = (kind: "agent" | "person") => (x: { key: string; totals: { turns: number; tokensIn: number; tokensOut: number } }) =>
+    ({ actor: { kind, id: x.key }, turns: x.totals.turns, tokens: x.totals.tokensIn + x.totals.tokensOut });
+  const actors = [...agents.rows.map(row("agent")), ...people.rows.map(row("person"))].sort((a, b) => b.tokens - a.tokens || a.actor.id.localeCompare(b.actor.id));
+  return { actors, total: { turns: agents.totals.turns, tokens: agents.totals.tokensIn + agents.totals.tokensOut } };
 }
 
 // ---- writes

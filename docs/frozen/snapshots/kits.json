@@ -1,0 +1,28 @@
+{
+  "module": "kits",
+  "capabilities": {
+    "kits.builder_open@1": "2faf0766198ef0343a73893fc857e27f1971fec76435498c6a530f40e6a818ff",
+    "kits.choose@1": "c669f9687a73e9e430a054e9ad9b9dd548738ab5e4496fc0bba22c78aca16a1c",
+    "kits.denials@1": "d06e56fb18c2b3c567607d7d97d9278c9701d74e19092068efd2d5ba1c760ac1",
+    "kits.get@1": "21585e14b1d8669cda25a49b8673be9d6ff7197862ea7df561b41262e63ff79f",
+    "kits.health@1": "023121deea9375eca78ea9446da37b7d8534ec27b2bc2454eb30ab0a3ab1e2a3",
+    "kits.install@1": "39ed557b7672c039a1d59a1abd8bb0c588186635604a39e2eda986630ac77048",
+    "kits.install_sheet@1": "5a88360bfa86a131051fbfbb48451e8f19a92952e6506ff4a03fabf96e051fc9",
+    "kits.list@1": "91016633dd57b8bbbe305a0d4977c003ea3b9832399a796e208e5d4aa84da471",
+    "kits.preview@1": "de334430e8104b7ca31961e71354ce36d57eb3c35218dcf52675acfc6c542e91",
+    "kits.publish@1": "3370434814cf76b81f3cab75027688bbb613a6d3923243a003455c91661a8c64",
+    "kits.restore_version@1": "096bd7d8b5bf104830cd0f727dca5824d2f7cbef0e766b56e68c0c0143d961a0",
+    "kits.rollback@1": "00671c7d17dc8f73837fc1012053231b68cbc985a66cdabca5b0ffe72a22fce1",
+    "kits.test_run@1": "4f41a3718b12d6b5c547af97ac0351b6dfe46d09d749dd41300f26ba94d94855",
+    "kits.update@1": "4b385667ee702e2905f7595e15307e394f7608ffb211f7e1225f81d78e002407",
+    "kits.versions@1": "5ae33cc35647ae077862d917c2dd7dad3cb7f564378fb7a2287528afd304d14a"
+  },
+  "events": {
+    "kit.installed": "3ce902f481469e896096780ecd3e3e10ed605163862d388d24d9262b3de9ddd1",
+    "kit.publish_blocked": "90872e2dabac2f08602816d3577894a9f14b1d71c1d2ebb72821d0e1c31e3396",
+    "kit.published": "efe7d7bf69c0c5b900a76e7495c0dba2d2400e6021324a8cbea1464de98ef65d",
+    "kit.rolled_back": "6372fed2ad4b3bcddd2c202c74b8e3cd333fc7c39376d42aca88ef792715876e",
+    "kit.updated": "232081ac765160e44588eacb83e5d70ae86d2e83e9a8789e0546e29d467ca2f0",
+    "sandbox.denied": "70806b8571f03cb827350a3d576158228e189f047f091d5d9e03f2d18c84f30a"
+  }
+}

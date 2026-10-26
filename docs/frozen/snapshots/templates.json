@@ -1,0 +1,14 @@
+{
+  "module": "templates",
+  "capabilities": {
+    "templates.install@1": "8983ea28528e45a8bfc358c0927e3fa070193e396f283a7bdd9922a11f64cae0",
+    "templates.list@1": "1ceca151f9f50d14435b44613959bae9dc75c566555f2b4315616dcd6e23f90a",
+    "templates.preview@1": "548bb4ab6b66856e03c481285250bd2b2c0371078efa92b2b61fc3875715b6e3",
+    "templates.project_starters@1": "56545bc618c78d541118cb97f8629d52d316a89d90ee8b6f3b2638dd3554ef1d",
+    "templates.save@1": "6e979852837b58da6004a00b0d0162d757e947e22ebcaeeb8f9c88e719c55ea0"
+  },
+  "events": {
+    "template.installed": "51056617751d75b5afed3fd2529c5a51faae23e0318eb78c7f6fb11e9ef4e58e",
+    "template.saved": "07d316fa7acedb4a74b77ad378bf9c21a40ff7365336fea23023178caa54e168"
+  }
+}

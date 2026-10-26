@@ -206,13 +206,14 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
   };
 
   /** Make or extend the local record type through schema.apply. Existing columns are left alone. */
-  const shapeType = async (ctx: ConnectorsCtx, type: string, fields: FieldMapRow[], types: Map<string, string>): Promise<void> => {
+  const shapeType = async (ctx: ConnectorsCtx, type: string, fields: FieldMapRow[], types: Map<string, string>, idem: string): Promise<void> => {
     const described = (await ctx.call("schema.describe", { type }).catch(() => ({ types: [] }))) as { types?: { key: string; fields: { key: string }[] }[] };
     const existing = described.types?.find((t) => t.key === type);
     const wanted = fields.filter((f) => f.dir !== "off");
     if (!existing) {
       const defs = wanted.map((f) => ({ key: f.key, type: types.get(f.key) ?? "text", title: f.key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) }));
       await ctx.call("schema.apply", {
+        idempotencyKey: `${idem}:type.create`,
         ops: [{ op: "type.create", type, def: { title: type.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()), icon: "table", label: "internal", ...(defs.length ? { titleField: (defs.find((d) => d.type === "text") ?? defs[0]!).key, fields: defs } : {}) } }],
         reason: "Bind to a synced type",
       });
@@ -220,7 +221,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
     }
     const have = new Set(existing.fields.map((f) => f.key));
     const ops = wanted.filter((f) => !have.has(f.key)).map((f) => ({ op: "field.add", type, field: f.key, def: { type: types.get(f.key) ?? "text" } }));
-    if (ops.length) await ctx.call("schema.apply", { ops, reason: "Fields for a synced type" });
+    if (ops.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:field.add`, ops, reason: "Fields for a synced type" });
   };
 
   const usable = (ctx: ConnectorsCtx, c: ConnectionDb | undefined, what: string): void => {
@@ -297,7 +298,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       if (tx.get("SELECT 1 AS x FROM cn_synced_types WHERE type = ?", input.type)) refuse(ctx, "validation.duplicate", `${input.type} is already a synced type.`);
       // The record type and its columns first: when schema.apply refuses, nothing is bound.
       const types = new Map<string, string>();
-      await shapeType(ctx, input.type, input.fields, types);
+      await shapeType(ctx, input.type, input.fields, types, `sync_types.create:${input.idempotencyKey}`);
       const now = nowOf(deps);
       const id = mintShort("syt", now);
       tx.run(
@@ -317,7 +318,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       if (input.fields !== undefined || input.match !== undefined) checkFields(ctx, fields, match);
       checkRules(ctx, input);
       const added = fields.filter((f) => f.dir !== "off" && !cur.fields.some((c) => c.key === f.key));
-      if (added.length) await shapeType(ctx, r.type, added, new Map());
+      if (added.length) await shapeType(ctx, r.type, added, new Map(), `sync_types.update:${r.type}:${added.map((f) => f.key).sort().join(",")}`);
       const changed: string[] = [];
       const note = (k: string, was: unknown, now: unknown): void => { if (JSON.stringify(was) !== JSON.stringify(now)) changed.push(k); };
       note("fields", cur.fields, fields); note("match", cur.match, match); note("createAtSource", cur.createAtSource, input.createAtSource ?? cur.createAtSource);
@@ -395,7 +396,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
           if (f && c.fieldType) ops.push({ op: "field.retype", type: r.type, field: f.key, toType: c.fieldType });
         } else if (c.kind === "object_removed") paused = true;
       }
-      if (ops.length) await ctx.call("schema.apply", { ops, reason: "Accepted changes to the app's fields" });
+      if (ops.length) await ctx.call("schema.apply", { idempotencyKey: `sync_types.review_schema:${r.type}:${[...input.accept].sort().join(",")}`, ops, reason: "Accepted changes to the app's fields" });
       const left = pending.filter((p) => !input.accept.includes(p.changeKey) && !input.ignore.includes(p.changeKey));
       tx.run("UPDATE cn_synced_types SET fields = ?, schema_changes = ?, paused = ?, updated_at = ? WHERE sync_type_id = ?", JSON.stringify(fields), JSON.stringify(left), paused ? 1 : 0, nowOf(deps), r.sync_type_id);
       if (input.accept.length) ctx.emit("sync.type_updated", `entity/${r.sync_type_id}`, { syncTypeId: r.sync_type_id, fields: ["fields"] });
@@ -465,6 +466,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       }
       const one = rows.length === 1 ? rows[0]! : undefined;
       const started = (await ctx.call("runs.start", {
+        idempotencyKey: `connectors.sync_now:${input.idempotencyKey}`,
         kind: "connector_sync", name: one ? `Sync ${one.type}` : `Sync ${rows.length} types`, owner: actorOf(ctx),
         subject: one ? { type: "record_type", id: one.type } : { type: "connection", id: rows[0]!.connection_id },
       })) as { runId: string };

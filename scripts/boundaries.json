@@ -149,7 +149,7 @@
       ]
     },
     "B3": {
-      "text": "only kernel and modules/vault import crypto primitives for key handling; allowCryptoFiles names the sanctioned others (websocket accept hash, envelope payload hash, ACME account and CSR keys); tests may hash; the relay checks route signatures and the WebSocket handshake (relay/node, relay/worker tests)",
+      "text": "only kernel and modules/vault import crypto primitives for key handling; allowCryptoFiles names the sanctioned others (websocket accept hash, envelope payload hash, ACME account and CSR keys; lib/snapshot.ts only hashes public contract text (tools and tests), no key is involved); tests may hash; the relay checks route signatures and the WebSocket handshake (relay/node, relay/worker tests)",
       "allowCrypto": [
         "kernel",
         "modules/vault"
@@ -164,6 +164,7 @@
         "host/src/ws.ts",
         "packages/contracts/src/envelope.ts",
         "lib/acme/",
+        "lib/snapshot.ts",
         "relay/node/server.js",
         "relay/node/wire.js",
         "relay/node/ws.js",
@@ -290,5 +291,6 @@
         "sandbox"
       ]
     }
-  ]
+  ],
+  "known": []
 }

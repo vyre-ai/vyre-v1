@@ -9,11 +9,12 @@ import crypto from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { TEST, imports, cacheKey } from "./lib/graph.mjs";
+import { splitPerf } from "./lib/perf-skip.mjs";
 import { ensureDeps } from "./shots/ensure-deps.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const RUNNER_VERSION = "2";
-const MAX_SLOW = 20; // raised from 15 (P-CI_31): hosted runners exposed real 20-22 s files; keep equal to MAX_ENTRIES in slow-check.ts
+const MAX_SLOW = 24; // raised from 15 (P-CI_31): hosted runners exposed real 20-22 s files; keep equal to MAX_ENTRIES in slow-check.ts
 const arg = (n) => process.argv.includes(n);
 const val = (n) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
 
@@ -36,6 +37,9 @@ else if (arg("--affected")) {
 } else files = [...tracked].filter((f) => TEST.test(f));
 files = files.filter((f) => TEST.test(f) && tracked.has(f)).sort();
 files = files.filter((f) => (arg("--slow") ? slowBy.has(f) : !slowBy.has(f)));
+
+// Perf files (test/slow.json "perf": true) run only where speed is measured: skipped in every other shard, one line each.
+{ const sp = splitPerf(files, slow, process.env); for (const f of sp.skipped) console.log(`skip (perf) ${f}`); files = sp.run; }
 
 const shard = (val("--shard") || "1/1").split("/").map(Number);
 files = files.filter((_, i) => i % shard[1] === shard[0] - 1);

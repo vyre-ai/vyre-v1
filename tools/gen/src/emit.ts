@@ -1,5 +1,4 @@
 // Emit every generated file as path -> content (paths relative to generated/). Pure and deterministic.
-import { createHash } from 'node:crypto';
 import type { CapabilityDef, EventDef, Owned, Registry } from '../../../packages/contracts/src/index.ts';
 import { agentVisible, autoRoute, mcpToolName } from './validate.ts';
 import { canonical } from './canonical.ts';
@@ -55,12 +54,10 @@ export function emitAll(reg: Registry): Files {
   const allCaps = reg.capabilities;
   const shared = dedupeRegistry(reg);
   const registryJson = json(shared);
-  const hash = createHash('sha256').update(registryJson).digest('hex');
 
   put('README.md', '# generated\n\nEverything here is written by `tools/gen` from `manifests/`. Never edit by hand; run `node tools/gen/src/cli.ts` and commit the result. CI runs `--check` and fails on drift.\n');
   put('registry.json', registryJson);
-  put('hash.txt', hash + '\n');
-  put('registry.ts', `${HEADER}// Loads registry.json at runtime (no JSON module inference in the compiler).\nimport { readFileSync } from 'node:fs';\nimport type { Registry } from '../packages/contracts/src/registry.ts';\n\nexport const registry = JSON.parse(readFileSync(new URL('./registry.json', import.meta.url), 'utf8')) as Registry;\nexport const registryHash = ${q(hash)};\n`);
+  put('registry.ts', `${HEADER}// Loads registry.json at runtime (no JSON module inference in the compiler). The registry hash is not exported here: this file reaches clients and the web bundle, so it holds no crypto import. Tools hash registry.json themselves.\nimport { readFileSync } from 'node:fs';\nimport type { Registry } from '../packages/contracts/src/registry.ts';\n\nconst text = readFileSync(new URL('./registry.json', import.meta.url), 'utf8');\nexport const registry = JSON.parse(text) as Registry;\n`);
 
   // ---- types.ts: every input, output and event payload type
   {
@@ -137,7 +134,7 @@ ${renderTree(t, 2, (c) => `call(${q(c)})`)}
 
 export interface Route {
   method: string; path: string; cap: string; v: number; module: string;
-  effects: 'read' | 'write' | 'outward'; permission: string | null; level: 'view' | 'use' | 'edit' | 'manage';
+  effects: 'read' | 'write' | 'outward'; permission: string | null; level: 'view' | 'use' | 'edit' | 'manage' | 'member';
   resource: ResourceBinding; idempotency: 'key' | 'natural' | 'none'; risk: 'low' | 'medium' | 'high';
   offline: 'patch' | 'queue' | 'online' | null; teamOnly: boolean; gate: string | null;
 }
@@ -357,21 +354,11 @@ function emitDocs(reg: Registry, put: (p: string, c: string) => void, caps: Cap[
     }
     put(`docs/lanes/${lane}.md`, lines.join('\n'));
   }
-  const count = (xs: unknown[]) => xs.length;
+  // No counts here: a count changes with every capability, so two branches would always disagree about it. summary() prints them for the CLI.
   put('docs/index.md', [
     '# Reference index', '',
-    '| Kind | Count |', '|---|---|',
-    `| Modules | ${reg.modules.filter((m) => m.kind === 'module').length} |`,
-    `| Connector manifests | ${reg.modules.filter((m) => m.kind === 'connector').length} |`,
-    `| Kit manifests | ${reg.modules.filter((m) => m.kind === 'kit').length} |`,
-    `| Capabilities | ${count(caps)} |`, `| Events | ${count(reg.events)} |`, `| Permissions | ${count(reg.permissions)} |`,
-    `| Entities | ${count(reg.entities)} |`, `| Record types | ${count(reg.recordTypes)} |`, `| Field types | ${count(reg.fieldTypes)} |`,
-    `| View kinds | ${count(reg.viewKinds)} |`, `| Steps | ${count(reg.steps)} |`, `| Triggers | ${count(reg.triggers)} |`,
-    `| Connectors | ${count(reg.connectors)} |`, `| Agent tools (not 1:1 with a capability) | ${count(reg.agentTools)} |`, `| Block types | ${count(reg.blocks)} |`,
-    `| Screens | ${count(reg.screens)} |`, `| Health checks | ${count(reg.health)} |`, `| Gate act kinds | ${count(reg.gateActs)} |`,
-    `| Task kinds | ${count(reg.taskKinds)} |`, `| Notification kinds | ${count(reg.notificationKinds)} |`, `| Import sources | ${count(reg.importSources)} |`,
-    `| Settings | ${count(reg.settings)} |`, `| Retention defaults | ${count(reg.retention)} |`, `| Lists | ${count(reg.lists)} |`,
-    `| Error codes | ${count(reg.errors)} |`, '',
+    'Counts are not written down: they change with every contract change. Run `node tools/gen/src/cli.ts --summary` for them.', '',
+    '## Kinds', '', '- Modules, connector manifests and Kit manifests: `modules/`', '- Capabilities: `capabilities/`', '- Events: `events/`', '- Permissions: `permissions/`', '- Errors: `errors/`', '- Lanes: `lanes/`', '',
     '## Modules', '', ...reg.modules.map((m) => `- [${m.id}](modules/${m.id}.md) (${m.owner}, ${m.kind})`), '',
   ].join('\n'));
 }

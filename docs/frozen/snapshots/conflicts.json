@@ -1,0 +1,24 @@
+{
+  "module": "conflicts",
+  "capabilities": {
+    "conflicts.assist@1": "f3fcfda7da10cea390a59770caf7b0731372b183b17320494e7e0d11a9a6d8b4",
+    "conflicts.confirm@1": "261c2ae10868742a65a329ff16b92b7130a1a95087f4411238ce1e853d6d7d51",
+    "conflicts.counts@1": "744ffe0b801db550dd0e2cc43b4f95e60cfb915f460c1b2fcf72fd01d2b9ace6",
+    "conflicts.field_history@1": "8f11d7b2aeebce7d0c4e73bf241a580c26e6e12ad405e8d9d663572e51dcb688",
+    "conflicts.get@1": "0372b96da7f373c7ba4b4022f4a5cbb5207c12b21233f6081eae958cae73bb94",
+    "conflicts.list@1": "100cf72a5686001b2ab1f58c5f250298c47aae083f15173b76e8bbed8071546f",
+    "conflicts.log_binary@1": "6dd2e1cccd4f38b32a583f83edd95f6eec573d576fba0721d71945cdd37b5a2d",
+    "conflicts.propose@1": "742bfca08b38b2ae4854968d40dc262c797712491c0e14e0e9b31190266886d1",
+    "conflicts.redo@1": "919391167a96ec54342ba6e7d6017ed6fcb9516001d7a6c066b9b69060f5b1ed",
+    "conflicts.resolve@1": "3e49bcc6035804a9d76277233d0f0749ea1849be6f301e1229a7d84a2b75f6a2",
+    "conflicts.undo@1": "bfbc3b8fc6a215f4362a10d6823e56ec75396d7a945d7607f05f9e34956af799"
+  },
+  "events": {
+    "conflict.binary_logged": "14f8591d5f257011d17e41e8d756c25ef1a6f31d1be6630df722aaef78ef0266",
+    "conflict.confirmation_needed": "6f2950305d7efb1442e27323c864bd1a1cd9c42b2fc45c4fd7cbbd3b1b4e2b5f",
+    "conflict.proposed": "8ae279d6a13e81fa421db9993a993afab4145668a2385294cf99d2c585de7602",
+    "conflict.redone": "ba1419cd70bb4ffc2d723c7ae964e381c31328a7ee3d27e6c3f9d5302a136310",
+    "conflict.resolved": "a1ca8cdacc276d94527282bb1a35316aafcbdade7b02e6940dfe6d92d53b8d90",
+    "conflict.undone": "ad532e8d6e3135d2ee353b397dc5de897c9dd040c32136103d56e248e7363fdd"
+  }
+}

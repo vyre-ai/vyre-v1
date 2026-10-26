@@ -55,7 +55,7 @@ test("property: a view-only Ask pane never invokes above view, whatever the mode
   for (const call of calls) {
     const cap = loaded.caps.get(call.cap);
     assert.ok(cap, call.cap);
-    assert.equal(cap.level, "view", `${call.cap} is above view`);
+    assert.ok(cap.level === "view" || cap.level === "member", `${call.cap} is above view`);   // member: membership only, below view
     assert.ok(cap.effects === "read" || call.cap === "access.propose_change", `${call.cap} writes at view`);
     assert.equal(call.principal, "agt_intake");
     assert.equal(call.actingFor, "per_dana", "the call is the intersection with the asker");

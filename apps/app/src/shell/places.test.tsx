@@ -38,6 +38,7 @@ function runtimeFor(variant: Variant, seed: boolean, o: { calendarConnected?: bo
     space: { id: sample.replica.spaceId, kind: variant === "personal" ? "personal" : "team", name: sample.extras.space.name },
     assistant: sample.extras.assistant,
     get aiConnected() { return sample.extras.aiConnected; },
+    deferredModules: new Set<string>(), isDeferred: () => false,
     calendarConnected: sample.extras.calendarConnected,
     open: (t) => void opened.push(t),
     openUrl: (u) => void urls.push(u),
@@ -84,7 +85,10 @@ test("each place renders its data from a seeded replica, not its loading frame",
     home: "Send 12 invoices", chat: "Pruitt retainer thread", mail: "Marcus Pruitt", records: "Active clients", files: "Rivera engagement letter.docx",
     sites: "Northwind website", automations: "Welcome new leads", vault: "Stripe restricted key", settings: "Profile",
   };
+  const firstList = (await import("./providers/first-list.tsx")).default;
   for (const p of SHELL_PLACES) {
+    // A place with its own composed layout (providers/<place>.tsx) is tested beside it; this test covers Home and the places still on the first list.
+    if (p.id !== "home" && (await p.load()).default !== firstList) continue;
     const out = await mount(p.id, rt);
     assert.ok(out.includes(titles[p.id]!), `${p.id} shows ${titles[p.id]}`);
     assert.ok(!out.includes("-loading"), `${p.id} is not a loading frame`);
@@ -102,10 +106,10 @@ test("before the Space's runtime exists a place draws its loading frame, never a
 
 test("a place whose list is empty says so with the shared empty state", async () => {
   const { rt, sample } = runtimeFor("northwind", true);
-  (sample.replica as unknown as Loose).resolve("files.list", () => ({ files: [] }));
-  const out = await mount("files", rt);
-  assert.ok(out.includes("No files here yet."));
-  assert.ok(!out.includes("Rivera engagement letter.docx"));
+  (sample.replica as unknown as Loose).resolve("sites.list", () => ({ sites: [] }));
+  const out = await mount("sites", rt);
+  assert.ok(out.includes("No sites or apps yet."));
+  assert.ok(!out.includes("Northwind website"));
   assert.deepEqual(listItems({ files: [] }), []);
 });
 
@@ -128,8 +132,10 @@ test("Home in a Personal Space draws only the personal variant: checklist, Starr
   assert.ok(out.includes('data-testid="home-place"'));
   assert.ok(out.includes("Good morning, Irfad"));
   assert.ok(out.includes('data-testid="s-first"'), "the first-run checklist");
-  assert.ok(out.includes('data-testid="s-starred"') && out.includes('data-testid="s-ask"'));
+  assert.ok(out.includes('data-testid="s-ask"'));
+  assert.ok(!out.includes('data-testid="s-starred"'), "an empty Starred is not drawn in a Personal Space");
   assert.ok(!out.includes('data-testid="s-today"'), "Today needs a connected calendar");
+  assert.ok(out.includes("Your Personal Space, on this computer only"), "the subtitle says where the Space lives");
   for (const id of ["s-needs", "s-work", "s-risk", "s-away", "s-routines"]) assert.ok(!out.includes(`data-testid="${id}"`), `${id} is not in a Personal Space`);
   assert.ok(!out.includes("Needs you") && !out.includes("My work"));
   const withCalendar = await mount("home", runtimeFor("personal", false, { calendarConnected: true }).rt);

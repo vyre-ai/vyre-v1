@@ -12,6 +12,8 @@ import { ensureDeps, ensureChromium } from "./ensure-deps.mjs";
 import { parseArgs, SKINS, SIZES, MAX_EXPORT_S, protoHash, routeUrl, loadTargets, sideBySideHtml } from "./lib.mjs";
 import { serve } from "./serve.mjs";
 import { measureScroll, withinBudget, SCROLL_P95_MS } from "./probes/scroll.mjs";
+import { traceScroll } from "./probes/trace.mjs";
+import { exportEnv } from "../lib/registry-hash.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)), REPO = path.resolve(HERE, "../..");
 const args = parseArgs(process.argv.slice(2));
@@ -22,6 +24,14 @@ const skins = args["probes-only"] ? [] : (args.skins || SKINS.join(",")).split("
 const sizes = (args.sizes || Object.keys(SIZES).join(",")).split(",").map((n) => [n, SIZES[n]]);
 const maxExport = Number(args["max-export-s"] || MAX_EXPORT_S);
 const want = args.target || "all";
+
+// P-UI_14: the production app's startup and bundle report, on the perf runner (the target carries no screenshots). P-UI_14 ends there. On the perf job of any other branch (it runs only for a
+// head commit with [perf], ruling 66) the report runs first and the scroll probe follows, so a packet that changes what the app loads (P-L9_17) gets its startup number from its own branch.
+if (want === "P-UI_14" || args["probes-only"]) {
+  const { main } = await import("./startup.mjs");
+  await main(args["skip-export"] ? ["--skip-export"] : []);
+  if (want === "P-UI_14") process.exit(0);
+}
 
 // A packet id (P-L9b_02) selects that packet's targets, whose ids start with it; "all" runs everything.
 const targets = loadTargets(HERE).filter((t) => want === "all" || t.id === want || (want.startsWith("P-") && t.id.startsWith(want + "-")));
@@ -37,7 +47,7 @@ let exportSeconds = 0;
 if (!args["skip-export"]) {
   fs.rmSync(dist, { recursive: true, force: true });
   const t0 = Date.now();
-  execSync("npx expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: { ...process.env, CI: "1", EXPO_NO_TELEMETRY: "1" } });
+  execSync("npx expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
   exportSeconds = (Date.now() - t0) / 1000;
   console.log(`METRIC ${JSON.stringify({ name: "expo_web_export", seconds: exportSeconds, budget_seconds: maxExport })}`);
 }
@@ -47,25 +57,27 @@ fs.mkdirSync(out, { recursive: true });
 const real = await serve(dist, { spa: true });
 const proto = await serve(path.join(HERE, "prototype"));
 const { chromium } = await import("playwright-core");
-const browser = await chromium.launch({ args: ["--no-sandbox"] });
+const browser = await chromium.launch({ args: ["--no-sandbox", "--js-flags=--expose-gc"] });
 const rows = [];
 const scrollFailed = [];
 try {
   for (const t of targets) for (const skin of skins) for (const [sizeName, vp] of sizes) {
     const dir = path.join(out, t.id); fs.mkdirSync(dir, { recursive: true });
     const stem = `${skin}-${sizeName}`;
-    const shoot = async (url, file, settleMs, scheme) => {
+    const shoot = async (url, file, settleMs, scheme, click) => {
       const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: scheme, reducedMotion: "reduce" });
       const page = await ctx.newPage();
       await page.goto(url, { waitUntil: "load", timeout: 60000 });
       if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 30000 }).catch(() => {});
       await page.waitForTimeout(settleMs);
+      // a prototype state with no hash token is reached the way a person does: press the control in whichever frame has it
+      if (click) { for (const fr of page.frames()) { const el = fr.locator(click).first(); if (await el.count()) { await el.click().catch(() => {}); break; } } await page.waitForTimeout(600); }
       await page.screenshot({ path: file });
       await ctx.close();
     };
     const scheme = skin === "graphite" ? "dark" : "light";
     await shoot(routeUrl(real.origin, t.route, skin), path.join(dir, `${stem}-real.png`), 800, scheme);
-    await shoot(`${proto.origin}/vyre-v1.html#${protoHash(t.proto, skin)}`, path.join(dir, `${stem}-proto.png`), t.protoSettleMs ?? 3000, scheme);
+    await shoot(`${proto.origin}/vyre-v1.html#${protoHash(t.proto, skin)}`, path.join(dir, `${stem}-proto.png`), t.protoSettleMs ?? 3000, scheme, t.protoClick);
     const cmp = path.join(dir, `${stem}-compare.html`);
     fs.writeFileSync(cmp, sideBySideHtml({ title: `${t.id} - ${skin} - ${sizeName} ${vp.width}x${vp.height}`, real: `${stem}-real.png`, proto: `${stem}-proto.png` }));
     const ctx = await browser.newContext({ viewport: { width: vp.width * 2 + 36, height: vp.height + 70 } });
@@ -88,6 +100,14 @@ try {
     console.log(`METRIC ${JSON.stringify({ name: "scroll", target: t.id, frames: r.frames, p95_ms: +r.p95.toFixed(2), max_ms: +r.max.toFixed(2), budget_ms: SCROLL_P95_MS, layout_shift: r.layoutShift, height_stable: r.heightStable, ok })}`);
     if (!ok || !r.heightStable) scrollFailed.push(t.id);
     await ctx.close();
+    // --trace: the same scroll again on a fresh page under a Chrome trace (where the time goes); the measured pass above stays untraced.
+    if (args.trace) {
+      const tctx = await browser.newContext({ viewport: SIZES.desktop, deviceScaleFactor: 1, reducedMotion: "no-preference" });
+      const tpage = await tctx.newPage();
+      await tpage.goto(routeUrl(real.origin, t.route, "paper"), { waitUntil: "load", timeout: 60000 });
+      await traceScroll(browser, tpage, t.id, t.scroll, path.join(out, "traces"));
+      await tctx.close();
+    }
   }
 } finally { await browser.close(); real.close(); proto.close(); }
 fs.writeFileSync(path.join(out, "index.md"), `# Side-by-side screenshots\n\nExport: ${exportSeconds ? exportSeconds.toFixed(1) + " s" : "skipped"} (budget ${maxExport} s)\n\n| target | skin | size | file |\n|---|---|---|---|\n${rows.join("\n")}\n`);

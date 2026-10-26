@@ -8,7 +8,7 @@ export async function switcher(ctx: SpacesCtx, _input: Record<string, never>) {
   const person = me(ctx);
   const row = ctx.db.all(`SELECT name, logo_file_id, kind FROM spaces_profile WHERE id = ?`, ctx.space)[0] as { name: string; logo_file_id: string | null; kind: "personal" | "team" } | undefined;
   if (!row) raise(ctx.trace.traceId, "validation.not_found", "this Space has no profile yet");
-  const a = ctx.attention?.of(person) ?? { needsYou: 0, unread: 0 };
+  const a = (await ctx.attention?.of(person)) ?? { needsYou: 0, unread: 0 };
   return {
     name: row.name,
     ...(row.logo_file_id ? { logoFileId: row.logo_file_id } : {}),

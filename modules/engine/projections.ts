@@ -1,4 +1,6 @@
 // @reads /modules/engine/migrations/0001_init.sql
+// @reads /modules/engine/migrations/0002_usage_item.sql
+// @reads /modules/engine/migrations/0003_unblock.sql
 // Durable rows of the engine module: the SQL behind the turn engine's ports (messages, thread queue, thread lease, parked tool calls),
 // plus the id minting and the period keys the handlers share. Every statement names an engine_* table, which is all ctx.db lets a module touch.
 // The migration file is the one source of the schema: ensure() runs it statement by statement (all IF NOT EXISTS), so a handler call on a fresh database works.
@@ -10,7 +12,7 @@ import { LEASE_TTL_MS } from "../../agent/src/turn-engine/lease.ts";
 import type { LeaseRow, LeaseStore } from "../../agent/src/turn-engine/lease.ts";
 import type { NewItem, QueueStore } from "../../agent/src/turn-engine/queue.ts";
 import type { MessageStore, WaitRow, WaitStore } from "../../agent/src/turn-engine/stores.ts";
-import type { Author, QueueItem, QueueKind, QueueState, StoredMessage } from "../../agent/src/turn-engine/types.ts";
+import type { Author, QueueItem, QueueKind, QueueState, SessionSpec, StoredMessage } from "../../agent/src/turn-engine/types.ts";
 import type { RouteMention } from "../../lib/route.ts";
 
 /** What the module needs of ctx.db (the host's ScopedDb has this shape). */
@@ -46,12 +48,18 @@ export const actorOf = (ctx: Pick<EngineCtx, "principal" | "actingFor">): string
 // The engine that runs on this host. The host binds it at boot (impl.ts); handlers reach it through boundEngine().
 let bound: TurnEngine | null = null;
 export function bindEngine(engine: TurnEngine | null): void { bound = engine; }
+
+/** The session opener of this host (its pool and its warm hint), bound with the engine; null where the engine runs on a scripted provider. */
+export interface BoundOpener { warm(spec: SessionSpec): void; pool: { status(): { sessions: Array<{ driver: string; warm: number; max: number; hits: number; misses: number }>; totalWarm: number } } }
+let boundOpener: BoundOpener | null = null;
+export function bindOpener(o: BoundOpener | null): void { boundOpener = o; }
+export const openerOf = (): BoundOpener | null => boundOpener;
 export function boundEngine(ctx: Pick<EngineCtx, "trace">): TurnEngine {
   if (!bound) raise(ctx, "internal.unavailable", "The engine is not running on this host.");
   return bound;
 }
 
-const SCHEMA = readFileSync(new URL("./migrations/0001_init.sql", import.meta.url), "utf8")
+const SCHEMA = ["0001_init.sql", "0002_usage_item.sql", "0003_unblock.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 
@@ -62,6 +70,8 @@ export function ensure(db: Db): void {
   if (ready.has(db)) return;
   try {
     db.all("SELECT note_text FROM engine_incident_notes WHERE incident_id = ?", "probe");
+    db.all("SELECT item_id FROM engine_usage_item WHERE turn_id = ?", "probe");
+    db.all("SELECT task_id FROM engine_unblock WHERE task_id = ?", "probe");
   } catch {
     for (const stmt of SCHEMA) db.run(stmt);
   }
@@ -103,10 +113,19 @@ function messageOf(r: Row): StoredMessage {
   };
 }
 
+// The id the next appended message must carry. The chat bridge sets it around engine.receive so a person's message is stored under the id chat gave it: one id for one message in both tables.
+let forcedId: string | null = null;
+export function withMessageId<T>(id: string, fn: () => T): T {
+  forcedId = id;
+  try { return fn(); } finally { forcedId = null; }
+}
+
 export function sqlMessages(db: Db, now: () => number = Date.now): MessageStore {
   ensure(db);
   return {
-    append(msg) {
+    append(given) {
+      const msg = forcedId === null ? given : { ...given, id: forcedId };
+      forcedId = null;
       // The sequence is taken in the same statement as the insert; two hosts racing for one number lose on the unique index and retry.
       for (let attempt = 0; ; attempt++) {
         try {

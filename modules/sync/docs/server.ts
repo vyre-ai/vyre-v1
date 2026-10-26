@@ -50,7 +50,8 @@ export interface Attribution { seq: number; actor: string; at: number; suggest: 
 
 export interface DocServer {
   open(who: string, input: OpenInput, traceId: string): OpenOut;
-  update(who: string, input: UpdateInput, traceId: string): { seq: number; bytes: number };
+  /** `fresh` is false when the update changed nothing (an empty update): no event is owed then. */
+  update(who: string, input: UpdateInput, traceId: string): { seq: number; bytes: number; fresh: boolean };
   close(who: string, input: { doc: string; name?: string | undefined }, traceId: string): { versioned: boolean; upto: number };
   compact(who: string, input: CompactInput, traceId: string): { upto: number; bytes: number };
   /** Fold every document that is due (500 updates or 10 minutes). Returns how many were folded. */
@@ -151,12 +152,12 @@ export function createDocServer(d: DocDeps): DocServer {
       if (meta.enc === 0) {
         // A malformed update would poison every later rebuild, so it is read once here and refused.
         try { Y.decodeUpdate(bytes); } catch { throw docError("validation.bad_input", "The update is not a valid document change.", traceId, "edit_input", "Open the document again"); }
-        if (isEmptyUpdate(bytes)) return { seq: headSeq(d.db, doc), bytes: bytes.length };
+        if (isEmptyUpdate(bytes)) return { seq: headSeq(d.db, doc), bytes: bytes.length, fresh: false };
       }
       const seq = appendUpdate(d.db, { doc, actor: who, at: d.now(), bytes, enc: meta.enc, suggest: input.suggest === true && meta.enc === 0 });
       emit("doc.updated", doc, traceId, who, { doc, bytes: bytes.length, actor: who, seq });
       if (meta.enc === 0 && updateCount(d.db, doc) >= every) fold(doc, traceId, SYSTEM, meta.owner);
-      return { seq, bytes: bytes.length };
+      return { seq, bytes: bytes.length, fresh: true };
     },
 
     close(who, input, traceId) {

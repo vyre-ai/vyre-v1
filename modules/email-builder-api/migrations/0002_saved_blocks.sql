@@ -1,5 +1,4 @@
--- NOTE: a module may only touch tables that start with its id (email_builder_api_), so this table follows the rule; the 0001 tables (email_builder_*) do not and must be renamed
--- in a later migration before the module goes live (P-L8_LIVE).
+-- NOTE: a module may only touch tables that start with its id (email_builder_api_). The 0001 tables were renamed to follow the rule in place, before the module went live (P-L8_LIVE); no Space ever held the old names.
 -- saved blocks: a block (type and props as JSON) a person keeps to drop into any design; shared ones are visible to the Space.
 CREATE TABLE IF NOT EXISTS email_builder_api_block (
   id TEXT PRIMARY KEY,

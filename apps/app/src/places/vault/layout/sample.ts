@@ -7,7 +7,7 @@ import type { FakeReplica, LiveQuery, QueryState, Row } from "../../../../../../
 import { screensById } from "../../../../../../generated/screens.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { Connection, Principal, VaultData, VaultNav } from "./data.tsx";
-import type { Folder, Item, Provider } from "./model.ts";
+import type { Folder, Item, Provider, Share } from "./model.ts";
 import { DAY_MS, HOUR_MS, MIN_MS } from "./model.ts";
 
 /** Friday 24 October 2025, 10:00 UTC, so every machine prints the same "Used 14 min ago". */
@@ -31,12 +31,14 @@ export interface SampleSpace {
   history: HistorySpec[];
   providers: ProviderSpec[];
   requests: { id: string; name: string; forAutomation: string; agoMin: number }[];
+  /** Who holds each item besides you: [kind, id, level]. */
+  grants?: Record<string, [kind: Share["subject"]["kind"], id: string, level: Share["level"]][]>;
 }
 
 const people: Principal[] = [
   { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" }, { id: "usr_maya", name: "Maya Chen", kind: "person" }, { id: "usr_omar", name: "Omar Haddad", kind: "person" },
   { id: "agt_intake", name: "Intake", kind: "agent" }, { id: "agt_research", name: "Research", kind: "agent" }, { id: "agt_billing", name: "Billing", kind: "agent" },
-  { id: "aut_weekly", name: "Weekly lead report", kind: "automation" },
+  { id: "aut_weekly", name: "Weekly lead report", kind: "automation" }, { id: "agt_assistant", name: "Assistant", kind: "agent" },
 ];
 const harborPeople: Principal[] = [
   { id: "usr_nora", name: "Nora Quill", kind: "person" }, { id: "usr_june", name: "June Abel", kind: "person" }, { id: "agt_proofer", name: "Proofer", kind: "agent" },
@@ -52,22 +54,25 @@ export const northwind: SampleSpace = {
   items: [
     { id: "vit_ghl", name: "GoHighLevel", kind: "api_key", folder: "fld_marketing", scope: "shared", handle: "#Northwind_GHL", usedAgo: m(14), rotateEvery: 90, rotatedAgoDays: 214, fields: [["GHL_PIT", "pit-7c1e4a2b-90d1-4b9e-8a52-3e6d1f0aa417", true], ["GHL_LOCATION_ID", "nwLoc7Kq2mXpR4vLnTzB", false]] },
     { id: "vit_forms", name: "Northwind Forms", kind: "login", folder: "fld_marketing", scope: "shared", usedAgo: m(26), fields: [["USERNAME", "intake-bot", false], ["PASSWORD", "Wm4!rT8vQz2#", true]] },
-    { id: "vit_stripe", name: "Stripe", kind: "api_key", folder: "fld_finance", scope: "shared", usedAgo: m(28), level: "edit", rotateEvery: 180, rotatedAgoDays: 203, fields: [["STRIPE_SECRET_KEY", "sk_live_51NwFakeFakeFakeFakeFake00aa", true], ["STRIPE_PUBLISHABLE_KEY", "pk_live_51NwFakeFakeFakeFake11bb", false]] },
-    { id: "vit_claude", name: "Claude", kind: "ai_subscription", folder: "fld_mine", scope: "mine", usedAgo: m(42), fields: [["CLAUDE_SETUP_TOKEN", "sk-ant-oat01-fake-fake-fake-fake-fake", true]] },
+    { id: "vit_stripe", name: "Stripe", kind: "api_key", folder: "fld_finance", scope: "shared", usedAgo: m(28), level: "edit", rotateEvery: 180, rotatedAgoDays: 203, fields: [["STRIPE_SECRET_KEY", "sk_live_51NwFakeFakeFakeFakeFake00aa", true], ["STRIPE_PUBLISHABLE_KEY", "pk_live_51NwFakeFakeFakeFake11bb", false]] }, // secret-scan: fake
+    { id: "vit_claude", name: "Claude", kind: "ai_subscription", folder: "fld_mine", scope: "mine", usedAgo: m(42), fields: [["CLAUDE_SETUP_TOKEN", "sk-ant-oat01-fake-fake-fake-fake-fake", true]] }, // secret-scan: fake
     { id: "vit_stripe_wh", name: "Stripe webhooks", kind: "api_key", folder: "fld_finance", scope: "shared", usedAgo: h(2), fields: [["STRIPE_WEBHOOK_SECRET", "whsec_fakefakefakefakefakefake", true], ["ENDPOINT_URL", "https://hooks.northwind.example/stripe", false]] },
     { id: "vit_gws", name: "Google Workspace", kind: "login", folder: "fld_ops", scope: "shared", usedAgo: h(3), fields: [["USERNAME", "ops@northwind.example", false], ["PASSWORD", "Gx7#pLm29vQe", true]] },
-    { id: "vit_gsa", name: "Google service account", kind: "other", folder: "fld_ops", scope: "shared", usedAgo: h(3), fields: [["CLIENT_EMAIL", "bot@northwind-prod.iam.example", false], ["PROJECT_ID", "northwind-prod", false], ["PRIVATE_KEY", "-----BEGIN PRIVATE KEY-----fake", true]] },
+    { id: "vit_gsa", name: "Google service account", kind: "other", folder: "fld_ops", scope: "shared", usedAgo: h(3), fields: [["CLIENT_EMAIL", "bot@northwind-prod.iam.example", false], ["PROJECT_ID", "northwind-prod", false], ["PRIVATE_KEY", "-----BEGIN PRIVATE KEY-----fake", true]] }, // secret-scan: fake
     { id: "vit_rivera", name: "Rivera client portal", kind: "api_key", folder: "fld_ops", scope: "shared", usedAgo: h(3), level: "use", fields: [["PORTAL_PIN", "482913", true], ["ACCOUNT_NUMBER", "RV-20931", true]] },
     { id: "vit_opencode", name: "OpenCode Go key", kind: "api_key", folder: "fld_mine", scope: "mine", usedAgo: h(6), fields: [["OPENCODE_API_KEY", "oc-fake-fake-fake-fake-fake-fake-12", true]] },
     { id: "vit_pg", name: "Postgres · Northwind prod", kind: "env", folder: "fld_ops", scope: "shared", usedAgo: h(6), fields: [["DATABASE_URL", "postgres://app:s3cretPw@db.northwind.example:5432/prod", true]] },
     { id: "vit_twilio", name: "Twilio · Support line", kind: "api_key", folder: "fld_ops", scope: "shared", usedAgo: h(15), fields: [["TWILIO_ACCOUNT_SID", "AC0123456789abcdef0123456789abcdef", false], ["TWILIO_AUTH_TOKEN", "fakefakefakefakefakefakefakefake", true]] },
-    { id: "vit_anthropic", name: "Anthropic API key", kind: "api_key", folder: "fld_marketing", scope: "shared", usedAgo: h(20), fields: [["ANTHROPIC_API_KEY", "sk-ant-api03-fake-fake-fake-fake", true]] },
+    { id: "vit_anthropic", name: "OpenAI key", kind: "api_key", folder: "fld_marketing", scope: "shared", usedAgo: h(30), fields: [["OPENAI_API_KEY", "sk-proj-fake-fake-fake-fake", true]] },
     { id: "vit_visa", name: "Northwind Visa", kind: "card", folder: "fld_finance", scope: "shared", usedAgo: h(30), level: "view", fields: [["CARD_NUMBER", "4111111111111111", true], ["EXPIRY", "09/28", false], ["CVV", "123", true]] },
     { id: "vit_github", name: "GitHub", kind: "login", folder: "fld_mine", scope: "mine", usedAgo: h(40), fields: [["USERNAME", "irfad7", false], ["PASSWORD", "Gh9$kLp3xQw8", true]] },
     { id: "vit_resend", name: "Resend", kind: "api_key", folder: "fld_ops", scope: "shared", usedAgo: 5 * DAY_MS, fields: [["RESEND_API_KEY", "re_fakefakefakefakefake", true]] },
     { id: "vit_wifi", name: "Office Wi-Fi", kind: "note", folder: "fld_finance", scope: "shared", usedAgo: 40 * DAY_MS, fields: [["NOTE", "Northwind-Guest / harbor-lights-42", true]] },
   ],
   history: [
+    { item: "vit_claude", actor: { kind: "agent", id: "agt_intake" }, action: "used", field: "CLAUDE_SETUP_TOKEN", ago: m(42) },
+    { item: "vit_claude", actor: { kind: "agent", id: "agt_intake" }, action: "used", field: "CLAUDE_SETUP_TOKEN", ago: h(3) },
+    { item: "vit_claude", actor: { kind: "agent", id: "agt_research" }, action: "used", field: "CLAUDE_SETUP_TOKEN", ago: h(5) },
     { item: "vit_ghl", actor: { kind: "agent", id: "agt_intake" }, action: "used", field: "GHL_PIT", ago: m(14) },
     { item: "vit_ghl", actor: { kind: "agent", id: "agt_research" }, action: "used", field: "GHL_PIT", ago: h(2) },
     { item: "vit_ghl", actor: { kind: "service", id: "aut_weekly" }, onBehalfOf: { kind: "person", id: "usr_irfad" }, action: "used", field: "GHL_PIT", ago: h(26) },
@@ -80,9 +85,13 @@ export const northwind: SampleSpace = {
   providers: [
     { id: "prv_claude", key: "claude-code", name: "Claude", connection: "subscription", via: "Sign in with Claude Max", scope: "mine", item: "vit_claude", agents: ["agt_intake", "agt_research"], tokens: 4_200_000, cents: 0, engine: "claude-code" },
     { id: "prv_opencode", key: "opencode-go", name: "OpenCode Go", connection: "api_key", via: "API key", scope: "mine", item: "vit_opencode", agents: ["agt_billing"], tokens: 900_000, cents: 740, engine: "opencode" },
-    { id: "prv_anthropic", key: "anthropic", name: "Anthropic", connection: "api_key", via: "API key #Northwind_Anthropic", scope: "shared", item: "vit_anthropic", agents: ["agt_intake"], tokens: 1_100_000, cents: 1320, engine: "claude-code" },
+    { id: "prv_anthropic", key: "openai", name: "OpenAI", connection: "api_key", via: "API key #Northwind_OpenAI", scope: "shared", item: "vit_anthropic", agents: ["agt_intake"], tokens: 1_100_000, cents: 1320, engine: "claude-code" },
   ],
   requests: [{ id: "req_twilio", name: "Twilio", forAutomation: "New lead follow-up", agoMin: 120 }],
+  grants: {
+    vit_ghl: [["person", "usr_maya", "edit"], ["person", "usr_omar", "view"], ["agent", "agt_intake", "use"], ["agent", "agt_research", "use"], ["service", "aut_weekly", "use"]],
+    vit_stripe: [["agent", "agt_billing", "use"], ["person", "usr_maya", "edit"]],
+  },
 };
 
 export const harbor: SampleSpace = {
@@ -212,7 +221,28 @@ export function createSampleVault(space: SampleSpace = northwind, o: { online?: 
   };
   const touch = (id: string, patch: Partial<ItemRow>): ItemRow => { const next = { ...find(id), ...patch, updatedAt: SAMPLE_NOW } as ItemRow; replica.put("items", [next]); return next; };
 
+  // Who holds each item (access.shares_of): the owner, then the grants above. A grant is changed by vault.share and removed by vault.unshare.
+  const grants = new Map<string, Share[]>();
+  for (const [itemId, list] of Object.entries(space.grants ?? {})) grants.set(itemId, list.map(([kind, id, level]): Share => ({ subject: { kind, id }, level, through: "direct" })));
+  const sharesOf = (itemId: string): Share[] => [{ subject: { kind: "person", id: space.me.id }, level: "manage", through: "owner" }, ...(grants.get(itemId) ?? [])];
+
   const writes: Record<string, (input: any) => unknown> = {
+    "access.shares_of": (i: { resource: { type: string; id: string } }) => ({
+      shares: sharesOf(i.resource.id).map((x, n) => ({ grant: { id: `grt_${n}`, subject: x.subject, resource: i.resource, level: x.level, conditions: {}, by: space.me.id, createdAt: SAMPLE_NOW }, through: x.through })),
+    }),
+    "vault.share": (i: { resource: { id: string }; subject: Share["subject"]; level: Share["level"] }) => {
+      const cur = grants.get(i.resource.id) ?? [];
+      const same = (x: Share): boolean => x.subject.kind === i.subject.kind && x.subject.id === i.subject.id;
+      grants.set(i.resource.id, cur.some(same) ? cur.map((x) => (same(x) ? { ...x, level: i.level } : x)) : [...cur, { subject: i.subject, level: i.level, through: "direct" }]);
+      log(i.resource.id, "shared");
+      return { granted: true };
+    },
+    "vault.unshare": (i: { resource: { id: string }; subject: Share["subject"] }) => {
+      const cur = grants.get(i.resource.id) ?? [];
+      grants.set(i.resource.id, cur.filter((x) => !(x.subject.kind === i.subject.kind && x.subject.id === i.subject.id)));
+      log(i.resource.id, "unshared");
+      return { revoked: 1 };
+    },
     "vault.item.reveal": (i: { itemId: string; fields?: string[] }) => {
       const it = find(i.itemId);
       if (it.kind === "ai_subscription") throw new Error("permission.provider_label");
@@ -261,7 +291,7 @@ export function createSampleVault(space: SampleSpace = northwind, o: { online?: 
   };
 
   const nav: VaultNav = {
-    openShare: (id) => void opened.push(`share:${id}`), openExport: (id) => void opened.push(`export:${id}`), openAdvanced: () => void opened.push("advanced"),
+    openShare: (id) => void opened.push(`share:${id}`), openExport: (id) => void opened.push(`export:${id}`), openAdvanced: () => void opened.push("advanced"), ask: (agentId, mode, about) => void opened.push(`ask:${agentId}:${mode}:${about.id}`),
     openRequests: () => void opened.push("requests"), openAgent: (id) => void opened.push(`agent:${id}`),
   };
   const connection: Connection = { get: () => (online ? "online" : "offline"), subscribe: (l) => { listeners.add(l); return () => void listeners.delete(l); } };

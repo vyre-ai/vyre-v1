@@ -12,7 +12,7 @@ import type { SampleHomeB } from "./sample.ts";
 
 const html = (h: SampleHomeB): string => {
   const { top, bottom } = homeBSlots(h.extras);
-  return renderToStaticMarkup(<Home data={h.data} top={top} bottom={bottom} />).replaceAll("<!-- -->", "");
+  return renderToStaticMarkup(<Home data={h.data} top={top} bottom={bottom} personal={h.extras.space.kind === "personal"} />).replaceAll("<!-- -->", "");
 };
 const at = (s: string, needle: string): number => {
   const i = s.indexOf(needle);
@@ -148,7 +148,8 @@ test("a failed ask returns null and says so", async () => {
 
 test("the Ask box is a composer for the assistant; without an AI account it is locked and says how to unlock", () => {
   const open = html(createSampleHomeB());
-  assert.ok(has(open, 'data-testid="ask-box"') && has(open, "Assistant will reply") && has(open, "Ask your assistant…"));
+  assert.ok(has(open, 'data-testid="ask-box"') && has(open, "Ask your assistant…"));
+  assert.ok(has(open, 'data-testid="ask-agent"') && !has(open, "will reply"), "the agent is the Ask pill beside the box, not a line under it");
   assert.ok(!has(open, 'data-testid="ask-locked"'));
   const locked = html(createSampleHomeB("firstrun"));
   assert.ok(has(locked, 'data-testid="ask-locked"') && has(locked, "Connect an AI account to ask your assistant"));
@@ -160,7 +161,7 @@ test("Personal Space: no Today without a calendar, no project row, and the assis
   const out = html(createSampleHomeB("personal"));
   assert.ok(!has(out, 'data-testid="s-today"'), "Today needs a connected calendar");
   assert.ok(has(out, 'data-testid="s-first"') && !has(out, "Open your first project"));
-  assert.ok(has(out, ">0 of 5<"));
+  assert.ok(has(out, ">0 of 4<"));
   assert.ok(has(out, 'data-testid="ask-locked"'));
   assert.ok(has(out, "Next to your name in Personal"));
 });
