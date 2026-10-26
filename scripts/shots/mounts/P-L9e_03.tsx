@@ -1,0 +1,54 @@
+// Mount for P-L9e_03: the Files review surfaces over the Northwind sample Space (or Harbor Studio with ?space=harbor).
+// ?part=review (default)  the changeset header and the diff of "Docs changed 3 files"; ?repo=1 makes the folder a git repository (commit message and Push), ?protected=1 puts it on a protected main (the Gate row,
+// Approve off), ?panel=discard|request opens the Discard confirm or the Request changes note.
+// ?part=git  the git row; ?part=history  AGENT.md's versions; ?part=lint  AGENT.md with its lint bar; ?part=form  agent.toml in the Form view with an edit and the diff before the save.
+// The query is read after mount (rule 25): the static export keeps its pre-rendered markup, so a first-render read shows stale state.
+import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import { ScrollView, View, useWindowDimensions } from "react-native";
+import { AgentFileEditor, ChangesetDiff, ChangesetHeader, GitRow, HistoryPanel, ReviewDataProvider } from "../../../apps/app/src/places/files/review/index.ts";
+import { AGENT_MD, AGENT_TOML, createSampleReview } from "../../../apps/app/src/places/files/review/sample.ts";
+
+export const title = "Files: review";
+
+type Part = "review" | "git" | "history" | "lint" | "form";
+const PARTS: readonly Part[] = ["review", "git", "history", "lint", "form"];
+
+export default function Mount(): ReactNode {
+  const [q, setQ] = useState<URLSearchParams | null>(null);
+  useEffect(() => setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")), []);
+  const width = useWindowDimensions().width;
+  const compact = width > 0 && width < 720; // 0 is "not measured yet" (the static page)
+  const sample = useMemo(() => (q ? createSampleReview({
+    variant: q.get("space") === "harbor" ? "harbor" : "northwind", repo: q.get("repo") === "1" || q.get("part") === "git", protectedBranch: q.get("protected") === "1",
+  }) : null), [q]);
+  if (!q || !sample) return <View style={{ flex: 1 }} />;
+  const part = PARTS.find((p) => p === q.get("part")) ?? "review";
+  const panel = q.get("panel") === "discard" ? "discard" : q.get("panel") === "request" ? "request" : undefined;
+  const density = compact ? "compact" : "regular";
+  let body: ReactNode;
+  if (part === "git") body = <GitRow folderId={sample.folderId} />;
+  else if (part === "history") body = <HistoryPanel fileId={sample.fileIds.agent} density={density} />;
+  else if (part === "lint") body = <AgentFileEditor fileId={sample.fileIds.agent} name="AGENT.md" saved={AGENT_MD} version={4} density={density} />;
+  else if (part === "form") {
+    body = (
+      <AgentFileEditor
+        fileId={sample.fileIds.toml} name="agent.toml" saved={AGENT_TOML} version={2} density={density}
+        start={{ view: "form", draft: AGENT_TOML.replace("daily_budget = 12", "daily_budget = 20"), review: q.get("diff") === "1" }}
+      />
+    );
+  } else {
+    body = (
+      <>
+        <ChangesetHeader changesetId={sample.changesetId} {...(panel ? { panel } : {})} />
+        {q.get("repo") === "1" || q.get("protected") === "1" ? <GitRow folderId={sample.folderId} /> : null}
+        <ChangesetDiff changesetId={sample.changesetId} density={density} />
+      </>
+    );
+  }
+  return (
+    <ReviewDataProvider value={sample.data}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>{body}</ScrollView>
+    </ReviewDataProvider>
+  );
+}
