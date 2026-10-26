@@ -181,7 +181,7 @@ function TaskPane({ journey: j, stage: g, task: t, canDesign }: { journey: Journ
               <SRow key={key} label={label} minHeight={40} last={n === SLOTS.length - 1} testID={`seat-${key}`}>
                 <PickButton
                   label={label} value={who ? data.name(who.id) : "Nobody"} empty={!who} disabled={!canDesign} testID={`pick-${key}`}
-                  lead={who ? <Face name={data.name(who.id)} kind={who.kind === "person" ? "person" : "agent"} size={16} /> : undefined}
+                  lead={who ? <Face name={data.name(who.id)} seedId={who.id} kind={who.kind === "person" ? "person" : "agent"} size={16} /> : undefined}
                   onPress={(x, y) => show(peopleMenu(extras.directory, (r) => edit(setSeat(j.stages, g.key, t.key, key, r), `${label}: ${data.name(r.id)}`), key === "assigned" ? undefined : () => edit(setSeat(j.stages, g.key, t.key, key, null), `No ${label.toLowerCase()}`)), x, y, "other", { label })}
                 />
               </SRow>

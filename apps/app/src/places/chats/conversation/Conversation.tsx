@@ -325,7 +325,7 @@ function ConversationView(): ReactElement {
       {line ? <View testID="conversation-line" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{line}</Text></View> : null}
       {personMention ? (
         <View testID="channel-offer" style={st.offer}>
-          <Face name={nameOf(personMention.id)} kind="person" size={18} />
+          <Face name={nameOf(personMention.id)} seedId={personMention.id} kind="person" size={18} />
           <Text style={st.offerText}>{`${nameOf(personMention.id)} is not in this chat. A chat never gains people.`}</Text>
           <TextButton label={`Start a channel with ${nameOf(personMention.id).split(" ")[0]}`} testID="channel-start" onPress={() => void act.startChannel(data, personMention.id, data.newKey()).then(() => say("Channel started, linked back to this chat."), fail("Could not start the channel."))} />
         </View>

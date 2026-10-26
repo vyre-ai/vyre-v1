@@ -56,7 +56,8 @@ test("add registers the domain at the provider and returns the DNS records to pu
   resend(h);
   const out = await domainAdd(h.ctx, { name: " Example.COM. ", provider: "resend", idempotencyKey: key() });
   assert.deepEqual(contractErrors("mail.domain.add", "out", out), []);
-  assert.deepEqual(h.calls("resend.domains.create").map((c) => c.input), [{ name: "example.com" }]);
+  assert.deepEqual(h.calls("resend.domains.create").map((c) => c.input.name), ["example.com"]);
+  assert.ok(h.calls("resend.domains.create").every((c) => typeof c.input.idempotencyKey === "string" && c.input.idempotencyKey !== ""), "the provider call carries an idempotency key");
   const d = out.domain;
   assert.deepEqual([d.name, d.provider, d.spf, d.dkim, d.dmarc, d.verified, d.isDefault, d.checkedAt], ["example.com", "resend", "pending", "pending", "pending", false, false, undefined]);
   assert.deepEqual(out.records, RESEND_RECORDS);
@@ -113,7 +114,8 @@ test("check finds every record, the provider verifies, and the domain turns gree
   assert.deepEqual(contractErrors("mail.domain.check", "out", out), []);
   assert.deepEqual([out.domain.spf, out.domain.dkim, out.domain.dmarc, out.domain.verified, out.domain.checkedAt], ["pass", "pass", "pass", true, NOW]);
   assert.deepEqual(out.records.map((r) => [r.purpose, r.state]), [["spf", "pass"], ["dkim", "pass"], ["mx", "pass"], ["dmarc", "pass"]]);
-  assert.deepEqual(h.calls("resend.domains.verify").map((c) => c.input), [{ providerDomainId: "pdm_1" }]);
+  assert.deepEqual(h.calls("resend.domains.verify").map((c) => c.input.providerDomainId), ["pdm_1"]);
+  assert.ok(h.calls("resend.domains.verify").every((c) => typeof c.input.idempotencyKey === "string" && c.input.idempotencyKey !== ""), "the verify call carries an idempotency key");
   assert.deepEqual(h.named("sending_domain.checked").map((e) => e.payload), [{ domainId: added.domain.id, spf: "pass", dkim: "pass", dmarc: "pass" }]);
   assert.deepEqual(eventErrors(h), []);
 });
@@ -130,7 +132,7 @@ test("check through Mailgun verifies by domain name", async () => {
   const added = await domainAdd(h.ctx, { name: "example.com", provider: "mailgun", idempotencyKey: key() });
   bindDns(h.ctx, zone({ txt: { "example.com": ["google-site-verification=abc", "v=spf1 include:mailgun.org include:other.net ~all"] }, cname: { "k1._domainkey.example.com": ["DKIM.mailgun.org"] } }));
   const out = await domainCheck(h.ctx, { domainId: added.domain.id });
-  assert.deepEqual(h.calls("mailgun.domains.verify").map((c) => c.input), [{ name: "example.com" }]);
+  assert.deepEqual(h.calls("mailgun.domains.verify").map((c) => c.input.name), ["example.com"]);
   assert.deepEqual([out.domain.spf, out.domain.dkim, out.domain.dmarc, out.domain.verified], ["pass", "pass", "pending", true]);   // DMARC is shown, not required
 });
 
@@ -227,7 +229,7 @@ test("remove deletes the domain at the provider, takes its routes with it and cl
   const out = await domainRemove(h.ctx, { domainId: domain.id });
   assert.deepEqual(contractErrors("mail.domain.remove", "out", out), []);
   assert.deepEqual(out, { removed: true });
-  assert.deepEqual(h.calls("resend.domains.delete").map((c) => c.input), [{ providerDomainId: "pdm_1" }]);
+  assert.deepEqual(h.calls("resend.domains.delete").map((c) => c.input.providerDomainId), ["pdm_1"]);
   assert.deepEqual([row(h, domain.id).deleted_at, row(h, domain.id).isDefault, row(h, domain.id).verified], [NOW, 0, 0]);
   assert.equal(h.rows(`SELECT deleted_at FROM mail_route WHERE id = ?`, "rte_one")[0]!.deleted_at, NOW);
   assert.deepEqual(h.named("sending_domain.removed").map((e) => e.payload), [{ domainId: domain.id, name: "example.com" }]);
@@ -252,7 +254,7 @@ test("remove through Mailgun deletes the domain and each provider route; a provi
   });
   assert.deepEqual(await domainRemove(h.ctx, { domainId: "dom_mg" }), { removed: true });
   assert.deepEqual(h.calls("mailgun.routes.delete").map((c) => c.input), [{ idempotencyKey: "mail.domains.remove:dom_mg:route:rte_one", routeId: "mgr_77" }]);
-  assert.deepEqual(h.calls("mailgun.domains.delete").map((c) => c.input), [{ name: "example.com" }]);
+  assert.deepEqual(h.calls("mailgun.domains.delete").map((c) => c.input.name), ["example.com"]);
 });
 
 test("remove leaves everything as it was when the provider fails", async () => {

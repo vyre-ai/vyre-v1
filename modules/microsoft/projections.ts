@@ -6,6 +6,7 @@
 // the member email map, the registration's non-secret identity, file bytes, blob storage and the two binary transfers ctx.http (text only)
 // cannot carry. Application permissions reach every mailbox of the tenant; the Exchange application access policy narrows them to the mapped
 // members, and the module narrows them again: every call names one member and is refused for an excluded one.
+import { isTrustedService } from "../../lib/trust.ts";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fail } from "../../host/src/routes/errors.ts";
@@ -183,12 +184,12 @@ export const enc = (s: string): string => encodeURIComponent(s);
 /** Who the call acts as: the caller's mapped address, or another mapped member for an admin or a service. */
 export function subjectFor(ctx: MsCtx, c: Pick<Call, "connectionId" | "as" | "open">): string {
   const cfg = config(ctx);
-  const person = ctx.principal.kind === "service" ? null : (ctx.actingFor ?? ctx.principal.id);
+  const person = isTrustedService(ctx.principal) ? null : (ctx.actingFor ?? ctx.principal.id);
   const own = person ? strOrNull(first(ctx.db.all(`SELECT email FROM microsoft_member WHERE "userId" = ? AND mapped = ?`, person, 1)), "email") : null;
   const target = c.as ? normalizeEmail(c.as) : own;
   if (!target) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "You are not mapped to a Microsoft 365 user." });
   // Acting as someone else takes an admin or a service. The verify probe may always act as the member it names.
-  if (c.as && target !== own && ctx.principal.kind !== "service" && !c.open) {
+  if (c.as && target !== own && !isTrustedService(ctx.principal) && !c.open) {
     if (ctx.authorize({ perm: "connectors.manage", level: "manage" }, { type: "connection", id: c.connectionId }).effect !== "allow") {
       throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only an admin can act as another member." });
     }
