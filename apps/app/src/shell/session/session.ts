@@ -13,6 +13,7 @@ import { CapError, createCapCaller } from "./caps.ts";
 import type { CapCall, RouteRow } from "./caps.ts";
 import { createLiveLink } from "./live.ts";
 import type { LiveLink, LiveStatus } from "./live.ts";
+import { BUILD_REGISTRY_HASH } from "../../../../../client/src/connection/registry-hash.ts";
 import type { Dial, Scheduler } from "../../../../../client/src/connection/index.ts";
 import { PLACE_QUERIES, WARM_ORDER } from "./prefetch.ts";
 import { createRemoteScreenHooks } from "./remote-hooks.ts";
@@ -34,7 +35,7 @@ export interface OpenSessionOptions {
   /** The live socket's dialer and clock, injectable for tests. */
   dial?: Dial;
   scheduler?: Scheduler;
-  /** The contract hash this build was made with (sent in hello). */
+  /** The contract hash this build was made with (sent in hello); defaults to the one baked in at export. */
   registryHash?: string;
   /** Re-read period while the live link is down. */
   pollMs?: number;
@@ -147,7 +148,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     token: () => token,
     deviceId: who.deviceId ?? "web",
     epoch: who.epoch,
-    registryHash: o.registryHash ?? "",
+    registryHash: o.registryHash ?? BUILD_REGISTRY_HASH,
     onChange: refresh,
     onPurge: () => { if (token !== null) { token = null; o.onSignedOut?.(); } },
     onStatus: (s) => { live = s; if (s === "live") everLive = true; tell(); },
