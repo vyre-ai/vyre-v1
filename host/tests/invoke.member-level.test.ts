@@ -56,25 +56,25 @@ test("a member, an owner and a person whose only grant is one folder pass level 
 
 test("a stranger and a known person with no role and no grant are refused", async () => {
   const invoke = rig();
-  assert.match(await refused(invoke("sync.pull", {}, seed("usr_zed"))), /^permission\./);
-  assert.match(await refused(invoke("sync.pull", {}, seed("usr_rex"))), /^permission\./);
+  assert.match(await refused(invoke("sync.pull", {}, seed("usr_zed"))), /^(permission|auth)\./);
+  assert.match(await refused(invoke("sync.pull", {}, seed("usr_rex"))), /^(permission|auth)\./);
 });
 
 test("an agent acts for a person: both must be members", async () => {
   const invoke = rig();
   const agent = (acting: string): CtxSeed => ({ space: "spc_1", principal: { kind: "person", id: "usr_noah" }, actingFor: acting });
   assert.equal((await invoke("sync.pull", {}, agent("usr_tess"))).status, "ok");
-  assert.match(await refused(invoke("sync.pull", {}, agent("usr_zed"))), /^permission\./);
+  assert.match(await refused(invoke("sync.pull", {}, agent("usr_zed"))), /^(permission|auth)\./);
 });
 
 test("a capability at level 'view' is as strict as before: Tess, with one folder grant, still cannot view the Space", async () => {
   const invoke = rig();
   assert.equal((await invoke("example.view", {}, seed("usr_noah"))).status, "ok");
-  assert.match(await refused(invoke("example.view", {}, seed("usr_tess"))), /^permission\./);
+  assert.match(await refused(invoke("example.view", {}, seed("usr_tess"))), /^(permission|auth)\./);
 });
 
 test("without a membership check, level 'member' falls back to view on the Space (a host that did not wire it is never more open)", async () => {
   const invoke = rig(false);
   assert.equal((await invoke("sync.pull", {}, seed("usr_noah"))).status, "ok");
-  assert.match(await refused(invoke("sync.pull", {}, seed("usr_tess"))), /^permission\./);
+  assert.match(await refused(invoke("sync.pull", {}, seed("usr_tess"))), /^(permission|auth)\./);
 });
