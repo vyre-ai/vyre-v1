@@ -70,6 +70,7 @@ async function create(ctx: Ctx, input: unknown) {
     "INSERT INTO campaigns_campaign (id, name, kind, state, owner, section, folder_id, audience_type, audience_view_id, audience_filter, excluded, settings, windows, throttle_per_hour, stop_on_reply, run_id, pause_reason, created_at, updated_at, launched_at, completed_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     id, name, kind, "draft", ctx.principal.id, "space", folderId ?? null, null, null, null, 0, "{}", null, null, 1, null, null, now, now, null, null, null,
   );
+  ctx.emit("campaign.created", `campaign/${id}`, { campaignId: id, name });
   return { campaign: campaignOut(ctx, mustCampaign(ctx, id)) };
 }
 

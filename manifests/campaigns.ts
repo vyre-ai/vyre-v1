@@ -13,6 +13,7 @@ export default defineManifest({
   title: 'Campaigns',
   owner: 'L8',
   events: [
+    ev('campaign.created', 'A campaign was created as a draft', { p: { campaignId: id.campaign, name: t.str() }, subject: ['campaign', '/campaignId'] }),
     ev('campaign.launched', 'A campaign was launched after approval', { p: { campaignId: id.campaign, audienceCount: t.int() }, subject: ['campaign', '/campaignId'], trigger: { title: 'A campaign is launched' }, replay: 'stub' }),
     ev('campaign.replied', 'A contact replied to a campaign', { p: { campaignId: id.campaign, recordId: id.record, messageId: t.id('eml') }, subject: ['campaign', '/campaignId'], trigger: { title: 'A campaign gets a reply', fields: ['/campaignId'] }, notify: 'campaign.reply' }),
     ev('campaign.unsubscribed', 'A contact unsubscribed', { p: { campaignId: id.campaign, recordId: id.record }, subject: ['campaign', '/campaignId'] }),
@@ -22,7 +23,7 @@ export default defineManifest({
   ],
   lists: [list('campaign', 'Campaign', 'Campaigns', 'campaigns.list')],
   capabilities: [
-    create('campaigns.create', 'Create a campaign (one-time, sequence or triggered)', { in: { name: t.str(), kind, folderId: t.opt(id.folder) }, out: { campaign: row }, make: ['campaign', '/folderId'], perm: 'automations.space', tool: 'automations', team: true }),
+    create('campaigns.create', 'Create a campaign (one-time, sequence or triggered)', { in: { name: t.str(), kind, folderId: t.opt(id.folder) }, out: { campaign: row }, make: ['campaign', '/folderId'], perm: 'automations.space', emits: ['campaign.created'], tool: 'automations', team: true }),
     read('campaigns.get', 'Read a campaign with steps, audience, windows, throttle and A/B variants', { in: target, out: { campaign: row, steps: t.arr(stepSchema), audienceViewId: t.opt(t.str()), windows: t.opt(t.json()), throttle: t.opt(t.json()), variants: t.opt(t.json()) }, on: ['campaign', '/campaignId'], tool: 'automations' }),
     read('campaigns.list', 'List campaigns by section and folder', { in: { section: t.opt(t.enm('personal', 'shared', 'space')), folderId: t.opt(id.folder), ...pageIn }, out: { campaigns: t.arr(row), ...pageOut }, tool: 'automations' }),
     write('campaigns.update', 'Rename or change settings', { in: { campaignId: id.campaign, name: t.opt(t.str()), settings: t.opt(t.rec()) }, out: { campaign: row }, on: ['campaign', '/campaignId'], perm: 'automations.space', tool: 'automations' }),
