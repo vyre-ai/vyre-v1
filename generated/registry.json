@@ -70795,7 +70795,8 @@
     {
       "effects": "write",
       "emits": [
-        "folder.created"
+        "folder.created",
+        "grant.created"
       ],
       "errors": [
         "internal.unexpected",
