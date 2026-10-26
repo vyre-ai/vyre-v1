@@ -4,6 +4,8 @@
 //   3. the step is the existing public call POST /portal/sign-in with the token; the page keeps the session it gets in this tab only (sessionStorage), never a cookie
 // The page runs one inline script under a nonce and loads nothing from outside. Nothing about the token is logged here, the address is not cached, and the Referer is not sent.
 import type http from "node:http";
+import { sourceOf } from "../daemon/preauth.ts";
+import { createRateLimiter } from "../invoke.ts";
 
 export interface PeekedLinkView {
   accountId: string; siteId: string; email: string; method: "magic_link" | "password"; state: "invited" | "active"; purpose: string; expiresAt: number;
@@ -14,6 +16,7 @@ export interface PortalLinkRouteDeps {
   /** The portal module's peekLink, bound to the module's tables. */
   peek(siteId: string, token: string): Promise<PeekedLinkView | null>;
   /** portal.sign_in for the account the link belongs to. The email comes from the link, never from the page. Resolves to the call's output or throws the pipeline's error. */
+  now?(): number;
   signIn(a: { siteId: string; email: string; token: string; password?: string }): Promise<{ session: string }>;
 }
 
@@ -56,6 +59,16 @@ function notFound(res: http.ServerResponse): void {
 
 /** A request hook like the blob route: true when the request was for a portal link and has been answered, false when the daemon should carry on. */
 export function createPortalLinkRoute(deps: PortalLinkRouteDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } {
+  // Per source address, like every signed-out call (daemon/preauth.ts sourceOf): looking at a page is cheap, trying a token is not. A source that tries too often is answered 429 for the
+  // rest of the minute, before the token is looked at.
+  const limiter = createRateLimiter();
+  const now = deps.now ?? Date.now;
+  const allowed = (req: http.IncomingMessage, kind: "page" | "claim"): boolean => {
+    const source = sourceOf({ "x-vyre-remote": req.socket.remoteAddress, "x-forwarded-for": Array.isArray(req.headers["x-forwarded-for"]) ? req.headers["x-forwarded-for"].join(",") : req.headers["x-forwarded-for"] });
+    return limiter.take(`portal-link:${kind}:${source}`, kind === "claim" ? { n: 10, perSeconds: 60 } : { n: 60, perSeconds: 60 }, now());
+  };
+  const tooMany = (res: http.ServerResponse): void => { res.writeHead(429, { "retry-after": "60", "content-type": "text/plain; charset=utf-8", ...HEADERS }); res.end("Too many tries. Wait a minute and try again."); };
+
   function json(res: http.ServerResponse, status: number, body: unknown): void {
     const text = JSON.stringify(body);
     res.writeHead(status, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(text), ...HEADERS });
@@ -91,8 +104,9 @@ export function createPortalLinkRoute(deps: PortalLinkRouteDeps): { handle(req: 
       const m = PATH.exec(url);
       if (!m) return false;
       const [, siteId = "", token = ""] = m;
-      if (req.method === "POST") { claim(req, res, siteId, token); return true; }
+      if (req.method === "POST") { if (!allowed(req, "claim")) tooMany(res); else claim(req, res, siteId, token); return true; }
       if (req.method !== "GET" && req.method !== "HEAD") { res.writeHead(405, { allow: "GET, HEAD, POST", ...HEADERS }); res.end(); return true; }
+      if (!allowed(req, "page")) { tooMany(res); return true; }
       deps.peek(siteId, token).then((v) => {
         if (!v) { notFound(res); return; }
         const nonce = Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(16))).toString("base64");

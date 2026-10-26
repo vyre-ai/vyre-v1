@@ -149,6 +149,33 @@ test("portal live: the invitation link opens a landing page for the invited clie
   } finally { await d.stop(); }
 });
 
+test("portal live: the session a claim makes is the client's portal session only: the gateway does not know it as a Space caller", async () => {
+  const sent: Sent[] = [];
+  const d = await boot(seededDir(), sent);
+  try {
+    await serviceMailbox(d);
+    assert.equal((await invite(d)).status, 200);
+    const link = linkOf(sent);
+    const done = await fetch(`${d.url}${link}`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    const session = ((await done.json()) as { data?: { session?: string } }).data?.session ?? "";
+    assert.ok(session.length >= 20);
+    for (const cap of ["portal.accounts", "spaces.list", "records.list"]) {
+      const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${session}` }, body: JSON.stringify({ siteId: SITE }) });
+      assert.equal(r.status, 401, `${cap} does not take a portal session as a Space caller`);
+    }
+  } finally { await d.stop(); }
+});
+
+test("portal live: a source that tries many tokens on the link is turned away with 429", async () => {
+  const d = await boot(seededDir(), []);
+  try {
+    const codes: number[] = [];
+    for (let i = 0; i < 12; i++) codes.push((await fetch(`${d.url}/portal/${SITE}/link/guess${i}`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).status);
+    assert.deepEqual(codes.slice(0, 10), Array(10).fill(404), "ten tries are answered, each the same 404");
+    assert.deepEqual(codes.slice(10), [429, 429], "then the source is held off");
+  } finally { await d.stop(); }
+});
+
 test("portal live: the landing page shows what is shared with the client once their record is linked", async () => {
   const sent: Sent[] = [];
   const d = await boot(seededDir(), sent);
