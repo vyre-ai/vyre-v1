@@ -670,7 +670,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // A restore brought an older Space back. What was erased since is erased again, as the host, before any request is served (spec 2.26, ARCH 7.10). If it cannot be done the Space does not open.
       const kept = loaded.serving.get("governance") === "live" ? readRestoredTombstones(paths.root) : null;
       if (kept) {
-        const replayed = (await system("governance.tombstones.reapply", { tombstones: kept })) as { count?: number };
+        const replayed = (await system("governance.tombstones.reapply", { tombstones: kept }).catch((e: unknown) => {
+          // the Space does not open with an erased person still in it; say why, with the host's own log of the failing call
+          const traceId = (e as { error?: { traceId?: string } } | null)?.error?.traceId;
+          let why = "";
+          try { sink.flush(); why = traceId ? sink.trace(traceId).logs.filter((l) => l.level >= 40).map((l) => JSON.stringify(l.attrs ?? l.msg)).join(" | ").slice(0, 1500) : ""; } catch { /* the log is a help */ }
+          throw new Error(`replaying the tombstones after a restore failed: ${e instanceof Error ? e.message : String(e)} ${why}`);
+        })) as { count?: number };
         sink.log({ space: spaceId, level: 20, msg: "restore.tombstones_reapplied", place: "boot", attrs: { count: replayed?.count ?? 0 } });
         clearRestoredTombstones(paths.root);
       }
