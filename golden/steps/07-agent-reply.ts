@@ -3,7 +3,6 @@
 // account's token is filled in at the last moment, and the reply lands in the thread with a turn row that holds the usage. Every call goes through the gateway with a real token.
 // The CLI is the test stand-in for `claude` (host/tests/fixtures/fake-cli-driver/fake-cli.mjs): the first word of the prompt picks what it streams ("hello" is two text deltas and usage).
 import assert from "node:assert/strict";
-import { makeBundle } from "../../client/src/crypto/keys.ts";
 import { bootFlowSpace, expectStatus, short, Trail } from "./02-space.ts";
 import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
@@ -17,8 +16,6 @@ export const REPLY_GAPS: Gap[] = [
 ];
 
 const TOKEN = "sk-ant-oat01-GOLDENFAKE0123456789abcdefXYZ";
-/** Argon cost for the throwaway person key: the minimum the module accepts. */
-const TEST_ARGON = { memoryKiB: 8, iterations: 1, parallelism: 1 };
 
 export async function runAgentReply(live: readonly string[], opts: Parameters<typeof bootFlowSpace>[1] = {}): Promise<{ events: Observed[]; trail: Trail }> {
   const s = await bootFlowSpace(live, opts);
@@ -26,8 +23,9 @@ export async function runAgentReply(live: readonly string[], opts: Parameters<ty
   try {
     const admin = s.d.token;   // the owner bootstrap token: Olivia, on this node
     await trail.step("her client unlocks her person key on this node", async () => {
-      const made = await makeBundle("seed-test-password-1", "recovery-code-1", { argon: TEST_ARGON });
-      const res = await fetch(`${s.d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${admin}` }, body: JSON.stringify({ key: Buffer.from(made.personKey).toString("base64") }) });
+      // any 32 bytes will do as the person key: the client would have unwrapped it from the sign-in bundle (the heavy job installs no packages, so the client's key code is not imported here)
+      const personKey = globalThis.crypto.getRandomValues(new Uint8Array(32));
+      const res = await fetch(`${s.d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${admin}` }, body: JSON.stringify({ key: Buffer.from(personKey).toString("base64") }) });
       assert.equal(res.status, 204, `unlock: ${res.status} ${await res.text()}`);
     });
     const folder = await trail.step("a Mine folder holds her account", async () =>
