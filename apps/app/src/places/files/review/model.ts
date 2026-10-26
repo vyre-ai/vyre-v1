@@ -205,7 +205,8 @@ export interface LintItem { k: string; sev: Sev; label: string; tip: string; lin
 export const LINE_LIMITS: Readonly<Record<LintOut["file"], number | null>> = { vyre_md: 120, agent_md: 150, agent_toml: null, routine_prompt: 150, other: null };
 
 /** What the bar shows: lines against the limit, Inherits VYRE.md, Override: lines, a secret scan, and any other problem the check found. */
-export function lintItems(out: LintOut): LintItem[] {
+export function lintItems(out: LintOut, text?: string): LintItem[] {
+  if (out.file === "agent_toml") return tomlLintItems(out, text);
   const items: LintItem[] = [];
   const limit = LINE_LIMITS[out.file];
   if (limit !== null) {
@@ -229,12 +230,57 @@ export function lintItems(out: LintOut): LintItem[] {
   const list = problems.map((p): LintPlace => ({ line: p.line ?? 1, msg: p.message }));
   const errs = problems.filter((p) => p.severity === "error").length;
   const warns = problems.filter((p) => p.severity === "warn").length;
-  if (out.file === "agent_toml") {
-    const label = errs ? plural(errs, "schema error", "schema errors") : warns ? `Schema valid, ${plural(warns, "warning", "warnings")}` : "Schema valid";
-    items.push({ k: "schema", sev: errs ? "err" : warns ? "warn" : "ok", label, line: list[0]?.line ?? 1, list, tip: "Unknown keys warn, they never crash" });
-  } else if (problems.length) {
+  if (problems.length) {
     items.push({ k: "problems", sev: errs ? "err" : warns ? "warn" : "info", label: plural(problems.length, "problem", "problems"), line: list[0]?.line ?? 1, list, tip: "" });
   }
+  return items;
+}
+
+const ROUTINE_RULES = new Set(["routine.prompt_missing", "routine.prompt_path", "routine.prompt"]);
+
+/**
+ * The chips over agent.toml (vyre-v1.html lintItems, TOML): Schema valid, Routine prompts exist, Handoff names exist, Nothing repeated in AGENT.md, No secrets, in that order, each with its dot.
+ * The lint's problems sort by rule: a routine's prompt file is the routines chip, an unknown handoff name the handoff chip, a line also kept in AGENT.md the repeats chip, the rest the schema chip.
+ * `text` is the file as shown, for the count of routines and watchers in the label.
+ */
+function tomlLintItems(out: LintOut, text: string | undefined): LintItem[] {
+  const place = (p: LintOut["problems"][number]): LintPlace => ({ line: p.line ?? 1, msg: p.message });
+  const mine = (f: (rule: string) => boolean): LintOut["problems"] => out.problems.filter((p) => f(p.rule));
+  const routine = mine((r) => ROUTINE_RULES.has(r));
+  const handoff = mine((r) => r.startsWith("handoff."));
+  const dups = mine((r) => r === "duplicates" || r === "dups");
+  const schema = out.problems.filter((p) => !routine.includes(p) && !handoff.includes(p) && !dups.includes(p));
+  const errs = schema.filter((p) => p.severity === "error");
+  const warns = schema.filter((p) => p.severity === "warn");
+  const sList = [...errs, ...warns].map(place);
+  const found = text === undefined ? [] : parseToml(text);
+  const blocks = text === undefined ? 0 : text.split("\n").filter((l) => /^\s*\[\[(routines|watchers)\]\]/.test(l)).length;
+  const lineOf = (section: string): number => found.find((e) => e.section === section)?.line ?? 1;
+  const items: LintItem[] = [];
+  items.push({
+    k: "schema", sev: errs.length ? "err" : warns.length ? "warn" : "ok", line: sList[0]?.line ?? 1, list: sList, tip: "Unknown keys warn, they never crash",
+    label: errs.length ? plural(errs.length, "schema error", "schema errors") : warns.length ? `Schema valid, ${plural(warns.length, "warning", "warnings")}` : "Schema valid",
+  });
+  const rList = routine.map(place);
+  items.push({
+    k: "routines", sev: routine.length ? "err" : "ok", line: rList[0]?.line ?? lineOf("routines[]"), list: rList, tip: "Each routine and watcher names a prompt file that exists next to agent.toml",
+    label: routine.length ? `${routine.length} routine ${routine.length === 1 ? "prompt" : "prompts"} missing` : blocks > 0 ? `Routine prompts exist (${blocks} of ${blocks})` : text === undefined ? "Routine prompts exist" : "No routines",
+  });
+  const hList = handoff.map(place);
+  items.push({
+    k: "handoff", sev: handoff.length ? "warn" : "ok", line: hList[0]?.line ?? lineOf("handoff"), list: hList, tip: "Every name in the handoff lists is an agent or person of this Space",
+    label: handoff.length ? `${handoff.length} unknown ${handoff.length === 1 ? "name" : "names"}` : "Handoff names exist",
+  });
+  const dList = dups.map(place);
+  items.push({
+    k: "dups", sev: dups.length ? "warn" : "ok", line: dList[0]?.line ?? 1, list: dList, tip: "A rule lives in agent.toml or in AGENT.md, not both",
+    label: dups.length ? `${dups.length} also in AGENT.md` : "Nothing repeated in AGENT.md",
+  });
+  const secrets = out.secrets.map((x): LintPlace => ({ line: x.line, msg: `Possible ${x.kind}` }));
+  items.push({
+    k: "secrets", sev: secrets.length ? "err" : "ok", line: secrets[0]?.line ?? 1, list: secrets, tip: "Never put a secret in a file; use the vault key name",
+    label: secrets.length ? plural(secrets.length, "possible secret", "possible secrets") : "No secrets",
+  });
   return items;
 }
 

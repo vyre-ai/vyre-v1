@@ -43,6 +43,8 @@ export interface ReviewData {
   reviewers?: readonly { id: string; name: string }[];
   /** Every agent the person can ask (the Ask control of the file header), assistant included. */
   agents?: readonly { id: string; name: string; role?: string; assistant?: boolean }[];
+  /** The people of the Space, id and name: the Owner pick of agent.toml's Form view. Missing, the pick offers the current owner only. */
+  people?: readonly { id: string; name: string }[];
   nav: ReviewNav;
 }
 

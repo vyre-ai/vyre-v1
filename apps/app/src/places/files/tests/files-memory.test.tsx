@@ -16,6 +16,14 @@ import type { GraphOut, GNode } from "../memory/model.ts";
 import { SAMPLE_NOW, createSampleMemory, harbor, northwind } from "../memory/sample.ts";
 import type { SampleMemory, SampleSpace } from "../memory/sample.ts";
 
+/** Five thousand notes and eight thousand links, the size the graph is judged at. */
+function bigGraph(): { nodes: GNode[]; edges: { from: string; to: string; kind: "link" }[] } {
+  const nodes: GNode[] = [];
+  for (let i = 0; i < 5000; i++) nodes.push({ nodeId: `n${i}`, kind: KINDS[i % KINDS.length]!, title: `Note ${i}`, layer: GRAPH_LAYERS[i % 3]!, cluster: `c${i % 12}` });
+  const edges = Array.from({ length: 8000 }, (_, i) => ({ from: `n${i % 5000}`, to: `n${(i * 7 + 13) % 5000}`, kind: "link" as const }));
+  return { nodes, edges };
+}
+
 const wrap = (s: SampleMemory, child: ReactElement): string => renderToStaticMarkup(<MemoryDataProvider value={s.data}>{child}</MemoryDataProvider>).replaceAll("<!-- -->", "");
 const graph = (props: { scope?: "agent" | "space"; selected?: string; step?: number; find?: string; agentId?: string } = {}, s: SampleMemory = createSampleMemory()): string =>
   wrap(s, <MemoryGraph agentId={props.agentId ?? "agt_intake"} {...(props.scope ? { scope: props.scope } : {})} {...(props.selected ? { selected: props.selected } : {})} {...(props.step !== undefined ? { step: props.step } : {})} {...(props.find ? { find: props.find } : {})} />);
@@ -113,22 +121,17 @@ test("node sizes, colours and neighbours: a hub is bigger, a colour is a hex Web
   assert.match(hslHex(KIND_HUE.client, 62, 55), /^#[0-9a-f]{6}$/);
 });
 
-test("graph scale: five thousand notes are filtered, laid out, counted and clustered inside the speed budget before sigma draws a frame", () => {
-  const nodes: GNode[] = [];
-  for (let i = 0; i < 5000; i++) nodes.push({ nodeId: `n${i}`, kind: KINDS[i % KINDS.length]!, title: `Note ${i}`, layer: GRAPH_LAYERS[i % 3]!, cluster: `c${i % 12}` });
-  const edges = Array.from({ length: 8000 }, (_, i) => ({ from: `n${i % 5000}`, to: `n${(i * 7 + 13) % 5000}`, kind: "link" as const }));
+test("graph scale: five thousand notes are filtered, laid out, counted and clustered (the speed half is files-graph.perf.test.tsx)", () => {
+  const { nodes, edges } = bigGraph();
   const g: GraphOut = { nodes, edges, clusters: [] };
-  const t0 = performance.now();
   const s = shown(g, { layers: new Set(["agent", "space"]), kinds: new Set(), q: "" });
   const pos = layout(s.nodes, s.edges);
   const deg = degrees(s.edges);
   const clusters = clustersOf(s.nodes, s.edges);
   const lit = matches(s.nodes, "Note 49");
-  const ms = performance.now() - t0;
-  console.log(`METRIC ${JSON.stringify({ name: "graph5k", nodes: 5000, edges: 8000, data_ms: +ms.toFixed(1), budget_ms: 250, ok: ms < 250 })}`);
   assert.equal(Object.keys(pos).length, s.nodes.length);
   assert.ok(deg.size > 1000 && clusters.length === 8 && lit.size > 0);
-  assert.ok(ms < 250, `the data a 5,000 note graph is drawn from took ${ms.toFixed(1)} ms`);
+  assert.deepEqual(layout(s.nodes, s.edges), pos, "the same notes lay out the same way every time");
 });
 
 test("clusters are counted from what is drawn and named after their hub", () => {
