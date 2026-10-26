@@ -12,7 +12,7 @@ async function main(): Promise<number> {
   try { config = loadConfig(process.argv.slice(2), process.env, version); }
   catch (e) { process.stderr.write(`vyred: ${e instanceof Error ? e.message : String(e)}\n`); return 2; }
   let d: Daemon;
-  try { d = await startDaemon({ config }); }
+  try { d = await startDaemon({ config, requireSessionDestination: true }); }
   catch (e) { process.stderr.write(`vyred: ${e instanceof Error ? e.message : String(e)}\n`); return 1; }
   process.stdout.write(`vyred ${version} ${d.roles.join(",")} ${d.space ?? "-"} listening on ${d.url}\n`);
   if (d.claim) process.stdout.write(`Claim this Space as its owner (one time, valid 24 hours): ${d.claim.url}\n`);

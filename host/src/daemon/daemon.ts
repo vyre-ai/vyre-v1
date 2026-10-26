@@ -150,6 +150,8 @@ export interface DaemonOptions {
     resolve(a: { owner: string; request: { kind: "personal" } | { kind: "team"; spaceId: string }; seed: CtxSeed }): Promise<{ kind: "personal" | "team"; spaceId: string }>;
     invoke(a: { spaceId: string; cap: "sessions.import" | "sessions.continue"; input: unknown; seed: CtxSeed }): Promise<unknown>;
   };
+  /** Production composition must refuse to start a live session import without its router. Test hosts may leave it off. */
+  requireSessionDestination?: boolean;
   /** more supervised services: Caddy, the vault filler, the Chrome bridge, local turns */
   services?: ServiceSpec[];
   /** capabilities, routes, handlers and event names beyond the generated registry (tests register example.echo; later lanes register host-only calls) */
@@ -368,7 +370,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       const reg = registry as unknown as RegistryLike;
       const loaded = await loadHost({ registry: reg, modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")), routes, importer: fileImporter(codeRoot), seamImporter: fileSeamImporter(codeRoot), exportsImporter: fileExportsImporter(codeRoot), db, ...(o.http ? { fetch: o.http } : {}) });
-      if (loaded.serving.get("import") === "live" && !o.sessionDestination) {
+      if (o.requireSessionDestination && loaded.serving.get("import") === "live" && !o.sessionDestination) {
         throw new Error("sessions.import is live but no platform sessionDestination provider was supplied; start this Space through the desktop/platform composition layer.");
       }
       const registryCaps = registry.capabilities as unknown as CapabilityDef[];
