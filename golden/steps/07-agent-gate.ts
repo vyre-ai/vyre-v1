@@ -36,7 +36,10 @@ export async function runAgentGate(live: readonly string[], opts: Parameters<typ
       const res = await fetch(`${s.d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${admin}` }, body: JSON.stringify({ key: Buffer.from(key).toString("base64") }) });
       assert.equal(res.status, 204, `unlock: ${res.status}`);
       const folder = expectStatus(await s.call("vault.folders.create", admin, { idempotencyKey: "golden-7g-folder", name: "Accounts", scope: "mine" }), 200, "vault.folders.create").folder.id as string;
+      const flow = expectStatus(await s.call("providers.subscription_start", admin, { idempotencyKey: "golden-7g-flow", providerKey: "claude-code" }), 200, "providers.subscription_start").flowId as string;
       expectStatus(await s.call("vault.item.put", admin, { idempotencyKey: "golden-7g-item", folderId: folder, name: "Olivia_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: TOKEN, secret: true }] }), 200, "vault.item.put");
+      const provider = expectStatus(await s.call("providers.subscription_complete", admin, { flowId: flow }), 200, "providers.subscription_complete").provider as { id: string };
+      expectStatus(await s.call("providers.set_space_use", admin, { idempotencyKey: "golden-7g-spaceuse", providerId: provider.id, allow: true }), 200, "providers.set_space_use");
     });
     const agent = await trail.step("an agent exists", async () => expectStatus(await s.call("agents.create", admin, { idempotencyKey: "golden-7g-agent", name: "Mailer", role: "Writes the weekly note" }), 200, "agents.create").agent.agentId as string);
     const thread = await trail.step("she starts a chat with it and the engine is bound", async () => {

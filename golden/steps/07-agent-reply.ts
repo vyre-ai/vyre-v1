@@ -31,8 +31,13 @@ export async function runAgentReply(live: readonly string[], opts: Parameters<ty
     const folder = await trail.step("a Mine folder holds her account", async () =>
       expectStatus(await s.call("vault.folders.create", admin, { idempotencyKey: "golden-7-folder", name: "Accounts", scope: "mine" }), 200, "vault.folders.create").folder.id as string,
     ["her client unlocks her person key on this node"]);
-    await trail.step("her Claude account is a Mine ai_subscription item", async () => {
+    await trail.step("her Claude account is a Mine ai_subscription item, signed in and allowed for the Space", async () => {
+      // the sign-in is started first (it stamps the time the item must be newer than), her client saves the token as the Mine item, and Done links it as her provider (providers.subscription_complete)
+      const flow = expectStatus(await s.call("providers.subscription_start", admin, { idempotencyKey: "golden-7-flow", providerKey: "claude-code" }), 200, "providers.subscription_start").flowId as string;
       expectStatus(await s.call("vault.item.put", admin, { idempotencyKey: "golden-7-item", folderId: folder!, name: "Olivia_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: TOKEN, secret: true }] }), 200, "vault.item.put");
+      const provider = expectStatus(await s.call("providers.subscription_complete", admin, { flowId: flow }), 200, "providers.subscription_complete").provider as { id: string };
+      // a private chat with no desktop device online runs on the Space (spec 6.3), and the Space may use a Mine subscription only when she says so (spec 6.4)
+      expectStatus(await s.call("providers.set_space_use", admin, { idempotencyKey: "golden-7-spaceuse", providerId: provider.id, allow: true }), 200, "providers.set_space_use");
     }, ["a Mine folder holds her account"]);
     const agent = await trail.step("an agent exists", async () => expectStatus(await s.call("agents.create", admin, { idempotencyKey: "golden-7-agent", name: "Mailer", role: "Writes the weekly note" }), 200, "agents.create").agent.agentId as string);
     const thread = await trail.step("she starts a chat with the agent", async () =>

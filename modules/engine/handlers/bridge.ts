@@ -20,6 +20,8 @@ const brgId = (): string => BRIDGE_PREFIX + mintId("b").slice(2);
 
 export interface PostBlock { type: string; v: number; data: unknown }
 export interface AgentPost {
+  /** the person whose turn this is; the agent posts for them */
+  actingFor?: string;
   threadId: string; body: string; blocks: PostBlock[]; mentions: RouteMention[]; clientId: string;
   via?: { routineOwner: string };
 }
@@ -62,13 +64,15 @@ export function createBridge(o: BridgeOptions): Bridge {
   const ready = new Map<string, Ready>();                // `${thread}:${agent}` -> a completed turn waiting for the engine to store its reply
   const queuedRoutine = new Map<string, boolean>();      // `${thread}:${qseq}` -> routine
   const turns = new Map<string, { routineOwner: string | null }>();
+  const askerOf = new Map<string, string>();               // threadId -> the person whose turn ran last: the agent speaks for them
   const chains = new Map<string, Promise<void>>();       // per thread: posts go out one after another, in the order the events arrived
   const warn = (msg: string, attrs?: Record<string, unknown>): void => o.log?.warn(msg, attrs);
 
   const enqueuePost = (threadId: string, agentId: string, post: AgentPost): void => {
     const prev = chains.get(threadId) ?? Promise.resolve();
     const next = prev.then(async () => {
-      try { await o.postAs(agentId, post); } catch (e) { warn("the bridge could not post an agent reply", { threadId, agentId, error: e instanceof Error ? e.message : String(e) }); }
+      const asker = askerOf.get(threadId);
+      try { await o.postAs(agentId, asker ? { ...post, actingFor: asker } : post); } catch (e) { warn("the bridge could not post an agent reply", { threadId, agentId, error: e instanceof Error ? e.message : String(e) }); }
     });
     chains.set(threadId, next);
   };
@@ -87,6 +91,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         const routine = queuedRoutine.get(`${e.threadId}:${e.qseq}`) === true;
         queuedRoutine.delete(`${e.threadId}:${e.qseq}`);
         turns.set(e.turnId, { routineOwner: routine ? e.asker : null });
+        askerOf.set(e.threadId, e.asker);
         return;
       }
       case "turn.completed": {

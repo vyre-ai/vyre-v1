@@ -82,7 +82,7 @@ async function unblock(h: EngineHostSeam, db: Db, info: { threadId: string; turn
   const key = `no-account:${info.threadId}:${info.agentId}:${info.asker}`;
   const made = (await h.call("tasks.create", {
     kind: "unblock", title: "Add a key so your agent can answer", summary: "No API key or sign-in is available to run this conversation. Add one in the Vault and the agent answers.",
-    assigned: { kind: "person", id: info.asker }, source: { kind: "engine", id: info.turnId }, idempotencyKey: key,
+    assigned: { kind: "person", id: info.asker }, source: { kind: "chat", id: info.threadId }, idempotencyKey: key,
   }, info.asker)) as { task?: { id?: string } };
   const taskId = made.task?.id;
   if (taskId) db.run("INSERT OR REPLACE INTO engine_unblock (task_id, thread_id, agent_id, asker, at) VALUES (?, ?, ?, ?, ?)", taskId, info.threadId, info.agentId, info.asker, (h.now ?? Date.now)());
