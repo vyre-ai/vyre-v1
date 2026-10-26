@@ -5,7 +5,8 @@ import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../clien
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
 
-const NOTHING: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "loading" }) };
+const LOADING: QueryState<never> = { status: "loading" };
+const NOTHING: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => LOADING };
 
 /** A live query of a registry screen: `screens.query(screenId, name, state)`. Re-subscribes only when the screen, the query or the state changes. */
 export function useLive<T>(screens: ScreenHooks, screenId: string, name: string, state: Record<string, unknown> | null = {}): QueryState<T> {
