@@ -71,3 +71,26 @@ test("sessions.import refuses unconsented or unsafe payloads before any write", 
   await assert.rejects(sessionsImport(h.ctx, { ...payload, sessions: [{ ...payload.sessions[0]!, messages: [{ sourceMessageId: "x", role: "tool" as never, text: "secret", at: 1 }] }] }), (e) => codeOf(e) === "validation.bad_input");
   assert.equal(h.rows("SELECT * FROM import_conversation").length, 0);
 });
+
+test("sessions.import scopes identical provider source keys to the personal owner and never lets another person continue them", async () => {
+  const h = harness();
+  const dana = await sessionsImport(h.ctx, payload);
+  const maya = h.as({ kind: "person", id: "usr_maya" });
+  const copied = await sessionsImport(maya, payload);
+  assert.equal(copied.imported, 1, "a matching source key belongs to Maya's own import, not Dana's");
+  assert.equal(h.only("projects.create").length, 2, "repository bindings are per owner");
+  await assert.rejects(sessionsContinue(maya, { conversationId: dana.sessions[0]!.conversationId, agentId: "agt_intake" }), (e) => codeOf(e) === "validation.not_found");
+  assert.deepEqual(h.rows("SELECT owner, sourceKey, sourceSessionId FROM import_conversation ORDER BY owner"), [
+    { owner: "usr_dana", sourceKey: payload.sourceKey, sourceSessionId: "rollout-111" },
+    { owner: "usr_maya", sourceKey: payload.sourceKey, sourceSessionId: "rollout-111" },
+  ]);
+});
+
+test("sessions.import defaults to a personal destination and requires explicit confirmed choice for a Team Space", async () => {
+  const h = harness();
+  await sessionsImport(h.ctx, payload);
+  assert.equal(h.rows("SELECT destinationScope FROM import_conversation")[0]?.destinationScope, "personal");
+  await assert.rejects(sessionsImport(h.ctx, { ...payload, sourceKey: "codex:team-refused", destination: { kind: "team" } }), (e) => codeOf(e) === "validation.precondition_failed");
+  await sessionsImport(h.ctx, { ...payload, sourceKey: "codex:team-confirmed", destination: { kind: "team", confirmedAt: 1_760_000_000_002 } });
+  assert.equal(h.rows("SELECT destinationScope FROM import_conversation WHERE sourceKey = ?", "codex:team-confirmed")[0]?.destinationScope, "team");
+});

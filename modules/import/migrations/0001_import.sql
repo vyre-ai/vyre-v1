@@ -36,23 +36,32 @@ CREATE TABLE IF NOT EXISTS "import_key" (
 -- imported conversation is archival data with source provenance and must not
 -- be changed when the source history later changes or disappears.
 CREATE TABLE IF NOT EXISTS "import_session_source" (
-  "sourceKey" TEXT PRIMARY KEY,
-  "provider" TEXT NOT NULL,
+  "spaceId" TEXT NOT NULL,
   "owner" TEXT NOT NULL,
+  "destinationScope" TEXT NOT NULL,
+  "sourceKey" TEXT NOT NULL,
+  "provider" TEXT NOT NULL,
   "disconnectedAt" INTEGER,
-  "createdAt" INTEGER NOT NULL
+  "createdAt" INTEGER NOT NULL,
+  PRIMARY KEY("spaceId", "owner", "destinationScope", "sourceKey")
 );
 CREATE TABLE IF NOT EXISTS "import_project_binding" (
-  "identityKey" TEXT PRIMARY KEY,
+  "spaceId" TEXT NOT NULL,
+  "owner" TEXT NOT NULL,
+  "destinationScope" TEXT NOT NULL,
+  "identityKey" TEXT NOT NULL,
   "projectId" TEXT NOT NULL,
-  "createdAt" INTEGER NOT NULL
+  "createdAt" INTEGER NOT NULL,
+  PRIMARY KEY("spaceId", "owner", "destinationScope", "identityKey")
 );
 CREATE TABLE IF NOT EXISTS "import_conversation" (
   "conversationId" TEXT PRIMARY KEY,
+  "spaceId" TEXT NOT NULL,
   "sourceKey" TEXT NOT NULL,
   "sourceSessionId" TEXT NOT NULL,
   "provider" TEXT NOT NULL,
   "owner" TEXT NOT NULL,
+  "destinationScope" TEXT NOT NULL,
   "projectId" TEXT,
   "destinationKind" TEXT NOT NULL,
   "identityKey" TEXT,
@@ -61,7 +70,7 @@ CREATE TABLE IF NOT EXISTS "import_conversation" (
   "importedAt" INTEGER NOT NULL,
   "immutable" INTEGER NOT NULL DEFAULT 1,
   "continuedThreadId" TEXT,
-  UNIQUE("sourceKey", "sourceSessionId")
+  UNIQUE("spaceId", "owner", "destinationScope", "sourceKey", "sourceSessionId")
 );
 CREATE TABLE IF NOT EXISTS "import_message" (
   "messageId" TEXT PRIMARY KEY,
@@ -83,4 +92,4 @@ CREATE TABLE IF NOT EXISTS "import_session_conflict" (
   "detectedAt" INTEGER NOT NULL,
   UNIQUE("conversationId", "sourceMessageId")
 );
-CREATE INDEX IF NOT EXISTS "import_conversation_owner" ON "import_conversation" ("owner", "importedAt");
+CREATE INDEX IF NOT EXISTS "import_conversation_owner" ON "import_conversation" ("spaceId", "owner", "destinationScope", "importedAt");
