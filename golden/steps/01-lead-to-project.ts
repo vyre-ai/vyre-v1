@@ -48,7 +48,14 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
       // a stage that cannot make its project does not stop the Journey, so when the list is empty say what the pipeline logged about projects on this trace
       s.d.sink.flush();
       const logged = s.d.sink.trace(s.trace).logs.filter((l) => JSON.stringify(l.attrs ?? {}).includes("projects.")).map((l) => `${l.msg} ${JSON.stringify(l.attrs)}`).join(" | ");
-      assert.ok(list.some((p) => p.channel && p.folder), `projects ${short(list)}; logged: ${logged || "nothing"}`);
+      const ok = list.some((p) => p.channel && p.folder);
+      let told = "";
+      if (!ok) {
+        // the Journey owner is told why in a task; show it here too
+        const tasks = await s.call("tasks.list", admin, {});
+        told = JSON.stringify(((tasks.body?.data?.tasks ?? []) as { title?: string }[]).map((t) => t.title).filter((x) => String(x).includes("could not be made")));
+      }
+      assert.ok(ok, `projects ${short(list)}; logged: ${logged || "nothing"}; told: ${told || "nobody"}`);
     }, ["the Journey starts on the new lead"]);
     return { events: await s.events(), trail };
   } finally { await s.stop(); }

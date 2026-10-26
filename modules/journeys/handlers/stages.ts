@@ -234,7 +234,18 @@ async function onEnter(ctx: JourneysCtx, j: Journey, rec: JRecord, stage: Stage,
   if (stage.makesProject) {
     try {
       await ctx.call("projects.create", { type: "project", title: `${j.name} ${rec.recordId.slice(-6)}`, idempotencyKey: `jrn-project:${rec.recordId}` });
-    } catch { /* the Journey record is in the stage; the missing Project shows in the module that failed */ }
+    } catch (e) {
+      // the Journey carries on, but never silently: the reason goes to the log with the trace id and to the Journey owner as a task
+      const err = (e as { error?: { message?: string } } | null)?.error;
+      const reason = err?.message ?? (e instanceof Error ? e.message : "it failed");
+      ctx.log?.warn("journeys: the stage's project could not be made", { journeyId: j.id, recordId: rec.recordId, stage: stage.key, reason, traceId: ctx.trace.traceId });
+      try {
+        await ctx.call("tasks.create", {
+          kind: "unblock", title: `Project for ${rec.subjectRecordId} could not be made: ${reason}`, summary: `The ${j.name} Journey moved on without it. Trace ${ctx.trace.traceId}.`,
+          assigned: { kind: "person", id: rec.ownerId }, recordId: rec.recordId, source: { kind: "journey", id: rec.recordId }, idempotencyKey: `jrn-project-failed:${rec.recordId}:${stage.key}`,
+        });
+      } catch { /* the log line above is the record of it */ }
+    }
   }
   for (const aid of stage.automations) {
     try {

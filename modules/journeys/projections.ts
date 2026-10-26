@@ -36,6 +36,7 @@ export interface JourneysCtx {
   db: Db;
   emit(name: string, subject: string, payload: unknown, opts?: EmitOpts): { id: string };
   call?(cap: string, input: unknown): Promise<unknown>;
+  log?: { warn(msg: string, attrs?: Record<string, unknown>): void };
   authorize?(action: { perm: string | null; level: string }, resource: { type: string; id: string | null }): { effect: string };
 }
 
