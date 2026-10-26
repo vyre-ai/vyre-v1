@@ -35,7 +35,7 @@ function seededDir(): string {
 
 interface Sent { mailboxId: string; route: string; to: { address: string }[]; subject: string; text: string }
 
-/** Mail is live, so the service mailbox is a real one (created below through the gateway). Only mail.send is replaced: a real send needs a DNS-verified sending domain and a provider key. */
+/** Mail is live, so the service mailbox is a real one (created below through the gateway). Only mail.send and sites.get are replaced: a real send needs a DNS-verified sending domain and a provider key. */
 function boot(dir: string, sent: Sent[]): Promise<Daemon> {
   return startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
@@ -50,6 +50,8 @@ function boot(dir: string, sent: Sent[]): Promise<Daemon> {
     fetch: caddyFetch,
     extra: {
       handlers: {
+        // portal.account_create checks the site with sites.get, and sites is deferred (ruling 60): until Sites is real, no portal invitation can be made on a server. The test stands in for that one call.
+        "sites.get": async () => ({ site: { id: SITE } }),
         "mail.send": async (_ctx: unknown, input: unknown) => { sent.push(input as Sent); return { messageId: "eml_1", status: "queued", suppressed: [] }; },
       },
     },
