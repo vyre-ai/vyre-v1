@@ -12372,6 +12372,7 @@ export type IdentityWhoamiOut = {
   deviceId?: string;
   epoch: number;
   spaceId: string;
+  deferred?: Array<string>;
 };
 export type ImportCommitIn = {
   importId: string;
