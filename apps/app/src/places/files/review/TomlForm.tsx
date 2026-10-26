@@ -130,6 +130,7 @@ function Hints({ issues, line }: { issues: readonly TomlIssue[]; line: number | 
   if (line === undefined) return null;
   const here = issues.filter((i) => i.line === line);
   if (!here.length) return null;
+  // ui-rows-lint: not a list (the lint's messages under a key, plain text lines)
   return <View style={st.hints}>{here.map((i) => <Text key={`${i.severity}${i.message}`} style={[st.hint, i.severity === "error" ? st.hintErr : st.hintWarn]}>{i.message}</Text>)}</View>;
 }
 
@@ -161,6 +162,7 @@ export function TomlForm({ text, onChange, readOnly = false, issues = [] }: Toml
     return (
       <View key={g.section} style={st.group} testID={`toml-group:${g.section}`}>
         <Text accessibilityRole="header" aria-level={3} style={st.head}>{g.title}{g.multi ? <Text style={st.count}>{`  ${ts.length}`}</Text> : null}</Text>
+        {/* ui-rows-lint: not a list (one block per [[table]]; each block's lines are ui/Row) */}
         {blocks.map((t, ti) => {
           const rows: ReactElement[] = [];
           g.fields.forEach((f) => {
