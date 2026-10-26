@@ -8,7 +8,7 @@ Fold updates into a snapshot with the Markdown projection (every 500 updates or 
 | Version | 1 (since 1.0.0) |
 | Effects | write |
 | Permission | grant only |
-| Grant level | edit |
+| Grant level | member |
 | Risk | low |
 | Resource | space |
 | Gate | none |

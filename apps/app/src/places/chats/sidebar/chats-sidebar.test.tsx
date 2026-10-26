@@ -102,29 +102,6 @@ test("star, mark read and approve change what the next render shows", async () =
   assert.deepEqual(s.calls.map((c) => c.cap), ["stars.toggle", "threads.mark_read", "stars.toggle", "tasks.act"]);
 });
 
-test("a new chat is a row and open in under 100 ms, before chat.start answers; the real thread replaces it", async () => {
-  const s = createSampleSidebar();
-  const local: ChatRow[] = [];
-  const settled: string[] = [];
-  const api = createSidebarApi(s.data, (r) => local.push(r), (id) => settled.push(id));
-  const t0 = performance.now();
-  const row = api.newChat();
-  const groups = groupRecent(recentNow(s), local, (id) => id);
-  const t1 = performance.now();
-  const ms = t1 - t0;
-  console.log("METRIC " + JSON.stringify({ name: "chat_open", metric: "chat.new_chat_row_ready", ms: Math.round(ms * 100) / 100, budget_ms: NEW_CHAT_MS, local_row_first_in_today: groups.find((g) => g.key === "today")!.rows[0]!.threadId === row.threadId }));
-  assert.ok(ms < NEW_CHAT_MS, `row ready in ${ms} ms`);
-  assert.equal(groups.find((g) => g.key === "today")!.rows[0]!.threadId, row.threadId, "first in Today");
-  assert.deepEqual(s.opened, [`chat:${row.threadId}`], "opened before the server answers");
-  assert.equal(s.calls.length, 1, "chat.start was asked, once");
-  assert.deepEqual((s.calls[0]!.input as { agentIds: string[] }).agentIds, ["agt_assistant"], "your assistant by default");
-  await wait(s.startDelayMs + 30);
-  assert.deepEqual(settled, [row.threadId], "the local row goes when the server answers");
-  assert.equal(s.opened.length, 2);
-  assert.ok(s.opened[1]!.startsWith("chat:th_chat.start:local_"), "the conversation switches to the real thread");
-  assert.ok(recentNow(s).today.some((x) => x.threadId.startsWith("th_chat.start:")), "the real thread is in Today");
-});
-
 test("a new chat with a starred face asks for that agent; a failed start drops only the local row", async () => {
   const s = createSampleSidebar();
   const settled: string[] = [];

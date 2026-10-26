@@ -9,7 +9,7 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { configureSites, hexOf } from "../handlers/deploy.ts";
 import { consumers, inline } from "../projections.ts";
 import type { ProjEvent, ProjTx } from "../projections.ts";
-import { handleBranchMerged, handlers } from "../impl.ts";
+import { handleBranchMerged, handlers } from "../handlers/index.ts";
 import { SPACE_DOMAIN } from "../fixtures/fakes.ts";
 import { seed } from "../fixtures/seed.ts";
 import { harness } from "../fixtures/world.ts";

@@ -38,6 +38,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/setup-node@v4
         with: { node-version: 24 }
+      - uses: ./.github/actions/deps   # a hosted VM has no node_modules: the bot's generator, contracts gate and affected tests import workspace packages such as exceljs (modules/files)
       - name: Regenerate, commit generated/ back, rerun the checks
         env:
           BRANCH: ${{ github.ref_name }}

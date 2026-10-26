@@ -223,7 +223,7 @@ async function soft(ctx: Ctx, what: string, run: () => Promise<unknown>): Promis
 
 export async function finishTask(ctx: Ctx, env: EnvelopeRow, to: "done" | "canceled", note: string): Promise<void> {
   if (env.taskId === null) return;
-  await soft(ctx, "closing the signature task", () => ctx.call("tasks.transition", { taskId: env.taskId, to, note }));
+  await soft(ctx, "closing the signature task", () => ctx.call("tasks.transition", { taskId: env.taskId, to, note, idempotencyKey: `esign-task-${env.id}-${to}` }));
 }
 
 export async function tellThread(ctx: Ctx, env: EnvelopeRow, body: string, key: string): Promise<void> {
@@ -274,7 +274,7 @@ async function send(ctx: Ctx, input: unknown): Promise<{ envelopeId: string }> {
   if (who) {
     await soft(ctx, "opening the signature task", async () => {
       const made = (await ctx.call("tasks.create", {
-        kind: "signature", title: `Waiting for ${signers.map((s) => s.name).join(", ")} to sign ${title}`, assigned: who, fileIds: [fileId],
+        idempotencyKey: `esign-task-${envelopeId}`, kind: "signature", title: `Waiting for ${signers.map((s) => s.name).join(", ")} to sign ${title}`, assigned: who, fileIds: [fileId],
         ...(recordId ? { recordId } : {}), ...(ctx.run ? { source: { kind: "run", id: ctx.run } } : {}),
       })) as { task?: { id?: string; taskId?: string } };
       const taskId = made.task?.id ?? made.task?.taskId;
@@ -359,12 +359,12 @@ export async function saveSigned(ctx: Ctx, env: EnvelopeRow): Promise<string> {
   if (state.state !== "signed") fail(ctx, "validation.precondition_failed", "Not every signer has signed yet.", { state: state.state });
   const files = await viaProvider(ctx, env.provider, "download", () => provider.fetchSigned(env.ref));
   if (files.pdf.length === 0) fail(ctx, "provider.bad_response", "The provider returned an empty signed file.");
-  const saved = (await ctx.call("files.write", { fileId: env.fileId, content: { base64: toBase64(files.pdf) }, reason: `Signed by ${state.signers.map((s) => s.name).join(", ")}` })) as { file?: { fileId?: string } };
+  const saved = (await ctx.call("files.write", { idempotencyKey: `esign-signed-${env.id}`, fileId: env.fileId, content: { base64: toBase64(files.pdf) }, reason: `Signed by ${state.signers.map((s) => s.name).join(", ")}` })) as { file?: { fileId?: string } };
   const fileId = saved.file?.fileId ?? env.fileId;
   let certificateId: string | null = null;
   if (files.certificate && env.folderId !== null) {
     await soft(ctx, "saving the audit certificate", async () => {
-      const made = (await ctx.call("files.create", { folderId: env.folderId, name: `${env.title} - signature certificate.pdf`, content: { base64: toBase64(files.certificate as Uint8Array) }, mime: "application/pdf" })) as { file?: { fileId?: string } };
+      const made = (await ctx.call("files.create", { idempotencyKey: `esign-cert-${env.id}`, folderId: env.folderId, name: `${env.title} - signature certificate.pdf`, content: { base64: toBase64(files.certificate as Uint8Array) }, mime: "application/pdf" })) as { file?: { fileId?: string } };
       if (typeof made.file?.fileId === "string") certificateId = made.file.fileId;
     });
   }

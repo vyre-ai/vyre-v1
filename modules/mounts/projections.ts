@@ -3,6 +3,7 @@
 // file.deleted and folder.deleted queue the delete (or drop the item when it never left Vyre). The mount engine records the same rows on its own writes, so replay is idempotent and a second pass changes nothing.
 
 import { mintUuid } from "../../lib/ids.ts";
+import { movesConsumer } from "./handlers/outbound-moves.ts";
 
 export interface ProjTx {
   all(sql: string, ...args: unknown[]): unknown[];
@@ -128,6 +129,8 @@ export const localChangesConsumer = {
     "file.version_added": onVersionAdded,
     "file.deleted": onFileDeleted,
     "folder.deleted": onFolderDeleted,
+    // renames and moves made in Vyre inside a mounted folder (outbound-moves.ts marks the items dirty; the push step sends them)
+    ...movesConsumer.on,
   } as Record<string, (tx: ProjTx, e: ProjEvent) => void>,
 };
 
