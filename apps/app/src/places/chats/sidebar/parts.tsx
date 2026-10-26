@@ -35,10 +35,10 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)", fill }: { name:
 }
 
 /** A person is a round marble, an agent a pixel face on a soft tint: the shared Avatar. `pulse` rings it while an agent works; `online` adds the presence dot. */
-export function Face({ name, kind, size = 18, pulse = false, online = false }: { name: string; kind: "person" | "agent"; size?: number; pulse?: boolean; online?: boolean }): ReactElement {
+export function Face({ name, seedId, kind, size = 18, pulse = false, online = false }: { name: string; seedId?: string | undefined; kind: "person" | "agent"; size?: number; pulse?: boolean; online?: boolean }): ReactElement {
   return (
     <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0, flexGrow: 0 }}>
-      <Avatar name={name} kind={kind} size={size} />
+      <Avatar name={name} seedId={seedId} kind={kind} size={size} />
       {pulse ? <View testID="pulse" style={[s.pulse, { width: size + 6, height: size + 6, borderRadius: kind === "person" ? size : Math.round(size * 0.4) }]} /> : null}
       {online ? <View testID="presence" style={s.presence} /> : null}
     </View>
