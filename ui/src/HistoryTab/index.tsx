@@ -339,7 +339,7 @@ export function HistoryTab(props: HistoryTabViewProps): ReactElement {
           leading={(
             <View style={styles.lead}>
               <View testID={`history-dot-${version.id}`} style={[styles.dot, isCurrent ? styles.dotCurrent : styles.dotOld]} />
-              <Avatar name={version.who} kind="person" size={18} testID={`history-avatar-${version.id}`} />
+              <Avatar name={version.who} {...(version.whoId !== undefined ? { seedId: version.whoId } : {})} kind="person" size={18} testID={`history-avatar-${version.id}`} />
             </View>
           )}
           trailing={over && (can.compare || can.restore)

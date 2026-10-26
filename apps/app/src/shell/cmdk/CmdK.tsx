@@ -45,7 +45,7 @@ function Tile({ hit }: { hit: Hit }): ReactElement {
   const icon = KIND_ICON[hit.kind];
   return (
     <View style={styles.tile}>
-      {named ? <Avatar name={hit.title} kind={hit.kind === "person" ? "person" : "agent"} size={20} /> : icon ? <MenuIcon icon={icon} color="var(--ink-3)" size={16} /> : <AppIcon brand={hit.title} name={hit.title} size={20} />}
+      {named ? <Avatar name={hit.title} seedId={hit.id} kind={hit.kind === "person" ? "person" : "agent"} size={20} /> : icon ? <MenuIcon icon={icon} color="var(--ink-3)" size={16} /> : <AppIcon brand={hit.title} name={hit.title} size={20} />}
     </View>
   );
 }

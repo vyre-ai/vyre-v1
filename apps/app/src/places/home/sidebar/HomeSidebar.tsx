@@ -51,7 +51,7 @@ function Gap({ children }: { children: ReactNode }): ReactElement {
 
 function Lead({ item }: { item: HomeSidebarItem }): ReactElement {
   if (item.kind === "project" || item.kind === "record") return <Gap><View style={[s.dot, { backgroundColor: dotColor(item.title) }]} /></Gap>;
-  if (item.kind === "agent" || item.kind === "assistant" || item.kind === "person") return <Gap><Avatar name={item.kind === "assistant" ? "Assistant" : item.title} kind={item.kind === "person" ? "person" : item.kind === "assistant" ? "assistant" : "agent"} size={16} /></Gap>;
+  if (item.kind === "agent" || item.kind === "assistant" || item.kind === "person") return <Gap><Avatar name={item.kind === "assistant" ? "Assistant" : item.title} {...(item.personId !== undefined ? { seedId: item.personId } : {})} kind={item.kind === "person" ? "person" : item.kind === "assistant" ? "assistant" : "agent"} size={16} /></Gap>;
   return <Gap><MenuIcon icon={KIND_ICON[item.kind]} color="var(--ink-3)" /></Gap>;
 }
 
