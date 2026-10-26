@@ -386,6 +386,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const mod = h ? (capIndex?.get(cap)?.module ?? "") : "";
           // identity opens a device session at sign-in by calling devices.register, which only the server itself may do (P-SEC_08): that one call, from identity, runs as the host. Nothing else is widened.
           if (h && mod === "identity") return ((ctx, input) => h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown, opts?: unknown) => (name === "devices.register" ? system(name, callInput) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
+          // accepting an invite: the person proved the code, and the invite's role, groups and starting places were the inviter's to give. Those join effects run as the host, not as the signed-out caller.
+          if (h && cap === "members.accept") return ((ctx, input) => h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown) => system(name, callInput) } as typeof ctx, input)) as Handler;
           if (h && peopleExtras?.(mod, {})) return ((ctx, input) => h({ ...ctx, ...peopleExtras!(mod, ctx) } as typeof ctx, input)) as Handler;
           if (!h || !cap.startsWith("devices.")) return h;
           const wrapped: Handler = (ctx, input) => h({ ...ctx, call: (name, callInput, opts) => (name === "sync.epoch.bump" ? system(name, callInput) : ctx.call(name, callInput, opts)) } as typeof ctx, input);
