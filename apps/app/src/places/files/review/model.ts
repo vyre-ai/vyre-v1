@@ -115,13 +115,13 @@ function bodyOf(kind: DiffOut["kind"], path = ""): DiffBody {
 }
 
 /** A capability's hunk as the hunk ui/DiffTab draws: the unchanged lines above and below are context, the rest is removed and added. */
-export function hunkOf(h: RawHunk): DiffHunk {
+export function hunkOf(h: RawHunk, joiner = "\n"): DiffHunk {
   const lines = h.lines;
   let from = 0;
   while (from < lines.length && lines[from]?.op === "ctx") from++;
   let to = lines.length;
   while (to > from && lines[to - 1]?.op === "ctx") to--;
-  const text = (ls: readonly { text: string }[]): string => ls.map((l) => l.text).join("\n");
+  const text = (ls: readonly { text: string }[]): string => ls.map((l) => l.text).join(joiner);
   const mid = lines.slice(from, to);
   const before = text(lines.slice(0, from));
   const after = text(lines.slice(to));
@@ -140,7 +140,7 @@ export function diffFileOf(path: string, out: Pick<DiffOut, "kind" | "added" | "
   const body = bodyOf(out.kind, path);
   const hunks: DiffHunk[] = body === "image" && out.images
     ? [{ id: `${path}:image`, context: "Image", removed: out.images.left ?? "", added: out.images.right ?? "" }]
-    : out.hunks.map(hunkOf);
+    : out.hunks.map((h) => hunkOf(h, body === "paragraph" ? "\n\n" : "\n"));
   return { path, added: out.added, removed: out.removed, body, hunks };
 }
 
@@ -151,7 +151,7 @@ export function commitFiles(show: CapMap["git.show"]["out"], onlyPath?: string):
 }
 
 /** The comments of a changeset placed on a hunk: the one whose text holds the quote, else the file's first change. */
-export function commentsOf(rows: readonly CommentRow[], files: readonly DiffFile[], nameOf: (id: string) => string): DiffComment[] {
+export function commentsOf(rows: readonly CommentRow[], files: readonly DiffFile[], nameOf: (id: string) => string, now?: number): DiffComment[] {
   const out: DiffComment[] = [];
   for (const c of rows) {
     const file = files.find((f) => f.path === c.anchor.path) ?? files[0];
@@ -160,7 +160,7 @@ export function commentsOf(rows: readonly CommentRow[], files: readonly DiffFile
     const hit = quote ? file.hunks.find((h) => h.added.includes(quote) || h.removed.includes(quote)) : undefined;
     const hunk = hit ?? file.hunks[0];
     if (!hunk) continue;
-    out.push({ id: c.commentId, hunkId: hunk.id, author: nameOf(c.by), body: c.text, mentions: c.mentions.map(nameOf) });
+    out.push({ id: c.commentId, hunkId: hunk.id, author: now === undefined ? nameOf(c.by) : `${nameOf(c.by)} \u00b7 ${stamp(c.at, now)}`, body: c.text, mentions: c.mentions.map(nameOf) });
   }
   return out;
 }
@@ -479,4 +479,63 @@ export function choiceOf(key: string, raw: string): { id: string; list: boolean 
 
 export function choiceRaw(id: string, list: boolean): string {
   return list ? `["${id}"]` : `"${id}"`;
+}
+
+/** When a comment was written: "Today 9:38 am" the same UTC day, else "Oct 22". UTC so a server and a browser agree. */
+export function stamp(at: number, now: number): string {
+  const d = new Date(at);
+  const n = new Date(now);
+  if (d.getUTCFullYear() === n.getUTCFullYear() && d.getUTCMonth() === n.getUTCMonth() && d.getUTCDate() === n.getUTCDate()) {
+    const h = d.getUTCHours();
+    return `Today ${h % 12 === 0 ? 12 : h % 12}:${String(d.getUTCMinutes()).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
+  }
+  return shortDay(at);
+}
+
+/* ---------- the whole document ---------- */
+
+/** A text as its paragraphs. */
+export function paragraphsOfText(text: string): string[] {
+  return text.replace(/\r\n/g, "\n").split(/\n{2,}/).map((p) => p.trim()).filter((p) => p.length > 0);
+}
+
+/**
+ * Two versions of a prose file as one reading: each change is a hunk, and the unchanged paragraphs between and around the changes are the hunk's `before` (and, for the last, `after`) in full, so the open file reads as
+ * the whole document with its changes marked in place. Built from the two versions' text (files.read), because files.diff and changesets.diff carry three paragraphs of context only.
+ */
+export function wholeDocument(a: readonly string[], b: readonly string[]): DiffHunk[] {
+  const w = b.length + 1;
+  const t = new Uint32Array((a.length + 1) * w);
+  for (let i = a.length - 1; i >= 0; i--) for (let j = b.length - 1; j >= 0; j--) t[i * w + j] = a[i] === b[j] ? (t[(i + 1) * w + j + 1] ?? 0) + 1 : Math.max(t[(i + 1) * w + j] ?? 0, t[i * w + j + 1] ?? 0);
+  type Op = { op: "ctx" | "del" | "add"; text: string };
+  const ops: Op[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { ops.push({ op: "ctx", text: a[i] ?? "" }); i++; j++; }
+    else if ((t[(i + 1) * w + j] ?? 0) >= (t[i * w + j + 1] ?? 0)) { ops.push({ op: "del", text: a[i] ?? "" }); i++; }
+    else { ops.push({ op: "add", text: b[j] ?? "" }); j++; }
+  }
+  while (i < a.length) ops.push({ op: "del", text: a[i++] ?? "" });
+  while (j < b.length) ops.push({ op: "add", text: b[j++] ?? "" });
+  const hunks: DiffHunk[] = [];
+  let ctx: string[] = [];
+  let removed: string[] = [];
+  let added: string[] = [];
+  let at = 0;
+  const flush = (): void => {
+    if (!removed.length && !added.length) return;
+    const before = ctx.join("\n\n");
+    hunks.push({ id: `w${hunks.length + 1}`, context: `Paragraph ${at + 1}`, removed: removed.join("\n\n"), added: added.join("\n\n"), ...(before ? { before } : {}) });
+    ctx = [];
+    removed = [];
+    added = [];
+  };
+  ops.forEach((o) => {
+    if (o.op === "ctx") { flush(); ctx.push(o.text); at++; } else { if (!removed.length && !added.length) at = hunks.length + ctx.length; if (o.op === "del") removed.push(o.text); else added.push(o.text); }
+  });
+  flush();
+  const last = hunks[hunks.length - 1];
+  if (last && ctx.length) hunks[hunks.length - 1] = { ...last, after: ctx.join("\n\n") };
+  return hunks;
 }

@@ -267,6 +267,12 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
       touch();
       return { file: fileObj(i.fileId), versionId: next.versionId };
     },
+    "files.read": (i: CapMap["files.read"]["in"]) => {
+      const vs = versions.get(i.fileId) ?? [];
+      const v = i.versionId ? vs.find((x) => x.versionId === i.versionId) : vs[vs.length - 1];
+      if (!v) throw err("validation.not_found");
+      return { text: v.text, mime: "text/plain", size: v.text.length, version: v.n, truncated: false };
+    },
     "files.name_version": (i: CapMap["files.name_version"]["in"]) => {
       const v = (versions.get(i.fileId) ?? []).find((x) => x.versionId === i.versionId);
       if (!v) throw err("validation.not_found");

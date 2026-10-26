@@ -7,10 +7,11 @@ import type { ReactElement } from "react";
 import {
   AgentFileEditor, AgentFilePage, SuggestionCard, ChangesetDiff, ChangesetHeader, CommitDiff, FileDiff, GateRow, GitRow, HistoryPanel, LintBar, ReviewDataProvider, TomlForm,
   approveBlocked, approveChangeset, approveInput, blockedReason, branchChoices, changedLine, commitFiles, diffFileOf, discardChangeset, draftDiff, errorWords, gateWords, hunkOf, historyVersions, initRepo, lineHunks,
-  lintItems, needsGate, nameVersion, parseToml, pushBranch, rawFromForm, requestChanges, requestLabel, applySuggestion, choiceOf, choiceRaw, humanKey, suggestionHunks, acceptSuggestion, dismissSuggestion, restoreVersion, reviewExternally, saveFile, saveBlocked, setTomlValue, switchBranch, tomlGroups, tomlKind,
+  lintItems, needsGate, nameVersion, parseToml, pushBranch, rawFromForm, requestChanges, requestLabel, readTexts, stamp, wholeDocument, paragraphsOfText, applySuggestion, choiceOf, choiceRaw, humanKey, suggestionHunks, acceptSuggestion, dismissSuggestion, restoreVersion, reviewExternally, saveFile, saveBlocked, setTomlValue, switchBranch, tomlGroups, tomlKind,
 } from "../src/places/files/review/index.ts";
 import { lineRange } from "../src/places/files/review/index.ts";
-import { attemptKey } from "../src/shell/providers/files-review.ts";
+import { inlineMarks, proseRows } from "../../../ui/src/DiffTab/index.tsx";
+import { reviewData, attemptKey } from "../src/shell/providers/files-review.ts";
 import { extOf } from "../src/places/files/review/index.ts";
 import { AGENT_MD, AGENT_TOML, createSampleReview } from "../src/places/files/review/sample.ts";
 import type { SampleOptions, SampleReview } from "../src/places/files/review/sample.ts";
@@ -234,10 +235,12 @@ test("diff tabs: a changeset's files with their changes and the comment; a versi
   const pic = html(s, <ChangesetDiff changesetId={s.changesetId} path="id-scan.png" />);
   assert.ok(has(pic, 'data-testid="diff-image"'), "a picture opens as before and after");
   const letter = html(s, <ChangesetDiff changesetId={s.changesetId} />);
-  assert.ok(has(letter, 'data-testid="diff-para-removed"') && has(letter, 'data-testid="diff-para-added"'), "removed and added paragraphs, struck and filled inline");
+  assert.ok(has(letter, 'data-testid="diff-para-changed"'), "a small edit is one paragraph, struck and filled inline");
+  assert.ok(has(letter, 'data-testid="diff-para-removed"') && has(letter, 'data-testid="diff-para-added"'), "a paragraph that was mostly rewritten is a red line and a green line");
   for (const w of ["Dear Ms. Rivera,", "Thank you for choosing Northwind", "Communication. We reply", "Please sign below"]) assert.ok(has(text(letter), w), `the whole letter reads through: ${w}`);
   assert.ok(has(letter, 'data-testid="diff-para-context-before"') && has(letter, 'data-testid="diff-para-context-after"'), "unchanged text in full around the changes");
   assert.ok(!has(text(letter), "Line 6") && !has(letter, 'data-testid="diff-comment-h_date"'), "no hunk boxes");
+  assert.ok(has(text(letter), "Maya Chen") && has(text(letter), "Today 9:30 am"), "the thread says who and when");
   assert.ok(has(letter, 'data-testid="diff-note-cmt_0"') && has(letter, 'data-testid="diff-note-reply-cmt_0"') && has(text(letter), "Can we keep the courtesy line"), "the thread sits in the letter with its Reply link");
   assert.ok(has(letter, 'data-testid="diff-file-replies"'), "the header counts the replies");
   const one = html(s, <FileDiff fileId={s.fileIds.agent} name="AGENT.md" />);
@@ -502,4 +505,85 @@ test("phone: History opens under the page, not over it", () => {
 test("the shell's review provider: every attempt gets its own idempotency key", () => {
   assert.notEqual(attemptKey(), attemptKey());
   assert.ok(attemptKey().length >= 8);
+});
+
+test("a small edit is one paragraph with its words marked inline; a rewrite is a red line and a green line", () => {
+  const small = inlineMarks("We attend the hearing set for November 18.", "We attend the hearing on November 18 at 9:30 am.");
+  assert.ok(small, "few words differ");
+    const struck = small.filter((s) => s.kind === "del").map((s) => s.text).join("|");
+  const filled = small.filter((s) => s.kind === "add").map((s) => s.text).join("|");
+  assert.ok(has(struck, "set") && has(struck, "for") && !has(struck, "hearing"), "the removed words are struck, the shared ones are not");
+  assert.ok(has(filled, "on") && has(filled, "9:30 am") && !has(filled, "hearing"), "the new words are filled");
+  assert.ok(small.some((s) => s.kind === "same" && has(s.text, "hearing")), "the unchanged words stay as they were");
+  assert.equal(inlineMarks("Fees. We will bill for our time as we go.", "Our consult fee is waived because you came by referral."), null, "most words differ");
+  const rows = proseRows({ id: "h", context: "", removed: "A b c d e.\n\nOld one entirely different words here.", added: "A b c x e.\n\nNothing alike at all now.\n\nA brand new paragraph." }, true);
+  assert.deepEqual(rows.map((r) => r.kind), ["changed", "removed", "added", "added"]);
+});
+
+test("real data: the handler's paragraph diff (one paragraph per line, three of context) becomes prose, not one joined block", () => {
+  // the shape modules/files answers in paragraph mode: every line is a paragraph, no blank lines between them, marks on a changed pair
+  const out = { kind: "paragraph" as const, added: 1, removed: 1, identical: false, hunks: [{ hunkId: "h1", oldStart: 2, oldLines: 4, newStart: 2, newLines: 4, lines: [
+    { op: "ctx" as const, text: "Dear Ms. Rivera," }, { op: "ctx" as const, text: "Thank you for choosing Northwind." },
+    { op: "del" as const, text: "We attend the hearing set for November 18.", marks: [{ from: 22, to: 29 }] }, { op: "add" as const, text: "We attend the hearing on November 18 at 9:30 am.", marks: [{ from: 22, to: 24 }] },
+    { op: "ctx" as const, text: "Please sign below." },
+  ] }] };
+  const file = diffFileOf("letter.docx", out);
+  assert.equal(file.body, "paragraph");
+  assert.equal(file.hunks[0]?.before, "Dear Ms. Rivera,\n\nThank you for choosing Northwind.", "paragraphs are separated, so the tab draws three paragraphs");
+  assert.equal(file.hunks[0]?.after, "Please sign below.");
+  assert.equal(proseRows(file.hunks[0] as never, true).map((r) => r.kind).join(), "changed");
+});
+
+test("whole document: the unchanged paragraphs around and between the changes come in full", async () => {
+  const a = ["Engagement letter", "Dear Ms. Rivera,", "Scope. Hearing set for November 18.", "Communication. We reply in a day.", "Please sign below."];
+  const b = ["Engagement letter", "Dear Ms. Rivera,", "Scope. Hearing on November 18 at 9:30 am.", "Communication. We reply in a day.", "Fee schedule. $320 per hour.", "Please sign below."];
+  const hunks = wholeDocument(a, b);
+  assert.equal(hunks.length, 2);
+  assert.equal(hunks[0]?.before, "Engagement letter\n\nDear Ms. Rivera,");
+  assert.equal(hunks[0]?.removed, "Scope. Hearing set for November 18.");
+  assert.equal(hunks[1]?.before, "Communication. We reply in a day.");
+  assert.equal(hunks[1]?.added, "Fee schedule. $320 per hour.");
+  assert.equal(hunks[1]?.after, "Please sign below.", "the end of the document closes the last change");
+  assert.deepEqual(wholeDocument(a, a), []);
+  assert.deepEqual(paragraphsOfText("One.\r\n\r\n\r\nTwo.\n\n"), ["One.", "Two."]);
+  const s = sample();
+  const t = await readTexts(s.data.call, s.fileIds.agent, "ver_a3", "ver_a4");
+  assert.ok(t && has(t.to, "Promise an outcome.") && !has(t.from, "Promise an outcome."), "both versions are read through files.read");
+  assert.deepEqual(s.calls.map((c) => c.cap), ["files.read", "files.read"]);
+  assert.equal(await readTexts(s.data.call, s.fileIds.agent, "ver_nope", "ver_a4"), null, "a version that cannot be read leaves the capability's own diff");
+});
+
+test("comment times: today reads as a clock time, another day as a date", () => {
+  const now = Date.UTC(2025, 9, 24, 10, 0, 0);
+  assert.equal(stamp(Date.UTC(2025, 9, 24, 9, 38, 0), now), "Today 9:38 am");
+  assert.equal(stamp(Date.UTC(2025, 9, 24, 0, 5, 0), now), "Today 12:05 am");
+  assert.equal(stamp(Date.UTC(2025, 9, 24, 15, 0, 0), now), "Today 3:00 pm");
+  assert.equal(stamp(Date.UTC(2025, 9, 22, 9, 38, 0), now), "Oct 22");
+});
+
+test("the shell's review provider: live reads through the runtime, writes through its door, clicks open its screens", async () => {
+  const opened: unknown[] = [];
+  const asked: { cap: string; input: unknown }[] = [];
+  const rt = {
+    screens: { capQuery: (cap: string, input: unknown) => ({ subscribe: () => () => undefined, getSnapshot: () => ({ status: "ready", data: { cap, input } }) }) },
+    call: async (cap: string, input: unknown) => { asked.push({ cap, input }); return { ok: true }; },
+    clock: () => ({ now: 5, offsetMin: 0 }),
+    open: (t: unknown) => void opened.push(t),
+    me: { id: "usr_me", name: "Me" },
+    principals: { name: () => undefined },
+  };
+  const d = reviewData(rt as never);
+  const snap = d.live("changesets.get", { changesetId: "cs_1" }).getSnapshot();
+  assert.deepEqual(snap, { status: "ready", data: { cap: "changesets.get", input: { changesetId: "cs_1" } } });
+  await d.call("changesets.approve", { changesetId: "cs_1", idempotencyKey: "k" });
+  assert.deepEqual(asked, [{ cap: "changesets.approve", input: { changesetId: "cs_1", idempotencyKey: "k" } }]);
+  assert.equal(d.clock().now, 5);
+  d.nav.openChangeset("cs_1");
+  d.nav.compare("f", "v1", "v2");
+  d.nav.openCommit("fld", "abc");
+  d.nav.openHistory?.("f");
+  assert.deepEqual(opened, [
+    { screen: "files.diff", args: { changesetId: "cs_1" } }, { screen: "files.diff", args: { fileId: "f", from: "v1", to: "v2" } },
+    { screen: "files.commit-diff", args: { folder: "fld", sha: "abc" } }, { screen: "files.history", args: { fileId: "f" } },
+  ]);
 });

@@ -87,3 +87,17 @@ export function acceptSuggestion(call: Call, suggestionId: string): Promise<Resu
 export function dismissSuggestion(call: Call, suggestionId: string): Promise<Result<CapMap["agents.suggestion.dismiss"]["out"]>> {
   return run(call, "agents.suggestion.dismiss", { suggestionId }, "dismiss the suggestion");
 }
+
+/** The text of two versions of a file, for the whole-document view; null when either cannot be read as text. */
+export async function readTexts(call: Call, fileId: string, from: string, to: string): Promise<{ from: string; to: string } | null> {
+  try {
+    const one = async (versionId: string): Promise<string | null> => {
+      const out = (await call("files.read", { fileId, versionId, as: "text" })) as CapMap["files.read"]["out"];
+      return typeof out.text === "string" && !out.truncated ? out.text : null;
+    };
+    const [x, y] = [await one(from), await one(to)];
+    return x === null || y === null ? null : { from: x, to: y };
+  } catch {
+    return null;
+  }
+}

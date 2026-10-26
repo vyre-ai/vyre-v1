@@ -203,6 +203,62 @@ export function paragraphRows(hunk: DiffHunk, marks: boolean): ParagraphRow[] {
   return rows;
 }
 
+/** A prose row of a review: one paragraph with its removed words struck and its added words filled (`changed`), or a whole removed or added paragraph. */
+export interface ProseRow {
+  kind: "removed" | "added" | "changed";
+  segments: Segment[];
+}
+
+/** The words of a pair read as one paragraph, deleted words next to the words that replaced them. Null when most of the words differ (then the two are shown as a red line and a green one). */
+export function inlineMarks(removed: string, added: string, limit = 0.5): Segment[] | null {
+  const a = tokens(removed);
+  const b = tokens(added);
+  if (a.length * b.length > MAX_CELLS) return null;
+  const keep = lcs(a, b);
+  const words = (list: readonly string[]): number => list.filter((t) => !/^\s+$/.test(t)).length;
+  const kept = (list: readonly string[], set: Set<number>): number => list.filter((t, i) => set.has(i) && !/^\s+$/.test(t)).length;
+  const total = words(a) + words(b);
+  if (total === 0) return null;
+  const changed = words(a) - kept(a, keep.a) + (words(b) - kept(b, keep.b));
+  if (changed / total > limit) return null;
+  const raw: Segment[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length || j < b.length) {
+    if (i < a.length && !keep.a.has(i)) raw.push({ text: a[i++] ?? "", kind: "del" });
+    else if (j < b.length && !keep.b.has(j)) raw.push({ text: b[j++] ?? "", kind: "add" });
+    else { raw.push({ text: b[j] ?? "", kind: "same" }); i++; j++; }
+  }
+  // a lone space between two marks of one kind reads as part of the mark
+  for (let k = 1; k < raw.length - 1; k++) {
+    const here = raw[k];
+    const before = raw[k - 1];
+    const after = raw[k + 1];
+    if (here && before && after && here.kind === "same" && /^\s+$/.test(here.text) && before.kind !== "same" && before.kind === after.kind) here.kind = before.kind;
+  }
+  return merge(raw);
+}
+
+/** Prose rows for a review: a paragraph with a small edit is one row, marked inline; a paragraph that was mostly rewritten is a removed row and an added row; the rest stand alone. */
+export function proseRows(hunk: DiffHunk, marks: boolean): ProseRow[] {
+  if (!marks) return paragraphRows(hunk, false);
+  const removed = paragraphsOf(hunk.removed);
+  const added = paragraphsOf(hunk.added);
+  const rows: ProseRow[] = [];
+  for (let index = 0; index < Math.max(removed.length, added.length); index++) {
+    const r = removed[index];
+    const a = added[index];
+    if (r !== undefined && a !== undefined) {
+      if (sameWords(r, a)) { rows.push({ kind: "removed", segments: [{ text: r, kind: "same" }] }, { kind: "added", segments: [{ text: a, kind: "same" }] }); continue; }
+      const inline = inlineMarks(r, a);
+      if (inline) rows.push({ kind: "changed", segments: inline });
+      else { const w = wordMarks(r, a); rows.push({ kind: "removed", segments: w.removed }, { kind: "added", segments: w.added }); }
+    } else if (r !== undefined) rows.push({ kind: "removed", segments: [{ text: r, kind: "same" }] });
+    else if (a !== undefined) rows.push({ kind: "added", segments: [{ text: a, kind: "same" }] });
+  }
+  return rows;
+}
+
 /* ---------- navigation and keys ---------- */
 
 export interface ChangeRef {
@@ -379,10 +435,15 @@ function Context({ text, where }: { text: string | undefined; where: "before" | 
   return <View testID={`diff-para-context-${where}`}>{nodes}</View>;
 }
 
-function ParagraphBody({ hunk, marks }: { hunk: DiffHunk; marks: boolean }): ReactElement {
+function ParagraphBody({ hunk, marks, review = false }: { hunk: DiffHunk; marks: boolean; review?: boolean }): ReactElement {
   const nodes: ReactNode[] = [];
   nodes.push(<Context key="before" text={hunk.before} where="before" />);
-  paragraphRows(hunk, marks).forEach((row, index) => {
+  (review ? proseRows(hunk, marks) : paragraphRows(hunk, marks)).forEach((row, index) => {
+    if (row.kind === "changed") {
+      const parts: ReactNode[] = row.segments.map((seg, k) => <Text key={k} style={seg.kind === "del" ? styles.inlineDel : seg.kind === "add" ? styles.markAdd : null}>{seg.text}</Text>);
+      nodes.push(<View key={index} style={styles.para} testID="diff-para-changed"><Text style={styles.prose}>{parts}</Text></View>);
+      return;
+    }
     nodes.push(
       <View key={index} style={[styles.para, row.kind === "removed" ? styles.lineDel : styles.lineAdd]} testID={`diff-para-${row.kind}`}>
         <Marked segments={row.segments} mark={row.kind === "removed" ? "del" : "add"} style={styles.prose} />
@@ -428,16 +489,23 @@ function UnifiedBody({ hunk, marks, bare = false }: { hunk: DiffHunk; marks: boo
 }
 
 /** A comment: the author's face, the name, the text with every @mention coloured. */
+/** A comment thread: a light bordered card with the face, the name, when ("Maya Chen · Today 9:38 am": the author's name, then a dot and the time, if the caller gives one), the text and a Reply link. */
 function Note({ comment, onReply }: { comment: DiffComment; onReply?: () => void }): ReactElement {
   const parts: ReactNode[] = [];
   bodyParts(comment.body).forEach((part, index) => {
     parts.push(<Text key={index} style={part.mention ? styles.mention : null}>{part.text}</Text>);
   });
+  const dot = comment.author.indexOf(" \u00b7 ");
+  const name = dot >= 0 ? comment.author.slice(0, dot) : comment.author;
+  const when = dot >= 0 ? comment.author.slice(dot + 3) : "";
   return (
     <View style={styles.comment} testID={`diff-note-${comment.id}`}>
-      <Avatar name={comment.author} kind="person" size={22} />
+      <Avatar name={name} kind="person" size={22} />
       <View style={styles.commentBody}>
-        <Text style={styles.who}>{comment.author}</Text>
+        <View style={styles.who}>
+          <Text style={styles.whoName}>{name}</Text>
+          {when ? <Text style={styles.whoWhen}>{when}</Text> : null}
+        </View>
         <Text style={styles.text}>{parts}</Text>
         {onReply ? <Text accessibilityRole="button" aria-label="Reply" onPress={onReply} testID={`diff-note-reply-${comment.id}`} style={styles.replyLink}>Reply</Text> : null}
       </View>
@@ -638,7 +706,7 @@ export function DiffTab(props: DiffTabViewProps): ReactElement {
           {file.body === "image" ? (
             <ImageDiff before={hunk.removed} after={hunk.added} mode={imageMode} onMode={setImageMode} />
           ) : file.body === "paragraph" ? (
-            <ParagraphBody hunk={hunk} marks={marks} />
+            <ParagraphBody hunk={hunk} marks={marks} review={bare} />
           ) : layout === "split" ? (
             <SplitBody hunk={hunk} marks={marks} />
           ) : (
@@ -784,15 +852,18 @@ const styles = StyleSheet.create({
   signAdd: { color: "var(--ok)" as string },
   code: { flex: 1, fontFamily: MONO, fontSize: 12.5, lineHeight: 20, color: "var(--ink)" as string },
   markDel: { backgroundColor: "rgba(217, 63, 63, 0.30)" as string, borderRadius: 3 },
+  inlineDel: { backgroundColor: "rgba(217, 63, 63, 0.30)" as string, borderRadius: 3, textDecorationLine: "line-through" },
   markAdd: { backgroundColor: "rgba(47, 148, 97, 0.32)" as string, borderRadius: 3 },
   splitRow: { flexDirection: "row" },
   cell: { flex: 1, flexDirection: "row", alignItems: "flex-start", paddingVertical: 2, paddingRight: 8, minWidth: 0 },
   cellEmpty: { backgroundColor: "var(--sunk)" as string },
   para: { paddingVertical: 8, paddingHorizontal: 14 },
   prose: { color: "var(--ink)" as string, fontSize: 13.5, lineHeight: 21 },
-  comment: { flexDirection: "row", gap: 9, paddingHorizontal: 12, paddingVertical: 9, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  comment: { flexDirection: "row", gap: 9, marginHorizontal: 14, marginVertical: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)", backgroundColor: "var(--win)" as string },
   commentBody: { flex: 1, minWidth: 0, gap: 2 },
-  who: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "600" },
+  who: { flexDirection: "row", alignItems: "baseline", gap: 8 },
+  whoName: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "600" },
+  whoWhen: { color: "var(--ink-3)" as string, fontSize: 11.5 },
   text: { color: "var(--ink-2)" as string, fontSize: 13, lineHeight: 19 },
   mention: { color: "var(--accent)" as string, fontWeight: "500" },
   reply: { padding: 10, borderTopWidth: 1, borderTopColor: "var(--line)" as string },

@@ -1,12 +1,13 @@
 // The diff tabs (spec 2.16, 4.5; screens files.diff and files.commit-diff): the shared ui/DiffTab fed by files.diff (two versions of a file), changesets.diff with the comments (an agent's changes) and
 // git.show (a commit). Revert of one change and a comment call their capabilities through DiffTab's own invoke. Nothing here draws a line of the diff.
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { DiffTab } from "../../../../../../ui/src/DiffTab/index.tsx";
 import type { Density, DiffFile } from "../../../../../../ui/src/DiffTab/index.tsx";
 import { useCap, useCapMany, useReviewData, useReviewLayout } from "./data.tsx";
-import { commentsOf, commitFiles, diffFileOf } from "./model.ts";
+import { readTexts } from "./actions.ts";
+import { commentsOf, paragraphsOfText, wholeDocument, commitFiles, diffFileOf } from "./model.ts";
 import { Skeleton } from "./parts.tsx";
 
 const LOADING_HEIGHT = 240;
@@ -31,7 +32,20 @@ export interface FileDiffProps {
 export function FileDiff({ fileId, from, to, name, density = "regular", bare = true }: FileDiffProps): ReactElement {
   const data = useReviewData();
   const q = useCap("files.diff", { fileId, ...(from ? { from } : {}), ...(to ? { to } : {}) });
-  const files = useMemo<DiffFile[]>(() => (q.status === "ready" ? [diffFileOf(name, q.data)] : []), [q, name]);
+  const [full, setFull] = useState<DiffFile["hunks"] | null>(null);
+  const prose = q.status === "ready" && diffFileOf(name, q.data).body === "paragraph";
+  // the capability carries three paragraphs of context; with both versions known the page reads the two texts and shows the whole document
+  useEffect(() => {
+    if (!prose || !from || !to) return;
+    let live = true;
+    void readTexts(data.call, fileId, from, to).then((t) => { if (live && t) setFull(wholeDocument(paragraphsOfText(t.from), paragraphsOfText(t.to))); });
+    return () => { live = false; };
+  }, [prose, from, to, fileId, data]);
+  const files = useMemo<DiffFile[]>(() => {
+    if (q.status !== "ready") return [];
+    const f = diffFileOf(name, q.data);
+    return [full && f.body === "paragraph" ? { ...f, hunks: full } : f];
+  }, [q, name, full]);
   if (q.status !== "ready") return <Skeleton height={LOADING_HEIGHT} testID="diff-loading" />;
   if (q.data.identical) return <Empty text="These two versions are the same." />;
   return (
@@ -58,7 +72,7 @@ export function ChangesetDiff({ changesetId, density = "regular", path }: Change
     paths.forEach((p, i) => { const d = diffs.items[i]; if (d) out.push(diffFileOf(p, d)); });
     return out;
   }, [paths, diffs]);
-  const notes = useMemo(() => (comments.status === "ready" ? commentsOf(comments.data.comments, files, data.nameOf) : []), [comments, files, data]);
+  const notes = useMemo(() => (comments.status === "ready" ? commentsOf(comments.data.comments, files, data.nameOf, data.clock().now) : []), [comments, files, data]);
   const [layout] = useReviewLayout();
   if (cs.status !== "ready" || !diffs.ready) return <Skeleton height={LOADING_HEIGHT} testID="diff-loading" />;
   if (!files.length) return <Empty text="Nothing to review in this changeset." />;
