@@ -2,6 +2,7 @@
 // person; a wrong approval token releases nothing; the person approves and the send goes out once. A second send is left alone: its hold escalates, then expires and the send is dropped.
 // Same engine setup as the first half (07-agent-reply.ts). The agent's send comes from the CLI calling the mail tool over the loopback MCP session.
 import assert from "node:assert/strict";
+import { DatabaseSync } from "node:sqlite";
 import { bootFlowSpace, expectStatus, short, Trail } from "./02-space.ts";
 import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
@@ -27,7 +28,13 @@ export async function runAgentGate(live: readonly string[], opts: Parameters<typ
         await s.d.hooks?.pump?.();
         const holds = expectStatus(await s.call("gate.holds.list", admin, { states: ["held"] }), 200, "gate.holds.list").holds as Hold[];
         if (holds.length >= n) return holds[n - 1]!;
-        if (Date.now() > end) throw new Error(`no hold ${n} after 40 s: ${short(holds)}`);
+        if (Date.now() > end) {
+          s.d.sink.flush();
+          const logs = new DatabaseSync(s.d.paths.logs, { readOnly: true }).prepare("SELECT level, place, cap, msg, attrs FROM logs WHERE level >= 30 OR msg LIKE '%consumer%' OR msg LIKE '%bridge%' OR msg LIKE '%engine%' ORDER BY id DESC LIMIT 30").all().map((r) => `${r.level} ${r.place ?? ""} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 300)}`);
+          const rows = (sql: string): unknown => { try { return s.d.db?.all(sql); } catch (e) { return String(e); } };
+          const agentsKnown = await s.call("access.principals.list", admin, { kind: "agent" }); const agentRow = await s.call("agents.list", admin, {});
+          throw new Error(`no hold ${n} after 40 s: ${short(holds)}; principals(agent) ${short(agentsKnown.body?.data ?? agentsKnown.body)}; agents ${short(agentRow.body?.data ?? agentRow.body)}; host log ${JSON.stringify(logs)}; diag ${JSON.stringify({ queue: rows("SELECT * FROM engine_thread_queue LIMIT 5"), unblock: rows("SELECT * FROM engine_unblock LIMIT 5") })}`);
+        }
         await new Promise((r) => setTimeout(r, 200));
       }
     };
@@ -36,7 +43,10 @@ export async function runAgentGate(live: readonly string[], opts: Parameters<typ
       const res = await fetch(`${s.d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${admin}` }, body: JSON.stringify({ key: Buffer.from(key).toString("base64") }) });
       assert.equal(res.status, 204, `unlock: ${res.status}`);
       const folder = expectStatus(await s.call("vault.folders.create", admin, { idempotencyKey: "golden-7g-folder", name: "Accounts", scope: "mine" }), 200, "vault.folders.create").folder.id as string;
+      const flow = expectStatus(await s.call("providers.subscription_start", admin, { idempotencyKey: "golden-7g-flow", providerKey: "claude-code" }), 200, "providers.subscription_start").flowId as string;
       expectStatus(await s.call("vault.item.put", admin, { idempotencyKey: "golden-7g-item", folderId: folder, name: "Olivia_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: TOKEN, secret: true }] }), 200, "vault.item.put");
+      const provider = expectStatus(await s.call("providers.subscription_complete", admin, { flowId: flow }), 200, "providers.subscription_complete").provider as { id: string };
+      expectStatus(await s.call("providers.set_space_use", admin, { idempotencyKey: "golden-7g-spaceuse", providerId: provider.id, allow: true }), 200, "providers.set_space_use");
     });
     const agent = await trail.step("an agent exists", async () => expectStatus(await s.call("agents.create", admin, { idempotencyKey: "golden-7g-agent", name: "Mailer", role: "Writes the weekly note" }), 200, "agents.create").agent.agentId as string);
     const thread = await trail.step("she starts a chat with it and the engine is bound", async () => {

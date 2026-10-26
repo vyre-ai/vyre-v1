@@ -24864,6 +24864,9 @@
                   "pattern": "^[a-z][a-z0-9_]*$",
                   "type": "string"
                 },
+                "makesProject": {
+                  "type": "boolean"
+                },
                 "onLeaving": {
                   "description": "Automations that run when a record leaves the stage",
                   "items": {
@@ -25185,6 +25188,9 @@
                   ],
                   "pattern": "^[a-z][a-z0-9_]*$",
                   "type": "string"
+                },
+                "makesProject": {
+                  "type": "boolean"
                 },
                 "onLeaving": {
                   "description": "Automations that run when a record leaves the stage",

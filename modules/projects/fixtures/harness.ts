@@ -39,6 +39,8 @@ export function fakeWorld(clock: { t: number }) {
   const keys = new Map<string, unknown>();
   const types = new Map<string, { key: string; title: string; template?: string }>([["project", { key: "project", title: "Project", template: "project" }], ["contact", { key: "contact", title: "Contact" }]]);
   const down = new Set<string>();
+  /** Principals and groups the Space does not know: access.principals.get and access.groups.get refuse them, as the real module does. */
+  const unknown = new Set<string>();
   let n = 0;
   const next = (prefix: string): string => `${prefix}_${(++n).toString(36).padStart(6, "0")}`;
   const root = { folderId: next("fld"), name: "Projects" };
@@ -82,6 +84,8 @@ export function fakeWorld(clock: { t: number }) {
     "threads.get": (i) => (i.threadId === "thr_missing" ? fail("validation.not_found", "no such thread") : { thread: { threadId: i.threadId } }),
     "threads.set_folder": (i) => { threadFolders.set(i.threadId, i.folderId); return { thread: { threadId: i.threadId } }; },
     "threads.list": () => ({ threads: [{ threadId: "thr_recent", title: "Kickoff", createdAt: clock.t }] }),
+    "access.principals.get": (i) => (unknown.has(i.principal.id) ? fail("validation.not_found", "no such person, agent or actor") : { principal: { id: i.principal.id, kind: i.principal.kind, status: "active" } }),
+    "access.groups.get": (i) => (unknown.has(i.groupId) ? fail("validation.not_found", "no such group") : { group: { id: i.groupId }, roles: [], grants: [] }),
     "access.share": (i, o) => keyed(o, "as", () => { grants.push({ resource: i.resource, subject: i.subject, level: i.level, source: i.source }); return { grant: { id: next("gnt") } }; }),
     "access.unshare": (i) => {
       const before = grants.length;
@@ -109,7 +113,7 @@ export function fakeWorld(clock: { t: number }) {
     },
     "tasks.dependencies.remove": (i) => { const t = tasks.get(i.taskId) ?? fail("validation.not_found", "no such task"); t.dependsOn = t.dependsOn.filter((d) => d !== i.dependsOnId); return { task: taskRow(t) }; },
   };
-  return { calls, records, tasks, grants, folders, channels, posts, threadFolders, types, handlers, root, down, next };
+  return { calls, records, tasks, grants, folders, channels, posts, threadFolders, types, handlers, root, down, unknown, next };
 }
 export type FakeWorld = ReturnType<typeof fakeWorld>;
 

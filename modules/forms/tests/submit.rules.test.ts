@@ -468,11 +468,11 @@ test("uploads have their own per-source budget, carry the link token to the stor
 
 test("a signed-out visitor submits, books and reads availability through the route: the visitor is named from the socket, never from the request", async () => {
   const w = harness();
-  const seen: { cap: string; input: Record<string, unknown>; caller: PageCaller }[] = [];
+  const seen: { cap: string; input: Record<string, unknown>; caller: PageCaller; trace?: { traceId: string; spanId: string } | undefined }[] = [];
   const s = await serve(w, {
-    submitsPerMinute: 4,
-    call: async (cap, input, caller) => {
-      seen.push({ cap, input, caller });
+    submitsPerMinute: 12,
+    call: async (cap, input, caller, trace) => {
+      seen.push({ cap, input, caller, trace });
       if (input["slug"] === "refused") throw { error: { code: "validation.duplicate", message: "This was already sent.", retryable: false, traceId: "t", next: [] } };
       return cap === "bookings.availability" ? { slots: [], available: true } : { recordId: "rec_1" };
     },
@@ -487,6 +487,21 @@ test("a signed-out visitor submits, books and reads availability through the rou
     assert.equal(sent?.input["visitor"], sent?.caller.id, "the visitor is the socket's actor, not what the client wrote");
     assert.notEqual(sent?.input["visitor"], "act_anon_ffffffffffffffff");
     assert.equal(typeof sent?.input["idempotencyKey"], "string");
+    assert.equal(sent?.trace, undefined, "no trace header, no trace");
+    const traced = await fetch(`${s.base}/f/submit`, { method: "POST", headers: { "content-type": "application/json", "x-vyre-trace": `${"ab".repeat(16)}-${"cd".repeat(8)}` }, body: JSON.stringify({ slug: "intake", answers: {} }) });
+    assert.equal(traced.status, 200);
+    assert.deepEqual(seen[1]?.trace, { traceId: "ab".repeat(16), spanId: "cd".repeat(8) }, "the client's trace id travels with the call");
+    assert.equal(traced.headers.get("x-vyre-trace"), `${"ab".repeat(16)}-${"cd".repeat(8)}`);
+    seen.splice(1, 1);
+    const bad = ["AB".repeat(16) + "-" + "cd".repeat(8), "ab".repeat(15), "0".repeat(32) + "-" + "cd".repeat(8), "ab".repeat(16) + "-" + "0".repeat(16), "zz".repeat(16) + "-" + "cd".repeat(8), "ab".repeat(16) + "-" + "cd".repeat(8) + "-extra", "ab".repeat(17)];
+    for (const value of bad) {
+      const before = seen.length;
+      const r = await fetch(`${s.base}/f/submit`, { method: "POST", headers: { "content-type": "application/json", "x-vyre-trace": value }, body: JSON.stringify({ slug: "intake", answers: {} }) });
+      assert.equal(r.status, 200, value);
+      assert.equal(seen[before]?.trace, undefined, `a trace id of "${value}" is not passed on`);
+      assert.equal(r.headers.get("x-vyre-trace"), null, "a rejected value is never echoed");
+      seen.splice(before, 1);
+    }
     assert.equal((await post("/book/create", { slug: "call", startsAt: 1, tz: "UTC", answers: {} })).status, 200);
     assert.equal(seen[1]?.input["visitor"], undefined, "only a submit carries a visitor");
     const av = await fetch(`${s.base}/book/availability?slug=call&tz=UTC&from=100&to=200`);
