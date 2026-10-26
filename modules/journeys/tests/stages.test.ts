@@ -117,7 +117,7 @@ test("start makes the Journey record with its channel, enters the first stage, m
   assert.deepEqual(h.events[1]!.payload, { journeyId: j.id, recordId: r.recordId, stage: "intake", version: 1, manual: false });
   const rec = h.only("records.create")[0]!.input;
   assert.equal(rec.type, "journey_client_intake");
-  assert.deepEqual({ ...rec.fields, name: undefined }, { name: undefined, stage: "intake", subject: "rec_s1", owner: alice.id, entered_at: NOW });
+  assert.deepEqual({ ...rec.fields, name: undefined }, { name: undefined, stage: "intake", subject: [{ urn: `vyre://spc_test/contact/rec_s1` }], owner: alice.id, entered_at: new Date(NOW).toISOString() });
   assert.equal(h.only("channels.create")[0]!.input.recordId, r.recordId);
   assert.equal(h.tasks.length, 2);
   const t = h.tasks[0]!.input;
@@ -165,6 +165,32 @@ test("a task for an agent keeps its key and backup key; a task that fails to sta
   assert.ok(rec);
 });
 
+test("a stage that makes a project gives the record a Project once; a stage that does not makes none", async () => {
+  const made: Record<string, unknown>[] = [];
+  const h = harness({ calls: { "projects.create": (i) => { made.push(i); return { projectId: "prj_t1", recordId: "rec_p1", channelId: "chn_p1", folderId: "fld_p1" }; } } });
+  const plain = await mk(h, { name: "Plain" });
+  await begin(h, plain, "rec_s1");
+  assert.equal(made.length, 0, "no flag, no project");
+  const j = await mk(h, { name: "Client onboarding", stages: threeStages({ intake: { makesProject: true, tasks: [] } }) });
+  const rec = await begin(h, j, "rec_s2");
+  assert.equal(made.length, 1);
+  assert.equal(made[0]!.type, "project");
+  assert.match(String(made[0]!.title), /^Client onboarding project [a-z0-9_]+$/);
+  const journeyChannel = h.only("channels.create").find((c) => c.input.recordId === rec)!.input.name;
+  assert.notEqual(made[0]!.title, journeyChannel, "the Project's channel must not take the name of the Journey record's channel");
+  assert.equal(made[0]!.idempotencyKey, `jrn-project:${rec}`, "one project per record");
+  const h2 = harness({ calls: { "projects.create": () => { throw Object.assign(new Error("x"), { error: { code: "validation.bad_input", message: "projects is down", details: { errors: ["/title: too short"] } } }); } } });
+  const j2 = await mk(h2, { stages: threeStages({ intake: { makesProject: true, tasks: [] } }) });
+  const recId = await begin(h2, j2, "rec_s3");
+  assert.match(recId, /^rec_/, "a project that cannot be made does not stop the Journey");
+  const failed = h2.tasks.filter((t) => String(t.input.title).startsWith("Project for rec_s3 could not be made: "));
+  assert.equal(failed.length, 1, "the owner is told, once");
+  assert.match(String(failed[0]!.input.title), /projects is down \(validation\.bad_input: \{"errors":\["\/title: too short"\]\}\)$/, "the refusal's details name the field");
+  assert.deepEqual(failed[0]!.input.assigned, { kind: "person", id: alice.id });
+  assert.equal(failed[0]!.input.recordId, recId);
+  assert.match(String(failed[0]!.input.summary), /Trace [0-9a-f]+\./, "the task names the trace");
+});
+
 // ---- move_stage ----
 
 test("move_stage needs a reason, leaves the old stage, enters the new, runs the new stage's Automations and posts the handoff", async () => {
@@ -179,7 +205,7 @@ test("move_stage needs a reason, leaves the old stage, enters the new, runs the 
   assert.deepEqual(h.events[0]!.payload, { journeyId: j.id, recordId: rec, stage: "intake", toStage: "review" });
   assert.deepEqual(h.events[1]!.payload, { journeyId: j.id, recordId: rec, stage: "review", previousStage: "intake", version: 1, manual: true, reason: "Papers came by post" });
   assert.deepEqual(h.events[2]!.payload, { journeyId: j.id, recordId: rec, fromStage: "intake", toStage: "review", reason: "Papers came by post", by: alice.id });
-  assert.deepEqual(h.only("records.update")[0]!.input, { type: "journey_client_intake", recordId: rec, patch: { stage: "review", entered_at: NOW } });
+  assert.deepEqual(h.only("records.update")[0]!.input, { type: "journey_client_intake", recordId: rec, patch: { stage: "review", entered_at: new Date(NOW).toISOString() } });
   const fire = h.only("automations.fire")[0]!.input;
   assert.deepEqual([fire.automationId, fire.payload.manual, fire.payload.previousStage, fire.payload.stage], ["aut_review1", true, "intake", "review"]);
   assert.deepEqual(h.only("tasks.withdraw").map((c) => c.input.taskId).sort(), oldTasks.sort(), "the old stage's open tasks went with it");

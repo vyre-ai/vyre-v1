@@ -10,7 +10,7 @@ export interface TaskTemplate {
 }
 export interface TimeLimit { hours: number; escalateTo?: { kind: string; id: string } }
 export interface Stage {
-  key: string; title: string; order: number; exit: { requireTasks: boolean; manualOnly?: boolean }; timeLimit?: TimeLimit; tasks: TaskTemplate[]; automations: string[]; final?: boolean; onLeaving?: string[];
+  key: string; title: string; order: number; exit: { requireTasks: boolean; manualOnly?: boolean }; timeLimit?: TimeLimit; tasks: TaskTemplate[]; automations: string[]; final?: boolean; makesProject?: boolean; onLeaving?: string[];
 }
 export interface StartRule { event: string; filter?: unknown; enabled: boolean }
 export interface Journey {
@@ -36,6 +36,7 @@ export interface JourneysCtx {
   db: Db;
   emit(name: string, subject: string, payload: unknown, opts?: EmitOpts): { id: string };
   call?(cap: string, input: unknown): Promise<unknown>;
+  log?: { warn(msg: string, attrs?: Record<string, unknown>): void };
   authorize?(action: { perm: string | null; level: string }, resource: { type: string; id: string | null }): { effect: string };
 }
 

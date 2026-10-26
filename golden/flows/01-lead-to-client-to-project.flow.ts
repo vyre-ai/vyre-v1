@@ -6,5 +6,6 @@ export default defineFlow({
   name: "lead-to-client-to-project",
   title: "Lead to client to project",
   needs: ["forms", "contacts-link", "journeys", "records", "projects", "chat", "files"],
-  events: ["form.submitted", "record.created", "journey.started", "project.created"],
+  // the client stage makes the project while the Journey starts; the project (a nested call) commits before journey.started, which the start call writes when it returns
+  events: ["form.submitted", "record.created", "project.created", "journey.started"],
 });
