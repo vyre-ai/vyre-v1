@@ -19,6 +19,8 @@ export interface LiveLinkOptions {
    * again. A device that has agreed before is purged for real when its epoch is behind (a revoke, a bump), as before.
    */
   epoch?: number;
+  /** True when this device holds anything locally (a replica with rows). Adopting a purge answer's epoch is only for a device with nothing to wipe; the web shell keeps no replica, so the default is false. */
+  hasLocalData?(): boolean;
   /** The epoch this device adopted from the server; the session keeps it for the next hello. */
   onEpoch?(epoch: number): void;
   /** The contract hash this build was made with; the server answers update_required when it is too old. */
@@ -95,6 +97,7 @@ export function createLiveLink(o: LiveLinkOptions): LiveLink {
   let conn: Connection | null = null;
   let epoch = o.epoch ?? 0;
   let trusted = o.epoch !== undefined;
+  let adopted = false;
   const set = (s: LiveStatus): void => { if (s !== status) { status = s; o.onStatus?.(s); } };
 
   const link: LiveLink = {
@@ -111,9 +114,11 @@ export function createLiveLink(o: LiveLinkOptions): LiveLink {
         on: {
           status: (s) => set(toLive(s)),
           purge: (e) => {
-            if (!trusted) {
+            // Adopt only when all three hold: no agreed epoch yet, an empty local replica (cursor 0, nothing held) and this is the first hello of this session. Anything else is a real purge.
+            if (!trusted && !adopted && cursor === 0 && !(o.hasLocalData?.() ?? false)) {
               // a fresh device: nothing here to wipe, so adopt the server's epoch and say hello again
               trusted = true;
+              adopted = true;
               epoch = e;
               o.onEpoch?.(e);
               const old = conn;

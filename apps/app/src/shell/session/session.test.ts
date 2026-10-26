@@ -410,3 +410,34 @@ test("live: a device that agreed the current epoch reaches live with no purge", 
   assert.equal(link.status(), "live");
   link.stop();
 });
+
+test("live: a device with no agreed epoch but something stored locally is purged for real: no adopting, no second hello", async () => {
+  const srv = epochServer(7);
+  let purged: number[] = [];
+  const link = createLiveLink({ baseUrl: "https://s.test", token: () => "t", deviceId: "dev_data", registryHash: "h", hasLocalData: () => true, onChange: () => undefined, onPurge: (e) => { purged = [...purged, e]; }, onEpoch: () => { throw new Error("a device with local data never adopts"); }, dial: srv.dial });
+  link.start();
+  await settle(30);
+  assert.deepEqual(purged, [7]);
+  assert.deepEqual(srv.hellos, [0], "one hello, no retry");
+  link.stop();
+});
+
+test("live: adoption happens once per session: a second purge answer after adopting is a real purge", async () => {
+  let n = 0;
+  const hellos: number[] = [];
+  const dial: NonNullable<Parameters<typeof createLiveLink>[0]["dial"]> = async () => {
+    const link = memoryLink();
+    link.server.onFrame((f) => {
+      const h = (f as { t?: string; hello?: { epoch: number } });
+      if (h.t === "hello" && h.hello) { hellos.push(h.hello.epoch); n++; link.server.send({ t: "hello_ok", ok: { serverVersion: "t", epoch: 10 + n, serverHlc: "000000000001-0000-srv", mode: "purge", head: 0, entityVersions: {} } }); }
+    });
+    return link.client;
+  };
+  let purged: number[] = [];
+  const link = createLiveLink({ baseUrl: "https://s.test", token: () => "t", deviceId: "d", registryHash: "h", onChange: () => undefined, onPurge: (e) => { purged = [...purged, e]; }, dial });
+  link.start();
+  await settle(40);
+  assert.deepEqual(hellos, [0, 11], "adopted once");
+  assert.deepEqual(purged, [12], "the server moved the epoch again: real purge");
+  link.stop();
+});
