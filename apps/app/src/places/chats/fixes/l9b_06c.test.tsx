@@ -18,7 +18,7 @@ const items = (s: Sample): Item[] => s.replica.rows("needs") as unknown as Item[
 test("withdrawn requests sit under a Withdrawn label, dimmed, and are not counted", () => {
   const out = html("northwind");
   assert.ok(has(out, 'data-testid="needs-withdrawn-label"') && has(out, ">Withdrawn<"));
-  assert.ok(out.indexOf("Send the Pruitt fee letter") > out.indexOf('data-testid="needs-withdrawn-label"'), "after the label");
+  assert.ok(out.indexOf("Send the Globex fee letter") > out.indexOf('data-testid="needs-withdrawn-label"'), "after the label");
   assert.ok(out.indexOf('data-testid="needs-withdrawn-label"') > out.indexOf("Month-end export is waiting on a sign-in"), "after every live request");
   assert.ok(has(out, "Withdrawn: the fee changed and Docs is redrafting it."));
   assert.ok(has(out, 'data-testid="needs-count"') && has(out, ">7<"), "the count stays seven");

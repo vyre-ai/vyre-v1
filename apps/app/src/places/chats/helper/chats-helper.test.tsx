@@ -54,7 +54,7 @@ test("a running helper shows Working and Stop, and the steps so far", () => {
   const out = html(createSample("running"));
   assert.ok(has(out, 'data-testid="helper-live"') && has(out, ">Working<") && has(out, 'data-testid="helper-stop"'));
   assert.ok(has(out, "Working, 2 steps so far") && has(out, "Searching parcel 104-22-009"));
-  assert.ok(has(out, "Helper of Scout · from “County records search”"));
+  assert.ok(has(out, "Helper of Scout · from “Supplier records search”"));
   assert.ok(!has(out, 'data-testid="helper-meta"') || !has(out, "haiku ·"), "no time while it runs");
 });
 

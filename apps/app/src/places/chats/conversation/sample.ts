@@ -1,4 +1,4 @@
-// The sample conversation behind the tests and screenshots: Northwind's "Rivera intake" chat with Intake (leads) and Docs (listens), from the prototype. A fake replica holds the thread,
+// The sample conversation behind the tests and screenshots: Northwind's "Acme intake" chat with Intake (leads) and Docs (listens), from the prototype. A fake replica holds the thread,
 // its messages and its helpers; the writes the conversation makes (post, edit, stop, mode, plan) really change the replica, so a mount behaves like the app does.
 import { createFakeReplica, createScreenHooks } from "../../../../../../client/src/index.ts";
 import type { FakeReplica, Row } from "../../../../../../client/src/index.ts";
@@ -33,7 +33,7 @@ const card = (id: string, type: string, data: Record<string, unknown>, state?: "
 const INTAKE_REPLY = "Tuesday has two openings, **2:00** and **4:00**, and Thursday has **10:00**. I've sent Elena the intake form and noted Maya's referral on her record.\n\nWhich time should I book?";
 
 function build(variant: Variant): { thread: Thread; messages: Message[]; helpers: Helper[] } {
-  const base: Omit<Thread, "agents"> = { threadId: "c1", kind: "chat", title: "Rivera intake", listed: true, planMode: false, members: [{ kind: "person", id: "usr_irfad" }, { kind: "agent", id: "agt_intake" }, { kind: "agent", id: "agt_docs" }], createdAt: at(9, 24) };
+  const base: Omit<Thread, "agents"> = { threadId: "c1", kind: "chat", title: "Acme intake", listed: true, planMode: false, members: [{ kind: "person", id: "usr_irfad" }, { kind: "agent", id: "agt_intake" }, { kind: "agent", id: "agt_docs" }], createdAt: at(9, 24) };
   const agents: Thread["agents"] = variant === "nolead"
     ? [{ agentId: "agt_intake", mode: "listen", model: "opus" }, { agentId: "agt_docs", mode: "listen", model: "sonnet" }]
     : [{ agentId: "agt_intake", mode: "lead", model: "opus" }, { agentId: "agt_docs", mode: "listen", model: "sonnet" }];
@@ -53,25 +53,25 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
     }
   }
   if (variant === "errors") {
-    thread.title = "Rivera engagement letter";
+    thread.title = "Acme service agreement";
     thread.agents = [{ agentId: "agt_docs", mode: "lead", model: "opus" }];
     thread.members = [{ kind: "person", id: "usr_irfad" }, { kind: "agent", id: "agt_docs" }];
     messages.push(
-      m("d1", docs, "The engagement letter for Elena Rivera is drafted from the standard template with the consult fee filled in.", at(8, 50), {
-        blocks: [step("s1", "Used the standard engagement letter", "templates/engagement-letter.docx", 22), card("b1", "file", { name: "rivera-engagement-letter.docx", sub: "Word · 38 KB", id: "doc1" }, "done")],
+      m("d1", docs, "The service agreement for Elena Acme is drafted from the standard template with the consult fee filled in.", at(8, 50), {
+        blocks: [step("s1", "Used the standard service agreement", "templates/service-agreement.docx", 22), card("b1", "file", { name: "acme-service-agreement.docx", sub: "Word · 38 KB", id: "doc1" }, "done")],
       }),
-      m("d2", docs, "", at(8, 50, 30), { blocks: [card("b2", "changeset", { changesetId: "chg_cs2", folderName: "Rivera matter", fileCount: 1, added: 38, removed: 0, state: "open" }, "waiting")] }),
+      m("d2", docs, "", at(8, 50, 30), { blocks: [card("b2", "changeset", { changesetId: "chg_cs2", folderName: "Acme launch", fileCount: 1, added: 38, removed: 0, state: "open" }, "waiting")] }),
     );
   } else {
     messages.push(
-      m("m1", me, "New client: Elena Rivera, referred by Maya. Can you book her a consult this week and send the intake form?", at(9, 24)),
+      m("m1", me, "New client: Elena Acme, referred by Maya. Can you book her a consult this week and send the intake form?", at(9, 24)),
       m("e1", intake, "Intake is on it", at(9, 24, 20), { kind: "quiet" }),
       m("m2", intake, INTAKE_REPLY, at(9, 25), {
-        blocks: [step("s1", "Checked Maya's calendar this week", "calendar.free(maya, week)  →  Tue 14:00 · Tue 16:00 · Thu 10:00", 5), step("s2", "Found Elena Rivera in Records", "Contact · created from Maya's email · 23 Oct", 4), step("s3", "Filled the intake form in Chrome", "intake form · name, email, phone", 5)],
+        blocks: [step("s1", "Checked Maya's calendar this week", "calendar.free(maya, week)  →  Tue 14:00 · Tue 16:00 · Thu 10:00", 5), step("s2", "Found Elena Acme in Records", "Contact · created from Maya's email · 23 Oct", 4), step("s3", "Filled the intake form in Chrome", "intake form · name, email, phone", 5)],
       }),
       m("m3", me, "Book 2pm.", at(9, 30)),
       m("m4", intake, "Booked **Tuesday at 2:00** with Maya. Elena gets the invite with the form link, and I'll post in **#intake** when the form comes back.", at(9, 31), {
-        blocks: [step("s4", "Booked Tue 2:00 with Maya", "calendar.book(maya, Tue 14:00)", 3), step("s5", "Updated Elena's record", "Stage → Consult booked", 3), card("pl1", "file", { kind: "plan", name: "Rivera onboarding plan", id: "plan1", openComments: 1 }, "done"), card("b1", "file", { name: "client-intake.pdf", sub: "PDF · 207 KB", id: "pdf1" }, "done")],
+        blocks: [step("s4", "Booked Tue 2:00 with Maya", "calendar.book(maya, Tue 14:00)", 3), step("s5", "Updated Elena's record", "Stage → Consult booked", 3), card("pl1", "file", { kind: "plan", name: "Acme onboarding plan", id: "plan1", openComments: 1 }, "done"), card("b1", "file", { name: "client-intake.pdf", sub: "PDF · 207 KB", id: "pdf1" }, "done")],
       }),
       m("m5", intake, "Maya's calendar blocks Thursday mornings, and I offered Thursday 10:00 earlier. I'd like to change my instructions so it doesn't happen again.", at(9, 34), {
         blocks: [card("b2", "changeset", {
@@ -88,15 +88,15 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
   const helpers: Helper[] = [];
   if (variant === "streaming") {
     messages.push(
-      m("m6", me, "Thanks. Can you also draft the engagement letter for her?", at(9, 55)),
-      m("m7", intake, "", at(9, 56), { blocks: [step("s6", "Read the standard engagement letter", "templates/engagement-letter.docx", 4), step("s7", "Filled in the consult fee", "fee-schedule.csv", 4)] }),
+      m("m6", me, "Thanks. Can you also draft the service agreement for her?", at(9, 55)),
+      m("m7", intake, "", at(9, 56), { blocks: [step("s6", "Read the standard service agreement", "templates/service-agreement.docx", 4), step("s7", "Filled in the consult fee", "fee-schedule.csv", 4)] }),
     );
   }
   if (variant === "busy") {
     messages.push(
       m("m6", me, "Compare our consult pricing with firms within 20 miles, and have Docs check the letter.", at(9, 50)),
       m("m7", intake, "", at(9, 51), { blocks: [step("s6", "Found 9 firms within 20 miles", "maps search · 9 results", 4), step("s7", "Split the work across 3 helpers", "3 helpers · 3 firms each", 0, "live")] }),
-      m("m8", docs, "", at(9, 52), { blocks: [step("s8", "Reading rivera-engagement-letter.docx", "Projects/Rivera matter", 0, "live")] }),
+      m("m8", docs, "", at(9, 52), { blocks: [step("s8", "Reading acme-service-agreement.docx", "Projects/Acme launch", 0, "live")] }),
     );
     helpers.push(
       { threadId: "h1", title: "Firms 1–3", status: "running", agentId: "agt_intake", model: "haiku", startedAt: at(9, 51, 10) },
@@ -108,16 +108,16 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
       blocks: [card("er1", "error", {
         code: "restricted", message: "Docs did not read fee-schedule.csv", cause: "The file is labelled Restricted, and this chat runs on Opus, a cloud model. Restricted data only goes to a model on your computer.",
         next: [["local", "Switch to Llama 3.3 on this computer"], ["access", "Ask for access"]], retryable: true, turnId: "turn_9", traceId: "tr_5e20b4",
-        steps: [["Steps", "Opened the matter folder · 0.4s, read engagement-letter.docx · 0.2s, read fee-schedule.csv · refused"], ["Machine", "irfad-macbook"], ["Model", "Opus · your Claude account"], ["Key used", "Your Claude subscription"], ["Denials", "fee-schedule.csv: Restricted, not available to Anthropic"]],
+        steps: [["Steps", "Opened the launch folder · 0.4s, read service-agreement.docx · 0.2s, read fee-schedule.csv · refused"], ["Machine", "irfad-macbook"], ["Model", "Opus · your Claude account"], ["Key used", "Your Claude subscription"], ["Denials", "fee-schedule.csv: Restricted, not available to Anthropic"]],
       }, "error")],
     }));
   }
   if (variant === "plan") {
     messages.push(
-      m("m6", me, "Plan the onboarding for the Rivera matter before you change anything.", at(9, 55)),
+      m("m6", me, "Plan the onboarding for the Acme launch before you change anything.", at(9, 55)),
       m("m7", intake, "Here is the plan. Nothing changes until you approve it.", at(9, 56), {
-        blocks: [card("p1", "plan", { title: "Rivera onboarding plan", state: "proposed", threadId: "c1", planId: "plan_1", docFileId: "plan1", steps: [{ stepId: "a", text: "Send the engagement letter", state: "done" }, { stepId: "b", text: "Collect the retainer", state: "pending" }, { stepId: "c", text: "Open the matter folder", state: "pending" }, { stepId: "d", text: "Schedule the kickoff", state: "pending" }] }, "waiting"),
-          card("q1", "question", { prompt: "Who signs the engagement letter?", mode: "single", options: [{ key: "maya", label: "Maya Chen" }, { key: "omar", label: "Omar Haddad" }] }, "waiting")],
+        blocks: [card("p1", "plan", { title: "Acme onboarding plan", state: "proposed", threadId: "c1", planId: "plan_1", docFileId: "plan1", steps: [{ stepId: "a", text: "Send the service agreement", state: "done" }, { stepId: "b", text: "Collect the retainer", state: "pending" }, { stepId: "c", text: "Open the launch folder", state: "pending" }, { stepId: "d", text: "Schedule the kickoff", state: "pending" }] }, "waiting"),
+          card("q1", "question", { prompt: "Who signs the service agreement?", mode: "single", options: [{ key: "maya", label: "Maya Chen" }, { key: "omar", label: "Omar Haddad" }] }, "waiting")],
       }),
     );
     thread.planMode = true;
@@ -146,7 +146,7 @@ export interface Sample {
 
 export interface SampleOptions { online?: boolean; streamText?: string }
 
-const HELD_TEXT = "I read the standard engagement letter and filled in the **consult fee** from the fee schedule. Two things need your eye:\n\n1. The retainer is `$2,500`, which Maya has not confirmed\n2. Elena's address is the old one from the web form";
+const HELD_TEXT = "I read the standard service agreement and filled in the **consult fee** from the fee schedule. Two things need your eye:\n\n1. The retainer is `$2,500`, which Maya has not confirmed\n2. Elena's address is the old one from the web form";
 
 export function createSample(variant: Variant = "idle", o: SampleOptions = {}): Sample {
   const replica = createFakeReplica("northwind");

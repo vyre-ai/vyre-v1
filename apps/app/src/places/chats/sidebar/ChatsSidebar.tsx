@@ -42,7 +42,7 @@ const EMPTY_RECENT: RecentOut = { starred: [], today: [], yesterday: [], earlier
 /** Rows that react to the pointer: tools and times appear on hover or selection. */
 function Hot({ children }: { children: (over: boolean) => ReactElement }): ReactElement {
   const [over, setOver] = useState(false);
-  return <View style={{ height: ROW_H }} {...{ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) }}>{children(over)}</View>;
+  return <View style={{ minHeight: ROW_H }} {...{ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) }}>{children(over)}</View>;
 }
 
 export function useSidebarApi(onLocal: (row: ChatRow) => void, onSettled: (localId: string) => void): SidebarApi {
@@ -217,25 +217,24 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
     const sel = cursor === e.key;
     const wrap = (child: ReactElement): ReactElement => {
       const m = menuFor(e);
-      return m ? <View style={{ height: ROW_H }} {...menuTrigger((x, y) => menu.show(m, x, y, "context", { label: e.key }))}>{child}</View> : child;
+      return m ? <View style={{ minHeight: ROW_H }} {...menuTrigger((x, y) => menu.show(m, x, y, "context", { label: e.key }))}>{child}</View> : child;
     };
     switch (e.type) {
       case "head": {
         if (e.section === "needs") {
           // The prototype's Needs you is one row with the inbox glyph and the count; its requests sit under it as child rows. The chevron folds them.
           return (
-            <View testID="head-needs" style={{ height: ROW_H }}>
+            <View testID="head-needs" style={{ minHeight: ROW_H }}>
               <Row
                 id="needs-parent" title="Needs you" onPress={() => { data.nav.openNeedsYou(); leave(); }}
                 leading={<LeadGlyph name="inbox" />}
-                trailing={
-                  <View style={st.tools}>
-                    <Pressable accessibilityRole="button" accessibilityLabel={`Needs you, ${e.count ?? 0}`} accessibilityState={{ expanded: e.open }} onPress={() => toggle("needs")} testID="toggle-needs" style={{ transform: [{ rotate: e.open ? "0deg" : "-90deg" }] }}>
-                      <Glyph name="chev" size={11} color="var(--ink-4)" />
-                    </Pressable>
-                    {e.count ? <Badge n={e.count} testID="count-needs" /> : null}
-                  </View>
+                titleMarks={
+                  // The fold chevron follows the label at the head chevron's size and tint, as every other section head draws it.
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Needs you, ${e.count ?? 0}`} accessibilityState={{ expanded: e.open }} onPress={() => toggle("needs")} testID="toggle-needs" style={{ alignSelf: "center", transform: [{ rotate: e.open ? "0deg" : "-90deg" }] }}>
+                    <Glyph name="chev" size={11} color="var(--ink-4)" />
+                  </Pressable>
                 }
+                trailing={e.count ? <Badge n={e.count} testID="count-needs" /> : null}
               />
             </View>
           );
@@ -313,7 +312,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
         const c = e.channel;
         // A channel with nothing new sits dim; one with unread stands out at full strength with its count (prototype .unread / .dim).
         return wrap(
-          <View style={{ height: ROW_H, opacity: c.unread > 0 ? 1 : 0.72 }} testID={c.unread > 0 ? `channel-unread-${c.channelId}` : `channel-read-${c.channelId}`}>
+          <View style={{ minHeight: ROW_H, opacity: c.unread > 0 ? 1 : 0.72 }} testID={c.unread > 0 ? `channel-unread-${c.channelId}` : `channel-read-${c.channelId}`}>
             <Row
               id={e.key} title={c.name} selected={sel} emphasis={c.unread > 0} onPress={() => open(e)}
               leading={<LeadGlyph name={e.project ? "project" : c.visibility === "invite" ? "lock" : "hash"} />}
@@ -327,7 +326,9 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
 
   // In the shell the assistant's new-chat button sits in the slot's header, right of the title beside the collapse button (the prototype's "Chats ... V [panel]"); alone it sits in a row of its own.
   const inHeader = slot?.actionsOutlet !== undefined && slot.actionsOutlet !== null;
-  const headBusy = data.space.otherNeedsYou || !online;
+  // The other-Space dot sits beside the assistant's button in the slot's header (the prototype puts it by the Space name), never alone on a row under the search field.
+  const headBusy = !online || (data.space.otherNeedsYou && !inHeader);
+  const otherDot = data.space.otherNeedsYou ? <View testID="other-space-dot" accessibilityLabel="Another Space needs you" {...{ title: "Another Space needs you" }} style={st.red} /> : null;
   const newChatButton = (
     <Pressable accessibilityRole="button" accessibilityLabel={`New chat with ${data.space.assistant.name}`} {...{ title: `New chat with ${data.space.assistant.name}` }} onPress={() => { void api.newChat(); leave(); }} testID="new-chat" style={({ hovered }: { hovered?: boolean }) => [st.assistant, hovered === true && st.assistantOver]}>
       <Avatar name={data.space.assistant.name} kind="assistant" size={18} />
@@ -337,13 +338,13 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
     <View testID="chats-sidebar" accessibilityRole="list" accessibilityLabel="Chats" style={st.root} {...{ tabIndex: 0, onKeyDown }}>
       {headBusy || !inHeader ? (
         <View style={st.top} testID="sidebar-head" accessibilityLabel={`Chats, ${data.space.name}`}>
-          {data.space.otherNeedsYou ? <View testID="other-space-dot" accessibilityLabel="Another Space needs you" style={st.red} /> : null}
+          {otherDot}
           {online ? null : <Text testID="sidebar-offline" style={st.quiet}>Offline</Text>}
           <View style={{ flex: 1 }} />
           {inHeader ? null : newChatButton}
         </View>
       ) : null}
-      {inHeader ? portalInto(slot?.actionsOutlet, newChatButton) : null}
+      {inHeader ? portalInto(slot?.actionsOutlet, <View style={st.headTools}>{otherDot}{newChatButton}</View>) : null}
       {each(failures, (f) => (
         <View key={f.key} testID={`section-error-${f.key}`} accessibilityLabel={`${f.label} could not load`}>
           <States kind="error" message={`${f.label} could not load`} cause={f.error.message} {...(f.error.code ? { code: f.error.code } : {})} {...(f.error.traceId ? { traceId: f.error.traceId } : {})} />
@@ -367,7 +368,8 @@ const st = StyleSheet.create({
   top: { height: 28, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 6, paddingBottom: 4 },
   assistant: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   assistantOver: { backgroundColor: "var(--press)" as string },
-  red: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--danger)" as string },
+  red: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--accent)" as string },
+  headTools: { flexDirection: "row", alignItems: "center", gap: 6 },
   list: { flex: 1, minHeight: 0 },
   tools: { flexDirection: "row", alignItems: "center", gap: 6 },
   time: { fontSize: 11, color: "var(--ink-3)" as string },

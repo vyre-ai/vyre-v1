@@ -1,4 +1,4 @@
-// The real Chats place inside the sample shell: the sidebar, the open chat (Rivera intake with Intake) and Intake's pane, drawn from the sample Spaces of the chats packets. Other places keep
+// The real Chats place inside the sample shell: the sidebar, the open chat (Acme intake with Intake) and Intake's pane, drawn from the sample Spaces of the chats packets. Other places keep
 // their sample rows. Used by the shots mount that opens the shell on Chats.
 import { useMemo } from "react";
 import type { ReactElement, ReactNode } from "react";

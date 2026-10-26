@@ -72,16 +72,16 @@ test("the pane follows the agent of the open chat", () => {
   assert.ok(has(nw, 'data-testid="face-Intake"') && has(nw, "Books first calls and follows up on cold inquiries"));
   const personal = html(createSample("personal"), "threads");
   assert.ok(has(personal, 'data-testid="face-Assistant"') && has(personal, "Your assistant for anything in this Space"));
-  assert.ok(!has(personal, "Rivera intake"), "another agent's chats do not leak in");
+  assert.ok(!has(personal, "Acme intake"), "another agent's chats do not leak in");
 });
 
 test("Computer, working: the live caption, steps in order, and the sites it is signed in to", () => {
   const out = html(createSample(), "computer");
-  assert.ok(has(out, "Working: Filling the county records form"));
+  assert.ok(has(out, "Working: Filling the supplier records form"));
   assert.ok(has(out, 'data-testid="computer-screen"') && has(out, 'data-testid="computer-take"') && has(out, 'data-testid="computer-terminal"') && has(out, 'data-testid="computer-pop"'));
   assert.ok(has(out, ">Session<") && has(out, ">5 steps<"));
   const session = out.slice(at(out, ">Session<"));
-  inOrder(session, ["Opened the county records site", "Searched for Rivera, Elena", "Saved the 2019 deed to Files", "Checked the filing date", "Filling the county records form"]);
+  inOrder(session, ["Opened the supplier records site", "Searched for Acme, Elena", "Saved the 2019 deed to Files", "Checked the filing date", "Filling the supplier records form"]);
   assert.ok(has(out, "Chrome · now") && has(out, "Chrome · 9 min ago"));
   inOrder(out, ["Signed in on its computer", "Google Workspace", "Web form inbox", "Calendar"]);
   assert.ok(has(out, "intake@northwind.example · since 2 Oct"));
@@ -105,7 +105,7 @@ test("Computer, in a Personal Space, says Needs a Team Space; an agent without a
 
 test("Threads: the threads it worked in, its helpers (running first), and its own chats; the open chat is selected", () => {
   const out = html(createSample(), "threads");
-  inOrder(out, ["Threads it worked in", "#intake · Omar Haddad", ">Helpers<", "County mirrors", "Firms 1–3", "Its chats", "Rivera intake", "Weekly lead report"]);
+  inOrder(out, ["Threads it worked in", "#intake · Omar Haddad", ">Helpers<", "Supplier mirrors", "Firms 1–3", "Its chats", "Acme intake", "Weekly lead report"]);
   assert.ok(has(out, "Working now") && has(out, "5 replies · last 9:34"));
   assert.ok(has(out, ">9:31<") && has(out, ">Mon<"), "its chats say when as the prototype does: the clock time today, the weekday this week");
   assert.ok(!has(out, "Lead follow-ups") && !has(out, "Retainer question"), "only what the prototype lists");
@@ -140,8 +140,8 @@ test("Files: an empty folder says so", () => {
 
 test("Memory: proposed facts wait on top with Accept and Reject; known facts carry when, learned and source; replaced ones stay out", () => {
   const out = html(createSample(), "memory");
-  inOrder(out, ["Proposed · 3", "Consult invoices go out the same day as the call.", "Thursday mornings are never offered for consults.", "Elena's business partner", "What Intake knows in Northwind", "Elena Rivera was referred by Maya Chen.", "The consult fee is $250", "Consults are 1 hour"]);
-  assert.ok(has(out, "Accept or reject") && has(out, "Rivera intake") && has(out, " · 9:31") && has(out, "#intake"), "proposed facts are cards that say where from and when, in the prototype's words");
+  inOrder(out, ["Proposed · 3", "Consult invoices go out the same day as the call.", "Thursday mornings are never offered for consults.", "Elena's business partner", "What Intake knows in Northwind", "Elena Acme was referred by Maya Chen.", "The consult fee is $250", "Consults are 1 hour"]);
+  assert.ok(has(out, "Accept or reject") && has(out, "Acme intake") && has(out, " · 9:31") && has(out, "#intake"), "proposed facts are cards that say where from and when, in the prototype's words");
   assert.ok(has(out, "Since 23 Oct · learned 24 Oct · from a chat") && has(out, "Since 2 Oct · learned 2 Oct · from you"));
   assert.ok(!has(out, "Consults are 30 minutes."), "the replaced fact is not in the default list");
   assert.ok(has(out, 'data-testid="memory-filter"') && !has(out, 'data-testid="memory-showing"'));
@@ -196,7 +196,7 @@ test("offline: the pane says so and still draws what the device keeps", () => {
   const s = createSample("northwind", { online: false });
   const out = html(s, "memory");
   assert.ok(has(out, 'data-testid="pane-offline"') && has(out, "Offline. Showing what this device keeps."));
-  assert.ok(has(out, "Elena Rivera was referred by Maya Chen."));
+  assert.ok(has(out, "Elena Acme was referred by Maya Chen."));
 });
 
 test("before data the pane draws a frame of the right size", () => {
@@ -250,7 +250,7 @@ test("Remove takes a fact out of what the agent knows", async () => {
   const s = createSample();
   const { d } = deps(s);
   await removeFact(d, factsNow(s).find((f) => f.factId === "f1")!);
-  assert.ok(!html(s, "memory").includes("Elena Rivera was referred by Maya Chen."));
+  assert.ok(!html(s, "memory").includes("Elena Acme was referred by Maya Chen."));
 });
 
 test("Pause and Resume flip the switch, with Undo; Duplicate makes a paused copy; Rename and new instructions save", async () => {
@@ -411,7 +411,7 @@ test("MAP.md comes from memory.map.get: key rows, its line count against the lim
   const out = (await s.data.call("memory.map.get", { agentId: "agt_intake" })) as { map?: { body: string; lines: number } };
   assert.ok(out.map);
   const map = parseMap(out.map.body, out.map.lines);
-  assert.deepEqual(map.rows.map((r) => r.key), ["elena-rivera", "consult-rules", "maya-calendar", "intake-form-site", "weekly-lead-report"]);
+  assert.deepEqual(map.rows.map((r) => r.key), ["elena-acme", "consult-rules", "maya-calendar", "intake-form-site", "weekly-lead-report"]);
   assert.equal(map.lines, 5);
   assert.equal(MAP_LIMIT, 200);
   assert.equal(parseMap("# t\n\nplain\n- `a-b`: text here\n* `c` \u2013 more").rows.map((r) => `${r.key}|${r.text}`).join(","), "a-b|text here,c|more");

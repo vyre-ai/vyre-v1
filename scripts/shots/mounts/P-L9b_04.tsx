@@ -1,4 +1,4 @@
-// Mount for P-L9b_04: the conversation over the Northwind sample (Rivera intake with Intake leading and Docs listening). ?v= picks a variant: idle (default), streaming (Intake is writing
+// Mount for P-L9b_04: the conversation over the Northwind sample (Acme intake with Intake leading and Docs listening). ?v= picks a variant: idle (default), streaming (Intake is writing
 // an answer, held part-way), errors (Docs, with the inline error row), plan (a plan card and a question waiting, plan mode on), busy (two agents working and two helpers), nolead
 // (nobody leads), closed, long (150 messages). Every control works against the sample replica: a send adds a message and the composer clears, Stop finishes the live steps, a mode
 // change moves the lead. chat.post stays out while ?hold=1, so the picture shows a message that is sent but not yet confirmed.

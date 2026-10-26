@@ -56,11 +56,11 @@ export function Desk({ kind, caption }: { kind: "asleep" | "live" | "mine" | "bu
     <View testID={`desk-${kind}`} style={s.desk}>
       <View style={s.menubar}><View style={s.menuDot} /><View style={s.menuBar} /></View>
       <View style={s.win}>
-        <View style={s.tb}><View style={s.tbDot} /><View style={s.tbDot} /><View style={s.tbDot} /><View style={s.tbUrl}><Text numberOfLines={1} style={s.tbUrlText}>forms.northwind.example/intake/rivera</Text></View></View>
+        <View style={s.tb}><View style={s.tbDot} /><View style={s.tbDot} /><View style={s.tbDot} /><View style={s.tbUrl}><Text numberOfLines={1} style={s.tbUrlText}>forms.northwind.example/intake/acme</Text></View></View>
         <View style={s.pg}>
           <View style={[s.ln, { width: "38%" }]} />
           <View style={[s.fld, kind === "live" && { borderColor: "#6c6cf0" }]}><Text numberOfLines={1} style={s.fldText}>{caption}</Text></View>
-          <View style={s.fld}><Text style={s.fldText}>elena@riveraholdings.example</Text></View>
+          <View style={s.fld}><Text style={s.fldText}>elena@acmeholdings.example</Text></View>
           <View style={s.fld}><Text style={s.fldText}>•••••••• #Northwind_Forms</Text></View>
           <View style={[s.ln, { width: "70%" }]} />
           <View style={[s.ln, { width: "52%" }]} />

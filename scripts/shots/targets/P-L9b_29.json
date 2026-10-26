@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_29-chats-sidebar",
+      "route": "/m/P-L9b_22",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='chats-sidebar']",
+      "note": "The real Chats place in the shell (mount of P-L9b_22): the Chats sidebar with 8 px between each face or glyph and its text, one type for every section head (Agents, Channels, Starred, Today, Projects), the Needs you chevron beside its label, the other-Space dot in the header beside the assistant button instead of a row under Search chats, neutral channel names (acme-launch, globex-launch). On a phone the rows are 44 px high. The prototype side is its Chats place in the same skin."
+    }
+  ]
+}

@@ -73,7 +73,7 @@ test("a request: what it is, why, who made it, where it came from, with one prim
 
 test("a review shows the excerpt and the file; a report shows its values; a blocked one offers its own actions and no Send back", () => {
   const review = html(createSample(), "n2");
-  assert.ok(has(review, "Needs your review") && has(review, 'data-testid="block-quote"') && has(review, "The consult fee is $250") && has(review, "engagement-letter.docx · open beside") && has(review, ">Looks good<"));
+  assert.ok(has(review, "Needs your review") && has(review, 'data-testid="block-quote"') && has(review, "The consult fee is $250") && has(review, "service-agreement.docx · open beside") && has(review, ">Looks good<"));
   const report = html(createSample(), "n6");
   assert.ok(has(report, 'data-testid="block-pairs"') && has(report, "form.send 503") && has(report, "MacBook · macOS 26"));
   const blocked = html(createSample(), "n7");
@@ -84,7 +84,7 @@ test("a review shows the excerpt and the file; a report shows its values; a bloc
 test("every row is a ui/Row with a face, a second line and a time; a quick action sits in its trailing slot", () => {
   const out = html(createSample());
   assert.ok(has(out, 'data-testid="row-need-n1-leading"') && has(out, 'data-testid="row-need-n1-trailing"') && has(out, 'data-testid="face-Billing"'));
-  assert.ok(has(out, "Billing · $18,420 total · due Friday") && has(out, "Scout · Needs a login for the county site"), "the second line names who and what");
+  assert.ok(has(out, "Billing · $18,420 total · due Friday") && has(out, "Scout · Needs a login for the supplier site"), "the second line names who and what");
   assert.ok(has(out, 'data-testid="row-need-n1-notelead"') && has(out, "var(--warn)"), "the verb you act with starts the second line in its colour: accent for Approve and Review, warning for Unblock (P-L9b_23)");
   assert.ok(has(out, ">Approve<") && has(out, ">Unblock<"));
   assert.ok(has(out, 'data-testid="quick-n1"') && has(out, 'data-testid="quick-n7"'));
@@ -170,7 +170,7 @@ test("Take locks a role request to you; Snooze removes the request until its tim
   assert.deepEqual(s.calls.map((c) => c.cap), ["tasks.take", "tasks.snooze"]);
   assert.deepEqual(s.calls[1]!.input, { taskId: "n5", until: Date.UTC(2025, 9, 25, 9, 0, 0) });
   assert.ok(!has(html(s), 'data-testid="row-need-n5"'));
-  assert.equal(notes[0], "You took “Pruitt intake summary”");
+  assert.equal(notes[0], "You took “Globex intake summary”");
 });
 
 test("every nav handler is reachable: the shell is told what to open, never how", () => {

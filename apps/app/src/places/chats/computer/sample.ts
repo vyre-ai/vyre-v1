@@ -42,7 +42,7 @@ export function createSample(variant: Variant = "working", o: { online?: boolean
   let seq = 0;
   let recording: Recording | null = null;
 
-  const base: Computer = { computerId: COMPUTER, agentId: "agt_intake", state: variant === "asleep" ? "asleep" : variant === "takeover" ? "takeover" : "working", tabs: 3, tabLimit: 8, host: "server", recording: false, ...(variant === "working" ? { caption: "Filling the county records form" } : {}) };
+  const base: Computer = { computerId: COMPUTER, agentId: "agt_intake", state: variant === "asleep" ? "asleep" : variant === "takeover" ? "takeover" : "working", tabs: 3, tabLimit: 8, host: "server", recording: false, ...(variant === "working" ? { caption: "Filling the supplier records form" } : {}) };
   replica.put("computers", [{ id: COMPUTER, ...base }]);
   const cur = (): Computer & { id: string } => (replica.rows("computers") as unknown as (Computer & { id: string })[])[0]!;
   const patch = (p: Partial<Computer>): Computer => { const next = { ...cur(), ...p }; replica.put("computers", [next]); const { id: _id, ...rest } = next; return rest as Computer; };

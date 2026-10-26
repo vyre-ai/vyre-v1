@@ -78,15 +78,15 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
 
   const computer: Computer = {
     computerId: COMPUTER, agentId: INTAKE, state: variant === "asleep" ? "asleep" : "working", tabs: 3, tabLimit: 8, host: "server", recording: false,
-    ...(variant === "asleep" ? { lastActiveAt: at(10, 24, 9, 31) } : { caption: "Filling the county records form", lastFrameAt: SAMPLE_NOW - 2000 }),
+    ...(variant === "asleep" ? { lastActiveAt: at(10, 24, 9, 31) } : { caption: "Filling the supplier records form", lastFrameAt: SAMPLE_NOW - 2000 }),
   };
   if (!personal) replica.put("computers", [{ id: COMPUTER, ...computer }]);
   const steps: Step[] = [
-    { stepId: "stp1", idx: 0, at: SAMPLE_NOW - 9 * MIN, caption: "Opened the county records site", tool: "Chrome", by: "agent" },
-    { stepId: "stp2", idx: 1, at: SAMPLE_NOW - 8 * MIN, caption: "Searched for Rivera, Elena", tool: "Chrome", by: "agent" },
+    { stepId: "stp1", idx: 0, at: SAMPLE_NOW - 9 * MIN, caption: "Opened the supplier records site", tool: "Chrome", by: "agent" },
+    { stepId: "stp2", idx: 1, at: SAMPLE_NOW - 8 * MIN, caption: "Searched for Acme, Elena", tool: "Chrome", by: "agent" },
     { stepId: "stp3", idx: 2, at: SAMPLE_NOW - 7 * MIN, caption: "Saved the 2019 deed to Files", tool: "Files", by: "agent" },
     { stepId: "stp4", idx: 3, at: SAMPLE_NOW - 5 * MIN, caption: "Checked the filing date", tool: "Terminal", by: "agent" },
-    { stepId: "stp5", idx: 4, at: SAMPLE_NOW - 1 * MIN, caption: "Filling the county records form", tool: "Chrome", by: "agent" },
+    { stepId: "stp5", idx: 4, at: SAMPLE_NOW - 1 * MIN, caption: "Filling the supplier records form", tool: "Chrome", by: "agent" },
   ];
   if (!personal) replica.put("steps", steps.map((x) => ({ id: x.stepId, ...x })));
   const sessions: Session[] = [
@@ -99,24 +99,24 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
   const threads: Thread[] = personal
     ? [thread("m1", "chat", "Plan the week", at(10, 24, 8, 5), { agents: [{ agentId: "agt_assistant", mode: "lead" }] }), thread("m2", "chat", "Flights to Kuala Lumpur", at(10, 23, 18, 40), { agents: [{ agentId: "agt_assistant", mode: "lead" }] })]
     : [
-      thread("c1", "chat", "Rivera intake", at(10, 24, 9, 31)),
+      thread("c1", "chat", "Acme intake", at(10, 24, 9, 31)),
       thread("c5", "chat", "Weekly lead report", at(10, 20, 9, 0)),
       thread("th_a", "thread", "#intake · Omar Haddad", at(10, 24, 9, 28), { parentThreadId: "c1", replyCount: 5, lastMessageAt: at(10, 24, 9, 34) }),
     ];
   replica.put("threads", threads.map((x) => ({ id: x.threadId, ...x })));
   const helpers: Helper[] = personal ? [] : [
-    { threadId: "h4", title: "County mirrors", status: "running", agentId: INTAKE, model: "haiku", startedAt: SAMPLE_NOW - 4 * MIN },
+    { threadId: "h4", title: "Supplier mirrors", status: "running", agentId: INTAKE, model: "haiku", startedAt: SAMPLE_NOW - 4 * MIN },
     { threadId: "h1", title: "Firms 1–3", status: "done", agentId: INTAKE, model: "haiku", startedAt: at(10, 24, 8, 40) },
   ];
   replica.put("helpers", helpers.map((x) => ({ id: x.threadId, ...x })));
 
   const facts: (Fact & { fromMe?: boolean })[] = personal ? [] : [
-    fact("f1", "Elena Rivera was referred by Maya Chen.", { validFrom: at(10, 23, 9), learnedAt: at(10, 24, 9, 25), sourceRef: "c1" }),
+    fact("f1", "Elena Acme was referred by Maya Chen.", { validFrom: at(10, 23, 9), learnedAt: at(10, 24, 9, 25), sourceRef: "c1" }),
     fact("f2", "Consults are 1 hour, booked on Maya's calendar.", { validFrom: at(10, 2, 9), learnedAt: at(10, 2, 9), sourceKind: "manual", sourceRef: "c8", fromMe: true }),
     fact("f3", "The consult fee is $250; Maya waives it for her referrals.", { validFrom: at(10, 10, 9), learnedAt: at(10, 10, 9), sourceKind: "channel", sourceRef: "intake" }),
     fact("f4", "Consults are 30 minutes.", { validFrom: at(9, 1, 9), learnedAt: at(9, 1, 9), validTo: at(10, 2, 9), closedAt: at(10, 2, 9), sourceKind: "channel", sourceRef: "intake", status: "closed" }),
     fact("p1", "Consult invoices go out the same day as the call.", { status: "proposed", learnedAt: at(10, 24, 9, 31) }),
-    fact("p2", "Elena's business partner, Dev Rao, may call about the matter.", { status: "proposed", learnedAt: at(10, 24, 9, 28) }),
+    fact("p2", "Elena's business partner, Dev Rao, may call about the launch.", { status: "proposed", learnedAt: at(10, 24, 9, 28) }),
     fact("p3", "Thursday mornings are never offered for consults.", { status: "proposed", learnedAt: at(10, 24, 9, 29), sourceKind: "channel", sourceRef: "intake" }),
   ];
   replica.put("facts", facts.map((x) => ({ id: x.factId, ...x })));
@@ -204,7 +204,7 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
   };
   let seq = 0;
   const delegatedFrom = new Map<string, string>();
-  const MAP_MD = ["# Intake memory map", "", "- `elena-rivera` client referred by Maya, call Thursday", "- `consult-rules` length, host and fee", "- `maya-calendar` when Maya is free and what she blocks",
+  const MAP_MD = ["# Intake memory map", "", "- `elena-acme` client referred by Maya, call Thursday", "- `consult-rules` length, host and fee", "- `maya-calendar` when Maya is free and what she blocks",
     "- `intake-form-site` how the web intake form reaches us", "- `weekly-lead-report` what the Friday report holds"].join("\n");
   const mapOut = () => ({ map: { body: MAP_MD, lines: MAP_MD.split("\n").filter((l) => l.startsWith("- `")).length, updatedAt: at(10, 24, 9, 31) } });
   replica.resolve("memory.map.get", mapOut);
