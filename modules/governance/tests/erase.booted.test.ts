@@ -50,7 +50,7 @@ function seededDir(): string {
   return dir;
 }
 
-interface World { chatIds: string[]; hits: { id: string; kind: string; title: string }[]; recordId: string; transcriptPath: string; filesDeleted: string[]; filesPurged: string[] }
+interface World { chatIds: string[]; hits: { id: string; kind: string; title: string }[]; recordId: string; transcriptPath: string; transcriptFileId: string; filesDeleted: string[]; filesPurged: string[] }
 
 async function boot(world: World): Promise<Daemon> {
   const dir = seededDir();
@@ -82,7 +82,7 @@ async function boot(world: World): Promise<Daemon> {
           notes: [{ noteId: "not_pat00001", layer: "agent", path: "x.md", title: "Note", updatedAt: 1 }],
         })),
         // what an erase asks of Files and Twilio
-        "files.resolve": h((_c, i) => { if (i["path"] !== world.transcriptPath) throw notFound; return { kind: "file", fileId: "fil_trans0001" }; }),
+        "files.resolve": h((_c, i) => { if (i["path"] !== world.transcriptPath) throw notFound; return { kind: "file", fileId: world.transcriptFileId }; }),
         "files.delete": h((_c, i) => { world.filesDeleted.push(String(i["fileId"])); return { deleted: true }; }),
         "files.purge": h((_c, i) => { world.filesPurged.push(String(i["fileId"])); return { purged: true }; }),
         "twilio.recording.delete": h(() => ({ deleted: true })),
@@ -118,7 +118,7 @@ function dumpOf(d: Daemon, prefixes: string[]): string {
 }
 
 test("erase a person end to end: found in every store, erased, and nothing of theirs is left; another person's data stays", async () => {
-  const world: World = { chatIds: [], hits: [], recordId: "", transcriptPath: "", filesDeleted: [], filesPurged: [] };
+  const world: World = { chatIds: [], hits: [], recordId: "", transcriptPath: "", transcriptFileId: "", filesDeleted: [], filesPurged: [] };
   const d = await boot(world);
   try {
     const run = (sql: string, ...a: unknown[]) => d.db!.run(sql, ...a);
@@ -132,6 +132,11 @@ test("erase a person end to end: found in every store, erased, and nothing of th
     const keepChat = (await ok<{ thread: { threadId: string } }>(d, "/v1/chat/start", { idempotencyKey: "erase-chat2", kind: "chat", agentIds: ["agt_intake01"], first: "Lunch on Friday" })).thread.threadId;
     const channel = (await ok<{ channel: { channelId: string } }>(d, "/v1/channels/create", { idempotencyKey: "erase-chn", name: "Pat Lee matter", visibility: "invite", agentIds: ["agt_intake01"] })).channel.channelId;
     world.transcriptPath = `chats/${chat}/transcript.md`;
+    // a file that stands at the transcript path: the fake files.resolve answers with its id. The call to files.delete and files.purge is authorized against that file as a resource, so it must exist in Files for real
+    // (an id the access snapshot does not know is hidden as permission.not_found, which the purge swallows as "nothing to remove").
+    const roots = await ok<{ folders: { folderId: string }[] }>(d, "/v1/files/list", { section: "space" });
+    const transcript = await ok<{ file: { fileId: string } }>(d, "/v1/files/create", { idempotencyKey: "erase-transcript-file", folderId: roots.folders[0]!.folderId, name: "transcript.md", content: { text: "Pat Lee is going through a divorce" } });
+    world.transcriptFileId = transcript.file.fileId;
     world.hits.push({ id: chat, kind: "chat", title: "Pat Lee" }, { id: channel, kind: "channel", title: "Pat Lee matter" });
     // ---- a text, a call with a recording, a mail message, their inbox entries
     for (const [id, who, body] of [["sms_pat00001", "+14155550177", "call me back about the divorce"], ["sms_other001", "+14155550188", "see you at noon"]] as const) {
@@ -141,8 +146,9 @@ test("erase a person end to end: found in every store, erased, and nothing of th
       run(`INSERT INTO telephony_call ("id", "numberId", "direction", "from", "to", "state", "startedAt", "recordingFileId", "transcript", "summary", "version") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, "num_a1b2c3", "in", "+14155550177", "+14155550100", "ended", 1, file, text, text, 0);
       run(`INSERT INTO telephony_call_meta ("callId", "hold", "recording", "recordingSid") VALUES (?, ?, ?, ?)`, id, 0, 0, file ? "RE00000000000000000000000000000001" : null);
     }
-    for (const [id, subject, body] of [["eml_pat00001", "Pat Lee settlement", "The settlement terms are attached"], ["eml_other001", "Lunch", "Noon works"]] as const) {
-      run(`INSERT INTO mail_message ("id", "mailboxId", "direction", "status", "fromAddress", "toAddresses", "subject", "snippet", "body", "sentAt", "attachments", "version") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, "mbx_work0001", "in", "received", "pat@client.example", "[]", subject, body, body, 1, "[]", 0);
+    // the other message is Dana's: it must stay, and it must not carry Pat's address
+    for (const [id, from, subject, body] of [["eml_pat00001", "pat@client.example", "Pat Lee settlement", "The settlement terms are attached"], ["eml_other001", "dana@other.example", "Lunch", "Noon works"]] as const) {
+      run(`INSERT INTO mail_message ("id", "mailboxId", "direction", "status", "fromAddress", "toAddresses", "subject", "snippet", "body", "sentAt", "attachments", "version") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, "mbx_work0001", "in", "received", from, "[]", subject, body, body, 1, "[]", 0);
       run(`INSERT INTO mail_body ("messageId", text) VALUES (?, ?)`, id, body);
     }
     run(`INSERT INTO inbox_conversation ("id", "contactId", "address", "displayName", "lastMessageAt", "lastChannel", "lastPreview", "unreadCount", "needsMatch", "version") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, "cnv_pat00001", pat, "pat@client.example", "Pat Lee", 3, "call", "Pat: I want to change my secret trust", 3, 0, 0);
@@ -181,7 +187,7 @@ test("erase a person end to end: found in every store, erased, and nothing of th
     assert.deepEqual((d.db!.all("SELECT refId FROM inbox_item") as { refId: string }[]).map((r) => r.refId), [], "Pat's three inbox entries are gone");
     assert.deepEqual((d.db!.all("SELECT note_id FROM memory_notes") as { note_id: string }[]).map((r) => r.note_id), ["not_other001"]);
     assert.deepEqual(ids("SELECT id FROM memory_facts"), ["fct_other001"]);
-    assert.ok(world.filesDeleted.includes("fil_trans0001") && world.filesPurged.includes("fil_trans0001"), "the chat's transcript file was deleted and purged with it");
+    assert.ok(world.transcriptFileId !== "" && world.filesDeleted.includes(world.transcriptFileId) && world.filesPurged.includes(world.transcriptFileId), "the chat's transcript file was deleted and purged with it");
     // governance kept ids and counts only
     const tomb = await ok<{ total: number }>(d, "/v1/governance/tombstones/list", {});
     assert.ok(tomb.total >= 7, "a tombstone for every erased item, so a restore erases them again");
@@ -189,7 +195,7 @@ test("erase a person end to end: found in every store, erased, and nothing of th
 });
 
 test("retention removes aged Run logs through the purger and keeps the young and the unfinished", async () => {
-  const world: World = { chatIds: [], hits: [], recordId: "rec_none00001", transcriptPath: "", filesDeleted: [], filesPurged: [] };
+  const world: World = { chatIds: [], hits: [], recordId: "rec_none00001", transcriptPath: "", transcriptFileId: "", filesDeleted: [], filesPurged: [] };
   const d = await boot(world);
   try {
     const now = Date.now();
