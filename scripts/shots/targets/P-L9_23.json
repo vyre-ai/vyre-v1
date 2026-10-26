@@ -5,14 +5,16 @@
       "route": "/m/P-L9_23?part=cmdk",
       "proto": "files,{skin}",
       "waitFor": "[data-testid='cmdk-list'] [data-testid^='row-']",
-      "note": "Cmd-K as the real shell opens it: empty query, the Recent group first, quiet group heads, the hint footer. The prototype cannot open its palette from a hash, so the prototype image is the Files place with its Search field, as for P-L9_15. Paper and graphite, 1280 and 390 wide."
+      "note": "Cmd-K as the real shell opens it: empty query, Recent first, quiet group heads, the hint footer. The prototype side presses its Search button, so it shows its own palette open (no hash needed). Paper and graphite, 1280 and 390 wide.",
+      "protoClick": "#searchBtn, #srchBtn"
     },
     {
       "id": "P-L9_23-newtab",
       "route": "/m/P-L9_23?part=newtab",
       "proto": "files,{skin}",
       "waitFor": "[data-testid='cmdk-list'] [data-testid^='row-']",
-      "note": "The new-tab page: the same search inline in the tab body, Recent below the field, no veil. The prototype image is the Files place with its Search field (the prototype has no new-tab hash). Paper and graphite, 1280 and 390 wide."
+      "note": "The new-tab page: the same search inline in the tab body, no veil. The prototype side presses the tab strip's plus, so it shows its own new-tab launcher. Paper and graphite, 1280 and 390 wide.",
+      "protoClick": "[data-vplus]"
     }
   ]
 }
