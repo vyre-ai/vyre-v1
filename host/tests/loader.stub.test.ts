@@ -32,8 +32,14 @@ test("boot: the real registry, host/modules.json, route table and every stub-imp
 });
 
 test("a stub module answers its example through the invoke pipeline, and the answer validates", async () => {
-  const h = await loadHost({ registry: reg, modulesJson, routes, importer: fileImporter(root) });
-  const cap = caps.find((c) => (modulesJson.modules.find((m) => m.id === (c as unknown as { module: string }).module)?.status === "stub") && c.resource.type === "space" && c.permission && c.examples.length && c.idempotency !== "key" && !c.gate && !c.caller)!;
+  // The test needs a stub capability bound to the Space with an example. As modules go live the stubs run out (portal was the last such module), so the module of the first suitable
+  // capability is served as a stub here, whatever host/modules.json says: the test is about the stub path, not about which module is still a stub.
+  const suitable = (c: CapabilityDef): boolean => c.resource.type === "space" && !!c.permission && c.examples.length > 0 && c.idempotency !== "key" && !c.gate && !c.caller;
+  const pick = caps.find((c) => suitable(c) && modulesJson.modules.find((m) => m.id === (c as unknown as { module: string }).module)?.status === "stub") ?? caps.find(suitable);
+  const pickModule = (pick as unknown as { module: string } | undefined)?.module;
+  const asStub = { ...modulesJson, modules: modulesJson.modules.map((m) => (m.id === pickModule ? { ...m, status: "stub" as const } : m)) };
+  const h = await loadHost({ registry: reg, modulesJson: asStub, routes, importer: fileImporter(root) });
+  const cap = caps.find((c) => (asStub.modules.find((m) => m.id === (c as unknown as { module: string }).module)?.status === "stub") && c.resource.type === "space" && c.permission && c.examples.length && c.idempotency !== "key" && !c.gate && !c.caller)!;
   assert.ok(cap, "a stub capability bound to the Space exists");
   const snap = new AccessSnapshot();
   snap.putRole({ id: "member", clearance: 3, perms: [cap.permission!], name: "Member" });

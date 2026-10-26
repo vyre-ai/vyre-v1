@@ -1,9 +1,10 @@
-// The Records place in the shell (spec 3.6): the sidebar of record types and saved views, and the open type as a table, board, gallery or list. The open type and view are the place's own
-// state (the sidebar chooses, the views follow). On a phone width the sidebar is a drawer, so only the view shows. Before the Space's runtime exists the place draws its loading frames.
+// The Records place in the shell (spec 3.6): the sidebar of record types and saved views in the shell's shared place sidebar slot (P-L9d_22), and the open type as a table, board, gallery or list.
+// The open type and view are the place's own state (the sidebar chooses, the views follow). On a phone the sidebar is the list and the view opens when a row is chosen. Before the Space's runtime
+// exists the place draws its loading frames.
 import { useMemo } from "react";
 import type { ReactElement } from "react";
 import { View, useWindowDimensions } from "react-native";
-import { RecordsDataProvider, RecordsSidebar, RecordsStateProvider, SidebarLoading } from "../../places/records/sidebar/index.ts";
+import { RecordsDataProvider, RecordsSidebarSlot, RecordsStateProvider, SidebarLoading } from "../../places/records/sidebar/index.ts";
 import { TableLoading } from "../../places/records/table/index.ts";
 import { RecordViews } from "../../places/records/views-a/index.ts";
 import { recordsData } from "./records-data.ts";
@@ -28,7 +29,7 @@ export default function RecordsPlace(_props: { place: string }): ReactElement {
     <RecordsDataProvider value={data}>
       <RecordsStateProvider>
         <View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-          {phone ? null : <View style={{ width: SIDEBAR_W }}><RecordsSidebar /></View>}
+          <RecordsSidebarSlot />
           <RecordViews />
         </View>
       </RecordsStateProvider>
