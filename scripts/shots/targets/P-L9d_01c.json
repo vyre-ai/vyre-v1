@@ -1,0 +1,25 @@
+{
+  "targets": [
+    {
+      "id": "P-L9d_01c-table",
+      "route": "/m/P-L9d_01c",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='records-count']",
+      "note": "The Records place over the prototype's Northwind Space: every record type in the sidebar with its icon, the Clients table with the Table switch, the filled New button, row faces, readable pills and the footer aggregates."
+    },
+    {
+      "id": "P-L9d_01c-filter-menu",
+      "route": "/m/P-L9d_01c?menu=filter",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='menu']",
+      "note": "The Filter menu open: counts in the count column, status dots and owner faces on their rows."
+    },
+    {
+      "id": "P-L9d_01c-fields-menu",
+      "route": "/m/P-L9d_01c?menu=fields",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='menu']",
+      "note": "The Fields menu open: all of the prototype's client fields."
+    }
+  ]
+}

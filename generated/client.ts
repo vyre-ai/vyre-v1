@@ -751,6 +751,7 @@ export function createClient(transport: Transport) {
       share: call("files.share", 1),
       share_external: call("files.share_external", 1),
       shared_with_me: call("files.shared_with_me", 1),
+      star: call("files.star", 1),
       trash: {
         empty: call("files.trash.empty", 1),
         list: call("files.trash.list", 1),
@@ -2048,6 +2049,7 @@ export function createClient(transport: Transport) {
         restore: call("vault.item.restore", 1),
         reveal: call("vault.item.reveal", 1),
         update: call("vault.item.update", 1),
+        usage: call("vault.item.usage", 1),
       },
       items: {
         export_mine: call("vault.items.export_mine", 1),

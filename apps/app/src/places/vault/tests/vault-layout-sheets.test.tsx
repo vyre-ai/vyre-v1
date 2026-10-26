@@ -39,11 +39,11 @@ test("Add: a pasted .env becomes a field per line and the status says what was u
 
 test("Add saves with vault.item.put and the new item shows by name; a name taken in that folder is refused", async () => {
   const v = createSampleVault();
-  const u = understandPaste("sk_live_51NwFakeFakeFake00aa");
+  const u = understandPaste("sk_live_51NwFakeFakeFake00aa"); // secret-scan: fake
   const out = (await v.data.call("vault.item.put", { folderId: "fld_finance", name: "Stripe test", kind: u.itemKind, fields: u.fields, template: u.template })) as { item: { id: string; fieldKeys: string[] } };
   assert.deepEqual(out.item.fieldKeys, ["STRIPE_SECRET_KEY"]);
   assert.ok(has(html(v, {}), 'aria-label="Stripe test"'));
-  assert.ok(!has(html(v, {}), "sk_live_51NwFakeFakeFake00aa"));
+  assert.ok(!has(html(v, {}), "sk_live_51NwFakeFakeFake00aa")); // secret-scan: fake
   await assert.rejects(() => v.data.call("vault.item.put", { folderId: "fld_finance", name: "Stripe test", kind: "api_key", fields: [] }), /duplicate/);
 });
 

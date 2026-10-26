@@ -1,0 +1,4 @@
+{
+  "_comment": "Advisories (a package name or an advisory url) that may stay high or critical, each with a reason and an until date (YYYY-MM-DD). An expired entry fails the audit.",
+  "allow": []
+}

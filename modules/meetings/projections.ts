@@ -31,6 +31,15 @@ export type Json = Record<string, unknown>;
 
 // ---- readers
 
+/** A datetime field holds an ISO date (the record store refuses a number); the module works in milliseconds. */
+export const isoOf = (ms: number): string => new Date(ms).toISOString();
+/** Milliseconds from a datetime field: an ISO string, or a number from a row written before this rule; undefined when it is neither. */
+export function msOf(v: unknown): number | undefined {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") { const t = Date.parse(v); return Number.isFinite(t) ? t : undefined; }
+  return undefined;
+}
+
 export const first = (rows: unknown[]): Row | null => {
   const row = rows[0];
   return row && typeof row === "object" ? (row as Row) : null;
@@ -224,11 +233,12 @@ export async function patchMeeting(ctx: MeetCtx, recordId: string, patch: Json):
 export function meetingRow(ctx: Pick<MeetCtx, "trace">, id: string, f: Json, l: Link | null): Json {
   void ctx;
   const out: Json = {
-    id, title: text(f["title"]), startsAt: typeof f["starts_at"] === "number" ? f["starts_at"] : (l?.startsAt ?? 0), provider: text(f["provider"]) || l?.provider || "none",
+    id, title: text(f["title"]), startsAt: msOf(f["starts_at"]) ?? (l?.startsAt ?? 0), provider: text(f["provider"]) || l?.provider || "none",
     status: text(f["status"]) || "scheduled", attendeeIds: list(f["attendees"]).filter((x): x is string => typeof x === "string"),
     recordingState: text(f["recording_state"]) || "none", hasTranscript: text(f["transcript"]) !== "", hasSummary: text(f["summary"]) !== "",
   };
-  if (typeof f["ends_at"] === "number") out["endsAt"] = f["ends_at"];
+  const endsAt = msOf(f["ends_at"]);
+  if (endsAt !== undefined) out["endsAt"] = endsAt;
   if (text(f["join_url"])) out["joinUrl"] = text(f["join_url"]);
   if (text(f["organizer"])) out["organizer"] = text(f["organizer"]);
   const ev = l?.eventIds[0] ?? text(f["calendar_event_id"]);

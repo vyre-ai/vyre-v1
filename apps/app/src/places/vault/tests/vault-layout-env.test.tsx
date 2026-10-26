@@ -29,11 +29,11 @@ test("paste understanding: a .env becomes a field per line named by its prefix",
 
 test("paste understanding: one bare key is matched to its app by shape and named from its type", () => {
   const cases: [string, string, string][] = [
-    ["sk_live_51NwFakeFakeFake00aa", "STRIPE_SECRET_KEY", "stripe"],
-    ["ghp_16C7e42F292c6912E7710c838347Ae178B4a", "GITHUB_TOKEN", "github"],
+    ["sk_live_51NwFakeFakeFake00aa", "STRIPE_SECRET_KEY", "stripe"], // secret-scan: fake
+    ["ghp_16C7e42F292c6912E7710c838347Ae178B4a", "GITHUB_TOKEN", "github"], // secret-scan: fake
     ["sk-ant-api03-abcdefghijklmnop", "ANTHROPIC_API_KEY", "anthropic"],
-    ["sk-proj-Qm7Lx2Vd9aRt4Ne8Zb1WcKfG3hYjU6oP", "OPENAI_API_KEY", "openai"],
-    ["xoxb-123-456-abc", "SLACK_BOT_TOKEN", "slack"],
+    ["sk-proj-Qm7Lx2Vd9aRt4Ne8Zb1WcKfG3hYjU6oP", "OPENAI_API_KEY", "openai"], // secret-scan: fake
+    ["xoxb-123-456-abc", "SLACK_BOT_TOKEN", "slack"], // secret-scan: fake
     ["AC0123456789abcdef0123456789abcdef", "TWILIO_ACCOUNT_SID", "twilio"],
     ["pit-7c1e4a2b-90d1-4b9e-8a52-3e6d1f0aa417", "GHL_PIT", "highlevel"],
   ];
