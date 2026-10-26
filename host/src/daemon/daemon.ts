@@ -621,7 +621,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           dataDir: paths.root,
           // the home mirror runs as the agent: the same pipeline as any call, so access, review rules and the scrubber apply
           callAs: async (agentId, cap, input) => {
-            const r = await invoke(cap, input, { space: spaceId, principal: { kind: "agent", id: agentId }, origin: "computers" });
+            const owner = db!.all("SELECT ownerId FROM agents_agent WHERE id = ? AND deletedAt IS NULL", agentId)[0] as { ownerId?: string } | undefined;
+            const r = await invoke(cap, input, { space: spaceId, principal: { kind: "agent", id: agentId }, ...(owner?.ownerId ? { actingFor: { kind: "person", id: owner.ownerId } } : {}), origin: "computers" });
             if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
             return r.output;
           },
