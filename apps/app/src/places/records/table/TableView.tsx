@@ -5,7 +5,7 @@ import { createElement, memo, useCallback, useDeferredValue, useEffect, useMemo,
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
-import { marbleSpec } from "../../../../../../ui/src/Avatar/index.tsx";
+import { marbleGradient, marbleSpec } from "../../../../../../ui/src/Avatar/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
@@ -162,7 +162,7 @@ const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): 
     },
     createElement("div", { className: "vrt-g" }, String(n)),
     createElement("div", { style: { width: primary.width, height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, boxSizing: "border-box", padding: "0 10px", overflow: "hidden", flex: "none" } },
-      row ? createElement("span", { style: { ...CELL_TEXT, fontWeight: 500 } }, title) : createElement("div", { style: GHOST }),
+      row ? createElement("span", { className: "vrt-p", style: { ...CELL_TEXT, fontWeight: 500 } }, dot(title), title) : createElement("div", { style: GHOST }),
       row && (hot || selected) ? <Pressable accessibilityRole="button" accessibilityLabel="Open record" testID={`open-${row.id}`} onPress={() => onOpen(row.id)} style={styles.xopen}><Glyph name="expand" size={13} color="var(--ink-2)" /></Pressable> : null,
     ),
   );
@@ -210,12 +210,12 @@ function isPlainText(f: FieldDef): boolean {
 }
 
 const dots = new Map<string, Record<string, string | number>>();
-/** A person's face in a cell: a plain disc in the colours of the shared marble (marbleSpec), one cached style per name. The shared Avatar draws a blurred svg, too dear for thirteen cells a row. */
+/** A person's face in a cell: a plain disc painted with the shared Avatar's marble gradient (marbleGradient, the same face the Avatar draws), one cached style per name. The shared Avatar draws a blurred svg, too dear for thirteen cells a row. */
 function dot(name: string): ReactElement {
   let st = dots.get(name);
   if (!st) {
     const m = marbleSpec(name);
-    st = { width: 18, height: 18, flex: "none", borderRadius: 9, background: `radial-gradient(circle at 30% 25%, ${m.c1}, transparent 60%), radial-gradient(circle at 75% 80%, ${m.c2}, transparent 55%), ${m.base}` };
+    st = { width: 18, height: 18, flex: "none", borderRadius: 9, backgroundColor: m.base, backgroundImage: marbleGradient(name) };
     dots.set(name, st);
   }
   return createElement("span", { "aria-hidden": true, "data-testid": `face-${name}`, style: st });
