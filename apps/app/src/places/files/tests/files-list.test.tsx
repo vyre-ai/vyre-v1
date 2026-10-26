@@ -57,7 +57,7 @@ test("screen: a folder lists its folders first, then its files by name, each a u
   const out = list(folder("fld_sales"));
   assert.deepEqual(lines(out), ["folder:fld_proposals", "file:fil_logo", "file:fil_deck", "file:fil_pricing"]);
   assert.ok(has(out, ">Sales<") && has(out, "4 items"));
-  const cell = (key: string, id: string): string => new RegExp(`data-testid="row-line:${key}-trailing"[\\s\\S]*?data-testid="cell-${id}"[^>]*>(?:<[^>]*>)*([^<]*)<`).exec(out)?.[1] ?? "";
+  const cell = (key: string, id: string): string => new RegExp(`data-testid="row-line:${key}-trailing"[\\s\\S]*?data-testid="cell-${id}"[^>]*>([^<]*)<`).exec(out)?.[1] ?? "";
   assert.equal(cell("file:fil_deck", "kind"), "Presentation");
   assert.equal(cell("file:fil_deck", "size"), "8.9 MB");
   assert.equal(cell("file:fil_pricing", "size"), "62 KB");
@@ -75,7 +75,7 @@ test("screen: the root lists the top folders and a nested folder names its path"
   const nested = list(folder("fld_proposals"));
   assert.ok(has(nested, ">Proposals<") && has(nested, 'data-testid="files-path"') && has(nested, 'data-testid="files-crumb-fld_sales"') && has(nested, 'data-testid="files-crumb-root"'));
   assert.deepEqual(lines(nested), ["file:fil_harlow", "file:fil_rivera"]);
-  assert.ok(has(nested, ">Spreadsheet<") && has(nested, ">Google Drive<") && has(nested, ">77 KB<"), "a mounted file names where it came from");
+  assert.ok(has(nested, ">Spreadsheet · Google Drive<") && has(nested, ">77 KB<"), "a mounted file names where it came from");
 });
 
 test("Shared with me lists what was granted", () => {

@@ -5,7 +5,7 @@
 // packet's FileList.tsx and Toolbar.tsx sit beside the list/ folder, and the wiring is here.)
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
@@ -18,14 +18,17 @@ import {
 import type { Line, SortKey, Spring } from "../tree/model.ts";
 import { iconOfKind } from "../tree/parts.tsx";
 import { useFilesState } from "../tree/state.tsx";
-import { ColumnHeader, GridRow, LIST_ROW, LineMarks, RowCells, ThumbTile, TypeTile, Tile, WIDE, chunk, gridKey, gridLayout } from "../FileList.tsx";
+import { ColumnHeader, GridRow, LIST_ROW, LineMarks, RowCells, ThumbTile, Tile, TypeTile, WIDE, chunk, gridKey, gridLayout } from "../FileList.tsx";
 import { Toolbar, crumbTrail } from "../Toolbar.tsx";
-import { DragWrap } from "./DragWrap.tsx";
+import { DragWrap, dragAttrs, useDragDelegation } from "./DragWrap.tsx";
+import type { DragHandlers, DragRegistry } from "./DragWrap.tsx";
 import { StagedBanner } from "./StagedBanner.tsx";
 import { QuickLook } from "./QuickLook.tsx";
 
 const DOUBLE_MS = 450;
 const lineKey = (l: Line): string => l.key;
+/** The slot a line sits in: the list row is 38 px and the Row paints 28 inside it, 6 px in from each side. */
+const LINE_STYLE = { margin: "5px 6px", width: "calc(100% - 12px)" } as const;
 
 /** The line's menu: open, Quick Look, share and rename where they apply, and the Trash (or Restore from it). */
 export function lineMenuEntries(
@@ -95,6 +98,9 @@ function List(): ReactElement {
   const treeRoots = useLive("files.tree", {});
   const trashCount = treeRoots.status === "ready" ? treeRoots.data.roots.find((r) => r.key === "trash")?.count ?? 0 : 0;
   const mods = useRef({ meta: false, shift: false });
+  const registry = useRef<DragRegistry>(new Map());
+  const box = useRef<View | null>(null);
+  useDragDelegation(box, registry);
   const last = useRef<{ key: string; at: number }>({ key: "", at: 0 });
   const [over, setOver] = useState<string | null>(null);
   const [width, setWidth] = useState(0);
@@ -186,29 +192,28 @@ function List(): ReactElement {
     dispatch({ type: "click", order, key: l.key, mods: mods.current });
     mods.current = { meta: false, shift: false };
   };
+  const handlersOf = (l: Line): DragHandlers => ({
+    payload: () => dragPayload(state, l.key),
+    folder: l.type === "folder",
+    onMods: (m) => { mods.current = m; },
+    onOver: () => { setOver(l.key); spring.current?.enter(l.id); },
+    onLeave: () => { setOver((o) => (o === l.key ? null : o)); spring.current?.leave(l.id); },
+    onDrop: (payload) => drop(l, payload),
+  });
   const dragged = (l: Line, child: ReactElement): ReactElement => (
-    <DragWrap
-      props={menuTrigger((x, y) => lineMenu(l, x, y))}
-      handlers={{
-        payload: () => dragPayload(state, l.key),
-        folder: l.type === "folder",
-        onMods: (m) => { mods.current = m; },
-        onOver: () => { setOver(l.key); spring.current?.enter(l.id); },
-        onLeave: () => { setOver((o) => (o === l.key ? null : o)); spring.current?.leave(l.id); },
-        onDrop: (payload) => drop(l, payload),
-      }}
-    >
+    <DragWrap fkey={l.key} registry={registry} props={menuTrigger((x, y) => lineMenu(l, x, y))} handlers={handlersOf(l)}>
       {child}
     </DragWrap>
   );
   const whenOf = (l: Line): string => updatedText(l.updatedAt, c.now, c.offsetMin);
   const byOf = (l: Line): string | null => (l.updatedBy === null ? null : data.nameOf(l.updatedBy));
-  const byAgent = (l: Line): boolean => l.updatedBy !== null && l.updatedBy.startsWith("agt_");
   const sizeOfLine = (l: Line): string => (l.type === "folder" ? `${l.items} item${l.items === 1 ? "" : "s"}` : sizeText(l.size));
   const kindOfLine = (l: Line): string => `${kindText(l.kind, l.mime)}${l.source ? ` \u00b7 ${l.source}` : ""}`;
 
-  const renderLine = (l: Line): ReactElement => dragged(l, (
-    <View style={styles.lineSlot}>
+  // on the web the line is the shared Row (one plain element) carrying the drag attributes and the menu trigger; the drag itself is delegated from the list's box
+  const renderLine = (l: Line): ReactElement => {
+    registry.current.set(l.key, handlersOf(l));
+    const row = (
       <Row
         id={`line:${l.key}`}
         title={l.name}
@@ -216,11 +221,13 @@ function List(): ReactElement {
         selected={state.selection.includes(l.key)}
         hovered={over === l.key}
         leading={l.type === "file" && l.thumb ? <ThumbTile fileId={l.id} label={tileLabel(l.name, l.kind, l.mime)} icon={iconOfKind(l.kind)} /> : <TypeTile label={tileLabel(l.name, l.kind, l.mime)} icon={iconOfKind(l.kind)} folder={l.type === "folder"} />}
-        trailing={<RowCells wide={wide} cells={{ when: whenOf(l), by: byOf(l), byAgent: byAgent(l), size: sizeOfLine(l), kind: kindOfLine(l) }} />}
+        trailing={<RowCells wide={wide} cells={{ when: whenOf(l), by: byOf(l), size: sizeOfLine(l), kind: kindOfLine(l) }} />}
         onPress={() => press(l)}
+        domProps={{ ...dragAttrs(l.key), ...menuTrigger((x, y) => lineMenu(l, x, y)), style: LINE_STYLE }}
       />
-    </View>
-  ));
+    );
+    return Platform.OS === "web" ? row : dragged(l, <View style={styles.lineSlot}>{row}</View>);
+  };
   const renderTile = (l: Line): ReactElement => dragged(l, (
     <Tile
       id={l.key} name={l.name} folder={l.type === "folder"} icon={iconOfKind(l.kind)} width={layout.tile}
@@ -274,7 +281,7 @@ function List(): ReactElement {
       {src.status !== "ready" ? <ListLoading bare /> : lines.length === 0 ? (
         <States kind="empty" title={emptyText(state.where)} icon="files" />
       ) : (
-        <View style={styles.listBox} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))} {...({ onKeyDown, tabIndex: 0 } as object)}>
+        <View ref={box} style={styles.listBox} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))} {...({ onKeyDown, tabIndex: 0 } as object)}>
           {grid ? (
             <VirtualList data={gridRows} rowHeight={layout.height} keyOf={gridKey} renderItem={renderGridRow} />
           ) : (

@@ -21,6 +21,8 @@ export interface LiveLinkOptions {
   /** A numbered batch arrived: something in the Space changed. */
   onChange(seq: number): void;
   onStatus?(s: LiveStatus): void;
+  /** The server told this device to purge ({t:"purge", epoch}: a revoke or an epoch bump, ARCH 5.7); the socket closes after it. */
+  onPurge?(epoch: number): void;
   socket?: SocketFactory;
   /** Injectable timers for tests. */
   setTimer?(fn: () => void, ms: number): () => void;
@@ -93,6 +95,11 @@ export function createLiveLink(o: LiveLinkOptions): LiveLink {
       try { f = JSON.parse(e.data); } catch { return; }
       if (f === null || typeof f !== "object") return;
       const t = (f as { t?: unknown }).t;
+      if (t === "purge") {
+        const epoch = (f as { epoch?: unknown }).epoch;
+        o.onPurge?.(typeof epoch === "number" ? epoch : 0);
+        return;
+      }
       if (t === "hello_ok") { attempts = 0; set("live"); beat(); return; }
       if (t === "ev") {
         const seq = (f as { seq?: unknown }).seq;

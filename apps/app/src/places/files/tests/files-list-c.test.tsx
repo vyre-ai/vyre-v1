@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import { FilesList, StagedBanner, approveStaged, lineMenuEntries, moreMenuEntries, newMenuEntries, stagedText } from "../list/index.ts";
-import { KindBadge, LineMarks, RowCells, ThumbTile, TypeTile } from "../FileList.tsx";
+import { LineMarks, RowCells, ThumbTile, TypeTile } from "../FileList.tsx";
 import { createSampleFiles } from "../list/sample.ts";
 import type { SampleFiles } from "../list/sample.ts";
 import { FilesDataProvider, FilesStateProvider, FilesTree, INITIAL_STATE, emptyText, fileLine, hasAgentFace, isPlan, kindText, openByDefault, orderFolders, reduce, rootRank, sourceOf, spaceRoots, tileLabel } from "../tree/index.ts";
@@ -89,23 +89,22 @@ test("Show Hidden Files is a state, off to begin with", () => {
   assert.equal(reduce(INITIAL_STATE, { type: "hidden", on: true }).showHidden, true);
 });
 
-test("Made by is a face: a person's, or the agent's own", () => {
-  const out = renderToStaticMarkup(<RowCells wide cells={{ when: "9:00 AM", by: "Docs", byAgent: true, size: "31 KB", kind: "Document" }} />);
-  assert.ok(has(out, 'data-testid="face-Docs"') && has(out, 'data-avatar="agent"'));
+test("Made by is a face with the name beside it, for a person and for an agent", () => {
+  const out = renderToStaticMarkup(<RowCells wide cells={{ when: "9:00 AM", by: "Docs", size: "31 KB", kind: "Document" }} />);
+  assert.ok(has(out, 'data-testid="cell-by"') && has(out, ">D<") && has(out, ">Docs<"), "the mark, then the name");
   const person = renderToStaticMarkup(<RowCells wide cells={{ when: "9:00 AM", by: "Maya Chen", size: "1 MB", kind: "PDF" }} />);
-  assert.ok(has(person, 'data-testid="face-Maya Chen"') && has(person, 'data-avatar="person"'));
+  assert.ok(has(person, ">M<") && has(person, ">Maya Chen<"));
   const sales = list(createSampleFiles(), folder("fld_proposals"));
-  assert.ok(has(sales, 'data-testid="face-Docs"') && has(sales, 'data-testid="face-Irfad Imtiaz"'));
+  assert.ok(has(sales, ">Docs<") && has(sales, ">Irfad Imtiaz<"));
 });
 
-test("Kind is plain text, with where it came from beside it", () => {
-  const plain = renderToStaticMarkup(<KindBadge kind="PDF" />);
-  assert.ok(has(plain, ">PDF<") && !has(plain, "Google Drive"));
-  const mounted = renderToStaticMarkup(<KindBadge kind={"Spreadsheet · Google Drive"} />);
-  assert.ok(has(mounted, ">Spreadsheet<") && has(mounted, ">Google Drive<"));
+test("Kind is plain text, with where it came from beside it, never a tinted pill", () => {
+  const plain = renderToStaticMarkup(<RowCells wide cells={{ when: "9:00 AM", by: null, size: "1 MB", kind: "PDF" }} />);
+  assert.ok(has(plain, 'data-testid="cell-kind"') && has(plain, ">PDF<") && !has(plain, "hsla("));
   const out = list(createSampleFiles(), folder("fld_sales"));
-  assert.ok(has(out, 'data-testid="kind-text"') && has(out, ">Folder<"), "Kind is plain text, as the prototype has it");
-  assert.ok(!has(out, 'data-testid="kind-badge"') && !has(plain, "hsla("), "no tinted pill");
+  assert.ok(has(out, ">Folder<") && has(out, ">Presentation<"), "Kind is plain text, as the prototype has it");
+  assert.ok(!has(out, 'data-testid="kind-badge"') && !has(out, "hsla("), "no tinted pill");
+  assert.ok(has(list(createSampleFiles(), folder("fld_proposals")), ">Spreadsheet · Google Drive<"), "where a mounted file came from");
 });
 
 // ---------------------------------------------------------------- the sidebar: Starred, Agents, Projects, the Conflict tag
@@ -283,7 +282,7 @@ test("each file leads with a type tile: PDF, MD, CSV, DOCX on a tint, an icon fo
   assert.ok(!has(renderToStaticMarkup(<TypeTile label={null} icon="folder" folder />), 'data-testid="type-tile-label"'));
   const out = list(subjects(), folder("fld_pj_rivera"));
   for (const label of ["PDF", "MD", "CSV", "DOCX"]) assert.ok(has(out, `>${label}<`), label);
-  assert.equal(out.split('data-testid="type-tile"').length - 1, 8, "a tile leads every line");
+  assert.equal(out.split('data-testid="type-tile"').length - 1, 7, "a labelled or thumbnail tile leads every line but the folder");
 });
 
 test("an empty folder shows no count, and the Scout, Billing and Intake agents are in the Agents folder", () => {
