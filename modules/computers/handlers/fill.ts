@@ -85,6 +85,8 @@ export function createFillService(d: FillServiceDeps): FillService {
 
       const handle = `#${b.handle}.${b.field}`;
       const use = (outcome: FillUse["outcome"], itemId: string): FillUse => ({ computerId: holder.computerId, agentId: holder.agentId, asker: holder.asker, handle, itemId, outcome, at: now() });
+      // A log that throws (or rejects) must not decide the answer of a refusal.
+      const note = async (u: FillUse): Promise<void> => { try { await d.log(u); } catch { /* the refusal stands */ } };
       let found: FillLookup;
       try {
         found = await d.source.lookup(handle, { agentId: holder.agentId, asker: holder.asker, where: "computer" });
@@ -92,11 +94,11 @@ export function createFillService(d: FillServiceDeps): FillService {
         return { status: 503, body: { code: "unavailable" } };   // never the original error: it may carry request text
       }
       if (found.kind === "denied") {
-        await Promise.resolve(d.log(use("refused", handle))).catch(() => undefined);
+        await note(use("refused", handle));
         return { status: 403, body: { code: "forbidden" } };
       }
       if (found.kind === "unknown") {
-        await Promise.resolve(d.log(use("missing", handle))).catch(() => undefined);
+        await note(use("missing", handle));
         return { status: 404, body: { code: "not_found" } };
       }
       try {

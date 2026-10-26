@@ -147,7 +147,7 @@ test("issuing again for a computer ends its earlier token, and revoke ends the c
 
 import { setComputersFill } from "../impl.ts";
 import { sleep, wake, provision, remove } from "../handlers/lifecycle.ts";
-import { bindFill, bindHost } from "../projections.ts";
+import { bindFill } from "../projections.ts";
 import { harness as chatHarness, INTAKE } from "../fixtures/harness.ts";
 
 function seam(h: ReturnType<typeof world>) {
@@ -159,7 +159,6 @@ function seam(h: ReturnType<typeof world>) {
 test("waking a computer passes fillUrl and a fillToken of at least 16 characters to agentd, and the token works against the mounted route; sleeping ends it", async () => {
   const w = world();
   const hn = chatHarness({ respond: { "agents.get": (i: Record<string, unknown>) => ({ agent: { agentId: i["agentId"], ownerId: "usr_dana", folderId: "fld_x" } }) } });
-  bindHost(hn.fake);
   const mounted = seam(w);
   try {
     const p = await provision(hn.ctx, { agentId: INTAKE, idempotencyKey: "kf" });
@@ -185,16 +184,15 @@ test("waking a computer passes fillUrl and a fillToken of at least 16 characters
       await remove(hn.ctx, { computerId: id });
       assert.equal((await post(url, again[1]!.fillToken!, { handle: "Stripe", field: "api_key", computerId: id })).status, 401, "the token ends when the computer is removed");
     } finally { await new Promise<void>((ok) => server.close(() => ok())); }
-  } finally { bindFill(null); setComputersFill(null); bindHost(null); }
+  } finally { bindFill(null); setComputersFill(null); }
 });
 
 test("without a Vault channel a computer wakes as before and gets no fill settings", async () => {
   const hn = chatHarness({ respond: { "agents.get": (i: Record<string, unknown>) => ({ agent: { agentId: i["agentId"], ownerId: "usr_dana", folderId: "fld_x" } }) } });
-  bindHost(hn.fake);
   setComputersFill(null);
   try {
     const p = await provision(hn.ctx, { agentId: INTAKE, idempotencyKey: "kg" });
     await wake(hn.ctx, { computerId: p.computer.computerId });
     assert.equal(hn.fake.named("configure").filter((c) => (c.args as { fillToken?: string }).fillToken !== undefined).length, 0);
-  } finally { bindHost(null); }
+  } finally { setComputersFill(null); }
 });
