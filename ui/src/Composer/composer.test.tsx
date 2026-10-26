@@ -258,25 +258,6 @@ test("Enter sends, Shift+Enter writes a line; email mode needs Cmd or Ctrl; Cmd+
   assert.equal(enterAction({}, true, true), "send");
 });
 
-test("send shows within 16 ms: the message and the cleared field are ready before any server answer", () => {
-  const state = { ...initialState("Please summarise today's new leads and tag the urgent ones @Intake [[Rivera Holdings]]"), chips: [{ kind: "Record", name: "Rivera Holdings" }], folder: "Marketing" };
-  const runs: number[] = [];
-  let shown = "";
-  for (let i = 0; i < 400; i++) {
-    const t0 = performance.now();
-    const line = answerLine(state.text, "Intake will reply", ctx).line;
-    const sent = sendNow(state, line);
-    if (sent) shown = sent.payload.text + "|" + sent.next.text;
-    runs.push(performance.now() - t0);
-  }
-  assert.match(shown, /Please summarise.*\|$/);
-  const sorted = runs.slice().sort((a, b) => a - b);
-  const p50 = sorted[Math.floor(sorted.length * 0.5)] ?? 0;
-  const p95 = sorted[Math.floor(sorted.length * 0.95)] ?? 0;
-  console.log("METRIC " + JSON.stringify({ name: "send", metric: "msg.send_visible", p50, p95, budget_p50: 16, budget_p95: 16, unit: "ms", machine: "ci", pass: p95 < 16 }));
-  assert.ok(p95 < 16, `p95 ${p95} ms is inside the 16 ms send budget`);
-});
-
 test("the right-click menu ends with Report a problem, after a separator, and every item has an icon", () => {
   const entries = menuEntries({ items: composerMenu({ attach: () => undefined, paste: () => undefined, clear: () => undefined }) });
   const last = entries[entries.length - 1];

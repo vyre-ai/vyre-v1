@@ -10,10 +10,7 @@ export const LIVE_FOR_OFFBOARDING = ["members", "identity", "devices", "access",
 
 /** Why this flow is a todo today (ruling 53). The join gaps are flow 2's; the rest is specific to offboarding. */
 export const GAPS: Gap[] = [
-  ...JOIN_GAPS,
-  { packet: "P-L7_LIVE", lane: "L7", what: "the host never builds members ctx.owned, so the wizard shows no owned items and reassigns nothing" },
-  { packet: "P-L1_LIVE", lane: "L1", what: "nothing calls devices.purge_ack: a revoked device has no path to confirm its wipe (sync is a stub)" },
-  { packet: "lead", lane: "L11", what: "golden/flows/09-offboarding.flow.ts lists session.revoked last; members.remove emits it first" },
+  { packet: "L7 members", lane: "L7", what: "a removed person's sign-in still answers 200: members.remove ends the devices but identity.sign_in does not check the removed status" },
 ];
 
 export async function runOffboarding(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {

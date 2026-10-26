@@ -10,7 +10,7 @@ Open the Kit builder chat with an agent (preview before publish)
 | Permission | kits.publish |
 | Grant level | edit |
 | Risk | medium |
-| Resource | kit (create under /brief) |
+| Resource | space |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |

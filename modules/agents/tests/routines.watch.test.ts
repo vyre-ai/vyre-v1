@@ -78,7 +78,7 @@ test("a new message in the watched channel starts one run under the routine owne
   const { hn, id } = await setup();
   const started: any[] = [];
   const keys: string[] = [];
-  hn.world.answer("runs.start", (i: any, o: any) => { started.push(i); keys.push(String(o?.idempotencyKey)); return { runId: `run_a${started.length}` }; });
+  hn.world.answer("runs.start", (i: any, o: any) => { started.push(i); keys.push(String(o?.idempotencyKey)); assert.equal(i.idempotencyKey, o?.idempotencyKey, "the key is in the input as well as the options"); return { runId: `run_a${started.length}` }; });
   hn.world.answer("threads.get", (i: any) => ({ thread: { threadId: i.threadId, channelId: i.threadId === "thr_leads" ? "chn_leads" : "chn_other" } }));
   const { routine } = await watch(hn, id);
   hn.clear();

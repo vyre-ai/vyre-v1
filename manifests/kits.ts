@@ -40,7 +40,7 @@ export default defineManifest({
     write('kits.restore_version', 'Restore an earlier Kit version', { in: { kitId: id.kit, versionId: id.version }, out: { kit: kitRow }, on: ['kit', '/kitId'], perm: 'kits.publish', tool: 'sites' }),
     read('kits.health', 'Kit health and debug panel: denials, failing tests, last run', { in: target, out: { state: t.enm('healthy', 'degraded', 'down'), denials: t.int(), lastTestAt: t.opt(t.ts()) }, on: ['kit', '/kitId'], tool: 'sites' }),
     read('kits.denials', 'Sandbox denials with trace ids', { in: { kitId: id.kit, ...pageIn }, out: { denials: t.arr(t.obj({ at: t.ts(), what: t.str(), traceId: id.trace })), ...pageOut }, on: ['kit', '/kitId'], tool: 'sites' }),
-    create('kits.builder_open', 'Open the Kit builder chat with an agent (preview before publish)', { in: { kitId: t.opt(id.kit), brief: t.opt(t.str()) }, out: { threadId: id.thread }, make: ['kit', '/brief'], perm: 'kits.publish', tool: 'sites' }),
+    create('kits.builder_open', 'Open the Kit builder chat with an agent (preview before publish)', { in: { kitId: t.opt(id.kit), brief: t.opt(t.str()) }, out: { threadId: id.thread }, perm: 'kits.publish', tool: 'sites' }),
   ],
   screens: [
     screen('settings.kit-choice', 'settings', 'ui:KitChoice', { q: { kits: ['kits.list'] }, a: { choose: ['kits.choose', { kitId: '/selected', scope: '/scope' }] } }),

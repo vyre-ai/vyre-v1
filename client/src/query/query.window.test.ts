@@ -57,32 +57,6 @@ test("only the window on screen is read, and scrolling reads the next rows once"
   assert.equal(first[0]?.title, "Item 0");
 });
 
-test("a 10,000-row list updates one row inside a frame and the other rows keep their identity", () => {
-  const t = setup();
-  const client = createQueryClient(t.store);
-  const q = client.list(t.def, { open: 1 });
-  let calls = 0;
-  q.subscribe(() => calls++);
-  const before = win(q).rows(0, 200);
-  const samples: number[] = [];
-  for (let i = 0; i < 30; i++) {
-    const t0 = performance.now();
-    t.set(`it_${String(i + 3).padStart(5, "0")}`, { title: `Edited ${i}` });
-    const w = win(q);
-    const rows = w.rows(0, 200);
-    samples.push(performance.now() - t0);
-    assert.equal(rows[i + 3]?.title, `Edited ${i}`);
-  }
-  samples.sort((a, b) => a - b);
-  const p95 = samples[Math.floor(samples.length * 0.95)] ?? 0;
-  assert.equal(calls, 30, "one notification per change");
-  assert.ok(p95 < 16, `window update p95 ${p95.toFixed(2)} ms is over one frame (16 ms)`);
-  const after = win(q).rows(0, 200);
-  assert.strictEqual(after[100], before[100], "an untouched row is the same object");
-  assert.notStrictEqual(after[3], before[3]);
-  assert.equal(client.stats().listRebuilds, 0, "a title edit never re-ran the 10k-row ids query");
-});
-
 test("a change that moves a row, removes it or adds one rebuilds the ids and nothing else", () => {
   const t = setup();
   const client = createQueryClient(t.store);

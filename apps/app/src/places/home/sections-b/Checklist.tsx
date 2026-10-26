@@ -5,9 +5,7 @@ import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { useHomeData, useHomeLine, useScreenQuery } from "../sections-a/data.tsx";
-import { LinkButton } from "../sections-a/parts.tsx";
-import { dismissChecklist } from "./actions.ts";
+import { useScreenQuery } from "../sections-a/data.tsx";
 import { isPersonal, useExtras } from "./data.tsx";
 import { CHECKLIST_SCREEN, checklistProgress, checklistRows } from "./model.ts";
 import type { ChecklistRow } from "./model.ts";
@@ -20,9 +18,7 @@ function Circle({ done }: { done: boolean }): ReactElement {
 }
 
 export function Checklist(): ReactElement | null {
-  const data = useHomeData();
   const extras = useExtras();
-  const line = useHomeLine();
   const q = useScreenQuery<Out>(CHECKLIST_SCREEN, "checklist");
   if (q.status !== "ready" || !q.data.visible) return null;
   const rows = checklistRows(q.data, { spaceName: extras.space.name, personal: isPersonal(extras), aiConnected: extras.aiConnected });
@@ -49,7 +45,6 @@ export function Checklist(): ReactElement | null {
         <Text accessibilityRole="header" style={local.title}>Get started</Text>
         <Text style={local.n} testID="first-progress">{`${done} of ${total}`}</Text>
         <View style={local.grow} />
-        <LinkButton label="Hide" testID="first-hide" onPress={() => void dismissChecklist({ call: data.call, note: line.note })} />
       </View>
       <View style={local.body} accessibilityRole="list">{items}</View>
     </View>

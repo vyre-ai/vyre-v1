@@ -227,6 +227,6 @@ export async function usePolicyExport(ctx: EngineCtx, _input: Record<string, nev
     "## Spend caps", "",
     ...(caps.length === 0 ? ["No caps are set."] : caps.map((c) => `- ${str(c["scope"])}${str(c["scope_id"]) === "" ? "" : ` ${str(c["scope_id"])}`}: ${str(c["caps"])}`)), "",
   ];
-  const out = (await ctx.call("files.create", { folderId: root.folderId, name: `AI use policy ${date} ${new Date(ctx.now()).toISOString().slice(11, 16).replace(":", "")}.md`, content: { text: lines.join("\n") }, mime: "text/markdown" })) as { file: { fileId: string } };
+  const out = (await ctx.call("files.create", { folderId: root.folderId, name: `AI use policy ${date} ${new Date(ctx.now()).toISOString().slice(11, 16).replace(":", "")}.md`, content: { text: lines.join("\n") }, mime: "text/markdown", idempotencyKey: `ai-use-policy-${ctx.now()}` })) as { file: { fileId: string } };
   return { fileId: out.file.fileId };
 }

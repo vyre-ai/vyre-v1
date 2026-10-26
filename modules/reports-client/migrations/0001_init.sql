@@ -3,7 +3,7 @@
 
 -- One row per problem report. status is new, sent or resolved. bundle_json is the bundle after redaction, exactly what is previewed and sent.
 -- redactions counts the values removed. task_id is the Review task the admins see in Needs you.
-CREATE TABLE IF NOT EXISTS reports_report (
+CREATE TABLE IF NOT EXISTS reports_client_report (
   report_id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   status TEXT NOT NULL,
@@ -17,5 +17,5 @@ CREATE TABLE IF NOT EXISTS reports_report (
   sent_at INTEGER,
   fixed_in TEXT
 );
-CREATE INDEX IF NOT EXISTS reports_report_reporter ON reports_report(reporter, at);
-CREATE INDEX IF NOT EXISTS reports_report_at ON reports_report(at);
+CREATE INDEX IF NOT EXISTS reports_report_reporter ON reports_client_report(reporter, at);
+CREATE INDEX IF NOT EXISTS reports_report_at ON reports_client_report(at);

@@ -45,7 +45,7 @@ export interface MailProviderDeps {
 
 const enc = new TextEncoder();
 
-function checked(ctx: SeamCtx, url: string, domains: readonly string[]): string {
+export function checked(ctx: SeamCtx, url: string, domains: readonly string[]): string {
   let u: URL;
   try { u = new URL(url); } catch { throw fail("validation.bad_input", ctx.trace.traceId, { message: "not a URL" }); }
   if (u.protocol !== "https:" || u.username || u.password || !hostAllowed(u.hostname, domains)) {
@@ -54,7 +54,7 @@ function checked(ctx: SeamCtx, url: string, domains: readonly string[]): string 
   return u.toString();
 }
 
-async function secretOf(d: Pick<MailProviderDeps, "vault">, ctx: SeamCtx, handle: string, allowed: readonly string[], what: string): Promise<string> {
+export async function secretOf(d: Pick<MailProviderDeps, "vault">, ctx: SeamCtx, handle: string, allowed: readonly string[], what: string): Promise<string> {
   if (!allowed.includes(handle)) throw fail("permission.no_grant", ctx.trace.traceId, { message: `${what} may not read that Vault item.` });
   let value = "";
   try { value = await d.vault.secret(handle, ctx.space); } catch { /* the Vault refused or has no such item: the same answer below */ }
@@ -62,7 +62,7 @@ async function secretOf(d: Pick<MailProviderDeps, "vault">, ctx: SeamCtx, handle
   return value;
 }
 
-async function getToBlob(
+export async function getToBlob(
   ctx: SeamCtx, d: MailProviderDeps, domains: readonly string[], a: { url: string; mime?: string }, headers: Record<string, string>,
 ): Promise<{ blobId: string; size: number; mime: string }> {
   const r = await d.fetch(checked(ctx, a.url, domains), { method: "GET", headers });
