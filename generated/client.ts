@@ -1680,6 +1680,10 @@ export function createClient(transport: Transport) {
       },
       related: call("search.related", 1),
     },
+    sessions: {
+      continue: call("sessions.continue", 1),
+      import: call("sessions.import", 1),
+    },
     settings: {
       copy_profile: call("settings.copy_profile", 1),
       copy_source: call("settings.copy_source", 1),

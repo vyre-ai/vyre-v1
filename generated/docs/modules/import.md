@@ -4,7 +4,7 @@ Lane L3. Kind module. Version 0.1.0.
 
 Requires: schema.
 
-## Capabilities (12)
+## Capabilities (14)
 
 - [import.commit](../capabilities/import.commit.md): Write the previewed rows as an import Run; no automations fire unless runAutomations is true
 - [import.discard](../capabilities/import.discard.md): Drop a staged import before it is committed
@@ -18,9 +18,13 @@ Requires: schema.
 - [import.preview](../capabilities/import.preview.md): Preview an import: rows to create, update or skip, row errors, new fields, and a preview token
 - [import.suggest_mapping](../capabilities/import.suggest_mapping.md): Suggest which column feeds which field of a record type, with a confidence for each
 - [import.template](../capabilities/import.template.md): A CSV template for a record type: header row and one example row
+- [sessions.continue](../capabilities/sessions.continue.md): Start a separate live Vyre chat linked to an immutable imported conversation; it never writes back to the local provider store
+- [sessions.import](../capabilities/sessions.import.md): Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply only visible user and assistant text
 
-## Events (3)
+## Events (5)
 
 - [import.completed](../events/import.completed.md): An import finished
 - [import.failed](../events/import.failed.md): An import stopped on an error; rows already written stay and the Run can be undone
 - [import.started](../events/import.started.md): An import Run began writing rows
+- [sessions.continued](../events/sessions.continued.md): An imported archival session was continued in a separate live Vyre chat
+- [sessions.imported](../events/sessions.imported.md): A local Codex or Claude Code session was copied into an immutable owner-private archive
