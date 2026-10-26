@@ -14,8 +14,8 @@ import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 
 const L8 = ["campaigns", "email-builder-api", "esign", "forms", "portal", "sites", "templates"];
-// sites is live with every capability deferred (ruling 60, docs/deferred.md); portal stays a stub until mail is live: its mailer needs mail.send and a system sender mailbox (mail is a stub). Gaps on P-L8_LIVE.
-const GAP = ["portal"];
+// sites is live with every capability deferred (ruling 60, docs/deferred.md); portal is live since P-L8_17 (its mailer sends through mail.send from the service mailbox).
+const GAP: string[] = [];
 const OWNER_TOKEN = "tok-usr_olivia";
 const MEMBER_TOKEN = "tok-usr_noah";
 
@@ -65,7 +65,7 @@ const ok = async (d: { url: string }, token: string, cap: string, body: Record<s
   return (JSON.parse(text) as { data: unknown }).data;
 };
 
-test("l8 live: every L8 module but portal is live in host/modules.json", () => {
+test("l8 live: every L8 module is live in host/modules.json", () => {
   const file = JSON.parse(fs.readFileSync(new URL("../modules.json", import.meta.url), "utf8")) as { modules: { id: string; owner: string; status: string }[] };
   const mine = file.modules.filter((m) => m.owner === "L8").map((m) => m.id).sort();
   assert.deepEqual(mine, [...L8].sort());
