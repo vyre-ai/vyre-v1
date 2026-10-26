@@ -65,7 +65,7 @@ interface Purger { cap: string; input(before: number, key: string): Record<strin
 const PURGERS: Readonly<Partial<Record<Kind, Purger>>> = {
   run_logs: { cap: "runs.purge", input: (before, key) => ({ before, limit: 500, idempotencyKey: key }) },
   transcripts: { cap: "chat.transcript.purge", input: (before, key) => ({ before, limit: 500, idempotencyKey: key }) },
-  file_versions: { cap: "files.versions.purge", input: (before, key) => ({ before, limit: 500, idempotencyKey: key }) },
+  file_versions: { cap: "files.versions_purge", input: (before, key) => ({ before, limit: 500, idempotencyKey: key }) },
   logs: { cap: "logs.purge", input: (before, key) => ({ before, limit: 5000, idempotencyKey: key }) },
   events: { cap: "events.compact", input: (before, key) => ({ before, limit: 5000, idempotencyKey: key }) },
   records: { cap: "records.purge_trashed", input: (before, key) => ({ before, limit: 500, idempotencyKey: key }) },
