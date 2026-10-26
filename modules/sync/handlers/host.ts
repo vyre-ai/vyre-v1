@@ -69,15 +69,25 @@ export function noteCursor(db: Tx, person: string, device: string, deviceClass: 
   db.run("INSERT INTO sync_device_cursor (person, device, class, cursor, last_seen) VALUES (?, ?, ?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET cursor = max(cursor, excluded.cursor), class = excluded.class, last_seen = excluded.last_seen", person, device, deviceClass, cursor, at);
 }
 
-/** The merge rule a Space-defined record type gives one of its fields (schema.apply `merge`), read from the type definition in the Space store; a protected or sealed field goes to the assistant like the records module's own rule; none when the type or the rule is not there. */
-function typeMerge(db: Tx, entity: string, field: string): Policy | undefined {
+/** The field definition a Space-defined record type gives one field, read from the type in the Space store; undefined when the type or the field is not there. */
+function typeField(db: Tx, entity: string, field: string): { merge?: string; kind?: string; protected?: boolean } | undefined {
   try {
     const row = db.get<{ def: string }>("SELECT def FROM rs_types WHERE name = ?", entity);
     if (!row) return undefined;
-    const f = (JSON.parse(row.def) as { fields?: { name?: string; merge?: string; kind?: string; protected?: boolean }[] }).fields?.find((x) => x.name === field);
-    if (f && f.merge === undefined && (f.protected === true || f.kind === "sealed")) return "assistant";
-    return f?.merge === "lww" || f?.merge === "assistant" || f?.merge === "append" || f?.merge === "text-crdt" ? f.merge : undefined;
+    return (JSON.parse(row.def) as { fields?: { name?: string; merge?: string; kind?: string; protected?: boolean }[] }).fields?.find((x) => x.name === field);
   } catch { return undefined; }
+}
+
+/** The merge rule a Space-defined record type gives one of its fields (schema.apply `merge`); a protected or sealed field without a rule collides into a conflict, like the records module's own rule; none when the type or the rule is not there. */
+function typeMerge(db: Tx, entity: string, field: string): Policy | undefined {
+  const f = typeField(db, entity, field);
+  if (f && f.merge === undefined && (f.protected === true || f.kind === "sealed")) return "assistant";
+  return f?.merge === "lww" || f?.merge === "assistant" || f?.merge === "append" || f?.merge === "text-crdt" ? f.merge : undefined;
+}
+
+/** A sealed field of a Space-defined type is Restricted: its conflict is a plain choice for the person and the values never go to an AI provider (conflicts.assist and the assistant route both honour plainChoice). */
+function typeRestricted(db: Tx, entity: string, field: string): boolean {
+  return typeField(db, entity, field)?.kind === "sealed";
 }
 
 /** The ports of the push server over the sync store: field clocks from sync_rows, policy from the entity catalog, history, parked conflicts, applied seqs and idempotent effects in the module's own tables. */
@@ -97,7 +107,7 @@ export function pushDepsOf(deps: PullDeps, seam: SyncHostSeam): PushDeps {
     },
     clocks: syncRowClocks(db),
     appliedSeq: (opId) => db.get<{ seq: number }>("SELECT seq FROM sync_applied WHERE op_id = ?", opId)?.seq,
-    policy: catalogPolicy(deps.catalog, (entity, field) => typeMerge(db, entity, field)), restricted: catalogRestricted(deps.catalog),
+    policy: catalogPolicy(deps.catalog, (entity, field) => typeMerge(db, entity, field)), restricted: ((cat) => (entity: string, field: string) => cat(entity, field) || typeRestricted(db, entity, field))(catalogRestricted(deps.catalog)),
     history(e) {
       if (seam.conflicts) return seam.conflicts.history(e);
       db.run("INSERT OR IGNORE INTO sync_history (entity, id, field, hlc, actor, value, seq, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", e.entity, e.id, e.field, e.hlc, e.actor, JSON.stringify(e.value ?? null), e.seq, e.reason);
