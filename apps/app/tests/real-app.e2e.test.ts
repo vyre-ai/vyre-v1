@@ -54,9 +54,15 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       void r.text().then((b) => { if (r.status() >= 400) seen.push(`${r.status()} ${r.request().method()} ${u.pathname} ${b.slice(0, 200)}`); }).catch(() => undefined);
     }
   });
+  // Calls to the Space that carried no bearer token: a 401 "No valid session" can mean the app sent none.
+  const bare: string[] = [];
+  page.on("request", (r) => {
+    const u = new URL(r.url());
+    if ((u.pathname.startsWith("/v1/") && u.pathname !== "/v1/identity/claim_owner" && u.pathname !== "/v1/identity/sign_in") && !r.headers()["authorization"]) bare.push(`${r.method()} ${u.pathname}`);
+  });
   const dump = async (label: string): Promise<void> => {
     const text = await page.locator("body").innerText({ timeout: 2000 }).catch(() => "(no body)");
-    console.log(`real-app e2e ${label}: on screen: ${text.replace(/\s+/g, " ").slice(0, 400)}\n  calls: ${seen.slice(-8).join(" | ") || "(no failed calls)"}`);
+    console.log(`real-app e2e ${label}: on screen: ${text.replace(/\s+/g, " ").slice(0, 400)}\n  calls: ${seen.slice(-8).join(" | ") || "(no failed calls)"}\n  without a token: ${bare.slice(0, 6).join(", ") || "(none)"}\n  page errors: ${errors.slice(-3).join(" | ") || "(none)"}`);
   };
   const step = async (label: string, body: () => Promise<void>): Promise<void> => {
     try { await body(); } catch (e) { await dump(label); throw e; }
