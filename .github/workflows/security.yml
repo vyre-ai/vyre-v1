@@ -1,21 +1,12 @@
 name: security
 # Security gates (P-L11_23): licenses (npm, cargo), secret scan, dependency audit, and the layer boundaries over the whole tree. Each job fails the stage; nothing here is advisory.
-# Called by release.yml; also runs by hand and on a push that touches what these gates read.
+# Called by release.yml; also runs by hand and on every push to a branch (so all five jobs report on each head of a PR, not only when certain paths change), and in the merge queue.
 on:
   workflow_call:
   workflow_dispatch:
   push:
     branches-ignore: [main, 'gh-readonly-queue/**']
-    paths:
-      - package-lock.json
-      - '**/package.json'
-      - '**/Cargo.toml'
-      - '**/Cargo.lock'
-      - scripts/license-check.ts
-      - scripts/boundaries.*
-      - scripts/allowlist.json
-      - scripts/security/**
-      - .github/workflows/security.yml
+  merge_group:
 jobs:
   licenses:
     # AGPL, GPL, LGPL and SSPL are blocked (scripts/license-check.ts, ARCH 2.2 B6); MIT, Apache-2.0, BSD, ISC pass and MPL-2.0 is accepted at file level.
