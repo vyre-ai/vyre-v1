@@ -79,6 +79,20 @@ test("chat live: a person's message to an agent on a booted daemon gets a stream
     // modules.db handle; its file steps are answered by the stub. After #472, merge main, delete these two lines and the test goes through the real Agents folder.
     d.db!.run("CREATE TABLE IF NOT EXISTS agents_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
     d.db!.run("INSERT OR REPLACE INTO agents_meta (key, value) VALUES (?, ?)", "agents.root", "fld_root");
+    // her Claude account, the way a person connects it (spec 6.4): her client unlocks her person key on this node, the sign-in starts, her client saves the token as a Mine item, Done links it as her provider, and
+    // she lets the Space use it (a private chat with no desktop device online runs on the Space, spec 6.3)
+    const unlock = await fetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
+    assert.equal(unlock.status, 204, `unlock: ${unlock.status}`);
+    const folder = await call(d, "vault.folders.create", { idempotencyKey: "chat-live-folder", name: "Accounts", scope: "mine" });
+    assert.equal(folder.status, 200, JSON.stringify(folder.data));
+    const flow = await call(d, "providers.subscription_start", { idempotencyKey: "chat-live-flow", providerKey: "claude-code" });
+    assert.equal(flow.status, 200, JSON.stringify(flow.data));
+    const item = await call(d, "vault.item.put", { idempotencyKey: "chat-live-item", folderId: folder.data.folder.id, name: "Olivia_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: KEY, secret: true }] });
+    assert.equal(item.status, 200, JSON.stringify(item.data));
+    const provider = await call(d, "providers.subscription_complete", { flowId: flow.data.flowId });
+    assert.equal(provider.status, 200, JSON.stringify(provider.data));
+    const allowed = await call(d, "providers.set_space_use", { idempotencyKey: "chat-live-spaceuse", providerId: provider.data.provider.id, allow: true });
+    assert.equal(allowed.status, 200, JSON.stringify(allowed.data));
     const made = await call(d, "agents.create", { name: "Intake", role: "You answer intake questions.", idempotencyKey: "chat-live-agent" });
     assert.equal(made.status, 200, JSON.stringify(made.data));
     const agentId = made.data.agent.agentId as string;
