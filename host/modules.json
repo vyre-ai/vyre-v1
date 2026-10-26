@@ -194,7 +194,7 @@
     {
       "id": "meetings",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "members",
@@ -324,7 +324,7 @@
     {
       "id": "telephony",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "templates",
@@ -359,7 +359,7 @@
     {
       "id": "zoom",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     }
   ]
 }

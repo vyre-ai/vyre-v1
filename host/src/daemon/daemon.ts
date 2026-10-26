@@ -64,7 +64,7 @@ import { createPortalHost } from "../seams/comms.ts";
 import { createUpdatesHost } from "../seams/updates.ts";
 import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
 import { createLiveHub } from "../ws.ts";
-import type { LiveHub } from "../ws.ts";
+import type { LiveHub, SyncHubPort } from "../ws.ts";
 import { bootstrapSpace, mintOwner } from "./bootstrap.ts";
 import { createAccess, isAccessEvent, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
@@ -164,6 +164,8 @@ export interface DaemonOptions {
   sealKey?: { key: Uint8Array | string; keyId: string };
   /** replace the default session (the local admin token) */
   session?: GatewayDeps["session"];
+  /** Sync's live hub (createSyncLiveHub) for the live socket: sockets then speak the sync protocol (full hello_ok, filtered ev batches). `onHub` receives the host hub, which is the port for sync's setLiveHub (purge, purgeDevice). */
+  liveSync?: { hub: SyncHubPort; onHub?(hub: LiveHub): void };
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   /** intervals in ms; tests shorten them */
@@ -519,7 +521,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
       const spaceLog = log;
-      peopleExtras = createPeopleExtras({ access: () => access.snap, db: db!, call: (n, i, as) => hookRunner.call(n, i, as), keyring, github: o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env) });
+      peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, call: (n, i, as) => hookRunner.call(n, i, as), keyring, github: o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env) });
       // `trace`: a call the host makes on behalf of a caller keeps that caller's trace (only the principal changes), so the events it writes stay in the caller's trace
       const system = (cap: string, input: unknown, trace?: { traceId: string; spanId: string }): Promise<unknown> =>
         invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...(trace ? { trace } : {}) }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
@@ -686,7 +688,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if (!t) return null;
         if (sameToken(t, token)) return { space: spaceId, principal: { kind: "person", id: owner() }, device: ADMIN_DEVICE };
         const s = sessions.resolve(t);
-        return s ? { space: s.space, principal: { kind: "person", id: s.person }, device: s.device } : null;
+        // a session is only as good as the membership behind it: a suspended, removed or unknown person's live token stops working at once, and a fresh sign-in is needed after reactivation (suspend ends the person's devices)
+        if (!s || access.snap.principal(s.person)?.status !== "active") return null;
+        return { space: s.space, principal: { kind: "person", id: s.person }, device: s.device };
       };
       const session: GatewayDeps["session"] = o.session ?? ((headers) => identify(bearer(headers["authorization"])));
       ownerOfSpace = () => cfg.owner ?? access.owner() ?? null;
@@ -719,6 +723,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         invoke, sink,
         eventsSince: (_s, cursor) => (recent.length && recent[0]!.seq <= cursor + 1 ? recent.filter((e) => e.seq > cursor) : []),
         head: () => headSeq,
+        ...(o.liveSync ? { sync: o.liveSync.hub } : {}),
       });
       hubFactory = mkHub;
     } else {
@@ -819,6 +824,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const gatewayUnit = async (): Promise<RunningUnit> => {
     const h = hubFactory ? hubFactory() : createLiveHub({ session: () => null });
     hub = h;
+    o.liveSync?.onHub?.(h);
     const server = h.server;
     server.removeAllListeners("request");
     const listener = requestListener({

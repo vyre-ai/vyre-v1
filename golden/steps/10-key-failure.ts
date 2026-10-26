@@ -7,9 +7,7 @@ import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_KEYFAIL = ["identity", "members", "devices", "tasks", "access", "spaces"];
-export const GAPS: Gap[] = [
-  { packet: "L7 identity", lane: "L7", what: "a mistyped password is refused (auth.bad_credentials) but no signin.failed event reaches the log: the capability emits it and then raises, and a failed call commits no events" },
-];
+export const GAPS: Gap[] = [];
 const KEYS = { personKeyByPassword: "bmV3d3JhcHBlZA==", publicKey: "cHVibGlj", privateKeyWrapped: "d3JhcHBlZA==", spaceKeys: [{ epoch: 0, wrapped: "d3JhcHBlZA==" }] };
 
 export async function runKeyFail(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {

@@ -13,6 +13,8 @@ import type { SeamCtx, SeamFetch, SpaceBlobs, VaultPort } from "./ports.ts";
 export const STRIPE_HANDLES = ["#Stripe_Key", "#Stripe_Webhook_Secret"] as const;
 export const TWILIO_HANDLES = ["#Twilio_Account", "#Twilio_Auth", "#Twilio_API_Key"] as const;
 export const TWILIO_DOMAINS = ["api.twilio.com", "media.twilio.com"] as const;
+export const ZOOM_HANDLES = ["#Zoom_S2S.account_id", "#Zoom_S2S.client_id", "#Zoom_S2S.client_secret", "#Zoom_Webhook_Secret"] as const;
+export const ZOOM_DOMAINS = ["zoom.us"] as const;
 export const GITHUB_SECRET_HANDLES = ["#GitHub_App_Webhook_Secret"] as const;
 
 /** The shape of StripeHost (modules/stripe/projections.ts), kept here so the host never imports a module. */
@@ -23,6 +25,12 @@ export interface TwilioHostSeam {
   optionalSecret(ctx: SeamCtx, handle: string): Promise<string | null>;
   download(ctx: SeamCtx, a: { url: string; mime?: string }): Promise<{ blobId: string; size: number; mime: string }>;
   publicUrl(ctx: SeamCtx): Promise<string>;
+}
+
+/** The shape of ZoomHost (modules/zoom/projections.ts). */
+export interface ZoomHostSeam {
+  secret(ctx: SeamCtx, handle: string): Promise<string>;
+  download(ctx: SeamCtx, a: { url: string; bearer: string; mime?: string }): Promise<{ blobId: string; size: number; mime: string }>;
 }
 
 export interface GithubHostSeam {
@@ -50,6 +58,14 @@ function publicUrlOf(d: Pick<CommsDeps, "publicUrl">, ctx: SeamCtx, what: string
 
 export function createStripeHost(d: Pick<CommsDeps, "vault">): StripeHostSeam {
   return { secret: (ctx, handle) => secretOf(d, ctx, handle, STRIPE_HANDLES, "Stripe") };
+}
+
+export function createZoomHost(d: CommsDeps): ZoomHostSeam {
+  return {
+    secret: (ctx, handle) => secretOf(d, ctx, handle, ZOOM_HANDLES, "Zoom"),
+    // the address is checked first (https, a Zoom host): the account token goes nowhere else
+    download: async (ctx, a) => { checked(ctx, a.url, ZOOM_DOMAINS); return getToBlob(ctx, { ...d, files: { read: () => Promise.reject(new Error("no files")) } }, ZOOM_DOMAINS, a, { authorization: `Bearer ${a.bearer}` }); },
+  };
 }
 
 export function createTwilioHost(d: CommsDeps): TwilioHostSeam {
