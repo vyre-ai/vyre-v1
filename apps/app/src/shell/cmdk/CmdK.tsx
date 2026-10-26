@@ -80,6 +80,8 @@ export interface CmdKBodyProps {
   /** Inline in a tab (new-tab search) instead of a sheet: no veil, Enter fills the tab. */
   inline?: boolean;
   autoFocus?: boolean;
+  /** Draw no results area while the field is empty (the new-tab page draws its own sections there). */
+  quietWhenEmpty?: boolean;
 }
 
 function scopeLine(state: CmdKState): string | null {
@@ -98,7 +100,7 @@ function scopeLine(state: CmdKState): string | null {
   return lead ?? (note ? note.charAt(0).toUpperCase() + note.slice(1) : null);
 }
 
-export function CmdKBody({ controller, placeholder = "Search agents, chats, people, records, files, actions…", platform = "mac", inline = false, autoFocus = true }: CmdKBodyProps): ReactElement {
+export function CmdKBody({ controller, placeholder = "Search agents, chats, people, records, files, actions…", platform = "mac", inline = false, autoFocus = true, quietWhenEmpty = false }: CmdKBodyProps): ReactElement {
   const state = useCmdKState(controller);
   const [menu, setMenu] = useState<{ items: MenuEntry[]; x: number; y: number } | null>(null);
   const input = useRef<unknown>(null);
@@ -184,9 +186,9 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
         </Pressable>
       </View>
       {line ? <View testID="cmdk-scope" style={styles.scopes}><Text style={styles.scopesText} numberOfLines={2}>{line}</Text></View> : null}
-      <ScrollView nativeID="cmdk-list" testID="cmdk-list" style={[styles.list, listMax ? { maxHeight: listMax } : null]} keyboardShouldPersistTaps="handled" {...webOnly({ role: "listbox" })}>
+      {quietWhenEmpty && state.raw.trim() === "" ? null : <ScrollView nativeID="cmdk-list" testID="cmdk-list" style={[styles.list, listMax ? { maxHeight: listMax } : null]} keyboardShouldPersistTaps="handled" {...webOnly({ role: "listbox" })}>
         {rowNodes}
-      </ScrollView>
+      </ScrollView>}
       {!inline && Platform.OS === "web" ? (
         <View style={styles.foot}>
           <Text style={styles.footText}>{"↑↓ to move"}</Text>

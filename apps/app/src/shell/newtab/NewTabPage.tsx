@@ -45,7 +45,7 @@ export function NewTabPage({ data, platform = "mac" }: { data: NewTabData; platf
   return (
     <View testID="newtab-page" style={styles.page}>
       <View style={styles.col}>
-        <CmdKBody controller={ctl} platform={platform} inline placeholder="Open anything, or start something" />
+        <CmdKBody controller={ctl} platform={platform} inline quietWhenEmpty placeholder="Open anything, or start something" />
         {typed ? null : (
           <View testID="newtab-sections">
             <Heading>Start</Heading>
