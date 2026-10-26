@@ -5,7 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { eraseItem, purgeKind } from "../handlers/erasers.ts";
-import { jobsList, seedTicks } from "../handlers/retention.ts";
+import { heldFor, jobsList, seedTicks } from "../handlers/retention.ts";
 import { harness } from "../fixtures/harness.ts";
 import type { GovCtx } from "../projections.ts";
 
@@ -66,10 +66,8 @@ function world(s: Stores, missing: string[] = []): GovCtx {
       case "mail.message.erase": return { erased: s.mail.delete(String(i["messageId"])) };
       case "memory.notes.erase": return { erased: s.notes.delete(String(i["noteId"])) };
       case "memory.erase": { let n = 0; for (const f of i["factIds"] as string[]) if (s.facts.delete(f)) n++; return { erased: n }; }
-      case "runs.purge": {
-        if (i["runId"] !== undefined) return { erased: s.runs.delete(String(i["runId"])) };
-        const removed = purgeBy(s.runs, Number(i["before"])); return { removed, more: false };
-      }
+      case "runs.erase": return { erased: s.runs.delete(String(i["runId"])) };
+      case "runs.purge": return { removed: purgeBy(s.runs, Number(i["before"])), more: false };
       case "chat.transcript.purge": return { removed: purgeBy(s.transcripts, Number(i["before"])), more: false };
       case "files.versions.purge": return { removed: purgeBy(s.versions, Number(i["before"])), more: false };
       case "logs.purge": return { removed: purgeBy(s.logs, Number(i["before"])), more: false };
@@ -185,4 +183,20 @@ test("boot seeds the first daily tick for every kind once: a second boot schedul
   assert.ok(jobs.every((j) => j["nextRunAt"] === NOW + DAY), "the job rows say when the first tick is");
   assert.deepEqual(await seedTicks(h.ctx), { scheduled: 0 }, "a second boot adds no second tick");
   assert.equal(h.scheduled.length, 10);
+});
+
+test("holds keep data out of an age purge: held files and threads are passed by id, and a hold on a person or a folder keeps the whole kind", async () => {
+  const h = harness();
+  const hold = (kind: string, id: string) => h.ctx.db.run(`INSERT INTO gov_hold ("kind", "targetId", "reason", "by", "at") VALUES (?, ?, ?, ?, ?)`, kind, id, "litigation", "usr_owner0001", NOW);
+  assert.deepEqual(await heldFor(h.ctx, "file_versions"), { all: false, count: 0, extra: {} });
+  hold("file", "fil_held0001");
+  hold("thread", "thr_held0001");
+  assert.deepEqual(await heldFor(h.ctx, "file_versions"), { all: false, count: 1, extra: { skipFileIds: ["fil_held0001"] } });
+  assert.deepEqual(await heldFor(h.ctx, "transcripts"), { all: false, count: 1, extra: { skipThreadIds: ["thr_held0001"] } });
+  hold("folder", "fld_held0001");
+  assert.equal((await heldFor(h.ctx, "file_versions")).all, true, "a folder hold covers files by place, which the owner cannot answer: keep the kind whole");
+  assert.equal((await heldFor(h.ctx, "transcripts")).all, false);
+  hold("person", "rec_pat00001");
+  for (const kind of ["transcripts", "file_versions", "run_logs", "records"] as const) assert.equal((await heldFor(h.ctx, kind)).all, true, kind);
+  assert.deepEqual(await heldFor(h.ctx, "logs"), { all: false, count: 0, extra: {} }, "logs have a hold of their own in the logs module");
 });

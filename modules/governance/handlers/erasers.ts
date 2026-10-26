@@ -24,7 +24,7 @@ const ERASERS: Readonly<Record<string, Eraser>> = {
   "calls:call": { cap: "telephony.call.erase", input: (_t, id, key) => ({ callId: id, idempotencyKey: key }) },
   "mail:email": { cap: "mail.message.erase", input: (_t, id, key) => ({ messageId: id, idempotencyKey: key }) },
   "memory:note": { cap: "memory.notes.erase", input: (_t, id, key) => ({ noteId: id, idempotencyKey: key }) },
-  "runs:*": { cap: "runs.purge", input: (_t, id, key) => ({ runId: id, idempotencyKey: key }) },
+  "runs:*": { cap: "runs.erase", input: (_t, id, key) => ({ runId: id, idempotencyKey: key }) },
 };
 
 const eraserFor = (kind: EraseKind, type: string): Eraser | undefined => ERASERS[`${kind}:${type}`] ?? ERASERS[`${kind}:*`];
@@ -73,14 +73,14 @@ const PURGERS: Readonly<Partial<Record<Kind, Purger>>> = {
 const MAX_BATCHES = 50;
 
 /** Remove everything of `kind` older than `before` (epoch ms), a batch at a time. `day` makes the idempotency key one per kind and day, so a job that runs twice in a day is the same call. */
-export async function purgeKind(ctx: GovCtx, kind: Kind, before: number, day: string): Promise<Purged> {
+export async function purgeKind(ctx: GovCtx, kind: Kind, before: number, day: string, extra: Record<string, unknown> = {}): Promise<Purged> {
   if (kind === "backups") return purgeBackups(ctx, before);
   const p = PURGERS[kind];
   if (!p) return { kind, status: "no_purger" };
   let removed = 0, skipped = 0;
   try {
     for (let batch = 0; batch < MAX_BATCHES; batch++) {
-      const out = obj(await ctx.call(p.cap, p.input(before, `gov-purge:${kind}:${day}:${batch}`)));
+      const out = obj(await ctx.call(p.cap, { ...p.input(before, `gov-purge:${kind}:${day}:${batch}`), ...extra }));
       const n = out["removed"];
       removed += typeof n === "number" ? n : 0;
       skipped += typeof out["skippedOnHold"] === "number" ? out["skippedOnHold"] : 0;

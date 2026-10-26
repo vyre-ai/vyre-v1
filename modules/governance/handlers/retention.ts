@@ -218,8 +218,33 @@ async function work(ctx: GovCtx, kind: Kind, value: string): Promise<{ removed: 
   if (kind === "audit") return { removed: num(obj(await ctx.call("audit.archive", { before: ctx.now() - age })) as Row, "archived"), skipped: 0 };
   // run_logs, transcripts, file_versions, logs, events, records and memory: the owning module's purger (erasers.ts). One that is not in the contract yet removes nothing and says so in the job's numbers.
   const day = new Date(ctx.now()).toISOString().slice(0, 10);
-  const done = await purgeKind(ctx, kind, ctx.now() - age, day);
-  return done.status === "purged" ? { removed: done.removed, skipped: done.skipped ?? 0 } : { removed: 0, skipped: 0 };
+  const held = await heldFor(ctx, kind);
+  if (held.all) return { removed: 0, skipped: held.count };
+  const done = await purgeKind(ctx, kind, ctx.now() - age, day, held.extra);
+  return done.status === "purged" ? { removed: done.removed, skipped: (done.skipped ?? 0) + held.count } : { removed: 0, skipped: 0 };
+}
+
+/**
+ * What a hold keeps out of an age purge. Holds are governance's, so it tells the owning module. A kind it cannot map a hold onto safely is kept whole (`all`): a hold on a person covers everything they own,
+ * a hold on a folder covers files by their place, and the owning modules cannot answer that, so those kinds wait until the hold is released. Held files and threads are passed by id.
+ */
+export async function heldFor(ctx: GovCtx, kind: Kind): Promise<{ all: boolean; count: number; extra: Record<string, unknown> }> {
+  const holds = rowsOf(ctx.db.all(`SELECT * FROM gov_hold`));
+  const of = (k: string): string[] => holds.filter((h) => str(h, "kind") === k).map((h) => str(h, "targetId"));
+  if (kind === "file_versions") {
+    if (of("person").length > 0 || of("folder").length > 0) return { all: true, count: of("person").length + of("folder").length, extra: {} };
+    return { all: false, count: of("file").length, extra: of("file").length ? { skipFileIds: of("file") } : {} };
+  }
+  if (kind === "transcripts") {
+    if (of("person").length > 0) return { all: true, count: of("person").length, extra: {} };
+    const threads = [...of("thread")];
+    for (const channelId of of("channel")) {
+      try { const main = text(obj(obj(await ctx.call("channels.get", { channelId }))["channel"])["mainThreadId"]); if (main) threads.push(main); } catch (e) { if (codeOf(e) !== "validation.not_found") throw e; }
+    }
+    return { all: false, count: threads.length, extra: threads.length ? { skipThreadIds: threads } : {} };
+  }
+  if (kind === "run_logs" || kind === "records") return of("person").length > 0 ? { all: true, count: of("person").length, extra: {} } : { all: false, count: 0, extra: {} };
+  return { all: false, count: 0, extra: {} };
 }
 
 /** Boot: give every kind its first daily tick, so a Space that never pressed Run now still has retention running. A kind that already has a tick scheduled is left alone; calling this twice schedules nothing new. */
