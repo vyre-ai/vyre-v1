@@ -130,6 +130,8 @@ function sealKeyFile(file: string): string {
 }
 
 export interface DaemonOptions {
+  /** Test-only observer for the agent home mirror's invoke seed. */
+  computerMirrorObserver?: (agentId: string, ownerId: string | undefined) => void;
   /** GitHub sign-in (default: VYRE_GH_OAUTH_CLIENT_ID and VYRE_GH_OAUTH_CLIENT_SECRET from the environment; null: not set up) */
   githubOAuth?: GithubOAuth | null;
   config: DaemonConfig;
@@ -622,6 +624,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           // the home mirror runs as the agent: the same pipeline as any call, so access, review rules and the scrubber apply
           callAs: async (agentId, cap, input) => {
             const owner = db!.all("SELECT ownerId FROM agents_agent WHERE id = ? AND deletedAt IS NULL", agentId)[0] as { ownerId?: string } | undefined;
+            o.computerMirrorObserver?.(agentId, owner?.ownerId);
             const r = await invoke(cap, input, { space: spaceId, principal: { kind: "agent", id: agentId }, ...(owner?.ownerId ? { actingFor: owner.ownerId } : {}), origin: "computers" });
             if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
             return r.output;
