@@ -96,6 +96,11 @@ test("l4 live: a booted daemon has no L4 module not set up, and a read and a wri
     // git: the folder becomes a repository and its status says so
     await ok("/v1/git/init", { folderId });
     assert.equal((await ok("/v1/git/status", { folderId }))["isRepo"], true, "git.status sees the repository git.init made");
+    // golden 3: the file made through Files is in the working copy, so the commit holds it (the Files tree and the git working copy are one tree)
+    const commit = await ok("/v1/git/commit", { idempotencyKey: "l4-live-commit", folderId, message: "Add the note" });
+    assert.equal(commit["files"], 1, "git.commit made a commit that contains note.txt");
+    const shown = await ok("/v1/git/show", { folderId, sha: commit["sha"] });
+    assert.deepEqual((shown["files"] as { path: string }[]).map((f) => f.path), ["note.txt"], "the commit holds exactly the file files.create made");
     assert.ok(["healthy", "degraded", "down"].includes(String((await ok("/v1/git/health", {}))["state"])), "git.health answers");
 
     // mounts: a folder on a device is mounted into a new folder, and the list shows it
