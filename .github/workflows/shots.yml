@@ -71,6 +71,10 @@ jobs:
           if [ -f scripts/shots/real-app.mjs ] && [ -d apps/app/dist ]; then
             node scripts/shots/real-app.mjs --dist apps/app/dist --out shots-out/real-app
           else echo "real-app capture: script or the real app export not present, skipped"; fi
+      - name: The export carries the daemon's registry hash (EXPO_PUBLIC_VYRE_REGISTRY_HASH)
+        run: |
+          D=apps/app/dist; [ -d "$D" ] || D=scripts/shots/app/dist   # the real app's export when this run made one
+          if [ -d "$D" ]; then node scripts/shots/registry-hash-in-bundle.mjs "$D"; else echo "registry hash check: no export dir, skipped"; fi
       - name: No prototype seed in the production web bundle (P-UI_06b)
         run: |
           # skipped until scripts/shots/no-seed-in-bundle.mjs is on the branch (it lands with P-UI_06b)
