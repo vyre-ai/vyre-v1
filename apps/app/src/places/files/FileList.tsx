@@ -1,6 +1,7 @@
 // Files list parts (P-L9e_01b): the column header (Name, Modified, Made by, Size, Kind; each a sort button), the cells that go in a Row's trailing slot, and the grid (tiles in rows, so the
 // grid scrolls on the same VirtualList as the list). The list itself stays in list/FilesList.tsx; this file owns what is drawn per line. Row stays the shared ui/Row (ruling 36).
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { createElement } from "react";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ReactElement, ReactNode } from "react";
 import { Glyph } from "./tree/parts.tsx";
 import type { IconName } from "./tree/parts.tsx";
@@ -49,8 +50,51 @@ function Face({ name }: { name: string }): ReactElement {
 
 export interface Cells { when: string; by: string | null; size: string; kind: string }
 
+let cssDone = false;
+/** The cells' styles, set once (a line only draws after the page is live). On the web a line is plain elements: the cells and the icon box are spans, not React Native views (P-L9e_25). */
+function ensureCellCss(): void {
+  if (cssDone) return;
+  const d = (globalThis as { document?: { getElementById(id: string): unknown; createElement(t: string): { id: string; textContent: string }; head?: { appendChild(n: unknown): void } } }).document;
+  if (!d || !d.head) return;
+  if (!d.getElementById("vyre-files-cells")) {
+    const el = d.createElement("style");
+    el.id = "vyre-files-cells";
+    el.textContent = ".vfl-cs{display:flex;flex-direction:row;align-items:center;gap:" + COL.gap + "px}"
+      + ".vfl-c{flex:none;white-space:nowrap;color:var(--ink-3);font-size:12.5px;font-variant-numeric:tabular-nums}.vfl-n{text-align:right}"
+      + ".vfl-x{overflow:hidden;text-overflow:ellipsis}.vfl-w{flex:none;display:flex;align-items:center;gap:7px;white-space:nowrap;color:var(--ink-2);font-size:12.5px}.vfl-b{min-width:0}.vfl-b.vfl-x{flex:1}"
+      + ".vfl-f{flex:none;width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--sunk);color:var(--ink-2);font-size:9px;font-weight:600}"
+      + ".vfl-i{flex:none;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--sunk);margin-right:10px}";
+    d.head.appendChild(el);
+  }
+  cssDone = true;
+}
+/** A text takes the clip box and its ellipsis only when it is longer than its column holds (a little over the average glyph); the words stay whole in the page either way. */
+const longer = (text: string, width: number): string => (text.length > Math.floor(width / 6.6) ? " vfl-x" : "");
+
+/** The icon box of a line: the kind's glyph on a quiet tile. */
+export function LineIcon({ icon, folder }: { icon: IconName; folder: boolean }): ReactElement {
+  const glyph = Glyph({ name: icon, size: 18, color: folder ? "var(--accent)" : "var(--ink-3)" });
+  if (Platform.OS !== "web") return <View style={styles.lineIcon}>{glyph}</View>;
+  ensureCellCss();
+  return createElement("span", { className: "vfl-i" }, glyph);
+}
+
+function WebCells({ cells: c, wide }: { cells: Cells; wide: boolean }): ReactElement {
+  ensureCellCss();
+  const out: ReactElement[] = [createElement("span", { key: "m", className: `vfl-c${longer(c.when, COL.modified)}`, "data-testid": "cell-modified", style: { width: COL.modified } }, c.when)];
+  if (wide) {
+    out.push(
+      createElement("span", { key: "b", className: "vfl-w", "data-testid": "cell-by", style: { width: COL.by } }, ...(c.by ? [createElement("span", { key: "f", className: "vfl-f", "aria-hidden": true }, c.by.slice(0, 1).toUpperCase()), createElement("span", { key: "n", className: `vfl-b${longer(c.by, COL.by - 23)}` }, c.by)] : [])),
+      createElement("span", { key: "s", className: `vfl-c vfl-n${longer(c.size, COL.size)}`, "data-testid": "cell-size", style: { width: COL.size } }, c.size),
+      createElement("span", { key: "k", className: `vfl-c${longer(c.kind, COL.kind)}`, "data-testid": "cell-kind", style: { width: COL.kind } }, c.kind),
+    );
+  }
+  return createElement("div", { className: "vfl-cs" }, ...out);
+}
+
 /** The cells of a line, in the Row's trailing slot. */
 export function RowCells({ cells, wide }: { cells: Cells; wide: boolean }): ReactElement {
+  if (Platform.OS === "web") return WebCells({ cells, wide });
   return (
     <View style={styles.cells}>
       <Text numberOfLines={1} style={[styles.mut, { width: COL.modified }]} testID="cell-modified">{cells.when}</Text>
@@ -138,6 +182,7 @@ const styles = StyleSheet.create({
   num: { textAlign: "right" },
   who: { flexDirection: "row", alignItems: "center", gap: 7 },
   whoText: { fontSize: 12.5, color: "var(--ink-2)" as string, flexShrink: 1 },
+  lineIcon: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string, marginRight: 10 },
   face: { width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },
   faceText: { fontSize: 9, fontWeight: "600", color: "var(--ink-2)" as string },
   gridRow: { flexDirection: "row", gap: GRID_GAP, paddingHorizontal: GRID_PAD, paddingTop: 0, paddingBottom: GRID_GAP },
