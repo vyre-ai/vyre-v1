@@ -428,14 +428,6 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           // The one internal call a module may make with the host's own authority: devices -> sync.epoch.bump (a device was revoked, its replica must purge). The person revoking their own
           // device holds no sync grant, and a revoke that cannot purge would leave the copy on the device. Nothing else is widened: every other ctx.call keeps the caller's authority.
           const mod = h ? (capIndex?.get(cap)?.module ?? "") : "";
-          // the owner claimed the Space: the link is spent, so the file that held it goes too
-          if (h && cap === "identity.claim_owner") return (async (ctx, input) => {
-            // identity opens the owner's device session through devices.register, which only the host may call (P-SEC_08): the same override as every other identity handler
-            const out = await h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown, opts?: unknown) => (name === "devices.register" ? system(name, callInput) : (ctx.call as (n: string, i: unknown, o?: unknown) => unknown)(name, callInput, opts)) } as typeof ctx, input);
-            claim = null;
-            try { fs.rmSync(path.join(paths.logDir, "claim-link.txt"), { force: true }); } catch { /* already gone */ }
-            return out;
-          }) as Handler;
           // identity opens a device session at sign-in by calling devices.register, which only the server itself may do (P-SEC_08): that one call, from identity, runs as the host. Nothing else is widened.
           if (h && mod === "identity") return ((ctx, input) => h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown, opts?: unknown) => (name === "devices.register" ? system(name, callInput) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
           // accepting an invite: the person proved the code, and the invite's role, groups and starting places were the inviter's to give. Those join effects run as the host, not as the signed-out caller.
@@ -464,6 +456,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }),
         audit: (r) => recordAudit(r),
         publish: (events) => {
+          // the owner claimed the Space (their keys were stored): the link is spent, so the file that held it goes too
+          if (claim && events.some((e) => e.type === "keys.stored" && (e.payload as { personId?: string } | undefined)?.personId === access.owner())) {
+            claim = null;
+            try { fs.rmSync(path.join(paths.logDir, "claim-link.txt"), { force: true }); } catch { /* already gone */ }
+          }
           recent.push(...events);
           if (recent.length > RING) recent.splice(0, recent.length - RING);
           hub?.publish(spaceId, events);

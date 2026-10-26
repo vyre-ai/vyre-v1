@@ -25,7 +25,7 @@ export async function claimOwner(
   const personId = spendCode(ctx, "claim", code).personId;
   await provisionAccount(ctx, { personId, username, name: input.displayName?.trim() || username, secret: input.password });
   setKeys(ctx, personId, input.keys, "first_device");
-  return await issueSession(ctx, mustAccount(ctx, personId), input, "password");
+  return await issueSession(ctx, mustAccount(ctx, personId), input, "password", { joining: true });
 }
 
 /**
