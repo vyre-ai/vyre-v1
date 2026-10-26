@@ -53,6 +53,7 @@ const manifest = defineManifest({
     ev('calendar_event.deleted', 'An event was deleted (Undo restores it)', { p: { eventId: cevId, calendarId: calId }, subject: ['entity', '/eventId'], label: 'subject' }),
     ev('calendar_event.restored', 'A deleted event came back', { p: { eventId: cevId, calendarId: calId }, subject: ['entity', '/eventId'], label: 'subject' }),
     ev('calendar_event.response_changed', 'An attendee or the caller answered an invitation', { p: { eventId: cevId, email, response: t.enm('accepted', 'declined', 'tentative') }, subject: ['entity', '/eventId'], label: 'subject' }),
+    ev('calendar.created', 'A calendar was made in Vyre; it is a resource owned by the person who made it', { p: { calendarId: calId, personal: t.bool() }, subject: ['calendar', '/calendarId'], label: 'subject' }),
     ev('calendar.synced', 'A calendar finished a sync pass', { p: { calendarId: calId, upserted: t.int(), removed: t.int() }, subject: ['entity', '/calendarId'], vis: 'participants' }),
   ],
   capabilities: [
@@ -60,7 +61,7 @@ const manifest = defineManifest({
       in: { scope: t.opt(t.enm('mine', 'shared', 'all')) }, out: { calendars: t.arr(calendarRow) }, tool: 'inbox', label: 'filter',
     }),
     write('calendar.create_calendar', 'Create a local calendar (for example a private Personal one)', {
-      in: { title: t.str(), color: t.opt(t.str()), personal: t.opt(t.bool()) }, out: { calendar: calendarRow }, idem: 'key', tool: 'inbox',
+      in: { title: t.str(), color: t.opt(t.str()), personal: t.opt(t.bool()) }, out: { calendar: calendarRow }, idem: 'key', emits: ['calendar.created'], tool: 'inbox',
     }),
     write('calendar.update_calendar', 'Rename a calendar or change its colour', {
       in: { calendarId: calId, title: t.opt(t.str()), color: t.opt(t.str()) }, out: { calendar: calendarRow }, tool: 'inbox',

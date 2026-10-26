@@ -527,16 +527,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const mine = await invoke("calendar.list_calendars", { scope: "mine" }, as);
           const calendars = (mine.status === "ok" ? (mine.output as { calendars?: { personal?: boolean }[] }).calendars : undefined) ?? [];
           if (calendars.some((c) => c.personal === true)) return;
-          const made = await invoke("calendar.create_calendar", { title: "Personal", personal: true, idempotencyKey: `personal-calendar:${person}` }, as);
-          // calendar.create_calendar is a plain write, so nothing registers the calendar as a resource: do it here, owned by the person, so authorize can find it (same as the Files roots)
-          const calId = made.status === "ok" ? (made.output as { calendar?: { id?: string } } | null)?.calendar?.id : undefined;
-          if (calId) {
-            const r = await log!.appendResult({
-              id: `evt_res_${calId}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: calId,
-              payload: { id: calId, type: "calendar", parent_id: spaceId, label: 0, owner_id: person, holds: 0 },
-            });
-            if (r.ok && !r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
-          }
+          await invoke("calendar.create_calendar", { title: "Personal", personal: true, idempotencyKey: `personal-calendar:${person}` }, as);
         } catch (e) {
           sink.log({ space: spaceId, level: 40, msg: "calendar.personal_failed", place: "boot", attrs: { person, error: e instanceof Error ? e.message : String(e) } });
         }

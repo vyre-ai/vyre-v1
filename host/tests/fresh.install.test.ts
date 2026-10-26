@@ -106,6 +106,12 @@ test("a fresh install: claim link, claim, sign in, work, invite a member who joi
     const event = await post(maya, "/v1/calendar/create_event", { idempotencyKey: "fresh-event", calendarId: mayaCal[0]!.id, title: "Kickoff", startsAt: when, endsAt: when + 3_600_000 });
     assert.equal(event.status, 200, `the member's event lands on their calendar: ${JSON.stringify(event.body)}`);
     assert.equal(event.body.data.event.calendarId, mayaCal[0]!.id);
+    // and a calendar a person makes themselves is a resource too (calendar.created registers it): an event goes into it
+    const own = await post(maya, "/v1/calendar/create_calendar", { idempotencyKey: "fresh-own-calendar", title: "Side projects" });
+    assert.equal(own.status, 200, JSON.stringify(own.body));
+    const ownEvent = await post(maya, "/v1/calendar/create_event", { idempotencyKey: "fresh-own-event", calendarId: own.body.data.calendar.id, title: "Hack night", startsAt: when + 7_200_000, endsAt: when + 10_800_000 });
+    assert.equal(ownEvent.status, 200, `an event on the member's own calendar: ${JSON.stringify(ownEvent.body)}`);
+    assert.equal(ownEvent.body.data.event.calendarId, own.body.data.calendar.id);
 
     // a restart keeps the Space, the owner and the member, and prints no new link
     await d.stop();

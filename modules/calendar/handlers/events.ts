@@ -141,6 +141,7 @@ export async function createCalendar(ctx: CalCtx, input: { title: string; color?
     `INSERT INTO calendar_list (id, title, color, provider, "connectionId", "remoteId", "ownerId", personal, state, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, title, color, "local", null, null, owner, personal ? 1 : 0, "syncing", 1, ctx.now(), null,
   );
+  ctx.emit("calendar.created", `calendar/${id}`, { calendarId: id, personal });   // the pipeline registers the calendar as a resource owned by the caller (P-H_16)
   return { calendar: toCalendar(calendarRow(ctx, id, "view")) };
 }
 
