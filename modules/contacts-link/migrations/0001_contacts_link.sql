@@ -34,7 +34,7 @@ CREATE INDEX IF NOT EXISTS contacts_link_suppression__lookup ON contacts_link_su
 CREATE INDEX IF NOT EXISTS contacts_link_suppression__contact ON contacts_link_suppression ("contactId");
 
 -- Duplicate suggestions a person said are not duplicates. The suggestion id is the two record ids, sorted, joined by a bar.
-CREATE TABLE IF NOT EXISTS contacts_dismissed (
+CREATE TABLE IF NOT EXISTS contacts_link_dismissed (
   "suggestionId" TEXT PRIMARY KEY,
   "dismissedBy" TEXT NOT NULL,
   "dismissedAt" INTEGER NOT NULL

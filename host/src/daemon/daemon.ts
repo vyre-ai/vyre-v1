@@ -41,9 +41,12 @@ import { createGateHook } from "./gate-hook.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { createEngineHost } from "../seams/engine.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
+import { applyPendingRestore, createBackupHost } from "../seams/backup.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import { startRelayBox } from "../seams/relay.ts";
+import { createSyncSeam } from "../seams/sync.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
+import { sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { createLocalKeyRoute } from "../routes/local-key.ts";
 import { createKeyring } from "../seams/keyring.ts";
 import { sessionLive } from "./session.ts";
@@ -79,6 +82,8 @@ import type { HostDb } from "./sqlite.ts";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The repo (or install) root that holds generated/, modules/ and host/modules.json. */
 export const CODE_ROOT = path.resolve(HERE, "../../..");
+/** What a device compares its registry with at hello (sync): the hash of registry.json, which the generated module no longer exports (ci: no global hash). */
+const registryHash = sha256b64(fs.readFileSync(new URL("../../../generated/registry.json", import.meta.url)));
 const ZERO_TRACE = "0".repeat(32);
 const RING = 5000;
 
@@ -195,6 +200,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const paths = pathsFor(cfg.dataDir);
   ensureDirs(paths);
 
+  applyPendingRestore(paths.root);   // a restore staged by backup.restore is moved into place before any database is opened
   const existing = readInfo(paths);
   if (existing && existing.pid !== process.pid && alive(existing.pid)) throw new Error(`vyred is already running for ${paths.root} (pid ${existing.pid})`);
 
@@ -436,6 +442,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             },
           },
         }),
+        // backups: the Space's own files, the owner from the access layer (P-SEC_07: without owner() every export refuses), exports into the blob store, S3 over the seam fetch with keys from the Vault
+        setBackupHost: (d) => createBackupHost({
+          root: paths.root, space: spaceId, log: spaceLog, owner: () => cfg.owner ?? access.owner() ?? "usr_owner", system, vault: d.vault, fetch: d.fetch,
+          blobs: { put: async (bytes, type) => (await blobs.forModule("backup").put(bytes, type)).id }, secrets: () => [token],
+        }),
         setEventsDispatch: () => system,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
         setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
@@ -446,9 +457,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           post: { allow: o.seams?.webhookAllow ?? (() => []), now, ...(o.seams?.postFetch ? { fetch: o.seams.postFetch } : {}) },
         }),
         ...spaceStoreDrivers(spaceStore),
+        configureSync: () => createSyncSeam({ store: spaceStore, ...(loaded.serving.get("conflicts") === "live" ? { conflicts: { open: (c) => hookRunner.call("conflicts.park", c) as Promise<string>, history: async (e) => { await hookRunner.call("conflicts.record_history", e); } } } : {}), access: () => access.snap, space: spaceId, now, registryHash, invoke: (c, i, seed) => invoke(c, i, seed), keyed: (c, v) => capIndex?.get(c, v)?.idempotency === "key", ...(cfg.address ? { endpoints: () => [{ kind: "direct" as const, url: `wss://${cfg.address}/sync/v1/live` }] } : {}) }),
         setVaultKeyPort: () => ({ personKey: async (personId: string) => keyring.get(personId) }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
-        configureVault: () => ({ sinks: o.seams?.vaultSinks ?? {}, db: db!, probe: createProviderProbe({ own: ownNode, ...(o.seams?.fetch ? {} : {}) }), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
+        configureVault: () => ({ sinks: o.seams?.vaultSinks ?? {}, db: db!, probe: createProviderProbe({ own: ownNode }), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
         setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open() }, now }),
         ...(o.seams?.drivers ?? {}),
@@ -462,6 +474,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           blobs: o.seams?.blobs ?? { put: none("The blob store") },
           members: o.seams?.members ?? { emails: none("The member list") },
           ...(o.seams?.fetch ? { fetch: o.seams.fetch } : {}),
+          ...(o.seams?.filler ? { filler: o.seams.filler } : {}),
           // where Mailgun posts inbound mail: the address people reach this Space at, else the local URL (read at call time, the port is known only after listen)
           publicUrl: o.seams?.publicUrl ?? (async () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }),
           drivers: hostDrivers, owners: loaded.seamOwners,

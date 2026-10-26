@@ -116,10 +116,10 @@ test("with an AI account the assistant row opens and the AI row is done", () => 
   assert.deepEqual(checklistProgress(rows), { done: 2, total: 6 });
 });
 
-test("a Personal Space has no project row", () => {
+test("a Personal Space has four rows: no project row and no import row", () => {
   const rows = checklistRows(list([]), { spaceName: "Personal", personal: true, aiConnected: false });
-  assert.ok(!rows.some((r) => r.key === "open_first_project"));
-  assert.equal(rows.length, 5);
+  assert.ok(!rows.some((r) => r.key === "open_first_project" || r.key === "import"));
+  assert.deepEqual(rows.map((r) => r.key), ["ai", "photo_and_title", "connect_mailbox_and_calendar", "meet_assistant"]);
 });
 
 test("the Ask box sends trimmed text and nothing for an empty box", () => {

@@ -30,7 +30,8 @@ const run = (name: string, ctx: DevicesCtx, input: unknown): Promise<unknown> =>
 async function worldFor(cap: string): Promise<{ h: Harness; ctx: DevicesCtx }> {
   const h = harness();
   seedExampleWorld(h);
-  const ctx = h.as("usr_a1b2c3", { admin: true, device: "dev_d4e5f6" });
+  // devices.register is host-only (P-SEC_08); every other capability is asked by the person on the phone
+  const ctx = cap === "devices.register" ? h.host() : h.as("usr_a1b2c3", { admin: true, device: "dev_d4e5f6" });
   if (cap === "devices.purge_ack") {
     await run("devices.revoke", ctx, { deviceId: "dev_a1b2c3" });
     h.events.length = 0;
