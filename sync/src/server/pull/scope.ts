@@ -34,6 +34,18 @@ export class ScopeCache {
   private map = new Map<string, ScopeResult>();
   private readonly snap: () => AccessSnapshot;
   constructor(snap: () => AccessSnapshot) { this.snap = snap; }
+  private ids = new WeakMap<object, number>();
+  private nextId = 1;
+  /**
+   * Names the access state a scope was compiled from: it changes when the host adopts a new snapshot, when the snapshot is mutated, and every RECOMPILE_MS (grants expire with time). A device whose rows
+   * were last checked under another stamp has them checked again (pull.ts sweepHeld), so a revoked, narrowed or expired grant hides what the person can no longer see.
+   */
+  stamp(now: number): string {
+    const snap = this.snap();
+    let id = this.ids.get(snap);
+    if (id === undefined) { id = this.nextId++; this.ids.set(snap, id); }
+    return `${id}:${snap.epoch}:${Math.floor(now / RECOMPILE_MS)}`;
+  }
   get(person: string, resource: string, now: number): ScopeResult {
     const snap = this.snap();
     if (snap.epoch !== this.epoch || now - this.at > RECOMPILE_MS || now < this.at) { this.map.clear(); this.epoch = snap.epoch; this.at = now; }

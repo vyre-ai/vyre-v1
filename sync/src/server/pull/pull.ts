@@ -39,6 +39,15 @@ function ensureDeviceEpoch(db: Tx): void {
   ready.add(db);
 }
 
+/** The access stamp each device's held rows were last checked under (ScopeCache.stamp). Made on first use, like the epoch table. */
+const STAMP_DDL = "CREATE TABLE IF NOT EXISTS sync_scope_stamp (person TEXT NOT NULL, device TEXT NOT NULL, stamp TEXT NOT NULL, PRIMARY KEY (person, device)) WITHOUT ROWID";
+const stampReady = new WeakSet<object>();
+function ensureStamp(db: Tx): void {
+  if (stampReady.has(db)) return;
+  db.exec(STAMP_DDL);
+  stampReady.add(db);
+}
+
 export function deviceRevoked(db: Tx, person: string, device: string): boolean {
   ensureDeviceEpoch(db);
   return db.get<{ epoch: number }>("SELECT epoch FROM sync_device_epoch WHERE person = ? AND device = ?", person, device) !== undefined;
@@ -120,6 +129,45 @@ function settle(list: Emission[]): { changes: Change[]; hide: Hide[] } {
   return { changes, hide };
 }
 
+/**
+ * Access can shrink without any row changing: a grant revoked or narrowed, a share expiring, a label raised. The change feed says nothing then, so the rows a device holds are checked against the
+ * scope as it is now whenever the access state it was last checked under has changed (ScopeCache.stamp), and each row the person can no longer see gets a `hide` (ARCH 5.7).
+ * A hide made here has no change of its own, so it carries seq head + 1: it stays unacknowledged (and is sent again) until the device has pulled past a later change, which keeps a lost response from losing it.
+ */
+function sweepHeld(d: PullDeps, who: Who, viewer: Viewer, window: Window, seen: Seen, cursor: number, out: Emission[]): void {
+  const db = d.db;
+  ensureStamp(db);
+  const stamp = d.cache.stamp(d.now());
+  const had = db.get<{ stamp: string }>("SELECT stamp FROM sync_scope_stamp WHERE person = ? AND device = ?", who.person, who.device)?.stamp;
+  const at = headSeq(db) + 1;
+  // hides sent on an earlier pull of this cursor that the device has not moved past. If the row can be seen again by now, the device (which may have applied the hide) is given the row instead.
+  for (const r of db.all<{ entity: string; id: string; at_seq: number }>(
+    "SELECT entity, id, at_seq FROM sync_seen_rows WHERE person = ? AND device = ? AND vis = 0 AND prev_vis = 1 AND at_seq > ?", who.person, who.device, cursor)) {
+    const key = `${r.entity}\0${r.id}`;
+    const cfg = d.catalog.get(r.entity);
+    const row = db.get<RowRec>("SELECT entity, id, owner_id, label, deleted, enc, vis, seq, updated_at, fields FROM sync_rows WHERE entity = ? AND id = ?", r.entity, r.id);
+    const mode = cfg.profile[who.deviceClass];
+    const cells = row && row.deleted !== 1 ? JSON.parse(row.fields) as Cells : null;
+    if (row && cells && mode !== "none" && r.at_seq === at && viewer.visible(viewer.scope(cfg), row, cells) && window.holds(cfg, mode, row)) {
+      out.push({ kind: "change", row: key, terminal: false, change: { seq: row.seq, entity: r.entity, id: r.id, op: "upsert", fields: wireFields(viewer.fields(viewer.scope(cfg), cells)) } });
+      seen.set(r.entity, r.id, true, row.seq);
+    } else out.push({ kind: "hide", row: key, terminal: true, hide: { entity: r.entity, id: r.id, seq: r.at_seq } });
+  }
+  if (had === stamp) return;
+  for (const r of db.all<{ entity: string; id: string }>(
+    "SELECT entity, id FROM sync_seen_rows WHERE person = ? AND device = ? AND (vis = 1 OR (prev_vis = 1 AND at_seq > ?))", who.person, who.device, cursor)) {
+    if (!seen.holds(r.entity, r.id)) continue;
+    const cfg = d.catalog.get(r.entity);
+    const row = db.get<RowRec>("SELECT entity, id, owner_id, label, deleted, enc, vis, seq, updated_at, fields FROM sync_rows WHERE entity = ? AND id = ?", r.entity, r.id);
+    if (!row || row.deleted === 1) continue;   // a deleted row is the change feed's to announce
+    const mode = cfg.profile[who.deviceClass];
+    if (mode !== "none" && viewer.visible(viewer.scope(cfg), row, JSON.parse(row.fields) as Cells) && window.holds(cfg, mode, row)) continue;
+    out.push({ kind: "hide", row: `${r.entity}\0${r.id}`, terminal: true, hide: { entity: r.entity, id: r.id, seq: at } });
+    seen.set(r.entity, r.id, false, at);
+  }
+  db.run("INSERT INTO sync_scope_stamp (person, device, stamp) VALUES (?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET stamp = excluded.stamp", who.person, who.device, stamp);
+}
+
 export function pullChanges(d: PullDeps, who: Who, req: PullReq): PullRes {
   const db = d.db;
   const epoch = deviceEpochOf(db, who.person, who.device);
@@ -162,6 +210,7 @@ export function pullChanges(d: PullDeps, who: Who, req: PullReq): PullRes {
   let used = 0, last = cursor, stopped = false;
   db.exec("BEGIN IMMEDIATE");
   try {
+    sweepHeld(d, who, viewer, window, seen, cursor, out);
     for (const c of scan) {
       last = c.seq;
       const cfg = d.catalog.get(c.entity);
