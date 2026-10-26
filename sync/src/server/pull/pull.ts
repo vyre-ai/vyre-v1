@@ -156,7 +156,7 @@ function rescanChanged(d: PullDeps, who: Who, viewer: Viewer, window: Window, cu
     return mode !== "none" && viewer.visible(viewer.scope(cfg), row, JSON.parse(row.fields) as Cells) && window.holds(cfg, mode, row);
   };
   const ask = (entity: string, id: string): void => {
-    d.append!({ type: "sync.row_rescan", sv: 1, trace_id: "0".repeat(32), actor: "sync", vis: "private", payload: { entity, id } });
+    d.append!({ type: "sync.row_rescan", sv: 1, trace_id: "0".repeat(32), actor: "svc_host", vis: "private", payload: { entity, id } });
   };
   // `eff` is what the device is taken to hold at this cursor (a mark newer than the cursor is not acknowledged yet)
   const held = db.all<RowRec>(
