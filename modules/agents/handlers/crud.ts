@@ -193,8 +193,8 @@ export async function create(ctx: AgentsCtx, input: {
     templateVersion: await templateVersion(ctx, template), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
   };
   insertAgent(ctx.db, rec);
-  await ensureHomeGrants(ctx, id, owner, tree.folderId);
   ctx.emit("agent.created", id, { agentId: id, name, ownerId: owner, templateVersion: rec.templateVersion });
+  await ensureHomeGrants(ctx, id, owner, tree.folderId);
   return { agent: agentOut(rec, now) };
 }
 
