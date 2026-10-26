@@ -7,6 +7,7 @@ import { setDefaultDns } from "../../modules/mail/handlers/extra/dns.ts";
 import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 import type { FetchFn } from "../../host/src/platform/probes.ts";
+import type { SeamFetch } from "../../host/src/seams/ports.ts";
 
 export const LIVE_FOR_LEAD = ["campaigns", "gate", "mail", "telephony", "twilio", "resend", "contacts-link", "records", "schema", "tasks", "settings", "search", "devices", "access", "spaces"];
 export const GAPS: Gap[] = [];
@@ -25,10 +26,13 @@ const CONTACT = {
 /** What the providers were asked, so a step can assert the request really went out. */
 export interface Net { requests: string[] }
 
-const json = (status: number, body: unknown): ReturnType<FetchFn> => Promise.resolve({ ok: status < 300, status, headers: { get: () => null }, text: () => Promise.resolve(JSON.stringify(body)) });
+type Net2 = FetchFn & SeamFetch;
+const json = (status: number, body: unknown): ReturnType<Net2> => Promise.resolve({
+  ok: status < 300, status, headers: { get: () => null }, text: () => Promise.resolve(JSON.stringify(body)), arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(body)).buffer as ArrayBuffer),
+});
 
 /** A fake network: the Caddy admin API the daemon probes, Resend (domains and sends) and Twilio (numbers and calls). */
-export function fakeNet(net: Net, dns: Map<string, string[]>): FetchFn {
+export function fakeNet(net: Net, dns: Map<string, string[]>): Net2 {
   let n = 0;
   return (url, init) => {
     const method = init?.method ?? "GET";

@@ -9,6 +9,7 @@ import { routes } from "../../generated/routes.ts";
 import { bootSmall } from "../../fixtures/seed/small/build.ts";
 import { fakePlatform } from "../../host/src/platform/index.ts";
 import type { FetchFn } from "../../host/src/platform/probes.ts";
+import type { SeamFetch } from "../../host/src/seams/ports.ts";
 import { loadConfig } from "../../host/src/daemon/config.ts";
 import { startDaemon } from "../../host/src/daemon/daemon.ts";
 import type { Daemon } from "../../host/src/daemon/daemon.ts";
@@ -63,7 +64,7 @@ export interface FlowSpace {
 }
 
 /** Boots a daemon on the `core` seed with `live` flipped in a temporary code root. Rejects with the host's own refusal text when the boot is refused. */
-export async function bootFlowSpace(live: readonly string[], opts: { engineCli?: unknown; spaceKind?: "personal" | "team"; relay?: string; fetch?: FetchFn; vault?: { secret(handle: string): Promise<string>; signRs256(): Promise<string> } } = {}): Promise<FlowSpace> {
+export async function bootFlowSpace(live: readonly string[], opts: { engineCli?: unknown; spaceKind?: "personal" | "team"; relay?: string; fetch?: FetchFn & SeamFetch; vault?: { secret(handle: string): Promise<string>; signRs256(): Promise<string> } } = {}): Promise<FlowSpace> {
   const dir = await seededDir();
   const start = (port: string): Promise<Daemon> => startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", port, ...(opts.spaceKind ? ["--space-kind", opts.spaceKind] : []), ...(opts.relay ? ["--relay", opts.relay] : [])], {}, "1.2.3"),
@@ -77,6 +78,8 @@ export async function bootFlowSpace(live: readonly string[], opts: { engineCli?:
       },
     }),
     fetch: opts.fetch ?? caddyFetch,
+    // the connector seams (Resend, Twilio) reach the network through their own fetch; a flow that fakes the providers hands the same function to both
+    ...(opts.fetch ? { seams: { fetch: opts.fetch } } : {}),
     ...(opts.engineCli !== undefined ? { engineCli: opts.engineCli } : {}),
     ...(opts.vault ? { vault: opts.vault } : {}),
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, tick: 3_600_000, hooks: 3_600_000 },
