@@ -522,7 +522,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 payload: { id: f.id, type: f.type, parent_id: f.parentId ?? spaceId, label: 0, owner_id: f.ownerId ?? cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 },
               });
               if (!r.ok) throw new Error(`could not register the folder: ${r.message}`);
-              if (!r.duplicate) { access.fold(r.event); headSeq = Math.max(headSeq, r.event.seq); }
+              if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
             },
           },
         }),
