@@ -23,6 +23,7 @@ import { createFrameHub } from "./frames.ts";
 import { createRecorder } from "./record.ts";
 import { screenTools } from "./screen.ts";
 import { startStreamServer } from "./stream.ts";
+import { startDesktop } from "./desktop.ts";
 import { createInjector, parseSize, screenshotPng, startXvfb } from "./x11.ts";
 import type { Screen } from "./x11.ts";
 
@@ -213,6 +214,7 @@ async function main(): Promise<void> {
   log(`control socket ${SOCKET}`);
   const xvfb = await startXvfb(screen, log);
   log(`screen ${screen.display} ${screen.size}`);
+  const desktop = startDesktop(screen, HOME, `${PROFILE}/chrome`, log);
   // The input helper takes a moment to start; the first input a person sends should not pay for it.
   injector.call({ op: "pointer" }).catch(() => undefined);
   chrome.ready().then(() => log("browser ready"), (e: unknown) => log(`browser failed: ${e instanceof Error ? e.message : "unknown"}`));
@@ -220,6 +222,7 @@ async function main(): Promise<void> {
     stream.close();
     injector.stop();
     chrome.stop();
+    desktop.stop();
     xvfb.kill("SIGTERM");
     control.close();
     setTimeout(() => process.exit(0), 1500).unref();

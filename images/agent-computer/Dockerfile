@@ -8,9 +8,10 @@
 FROM node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205
 
 # chromium: the browser. xvfb: the screen. ffmpeg: frames for the live view and the recording. python3-xlib: the input injector (XTEST, with a round trip so an input is acknowledged once the server
-# has it). fonts: pages must render. procps and coreutils: ps, du. No sudo, no ssh, no docker client, no package manager left to use at run time.
+# has it). openbox, tint2, feh, xterm and pcmanfm are the desktop: window manager, dock, wallpaper, Terminal and Files, nothing more. fonts: pages must render. procps and coreutils: ps, du. No sudo, no ssh, no docker client, no package manager left to use at run time.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates chromium xvfb ffmpeg python3 python3-xlib fonts-liberation fonts-noto-color-emoji procps coreutils \
+    openbox tint2 feh xterm pcmanfm librsvg2-bin \
  && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
  && rm -f /usr/bin/su /bin/su /usr/bin/passwd /usr/bin/chsh /usr/bin/chfn /usr/bin/newgrp /usr/bin/gpasswd /usr/bin/mount /usr/bin/umount
 
@@ -25,6 +26,9 @@ RUN groupadd --gid 10001 agent \
  && chmod 0700 /home/agent
 
 COPY agentd/ /opt/agentd/
+# The desktop (owner ruling 20 Oct): the Vyre wallpaper, the three dock icons and the window manager config; agentd/desktop.ts starts them.
+COPY desktop/ /opt/desktop/
+RUN rsvg-convert -w 2560 -h 1600 /opt/desktop/wallpaper.svg -o /opt/desktop/wallpaper.png && chmod -R a+rX /opt/desktop
 # Vyre for Chrome: the release build and the heavy test copy the extension (manifest.json and src) into vyre-chrome/ of the build context first. A plain checkout has only the placeholder, and then
 # agentd runs the browser without the extension (it loads /opt/vyre-chrome only when it has a manifest.json). No BuildKit feature is needed: the runners have the legacy builder only.
 COPY vyre-chrome/ /opt/vyre-chrome/

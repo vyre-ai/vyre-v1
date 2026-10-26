@@ -99,6 +99,30 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     assert.ok(typeof shot.data.fileId === "string" && shot.data.fileId.length > 0, "the picture is stored as a file");
     assert.ok(shot.data.width > 0 && shot.data.height > 0, `a real frame: ${shot.data.width}x${shot.data.height}`);
 
+    // the desktop around the browser: the window manager and the dock run, and the dock holds Chrome, Terminal and Files and nothing else
+    const box = `vyre-comp-${computerId.replace(/^cmt_/, "")}`;
+    let procs = "";
+    for (let i = 0; i < 40 && !(/openbox/.test(procs) && /tint2/.test(procs)); i++) {
+      procs = (await docker(["exec", box, "ps", "-eo", "comm"], 30_000)).out;
+      if (!(/openbox/.test(procs) && /tint2/.test(procs))) await new Promise<void>((r) => setTimeout(r, 500));
+    }
+    assert.match(procs, /openbox/, `the window manager runs: ${procs}`);
+    assert.match(procs, /tint2/, `the dock runs: ${procs}`);
+    const rc = (await docker(["exec", box, "cat", "/home/agent/.config/vyre-desktop/tint2rc"], 30_000)).out;
+    assert.deepEqual([...rc.matchAll(/launcher_item_app = .*\/(\w+)\.desktop/g)].map((m) => m[1]), ["chrome", "terminal", "files"], "the dock is Chrome, Terminal and Files only");
+    const files = (await docker(["exec", box, "cat", "/home/agent/.config/vyre-desktop/files.desktop"], 30_000)).out;
+    assert.match(files, /pcmanfm .*\/home\/agent\/Vyre/, "Files opens the agent's own Vyre Files folder");
+    // a real frame of the desktop, kept for the lead to look at (the wallpaper, the browser and the dock)
+    const shotDir = process.env["VYRE_SHOT_DIR"];
+    if (shotDir) {
+      await new Promise<void>((r) => setTimeout(r, 3_000));
+      const frame = await docker(["exec", "-u", "10001", box, "/opt/agentd/ctl", "screenshot", "{}"], 60_000);
+      const png = (JSON.parse(frame.out.trim().split("\n").find((l) => l.startsWith("{")) ?? "{}") as { png?: string }).png;
+      assert.ok(png, "agentd answered a picture");
+      fs.mkdirSync(shotDir, { recursive: true });
+      fs.writeFileSync(path.join(shotDir, "P-L2_31-computer-desktop.png"), Buffer.from(png!, "base64"));
+    }
+
     const slept = await call(d, "computers.sleep", { computerId });
     assert.equal(slept.status, 200, JSON.stringify(slept.data));
     assert.equal(slept.data.computer.state, "asleep");
