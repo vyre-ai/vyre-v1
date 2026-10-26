@@ -1,9 +1,9 @@
 // Slow by rule, not by list: a test that boots a daemon (and several modules) is over the 30 s fast cap when many shards share a host. Rather than list the files one by one in test/slow.json (and
 // grow its cap with every new one), a rule makes a file slow with the golden cap. The sharder and both runners add these entries to the list.
 //   by path     golden/steps/*.test.*, any *.live.test.* and any *.booted.test.*
-//   by content  a test that calls the daemon boot helpers (startDaemon, startSeeded, bootDaemon)
+//   by content  a test that calls the daemon boot helpers (startDaemon, startSeeded, bootDaemon, bootFlowSpace, bootSmall, bootPerf, bootPrototype)
 export const SLOW_PATTERNS = [/^golden\/steps\/[^/]+\.test\.[cm]?[jt]sx?$/, /\.live\.test\.[cm]?[jt]sx?$/, /\.booted\.test\.[cm]?[jt]sx?$/];
-export const BOOT_HELPERS = /\b(?:startDaemon|startSeeded|bootDaemon)\b/;
+export const BOOT_HELPERS = /\b(?:startDaemon|startSeeded|bootDaemon|bootFlowSpace|bootSmall|bootPerf|bootPrototype)\b/;
 export const PATTERN_CAP_SEC = 120;
 
 const isTest = (f) => /\.test\.[cm]?[jt]sx?$/.test(f);
