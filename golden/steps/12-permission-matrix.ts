@@ -13,8 +13,7 @@ const CHANNEL = { type: "channel", id: "chn_general" } as const;
 
 /** Why this flow is a todo today (ruling 53). */
 export const GAPS: Gap[] = [
-  { packet: "P-CC_42 follow-up", lane: "L7", what: "folders.create answers 500: it emits access.changed (after grant.created was added), which its manifest does not declare in emits" },
-  { packet: "L7 access / L6 tasks", lane: "L7", what: "a member's access.request answers 422 'A unblock task has no action called approve': the request opens an unblock task whose actions do not include approve, so the request cannot be made" },
+  { packet: "P-CC_42 follow-up", lane: "L7", what: "folders.place answers 500: it emits access.changed, which its manifest does not declare in emits (folders.create was fixed in #635, folders.place and likely folders.unplace were not)" },
 ];
 
 export async function runMatrix(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
@@ -24,7 +23,7 @@ export async function runMatrix(live: readonly string[]): Promise<{ events: Obse
     const admin = s.d.token;
     const tess = s.signedIn("usr_tess");
     const allowed = async (what: string): Promise<boolean> =>
-      expectStatus(await s.call("access.check", admin, { principal: TESS, action: { level: "view" }, resource: CHANNEL }), 200, `access.check ${what}`).decision.allow === true;
+      expectStatus(await s.call("access.check", admin, { principal: TESS, action: { level: "view" }, resource: CHANNEL }), 200, `access.check ${what}`).decision.effect === "allow";
 
     await trail.step("every built-in role holds exactly the catalogue's permissions", async () => {
       const roles = expectStatus(await s.call("access.roles.list", admin, {}), 200, "access.roles.list").roles as { name: string; permissions: string[] }[];
@@ -74,7 +73,7 @@ export async function runMatrix(live: readonly string[]): Promise<{ events: Obse
     });
     await trail.step("the admin approves and the member's retry succeeds", async () => {
       expectStatus(await s.call("access.requests.approve", admin, { requestId: request!, level: "view" }), 200, "access.requests.approve");
-      const can = expectStatus(await s.call("access.check", admin, { principal: { kind: "person", id: "usr_noah" }, action: { level: "view" }, resource: CHANNEL }), 200, "access.check").decision.allow === true;
+      const can = expectStatus(await s.call("access.check", admin, { principal: { kind: "person", id: "usr_noah" }, action: { level: "view" }, resource: CHANNEL }), 200, "access.check").decision.effect === "allow";
       assert.equal(can, true);
     }, ["a member asks for access"]);
     return { events: await s.events(), trail };

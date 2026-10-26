@@ -20159,7 +20159,8 @@
       "audit": "always",
       "effects": "write",
       "emits": [
-        "principal.created"
+        "principal.created",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -71161,7 +71162,9 @@
       "effects": "write",
       "emits": [
         "folder.deleted",
-        "item.moved"
+        "item.moved",
+        "grant.revoked",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -71318,7 +71321,8 @@
       "effects": "write",
       "emits": [
         "folder.moved",
-        "item.moved"
+        "item.moved",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -71404,7 +71408,8 @@
     {
       "effects": "write",
       "emits": [
-        "item.moved"
+        "item.moved",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -71541,7 +71546,8 @@
     {
       "effects": "write",
       "emits": [
-        "item.moved"
+        "item.moved",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
