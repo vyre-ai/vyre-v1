@@ -8,7 +8,7 @@ import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_KEYFAIL = ["identity", "members", "devices", "tasks", "access", "spaces"];
 export const GAPS: Gap[] = [
-  { packet: "P-L7_22 (w12a)", lane: "L7", what: "a newly joined person stays unauthorized, so Kay cannot act as herself after joining" },
+  { packet: "L7 identity", lane: "L7", what: "identity.recovery_restore answers 500 when the recovery proof is wrong: it emits signin.failed, which the capability does not declare in emits (P-CC)" },
 ];
 const KEYS = { personKeyByPassword: "bmV3d3JhcHBlZA==", publicKey: "cHVibGlj", privateKeyWrapped: "d3JhcHBlZA==", spaceKeys: [{ epoch: 0, wrapped: "d3JhcHBlZA==" }] };
 
