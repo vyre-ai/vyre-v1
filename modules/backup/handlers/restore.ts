@@ -67,7 +67,7 @@ export async function restore(ctx: BackupCtx, input: { backupId: string; confirm
   const tombstones = mergeTombstones(await d.source.tombstones(), await readTombstones(ctx, target).catch(() => [] as Tombstone[]), inArchive);
   let result: ApplyResult;
   try {
-    result = await d.source.restore(snapshot, tombstones, "live");
+    result = await d.source.restore(snapshot, tombstones, "live", ctx.trace.traceId);
   } catch (e) {
     if (e instanceof VyreErr) throw e;
     return failWith(ctx.trace.traceId, "internal.unexpected", `The restore did not finish: ${e instanceof Error ? e.message : "unknown error"}. The safety backup ${safetyId} holds the state from before.`, { safetyBackupId: safetyId });
