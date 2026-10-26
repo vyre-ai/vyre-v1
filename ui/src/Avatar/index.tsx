@@ -15,7 +15,7 @@ import type { AvatarKind, AvatarProps } from "./props.ts";
 export type { AvatarKind, AvatarProps } from "./props.ts";
 export { faceTint, hash, hueOf, initialsOf, marbleGradient, marbleInner, marbleSpec } from "./faces.ts";
 export { notionistsSvg } from "./notionists.ts";
-export { cachedFace, cachedFaceCount, clearFaceCache, faceKey } from "./cache.ts";
+export { cachedFace, cachedFaceCount, clearFaceCache, currentSkin, faceKey, requestFace, wrapSvg } from "./cache.ts";
 
 export const AVATAR_DEFAULT_SIZE = 18;
 

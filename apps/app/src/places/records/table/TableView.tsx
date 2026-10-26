@@ -5,7 +5,7 @@ import { createElement, memo, useCallback, useDeferredValue, useEffect, useMemo,
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
-import { marbleGradient, marbleSpec } from "../../../../../../ui/src/Avatar/index.tsx";
+import { cachedFace, currentSkin, faceKey, hash, marbleGradient, marbleInner, marbleSpec, requestFace, wrapSvg } from "../../../../../../ui/src/Avatar/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
@@ -210,15 +210,41 @@ function isPlainText(f: FieldDef): boolean {
 }
 
 const dots = new Map<string, Record<string, string | number>>();
-/** A person's face in a cell: a plain disc painted with the shared Avatar's marble gradient (marbleGradient, the same face the Avatar draws), one cached style per name. The shared Avatar draws a blurred svg, too dear for thirteen cells a row. */
+// the DOM bits the face rules need, typed here because the app's TypeScript config carries no DOM lib
+interface FaceRule { style: { backgroundImage: string } }
+interface FaceSheet { cssRules: { length: number; [i: number]: FaceRule }; insertRule(rule: string, index: number): number }
+interface FaceDoc { createElement(tag: string): { sheet: FaceSheet | null }; head: { appendChild(node: unknown): unknown } }
+const faceClasses = new Map<string, FaceRule>();
+let faceSheet: FaceSheet | null = null;
+const faceDoc = (): FaceDoc | undefined => (globalThis as { document?: FaceDoc }).document;
+/**
+ * A person's face in a cell: the real marble (the blurred svg the Avatar draws), rendered once per person into the shared face cache and then painted as a plain background image. Until its
+ * bitmap is ready the disc wears the CSS marble gradient. The look sits in one CSS rule per person, so when a bitmap lands every cell with that face changes at once and no row re-renders.
+ * A page with no document (server render, tests) gets the same disc as an inline style.
+ */
 function dot(name: string): ReactElement {
-  let st = dots.get(name);
-  if (!st) {
-    const m = marbleSpec(name);
-    st = { width: 18, height: 18, flex: "none", borderRadius: 9, backgroundColor: m.base, backgroundImage: marbleGradient(name) };
-    dots.set(name, st);
+  const look = { width: 18, height: 18, flex: "none", borderRadius: 9 } as const;
+  const doc = faceDoc();
+  if (doc === undefined) {
+    let st = dots.get(name);
+    if (!st) { st = { ...look, backgroundColor: marbleSpec(name).base, backgroundImage: marbleGradient(name) }; dots.set(name, st); }
+    return createElement("span", { "aria-hidden": true, "data-testid": `face-${name}`, style: st });
   }
-  return createElement("span", { "aria-hidden": true, "data-testid": `face-${name}`, style: st });
+  const cls = `vrt-f${hash(name).toString(36)}`;
+  if (!faceClasses.has(cls)) {
+    if (faceSheet === null) { const el = doc.createElement("style"); doc.head.appendChild(el); faceSheet = el.sheet; }
+    if (faceSheet !== null) {
+      const at = faceSheet.insertRule(`.${cls}{width:18px;height:18px;flex:none;border-radius:9px;background-color:${marbleSpec(name).base};background-image:${marbleGradient(name)};background-size:cover}`, faceSheet.cssRules.length);
+      const rule = faceSheet.cssRules[at]!;
+      faceClasses.set(cls, rule);
+      const key = faceKey(name, "person", 18, currentSkin());
+      requestFace(key, wrapSvg(marbleInner(name), "0 0 80 80", 18), 18, () => {
+        const url = cachedFace(key);
+        if (url !== undefined) { rule.style.backgroundImage = `url("${url}")`; }
+      });
+    }
+  }
+  return createElement("span", { "aria-hidden": true, "data-testid": `face-${name}`, className: cls });
 }
 
 function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string, width: number): ReactElement | null {
