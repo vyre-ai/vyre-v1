@@ -42,6 +42,11 @@ export async function runConflict(live: readonly string[]): Promise<{ events: Ob
       assert.equal(out.conflicts.length, 0, `A is the first edit from the base, so it meets no conflict ${short(out)}`);
       const now = expectStatus(await s.call("records.get", admin, { type: "note_item", recordId: rec! }), 200, "records.get");
       assert.equal(now.record.fields.status, "sent", `A's value is in the record ${short(now)}`);
+      // the change has its event, under the flow's trace, before B pushes
+      const log = await s.events(false);
+      const updated = log.filter((e) => e.type === "record.updated");
+      assert.equal(updated.length, 1, `A's edit has one record.updated; the log has ${log.map((e) => `${e.type}[${e.traceId?.slice(0, 4)}]`).join(", ")}`);
+      assert.equal(updated[0]!.traceId, TRACE, "A's record.updated carries the op's trace id");
     }, ["the record is in the sync feed"]);
     const conflict = await trail.step("device B pushes a competing edit from the same base and a conflict opens", async () => {
       const out = expectStatus(await s.call("sync.push", b, { deviceId: "dev_noahb1", epoch: 0, ops: [opFor(2, "noahb1", rec!, "lost", base!)] }), 200, "sync.push");
