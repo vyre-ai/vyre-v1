@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { checkEmitsDeclared } from "./emits-declared.ts";
+import { checkEmitsDeclared, stripComments } from "./emits-declared.ts";
 
 const caps = new Map([
   ["folders.create", { name: "folders.create", module: "files", emits: ["folder.created"] }],
@@ -45,4 +45,10 @@ test("emits-declared: a handler imported from another file of the module is foun
 test("emits-declared: an apostrophe in a comment does not stretch a handler over the rest of the file", () => {
   const src = `export const h = {\n  "files.rename": async (ctx) => {\n    // it doesn't matter here\n    ctx.emit("file.renamed", "f", {});\n  },\n};\nfunction later(ctx) { ctx.emit("file.late", "f", {}); }\n`;
   assert.deepEqual(run(src), []);
+});
+
+test("emits-declared: an apostrophe in a regex literal does not open a string; a division is not a regex", () => {
+  const src = `export const h = {\n  "files.rename": async (ctx) => {\n    const w = text.match(/[a-z']+/g);\n    const half = total / 2;\n    ctx.emit("file.renamed", "f", {});\n  },\n  "folders.create": async (ctx) => {\n    ctx.emit("folder.created", "f", {});\n  },\n};\nfunction later(ctx) { ctx.emit("file.late", "f", {}); }\n`;
+  assert.deepEqual(run(src), []);
+  assert.equal(stripComments("a = /[a-z']+/g; b = c / 2; d = e / 3;"), "a = /       /g; b = c / 2; d = e / 3;");
 });
