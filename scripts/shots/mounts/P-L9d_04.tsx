@@ -30,13 +30,23 @@ function Navigate({ type, id }: { type: string; id: string }): ReactNode {
   useEffect(() => {
     if (!open) return;
     let a = 0, b = 0;
+    let shift = 0;
+    const po = typeof PerformanceObserver === "function" ? new PerformanceObserver((l) => { for (const e of l.getEntries()) { const ls = e as unknown as { hadRecentInput: boolean; value: number }; if (!ls.hadRecentInput) shift += ls.value; } }) : null;
+    try { po?.observe({ type: "layout-shift", buffered: false }); } catch { /* unsupported */ }
     a = requestAnimationFrame(() => { b = requestAnimationFrame(() => {
       performance.mark("nav-end");
       const m = performance.measure("navigate", "nav-start", "nav-end");
       const v = Math.round(m.duration * 10) / 10;
-      (globalThis as { __probes?: Record<string, unknown> }).__probes = { navigate: v, ready: true };
+      const g = globalThis as { __probes?: Record<string, unknown> };
+      g.__probes = { navigate: v };
       console.log(`METRIC ${JSON.stringify({ name: "navigate", screen: "records.page", where: "in-app", ms: v, budget_ms: BUDGET_MS, ok: v < BUDGET_MS })}`);
       setMs(v);
+      // the layout shift of the whole open, including what joins after the first paint (the sections, the ring, the header buttons and the pane); ready once it has settled
+      setTimeout(() => {
+        po?.disconnect();
+        g.__probes = { navigate: v, layout_shift: Math.round(shift * 1000) / 1000, ready: true };
+        console.log(`METRIC ${JSON.stringify({ name: "layout_shift", screen: "records.page", where: "in-app", score: shift })}`);
+      }, 600);
     }); });
     return () => { cancelAnimationFrame(a); cancelAnimationFrame(b); };
   }, [open]);
