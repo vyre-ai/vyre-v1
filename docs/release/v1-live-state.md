@@ -13,7 +13,7 @@
 ## Current state — 27 October 2026 PKT
 
 - **Merged:** PR #517 fixed the real-app Mail/Automations React #185 navigation loop. Full CI and production-export screenshot capture passed.
-- **PR #717:** atomic agent-home grants. Regeneration advanced the remote branch without the worker's `folderId` manifest fix; the resulting run stopped at ownership/contract drift. The lane is reconciling the worker and regen commits by normal merge, then must pass fresh CI followed by fresh spec plus quality review.
+- **PR #721 (supersedes #717):** atomic agent-home grants on a lead-owned branch. #717's code and generated artifacts were preserved, but its `P-L5` branch classification could never legitimately own the agent, gateway, manifest, and generated paths. #721 is the policy-compliant cross-cutting integration and needs fresh CI plus quality review.
 - **PR #715:** Files mirror branch includes the merged #517 changes. Its earlier `l2-heavy` failure depends on #717; re-run and enqueue only after #717 lands.
 - **PR #719:** replaces desktop CI placeholder with blocking macOS and Windows package builds, ad-hoc Mac signing proof, shell smoke, and artifacts. Run `40417003122` is still active; its ordinary PR suite currently sees the same agent-owner test family, which must be resolved through #717, not suppressed.
 - **Session discovery branch:** `build/P-L10_session-import`, native Codex and Claude metadata discovery is green in run `40417505140`. It uses immutable-only Codex SQLite and native bridge discovery for both providers.
