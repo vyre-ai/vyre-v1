@@ -170919,6 +170919,9 @@
             "pattern": "^agt_[a-z0-9]+$",
             "type": "string"
           },
+          "folderId": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
@@ -170937,6 +170940,7 @@
           "agentId",
           "name",
           "ownerId",
+          "folderId",
           "templateVersion"
         ],
         "type": "object"
