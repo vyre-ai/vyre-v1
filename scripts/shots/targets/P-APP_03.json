@@ -1,0 +1,25 @@
+{
+  "targets": [
+    {
+      "id": "P-APP_03-claim-details",
+      "route": "/m/P-APP_03?view=details",
+      "proto": "join,at:signin,{skin}",
+      "waitFor": "[data-testid='claim-name']",
+      "note": "The owner claim screen (ruling 71): name, username, password and confirm in a grouped list, strength meter, the Continue bar. The prototype side is its closest screen (Your sign-in), not a pixel match."
+    },
+    {
+      "id": "P-APP_03-claim-recovery",
+      "route": "/m/P-APP_03?view=recovery",
+      "proto": "join,at:s3,{skin}",
+      "waitFor": "[data-testid='claim-code']",
+      "note": "The recovery code step of the owner claim: the code, Copy and Save, I saved it, Create my Space."
+    },
+    {
+      "id": "P-APP_03-claim-used",
+      "route": "/m/P-APP_03?view=used",
+      "proto": "join,at:expired,{skin}",
+      "waitFor": "[data-testid='claim-sign-in']",
+      "note": "A claim link that was already used: one plain line and a Sign in button, no form."
+    }
+  ]
+}

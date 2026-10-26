@@ -16,6 +16,8 @@ export interface ClaimOwnerProps {
   newCode(): string;
   /** Makes the key bundle, claims the Space and signs in. Rejects with a ClaimError. Resolves when Home may open. */
   onClaim(input: { name: string; username: string; password: string; recoveryCode: string }): Promise<void>;
+  /** Where the screen opens: the details, or the recovery code (screenshots and tests). */
+  stage?: "details" | "recovery";
   /** The link is already known to be spent or expired (the preflight said so). */
   dead?: ClaimFailure | null;
   onCopyCode?(code: string): void;
@@ -94,7 +96,7 @@ function RecoveryStep({ s, dispatch, onCopyCode, onSaveCode }: { s: State; dispa
 }
 
 export function ClaimOwner(props: ClaimOwnerProps): ReactElement {
-  const [s, dispatch] = useReducer(reduce, undefined, () => first(props.newCode(), props.dead ?? null));
+  const [s, dispatch] = useReducer(reduce, undefined, () => ({ ...first(props.newCode(), props.dead ?? null), ...(props.stage === "recovery" ? { stage: "recovery" as const, name: "Irfad Imtiaz", username: "irfad", password: "correct horse", confirm: "correct horse" } : {}) }));
   const [busy, setBusy] = useState(false);
   const problem = problemOf(s);
 
