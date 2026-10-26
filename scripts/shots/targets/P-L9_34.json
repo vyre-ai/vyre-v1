@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_34-call-pill",
+      "route": "/m/P-L9_34?state=live",
+      "proto": "inbox,at:callaway,{skin}",
+      "waitFor": "[data-testid='call-title-pill']",
+      "note": "A call answered while another place (Chats) is open: the running call is the green FILLED capsule with the caller name and clock in the title bar (P-L9_34). The prototype side is its callaway state."
+    },
+    {
+      "id": "P-L9_34-phone-ring",
+      "route": "/m/P-L9_34?state=ring",
+      "proto": "inbox,at:call,{skin}",
+      "waitFor": "[data-testid='softphone-answer']",
+      "note": "A call ringing over the shell: the dock's incoming sheet with Decline and Accept; it says Incoming to the called number (P-L9_34). The prototype side is its call state."
+    }
+  ]
+}
