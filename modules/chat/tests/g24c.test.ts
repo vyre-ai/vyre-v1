@@ -195,7 +195,7 @@ test("composer.suggest lists the people and agents of a thread, and the channels
   await base["channels.create"]!(hn.person(MAYA), { name: "secret", visibility: "invite", idempotencyKey: key() });
   const at = await run(hn, "chat.composer.suggest", hn.ctx, { symbol: "@", q: "", threadId: c.mainThreadId });
   assert.deepEqual(at.items.map((i: any) => [i.group, i.kind, i.id]), [["People", "person", DANA], ["People", "person", MAYA], ["Agents", "agent", INTAKE]]);
-  assert.deepEqual((await run(hn, "chat.composer.suggest", hn.ctx, { symbol: "@", q: "@mai", threadId: c.mainThreadId })).items.map((i: any) => i.id), [MAYA]);
+  assert.deepEqual((await run(hn, "chat.composer.suggest", hn.ctx, { symbol: "@", q: "@may", threadId: c.mainThreadId })).items.map((i: any) => i.id), [MAYA]);
   assert.ok((await run(hn, "chat.composer.suggest", hn.ctx, { symbol: "@", q: "intake" })).items.some((i: any) => i.id === INTAKE));
   const hash = await run(hn, "chat.composer.suggest", hn.ctx, { symbol: "#", q: "" });
   assert.deepEqual(hash.items.map((i: any) => [i.title, i.detail]), [["intake", "New matters"]]);

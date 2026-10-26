@@ -3,6 +3,7 @@
 import { handlers } from "./handlers/index.ts";
 import { setPushPort } from "./handlers/push.ts";
 import { send } from "./handlers/rules.ts";
+import { readSettings, syncSetting } from "./handlers/deliver.ts";
 import type { NotifCtx } from "./projections.ts";
 
 export { handlers, setPushPort };
@@ -29,6 +30,14 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<Parameters<typeof send>[1] |
     if (!to || to.kind !== "person" || p.slot !== "assigned") return undefined;
     return { to: to.id, kind: "task.assigned", subject: { type: "task", id: String(p.taskId) }, title: "a task", data: { from: ctx.principal.kind === "person" ? ctx.principal.id : "someone" } };
   }
+  if (e.name === "run.succeeded" && p.kind === "routine" && ctx.call) {
+    // Alerts: a routine that succeeded is told only to people who asked for successes too (failures always come through run.failed)
+    return ctx.call("runs.get", { runId: p.runId }).then((r) => {
+      const run = (r as { run?: { owner?: string; name?: string; summary?: string } }).run;
+      if (!run?.owner || !readSettings(ctx.db, run.owner).routinesAll) return undefined;
+      return { to: run.owner, kind: "agent.task_finished", subject: { type: "run", id: String(p.runId) }, title: run.name ?? run.summary ?? "a routine", data: { agent: "Your routine" }, runId: String(p.runId) };
+    }, () => undefined);
+  }
   if (e.name === "run.failed") return { to: String(p.owner), kind: "run.failed", subject: { type: "run", id: String(p.runId) }, data: { name: p.kind, message: p.message }, runId: String(p.runId) };
   if (e.name === "member.joined") return { to: String(p.invitedBy), kind: "member.joined", data: { name: p.personId, space: ctx.space } };
   return undefined;
@@ -37,12 +46,17 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<Parameters<typeof send>[1] |
 /** Async consumers by name: the events each one reads and what it does with one. */
 export const consumers = {
   "notifications.fanout": {
-    on: ["task.requested", "task.assigned", "run.failed", "member.joined"],
+    on: ["task.requested", "task.assigned", "run.failed", "run.succeeded", "member.joined"],
     async run(ctx: NotifCtx, event: Ev): Promise<string[]> {
       const input = await plan(ctx, event);
       if (!input) return [];
       const r = await send(ctx, input);
       return r.notificationId ? [r.notificationId] : [];
     },
+  },
+  /** Keeps a copy of each person's notification settings from settings.changed, for the deliver path (P-CC_22b). */
+  "notifications.settings_sync": {
+    on: ["settings.changed"],
+    async run(ctx: NotifCtx, event: Ev): Promise<string[]> { return syncSetting(ctx.db, event.payload) ? [String(event.payload.key)] : []; },
   },
 };

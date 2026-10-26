@@ -35,13 +35,18 @@ export interface HookEvent {
 
 export interface ConsumerDef { name: string; module: string; on: readonly string[]; run(ctx: Ctx, event: HookEvent): Promise<unknown> | unknown }
 export interface PeriodicDef { name: string; module: string; everyMs: number; run(ctx: Ctx): Promise<unknown> | unknown }
-export interface ModuleHooks { module: string; consumers: ConsumerDef[]; periodic: PeriodicDef[] }
+/** A function a module offers the host to run as that module (`export const hostCalls = { "<module>.<name>": (ctx, input) => ... }`): the host's way to hand work to a module that has no capability for it, with the module's own ctx. */
+export interface CallDef { name: string; module: string; run(ctx: Ctx, input: unknown): Promise<unknown> | unknown }
+export interface ModuleHooks { module: string; consumers: ConsumerDef[]; periodic: PeriodicDef[]; calls?: CallDef[] }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 /** Read one module's exports into the hooks the host runs. Anything that does not have the shape is ignored (the Tx-style projection consumers, plain helpers). */
 export function collectHooks(module: string, ns: Record<string, unknown>): ModuleHooks {
-  const out: ModuleHooks = { module, consumers: [], periodic: [] };
+  const out: ModuleHooks = { module, consumers: [], periodic: [], calls: [] };
+  if (isRecord(ns["hostCalls"])) {
+    for (const [name, run] of Object.entries(ns["hostCalls"])) if (typeof run === "function") out.calls!.push({ name, module, run: (ctx, input) => (run as (c: Ctx, i: unknown) => unknown)(ctx, input) });
+  }
   if (isRecord(ns["consumers"])) {
     for (const [name, def] of Object.entries(ns["consumers"])) {
       if (!isRecord(def) || !Array.isArray(def["on"]) || typeof def["run"] !== "function") continue;   // a kernel projection has `mode: "async"` and an object `on`
@@ -112,9 +117,12 @@ export interface HookRunner {
   pump(): Promise<void>;
   /** Run one periodic job now. */
   runPeriodic(name: string): Promise<void>;
+  /** Run a module's hostCall as that module and answer what it returns. */
+  /** `as`: run it for that principal (the admin whose action this is), with their authority for anything the call asks of other modules; omitted: as the host. */
+  call(name: string, input: unknown, as?: { principal: { kind: "person" | "agent" | "service"; id: string } }): Promise<unknown>;
 }
 
-const capName = (kind: "consumer" | "periodic", name: string): string => `host.hook.${kind}.${name}`;
+const capName = (kind: "consumer" | "periodic" | "call", name: string): string => `host.hook.${kind}.${name}`;
 
 export function createHookRunner(d: HookRunnerDeps): HookRunner {
   d.db.run("CREATE TABLE IF NOT EXISTS host_hook_cursor (name TEXT PRIMARY KEY, seq INTEGER NOT NULL, at INTEGER NOT NULL)");
@@ -141,6 +149,14 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
     const n = capName("periodic", p.name);
     caps.push(base(n, p.module)); moduleOf.set(n, p.module);
     handlers[n] = (ctx) => p.run(ctx);
+  }
+  const byCall = new Map<string, CallDef>();
+  for (const c of d.hooks.flatMap((h) => h.calls ?? [])) {
+    if (byCall.has(c.name)) { d.warn("two modules export a host call with one name; the second is not offered", { call: c.name, module: c.module }); continue; }
+    byCall.set(c.name, c);
+    const n = capName("call", c.name);
+    caps.push(base(n, c.module)); moduleOf.set(n, c.module);
+    handlers[n] = (ctx, input: { input: unknown }) => c.run(ctx, input.input);
   }
   const seed = (extra: Partial<CtxSeed> = {}): CtxSeed => ({ space: d.space, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...extra });
 
@@ -215,6 +231,12 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
       if (running) { again = true; return running; }
       running = run();
       return running;
+    },
+    async call(name, input, as) {
+      if (!byCall.has(name)) throw new Error(`no host call named ${name}`);
+      const r = await d.invoke(capName("call", name), { input }, as ? seed({ principal: { ...as.principal }, preAuth: false }) : seed());
+      if (r.status !== "ok") throw new Error(`${name} was held`);
+      return r.output;
     },
     async runPeriodic(name) {
       if (!byPeriodic.has(name)) throw new Error(`no periodic job named ${name}`);

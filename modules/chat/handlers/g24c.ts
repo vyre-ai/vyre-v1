@@ -154,7 +154,7 @@ export async function recent(ctx: ChatCtx, input: { filter?: "all" | "unread" | 
   const filter = input.filter ?? "all";
   const threads = ctx.db.all(
     `SELECT * FROM chat_thread WHERE deleted_at IS NULL AND listed = 1 AND closedAt IS NULL AND kind IN ('chat', 'ask', 'channel')
-       AND id IN (SELECT thread FROM chat_thread_member WHERE principal = ? AND deleted_at IS NULL)`, asker,
+       AND id IN (SELECT thread FROM chat_thread_member WHERE principal = ? AND deleted_at IS NULL) ORDER BY rowid DESC`, asker,
   ) as Row[];
   const rows: Array<{ lastAt: number; row: Record<string, unknown> }> = [];
   for (const r of threads) {
@@ -233,6 +233,8 @@ export async function composerSuggest(ctx: ChatCtx, input: { symbol: "@" | "#" |
 export async function openTab(ctx: ChatCtx, input: { threadId: string; targetType: string; targetId: string; title?: string }) {
   const t = openThread(ctx, input.threadId);
   if (ctx.principal.kind !== "agent") raise(ctx, "validation.bad_input", "Only an agent opens a tab for a person.");
+  // An agent that is not in this chat has no tab to open in it, and the answer is the same as for a chat that is not there.
+  if (!agentsOf(ctx.db, t.id).some((a) => a.agentId === ctx.principal.id)) raise(ctx, "validation.not_found", "That chat does not exist or is not yours to open.");
   const personId = askerOf(ctx);
   if (!personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "A tab opens for a person, and this agent is not acting for one.");
   const targetType = input.targetType.trim(), targetId = input.targetId.trim();

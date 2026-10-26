@@ -13,6 +13,10 @@ export type Preview = CapMap["journeys.preview_migrate"]["out"];
 export type StageCounts = CapMap["journeys.stage_counts"]["out"]["stages"];
 export type Slot = "assigned" | "reviewer" | "approver";
 
+/** Where a task stands on a record. "Blocked" is not set by hand: it is a task waiting on one that is not done. */
+export const TASK_STATES = ["To do", "Doing", "In review", "Awaiting approval", "Done", "Canceled"] as const;
+export type TaskState = (typeof TASK_STATES)[number] | "Blocked";
+
 export const SLOTS: readonly { key: Slot; label: string }[] = [{ key: "assigned", label: "Assigned" }, { key: "reviewer", label: "Reviewer" }, { key: "approver", label: "Approver" }];
 export const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 

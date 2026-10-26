@@ -139,11 +139,11 @@ export type Harness = ReturnType<typeof harness>;
 export function seedConsent(h: Harness, o: { members?: { email: string; userId: string; excluded?: boolean }[]; configured?: boolean } = {}): void {
   ensure(h.ctx);
   h.ctx.db.run(
-    `INSERT INTO ms_config (id, "connectionId", "vaultItem", "tenantId", domain, "clientId", configured, "consentGiven", "policyConfirmed", "autoConnect", "lastVerifyAt", "nextRenewAt", updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO microsoft_config (id, "connectionId", "vaultItem", "tenantId", domain, "clientId", configured, "consentGiven", "policyConfirmed", "autoConnect", "lastVerifyAt", "nextRenewAt", updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     "microsoft", CONN, "#Microsoft_App", "tenant-guid", "vyre.test", "11111111-2222-3333-4444-555555555555", o.configured === false ? 0 : 1, 1, 1, 1, null, null, NOW,
   );
   for (const m of o.members ?? [{ email: "maya@vyre.test", userId: "usr_maya01" }]) {
-    h.ctx.db.run(`INSERT INTO ms_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, m.email, m.userId, 1, m.excluded ? 1 : 0, null, NOW);
+    h.ctx.db.run(`INSERT INTO microsoft_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, m.email, m.userId, 1, m.excluded ? 1 : 0, null, NOW);
   }
 }
 
