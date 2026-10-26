@@ -25,3 +25,19 @@ test("emits-declared: declared emits, capabilities of other modules and computed
   assert.deepEqual(run(`const h = { "files.rename": async (ctx) => { ctx.emit("file.renamed", "f", {}); ctx.emit(name, "f", {}); } };`), []);
   assert.deepEqual(run(`const h = { "other.thing": async (ctx) => { ctx.emit("anything", "f", {}); } };`), []);
 });
+
+test("emits-declared: a handler imported from another file of the module is found through the module resolver", () => {
+  const files: Record<string, string> = {
+    "modules/files/handlers/index.ts": `import { place } from "./tree.ts";\nexport const handlers = {\n  "folders.place": place,\n};`,
+    "modules/files/handlers/tree.ts": `export async function place(ctx, i) {\n  ctx.emit("folder.placed", "f", {});\n}`,
+  };
+  const resolve = (id: string, from: string) => {
+    for (const [f, src] of Object.entries(files)) {
+      const m = new RegExp(`function ${id}\\b`).exec(src);
+      if (m) { const open = src.indexOf("{", m.index + 20); return { file: f, source: src, text: src.slice(open), start: open }; }
+    }
+    return null;
+  };
+  const hits = checkEmitsDeclared("modules/files/handlers/index.ts", files["modules/files/handlers/index.ts"]!, caps, "files", resolve);
+  assert.deepEqual(hits.map((h) => [h.cap, h.event, h.file, h.line]), [["folders.place", "folder.placed", "modules/files/handlers/tree.ts", 2]]);
+});
