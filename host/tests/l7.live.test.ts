@@ -100,6 +100,12 @@ test("l7 live: a booted daemon serves every live L7a module from its own handler
       const refused = await post(MEMBER_TOKEN, c.refused[0], c.refused[1]);
       assert.equal(refused.status, 403, `${c.module}: a member is refused ${c.refused[0]}: ${await refused.clone().text()}`);
     }
+    // the member's key request reached the owner as a card of the real tasks module, offering exactly the actions an unblock task has
+    const cards = await post(OWNER_TOKEN, "/v1/tasks/list", { scope: "mine", kinds: ["unblock"] });
+    assert.equal(cards.status, 200, await cards.clone().text());
+    const card = ((await cards.json()) as { data: { tasks: { title: string; actions: { key: string }[] }[] } }).data.tasks.find((x) => x.title.includes("L7_Live_Key"));
+    assert.ok(card, "the owner has the request card");
+    assert.deepEqual(card!.actions.map((x) => x.key), ["resolved", "cannot"]);
     assert.equal((await post("nope", "/v1/spaces/get", {})).status, 401, "no valid token, no answer");
   } finally { await d.stop(); }
 });
