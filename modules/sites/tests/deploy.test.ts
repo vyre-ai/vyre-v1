@@ -114,7 +114,7 @@ test("the service identity follows the owner: a grant the owner no longer holds 
   w.hidden.add(`folder/fld_site1`);   // the owner's access to the folder was revoked after the site was made
   assert.deepEqual((await ask()).grants, [{ resource: `site/${site.siteId}`, level: "edit" }]);
   w.levelFor.set("site", "view");   // and the owner was demoted on the site itself
-  assert.deepEqual((await ask()).grants, [{ resource: `site/${site.siteId}`, level: "edit" }].filter(() => false));
+  assert.deepEqual((await ask()).grants, []);
   const failing = harness();
   const other = await newSite(failing);
   const real = failing.ctx.call.bind(failing.ctx);
