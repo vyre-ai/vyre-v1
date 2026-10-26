@@ -187,7 +187,7 @@ test("holds: place on a file, channel, thread, folder or person; one hold per ta
   h.actAs("person", ADMIN);
   await g.holdsPlace(h.ctx, { target: { kind: "file", id: "fil_doc00001" }, reason: "Another reason" });
   assert.equal(h.named("hold.placed").length, 1, "a second hold on the same file changes nothing");
-  assert.equal(h.rows(`SELECT * FROM gov_hold`)[0]?.reason, "Subpoena");
+  assert.equal(h.rows(`SELECT * FROM governance_hold`)[0]?.reason, "Subpoena");
   for (const target of [{ kind: "channel", id: "chn_intake001" }, { kind: "thread", id: "thr_t0000001" }, { kind: "folder", id: FOLDER }, { kind: "person", id: PAT }, { kind: "person", id: "usr_rob00002" }]) {
     h.advance(1000);
     await g.holdsPlace(h.ctx, { target, reason: "Matter 7" });

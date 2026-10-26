@@ -96,7 +96,7 @@ test("golden 2: accepting makes the account, the role, Everyone and the invite's
   const dana = h.world.principals.get("usr_dana")!;
   assert.deepEqual(dana.roles, ["rol_admin"]);
   assert.deepEqual(dana.groups.sort(), ["grp_everyone", "grp_sales"]);
-  assert.deepEqual(h.calls.find((c) => c.cap === "projects.members.set")!.input, { projectId: "prj_a", principal: "usr_dana", role: "member" });
+  assert.deepEqual(h.calls.find((c) => c.cap === "projects.members.set")!.input, { projectId: "prj_a", principal: "usr_dana", role: "member", idempotencyKey: "join:usr_dana:project:prj_a" });
   assert.deepEqual(h.calls.find((c) => c.cap === "channels.members.add")!.input, { channelId: "chn_a", personIds: ["usr_dana"] });
   assert.deepEqual((h.calls.find((c) => c.cap === "access.share")!.input as { resource: unknown; level: string }).level, "use");
   const row = h.raw.rows("members_invites")[0]!;

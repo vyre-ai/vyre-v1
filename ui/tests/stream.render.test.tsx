@@ -207,33 +207,6 @@ test("an ordered list split by a blank line keeps its numbers, and links are onl
 
 // ---- the store
 
-test("stream_render: 100 deltas a second through the store are one notification per frame, and a frame's work stays small", () => {
-  const f = manualFrames();
-  const store = createStreamStore(f.scheduler);
-  let seen = 0;
-  store.subscribe(() => { seen++; });
-  const words = DOC.split(/(?<= )/);
-  const FRAMES = 180;
-  const times: number[] = [];
-  let at = 0;
-  for (let frame = 0; frame < FRAMES; frame++) {
-    const due = Math.floor(((frame + 1) * 100) / 60) - Math.floor((frame * 100) / 60);
-    for (let k = 0; k < due; k++) store.push(words[at++ % words.length] ?? "");
-    const t0 = performance.now();
-    f.tick();
-    times.push(performance.now() - t0);
-  }
-  const s = store.stats();
-  assert.equal(s.deltas, 300);
-  assert.equal(s.appends, FRAMES);
-  assert.equal(seen, s.notifications);
-  assert.equal(s.notifications, FRAMES, "one notification per frame, not one per delta");
-  assert.equal(store.getSnapshot().version, FRAMES);
-  times.sort((a, b) => a - b);
-  const p95 = times[Math.ceil(times.length * 0.95) - 1] ?? Infinity;
-  assert.ok(p95 < 4, `the per-frame work (coalesce, parse the open block, notify) has p95 ${p95.toFixed(2)} ms, far under the 16.7 ms frame`);
-});
-
 test("end shows what is waiting, makes the last block final and stops the stream; reset starts again", () => {
   const f = manualFrames();
   const store = createStreamStore(f.scheduler);

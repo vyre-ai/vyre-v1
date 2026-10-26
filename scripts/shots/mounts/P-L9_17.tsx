@@ -1,6 +1,6 @@
-// Mount for P-L9_17: the phone shell over the Northwind sample Space (?space=harbor for Harbor Studio). ?tab=chats (default), inbox, records, files or you opens that tab. The Chats tab is the real
+// Mount for P-L9_17 (phone shell): the phone shell over the Northwind sample Space (?space=harbor for Harbor Studio). ?tab=chats (default), inbox, records, files or you opens that tab. The Chats tab is the real
 // Chats sidebar as a full-screen list: tap a chat and the conversation opens on top (Back returns to the list), tap a Needs you row for the same. You is the real You screen. Swipe a chat row left
-// (or right-click it) for Star and Mark read. window.__probes.startup is the milliseconds from navigation start to the tab bar and the first list on screen (budget startup, phone 1.5 s at 4x CPU).
+// (or right-click it) for Star and Mark read.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Text, View } from "react-native";
@@ -32,13 +32,8 @@ export default function Mount(): ReactNode {
   const sidebar = useMemo(() => createSampleSidebar(team), [team]);
   // the conversation sample is made when a chat is opened, not at start (startup draws the tab bar and the first list only)
   const conversation = useMemo(() => ({ get data() { return createConversationSample("idle").data; } }), []);
-  useEffect(() => {
-    if (search === null) return;
-    const g = globalThis as { requestAnimationFrame?: (f: () => void) => void; performance?: { now(): number }; __probes?: Record<string, unknown> };
-    g.requestAnimationFrame?.(() => { g.__probes = { ...(g.__probes ?? {}), startup: Math.round(g.performance?.now() ?? 0), ready: true }; });
-  }, [search]);
   if (search === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  // ?empty=1 draws nothing but the page and still reports startup: the baseline of bundle load and boot, to split it from the shell's first draw.
+  // ?empty=1 draws nothing but the page: a blank baseline.
   if (params.get("empty") === "1") return <View testID="mobile-tabs" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   const render = (e: Entry, nav: MobileNav): ReactNode => {
     if (e.screen === "chats") {

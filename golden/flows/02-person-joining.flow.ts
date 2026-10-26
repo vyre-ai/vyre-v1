@@ -6,5 +6,5 @@ export default defineFlow({
   name: "person-joining",
   title: "A person joining",
   needs: ["members", "identity", "devices", "home", "access"],
-  events: ["member.invited", "member.joined", "keys.stored", "session.started"],
+  events: ["member.invited", "session.started", "keys.stored", "member.joined"],
 });

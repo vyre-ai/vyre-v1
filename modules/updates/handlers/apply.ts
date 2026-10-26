@@ -15,10 +15,10 @@ import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 const asRow = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 
 /** Take a backup and prove it exists. backup.run answers with the id even when the copy failed (it announces backup.failed), so the list is the proof. */
-async function backupFirst(ctx: UpdateCtx): Promise<string> {
+async function backupFirst(ctx: UpdateCtx, runId: string): Promise<string> {
   let id = "";
   try {
-    id = String(asRow(await ctx.call("backup.run" as never, {}))?.["backupId"] ?? "");
+    id = String(asRow(await ctx.call("backup.run" as never, { idempotencyKey: `update:${runId}:backup-first` }))?.["backupId"] ?? "");
     const listed = asRow(await ctx.call("backup.list" as never, { limit: 5 }));
     const rows = Array.isArray(listed?.["backups"]) ? (listed["backups"] as unknown[]) : [];
     if (id && rows.some((r) => asRow(r)?.["backupId"] === id)) return id;
@@ -46,7 +46,7 @@ export async function apply(ctx: UpdateCtx, input: { to?: string }) {
   if (compareVersions(release.version, from) <= 0) return failWith(ctx.trace.traceId, "validation.precondition_failed", `The server is already on ${from}, which is the newest on the ${channel} channel.`, { current: from });
 
   // 2. backup first
-  const backupId = await backupFirst(ctx);
+  const backupId = await backupFirst(ctx, runId);
 
   // 3. install and prove it is healthy, or put the old version back
   const started = ctx.now();

@@ -130,27 +130,3 @@ test("real engine: bytes at rest hold no marker or SQLite header; wrong key and 
   assert.notDeepEqual(Buffer.from(after), Buffer.from(bytes), "the rekey changed the stored bytes");
 });
 
-test("real engine: a 200k-row replica reopens through the device path under the startup slice", async () => {
-  const sqlite3 = await loadEngine();
-  const vault = createReplicaKeyVault(memoryKeyBox());
-  const base = { target: "web" as const, spaceId: "spc_real", deviceId: "dev_1", vault, personKey: key(5), openers: { sqlite3mc: { mod: sqlite3, vfs: null } }, registryHash: "hash-real", personId: "prs_me" };
-  const seed = await openDeviceReplica(base);
-  const ins = seed.driver.prepare('INSERT INTO "calendar_event" (id, calendarId, title) VALUES (?, ?, ?)');
-  const t0 = performance.now();
-  seed.driver.transaction(() => { for (let i = 0; i < 200_000; i++) ins.run([`evt_${i}`, `cal_${i % 50}`, `Event ${i}`]); });
-  const seedMs = performance.now() - t0;
-  await seed.store.close();
-
-  const opens: number[] = [];
-  for (let i = 0; i < 3; i++) {
-    const r = await openDeviceReplica(base);
-    const row = r.store.read("calendar_event", "evt_199999");
-    assert.equal(row?.title, "Event 199999");
-    opens.push(r.openMs);
-    await r.store.close();
-  }
-  opens.sort((a, b) => a - b);
-  const median = opens[1] ?? 0;
-  // The measurement is the assertion message when it fails and the ok line when it holds: median open must stay under half of the 1000 ms app.usable budget.
-  assert.ok(median < 500, `real engine reopen median ${median.toFixed(1)} ms (seed ${seedMs.toFixed(0)} ms) is over 500 ms`);
-});

@@ -10,7 +10,7 @@ Fill a template into a new file in a folder; missing required tags stop the fill
 | Permission | files.write |
 | Grant level | edit |
 | Risk | medium |
-| Resource | folder (create under /intoFolderId) |
+| Resource | file (create under /intoFolderId) |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |

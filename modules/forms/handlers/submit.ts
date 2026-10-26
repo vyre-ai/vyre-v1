@@ -95,7 +95,7 @@ const unwrapId = (v: unknown): string => {
  * Write answers to a record as the form's service principal. With a link the link's record is updated. Without one the match rule decides:
  * no match creates, one match updates, several matches create a record and put the doubt in Needs you (nothing is merged by guess).
  */
-export async function writeAnswers(ctx: Ctx, form: Row, answers: Record<string, Answer>, link: Row | null): Promise<WriteResult> {
+export async function writeAnswers(ctx: Ctx, form: Row, answers: Record<string, Answer>, link: Row | null, key: string): Promise<WriteResult> {
   const type = str(form.record_type);
   if (link) {
     const recordId = str(link.record_id);
@@ -116,10 +116,11 @@ export async function writeAnswers(ctx: Ctx, form: Row, answers: Record<string, 
     if (Object.keys(patch).length > 0) await ctx.call("records.update", { type, recordId: found[0], patch });
     return { recordId: found[0], created: false, matched: true };
   }
-  const made = unwrapId(await ctx.call("records.create", { type, fields: answers }));
+  const made = unwrapId(await ctx.call("records.create", { idempotencyKey: `${key}:records.create`, type, fields: answers }));
   if (made === "") fail(ctx, "internal.unexpected", "The record could not be created.");
   if (found.length > 1) {
     await ctx.call("tasks.create", {
+      idempotencyKey: `${key}:duplicate-task`,
       title: `Possible duplicate from the form ${str(form.name)}`,
       summary: `A submission matched more than one ${type}. A new record was created; check whether it should be merged.`,
       assigned: { kind: "person", id: str(form.created_by) },
@@ -188,7 +189,7 @@ async function submit(ctx: Ctx, input: unknown): Promise<{ recordId: string; tha
   if (link && !consumeLink(ctx, link)) fail(ctx, "auth.invalid_code", "This link is not valid any more. Ask for a new one.");
   let written: WriteResult;
   try {
-    written = await writeAnswers(ctx, form, answers, link);
+    written = await writeAnswers(ctx, form, answers, link, `forms.submit:${formId}:${digest}:${ctx.trace.traceId}`);
   } catch (e) {
     if (link) releaseLink(ctx, link);
     throw e;
