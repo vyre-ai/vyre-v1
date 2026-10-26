@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "P-L9c_01c-inbox-contact",
+      "route": "/m/P-L9c_01c",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid='row-line:elena']",
+      "note": "By contact after the audit: organisation beside each name, bell and star after it, DND and Bounced tags, Draft ready leads the preview, the time in the accent colour when unread, the sidebar with Client portal under Shared and Billing's number under Agents. Same Inbox screen in the prototype, same skin."
+    },
+    {
+      "id": "P-L9c_01c-inbox-sidebar-lists",
+      "route": "/m/P-L9c_01c?scope=starred",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid='row-nav:list:starred']",
+      "note": "The Starred list selected in the sidebar (Lists > Starred); the prototype side is its Inbox, whose Starred row is in the same Lists section."
+    }
+  ]
+}

@@ -67,7 +67,7 @@ export function harness() {
       if (!world.settings.has(k)) throw err("validation.not_found", "No such setting.");
       return { row: { key: k, title: k, page: "console.data", scope: "space", source: "space", default: {}, floorable: false, value: world.settings.get(k) } };
     },
-    "settings.set": (i) => {
+    "settings.set_space": (i) => {
       const k = String(i["key"]);
       const previous = world.settings.get(k) ?? {};
       world.settings.set(k, i["value"]);
@@ -145,6 +145,17 @@ export function harness() {
         notes: (world.notes.get(String(i["subject"])) ?? []).map((n) => ({ layer: "agent", path: "x.md", title: "Note", updatedAt: NOW, ...n })),
       };
     },
+    // The erasers and purgers of P-CC_39 are in the contract now. The erasers that the tests of find and apply count on being absent stay refused, as a module without them answers; the age purgers remove nothing.
+    "records.purge": () => { throw err("validation.unknown_capability", "records.purge is not served by this module"); },
+    "threads.erase": () => { throw err("validation.unknown_capability", "threads.erase is not served by this module"); },
+    "channels.erase": () => { throw err("validation.unknown_capability", "channels.erase is not served by this module"); },
+    "mail.message.erase": () => { throw err("validation.unknown_capability", "mail.message.erase is not served by this module"); },
+    "memory.notes.erase": () => { throw err("validation.unknown_capability", "memory.notes.erase is not served by this module"); },
+    "runs.purge": () => ({ removed: 0, more: false }),
+    "chat.transcript.purge": () => ({ removed: 0, more: false }),
+    "files.versions_purge": () => ({ removed: 0, more: false }),
+    "logs.purge": () => ({ removed: 0, more: false }),
+    "records.purge_trashed": () => ({ removed: 0, more: false }),
     "memory.erase": (i) => {
       for (const f of (i["factIds"] as string[]) ?? []) world.erasedFacts.push(f);
       return { erased: ((i["factIds"] as string[]) ?? []).length };
@@ -185,7 +196,7 @@ export function harness() {
       const body = (input ?? {}) as Record<string, unknown>;
       called.push({ cap, input: body });
       const d = registry.capabilities.filter((c) => c.name === cap).sort((a, b) => b.v - a.v)[0];
-      if (!d) throw new Error(`${cap} is not in the registry`);
+      if (!d) throw err("validation.unknown_capability", `${cap} is not in the registry`);   // what the invoke pipeline answers for a capability the contract does not have
       const misfit = validate(d.input, body, "", registry.$defs);
       if (misfit.length) throw new Error(`${cap} was called with input its contract refuses: ${misfit.join("; ")}`);
       const script = scripts.get(cap) ?? defaults[cap];

@@ -4,6 +4,7 @@
     "inbox.counts@1": "48db347fe1e7d6f2f798973a7d7fb2b27bc933bfb00adf411bdc679025bb2cba",
     "inbox.follow_set@1": "2e527d03e6a1be2ff45242ab0e690c0cde04d26e72840459c4295df4cf865a8e",
     "inbox.following@1": "320ab582627af49bfcd78c463a46016cd411112816c554f355b9cbe0cd581a37",
+    "inbox.item.erase@1": "e585dc2bb3bdda14ea9caff7d732a5f82da11f8e9caf9156d3cb72e17fcfaf14",
     "inbox.link_message@1": "7530e302f01901daca40e22f335b99ec835ac7df73332f7ee756b80697d12266",
     "inbox.list_by_contact@1": "357660883ed08f42ac5ce5de0207016169f1c5bf4af6e0093fc79af30d5e7ace",
     "inbox.list_by_thread@1": "067af320e2e52690bdea980ed684dab98cc5fe6a426b3e519d6fd5f17ec37d08",
@@ -25,6 +26,7 @@
     "conversation.matched": "ac0c16055cba365b430d1a8ca005605ca70ce61790aa332e24f63a1b21112693",
     "conversation.needs_match": "b5a20659ee6a0981136fc6a1a62dadde5c9fe23e8a34a6d659d5343c861bddda",
     "conversation.reply_received": "fc9490f883567c0045146fbb3b422a61a02f4e24722cb2f409721c1800abfff8",
-    "conversation.unmatched": "66cc911d451b170712c1adfbe2cfb785f221c118fa5b0ccda024a08d66d30eee"
+    "conversation.unmatched": "66cc911d451b170712c1adfbe2cfb785f221c118fa5b0ccda024a08d66d30eee",
+    "inbox.item_erased": "7e123d79cfd12ab701c49d663a5f84f9df57ce061dad7a2bdcd9baaa7c63f23f"
   }
 }

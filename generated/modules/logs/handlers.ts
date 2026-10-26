@@ -7,6 +7,7 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "logs.client_upload": Handler<"logs.client_upload", X>;
   "logs.export": Handler<"logs.export", X>;
+  "logs.purge": Handler<"logs.purge", X>;
   "logs.query": Handler<"logs.query", X>;
   "logs.replay_get": Handler<"logs.replay_get", X>;
   "logs.replay_start": Handler<"logs.replay_start", X>;

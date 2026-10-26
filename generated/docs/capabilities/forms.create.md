@@ -19,7 +19,7 @@ Create a form on a record type; every input maps to a field
 | HTTP | POST /v1/forms/create |
 | MCP tool | forms_create (automations) |
 | CLI | none |
-| Emits | none |
+| Emits | form.created |
 
 ## Input
 

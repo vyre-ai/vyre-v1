@@ -74,7 +74,7 @@ export interface BuiltinRow {
 
 export interface ConnectorsCtx {
   trace: { traceId: string };
-  emit(name: string, subject: string, payload: Record<string, unknown>): unknown;
+  emit(name: string, subject: string, payload: Record<string, unknown>, opts?: { afterFailure?: boolean }): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
   http(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<{ status: number; text(): Promise<string> }>;
   log?: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void; error(msg: string, attrs?: Record<string, unknown>): void };

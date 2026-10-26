@@ -17,7 +17,8 @@ import { FilesTab } from "./FilesTab.tsx";
 import { MemoryTab } from "./MemoryTab.tsx";
 import { RoutinesTab } from "./RoutinesTab.tsx";
 import { ThreadsTab, AGENT_PAGE_SCREEN } from "./ThreadsTab.tsx";
-import { DEFAULT_TAB, MORE_KEY, PANE_KEY, PANE_WIDTH_GUESS, TABS, fitTabs, isTabKey } from "./model.ts";
+import { DEFAULT_TAB, PANE_KEY, PANE_WIDTH_GUESS, TABS } from "./model.ts";
+import { TabMeasure, useFittedTabs, useTitleWidths } from "./fit.tsx";
 import type { TabKey } from "./model.ts";
 import { Face, Notice, Tool } from "./parts.tsx";
 
@@ -83,20 +84,12 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
 
   const agentQ = useScreenQuery<AgentOut>(AGENT_PAGE_SCREEN, "agent", { agentId: data.agent.agentId });
   const agent = agentQ.status === "ready" ? agentQ.data.agent : null;
-  const fitted = useMemo(() => fitTabs(TABS, tab, paneWidth ?? (narrow ? win.width : paneW)), [tab, narrow, win.width, paneW, paneWidth]);
-  const strip = fitted.hidden.length === 0 ? TABS : [...fitted.shown, { key: MORE_KEY, title: "More" }];
-  const select = (key: string): void => {
-    if (key === MORE_KEY) {
-      // The strip does not say where it was pressed; the menu opens under the header, near the pane's left edge.
-      const rest: MenuEntry[] = [];
-      for (const t of fitted.hidden) rest.push({ label: t.title, onSelect: () => select(t.key) });
-      menu.show(rest, Math.max(0, win.width - (paneWidth ?? paneW) + 40), 40, "other");
-      return;
-    }
-    if (!isTabKey(key)) return;
-    setOwn(key);
-    onTab?.(key);
-  };
+  const titles = useTitleWidths();
+  const paneNow = paneWidth ?? (narrow ? win.width : paneW);
+  const { strip, select } = useFittedTabs(TABS, tab, paneNow, {
+    menu, left: Math.max(0, win.width - paneNow) + 40, top: 40, measured: titles.widths,
+    pick: (key) => { setOwn(key); onTab?.(key); },
+  });
   const moreMenu = (x: number, y: number): void => {
     menu.show([
       { label: `Open ${data.agent.name}'s Page`, onSelect: () => data.nav.openAgentPage(data.agent.agentId) },
@@ -107,6 +100,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   return (
     <SidePane paneKey={PANE_KEY} toggle={{ open, onPress: onToggle }} title={data.agent.name} tabs={strip} activeTab={tab} onSelectTab={select} {...(narrow ? { max: 1, defaultWidth: win.width } : {})}>
       <View testID="chats-right-pane" style={st.root} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}>
+        <TabMeasure titles={TAB_TITLES} onWidth={titles.set} />
         <View testID="pane-agent" style={st.who}>
           <Face name={data.agent.name} size={30} pulse={agent?.status === "working"} />
           <View style={st.whoText}>
@@ -129,6 +123,8 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
     </SidePane>
   );
 }
+
+const TAB_TITLES: readonly string[] = TABS.map((x) => x.title);
 
 const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--side)" as string },

@@ -1,6 +1,6 @@
 // The eight capabilities of P-L2_10 against the frozen contract (ARCH 12.4): the handler table holds only frozen chat capabilities, each example input is accepted, each answer matches its
 // output schema, every error a handler raises is one the capability declares, and every event it emits is one it declares, with a payload that matches the frozen event schema.
-// The other 54 capabilities of the module are later packets; the module stays `stub` until the table is complete.
+// The table is complete since P-L2_LIVE (the other 54 capabilities have their own tests in g24a to g24d and ask.*).
 import test from "node:test";
 import assert from "node:assert/strict";
 import { registry } from "../../../generated/registry.ts";
@@ -12,9 +12,9 @@ const mine = registry.capabilities.filter((c) => c.module === "chat");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 const OURS = ["chat.post", "chat.start", "chat.thread", "chat.answer_block", "chat.approve_plan", "threads.make_channel", "channels.create", "channels.connect_outside_agent"];
 
-test("the handler table holds exactly the eight capabilities of this packet, all frozen chat capabilities", () => {
-  assert.equal(mine.length, 62);
-  assert.deepEqual(Object.keys(h).sort(), [...OURS].sort());
+test("the handler table is exactly the 62 frozen chat capabilities (P-L2_LIVE), and the eight of P-L2_10 are among them", () => {
+  assert.equal(mine.length, 65);   // 62 plus the erase and purge capabilities of P-CC_39
+  assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const name of OURS) assert.ok(mine.some((c) => c.name === name), name);
 });
 

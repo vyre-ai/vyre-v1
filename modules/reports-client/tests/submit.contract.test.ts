@@ -47,7 +47,7 @@ function populated(): World {
   const w = world({ name: "Omar" });
   configureReports(w.drivers);
   w.raw.run(
-    "INSERT INTO reports_report (report_id, title, status, reporter, at, trace_ids, bundle_json, redactions, task_id, issue_number, sent_at, fixed_in) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO reports_client_report (report_id, title, status, reporter, at, trace_ids, bundle_json, redactions, task_id, issue_number, sent_at, fixed_in) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     EXAMPLE_REPORT, "Problem report from Omar", "sent", "usr_omar", NOW, JSON.stringify(bundle.traceIds), JSON.stringify(bundle), 0, "tsk_seed", 1, NOW, null,
   );
   return w;
@@ -102,7 +102,7 @@ test("every declared event is emitted by the handler that declares it", async ()
   assert.deepEqual(await emitted("reports.resolved", { reportId: EXAMPLE_REPORT, issueNumber: 1 }), ["report.resolved"]);
   const fresh = async (): Promise<string[]> => {
     const w = populated();
-    w.raw.run("UPDATE reports_report SET status = ?, issue_number = ?, sent_at = ? WHERE report_id = ?", "new", null, null, EXAMPLE_REPORT);
+    w.raw.run("UPDATE reports_client_report SET status = ?, issue_number = ?, sent_at = ? WHERE report_id = ?", "new", null, null, EXAMPLE_REPORT);
     await run("reports.send_to_vyre", w.ctx, { reportId: EXAMPLE_REPORT });
     return w.events.map((e) => e.name);
   };

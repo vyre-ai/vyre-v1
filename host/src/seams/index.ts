@@ -4,6 +4,8 @@
 // Host never imports a module (layer rule, and boundaries.ts rejects a non-literal import()), so the three registration functions arrive as arguments: the daemon passes
 // setGoogleHost and setImapSecretResolver from the module files it already imports for the loader, a test passes fakes. A setter that is not given (the Microsoft module is not in the
 // tree yet) leaves that seam "absent"; it is reported in the result, not a boot failure.
+import { createComputersHost } from "./computers-host.ts";
+import type { ComputersHostDeps, ComputersHostSeam } from "./computers-host.ts";
 import { createEngineHost } from "./engine.ts";
 import type { EngineHostDeps, EngineHostSeam, EngineInvoke, EngineSessionPorts } from "./engine.ts";
 import { createGoogleHost } from "./google.ts";
@@ -12,14 +14,19 @@ import { createImapSecretResolver } from "./imap.ts";
 import type { ImapSecretResolver } from "./imap.ts";
 import { createMailgunHost, createResendHost } from "./mail-providers.ts";
 import type { MailgunHostSeam, ResendHostSeam } from "./mail-providers.ts";
+import { createGithubHost, createStripeHost, createTwilioHost, createZoomHost } from "./comms.ts";
+import type { GithubHostSeam, StripeHostSeam, TwilioHostSeam, ZoomHostSeam } from "./comms.ts";
+import type { FillerPort } from "./filler.ts";
 import { createMsHost } from "./microsoft.ts";
 import { createSourcesSecretResolver } from "./sources.ts";
 import type { SourcesSecretResolver } from "./sources.ts";
 import type { MsHostSeam, MsSeamDeps } from "./microsoft.ts";
 import type { FetchedResponse, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort } from "./ports.ts";
 
-export { createEngineHost, createGoogleHost, createImapSecretResolver, createMailgunHost, createMsHost, createResendHost, createSourcesSecretResolver };
-export type { EngineHostDeps, EngineHostSeam, EngineInvoke, EngineSessionPorts, FetchedResponse, GoogleHostSeam, MailgunHostSeam, ResendHostSeam, GoogleSeamDeps, ImapSecretResolver, MsHostSeam, SourcesSecretResolver, MsSeamDeps, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort };
+export { createGithubHost, createStripeHost, createTwilioHost, createZoomHost };
+export type { GithubHostSeam, StripeHostSeam, TwilioHostSeam, ZoomHostSeam, FillerPort };
+export { createComputersHost, createEngineHost, createGoogleHost, createImapSecretResolver, createMailgunHost, createMsHost, createResendHost, createSourcesSecretResolver };
+export type { ComputersHostDeps, ComputersHostSeam, EngineHostDeps, EngineHostSeam, EngineInvoke, EngineSessionPorts, FetchedResponse, GoogleHostSeam, MailgunHostSeam, ResendHostSeam, GoogleSeamDeps, ImapSecretResolver, MsHostSeam, SourcesSecretResolver, MsSeamDeps, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort };
 
 /** Every host driver is built from the same deps; a driver may return anything the setter accepts (a seam object, a function, a config). */
 export type SeamDriver = (d: SeamDriverDeps) => unknown;
@@ -36,6 +43,8 @@ export interface SeamDriverDeps extends SeamDeps {
 export interface SeamSetters {
   /** the engine runtime's host half: a way to run capabilities for a person, and the session opener's ports (P-L2_23) */
   setEngineHost?: ((h: EngineHostSeam | null) => void) | undefined;
+  /** the agent computers' machine: Docker socket, image and the agents' Files folders */
+  setComputerHost?: ((h: ComputersHostSeam | null) => void) | undefined;
   setGoogleHost?: ((h: GoogleHostSeam | null) => void) | undefined;
   setMsHost?: ((h: MsHostSeam | null) => void) | undefined;
   setImapSecretResolver?: ((fn: ImapSecretResolver | null) => void) | undefined;
@@ -44,6 +53,11 @@ export interface SeamSetters {
   /** the Space sending backends (P-L5_05): key, files, downloads; Mailgun also uploads and the public address */
   setResendHost?: ((h: ResendHostSeam | null) => void) | undefined;
   setMailgunHost?: ((h: MailgunHostSeam | null) => void) | undefined;
+  /** Stripe, Twilio and GitHub (P-L5_LIVE): the keys, the downloads, the App JWT and the filler handle */
+  setStripeHost?: ((h: StripeHostSeam | null) => void) | undefined;
+  setTwilioHost?: ((h: TwilioHostSeam | null) => void) | undefined;
+  setGithubHost?: ((h: GithubHostSeam | null) => void) | undefined;
+  setZoomHost?: ((h: ZoomHostSeam | null) => void) | undefined;
   [name: string]: ((driver: never) => void) | undefined;
 }
 
@@ -59,6 +73,8 @@ export interface SeamDeps {
   publicUrl?: ((space: string) => Promise<string>) | undefined;
   /** drivers by setter name, added to (and overriding) the built-in registry: the daemon supplies the ones that need its own state */
   drivers?: Record<string, SeamDriver>;
+  /** holds a GitHub installation token behind a handle until the Vault filler delivers it to git; omitted: GitHub cannot hand git a token */
+  filler?: FillerPort | undefined;
   /** which module exported each setter, for the report of what is missing */
   owners?: ReadonlyMap<string, string>;
 }
@@ -93,6 +109,10 @@ export const BUILTIN_DRIVERS: Readonly<Record<string, SeamDriver>> = Object.free
   setSourcesSecretResolver: (d: SeamDriverDeps) => createSourcesSecretResolver(d.vault, d.space),
   setResendHost: (d: SeamDriverDeps) => createResendHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
   setMailgunHost: (d: SeamDriverDeps) => createMailgunHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
+  setStripeHost: (d: SeamDriverDeps) => createStripeHost({ vault: d.vault }),
+  setTwilioHost: (d: SeamDriverDeps) => createTwilioHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, publicUrl: d.publicUrl }),
+  setZoomHost: (d: SeamDriverDeps) => createZoomHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs }),
+  setGithubHost: (d: SeamDriverDeps) => createGithubHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, filler: d.filler, publicUrl: d.publicUrl }),
 });
 
 const LEGACY: Readonly<Record<string, keyof WiredSeams["state"]>> = Object.freeze({

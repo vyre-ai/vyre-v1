@@ -14,6 +14,8 @@ import type { SyncHandle } from "../impl.ts";
 export interface DocCtx {
   trace: { traceId: string };
   principal: string;
+  /** The capability's own emit: the host commits what it emits together with the call, which is how doc.updated reaches the Space log (the server's `append` writes the sync module's own store only). */
+  emit?: ((name: string, subject: string, payload: unknown) => unknown) | undefined;
 }
 
 export interface DocHandlers {
@@ -31,7 +33,11 @@ export function toDocCtx(ctx: { trace: { traceId: string }; principal: { id: str
 export function createDocHandlers(server: DocServer): DocHandlers {
   return {
     async "sync.doc.open"(ctx, input) { return server.open(ctx.principal, input, ctx.trace.traceId); },
-    async "sync.doc.update"(ctx, input) { const r = server.update(ctx.principal, input, ctx.trace.traceId); return { seq: r.seq }; },
+    async "sync.doc.update"(ctx, input) {
+      const r = server.update(ctx.principal, input, ctx.trace.traceId);
+      if (r.fresh) ctx.emit?.("doc.updated", input.doc, { doc: input.doc, bytes: r.bytes, actor: ctx.principal, seq: r.seq });
+      return { seq: r.seq };
+    },
     async "sync.doc.close"(ctx, input) { return server.close(ctx.principal, input, ctx.trace.traceId); },
     async "sync.doc.compact"(ctx, input) { return server.compact(ctx.principal, input, ctx.trace.traceId); },
   };

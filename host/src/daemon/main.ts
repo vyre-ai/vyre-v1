@@ -15,6 +15,7 @@ async function main(): Promise<number> {
   try { d = await startDaemon({ config }); }
   catch (e) { process.stderr.write(`vyred: ${e instanceof Error ? e.message : String(e)}\n`); return 1; }
   process.stdout.write(`vyred ${version} ${d.roles.join(",")} ${d.space ?? "-"} listening on ${d.url}\n`);
+  if (d.claim) process.stdout.write(`Claim this Space as its owner (one time, valid 24 hours): ${d.claim.url}\n`);
   await new Promise<void>((resolve) => {
     let stopping = false;
     const stop = (): void => { if (stopping) return; stopping = true; void d.stop().finally(resolve); };

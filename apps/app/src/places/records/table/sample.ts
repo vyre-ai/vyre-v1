@@ -5,7 +5,7 @@
 import { createFakeReplica, createScreenHooks, liveQuery } from "../../../../../../client/src/index.ts";
 import type { FakeReplica, LiveQuery, Row, Tables } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
-import { PROTO_CHN, PROTO_SPACE_TYPES } from "../../../fixtures/prototype-data.ts";
+import { PROTO_CHN, PROTO_SPACE_TYPES, PROTO_TYPES } from "../../../fixtures/prototype-data.ts";
 import { PROTO_CLIENT_COUNT, protoClients } from "../../../fixtures/prototype-clients.ts";
 import { nameOf, namesFor, peopleFor } from "../../../fixtures/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -108,16 +108,20 @@ const dayMs = (iso: string): number => Date.parse(`${iso}T00:00:00Z`);
 const STATUS_OPTIONS: readonly (readonly [string, number | null])[] = [["Lead", 220], ["Consult booked", 270], ["Active", 145], ["On hold", 35], ["Closed", null]];
 const SOURCE_OPTIONS: readonly (readonly [string, number | null])[] = [["Referral", 160], ["Website", 205], ["Event", 330], ["Partner", 35]];
 
+type ProtoField = { id: string; n: string; t: string; kind?: string; rt?: string; o?: readonly (readonly [string, number | null])[] };
+const protoClientType = PROTO_TYPES["clients"] as { fields: readonly ProtoField[]; hidden: readonly string[] };
+/** The prototype's field types as the table draws them: a status is a coloured choice here, a check a checkbox, a text of kind email or phone its own type. */
+const protoFieldType = (p: ProtoField): string => (p.t === "status" ? "choice" : p.t === "check" ? "checkbox" : p.t === "text" && (p.kind === "email" || p.kind === "phone") ? p.kind : p.t);
+const protoField = (p: ProtoField): FieldDef => f(p.id, protoFieldType(p), p.n, p.o ? hueChoices(p.o) : undefined);
+/** All 23 of the prototype's Client fields (the name and the 22 under Fields), then the first and latest channel the prototype's table also draws. */
 const PROTO_CLIENT_FIELDS: FieldDef[] = [
-  f("name", "text", "Name"),
-  f("status", "choice", "Status", hueChoices(STATUS_OPTIONS)),
-  f("owner", "person", "Owner"),
-  f("fit", "rating", "Fit"),
-  f("since", "date", "Client since"),
+  ...protoClientType.fields.slice(0, 5).map(protoField),
   f("fch", "choice", "First channel", hueChoices(PROTO_CHN as readonly (readonly [string, number | null])[])),
   f("lch", "choice", "Latest channel", hueChoices(PROTO_CHN as readonly (readonly [string, number | null])[])),
-  f("source", "choice", "How did you hear about us", hueChoices(SOURCE_OPTIONS)),
+  ...protoClientType.fields.slice(5).map(protoField),
 ];
+/** The fields the prototype's Clients table opens without: its own hidden list, and the sealed and calculated columns, so the table opens on Name, Status, Owner, Fit, Client since and the channels. */
+export const PROTO_CLIENT_HIDDEN: readonly string[] = [...protoClientType.hidden, "openBal", "nextMeet", "taxId", "bank", "summary", "projects", "health"];
 
 function protoNorthwind(): SampleSpace {
   const idOf = Object.fromEntries(Object.entries(namesFor("northwind")).map(([id, name]) => [name, id]));
@@ -128,8 +132,26 @@ function protoNorthwind(): SampleSpace {
   const base = northwind;
   return {
     ...base,
-    types: [def("clients", "Client", "Clients", "people", "name", PROTO_CLIENT_FIELDS), ...base.types.filter((t) => t.key !== "clients")],
-    counts: { ...base.counts, clients: PROTO_CLIENT_COUNT },
+    types: [
+      def("clients", "Client", "Clients", "people", "name", PROTO_CLIENT_FIELDS),
+      // Projects sits with the other record types in the prototype, not in a group of its own
+      ...base.types.filter((t) => t.key === "projects").map(({ group: _group, ...t }) => t),
+      // the prototype's other record types, as the sidebar lists them (their rows are not drawn here, only their names, icons and counts)
+      def("meetings", "Meeting", "Meetings", "calendar", "title", [f("title", "text", "Title"), f("when", "datetime", "When")]),
+      def("agents", "Agent", "Agents", "agents", "name", [f("name", "text", "Name")]),
+      def("invoices", "Invoice", "Invoices", "invoice", "no", [f("no", "text", "Number")]),
+      def("tasks", "Task", "Tasks", "task", "title", [f("title", "text", "Title")]),
+      def("hires", "Hire", "Hires", "hires", "name", [f("name", "text", "Name")]),
+      def("messages", "Message", "Messages", "message", "subject", [f("subject", "text", "Subject")]),
+      def("hscontacts", "HubSpot contact", "HubSpot Contacts", "people", "name", [f("name", "text", "Name")], { syncedFrom: "hubspot" }),
+      def("hsdeals", "HubSpot deal", "HubSpot Deals", "table", "name", [f("name", "text", "Name")], { syncedFrom: "hubspot" }),
+      def("pulls", "Pull request", "Pull requests", "pull", "title", [f("title", "text", "Title")], { syncedFrom: "github" }),
+      def("issues", "Issue", "Issues", "issue", "title", [f("title", "text", "Title")], { syncedFrom: "github" }),
+      def("atp", "ATP", "ATP", "route", "title", [f("title", "text", "Title")], { group: "Journeys" }),
+      def("bookings", "Booking", "Bookings", "table", "name", [f("name", "text", "Name")], { scope: "site:booking-widget" }),
+      def("slots", "Slot", "Slots", "table", "name", [f("name", "text", "Name")], { scope: "site:booking-widget" }),
+    ],
+    counts: { ...base.counts, clients: PROTO_CLIENT_COUNT, agents: 5, invoices: 2120, meetings: 652, tasks: 931, hires: 2, messages: 5, hscontacts: 79, hsdeals: 40, pulls: 4, issues: 5, atp: 2, bookings: 12, slots: 40 },
     views: [
       { viewId: "vw_active", type: "clients", kind: "table", title: "Active clients", shared: true, ownerId: "usr_maya", filter: { field: "status", op: "eq", value: "active" }, sort: [{ field: "since", dir: "desc" }], updatedAt: SAMPLE_NOW },
       { viewId: "vw_mine", type: "clients", kind: "table", title: "My clients", shared: false, ownerId: "usr_irfad", filter: { field: "owner", op: "eq", value: "usr_maya" }, updatedAt: SAMPLE_NOW },
@@ -219,10 +241,12 @@ export function createSampleRecords(space: SampleSpace = northwind, o: { online?
   // owners come from the Space's own people, so a Harbor row never names a Northwind teammate
   const owners = Object.keys(space.people).filter((id) => id.startsWith("usr_"));
   const seeded = Math.min(space.counts["clients"] ?? 0, 14);
-  const clients: Row[] = [];
-  for (let i = 0; i < seeded; i++) clients.push(client(i, owners) as unknown as Row);
-  for (let i = seeded; i < seeded + bulk; i++) clients.push(client(i, owners) as unknown as Row);
   const given = space.rows?.["clients"];
+  const clients: Row[] = [];
+  if (!given) {
+    for (let i = 0; i < seeded; i++) clients.push(client(i, owners) as unknown as Row);
+    for (let i = seeded; i < seeded + bulk; i++) clients.push(client(i, owners) as unknown as Row);
+  }
   replica.put("records:clients", given ? [...given, ...Array.from({ length: bulk }, (_, k) => ({ ...(given[k % given.length] as Row), id: `cl_x${k}` }))] : clients);
   for (const t of space.types) {
     if (t.key === "clients") continue;
@@ -240,30 +264,45 @@ export function createSampleRecords(space: SampleSpace = northwind, o: { online?
 
   const typeRows = (tables: Tables): TypeRow[] => space.types.map((t) => ({
     key: t.key, title: t.title, plural: t.plural, icon: t.icon, ...(t.group ? { group: t.group } : {}), label: t.label, system: t.system,
-    ...(t.scope ? { scope: t.scope } : {}), rowCount: tables.get(`records:${t.key}`)?.size ?? 0, fieldCount: t.fields.length,
+    ...(t.scope ? { scope: t.scope } : {}), ...(t.syncedFrom ? { syncedFrom: t.syncedFrom } : {}), rowCount: tables.get(`records:${t.key}`)?.size || space.counts[t.key] || 0, fieldCount: t.fields.length,
   }));
 
-  replica.resolve("schema.types.list", (tables) => ({ types: typeRows(tables), total: space.types.length }));
-  replica.resolve("schema.describe", (_t, i) => ({ types: space.types.filter((t) => !i.type || t.key === i.type) }));
-  replica.resolve("views.list", (_t, i) => ({ views: (replica.rows("views") as unknown as ViewRow[]).filter((v) => !i.type || v.type === i.type) }));
-  replica.resolve("records.counts", (tables, i) => ({ count: i.filter === undefined ? (tables.get(`records:${i.type}`)?.size ?? 0) : rowsOf(tables, i.type).filter((r) => matches(r, i.filter as Clause)).length }));
-  replica.resolve("records.query", (tables, i) => {
+  // The long table (100,000 rows) asks the same filter and sort again for every window and every re-render; filtering and sorting the whole table each time took seconds. The matching
+  // rows, in order, are worked out once per (type, filter, sort, group) for as long as the replica has not been written, and each window is a slice of that.
+  const ordered = new Map<string, { at: number; rows: RecordRow[] }>();
+  const orderOf = (tables: Tables, i: { type: string; filter?: unknown; sort?: readonly { field: string; dir?: string }[]; group?: string }): RecordRow[] => {
+    const id = JSON.stringify([i.type, i.filter ?? null, i.sort ?? null, i.group ?? null]);
+    const hit = ordered.get(id);
+    if (hit && hit.at === replica.version()) return hit.rows;
     let rows = rowsOf(tables, i.type);
     if (i.filter !== undefined) rows = rows.filter((r) => matches(r, i.filter as Clause));
     const sorts = [...(i.group ? [{ field: i.group, dir: "asc" as const }] : []), ...(i.sort ?? [])];
     if (sorts.length) {
-      rows = rows.slice().sort((a, b) => {
-        for (const s of sorts) {
-          const x = key(a.fields[s.field]), y = key(b.fields[s.field]);
-          if (x !== y) return (x < y ? -1 : 1) * (s.dir === "desc" ? -1 : 1);
+      // keys are read once per row and sort, not once per comparison
+      const keyed = rows.map((r) => ({ r, k: sorts.map((s) => key(r.fields[s.field])) }));
+      keyed.sort((a, b) => {
+        for (let n = 0; n < sorts.length; n++) {
+          const x = a.k[n]!, y = b.k[n]!;
+          if (x !== y) return (x < y ? -1 : 1) * (sorts[n]!.dir === "desc" ? -1 : 1);
         }
         return 0;
       });
+      rows = keyed.map((e) => e.r);
     }
+    ordered.set(id, { at: replica.version(), rows });
+    return rows;
+  };
+  replica.resolve("schema.types.list", (tables) => ({ types: typeRows(tables), total: space.types.length }));
+  replica.resolve("schema.describe", (_t, i) => ({ types: space.types.filter((t) => !i.type || t.key === i.type) }));
+  replica.resolve("views.list", (_t, i) => ({ views: (replica.rows("views") as unknown as ViewRow[]).filter((v) => !i.type || v.type === i.type) }));
+  replica.resolve("records.counts", (tables, i) => ({ count: i.filter === undefined ? (tables.get(`records:${i.type}`)?.size ?? 0) : orderOf(tables, { type: i.type, filter: i.filter }).length }));
+  replica.resolve("records.query", (tables, i) => {
+    const rows = orderOf(tables, i);
     const offset = i.offset ?? 0, limit = i.limit ?? 200;
     return { rows: rows.slice(offset, offset + limit), total: rows.length };
   });
 
+  const trash = new Map<string, Row>();
   const writes: Record<string, (i: never) => unknown> = {
     "records.create": (i: { type: string; fields: Record<string, unknown> }) => {
       const id = `${i.type}_new${replica.rows(`records:${i.type}`).length}`;
@@ -271,6 +310,21 @@ export function createSampleRecords(space: SampleSpace = northwind, o: { online?
       replica.put(`records:${i.type}`, [rec]);
       return { record: rec };
     },
+    "records.delete": (i: { type: string; recordId: string }) => {
+      const cur = (replica.rows(`records:${i.type}`) as unknown as { id: string }[]).find((r) => r.id === i.recordId);
+      if (!cur) throw new Error("not_found");
+      trash.set(i.recordId, cur as unknown as Row);
+      replica.remove(`records:${i.type}`, [i.recordId]);
+      return { deleted: true };
+    },
+    "records.restore": (i: { type: string; recordId: string }) => {
+      const cur = trash.get(i.recordId);
+      if (!cur) throw new Error("not_found");
+      trash.delete(i.recordId);
+      replica.put(`records:${i.type}`, [cur]);
+      return { record: cur };
+    },
+    "records.export": () => ({ fileId: "fil_export" }),
     "views.save": (i: { type: string; viewId?: string; kind: string; title: string; filter?: unknown; sort?: unknown; group?: string; hidden?: string[]; config?: Record<string, unknown> }) => {
       const viewId = i.viewId ?? `vw_${replica.rows("views").length + 1}`;
       const view = { id: viewId, viewId, type: i.type, kind: i.kind, title: i.title, shared: false, ownerId: space.me, updatedAt: SAMPLE_NOW, ...(i.filter !== undefined ? { filter: i.filter } : {}), ...(i.sort !== undefined ? { sort: i.sort } : {}), ...(i.group ? { group: i.group } : {}), ...(i.hidden ? { hidden: i.hidden } : {}), ...(i.config ? { config: i.config } : {}) };
@@ -292,7 +346,11 @@ export function createSampleRecords(space: SampleSpace = northwind, o: { online?
     async call(cap, input) {
       calls.push({ cap, input });
       const w = writes[cap];
-      if (!w) throw new Error(`unknown capability ${cap}`);
+      if (!w) {
+        const read = replica.run(cap as never, input as never);
+        if (read) return read.data;
+        throw new Error(`unknown capability ${cap}`);
+      }
       return w(input as never);
     },
     connection, nav,

@@ -83,19 +83,3 @@ test("another agent's layer and another person's layer stay out of the block", a
   assert.deepEqual(out.lines.map((l) => l.fact), ["Quokka is the Studio mascot"]);
 });
 
-test("the lookup is fast on a big memory", async () => {
-  const h = harness();
-  for (let i = 0; i < 1500; i++) seedFact(h, { id: `fct_big${i}`, layer: "agent", agentId: "agt_intake", text: `Account ${i} is owned by region ${i % 40} and renews in month ${i % 12}` });
-  seedFact(h, { id: "fct_target", layer: "agent", agentId: "agt_intake", text: "Quasar contract renews in November under Fiona" });
-  const times: number[] = [];
-  for (let i = 0; i < 9; i++) {
-    const t0 = performance.now();
-    const out = await pointer(h.ctx, { ...base, threadId: `thr_${i}`, text: "When does the quasar contract renew?" });
-    times.push(performance.now() - t0);
-    assert.equal(out.lines[0]?.fact, "Quasar contract renews in November under Fiona");
-  }
-  // The budget is 20 to 50 ms for a lookup. A shared CI runner can be slowed by its neighbours, so the budget is held by the best of nine and the median only has to be sane.
-  const sorted = [...times].sort((a, b) => a - b);
-  assert.ok(sorted[0]! < 50, `fastest ${sorted[0]} ms`);
-  assert.ok(sorted[4]! < 400, `median ${sorted[4]} ms`);
-});

@@ -1,7 +1,7 @@
 -- governance: holds on files, channels, threads, folders and people; the retention jobs' last and next run; erase findings (item ids only, kept 24 hours); erasures and the tombstones a restore replays.
 -- Nothing here holds a name, an address or a value: ids and kinds only.
 
-CREATE TABLE IF NOT EXISTS gov_hold (
+CREATE TABLE IF NOT EXISTS governance_hold (
   "kind" TEXT NOT NULL,
   "targetId" TEXT NOT NULL,
   "reason" TEXT NOT NULL,
@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS gov_hold (
   PRIMARY KEY ("kind", "targetId")
 );
 
-CREATE TABLE IF NOT EXISTS gov_job (
+CREATE TABLE IF NOT EXISTS governance_job (
   "kind" TEXT PRIMARY KEY,
   "lastRunAt" INTEGER,
   "nextRunAt" INTEGER,
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS gov_job (
   "state" TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS gov_finding (
+CREATE TABLE IF NOT EXISTS governance_finding (
   "id" TEXT PRIMARY KEY,
   "by" TEXT NOT NULL,
   "at" INTEGER NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS gov_finding (
   "items" TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS gov_erase (
+CREATE TABLE IF NOT EXISTS governance_erase (
   "findingId" TEXT PRIMARY KEY,
   "by" TEXT NOT NULL,
   "at" INTEGER NOT NULL,
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS gov_erase (
   "runId" TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS gov_tombstone (
+CREATE TABLE IF NOT EXISTS governance_tombstone (
   "id" TEXT PRIMARY KEY,
   "kind" TEXT NOT NULL,
   "subjectType" TEXT NOT NULL,
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS gov_tombstone (
   "findingId" TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS gov_state (
+CREATE TABLE IF NOT EXISTS governance_state (
   "key" TEXT PRIMARY KEY,
   "value" TEXT NOT NULL
 );

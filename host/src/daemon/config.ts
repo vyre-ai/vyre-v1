@@ -53,6 +53,10 @@ export interface DaemonConfig {
   relayUrl: string | null;
   /** the address people reach this Space at (own domain or relay name); the local URL when absent */
   address: string | null;
+  /** `personal` while this daemon hosts a Personal Space (one person's desktop, ARCH 5.13); anything else, or absent, is a Team Space. */
+  spaceKind?: "personal" | "team";
+  /** the name a fresh Space is made with (--space-name or VYRE_SPACE_NAME); the Space id when absent */
+  spaceName?: string;
 }
 
 export const DEFAULTS = { host: "127.0.0.1", port: 8420, caddyAdmin: "http://127.0.0.1:2019" } as const;
@@ -65,6 +69,12 @@ const flag = (argv: readonly string[], name: string): string | undefined => {
 };
 
 /** `vyred --role space --data-dir D --space spc_x --port 8420 --host 127.0.0.1`; every flag has an env twin (VYRE_ROLE, VYRE_DATA_DIR, VYRE_SPACE, VYRE_PORT, VYRE_HOST). */
+function spaceKindOf(text: string | undefined): { spaceKind?: "personal" | "team" } {
+  if (text === undefined || text === "") return {};
+  if (text !== "personal" && text !== "team") throw new Error(`--space-kind must be personal or team, got "${text}"`);
+  return { spaceKind: text };
+}
+
 export function loadConfig(argv: readonly string[], env: NodeJS.ProcessEnv = process.env, version = "0.0.0"): DaemonConfig {
   const portText = flag(argv, "port") ?? env["VYRE_PORT"];
   const port = portText === undefined ? DEFAULTS.port : Number(portText);
@@ -80,6 +90,8 @@ export function loadConfig(argv: readonly string[], env: NodeJS.ProcessEnv = pro
     caddyAdmin: flag(argv, "caddy-admin") ?? env["VYRE_CADDY_ADMIN"] ?? DEFAULTS.caddyAdmin,
     relayUrl: flag(argv, "relay") ?? env["VYRE_RELAY_URL"] ?? null,
     address: flag(argv, "address") ?? env["VYRE_ADDRESS"] ?? null,
+    ...spaceKindOf(flag(argv, "space-kind") ?? env["VYRE_SPACE_KIND"]),
+    ...((flag(argv, "space-name") ?? env["VYRE_SPACE_NAME"]) ? { spaceName: (flag(argv, "space-name") ?? env["VYRE_SPACE_NAME"])! } : {}),
   };
 }
 

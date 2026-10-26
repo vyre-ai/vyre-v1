@@ -288,6 +288,7 @@ export function createClient(transport: Transport) {
       archive: call("channels.archive", 1),
       connect_outside_agent: call("channels.connect_outside_agent", 1),
       create: call("channels.create", 1),
+      erase: call("channels.erase", 1),
       get: call("channels.get", 1),
       join: call("channels.join", 1),
       leave: call("channels.leave", 1),
@@ -349,6 +350,7 @@ export function createClient(transport: Transport) {
       transcript: {
         append: call("chat.transcript.append", 1),
         get: call("chat.transcript.get", 1),
+        purge: call("chat.transcript.purge", 1),
         read: call("chat.transcript.read", 1),
         search: call("chat.transcript.search", 1),
         summarize: call("chat.transcript.summarize", 1),
@@ -751,6 +753,7 @@ export function createClient(transport: Transport) {
       share: call("files.share", 1),
       share_external: call("files.share_external", 1),
       shared_with_me: call("files.shared_with_me", 1),
+      star: call("files.star", 1),
       trash: {
         empty: call("files.trash.empty", 1),
         list: call("files.trash.list", 1),
@@ -758,6 +761,7 @@ export function createClient(transport: Transport) {
       tree: call("files.tree", 1),
       upload_url: call("files.upload_url", 1),
       versions: call("files.versions", 1),
+      versions_purge: call("files.versions_purge", 1),
       viewer_data: call("files.viewer_data", 1),
       write: call("files.write", 1),
     },
@@ -1011,6 +1015,7 @@ export function createClient(transport: Transport) {
     },
     identity: {
       change_password: call("identity.change_password", 1),
+      claim_owner: call("identity.claim_owner", 1),
       github_link: call("identity.github_link", 1),
       github_sign_in: call("identity.github_sign_in", 1),
       github_unlink: call("identity.github_unlink", 1),
@@ -1054,6 +1059,9 @@ export function createClient(transport: Transport) {
       counts: call("inbox.counts", 1),
       follow_set: call("inbox.follow_set", 1),
       following: call("inbox.following", 1),
+      item: {
+        erase: call("inbox.item.erase", 1),
+      },
       link_message: call("inbox.link_message", 1),
       list_by_contact: call("inbox.list_by_contact", 1),
       list_by_thread: call("inbox.list_by_thread", 1),
@@ -1111,6 +1119,7 @@ export function createClient(transport: Transport) {
     logs: {
       client_upload: call("logs.client_upload", 1),
       export: call("logs.export", 1),
+      purge: call("logs.purge", 1),
       query: call("logs.query", 1),
       replay_get: call("logs.replay_get", 1),
       replay_start: call("logs.replay_start", 1),
@@ -1152,6 +1161,7 @@ export function createClient(transport: Transport) {
         update: call("mail.mailbox.update", 1),
       },
       message: {
+        erase: call("mail.message.erase", 1),
         get: call("mail.message.get", 1),
         list: call("mail.message.list", 1),
         search: call("mail.message.search", 1),
@@ -1294,6 +1304,7 @@ export function createClient(transport: Transport) {
         get: call("memory.map.get", 1),
       },
       notes: {
+        erase: call("memory.notes.erase", 1),
         list: call("memory.notes.list", 1),
       },
       pointer: call("memory.pointer", 1),
@@ -1514,6 +1525,8 @@ export function createClient(transport: Transport) {
         get: call("records.page_prefs.get", 1),
         set: call("records.page_prefs.set", 1),
       },
+      purge: call("records.purge", 1),
+      purge_trashed: call("records.purge_trashed", 1),
       query: call("records.query", 1),
       relate: call("records.relate", 1),
       relations_map: call("records.relations_map", 1),
@@ -1572,11 +1585,13 @@ export function createClient(transport: Transport) {
     },
     runs: {
       count: call("runs.count", 1),
+      erase: call("runs.erase", 1),
       finish: call("runs.finish", 1),
       get: call("runs.get", 1),
       list: call("runs.list", 1),
       mark_waiting: call("runs.mark_waiting", 1),
       preview_undo: call("runs.preview_undo", 1),
+      purge: call("runs.purge", 1),
       record_key: call("runs.record_key", 1),
       record_step: call("runs.record_step", 1),
       replay: call("runs.replay", 1),
@@ -1892,6 +1907,7 @@ export function createClient(transport: Transport) {
       answer: call("telephony.answer", 1),
       call: {
         attach_summary: call("telephony.call.attach_summary", 1),
+        erase: call("telephony.call.erase", 1),
         get: call("telephony.call.get", 1),
         list: call("telephony.call.list", 1),
         log_task: call("telephony.call.log_task", 1),
@@ -1925,6 +1941,7 @@ export function createClient(transport: Transport) {
       },
       send_sms: call("telephony.send_sms", 1),
       sms: {
+        erase: call("telephony.sms.erase", 1),
         list: call("telephony.sms.list", 1),
       },
       transfer: call("telephony.transfer", 1),
@@ -1960,6 +1977,7 @@ export function createClient(transport: Transport) {
     threads: {
       add_agent: call("threads.add_agent", 1),
       close: call("threads.close", 1),
+      erase: call("threads.erase", 1),
       get: call("threads.get", 1),
       list: call("threads.list", 1),
       make_channel: call("threads.make_channel", 1),
@@ -2047,6 +2065,7 @@ export function createClient(transport: Transport) {
         restore: call("vault.item.restore", 1),
         reveal: call("vault.item.reveal", 1),
         update: call("vault.item.update", 1),
+        usage: call("vault.item.usage", 1),
       },
       items: {
         export_mine: call("vault.items.export_mine", 1),

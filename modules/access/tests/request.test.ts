@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 import type { JsonSchema } from "../../../packages/contracts/src/types.ts";
 import { handlers } from "../impl.ts";
+import { ASK_LIMIT, resetAskLimit } from "../handlers/request.ts";
 import { codeOf } from "../fixtures/requestdb.ts";
 import { can, world } from "../fixtures/askworld.ts";
 
@@ -31,7 +32,7 @@ test("a request goes to the Manage holders as one Needs you card each, and nobod
   assert.equal(t["kind"], "unblock");
   assert.deepEqual(t["assigned"], { kind: "person", id: "usr_mgr" });
   assert.deepEqual(t["source"], { kind: "manual", id: out.request.id });
-  assert.deepEqual(t["actions"], [{ key: "approve", label: "Approve" }, { key: "decline", label: "Decline", note: "optional" }]);
+  assert.deepEqual(t["actions"], [{ key: "resolved", label: "Approve" }, { key: "cannot", label: "Decline", note: "optional" }]);
   const block = (t["blocks"] as { type: string; data: Record<string, unknown> }[])[0]!;
   assert.equal(block.type, "access_request");
   assert.deepEqual(block.data, {
@@ -104,7 +105,9 @@ test("one open request per person and resource; the same idempotency key gives t
 });
 
 test("a request for the Space, or for a resource nobody manages, goes to the admins", async () => {
-  const { h } = world();
+  const { h, store } = world();
+  // a real resource that nobody manages (an id that is not a resource at all is the made-up case, tested below)
+  store.resources.set("fld_unmanaged", { id: "fld_unmanaged", type: "folder", parentId: null, label: "internal", ownerId: null, holds: 0, row: {} });
   await ask(h, "usr_other", { resource: { type: "space", id: "spc_test" }, level: "manage", idempotencyKey: "idem_s" });
   await ask(h, "usr_maya", { resource: { type: "folder", id: "fld_unmanaged" }, level: "view", idempotencyKey: "idem_u" });
   assert.deepEqual(h.calls.filter((c) => c.cap === "tasks.create").map((c) => (c.input["assigned"] as { id: string }).id), ["usr_admin", "usr_admin"]);
@@ -187,4 +190,33 @@ test("the list shows what I asked and what waits on me, by state, newest first, 
   const rest = await handlers["access.requests.list"](h.as("usr_other"), { mine: true, limit: 1, cursor: first.next! });
   assert.deepEqual([first.requests[0]!.id, rest.requests[0]!.id], [c.request.id, a.request.id]);
   assert.equal(rest.next, undefined);
+});
+
+test("a member without view gets the same accepted answer for a real id and a made-up one; only the real one creates a request, a card and an event", async () => {
+  const { h, store } = world();
+  resetAskLimit();
+  assert.equal(can(h, store, "usr_other", "view", FOLDER), false, "usr_other cannot see the folder");
+  const real = await ask(h, "usr_other", { idempotencyKey: "idem_real" });
+  const cardsAfterReal = h.calls.filter((c) => c.cap === "tasks.create").length;
+  const eventsAfterReal = h.events.length;
+  const fake = await ask(h, "usr_other", { resource: { type: "folder", id: "fld_made_up" }, idempotencyKey: "idem_fake" });
+  outputOk("access.request", real);
+  outputOk("access.request", fake);
+  assert.deepEqual(Object.keys(fake.request).sort(), Object.keys(real.request).sort());
+  assert.equal(fake.request.state, "waiting");
+  assert.equal(fake.request.requester, "usr_other");
+  assert.equal(h.calls.filter((c) => c.cap === "tasks.create").length, cardsAfterReal, "a made-up id makes no card");
+  assert.equal(h.events.length, eventsAfterReal, "a made-up id emits nothing");
+  const listed = await handlers["access.requests.list"](h.as("usr_other"), { mine: true } as never);
+  assert.deepEqual(listed.requests.map((r: { id: string }) => r.id), [real.request.id], "only the real request is stored");
+});
+
+test("the rate limit counts real and made-up asks alike, per requester", async () => {
+  const { h } = world();
+  resetAskLimit();
+  for (let i = 0; i < ASK_LIMIT; i++) await ask(h, "usr_other", { resource: { type: "folder", id: `fld_nope_${i}` }, idempotencyKey: `idem_n${i}` });
+  await assert.rejects(ask(h, "usr_other", { idempotencyKey: "idem_over" }), (e: unknown) => codeOf(e) === "rate_limit.exceeded");
+  await assert.rejects(ask(h, "usr_other", { resource: { type: "folder", id: "fld_nope_x" }, idempotencyKey: "idem_over2" }), (e: unknown) => codeOf(e) === "rate_limit.exceeded");
+  const maya = await ask(h, "usr_maya", { idempotencyKey: "idem_maya" });
+  assert.equal(maya.request.state, "waiting", "another requester has their own allowance");
 });

@@ -143,7 +143,7 @@ async function mergePullRequest(ctx: Ctx, site: Row, dep: Row): Promise<{ number
   if (checks.state === "pending") fail(ctx, "validation.precondition_failed", "Checks are still running on the pull request. Promote when they finish.", { number });
   const settings = parseSettings(site.settings);
   const method = typeof settings.mergeMethod === "string" && MERGE_METHODS.includes(settings.mergeMethod) ? settings.mergeMethod : "squash";
-  const merged = (await ctx.call("github.pull_request.merge", { repo, number, method })) as { merged?: boolean; sha?: string };
+  const merged = (await ctx.call("github.pull_request.merge", { idempotencyKey: `sites.promote:${repo}#${number}:merge`, repo, number, method })) as { merged?: boolean; sha?: string };
   if (merged.merged !== true) fail(ctx, "validation.precondition_failed", "The pull request could not be merged.", { number });
   return { number, sha: typeof merged.sha === "string" ? merged.sha : null };
 }

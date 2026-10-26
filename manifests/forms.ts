@@ -14,6 +14,7 @@ export default defineManifest({
   title: 'Forms and bookings',
   owner: 'L8',
   events: [
+    ev('form.created', 'A form was created as a draft', { p: { formId: id.form, name: t.str(), kind: t.str() }, subject: ['form', '/formId'] }),
     ev('form.published', 'A form went live', { p: { formId: id.form, slug }, subject: ['form', '/formId'] }),
     ev('form.submitted', 'A form was submitted; the record was written with source link holder', { p: { formId: id.form, recordId: id.record, type: id.recordType, matched: t.bool() }, subject: ['form', '/formId'], trigger: { title: 'A form is submitted', fields: ['/formId'] } }),
     ev('form.link_created', 'A one-use or signed record link was made', { p: { formId: id.form, recordId: id.record, expiresAt: t.opt(t.ts()) }, subject: ['form', '/formId'] }),
@@ -22,7 +23,7 @@ export default defineManifest({
   ],
   lists: [list('form', 'Form', 'Forms', 'forms.list')],
   capabilities: [
-    create('forms.create', 'Create a form on a record type; every input maps to a field', { in: { name: t.str(), recordType: id.recordType, kind: t.enm('public', 'one_use', 'booking', 'survey') }, out: { form: formRow }, make: ['form', '/recordType'], perm: 'forms.publish', tool: 'automations' }),
+    create('forms.create', 'Create a form on a record type; every input maps to a field', { in: { name: t.str(), recordType: id.recordType, kind: t.enm('public', 'one_use', 'booking', 'survey') }, out: { form: formRow }, make: ['form', '/recordType'], perm: 'forms.publish', emits: ['form.created'], tool: 'automations' }),
     read('forms.get', 'Read a form with its field modes, layout, theme and logic', { in: target, out: { form: formRow, fields: t.arr(t.obj({ field: t.str(), mode: fieldMode, prefillKey: t.opt(t.str()) })), theme: t.opt(t.rec()), logic: t.opt(t.json()) }, on: ['form', '/formId'], tool: 'automations' }),
     read('forms.list', 'List forms by section and folder', { in: { section: t.opt(t.enm('personal', 'shared', 'space')), folderId: t.opt(id.folder), ...pageIn }, out: { forms: t.arr(formRow), ...pageOut }, tool: 'automations' }),
     write('forms.update', 'Change form name, match rule, consent text, captcha toggle, upload policy and rate limits', { in: { formId: id.form, name: t.opt(t.str()), matchRule: t.opt(t.arr(t.str())), consentText: t.opt(t.str()), captcha: t.opt(t.bool()), uploadPolicy: t.opt(t.rec()), rateLimit: t.opt(t.int()) }, out: { form: formRow }, on: ['form', '/formId'], perm: 'forms.publish', tool: 'automations' }),
@@ -35,7 +36,7 @@ export default defineManifest({
     write('forms.link_revoke', 'Revoke a one-use link', { in: { formId: id.form, token: t.str() }, out: { revoked: t.bool() }, on: ['form', '/formId'], perm: 'forms.publish', tool: 'automations' }),
     create('forms.submit', 'Public submit: writes through as principal svc_form_<id> with source link holder; consent, captcha and rate limits apply; attribution captured', {
       in: { slug, answers: t.rec(), attribution: t.opt(attribution), token: t.opt(t.str()), code: t.opt(t.str()), captcha: t.opt(t.str()) },
-      out: { recordId: id.record, thankYou: t.opt(t.str()) }, make: ['record', '/slug'], emits: ['form.submitted'], http: { method: 'POST', path: '/f/submit' }, team: true,
+      out: { recordId: id.record, thankYou: t.opt(t.str()) }, emits: ['form.submitted'], http: { method: 'POST', path: '/f/submit' }, team: true,
       errors: ['rate_limit.exceeded', 'validation.duplicate', 'auth.invalid_code'], rate: { n: 20, perSeconds: 60, scope: 'space' },
     }),
     read('forms.submissions', 'List submissions of a form', { in: { formId: id.form, ...pageIn }, out: { rows: t.arr(t.obj({ recordId: id.record, at: t.ts(), matched: t.bool() })), ...pageOut }, on: ['form', '/formId'], tool: 'automations' }),
@@ -43,9 +44,9 @@ export default defineManifest({
     read('forms.attribution_get', 'First source and Latest source of a record', { in: { recordId: id.record }, out: { first: t.opt(attribution), latest: t.opt(attribution) }, on: ['record', '/recordId'], tool: 'records' }),
     read('source_rules.list', 'List Source rules that map clicks to channels', { out: { rules: t.arr(t.obj({ ruleId: t.id('srl'), match: t.json(), channel: t.str(), order: t.int() })) }, tool: 'automations' }),
     write('source_rules.set', 'Replace the Source rules', { in: { rules: t.arr(t.obj({ match: t.json(), channel: t.str() })) }, out: { ok: t.bool() }, perm: 'forms.publish', level: 'manage', tool: 'automations' }),
-    create('bookings.page_create', 'Create a booking page with host or round-robin pool, length, buffer and questions', { in: { name: t.str(), hostIds: t.arr(id.user), lengthMinutes: t.int({ minimum: 5 }), bufferMinutes: t.opt(t.int({ minimum: 0 })), recordType: id.recordType }, out: { form: formRow }, make: ['form', '/recordType'], perm: 'forms.publish', tool: 'automations', team: true }),
+    create('bookings.page_create', 'Create a booking page with host or round-robin pool, length, buffer and questions', { in: { name: t.str(), hostIds: t.arr(id.user), lengthMinutes: t.int({ minimum: 5 }), bufferMinutes: t.opt(t.int({ minimum: 0 })), recordType: id.recordType }, out: { form: formRow }, make: ['form', '/recordType'], perm: 'forms.publish', emits: ['form.created'], tool: 'automations', team: true }),
     read('bookings.availability', 'Open slots in the visitor time zone from connected calendars; unavailable when the host is disconnected', { in: { slug, tz: t.str({ examples: ['America/Los_Angeles'] }), from: t.ts(), to: t.ts() }, out: { slots: t.arr(t.obj({ startsAt: t.ts(), endsAt: t.ts(), hostId: id.user })), available: t.bool() }, http: { method: 'GET', path: '/book/availability' }, team: true }),
-    create('bookings.book', 'Public: make a booking; creates or updates a record and a meeting', { in: { slug, startsAt: t.ts(), answers: t.rec(), tz: t.str() }, out: { booking: bookingRow }, make: ['record', '/slug'], emits: ['booking.created'], http: { method: 'POST', path: '/book/create' }, team: true, rate: { n: 10, perSeconds: 60, scope: 'space' } }),
+    create('bookings.book', 'Public: make a booking; creates or updates a record and a meeting', { in: { slug, startsAt: t.ts(), answers: t.rec(), tz: t.str() }, out: { booking: bookingRow }, emits: ['booking.created'], http: { method: 'POST', path: '/book/create' }, team: true, rate: { n: 10, perSeconds: 60, scope: 'space' } }),
     write('bookings.cancel', 'Cancel a booking', { in: { bookingId: t.id('bkg') }, out: { booking: bookingRow }, emits: ['booking.cancelled'], tool: 'automations' }),
     read('bookings.list', 'List bookings of a page', { in: { formId: id.form, ...pageIn }, out: { bookings: t.arr(bookingRow), ...pageOut }, on: ['form', '/formId'], tool: 'automations' }),
     write('forms.save_partial', 'Public: keep the answers typed so far against a signed or one-use link so the person can come back; nothing reaches the record until submit', {
