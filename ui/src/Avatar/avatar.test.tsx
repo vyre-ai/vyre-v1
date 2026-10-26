@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Avatar, faceTint, hash, hueOf, kindOf, marbleSpec, initialsOf, notionistsSvg } from "./index.tsx";
+import { Avatar, faceKey, faceTint, hash, hueOf, kindOf, marbleInner, marbleSpec, initialsOf, notionistsSvg } from "./index.tsx";
 import { marbleGradient } from "./faces.ts";
 import { hslHex } from "./faces.ts";
 
@@ -151,4 +151,41 @@ test("the marble colours are three non-empty CSS colours, the same for the same 
   const m = marbleSpec("Elena Rivera");
   for (const c of [m.base, m.c1, m.c2]) assert.ok(typeof c === "string" && c.length > 3, String(c));
   assert.deepEqual(marbleSpec("Elena Rivera"), m);
+});
+
+// One person, one face everywhere: the face is seeded by the id when there is one, by the name only as a fallback.
+const faceOf = (html: string): string => (/<svg.*<\/svg>/s.exec(html) ?? [""])[0];
+
+test("the same seedId with different names draws the same face", () => {
+  const a = renderToStaticMarkup(<Avatar name="Maya Chen" seedId="usr_1" />);
+  const b = renderToStaticMarkup(<Avatar name="Maya C." seedId="usr_1" />);
+  assert.notEqual(faceOf(a), "");
+  assert.equal(faceOf(a), faceOf(b));
+  assert.ok(faceOf(a).includes(marbleInner("usr_1")), "the marble is the one the id seeds, the same function the Records table draws with");
+  assert.match(a, /aria-label="Maya Chen"/, "the label still reads the name");
+  const x = renderToStaticMarkup(<Avatar name="Scheduler" kind="agent" seedId="agt_1" />);
+  const y = renderToStaticMarkup(<Avatar name="Scheduler 2" kind="agent" seedId="agt_1" />);
+  assert.equal(faceOf(x), faceOf(y));
+});
+
+test("different seedIds with the same name draw different faces", () => {
+  const a = renderToStaticMarkup(<Avatar name="Sam Lee" seedId="usr_1" />);
+  const b = renderToStaticMarkup(<Avatar name="Sam Lee" seedId="usr_2" />);
+  assert.notEqual(faceOf(a), faceOf(b));
+  const x = renderToStaticMarkup(<Avatar name="Helper" kind="agent" seedId="agt_1" />);
+  const y = renderToStaticMarkup(<Avatar name="Helper" kind="agent" seedId="agt_2" />);
+  assert.notEqual(faceOf(x), faceOf(y));
+});
+
+test("with no seedId, or an empty one, the name seeds the face as before", () => {
+  const plain = renderToStaticMarkup(<Avatar name="Maya Chen" />);
+  assert.equal(faceOf(plain), faceOf(renderToStaticMarkup(<Avatar name="Maya Chen" seedId="" />)));
+  assert.ok(faceOf(plain).includes(marbleInner("Maya Chen")));
+  assert.equal(faceKey("usr_1", "person", 18, ""), "person|18|||usr_1");
+});
+
+test("the table's cell face and the Avatar are one function of one seed", () => {
+  assert.match(marbleGradient("usr_1"), /^radial-gradient/);
+  assert.equal(marbleGradient("usr_1"), marbleGradient("usr_1"));
+  assert.ok(marbleInner("usr_1").includes(marbleSpec("usr_1").base));
 });

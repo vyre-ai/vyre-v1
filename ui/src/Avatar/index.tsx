@@ -50,18 +50,20 @@ function svg(markup: string, size: number, viewBox: string, extra: Record<string
   return createElement("svg", { viewBox, width: size, height: size, "aria-hidden": true, style: { display: "block" }, dangerouslySetInnerHTML: { __html: markup }, ...extra });
 }
 
-export const Avatar = memo(function Avatar({ name, kind: kindProp, size = AVATAR_DEFAULT_SIZE, photo, running = false, present = false, testID }: AvatarProps): ReactElement {
+export const Avatar = memo(function Avatar({ name, seedId, kind: kindProp, size = AVATAR_DEFAULT_SIZE, photo, running = false, present = false, testID }: AvatarProps): ReactElement {
   const kind = kindOf(name, kindProp);
+  // One person, one face everywhere: the face is seeded by the id when the caller has one, by the name only as a fallback. Letters and the label still come from the name.
+  const seed = seedId !== undefined && seedId !== "" ? seedId : name;
   // A person's marble and an agent's face are drawn once to a cached bitmap per seed, kind, size and skin; rows reuse it as an <img>.
   const browser = web && typeof document !== "undefined";
   const drawn = web && kind === "agent";
-  const key = faceKey(name, kind, size, currentSkin());
+  const key = faceKey(seed, kind, size, currentSkin());
   const [, bump] = useState(0);
   const bitmap = drawn ? cachedFace(key) : undefined;
   useEffect(() => {
     if (!drawn || cachedFace(key) !== undefined) return;
-    requestFace(key, sized(notionistsSvg(name), size), size, () => bump((n) => n + 1));
-  }, [drawn, key, kind, name, size]);
+    requestFace(key, sized(notionistsSvg(seed), size), size, () => bump((n) => n + 1));
+  }, [drawn, key, kind, seed, size]);
   const id = testID ?? `avatar-${name}`;
   const round = kind === "person";
   const box: ViewStyle = { width: size, height: size, borderRadius: round ? size / 2 : ("30%" as unknown as number), alignItems: "center", justifyContent: "center", flexShrink: 0 };
@@ -74,13 +76,13 @@ export const Avatar = memo(function Avatar({ name, kind: kindProp, size = AVATAR
   } else if (bitmap !== undefined) {
     face = createElement("img", { src: bitmap, alt: "", width: size, height: size, draggable: false, decoding: "async", style: { display: "block", width: size, height: size }, "data-face": "cached" });
   } else if (kind === "person" && browser) {
-    face = createElement("span", { style: { display: "block", width: size, height: size, backgroundImage: marbleGradient(name) }, "data-face": "gradient" });
+    face = createElement("span", { style: { display: "block", width: size, height: size, backgroundImage: marbleGradient(seed) }, "data-face": "gradient" });
   } else if (kind === "person") {
-    face = web ? svg(marbleInner(name), size, "0 0 80 80") : <NativeLetters name={name} size={size} person tint={`hsl(${hueOf(name)}, 45%, 70%)`} />;
+    face = web ? svg(marbleInner(seed), size, "0 0 80 80") : <NativeLetters name={name} size={size} person tint={`hsl(${hueOf(seed)}, 45%, 70%)`} />;
   } else if (kind === "agent") {
-    face = web ? createElement("span", { style: { display: "block", width: size, height: size, lineHeight: 0 }, dangerouslySetInnerHTML: { __html: sized(notionistsSvg(name), size) } }) : <NativeLetters name={name} size={size} tint={`#${faceTint(name)}`} />;
+    face = web ? createElement("span", { style: { display: "block", width: size, height: size, lineHeight: 0 }, dangerouslySetInnerHTML: { __html: sized(notionistsSvg(seed), size) } }) : <NativeLetters name={name} size={size} tint={`#${faceTint(seed)}`} />;
   } else if (kind === "space") {
-    face = <NativeLetters name={name} size={size} tint={`hsla(${hueOf(name)}, 60%, 50%, 0.18)`} ink={`hsl(${hueOf(name)}, 55%, 46%)`} />;
+    face = <NativeLetters name={name} size={size} tint={`hsla(${hueOf(seed)}, 60%, 50%, 0.18)`} ink={`hsl(${hueOf(seed)}, 55%, 46%)`} />;
   } else if (kind === "assistant") {
     const s = Math.round(size * 0.78);
     face = web ? svg(VYRE_MARK, s, "0 0 24 24", { className: "vmark" }) : <Text style={{ color: "var(--ink)" as string, fontWeight: "700", fontSize: Math.round(size * 0.5) }}>V</Text>;
