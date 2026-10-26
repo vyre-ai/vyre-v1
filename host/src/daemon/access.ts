@@ -39,8 +39,8 @@ export const isAccessEvent = (type: string): boolean => MODULE_EVENTS.has(type);
 export const touchesAccess = (type: string): boolean => MODULE_EVENTS.has(type) || type === "access.changed" || type === "policy.changed" || type.startsWith("grant.");
 
 /** An event as the access module takes it: the payload decoded. */
-export function toAccessEvent(e: { seq: number; type: string; payload: unknown }): { seq: number; type: string; payload: unknown } {
-  return { seq: e.seq, type: e.type, payload: body<unknown>(e) };
+export function toAccessEvent(e: { seq: number; type: string; payload: unknown; actor?: string }): { seq: number; type: string; payload: unknown; actor?: string } {
+  return { seq: e.seq, type: e.type, payload: body<unknown>(e), ...(e.actor !== undefined ? { actor: e.actor } : {}) };
 }
 
 /**
