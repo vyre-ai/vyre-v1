@@ -9,7 +9,7 @@ export function sampleRuntime(o: { screens: ScreenHooks; call(cap: string, input
     principals: { subscribe: () => () => undefined, getSnapshot: () => ({ status: "ready", data: [me] }) },
     recordTitle: () => undefined, me, clock: () => ({ now: Date.UTC(2025, 9, 24, 10, 0, 0), offsetMin: 0 }),
     space: { id: "northwind", kind: "team", name: "Northwind" }, assistant: { id: "agt_assistant", name: "Assistant" },
-    aiConnected: true, calendarConnected: true,
+    aiConnected: true, calendarConnected: true, deferredModules: new Set<string>(), isDeferred: () => false,
     open: (t) => void o.opened?.push(t.screen ?? JSON.stringify(t.subject)), openUrl: () => undefined,
   };
 }
