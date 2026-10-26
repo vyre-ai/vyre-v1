@@ -6,11 +6,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as h from "../handlers/index.ts";
 import { contractErrors, eventErrors, harness } from "../fixtures/harness.ts";
+import { ensure } from "../projections.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
 type Json = Record<string, unknown>;
 
 function seed(t: Harness): void {
+  ensure(t.ctx);
   const sms = (id: string, to: string) => t.ctx.db.run(
     `INSERT INTO telephony_sms ("id", "numberId", "direction", "from", "to", "body", "status", "at", "version") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, "num_a1b2c3", "in", to, "+14155550100", "call me back about the trust", "delivered", 1, 0);
   sms("sms_pat00001", "+14155550177");

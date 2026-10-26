@@ -223,3 +223,19 @@ test("the export of what governance keeps holds no secrets, names or values: ids
   const everything = JSON.stringify(h.rows(`SELECT * FROM governance_state`)) + JSON.stringify(h.rows(`SELECT * FROM governance_tombstone`)) + JSON.stringify(h.rows(`SELECT * FROM governance_erase`)) + JSON.stringify(h.rows(`SELECT * FROM governance_finding`));
   for (const secret of ["Pat Lee", EMAIL, "(not shown)", "Client asked", "intake.docx"]) assert.ok(!everything.includes(secret), secret);
 });
+
+test("a contact nobody has written to has no inbox thread, and the find still finds the record and erases it", async () => {
+  const h = harness();
+  h.addRecord(PAT);
+  h.world.sureByTerm.set(EMAIL, { type: "contact", id: PAT });
+  h.script("inbox.thread", () => { throw h.err("validation.not_found", "There is no conversation with that person yet."); });
+  h.script("memory.find_by_subject", () => { throw h.err("validation.not_found", "Nothing remembered about that subject."); });
+  h.script("search.query", () => { throw h.err("validation.not_found", "Nothing found."); });
+  const f = out(await find(h));
+  assert.deepEqual(contractErrors("governance.erase.find", "out", f), []);
+  assert.deepEqual(groups(f).map((x) => [x.kind, x.count]), [["records", 1], ["files", 0], ["chats", 0], ["inbox", 0], ["mail", 0], ["calls", 0], ["memory", 0], ["runs", 0]]);
+  const done = out(await apply(h, String(f.findingId), ["records", "inbox", "mail", "calls", "memory"]));
+  assert.deepEqual(contractErrors("governance.erase.apply", "out", done), []);
+  assert.equal(h.world.records.get(PAT)?.gone, true);
+  assert.equal(await refusedWith((async () => { h.script("inbox.thread", () => { throw h.err("permission.no_grant", "no"); }); return find(h); })()), "permission.no_grant", "any other refusal still stops the find");
+});

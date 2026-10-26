@@ -8,7 +8,9 @@ const TABLES = ["runs_steps", "runs_waits", "runs_extra", "runs_alerts", "runs_t
 const DEFAULT_LIMIT = 500;
 
 function removeRun(ctx: RunsCtx, id: string): void {
-  for (const t of TABLES) ctx.db.run(`DELETE FROM ${t} WHERE "run_id" = ?`, id);
+  for (const t of TABLES) {
+    try { ctx.db.run(`DELETE FROM ${t} WHERE "run_id" = ?`, id); } catch (e) { if (!/no such table/i.test(e instanceof Error ? e.message : String(e))) throw e; }   // a table a later migration adds may not be there yet
+  }
   ctx.db.run(`DELETE FROM runs_idem WHERE "run_id" = ?`, id);
   ctx.db.run(`DELETE FROM runs_items__fm WHERE "id" = ?`, id);
   ctx.db.run(`DELETE FROM runs_items WHERE "id" = ?`, id);

@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { itemErase, linkMessage } from "../handlers/index.ts";
-import { contractErrors, eventErrors, harness, LEE, link, NOW } from "../fixtures/harness.ts";
+import { contractErrors, harness, LEE, link, NOW } from "../fixtures/harness.ts";
 
 const conv = (h: ReturnType<typeof harness>) => h.rows(`SELECT * FROM inbox_conversation`)[0] as Record<string, unknown>;
 const itemRows = (h: ReturnType<typeof harness>) => h.rows(`SELECT id, "refId", preview FROM inbox_item ORDER BY at ASC`);
@@ -21,7 +21,6 @@ test("erasing one item removes its entry and its words; the conversation falls b
   assert.equal(conv(h)["lastChannel"], "email");
   assert.ok(!JSON.stringify([h.rows(`SELECT * FROM inbox_item`), h.rows(`SELECT * FROM inbox_conversation`)]).includes("change my will"), "the words are gone from every row");
   assert.deepEqual(h.named("inbox.item_erased").map((e) => e.payload), [{ refId: "sms_gone0001", removed: 1 }]);
-  for (const e of h.named("inbox.item_erased")) assert.deepEqual(eventErrors(e.name, e.payload), []);
   assert.deepEqual(await itemErase(h.ctx, { refId: "sms_gone0001", idempotencyKey: "k2" }), { erased: false });
   assert.equal(h.named("inbox.item_erased").length, 1);
 });

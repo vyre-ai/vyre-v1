@@ -27,8 +27,8 @@ const count = (h: Harness, table: string): number => h.rows(`SELECT * FROM ${tab
 
 test("erase removes the message, its body, links, attachment blobs and inbox entry, keeps the provider id marker, and leaves other mail", async () => {
   const { h, blobsDeleted, erasedEntries } = setup();
-  const gone = await ingest(h.ctx, letter("lee@acme.test", "<gone@acme.test>", "prov-gone", { subject: "My divorce", text: "Please keep this quiet", attachments: [{ name: "settlement.pdf", mime: "application/pdf", size: 10, blobId: "blb_att00001" }] }));
-  const keep = await ingest(h.ctx, letter("lee@acme.test", "<keep@acme.test>", "prov-keep", { subject: "Lunch", text: "Noon works" }));
+  const gone = await ingest(h.ctx, letter("lee@acme.test", "<gone@acme.test>", "prov-gone", { mailboxId: "mbx_maya", subject: "My divorce", text: "Please keep this quiet", attachments: [{ name: "settlement.pdf", mime: "application/pdf", size: 10, blobId: "blb_att00001" }] }));
+  const keep = await ingest(h.ctx, letter("lee@acme.test", "<keep@acme.test>", "prov-keep", { mailboxId: "mbx_maya", subject: "Lunch", text: "Noon works" }));
   const goneId = (gone as unknown as { messageId: string }).messageId;
   const keepId = (keep as unknown as { messageId: string }).messageId;
   assert.equal(count(h, "mail_message"), 2);
