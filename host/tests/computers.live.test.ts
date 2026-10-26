@@ -171,8 +171,8 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     await until("a second version", async () => (await filesIn(folderId)).files.find((f) => f.name === "from-terminal.txt" && f.version > t1.version));
 
     // a file saved in Vyre shows on the computer
-    const made = await call(d, "files.create", { folderId, name: "from-vyre.txt", content: { text: "from-vyre" }, idempotencyKey: "home-from-vyre" });
-    assert.equal(made.status, 200, JSON.stringify(made.data));
+    const fromVyre = await call(d, "files.create", { folderId, name: "from-vyre.txt", content: { text: "from-vyre" }, idempotencyKey: "home-from-vyre" });
+    assert.equal(fromVyre.status, 200, JSON.stringify(fromVyre.data));
     assert.equal((await until("from-vyre.txt on the computer", async () => await onDisk("from-vyre.txt"))).trim(), "from-vyre");
 
     // an edit of AGENT.md on the computer is put back, and Files keeps its text

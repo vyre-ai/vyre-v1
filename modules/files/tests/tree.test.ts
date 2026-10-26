@@ -503,8 +503,6 @@ test("an upload slot takes its bytes once: a used slot, a wrong token, a wrong s
   await assert.rejects(() => putUploadedBytes(ctx, slot.blobId, token, body), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.not_found", "the slot is gone after one use");
   await assert.rejects(() => putUploadedBytes(ctx, "blb_00000000000000000000000000000000", token, body), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.not_found", "a slot this Space never made");
   const late = await handlers["files.upload_url"](ctx, { size: body.byteLength });
-  const row = db.rows("files_upload").find((r) => r.id === late.blobId);
-  assert.ok(row);
-  row.expires_at = 1;
+  assert.equal(db.run("UPDATE files_upload SET expires_at = ? WHERE id = ?", 1, late.blobId).changes, 1, "the slot's stored expiry is moved into the past");
   await assert.rejects(() => putUploadedBytes(ctx, late.blobId, late.url.split("token=")[1] ?? "", body), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.precondition_failed", "an expired slot");
 });
