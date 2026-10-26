@@ -7,6 +7,7 @@
 // One source of truth: chat_message holds the conversation. engine_messages is a mirror keyed by the SAME id (a person's message is stored under the id chat gave it, an agent reply is posted
 // to chat with the id the engine gave it as clientId), written only by the engine's own store, so the two cannot drift (a later edit is copied by the same consumer).
 // No echo: a message.received for a message the engine already holds, or one the bridge posted itself (id prefix BRIDGE_PREFIX), is never fed back to engine.receive.
+import { redact } from "../../../agent/src/transcript/sanitize.ts";
 import { sqlMessages, withMessageId, mintId } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
@@ -20,14 +21,21 @@ const brgId = (): string => BRIDGE_PREFIX + mintId("b").slice(2);
 
 export interface PostBlock { type: string; v: number; data: unknown }
 export interface AgentPost {
+  /** the person whose turn this is; the agent posts for them */
+  actingFor?: string;
   threadId: string; body: string; blocks: PostBlock[]; mentions: RouteMention[]; clientId: string;
   via?: { routineOwner: string };
 }
 /** Run chat.post as the agent (the host seam builds the call with the agent as principal; a person's ctx cannot speak for an agent). */
 export type PostAs = (agentId: string, post: AgentPost) => Promise<unknown>;
 
+/** Run a capability for a person through the real pipeline, so what a turn reads is what that person may read (the host builds the call; spec 6.3). */
+export type CallAs = (cap: string, input: unknown, personId: string) => Promise<unknown>;
+
 export interface BridgeOptions {
   postAs: PostAs;
+  /** Reads of the chat run as the person whose message started the turn. A private chat answers only to its members, so the host's system principal cannot read it. Without it the consumer's own ctx reads. */
+  callAs?: CallAs;
   log?: { warn(msg: string, attrs?: Record<string, unknown>): void };
   now?: () => number;
 }
@@ -50,6 +58,9 @@ interface Ready { blocks: PostBlock[]; text: string; mentions: number; routineOw
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
+/** An engine error can echo a key or a token. It goes to the log only: it passes the shared credential redactor (agent/src/transcript/sanitize.ts, the same rules as every transcript) and is cut to 300 characters. The key is `why`: the sink drops a key named message. */
+export const scrub = (text: string): string => redact(text.slice(0, 600)).text.slice(0, 300);
+
 export function createBridge(o: BridgeOptions): Bridge {
   let engine: TurnEngine | null = null;
   const opened = new Set<string>();
@@ -57,13 +68,15 @@ export function createBridge(o: BridgeOptions): Bridge {
   const ready = new Map<string, Ready>();                // `${thread}:${agent}` -> a completed turn waiting for the engine to store its reply
   const queuedRoutine = new Map<string, boolean>();      // `${thread}:${qseq}` -> routine
   const turns = new Map<string, { routineOwner: string | null }>();
+  const askerOf = new Map<string, string>();               // threadId -> the person whose turn ran last: the agent speaks for them
   const chains = new Map<string, Promise<void>>();       // per thread: posts go out one after another, in the order the events arrived
   const warn = (msg: string, attrs?: Record<string, unknown>): void => o.log?.warn(msg, attrs);
 
   const enqueuePost = (threadId: string, agentId: string, post: AgentPost): void => {
     const prev = chains.get(threadId) ?? Promise.resolve();
     const next = prev.then(async () => {
-      try { await o.postAs(agentId, post); } catch (e) { warn("the bridge could not post an agent reply", { threadId, agentId, error: e instanceof Error ? e.message : String(e) }); }
+      const asker = askerOf.get(threadId);
+      try { await o.postAs(agentId, asker ? { ...post, actingFor: asker } : post); } catch (e) { warn("the bridge could not post an agent reply", { threadId, agentId, error: e instanceof Error ? e.message : String(e) }); }
     });
     chains.set(threadId, next);
   };
@@ -82,6 +95,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         const routine = queuedRoutine.get(`${e.threadId}:${e.qseq}`) === true;
         queuedRoutine.delete(`${e.threadId}:${e.qseq}`);
         turns.set(e.turnId, { routineOwner: routine ? e.asker : null });
+        askerOf.set(e.threadId, e.asker);
         return;
       }
       case "turn.completed": {
@@ -97,6 +111,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       }
       case "turn.failed": case "turn.cancelled": case "turn.waiting": {
         if (e.type === "turn.waiting" && e.reason !== "approval") return;
+        if (e.type === "turn.failed") warn("a turn failed", { threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, code: e.code, ...(e.message ? { why: scrub(e.message) } : {}) });
         const parked = e.type === "turn.waiting";
         const seg = live.get(e.turnId);
         const routineOwner = turns.get(e.turnId)?.routineOwner ?? null;
@@ -143,11 +158,20 @@ export function createBridge(o: BridgeOptions): Bridge {
   type ThreadGet = { thread: { kind?: string; starter?: string; agents: Array<{ agentId: string; mode: "lead" | "listen"; model?: string; accountRef?: string; watches?: unknown }> } };
   type Row = { messageId: string; threadSeq?: number; author: { kind: string; id: string }; body: string; depth?: number };
 
-  async function open(ctx: EngineCtx, threadId: string, skipId: string): Promise<boolean> {
+  /** A read of the chat for this message: as its person author when the host gave us a way to, else with the consumer's own ctx. */
+  const reader = (ctx: EngineCtx, authorId: string): ((cap: string, input: unknown) => Promise<unknown>) =>
+    o.callAs && authorId.startsWith("usr_") ? (cap, input) => o.callAs!(cap, input, authorId) : (cap, input) => ctx.call(cap, input);
+
+  async function open(ctx: EngineCtx, threadId: string, skipId: string, authorId: string): Promise<boolean> {
+    const read = reader(ctx, authorId);
     if (!engine) return false;
     if (opened.has(threadId)) return true;
     let got: ThreadGet;
-    try { got = (await ctx.call("threads.get", { threadId })) as ThreadGet; } catch { return false; }
+    try { got = (await read("threads.get", { threadId })) as ThreadGet; } catch (e) {
+      // not "no agents": the thread could not be read at all (a private chat the calling principal is not in, a thread that is gone). Say so, with the trace, instead of skipping in silence.
+      ctx.log.warn("the bridge could not read the thread, so no turn runs for its message", { traceId: ctx.trace.traceId, threadId, code: (e as { error?: { code?: string } })?.error?.code ?? "unknown", error: e instanceof Error ? e.message : String(e) });
+      return false;
+    }
     if (got.thread.agents.length === 0) return false;   // nobody to run; the thread opens on the first message after an agent joins
     const agents: EngineAgent[] = got.thread.agents.map((a) => ({
       id: a.agentId, mode: a.mode, ...(a.model ? { model: a.model } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watching: true } : {}),
@@ -155,7 +179,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     const store = sqlMessages(ctx.db, ctx.now);
     if (store.recent(threadId, 1).length === 0) {
       // First time this host sees the thread: copy the window the agent will read as history, oldest first, under chat's own ids.
-      const list = (await ctx.call("chat.messages.list", { threadId, limit: HISTORY })) as { messages: Row[] };
+      const list = (await read("chat.messages.list", { threadId, limit: HISTORY })) as { messages: Row[] };
       for (const r of [...list.messages].sort((a, b) => (a.threadSeq ?? 0) - (b.threadSeq ?? 0))) {
         if (r.messageId === skipId || store.get(r.messageId)) continue;
         withMessageId(r.messageId, () => store.append({ id: r.messageId, threadId, author: { kind: r.author.id.startsWith("agt_") ? "agent" : "person", id: r.author.id }, mentions: [], depth: r.depth ?? 0, body: r.body }));
@@ -177,10 +201,10 @@ export function createBridge(o: BridgeOptions): Bridge {
     if (messageId.startsWith(BRIDGE_PREFIX)) return { skipped: "own_post" };
     const store = sqlMessages(ctx.db, ctx.now);
     if (store.get(messageId)) return { skipped: "known" };            // the engine stored it: its own reply echoing back, or a replay
-    if (!(await open(ctx, threadId, messageId))) return { skipped: "no_agents" };
-    if (store.get(messageId)) return { skipped: "known" };
-    const got = (await ctx.call("chat.message.get", { threadId, messageId })) as { message: Row };
     const a = (p["author"] ?? {}) as { kind?: string; id?: string };
+    if (!(await open(ctx, threadId, messageId, str(a.id)))) return { skipped: "no_agents" };
+    if (store.get(messageId)) return { skipped: "known" };
+    const got = (await reader(ctx, str(a.id))("chat.message.get", { threadId, messageId })) as { message: Row };
     const authorId = str(a.id) || got.message.author.id;
     const mentions = ((p["mentions"] ?? []) as RouteMention[]).map((m) => ({ kind: m.kind, id: m.id }));
     const eng = engine;
@@ -192,8 +216,9 @@ export function createBridge(o: BridgeOptions): Bridge {
 
   async function onEdited(ctx: EngineCtx, p: Record<string, unknown>): Promise<{ skipped?: string; receivedAs?: string[] }> {
     const messageId = str(p["messageId"]), threadId = str(p["threadId"]);
-    if (!sqlMessages(ctx.db, ctx.now).get(messageId)) return { skipped: "unknown" };
-    const got = (await ctx.call("chat.message.get", { threadId, messageId })) as { message: Row };
+    const known = sqlMessages(ctx.db, ctx.now).get(messageId);
+    if (!known) return { skipped: "unknown" };
+    const got = (await reader(ctx, known.author.id)("chat.message.get", { threadId, messageId })) as { message: Row };
     ctx.db.run("UPDATE engine_messages SET body = ? WHERE id = ?", got.message.body, messageId);
     return {};
   }
@@ -220,6 +245,13 @@ export function bindBridge(b: Bridge | null): void { bound = b; }
 export const bridgeConsumers = {
   "engine.bridge": {
     on: ["message.received", "message.edited"],
-    run: async (ctx: EngineCtx, event: BridgeEvent): Promise<{ skipped?: string; receivedAs?: string[] }> => (bound ? bound.onEvent(ctx, event) : { skipped: "engine_not_running" }),
+    run: async (ctx: EngineCtx, event: BridgeEvent): Promise<{ skipped?: string; receivedAs?: string[] }> => {
+      const res = bound ? await bound.onEvent(ctx, event) : { skipped: "engine_not_running" };
+      // a message that did not reach the engine says why, with the trace and the ids (one trace id, clear logs); the ones that did are not logged here
+      if (res.skipped && res.skipped !== "known" && res.skipped !== "own_post") {
+        ctx.log.warn("the engine bridge did not run a turn for a message", { traceId: ctx.trace.traceId, reason: res.skipped, event: event.name, threadId: String(event.payload["threadId"] ?? ""), messageId: String(event.payload["messageId"] ?? "") });
+      }
+      return res;
+    },
   },
 };

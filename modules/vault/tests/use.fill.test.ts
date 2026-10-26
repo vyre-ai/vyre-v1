@@ -196,3 +196,27 @@ test("the pipeline's name and handle lookup finds the item before authorize, wit
   assert.equal(resolveVaultItem(h.ctx.db, "vault_folder", "name", "Dana Lawmatics"), null);
   h.cleanup();
 });
+
+// P-GF_07: the engine reads an account as the agent acting for its asker; a Mine item is reachable that way at use level and no other.
+test("an agent acting for the owner may use a Mine item, an agent acting for someone else or for no one finds nothing, by name or id", async () => {
+  const h = harness();
+  h.actAs("person", MAYA);
+  const id = await put(h, await folder(h, "mine"), "Maya Claude");
+  h.actAs("agent", AGENT);
+  h.ctx.actingFor = ROB;
+  assert.equal(await refusedWith(u.use(h.ctx, { item: "Maya Claude" })), "validation.not_found", "acting for someone else");
+  delete h.ctx.actingFor;
+  assert.equal(await refusedWith(u.use(h.ctx, { item: "Maya Claude" })), "validation.not_found", "acting for no one");
+  h.ctx.actingFor = MAYA;
+  assert.equal(out(await u.use(h.ctx, { item: "Maya Claude" })).itemId, id, "acting for the owner");
+  assert.equal(out(await u.use(h.ctx, { item: id })).itemId, id, "by id too");
+  assert.ok(!JSON.stringify(await v.itemsList(h.ctx, {})).includes(id), "the agent cannot list it");
+  const got = sinks();
+  assert.equal(await refusedWith(u.fill(h.ctx, { handle: "#Maya_Claude.api_key", target: { kind: "env", ref: "p" } })), "validation.not_found", "fill is not for a turn");
+  assert.equal(got.length, 0, "the sink was never called");
+  assert.equal(await refusedWith(v.itemReveal(h.ctx, { itemId: id })), "validation.not_found", "view and reveal stay the owner's");
+  h.actAs("person", ROB);
+  h.ctx.actingFor = MAYA;
+  assert.equal(await refusedWith(u.use(h.ctx, { item: "Maya Claude" })), "validation.not_found", "a person acting for someone gets no change");
+  h.cleanup();
+});

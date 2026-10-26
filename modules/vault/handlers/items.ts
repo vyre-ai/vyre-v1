@@ -19,7 +19,7 @@ import type { Json, Row, VaultCtx } from "../projections.ts";
 const FIELD_KEY = /^[A-Za-z][A-Za-z0-9_]*$/;
 const MAX_VALUE = 64 * 1024;
 const MAX_FIELDS = 200;
-const live = (r: Row): boolean => r["deleted_at"] === null || r["deleted_at"] === undefined;
+export const live = (r: Row): boolean => r["deleted_at"] === null || r["deleted_at"] === undefined;
 
 // ---- sealed values
 
@@ -72,6 +72,9 @@ async function sealFor(ctx: VaultCtx, itemId: string, scope: string, owner: stri
 // ---- visibility
 
 /** Mine items are the owner's alone; anything else is visible when authorize allows Use. */
+/** A turn an agent runs for a person: ctx.actingFor comes from the server-side seed, never from input. */
+export const turnFor = (ctx: VaultCtx, r: Row): boolean => ctx.principal.kind === "agent" && ctx.actingFor !== undefined && str(r, "owner") === ctx.actingFor;
+
 export function visible(ctx: VaultCtx, r: Row): boolean {
   if (!live(r)) return false;
   if (str(r, "scope") === "mine") return str(r, "owner") === ctx.principal.id;
@@ -83,11 +86,13 @@ export function levelOf(ctx: VaultCtx, r: Row) {
 }
 
 /** An item the caller can see, at least at `need`; a Mine item of someone else does not exist for them. */
-export function reachable(ctx: VaultCtx, id: string, need: "use" | "view" | "edit" | "manage", opts: { trashed?: boolean } = {}): Row {
+export function reachable(ctx: VaultCtx, id: string, need: "use" | "view" | "edit" | "manage", opts: { trashed?: boolean; forTurn?: boolean } = {}): Row {
   if (!isId("vit", id)) bad(ctx, "Item id is not valid.");
   const r = opts.trashed ? anyItem(ctx, id) : liveItem(ctx, id);
-  if (str(r, "scope") === "mine" && str(r, "owner") !== ctx.principal.id) throw fail("validation.not_found", ctx.trace.traceId, { message: "That item is not in this Vault." });
-  if (!atLeast(levelOf(ctx, r), need)) throw fail("permission.no_grant", ctx.trace.traceId, { message: `That needs ${need} access to the item.` });
+  // rulings 62 and 96: only the engine's account lookup (vault.use, forTurn) lets an agent acting for the owner reach the owner's own Mine item, at "use" and nothing more (never listed, viewed, edited, revealed, filled or injected)
+  const turn = opts.forTurn === true && str(r, "scope") === "mine" && str(r, "owner") !== ctx.principal.id && need === "use" && turnFor(ctx, r);
+  if (str(r, "scope") === "mine" && str(r, "owner") !== ctx.principal.id && !turn) throw fail("validation.not_found", ctx.trace.traceId, { message: "That item is not in this Vault." });
+  if (!turn && !atLeast(levelOf(ctx, r), need)) throw fail("permission.no_grant", ctx.trace.traceId, { message: `That needs ${need} access to the item.` });
   return r;
 }
 

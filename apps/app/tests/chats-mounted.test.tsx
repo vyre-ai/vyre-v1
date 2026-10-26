@@ -472,6 +472,7 @@ test("the shipped place, through the shell provider and the runtime's live scree
   const side = inSlot(s).out;
   assert.ok(has(side, 'data-testid="row-needs-parent"') && has(side, 'data-testid="count-needs"') && has(side, ">7<"), "the Needs you entry with its count, read from home.needs-you-top3 through rt.screens");
   assert.ok(has(side, "Send 12 invoices"), "its requests beneath");
+  // 5, not 4: the Agents group lists all the Space's agents (agents.list has no starred filter), and Scout raised "County records search", so it says Waiting on you too. The old 4 held only because Scout was hidden.
   assert.equal(side.split("Waiting on you").length - 1, 5, "the five agents with a request say so (Scout is in the Agents group now that it lists the Space's agents)");
 });
 
