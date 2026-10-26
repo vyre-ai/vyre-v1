@@ -84,9 +84,9 @@ export function LineIcon({ icon, folder }: { icon: IconName; folder: boolean }):
 }
 
 /** A hue per file type, so the page tiles read at a glance on every skin. */
-const TILE_HUE: Readonly<Record<string, number>> = { PDF: 5, MD: 215, CSV: 145, XLSX: 145, DOCX: 215, PPTX: 25, TXT: 220, JSON: 190, ZIP: 40, PLAN: 270 };
+const TILE_HUE: Readonly<Record<string, number>> = { PDF: 5, MD: 215, CSV: 145, XLSX: 145, DOCX: 215, PPTX: 25, TXT: 220, JSON: 190, ZIP: 40 };
 
-/** The leading tile of a line: a folder or picture icon, or a small page with the file type on it (PDF, MD, CSV, DOCX, PLAN), tinted by type. Sits in the shared Row's leading slot. */
+/** The leading tile of a line: a folder or picture icon, or a small page with the file type on it (PDF, MD, CSV, DOCX), tinted by type. Sits in the shared Row's leading slot. */
 export function TypeTile({ label, icon, folder }: { label: string | null; icon: IconName; folder: boolean }): ReactElement {
   if (label === null) return <LineIcon icon={icon} folder={folder} />;
   const h = TILE_HUE[label] ?? 220;

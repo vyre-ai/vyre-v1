@@ -105,7 +105,7 @@ const SUBJECT_FILES: FileSeed[] = [
   f("fil_pj_prep", "consult-prep.md", "fld_pj_rivera", "markdown", 188, 2.5 * HOUR, "agt_intake"),
   f("fil_pj_chk", "engagement-checklist.csv", "fld_pj_rivera", "spreadsheet", 900, 16 * HOUR, "usr_lena"),
   f("fil_pj_id", "id-scan.png", "fld_pj_rivera", "image", 408_000, 17 * HOUR, "usr_maya"),
-  f("fil_pj_onb", "Rivera onboarding plan", "fld_pj_rivera", "document", 2_000, 2.4 * HOUR, "agt_intake", { mime: "application/vnd.vyre.plan+json" }),
+  f("fil_pj_onb", "Rivera onboarding plan", "fld_pj_rivera", "document", 2_000, 2.4 * HOUR, "agt_intake"),
   f("fil_pj_letter", "rivera-engagement-letter.docx", "fld_pj_rivera", "document", 37_000, 1.2 * HOUR, "agt_docs", { starred: true }),
   f("fil_pj_scan", "site-photo.png", "fld_pj_rivera", "image", 598_000, 0.8 * HOUR, "usr_maya", { conflict: true }),
   f("fil_pj_plan", "Launch plan.docx", "fld_pj_launch", "document", 41_000, 2 * DAY, "usr_omar"),

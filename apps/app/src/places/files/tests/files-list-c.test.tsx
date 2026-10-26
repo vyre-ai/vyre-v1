@@ -9,7 +9,7 @@ import { FilesList, StagedBanner, approveStaged, lineMenuEntries, moreMenuEntrie
 import { LineMarks, RowCells, ThumbTile, TypeTile } from "../FileList.tsx";
 import { createSampleFiles } from "../list/sample.ts";
 import type { SampleFiles } from "../list/sample.ts";
-import { FilesDataProvider, FilesStateProvider, FilesTree, INITIAL_STATE, emptyText, fileLine, hasAgentFace, isPlan, kindText, openByDefault, orderFolders, reduce, rootRank, sourceOf, spaceRoots, tileLabel } from "../tree/index.ts";
+import { FilesDataProvider, FilesStateProvider, FilesTree, INITIAL_STATE, emptyText, fileLine, hasAgentFace, openByDefault, orderFolders, reduce, rootRank, sourceOf, spaceRoots, tileLabel } from "../tree/index.ts";
 import type { FileRow, FilesState, FolderRow, TreeRoots, Where } from "../tree/index.ts";
 import { isItem } from "../../../../../../ui/src/Menu/props.ts";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/props.ts";
@@ -305,14 +305,11 @@ test("a picture with a thumbnail leads with its preview, the one the viewer show
   assert.ok(!has(none, 'data-testid="thumb-image"') && has(none, ">PDF<"), "no previewUrl, the tile");
 });
 
-test("Plan files lead with the PLAN page tile and say Plan in the Kind column", () => {
-  const plan = "application/vnd.vyre.plan+json";
-  assert.ok(isPlan(plan) && !isPlan("application/pdf") && !isPlan(undefined));
-  assert.equal(tileLabel("Rivera onboarding plan", "document", plan), "PLAN");
-  assert.equal(kindText("document", plan), "Plan");
-  assert.equal(kindText("document"), "Document");
+test("a plan file with no known extension is a Document with the document icon, until a real writer exists", () => {
+  assert.equal(tileLabel("Rivera onboarding plan", "document"), null);
   const out = list(subjects(), folder("fld_pj_rivera"));
-  assert.ok(has(out, ">PLAN<") && has(out, ">Plan<"), "the tile and the Kind");
+  assert.ok(has(out, "Rivera onboarding plan") && has(out, ">Document<"));
+  assert.ok(!has(out, ">PLAN<") && !has(out, ">Plan<"));
   assert.ok(has(out, 'data-testid="type-page"'), "a small page, not a pill");
 });
 

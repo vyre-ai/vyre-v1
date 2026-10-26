@@ -60,32 +60,21 @@ export interface Line {
   starred?: boolean;
   /** Two edits of this file wait for a choice (the Conflict tag). */
   conflict?: boolean;
-  mime?: string;
 }
 
 export function fileLine(f: FileRow): Line {
-  return { key: `file:${f.fileId}`, type: "file", id: f.fileId, name: f.name, kind: f.kind, size: f.size, updatedAt: f.updatedAt, updatedBy: f.updatedBy, thumb: f.thumb, source: f.source?.provider ?? null, items: 0, folderId: f.folderId, mime: f.mime, ...(f.starred === true ? { starred: true } : {}), ...(f.conflict === true ? { conflict: true } : {}) };
+  return { key: `file:${f.fileId}`, type: "file", id: f.fileId, name: f.name, kind: f.kind, size: f.size, updatedAt: f.updatedAt, updatedBy: f.updatedBy, thumb: f.thumb, source: f.source?.provider ?? null, items: 0, folderId: f.folderId, ...(f.starred === true ? { starred: true } : {}), ...(f.conflict === true ? { conflict: true } : {}) };
 }
 
 export function folderLine(f: FolderRow): Line {
   return { key: `folder:${f.folderId}`, type: "folder", id: f.folderId, name: f.name, kind: "folder", size: 0, updatedAt: 0, updatedBy: null, thumb: false, source: f.source?.provider ?? null, items: f.fileCount + f.folderCount, folderId: f.parentId ?? null };
 }
 
-/** A Plan is a Vyre page document of blocks (a task plan). The contract has no Plan kind, so it is told by its type: `application/vnd.vyre.plan+json`. */
-export const PLAN_MIME = "application/vnd.vyre.plan+json";
-export const isPlan = (mime: string | undefined): boolean => mime === PLAN_MIME;
-
-/** What the Kind column says for a file: Plan for a Plan, the kind otherwise. */
-export function kindText(kind: FileKind | "folder", mime?: string): string {
-  return isPlan(mime) ? "Plan" : KIND_LABEL[kind];
-}
-
 const EXT_LABEL: Readonly<Record<string, string>> = { pdf: "PDF", md: "MD", markdown: "MD", csv: "CSV", docx: "DOCX", doc: "DOCX", xlsx: "XLSX", pptx: "PPTX", txt: "TXT", json: "JSON", zip: "ZIP" };
 
 /** The short label on a file's type tile (PDF, MD, CSV, DOCX), from its extension; pictures, folders and files with no known extension get an icon instead (null). */
-export function tileLabel(name: string, kind: FileKind | "folder", mime?: string): string | null {
+export function tileLabel(name: string, kind: FileKind | "folder"): string | null {
   if (kind === "folder" || kind === "image") return null;
-  if (isPlan(mime)) return "PLAN";
   const dot = name.lastIndexOf(".");
   return dot < 0 ? null : EXT_LABEL[name.slice(dot + 1).toLowerCase()] ?? null;
 }

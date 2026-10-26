@@ -1,6 +1,6 @@
 // Mount for P-L9e_01c: the Files place inside the whole shell (the rail, the title bar, the shared place sidebar with the Files sidebar in it, the list), over the Northwind sample Space with the
-// Agents, Projects, People and Channels folders. ?where=pj_rivera|starred|recent|shared|trash|knowledge|root (default the Rivera matter folder). State is read once (rule 25: the shell opens the Files place after mount).
-import { useEffect, useMemo } from "react";
+// Agents, Projects, People and Channels folders. ?where=pj_rivera|starred|recent|shared|trash|knowledge|root (default the Rivera matter folder). The shell is opened on the Files place before it first draws, so the place and its sidebar mount once.
+import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { createThemeController } from "../../../ui/src/theme/index.ts";
@@ -54,12 +54,10 @@ export default function Mount(): ReactNode {
       removeProperty: (n) => { root?.style.removeProperty(n); },
     };
     const theme = createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
-    return { hub: createSampleShell({ openId: "nw", theme }), theme, initial: { where: whereOf(query.get("where")) } satisfies Partial<FilesState> };
+    const hub = createSampleShell({ openId: "nw", theme });
+    hub.go("files");
+    return { hub, theme, initial: { where: whereOf(query.get("where")) } satisfies Partial<FilesState> };
   }, []);
-  useEffect(() => {
-    const t = setTimeout(() => made.hub.go("files"), 200);
-    return () => clearTimeout(t);
-  }, [made]);
   const renderPlace = (ctx: PlaceContext): ReactNode => (ctx.place === "files" ? <FilesBody key={ctx.spaceId} initial={made.initial} /> : samplePlace(ctx));
   return (
     <View style={{ height }}>

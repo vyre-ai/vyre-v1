@@ -13,7 +13,7 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useFilesData, useFolderNodes, useLive, useOnline, useOptionalFilesData, useSource } from "../tree/data.tsx";
 import {
-  SORTS, SORT_LABEL, WHERE_LABEL, createSpring, crumbs, dragPayload, dropMoves, emptyText, fileLine, folderLine, kindText, parsePayload, tileLabel, sizeText, sortLines, sourceOf, updatedText,
+  SORTS, SORT_LABEL, WHERE_LABEL, createSpring, crumbs, dragPayload, dropMoves, emptyText, fileLine, folderLine, kindLabel, parsePayload, tileLabel, sizeText, sortLines, sourceOf, updatedText,
 } from "../tree/model.ts";
 import type { Line, SortKey, Spring } from "../tree/model.ts";
 import { iconOfKind } from "../tree/parts.tsx";
@@ -208,7 +208,7 @@ function List(): ReactElement {
   const whenOf = (l: Line): string => updatedText(l.updatedAt, c.now, c.offsetMin);
   const byOf = (l: Line): string | null => (l.updatedBy === null ? null : data.nameOf(l.updatedBy));
   const sizeOfLine = (l: Line): string => (l.type === "folder" ? `${l.items} item${l.items === 1 ? "" : "s"}` : sizeText(l.size));
-  const kindOfLine = (l: Line): string => `${kindText(l.kind, l.mime)}${l.source ? ` \u00b7 ${l.source}` : ""}`;
+  const kindOfLine = (l: Line): string => `${kindLabel(l.kind)}${l.source ? ` \u00b7 ${l.source}` : ""}`;
 
   // on the web the line is the shared Row (one plain element) carrying the drag attributes and the menu trigger; the drag itself is delegated from the list's box
   const renderLine = (l: Line): ReactElement => {
@@ -220,7 +220,7 @@ function List(): ReactElement {
         {...(l.starred === true || l.conflict === true ? { titleMarks: <LineMarks starred={l.starred === true} conflict={l.conflict === true} onResolve={data.nav.resolveConflict ? () => data.nav.resolveConflict?.(l.id) : undefined} /> } : {})}
         selected={state.selection.includes(l.key)}
         hovered={over === l.key}
-        leading={l.type === "file" && l.thumb ? <ThumbTile fileId={l.id} label={tileLabel(l.name, l.kind, l.mime)} icon={iconOfKind(l.kind)} /> : <TypeTile label={tileLabel(l.name, l.kind, l.mime)} icon={iconOfKind(l.kind)} folder={l.type === "folder"} />}
+        leading={l.type === "file" && l.thumb ? <ThumbTile fileId={l.id} label={tileLabel(l.name, l.kind)} icon={iconOfKind(l.kind)} /> : <TypeTile label={tileLabel(l.name, l.kind)} icon={iconOfKind(l.kind)} folder={l.type === "folder"} />}
         trailing={<RowCells wide={wide} cells={{ when: whenOf(l), by: byOf(l), size: sizeOfLine(l), kind: kindOfLine(l) }} />}
         onPress={() => press(l)}
         domProps={{ ...dragAttrs(l.key), ...menuTrigger((x, y) => lineMenu(l, x, y)), style: LINE_STYLE }}
