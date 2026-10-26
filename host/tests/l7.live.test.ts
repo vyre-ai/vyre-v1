@@ -1,7 +1,7 @@
 // P-L7_LIVE (rulings 31, 32, 53, 59): the L7a modules with a complete handler map are live, a booted daemon on the seeded `core` Space reports none of them as not set up, and each answers
 // through the gateway with a real token: one read, one write, and a refusal for a member who lacks the permission.
 // Path mapping: the packet owns __live__/L7; this test sits in host/tests because it boots the daemon.
-// All ten L7a modules are live. Vault capabilities of the deferred packet P-L7_11 (import, generate, health, providers, policy, site rules) refuse with "Not in this version yet" (ruling 60, docs/deferred.md).
+// All ten L7a modules are live. Vault import (P-L7_11) refuses with "Not in this version yet" (ruling 60, docs/deferred.md).
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -152,7 +152,11 @@ test("l7 live: through the gateway a Shared item is put, used by name and filled
     assert.equal(((await noSink.json()) as { error?: { code?: string } }).error?.code, "internal.unavailable", "a place with no sink is refused");
     const pulled = await fetch(`${d.url}/exports/vex_nothing?token=nope`);
     assert.equal(pulled.status, 404, "the export pull route is mounted and refuses an unknown link");
-    const deferred = await post(OWNER_TOKEN, "/v1/vault/generate", { kind: "password" });
+    const made = await post(OWNER_TOKEN, "/v1/vault/generate", { kind: "password" });
+    assert.equal(made.status, 200, "generate is real (P-L7_20)");
+    const fresh = ((await made.json()) as { data?: { value?: string; strength?: string } }).data;
+    assert.ok(typeof fresh?.value === "string" && fresh.value.length === 20 && fresh.strength === "strong", "a fresh 20 character password");
+    const deferred = await post(OWNER_TOKEN, "/v1/vault/import_parse", { source: "bitwarden", fileId: "fil_nothing" });
     const body = (await deferred.json()) as { error?: { code?: string; message?: string } };
     assert.deepEqual([body.error?.code, body.error?.message], ["internal.unavailable", "Not in this version yet"]);
   } finally { await d.stop(); }

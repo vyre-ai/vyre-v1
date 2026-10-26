@@ -104,28 +104,6 @@
       },
       "type": "array"
     },
-    "s_01ba7de8d7": {
-      "properties": {
-        "files": {
-          "$ref": "#/$defs/s_a21144ff96"
-        },
-        "folders": {
-          "$ref": "#/$defs/s_67ef96a86f"
-        },
-        "next": {
-          "description": "Cursor for the next page; absent on the last page",
-          "type": "string"
-        },
-        "total": {
-          "type": "integer"
-        }
-      },
-      "required": [
-        "files",
-        "folders"
-      ],
-      "type": "object"
-    },
     "s_027fb3219c": {
       "properties": {
         "default": {
@@ -260,6 +238,24 @@
       },
       "required": [
         "threadId"
+      ],
+      "type": "object"
+    },
+    "s_04aaa4e969": {
+      "properties": {
+        "changesetId": {
+          "examples": [
+            "chg_a1b2c3"
+          ],
+          "pattern": "^chg_[a-z0-9]+$",
+          "type": "string"
+        },
+        "file": {
+          "$ref": "#/$defs/s_ac13e8babf"
+        }
+      },
+      "required": [
+        "file"
       ],
       "type": "object"
     },
@@ -1472,74 +1468,6 @@
         "type": "object"
       },
       "type": "array"
-    },
-    "s_13ccf833f9": {
-      "properties": {
-        "fileCount": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "folderCount": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "git": {
-          "type": "boolean"
-        },
-        "label": {
-          "maximum": 3,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "name": {
-          "type": "string"
-        },
-        "parentId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "path": {
-          "examples": [
-            "Projects/Probate GTM"
-          ],
-          "type": "string"
-        },
-        "reviewChanges": {
-          "type": "boolean"
-        },
-        "scope": {
-          "enum": [
-            "personal",
-            "space"
-          ],
-          "type": "string"
-        },
-        "source": {
-          "$ref": "#/$defs/s_79be53286e"
-        }
-      },
-      "required": [
-        "folderId",
-        "name",
-        "path",
-        "fileCount",
-        "folderCount",
-        "scope",
-        "label",
-        "git",
-        "reviewChanges"
-      ],
-      "type": "object"
     },
     "s_13ee309840": {
       "items": {
@@ -3707,6 +3635,12 @@
       },
       "type": "array"
     },
+    "s_333ebd7463": {
+      "items": {
+        "$ref": "#/$defs/s_ac13e8babf"
+      },
+      "type": "array"
+    },
     "s_3550bb561b": {
       "items": {
         "properties": {
@@ -5125,118 +5059,6 @@
       ],
       "type": "object"
     },
-    "s_486e12678d": {
-      "properties": {
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "deletedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "fileId": {
-          "examples": [
-            "fil_a1b2c3"
-          ],
-          "pattern": "^fil_[a-z0-9]+$",
-          "type": "string"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "holds": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "kind": {
-          "enum": [
-            "text",
-            "markdown",
-            "document",
-            "spreadsheet",
-            "presentation",
-            "pdf",
-            "image",
-            "video",
-            "audio",
-            "code",
-            "archive",
-            "google_native",
-            "other"
-          ],
-          "type": "string"
-        },
-        "label": {
-          "maximum": 3,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "mime": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "ownerId": {
-          "type": "string"
-        },
-        "size": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "source": {
-          "$ref": "#/$defs/s_79be53286e"
-        },
-        "thumb": {
-          "type": "boolean"
-        },
-        "updatedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "updatedBy": {
-          "type": "string"
-        },
-        "version": {
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "fileId",
-        "folderId",
-        "name",
-        "kind",
-        "mime",
-        "size",
-        "version",
-        "label",
-        "ownerId",
-        "createdAt",
-        "updatedAt",
-        "updatedBy",
-        "thumb",
-        "holds"
-      ],
-      "type": "object"
-    },
     "s_489f2891b9": {
       "properties": {
         "as": {
@@ -5287,6 +5109,77 @@
       "required": [
         "deliveryId",
         "idempotencyKey"
+      ],
+      "type": "object"
+    },
+    "s_4a1e404cdd": {
+      "properties": {
+        "fileCount": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "folderCount": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "git": {
+          "type": "boolean"
+        },
+        "label": {
+          "maximum": 3,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "parentId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "path": {
+          "examples": [
+            "Projects/Probate GTM"
+          ],
+          "type": "string"
+        },
+        "reviewChanges": {
+          "type": "boolean"
+        },
+        "scope": {
+          "enum": [
+            "personal",
+            "space"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/s_79be53286e"
+        },
+        "subject": {
+          "$ref": "#/$defs/s_b5775f40f8"
+        }
+      },
+      "required": [
+        "folderId",
+        "name",
+        "path",
+        "fileCount",
+        "folderCount",
+        "scope",
+        "label",
+        "git",
+        "reviewChanges"
       ],
       "type": "object"
     },
@@ -7752,6 +7645,28 @@
       ],
       "type": "object"
     },
+    "s_63dc3a7fc4": {
+      "properties": {
+        "files": {
+          "$ref": "#/$defs/s_333ebd7463"
+        },
+        "folders": {
+          "$ref": "#/$defs/s_76462aa6ce"
+        },
+        "next": {
+          "description": "Cursor for the next page; absent on the last page",
+          "type": "string"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "files",
+        "folders"
+      ],
+      "type": "object"
+    },
     "s_63dee7bf35": {
       "properties": {
         "fixedIn": {
@@ -8090,12 +8005,6 @@
         "name"
       ],
       "type": "object"
-    },
-    "s_67ef96a86f": {
-      "items": {
-        "$ref": "#/$defs/s_13ccf833f9"
-      },
-      "type": "array"
     },
     "s_685b085375": {
       "properties": {
@@ -8666,24 +8575,6 @@
       ],
       "type": "object"
     },
-    "s_74c6a2fb9f": {
-      "properties": {
-        "changesetId": {
-          "examples": [
-            "chg_a1b2c3"
-          ],
-          "pattern": "^chg_[a-z0-9]+$",
-          "type": "string"
-        },
-        "file": {
-          "$ref": "#/$defs/s_486e12678d"
-        }
-      },
-      "required": [
-        "file"
-      ],
-      "type": "object"
-    },
     "s_753c0a822e": {
       "properties": {
         "request": {
@@ -8833,6 +8724,12 @@
         "blocks"
       ],
       "type": "object"
+    },
+    "s_76462aa6ce": {
+      "items": {
+        "$ref": "#/$defs/s_4a1e404cdd"
+      },
+      "type": "array"
     },
     "s_76a1c562f7": {
       "properties": {
@@ -10550,17 +10447,6 @@
       ],
       "type": "object"
     },
-    "s_8fffaf9035": {
-      "properties": {
-        "folder": {
-          "$ref": "#/$defs/s_13ccf833f9"
-        }
-      },
-      "required": [
-        "folder"
-      ],
-      "type": "object"
-    },
     "s_90ff7d13ee": {
       "properties": {
         "branches": {
@@ -11488,12 +11374,6 @@
       ],
       "type": "object"
     },
-    "s_a21144ff96": {
-      "items": {
-        "$ref": "#/$defs/s_486e12678d"
-      },
-      "type": "array"
-    },
     "s_a2d37875a7": {
       "properties": {
         "schedule": {
@@ -12279,6 +12159,124 @@
       ],
       "type": "object"
     },
+    "s_ac13e8babf": {
+      "properties": {
+        "conflict": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "deletedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fileId": {
+          "examples": [
+            "fil_a1b2c3"
+          ],
+          "pattern": "^fil_[a-z0-9]+$",
+          "type": "string"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "holds": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "text",
+            "markdown",
+            "document",
+            "spreadsheet",
+            "presentation",
+            "pdf",
+            "image",
+            "video",
+            "audio",
+            "code",
+            "archive",
+            "google_native",
+            "other"
+          ],
+          "type": "string"
+        },
+        "label": {
+          "maximum": 3,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        },
+        "size": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/s_79be53286e"
+        },
+        "starred": {
+          "type": "boolean"
+        },
+        "thumb": {
+          "type": "boolean"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "updatedBy": {
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "fileId",
+        "folderId",
+        "name",
+        "kind",
+        "mime",
+        "size",
+        "version",
+        "label",
+        "ownerId",
+        "createdAt",
+        "updatedAt",
+        "updatedBy",
+        "thumb",
+        "holds"
+      ],
+      "type": "object"
+    },
     "s_aed3f8b568": {
       "items": {
         "$ref": "#/$defs/s_a62f360c59"
@@ -12860,6 +12858,39 @@
       },
       "required": [
         "scope"
+      ],
+      "type": "object"
+    },
+    "s_b5775f40f8": {
+      "properties": {
+        "id": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "agent",
+            "project",
+            "space"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "s_b59a284a11": {
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/s_ac13e8babf"
+        }
+      },
+      "required": [
+        "file"
       ],
       "type": "object"
     },
@@ -17412,17 +17443,6 @@
       ],
       "type": "object"
     },
-    "s_f9e90fdca6": {
-      "properties": {
-        "file": {
-          "$ref": "#/$defs/s_486e12678d"
-        }
-      },
-      "required": [
-        "file"
-      ],
-      "type": "object"
-    },
     "s_f9ea51f9e2": {
       "properties": {
         "message": {
@@ -17685,6 +17705,17 @@
         "contactId",
         "kind",
         "addressId"
+      ],
+      "type": "object"
+    },
+    "s_fc475b05bc": {
+      "properties": {
+        "folder": {
+          "$ref": "#/$defs/s_4a1e404cdd"
+        }
+      },
+      "required": [
+        "folder"
       ],
       "type": "object"
     },
@@ -20177,7 +20208,8 @@
       "audit": "always",
       "effects": "write",
       "emits": [
-        "principal.created"
+        "principal.created",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -47336,7 +47368,8 @@
     {
       "effects": "write",
       "emits": [
-        "computer.given_back"
+        "computer.given_back",
+        "computer.recording_saved"
       ],
       "errors": [
         "internal.unexpected",
@@ -49065,7 +49098,8 @@
       "audit": "sensitive",
       "effects": "write",
       "emits": [
-        "computer.session_signed_out"
+        "computer.session_signed_out",
+        "computer.started"
       ],
       "errors": [
         "internal.unexpected",
@@ -49515,7 +49549,8 @@
       "audit": "sensitive",
       "effects": "write",
       "emits": [
-        "computer.takeover"
+        "computer.takeover",
+        "computer.started"
       ],
       "errors": [
         "internal.unexpected",
@@ -49892,7 +49927,9 @@
     {
       "effects": "write",
       "emits": [
-        "conflict.proposed"
+        "conflict.proposed",
+        "conflict.confirmation_needed",
+        "conflict.resolved"
       ],
       "errors": [
         "internal.unexpected",
@@ -51528,7 +51565,9 @@
     },
     {
       "effects": "read",
-      "emits": [],
+      "emits": [
+        "connection.needs_reconnect"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -52992,7 +53031,9 @@
     {
       "audit": "always",
       "effects": "outward",
-      "emits": [],
+      "emits": [
+        "connection.needs_reconnect"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -60272,6 +60313,7 @@
           "output": {
             "accountRef": "#Team_Anthropic_Key",
             "allowed": true,
+            "itemId": "vit_a1b2c3",
             "payer": "usr_a1b2c3",
             "reason": "starter"
           }
@@ -60332,6 +60374,13 @@
           },
           "allowed": {
             "type": "boolean"
+          },
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
           },
           "payer": {
             "anyOf": [
@@ -64509,6 +64558,7 @@
         {
           "input": {
             "costMicros": 1,
+            "itemId": "vit_a1b2c3",
             "tokensIn": 1,
             "tokensOut": 1,
             "turnId": "trn_a1b2c3"
@@ -64524,6 +64574,13 @@
         "properties": {
           "costMicros": {
             "type": "integer"
+          },
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
           },
           "tokensIn": {
             "type": "integer"
@@ -65055,6 +65112,7 @@
             "agentId": "agt_a1b2c3",
             "by": "day",
             "from": 1760000000000,
+            "itemId": "vit_a1b2c3",
             "personId": "usr_a1b2c3",
             "to": 1760000000000
           },
@@ -65107,6 +65165,13 @@
             ],
             "minimum": 0,
             "type": "integer"
+          },
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
           },
           "personId": {
             "examples": [
@@ -67016,6 +67081,7 @@
           "name": "example",
           "output": {
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -67031,6 +67097,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -67078,7 +67145,7 @@
       "module": "files",
       "name": "files.copy",
       "output": {
-        "$ref": "#/$defs/s_f9e90fdca6"
+        "$ref": "#/$defs/s_b59a284a11"
       },
       "permission": "files.write",
       "resource": {
@@ -67131,6 +67198,7 @@
           "output": {
             "changesetId": "chg_a1b2c3",
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -67146,6 +67214,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -67211,7 +67280,7 @@
       "name": "files.create",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_74c6a2fb9f"
+        "$ref": "#/$defs/s_04aaa4e969"
       },
       "permission": "files.write",
       "resource": {
@@ -67566,7 +67635,11 @@
             "idempotencyKey": "idem_1",
             "name": "example",
             "parentId": "fld_a1b2c3",
-            "reviewChanges": true
+            "reviewChanges": true,
+            "subject": {
+              "id": "agt_a1b2c3",
+              "kind": "agent"
+            }
           },
           "name": "example",
           "output": {
@@ -67584,6 +67657,10 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
+              },
+              "subject": {
+                "id": "agt_a1b2c3",
+                "kind": "agent"
               }
             }
           }
@@ -67611,6 +67688,28 @@
           },
           "reviewChanges": {
             "type": "boolean"
+          },
+          "subject": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "agt_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "agent",
+                  "project"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
           }
         },
         "required": [
@@ -67625,7 +67724,7 @@
       "name": "files.folder.create",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_8fffaf9035"
+        "$ref": "#/$defs/s_fc475b05bc"
       },
       "permission": "files.write",
       "resource": {
@@ -67750,6 +67849,10 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
+              },
+              "subject": {
+                "id": "agt_a1b2c3",
+                "kind": "agent"
               }
             }
           }
@@ -67776,7 +67879,7 @@
       "module": "files",
       "name": "files.folder.get",
       "output": {
-        "$ref": "#/$defs/s_8fffaf9035"
+        "$ref": "#/$defs/s_fc475b05bc"
       },
       "permission": null,
       "resource": {
@@ -67830,6 +67933,10 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
+              },
+              "subject": {
+                "id": "agt_a1b2c3",
+                "kind": "agent"
               }
             }
           }
@@ -67863,7 +67970,7 @@
       "module": "files",
       "name": "files.folder.move",
       "output": {
-        "$ref": "#/$defs/s_8fffaf9035"
+        "$ref": "#/$defs/s_fc475b05bc"
       },
       "permission": "files.write",
       "resource": {
@@ -67917,6 +68024,10 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
+              },
+              "subject": {
+                "id": "agt_a1b2c3",
+                "kind": "agent"
               }
             }
           }
@@ -67930,7 +68041,7 @@
       "module": "files",
       "name": "files.folder.rename",
       "output": {
-        "$ref": "#/$defs/s_8fffaf9035"
+        "$ref": "#/$defs/s_fc475b05bc"
       },
       "permission": "files.write",
       "resource": {
@@ -67982,6 +68093,10 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
+              },
+              "subject": {
+                "id": "agt_a1b2c3",
+                "kind": "agent"
               }
             }
           }
@@ -68007,7 +68122,7 @@
       "module": "files",
       "name": "files.folder.restore",
       "output": {
-        "$ref": "#/$defs/s_8fffaf9035"
+        "$ref": "#/$defs/s_fc475b05bc"
       },
       "permission": "files.delete",
       "resource": {
@@ -68058,6 +68173,10 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
+                },
+                "subject": {
+                  "id": "agt_a1b2c3",
+                  "kind": "agent"
                 }
               }
             ]
@@ -68096,7 +68215,7 @@
       "output": {
         "properties": {
           "folders": {
-            "$ref": "#/$defs/s_67ef96a86f"
+            "$ref": "#/$defs/s_76462aa6ce"
           }
         },
         "required": [
@@ -68156,6 +68275,10 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
+              },
+              "subject": {
+                "id": "agt_a1b2c3",
+                "kind": "agent"
               }
             }
           }
@@ -68193,7 +68316,7 @@
       "module": "files",
       "name": "files.folder.settings",
       "output": {
-        "$ref": "#/$defs/s_8fffaf9035"
+        "$ref": "#/$defs/s_fc475b05bc"
       },
       "permission": "files.write",
       "resource": {
@@ -68229,6 +68352,7 @@
           "name": "example",
           "output": {
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -68244,6 +68368,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -68273,7 +68398,7 @@
       "module": "files",
       "name": "files.get",
       "output": {
-        "$ref": "#/$defs/s_f9e90fdca6"
+        "$ref": "#/$defs/s_b59a284a11"
       },
       "permission": null,
       "resource": {
@@ -68353,6 +68478,7 @@
           "output": {
             "files": [
               {
+                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -68368,6 +68494,7 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
+                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -68389,6 +68516,10 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
+                },
+                "subject": {
+                  "id": "agt_a1b2c3",
+                  "kind": "agent"
                 }
               }
             ],
@@ -68425,10 +68556,10 @@
       "output": {
         "properties": {
           "files": {
-            "$ref": "#/$defs/s_a21144ff96"
+            "$ref": "#/$defs/s_333ebd7463"
           },
           "folders": {
-            "$ref": "#/$defs/s_67ef96a86f"
+            "$ref": "#/$defs/s_76462aa6ce"
           },
           "next": {
             "description": "Cursor for the next page; absent on the last page",
@@ -68598,6 +68729,7 @@
           "output": {
             "files": [
               {
+                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -68613,6 +68745,7 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
+                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -68634,6 +68767,10 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
+                },
+                "subject": {
+                  "id": "agt_a1b2c3",
+                  "kind": "agent"
                 }
               }
             ],
@@ -68710,7 +68847,7 @@
       "module": "files",
       "name": "files.list",
       "output": {
-        "$ref": "#/$defs/s_01ba7de8d7"
+        "$ref": "#/$defs/s_63dc3a7fc4"
       },
       "permission": null,
       "resource": {
@@ -68982,6 +69119,7 @@
           "output": {
             "changesetId": "chg_a1b2c3",
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -68997,6 +69135,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -69037,7 +69176,7 @@
       "name": "files.move",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_74c6a2fb9f"
+        "$ref": "#/$defs/s_04aaa4e969"
       },
       "permission": "files.write",
       "resource": {
@@ -69358,6 +69497,7 @@
           "output": {
             "files": [
               {
+                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -69373,6 +69513,7 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
+                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -69400,7 +69541,7 @@
       "output": {
         "properties": {
           "files": {
-            "$ref": "#/$defs/s_a21144ff96"
+            "$ref": "#/$defs/s_333ebd7463"
           }
         },
         "required": [
@@ -69449,6 +69590,7 @@
           "output": {
             "changesetId": "chg_a1b2c3",
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -69464,6 +69606,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -69497,7 +69640,7 @@
       "name": "files.rename",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_74c6a2fb9f"
+        "$ref": "#/$defs/s_04aaa4e969"
       },
       "permission": "files.write",
       "resource": {
@@ -69619,6 +69762,7 @@
           "name": "example",
           "output": {
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -69634,6 +69778,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -69669,7 +69814,7 @@
       "module": "files",
       "name": "files.restore",
       "output": {
-        "$ref": "#/$defs/s_f9e90fdca6"
+        "$ref": "#/$defs/s_b59a284a11"
       },
       "permission": "files.delete",
       "resource": {
@@ -69709,6 +69854,7 @@
           "name": "example",
           "output": {
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -69724,6 +69870,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -69763,7 +69910,7 @@
       "output": {
         "properties": {
           "file": {
-            "$ref": "#/$defs/s_486e12678d"
+            "$ref": "#/$defs/s_ac13e8babf"
           },
           "versionId": {
             "examples": [
@@ -70227,6 +70374,7 @@
           "output": {
             "files": [
               {
+                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -70242,6 +70390,7 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
+                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -70263,6 +70412,10 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
+                },
+                "subject": {
+                  "id": "agt_a1b2c3",
+                  "kind": "agent"
                 }
               }
             ],
@@ -70308,7 +70461,7 @@
       "module": "files",
       "name": "files.shared_with_me",
       "output": {
-        "$ref": "#/$defs/s_01ba7de8d7"
+        "$ref": "#/$defs/s_63dc3a7fc4"
       },
       "permission": null,
       "resource": {
@@ -70317,6 +70470,95 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "Files and folders other people shared with the caller, newest share first (the Shared with me section of the tree)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "file.starred"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "fileId": "fil_a1b2c3",
+            "starred": true
+          },
+          "name": "example",
+          "output": {
+            "file": {
+              "conflict": true,
+              "createdAt": 1760000000000,
+              "deletedAt": 1760000000000,
+              "fileId": "fil_a1b2c3",
+              "folderId": "fld_a1b2c3",
+              "holds": 1,
+              "kind": "text",
+              "label": 1,
+              "mime": "example",
+              "name": "example",
+              "ownerId": "example",
+              "size": 1,
+              "source": {
+                "mountId": "mnt_a1b2c3",
+                "provider": "example"
+              },
+              "starred": true,
+              "thumb": true,
+              "updatedAt": 1760000000000,
+              "updatedBy": "example",
+              "version": 1
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "starred": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fileId",
+          "starred"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "files",
+      "name": "files.star",
+      "offline": "queue",
+      "output": {
+        "$ref": "#/$defs/s_b59a284a11"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/fileId",
+        "type": "file"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Star a file or take the star off; a star is mine alone",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -70411,6 +70653,7 @@
           "output": {
             "files": [
               {
+                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -70426,6 +70669,7 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
+                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -70447,6 +70691,10 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
+                },
+                "subject": {
+                  "id": "agt_a1b2c3",
+                  "kind": "agent"
                 }
               }
             ],
@@ -70474,7 +70722,7 @@
       "module": "files",
       "name": "files.trash.list",
       "output": {
-        "$ref": "#/$defs/s_01ba7de8d7"
+        "$ref": "#/$defs/s_63dc3a7fc4"
       },
       "permission": null,
       "resource": {
@@ -70511,6 +70759,10 @@
                 "folderId": "fld_a1b2c3",
                 "key": "example",
                 "kind": "folder",
+                "subject": {
+                  "id": "agt_a1b2c3",
+                  "kind": "agent"
+                },
                 "title": "example"
               }
             ]
@@ -70551,6 +70803,9 @@
                     "virtual"
                   ],
                   "type": "string"
+                },
+                "subject": {
+                  "$ref": "#/$defs/s_b5775f40f8"
                 },
                 "title": {
                   "type": "string"
@@ -70854,6 +71109,7 @@
             "canEdit": true,
             "canMark": true,
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -70869,6 +71125,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -70915,7 +71172,7 @@
             "type": "boolean"
           },
           "file": {
-            "$ref": "#/$defs/s_486e12678d"
+            "$ref": "#/$defs/s_ac13e8babf"
           },
           "pages": {
             "type": "integer"
@@ -71018,6 +71275,7 @@
           "output": {
             "changesetId": "chg_a1b2c3",
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -71033,6 +71291,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -71083,7 +71342,7 @@
             "type": "string"
           },
           "file": {
-            "$ref": "#/$defs/s_486e12678d"
+            "$ref": "#/$defs/s_ac13e8babf"
           },
           "versionId": {
             "examples": [
@@ -71117,7 +71376,9 @@
     {
       "effects": "write",
       "emits": [
-        "folder.created"
+        "folder.created",
+        "grant.created",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -71212,7 +71473,9 @@
       "effects": "write",
       "emits": [
         "folder.deleted",
-        "item.moved"
+        "item.moved",
+        "grant.revoked",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -71369,7 +71632,8 @@
       "effects": "write",
       "emits": [
         "folder.moved",
-        "item.moved"
+        "item.moved",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -71455,7 +71719,8 @@
     {
       "effects": "write",
       "emits": [
-        "item.moved"
+        "item.moved",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -71592,7 +71857,8 @@
     {
       "effects": "write",
       "emits": [
-        "item.moved"
+        "item.moved",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -88070,7 +88336,8 @@
       "effects": "write",
       "emits": [
         "password.changed",
-        "keys.stored"
+        "keys.stored",
+        "signin.failed"
       ],
       "errors": [
         "auth.bad_credentials",
@@ -88145,6 +88412,150 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Change my own password; keys are re-wrapped on the device first",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "caller": "anonymous",
+      "effects": "write",
+      "emits": [
+        "keys.stored",
+        "signin.succeeded"
+      ],
+      "errors": [
+        "auth.expired",
+        "auth.invalid_code",
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.duplicate"
+      ],
+      "examples": [
+        {
+          "input": {
+            "code": "example",
+            "deviceClass": "desktop",
+            "deviceName": "example",
+            "displayName": "example",
+            "keys": {
+              "personKeyByPassword": "d3JhcHBlZA==",
+              "personKeyByRecovery": "d3JhcHBlZA==",
+              "privateKeyWrapped": "d3JhcHBlZA==",
+              "publicKey": "cHVibGlj",
+              "spaceKeys": [
+                {
+                  "epoch": 1,
+                  "wrapped": "d3JhcHBlZA=="
+                }
+              ]
+            },
+            "password": "example",
+            "spaceId": "spc_a1b2c3",
+            "username": "olivia"
+          },
+          "name": "example",
+          "output": {
+            "challengeId": "chl_a1b2c3",
+            "keys": {
+              "personKeyByPassword": "d3JhcHBlZA==",
+              "personKeyByRecovery": "d3JhcHBlZA==",
+              "privateKeyWrapped": "d3JhcHBlZA==",
+              "publicKey": "cHVibGlj",
+              "spaceKeys": [
+                {
+                  "epoch": 1,
+                  "wrapped": "d3JhcHBlZA=="
+                }
+              ]
+            },
+            "session": {
+              "deviceId": "dev_a1b2c3",
+              "epoch": 1,
+              "expiresAt": 1760000000000,
+              "sessionId": "ses_a1b2c3",
+              "token": "example"
+            },
+            "status": "ok"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "deviceClass": {
+            "enum": [
+              "desktop",
+              "phone",
+              "web",
+              "extension",
+              "daemon"
+            ],
+            "type": "string"
+          },
+          "deviceName": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "keys": {
+            "$ref": "#/$defs/s_50a19384f8"
+          },
+          "password": {
+            "type": "string"
+          },
+          "spaceId": {
+            "description": "The Space id from the claim link (#s=); the first Space key is sealed to it and a different Space is refused",
+            "examples": [
+              "spc_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "username": {
+            "examples": [
+              "olivia"
+            ],
+            "pattern": "^[a-z0-9_.-]{2,32}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "spaceId",
+          "username",
+          "password",
+          "deviceName",
+          "deviceClass",
+          "keys"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "identity",
+      "name": "identity.claim_owner",
+      "offline": "online",
+      "output": {
+        "$ref": "#/$defs/s_68ea0f6cb3"
+      },
+      "permission": null,
+      "rate": {
+        "n": 5,
+        "perSeconds": 300,
+        "scope": "principal"
+      },
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Claim a fresh Space as its owner with the one-time link: pick a username and password, store the wrapped keys, and sign in",
       "surfaces": {
         "http": "auto"
       },
@@ -89848,7 +90259,8 @@
       "audit": "sensitive",
       "effects": "write",
       "emits": [
-        "factor.removed"
+        "factor.removed",
+        "signin.failed"
       ],
       "errors": [
         "auth.bad_credentials",
@@ -90105,6 +90517,9 @@
           "input": {},
           "name": "example",
           "output": {
+            "deferred": [
+              "example"
+            ],
             "deviceId": "dev_a1b2c3",
             "epoch": 1,
             "groups": [
@@ -90132,6 +90547,12 @@
       "name": "identity.whoami",
       "output": {
         "properties": {
+          "deferred": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "deviceId": {
             "examples": [
               "dev_a1b2c3"
@@ -136110,6 +136531,7 @@
           "name": "example",
           "output": {
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -136125,6 +136547,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -136184,7 +136607,7 @@
       "module": "files",
       "name": "sheets.create",
       "output": {
-        "$ref": "#/$defs/s_f9e90fdca6"
+        "$ref": "#/$defs/s_b59a284a11"
       },
       "permission": "files.write",
       "resource": {
@@ -140175,7 +140598,11 @@
       "effects": "write",
       "emits": [
         "source.received",
-        "source.mapping_failed"
+        "source.mapping_failed",
+        "source.rejected",
+        "source.deduped",
+        "source.link_pending",
+        "source.linked"
       ],
       "errors": [
         "internal.unexpected",
@@ -145494,7 +145921,9 @@
     },
     {
       "effects": "read",
-      "emits": [],
+      "emits": [
+        "connection.needs_reconnect"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -161839,6 +162268,134 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "itemId": "vit_a1b2c3",
+            "since": 1760000000000
+          },
+          "name": "example",
+          "output": {
+            "actors": [
+              {
+                "actor": {
+                  "id": "usr_a1b2c3",
+                  "kind": "person"
+                },
+                "tokens": 1,
+                "turns": 1
+              }
+            ],
+            "total": {
+              "tokens": 1,
+              "turns": 1
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
+          },
+          "since": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "vault",
+      "name": "vault.item.usage",
+      "output": {
+        "properties": {
+          "actors": {
+            "items": {
+              "properties": {
+                "actor": {
+                  "$ref": "#/$defs/s_6c1eb10d98"
+                },
+                "tokens": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "turns": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "actor",
+                "turns",
+                "tokens"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "total": {
+            "properties": {
+              "tokens": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "turns": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "turns",
+              "tokens"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "actors",
+          "total"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/itemId",
+        "type": "vault_item"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Who used a key or sign-in and how much: turns and tokens per agent and per person, and the total, from the turns the engine metered on the item; a person sees their own turns, a manager of AI spend all of them",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "vault"
+        }
+      },
+      "v": 1
+    },
+    {
       "audit": "always",
       "effects": "outward",
       "emits": [],
@@ -176023,6 +176580,41 @@
       "summary": "A link outside the Space was made for a file",
       "sv": 1,
       "vis": "space"
+    },
+    {
+      "module": "files",
+      "name": "file.starred",
+      "payload": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "starred": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fileId",
+          "by",
+          "starred"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/fileId",
+        "type": "file"
+      },
+      "summary": "A person starred a file or took the star off",
+      "sv": 1,
+      "vis": "owner"
     },
     {
       "label": "subject",

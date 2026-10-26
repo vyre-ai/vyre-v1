@@ -55,6 +55,7 @@ Requires: mounts.
 - [files.share](../capabilities/files.share.md): Share a file with a person, group, role or agent at View, Use, Edit or Manage (folders use access.share)
 - [files.share_external](../capabilities/files.share_external.md): Make a view-only link to a file for someone outside the Space, with an expiry
 - [files.shared_with_me](../capabilities/files.shared_with_me.md): Files and folders other people shared with the caller, newest share first (the Shared with me section of the tree)
+- [files.star](../capabilities/files.star.md): Star a file or take the star off; a star is mine alone
 - [files.trash.empty](../capabilities/files.trash.empty.md): Delete everything in Trash that the caller may delete
 - [files.trash.list](../capabilities/files.trash.list.md): Files and folders in Trash (30 days)
 - [files.tree](../capabilities/files.tree.md): The roots of the file tree: Agents, Projects, People, Channels, shared knowledge, Agent template, Deployments, GitHub, plus Recent, Shared with me, Trash and Knowledge
@@ -93,6 +94,7 @@ Requires: mounts.
 - [file.renamed](../events/file.renamed.md): A file was renamed
 - [file.restored](../events/file.restored.md): A file came back from Trash
 - [file.shared_external](../events/file.shared_external.md): A link outside the Space was made for a file
+- [file.starred](../events/file.starred.md): A person starred a file or took the star off
 - [file.version_added](../events/file.version_added.md): A file got a new version
 - [file_versions.purged](../events/file_versions.purged.md): Old file versions were removed by retention (a count)
 - [folder.created](../events/folder.created.md): A folder was created

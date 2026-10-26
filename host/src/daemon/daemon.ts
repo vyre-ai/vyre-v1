@@ -21,6 +21,7 @@ import { ScheduleQueue } from "../ctx/schedule.ts";
 import type { ScheduledCall } from "../ctx/schedule.ts";
 import { createBlobStore } from "../ctx/blobs.ts";
 import { createBlobRoute } from "../routes/blobs.ts";
+import { deferredCaps, deferredModules } from "../routes/deferred.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
 import { createGateway, indexRoutes } from "../gateway.ts";
 import { withEventIds } from "../ids.ts";
@@ -61,7 +62,8 @@ import { createPushPort, wireSeams } from "../seams/index.ts";
 import { createUpdatesHost } from "../seams/updates.ts";
 import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
 import { createLiveHub } from "../ws.ts";
-import type { LiveHub } from "../ws.ts";
+import type { LiveHub, SyncHubPort } from "../ws.ts";
+import { bootstrapSpace, mintOwner } from "./bootstrap.ts";
 import { createAccess, isAccessEvent, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
 import { createResourceRegistrar } from "../gateway/resources.ts";
@@ -99,6 +101,12 @@ const refusingVault: VaultPort = {
 };
 
 /** The seal key lives beside the event log, readable by this user only; it is created at the first start and never printed or logged. */
+/** identity.whoami also lists the capabilities this server defers (ruling 60): the one bootstrap a signed-in client already makes, so the app can hide a deferred place. */
+function whoamiWithDeferred(cap: string, h: Handler | undefined): Handler | undefined {
+  if (!h || cap !== "identity.whoami") return h;
+  return (async (ctx, input) => ({ ...((await h(ctx, input)) as object), deferred: deferredCaps(), deferredModules: deferredModules(registry.capabilities) })) as Handler;
+}
+
 function sealKeyFile(file: string): string {
   try {
     const t = fs.readFileSync(file, "utf8").trim();
@@ -154,6 +162,8 @@ export interface DaemonOptions {
   sealKey?: { key: Uint8Array | string; keyId: string };
   /** replace the default session (the local admin token) */
   session?: GatewayDeps["session"];
+  /** Sync's live hub (createSyncLiveHub) for the live socket: sockets then speak the sync protocol (full hello_ok, filtered ev batches). `onHub` receives the host hub, which is the port for sync's setLiveHub (purge, purgeDevice). */
+  liveSync?: { hub: SyncHubPort; onHub?(hub: LiveHub): void };
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   /** intervals in ms; tests shorten them */
@@ -162,6 +172,8 @@ export interface DaemonOptions {
 
 export interface Daemon {
   url: string;
+  /** the one-time link the owner of a fresh Space opens to claim it (ruling 71); null once claimed or when this host did not make the Space */
+  claim: { url: string; expiresAt: number } | null;
   port: number;
   token: string;
   roles: Role[];
@@ -239,6 +251,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let routeIndex: ((method: string, path: string) => RouteRec | undefined) | null = null;
   let capIndex: ReturnType<typeof indexCapabilities> | null = null;
   let boundPort = cfg.port;
+  let claim: { url: string; expiresAt: number } | null = null;
   let gateway: ReturnType<typeof createGateway> | null = null;
   let blobRoute: ReturnType<typeof createBlobRoute> | null = null;
   // GET /exports/<id>?token= (P-L7_16): the vault module checks the token; until it is configured every pull is refused
@@ -254,6 +267,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const fillRoute = createFillRoute();
   const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: ownNode });
   let headSeq = 0;
+  let sawSpace = false, hostMadeSpace = false;
+  let claimIssue: () => Promise<{ code: string; expiresAt: number } | null> = async () => null;
   const access = createAccess();
   // Ruling 70: authorize answers from the access module's snapshot. The log's access events wait here until the module has folded them; `syncAccess` (set once the hooks run)
   // hands them over, adopts the snapshot it answers and runs after every commit that may have changed access, so the next call already sees a join, a role change, a share or a removal.
@@ -306,9 +321,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       sink.log({ space, level: first.ok ? 20 : 40, msg: "events.verified", place: "boot", result: first.ok ? "ok" : "broken", attrs: first.ok ? { seq: first.seq } : { at: first.at, why: first.why } });
       for (let after = 0; ;) {
         const page = await log.read({ after, limit: 5000 });
-        for (const e of page) { access.fold(e); if (isAccessEvent(e.type)) accessPending.push(toAccessEvent(e)); }
+        for (const e of page) {
+          access.fold(e);
+          if (isAccessEvent(e.type)) accessPending.push(toAccessEvent(e));
+          if (e.type === "space.created") { sawSpace = true; if (e.id.startsWith("evt_boot_")) hostMadeSpace = true; }
+        }
         if (page.length < 5000) break;
         after = page[page.length - 1]!.seq;
+      }
+      // Ruling 71: an empty log is a fresh install. The host makes the Space once, with an owner who claims it through a one-time link.
+      if (!sawSpace) {
+        const made = await bootstrapSpace(log, { space, name: cfg.spaceName ?? space, owner: mintOwner(cfg.owner) });
+        if (made) { hostMadeSpace = true; for (const e of made.events) { access.fold(e); accessPending.push(toAccessEvent(e)); } }
       }
       headSeq = (await log.currentHead()).seq;
 
@@ -381,8 +405,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // The Gate hook, only once the Gate module is live (a stub answers with examples, which must never decide a send). Its questions and parked calls run as the Space itself.
       const gate = loaded.serving.get("gate") === "live"
         ? withGateNesting(createGateHook({
-          call: async (cap, input) => {
-            const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: owner() }, origin: "gate" });
+          call: async (cap, input, trace) => {
+            const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: owner() }, origin: "gate", ...(trace ? { trace } : {}) });
             if (r.status === "held") throw fail("internal.unavailable", r.traceId, { message: "Approvals are not available right now." });
             return r.output;
           },
@@ -408,7 +432,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         membership: (principal, actingFor) => isMemberOrGuest(access.snap, principal) && (actingFor === undefined || isMemberOrGuest(access.snap, actingFor)),
         resolveItem: (type, kind, value) => resolveVaultItem(db!, type, kind, value),
-        handler: (cap, v) => {
+        handler: (cap, v) => whoamiWithDeferred(cap, (() => {
           const h = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
           // The one internal call a module may make with the host's own authority: devices -> sync.epoch.bump (a device was revoked, its replica must purge). The person revoking their own
           // device holds no sync grant, and a revoke that cannot purge would leave the copy on the device. Nothing else is widened: every other ctx.call keeps the caller's authority.
@@ -421,7 +445,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           if (!h || !cap.startsWith("devices.")) return h;
           const wrapped: Handler = (ctx, input) => h({ ...ctx, call: (name, callInput, opts) => (name === "sync.epoch.bump" ? system(name, callInput, ctx.trace) : ctx.call(name, callInput, opts)) } as typeof ctx, input);
           return wrapped;
-        },
+        })()),
         services: hostServices({ base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs, vault: (seed) => createVaultService((c, i, sd) => invokeRef(c, i, sd), spaceId, seed) }),
         idem, rate: createRateLimiter(), now, log: sinkLog,
         ...(gate ? { gate } : {}),
@@ -441,6 +465,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }),
         audit: (r) => recordAudit(r),
         publish: (events) => {
+          // the owner claimed the Space (their keys were stored): the link is spent, so the file that held it goes too
+          if (claim && events.some((e) => e.type === "keys.stored" && (e.payload as { personId?: string } | undefined)?.personId === access.owner())) {
+            claim = null;
+            try { fs.rmSync(path.join(paths.logDir, "claim-link.txt"), { force: true }); } catch { /* already gone */ }
+          }
           recent.push(...events);
           if (recent.length > RING) recent.splice(0, recent.length - RING);
           hub?.publish(spaceId, events);
@@ -481,9 +510,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         accessStale = false;
       };
       await syncAccess();
+      // the owner of a Space this host made has not claimed it until identity holds an account for them: a fresh one-time link at every start until they do
+      claimIssue = async () => {
+        const owner = access.owner();
+        if (!hostMadeSpace || !owner || loaded.serving.get("identity") !== "live") return null;
+        return (await hookRunner.call("identity.claim_issue", { personId: owner })) as { code: string; expiresAt: number } | null;
+      };
       // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
       const spaceLog = log;
-      peopleExtras = createPeopleExtras({ access: () => access.snap, db: db!, call: (n, i, as) => hookRunner.call(n, i, as), keyring, github: o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env) });
+      peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, call: (n, i, as) => hookRunner.call(n, i, as), keyring, github: o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env) });
       // `trace`: a call the host makes on behalf of a caller keeps that caller's trace (only the principal changes), so the events it writes stay in the caller's trace
       const system = (cap: string, input: unknown, trace?: { traceId: string; spanId: string }): Promise<unknown> =>
         invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...(trace ? { trace } : {}) }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
@@ -638,7 +673,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if (!t) return null;
         if (sameToken(t, token)) return { space: spaceId, principal: { kind: "person", id: owner() }, device: ADMIN_DEVICE };
         const s = sessions.resolve(t);
-        return s ? { space: s.space, principal: { kind: "person", id: s.person }, device: s.device } : null;
+        // a session is only as good as the membership behind it: a suspended, removed or unknown person's live token stops working at once, and a fresh sign-in is needed after reactivation (suspend ends the person's devices)
+        if (!s || access.snap.principal(s.person)?.status !== "active") return null;
+        return { space: s.space, principal: { kind: "person", id: s.person }, device: s.device };
       };
       const session: GatewayDeps["session"] = o.session ?? ((headers) => identify(bearer(headers["authorization"])));
       ownerOfSpace = () => cfg.owner ?? access.owner() ?? null;
@@ -668,6 +705,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         invoke, sink,
         eventsSince: (_s, cursor) => (recent.length && recent[0]!.seq <= cursor + 1 ? recent.filter((e) => e.seq > cursor) : []),
         head: () => headSeq,
+        ...(o.liveSync ? { sync: o.liveSync.hub } : {}),
       });
       hubFactory = mkHub;
     } else {
@@ -768,6 +806,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const gatewayUnit = async (): Promise<RunningUnit> => {
     const h = hubFactory ? hubFactory() : createLiveHub({ session: () => null });
     hub = h;
+    o.liveSync?.onHub?.(h);
     const server = h.server;
     server.removeAllListeners("request");
     const listener = requestListener({
@@ -822,6 +861,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       });
       closers.push(() => box.stop());
     }
+    if (hasSpace) {
+      const issued = await claimIssue();
+      if (issued) {
+        const base = cfg.address ? (/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`) : `http://${cfg.host}:${boundPort}`;
+        const fp = String((db?.all("SELECT fingerprint FROM identity_space WHERE id = ?", space)[0] as { fingerprint?: string } | undefined)?.fingerprint ?? "").replace(/\s/g, "");
+        claim = { url: `${base.replace(/\/$/, "")}/claim/${issued.code}#${fp ? `fp=${fp}&` : ""}s=${encodeURIComponent(space ?? "")}`, expiresAt: issued.expiresAt };
+        fs.writeFileSync(path.join(paths.logDir, "claim-link.txt"), `${claim.url}\n`, { mode: 0o600 });
+        // the link is a credential: it goes to the console and the 0600 file only, never to the shared log stream, the log export or the support bundle
+        sink.log({ space: space ?? "-", level: 20, msg: "claim link issued, see logs/claim-link.txt", place: "boot", attrs: { expiresAt: issued.expiresAt } });
+      }
+    }
     writeInfo(paths, { pid: process.pid, url: `http://${cfg.host}:${boundPort}`, port: boundPort, roles: cfg.roles, space, version: cfg.version, startedAt });
     sink.log({ space: space ?? "-", level: 20, msg: "daemon.started", place: "boot", attrs: { roles: cfg.roles, port: boundPort, version: cfg.version } });
   } catch (e) {
@@ -832,7 +882,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
   let stopped = false;
   return {
-    url: `http://${cfg.host}:${boundPort}`, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge,
+    url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge,
     runProbes, pollCommands: runCommands,
     async stop() {
       if (stopped) return;

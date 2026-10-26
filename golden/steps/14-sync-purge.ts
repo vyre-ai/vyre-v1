@@ -8,7 +8,7 @@ import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_PURGE = ["sync", "access", "search", "records", "schema", "devices", "spaces"];
 export const GAPS: Gap[] = [
-  { packet: "PR 607 (P-GF_03)", lane: "L1", what: "folders.place answers 404 'no such folder' for the seed's fld_clients: the access module's folders table does not hold the seeded folders; vaultB's booted test sets this up in #607" },
+  { packet: "P-GF_09", lane: "L7", what: "access.unshare appends no sync.row_rescan, so the guest's next pull returns hide: [] (cursor 501, no changes); sync/src/purge/server.ts reindexScope exists but nothing calls it on a revoke (ARCH 5.7)" },
 ];
 
 export async function runPurge(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
@@ -30,10 +30,12 @@ export async function runPurge(live: readonly string[]): Promise<{ events: Obser
       const held = new Set((await pull(tess)).changes.map(keyOf));
       assert.ok(!held.has(keyOf(rows!.inside)) && !held.has(keyOf(rows!.outside)), "Tess holds neither row");
     }, ["the owner pulls rows, two of which are the ones the flow uses"]);
-    const grant = await trail.step("one row is placed in the Clients folder and the folder is shared with Tess", async () => {
+    const grant = await trail.step("the row is placed in a folder made for it and the folder is shared with Tess", async () => {
       const catalog = loadCatalog();
-      expectStatus(await s.call("folders.place", admin, { resource: { type: catalog.get(rows!.inside.entity).resource, id: rows!.inside.id }, folderId: "fld_clients" }), 200, "folders.place");
-      return expectStatus(await s.call("access.share", admin, { idempotencyKey: "golden-14-share", resource: { type: "folder", id: "fld_clients" }, subject: { kind: "person", id: "usr_tess" }, level: "view" }), 200, "access.share").grant.id as string;
+      const rt = catalog.get(rows!.inside.entity).resource;
+      const folder = expectStatus(await s.call("folders.create", admin, { idempotencyKey: "golden-14-folder", type: rt, name: "Guest folder", scope: "space" }), 200, "folders.create").folder.id as string;
+      expectStatus(await s.call("folders.place", admin, { resource: { type: rt, id: rows!.inside.id }, folderId: folder }), 200, "folders.place");
+      return expectStatus(await s.call("access.share", admin, { idempotencyKey: "golden-14-share", resource: { type: "folder", id: folder }, subject: { kind: "person", id: "usr_tess" }, level: "view" }), 200, "access.share").grant.id as string;
     }, ["Tess holds neither row before any grant"]);
     const before = await trail.step("her device pulls exactly the row in the granted folder", async () => {
       const out = await pull(tess);
@@ -42,7 +44,7 @@ export async function runPurge(live: readonly string[]): Promise<{ events: Obser
       assert.ok(!keys.includes(keyOf(rows!.outside)), "and not a row outside it");
       assert.ok(keys.length < rows!.total, `the guest pulls ${keys.length} of ${rows!.total}`);
       return out.next;
-    }, ["one row is placed in the Clients folder and the folder is shared with Tess"]);
+    }, ["the row is placed in a folder made for it and the folder is shared with Tess"]);
     await trail.step("the grant is revoked and her next pull hides the row", async () => {
       expectStatus(await s.call("access.unshare", admin, { grantId: grant! }), 200, "access.unshare");
       const out = await pull(tess, before!);

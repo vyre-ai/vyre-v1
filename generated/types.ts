@@ -7645,6 +7645,7 @@ export type EngineAccountResolveOut = {
   payer: string | null;
   reason: "starter" | "steerer" | "step_key" | "backup_key" | "none";
   allowed: boolean;
+  itemId?: string;
 };
 export type EngineAccountsListIn = Record<string, unknown>;
 export type EngineAccountsListOut = {
@@ -8249,6 +8250,7 @@ export type EngineTurnRecordUsageIn = {
   tokensIn: number;
   tokensOut: number;
   costMicros: number;
+  itemId?: string;
 };
 export type EngineTurnRecordUsageOut = {
   overLimit?: "run" | "day" | "month" | "turns" | "time";
@@ -8376,6 +8378,7 @@ export type EngineUsageQueryIn = {
   to?: number;
   personId?: string;
   agentId?: string;
+  itemId?: string;
 };
 export type EngineUsageQueryOut = {
   rows: Array<{
@@ -8747,6 +8750,8 @@ export type FilesCopyOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
 };
 export type FilesCreateIn = {
@@ -8782,6 +8787,8 @@ export type FilesCreateOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
   changesetId?: string;
 };
@@ -8839,6 +8846,10 @@ export type FilesFolderCreateIn = {
   parentId: string;
   name: string;
   reviewChanges?: boolean;
+  subject?: {
+    kind: "agent" | "project";
+    id: string;
+  };
   idempotencyKey: string;
 };
 export type FilesFolderCreateOut = {
@@ -8857,6 +8868,10 @@ export type FilesFolderCreateOut = {
     };
     git: boolean;
     reviewChanges: boolean;
+    subject?: {
+      kind: "agent" | "project" | "space";
+      id?: string;
+    };
   };
 };
 export type FilesFolderDeleteIn = {
@@ -8884,6 +8899,10 @@ export type FilesFolderGetOut = {
     };
     git: boolean;
     reviewChanges: boolean;
+    subject?: {
+      kind: "agent" | "project" | "space";
+      id?: string;
+    };
   };
 };
 export type FilesFolderMoveIn = {
@@ -8906,6 +8925,10 @@ export type FilesFolderMoveOut = {
     };
     git: boolean;
     reviewChanges: boolean;
+    subject?: {
+      kind: "agent" | "project" | "space";
+      id?: string;
+    };
   };
 };
 export type FilesFolderRenameIn = {
@@ -8928,6 +8951,10 @@ export type FilesFolderRenameOut = {
     };
     git: boolean;
     reviewChanges: boolean;
+    subject?: {
+      kind: "agent" | "project" | "space";
+      id?: string;
+    };
   };
 };
 export type FilesFolderRestoreIn = {
@@ -8949,6 +8976,10 @@ export type FilesFolderRestoreOut = {
     };
     git: boolean;
     reviewChanges: boolean;
+    subject?: {
+      kind: "agent" | "project" | "space";
+      id?: string;
+    };
   };
 };
 export type FilesFolderSearchIn = {
@@ -8972,6 +9003,10 @@ export type FilesFolderSearchOut = {
       };
       git: boolean;
       reviewChanges: boolean;
+      subject?: {
+        kind: "agent" | "project" | "space";
+        id?: string;
+      };
     }>;
 };
 export type FilesFolderSettingsIn = {
@@ -8995,6 +9030,10 @@ export type FilesFolderSettingsOut = {
     };
     git: boolean;
     reviewChanges: boolean;
+    subject?: {
+      kind: "agent" | "project" | "space";
+      id?: string;
+    };
   };
 };
 export type FilesGetIn = {
@@ -9021,6 +9060,8 @@ export type FilesGetOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
 };
 export type FilesHealthIn = Record<string, unknown>;
@@ -9054,6 +9095,8 @@ export type FilesKnowledgeOut = {
       deletedAt?: number;
       thumb: boolean;
       holds: number;
+      starred?: boolean;
+      conflict?: boolean;
     }>;
   folders: Array<{
       folderId: string;
@@ -9070,6 +9113,10 @@ export type FilesKnowledgeOut = {
       };
       git: boolean;
       reviewChanges: boolean;
+      subject?: {
+        kind: "agent" | "project" | "space";
+        id?: string;
+      };
     }>;
   views: Array<{
       key: "memory" | "graph";
@@ -9133,6 +9180,8 @@ export type FilesListOut = {
       deletedAt?: number;
       thumb: boolean;
       holds: number;
+      starred?: boolean;
+      conflict?: boolean;
     }>;
   folders: Array<{
       folderId: string;
@@ -9149,6 +9198,10 @@ export type FilesListOut = {
       };
       git: boolean;
       reviewChanges: boolean;
+      subject?: {
+        kind: "agent" | "project" | "space";
+        id?: string;
+      };
     }>;
   next?: string;
   total?: number;
@@ -9203,6 +9256,8 @@ export type FilesMoveOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
   changesetId?: string;
 };
@@ -9261,6 +9316,8 @@ export type FilesRecentOut = {
       deletedAt?: number;
       thumb: boolean;
       holds: number;
+      starred?: boolean;
+      conflict?: boolean;
     }>;
 };
 export type FilesRenameIn = {
@@ -9288,6 +9345,8 @@ export type FilesRenameOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
   changesetId?: string;
 };
@@ -9324,6 +9383,8 @@ export type FilesRestoreOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
 };
 export type FilesRestoreVersionIn = {
@@ -9351,6 +9412,8 @@ export type FilesRestoreVersionOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
   versionId: string;
 };
@@ -9442,6 +9505,8 @@ export type FilesSharedWithMeOut = {
       deletedAt?: number;
       thumb: boolean;
       holds: number;
+      starred?: boolean;
+      conflict?: boolean;
     }>;
   folders: Array<{
       folderId: string;
@@ -9458,9 +9523,42 @@ export type FilesSharedWithMeOut = {
       };
       git: boolean;
       reviewChanges: boolean;
+      subject?: {
+        kind: "agent" | "project" | "space";
+        id?: string;
+      };
     }>;
   next?: string;
   total?: number;
+};
+export type FilesStarIn = {
+  fileId: string;
+  starred: boolean;
+};
+export type FilesStarOut = {
+  file: {
+    fileId: string;
+    folderId: string;
+    name: string;
+    kind: "text" | "markdown" | "document" | "spreadsheet" | "presentation" | "pdf" | "image" | "video" | "audio" | "code" | "archive" | "google_native" | "other";
+    mime: string;
+    size: number;
+    version: number;
+    label: number;
+    ownerId: string;
+    createdAt: number;
+    updatedAt: number;
+    updatedBy: string;
+    source?: {
+      mountId: string;
+      provider: string;
+    };
+    deletedAt?: number;
+    thumb: boolean;
+    holds: number;
+    starred?: boolean;
+    conflict?: boolean;
+  };
 };
 export type FilesTrashEmptyIn = {
   olderThanDays?: number;
@@ -9493,6 +9591,8 @@ export type FilesTrashListOut = {
       deletedAt?: number;
       thumb: boolean;
       holds: number;
+      starred?: boolean;
+      conflict?: boolean;
     }>;
   folders: Array<{
       folderId: string;
@@ -9509,6 +9609,10 @@ export type FilesTrashListOut = {
       };
       git: boolean;
       reviewChanges: boolean;
+      subject?: {
+        kind: "agent" | "project" | "space";
+        id?: string;
+      };
     }>;
   next?: string;
   total?: number;
@@ -9521,6 +9625,10 @@ export type FilesTreeOut = {
       kind: "folder" | "virtual";
       folderId?: string;
       count: number;
+      subject?: {
+        kind: "agent" | "project" | "space";
+        id?: string;
+      };
     }>;
 };
 export type FilesUploadUrlIn = {
@@ -9581,6 +9689,8 @@ export type FilesViewerDataOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
   text?: string;
   pages?: number;
@@ -9631,6 +9741,8 @@ export type FilesWriteOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
   versionId?: string;
   changesetId?: string;
@@ -12052,6 +12164,46 @@ export type IdentityChangePasswordIn = {
 export type IdentityChangePasswordOut = {
   ok: boolean;
 };
+export type IdentityClaimOwnerIn = {
+  code: string;
+  spaceId: string;
+  username: string;
+  displayName?: string;
+  password: string;
+  deviceName: string;
+  deviceClass: "desktop" | "phone" | "web" | "extension" | "daemon";
+  keys: {
+    personKeyByPassword: string;
+    personKeyByRecovery?: string;
+    publicKey: string;
+    privateKeyWrapped: string;
+    spaceKeys: Array<{
+        epoch: number;
+        wrapped: string;
+      }>;
+  };
+};
+export type IdentityClaimOwnerOut = {
+  status: "ok" | "second_factor_required";
+  challengeId?: string;
+  session?: {
+    sessionId: string;
+    deviceId: string;
+    token: string;
+    expiresAt: number;
+    epoch: number;
+  };
+  keys?: {
+    personKeyByPassword: string;
+    personKeyByRecovery?: string;
+    publicKey: string;
+    privateKeyWrapped: string;
+    spaceKeys: Array<{
+        epoch: number;
+        wrapped: string;
+      }>;
+  };
+};
 export type IdentityGithubLinkIn = {
   code: string;
 };
@@ -12401,6 +12553,7 @@ export type IdentityWhoamiOut = {
   deviceId?: string;
   epoch: number;
   spaceId: string;
+  deferred?: Array<string>;
 };
 export type ImportCommitIn = {
   importId: string;
@@ -20255,6 +20408,8 @@ export type SheetsCreateOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
 };
 export type SheetsDeleteRowIn = {
@@ -25582,6 +25737,24 @@ export type VaultItemUpdateOut = {
     updatedAt: number;
   };
 };
+export type VaultItemUsageIn = {
+  itemId: string;
+  since?: number;
+};
+export type VaultItemUsageOut = {
+  actors: Array<{
+      actor: {
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      };
+      turns: number;
+      tokens: number;
+    }>;
+  total: {
+    turns: number;
+    tokens: number;
+  };
+};
 export type VaultItemsExportMineIn = {
   expiresIn: "1h" | "1d" | "7d";
   idempotencyKey: string;
@@ -26883,6 +27056,7 @@ export interface CapMap {
   "files.share": { in: FilesShareIn; out: FilesShareOut };
   "files.share_external": { in: FilesShareExternalIn; out: FilesShareExternalOut };
   "files.shared_with_me": { in: FilesSharedWithMeIn; out: FilesSharedWithMeOut };
+  "files.star": { in: FilesStarIn; out: FilesStarOut };
   "files.trash.empty": { in: FilesTrashEmptyIn; out: FilesTrashEmptyOut };
   "files.trash.list": { in: FilesTrashListIn; out: FilesTrashListOut };
   "files.tree": { in: FilesTreeIn; out: FilesTreeOut };
@@ -27074,6 +27248,7 @@ export interface CapMap {
   "hubspot.push_object": { in: HubspotPushObjectIn; out: HubspotPushObjectOut };
   "hubspot.test_connection": { in: HubspotTestConnectionIn; out: HubspotTestConnectionOut };
   "identity.change_password": { in: IdentityChangePasswordIn; out: IdentityChangePasswordOut };
+  "identity.claim_owner": { in: IdentityClaimOwnerIn; out: IdentityClaimOwnerOut };
   "identity.github_link": { in: IdentityGithubLinkIn; out: IdentityGithubLinkOut };
   "identity.github_sign_in": { in: IdentityGithubSignInIn; out: IdentityGithubSignInOut };
   "identity.github_unlink": { in: IdentityGithubUnlinkIn; out: IdentityGithubUnlinkOut };
@@ -27826,6 +28001,7 @@ export interface CapMap {
   "vault.item.restore": { in: VaultItemRestoreIn; out: VaultItemRestoreOut };
   "vault.item.reveal": { in: VaultItemRevealIn; out: VaultItemRevealOut };
   "vault.item.update": { in: VaultItemUpdateIn; out: VaultItemUpdateOut };
+  "vault.item.usage": { in: VaultItemUsageIn; out: VaultItemUsageOut };
   "vault.items.export_mine": { in: VaultItemsExportMineIn; out: VaultItemsExportMineOut };
   "vault.items.list": { in: VaultItemsListIn; out: VaultItemsListOut };
   "vault.items.match": { in: VaultItemsMatchIn; out: VaultItemsMatchOut };
@@ -28812,6 +28988,11 @@ export type FileSharedExternalPayload = {
   fileId: string;
   linkId: string;
   expiresAt?: number;
+};
+export type FileStarredPayload = {
+  fileId: string;
+  by: string;
+  starred: boolean;
 };
 export type FileVersionAddedPayload = {
   fileId: string;
@@ -31381,6 +31562,7 @@ export interface EventMap {
   "file.renamed": FileRenamedPayload;
   "file.restored": FileRestoredPayload;
   "file.shared_external": FileSharedExternalPayload;
+  "file.starred": FileStarredPayload;
   "file.version_added": FileVersionAddedPayload;
   "file_versions.purged": FileVersionsPurgedPayload;
   "folder.created": FolderCreatedPayload;

@@ -19,7 +19,7 @@ Process a failed delivery again after fixing the mapping
 | HTTP | POST /v1/sources/replay |
 | MCP tool | sources_replay (records) |
 | CLI | none |
-| Emits | source.received, source.mapping_failed |
+| Emits | source.received, source.mapping_failed, source.rejected, source.deduped, source.link_pending, source.linked |
 
 ## Input
 

@@ -1,7 +1,7 @@
 {
   "module": "access",
   "capabilities": {
-    "access.actors.create@1": "f066fc86f2ea60caa9e075f531ec3f5fa48bce9e3ed4f9250f9e4cc0a2348e25",
+    "access.actors.create@1": "43e2b4aea54864f8e1d95f46d6f71822d4ca1b6a7241c49bab2b45cdca1c9817",
     "access.actors.list@1": "2b0f559247b1244bc45e562c9cc0635706b4dbd8060469d4c86075e187a38c65",
     "access.actors.redeem@1": "6d51c19d019d819d49617c17849d6915410a7a9df4c46fbc1a31320236d6d186",
     "access.actors.revoke@1": "3b9d8dc2453f92807c81927d81e2494d49427f4040a8717a2a2291ba8dd957f4",
@@ -52,13 +52,13 @@
     "access.shares_of@1": "4d2c703b76991b3b01ccd78480b26b34a5509aac73374840f3ef255ce79a6a87",
     "access.unshare@1": "55c4abf5b8b5ce6add9692a7ba3ca14a7476f80d5022b53fc23ef3aa1cc070e1",
     "access.view_as@1": "4e2665e47aff971fa514ec21ae8b198a4e2adcb9b68e4e5da17cf48c3d1239c2",
-    "folders.create@1": "11e7de1e1abe3355ed6afb80e32b66d9ed9d947651ecc46c88713d2c374a952a",
-    "folders.delete@1": "463160568061545468cd334da6eb4b8e8561651f67e9b8a4e163f915a7768385",
+    "folders.create@1": "4214deab9e67288abb38555d621af20d0229d7d4efcb2d579d0bfbb205791158",
+    "folders.delete@1": "ab5bc5d232b08f5ac863a2791a2fcedf93bca63e547cd71898e21b35f826bf24",
     "folders.list@1": "87249907a2a561397cf5510b41647f46513e1b881f372230492458d3b63eb2a8",
-    "folders.move@1": "4d9442fdd74227d28be20530b27be75c3bedeeb4ca6420d618236b5fca904f92",
-    "folders.place@1": "be832e9714ffc7e37c8cbb8b55f153157bbd4133667aa95ccc64dcb4ff735c9a",
+    "folders.move@1": "533fb1a031120d5b6c71c7d1a5820cf653c55f8af1f29f4d80be050b1125a765",
+    "folders.place@1": "40dd486f708b3a714196e09d7115ec6d446670bae083bc23223ef5458be73ff8",
     "folders.rename@1": "3d185b11a10e1d24bc12c734d10d34893f319e96abf8dda5c77fbe062fd534bc",
-    "folders.unplace@1": "071975c4a99bcfad521a6527efea2e115863f782eab0deabe66654e6e5f02798"
+    "folders.unplace@1": "8611247094556863a6406b97b0d40df79dc12dc20b3ca2a839574003dcdaef80"
   },
   "events": {
     "access.changed": "f075c0dfe9cd483f09b0eeb3a5f9e93409c01a5636e11350eec67a81cb4cd7fc",
