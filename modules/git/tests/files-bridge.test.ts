@@ -10,6 +10,7 @@ import { handlers } from "../impl.ts";
 import { world } from "../fixtures/world.ts";
 
 const F = "fld_alpha";
+const REMOTE = "https://example.test/acme/site.git";
 type Row = Record<string, unknown>;
 
 /** Files: folders and files by id, behind the capabilities the bridge calls. */
@@ -101,7 +102,8 @@ test("a file edited in Files goes into the next commit, and one deleted in Files
 
 test("a file git brings in is brought into Files, and is not deleted on the next copy out", async () => {
   await with_(async (ctx, w, fl) => {
-    const remote = await w.bare();
+    await w.bare();   // the bare repository the test seam maps REMOTE to (url.<dir>.insteadOf), so the module's https-only rule stays as it is
+    const remote = REMOTE;
     await op(ctx, "git.init", { folderId: F });
     await op(ctx, "git.remote_add", { folderId: F, name: "origin", url: remote });
     fl.add("a.txt", "a");
