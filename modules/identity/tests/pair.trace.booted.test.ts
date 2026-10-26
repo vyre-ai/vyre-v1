@@ -1,6 +1,7 @@
 // Ruling 76: identity.pair_redeem opens the device and its session through calls the host makes as the server (devices.register is host-only). Those calls keep the caller's trace, so
 // device.registered and session.started carry the traceId of the pair_redeem call and golden flow 15's single-trace chain holds.
 import test from "node:test";
+// @reads /modules/identity/projections.ts
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
