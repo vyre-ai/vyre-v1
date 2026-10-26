@@ -9,7 +9,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export const ALLOWED_LICENSES = ['MIT', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'BSD', 'ISC', 'MPL-2.0'] as const;
+export const ALLOWED_LICENSES = ['MIT', 'MIT-0', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'BSD', 'ISC', 'MPL-2.0', 'BlueOak-1.0.0', 'Unlicense', 'Zlib'] as const;
 
 export interface LicenseHit {
   name: string;
@@ -117,7 +117,8 @@ export function normalizeLicense(raw: string): string {
 
 function isAllowedId(id: string): boolean {
   if (/^(?:AGPL|GPL|SSPL|LGPL)(?:-|$)/.test(id)) return false;
-  if (id === 'MIT' || id === 'Apache-2.0' || id === 'ISC' || id === 'MPL-2.0' || id === 'BSD') return true;
+  if (id === 'MIT' || id === 'MIT-0' || id === 'Apache-2.0' || id === 'ISC' || id === 'MPL-2.0' || id === 'BSD') return true;
+  if (id === 'BlueOak-1.0.0' || id === 'Unlicense' || id === 'Zlib') return true;   // rulings 77 and 78: permissive, no copyleft
   if (id.startsWith('BSD-')) return true;
   return false;
 }
