@@ -23,8 +23,9 @@ Requires: nothing.
 - [email_builder.snippets.save](../capabilities/email_builder.snippets.save.md): Create or change a composer snippet
 - [email_builder.versions](../capabilities/email_builder.versions.md): List saved versions
 
-## Events (3)
+## Events (4)
 
+- [email.created](../events/email.created.md): An email design was created, in a folder or at the top of the Space
 - [email_block.saved](../events/email_block.saved.md): A block was saved for reuse in email designs
 - [email_template.saved](../events/email_template.saved.md): An email design was saved as a version
 - [email_template.test_sent](../events/email_template.test_sent.md): A test email was sent to the author

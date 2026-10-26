@@ -658,6 +658,7 @@ async function create(ctx: Ctx, input: unknown): Promise<{ email: EmailDoc }> {
     id, name, mode, ctx.principal.id, folderId, null, doc.blocks === undefined ? null : JSON.stringify(doc.blocks), doc.html ?? null, doc.plain ?? null, 1, now, now,
   );
   ctx.db.run("INSERT INTO email_builder_api_version (email_id, version, doc, at, author) VALUES (?, ?, ?, ?, ?)", id, 1, snapshot(doc), now, ctx.principal.id);
+  ctx.emit("email.created", `email/${id}`, folderId === null ? { emailId: id } : { emailId: id, folderId });
   return { email: doc };
 }
 
