@@ -47,30 +47,38 @@ jobs:
           case "$BRANCH" in build/P-*) T="${BRANCH#build/}" ;; esac
           # Self-hosted runners share load with the test shards; the 120 s export budget is measured on hosted runners (ruling 40: CI wall time is reported, not gating, while saturated).
           node scripts/shots/shots.mjs --target "$T" --out shots-out --max-export-s 600 --no-probes
+      - name: Export the production app (apps/app) for the real-app steps
+        # The sample-mount export above (scripts/shots/app) is not the product: it has no sign-in and no shell. The real-app steps need the app people run, exported the way startup.mjs does,
+        # with the registry hash baked in (scripts/lib/registry-hash.mjs).
+        run: |
+          if [ -f apps/app/tests/real-app.e2e.test.ts ] || [ -f scripts/shots/real-app.mjs ]; then
+            H="$(node -e 'import("./scripts/lib/registry-hash.mjs").then((m) => console.log(m.registryHash()))')"
+            (cd apps/app && rm -rf dist && CI=1 EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_VYRE_REGISTRY_HASH="$H" npx expo export --platform web --output-dir dist)
+          else echo "production export: no real-app test or script on this branch, skipped"; fi
       - name: Real app end to end against the production export (apps/app/tests/real-app.e2e.test.ts)
-        # Runs the built app in Chromium against a booted daemon. Needs the production web export from the step above; skipped until the test is on the branch.
+        # Runs the built app in Chromium against a booted daemon. Needs the production export of apps/app from the step above; skipped until the test is on the branch.
         run: |
           set -o pipefail
           T=apps/app/tests/real-app.e2e.test.ts
-          if [ ! -f "$T" ] || [ ! -d scripts/shots/app/dist ]; then echo "real-app e2e: test or export dir not present, skipped"; exit 0; fi
+          if [ ! -f "$T" ] || [ ! -d apps/app/dist ]; then echo "real-app e2e: test or export dir not present, skipped"; exit 0; fi
           npx playwright-core install chromium
           CHROME_BIN="$(node -e 'import("playwright-core").then((p) => console.log((p.chromium ?? p.default.chromium).executablePath()))')"
           test -x "$CHROME_BIN"
-          export CHROME_BIN VYRE_APP_DIST="$PWD/scripts/shots/app/dist" VYRE_REQUIRE_CHROME=1
+          export CHROME_BIN VYRE_APP_DIST="$PWD/apps/app/dist" VYRE_REQUIRE_CHROME=1
           node scripts/test-run.ts --slow --no-cache --files "$T" 2>&1 | tee real-app-e2e.out
           grep -q "^ok .*real-app.e2e.test.ts" real-app-e2e.out
       - name: Real app capture against the production export (scripts/shots/real-app.mjs, P-APP_03)
         run: |
-          if [ -f scripts/shots/real-app.mjs ] && [ -d scripts/shots/app/dist ]; then
-            node scripts/shots/real-app.mjs --dist scripts/shots/app/dist --out shots-out/real-app
+          if [ -f scripts/shots/real-app.mjs ] && [ -d apps/app/dist ]; then
+            node scripts/shots/real-app.mjs --dist apps/app/dist --out shots-out/real-app
           else echo "real-app capture: script or export dir not present, skipped"; fi
       - name: The export carries the daemon's registry hash (EXPO_PUBLIC_VYRE_REGISTRY_HASH)
         run: |
-          if [ -d scripts/shots/app/dist ]; then node scripts/shots/registry-hash-in-bundle.mjs scripts/shots/app/dist; else echo "registry hash check: no export dir, skipped"; fi
+          if [ -d apps/app/dist ]; then node scripts/shots/registry-hash-in-bundle.mjs apps/app/dist; else echo "registry hash check: no export dir, skipped"; fi
       - name: No prototype seed in the production web bundle (P-UI_06b)
         run: |
           # skipped until scripts/shots/no-seed-in-bundle.mjs is on the branch (it lands with P-UI_06b)
-          if [ -f scripts/shots/no-seed-in-bundle.mjs ] && [ -d scripts/shots/app/dist ]; then node scripts/shots/no-seed-in-bundle.mjs scripts/shots/app/dist; else echo "no-seed-in-bundle: script or export dir not present, skipped"; fi
+          if [ -f scripts/shots/no-seed-in-bundle.mjs ] && [ -d apps/app/dist ]; then node scripts/shots/no-seed-in-bundle.mjs apps/app/dist; else echo "no-seed-in-bundle: script or export dir not present, skipped"; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
