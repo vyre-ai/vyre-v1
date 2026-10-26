@@ -104,7 +104,8 @@ const nonceOf = (n: number): Uint8Array => {
 
 class CipherState {
   n = 0;
-  constructor(private k: CryptoKey | null = null) {}
+  private k: CryptoKey | null;
+  constructor(k: CryptoKey | null = null) { this.k = k; }
   static async of(raw: Uint8Array): Promise<CipherState> { return new CipherState(await subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"])); }
   async encrypt(ad: Uint8Array, pt: Uint8Array): Promise<Uint8Array> {
     if (this.k === null) return pt.slice();
@@ -152,7 +153,9 @@ export class Responder {
   recv: CipherState | null = null;
   /** the Noise handshake hash after the second message: both ends hold the same value (the channel binding) */
   hash: Uint8Array = EMPTY;
-  constructor(private s: { priv: string; pub: Uint8Array }, private prologue: Uint8Array) {}
+  private s: { priv: string; pub: Uint8Array };
+  private prologue: Uint8Array;
+  constructor(s: { priv: string; pub: Uint8Array }, prologue: Uint8Array) { this.s = s; this.prologue = prologue; }
   async readMessage(message: Uint8Array): Promise<Uint8Array> {
     if (message.length < DHLEN + DHLEN + TAGLEN + TAGLEN) throw new Error("handshake message too short");
     const ss = this.ss;
@@ -200,7 +203,13 @@ class Channel {
   readonly streams = new Map<number, Stream>();
   closed = false;
   private opened = Date.now();
-  constructor(private transport: { send(b: Uint8Array): void; close(code: number, reason: string): void }, private tx: CipherState, private rx: CipherState, private onstream: (s: Stream, ch: Channel) => void) {}
+  private transport: { send(b: Uint8Array): void; close(code: number, reason: string): void };
+  private tx: CipherState;
+  private rx: CipherState;
+  private onstream: (s: Stream, ch: Channel) => void;
+  constructor(transport: { send(b: Uint8Array): void; close(code: number, reason: string): void }, tx: CipherState, rx: CipherState, onstream: (s: Stream, ch: Channel) => void) {
+    this.transport = transport; this.tx = tx; this.rx = rx; this.onstream = onstream;
+  }
   frame(type: number, id: number, payload: Uint8Array = EMPTY): void {
     if (this.closed) return;
     if (Date.now() - this.opened > MAX_AGE) { this.close(1000, "session too old"); return; }
