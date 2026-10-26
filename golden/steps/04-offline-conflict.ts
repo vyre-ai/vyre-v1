@@ -45,12 +45,12 @@ export async function runConflict(live: readonly string[]): Promise<{ events: Ob
       assert.ok(out.conflicts.length >= 1, `B conflicts ${short(out)}`);
       return out.conflicts[0].id as string;
     }, ["device A pushes its offline edit"]);
-    const resolution = await trail.step("a person resolves it", async () =>
-      expectStatus(await s.call("conflicts.resolve", admin, { conflictId: conflict!, choice: "theirs", summary: "keep the first edit" }), 200, "conflicts.resolve").resolutionId as string,
+    const resolution = await trail.step("the person whose edit it was resolves it", async () =>
+      expectStatus(await s.call("conflicts.resolve", b, { conflictId: conflict!, choice: "theirs", summary: "keep the first edit" }), 200, "conflicts.resolve").resolutionId as string,
     ["device B pushes a competing edit from the same base and a conflict opens"]);
     await trail.step("the resolution is undone", async () => {
-      expectStatus(await s.call("conflicts.undo", admin, { resolutionId: resolution! }), 200, "conflicts.undo");
-    }, ["a person resolves it"]);
+      expectStatus(await s.call("conflicts.undo", b, { resolutionId: resolution! }), 200, "conflicts.undo");
+    }, ["the person whose edit it was resolves it"]);
     await trail.step("refusal: a device that is not B's cannot push B's ops", async () => {
       const r = await s.call("sync.push", a, { deviceId: "dev_noahb1", epoch: 0, ops: [] });
       assert.ok(r.status >= 400 && r.status < 500, `A pushing as B: ${r.status}`);
