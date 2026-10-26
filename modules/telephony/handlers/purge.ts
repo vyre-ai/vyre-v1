@@ -5,7 +5,7 @@ import { codeOf, ensure, first, str, strOrNull } from "../projections.ts";
 import type { TelCtx } from "../projections.ts";
 
 async function tolerant(run: () => Promise<unknown>): Promise<void> {
-  try { await run(); } catch (e) { if (codeOf(e) !== "validation.not_found") throw e; }
+  try { await run(); } catch (e) { if (codeOf(e) !== "validation.not_found" && codeOf(e) !== "permission.not_found") throw e; }
 }
 
 /** The conversation entry of this item, in the inbox module. */

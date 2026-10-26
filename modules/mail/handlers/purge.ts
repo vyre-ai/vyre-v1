@@ -15,13 +15,15 @@ export async function messageErase(ctx: MailCtx, input: { messageId: string; ide
   const id = str(row, "id");
   const blobs = (ctx as { blobs?: { delete(id: string): Promise<boolean> } }).blobs;
   for (const a of readAttachments(row["attachments"])) if (a.blobId && blobs) await blobs.delete(a.blobId);
-  try { await ctx.call("inbox.item.erase", { refId: id, idempotencyKey: `mail-erase:${id}` }); } catch (e) { if (codeOf(e) !== "validation.not_found") throw e; }
+  try { await ctx.call("inbox.item.erase", { refId: id, idempotencyKey: `mail-erase:${id}` }); } catch (e) { if (codeOf(e) !== "validation.not_found" && codeOf(e) !== "permission.not_found") throw e; }
   const rfc = str(row, "rfcMessageId");
   if (rfc) ctx.db.run(`DELETE FROM mail_rfc WHERE "rfcMessageId" = ?`, rfc);
   ctx.db.run(`DELETE FROM mail_body WHERE "messageId" = ?`, id);
   ctx.db.run(`DELETE FROM mail_link WHERE "messageId" = ?`, id);
-  ctx.db.run(`DELETE FROM mail_send_log WHERE "messageId" = ?`, id);
-  ctx.db.run(`DELETE FROM mail_idem WHERE "refId" = ?`, id);
+  for (const t of ["mail_send_log", "mail_idem"] as const) {
+    const col = t === "mail_idem" ? "refId" : "messageId";
+    try { ctx.db.run(`DELETE FROM ${t} WHERE "${col}" = ?`, id); } catch (e) { if (!/no (such )?table/i.test(e instanceof Error ? e.message : String(e))) throw e; }   // created by a later migration
+  }
   ctx.db.run(`DELETE FROM mail_message WHERE id = ?`, id);
   ctx.emit("mail.message_erased", `entity/${id}`, { messageId: id });
   return { erased: true };

@@ -41,6 +41,8 @@ function dropThread(ctx: ChatCtx, id: string): void {
 }
 
 const codeOf = (e: unknown): string => ((e as { error?: { code?: string } } | null)?.error?.code ?? "");
+/** Nothing left to remove: not found, or the pipeline hiding a resource that does not exist. */
+const goneCode = (e: unknown): boolean => codeOf(e) === "validation.not_found" || codeOf(e) === "permission.not_found";
 
 /**
  * The transcript of a chat is read as chats/<id>/transcript.md. Today that is a view of the transcript rows, but if a file stands at that path in Files (an export, a sync, a later packet that writes one) it is the
@@ -51,10 +53,10 @@ async function dropTranscriptFile(ctx: ChatCtx, threadId: string): Promise<void>
   try {
     const r = (await ctx.call("files.resolve", { path: `chats/${threadId}/transcript.md` })) as { kind?: string; fileId?: string };
     if (r.kind === "file" && r.fileId) fileId = r.fileId;
-  } catch (e) { if (codeOf(e) !== "validation.not_found") throw e; }
+  } catch (e) { if (!goneCode(e)) throw e; }
   if (!fileId) return;
-  try { await ctx.call("files.delete", { fileId }); } catch (e) { if (codeOf(e) !== "validation.not_found") throw e; }
-  try { await ctx.call("files.purge", { fileId }); } catch (e) { if (codeOf(e) !== "validation.not_found") throw e; }
+  try { await ctx.call("files.delete", { fileId }); } catch (e) { if (!goneCode(e)) throw e; }
+  try { await ctx.call("files.purge", { fileId }); } catch (e) { if (!goneCode(e)) throw e; }
 }
 
 export async function threadErase(ctx: ChatCtx, input: { threadId: string; idempotencyKey: string }) {

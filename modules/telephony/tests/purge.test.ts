@@ -49,7 +49,7 @@ test("call.erase removes the call, its meta, its recording from Twilio and Files
   seed(t);
   t.script("inbox.item.erase", () => ({ erased: true }));
   t.script("twilio.recording.delete", () => ({ deleted: true }));
-  t.script("files.delete", () => ({ ok: true }));
+  t.script("files.delete", () => ({ deleted: true }));
   t.script("files.purge", () => ({ purged: true }));
   const out = (await h.callErase(t.ctx, { callId: "cal_pat00001", idempotencyKey: "k1" })) as Json;
   assert.deepEqual(contractErrors("telephony.call.erase", "out", out), []);

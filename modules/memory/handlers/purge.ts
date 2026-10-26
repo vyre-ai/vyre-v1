@@ -7,7 +7,7 @@ import type { MemCtx } from "../projections.ts";
 const codeOf = (e: unknown): string => ((e as { error?: { code?: string } } | null)?.error?.code ?? "");
 
 async function tolerant(run: () => Promise<unknown>): Promise<void> {
-  try { await run(); } catch (e) { if (codeOf(e) !== "validation.not_found") throw e; }
+  try { await run(); } catch (e) { if (codeOf(e) !== "validation.not_found" && codeOf(e) !== "permission.not_found") throw e; }
 }
 
 export async function noteErase(ctx: MemCtx, input: { noteId: string; idempotencyKey: string }) {
