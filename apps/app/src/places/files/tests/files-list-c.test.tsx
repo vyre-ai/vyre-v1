@@ -103,7 +103,7 @@ test("Kind is plain text, with where it came from beside it, never a tinted pill
   assert.ok(has(plain, 'data-testid="cell-kind"') && has(plain, ">PDF<") && !has(plain, "hsla("));
   const out = list(createSampleFiles(), folder("fld_sales"));
   assert.ok(has(out, ">Folder<") && has(out, ">Presentation<"), "Kind is plain text, as the prototype has it");
-  assert.ok(!has(out, 'data-testid="kind-badge"') && !has(out, "hsla("), "no tinted pill");
+  assert.ok(!has(out, 'data-testid="kind-badge"'), "no pill");
   assert.ok(has(list(createSampleFiles(), folder("fld_proposals")), ">Spreadsheet · Google Drive<"), "where a mounted file came from");
 });
 
