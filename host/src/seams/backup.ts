@@ -22,7 +22,7 @@ export interface BackupSource {
   head(): Promise<{ seq: number; hash: string }>;
   snapshot(): Promise<SpaceSnapshot>;
   tombstones(): Promise<Tombstone[]>;
-  restore(snapshot: SpaceSnapshot, tombstones: Tombstone[], mode: "scratch" | "live"): Promise<ApplyResult>;
+  restore(snapshot: SpaceSnapshot, tombstones: Tombstone[], mode: "scratch" | "live", traceId?: string): Promise<ApplyResult>;
   exportEntries(): Promise<SnapshotEntry[]>;
   /** The person who owns the Space, from the access layer: only they may take a full export (P-SEC_07). */
   owner(): Promise<string>;
@@ -124,7 +124,7 @@ export function createBackupHost(deps: BackupHostDeps): BackupHostSeam {
         const r = (await deps.system("governance.tombstones.list", { limit: 500 })) as { tombstones?: { kind: string; id: string; at: number }[] };
         return (r.tombstones ?? []).map((t) => ({ kind: t.kind, subject: t.id, at: t.at }));
       },
-      async restore(snap, tombstones, mode) {
+      async restore(snap, tombstones, mode, traceId) {
         const chain = await verifyChain(snap.entries);
         if (mode === "live" && chain.ok) {
           const stage = path.join(deps.root, PENDING);
@@ -136,7 +136,7 @@ export function createBackupHost(deps: BackupHostDeps): BackupHostSeam {
             fs.writeFileSync(path.join(stage, rel), e.bytes);
           }
           // the full rows, read from the Space as it is now: the restored database predates the erasures made since the backup and does not have them (spec 2.26, ARCH 7.10)
-          fs.writeFileSync(path.join(stage, "tombstones.json"), JSON.stringify(currentTombstones(deps.root, tombstones)));
+          fs.writeFileSync(path.join(stage, "tombstones.json"), JSON.stringify({ ...(traceId ? { traceId } : {}), tombstones: currentTombstones(deps.root, tombstones) }));   // the trace of the restore call, so the replay at the next start is part of the same story
         }
         // governance.tombstones.reapply runs after the restored Space opens (it needs the restored tables), so nothing is replayed here
         return { checkedEvents: chain.events, chainOk: chain.ok, replayed: 0 };
@@ -192,11 +192,14 @@ function currentTombstones(root: string, _listed: unknown): TombstoneRow[] {
   } catch { return []; } finally { db.close(); }
 }
 
-/** The tombstones a restore kept for the first start after it, or none. */
-export function readRestoredTombstones(root: string): TombstoneRow[] | null {
+/** The tombstones a restore kept for the first start after it, with the trace of the restore call, or none. */
+export function readRestoredTombstones(root: string): { tombstones: TombstoneRow[]; traceId?: string } | null {
   const file = path.join(root, KEPT);
   if (!fs.existsSync(file)) return null;
-  try { const rows = JSON.parse(fs.readFileSync(file, "utf8")) as unknown; return Array.isArray(rows) ? (rows as TombstoneRow[]) : []; } catch { return []; }
+  try {
+    const j = JSON.parse(fs.readFileSync(file, "utf8")) as { tombstones?: unknown; traceId?: unknown };
+    return { tombstones: Array.isArray(j.tombstones) ? (j.tombstones as TombstoneRow[]) : [], ...(typeof j.traceId === "string" && /^[0-9a-f]{32}$/.test(j.traceId) ? { traceId: j.traceId } : {}) };
+  } catch { return { tombstones: [] }; }
 }
 /** Once they are replayed and recorded in the restored database, the file goes. */
 export function clearRestoredTombstones(root: string): void { fs.rmSync(path.join(root, KEPT), { force: true }); }
