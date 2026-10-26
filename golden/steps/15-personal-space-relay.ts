@@ -26,9 +26,9 @@ export async function runPersonal(live: readonly string[]): Promise<{ events: Ob
   const relay = createRelay();
   const base = await relay.listen();
   let s = undefined as FlowSpace | undefined;
-  await trail.step("a Personal node boots with sync live and a relay link", async () => { s = await bootFlowSpace([...live, "sync"], { spaceKind: "personal", relay: base }); });
+  await trail.step("a Personal node boots with sync live and a relay link", async () => { s = await bootFlowSpace([...live, "sync"], { spaceKind: "personal", relay: base, realClock: true }); });
   if (!s) {
-    await trail.step("the same node boots with sync as a stub, to check what else is wired", async () => { s = await bootFlowSpace(live, { spaceKind: "personal", relay: base }); });
+    await trail.step("the same node boots with sync as a stub, to check what else is wired", async () => { s = await bootFlowSpace(live, { spaceKind: "personal", relay: base, realClock: true }); });
     if (!s) { await relay.close(); return { events: [], trail }; }
   }
   const synced = trail.lines.some((l) => l.startsWith("ok    a Personal node boots with sync live"));

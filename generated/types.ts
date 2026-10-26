@@ -4110,6 +4110,7 @@ export type ChangesetsDiffIn = {
   changesetId: string;
   path: string;
   mode?: "unified" | "split" | "words" | "paragraph";
+  context?: "hunks" | "full";
 };
 export type ChangesetsDiffOut = {
   kind: "text" | "paragraph" | "image" | "binary";
@@ -4177,6 +4178,7 @@ export type ChangesetsGetOut = {
   };
   files: Array<{
       path: string;
+      fileId?: string;
       status: "added" | "modified" | "deleted" | "renamed";
       added: number;
       removed: number;
@@ -11846,7 +11848,17 @@ export type GovernanceTombstonesListOut = {
   next?: string;
   total?: number;
 };
-export type GovernanceTombstonesReapplyIn = Record<string, unknown>;
+export type GovernanceTombstonesReapplyIn = {
+  tombstones?: Array<{
+      id: string;
+      kind: string;
+      subjectType: string;
+      subjectId: string;
+      at: number;
+      by: string;
+      findingId?: string;
+    }>;
+};
 export type GovernanceTombstonesReapplyOut = {
   count: number;
 };

@@ -1,9 +1,11 @@
-// Records > sidebar (spec 3.4): record types in their groups with row counts (Records first, a Sites group for site tables), the saved views of the open type, and Manage
+// Records > sidebar (spec 3.4), drawn in the shell's shared place sidebar slot (P-L9d_22: the slot gives the title, the collapse button, the search field and the phone list): record types in their groups with row counts (Records first, a Sites group for site tables), the saved views of the open type, and Manage
 // (Record types, Schema map). Every row is a ui/Row with a leading glyph and a trailing count; click opens; folded sections stay folded.
 import { useMemo } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { SidebarContent, matchRows } from "../../../shell/sidebar/index.ts";
+import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { LiveQuery } from "../../../../../../client/src/index.ts";
 import { StarredGroup } from "../starred/index.ts";
@@ -45,34 +47,41 @@ export function SidebarLoading(): ReactElement {
 }
 
 /** The stars of the person, as the runtime answers them (a runtime without them leaves the group out). Only starred records belong in the Records place. */
-function StarredRecords(): ReactElement {
+function StarredRecords({ match, slot }: { match: (title: string) => boolean; slot: SidebarSlotApi | undefined }): ReactElement {
   const data = useRecordsData();
   const { state, dispatch } = useRecordsState();
   const query = useMemo(() => (data.live as unknown as (cap: string, input: Record<string, unknown>) => LiveQuery<StarsOut>)("stars.list", { type: "record" }), [data]);
-  return <StarredGroup query={query} typeOf={() => undefined} onOpen={(s) => data.nav.openRecord(s.resource.id)} closed={state.closed.includes("starred")} onToggle={() => dispatch({ type: "section", key: "starred" })} />;
+  return <StarredGroup query={query} typeOf={() => undefined} onOpen={(s) => { data.nav.openRecord(s.resource.id); slot?.openBody(); }} match={match} closed={state.closed.includes("starred")} onToggle={() => dispatch({ type: "section", key: "starred" })} />;
 }
 
-function Sidebar({ starred }: { starred: ReactNode | undefined }): ReactElement {
+function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; query: string; slot: SidebarSlotApi | undefined }): ReactElement {
   const data = useRecordsData();
   const { state, dispatch } = useRecordsState();
   const types = useScreenQuery<TypesOut>(SCREENS.types, "types");
   const groups = typeGroups(types.status === "ready" ? types.data.types : []);
   const open = effectiveType(state, groups);
   const views = useScreenQuery<ViewsOut>(SCREENS.views, "views", open ? { type: open } : {});
-  const saved = sortedViews(views.status === "ready" && open ? views.data.views : [], null);
-  const closed = (k: string): boolean => state.closed.includes(k);
+  const allSaved = sortedViews(views.status === "ready" && open ? views.data.views : [], null);
+  // The slot's search field: rows keep when every word of it is in their title, and a search opens every section it has a match in.
+  const q = query.trim();
+  const hit = (title: string): boolean => matchRows([{ title }], q).length > 0;
+  const closed = (k: string): boolean => q === "" && state.closed.includes(k);
   const fold = (k: string) => (): void => dispatch({ type: "section", key: k });
+  const choose = (): void => slot?.openBody();
+  const saved = allSaved.filter((v) => hit(v.title));
 
   const sections: ReactElement[] = [];
   for (const g of groups) {
+    const items = g.items.filter((t) => hit(t.label));
+    if (items.length === 0) continue;
     sections.push(<SectionHead key={`h-${g.key}`} id={g.key} label={g.label} closed={closed(g.key)} onToggle={fold(g.key)} />);
     if (closed(g.key)) continue;
-    for (const t of g.items) {
+    for (const t of items) {
       sections.push(
         <SideRow
           key={t.key} id={`type:${t.key}`} title={t.label} glyph={typeIcon(t.icon)} tile={<TypeTile icon={typeIcon(t.icon)} hue={typeHue(t.key)} syncedFrom={t.syncedFrom} />} selected={open === t.key && state.viewId === null}
           trailing={<>{t.synced ? <Glyph name="sync" size={12} /> : null}<Text style={styles.count} testID={`count-${t.key}`}>{compact(t.count)}</Text></>}
-          onPress={() => dispatch({ type: "open", key: t.key })}
+          onPress={() => { dispatch({ type: "open", key: t.key }); choose(); }}
         />,
       );
     }
@@ -83,36 +92,48 @@ function Sidebar({ starred }: { starred: ReactNode | undefined }): ReactElement 
     viewRows.push(
       <SideRow
         key={v.viewId} id={`view:${v.viewId}`} title={v.title} glyph={v.shared ? "users" : "filter"} selected={state.viewId === v.viewId}
-        onPress={() => dispatch({ type: "open", key: v.type, viewId: v.viewId })}
+        onPress={() => { dispatch({ type: "open", key: v.type, viewId: v.viewId }); choose(); }}
       />,
     );
   }
 
+  const manage: ReactElement[] = [];
+  if (hit("Record types")) manage.push(<SideRow key="types" id="manage:types" title="Record types" glyph="table" selected={false} onPress={() => { data.nav.openRecordTypes(); choose(); }} />);
+  if (hit("Schema map")) manage.push(<SideRow key="map" id="manage:map" title="Schema map" glyph="schema" selected={false} onPress={() => { data.nav.openSchemaMap(); choose(); }} />);
+
   return (
-    <View style={styles.side} testID="records-sidebar" accessibilityLabel="Records sidebar">
+    <View style={styles.content} testID="records-sidebar" accessibilityLabel="Records sidebar">
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollIn} testID="records-nav">
         {sections}
-        {starred === undefined ? <StarredRecords /> : starred}
+        {starred === undefined ? <StarredRecords match={hit} slot={slot} /> : starred}
         {saved.length > 0 ? <SectionHead id="views" label="Saved views" closed={closed("views")} onToggle={fold("views")} /> : null}
         {closed("views") ? null : viewRows}
-        <SectionHead id="manage" label="Manage" closed={closed("manage")} onToggle={fold("manage")} />
-        {closed("manage") ? null : [
-          <SideRow key="types" id="manage:types" title="Record types" glyph="table" selected={false} onPress={() => data.nav.openRecordTypes()} />,
-          <SideRow key="map" id="manage:map" title="Schema map" glyph="schema" selected={false} onPress={() => data.nav.openSchemaMap()} />,
-        ]}
+        {manage.length > 0 ? <SectionHead id="manage" label="Manage" closed={closed("manage")} onToggle={fold("manage")} /> : null}
+        {closed("manage") ? null : manage}
       </ScrollView>
     </View>
   );
 }
 
-/** `starred` replaces the Starred group (the shot mounts and tests pass their own); left out, the sidebar draws the person's starred records from the runtime. */
-export function RecordsSidebar({ starred }: { starred?: ReactNode } = {}): ReactElement {
+/** The Records sidebar's content. `starred` replaces the Starred group (the shot mounts and tests pass their own); left out, it draws the person's starred records from the runtime.
+ * `query` is the shared search field's text; `slot` lets the phone leave the list for the view when a row is chosen. */
+export function RecordsSidebar({ starred, query = "", slot }: { starred?: ReactNode; query?: string; slot?: SidebarSlotApi | undefined } = {}): ReactElement {
   const data = useOptionalRecordsData();
   if (!data) return <SidebarLoading />;
-  return <Sidebar starred={starred} />;
+  return <Sidebar starred={starred} query={query} slot={slot} />;
+}
+
+/** Put this inside the Records place: it registers the Records sidebar in the shell's shared slot, so it collapses, searches and lands on the phone like every place. */
+export function RecordsSidebarSlot({ starred }: { starred?: ReactNode } = {}): ReactElement {
+  return (
+    <SidebarContent title="Records" searchPlaceholder="Search records">
+      {(query, slot) => <RecordsSidebar query={query} slot={slot} {...(starred !== undefined ? { starred } : {})} />}
+    </SidebarContent>
+  );
 }
 
 const styles = StyleSheet.create({
+  content: { flex: 1, minHeight: 0 },
   side: { flex: 1, minWidth: 220, backgroundColor: "var(--side)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string, paddingTop: 8 },
   scroll: { flex: 1 },
   scrollIn: { paddingHorizontal: 6, paddingBottom: 12 },

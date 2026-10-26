@@ -82,6 +82,14 @@ export function matchesFilter(row: ChatRow, f: Filter): boolean {
   return f === "all" || (f === "unread" && row.unread > 0) || (f === "people" && row.kind === "person") || (f === "agents" && row.kind === "agent");
 }
 
+/** The shared search field: a row stays when every word of the query is in one of its texts (case-insensitive). An empty query keeps everything. */
+export function matchesQuery(query: string, ...texts: readonly string[]): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const hay = texts.join(" ").toLowerCase();
+  return words.every((w) => hay.includes(w));
+}
+
 /** Counts for the filter menu, from the unfiltered answer. */
 export function filterCounts(recent: RecentOut, local: readonly ChatRow[], agentName: (id: string) => string): Record<Filter, number> {
   const all = [...local, ...GROUPS.flatMap((g) => recent[g.key].filter((i) => i.kind === "chat").map((i) => rowOf(i, agentName)))];

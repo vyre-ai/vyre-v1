@@ -12793,7 +12793,7 @@ export const routes: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "delete"
   },
   {
     "method": "POST",
