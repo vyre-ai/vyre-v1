@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Secret scan over the tracked files (P-L11_23). Looks for credential shapes: private key blocks, cloud and provider tokens. It reads `git ls-files`, so a file that is not tracked is not scanned.
-// A hit is allowed only with a reason: a path prefix in scripts/security/secret-allow.json (a fixture that holds a fake key on purpose), or the marker `secret-scan:allow` on the line itself.
+// A hit is allowed only by the marker `secret-scan: fake` on its line or the line before, and only in a test, fixture or sample file (MARKER_PATHS): production code can never exempt itself, because a marker
+// there does not count. There is no path allowance: every fake value is marked where it is, so a real one added next to it is still found.
 // Exit 1 on any hit that is not allowed. Never prints the secret: the line shows the rule, the file, the line number and the first four characters.
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -9,7 +10,6 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export interface Rule { id: string; re: RegExp }
 export interface Hit { rule: string; file: string; line: number; sample: string }
-export interface AllowEntry { path: string; reason: string; until: string }
 
 export const RULES: readonly Rule[] = [
   { id: 'private-key-block', re: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY(?: BLOCK)?-----/ },
@@ -23,7 +23,10 @@ export const RULES: readonly Rule[] = [
   { id: 'twilio-key', re: /\bSK[0-9a-f]{32}\b/ },
 ];
 
-const ALLOW_MARK = 'secret-scan:allow';
+const MARK = 'secret-scan: fake';
+/** Where the marker counts: tests, fixtures, golden steps and the Vault layout's demo data. */
+export const MARKER_PATHS: readonly RegExp[] = [/(^|\/)tests?\//, /(^|\/)fixtures\//, /\.test\.(?:m?[jt]sx?)$/, /^golden\/steps\//, /(^|\/)layout\/sample\.ts$/];
+export const markerCounts = (file: string): boolean => MARKER_PATHS.some((re) => re.test(file));
 const SKIP_EXT = /\.(?:png|jpe?g|gif|webp|ico|icns|pdf|zip|gz|tgz|woff2?|ttf|otf|eot|mp[34]|mov|wasm|onnx|bin|db|sqlite|lock)$/i;
 const MAX_BYTES = 2 * 1024 * 1024;
 
@@ -32,7 +35,8 @@ export function scanText(file: string, text: string): Hit[] {
   const lines = text.split('\n');
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i] ?? '';
-    if (line.includes(ALLOW_MARK)) continue;
+    const marked = markerCounts(file) && (line.includes(MARK) || (lines[i - 1] ?? '').includes(MARK));
+    if (marked) continue;
     for (const r of RULES) {
       const m = r.re.exec(line);
       if (m) hits.push({ rule: r.id, file, line: i + 1, sample: `${m[0].slice(0, 4)}...` });
@@ -41,28 +45,9 @@ export function scanText(file: string, text: string): Hit[] {
   return hits;
 }
 
-export function allowed(file: string, allow: readonly AllowEntry[]): AllowEntry | undefined {
-  return allow.find((a) => file === a.path || (a.path.endsWith('/') && file.startsWith(a.path)));
-}
-
-/** An entry needs a reason and an until date (YYYY-MM-DD) that has not passed: an allowance nobody explained, or nobody looks at again, is a hole. */
-export function checkAllowList(allow: readonly AllowEntry[], now: Date = new Date()): string[] {
-  const out: string[] = [];
-  for (const a of allow) {
-    if (typeof a.reason !== 'string' || a.reason.trim().length < 10) out.push(`secret-allow.json: ${a.path} has no reason`);
-    const until = Date.parse(a.until);
-    if (!Number.isFinite(until)) out.push(`secret-allow.json: ${a.path} has no valid until date`);
-    else if (until < now.getTime()) out.push(`secret-allow.json: the allowance for ${a.path} expired on ${a.until}`);
-  }
-  return out;
-}
-
-export function scanFiles(files: ReadonlyMap<string, string>, allow: readonly AllowEntry[]): Hit[] {
+export function scanFiles(files: ReadonlyMap<string, string>): Hit[] {
   const out: Hit[] = [];
-  for (const [file, text] of files) {
-    if (allowed(file, allow)) continue;
-    out.push(...scanText(file, text));
-  }
+  for (const [file, text] of files) out.push(...scanText(file, text));
   return out;
 }
 
@@ -72,9 +57,6 @@ function root(): string {
 
 function main(): number {
   const dir = root();
-  const allow = (JSON.parse(readFileSync(resolve(dir, 'scripts/security/secret-allow.json'), 'utf8')) as { allow: AllowEntry[] }).allow;
-  const bad = checkAllowList(allow);
-  if (bad.length) { for (const b of bad) console.error(b); return 1; }
   const ls = spawnSync('git', ['ls-files', '-z'], { cwd: dir, encoding: 'utf8', maxBuffer: 1 << 28 });
   if (ls.status !== 0) { console.error((ls.stderr || 'git ls-files failed').trim()); return 1; }
   const files = new Map<string, string>();
@@ -85,7 +67,7 @@ function main(): number {
     if (buf.length > MAX_BYTES || buf.includes(0)) continue;
     files.set(f, buf.toString('utf8'));
   }
-  const hits = scanFiles(files, allow);
+  const hits = scanFiles(files);
   for (const h of hits) console.error(`secret-scan ${h.rule} ${h.file}:${h.line} (${h.sample})`);
   console.log(`secret-scan: ${files.size} files, ${hits.length} hit(s)`);
   return hits.length > 0 ? 1 : 0;

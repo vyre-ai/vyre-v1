@@ -15,7 +15,7 @@ export const REPLY_GAPS: Gap[] = [
   { packet: "PR 471 (P-L7_LIVE)", lane: "L7", what: "the vault module and the signed-in steps need the L7 modules live" },
 ];
 
-const TOKEN = "sk-ant-oat01-GOLDENFAKE0123456789abcdefXYZ";
+const TOKEN = "sk-ant-oat01-GOLDENFAKE0123456789abcdefXYZ"; // secret-scan: fake
 
 export async function runAgentReply(live: readonly string[], opts: Parameters<typeof bootFlowSpace>[1] = {}): Promise<{ events: Observed[]; trail: Trail }> {
   const s = await bootFlowSpace(live, opts);

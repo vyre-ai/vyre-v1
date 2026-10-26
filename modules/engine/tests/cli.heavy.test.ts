@@ -53,7 +53,7 @@ test("a message to an agent on a Claude Code account streams a reply into the ch
       throw new Error(`unexpected ${cap}`);
     },
     session: {
-      source: { lookup: async (handle) => (handle === "#Dana_Claude.setup_token" ? { kind: "value", itemId: "vit_claude", value: "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ", spaceOnly: false, injectIntoDeployments: false } : { kind: "unknown" }) },
+      source: { lookup: async (handle) => (handle === "#Dana_Claude.setup_token" ? { kind: "value", itemId: "vit_claude", value: "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ", spaceOnly: false, injectIntoDeployments: false } : { kind: "unknown" }) }, // secret-scan: fake
       reportMiss: () => undefined,
       mcp: {
         mint: async () => ({ sessionId: "ses_1", sessionToken: "vys_token_1_0123456789abcdef0123456789", url: `http://127.0.0.1:${(mcp.address() as { port: number }).port}/mcp`, expiresAt: 9_999_999_999_999 }),
