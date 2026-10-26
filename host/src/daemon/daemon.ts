@@ -269,6 +269,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let headSeq = 0;
   let sawSpace = false, hostMadeSpace = false;
   let claimIssue: () => Promise<{ code: string; expiresAt: number } | null> = async () => null;
+  /** Ruling 86: one local Personal calendar per person, made through calendar.create_calendar in the pipeline as that person, so the calendar resource registers in the same commit. Set once the pipeline exists. */
+  let ensurePersonalCalendar: (person: string) => Promise<void> = async () => {};
   const access = createAccess();
   // Ruling 70: authorize answers from the access module's snapshot. The log's access events wait here until the module has folded them; `syncAccess` (set once the hooks run)
   // hands them over, adopts the snapshot it answers and runs after every commit that may have changed access, so the next call already sees a join, a role change, a share or a removal.
@@ -440,7 +442,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           // identity opens a device session at sign-in by calling devices.register, which only the server itself may do (P-SEC_08): that one call, from identity, runs as the host. Nothing else is widened.
           if (h && mod === "identity") return ((ctx, input) => h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown, opts?: unknown) => (name === "devices.register" ? system(name, callInput, ctx.trace) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
           // accepting an invite: the person proved the code, and the invite's role, groups and starting places were the inviter's to give. Those join effects run as the host, not as the signed-out caller.
-          if (h && cap === "members.accept") return ((ctx, input) => h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown) => system(name, callInput, ctx.trace) } as typeof ctx, input)) as Handler;
+          if (h && cap === "members.accept") return (async (ctx, input) => {
+            const out = await h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown) => system(name, callInput, ctx.trace) } as typeof ctx, input);
+            // ruling 86: everyone has one local Personal calendar from the day they join
+            const person = (out as { personId?: unknown } | null)?.personId;
+            if (typeof person === "string") await ensurePersonalCalendar(person);
+            return out;
+          }) as Handler;
           if (h && peopleExtras?.(mod, {})) return ((ctx, input) => h({ ...ctx, ...peopleExtras!(mod, ctx) } as typeof ctx, input)) as Handler;
           if (!h || !cap.startsWith("devices.")) return h;
           const wrapped: Handler = (ctx, input) => h({ ...ctx, call: (name, callInput, opts) => (name === "sync.epoch.bump" ? system(name, callInput, ctx.trace) : ctx.call(name, callInput, opts)) } as typeof ctx, input);
@@ -510,6 +518,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         accessStale = false;
       };
       await syncAccess();
+      ensurePersonalCalendar = async (person) => {
+        if (loaded.serving.get("calendar") !== "live") return;
+        const as = { space: spaceId, principal: { kind: "person" as const, id: person }, preAuth: true, origin: "hook" as const };
+        try {
+          const mine = await invoke("calendar.list_calendars", { scope: "mine" }, as);
+          const calendars = (mine.status === "ok" ? (mine.output as { calendars?: { personal?: boolean }[] }).calendars : undefined) ?? [];
+          if (calendars.some((c) => c.personal === true)) return;
+          await invoke("calendar.create_calendar", { title: "Personal", personal: true }, as);
+        } catch (e) {
+          sink.log({ space: spaceId, level: 40, msg: "calendar.personal_failed", place: "boot", attrs: { person, error: e instanceof Error ? e.message : String(e) } });
+        }
+      };
+      // the owner of a Space this host made gets theirs at the first start; a joined member's is made by the accept above
+      if (hostMadeSpace && access.owner()) await ensurePersonalCalendar(access.owner()!);
       // the owner of a Space this host made has not claimed it until identity holds an account for them: a fresh one-time link at every start until they do
       claimIssue = async () => {
         const owner = access.owner();
