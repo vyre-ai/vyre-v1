@@ -36,7 +36,7 @@
     {
       "id": "P-L9e_03-history",
       "route": "/m/P-L9e_03?part=history",
-      "proto": "history,{skin}",
+      "proto": "files,history,{skin}",
       "waitFor": "[data-testid='history-tab']",
       "note": "AGENT.md's history: four versions newest first with who and why, the named version, Compare, Restore this version and Name this version. The prototype side is the file's versions column.",
       "protoSettleMs": 4000
@@ -44,7 +44,7 @@
     {
       "id": "P-L9e_03-lint-bar",
       "route": "/m/P-L9e_03?part=lint",
-      "proto": "agent-md,{skin}",
+      "proto": "files,agent-md,{skin}",
       "waitFor": "[data-testid='lint-bar']",
       "note": "AGENT.md with its lint bar: lines against the limit, Inherits VYRE.md, one override, no secrets, then the text and Review and save. The prototype side is the same file with its lint bar.",
       "protoSettleMs": 4000
@@ -52,7 +52,7 @@
     {
       "id": "P-L9e_03-toml-form",
       "route": "/m/P-L9e_03?part=form&diff=1",
-      "proto": "toml-form,{skin}",
+      "proto": "files,toml-form,{skin}",
       "waitFor": "[data-testid='agent-file-diff']",
       "note": "agent.toml in the Form view with the Text and Form switch lit on Form, one value changed, and the diff before the save with Save version. The prototype side is the Form view of the Intake agent's agent.toml; its diff-before-save is a separate state there.",
       "protoSettleMs": 4000
