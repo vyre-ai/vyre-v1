@@ -3,9 +3,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
-import { DANA, DRAFTER, INTAKE, MAYA, assertEventsConform, harness } from "../fixtures/harness.ts";
+import { DANA, DRAFTER, INTAKE, MAYA, assertEventsConform, harness as baseHarness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
+const notFound = () => Object.assign(new Error("gone"), { error: { code: "validation.not_found" } });
+/** The chat harness with the Files calls an erase makes: no file stands at a transcript path unless a test puts one there. */
+const files = new Map<string, string>();
+const harness = (): ReturnType<typeof baseHarness> => baseHarness({
+  calls: {
+    "files.resolve": (i) => { const f = files.get(String(i["path"])); if (!f) throw notFound(); return { kind: "file", fileId: f }; },
+    "files.delete": () => ({ deleted: true }),
+    "files.purge": () => ({ purged: true }),
+  },
+});
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 let n = 0;
 const key = () => `p${++n}`;
@@ -78,4 +88,16 @@ test("transcript purge removes old messages and their blocks, oldest first in ba
   assert.equal(hn.rows("SELECT id FROM chat_thread").length, 3, "the threads themselves stay");
   assert.deepEqual(await h["chat.transcript.purge"]!(hn.ctx, { before: cutoff, skipThreadIds: [held], idempotencyKey: key() }), { removed: 0, more: false });
   assert.deepEqual(assertEventsConform(hn), []);
+});
+
+test("a transcript file at chats/<id>/transcript.md goes with its chat: deleted and purged, versions with it", async () => {
+  files.clear();
+  const hn = harness();
+  const gone = await chat(hn, "private words");
+  files.set(`chats/${gone}/transcript.md`, "fil_trans0001");
+  hn.clear();
+  assert.deepEqual(await h["threads.erase"]!(hn.ctx, { threadId: gone, idempotencyKey: key() }), { erased: true });
+  assert.deepEqual(hn.callLog.map((c) => [c.cap, c.input["fileId"] ?? c.input["path"]]), [["files.resolve", `chats/${gone}/transcript.md`], ["files.delete", "fil_trans0001"], ["files.purge", "fil_trans0001"]]);
+  assert.equal(count(hn, "chat_thread"), 0);
+  files.clear();
 });

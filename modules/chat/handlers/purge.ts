@@ -40,10 +40,29 @@ function dropThread(ctx: ChatCtx, id: string): void {
   ctx.db.run(`DELETE FROM chat_thread WHERE id = ?`, id);
 }
 
+const codeOf = (e: unknown): string => ((e as { error?: { code?: string } } | null)?.error?.code ?? "");
+
+/**
+ * The transcript of a chat is read as chats/<id>/transcript.md. Today that is a view of the transcript rows, but if a file stands at that path in Files (an export, a sync, a later packet that writes one) it is the
+ * chat's words and goes with the chat: deleting it for good removes its versions too. A path with no file is nothing to do.
+ */
+async function dropTranscriptFile(ctx: ChatCtx, threadId: string): Promise<void> {
+  let fileId: string | undefined;
+  try {
+    const r = (await ctx.call("files.resolve", { path: `chats/${threadId}/transcript.md` })) as { kind?: string; fileId?: string };
+    if (r.kind === "file" && r.fileId) fileId = r.fileId;
+  } catch (e) { if (codeOf(e) !== "validation.not_found") throw e; }
+  if (!fileId) return;
+  try { await ctx.call("files.delete", { fileId }); } catch (e) { if (codeOf(e) !== "validation.not_found") throw e; }
+  try { await ctx.call("files.purge", { fileId }); } catch (e) { if (codeOf(e) !== "validation.not_found") throw e; }
+}
+
 export async function threadErase(ctx: ChatCtx, input: { threadId: string; idempotencyKey: string }) {
   ensure(ctx.db);
   if ((ctx.db.all(`SELECT id FROM chat_thread WHERE id = ?`, input.threadId) as Row[]).length === 0) return { erased: false };
-  for (const id of family(ctx, input.threadId)) dropThread(ctx, id);
+  const ids = family(ctx, input.threadId);
+  for (const id of ids) await dropTranscriptFile(ctx, id);
+  for (const id of ids) dropThread(ctx, id);
   ctx.emit("thread.erased", `entity/${input.threadId}`, { threadId: input.threadId });
   return { erased: true };
 }
@@ -56,7 +75,9 @@ export async function channelErase(ctx: ChatCtx, input: { channelId: string; ide
   if (ch["mainThread"]) roots.add(String(ch["mainThread"]));
   for (const t of ctx.db.all(`SELECT id FROM chat_thread WHERE "channelId" = ?`, input.channelId) as Row[]) roots.add(String(t["id"]));
   const seen = new Set<string>();
-  for (const r of roots) for (const id of family(ctx, r)) if (!seen.has(id)) { seen.add(id); dropThread(ctx, id); }
+  for (const r of roots) for (const id of family(ctx, r)) seen.add(id);
+  for (const id of seen) await dropTranscriptFile(ctx, id);
+  for (const id of seen) dropThread(ctx, id);
   ctx.db.run(`DELETE FROM chat_channel WHERE id = ?`, input.channelId);
   ctx.emit("channel.erased", `entity/${input.channelId}`, { channelId: input.channelId });
   return { erased: true };
