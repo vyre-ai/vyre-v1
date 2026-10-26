@@ -471,7 +471,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         personal,
         // P-H_16: an object a call creates is a resource in the same commit, so it is authorizable at once
         resources: createResourceRegistrar({ events: registry.events, exists: (id) => access.snap.resource(id) !== undefined }),
-        principals: createPrincipalRegistrar({ exists: (id) => access.snap.info(id) !== null }),
+        principals: createPrincipalRegistrar({
+          exists: (id) => access.snap.info(id) !== null,
+          levelOf: (person, space) => {
+            const may = (level: "edit" | "view"): boolean => authorize(access.snap, { principal: person, action: { perm: null, level }, resource: { type: "space", id: space } }).effect === "allow";
+            return may("edit") ? "edit" : may("view") ? "view" : "none";
+          },
+        }),
         commit: withEventIds(async (b) => {
           const trace = b.events[0]?.traceId ?? ZERO_TRACE;
           if (chainBroken) throw fail("internal.unavailable", trace, { message: "The event log failed verification, so this server is not accepting changes. Run vyre-server doctor." });

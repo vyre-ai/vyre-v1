@@ -296,7 +296,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       }
     }
     if (deps.principals && events.length) {
-      for (const r of deps.principals.register({ space: seed.space, events })) events.push(envelope(r.type as EventName, `${r.entity}/${r.id}`, r.payload, seed, trace, depth) as EventEnvelope);
+      for (const r of deps.principals.register({ space: seed.space, maker: seed.actingFor ?? seed.principal.id, events })) events.push(envelope(r.type as EventName, `${r.entity}/${r.id}`, r.payload, seed, trace, depth) as EventEnvelope);
     }
 
     // 7 commit: events, inline projections and the audit row land together

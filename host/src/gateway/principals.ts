@@ -3,18 +3,21 @@
 // Like the resource registrar (resources.ts, P-H_16) this runs inside the invoke pipeline and adds to the same commit, so the agent is authorizable at once and the access module hears of it through the
 // same events as for a seeded agent: principal.created, principal.role_set (the Member role) and an edit grant on the Space. The grant is the reach of the agent itself; an agent still acts for its asker, so the
 // reach of a call is the intersection of the two (ARCH 4.5 rule 5).
+// The agent is never above the person who made it: its role is Member only when its maker may edit the Space, else Guest, and its Space grant is the maker's own level (edit, view, or none).
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
 
 export interface PrincipalEvent { type: "principal.created" | "principal.role_set" | "grant.created"; entity: string; id: string; payload: Record<string, unknown> }
 export interface PrincipalRegistrar {
-  /** The access events to add to this commit for the agents the handler's events brought into being. */
-  register(a: { events: readonly Pick<EventEnvelope, "type" | "payload">[]; space: string }): PrincipalEvent[];
+  /** The access events to add to this commit for the agents the handler's events brought into being. `maker` is the person the call acts for. */
+  register(a: { events: readonly Pick<EventEnvelope, "type" | "payload">[]; space: string; maker: string }): PrincipalEvent[];
 }
 
-/** The role every agent holds, as the seeded Spaces name it. */
+/** The roles an agent may hold, as the seeded Spaces name them. */
 export const AGENT_ROLE = "rol_member";
+export const AGENT_ROLE_LOW = "rol_guest";
+export type SpaceLevel = "edit" | "view" | "none";
 
-export function createPrincipalRegistrar(deps: { exists(id: string): boolean }): PrincipalRegistrar {
+export function createPrincipalRegistrar(deps: { exists(id: string): boolean; /** what the person may do on the Space itself */ levelOf(person: string, space: string): SpaceLevel }): PrincipalRegistrar {
   return {
     register(a) {
       const out: PrincipalEvent[] = [];
@@ -27,9 +30,10 @@ export function createPrincipalRegistrar(deps: { exists(id: string): boolean }):
         if (!/^agt_[a-z0-9]+$/.test(id) || owner === "" || seen.has(id) || deps.exists(id)) continue;
         seen.add(id);
         const name = typeof p?.name === "string" && p.name !== "" ? p.name : id;
+        const level = deps.levelOf(a.maker, a.space);
         out.push({ type: "principal.created", entity: "principal", id, payload: { id, kind: "agent", owner, status: "active", name } });
-        out.push({ type: "principal.role_set", entity: "principal", id, payload: { holder: id, role: AGENT_ROLE } });
-        out.push({ type: "grant.created", entity: "grant", id: `gr_${id}`, payload: { id: `gr_${id}`, subject_kind: "actor", subject_id: id, resource_type: "space", resource_id: a.space, level: "edit", by: owner } });
+        out.push({ type: "principal.role_set", entity: "principal", id, payload: { holder: id, role: level === "edit" ? AGENT_ROLE : AGENT_ROLE_LOW } });
+        if (level !== "none") out.push({ type: "grant.created", entity: "grant", id: `gr_${id}`, payload: { id: `gr_${id}`, subject_kind: "actor", subject_id: id, resource_type: "space", resource_id: a.space, level, by: a.maker } });
       }
       return out;
     },
