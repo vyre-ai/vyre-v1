@@ -302,7 +302,7 @@ test("model: reply subject, targets, channel and inbox choices", () => {
   assert.equal(startChannel("call", opt), "email");
   assert.equal(startChannel("sms", options(s, "unk")), "sms");
   const mail = choicesFor("email", opt, titles(northwind));
-  assert.deepEqual(mail.map((c) => c.label), ["Work Gmail", "Personal", "hello@", "support@"], "an agent's own mailbox is not offered");
+  assert.deepEqual(mail.map((c) => c.label), ["Work Gmail", "Personal", "hello@", "support@", "Client portal"], "an agent's own mailbox is not offered");
   assert.equal(pickInbox(mail, ["mbx_support"])?.id, "mbx_support");
   assert.equal(pickInbox(mail, [])?.id, "mbx_work");
   assert.equal(pickInbox([], ["x"]), null);
@@ -347,7 +347,7 @@ test("menus: Follow offers Alert me on replies only while following, and the Fro
   const items2 = fromMenuEntries(choices, "mbx_hello", ["mbx_work"], (id) => void chosen.push(id));
   assert.deepEqual((items2[0] as { head: string }).head, "Send from");
   const flat: MenuItem[] = items2.filter(isItem);
-  assert.deepEqual(flat.map((x) => [x.label, x.checked]), [["Work Gmail (this thread)", false], ["Personal", false], ["hello@", true], ["support@", false]]);
+  assert.deepEqual(flat.map((x) => [x.label, x.checked]), [["Work Gmail (this thread)", false], ["Personal", false], ["hello@", true], ["support@", false], ["Client portal", false]]);
   flat[1]!.onSelect?.();
   assert.deepEqual(chosen, ["mbx_pers"]);
 });
