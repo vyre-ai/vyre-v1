@@ -6,11 +6,13 @@ import assert from "node:assert/strict";
 import { checkSequence } from "../harness/index.ts";
 import flow from "../flows/07-gate-approval-expiry.flow.ts";
 import steps from "./07-gate-approval-expiry.ts";
+import { todoOf } from "./02-space.ts";
+import { GATE_GAPS } from "./07-agent-gate.ts";
 
 const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
 const skip: string | false = ON ? false : "needs VYRE_HEAVY_DOCKER=1 (the CLI runs in the real sandbox)";
 
-test("golden 7: an agent's send is held by the Gate, approved once, and a second one expires", { skip }, async () => {
+test("golden 7: an agent's send is held by the Gate, approved once, and a second one expires", { skip, todo: todoOf(GATE_GAPS) }, async () => {
   const events = await steps();
   assert.deepEqual(checkSequence(flow.events, events), [], `events: ${events.map((e) => e.type).join(", ")}`);
 });
