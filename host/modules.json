@@ -4,7 +4,7 @@
     {
       "id": "access",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "agents",
@@ -14,7 +14,7 @@
     {
       "id": "audit",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "automations",
@@ -24,32 +24,32 @@
     {
       "id": "backup",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "calendar",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "campaigns",
       "owner": "L8",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "chat",
       "owner": "L2",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "computers",
       "owner": "L2",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "conflicts",
       "owner": "L1",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "connectors",
@@ -59,22 +59,22 @@
     {
       "id": "console-assistant",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "console-views",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "contacts-link",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "devices",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "documents",
@@ -84,17 +84,17 @@
     {
       "id": "email-builder-api",
       "owner": "L8",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "engine",
       "owner": "L2",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "esign",
       "owner": "L8",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "events",
@@ -109,7 +109,7 @@
     {
       "id": "forms",
       "owner": "L8",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "gate",
@@ -124,22 +124,22 @@
     {
       "id": "github",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "google",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "governance",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "health",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "home",
@@ -149,7 +149,7 @@
     {
       "id": "identity",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "import",
@@ -159,7 +159,7 @@
     {
       "id": "inbox",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "journeys",
@@ -169,17 +169,17 @@
     {
       "id": "kits",
       "owner": "L10",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "logs",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "mail",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "mailgun",
@@ -199,7 +199,7 @@
     {
       "id": "members",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "memory",
@@ -209,7 +209,7 @@
     {
       "id": "microsoft",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "mounts",
@@ -219,7 +219,7 @@
     {
       "id": "network",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "notifications",
@@ -249,7 +249,7 @@
     {
       "id": "reports-client",
       "owner": "L7b",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "resend",
@@ -279,17 +279,17 @@
     {
       "id": "search",
       "owner": "L1",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "settings",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "sites",
       "owner": "L8",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "sources",
@@ -299,7 +299,7 @@
     {
       "id": "spaces",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "steps-core",
@@ -309,12 +309,12 @@
     {
       "id": "stripe",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "sync",
       "owner": "L1",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "tasks",
@@ -329,7 +329,7 @@
     {
       "id": "templates",
       "owner": "L8",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "terminal",
@@ -339,7 +339,7 @@
     {
       "id": "twilio",
       "owner": "L5",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "updates",
@@ -349,12 +349,12 @@
     {
       "id": "vault",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "vault-requests",
       "owner": "L7a",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "zoom",

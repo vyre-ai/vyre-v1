@@ -90,7 +90,8 @@ const textual = (f: FieldDefT): boolean => ["text", "longtext", "ai", "email", "
 
 export function createDescribeHandlers(deps: SchemaDeps): DescribeHandlers {
   const { tx } = deps;
-  const ready = async (): Promise<Map<string, TypeDefT>> => { await seedManifestTypes(deps); return allDefs(deps); };
+  // after start() the types are already persisted and a read must not write; a handle never started (tests, standalone) seeds on first read
+  const ready = async (): Promise<Map<string, TypeDefT>> => { await (deps.started ?? seedManifestTypes(deps)); return allDefs(deps); };
   const need = (ctx: SchemaCtx, defs: Map<string, TypeDefT>, type: string): TypeDefT => {
     const d = defs.get(type);
     if (!d) refuse(ctx, "validation.not_found", `There is no record type ${type}.`);
