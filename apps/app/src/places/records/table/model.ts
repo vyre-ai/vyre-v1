@@ -337,3 +337,24 @@ export function faceRule(name: string, bitmap?: string): string {
   const image = url !== null ? `url("${url}")` : marbleGradient(name);
   return `.${faceClassOf(name)}{width:18px;height:18px;flex:none;border-radius:9px;background-color:${m.base};background-image:${image};background-size:cover}`;
 }
+
+/**
+ * The set of faces that have a CSS rule, as plain logic with no DOM: oldest use first. `use` says whether the face is new and which faces to drop; when `max` are held, the `batch` oldest
+ * go together, so the cost of finding their rules is spread over many new faces. A face used again moves to the newest end.
+ */
+export class FaceLru {
+  private readonly keys = new Map<string, true>();
+  constructor(readonly max: number, readonly batch: number) {}
+  get size(): number { return this.keys.size; }
+  has(key: string): boolean { return this.keys.has(key); }
+  use(key: string): { added: boolean; evicted: string[] } {
+    if (this.keys.has(key)) { this.keys.delete(key); this.keys.set(key, true); return { added: false, evicted: [] }; }
+    const evicted: string[] = [];
+    if (this.keys.size >= this.max) {
+      for (const old of this.keys.keys()) { if (evicted.length >= this.batch) break; evicted.push(old); }
+      for (const old of evicted) this.keys.delete(old);
+    }
+    this.keys.set(key, true);
+    return { added: true, evicted };
+  }
+}

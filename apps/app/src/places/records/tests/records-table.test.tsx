@@ -267,3 +267,24 @@ test("a cell face is seeded by the person's id: two people called Maya Chen have
   assert.notEqual(faceRule("usr_maya_1"), faceRule("usr_maya_2"));
   assert.equal(faceRule("usr_maya_1"), faceRule("usr_maya_1"), "one id always gets the same face, so a rename changes nothing");
 });
+
+test("the face rules are an LRU: 450 new faces keep 400 at most, a touched face survives, the 40 oldest go together", async () => {
+  const { FaceLru } = await import("../table/model.ts");
+  const lru = new FaceLru(400, 40);
+  const dropped: string[] = [];
+  for (let i = 0; i < 450; i++) {
+    if (i === 399) lru.use("f0"); // f0 is the oldest; using it moves it to the newest end
+    const r = lru.use(`f${i}`);
+    dropped.push(...r.evicted);
+    assert.ok(lru.size <= 400, `size ${lru.size} after ${i + 1}`);
+  }
+  assert.equal(lru.has("f0"), true, "a face used again survives");
+  assert.ok(dropped.length >= 40 && dropped.length % 40 === 0, "faces go in batches of 40");
+  assert.ok(!dropped.includes("f0"));
+  assert.equal(dropped[0], "f1", "the oldest unused face goes first");
+  const again = new FaceLru(3, 2);
+  again.use("a"); again.use("b"); again.use("c");
+  assert.deepEqual(again.use("d").evicted, ["a", "b"], "two oldest together when full");
+  assert.deepEqual(again.use("d").evicted, [], "a known face evicts nothing");
+  assert.equal(again.size, 2);
+});
