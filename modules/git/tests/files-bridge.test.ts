@@ -103,21 +103,18 @@ test("a file git brings in is brought into Files, and is not deleted on the next
   await with_(async (ctx, w, fl) => {
     const remote = await w.bare();
     await op(ctx, "git.init", { folderId: F });
+    await op(ctx, "git.remote_add", { folderId: F, name: "origin", url: remote });
     fl.add("a.txt", "a");
     await op(ctx, "git.commit", { folderId: F, message: "A" });
-    await op(ctx, "git.remote_add", { folderId: F, name: "origin", url: remote });
-    // somebody else's clone pushes b.txt
-    await w.git(F, "push", "origin", "HEAD:refs/heads/main");
-    const other = "fld_other";
-    await w.git(other, "clone", remote, ".").catch(() => undefined);
-    fs.mkdirSync(w.tree(other), { recursive: true });
-    await w.git(other, "init", "--quiet");
-    await w.git(other, "remote", "add", "origin", remote);
-    await w.git(other, "pull", "origin", "main");
+    await op(ctx, "git.push", { folderId: F });
+    // another folder (Files knows nothing of it) pulls, adds b.txt and pushes
+    const other = "fld_beta";
+    await op(ctx, "git.init", { folderId: other });
+    await op(ctx, "git.remote_add", { folderId: other, name: "origin", url: remote });
+    await op(ctx, "git.pull", { folderId: other });
     w.write(other, "b.txt", "from elsewhere");
-    await w.git(other, "add", "-A");
-    await w.git(other, "-c", "user.name=O", "-c", "user.email=o@x.test", "commit", "-m", "B");
-    await w.git(other, "push", "origin", "HEAD:main");
+    await op(ctx, "git.commit", { folderId: other, message: "B" });
+    await op(ctx, "git.push", { folderId: other });
 
     await op(ctx, "git.pull", { folderId: F, strategy: "ff_only" });
     assert.equal(fl.named("b.txt")?.bytes.toString(), "from elsewhere", "the pulled file is a file in Files");
