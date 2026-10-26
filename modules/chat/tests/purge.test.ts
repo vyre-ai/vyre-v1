@@ -59,6 +59,8 @@ test("transcript purge removes old messages and their blocks, oldest first in ba
   const hn = harness();
   const old = await chat(hn, "old chat one");
   const held = await chat(hn, "old chat held");
+  await h["chat.post"]!(hn.ctx, { threadId: old, body: "second old message", idempotencyKey: key() });
+  await h["chat.post"]!(hn.ctx, { threadId: held, body: "second held message", idempotencyKey: key() });
   hn.advance(400 * 86_400_000);
   const young = await chat(hn, "young chat");
   const cutoff = hn.clock.t - 30 * 86_400_000;
