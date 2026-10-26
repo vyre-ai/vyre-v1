@@ -23,6 +23,13 @@ test("the shell exposes a metadata-only Codex discovery command with a configure
   assert.deepEqual(calls, [{ command: "discover_codex_sessions", args: { options: { codexHome: "/safe" } } }]);
 });
 
+test("the shell discovers both providers natively and keeps the Claude Desktop metadata root separate", async () => {
+  const calls: { command: string; args?: Record<string, unknown> }[] = [];
+  const bridge = makeBridge(async (command, args) => { calls.push({ command, args }); return []; });
+  assert.deepEqual(await bridge.discoverSessionSources({ codexHome: "/safe/codex", claudeHome: "/safe/claude", claudeDesktopHome: "/safe/Library/Application Support/Claude" }), []);
+  assert.deepEqual(calls, [{ command: "discover_session_sources", args: { options: { codexHome: "/safe/codex", claudeHome: "/safe/claude", claudeDesktopHome: "/safe/Library/Application Support/Claude" } } }]);
+});
+
 test("configured homes win over defaults and discovery returns metadata without opening transcript bodies", async () => {
   assert.deepEqual(providerRoots("codex", { codexHome: codex, home: "/ignored" }), [codex]);
   assert.deepEqual(providerRoots("claude", { claudeHome: claude, home: "/ignored" }), [claude]);

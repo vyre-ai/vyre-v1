@@ -259,12 +259,12 @@ test("the shell registers the tray, notification and dialog plugins and exposes 
   const native = read("src", "native.rs");
   assert.match(lib, /tauri_plugin_notification::init\(\)/);
   assert.match(lib, /tauri_plugin_dialog::init\(\)/);
-  assert.match(lib, /native::notify,\s*native::discover_codex_sessions,\s*native::pick_paths,\s*native::set_badge/);
+  assert.match(lib, /native::notify,\s*native::discover_codex_sessions,\s*native::discover_session_sources,\s*native::pick_paths,\s*native::set_badge/);
   assert.match(lib, /WindowEvent::Focused\(true\)[\s\S]*native::on_focus/);
   assert.match(lib, /native::setup_tray/);
-  for (const fn of ["notify", "discover_codex_sessions", "pick_paths", "set_badge"]) assert.match(native, new RegExp(`#\\[tauri::command\\]\\s*pub (async )?fn ${fn}\\(`), fn);
+  for (const fn of ["notify", "discover_codex_sessions", "discover_session_sources", "pick_paths", "set_badge"]) assert.match(native, new RegExp(`#\\[tauri::command\\]\\s*pub (async )?fn ${fn}\\(`), fn);
   const bridge = fs.readFileSync(path.join(DESKTOP, "src", "bridge.ts"), "utf8");
-  for (const c of ["notify", "discover_codex_sessions", "pick_paths", "set_badge"]) assert.ok(bridge.includes(`"${c}"`), `the bridge calls ${c}`);
+  for (const c of ["notify", "discover_codex_sessions", "discover_session_sources", "pick_paths", "set_badge"]) assert.ok(bridge.includes(`"${c}"`), `the bridge calls ${c}`);
   assert.match(read("Cargo.toml"), /tauri = \{ version = "2", features = \["tray-icon"\] \}/);
 });
 
