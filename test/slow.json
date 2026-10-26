@@ -55,5 +55,6 @@
   {"file": "sync/tests/device.engine.heavy.perf.test.ts", "capSec": 120, "owner": "L1", "reason": "the speed tests split out of device.engine.heavy.test.ts; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
   {"file": "sync/tests/replica.store.perf.test.ts", "capSec": 120, "owner": "CI", "reason": "the speed tests split out of replica.store.test.ts; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
   {"file": "ui/src/Composer/composer.perf.test.tsx", "capSec": 120, "owner": "L9", "reason": "the speed tests split out of composer.test.tsx; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
-  {"file": "ui/tests/stream.render.perf.test.tsx", "capSec": 120, "owner": "L9", "reason": "the speed tests split out of stream.render.test.tsx; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true}
+  {"file": "ui/tests/stream.render.perf.test.tsx", "capSec": 120, "owner": "L9", "reason": "the speed tests split out of stream.render.test.tsx; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
+  {"file": "apps/app/src/shell/cmdk/cmdk.perf.test.tsx", "capSec": 120, "owner": "L9", "reason": "the speed test split out of cmdk.test.tsx; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true}
 ]

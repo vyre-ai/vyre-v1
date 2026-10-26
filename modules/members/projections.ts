@@ -31,9 +31,9 @@ export interface MembersCtx {
   http?: (url: string, init?: { method?: string; headers?: Record<string, string> }) => Promise<{ status: number; text(): Promise<string> }>;
   /** What a person owns across modules, for the removal wizard; supplied by the host from files, records, agents, routines, mailboxes, vault and chat. */
   owned?: {
-    of(personId: string): Partial<Record<RemovalKind, OwnedItem>>;
+    of(personId: string): Partial<Record<RemovalKind, OwnedItem>> | Promise<Partial<Record<RemovalKind, OwnedItem>>>;
     /** Items under a legal hold that the person owns. */
-    holds(personId: string): number;
+    holds(personId: string): number | Promise<number>;
     /** Apply one wizard action to one kind; returns how many things it touched. */
     apply(personId: string, kind: RemovalKind, action: RemovalAction, to?: string): Promise<number>;
   };

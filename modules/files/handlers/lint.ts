@@ -601,7 +601,7 @@ async function filesShare(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
   const s = subject as Record<string, unknown>;
   const level = reqStr(ctx, o, "level");
   await treeHandlers["files.get"](ctx, { fileId }); // a file that is not there is refused before any grant is made
-  await ctx.call("access.share", { resource: { type: "file", id: fileId }, subject, level }, { idempotencyKey: `files.share:${fileId}:${String(s["kind"])}:${String(s["id"])}:${level}` });
+  await ctx.call("access.share", { idempotencyKey: `files.share:${fileId}:${String(s["kind"])}:${String(s["id"])}:${level}`, resource: { type: "file", id: fileId }, subject, level }, { idempotencyKey: `files.share:${fileId}:${String(s["kind"])}:${String(s["id"])}:${level}` });
   return { ok: true };
 }
 

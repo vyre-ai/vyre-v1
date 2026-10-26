@@ -87977,7 +87977,7 @@
       "rate": {
         "n": 10,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -88341,9 +88341,9 @@
       },
       "permission": null,
       "rate": {
-        "n": 10,
+        "n": 5,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -88604,7 +88604,7 @@
       "rate": {
         "n": 5,
         "perSeconds": 300,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -88794,7 +88794,7 @@
       "rate": {
         "n": 30,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -89096,7 +89096,7 @@
       "rate": {
         "n": 10,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -89383,7 +89383,7 @@
       "rate": {
         "n": 10,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -89775,7 +89775,7 @@
       "rate": {
         "n": 10,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -93131,7 +93131,7 @@
       "rate": {
         "n": 10,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
