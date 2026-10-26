@@ -37,6 +37,9 @@ interface Flash { text: string; undo?: Undo; bad?: boolean }
 
 // ---------------------------------------------------------------- relation cards
 
+/** Fields drawn in the first frame of a record page; the rest follow after the first paint. */
+const FIRST_FRAME_FIELDS = 8;
+
 export function Peek({ type, recordId }: { type: string; recordId: string }): ReactElement | null {
   const data = usePageData();
   const rq = useLive("records.get", { type, recordId });
@@ -225,7 +228,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const [map, setMap] = useState(start.map === true);
   const busy = useRef(false);
   // the right pane (its three reads and its rows) comes after the first paint on a screen; a server render or a test has no frames, so it is there at once
-  const [late, setLate] = useState(typeof window === "undefined" || start.pane !== undefined || start.tab !== undefined);
+  const [late, setLate] = useState(typeof window === "undefined" || start.pane !== undefined || start.tab !== undefined || start.edit !== undefined || start.all === true);
   useEffect(() => {
     if (late) return;
     let b = 0;
@@ -276,8 +279,12 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const fieldProps = { row, type, editing, nodes, show: menu.show, onEdit: (f: FieldDef) => setEditing({ key: f.key, text: inputText(f, row.fields[f.key]) }), onText: (t: string) => setEditing((e) => (e ? { ...e, text: t, ...(e.error ? { error: "" } : {}) } : e)), onCommit: commit, onCancel: () => setEditing(null), onValue: setValue, onSource: showSource };
 
   const body: ReactElement[] = [];
+  // the first frame draws what the screen shows (about the first eight fields); the sections below it join after the first paint, with the right pane (navigate budget, 50 ms)
+  let drawn = 0;
   for (const s of sections) {
+    if (!late && drawn >= FIRST_FRAME_FIELDS) break;
     const sh = shownFields(s, row, prefs.keepVisible, all);
+    if (!s.folded) drawn += sh.fields.length;
     const fields: ReactElement[] = [];
     for (const f of sh.fields) fields.push(<View key={f.key} style={wide ? p.half : p.full}><FieldRow field={f} {...fieldProps} /></View>);
     body.push(
