@@ -148,7 +148,7 @@ function sweepHeld(d: PullDeps, who: Who, viewer: Viewer, window: Window, seen: 
     const row = db.get<RowRec>("SELECT entity, id, owner_id, label, deleted, enc, vis, seq, updated_at, fields FROM sync_rows WHERE entity = ? AND id = ?", r.entity, r.id);
     const mode = cfg.profile[who.deviceClass];
     const cells = row && row.deleted !== 1 ? JSON.parse(row.fields) as Cells : null;
-    if (row && cells && mode !== "none" && r.at_seq === at && viewer.visible(viewer.scope(cfg), row, cells) && window.holds(cfg, mode, row)) {
+    if (row && cells && mode !== "none" && viewer.visible(viewer.scope(cfg), row, cells) && window.holds(cfg, mode, row)) {
       out.push({ kind: "change", row: key, terminal: false, change: { seq: row.seq, entity: r.entity, id: r.id, op: "upsert", fields: wireFields(viewer.fields(viewer.scope(cfg), cells)) } });
       seen.set(r.entity, r.id, true, row.seq);
     } else out.push({ kind: "hide", row: key, terminal: true, hide: { entity: r.entity, id: r.id, seq: r.at_seq } });
