@@ -1,7 +1,8 @@
 name: release
 # Tag to live under 25 minutes (ARCH-DECISIONS 13). Live needs the suite, client, kits, images and security; never native or desktop.
 # After live: sign (in the `release` Environment, after its reviewer approves), publish to the GitHub Release of the tag, and a post-publish smoke. docs/release/runbook.md says how and why.
-# A tag whose name contains "dryrun" is a practice run: it builds and packs everything, validates the bake file and stops before sign, publish and smoke. No image is pushed.
+# A tag whose name contains "dryrun" is a practice run: it builds and packs everything, validates the bake file (no image is pushed), signs with a key made for the run and thrown away
+# (no server trusts it), publishes a prerelease named after the tag, smoke-tests it, and deletes the prerelease. The real `sign` job (the `release` Environment) is skipped.
 on:
   push:
     tags:
@@ -142,8 +143,34 @@ jobs:
           node scripts/release/cli.ts assets dist
       - uses: actions/upload-artifact@v4
         with: { name: release-signed, path: dist, if-no-files-found: error, retention-days: 7 }
+  sign-dryrun:
+    needs: [guard, package]
+    if: needs.guard.outputs.dryrun == 'true'
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    permissions: { contents: read }
+    outputs:
+      pub: ${{ steps.sign.outputs.pub }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: release-files, path: dist }
+      - id: sign
+        env:
+          CHANNEL: ${{ needs.guard.outputs.channel }}
+        run: |
+          # a key that exists for this job only: it proves the sign, publish and smoke steps, and trusts nothing real
+          VYRE_SIGNING_KEY="$(openssl genpkey -algorithm ed25519)"
+          export VYRE_SIGNING_KEY
+          pub=$(node scripts/release/cli.ts pubkey | cut -d' ' -f1)
+          echo "pub=$pub" >> "$GITHUB_OUTPUT"
+          node scripts/release/cli.ts sign dist "$CHANNEL" "$pub"
+          node scripts/release/cli.ts assets dist
+      - uses: actions/upload-artifact@v4
+        with: { name: release-signed, path: dist, if-no-files-found: error, retention-days: 1 }
   publish:
-    needs: [guard, sign]
+    needs: [guard, sign, sign-dryrun]
+    if: always() && (needs.sign.result == 'success' || needs.sign-dryrun.result == 'success')
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 15
     permissions: { contents: write }
@@ -160,12 +187,13 @@ jobs:
           rm -f dist/feed.json dist/releases.json
           gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes "Release $TAG. Signed manifests: $CHANNEL.json and $CHANNEL.json.sig." $flags
       - name: The rolling release a prerelease channel is read from
-        if: env.CHANNEL != 'stable'
+        if: env.CHANNEL != 'stable' && needs.guard.outputs.dryrun != 'true'
         run: |
           gh release view "channel-$CHANNEL" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create "channel-$CHANNEL" --repo "$GITHUB_REPOSITORY" --prerelease --title "channel-$CHANNEL" --notes "Rolling release the $CHANNEL channel is read from."
           gh release upload "channel-$CHANNEL" dist/* --repo "$GITHUB_REPOSITORY" --clobber
   smoke:
-    needs: [guard, publish]
+    needs: [guard, publish, sign-dryrun]
+    if: always() && needs.publish.result == 'success'
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 10
     steps:
@@ -174,10 +202,23 @@ jobs:
         env:
           VERSION: ${{ needs.guard.outputs.version }}
           CHANNEL: ${{ needs.guard.outputs.channel }}
+          DRYRUN: ${{ needs.guard.outputs.dryrun }}
+          DRY_PUB: ${{ needs.sign-dryrun.outputs.pub }}
+          TAG: ${{ github.ref_name }}
         run: |
-          pub=$(sed -n 's/^export const RELEASE_PUBLIC_KEY_HEX = "\([0-9a-f]*\)";.*/\1/p' host/src/seams/updates.ts)
-          base=$(node scripts/release/cli.ts feed-base "$CHANNEL")
+          if [ "$DRYRUN" = true ]; then
+            pub="$DRY_PUB"; base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/"   # the practice release, not the channel's address
+          else
+            pub=$(sed -n 's/^export const RELEASE_PUBLIC_KEY_HEX = "\([0-9a-f]*\)";.*/\1/p' host/src/seams/updates.ts)
+            base=$(node scripts/release/cli.ts feed-base "$CHANNEL")
+          fi
           node scripts/release/cli.ts smoke "$base" "$CHANNEL" "$pub" "$VERSION"
+      - name: A practice release is deleted again
+        if: always() && needs.guard.outputs.dryrun == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes || true
   deploy:
     needs: live
     uses: ./.github/workflows/deploy.yml
