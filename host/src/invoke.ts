@@ -169,6 +169,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
   const now = deps.now ?? Date.now;
   const hex = deps.randomHex ?? defaultHex;
   const log = deps.log ?? nullLogger;
+  /** events a handler marked afterFailure (EmitOpts): written even when the call is refused */
+  const survivors = new WeakSet<EventEnvelope>();
   let lastHlc: Hlc | null = null;
   const nextHlc = (): string => { lastHlc = tickHlc("server", now(), lastHlc); return formatHlc(lastHlc); };
 
@@ -272,7 +274,18 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     if (!h) throw fail("internal.not_implemented", traceId, { details: { cap: c.name } });
     const events: EventEnvelope[] = [];
     const ctx = makeCtx(c, seed, trace, depth, events);
-    const output = await h(ctx, input);   // a throw here is mapped by the outer catch: VyreErr and HostError keep their code, anything else is internal.unexpected
+    let output: unknown;
+    try {
+      output = await h(ctx, input);   // a throw here is mapped by the outer catch: VyreErr and HostError keep their code, anything else is internal.unexpected
+    } catch (e) {
+      // events the handler marked afterFailure (a refused sign-in's signin.failed) are written on their own, then the error goes on; nothing else the call buffered is
+      const keep = events.filter((ev) => survivors.has(ev));
+      if (keep.length) {
+        try { deps.publish?.(await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events: keep, audit: null })); }
+        catch (ce) { log.warn("after-failure events were not written", { cap: c.name, traceId, error: ce instanceof Error ? ce.message : String(ce) }); }
+      }
+      throw e;
+    }
     // P-H_16: every object this call created becomes a resource in the same commit, so it is authorizable at once (one place for every module)
     if (deps.resources && events.length) {
       for (const row of deps.resources.register({ cap: c, input, space: seed.space, owner: seed.actingFor ?? seed.principal.id, events })) {
@@ -326,6 +339,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         if (bad?.length) throw fail("internal.unexpected", trace.traceId, { message: "Something went wrong on our side.", details: { cap: c.name, event: name, errors: bad.slice(0, 5) } });
         const ev = envelope(name, subject, payload, seed, trace, depth, opts);
         buf.push(ev as EventEnvelope);
+        if (opts?.afterFailure) survivors.add(ev as EventEnvelope);
         return ev;
       },
       async call<C extends CapName>(name: C, callInput: unknown, opts?: CallOpts): Promise<unknown> {
