@@ -22895,6 +22895,7 @@
         "permission.guest_cannot_request",
         "permission.needs_team",
         "permission.no_grant",
+        "rate_limit.exceeded",
         "validation.bad_input",
         "validation.duplicate"
       ],
@@ -22960,7 +22961,7 @@
         ],
         "type": "object"
       },
-      "level": "view",
+      "level": "member",
       "module": "access",
       "name": "access.request",
       "output": {
@@ -22976,8 +22977,7 @@
       },
       "permission": null,
       "resource": {
-        "ref": "/resource",
-        "type": "dynamic"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -33923,9 +33923,7 @@
         "scope": "space"
       },
       "resource": {
-        "create": true,
-        "parent": "/slug",
-        "type": "record"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -34087,7 +34085,9 @@
     },
     {
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "form.created"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -36289,7 +36289,9 @@
     },
     {
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "campaign.created"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -36301,6 +36303,7 @@
       "examples": [
         {
           "input": {
+            "folderId": "fld_a1b2c3",
             "idempotencyKey": "idem_1",
             "kind": "one_time",
             "name": "example"
@@ -36323,6 +36326,13 @@
       "idempotency": "key",
       "input": {
         "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -36358,7 +36368,7 @@
       "permission": "automations.space",
       "resource": {
         "create": true,
-        "parent": "/name",
+        "parent": "/folderId",
         "type": "campaign"
       },
       "risk": "medium",
@@ -50865,7 +50875,7 @@
       "resource": {
         "create": true,
         "parent": "/connector",
-        "type": "connector"
+        "type": "connection"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -56730,7 +56740,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "System: create the device and session rows at sign-in",
+      "summary": "Host only (svc_host): create the device and session rows at sign-in; every person, admin, agent and other service is refused",
       "surfaces": {
         "http": "auto"
       },
@@ -57848,7 +57858,7 @@
       "resource": {
         "create": true,
         "parent": "/intoFolderId",
-        "type": "folder"
+        "type": "file"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -58851,7 +58861,9 @@
     },
     {
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "email.created"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -58861,6 +58873,7 @@
       "examples": [
         {
           "input": {
+            "folderId": "fld_a1b2c3",
             "idempotencyKey": "idem_1",
             "mode": "blocks",
             "name": "example"
@@ -58887,6 +58900,13 @@
       "idempotency": "key",
       "input": {
         "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -58922,8 +58942,8 @@
       "permission": null,
       "resource": {
         "create": true,
-        "parent": "/name",
-        "type": "folder"
+        "parent": "/folderId",
+        "type": "email"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -66884,7 +66904,7 @@
       "resource": {
         "create": true,
         "parent": "/toFolderId",
-        "type": "folder"
+        "type": "file"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -71020,7 +71040,8 @@
     {
       "effects": "write",
       "emits": [
-        "folder.created"
+        "folder.created",
+        "grant.created"
       ],
       "errors": [
         "internal.unexpected",
@@ -71778,7 +71799,9 @@
     },
     {
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "form.created"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -72892,9 +72915,7 @@
         "scope": "space"
       },
       "resource": {
-        "create": true,
-        "parent": "/slug",
-        "type": "record"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -88052,6 +88073,150 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "caller": "anonymous",
+      "effects": "write",
+      "emits": [
+        "keys.stored",
+        "signin.succeeded"
+      ],
+      "errors": [
+        "auth.expired",
+        "auth.invalid_code",
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.duplicate"
+      ],
+      "examples": [
+        {
+          "input": {
+            "code": "example",
+            "deviceClass": "desktop",
+            "deviceName": "example",
+            "displayName": "example",
+            "keys": {
+              "personKeyByPassword": "d3JhcHBlZA==",
+              "personKeyByRecovery": "d3JhcHBlZA==",
+              "privateKeyWrapped": "d3JhcHBlZA==",
+              "publicKey": "cHVibGlj",
+              "spaceKeys": [
+                {
+                  "epoch": 1,
+                  "wrapped": "d3JhcHBlZA=="
+                }
+              ]
+            },
+            "password": "example",
+            "spaceId": "spc_a1b2c3",
+            "username": "olivia"
+          },
+          "name": "example",
+          "output": {
+            "challengeId": "chl_a1b2c3",
+            "keys": {
+              "personKeyByPassword": "d3JhcHBlZA==",
+              "personKeyByRecovery": "d3JhcHBlZA==",
+              "privateKeyWrapped": "d3JhcHBlZA==",
+              "publicKey": "cHVibGlj",
+              "spaceKeys": [
+                {
+                  "epoch": 1,
+                  "wrapped": "d3JhcHBlZA=="
+                }
+              ]
+            },
+            "session": {
+              "deviceId": "dev_a1b2c3",
+              "epoch": 1,
+              "expiresAt": 1760000000000,
+              "sessionId": "ses_a1b2c3",
+              "token": "example"
+            },
+            "status": "ok"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "deviceClass": {
+            "enum": [
+              "desktop",
+              "phone",
+              "web",
+              "extension",
+              "daemon"
+            ],
+            "type": "string"
+          },
+          "deviceName": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "keys": {
+            "$ref": "#/$defs/s_50a19384f8"
+          },
+          "password": {
+            "type": "string"
+          },
+          "spaceId": {
+            "description": "The Space id from the claim link (#s=); the first Space key is sealed to it and a different Space is refused",
+            "examples": [
+              "spc_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "username": {
+            "examples": [
+              "olivia"
+            ],
+            "pattern": "^[a-z0-9_.-]{2,32}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "spaceId",
+          "username",
+          "password",
+          "deviceName",
+          "deviceClass",
+          "keys"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "identity",
+      "name": "identity.claim_owner",
+      "offline": "online",
+      "output": {
+        "$ref": "#/$defs/s_68ea0f6cb3"
+      },
+      "permission": null,
+      "rate": {
+        "n": 5,
+        "perSeconds": 300,
+        "scope": "principal"
+      },
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Claim a fresh Space as its owner with the one-time link: pick a username and password, store the wrapped keys, and sign in",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "audit": "sensitive",
       "effects": "write",
       "emits": [
@@ -88180,7 +88345,7 @@
       "rate": {
         "n": 10,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -88544,9 +88709,9 @@
       },
       "permission": null,
       "rate": {
-        "n": 10,
+        "n": 5,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -88701,7 +88866,8 @@
       "emits": [
         "password.reset",
         "keys.stored",
-        "signin.succeeded"
+        "signin.succeeded",
+        "signin.failed"
       ],
       "errors": [
         "auth.invalid_code",
@@ -88807,7 +88973,7 @@
       "rate": {
         "n": 5,
         "perSeconds": 300,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -88997,7 +89163,7 @@
       "rate": {
         "n": 30,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -89299,7 +89465,7 @@
       "rate": {
         "n": 10,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -89586,7 +89752,7 @@
       "rate": {
         "n": 10,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -89978,7 +90144,7 @@
       "rate": {
         "n": 10,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -90005,6 +90171,9 @@
           "input": {},
           "name": "example",
           "output": {
+            "deferred": [
+              "example"
+            ],
             "deviceId": "dev_a1b2c3",
             "epoch": 1,
             "groups": [
@@ -90032,6 +90201,12 @@
       "name": "identity.whoami",
       "output": {
         "properties": {
+          "deferred": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "deviceId": {
             "examples": [
               "dev_a1b2c3"
@@ -93334,7 +93509,7 @@
       "rate": {
         "n": 10,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -93665,9 +93840,7 @@
       },
       "permission": "journeys.manage",
       "resource": {
-        "create": true,
-        "parent": "/subjectType",
-        "type": "record_type"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -95364,9 +95537,7 @@
       },
       "permission": "kits.publish",
       "resource": {
-        "create": true,
-        "parent": "/brief",
-        "type": "kit"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -118535,7 +118706,8 @@
         "permission.above_clearance",
         "permission.needs_team",
         "permission.no_grant",
-        "validation.bad_input"
+        "validation.bad_input",
+        "validation.not_found"
       ],
       "examples": [
         {
@@ -118589,7 +118761,7 @@
         ],
         "type": "object"
       },
-      "level": "edit",
+      "level": "manage",
       "module": "portal",
       "name": "portal.file_link",
       "output": {
@@ -118614,8 +118786,7 @@
       },
       "permission": null,
       "resource": {
-        "create": true,
-        "parent": "/fileId",
+        "id": "/fileId",
         "type": "file"
       },
       "risk": "medium",
@@ -120048,7 +120219,7 @@
       "resource": {
         "create": true,
         "parent": "/type",
-        "type": "record_type"
+        "type": "record"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -135561,7 +135732,7 @@
       "resource": {
         "create": true,
         "parent": "/folderId",
-        "type": "folder"
+        "type": "file"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -136177,6 +136348,7 @@
       "examples": [
         {
           "input": {
+            "folderId": "fld_a1b2c3",
             "idempotencyKey": "idem_1",
             "kind": "site",
             "name": "example",
@@ -136201,6 +136373,13 @@
       "idempotency": "key",
       "input": {
         "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -136248,7 +136427,7 @@
       "permission": "sites.deploy",
       "resource": {
         "create": true,
-        "parent": "/name",
+        "parent": "/folderId",
         "type": "site"
       },
       "risk": "medium",
@@ -137676,7 +137855,8 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
-        "validation.bad_input"
+        "validation.bad_input",
+        "validation.not_found"
       ],
       "examples": [
         {
@@ -137746,9 +137926,8 @@
       },
       "permission": null,
       "resource": {
-        "create": true,
-        "parent": "/siteId",
-        "type": "record_type"
+        "id": "/siteId",
+        "type": "site"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -138296,9 +138475,7 @@
       },
       "permission": "connectors.manage",
       "resource": {
-        "create": true,
-        "parent": "/connector",
-        "type": "connector"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -142976,7 +143153,7 @@
         ],
         "type": "object"
       },
-      "level": "edit",
+      "level": "member",
       "module": "sync",
       "name": "sync.doc.close",
       "offline": "online",
@@ -143054,7 +143231,7 @@
         ],
         "type": "object"
       },
-      "level": "edit",
+      "level": "member",
       "module": "sync",
       "name": "sync.doc.compact",
       "output": {
@@ -143133,7 +143310,7 @@
         "type": "object"
       },
       "label": "check",
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.doc.open",
       "output": {
@@ -143235,7 +143412,7 @@
         "type": "object"
       },
       "label": "check",
-      "level": "edit",
+      "level": "member",
       "module": "sync",
       "name": "sync.doc.update",
       "offline": "online",
@@ -143297,7 +143474,7 @@
         "properties": {},
         "type": "object"
       },
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.endpoints",
       "output": {
@@ -143396,7 +143573,7 @@
         },
         "type": "object"
       },
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.entities",
       "output": {
@@ -143711,7 +143888,7 @@
         ],
         "type": "object"
       },
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.hello",
       "output": {
@@ -143875,7 +144052,7 @@
         "type": "object"
       },
       "label": "filter",
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.pull",
       "output": {
@@ -144215,7 +144392,7 @@
         ],
         "type": "object"
       },
-      "level": "edit",
+      "level": "member",
       "module": "sync",
       "name": "sync.push",
       "offline": "online",
@@ -144349,7 +144526,7 @@
         "type": "object"
       },
       "label": "filter",
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.snapshot.begin",
       "output": {
@@ -144454,7 +144631,7 @@
         "type": "object"
       },
       "label": "filter",
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.snapshot.page",
       "output": {
@@ -144533,7 +144710,7 @@
         },
         "type": "object"
       },
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.status",
       "output": {
@@ -153508,9 +153685,7 @@
       },
       "permission": "kits.publish",
       "resource": {
-        "create": true,
-        "parent": "/ref",
-        "type": "kit"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -171578,6 +171753,37 @@
     },
     {
       "module": "campaigns",
+      "name": "campaign.created",
+      "payload": {
+        "properties": {
+          "campaignId": {
+            "examples": [
+              "cmp_a1b2c3"
+            ],
+            "pattern": "^cmp_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "campaignId",
+          "name"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/campaignId",
+        "type": "campaign"
+      },
+      "summary": "A campaign was created as a draft",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "campaigns",
       "name": "campaign.launched",
       "payload": {
         "properties": {
@@ -174310,6 +174516,40 @@
     },
     {
       "module": "email-builder-api",
+      "name": "email.created",
+      "payload": {
+        "properties": {
+          "emailId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          },
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "emailId"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/emailId",
+        "type": "email"
+      },
+      "summary": "An email design was created, in a folder or at the top of the Space",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "email-builder-api",
       "name": "email_block.saved",
       "payload": {
         "properties": {
@@ -175468,6 +175708,41 @@
       "summary": "A follow was removed",
       "sv": 1,
       "vis": "owner"
+    },
+    {
+      "module": "forms",
+      "name": "form.created",
+      "payload": {
+        "properties": {
+          "formId": {
+            "examples": [
+              "frm_a1b2c3"
+            ],
+            "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "formId",
+          "name",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/formId",
+        "type": "form"
+      },
+      "summary": "A form was created as a draft",
+      "sv": 1,
+      "vis": "space"
     },
     {
       "module": "forms",
@@ -195586,12 +195861,12 @@
           "type": "status"
         },
         {
-          "key": "trustName",
+          "key": "trust_name",
           "title": "Trust name",
           "type": "text"
         },
         {
-          "key": "taxId",
+          "key": "tax_id",
           "label": "restricted",
           "title": "Tax ID",
           "type": "sealed"
@@ -196061,7 +196336,7 @@
           "type": "status"
         },
         {
-          "key": "practiceArea",
+          "key": "practice_area",
           "title": "Practice area",
           "type": "choice"
         },

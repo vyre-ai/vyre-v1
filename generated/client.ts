@@ -1012,6 +1012,7 @@ export function createClient(transport: Transport) {
     },
     identity: {
       change_password: call("identity.change_password", 1),
+      claim_owner: call("identity.claim_owner", 1),
       github_link: call("identity.github_link", 1),
       github_sign_in: call("identity.github_sign_in", 1),
       github_unlink: call("identity.github_unlink", 1),

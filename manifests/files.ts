@@ -228,7 +228,7 @@ export default defineManifest({
       in: { fileId: id.file, toFolderId: id.folder, name: t.opt(t.str()) }, out: { file: fileRow, changesetId: t.opt(id.changeset) }, on: ['file', '/fileId'], perm: 'files.write', emits: ['file.moved', 'file.renamed', 'changeset.opened', 'changeset.updated'], tool: 'files', offline: 'queue', errors: ['validation.duplicate'],
     }),
     create('files.copy', 'Copy a file into a folder', {
-      in: { fileId: id.file, toFolderId: id.folder, name: t.opt(t.str()) }, out: { file: fileRow }, make: ['folder', '/toFolderId'], perm: 'files.write', emits: ['file.created', 'file.version_added'], tool: 'files',
+      in: { fileId: id.file, toFolderId: id.folder, name: t.opt(t.str()) }, out: { file: fileRow }, make: ['file', '/toFolderId'], perm: 'files.write', emits: ['file.created', 'file.version_added'], tool: 'files',
     }),
     write('files.delete', 'Move a file to Trash', {
       in: { fileId: id.file }, out: { deleted: t.bool(), changesetId: t.opt(id.changeset) }, on: ['file', '/fileId'], perm: 'files.delete', gate: { act: 'delete', when: "actor.kind != 'person'" },
@@ -372,7 +372,7 @@ export default defineManifest({
     }),
     create('sheets.create', 'Create a CSV or XLSX table file with a header row', {
       in: { folderId: id.folder, name: t.str(), format: t.enm('csv', 'xlsx'), columns: t.arr(t.str(), { minItems: 1 }), sheet: t.opt(t.str()) },
-      out: { file: fileRow }, make: ['folder', '/folderId'], perm: 'files.write', emits: ['file.created', 'file.version_added'], tool: 'files',
+      out: { file: fileRow }, make: ['file', '/folderId'], perm: 'files.write', emits: ['file.created', 'file.version_added'], tool: 'files',
     }),
     write('sheets.add_sheet', 'Add a sheet (tab) to a workbook', {
       in: { fileId: id.file, sheet: t.str(), columns: t.arr(t.str()) }, out: { ok: t.bool() }, on: ['file', '/fileId'], perm: 'files.write', emits: ['file.version_added'], tool: 'files', errors: ['validation.duplicate'],

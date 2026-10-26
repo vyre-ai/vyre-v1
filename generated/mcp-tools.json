@@ -7020,6 +7020,13 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -13864,6 +13871,13 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -39359,6 +39373,13 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"

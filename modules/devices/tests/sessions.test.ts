@@ -13,17 +13,17 @@ const names = (h: Harness) => h.events.map((e) => e.name);
 async function world() {
   const h = harness();
   const sys = h.system();
-  const mac = await handlers["devices.register"](sys, { person: "usr_maya", name: "Maya's Mac", class: "desktop" });
+  const mac = await handlers["devices.register"](h.host(), { person: "usr_maya", name: "Maya's Mac", class: "desktop" });
   h.advance(60_000);
-  const phone = await handlers["devices.register"](sys, { person: "usr_maya", name: "Maya's iPhone", class: "phone" });
-  const laptop = await handlers["devices.register"](sys, { person: "usr_omar", name: "Omar's laptop", class: "desktop" });
+  const phone = await handlers["devices.register"](h.host(), { person: "usr_maya", name: "Maya's iPhone", class: "phone" });
+  const laptop = await handlers["devices.register"](h.host(), { person: "usr_omar", name: "Omar's laptop", class: "desktop" });
   h.events.length = 0;
   return { h, mac, phone, laptop };
 }
 
 test("register opens a device and a session and says so", async () => {
   const h = harness();
-  const out = await handlers["devices.register"](h.system(), { person: "usr_maya", name: "  Maya's Mac ", class: "desktop" });
+  const out = await handlers["devices.register"](h.host(), { person: "usr_maya", name: "  Maya's Mac ", class: "desktop" });
   assert.equal(out.device.name, "Maya's Mac");
   assert.equal(out.device.person, "usr_maya");
   assert.equal(out.device.epoch, 0);
@@ -85,7 +85,7 @@ test("a device that is not yours reads as missing; an admin may revoke and see i
 
 test("sign out everywhere else keeps this device and returns how many it ended", async () => {
   const { h, mac, phone } = await world();
-  const third = await handlers["devices.register"](h.system(), { person: "usr_maya", name: "Browser", class: "web" });
+  const third = await handlers["devices.register"](h.host(), { person: "usr_maya", name: "Browser", class: "web" });
   h.events.length = 0;
   const out = await handlers["devices.revoke_others"](h.as(MAYA.id, { device: phone.device.id }), {});
   assert.deepEqual(out, { revoked: 2 });
@@ -180,7 +180,7 @@ test("revoking a device tells sync with device_revoked and that device, once per
   await handlers["devices.revoke"](ctx as never, { deviceId: mac.device.id });
   assert.deepEqual(calls, [{ cap: "sync.epoch.bump", input: { personId: "usr_maya", reason: "device_revoked", deviceId: mac.device.id } }]);
   calls.length = 0;
-  const third = await handlers["devices.register"](h.system(), { person: "usr_maya", name: "Third", class: "web" });
+  const third = await handlers["devices.register"](h.host(), { person: "usr_maya", name: "Third", class: "web" });
   await handlers["devices.revoke_others"](ctx as never, {});
   assert.deepEqual(calls.map((c) => (c.input as { deviceId: string }).deviceId), [third.device.id], "revoke_others bumps for each device it revokes, not for the current one or an already revoked one");
 });

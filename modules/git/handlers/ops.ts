@@ -195,7 +195,7 @@ interface Repo {
   d: GitDrivers;
 }
 
-function repoOf(ctx: Ctx, folderId: string): Repo {
+function repoOf(_ctx: unknown, folderId: string): Repo {
   const d = drivers();
   return { folderId, dir: path.join(d.treesDir, folderId), d };
 }
@@ -281,7 +281,7 @@ function stringList(v: unknown): string[] | undefined {
   return Array.isArray(v) && v.every((x) => typeof x === "string") ? (v as string[]) : undefined;
 }
 
-async function protectedList(ctx: Ctx, folderId: string): Promise<string[]> {
+async function protectedList(ctx: Pick<Ctx, "db" | "call">, folderId: string): Promise<string[]> {
   const rows = ctx.db.all("SELECT * FROM git_protection WHERE folder_id = ?", folderId) as Row[];
   const own = rows[0];
   if (own && typeof own["branches"] === "string") {
@@ -309,7 +309,7 @@ function listed(list: readonly string[], branch: string, remote?: string): boole
  * What `git.is_protected(input.branch)` evaluates for the Gate: true when the branch the call pushes (the current one when input.branch is absent) is protected for the folder.
  * It never throws; a folder that is not a repository, or a branch it cannot tell, is not protected (the handler itself then refuses the push).
  */
-export async function isProtectedCall(ctx: Ctx, input: unknown): Promise<boolean> {
+export async function isProtectedCall(ctx: Pick<Ctx, "db" | "call">, input: unknown): Promise<boolean> {
   if (input === null || typeof input !== "object" || Array.isArray(input)) return false;
   const o = input as Row;
   const folderId = typeof o["folderId"] === "string" ? o["folderId"] : "";

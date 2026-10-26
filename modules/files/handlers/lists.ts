@@ -24,12 +24,14 @@ interface KnowledgeOut extends ListOut { views: { key: "memory" | "graph"; title
 async function accessRows(ctx: Ctx, type: "file" | "folder", section?: "shared"): Promise<ListRow[]> {
   const out: ListRow[] = [];
   let cursor: string | undefined;
-  for (;;) {
+  // a cursor that comes back unchanged ends the walk: a source that repeats one (the access stub's example page does) would otherwise loop for ever
+  for (let pages = 0; pages < 1000; pages++) {
     const page = (await ctx.call("access.lists", { type, ...(section ? { section } : {}), limit: 500, ...(cursor ? { cursor } : {}) })) as ListPage;
     out.push(...page.rows);
-    if (!page.next) return out;
+    if (!page.next || page.next === cursor) return out;
     cursor = page.next;
   }
+  return out;
 }
 
 function liveFile(ctx: Ctx, id: string): Row | undefined {

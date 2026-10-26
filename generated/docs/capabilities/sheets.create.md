@@ -10,7 +10,7 @@ Create a CSV or XLSX table file with a header row
 | Permission | files.write |
 | Grant level | edit |
 | Risk | medium |
-| Resource | folder (create under /folderId) |
+| Resource | file (create under /folderId) |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |

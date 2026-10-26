@@ -1,0 +1,6 @@
+# Fresh install: owner claim and the local admin token (ruling 71)
+
+- On an empty log the host makes the Space once and the owner's principal in it. Nobody can sign in as that owner until the owner claims the Space.
+- The claim link is a credential. It is stored hashed (identity_codes, kind claim), works once and lasts 24 hours. `vyred` prints it on the console and writes it to `<data dir>/logs/claim-link.txt` (mode 0600). It is never written to the log stream, the log export or the support bundle (a log line says only that a link was issued). The file is deleted when the claim succeeds. Each start issues a new link while the owner is unclaimed and the older ones stop working.
+- `identity.claim_owner` is anonymous and rate limited (5 per 5 minutes per source). Everything that can be refused is checked before the code is spent. The client builds the key bundle from the password; the server stores ciphertext only (ruling 63).
+- The local admin token (`ensureAdminToken`) stays a local operator credential for the machine that runs the server. Today it still acts as the Space owner person on the fixed device `local-admin`; it is not a way to sign in from another device and it is not shown to anyone. Separating it from the owner person is future work.

@@ -1,0 +1,12 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_09b-agentpage-strip",
+      "route": "/m/P-L9b_09b?tab=settings",
+      "proto": "chat,at:demo-agent-settings,{skin}",
+      "waitFor": "[data-testid='agent-page']",
+      "note": "The agent page on Settings: the tab strip uses the same fit as the right pane. At 390 px the last tabs fold behind More with Settings (the open tab) still drawn; on desktop all five show. The prototype side is its agent pane on Settings.",
+      "protoSettleMs": 1500
+    }
+  ]
+}
