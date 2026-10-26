@@ -629,16 +629,6 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           drivers: hostDrivers, owners: loaded.seamOwners,
         });
         closers.push(() => seams?.unwire());
-        // Ruling 73: portal invitations work without Sites. The Space's default portal is the site "sit_default"; the host registers it as a resource once (the same event id after a reboot, so the log
-        // refuses the duplicate), and the portal module does not ask Sites about it.
-        if (loaded.moduleExports.has("portal")) {
-          const r = await spaceLog.appendResult({
-            id: "evt_res_sit_default", type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: "sit_default",
-            payload: { id: "sit_default", type: "site", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 },
-          });
-          if (!r.ok) throw new Error(`could not register the default portal: ${r.message}`);
-          if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
-        }
         const gaps = seams.missing;
         for (const m of gaps) sink.log({ space: spaceId, level: 30, msg: "seam.no_driver", place: "boot", attrs: { setter: m.setter, ...(m.module ? { module: m.module } : {}), reason: m.reason } });
         // health lists only what is missing: a Space with every driver set has no row, so the eight host probes stay the eight
@@ -701,7 +691,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         const device = token ? sessions.resolve(token) : null;
         return { person: who.principal.id, ...(device ? { sessionId: device.sessionId } : {}) };
       };
-      gateway = createGateway({ invoke, caps: indexCapabilities(caps), routes: [...routes, ...(o.extra?.routes ?? [])], session,
+      // Ruling 73: portal invitations work without Sites. The Space's default portal is the site "sit_default". The host registers it as a resource the first time a portal call names it, not at
+      // boot (ruling 71: a new Space starts with exactly six events); the event id is fixed, so the log refuses a second one.
+      let defaultPortal: Promise<void> | null = null;
+      const ensureDefaultPortal = (): Promise<void> => (defaultPortal ??= (async () => {
+        const r = await spaceLog.appendResult({
+          id: "evt_res_sit_default", type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: "sit_default",
+          payload: { id: "sit_default", type: "site", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 },
+        });
+        if (!r.ok) throw new Error(`could not register the default portal: ${r.message}`);
+        if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
+      })().catch((e: unknown) => { defaultPortal = null; throw e; }));
+      const invokeWithPortal: Invoke = async (cap, input, seed) => {
+        if (cap.startsWith("portal.") && (input as { siteId?: unknown } | null)?.siteId === "sit_default" && loaded.moduleExports.has("portal")) await ensureDefaultPortal();
+        return invoke(cap, input, seed);
+      };
+      gateway = createGateway({ invoke: invokeWithPortal, caps: indexCapabilities(caps), routes: [...routes, ...(o.extra?.routes ?? [])], session,
         // callers before sign-in (the anonymous and pending capabilities): a no-one service principal named by source address, so a handler that needs a person (me()) refuses and rate limits are per address
         preAuth: (caller, headers) => preAuthSession(spaceId, caller, headers) });
       // GET /spaces/<space>/blobs/<id> (ruling 50): a blob is served to a caller who may read the resource its module stored it for
@@ -712,7 +717,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       });
       // the landing page of a portal invitation or sign-in link (P-L8_17): sites is deferred, so the Space host serves it; null while the portal module is not live
       const peekLink = loaded.moduleExports.get("portal")?.["peekLink"] as ((ctx: { db: unknown }, now: number, siteId: string, token: string) => Promise<never>) | undefined;
-      if (peekLink) portalLinkRoute = createPortalLinkRoute({ peek: (siteId, token) => peekLink({ db: db! }, now(), siteId, token) as never });
+      if (peekLink) portalLinkRoute = createPortalLinkRoute({
+        peek: (siteId, token) => peekLink({ db: db! }, now(), siteId, token) as never,
+        // the client is not signed in: the call is made as the host, through the pipeline, and the module's own throttling and one-use token rules decide
+        signIn: async (a) => {
+          const r = await invoke("portal.sign_in", a, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "portal" });
+          if (r.status !== "ok") throw new Error("held");
+          return r.output as { session: string };
+        },
+      });
       routeIndex = indexRoutes([...routes, ...(o.extra?.routes ?? [])]);   // a duplicate route is a boot error, not a first-request error
       capIndex = indexCapabilities(caps);
 

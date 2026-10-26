@@ -109,7 +109,7 @@ test("portal live: an invitation is emailed from the real service mailbox with a
     assert.match(linkOf(sent), new RegExp(`^/portal/${SITE}/link/[A-Za-z0-9_-]{20,}$`));
     assert.match(sent[0]?.text ?? "", /\?purpose=invite/);
     const listed = await post(d, OWNER_TOKEN, "portal.accounts", { siteId: SITE });
-    assert.equal(listed.data.accounts.length, 1);
+    assert.equal(listed.data.accounts?.length, 1, JSON.stringify(listed.data));
   } finally { await d.stop(); }
 });
 
@@ -137,9 +137,15 @@ test("portal live: the invitation link opens a landing page for the invited clie
     assert.equal((await get(d, `/portal/${SITE}/link/${token.slice(0, -1)}x`)).status, 404, "a wrong token");
     assert.equal((await get(d, `/portal/sit_other/link/${token}`)).status, 404, "the right token on another site");
 
-    const done = await fetch(`${d.url}/portal/sign-in`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ siteId: SITE, email: "pat@client.test", token, idempotencyKey: "portal-live-signin" }) });
-    assert.equal(done.status, 200, await done.text());
+    const done = await fetch(`${d.url}${link}`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    const claimed = (await done.json()) as { data?: { session?: string } };
+    assert.equal(done.status, 200, JSON.stringify(claimed));
+    assert.match(claimed.data?.session ?? "", /\S{20,}/, "the client got a session");
     assert.equal((await get(d, link)).status, 404, "a used link is gone");
+    const again = await fetch(`${d.url}${link}`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    assert.equal(again.status, 404, "a used link cannot be claimed twice");
+    const wrong = await fetch(`${d.url}/portal/${SITE}/link/not-a-token`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    assert.equal(wrong.status, 404);
   } finally { await d.stop(); }
 });
 
@@ -153,7 +159,7 @@ test("portal live: the landing page shows what is shared with the client once th
     assert.equal(typed.status, 200, JSON.stringify(typed.data));
     const rec = await post(d, OWNER_TOKEN, "records.create", { type: "rt_client", fields: { name: "Pat Client" } });
     assert.equal(rec.status, 200, JSON.stringify(rec.data));
-    const linked = await post(d, OWNER_TOKEN, "portal.link_record", { accountId: made.data.account.id, recordId: rec.data.record.id, rowRule: { recordType: "rt_client" } });
+    const linked = await post(d, OWNER_TOKEN, "portal.link_record", { accountId: made.data.account.accountId, recordId: rec.data.record.id, rowRule: { recordType: "rt_client" } });
     assert.equal(linked.status, 200, JSON.stringify(linked.data));
     const page = await get(d, linkOf(sent));
     assert.equal(page.status, 200);
@@ -170,7 +176,7 @@ test("portal live: with no service mailbox the invitation fails with a message t
     assert.notEqual(r.status, 200);
     assert.equal(sent.length, 0);
     const listed = await post(d, OWNER_TOKEN, "portal.accounts", { siteId: SITE });
-    assert.equal(listed.data.accounts.length, 0, "the account made for the invitation was removed");
+    assert.equal(listed.data.accounts?.length, 0, `the account made for the invitation was removed: ${JSON.stringify(listed.data)}`);
   } finally { await d.stop(); }
 });
 
