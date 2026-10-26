@@ -625,9 +625,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
             return r.output;
           },
+          // large files go to the Files module in process: the slot's one-time token from files.upload_url is the only authority, and no session or bearer is involved
           putBytes: async (url, bytes) => {
-            const res = await fetch(`http://127.0.0.1:${boundPort}${url}`, { method: "PUT", headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream" }, body: bytes });
-            if (!res.ok) throw new Error(`the upload was refused (${res.status})`);
+            const u = new URL(url, "http://vyred");
+            const m = /^\/spaces\/([^/]+)\/blobs\/(blb_[a-f0-9]{32})$/.exec(u.pathname);
+            const slot = u.searchParams.get("token");
+            if (!m || !slot || decodeURIComponent(m[1] as string) !== spaceId) throw new Error("that is not an upload slot of this Space");
+            await hooks!.call("files.put_upload", { blobId: m[2], token: slot, base64: Buffer.from(bytes).toString("base64") });
           },
           log: (level, msg, attrs) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "computers", ...(attrs ? { attrs } : {}) }),
           ...(o.computersHomeIntervalMs !== undefined ? { homeIntervalMs: o.computersHomeIntervalMs } : {}),

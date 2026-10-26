@@ -491,3 +491,20 @@ test("folders and tree roots say whether they belong to an agent, a project or t
   await expectCode("validation.bad_input", () => handlers["files.folder.create"](ctx, { parentId: agentsId, name: "Bad", subject: { kind: "space", id: "x" } }));
 });
 // run on the final commit of P-CC_27
+
+test("an upload slot takes its bytes once: a used slot, a wrong token, a wrong size and an expired slot are refused", async () => {
+  const { ctx, db } = open();
+  const body = new TextEncoder().encode("one time");
+  const slot = await handlers["files.upload_url"](ctx, { size: body.byteLength });
+  const token = slot.url.split("token=")[1] ?? "";
+  await assert.rejects(() => putUploadedBytes(ctx, slot.blobId, "not-the-token", body), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.not_found");
+  await assert.rejects(() => putUploadedBytes(ctx, slot.blobId, token, new TextEncoder().encode("different size!")), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.bad_input");
+  await putUploadedBytes(ctx, slot.blobId, token, body);
+  await assert.rejects(() => putUploadedBytes(ctx, slot.blobId, token, body), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.not_found", "the slot is gone after one use");
+  await assert.rejects(() => putUploadedBytes(ctx, "blb_00000000000000000000000000000000", token, body), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.not_found", "a slot this Space never made");
+  const late = await handlers["files.upload_url"](ctx, { size: body.byteLength });
+  const row = db.rows("files_upload").find((r) => r.id === late.blobId);
+  assert.ok(row);
+  row.expires_at = 1;
+  await assert.rejects(() => putUploadedBytes(ctx, late.blobId, late.url.split("token=")[1] ?? "", body), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.precondition_failed", "an expired slot");
+});
