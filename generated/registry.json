@@ -151875,6 +151875,7 @@
     {
       "effects": "write",
       "emits": [
+        "call.started",
         "call.ended",
         "call.missed",
         "call.voicemail_left",
