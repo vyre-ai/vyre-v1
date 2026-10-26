@@ -1,5 +1,5 @@
-// P-GF_07: on a failure the no-reply message carries the host log and the turns.
 // @heavy docker
+// P-GF_07: on a failure the no-reply message carries the host log and the turns.
 // P-L11_08: golden flow 7, first half, on the real engine: a person talks to an agent and the reply streams back from the fake CLI running in the platform's default sandbox (bubblewrap with the
 // network wall on the Linux runner). Runs only with VYRE_HEAVY_DOCKER=1 (the l2-heavy job). A todo until the PRs in REPLY_GAPS land; then it must pass with no todo.
 import test from "node:test";
