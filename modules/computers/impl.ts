@@ -26,6 +26,7 @@ import { createDockerApi, unixSocketHttp } from "../../sandbox/src/docker.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { createHomeSync } from "./handlers/home.ts";
+import { createContainerHomeFs } from "./handlers/home-fs.ts";
 import type { HomeDeps, HomeSync } from "./handlers/home.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
@@ -182,10 +183,13 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
   // the home mirror: one HomeSync per computer, a pass before it starts, one every few seconds while it runs, and a last one after it stops
   const homes = new Map<string, { sync: HomeSync; timer: ReturnType<typeof setInterval> | null }>();
   function homeOf(computerId: string, agentId: string | undefined): { sync: HomeSync; timer: ReturnType<typeof setInterval> | null } | null {
-    const dir = agentId ? o.filesRoot?.(agentId) ?? null : null;
-    if (!o.home || !agentId || !dir) return null;
+    if (!o.home || !o.http || !agentId || !o.filesRoot?.(agentId)) return null;
     let h = homes.get(computerId);
-    if (!h) { h = { sync: createHomeSync({ agentId, computerId, home: dir, manifest: o.home.manifest(agentId) }, o.home.deps), timer: null }; homes.set(computerId, h); }
+    if (!h) {
+      const fsView = createContainerHomeFs({ http: o.http, container: nameOf(computerId), image: o.image ?? DEFAULT_COMPUTER_IMAGE, user: { uid: o.user?.uid ?? 10001, gid: o.user?.gid ?? 10001 } });
+      h = { sync: createHomeSync({ agentId, computerId, fs: fsView, manifest: o.home.manifest(agentId) }, o.home.deps), timer: null };
+      homes.set(computerId, h);
+    }
     return h;
   }
   async function homePass(computerId: string, agentId: string | undefined): Promise<void> {

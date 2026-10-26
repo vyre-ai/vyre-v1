@@ -779,6 +779,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         space: spaceId, store: blobs,
         session: async (h) => { const s = await session(h); return s ? { space: s.space, principal: s.principal, ...(s.actingFor ? { actingFor: s.actingFor } : {}) } : null; },
         allow: (c, r) => !staleFor(c.principal.id) && authorize(access.snap, { principal: c.principal.id, ...(c.actingFor ? { actingFor: c.actingFor } : {}), action: { perm: null, level: "view" }, resource: { type: r.type, id: r.id } }).effect === "allow",
+        // the bytes of an upload slot (files.upload_url): the Files module seals them; the slot's one-time token is the authority
+        put: async (a) => (await hookRunner.call("files.put_upload", { blobId: a.blobId, token: a.token, base64: Buffer.from(a.bytes).toString("base64") })) as { hash: string; size: number },
       });
       // the landing page of a portal invitation or sign-in link (P-L8_17): sites is deferred, so the Space host serves it; null while the portal module is not live
       const peekLink = loaded.moduleExports.get("portal")?.["peekLink"] as ((ctx: { db: unknown }, now: number, siteId: string, token: string) => Promise<never>) | undefined;

@@ -187,6 +187,21 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     await new Promise<void>((r) => setTimeout(r, 45_000));
     assert.ok(!(await filesIn(folderId)).files.some((f) => f.name === "link.txt"), "a symlink did not reach Files");
 
+    // a folder that is a link to the host: the daemon never follows it, down or up
+    const hostTmp = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-escape-"));
+    fs.writeFileSync(path.join(hostTmp, "host-secret.txt"), "host secret");
+    fs.symlinkSync(hostTmp, path.join(dir, "computers", agentId, "Vyre", "escape"));
+    const escDir = await call(d, "files.folder.create", { parentId: folderId, name: "escape", idempotencyKey: "home-escape" });
+    assert.equal(escDir.status, 200, JSON.stringify(escDir.data));
+    await call(d, "files.create", { folderId: escDir.data.folder.folderId, name: "pwn.txt", content: { text: "pwned" }, idempotencyKey: "home-escape-file" });
+    await new Promise<void>((r) => setTimeout(r, 45_000));
+    assert.deepEqual(fs.readdirSync(hostTmp), ["host-secret.txt"], "nothing was written through the link on the host");
+    const inEscape = await filesIn(escDir.data.folder.folderId as string);
+    assert.ok(!inEscape.files.some((f) => f.name === "host-secret.txt"), "nothing was read through the link into Files");
+    assert.ok(!(await filesIn(folderId)).files.some((f) => f.name === "host-secret.txt"), "the host file is not in the agent's folder either");
+    fs.rmSync(path.join(dir, "computers", agentId, "Vyre", "escape"), { force: true });
+    fs.rmSync(hostTmp, { recursive: true, force: true });
+
     // both sides edit the same file between two passes: Files keeps the path, the computer's version lands beside it, and the owner gets a task
     await call(d, "files.create", { folderId, name: "both.txt", content: { text: "start" }, idempotencyKey: "home-both" });
     await until("both.txt on the computer", async () => await onDisk("both.txt"));
@@ -212,7 +227,7 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     await until("secret/s.txt gone from the computer", async () => (await inBox(`test ! -e ${HOME}/secret/s.txt`)).code === 0);
 
     // a Chrome download lands in downloads/ and reaches Files
-    await inBox("mkdir -p /home/agent/srv && head -c 4096 /dev/urandom > /home/agent/srv/dl.bin");
+    await inBox("mkdir -p /home/agent/srv && head -c 2097152 /dev/urandom > /home/agent/srv/dl.bin");
     await docker(["exec", "-d", "-u", "10001", box, "python3", "-m", "http.server", "8099", "--bind", "127.0.0.1", "--directory", "/home/agent/srv"], 30_000);
     const opened = await call(d, "computers.chrome.open", { computerId, url: "http://127.0.0.1:8099/dl.bin" });
     assert.equal(opened.status, 200, JSON.stringify(opened.data));
@@ -222,6 +237,8 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
       return dir ? (await filesIn(dir.folderId)).files.find((f) => f.name === "dl.bin") : null;
     });
     assert.equal(dl.name, "dl.bin");
+    const dlRow = (await filesIn((await filesIn(folderId)).folders.find((f) => f.name === "downloads")!.folderId)).files.find((f) => f.name === "dl.bin") as { size?: number } | undefined;
+    assert.equal(dlRow?.size, 2097152, "a 2 MB download went through the upload path whole");
 
     const slept = await call(d, "computers.sleep", { computerId });
     assert.equal(slept.status, 200, JSON.stringify(slept.data));

@@ -8,11 +8,14 @@
 //   both changed               -> Files keeps the original path; the computer's version is saved beside it as "name (from computer).ext" and the agent's owner gets a task, so it is never silent
 //   AGENT.md, agent.toml       -> read-only on the computer: an edit there is put back and becomes an agent suggestion for review
 //   a symlink, a hardlink, a device, a socket, or a path that leaves the folder -> never read, never sent; the pass names it and leaves it alone
+// The disk side is the computer's, so the daemon never opens a path of the home on the host: every read, write and removal goes through the container's own view of it (home-fs.ts), where a link can only
+// point at something the container already has. The manifest, which is the daemon's own, lives outside the folder.
 // A file over the direct-write size goes through the upload path (files.upload_url, then the bytes to its url). Files are mirrored whole, not streamed; the pass skips a file written in the last second so a
 // half-written file is not sent, and Chromium's partial downloads (.crdownload) wait until they are renamed.
 import fs from "node:fs";
 import path from "node:path";
 import { sha256b64 } from "../../../kernel/src/seal/index.ts";
+import type { HomeFs } from "./home-fs.ts";
 
 export const MAX_DIRECT = 256 * 1024;
 const READ_CHUNK = 1024 * 1024;
@@ -34,7 +37,7 @@ export interface HomeDeps {
 interface ManifestEntry { fileId: string; version: number; sha: string }
 interface Manifest { files: Record<string, ManifestEntry>; folders: Record<string, string> }
 interface RemoteFile { fileId: string; name: string; folderId: string; version: number; size: number; path: string }
-interface LocalFile { rel: string; abs: string; size: number; mtimeMs: number }
+interface LocalFile { rel: string; bytes: Buffer; mtimeMs: number }
 
 export interface HomeSync {
   /** One pass; passes of one home never overlap. Answers what it did. */
@@ -56,7 +59,7 @@ export function conflictName(name: string): string {
   return dot > 0 ? `${name.slice(0, dot)} (from computer)${name.slice(dot)}` : `${name} (from computer)`;
 }
 
-export function createHomeSync(o: { agentId: string; computerId: string; home: string; manifest: string }, d: HomeDeps): HomeSync {
+export function createHomeSync(o: { agentId: string; computerId: string; fs: HomeFs; manifest: string }, d: HomeDeps): HomeSync {
   let running: Promise<HomeReport> | null = null;
 
   function load(): Manifest {
@@ -99,54 +102,6 @@ export function createHomeSync(o: { agentId: string; computerId: string; home: s
     return { files, folders, complete: queue.length === 0 };
   }
 
-  /** The disk, by lstat: a link, a device, a hardlink, or anything that is not a plain file or folder is refused and named; nothing here follows a link. */
-  function local(refused: string[]): { files: Map<string, LocalFile>; dirs: Set<string> } {
-    const files = new Map<string, LocalFile>();
-    const dirs = new Set<string>();
-    const walk = (rel: string): void => {
-      let entries: fs.Dirent[];
-      try { entries = fs.readdirSync(path.join(o.home, rel), { withFileTypes: true }); } catch { return; }
-      for (const e of entries) {
-        const childRel = rel ? `${rel}/${e.name}` : e.name;
-        if (!cleanName(e.name)) { refused.push(childRel); continue; }
-        const abs = path.join(o.home, childRel);
-        let st: fs.Stats;
-        try { st = fs.lstatSync(abs); } catch { continue; }
-        if (st.isSymbolicLink() || (!st.isFile() && !st.isDirectory())) { refused.push(childRel); continue; }
-        if (st.isDirectory()) { dirs.add(childRel); walk(childRel); continue; }
-        if (st.nlink > 1) { refused.push(childRel); continue; }
-        if (SKIP.test(e.name)) continue;
-        files.set(childRel, { rel: childRel, abs, size: st.size, mtimeMs: st.mtimeMs });
-      }
-    };
-    walk("");
-    return { files, dirs };
-  }
-
-  /** Read a plain file without following a link and without leaving the folder. Null when it changed under us into something else. */
-  function readLocal(abs: string): Buffer | null {
-    const real = (() => { try { return fs.realpathSync(abs); } catch { return null; } })();
-    const base = fs.realpathSync(o.home);
-    if (real === null || (real !== base && !real.startsWith(base + path.sep))) return null;
-    let fd: number | null = null;
-    try {
-      fd = fs.openSync(abs, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-      const st = fs.fstatSync(fd);
-      if (!st.isFile() || st.nlink > 1) return null;
-      return fs.readFileSync(fd);
-    } catch { return null; } finally { if (fd !== null) fs.closeSync(fd); }
-  }
-
-  function writeLocal(rel: string, bytes: Uint8Array, readOnly: boolean): void {
-    const abs = path.join(o.home, rel);
-    fs.mkdirSync(path.dirname(abs), { recursive: true, mode: 0o777 });
-    const tmp = `${abs}.vyre-tmp`;
-    try { fs.rmSync(abs, { force: true }); } catch { /* replaced below */ }
-    fs.writeFileSync(tmp, bytes, { mode: readOnly ? 0o444 : 0o666 });
-    fs.chmodSync(tmp, readOnly ? 0o444 : 0o666);
-    fs.renameSync(tmp, abs);
-  }
-
   async function download(f: RemoteFile): Promise<Buffer> {
     const parts: Buffer[] = [];
     for (let offset = 0; ; offset += READ_CHUNK) {
@@ -170,11 +125,15 @@ export function createHomeSync(o: { agentId: string; computerId: string; home: s
   async function run(): Promise<HomeReport> {
     const report: HomeReport = { down: 0, up: 0, conflicts: 0, removed: 0, refused: [], suggested: 0 };
     const agent = (await d.callAs(o.agentId, "agents.get", { agentId: o.agentId })).agent as { folderId: string; ownerId: string };
-    fs.mkdirSync(o.home, { recursive: true, mode: 0o777 });
     const m = load();
     const R = await remote(agent.folderId);
-    const L = local(report.refused);
+    const snap = await o.fs.snapshot();
+    if (!snap.complete) { d.log("warn", "computers.home.too_big", { computer: o.computerId }); return report; }
+    report.refused = snap.refused;
+    const L = { files: new Map<string, LocalFile>([...snap.files].map(([rel, f]) => [rel, { rel, bytes: f.bytes, mtimeMs: f.mtimeMs }])), dirs: snap.dirs };
     const settled = (f: LocalFile): boolean => d.now() - f.mtimeMs >= SETTLE_MS;
+    const removeFiles: string[] = [], removeDirs: string[] = [], afterRemove: Array<() => void> = [];
+    const writeLocal = (rel: string, bytes: Uint8Array, readOnly: boolean): Promise<void> => o.fs.put([{ rel, bytes, readOnly }]);
 
     const folderFor = async (rel: string): Promise<string> => {
       const known = R.folders.get(rel);
@@ -187,12 +146,8 @@ export function createHomeSync(o: { agentId: string; computerId: string; home: s
       return id;
     };
 
-    // folders: Files' folders appear on the disk
-    for (const rel of [...R.folders.keys()].filter((p) => p !== "").sort()) {
-      fs.mkdirSync(path.join(o.home, rel), { recursive: true, mode: 0o777 });
-      try { fs.chmodSync(path.join(o.home, rel), 0o777); } catch { /* not ours to change */ }
-      m.folders[rel] = R.folders.get(rel)!;
-    }
+    // folders: Files' folders are made on the disk when a file arrives in them; the manifest remembers which ones Files listed
+    for (const rel of R.folders.keys()) if (rel !== "") m.folders[rel] = R.folders.get(rel)!;
 
     const paths = new Set<string>([...R.files.keys(), ...L.files.keys(), ...Object.keys(m.files)]);
     for (const rel of [...paths].sort()) {
@@ -202,13 +157,13 @@ export function createHomeSync(o: { agentId: string; computerId: string; home: s
         if (r && !l) {
           if (prev && prev.version === r.version) {
             // gone from the disk, unchanged in Files: the agent deleted it
-            if (readOnly) { writeLocal(rel, await download(r), true); report.down++; continue; }
+            if (readOnly) { await writeLocal(rel, await download(r), true); report.down++; continue; }
             await d.callAs(o.agentId, "files.delete", { fileId: r.fileId });
             delete m.files[rel];
             report.removed++;
           } else {
             const bytes = await download(r);
-            writeLocal(rel, bytes, readOnly);
+            await writeLocal(rel, bytes, readOnly);
             m.files[rel] = { fileId: r.fileId, version: r.version, sha: sha256b64(bytes) };
             report.down++;
           }
@@ -216,18 +171,13 @@ export function createHomeSync(o: { agentId: string; computerId: string; home: s
           if (prev) {
             // gone from Files (deleted, or access taken away): it leaves the computer, unless it was changed here
             if (!R.complete) continue;   // the listing was cut short: never read a missing file as a revoked one
-            const bytes = readLocal(l.abs);
-            if (bytes !== null && sha256b64(bytes) === prev.sha) { fs.rmSync(l.abs, { force: true }); delete m.files[rel]; report.removed++; continue; }
-            if (bytes === null) continue;
-            fs.rmSync(l.abs, { force: true });
-            delete m.files[rel];
-            report.removed++;
-            d.log("warn", "computers.home.revoked_with_edits", { computer: o.computerId, path: rel });
+            if (sha256b64(l.bytes) !== prev.sha) d.log("warn", "computers.home.revoked_with_edits", { computer: o.computerId, path: rel });
+            removeFiles.push(rel);
+            afterRemove.push(() => { delete m.files[rel]; report.removed++; });
           } else {
             if (!settled(l)) continue;
-            const bytes = readLocal(l.abs);
-            if (bytes === null) { report.refused.push(rel); continue; }
-            if (readOnly) { fs.rmSync(l.abs, { force: true }); continue; }
+            const bytes = l.bytes;
+            if (readOnly) { removeFiles.push(rel); afterRemove.push(() => undefined); continue; }
             const folderId = await folderFor(dirOf(rel));
             const made = await d.callAs(o.agentId, "files.create", { folderId, name: baseOf(rel), content: await content(bytes), idempotencyKey: `home:${o.computerId}:create:${rel}:${sha256b64(bytes)}` });
             const f = made.file as { fileId: string; version: number };
@@ -235,8 +185,7 @@ export function createHomeSync(o: { agentId: string; computerId: string; home: s
             report.up++;
           }
         } else if (r && l) {
-          const bytes = readLocal(l.abs);
-          if (bytes === null) { report.refused.push(rel); continue; }
+          const bytes = l.bytes;
           const sha = sha256b64(bytes);
           const localChanged = !prev || sha !== prev.sha;
           const remoteChanged = !prev || r.version !== prev.version;
@@ -248,7 +197,7 @@ export function createHomeSync(o: { agentId: string; computerId: string; home: s
                 agentId: o.agentId, file: rel, diff: `--- ${rel}\n+++ ${rel} (edited on the computer)\n${bytes.toString("utf8").slice(0, 20_000)}`,
                 reason: "Edited on the agent's computer, where this file is read-only.", idempotencyKey: `home:${o.computerId}:suggest:${rel}:${sha}`,
               }).then(() => { report.suggested++; }, () => undefined);
-              writeLocal(rel, theirs, true);
+              await writeLocal(rel, theirs, true);
               m.files[rel] = { fileId: r.fileId, version: r.version, sha: sha256b64(theirs) };
               continue;
             }
@@ -260,7 +209,7 @@ export function createHomeSync(o: { agentId: string; computerId: string; home: s
             report.up++;
           } else if (!localChanged && remoteChanged) {
             const theirs = await download(r);
-            writeLocal(rel, theirs, readOnly);
+            await writeLocal(rel, theirs, readOnly);
             m.files[rel] = { fileId: r.fileId, version: r.version, sha: sha256b64(theirs) };
             report.down++;
           } else {
@@ -270,8 +219,8 @@ export function createHomeSync(o: { agentId: string; computerId: string; home: s
             const copyRel = dirOf(rel) ? `${dirOf(rel)}/${copy}` : copy;
             const made = await d.callAs(o.agentId, "files.create", { folderId: r.folderId, name: copy, content: await content(bytes), idempotencyKey: `home:${o.computerId}:conflict:${rel}:${sha}` });
             const cf = made.file as { fileId: string; version: number };
-            writeLocal(rel, theirs, readOnly);
-            writeLocal(copyRel, bytes, false);
+            await writeLocal(rel, theirs, readOnly);
+            await writeLocal(copyRel, bytes, false);
             m.files[rel] = { fileId: r.fileId, version: r.version, sha: sha256b64(theirs) };
             m.files[copyRel] = { fileId: cf.fileId, version: cf.version, sha };
             await d.callAs(o.agentId, "tasks.create", {
@@ -295,8 +244,12 @@ export function createHomeSync(o: { agentId: string; computerId: string; home: s
     }
     for (const rel of Object.keys(m.folders).sort().reverse()) {
       if (R.folders.has(rel) || !R.complete) continue;
-      try { fs.rmdirSync(path.join(o.home, rel)); } catch { /* not empty or already gone */ }
-      delete m.folders[rel];
+      removeDirs.push(rel);
+      afterRemove.push(() => { delete m.folders[rel]; });
+    }
+    // removals last, in one helper run inside the computer's mounts; the manifest forgets a file only once it is really gone, so a failed removal is tried again and never read as a new file
+    if (removeFiles.length > 0 || removeDirs.length > 0) {
+      try { await o.fs.remove(removeFiles, removeDirs); for (const done of afterRemove) done(); } catch (e) { d.log("warn", "computers.home.remove_failed", { computer: o.computerId, error: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); }
     }
     save(m);
     if (report.refused.length > 0) d.log("warn", "computers.home.refused", { computer: o.computerId, paths: report.refused.slice(0, 20) });
