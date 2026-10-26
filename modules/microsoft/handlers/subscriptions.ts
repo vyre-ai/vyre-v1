@@ -55,7 +55,7 @@ async function create(
   const given = Date.parse(text(r.expirationDateTime) ?? "");
   const expiresAt = Number.isFinite(given) ? given : expires;
   ctx.db.run(
-    `INSERT INTO ms_subscription (id, kind, resource, mailbox, "connectionId", "notificationUrl", "clientState", "expiresAt", "maxMinutes", "changeType") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO microsoft_subscription (id, kind, resource, mailbox, "connectionId", "notificationUrl", "clientState", "expiresAt", "maxMinutes", "changeType") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, o.kind, o.resource, o.mailbox, a.connectionId, notificationUrl, state, expiresAt, o.maxMinutes, o.changeType,
   );
   return { subscriptionId: id, expiresAt };
@@ -93,7 +93,7 @@ export async function teamsSubscribe(ctx: MsCtx, a: Act & { resource: string; no
 /** Remove a subscription. Only the member whose mailbox it watches, or an admin, may; a Microsoft 404 means it is already gone. */
 export async function unsubscribe(ctx: MsCtx, a: Act & { subscriptionId: string }, cap: string) {
   ensure(ctx);
-  const row = first(ctx.db.all(`SELECT * FROM ms_subscription WHERE id = ?`, a.subscriptionId));
+  const row = first(ctx.db.all(`SELECT * FROM microsoft_subscription WHERE id = ?`, a.subscriptionId));
   if (!row) throw fail("validation.not_found", ctx.trace.traceId, { message: "No such subscription." });
   const owner = strOrNull(row, "mailbox");
   const sub = resolveSubject(ctx, { connectionId: a.connectionId, ...(a.as ? { as: a.as } : {}) });
@@ -103,7 +103,7 @@ export async function unsubscribe(ctx: MsCtx, a: Act & { subscriptionId: string 
   }
   const r = await apiRaw(ctx, { cap, connectionId: a.connectionId, tenant: true, method: "DELETE", url: `${GRAPH}/subscriptions/${enc(a.subscriptionId)}` });
   if (r.status >= 300 && r.status !== 404) throw refusal(ctx, r.status, r.json);
-  ctx.db.run(`DELETE FROM ms_subscription WHERE id = ?`, a.subscriptionId);
+  ctx.db.run(`DELETE FROM microsoft_subscription WHERE id = ?`, a.subscriptionId);
   return { removed: true };
 }
 
@@ -119,7 +119,7 @@ export async function renew(ctx: MsCtx): Promise<{ runId: string }> {
   const now = ctx.now();
   if (!cfg || num(cfg, "configured") !== 1 || !connectionId) return { runId };   // switched off: nothing to keep alive and nothing to queue
 
-  for (const row of rowsOf(ctx.db.all(`SELECT * FROM ms_subscription ORDER BY "expiresAt" ASC`))) {
+  for (const row of rowsOf(ctx.db.all(`SELECT * FROM microsoft_subscription ORDER BY "expiresAt" ASC`))) {
     const id = str(row, "id");
     const expiresAt = num(row, "expiresAt");
     if (expiresAt - now > Math.min(RENEW_WITHIN_MS, (num(row, "maxMinutes") * MINUTE) / 2)) continue;
@@ -131,7 +131,7 @@ export async function renew(ctx: MsCtx): Promise<{ runId: string }> {
       });
       if (r.status < 300) {
         const given = Date.parse(text(r.json.expirationDateTime) ?? "");
-        ctx.db.run(`UPDATE ms_subscription SET "expiresAt" = ? WHERE id = ?`, Number.isFinite(given) ? given : next, id);
+        ctx.db.run(`UPDATE microsoft_subscription SET "expiresAt" = ? WHERE id = ?`, Number.isFinite(given) ? given : next, id);
       } else if (r.status === 404) {
         await recreate(ctx, row, next);
       } else {
@@ -145,7 +145,7 @@ export async function renew(ctx: MsCtx): Promise<{ runId: string }> {
   const due = num(cfg, "nextRenewAt");
   if (due <= now) {
     const at = now + RENEW_EVERY_MS;
-    ctx.db.run(`UPDATE ms_config SET "nextRenewAt" = ? WHERE id = ?`, at, CONFIG_ID);
+    ctx.db.run(`UPDATE microsoft_config SET "nextRenewAt" = ? WHERE id = ?`, at, CONFIG_ID);
     await ctx.schedule(at, "ms.subscriptions.renew", {});
   }
   return { runId };
@@ -160,9 +160,9 @@ async function recreate(ctx: MsCtx, row: Record<string, string | number | null>,
   });
   const id = text(r.id);
   if (!id) return;
-  ctx.db.run(`DELETE FROM ms_subscription WHERE id = ?`, str(row, "id"));
+  ctx.db.run(`DELETE FROM microsoft_subscription WHERE id = ?`, str(row, "id"));
   ctx.db.run(
-    `INSERT INTO ms_subscription (id, kind, resource, mailbox, "connectionId", "notificationUrl", "clientState", "expiresAt", "maxMinutes", "changeType") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO microsoft_subscription (id, kind, resource, mailbox, "connectionId", "notificationUrl", "clientState", "expiresAt", "maxMinutes", "changeType") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, str(row, "kind"), str(row, "resource"), strOrNull(row, "mailbox"), str(row, "connectionId"), str(row, "notificationUrl"), state, expires, num(row, "maxMinutes"), str(row, "changeType"),
   );
 }
@@ -175,11 +175,11 @@ export async function receiveNotification(
 ) {
   ensure(ctx);
   if (typeof input.notificationId !== "string" || input.notificationId.length === 0) bad(ctx, "A notification needs its id.");
-  if (first(ctx.db.all(`SELECT "notificationId" FROM ms_notification_seen WHERE "notificationId" = ?`, input.notificationId))) return { accepted: false };
-  ctx.db.run(`INSERT INTO ms_notification_seen ("notificationId", at) VALUES (?, ?)`, input.notificationId, ctx.now());
+  if (first(ctx.db.all(`SELECT "notificationId" FROM microsoft_notification_seen WHERE "notificationId" = ?`, input.notificationId))) return { accepted: false };
+  ctx.db.run(`INSERT INTO microsoft_notification_seen ("notificationId", at) VALUES (?, ?)`, input.notificationId, ctx.now());
   // The hook layer compares clientState; a notification that failed it, or names no subscription of ours, is dropped. "manual" and "poll"
   // are this connector's own nudges (a manual sync, the queued poll) and carry no Graph subscription.
-  const sub = first(ctx.db.all(`SELECT mailbox FROM ms_subscription WHERE id = ?`, input.subscriptionId));
+  const sub = first(ctx.db.all(`SELECT mailbox FROM microsoft_subscription WHERE id = ?`, input.subscriptionId));
   const own = input.subscriptionId === "manual" || input.subscriptionId === "poll";
   if (!input.clientStateOk || (!sub && !own)) return { accepted: false };
   const payload: Record<string, unknown> = {
@@ -204,7 +204,7 @@ async function pullAndSchedule(ctx: MsCtx, email: string, cause: string): Promis
   const cfg = config(ctx);
   const connectionId = strOrNull(cfg, "connectionId");
   if (!cfg || num(cfg, "configured") !== 1 || !connectionId) return;
-  const member = first(ctx.db.all(`SELECT mapped, excluded FROM ms_member WHERE email = ?`, email));
+  const member = first(ctx.db.all(`SELECT mapped, excluded FROM microsoft_member WHERE email = ?`, email));
   if (!member || num(member, "mapped") !== 1 || num(member, "excluded") === 1) return;
   const now = ctx.now();
   let delay: number;
@@ -216,12 +216,12 @@ async function pullAndSchedule(ctx: MsCtx, email: string, cause: string): Promis
     ctx.log.warn("microsoft pull failed", { mailbox: email, code: codeOf(e), cause });
     delay = pollInterval(now, null, false);
   }
-  const box = first(ctx.db.all(`SELECT "nextPollAt" FROM ms_mailbox WHERE email = ?`, email));
+  const box = first(ctx.db.all(`SELECT "nextPollAt" FROM microsoft_mailbox WHERE email = ?`, email));
   const queued = box && typeof box.nextPollAt === "number" ? box.nextPollAt : 0;
   if (queued > now) return;   // a poll is already waiting; a notice or a manual sync does not start a second chain
   const at = now + delay;
   ensureMailbox(ctx, email, connectionId);
-  ctx.db.run(`UPDATE ms_mailbox SET "nextPollAt" = ? WHERE email = ?`, at, email);
+  ctx.db.run(`UPDATE microsoft_mailbox SET "nextPollAt" = ? WHERE email = ?`, at, email);
   await ctx.schedule(at, "ms.receive_notification", {
     notificationId: `poll:${email}:${at}`, subscriptionId: "poll", resource: `users/${email}/messages`, changeType: "updated", clientStateOk: true,
   });
@@ -232,7 +232,7 @@ async function pullAndSchedule(ctx: MsCtx, email: string, cause: string): Promis
 export async function consentStatus(ctx: MsCtx) {
   ensure(ctx);
   const cfg = config(ctx);
-  const members = rowsOf(ctx.db.all(`SELECT email, mapped, excluded FROM ms_member`));
+  const members = rowsOf(ctx.db.all(`SELECT email, mapped, excluded FROM microsoft_member`));
   const out: {
     configured: boolean; tenantId?: string; consentGiven: boolean; policyConfirmed: boolean; lastVerifyAt?: number; autoConnect: boolean; mappedMembers: number; excluded: string[];
   } = {
@@ -262,7 +262,7 @@ export async function consentSnippet(ctx: MsCtx) {
   ensure(ctx);
   const cfg = config(ctx);
   const clientId = strOrNull(cfg, "clientId") ?? "<application client id>";
-  const mapped = rowsOf(ctx.db.all(`SELECT email FROM ms_member WHERE mapped = ? AND excluded = ?`, 1, 0)).map((r) => str(r, "email")).filter((e) => EMAIL.test(e) && !/['"`$]/.test(e)).sort();
+  const mapped = rowsOf(ctx.db.all(`SELECT email FROM microsoft_member WHERE mapped = ? AND excluded = ?`, 1, 0)).map((r) => str(r, "email")).filter((e) => EMAIL.test(e) && !/['"`$]/.test(e)).sort();
   const domain = strOrNull(cfg, "domain") ?? "yourcompany.com";
   const group = `${GROUP_NAME.toLowerCase()}@${domain}`;
   const members = mapped.length ? mapped.map((e) => `"${e}"`).join(",") : `"first.member@${domain}"`;
@@ -313,12 +313,12 @@ export async function consentSetup(ctx: MsCtx, input: { vaultItem: string; tenan
   await host.mintToken(ctx, { connectionId });   // proves the client id and secret before anything is mapped; consent itself is checked by verify
   if (cfg) {
     ctx.db.run(
-      `UPDATE ms_config SET "connectionId" = ?, "vaultItem" = ?, "tenantId" = ?, domain = ?, "clientId" = ?, configured = ?, "autoConnect" = ?, updated_at = ? WHERE id = ?`,
+      `UPDATE microsoft_config SET "connectionId" = ?, "vaultItem" = ?, "tenantId" = ?, domain = ?, "clientId" = ?, configured = ?, "autoConnect" = ?, updated_at = ? WHERE id = ?`,
       connectionId, input.vaultItem, input.tenantId, domain, app.clientId, 1, autoConnect ? 1 : 0, now, CONFIG_ID,
     );
   } else {
     ctx.db.run(
-      `INSERT INTO ms_config (id, "connectionId", "vaultItem", "tenantId", domain, "clientId", configured, "consentGiven", "policyConfirmed", "autoConnect", "lastVerifyAt", "nextRenewAt", updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO microsoft_config (id, "connectionId", "vaultItem", "tenantId", domain, "clientId", configured, "consentGiven", "policyConfirmed", "autoConnect", "lastVerifyAt", "nextRenewAt", updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       CONFIG_ID, connectionId, input.vaultItem, input.tenantId, domain, app.clientId, 1, 0, 0, autoConnect ? 1 : 0, null, null, now,
     );
   }
@@ -327,22 +327,22 @@ export async function consentSetup(ctx: MsCtx, input: { vaultItem: string; tenan
   for (const m of await host.memberEmails(ctx)) {
     const email = normalizeEmail(m.email);
     if (!EMAIL.test(email) || (domain !== null && !email.endsWith(`@${domain}`))) continue;
-    const prior = first(ctx.db.all(`SELECT excluded FROM ms_member WHERE email = ?`, email));
-    if (prior) ctx.db.run(`UPDATE ms_member SET "userId" = ?, mapped = ?, updated_at = ? WHERE email = ?`, m.userId, 1, now, email);
-    else ctx.db.run(`INSERT INTO ms_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, email, m.userId, 1, 0, null, now);
+    const prior = first(ctx.db.all(`SELECT excluded FROM microsoft_member WHERE email = ?`, email));
+    if (prior) ctx.db.run(`UPDATE microsoft_member SET "userId" = ?, mapped = ?, updated_at = ? WHERE email = ?`, m.userId, 1, now, email);
+    else ctx.db.run(`INSERT INTO microsoft_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, email, m.userId, 1, 0, null, now);
     if (!prior || num(prior, "excluded") === 0) mapped.push({ userId: m.userId, email });
   }
   let connected = 0;
   if (autoConnect && mapped.length > 0) {
     const out = obj(await ctx.call("mail.auto_connect_members", { provider: "microsoft", members: mapped, idempotencyKey: `${input.idempotencyKey}:members` }));
     connected = int(out.created) ?? 0;
-    for (const m of mapped) ctx.db.run(`UPDATE ms_member SET "mailboxState" = ? WHERE email = ?`, "pending", m.email);
+    for (const m of mapped) ctx.db.run(`UPDATE microsoft_member SET "mailboxState" = ? WHERE email = ?`, "pending", m.email);
   }
   ctx.emit("microsoft.consent_configured", "connector/microsoft", { connector: "microsoft", tenantId: input.tenantId, mappedMembers: mapped.length, autoConnect });
   // Subscriptions live about three days: queue the first renewal Run now.
-  if (num(first(ctx.db.all(`SELECT "nextRenewAt" FROM ms_config WHERE id = ?`, CONFIG_ID)), "nextRenewAt") <= now) {
+  if (num(first(ctx.db.all(`SELECT "nextRenewAt" FROM microsoft_config WHERE id = ?`, CONFIG_ID)), "nextRenewAt") <= now) {
     const at = now + RENEW_EVERY_MS;
-    ctx.db.run(`UPDATE ms_config SET "nextRenewAt" = ? WHERE id = ?`, at, CONFIG_ID);
+    ctx.db.run(`UPDATE microsoft_config SET "nextRenewAt" = ? WHERE id = ?`, at, CONFIG_ID);
     await ctx.schedule(at, "ms.subscriptions.renew", {});
   }
   return { configured: true, mappedMembers: mapped.length, connected };
@@ -375,7 +375,7 @@ export async function consentVerify(ctx: MsCtx, input: { as?: string; policyConf
   if (roles === null) details.push("The token could not be read, so the permission list was not checked.");
   if (missing.length) details.push(`Grant admin consent for: ${missing.join(", ")}.`);
 
-  const probe = input.as ? normalizeEmail(input.as) : strOrNull(first(ctx.db.all(`SELECT email FROM ms_member WHERE mapped = ? AND excluded = ?`, 1, 0)), "email");
+  const probe = input.as ? normalizeEmail(input.as) : strOrNull(first(ctx.db.all(`SELECT email FROM microsoft_member WHERE mapped = ? AND excluded = ?`, 1, 0)), "email");
   let probeOk = true;
   if (probe) {
     if (!EMAIL.test(probe)) bad(ctx, "The address is not an email.");
@@ -386,7 +386,7 @@ export async function consentVerify(ctx: MsCtx, input: { as?: string; policyConf
   const consentGiven = orgOk && missing.length === 0;
   const ok = consentGiven && probeOk;
   const policy = input.policyConfirmed === true || (probe !== null && probeOk);
-  ctx.db.run(`UPDATE ms_config SET "consentGiven" = ?, "policyConfirmed" = ?, "lastVerifyAt" = ?, updated_at = ? WHERE id = ?`, consentGiven ? 1 : 0, policy ? 1 : 0, ctx.now(), ctx.now(), CONFIG_ID);
+  ctx.db.run(`UPDATE microsoft_config SET "consentGiven" = ?, "policyConfirmed" = ?, "lastVerifyAt" = ?, updated_at = ? WHERE id = ?`, consentGiven ? 1 : 0, policy ? 1 : 0, ctx.now(), ctx.now(), CONFIG_ID);
   ctx.emit("microsoft.consent_verified", "connector/microsoft", { connector: "microsoft", ok, missingPermissions: missing });
   const out: { ok: boolean; missingPermissions: string[]; detail?: string } = { ok, missingPermissions: missing };
   if (details.length) out.detail = details.join(" ");
@@ -399,7 +399,7 @@ export async function consentMembers(ctx: MsCtx, input: { cursor?: string; limit
   const offset = input.cursor === undefined ? 0 : Number(input.cursor);
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) bad(ctx, "Limit must be from 1 to 500.");
   if (!Number.isSafeInteger(offset) || offset < 0) bad(ctx, "Cursor is not valid.");
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM ms_member ORDER BY email ASC`));
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM microsoft_member ORDER BY email ASC`));
   const page = rows.slice(offset, offset + limit).map((r) => {
     const m: { email: string; userId?: string; mapped: boolean; excluded: boolean; mailboxState?: string } = { email: str(r, "email"), mapped: num(r, "mapped") === 1, excluded: num(r, "excluded") === 1 };
     if (strOrNull(r, "userId")) m.userId = str(r, "userId");
@@ -417,19 +417,19 @@ export async function consentExclude(ctx: MsCtx, input: { email: string; exclude
   if (!EMAIL.test(email)) bad(ctx, "The address is not an email.");
   if (typeof input.excluded !== "boolean") bad(ctx, "Excluded must be true or false.");
   const now = ctx.now();
-  if (first(ctx.db.all(`SELECT email FROM ms_member WHERE email = ?`, email))) {
-    ctx.db.run(`UPDATE ms_member SET excluded = ?, updated_at = ? WHERE email = ?`, input.excluded ? 1 : 0, now, email);
+  if (first(ctx.db.all(`SELECT email FROM microsoft_member WHERE email = ?`, email))) {
+    ctx.db.run(`UPDATE microsoft_member SET excluded = ?, updated_at = ? WHERE email = ?`, input.excluded ? 1 : 0, now, email);
   } else {
-    ctx.db.run(`INSERT INTO ms_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, email, null, 0, input.excluded ? 1 : 0, null, now);
+    ctx.db.run(`INSERT INTO microsoft_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, email, null, 0, input.excluded ? 1 : 0, null, now);
   }
-  return { excluded: rowsOf(ctx.db.all(`SELECT email FROM ms_member WHERE excluded = ?`, 1)).map((r) => str(r, "email")).sort() };
+  return { excluded: rowsOf(ctx.db.all(`SELECT email FROM microsoft_member WHERE excluded = ?`, 1)).map((r) => str(r, "email")).sort() };
 }
 
 export async function consentDisable(ctx: MsCtx) {
   ensure(ctx);
-  ctx.db.run(`UPDATE ms_config SET configured = ?, updated_at = ? WHERE id = ?`, 0, ctx.now(), CONFIG_ID);
-  ctx.db.run(`UPDATE ms_member SET "mailboxState" = ?, updated_at = ? WHERE mapped = ?`, "paused", ctx.now(), 1);
-  ctx.db.run(`UPDATE ms_mailbox SET "nextPollAt" = ? WHERE "nextPollAt" IS NOT NULL`, null);
+  ctx.db.run(`UPDATE microsoft_config SET configured = ?, updated_at = ? WHERE id = ?`, 0, ctx.now(), CONFIG_ID);
+  ctx.db.run(`UPDATE microsoft_member SET "mailboxState" = ?, updated_at = ? WHERE mapped = ?`, "paused", ctx.now(), 1);
+  ctx.db.run(`UPDATE microsoft_mailbox SET "nextPollAt" = ? WHERE "nextPollAt" IS NOT NULL`, null);
   forgetTokens();
   ctx.emit("microsoft.consent_revoked", "connector/microsoft", { connector: "microsoft", by: ctx.principal.id });
   return { disabled: true };
