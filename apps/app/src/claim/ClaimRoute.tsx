@@ -9,10 +9,8 @@ import { createCapCaller } from "../shell/session/caps.ts";
 import { openRealSession } from "../shell/session/session.ts";
 import { spaceAddress, writeStored } from "../shell/session/stored.ts";
 import { claimOwner } from "./claim.ts";
-import { fingerprintOf, spaceIdOf } from "./logic.ts";
+import { fingerprintOf, spaceIdOf, spaceNameOf } from "./logic.ts";
 import { ClaimOwner } from "./ClaimOwner.tsx";
-
-const hostOf = (baseUrl: string): string => baseUrl.replace(/^https?:\/\//, "").split(":")[0] ?? baseUrl;
 
 export function ClaimRoute({ token, onDone, onSignIn }: { token: string; onDone(): void; onSignIn(): void }): ReactElement | null {
   const baseUrl = spaceAddress();
@@ -22,7 +20,7 @@ export function ClaimRoute({ token, onDone, onSignIn }: { token: string; onDone(
   const hash = (globalThis as { location?: { hash?: string } }).location?.hash ?? "";
   const spaceId = spaceIdOf(hash);
   // A link without the Space id (#s=) is not the link the server printed.
-  if (!spaceId) return <ClaimOwner space={hostOf(baseUrl)} newCode={makeRecoveryCode} onClaim={async () => undefined} dead="invalid" onSignIn={onSignIn} />;
+  if (!spaceId) return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={async () => undefined} dead="invalid" onSignIn={onSignIn} />;
   const claim = async (v: { name: string; username: string; password: string; recoveryCode: string }): Promise<void> => {
     const claimed = await claimOwner(
       { call, makeBundle: (password, recoveryCode, id) => makeBundle(password, recoveryCode, { spaceId: id }), holdKey: (t, key) => holdKeyOnOwnNode(baseUrl, t, key), wipe },
@@ -33,5 +31,5 @@ export function ClaimRoute({ token, onDone, onSignIn }: { token: string; onDone(
     real.close();
     onDone();
   };
-  return <ClaimOwner space={hostOf(baseUrl)} newCode={makeRecoveryCode} onClaim={claim} onSignIn={onSignIn} fingerprint={fingerprintOf(hash)} />;
+  return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={claim} onSignIn={onSignIn} fingerprint={fingerprintOf(hash)} />;
 }

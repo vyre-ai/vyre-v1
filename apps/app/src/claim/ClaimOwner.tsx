@@ -11,7 +11,8 @@ import type { ClaimFailure, Details, Problem } from "./logic.ts";
 
 export interface ClaimOwnerProps {
   /** The Space's name when the server told us (the preflight), else its address. */
-  space: string;
+  /** The Space's name, or null when the server has not given one yet (the screen then says "your Space"; it never shows a host or an address). */
+  space: string | null;
   /** The Space's key fingerprint from the link, to compare with the one the server printed. */
   fingerprint?: string | null;
   /** A fresh recovery code (16 characters in four groups). */
@@ -59,15 +60,15 @@ function Dead({ failure, onSignIn }: { failure: ClaimFailure; onSignIn?: () => v
   );
 }
 
-function DetailsStep({ s, space, fingerprint, dispatch, next }: { s: State; space: string; fingerprint?: string | null; dispatch: (a: Action) => void; next: () => void }): ReactElement {
+function DetailsStep({ s, space, fingerprint, dispatch, next }: { s: State; space: string | null; fingerprint?: string | null; dispatch: (a: Action) => void; next: () => void }): ReactElement {
   const set = (patch: Partial<Details>): void => dispatch({ t: "set", patch });
   const problem = problemOf(s);
   const showUser = !!s.username && problem === "username";
   const mism = !!s.confirm && s.confirm !== s.password;
   return (
     <Step id="claim-details" dir={s.dir}>
-      <AppIcon kind="space" letter={space} />
-      <Title title={`Set up ${space}`} sub="You are the owner. Choose how you sign in." />
+      <AppIcon kind="space" letter={space ?? "V"} />
+      <Title title={`Set up ${space ?? "your Space"}`} sub="You are the owner. Choose how you sign in." />
       <Group>
         <FieldRow testID="claim-name" label="Name" value={s.name} onChange={(v) => set({ name: v })} placeholder="Required" onSubmit={next} autoComplete="name" />
         <FieldRow testID="claim-username" label="Username" value={s.username} onChange={(v) => set({ username: cleanUsername(v) })} placeholder="name" onSubmit={next} autoComplete="username" />
@@ -124,8 +125,8 @@ export function ClaimOwner(props: ClaimOwnerProps): ReactElement {
       <JoinFrame>
         <Panel center>
           <Step id="claim-run">
-            <AppIcon kind="space" letter={props.space} />
-            <Title title={`Setting up ${props.space}`} />
+            <AppIcon kind="space" letter={props.space ?? "V"} />
+            <Title title={`Setting up ${props.space ?? "your Space"}`} />
             <Text accessibilityLiveRegion="polite" testID="claim-working" style={{ textAlign: "center", marginTop: 14, color: "var(--ink-2)" as string }}>Creating your account…</Text>
           </Step>
         </Panel>

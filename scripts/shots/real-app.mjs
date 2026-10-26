@@ -23,6 +23,9 @@ export const PLACES = [
 ];
 
 /** The phone has five tabs: Chats, Inbox, Records, Files and You (Home is reached through You). Places without a tab are not shot at phone width. */
+/** What proves a place drew at phone width, where it differs: Home is the You screen. */
+export const PHONE_DREW = { home: "[data-testid='you-screen']" };
+
 export const PHONE_TAB = { home: "you", chats: "chats", inbox: "inbox", records: "records", files: "files" };
 
 /** One index.md row: what was shot, whether the place drew, and which stub modules it is still waiting on. */
@@ -53,6 +56,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const { chromium } = await import("playwright-core");
   const browser = await chromium.launch({ args: ["--no-sandbox"] });
   const rows = [];
+  const bad = [];
   let session = null;
   try {
     // The owner claim screens (ruling 71) before anything is signed in: the details and the recovery code, per skin and size. Reaching them does not spend the link.
@@ -118,7 +122,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         await page.getByTestId("shell").or(page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30000 }).catch(() => {});
         if (sizeName === "phone") await page.getByTestId(`tab-${PHONE_TAB[p.id]}`).click({ timeout: 5000 }).catch(() => {});
         else await page.getByTestId(p.rail).or(page.getByTestId(`${p.rail}-selected`)).first().click({ timeout: 5000 }).catch(() => {});
-        const drew = await page.locator(p.drew).first().waitFor({ timeout: 8000 }).then(() => true, () => false);
+        const drew = await page.locator(sizeName === "phone" ? (PHONE_DREW[p.id] ?? p.drew) : p.drew).first().waitFor({ timeout: 8000 }).then(() => true, () => false);
+        if (!drew || errors.length) bad.push(`${p.id} ${skin} ${sizeName}: ${drew ? "drew" : "did not draw"}${errors.length ? `, page errors: ${errors.join(" | ")}` : ""}`);
         await page.waitForTimeout(800);
         const dir = path.join(out, `P-APP_03-real-${p.id}`);
         fs.mkdirSync(dir, { recursive: true });
@@ -138,6 +143,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     fs.rmSync(space.dir, { recursive: true, force: true });
   }
   fs.writeFileSync(path.join(out, "index.md"), indexMd(rows));
+  if (bad.length) { console.error(`places that did not draw or threw:\n  ${bad.join("\n  ")}`); process.exitCode = 1; }
   console.log(`wrote ${path.join(out, "index.md")}`);
 
 }

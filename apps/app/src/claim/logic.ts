@@ -61,3 +61,15 @@ export function spaceIdOf(hash: string): string | null {
   const m = /(?:^|[#&])s=([A-Za-z0-9_-]{3,64})(?:&|$)/.exec(hash);
   return m?.[1] ?? null;
 }
+
+/** The Space's name in the claim link (`#...&n=<name>`, url-encoded), or null when the server did not put one there. Never a host or an address. */
+export function spaceNameOf(hash: string): string | null {
+  const m = /(?:^|[#&])n=([^&]{1,80})(?:&|$)/.exec(hash);
+  if (!m?.[1]) return null;
+  try {
+    const name = decodeURIComponent(m[1].replace(/\+/g, " ")).trim();
+    return name === "" ? null : name;
+  } catch {
+    return null;
+  }
+}

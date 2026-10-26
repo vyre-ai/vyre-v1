@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { ClaimError, claimOwner } from "./claim.ts";
 import type { ClaimDeps } from "./claim.ts";
 import { CapError } from "../shell/session/caps.ts";
-import { FAILURE_LINE, claimToken, failureOf, fingerprintOf, spaceIdOf, isDeadLink, problemOf } from "./logic.ts";
+import { FAILURE_LINE, claimToken, failureOf, fingerprintOf, spaceIdOf, spaceNameOf, isDeadLink, problemOf } from "./logic.ts";
 
 const bundle = { personKeyByPassword: "pw", personKeyByRecovery: "rc", publicKey: "pk", privateKeyWrapped: "sk" };
 
@@ -102,4 +102,11 @@ test("claim logic: the Space id comes from the link fragment next to the fingerp
   assert.equal(spaceIdOf("#s=spc_core&fp=abcd1234"), "spc_core");
   assert.equal(spaceIdOf("#fp=abcd1234"), null);
   assert.equal(spaceIdOf("#s=x"), null);
+});
+
+test("claim logic: the Space's name comes from the link fragment, decoded, and is null when absent or empty", () => {
+  assert.equal(spaceNameOf("#fp=ab12cd34&s=spc_fresh&n=Fresh%20Co"), "Fresh Co");
+  assert.equal(spaceNameOf("#n=Fresh+Co&s=spc_x"), "Fresh Co");
+  assert.equal(spaceNameOf("#fp=ab12cd34&s=spc_fresh"), null);
+  assert.equal(spaceNameOf("#n="), null);
 });

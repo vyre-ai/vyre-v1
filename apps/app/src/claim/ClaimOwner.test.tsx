@@ -19,3 +19,9 @@ test("claim screen: a link already used shows one plain line and no form", () =>
   assert.ok(out.includes('data-testid="claim-sign-in"'));
   assert.ok(renderToStaticMarkup(<ClaimOwner {...base} dead="expired" />).includes("This link has expired."));
 });
+
+test("claim screen: with no Space name the title says your Space, never a host or an address", () => {
+  const out = renderToStaticMarkup(<ClaimOwner {...base} space={null} />);
+  assert.ok(out.includes("Set up your Space"));
+  assert.ok(!/127\.0\.0\.1|localhost/.test(out));
+});

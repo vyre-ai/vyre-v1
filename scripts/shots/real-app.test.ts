@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { PHONE_TAB, PLACES, indexMd, rowFor } from "./real-app.mjs";
+import { PHONE_DREW, PHONE_TAB, PLACES, indexMd, rowFor } from "./real-app.mjs";
 import { todoFor } from "../../apps/app/tests/real-app-harness.test.ts";
 
 test("real-app shots: every place the shell has is shot, each with the steps whose modules it needs", () => {
@@ -18,4 +18,10 @@ test("real-app shots: a row says whether the place drew and which stub modules i
   const md = indexMd([waiting]);
   assert.match(md, /not a finished screen/);
   assert.match(md, /\| place \| skin \| size \| image \| result \| modules \|/);
+});
+
+test("real-app shots: every place has its own page route and a selector that proves it drew; Home at phone width is the You screen", () => {
+  for (const p of PLACES) { assert.ok(p.route && p.drew, p.id); }
+  assert.equal(PLACES.find((p) => p.id === "apps")?.drew.includes("place-sites-failed"), true, "Apps' calm not-in-this-version frame counts as drawn");
+  assert.equal(PHONE_DREW.home, "[data-testid='you-screen']");
 });
