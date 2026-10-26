@@ -12,6 +12,7 @@ import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
+import * as accessImpl from "../../modules/access/impl.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 import { collectHooks, MAX_TRIES, RUNS_ESCALATION_EVERY_MS, toHookEvent } from "../src/daemon/consumers.ts";
 import type { HookEvent, ModuleHooks } from "../src/daemon/consumers.ts";
@@ -154,6 +155,8 @@ async function boot(dir: string, o: Partial<Parameters<typeof startDaemon>[0]> =
     extra: { caps: [echoCap], routes: [echoRoute], handlers: { "example.echo": echoHandler as never } },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
     ...o,
+    // a hooks override stands in for the module hooks; the access module is live, so its host calls (access.sync) must stay (ruling 70)
+    ...(o.hooks ? { hooks: [...o.hooks, collectHooks("access", accessImpl as unknown as Record<string, unknown>)] } : {}),
   });
 }
 const echo = (d: Daemon, body: unknown) => fetch(`${d.url}/v1/example/echo`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(body) });

@@ -30,7 +30,7 @@ const COMPANY = {
 };
 
 /** token -> person for everyone but the owner; the test fills it as people join */
-function bootDaemon(dir: string, people: Map<string, string>) {
+function bootDaemon(dir: string, people: Map<string, string>, more: Partial<Parameters<typeof startDaemon>[0]> = {}) {
   return startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "team.example.com"], {}, "1.2.3"),
     platform: fakePlatform({
@@ -48,6 +48,7 @@ function bootDaemon(dir: string, people: Map<string, string>) {
       return who === undefined ? null : { space: "spc_core", principal: { kind: "person", id: who }, device: "authz-single" };
     },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
+    ...more,
   });
 }
 
@@ -225,4 +226,27 @@ test("fail closed: when the module cannot take a suspension, the suspended perso
     }
     assert.equal(last.status, 403, `healed, the suspension is in force: ${JSON.stringify(last.body)}`);
   });
+});
+
+test("built-in roles carry their standard Space level where nothing seeded them: Member lets a person create a record, Guest does not, unassigning removes it", async () => {
+  await withDaemon(new Map([["tok-usr_tess", "usr_tess"]]), async (_d, post) => {
+    const TESS = "tok-usr_tess";
+    assert.equal((await post(OWNER_TOKEN, "/v1/schema/apply", { idempotencyKey: "authz-type3", ops: [COMPANY] })).status, 200);
+    let n = 0;
+    const create = (): Promise<{ status: number; body: Json }> => post(TESS, "/v1/records/create", { idempotencyKey: `authz-bi-${++n}`, type: "rt_company", fields: { name: `Built-in ${n}` } });
+    const subject = { kind: "person", id: "usr_tess" };
+    assert.equal((await create()).status, 403, "Temp holds nothing Space-wide");
+    assert.equal((await post(OWNER_TOKEN, "/v1/access/roles/assign", { subject, roleId: "rol_guest" })).status, 200);
+    assert.equal((await create()).status, 403, "Guest gets nothing Space-wide");
+    assert.equal((await post(OWNER_TOKEN, "/v1/access/roles/assign", { subject, roleId: "rol_member" })).status, 200);
+    const made = await create();
+    assert.equal(made.status, 200, `Member is in force on the next call: ${JSON.stringify(made.body)}`);
+    assert.equal((await post(OWNER_TOKEN, "/v1/access/roles/unassign", { subject, roleId: "rol_member" })).status, 200);
+    assert.equal((await create()).status, 403, "unassigned, the access is gone");
+  });
+});
+
+test("fail closed at boot: with the access module live, a missing access.sync stops the daemon from starting instead of answering from the seed fold", async () => {
+  const dir = seededDir();
+  await assert.rejects(() => bootDaemon(dir, new Map(), { hooks: [] }), /no host call named access\.sync/);
 });

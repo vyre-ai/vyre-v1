@@ -463,8 +463,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         accessPending = [];
         const attempt = async (): Promise<void> => { access.adopt((await hookRunner.call("access.sync", { events })) as AccessSnapshot); };
         try { await attempt(); } catch (first) {
-          // a code root whose hooks do not include the access module (a test's own hooks) keeps answering from the seed-shaped fold
-          if (first instanceof Error && first.message.startsWith("no host call named access.sync")) { noAccessModule = true; return; }
+          // the seed-shaped fold answers only when the access module is not loaded at all; with access live, a missing access.sync is a failure and fails closed below
+          if (first instanceof Error && first.message.startsWith("no host call named access.sync") && loaded.serving.get("access") !== "live") { noAccessModule = true; return; }
           try { await attempt(); } catch (e) {
             accessPending = [...events, ...accessPending];   // the module could not take them: keep them for the next pass
             const error = e instanceof Error ? e.message : String(e);
