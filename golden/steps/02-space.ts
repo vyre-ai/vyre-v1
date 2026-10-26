@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { routes } from "../../generated/routes.ts";
-import { bootCore } from "../../fixtures/seed/core/index.ts";
+import { bootSmall } from "../../fixtures/seed/small/build.ts";
 import { fakePlatform } from "../../host/src/platform/index.ts";
 import type { FetchFn } from "../../host/src/platform/probes.ts";
 import { loadConfig } from "../../host/src/daemon/config.ts";
@@ -34,13 +34,9 @@ export function codeRootWithLive(live: readonly string[]): string {
   return root;
 }
 
-function seededDir(): string {
-  const core = bootCore();
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-golden-"));
-  core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
-  fs.copyFileSync(core.file, path.join(dir, "events.db"));
-  core.close();
-  return dir;
+/** A private data directory holding the small seed: the core Space grown to 500 contacts and 12 agents, with the access and identity modules' own tables filled from it, so the live modules know the seeded people and folders. */
+async function seededDir(): Promise<string> {
+  return (await bootSmall()).dir;
 }
 
 /** The path of a capability, from the generated route table. */
@@ -64,9 +60,9 @@ export interface FlowSpace {
   stop(): Promise<void>;
 }
 
-/** Boots a daemon on the `core` seed with `live` flipped in a temporary code root. Rejects with the host's own refusal text when the boot is refused. */
+/** Boots a daemon on the `small` seed with `live` flipped in a temporary code root. Rejects with the host's own refusal text when the boot is refused. */
 export async function bootFlowSpace(live: readonly string[], opts: { engineCli?: unknown } = {}): Promise<FlowSpace> {
-  const dir = seededDir();
+  const dir = await seededDir();
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     codeRoot: codeRootWithLive(live),
