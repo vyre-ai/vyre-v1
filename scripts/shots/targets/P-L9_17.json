@@ -6,10 +6,7 @@
       "proto": "chat,{skin}",
       "waitFor": "[data-testid='mobile-tabs']",
       "note": "The phone shell over Northwind: the Chats list full screen with Needs you, Agents, Channels and Chats and the five bottom tabs with the Needs you count on Chats. The mobile design is commissioned as its own (spec 3.11); the prototype side is its closest screen at the same size, not a pixel match.",
-      "protoSettleMs": 1500,
-      "probes": {
-        "startup": {}
-      }
+      "protoSettleMs": 1500
     },
     {
       "id": "P-L9_17-you-northwind",
