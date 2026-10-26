@@ -102,6 +102,8 @@ jobs:
         run: |
           git fetch -q origin main
           node scripts/lint/run.ts --base "$(git merge-base origin/main HEAD)"
+      - name: ctx.call to a capability with idempotency key must pass idempotencyKey (scripts/lint/idem-calls.ts, report mode: lists every finding on the whole tree, never fails yet)
+        run: node scripts/lint/idem-calls.ts
       - name: Typecheck every package that has a tsconfig.json above a changed file
         run: |
           git fetch -q origin main
