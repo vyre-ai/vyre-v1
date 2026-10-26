@@ -11,7 +11,9 @@ import type { Observed } from "../harness/index.ts";
 export const LIVE_FOR_PERSONAL = ["spaces", "devices", "network", "access", "members", "documents", "identity", "records", "schema"];
 
 /** Why this flow is a todo today (ruling 53). Empty when every step passes. */
-export const GAPS: Gap[] = [];
+export const GAPS: Gap[] = [
+  { packet: "P-H_19 follow-up (w2q)", lane: "L7", what: "the node boots with --space-kind personal and refuses team-only calls, but spaces.matrix still answers kind team with every feature available" },
+];
 
 const MEMO = { op: "type.create", type: "memo", def: { title: "Memo", plural: "Memos", icon: "file", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "body", type: "longtext", title: "Body" }] } };
 const TEXT = "The Harlow filing moves to Thursday.";
@@ -62,9 +64,9 @@ export async function runPersonal(live: readonly string[]): Promise<{ events: Ob
     /** The phone's call: through the relay, with its own token, as a person's phone would make it. */
     const viaRelay = async (path: string, body: unknown): Promise<{ status: number; body: any }> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
       const url = new URL(relayEndpoint!.url);
-      const route = url.searchParams.get("route") ?? "", box = Buffer.from(url.searchParams.get("box") ?? "", "base64url");
+      const route = url.searchParams.get("route") ?? "", box = Buffer.from(/^#box=(.+)$/.exec(url.hash)?.[1] ?? "", "base64url");
       const crypto = webCrypto();
-      const { channel } = await openChannel({ relay: `${url.protocol}//${url.host}`, route, box: new Uint8Array(box), keys: await crypto.generateKeyPair(), crypto, WebSocket: globalThis.WebSocket, hello: { v: 1, name: "Olivia phone" }, timeout: 10_000 }) as { channel: { close(code: number, why: string): void } };
+      const { channel } = await openChannel({ relay: base, route, box: new Uint8Array(box), keys: await crypto.generateKeyPair(), crypto, WebSocket: globalThis.WebSocket, hello: { v: 1, name: "Olivia phone" }, timeout: 10_000 }) as { channel: { close(code: number, why: string): void } };
       try {
         const res = await request(channel, { method: "POST", path, headers: { "content-type": "application/json", authorization: `Bearer ${phone!.token}` } }, new TextEncoder().encode(JSON.stringify(body)));
         return { status: res.status, body: JSON.parse(await res.text()) };
