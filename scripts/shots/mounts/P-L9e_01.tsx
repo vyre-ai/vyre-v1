@@ -1,7 +1,7 @@
 // Mount for P-L9e_01: the Files tree and list over the Northwind sample Space (or Harbor Studio with ?space=harbor).
 // ?where=sales|proposals|recent|shared|trash|knowledge  ?sort=updated|size|kind  ?select=1 (two lines selected)  ?quicklook=1 (Quick Look on the first file)
 // ?rows=10000 (the long list the scroll probe runs over)  ?menu=sort opens the sort menu on load. On a phone width the tree is a drawer, so only the list shows.
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { FilesList } from "../../../apps/app/src/places/files/list/index.ts";
@@ -19,8 +19,7 @@ function whereOf(v: string | null): Where {
   return { kind: "folder", id: "fld_sales" };
 }
 
-export default function Mount(): ReactNode {
-  const q = useMemo(() => new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""), []);
+function Page({ q }: { q: URLSearchParams }): ReactNode {
   const bulk = Math.min(20_000, Number(q.get("rows") ?? 0) || 0);
   const space = q.get("space") === "harbor" ? harbor : northwind;
   const sample = useMemo(() => createSampleFiles(space, { bulk }), [space, bulk]);
@@ -51,4 +50,11 @@ export default function Mount(): ReactNode {
       </FilesStateProvider>
     </FilesDataProvider>
   );
+}
+
+// The page reads its query after it is live (rule 25): read while rendering, the static export's pre-rendered page was swapped for the real one after hydrate, and that swap was the layout shift.
+export default function Mount(): ReactNode {
+  const [q, setQ] = useState<URLSearchParams | null>(null);
+  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  return q ? <Page q={q} /> : null;
 }

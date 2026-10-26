@@ -2,11 +2,13 @@
 
 A capability listed here has a registered handler that refuses with `internal.unavailable` and the message "Not in this version yet" (`host/src/routes/deferred.ts`). Its module is live with every other capability real. The deferred packet replaces the entry.
 
+Ruling 93 (26 Oct): Sites and Vault import ship in v1.1, not v1. v1 counts golden flows 1 to 5 and 7 to 15.
+
 | Module | Capability | Packet |
 |---|---|---|
-| vault | vault.import, vault.import_parse | P-L7_11 |
+| vault | vault.import, vault.import_parse | P-L7_11; ships in v1.1 (ruling 93) |
 | reports-client | reports.get, reports.health, reports.list, reports.policy_get, reports.policy_set, reports.preview, reports.resolved, reports.send_to_vyre, reports.submit | Report a problem (polish pass); needs the reports.vyre.run client and the replay sandbox. Swap: one line in modules/reports-client/impl.ts |
-| sites | all 23 sites.* capabilities | Sites (polish pass); needs the Docker runtime, Caddy router and DNS drivers. Swap: one line in modules/sites/impl.ts |
+| sites | all 23 sites.* capabilities | Sites; ships in v1.1 (ruling 93), and golden flow 6 with it; needs the Docker runtime, Caddy router and DNS drivers. Swap: one line in modules/sites/impl.ts |
 
 The providers capabilities (list, add, remove, test, sign-in) are real, not deferred: the engine needs them for every turn.
 
