@@ -50,7 +50,7 @@ export interface HookEvent {
 }
 
 export interface ConsumerDef { name: string; module: string; on: readonly string[]; run(ctx: Ctx, event: HookEvent): Promise<unknown> | unknown }
-export interface PeriodicDef { name: string; module: string; everyMs: number; run(ctx: Ctx): Promise<unknown> | unknown }
+export interface PeriodicDef { name: string; module: string; everyMs: number; /** run once as soon as the scheduler starts (a boot check), then every everyMs */ immediate?: boolean; run(ctx: Ctx): Promise<unknown> | unknown }
 /** A function a module offers the host to run as that module (`export const hostCalls = { "<module>.<name>": (ctx, input) => ... }`): the host's way to hand work to a module that has no capability for it, with the module's own ctx. */
 export interface CallDef { name: string; module: string; run(ctx: Ctx, input: unknown): Promise<unknown> | unknown }
 export interface ModuleHooks { module: string; consumers: ConsumerDef[]; periodic: PeriodicDef[]; calls?: CallDef[] }
@@ -74,7 +74,7 @@ export function collectHooks(module: string, ns: Record<string, unknown>): Modul
     for (const [name, def] of Object.entries(ns["periodic"])) {
       if (!isRecord(def) || typeof def["everyMs"] !== "number" || !(def["everyMs"] > 0) || typeof def["run"] !== "function") continue;
       const run = def["run"] as (ctx: Ctx) => Promise<unknown> | unknown;
-      out.periodic.push({ name, module, everyMs: def["everyMs"], run: (ctx) => run(ctx) });
+      out.periodic.push({ name, module, everyMs: def["everyMs"], ...(def["immediate"] === true ? { immediate: true } : {}), run: (ctx) => run(ctx) });
     }
   }
   // the runs module's alerts (P-L6_11), found by the names it exports

@@ -21,7 +21,7 @@ type Handler = (input: any, opts?: { idempotencyKey?: string }) => unknown;
 const fail = (code: string, message: string): never => { throw Object.assign(new Error(message), { error: { code, message } }); };
 
 interface FileVersion { versionId: string; n: number; text: string; by: string; at: number; reason?: string }
-interface FakeFile { fileId: string; folderId: string; name: string; versions: FileVersion[] }
+interface FakeFile { fileId: string; folderId: string; name: string; versions: FileVersion[]; deletedAt?: number }
 interface FakeFolder { folderId: string; parentId?: string; name: string; deleted: boolean }
 
 /** Files in memory: the capabilities agents calls, with the rules that matter to it (names unique in a folder, a version per save, a lint on agent.toml). */
@@ -35,7 +35,7 @@ export function fakeFiles(clock: { t: number }) {
   const next = (prefix: string): string => `${prefix}_${(++n).toString(36).padStart(6, "0")}`;
   const path = (id: string): string => { const f = folders.get(id)!; return f.parentId ? `${path(f.parentId)}/${f.name}` : f.name; };
   const folderOut = (f: FakeFolder) => ({ folderId: f.folderId, ...(f.parentId ? { parentId: f.parentId } : {}), name: f.name, path: path(f.folderId) });
-  const fileOut = (f: FakeFile) => ({ fileId: f.fileId, folderId: f.folderId, name: f.name, version: f.versions.length });
+  const fileOut = (f: FakeFile) => ({ fileId: f.fileId, folderId: f.folderId, name: f.name, version: f.versions.length, ...(f.deletedAt !== undefined ? { deletedAt: f.deletedAt } : {}) });
   const addVersion = (f: FakeFile, text: string, by: string, reason?: string): FileVersion => {
     const v: FileVersion = { versionId: next("ver"), n: f.versions.length + 1, text, by, at: clock.t, ...(reason !== undefined ? { reason } : {}) };
     f.versions.push(v);
@@ -71,7 +71,7 @@ export function fakeFiles(clock: { t: number }) {
     "files.create": (i, o) => {
       const k = o?.idempotencyKey ? `fi:${o.idempotencyKey}` : undefined;
       if (k && keys.has(k)) return keys.get(k);
-      if ([...files.values()].some((f) => f.folderId === i.folderId && f.name === i.name)) fail("validation.duplicate", "a file with that name exists");
+      if ([...files.values()].some((f) => f.deletedAt === undefined && f.folderId === i.folderId && f.name === i.name)) fail("validation.duplicate", "a file with that name exists");
       const f: FakeFile = { fileId: next("fil"), folderId: i.folderId, name: i.name, versions: [] };
       files.set(f.fileId, f);
       addVersion(f, i.content?.text ?? "", "usr_system", "Created");
@@ -79,10 +79,21 @@ export function fakeFiles(clock: { t: number }) {
       if (k) keys.set(k, out);
       return out;
     },
+    "files.get": (i) => ({ file: fileOut(file(i.fileId)) }),
+    "files.delete": (i) => { file(i.fileId).deletedAt = clock.t; return { deleted: true }; },
+    "files.restore": (i) => { const f = file(i.fileId); delete f.deletedAt; if (i.toFolderId) f.folderId = i.toFolderId; return { file: fileOut(f) }; },
+    "files.move": (i) => {
+      const f = file(i.fileId);
+      const name = i.name ?? f.name;
+      if ([...files.values()].some((x) => x.fileId !== f.fileId && x.deletedAt === undefined && x.folderId === i.toFolderId && x.name === name)) fail("validation.duplicate", "a file with that name exists");
+      f.folderId = i.toFolderId;
+      f.name = name;
+      return { file: fileOut(f) };
+    },
     "files.list": (i) => {
       const parent = i.folder as string | undefined;
       return {
-        files: parent === undefined ? [] : [...files.values()].filter((f) => f.folderId === parent).map(fileOut),
+        files: parent === undefined ? [] : [...files.values()].filter((f) => f.folderId === parent && f.deletedAt === undefined).map(fileOut),
         folders: [...folders.values()].filter((f) => !f.deleted && (parent === undefined ? f.parentId === undefined : f.parentId === parent)).map(folderOut),
       };
     },
