@@ -31,7 +31,7 @@ This contract reconciles the prototype, `docs/spec/V1-SPEC.md`, `docs/spec/ARCHI
 - Mail, calendar, calling, GitHub, Google, Microsoft, and mounted-storage integrations already designated for v1.
 - Projects, journeys, tasks, gates, memory, sealed fields, backup, restore, recovery, offline states, and error states designated for v1.
 - Local session import for Codex and Claude Code on macOS. Vyre detects supported local histories, previews them before import, groups them by normalized working directory or repository identity, creates or reuses real Vyre Project records, and attaches imported sessions to those projects with source provenance.
-- The fourteen golden flows remaining after the latest owner scope ruling.
+- The fourteen golden flows remaining after the latest owner scope ruling, plus the local-session import flow added here: fifteen in-scope golden flows total.
 - Fresh-account and fresh-daemon behavior. A feature that works only with sample or seeded data is incomplete.
 
 ### Explicitly later than v1
@@ -53,13 +53,15 @@ The importer must:
 
 - discover supported Codex and Claude Code stores without reading transcript bodies until the person opens the preview and consents;
 - show source, project guess, session count, date range, and destination before writing;
-- derive project identity from repository metadata and normalized working-directory paths, then create or reuse the corresponding Project record in Vyre's existing Projects structure;
-- import each session as a provenance-marked conversation linked to its Project, representing Codex or Claude Code as an outside actor rather than impersonating the person or creating a Vyre agent;
+- derive project identity from normalized Git remote and repository-root metadata, then create or reuse the corresponding Project record in Vyre's existing Projects structure; loose, deleted, home, and temporary directories go under an Imported sessions folder instead of becoming fake Projects;
+- import each session as an immutable, provenance-marked, owner-private conversation filed to its Project, representing Codex or Claude Code as an outside actor rather than impersonating the person or creating a Vyre agent;
 - copy the selected transcript and durable metadata into Vyre so the history survives source cleanup, while retaining the source identifier for deduplication and incremental re-import;
-- never copy credentials, environment values, tool secrets, ignored secret files, or unrelated working-tree contents;
+- copy visible user and assistant conversation text by default; exclude reasoning, system and developer instructions, environment values, raw tool inputs and outputs, credentials, ignored secret files, and unrelated working-tree contents;
 - remain idempotent across rescans, detect changed or appended sessions, and show conflicts instead of silently duplicating or overwriting user edits;
 - handle missing, corrupt, partially written, and version-changed source files without aborting the rest of the import;
 - support disconnecting the source without deleting imported Vyre data and deleting an import through normal project and conversation retention rules.
+
+Imported conversations stay archival. **Continue in Vyre** creates a linked live Vyre chat with a selected agent; it does not mutate the imported history or write into Codex or Claude Code storage. Sync is one-way and optional after the first import.
 
 The release evidence must include redacted fixtures for both providers, first import, repeated import, incremental import, project deduplication, Personal Space isolation, explicit Team Space destination, corrupted input, and secret-redaction tests.
 
@@ -81,7 +83,7 @@ Acceptance requires:
 
 The build is an RC only when all of these are true:
 
-1. All fourteen in-scope golden flows pass against the real application.
+1. All fifteen in-scope golden flows pass against the real application.
 2. Every in-scope place and nested page opens on a fresh, unseeded account and daemon.
 3. The complete main check suite passes at the exact release commit.
 4. macOS ad-hoc signing, packaging, installation, first launch, and relaunch pass. Notarization is not an RC gate because no Apple Developer signing identity exists; the handoff must state the resulting Gatekeeper behavior plainly.
@@ -92,7 +94,7 @@ The build is an RC only when all of these are true:
 9. Release notes, version metadata, rollback instructions, and the runbook match the artifact.
 10. GitHub produces the signed artifact from the protected release environment. Simba may approve that environment on Irfad's behalf for this release.
 
-Warnings may remain only when they have a named owner, documented impact, and no effect on data integrity, security, installation, or the fourteen golden flows.
+Warnings may remain only when they have a named owner, documented impact, and no effect on data integrity, security, installation, or the fifteen golden flows.
 
 ## Execution model
 

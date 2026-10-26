@@ -88,17 +88,18 @@
 - Create: `apps/desktop/src/session-import/claude.ts`
 - Create: `apps/desktop/tests/session-import.test.ts`
 - Create redacted fixtures under: `apps/desktop/tests/fixtures/session-import/`
-- Modify: `apps/desktop/src-tauri/src/commands.rs`
+- Modify: `apps/desktop/src-tauri/src/native.rs`
+- Modify: `apps/desktop/src-tauri/src/lib.rs`
 - Modify: `apps/desktop/src/bridge.ts`
 - Modify: `changelog.md`
 
 **Steps:**
 
-1. Finalize provider paths and field mappings from the research report. Fixtures must contain synthetic text only.
-2. Write failing tests for discovery metadata without transcript reads, Codex parsing, Claude parsing, partial writes, corrupt lines, source version drift, path normalization, and secret redaction.
+1. Support configured provider homes before the default `~/.codex` and `~/.claude` roots. Use Codex `state_5.sqlite` metadata plus rollout JSONL, and Claude project JSONL, archived JSONL/gzip, and desktop metadata only as a resolver. Fixtures must contain synthetic text only.
+2. Write failing tests for discovery metadata without transcript reads, Codex response-item deduplication, Claude parent chains and subagents, partial writes, corrupt lines, gzip archives, source version drift, path normalization, and secret redaction.
 3. Push the test-only commit and confirm the affected CI failure.
 4. Implement parsers as pure functions, then implement the narrow Tauri command that lists stores and reads only a user-selected source.
-5. Return stable `provider`, `sourceSessionId`, `sourceProjectKey`, `workingDirectory`, timestamps, messages, and redaction warnings. Never return environment values or raw tool credentials.
+5. Return stable `provider`, `sourceSessionId`, `sourceProjectKey`, `workingDirectory`, timestamps, messages, parent relationships, and redaction warnings. Use Codex thread UUIDs and Claude session/message UUIDs as stable keys. Never return environment values, reasoning, system instructions, or raw tool credentials.
 6. Update `changelog.md`; push and require desktop TypeScript/Rust tests and security scans.
 
 **Proof:** Synthetic Codex and Claude fixtures parse deterministically; discovery does not read transcript bodies; corrupt sessions are isolated; secret fixtures are refused or redacted.
@@ -109,11 +110,14 @@
 
 **Files:**
 
-- Create: `manifests/import-sessions.ts`
+- Create: `manifests/session-import.ts`
 - Modify: `manifests/index.ts`
-- Create: `modules/import/handlers/sessions.ts`
-- Modify: `modules/import/index.ts`
-- Create: `modules/import/tests/sessions.test.ts`
+- Modify: `host/modules.json`
+- Create: `modules/session-import/migrations/0001_session_import.sql`
+- Create: `modules/session-import/projections.ts`
+- Create: `modules/session-import/handlers/sessions.ts`
+- Create: `modules/session-import/index.ts`
+- Create: `modules/session-import/tests/sessions.test.ts`
 - Modify: `modules/projects/handlers/` only through an existing project create/reuse capability
 - Modify: `modules/chat/handlers/` only through an existing conversation/message import capability, or add the smallest typed import capability if none exists
 - Modify: `changelog.md`
@@ -123,10 +127,11 @@
 1. Write failing contract tests for Personal Space default, explicit Team Space confirmation, outside-actor provenance, project create/reuse, first import, repeat import, appended-session import, conflicting edits, disconnect, and delete/retention behavior.
 2. Push the test-only commit and confirm the intended CI failures.
 3. Add typed capabilities and events for preview, import, rescan, and source disconnect.
-4. Deduplicate by provider plus source session ID; store an append checkpoint and content hashes. Reuse projects by provider-independent repository identity when available, otherwise normalized working directory.
+4. Deduplicate by provider plus source session ID and source item ID; store source path, file identity, completed-line cursor, parser version, append checkpoint, and content hashes. Reuse projects by normalized Git remote plus repository root. Put non-repository sessions in an Imported sessions folder rather than manufacturing Projects.
 5. Create Codex and Claude Code as outside actors. Do not create Vyre agents or impersonate the person.
-6. Copy selected transcript content into Vyre and link the conversation to the Project. Do not copy repositories or secret-bearing tool payloads.
-7. Update `changelog.md`; regenerate derived files through the bot/CI path; push and require contracts, boundaries, authorization, and restricted-export tests.
+6. Copy selected visible conversation text into an immutable owner-private chat and file it to the Project through `projects.file_chat`. Preserve source timestamps and outside-actor authorship. Do not copy repositories or secret-bearing tool payloads.
+7. Implement Continue in Vyre as a new linked live chat. Never write to provider stores or mutate the imported chat.
+8. Update `changelog.md`; regenerate derived files through the bot/CI path; push and require contracts, boundaries, authorization, and restricted-export tests.
 
 **Proof:** Re-import adds no duplicate project or messages; an appended source adds only new messages; Personal Space data never appears in a Team Space without explicit confirmation; backup/export obeys retention and privacy rules.
 
@@ -219,7 +224,7 @@
 **Steps:**
 
 1. Re-run the conformance audit against current `main`; mark stale observations separately from real gaps.
-2. Inventory every prototype page/state and map it to a real route, component, typed capability, test, and screenshot target.
+2. Inventory every prototype page/state and map it to a real route, component, typed capability, test, and screenshot target. Add the approved session-import screens as a v1 extension to the prototype.
 3. Exclude only the contract's explicit post-v1 items.
 4. Land already-green PRs before writing duplicate code. For red or conflicted PRs, diagnose and repair the existing branch when ownership is clear.
 5. Split remaining gaps by owner path. Each behavior change follows test-only failing push, minimal implementation, CI proof, spec review, and quality review.
@@ -240,7 +245,7 @@
 **Steps:**
 
 1. Dispatch the full `check`, golden, contracts, shots, heavy, security, perf, Mac install, desktop, backup/restore, and release dry-run workflows on the exact commit.
-2. Require all fourteen in-scope golden flows to execute without todo/skip placeholders.
+2. Require all fifteen in-scope golden flows to execute without todo/skip placeholders.
 3. Complete a fresh Personal Space install and a Team Space join, then create user data, back it up, restore it, and compare counts/hashes.
 4. Fix any missing `buildx` runner label before tagging; verify the label through the GitHub API.
 5. Bump to `1.0.0-rc.1`, merge the version PR, and tag that exact `main` commit.
