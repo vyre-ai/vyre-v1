@@ -5,7 +5,7 @@
 // and `call`), never from sample data. A link from another place arrives as `hash` and becomes the first thing shown.
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -20,6 +20,7 @@ import { Conversation, ConversationLoading } from "../conversation/Conversation.
 import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { NeedsYou } from "../needsyou/NeedsYou.tsx";
 import { ChatRightPane } from "../rightpane/ChatRightPane.tsx";
+import { Icon } from "../rightpane/parts.tsx";
 import { ChatsSidebar } from "../sidebar/ChatsSidebar.tsx";
 import { TerminalList } from "../terminal/TerminalList.tsx";
 import { TerminalRules } from "../terminal/TerminalRules.tsx";
@@ -42,6 +43,8 @@ type RecordingOut = CapMap["computers.recording.get"]["out"];
 export const SIDEBAR_W = 264;
 export const PANE_W = 340;
 export const TERMINAL_W = 480;
+/** Under this width the sidebar is a screen of its own and every page fills the window. */
+export const WIDE = 640;
 const LINE_MS = 4000;
 /** The terminal glyph of the tab (the same drawing ui/Terminal uses). */
 const TERMINAL_ICON = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 6.5l2 1.8-2 1.8M8.8 10.2H11"/></svg>';
@@ -77,6 +80,10 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const act = useCallback((a: Act): void => setShown((s) => step(s, a)), []);
   const go = useMemo<Go>(() => createGo(rt, act, nameOf, setLine), [rt, act, nameOf]);
   const route = shown.route;
+  const width = useWindowDimensions().width;
+  const narrow = width > 0 && width < WIDE;
+  // On a phone the list is the screen until something is opened; an open page has a way back to it.
+  const listOnly = narrow && route.view === "chat" && route.threadId === null;
 
   /* ---------- the sidebar ---------- */
   const side = useMemo(() => wireSidebar(rt, go), [rt, go]);
@@ -123,7 +130,7 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   let right: ReactElement | null = null;
   if (shown.terminalId !== null) {
     right = (
-      <View testID="chats-terminal" style={st.terminal}>
+      <View testID="chats-terminal" style={narrow ? st.terminalFull : st.terminal}>
         <SidePane
           paneKey="chats-terminal" toggle={{ open: true, onPress: () => go.closeTerminal() }} title="Terminal" tabs={[{ key: "terminal", title: "Terminal", icon: TERMINAL_ICON }]} activeTab="terminal"
           onCloseTab={() => go.closeTerminal()} defaultWidth={TERMINAL_W}
@@ -136,10 +143,20 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
     right = <View style={st.pane}><ChatRightPane data={paneCtx} open onToggle={go.togglePane} {...(window ? { window } : {})} /></View>;
   }
 
+  const showMain = !listOnly && !(narrow && right !== null);
   return (
     <View testID="chats-place" style={st.row}>
-      <View style={st.side}><ChatsSidebar data={side} {...(window ? { window } : {})} /></View>
-      <View testID="chats-main" style={st.main}>{main}</View>
+      {!narrow || listOnly ? <View style={narrow ? st.sideFull : st.side}><ChatsSidebar data={side} {...(window ? { window } : {})} /></View> : null}
+      {showMain ? (
+        <View testID="chats-main" style={st.main}>
+          {narrow ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Back to the list" testID="chats-back" onPress={() => go.chat("")} style={({ hovered }: { hovered?: boolean }) => [st.back, hovered === true && st.backOver]}>
+              <Icon name="back" size={14} color="var(--ink-2)" /><Text style={st.backText}>Chats</Text>
+            </Pressable>
+          ) : null}
+          <View style={st.fill}>{main}</View>
+        </View>
+      ) : null}
       {right}
       <Layer shown={shown} rt={rt} go={go} nameOf={nameOf} list={list} counter={counter} terminal={terminal} window={window} />
       {line ? <View testID="chats-line" accessibilityRole="alert" accessibilityLiveRegion="polite" style={st.toast}><Text style={st.toastText}>{line}</Text></View> : null}
@@ -217,7 +234,13 @@ const st = StyleSheet.create({
   side: { width: SIDEBAR_W, minHeight: 0 },
   main: { flex: 1, minWidth: 0, minHeight: 0 },
   pane: { width: PANE_W, minHeight: 0 },
+  sideFull: { flex: 1, minHeight: 0 },
+  fill: { flex: 1, minHeight: 0 },
+  back: { height: 36, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  backOver: { backgroundColor: "var(--hover)" as string },
+  backText: { fontSize: 13, color: "var(--ink-2)" as string },
   terminal: { width: TERMINAL_W, minHeight: 0 },
-  toast: { position: "absolute", left: SIDEBAR_W + 16, bottom: 16, maxWidth: 420, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" as string },
+  terminalFull: { flex: 1, minWidth: 0, minHeight: 0 },
+  toast: { position: "absolute", left: 16, bottom: 16, maxWidth: 420, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" as string },
   toastText: { fontSize: 12.5, color: "var(--ink)" as string },
 });

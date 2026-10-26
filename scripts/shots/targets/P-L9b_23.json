@@ -1,0 +1,90 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_23-agent-page",
+      "route": "/m/P-L9b_23?screen=agent&tab=chats",
+      "proto": "chat,at:demo-agent-threads,{skin}",
+      "waitFor": "[data-testid='agent-page']",
+      "note": "The agent page, opened from the face in the chat header and mounted in the Chats place: Intake's role line, the strip, the tabs. The prototype side is its agent page on the Chats tab."
+    },
+    {
+      "id": "P-L9b_23-helper-chat",
+      "route": "/m/P-L9b_23?screen=helper",
+      "proto": "chat,at:demo-helper,{skin}",
+      "waitFor": "[data-testid='helper-chat']",
+      "note": "A helper from the header's helper icon, opened read-only with its address bar in the place's middle column."
+    },
+    {
+      "id": "P-L9b_23-needs-you",
+      "route": "/m/P-L9b_23?screen=needs",
+      "proto": "chat,needs,{skin}",
+      "waitFor": "[data-testid='needs-you']",
+      "note": "The Needs you page from the sidebar's Needs you row, two columns, mounted in the Chats place."
+    },
+    {
+      "id": "P-L9b_23-computer-popup",
+      "route": "/m/P-L9b_23?screen=popup",
+      "proto": "chat,at:demo-popup,{skin}",
+      "waitFor": "[data-testid='computer-popup']",
+      "note": "The computer popup opened from the Computer chip in the composer bar."
+    },
+    {
+      "id": "P-L9b_23-recording-sheet",
+      "route": "/m/P-L9b_23?screen=sheet",
+      "proto": "chat,at:demo-popup-sheet,{skin}",
+      "waitFor": "[data-testid='record-sheet']",
+      "note": "The recording sheet for a stopped recording: what should Intake do with it. The counters read zero here because a recording opened by id carries none (see the packet report)."
+    },
+    {
+      "id": "P-L9b_23-connect-outside-agent",
+      "route": "/m/P-L9b_23?screen=connect",
+      "proto": "chat,channel-rivera,{skin}",
+      "protoClick": "[data-os-connect]",
+      "protoSettleMs": 2500,
+      "waitFor": "[data-testid='connect-outside-agent']",
+      "note": "Connect an outside agent, from the channel menu: the tool, then what it may do. The prototype side presses its Connect button on the Rivera channel and shows the sheet with the token already made; the real sheet makes it on Create connection."
+    },
+    {
+      "id": "P-L9b_23-all-agents",
+      "route": "/m/P-L9b_23?screen=agents",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='all-agents']",
+      "note": "The All agents picker under the Agents header. The prototype has no such picker: its side is the Agents section of the sidebar it opens from."
+    },
+    {
+      "id": "P-L9b_23-terminal-tab",
+      "route": "/m/P-L9b_23?screen=terminal",
+      "proto": "chat,at:demo-terminal,{skin}",
+      "waitFor": "[data-testid='terminal-screen']",
+      "note": "The terminal as a tab beside the chat: Intake's computer, the session line, the star and Clear. Token demo-terminal added to the prototype copy (ruling 42)."
+    },
+    {
+      "id": "P-L9b_23-terminal-locked",
+      "route": "/m/P-L9b_23?screen=terminal&host=server&locked=1",
+      "proto": "chat,at:demo-terminal,{skin}",
+      "waitFor": "[data-testid='terminal-locked']",
+      "note": "The Space server's shell without server.services: locked, with Ask for access and the way back to Intake's computer. The prototype's locked state is reached by its host menu; its side shows the terminal tab."
+    },
+    {
+      "id": "P-L9b_23-terminal-list",
+      "route": "/m/P-L9b_23?screen=terminals",
+      "proto": "chat,at:demo-terminal,{skin}",
+      "waitFor": "[data-testid='terminal-list']",
+      "note": "The Terminals list. The prototype has no list: its side is the terminal tab a row of this list opens."
+    },
+    {
+      "id": "P-L9b_23-terminal-rules",
+      "route": "/m/P-L9b_23?screen=rules",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='terminal-rules']",
+      "note": "Terminal rules, the allow, ask and deny lists. The prototype has only the Settings row that opens it, so its side is the chat."
+    },
+    {
+      "id": "P-L9b_23-waiting-on",
+      "route": "/m/P-L9b_23?screen=waiting",
+      "proto": "chat,at:demo-waiting,{skin}",
+      "waitFor": "[data-testid='waiting-on']",
+      "note": "A thread that waits on background work: Waiting on: build 42, and the agent wakes in the same thread. Token demo-waiting added to the prototype copy (ruling 42) opens the Rivera channel thread that waits."
+    }
+  ]
+}
