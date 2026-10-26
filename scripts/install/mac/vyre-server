@@ -1,0 +1,502 @@
+#!/bin/sh
+# vyre-server (Mac): run and look after Vyre Server on this Mac. install.sh puts it in /usr/local/bin; each release carries its own copy
+# and the command always runs the current release's. Spec 3.13, ARCH 7.13, R18 (S14).
+#
+#   vyre-server doctor [--json] [--quiet]   check this Mac and the server; works with the server down. Exit 1 when anything is down.
+#   vyre-server status                      the containers and their health
+#   vyre-server start | stop | restart      start waits for the container runtime (Colima or Docker Desktop), then brings the containers up
+#   vyre-server logs [SERVICE]              follow the logs (vyred, caddy)
+#   vyre-server update [--check] [--yes]    read the channel's signed manifest; if it names a newer version: back up the data, switch, check health, roll back on failure
+#   vyre-server rollback                    switch back to the previous release (code only; data written by the newer one stays)
+#   vyre-server backup                      write a backup of the data directory to $VYRE_DIR/backups (the server is stopped for it)
+#   vyre-server colima-run                  what the Colima launchd job runs: Colima in the foreground at the size set in $VYRE_DIR/colima-size.env
+#   vyre-server version
+#
+# Environment: VYRE_DIR (found from this script when unset).
+
+set -eu
+
+# Where the install lives: VYRE_DIR, else four levels above this file (DIR/releases/<version>/bin/vyre-server), else ~/.vyre-server.
+find_dir() {
+  if [ -n "${VYRE_DIR:-}" ]; then printf '%s' "$VYRE_DIR"; return 0; fi
+  self=$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")
+  cand=$(dirname "$(dirname "$(dirname "$(dirname "$self")")")")
+  if [ -f "$cand/compose.env" ]; then printf '%s' "$cand"; else printf '%s' "$HOME/.vyre-server"; fi
+}
+DIR=$(find_dir)
+DRY=0
+YES=0
+TMP=""
+WANT=""
+CHANNEL=$(cat "$DIR/channel" 2>/dev/null || printf stable)
+UPDATE_URL=${VYRE_UPDATE_URL:-$(cat "$DIR/update-url" 2>/dev/null || printf 'https://vyre.run/server/')}
+DATA_DIR=$(cat "$DIR/data-dir" 2>/dev/null || printf '%s/data' "$DIR")
+KEEP_BACKUPS=3
+KEEP_RELEASES=3
+# The tools the installer put beside the install (a pinned Colima, Lima, docker and compose), found before the system's.
+TOOLS=$DIR/tools
+PATH="$TOOLS/bin:$TOOLS/lima/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; export PATH
+RUNTIME=$(cat "$DIR/runtime" 2>/dev/null || printf colima)
+
+say() { printf '%s\n' "$*"; }
+die() { printf 'vyre-server: %s\n' "$*" >&2; exit "${2:-1}"; }
+cleanup() { [ -z "$TMP" ] || rm -rf "$TMP"; [ -z "${LOCKDIR:-}" ] || rmdir "$LOCKDIR" 2>/dev/null || true; return 0; }
+
+# BEGIN diskcheck
+# disk_encrypted DIR: 0 when the volume that holds DIR is encrypted, 1 when it is not, 2 when it cannot be told.
+# macOS: a folder on the startup volume is encrypted when `fdesetup status` says "FileVault is On."; a folder on another volume (/Volumes/NAME/...) when
+# `diskutil info` says "FileVault: Yes" or "Encrypted: Yes" for that volume. Anything else, including a network share, is not.
+disk_encrypted() {
+  _d=$1
+  _fde=fdesetup
+  _du=diskutil
+  if [ "${VYRE_TEST_MODE:-0}" = 1 ]; then [ -z "${VYRE_TEST_FDESETUP:-}" ] || _fde=$VYRE_TEST_FDESETUP; [ -z "${VYRE_TEST_DISKUTIL:-}" ] || _du=$VYRE_TEST_DISKUTIL; fi
+  case "$_d" in
+    /Volumes/*)
+      _rest=${_d#/Volumes/}
+      _info=$("$_du" info "/Volumes/${_rest%%/*}" 2>/dev/null) || return 2
+      case "$_info" in
+        *"FileVault:"*"Yes"*|*"Encrypted:"*"Yes"*) return 0 ;;
+        "") return 2 ;;
+      esac
+      return 1 ;;
+  esac
+  _s=$("$_fde" status 2>/dev/null) || return 2
+  case "$_s" in
+    *"FileVault is On"*) return 0 ;;
+    *"FileVault is Off"*) return 1 ;;
+  esac
+  return 2
+}
+# END diskcheck
+
+# BEGIN semver
+# ver_cmp A B: prints -1, 0 or 1 (semver order: a prerelease sorts before its release; beta.10 is after beta.9). Returns 2 on a string that is not a version.
+ver_cmp() {
+  awk -v a="$1" -v b="$2" '
+    function parse(v, o,   m, core, pre, n, i, parts) {
+      if (v !~ /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$/) return 0
+      core = v; pre = ""
+      if (index(v, "-")) { core = substr(v, 1, index(v, "-") - 1); pre = substr(v, index(v, "-") + 1) }
+      split(core, parts, ".")
+      o["maj"] = parts[1] + 0; o["min"] = parts[2] + 0; o["pat"] = parts[3] + 0; o["pre"] = pre
+      return 1
+    }
+    function cmpnum(x, y) { return x < y ? -1 : (x > y ? 1 : 0) }
+    function cmppre(p, q,   pp, qq, np, nq, i, x, y, isx, isy, c) {
+      if (p == q) return 0
+      if (p == "") return 1
+      if (q == "") return -1
+      np = split(p, pp, "."); nq = split(q, qq, ".")
+      for (i = 1; i <= np && i <= nq; i++) {
+        x = pp[i]; y = qq[i]; isx = (x ~ /^[0-9]+$/); isy = (y ~ /^[0-9]+$/)
+        if (isx && isy) { c = cmpnum(x + 0, y + 0); if (c) return c }
+        else if (isx) return -1
+        else if (isy) return 1
+        else if (x != y) return x < y ? -1 : 1
+      }
+      return cmpnum(np, nq)
+    }
+    BEGIN {
+      if (!parse(a, A) || !parse(b, B)) exit 2
+      c = cmpnum(A["maj"], B["maj"]); if (!c) c = cmpnum(A["min"], B["min"]); if (!c) c = cmpnum(A["pat"], B["pat"]); if (!c) c = cmppre(A["pre"], B["pre"])
+      print c
+    }'
+}
+# END semver
+
+# BEGIN release
+# The Vyre release public key (Ed25519). The private half lives only in the `release` GitHub Environment. VYRE_RELEASE_KEY_PEM (a file) is for tests.
+# macOS ships LibreSSL, which cannot verify Ed25519, so the signature is checked with the pinned Node the installer downloads (VYRE_VERIFY_NODE is for tests).
+RELEASE_KEY_PEM='-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAKXSdujH7tO/gscXCJZmYCjB+Cv1sVlOfdgLNedMR7FU=
+-----END PUBLIC KEY-----'
+
+# sha256 FILE: the hex digest, with whichever tool the Mac has.
+sha256() {
+  if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
+  else die "need shasum or sha256sum to check downloads"; fi
+}
+
+# release_key_b64: the key's base64 line (the SPKI of an Ed25519 key is one line).
+release_key_b64() {
+  if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_RELEASE_KEY_PEM:-}" ]; then sed -n '2p' "$VYRE_RELEASE_KEY_PEM"; return 0; fi
+  printf '%s\n' "$RELEASE_KEY_PEM" | sed -n '2p'
+}
+
+# verify_node: the Node that checks the signature. The installer's own pinned copy, or VYRE_VERIFY_NODE in tests.
+verify_node() {
+  if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_VERIFY_NODE:-}" ]; then printf '%s' "$VYRE_VERIFY_NODE"; return 0; fi
+  printf '%s' "$DIR/tools/node/bin/node"
+}
+
+# jget FILE PATH: one field of a JSON file ("server_mac.version"), empty when it is missing. The pinned Node reads it; older macOS versions have no jq.
+jget() {
+  "$(verify_node)" -e 'let v = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); for (const k of process.argv[2].split(".")) v = v == null ? undefined : v[k]; process.stdout.write(v == null ? "" : String(v));' "$1" "$2"
+}
+
+# ---- the signed release -------------------------------------------------------------------------------------------------------------
+# verify_manifest MANIFEST SIG_B64FILE: Ed25519 over "vyre-release-sums\n" followed by the exact manifest bytes.
+verify_manifest() {
+  { printf 'vyre-release-sums\n'; cat "$1"; } >"$TMP/signed.msg"
+  "$(verify_node)" -e '
+const c = require("crypto"), f = require("fs");
+const [key, msg, sigf] = process.argv.slice(1);
+const pub = c.createPublicKey({ key: Buffer.from(key, "base64"), format: "der", type: "spki" });
+const sig = Buffer.from(f.readFileSync(sigf, "utf8").replace(/\s+/g, ""), "base64");
+process.exit(sig.length === 64 && c.verify(null, f.readFileSync(msg), pub, sig) ? 0 : 1);
+' "$(release_key_b64)" "$TMP/signed.msg" "$2" >/dev/null 2>&1
+}
+
+fetch() { curl -fsSL --retry 3 --retry-delay 2 --max-time "${3:-120}" "$1" -o "$2"; }
+
+# fetch_release: the channel's manifest and the Mac release tarball, both checked. Sets REL_VERSION and REL_TARBALL (a checked file).
+# The manifest names the Mac artifact under "server_mac" ({ version, tarball, sha256 }) beside the Linux one under "server".
+fetch_release() {
+  base=${UPDATE_URL%/}
+  say "  Fetching the $CHANNEL release manifest from $base/"
+  fetch "$base/$CHANNEL.json" "$TMP/manifest.json" 30 || die "could not reach $base/$CHANNEL.json; check this Mac's network and run the installer again."
+  fetch "$base/$CHANNEL.json.sig" "$TMP/manifest.sig" 30 || die "could not fetch the manifest's signature; nothing was installed."
+  verify_manifest "$TMP/manifest.json" "$TMP/manifest.sig" || die "the release signature does not match the Vyre release key in this installer; nothing was installed."
+  say "  ok  the release signature verifies"
+  [ "$(jget "$TMP/manifest.json" v)" = 1 ] || die "the release manifest is not a version this installer reads; nothing was installed."
+  [ "$(jget "$TMP/manifest.json" channel)" = "$CHANNEL" ] || die "the manifest is for another channel than $CHANNEL; nothing was installed."
+  REL_VERSION=$(jget "$TMP/manifest.json" server_mac.version)
+  url=$(jget "$TMP/manifest.json" server_mac.tarball)
+  sum=$(jget "$TMP/manifest.json" server_mac.sha256)
+  ver_cmp "$REL_VERSION" "$REL_VERSION" >/dev/null 2>&1 || die "the manifest has no Mac server version; nothing was installed."
+  case "$sum" in *[!0-9a-f]*|"") die "the manifest does not give the artifact's sha256; nothing was installed." ;; esac
+  [ "${#sum}" = 64 ] || die "the manifest does not give the artifact's sha256; nothing was installed."
+  if [ -n "$WANT" ] && [ "$WANT" != latest ] && [ "$WANT" != "$REL_VERSION" ]; then
+    die "the $CHANNEL channel offers $REL_VERSION, not $WANT; nothing was installed."
+  fi
+  case "$url" in http://*|https://*|file://*) ;; "") die "the manifest names no artifact; nothing was installed." ;; *) url="$base/$url" ;; esac
+  say "  Downloading Vyre Server $REL_VERSION"
+  fetch "$url" "$TMP/release.tgz" 900 || die "could not download $url; nothing was installed."
+  got=$(sha256 "$TMP/release.tgz")
+  [ "$got" = "$sum" ] || die "the download does not match the signed release (wanted $sum, got $got); nothing was installed."
+  say "  ok  the download matches the signed release"
+  REL_TARBALL=$TMP/release.tgz
+}
+
+# unpack_release: into $DIR/releases/<version>, refusing any path that would leave it and any release without the files the server needs.
+unpack_release() {
+  rel=$DIR/releases/$REL_VERSION
+  if [ -d "$rel" ] && [ -f "$rel/.complete" ]; then say "  Release $REL_VERSION is already unpacked"; return 0; fi
+  if [ "$DRY" = 1 ]; then say "would unpack $REL_VERSION to $rel"; return 0; fi
+  tar -tzf "$REL_TARBALL" | awk '{ if ($0 ~ /^\// || $0 ~ /(^|\/)\.\.(\/|$)/) bad = 1 } END { exit bad }' || die "the release holds a path outside its folder; nothing was installed."
+  tar -tvzf "$REL_TARBALL" | awk '$1 ~ /^[lh]/ { bad = 1 } END { exit bad }' || die "the release holds a link; nothing was installed."
+  rm -rf "$rel.part"
+  mkdir -p "$rel.part"
+  tar -xzf "$REL_TARBALL" -C "$rel.part" --strip-components=1
+  for f in VERSION compose.server.yml Caddyfile images.lock bin/vyre-server units/run.vyre.server.plist units/run.vyre.colima.plist units/run.vyre.server-update.plist; do
+    [ -f "$rel.part/$f" ] || { rm -rf "$rel.part"; die "the release has no $f; nothing was installed."; }
+  done
+  [ "$(cat "$rel.part/VERSION")" = "$REL_VERSION" ] || { rm -rf "$rel.part"; die "the release's VERSION file does not match its manifest; nothing was installed."; }
+  chmod 0755 "$rel.part/bin/vyre-server"
+  : >"$rel.part/.complete"
+  rm -rf "$rel"
+  mv "$rel.part" "$rel"
+}
+# END release
+
+
+cur_dir() { readlink -f "$DIR/current" 2>/dev/null || printf '%s' "$DIR/current"; }
+cur_version() { cat "$DIR/current/VERSION" 2>/dev/null || printf unknown; }
+
+# The Docker the stack talks to: Colima's socket when Colima is the runtime (Docker Desktop keeps its own default).
+if [ "$RUNTIME" = colima ]; then DOCKER_HOST=${VYRE_DOCKER_HOST:-unix://$HOME/.colima/default/docker.sock}; export DOCKER_HOST; fi
+
+# compose_run ARGS...: the Compose plugin when docker has it, else the pinned standalone docker-compose the installer put beside the install.
+compose_run() {
+  if docker compose version >/dev/null 2>&1; then docker compose "$@"
+  elif command -v docker-compose >/dev/null 2>&1; then docker-compose "$@"
+  else die "Docker Compose is not installed. Run the installer again."; fi
+}
+
+# dc ARGS...: docker compose for this install, project folder = the current release.
+dc() {
+  c=$(cur_dir)
+  compose_run --project-directory "$c" --env-file "$DIR/compose.env" -f "$c/compose.server.yml" -f "$DIR/compose.override.yml" "$@"
+}
+
+lock_get() { sed -n "s/^$1=\\(.*\\)\$/\\1/p" "$(cur_dir)/images.lock" 2>/dev/null | head -n 1; }
+
+port() { sed -n 's/^VYRE_PORT=//p' "$DIR/compose.env" 2>/dev/null | head -n 1 | grep . || printf 8420; }
+health_url() {
+  if [ "${VYRE_TEST_MODE:-0}" = 1 ] && [ -n "${VYRE_TEST_HEALTH_URL:-}" ]; then printf '%s' "$VYRE_TEST_HEALTH_URL"; return 0; fi
+  printf 'http://127.0.0.1:%s/healthz' "$(port)"
+}
+
+# ---- start, stop, status, logs -----------------------------------------------------------------------------------------------------
+# wait_runtime: the container runtime (the Colima job, or Docker Desktop) answers. At boot Colima takes a minute or two to come up.
+wait_runtime() {
+  n=0
+  while ! docker info >/dev/null 2>&1; do
+    n=$((n + 3))
+    [ "$n" -lt "${VYRE_RUNTIME_WAIT:-300}" ] || die "Docker did not answer after ${VYRE_RUNTIME_WAIT:-300} s. $( [ "$RUNTIME" = colima ] && printf 'Read: %s/logs/colima.log' "$DIR" || printf 'Open Docker Desktop.')"
+    sleep 3
+  done
+}
+cmd_start() { wait_runtime; dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-180}"; }
+cmd_stop() { dc stop; }
+cmd_status() { dc ps; }
+cmd_logs() { dc logs -f --tail 200 "$@"; }
+
+# ---- the Colima job ----------------------------------------------------------------------------------------------------------------
+# colima-run: what the run.vyre.colima launchd job runs, as the account that owns the install. Colima stays in the foreground so launchd supervises it. The size comes from
+# colima-size.env, written by the installer from this Mac's memory. The Space's data folder is mounted writable (Colima mounts the home folder read-only by default).
+cmd_colima_run() {
+  [ "$RUNTIME" = colima ] || die "this Mac runs its containers in Docker Desktop; there is no Colima job."
+  COLIMA_CPUS=2; COLIMA_MEM=6; COLIMA_DISK=60; COLIMA_VM=vz
+  # shellcheck disable=SC1091
+  [ ! -f "$DIR/colima-size.env" ] || . "$DIR/colima-size.env"
+  mkdir -p "$DIR/logs"
+  exec colima start --foreground --vm-type "$COLIMA_VM" --cpu "$COLIMA_CPUS" --memory "$COLIMA_MEM" --disk "$COLIMA_DISK" --mount "$DATA_DIR:w"
+}
+
+# ---- doctor ------------------------------------------------------------------------------------------------------------------------
+FINDINGS=""
+DOWN=0
+# finding KEY STATE DETAIL
+finding() {
+  FINDINGS="$FINDINGS
+$1	$2	$3"
+  [ "$2" != down ] || DOWN=1
+}
+
+json_str() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\n\t' '  '; }
+
+check_all() {
+  # the volume the data lives on
+  disk_encrypted "$DATA_DIR" && rc=0 || rc=$?
+  case "$rc" in
+    0) finding host.disk_encrypted healthy "The data directory $DATA_DIR is on an encrypted volume." ;;
+    1) finding host.disk_encrypted down "The data directory $DATA_DIR is not on an encrypted volume. Turn on FileVault in System Settings, Privacy and Security." ;;
+    *) finding host.disk_encrypted down "Could not tell whether $DATA_DIR is on an encrypted volume (fdesetup or diskutil gave no answer)." ;;
+  esac
+  # room to work
+  free_mb=$(df -Pm "$DATA_DIR" 2>/dev/null | awk 'NR==2 {print $4}')
+  if [ -z "$free_mb" ]; then finding host.disk_space degraded "Could not read the free space of $DATA_DIR."
+  elif [ "$free_mb" -lt 1024 ]; then finding host.disk_space down "Only $free_mb MB free on the data volume. Free space or grow it."
+  elif [ "$free_mb" -lt 5120 ]; then finding host.disk_space degraded "$free_mb MB free on the data volume; updates and backups need room."
+  else finding host.disk_space healthy "$free_mb MB free on the data volume."
+  fi
+  # docker and the stack
+  if ! command -v docker >/dev/null 2>&1; then
+    finding host.docker down "Docker is not installed."
+  elif ! docker info >/dev/null 2>&1; then
+    if [ "$RUNTIME" = colima ]; then finding host.docker down "Docker is not answering. The Colima job may still be starting; read $DIR/logs/colima.log."
+    else finding host.docker down "Docker is not running. Open Docker Desktop."; fi
+  else
+    finding host.docker healthy "Docker answers."
+    ps=$(dc ps --format '{{.Service}} {{.State}} {{.Health}}' 2>/dev/null || true)
+    vy=$(printf '%s\n' "$ps" | awk '$1 == "vyred" { print $2 " " $3 }')
+    cd=$(printf '%s\n' "$ps" | awk '$1 == "caddy" { print $2 }')
+    case "$vy" in
+      "running healthy") finding host.vyred healthy "vyred is running and healthy." ;;
+      "running starting") finding host.vyred degraded "vyred is still starting." ;;
+      "") finding host.vyred down "vyred is not running. Start it: vyre-server start." ;;
+      *) finding host.vyred down "vyred is $vy. Read: vyre-server logs vyred." ;;
+    esac
+    case "$cd" in
+      running) finding host.caddy healthy "Caddy is running." ;;
+      "") finding host.caddy down "Caddy is not running. Start it: vyre-server start." ;;
+      *) finding host.caddy down "Caddy is $cd. Read: vyre-server logs caddy." ;;
+    esac
+    ai=$(lock_get VYRE_AGENT_IMAGE)
+    if [ -n "$ai" ]; then
+      if docker image inspect "$ai" >/dev/null 2>&1; then finding host.agent_image healthy "The agent computer image is pulled."
+      else finding host.agent_image degraded "The agent computer image is not pulled yet; agent computers cannot start. Run: docker pull $ai"
+      fi
+    fi
+  fi
+  # the server answers
+  if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 5 "$(health_url)" >/dev/null 2>&1; then
+    finding host.healthz healthy "vyred answers /healthz."
+  else
+    finding host.healthz down "vyred does not answer on 127.0.0.1:$(port)."
+  fi
+  # the install itself
+  if [ -f "$DIR/current/VERSION" ] && [ -f "$DIR/vyre.env" ]; then finding host.release healthy "Vyre Server $(cur_version) on the $CHANNEL channel."
+  else finding host.release down "No release is installed at $DIR. Run the installer again."
+  fi
+  if [ "${VYRE_TEST_MODE:-0}" != 1 ] && command -v launchctl >/dev/null 2>&1; then
+    if launchctl print system/run.vyre.server-update >/dev/null 2>&1; then finding host.update_timer healthy "The daily update check is on."
+    else finding host.update_timer degraded "The daily update check is off. Run the installer again to turn it on."
+    fi
+    if [ "$RUNTIME" = colima ]; then
+      if launchctl print system/run.vyre.colima >/dev/null 2>&1; then finding host.runtime healthy "The Colima job is loaded; it starts at boot."
+      else finding host.runtime down "The Colima job is not loaded, so the containers will not come back after a restart. Run the installer again."
+      fi
+    else finding host.runtime healthy "Docker Desktop is the container runtime."
+    fi
+  fi
+}
+
+cmd_doctor() {
+  json=0; quiet=0
+  for a in "$@"; do case "$a" in --json) json=1 ;; --quiet) quiet=1 ;; *) die "doctor takes --json or --quiet" 2 ;; esac; done
+  check_all
+  if [ "$json" = 1 ]; then
+    first=1
+    printf '{"ok":%s,"version":"%s","findings":[' "$([ "$DOWN" = 0 ] && printf true || printf false)" "$(json_str "$(cur_version)")"
+    printf '%s\n' "$FINDINGS" | while IFS="$(printf '\t')" read -r k s d; do
+      [ -n "$k" ] || continue
+      [ "$first" = 1 ] || printf ','
+      first=0
+      printf '{"key":"%s","state":"%s","detail":"%s"}' "$k" "$s" "$(json_str "$d")"
+    done
+    printf ']}\n'
+  elif [ "$quiet" = 0 ]; then
+    printf '%s\n' "$FINDINGS" | while IFS="$(printf '\t')" read -r k s d; do
+      [ -n "$k" ] || continue
+      case "$s" in healthy) m="ok  " ;; degraded) m="warn" ;; *) m="DOWN" ;; esac
+      printf '%s %-22s %s\n' "$m" "$k" "$d"
+    done
+  fi
+  [ "$DOWN" = 0 ]
+}
+
+# ---- backup, update, rollback ------------------------------------------------------------------------------------------------------
+# backup_data TAG: stops the server, tars the Space and Caddy's certificates, prunes old backups. The caller starts the server again.
+backup_data() {
+  mkdir -p "$DIR/backups"
+  chmod 0700 "$DIR/backups"
+  out="$DIR/backups/vyre-$1-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
+  need_mb=$(du -sm "$DATA_DIR/space" "$DATA_DIR/caddy" 2>/dev/null | awk '{ n += $1 } END { print n + 0 }')
+  free_mb=$(df -Pm "$DIR/backups" | awk 'NR==2 {print $4}')
+  [ "${free_mb:-0}" -gt "$((need_mb * 2 + 256))" ] || die "not enough room for a backup ($need_mb MB of data, $free_mb MB free); nothing was changed."
+  dc stop >/dev/null
+  umask 077
+  tar -czf "$out.part" -C "$DATA_DIR" space caddy || { rm -f "$out.part"; die "the backup could not be written; nothing was changed."; }
+  tar -tzf "$out.part" >/dev/null || { rm -f "$out.part"; die "the backup did not read back; nothing was changed."; }
+  mv "$out.part" "$out"
+  ls -1t "$DIR"/backups/vyre-*.tar.gz 2>/dev/null | awk -v k="$KEEP_BACKUPS" 'NR > k' | while read -r old; do rm -f "$old"; done
+  BACKUP_FILE=$out
+}
+
+cmd_backup() {
+  backup_data manual
+  dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-180}" >/dev/null
+  say "Backup written: $BACKUP_FILE"
+}
+
+record_update() {
+  mkdir -p "$DIR/state"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$2" "$3" "$4" "$5" >>"$DIR/state/updates.tsv"
+  printf '%s\n' "$3" >"$DIR/state/last-update-result"
+}
+
+set_current() {
+  ln -sfn "releases/$1" "$DIR/current.new"
+  mv -Tf "$DIR/current.new" "$DIR/current" 2>/dev/null || { rm -f "$DIR/current"; mv "$DIR/current.new" "$DIR/current"; }
+}
+
+wait_healthy() {
+  n=0
+  while [ "$n" -lt "${VYRE_UP_WAIT:-180}" ]; do
+    check_quiet && return 0
+    n=$((n + 3)); sleep 3
+  done
+  return 1
+}
+check_quiet() { FINDINGS=""; DOWN=0; check_all; [ "$DOWN" = 0 ]; }
+
+prune_releases() {
+  keep=$(cur_version)
+  prev=$(sed -n 's|^releases/||p' "$DIR/previous" 2>/dev/null | head -n 1)
+  ls -1t "$DIR/releases" 2>/dev/null | awk -v k="$KEEP_RELEASES" 'NR > k' | while read -r v; do
+    [ "$v" = "$keep" ] || [ "$v" = "$prev" ] || rm -rf "$DIR/releases/$v"
+  done
+}
+
+cmd_update() {
+  check_only=0
+  for a in "$@"; do case "$a" in --check) check_only=1 ;; --yes|-y) YES=1 ;; --dry-run) DRY=1 ;; *) die "update takes --check, --yes or --dry-run" 2 ;; esac; done
+  TMP=$(mktemp -d "${TMPDIR:-/tmp}/vyre-update.XXXXXX")
+  LOCKDIR="$DIR/state/update.lock"
+  mkdir -p "$DIR/state"
+  mkdir "$LOCKDIR" 2>/dev/null || die "another update is running (or died: remove $LOCKDIR)."
+  started=$(date +%s)
+  from=$(cur_version)
+  fetch_release
+  c=$(ver_cmp "$REL_VERSION" "$from") || die "the running version ($from) or the offered one ($REL_VERSION) is not a version."
+  if [ "$c" -le 0 ]; then say "Vyre Server $from is the newest on the $CHANNEL channel."; return 0; fi
+  say "Vyre Server $REL_VERSION is available (running $from)."
+  [ "$check_only" = 0 ] || return 10
+  unpack_release
+  [ -n "$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/releases/$REL_VERSION/images.lock")" ] || die "the release names no server image; nothing was changed."
+  for k in VYRE_IMAGE VYRE_AGENT_IMAGE VYRE_SANDBOX_IMAGE; do
+    ref=$(sed -n "s/^$k=//p" "$DIR/releases/$REL_VERSION/images.lock" | head -n 1)
+    [ -n "$ref" ] || continue
+    case "$ref" in *@sha256:*) ;; *) die "the release names $k without a digest; nothing was changed." ;; esac
+    docker pull -q "$ref" >/dev/null || die "could not pull $ref; nothing was changed."
+  done
+  backup_data "pre-$REL_VERSION"
+  say "  Backed up to $BACKUP_FILE"
+  prev_link=$(readlink "$DIR/current")
+  printf '%s\n' "$prev_link" >"$DIR/previous"
+  set_current "$REL_VERSION"
+  ln -sfn "$DIR/vyre.env" "$DIR/releases/$REL_VERSION/vyre.env"
+  sed -i.bak "s|^VYRE_IMAGE=.*|VYRE_IMAGE=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/releases/$REL_VERSION/images.lock" | head -n 1)|" "$DIR/compose.env" && rm -f "$DIR/compose.env.bak"
+  reason=""
+  if ! dc up -d --remove-orphans >/dev/null 2>&1; then reason="the new version did not start"
+  elif ! wait_healthy; then reason="the new version did not pass its health check"
+  fi
+  secs=$(( $(date +%s) - started ))
+  if [ -z "$reason" ]; then
+    record_update "$from" "$REL_VERSION" ok "$secs" ""
+    prune_releases
+    say "Updated to $REL_VERSION in $secs s."
+    return 0
+  fi
+  # Roll back: the previous release's code and image. Data written by the new version stays; the backup is kept.
+  say "  $reason; going back to $from."
+  set_current "${prev_link#releases/}"
+  sed -i.bak "s|^VYRE_IMAGE=.*|VYRE_IMAGE=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)|" "$DIR/compose.env" && rm -f "$DIR/compose.env.bak"
+  dc up -d --remove-orphans >/dev/null 2>&1 || true
+  if wait_healthy; then record_update "$from" "$REL_VERSION" rolled_back "$secs" "$reason"; die "the update to $REL_VERSION failed ($reason) and the server is back on $from. Backup: $BACKUP_FILE" 4; fi
+  record_update "$from" "$REL_VERSION" failed "$secs" "$reason"
+  die "the update to $REL_VERSION failed ($reason) and the server did not come back healthy on $from either. Read: vyre-server logs. Backup: $BACKUP_FILE" 5
+}
+
+cmd_rollback() {
+  [ -f "$DIR/previous" ] || die "there is no earlier release to go back to."
+  prev=$(sed -n 's|^releases/||p' "$DIR/previous" | head -n 1)
+  [ -n "$prev" ] && [ -f "$DIR/releases/$prev/.complete" ] || die "the earlier release ($prev) is no longer on disk."
+  from=$(cur_version)
+  [ "$from" != "$prev" ] || die "already on $prev."
+  say "Switching from $from to $prev. Data written by $from stays; only the code goes back."
+  printf 'releases/%s\n' "$from" >"$DIR/previous"
+  set_current "$prev"
+  sed -i.bak "s|^VYRE_IMAGE=.*|VYRE_IMAGE=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)|" "$DIR/compose.env" && rm -f "$DIR/compose.env.bak"
+  dc up -d --remove-orphans >/dev/null
+  wait_healthy || die "the server did not become healthy on $prev. Read: vyre-server logs."
+  record_update "$from" "$prev" rolled_back 0 "manual rollback"
+  say "Running $prev."
+}
+
+main() {
+  trap cleanup EXIT
+  [ $# -gt 0 ] || { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+  cmd=$1; shift
+  case "$cmd" in
+    doctor) cmd_doctor "$@" ;;
+    colima-run) cmd_colima_run ;;
+    status) cmd_status ;;
+    start) cmd_start ;;
+    stop) cmd_stop ;;
+    restart) cmd_stop; cmd_start ;;
+    logs) cmd_logs "$@" ;;
+    update) cmd_update "$@" ;;
+    rollback) cmd_rollback ;;
+    backup) cmd_backup ;;
+    version|--version) say "$(cur_version)" ;;
+    -h|--help|help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' ;;
+    *) die "unknown command $cmd (try: vyre-server help)" 2 ;;
+  esac
+}
+
+if [ "${VYRE_SOURCE_ONLY:-0}" != 1 ]; then main "$@"; fi

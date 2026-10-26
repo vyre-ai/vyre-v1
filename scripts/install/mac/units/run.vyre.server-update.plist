@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- @MARK@ -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>run.vyre.server-update</string>
+  <key>UserName</key><string>@USER@</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>@BIN@</string>
+    <string>update</string>
+    <string>--yes</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>@HOME@</string>
+    <key>VYRE_DIR</key><string>@VYRE_DIR@</string>
+    <key>PATH</key><string>@VYRE_DIR@/tools/bin:@VYRE_DIR@/tools/lima/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <!-- daily; a Mac that was asleep runs it when it wakes -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>4</integer>
+    <key>Minute</key><integer>17</integer>
+  </dict>
+  <key>ProcessType</key><string>Background</string>
+  <key>StandardOutPath</key><string>@VYRE_DIR@/logs/update.log</string>
+  <key>StandardErrorPath</key><string>@VYRE_DIR@/logs/update.log</string>
+</dict>
+</plist>
