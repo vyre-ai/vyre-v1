@@ -1,6 +1,7 @@
 // Runs projections (ARCH 4.7, 7.7). The Run row (runs_items), its durable step log (runs_steps), waits, facts the row has no column for (runs_extra)
 // and the read queries behind runs.list, runs.get, runs.steps, runs.count and runs.status.
 // Durable tables: generated/modules/runs/schema.sql plus migrations/0001_runs_engine.sql. Every statement names only runs_* tables (ctx.db refuses anything else, ARCH B2).
+import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { makeId } from "../../packages/contracts/src/ids.ts";
 
@@ -30,6 +31,8 @@ export interface RunsCtx {
   principal: { kind: string; id: string };
   actingFor?: string;
   trace: { traceId: string };
+  /** 0 for a call from the gateway, above 0 for a call another capability made (P-SEC_10) */
+  depth?: number;
   device?: string;
   run?: string;
   thread?: string;
@@ -274,7 +277,7 @@ export function allWaits(db: Db): WaitRow[] {
 
 // ---- who may see and manage ----
 
-const isService = (ctx: RunsCtx): boolean => ctx.principal.kind === "service";
+const isService = (ctx: RunsCtx): boolean => isTrustedService(ctx.principal);
 export function isOwner(ctx: RunsCtx, r: Pick<Run, "owner">): boolean { return r.owner === ctx.principal.id || (ctx.actingFor !== undefined && r.owner === ctx.actingFor); }
 /** Manage on a Run: its owner, a service caller (engine, Gate), or a holder of the `runs.manage` role permission. */
 export function mayManage(ctx: RunsCtx, r: Pick<Run, "id" | "owner">): boolean {
