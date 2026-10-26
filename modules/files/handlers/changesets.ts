@@ -423,7 +423,7 @@ async function get(ctx: Ctx, input: unknown): Promise<{ changeset: Record<string
   const cs = mustChangeset(ctx, reqStr(ctx, record(ctx, input), "changesetId"));
   return {
     changeset: rowOut(ctx, cs),
-    files: filesOf(ctx, String(cs.id)).map((f) => ({ path: String(f.path), ...(isNull(f.file_id) ? {} : { fileId: String(f.file_id) }), status: String(f.status) as Status, added: num(f.added_lines), removed: num(f.removed_lines), conflict: flag(f.conflict) })),
+    files: filesOf(ctx, String(cs.id)).map((f) => ({ path: String(f.path), ...(isNull(f.file_id) || String(f.status) === "added" ? {} : { fileId: String(f.file_id) }), status: String(f.status) as Status, added: num(f.added_lines), removed: num(f.removed_lines), conflict: flag(f.conflict) })),
   };
 }
 
