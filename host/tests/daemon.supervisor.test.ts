@@ -160,8 +160,7 @@ test("scheduler start runs immediate jobs once without waiting for a long interv
   const s = new Scheduler({ tickMs: 86_400_000 });
   s.add({ name: "immediate", schedule: { everyMs: 86_400_000, immediate: true }, run: () => { immediate++; } });
   s.add({ name: "deferred", schedule: { everyMs: 86_400_000 }, run: () => { deferred++; } });
-  s.start();
-  await Promise.resolve();
+  await s.start();
   assert.equal(immediate, 1);
   assert.equal(deferred, 0);
   await s.stop();
