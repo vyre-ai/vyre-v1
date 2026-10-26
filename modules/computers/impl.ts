@@ -311,6 +311,9 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       let answer: unknown;
       try { answer = JSON.parse(r.stdout.trim() || "{}"); } catch { throw new ToolError("unavailable", "agentd answered the tool with something that is not JSON"); }
       if (typeof answer !== "object" || answer === null || Array.isArray(answer)) throw new ToolError("unavailable", "agentd answered the tool with something that is not an object");
+      // a tool may have changed files in the home: mirror them now rather than at the next pass
+      const home = homes.get(a.computerId);
+      if (home) void home.sync.pass().catch((e: unknown) => { o.home?.deps.log("warn", "computers.home.pass_failed", { computer: a.computerId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); });
       return answer as ToolAnswer;
     },
     async health() {
