@@ -61,7 +61,7 @@
     "wabt": "1.0.39"
   },
   "overrides": {
-    "undici": "8.12.3",
+    "undici": "8.12.2",
     "unzipper": "0.12.5"
   }
 }
