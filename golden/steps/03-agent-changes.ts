@@ -10,18 +10,23 @@ import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_CHANGES = ["files", "git", "gate", "tasks", "agents", "devices", "access", "spaces"];
-export const GAPS: Gap[] = [
-  { packet: "L4 git", lane: "L4", what: "git.commit answers 'There is nothing to commit' right after files.create in the same folder: the files tree and the git working copy do not see each other's files" },
-];
+export const GAPS: Gap[] = [];
 
 export async function runChanges(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const trail = new Trail();
   const { s } = await bootTolerant(trail, live);
   if (!s) return { events: [], trail };
+  // the git module takes https remotes only, so the remote is an https address that a git config in this process maps to a local bare repository (url.<dir>.insteadOf), as the module's own tests do
+  const remoteRoot = fs.mkdtempSync(path.join(os.tmpdir(), "golden-3-remote-"));
+  const bare = path.join(remoteRoot, "site.git");
+  spawnSync("git", ["init", "--bare", "-b", "main", bare]);
+  const gitConfig = path.join(remoteRoot, "gitconfig");
+  fs.writeFileSync(gitConfig, `[url "${remoteRoot}/"]\n\tinsteadOf = https://git.example.test/\n`);
+  const savedConfig = process.env["GIT_CONFIG_GLOBAL"];
+  process.env["GIT_CONFIG_GLOBAL"] = gitConfig;
+  const remote = "https://git.example.test/site.git";
   try {
     const admin = s.d.token;
-    const remote = fs.mkdtempSync(path.join(os.tmpdir(), "golden-3-remote-"));
-    spawnSync("git", ["init", "--bare", "-b", "main", remote]);
     const root = await trail.step("the Space has a root folder", async () => {
       const list = expectStatus(await s.call("files.list", admin, { section: "space" }), 200, "files.list");
       const f = (list.folders ?? list.items ?? []).find((x: { id?: string; folderId?: string }) => x.id ?? x.folderId);
@@ -49,11 +54,11 @@ export async function runChanges(live: readonly string[]): Promise<{ events: Obs
     }, ["the main branch is protected and the remote added"]);
     await trail.step("a person approves and the push goes out", async () => {
       expectStatus(await s.call("tasks.act", admin, { taskId: held!, action: "approve" }), 200, "tasks.act");
-      const log = spawnSync("git", ["-C", remote, "log", "--oneline", "main"], { encoding: "utf8" });
+      const log = spawnSync("git", ["-C", bare, "log", "--oneline", "main"], { encoding: "utf8" });
       assert.match(log.stdout, /Reword the home page/, `remote log: ${log.stdout}${log.stderr}`);
     }, ["the push to the protected branch is held by the Gate"]);
     return { events: await s.events(), trail };
-  } finally { await s.stop(); }
+  } finally { if (savedConfig === undefined) delete process.env["GIT_CONFIG_GLOBAL"]; else process.env["GIT_CONFIG_GLOBAL"] = savedConfig; await s.stop(); }
 }
 
 export default async function steps(): Promise<Observed[]> {
