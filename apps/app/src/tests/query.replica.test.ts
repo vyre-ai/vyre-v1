@@ -115,7 +115,8 @@ test("100,000 rows: a window reads only the rows on screen, scrolling reads the 
   const keep = win.row(ids(10));
   const rebuilds = r.client.stats().listRebuilds;
   let k = 0;
-  const editMs = measure("edit.patch1", () => { r.pull("calendar", ids(5), { title: `Edited ${++k}`, version: 1 + k });   // a server edit carries its new row version const s = ready(l.getSnapshot()) as ListWindow<Calendar>; s.rows(0, 50); });
+  // a pulled server edit carries its new row version
+  const editMs = measure("edit.patch1", () => { r.pull("calendar", ids(5), { title: `Edited ${++k}`, version: 1 + k }); const s = ready(l.getSnapshot()) as ListWindow<Calendar>; s.rows(0, 50); });
   assert.ok(editMs < FRAME_MS, `a pulled edit patched in ${editMs.toFixed(2)} ms`);
   assert.equal(ready(l.getSnapshot()).row(ids(5))?.title, `Edited ${k}`);
   assert.equal(r.client.stats().listRebuilds, rebuilds, "a title edit never re-ran the ids query");
