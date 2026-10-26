@@ -12,6 +12,7 @@ import type { ConnectorsHandlers } from "./handlers/index.ts";
 import { ensureTables, seedBuiltins } from "./projections.ts";
 import type { BuiltinRow, ConnectorsCtx } from "./projections.ts";
 import type { SyncDeps, SyncEngine } from "./handlers/sync.ts";
+import { runDue } from "./handlers/cadence.ts";
 
 export function loadBuiltins(path: URL = new URL("../../generated/registry.json", import.meta.url)): BuiltinRow[] {
   return (JSON.parse(readFileSync(path, "utf8")) as { connectors: BuiltinRow[] }).connectors;
@@ -77,3 +78,19 @@ const NAMES = [
 export const handlers = Object.fromEntries(NAMES.map((n) => [n, adapt(n)])) as Record<(typeof NAMES)[number], (ctx: HostCtx, input: never) => Promise<unknown>>;
 export { createConnectorsHandlers };
 export { executeAction, runCases, diffDefs, noteSchemaChanges, syncRequest } from "./handlers/index.ts";
+
+export { DEFAULT_POLLING, dueSyncs, runDue, useStateOf, conflictDefault } from "./handlers/cadence.ts";
+
+/**
+ * Cursor polling (spec 2.10): every 30 seconds the host asks which synced types are due (2 min in use, 15 idle, 1 h dormant; a nightly reconcile) and starts one run for each through
+ * connectors.sync_now. The host runs a hook as the system, so the Gate and the audit still see an ordinary capability call.
+ */
+export const periodic = {
+  "connectors.cadence": {
+    everyMs: 30_000,
+    run: async (ctx: Pick<HostCtx, "call" | "log">): Promise<void> => {
+      const h = live();
+      await runDue({ tx: h.tx, now: h.deps.now ?? Date.now }, (cap, input) => ctx.call(cap, input), ctx.log);
+    },
+  },
+};
