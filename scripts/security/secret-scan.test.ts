@@ -35,9 +35,11 @@ test('a clean file passes, and the inline marker allows one line', () => {
 
 test('a path allowance skips the file, and an allowance without a reason is refused', () => {
   const files = new Map([['fixtures/keys.txt', seeded['private-key-block']!], ['src/a.ts', seeded['github-token']!]]);
-  const allow = [{ path: 'fixtures/', reason: 'fake keys for the vault scrub tests' }];
+  const allow = [{ path: 'fixtures/', reason: 'fake keys for the vault scrub tests', until: '2099-01-01' }];
   assert.ok(allowed('fixtures/keys.txt', allow));
   assert.deepEqual(scanFiles(files, allow).map((h) => h.file), ['src/a.ts']);
   assert.deepEqual(checkAllowList(allow), []);
-  assert.equal(checkAllowList([{ path: 'a', reason: '' }]).length, 1);
+  assert.equal(checkAllowList([{ path: 'a', reason: '', until: '2099-01-01' }]).length, 1);
+  assert.equal(checkAllowList([{ path: 'a', reason: 'a fake key in a test', until: 'later' }]).length, 1);
+  assert.match(checkAllowList([{ path: 'a', reason: 'a fake key in a test', until: '2026-01-01' }], new Date('2026-10-26'))[0]!, /expired/);
 });

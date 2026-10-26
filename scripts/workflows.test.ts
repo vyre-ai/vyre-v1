@@ -120,7 +120,8 @@ test("seeded bad input: a blocked license, a secret, a high advisory and an unli
   assert.equal(auditFailing(auditFindings({ vulnerabilities: { x: { severity: "high", via: [] } } }), []).length, 1);
   const v = { rule: "B1", file: "modules/a/x.ts", message: "m", spec: "../b" };
   assert.equal(applyKnown([v], []).failing.length, 1);
-  assert.equal(applyKnown([v], [{ rule: "B1", file: "modules/a/x.ts", reason: "moves with P-X, until then accepted" }]).failing.length, 0);
-  assert.equal(applyKnown([v], [{ rule: "B1", file: "modules/a/x.ts", reason: "" }]).failing.length, 1, "a known entry without a reason does not count");
-  assert.equal(applyKnown([], [{ rule: "B1", file: "gone.ts", reason: "was needed once, now fixed" }]).stale.length, 1, "a stale known entry fails");
+  assert.equal(applyKnown([v], [{ rule: "B1", file: "modules/a/x.ts", reason: "moves with P-X, until then accepted", until: "2099-01-01" }]).failing.length, 0);
+  assert.equal(applyKnown([v], [{ rule: "B1", file: "modules/a/x.ts", reason: "", until: "2099-01-01" }]).failing.length, 1, "a known entry without a reason does not count");
+  assert.equal(applyKnown([v], [{ rule: "B1", file: "modules/a/x.ts", reason: "moves with P-X, until then accepted", until: "2020-01-01" }]).failing.length, 1, "an expired known entry does not count");
+  assert.equal(applyKnown([], [{ rule: "B1", file: "gone.ts", reason: "was needed once, now fixed", until: "2099-01-01" }]).stale.length, 1, "a stale known entry fails");
 });

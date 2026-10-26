@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export interface Rule { id: string; re: RegExp }
 export interface Hit { rule: string; file: string; line: number; sample: string }
-export interface AllowEntry { path: string; reason: string }
+export interface AllowEntry { path: string; reason: string; until: string }
 
 export const RULES: readonly Rule[] = [
   { id: 'private-key-block', re: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY(?: BLOCK)?-----/ },
@@ -45,9 +45,16 @@ export function allowed(file: string, allow: readonly AllowEntry[]): AllowEntry 
   return allow.find((a) => file === a.path || (a.path.endsWith('/') && file.startsWith(a.path)));
 }
 
-/** Entries without a reason are refused: an allowance nobody explained is a hole. */
-export function checkAllowList(allow: readonly AllowEntry[]): string[] {
-  return allow.filter((a) => typeof a.reason !== 'string' || a.reason.trim().length < 10).map((a) => `secret-allow.json: ${a.path} has no reason`);
+/** An entry needs a reason and an until date (YYYY-MM-DD) that has not passed: an allowance nobody explained, or nobody looks at again, is a hole. */
+export function checkAllowList(allow: readonly AllowEntry[], now: Date = new Date()): string[] {
+  const out: string[] = [];
+  for (const a of allow) {
+    if (typeof a.reason !== 'string' || a.reason.trim().length < 10) out.push(`secret-allow.json: ${a.path} has no reason`);
+    const until = Date.parse(a.until);
+    if (!Number.isFinite(until)) out.push(`secret-allow.json: ${a.path} has no valid until date`);
+    else if (until < now.getTime()) out.push(`secret-allow.json: the allowance for ${a.path} expired on ${a.until}`);
+  }
+  return out;
 }
 
 export function scanFiles(files: ReadonlyMap<string, string>, allow: readonly AllowEntry[]): Hit[] {

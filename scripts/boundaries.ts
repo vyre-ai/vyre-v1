@@ -34,7 +34,7 @@ export interface BoundariesFile {
   known?: KnownViolation[];
 }
 
-export interface KnownViolation { rule: string; file: string; spec?: string; reason: string }
+export interface KnownViolation { rule: string; file: string; spec?: string; reason: string; until: string }
 
 export interface AllowlistFile {
   allowedLicenses?: string[];
@@ -429,9 +429,9 @@ function dedupe(list: Violation[]): Violation[] {
   return out;
 }
 
-/** Split violations into those that fail, those accepted as known (with a reason), and known entries that no longer match anything. An entry with no reason matches nothing. */
-export function applyKnown(violations: readonly Violation[], known: readonly KnownViolation[]): { failing: Violation[]; accepted: Violation[]; stale: KnownViolation[] } {
-  const usable = known.filter((k) => typeof k.reason === 'string' && k.reason.trim().length >= 10);
+/** Split violations into those that fail, those accepted as known (with a reason), and known entries that no longer match anything. An entry with no reason, or past its until date, matches nothing. */
+export function applyKnown(violations: readonly Violation[], known: readonly KnownViolation[], now: Date = new Date()): { failing: Violation[]; accepted: Violation[]; stale: KnownViolation[] } {
+  const usable = known.filter((k) => typeof k.reason === 'string' && k.reason.trim().length >= 10 && Date.parse(k.until) >= now.getTime());
   const used = new Set<KnownViolation>();
   const failing: Violation[] = [];
   const accepted: Violation[] = [];
