@@ -127,9 +127,9 @@ test("vyred boots on the seeded Space from modules.json, answers example.echo wi
     const bad = await fetch(`${d.url}/v1/example/echo`, { method: "POST", headers: { authorization: `Bearer ${d.token}`, "content-type": "application/json" }, body: "{not json" });
     assert.equal(bad.status, 400);
 
-    // probes: all eight rows, healthy against the recorded machine
+    // probes: the eight host probes and the machine report (P-H_20), healthy against the recorded machine
     const probes = Object.fromEntries((d.db!.all("SELECT name, state FROM health_probe ORDER BY name") as { name: string; state: string }[]).map((p) => [p.name, p.state]));
-    assert.deepEqual(probes, { caddy: "healthy", disk_encrypted: "healthy", disk_space: "healthy", docker: "healthy", events_db: "healthy", index_db: "healthy", scheduler: "healthy", time_skew: "healthy" });
+    assert.deepEqual(probes, { caddy: "healthy", disk_encrypted: "healthy", disk_space: "healthy", docker: "healthy", events_db: "healthy", index_db: "healthy", machine: "healthy", scheduler: "healthy", time_skew: "healthy" });
     assert.equal(JSON.parse(String(one(d, "SELECT values_json FROM health_probe WHERE name = 'disk_space'")["values_json"])).freeBytes, 80e9);
     const again = await d.runProbes(["events_db"]);
     assert.equal(again.events_db?.values?.["seq"], seedHead + 1, "the incremental verify walked the new event");

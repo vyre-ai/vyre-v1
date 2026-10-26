@@ -41,6 +41,7 @@ import { nodePlatform } from "../platform/index.ts";
 import type { FetchLike } from "../ctx/http.ts";
 import type { Platform } from "../platform/index.ts";
 import * as probes from "../platform/probes.ts";
+import { createMachineProbe, writeMachineProbe } from "../probes/machine.ts";
 import type { FetchFn, ProbeName, ProbeResult } from "../platform/probes.ts";
 import { Scheduler } from "../scheduler/index.ts";
 import { Supervisor } from "../supervisor/index.ts";
@@ -179,7 +180,7 @@ export interface DaemonOptions {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   /** intervals in ms; tests shorten them */
-  intervals?: { tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number; sweep?: number };
+  intervals?: { tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number; sweep?: number; machine?: number };
 }
 
 export interface Daemon {
@@ -892,6 +893,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   scheduler.add({ name: "keyring.sweep", schedule: { everyMs: o.intervals?.sweep ?? 30_000 }, run: () => { keyring.sweep(); } });
   scheduler.add({ name: "probes.fast", schedule: { everyMs: fast }, run: async () => { await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"])); } });
   scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"])); reportNetwork(); } });
+  // CPU, memory and disk for the Console Overview tiles: a health_probe row named machine, once a minute and once at start
+  const machine = createMachineProbe({ platform, dataDir: paths.root });
+  const sampleMachine = (): void => { if (db) writeMachineProbe(db, now(), machine.sample()); };
+  scheduler.add({ name: "probes.machine", schedule: { everyMs: o.intervals?.machine ?? 60_000 }, run: () => { sampleMachine(); } });
   scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"])); } });
   if (hasSpace) {
     scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });
@@ -955,6 +960,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     await supervisor.startAll();
     if (supervisor.status("gateway")[0]?.phase !== "running") throw new Error(`the gateway did not start on ${cfg.host}:${cfg.port}`);
     await runProbes();
+    sampleMachine();
     reportNetwork();
     // A relay is configured (--relay or VYRE_RELAY_URL): keep one outbound connection to it so a phone or another computer reaches this Space without a public address. The relay row in
     // network_endpoint follows the link, so network.endpoints lists it after the direct ones and reads it down when the link drops (P-L7b_16).
