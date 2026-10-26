@@ -104,7 +104,9 @@ test("l5 live: a booted daemon has no L5 module not set up, and a read and a wri
     ] as const) {
       const r = await post(OWNER, p, body);
       const text = await r.text();
-      assert.ok(r.status >= 400 && r.status < 500, `${p} with no key answers a refusal, got ${r.status} ${text}${why(text)}`);
+      // a missing key is provider.auth_failed ("add the key in Console"), which the gateway answers as 502; any other 4xx refusal is as clean. A 500 is a crash.
+      const code = (JSON.parse(text) as { error?: { code?: string } }).error?.code ?? "";
+      assert.ok((r.status >= 400 && r.status < 500) || code === "provider.auth_failed", `${p} with no key answers a refusal, got ${r.status} ${text}${why(text)}`);
     }
 
     // a member holds no connectors.manage: refused before the handler runs
