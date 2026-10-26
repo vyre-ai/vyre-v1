@@ -50,7 +50,7 @@ export async function runMemory(live: readonly string[]): Promise<{ events: Obse
 
 /** The approver path: a promotion into a layer Noah cannot edit waits as a task for its owner. Helper is Mia's agent. */
 export const APPROVAL_GAPS: Gap[] = [
-  { packet: "unassigned (lead)", lane: "L7", what: "Mia makes Helper through agents.create (so it has its Agents folder) and still answers 403 on memory.promotion.approve: owning the agent gives no edit on its folder, so memory access (modules/memory/projections.ts makeAccess, authorize edit on agent.folderId) denies the owner" },
+  { packet: "P-GF_10", lane: "L7", what: "Mia makes Helper through agents.create (so it has its Agents folder) and still answers 403 on memory.promotion.approve: owning the agent gives no edit on its folder, so memory access (modules/memory/projections.ts makeAccess, authorize edit on agent.folderId) denies the owner" },
 ];
 
 export async function runMemoryApproval(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
