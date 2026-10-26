@@ -53,9 +53,7 @@ function boot(dir: string): Promise<Daemon> {
 
 let n = 0;
 const post = (d: { url: string }, token: string, cap: string, body: Record<string, unknown> = {}) => {
-  const [mod, name] = cap.split(".") as [string, string];
-  const prefix = mod === "reports-client" ? "reports" : mod;
-  return fetch(`${d.url}/v1/${prefix}/${name}`, {
+  return fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, {
     method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
     body: JSON.stringify({ idempotencyKey: `l8-live-${++n}`, ...body }),
   });
