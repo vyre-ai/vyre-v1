@@ -155,6 +155,18 @@ test("a job runs when due, not before, and again after its interval", async () =
   assert.equal(st.nextAt, 3000);
 });
 
+test("scheduler start runs immediate jobs once without waiting for a long interval", async () => {
+  let immediate = 0, deferred = 0;
+  const s = new Scheduler({ tickMs: 86_400_000 });
+  s.add({ name: "immediate", schedule: { everyMs: 86_400_000, immediate: true }, run: () => { immediate++; } });
+  s.add({ name: "deferred", schedule: { everyMs: 86_400_000 }, run: () => { deferred++; } });
+  s.start();
+  await Promise.resolve();
+  assert.equal(immediate, 1);
+  assert.equal(deferred, 0);
+  await s.stop();
+});
+
 test("immediate jobs run on the first tick", async () => {
   let runs = 0;
   const s = new Scheduler({ now: () => 5 });
@@ -228,4 +240,3 @@ test("start() ticks on a timer and stop() waits for running jobs; duplicate name
   await new Promise((r) => setTimeout(r, 30));
   assert.equal(runs, after, "stopped means stopped");
 });
-
