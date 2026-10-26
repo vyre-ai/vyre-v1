@@ -124,7 +124,7 @@ test("test_run: runs the working copy on a fixture Space and names each failing 
 test("runner: seed calls, event payload subsets, and a seed that fails", async () => {
   const kit = checkKit(kitManifest({
     tests: [
-      { name: "seeded", kind: "space", seed: [{ cap: "records.create", input: { type: "matter", fields: { name: "Estate of Dana" } } }], expect: { events: [{ name: "record.created", payload: { type: "matter" } }], views: [{ cap: "records.query", input: { type: "matter" }, contains: { name: "Estate of Dana" } }] } },
+      { name: "seeded", kind: "space", seed: [{ cap: "records.create", input: { type: "item", fields: { name: "Sample item" } } }], expect: { events: [{ name: "record.created", payload: { type: "item" } }], views: [{ cap: "records.query", input: { type: "item" }, contains: { name: "Sample item" } }] } },
       { name: "bad seed", kind: "space", seed: [{ cap: "records.boom", input: {} }], expect: {} },
     ],
   })).kit!;
@@ -132,7 +132,7 @@ test("runner: seed calls, event payload subsets, and a seed that fails", async (
   const failures = await runKitTests(kit, async () => {
     const s = new FakeSpace();
     s.answers.set("records.create", (i) => { s.log.push({ name: "record.created", payload: { type: i.type, id: "rec_1" } }); return {}; });
-    s.answers.set("records.query", () => ({ rows: [{ name: "Estate of Dana", type: "matter" }] }));
+    s.answers.set("records.query", () => ({ rows: [{ name: "Sample item", type: "item" }] }));
     s.answers.set("records.boom", () => { throw new Error("no such capability"); });
     spaces.push(s);
     return s;
