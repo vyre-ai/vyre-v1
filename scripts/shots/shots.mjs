@@ -57,7 +57,7 @@ fs.mkdirSync(out, { recursive: true });
 const real = await serve(dist, { spa: true });
 const proto = await serve(path.join(HERE, "prototype"));
 const { chromium } = await import("playwright-core");
-const browser = await chromium.launch({ args: ["--no-sandbox"] });
+const browser = await chromium.launch({ args: ["--no-sandbox", "--js-flags=--expose-gc"] });
 const rows = [];
 const scrollFailed = [];
 try {

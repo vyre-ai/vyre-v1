@@ -1,7 +1,7 @@
 // Records > table (spec 3.4, 2.9): a type's records as a sheet. 100,000 rows open under 100 ms because the table never holds more than a window: it asks the local copy for 200 rows at
 // a time and draws only the rows and the columns that meet the screen, with the title column and the row numbers held at the left. The count in the foot is the cached count(*).
 // Filter, Sort, Group, Fields and Colour are quiet buttons in the header; each opens a menu with checkmarks and counts. Click a header to sort; Enter or Space opens the record.
-import { createElement, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createElement, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
@@ -18,7 +18,7 @@ import { useRecordsState } from "../sidebar/state.tsx";
 import { Scroller } from "./Scroller.tsx";
 import type { ScrollHandle } from "./Scroller.tsx";
 import {
-  FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, chosen, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, groupable, hasOptions,
+  FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, SCROLL_BLOCK, chosen, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, groupable, hasOptions,
   hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, setSort, sortable, toSaved, toggleHidden, toggleOption, totalWidth,
 } from "./model.ts";
 import { allIds, eachId, recordsWord } from "./bulk.ts";
@@ -183,11 +183,6 @@ const GHOST = { height: 9, width: "55%", borderRadius: 5, backgroundColor: "var(
  * The scrolling rows are styled by classes from one stylesheet, set once: an inline style of ten properties on each of the 500 elements a fling mounts was a good part of the scroll cost. Only
  * what changes per element (position, width, background) stays inline. Rows are only drawn after the page is live, so the static export needs none of it.
  */
-/**
- * The scroll position the table redraws at, in rows. A hard fling is 3.5 rows a frame: at 8 rows a redraw came every second or third frame and mounted 8 rows at once, and those frames were the
- * p95 (33 ms, two vsyncs). At 2 rows the redraws are smaller and steadier, so no frame carries the whole block.
- */
-const ROW_STEP = 2;
 const CSS_ID = "vyre-records-rows";
 let cssDone = false;
 function ensureRowCss(): void {
@@ -196,14 +191,19 @@ function ensureRowCss(): void {
   if (!d || !d.head || d.getElementById(CSS_ID)) return;
   const el = d.createElement("style");
   el.id = CSS_ID;
-  el.textContent = `.vrt-r{position:absolute;box-sizing:border-box;display:flex;align-items:center;height:${ROW_H}px;border-bottom:1px solid var(--line);contain:layout style paint}`
-    + ".vrt-c{box-sizing:border-box;flex:none;padding:0 10px;font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+  el.textContent = `.vrt-r{position:absolute;box-sizing:border-box;display:flex;align-items:center;height:${ROW_H}px;border-bottom:1px solid var(--line);contain:layout style}`
+    + ".vrt-c{box-sizing:border-box;flex:none;padding:0 10px;font-size:13px;color:var(--ink);white-space:nowrap}"
     + ".vrt-n{font-variant-numeric:tabular-nums;text-align:right}.vrt-s{color:var(--ink-3);letter-spacing:1px}"
     + ".vrt-g{width:" + GUTTER + "px;height:100%;display:flex;align-items:center;box-sizing:border-box;padding-left:10px;flex:none;font-size:11.5px;color:var(--ink-4);font-variant-numeric:tabular-nums}";
   d.head.appendChild(el);
   cssDone = true;
 }
 
+/** A plain text cell is cut to what its column holds (7 px a character at 13 px, a little over the average) and ends in an ellipsis: no clip box and no text-overflow on the 400 cells a fling mounts. */
+function fit(text: string, width: number): string {
+  const room = Math.floor((width - 20) / 7);
+  return text.length > room ? `${text.slice(0, Math.max(1, room - 1))}\u2026` : text;
+}
 /** The field types webCell draws as plain text (everything but chips, ticks, faces and stars). */
 function isPlainText(f: FieldDef): boolean {
   return f.type !== "choice" && f.type !== "status" && f.type !== "checkbox" && f.type !== "person" && f.type !== "rating";
@@ -246,7 +246,7 @@ const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: num
     // a plain text cell is one element, not a box with a span in it: the scroll trace (run 40232405129) had the whole cost in the cells, 33.4 ms p95 with them and 16.8 ms without
     if (row && isPlainText(c.field)) {
       const v = row.fields[c.field.key];
-      cells.push(createElement("div", { key: c.field.key, className: isNumeric(c.field) ? "vrt-c vrt-n" : c.field.type === "sealed" ? "vrt-c vrt-s" : "vrt-c", style: { width: c.width } }, v === undefined || v === null || v === "" ? null : cellText(c.field, v, names)));
+      cells.push(createElement("div", { key: c.field.key, className: isNumeric(c.field) ? "vrt-c vrt-n" : c.field.type === "sealed" ? "vrt-c vrt-s" : "vrt-c", style: { width: c.width } }, v === undefined || v === null || v === "" ? null : fit(cellText(c.field, v, names), c.width)));
       continue;
     }
     cells.push(createElement("div", { key: c.field.key, style: isNumeric(c.field) ? { ...CELL_BOX, width: c.width, justifyContent: "flex-end" } : { ...CELL_BOX, width: c.width } }, row ? webCell(c.field, row, names) : createElement("div", { style: GHOST })));
@@ -307,7 +307,9 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   // the window of rows the screen meets, and the 200 the query is asked for
   const total0 = count ?? 0;
   const vis = rowWindow(scroll.top, Math.max(0, box.h - HEAD_H), v.group ? GROUP_LIMIT : total0);
-  const offset = v.group ? 0 : queryOffset(vis.first, total0);
+  // the window the query is asked for follows the scroll a beat behind: the fetch and its 200-row copy run in a low-priority render, not in the frame that mounts the rows
+  const wanted = useDeferredValue(queryOffset(vis.first, total0));
+  const offset = v.group ? 0 : wanted;
   const q = useLive("records.query", querySpec(type, v, def.titleField, offset));
   const kept = useRef<{ offset: number; rows: RecordRow[] } | null>(null);
   if (q.status === "ready") kept.current = { offset: v.group ? 0 : offset, rows: q.data.rows };
@@ -470,7 +472,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const onOpen = data.nav.openRecord;
 
   const onScroll = (pos: { top: number; left: number }): void => {
-    const top = Math.floor(pos.top / (ROW_H * ROW_STEP)) * ROW_H * ROW_STEP;
+    const top = Math.floor(pos.top / (ROW_H * SCROLL_BLOCK)) * ROW_H * SCROLL_BLOCK;
     const left = Math.floor(pos.left / 40) * 40;
     setScroll((s) => (s.top === top && s.left === left ? s : { top, left }));
   };
