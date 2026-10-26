@@ -7,7 +7,9 @@ import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_PRIVATE = ["chat", "identity", "vault", "devices", "access", "spaces"];
-export const GAPS: Gap[] = [];
+export const GAPS: Gap[] = [
+  { packet: "lead (flow definition)", lane: "L11", what: "golden/flows/13 expects channel.created and keys.stored; a private chat with an agent emits thread.started and message.received, so the event sequence cannot match" },
+];
 const SECRET_TEXT = "the quarterly numbers are worse than we said";
 
 export async function runPrivate(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
@@ -27,7 +29,7 @@ export async function runPrivate(live: readonly string[]): Promise<{ events: Obs
     }, ["Noah opens a private chat with an agent"]);
     await trail.step("his own device reads it back as ciphertext it can open", async () => {
       const msgs = expectStatus(await s.call("chat.messages.list", noah, { threadId: thread! }), 200, "chat.messages.list").messages as { body?: string }[];
-      assert.ok(msgs.some((m) => (m.body ?? "").startsWith("v") && !(m.body ?? "").includes(SECRET_TEXT)), `Noah sees ${short(msgs)}`);
+      assert.ok(msgs.some((m) => (m.body ?? "").startsWith("enc2") && !(m.body ?? "").includes(SECRET_TEXT)), `Noah sees ${short(msgs)}`);
     }, ["his device seals a message and sends it"]);
     await trail.step("refusal: Sana cannot read his private chat", async () => {
       const r = await s.call("chat.messages.list", sana, { threadId: thread! });
