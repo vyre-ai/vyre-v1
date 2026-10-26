@@ -7,7 +7,11 @@ import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_SITE = ["sites", "gate", "tasks", "files", "vault", "devices", "access", "spaces"];
 export const GAPS: Gap[] = [
+<<<<<<< HEAD
   { packet: "PR 476 (P-L8_LIVE)", lane: "L8", what: "DEFERRED SCOPE: sites is deferred and not live in 476; sites.create answers 404 not_found because no Deployments root resource exists for the site to be made under" },
+=======
+  { packet: "PR 476 (P-L8_LIVE)", lane: "L8", what: "sites is not live in 476 (except sites and portal); sites.create answers 404 not_found because no Deployments root resource exists for the site to be made under" },
+>>>>>>> origin/main
 ];
 
 export async function runSite(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {

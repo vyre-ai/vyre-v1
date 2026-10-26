@@ -583,6 +583,8 @@ async function documentsFill(ctx: Ctx, input: unknown): Promise<{ file: { fileId
     try {
       created = (await ctx.call("files.create", {
         folderId: intoFolderId, name, content: { base64: Buffer.from(out).toString("base64") }, mime: format === "pdf" ? "application/pdf" : DOCX_MIME, kind: format === "pdf" ? "pdf" : "document",
+        // the caller's own key and the name tried, so a retry of this fill creates the same file once
+        idempotencyKey: `docfill:${optStr(ctx, o, "idempotencyKey") ?? templateFileId}:${name}`,
       })) as { file?: { fileId?: unknown; name?: unknown } };
     } catch (e) {
       if (e instanceof VyreErr && e.error.code === "validation.duplicate") continue;

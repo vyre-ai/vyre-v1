@@ -12,6 +12,21 @@ export function appliesUiRows(file: string): boolean {
   return /\.(?:tsx|jsx)$/.test(file);
 }
 
+const EXEMPT = /ui-rows-lint:\s*not a list\b(?:\s*\(([^)]*)\))?/;
+
+/**
+ * The exemption comment on the line just above the one holding `index`: `// ui-rows-lint: not a list (<reason>)` (or the same inside a JSX comment). Returns the reason,
+ * "" when the comment is there without one, or null when the line above carries no such comment.
+ */
+function exemptionAbove(source: string, index: number): { reason: string; at: number } | null {
+  const lineStart = source.lastIndexOf("\n", index - 1) + 1;
+  if (lineStart === 0) return null;
+  const prevStart = source.lastIndexOf("\n", lineStart - 2) + 1;
+  const prev = source.slice(prevStart, lineStart - 1);
+  const m = EXEMPT.exec(prev);
+  return m ? { reason: (m[1] ?? "").trim(), at: prevStart + m.index } : null;
+}
+
 export function checkUiRows(file: string, source: string): Finding[] {
   const out: Finding[] = [];
   const starts: number[] = [];
@@ -20,6 +35,13 @@ export function checkUiRows(file: string, source: string): Finding[] {
   }
   starts.sort((a, b) => a - b);
   for (const start of starts) {
+    // an author's "not a list" note, with a reason, says this .map builds tiles or cards, not list rows
+    const ex = exemptionAbove(source, start);
+    if (ex) {
+      if (ex.reason) continue;
+      out.push(finding(RULE, file, source, ex.at, "ui-rows-lint: not a list needs a reason in parentheses"));
+      continue;
+    }
     // only a callback that returns JSX is list rendering; a data transform (.map(x => x.id), a callback that returns a string or an object) is not
     const tag = returnedJsx(source, start);
     if (!tag) continue;

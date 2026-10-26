@@ -61,14 +61,16 @@ async function create(ctx: Ctx, input: unknown) {
   const o = rec(ctx, input);
   const name = reqStr(ctx, o, "name").trim();
   const kind = reqStr(ctx, o, "kind");
+  const folderId = optStr(ctx, o, "folderId");
   if (name.length === 0 || name.length > NAME_MAX) fail(ctx, "validation.bad_input", "Give the campaign a name.", { field: "name" });
   if (!KINDS.includes(kind)) fail(ctx, "validation.bad_input", "A campaign is one_time, sequence or triggered.", { field: "kind" });
   const id = nid(ctx, "cmp");
   const now = ctx.now();
   ctx.db.run(
     "INSERT INTO campaigns_campaign (id, name, kind, state, owner, section, folder_id, audience_type, audience_view_id, audience_filter, excluded, settings, windows, throttle_per_hour, stop_on_reply, run_id, pause_reason, created_at, updated_at, launched_at, completed_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, name, kind, "draft", ctx.principal.id, "space", null, null, null, null, 0, "{}", null, null, 1, null, null, now, now, null, null, null,
+    id, name, kind, "draft", ctx.principal.id, "space", folderId ?? null, null, null, null, 0, "{}", null, null, 1, null, null, now, now, null, null, null,
   );
+  ctx.emit("campaign.created", `campaign/${id}`, { campaignId: id, name });
   return { campaign: campaignOut(ctx, mustCampaign(ctx, id)) };
 }
 

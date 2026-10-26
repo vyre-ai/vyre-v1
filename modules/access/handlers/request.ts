@@ -1,6 +1,7 @@
 // Ask for access (spec 4.8, 2.3, ARCH 4.13): access.request, the requests list, approve and decline.
 // A request grants nothing. It puts a Needs you card (an Unblock task holding the access_request block) in front of each person who may decide, and the grant exists
-// only once one of them approves, as that person. Asking is a view-level act, so a view-only Ask thread can call it and still never reaches above view.
+// only once one of them approves, as that person. Any member may ask for any resource id, with or without view on it: the answer is the same for a real id and a made-up one, and only a real one
+// creates a request and cards. Each requester is rate-limited across real and made-up ids alike, so the limit says nothing about what exists.
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import type { Level } from "../../../kernel/src/authorize/index.ts";
 import { grantView, nid, page, raise, storeOf } from "../projections.ts";
@@ -68,6 +69,22 @@ const titleOf = (store: AccessStore, resource: ResourceRef): string => {
   return strOf(row?.["name"]) ?? strOf(row?.["title"]) ?? `${resource.type} ${resource.id}`;
 };
 
+/** Asks per requester in the last hour, real or not. Memory only: a restart forgets it, which costs a requester a fresh allowance and leaks nothing. */
+export const ASK_LIMIT = 20;
+export const ASK_WINDOW_MS = 3_600_000;
+const asks = new Map<string, number[]>();
+function countAsk(ctx: AskCtx, requester: string): void {
+  const now = ctx.now();
+  const recent = (asks.get(requester) ?? []).filter((t) => now - t < ASK_WINDOW_MS);
+  if (recent.length >= ASK_LIMIT) raise(ctx.trace.traceId, "rate_limit.exceeded", "You have asked for access many times in the last hour. Try again later.");
+  recent.push(now);
+  asks.set(requester, recent);
+}
+/** Test hook: forget every requester's count. */
+export const resetAskLimit = (): void => asks.clear();
+
+const exists = (store: AccessStore, r: ResourceRef): boolean => r.type === "space" || store.resources.get(r.id)?.type === r.type;
+
 export async function requestCreate(ctx: AskCtx, input: { resource: ResourceRef; level: Level; note?: string; idempotencyKey: string }) {
   const requester = personOf(ctx);
   const store = storeOf(ctx);
@@ -78,6 +95,11 @@ export async function requestCreate(ctx: AskCtx, input: { resource: ResourceRef;
   const mine = (ctx.db.all(`SELECT * FROM access_requests WHERE requester = ?`, requester) as RequestRow[]);
   const again = mine.find((r) => r.idem_key === input.idempotencyKey);
   if (again) return { request: requestOut(again) };
+  countAsk(ctx, requester);
+  if (!exists(store, input.resource)) {
+    // Same answer as a real ask: an accepted, waiting request with a card id. Nothing is stored, no card is made, no event is emitted.
+    return { request: { id: nid("arq"), requester, resource: { type: input.resource.type, id: input.resource.id }, level: input.level, ...(input.note ? { note: input.note } : {}), state: "waiting" as const, taskId: nid("tsk"), at: ctx.now() } };
+  }
   if (mine.some((r) => r.state === "waiting" && r.resource_type === input.resource.type && r.resource_id === input.resource.id)) {
     raise(ctx.trace.traceId, "validation.duplicate", "You already asked for access to this. The people who can decide have it.");
   }

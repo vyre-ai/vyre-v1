@@ -60,9 +60,15 @@ export interface FlowSpace {
   stop(): Promise<void>;
 }
 
+<<<<<<< HEAD
 /** Boots a daemon on the `small` seed with `live` flipped in a temporary code root. Rejects with the host's own refusal text when the boot is refused. */
 export async function bootFlowSpace(live: readonly string[], opts: { engineCli?: unknown; vault?: { secret(handle: string): Promise<string>; signRs256(): Promise<string> } } = {}): Promise<FlowSpace> {
   const dir = await seededDir();
+=======
+/** Boots a daemon on the `core` seed with `live` flipped in a temporary code root. Rejects with the host's own refusal text when the boot is refused. */
+export async function bootFlowSpace(live: readonly string[], opts: { engineCli?: unknown } = {}): Promise<FlowSpace> {
+  const dir = seededDir();
+>>>>>>> origin/main
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     codeRoot: codeRootWithLive(live),
@@ -76,7 +82,10 @@ export async function bootFlowSpace(live: readonly string[], opts: { engineCli?:
     }),
     fetch: caddyFetch,
     ...(opts.engineCli !== undefined ? { engineCli: opts.engineCli } : {}),
+<<<<<<< HEAD
     ...(opts.vault ? { vault: opts.vault } : {}),
+=======
+>>>>>>> origin/main
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, tick: 3_600_000, hooks: 3_600_000 },
   });
   const trace = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -162,7 +171,11 @@ export function okSteps(trail: Trail): string[] {
 }
 
 /** Boots with `live`; when the host refuses because a module has no handlers, records that as a failed step and boots again without the refused modules, so the rest of the flow still shows its own gaps. */
+<<<<<<< HEAD
 export async function bootTolerant(trail: Trail, live: readonly string[], opts: Parameters<typeof bootFlowSpace>[1] = {}): Promise<{ s: FlowSpace | undefined; dropped: string[] }> {
+=======
+export async function bootTolerant(trail: Trail, live: readonly string[], opts: { engineCli?: unknown } = {}): Promise<{ s: FlowSpace | undefined; dropped: string[] }> {
+>>>>>>> origin/main
   let want = [...live];
   const dropped: string[] = [];
   for (let attempt = 0; attempt < 4; attempt++) {

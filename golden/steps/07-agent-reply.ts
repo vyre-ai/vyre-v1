@@ -3,6 +3,10 @@
 // account's token is filled in at the last moment, and the reply lands in the thread with a turn row that holds the usage. Every call goes through the gateway with a real token.
 // The CLI is the test stand-in for `claude` (host/tests/fixtures/fake-cli-driver/fake-cli.mjs): the first word of the prompt picks what it streams ("hello" is two text deltas and usage).
 import assert from "node:assert/strict";
+<<<<<<< HEAD
+=======
+import { makeBundle } from "../../client/src/crypto/keys.ts";
+>>>>>>> origin/main
 import { bootFlowSpace, expectStatus, short, Trail } from "./02-space.ts";
 import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
@@ -11,6 +15,7 @@ export const LIVE_FOR_REPLY = ["vault", "engine", "agents", "files", "access", "
 
 /** Why this is a todo today. Each line names the PR it waits on. */
 export const REPLY_GAPS: Gap[] = [
+<<<<<<< HEAD
   { packet: "PR 472 (P-L4_LIVE)", lane: "L4", what: "files migrations never create files_file, so agents.create answers 500 (chat.live.test.ts names a stopgap agents_meta row until it lands)" },
   { packet: "PR 471 (P-L7_LIVE)", lane: "L7", what: "the vault module and the signed-in steps need the L7 modules live" },
 ];
@@ -19,13 +24,32 @@ const TOKEN = "sk-ant-oat01-GOLDENFAKE0123456789abcdefXYZ";
 
 export async function runAgentReply(live: readonly string[], opts: Parameters<typeof bootFlowSpace>[1] = {}): Promise<{ events: Observed[]; trail: Trail }> {
   const s = await bootFlowSpace(live, opts);
+=======
+  { packet: "PR 472 (P-L4_LIVE)", lane: "L4", what: "files migrations never create files_file, so agents.create answers 500" },
+  { packet: "chat live (no open PR)", lane: "L2", what: "the chat module has no handlers, so a host that boots it live is refused and chat.start and chat.post do not exist" },
+  { packet: "PR 471 (P-L7_LIVE)", lane: "L7", what: "signed-in steps and the vault need the L7 modules live" },
+  { packet: "lead", lane: "L11", what: "how the daemon is told to launch host/tests/fixtures/fake-cli-driver/fake-cli.mjs instead of claude: startDaemon takes engineCli (cli options only), the launcher wrap is not reachable from a booted daemon" },
+];
+
+const TOKEN = "sk-ant-oat01-GOLDENFAKE0123456789abcdefXYZ";
+/** Argon cost for the throwaway person key: the minimum the module accepts. */
+const TEST_ARGON = { memoryKiB: 8, iterations: 1, parallelism: 1 };
+
+export async function runAgentReply(live: readonly string[], engineCli?: unknown): Promise<{ events: Observed[]; trail: Trail }> {
+  const s = await bootFlowSpace(live, engineCli === undefined ? {} : { engineCli });
+>>>>>>> origin/main
   const trail = new Trail();
   try {
     const admin = s.d.token;   // the owner bootstrap token: Olivia, on this node
     await trail.step("her client unlocks her person key on this node", async () => {
+<<<<<<< HEAD
       // any 32 bytes will do as the person key: the client would have unwrapped it from the sign-in bundle (the heavy job installs no packages, so the client's key code is not imported here)
       const personKey = globalThis.crypto.getRandomValues(new Uint8Array(32));
       const res = await fetch(`${s.d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${admin}` }, body: JSON.stringify({ key: Buffer.from(personKey).toString("base64") }) });
+=======
+      const made = await makeBundle("seed-test-password-1", "recovery-code-1", { argon: TEST_ARGON });
+      const res = await fetch(`${s.d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${admin}` }, body: JSON.stringify({ key: Buffer.from(made.personKey).toString("base64") }) });
+>>>>>>> origin/main
       assert.equal(res.status, 204, `unlock: ${res.status} ${await res.text()}`);
     });
     const folder = await trail.step("a Mine folder holds her account", async () =>
@@ -39,6 +63,7 @@ export async function runAgentReply(live: readonly string[], opts: Parameters<ty
       expectStatus(await s.call("chat.start", admin, { idempotencyKey: "golden-7-chat", kind: "chat", agentIds: [agent!] }), 200, "chat.start").thread.threadId as string,
     ["an agent exists"]);
     await trail.step("she says hello", async () => {
+<<<<<<< HEAD
       expectStatus(await s.call("engine.pool.status", admin, {}), 200, "engine.pool.status");   // the first engine call builds and binds the runtime, so the bridge has an engine to hand the message to
       expectStatus(await s.call("chat.post", admin, { idempotencyKey: "golden-7-hello", threadId: thread!, body: "hello", mentions: [{ kind: "agent", id: agent! }] }), 200, "chat.post");
     }, ["she starts a chat with the agent", "her Claude account is a Mine ai_subscription item"]);
@@ -49,6 +74,16 @@ export async function runAgentReply(live: readonly string[], opts: Parameters<ty
         const msgs = expectStatus(await s.call("chat.messages.list", admin, { threadId: thread! }), 200, "chat.messages.list").messages as { author?: { kind?: string }; body?: string }[];
         if (msgs.some((m) => m.author?.kind === "agent" && (m.body ?? "").includes("Hello from the fake engine."))) return;
         if (Date.now() > end) throw new Error(`no reply from the agent after 40 s: ${short(msgs)}`);
+=======
+      expectStatus(await s.call("chat.post", admin, { idempotencyKey: "golden-7-hello", threadId: thread!, body: "hello" }), 200, "chat.post");
+    }, ["she starts a chat with the agent", "her Claude account is a Mine ai_subscription item"]);
+    await trail.step("the agent's streamed reply lands in the thread", async () => {
+      const end = Date.now() + 10_000;
+      for (;;) {
+        const msgs = expectStatus(await s.call("chat.messages.list", admin, { threadId: thread! }), 200, "chat.messages.list").messages as { author?: { id?: string }; body?: string }[];
+        if (msgs.some((m) => m.author?.id === agent)) return;
+        if (Date.now() > end) throw new Error(`no reply from the agent after 10 s: ${short(msgs)}`);
+>>>>>>> origin/main
         await new Promise((r) => setTimeout(r, 100));
       }
     }, ["she says hello"]);

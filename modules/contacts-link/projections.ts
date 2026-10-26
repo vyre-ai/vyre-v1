@@ -145,7 +145,7 @@ export function statements(sql: string): string[] {
 export function ensure(ctx: Pick<ContactsCtx, "db">): void {
   if (ready.has(ctx.db)) return;
   try {
-    ctx.db.all(`SELECT "suggestionId" FROM contacts_dismissed WHERE "suggestionId" = ?`, "probe");
+    ctx.db.all(`SELECT "suggestionId" FROM contacts_link_dismissed WHERE "suggestionId" = ?`, "probe");
   } catch {
     for (const statement of statements(migrationSql)) ctx.db.run(statement);
   }

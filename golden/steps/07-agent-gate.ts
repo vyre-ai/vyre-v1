@@ -46,10 +46,14 @@ export async function runAgentGate(live: readonly string[], opts: Parameters<typ
       expectStatus(await s.call("engine.pool.status", admin, {}), 200, "engine.pool.status");
       return id;
     }, ["an agent exists"]);
+    const mailbox = await trail.step("the agent has a mailbox to send from", async () => {
+      const m = expectStatus(await s.call("mail.mailbox.create", admin, { idempotencyKey: "golden-7g-mailbox", kind: "agent", address: "mailer@seed.example.test", title: "Mailer", agentId: agent! }), 200, "mail.mailbox.create").mailbox;
+      return (m.mailboxId ?? m.id) as string;
+    }, ["an agent exists"]);
     const ask = (key: string) => async (): Promise<void> => {
-      expectStatus(await s.call("chat.post", admin, { idempotencyKey: key, threadId: thread!, body: "send pat@acme.test", mentions: [{ kind: "agent", id: agent! }] }), 200, "chat.post");
+      expectStatus(await s.call("chat.post", admin, { idempotencyKey: key, threadId: thread!, body: `send pat@acme.test ${mailbox!}`, mentions: [{ kind: "agent", id: agent! }] }), 200, "chat.post");
     };
-    await trail.step("she asks it to send an email", ask("golden-7g-ask-1"), ["she starts a chat with it and the engine is bound"]);
+    await trail.step("she asks it to send an email", ask("golden-7g-ask-1"), ["she starts a chat with it and the engine is bound", "the agent has a mailbox to send from"]);
     const first = await trail.step("the Gate holds the send and opens an Approve task for her", async () => {
       const h = await held(1);
       const t = expectStatus(await s.call("tasks.get", admin, { taskId: h.taskId }), 200, "tasks.get").task;
