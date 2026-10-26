@@ -286,7 +286,7 @@ test("promote with a pull request: failing or running checks block it, passing c
   w.pr.mergeOk = true;
   const prod = await promote(w, siteId, preview.deploymentId);
   const merge = w.gh.filter((g) => g.cap === "github.pull_request.merge");
-  assert.deepEqual(merge[merge.length - 1]?.input, { repo: "acme/harbor", number: 7, method: "squash" });
+  assert.deepEqual(merge[merge.length - 1]?.input, { idempotencyKey: "sites.promote:acme/harbor#7:merge", repo: "acme/harbor", number: 7, method: "squash" });
   assert.equal(prod.branch, "feature-x");
   assert.deepEqual(rows(w, "sites_promotion").map((p) => [p.source_id, p.pr_number, p.merge_sha]), [[preview.deploymentId, 7, "deadbeef"]]);
   const production = prodRows(w, siteId)[0] as Row;

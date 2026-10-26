@@ -57,10 +57,11 @@ test("set with the same key answers the first route and announces nothing again"
 test("set on a Mailgun domain creates the provider route and remembers its id", async () => {
   const h = setup();
   script(h, { "mailgun.routes.create": (i) => ({ route: { routeId: "mgr_1", expression: i.expression, forwardTo: [], priority: 0 } }) });
-  const out = await routeSet(h.ctx, { domainId: "dom_mailgun", localPart: "hello", mailboxId: "mbx_hello", idempotencyKey: key() });
+  const setKey = key();
+  const out = await routeSet(h.ctx, { domainId: "dom_mailgun", localPart: "hello", mailboxId: "mbx_hello", idempotencyKey: setKey });
   assert.equal(out.route.provider, "mailgun");
   assert.deepEqual(h.calls("mailgun.routes.create").map((c) => c.input), [
-    { expression: 'match_recipient("hello@mg.example.org")', description: "Vyre inbound route for hello@mg.example.org" },
+    { idempotencyKey: `${setKey}:mailgun.routes.create`, expression: 'match_recipient("hello@mg.example.org")', description: "Vyre inbound route for hello@mg.example.org" },
   ]);
   assert.deepEqual(h.rows(`SELECT "providerRouteId" FROM mail_route_ext WHERE "routeId" = ?`, out.route.id).map((r) => r.providerRouteId), ["mgr_1"]);
   await routeSet(h.ctx, { domainId: "dom_mailgun", localPart: "hello", mailboxId: "mbx_support", idempotencyKey: key() });
@@ -123,7 +124,7 @@ test("remove deletes the route and its Mailgun route, announces once, and a retr
   const out = await routeRemove(h.ctx, { routeId: r.id, domainId: "dom_mailgun" });
   assert.deepEqual(contractErrors("mail.route.remove", "out", out), []);
   assert.deepEqual(out, { removed: true });
-  assert.deepEqual(h.calls("mailgun.routes.delete").map((c) => c.input), [{ routeId: "mgr_1" }]);
+  assert.deepEqual(h.calls("mailgun.routes.delete").map((c) => c.input), [{ idempotencyKey: `mail.routes.remove:${r.id}`, routeId: "mgr_1" }]);
   assert.equal(route(h, r.id).deleted_at, NOW);
   assert.deepEqual(h.named("inbound_route.removed").map((e) => [e.subject, e.payload]), [["domain/dom_mailgun", { routeId: r.id, domainId: "dom_mailgun" }]]);
   assert.deepEqual(await routeRemove(h.ctx, { routeId: r.id, domainId: "dom_mailgun" }), { removed: true });

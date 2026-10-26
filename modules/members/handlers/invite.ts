@@ -155,7 +155,7 @@ async function runStep(ctx: MembersCtx, personId: string, step: JoinStep): Promi
   const arg = colon < 0 ? "" : step.k.slice(colon + 1);
   if (kind === "role") await ctx.call("access.roles.assign", { subject: who, roleId: arg });
   else if (kind === "group") await ctx.call("access.groups.add_member", { groupId: arg, member: who });
-  else if (kind === "project") await ctx.call("projects.members.set", { projectId: arg, principal: personId, role: "member" });
+  else if (kind === "project") await ctx.call("projects.members.set", { projectId: arg, principal: personId, role: "member", idempotencyKey: `join:${personId}:project:${arg}` });
   else if (kind === "channel") await ctx.call("channels.members.add", { channelId: arg, personIds: [personId] });
   else if (kind === "agent") await ctx.call("access.share", { resource: { type: "agent", id: arg }, subject: who, level: "use", idempotencyKey: `join:${personId}:${arg}` });
 }
