@@ -199,7 +199,7 @@ export const hostCalls = {
     const store = storeOf(actx);
     const r = store.resources.get(input.resource.id);
     if (!r || r.type !== input.resource.type) return false;
-    const heldBy = (who: string) => [...store.grants.entries()].filter(([, g]) => g.resource.type === r.type && g.resource.id === r.id && g.subject.kind === "person" && g.subject.id === who);
+    const heldBy = (who: string) => [...store.grants.entries()].filter(([, g]) => g.resource.type === r.type && g.resource.id === r.id && (g.subject.kind === "person" || (g.subject.kind === "actor" && who.startsWith("usr_"))) && g.subject.id === who);
     const held = heldBy(input.from);
     if (r.ownerId === input.from) {
       // theirs: the resource changes owner and their direct grants on it go
