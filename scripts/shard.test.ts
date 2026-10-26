@@ -110,3 +110,11 @@ test("a heavy test gets a job to itself on the v1 runners; plain slow files stil
   assert.deepEqual(m.filter((j) => j.name.startsWith("slow-")).map((j) => j.files), ["a.test.ts b.test.ts"]);
   assert.ok(m.filter((j) => j.slow).every((j) => j.runner === "v1"));
 });
+
+test("golden steps are slow by pattern: each lands in a slow job without being listed in test/slow.json", () => {
+  const steps = ["golden/steps/01-lead.test.ts", "golden/steps/guest.test.ts", "golden/steps/nested/x.test.ts"];
+  const m = toMatrix(shardFiles([...steps, "lib/x.test.ts"], {}, [])).include;
+  const slowFiles = m.filter((j) => j.slow).flatMap((j) => j.files.split(" ")).sort();
+  assert.deepEqual(slowFiles, ["golden/steps/01-lead.test.ts", "golden/steps/guest.test.ts"], "a nested path is not a step");
+  assert.ok(m.filter((j) => !j.slow).every((j) => !/golden\/steps\/(01|guest)/.test(j.files)));
+});

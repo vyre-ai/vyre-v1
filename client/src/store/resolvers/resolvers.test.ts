@@ -180,23 +180,13 @@ test("a row pulled into the replica wakes the query that read it, and a gateway 
   assert.equal(ready<{ thread: { title: string } }>(miss).thread.title, "Arrived", "once the pull lands the replica answers");
 });
 
-test("place open: a conversation and a list open from a populated replica inside the first-paint budget with the network down", () => {
+test("place open: a conversation and a list open from a populated replica with the network down, and the network is not asked (the first-paint time is in resolvers.perf.test.ts)", () => {
   const w = open(); seed(w, 2000, 10);
   const { gw, hooks } = hooksOf(w);
-  const open1 = (): number => {
-    const t0 = performance.now();
-    const msgs = ready<{ messages: unknown[] }>(hooks.query("chats.conversation", "messages", { threadId: "thr_1000" }));
-    const list = ready<{ threads: unknown[] }>(hooks.query("chats.right-pane", "threads", {}));
-    assert.equal(msgs.messages.length, 10);
-    assert.ok(list.threads.length > 0);
-    return performance.now() - t0;
-  };
-  open1();   // warm-up discarded
-  const t: number[] = [];
-  for (let i = 0; i < 5; i++) { w.changes.emit({ entity: "message", id: `msg_t0m${i}` }); t.push(open1()); }
-  t.sort((a, b) => a - b);
-  console.log(`METRIC replica.place_open median=${t[2]!.toFixed(2)}ms worst=${t[4]!.toFixed(2)}ms threads=2000 messages=20000`);
-  assert.ok(t[4]! < 50, `place open took ${t[4]!.toFixed(2)} ms against a 50 ms first paint`);
+  const msgs = ready<{ messages: unknown[] }>(hooks.query("chats.conversation", "messages", { threadId: "thr_1000" }));
+  const list = ready<{ threads: unknown[] }>(hooks.query("chats.right-pane", "threads", {}));
+  assert.equal(msgs.messages.length, 10);
+  assert.ok(list.threads.length > 0);
   assert.deepEqual(gw.asked, [], "the network was not asked");
 });
 
