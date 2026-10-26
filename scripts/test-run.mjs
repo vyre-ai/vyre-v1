@@ -10,6 +10,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { TEST, imports, cacheKey } from "./lib/graph.mjs";
 import { splitPerf } from "./lib/perf-skip.mjs";
+import { withPatternSlow } from "./lib/slow-list.mjs";
 import { ensureDeps } from "./shots/ensure-deps.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -36,6 +37,7 @@ else if (arg("--affected")) {
   files = r.all ? [...tracked].filter((f) => TEST.test(f)) : r.files;
 } else files = [...tracked].filter((f) => TEST.test(f));
 files = files.filter((f) => TEST.test(f) && tracked.has(f)).sort();
+for (const e of withPatternSlow(files, slow)) slowBy.set(e.file, e);   // slow by pattern (golden steps) as well as by list
 files = files.filter((f) => (arg("--slow") ? slowBy.has(f) : !slowBy.has(f)));
 
 // Perf files (test/slow.json "perf": true) run only where speed is measured: skipped in every other shard, one line each.

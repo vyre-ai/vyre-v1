@@ -8,6 +8,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { splitPerf } from "./lib/perf-skip.mjs";
+import { withPatternSlow } from "./lib/slow-list.mjs";
 import type { SlowEntry } from "./slow-check.ts";
 
 // Ruling 52 (P-CI_31): 30 s, was 20 s. Cold pass caches on the new hosts and hosted runners made real 20-22 s UI files hit the old cap; CI hygiene only, speed budgets stay on v1-perf (ruling 46).
@@ -70,13 +71,14 @@ if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   const arg = (n: string) => process.argv.includes(n), val = (n: string) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
   const slow: SlowEntry[] = JSON.parse(fs.readFileSync(path.join(repo, "test/slow.json"), "utf8"));
   const files = process.argv.slice(process.argv.indexOf("--files") + 1).filter((a) => !a.startsWith("--") && a !== val("--jobs"));
-  const sp = splitPerf(files.filter((f) => (arg("--slow") ? slow.some((s) => s.file === f) : !slow.some((s) => s.file === f))), slow, process.env);
+  const slowAll = withPatternSlow(files, slow) as SlowEntry[];   // slow by pattern (golden steps) as well as by list
+  const sp = splitPerf(files.filter((f) => (arg("--slow") ? slowAll.some((s) => s.file === f) : !slowAll.some((s) => s.file === f))), slow, process.env);
   for (const f of sp.skipped) console.log(`skip (perf) ${f}`);   // speed numbers count only on the perf host (ruling 46)
   const picked = sp.run;
   if (picked.some((f) => f.endsWith(".tsx") || /^\s*\/\/\s*@tsx\b/m.test(fs.readFileSync(path.join(repo, f), "utf8")))) await (await import("./shots/ensure-deps.mjs")).ensureDeps(repo);
   const jobs = Number(val("--jobs")) || Math.max(2, Math.floor(os.cpus().length / 2));
   const queue = [...picked], results: RunResult[] = [];
-  await Promise.all(Array.from({ length: Math.min(jobs, queue.length) }, async () => { while (queue.length) { const f = queue.shift()!; results.push(await runFile(f, { cwd: repo, capMs: capFor(f, slow) })); } }));
+  await Promise.all(Array.from({ length: Math.min(jobs, queue.length) }, async () => { while (queue.length) { const f = queue.shift()!; results.push(await runFile(f, { cwd: repo, capMs: capFor(f, slowAll) })); } }));
   for (const r of results.sort((a, b) => a.file.localeCompare(b.file))) { console.log(`${r.ok ? "ok  " : "FAIL"} ${r.file} ${r.ms} ms`); if (!r.ok) console.log(r.out); }
   if (arg("--timings")) {
     const tf = path.join(repo, "test/timings.json");
