@@ -14,7 +14,7 @@ const file = (id: string, name: string, kind: ViewerData["file"]["kind"], mime: 
   canEdit: true, canMark: true, canComment: true, pins: 0, ...o,
 });
 
-const PICTURE = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="750"><rect width="1000" height="750" fill="#e8ecf4"/><rect x="80" y="240" width="440" height="240" rx="14" fill="#c9d4ee"/><text x="110" y="330" font-family="sans-serif" font-size="46" fill="#33415c">Free consult</text><text x="110" y="390" font-family="sans-serif" font-size="30" fill="#52618a">Book this week</text></svg>')}`;
+const PICTURE = `data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 750"><rect width="1000" height="750" fill="#e8ecf4"/><rect x="80" y="240" width="440" height="240" rx="14" fill="#c9d4ee"/><text x="110" y="330" font-family="sans-serif" font-size="46" fill="#33415c">Free consult</text><text x="110" y="390" font-family="sans-serif" font-size="30" fill="#52618a">Book this week</text></svg>')}`;
 const NOTE = "# Consult fee\nThe standard consult fee is **$250**. It was $200 until Oct 8.\n## Rules\n- Referrals from partner firms get the first consult free\n- Anyone else: quote $250 and say a person confirms it\n";
 const CSV = "Client,Amount,Status\nRivera,$1200,Paid\nChen,$300,Open\nOrtiz,$900,Open\n";
 const CODE = 'def fee(matter):\n    if matter.referred_by == "maya":\n        return 0\n    return matter.total * 0.1\n';
