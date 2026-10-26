@@ -7,9 +7,7 @@ import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_PURGE = ["sync", "access", "search", "records", "schema", "devices", "spaces"];
-export const GAPS: Gap[] = [
-  { packet: "P-CC_42 follow-up", lane: "L7", what: "folders.create answers 500: it emits access.changed (after grant.created was added), which its manifest does not declare in emits" },
-];
+export const GAPS: Gap[] = [];
 
 export async function runPurge(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const trail = new Trail();
