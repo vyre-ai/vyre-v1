@@ -45,6 +45,9 @@ export interface ChatRightPaneProps {
 export const NOTICE_MS = 8000;
 /** What the pane header holds besides tabs: the toggle, the strip's padding and the options button. */
 export const PANE_CHROME = 64;
+/** The mark of the folded tabs, as the prototype draws it: a small mark, not the word, because four tabs and the word do not fit 340 px. It opens the menu of the rest. Drawn once the titles are measured on screen; the first frame, and a phone, keep the word. */
+export const MORE_MARK = "\u2026";
+const withMore = (w: ReadonlyMap<string, number>): ReadonlyMap<string, number> => new Map(w).set("More", 8).set(MORE_MARK, 8);
 /** A pane tab is pinned and tight: no close slot, so it adds 7 + 7 padding, 2 border and the 2 px between tabs around its text, not TAB_EXTRA's 45. */
 export const PANE_TAB_EXTRA = 16;
 /** The prototype's pane: 340 px, room for Computer, Threads, Files and Memory with its count; Routines waits behind More at this width. */
@@ -96,7 +99,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   const titles = useTitleWidths();
   const paneNow = paneWidth ?? (narrow ? win.width : paneW);
   const { strip, select } = useFittedTabs(tabs, tab, paneNow, {
-    extra: PANE_TAB_EXTRA, chrome: PANE_CHROME, menu, left: Math.max(0, win.width - paneNow) + 40, top: 40, measured: titles.widths,
+    extra: PANE_TAB_EXTRA, chrome: PANE_CHROME, ...(titles.widths.size > 0 ? { moreTitle: MORE_MARK } : {}), menu, left: Math.max(0, win.width - paneNow) + 40, top: 40, measured: withMore(titles.widths),
     pick: (key) => { setOwn(key); onTab?.(key); },
   });
   const moreMenu = (x: number, y: number): void => {
