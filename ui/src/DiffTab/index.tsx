@@ -203,6 +203,62 @@ export function paragraphRows(hunk: DiffHunk, marks: boolean): ParagraphRow[] {
   return rows;
 }
 
+/** A prose row of a review: one paragraph with its removed words struck and its added words filled (`changed`), or a whole removed or added paragraph. */
+export interface ProseRow {
+  kind: "removed" | "added" | "changed";
+  segments: Segment[];
+}
+
+/** The words of a pair read as one paragraph, deleted words next to the words that replaced them. Null when most of the words differ (then the two are shown as a red line and a green one). */
+export function inlineMarks(removed: string, added: string, limit = 0.5): Segment[] | null {
+  const a = tokens(removed);
+  const b = tokens(added);
+  if (a.length * b.length > MAX_CELLS) return null;
+  const keep = lcs(a, b);
+  const words = (list: readonly string[]): number => list.filter((t) => !/^\s+$/.test(t)).length;
+  const kept = (list: readonly string[], set: Set<number>): number => list.filter((t, i) => set.has(i) && !/^\s+$/.test(t)).length;
+  const total = words(a) + words(b);
+  if (total === 0) return null;
+  const changed = words(a) - kept(a, keep.a) + (words(b) - kept(b, keep.b));
+  if (changed / total > limit) return null;
+  const raw: Segment[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length || j < b.length) {
+    if (i < a.length && !keep.a.has(i)) raw.push({ text: a[i++] ?? "", kind: "del" });
+    else if (j < b.length && !keep.b.has(j)) raw.push({ text: b[j++] ?? "", kind: "add" });
+    else { raw.push({ text: b[j] ?? "", kind: "same" }); i++; j++; }
+  }
+  // a lone space between two marks of one kind reads as part of the mark
+  for (let k = 1; k < raw.length - 1; k++) {
+    const here = raw[k];
+    const before = raw[k - 1];
+    const after = raw[k + 1];
+    if (here && before && after && here.kind === "same" && /^\s+$/.test(here.text) && before.kind !== "same" && before.kind === after.kind) here.kind = before.kind;
+  }
+  return merge(raw);
+}
+
+/** Prose rows for a review: a paragraph with a small edit is one row, marked inline; a paragraph that was mostly rewritten is a removed row and an added row; the rest stand alone. */
+export function proseRows(hunk: DiffHunk, marks: boolean): ProseRow[] {
+  if (!marks) return paragraphRows(hunk, false);
+  const removed = paragraphsOf(hunk.removed);
+  const added = paragraphsOf(hunk.added);
+  const rows: ProseRow[] = [];
+  for (let index = 0; index < Math.max(removed.length, added.length); index++) {
+    const r = removed[index];
+    const a = added[index];
+    if (r !== undefined && a !== undefined) {
+      if (sameWords(r, a)) { rows.push({ kind: "removed", segments: [{ text: r, kind: "same" }] }, { kind: "added", segments: [{ text: a, kind: "same" }] }); continue; }
+      const inline = inlineMarks(r, a);
+      if (inline) rows.push({ kind: "changed", segments: inline });
+      else { const w = wordMarks(r, a); rows.push({ kind: "removed", segments: w.removed }, { kind: "added", segments: w.added }); }
+    } else if (r !== undefined) rows.push({ kind: "removed", segments: [{ text: r, kind: "same" }] });
+    else if (a !== undefined) rows.push({ kind: "added", segments: [{ text: a, kind: "same" }] });
+  }
+  return rows;
+}
+
 /* ---------- navigation and keys ---------- */
 
 export interface ChangeRef {
@@ -371,15 +427,31 @@ function Marked({ segments, mark, style }: { segments: readonly Segment[]; mark:
 }
 
 /** The body of a paragraph change (docx, md): removed paragraphs, then added ones. */
-function ParagraphBody({ hunk, marks }: { hunk: DiffHunk; marks: boolean }): ReactElement {
+/** The unchanged text above or below a change in a prose file, as plain paragraphs, so the open file reads as the whole document. */
+function Context({ text, where }: { text: string | undefined; where: "before" | "after" }): ReactElement | null {
+  if (!text) return null;
   const nodes: ReactNode[] = [];
-  paragraphRows(hunk, marks).forEach((row, index) => {
+  paragraphsOf(text).forEach((p, index) => nodes.push(<View key={index} style={styles.para}><Text style={styles.prose}>{p}</Text></View>));
+  return <View testID={`diff-para-context-${where}`}>{nodes}</View>;
+}
+
+function ParagraphBody({ hunk, marks, review = false }: { hunk: DiffHunk; marks: boolean; review?: boolean }): ReactElement {
+  const nodes: ReactNode[] = [];
+  nodes.push(<Context key="before" text={hunk.before} where="before" />);
+  (review ? proseRows(hunk, marks) : paragraphRows(hunk, marks)).forEach((row, index) => {
+    if (row.kind === "changed") {
+      // ui-rows-lint: not a list (the marked words of one paragraph, inline text spans)
+      const parts: ReactNode[] = row.segments.map((seg, k) => <Text key={k} style={seg.kind === "del" ? styles.inlineDel : seg.kind === "add" ? styles.markAdd : null}>{seg.text}</Text>);
+      nodes.push(<View key={index} style={styles.para} testID="diff-para-changed"><Text style={styles.prose}>{parts}</Text></View>);
+      return;
+    }
     nodes.push(
       <View key={index} style={[styles.para, row.kind === "removed" ? styles.lineDel : styles.lineAdd]} testID={`diff-para-${row.kind}`}>
         <Marked segments={row.segments} mark={row.kind === "removed" ? "del" : "add"} style={styles.prose} />
       </View>,
     );
   });
+  nodes.push(<Context key="after" text={hunk.after} where="after" />);
   return <View testID="diff-paragraphs">{nodes}</View>;
 }
 
@@ -418,17 +490,25 @@ function UnifiedBody({ hunk, marks, bare = false }: { hunk: DiffHunk; marks: boo
 }
 
 /** A comment: the author's face, the name, the text with every @mention coloured. */
-function Note({ comment }: { comment: DiffComment }): ReactElement {
+/** A comment thread: a light bordered card with the face, the name, when ("Maya Chen · Today 9:38 am": the author's name, then a dot and the time, if the caller gives one), the text and a Reply link. */
+function Note({ comment, onReply }: { comment: DiffComment; onReply?: () => void }): ReactElement {
   const parts: ReactNode[] = [];
   bodyParts(comment.body).forEach((part, index) => {
     parts.push(<Text key={index} style={part.mention ? styles.mention : null}>{part.text}</Text>);
   });
+  const dot = comment.author.indexOf(" \u00b7 ");
+  const name = dot >= 0 ? comment.author.slice(0, dot) : comment.author;
+  const when = dot >= 0 ? comment.author.slice(dot + 3) : "";
   return (
     <View style={styles.comment} testID={`diff-note-${comment.id}`}>
-      <Avatar name={comment.author} kind="person" size={22} />
+      <Avatar name={name} {...(comment.authorId !== undefined ? { seedId: comment.authorId } : {})} kind="person" size={22} />
       <View style={styles.commentBody}>
-        <Text style={styles.who}>{comment.author}</Text>
+        <View style={styles.who}>
+          <Text style={styles.whoName}>{name}</Text>
+          {when ? <Text style={styles.whoWhen}>{when}</Text> : null}
+        </View>
         <Text style={styles.text}>{parts}</Text>
+        {onReply ? <Text accessibilityRole="button" aria-label="Reply" onPress={onReply} testID={`diff-note-reply-${comment.id}`} style={styles.replyLink}>Reply</Text> : null}
       </View>
     </View>
   );
@@ -537,6 +617,7 @@ export function DiffTab(props: DiffTabViewProps): ReactElement {
   const [replying, setReplying] = useState<string | null>(null);
   const [imageMode, setImageMode] = useState<"slider" | "side">("slider");
   const [reverted, setReverted] = useState("");
+  const [shut, setShut] = useState<Record<string, boolean>>({});
   const { element: menuElement, show } = useMenu();
 
   useEffect(() => setFiles(props.files), [props.files]);
@@ -605,7 +686,7 @@ export function DiffTab(props: DiffTabViewProps): ReactElement {
     for (const hunk of file.hunks) {
       const lit = focus !== null && focus.path === file.path && focus.hunkId === hunk.id;
       const notes: ReactNode[] = [];
-      for (const c of commentsFor(comments, hunk.id)) notes.push(<Note key={c.id} comment={c} />);
+      for (const c of commentsFor(comments, hunk.id)) notes.push(<Note key={c.id} comment={c} onReply={() => setReplying(hunk.id)} />);
       hunks.push(
         <View
           key={hunk.id}
@@ -626,7 +707,7 @@ export function DiffTab(props: DiffTabViewProps): ReactElement {
           {file.body === "image" ? (
             <ImageDiff before={hunk.removed} after={hunk.added} mode={imageMode} onMode={setImageMode} />
           ) : file.body === "paragraph" ? (
-            <ParagraphBody hunk={hunk} marks={marks} />
+            <ParagraphBody hunk={hunk} marks={marks} review={bare} />
           ) : layout === "split" ? (
             <SplitBody hunk={hunk} marks={marks} />
           ) : (
@@ -670,20 +751,39 @@ export function DiffTab(props: DiffTabViewProps): ReactElement {
                 id={`diff-file-${f.path}`}
                 title={f.path}
                 selected={file !== null && f.path === file.path}
-                trailing={<Text style={styles.fileCounts}>{countsLabel(f)}</Text>}
+                trailing={<Text style={styles.fileCounts}>{f.body === "image" ? "image" : countsLabel(f)}</Text>}
                 onPress={() => pickFile(f.path)}
               />
             ))}
           </View>
         ) : null}
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollBody}>
+          {bare && files.length > 1 && file !== null ? (
+            <FileHeader file={file} note={props.title} replies={comments.filter((c) => file.hunks.some((h) => h.id === c.hunkId)).length} shut={shut[file.path] === true} onToggle={() => setShut((m) => ({ ...m, [file.path]: m[file.path] !== true }))} />
+          ) : null}
           {file === null || file.hunks.length === 0
             ? <Text style={styles.empty} testID="diff-empty">No differences</Text>
-            : hunks}
+            : shut[file.path] === true ? null : hunks}
           {reverted !== "" ? <Text style={styles.done} role="status" testID="diff-reverted">{reverted}</Text> : null}
         </ScrollView>
       </View>
       {menuElement}
+    </View>
+  );
+}
+
+/** The open file's header row in a review (a bare tab with several files): chevron, name, the versions it spans (the tab's title), comments, +added -removed. */
+function FileHeader({ file, note, replies, shut, onToggle }: { file: DiffFile; note: string; replies: number; shut: boolean; onToggle: () => void }): ReactElement {
+  return (
+    <View style={styles.fileHead} testID="diff-file-header">
+      <Pressable role="button" aria-label={`${shut ? "Expand" : "Collapse"} ${file.path}`} aria-expanded={!shut} onPress={onToggle} testID="diff-file-toggle" style={styles.fileChev}>
+        <Text style={styles.fileChevText} aria-hidden>{shut ? "\u203a" : "\u2304"}</Text>
+      </Pressable>
+      <Text style={styles.fileName} numberOfLines={1}>{file.path}</Text>
+      {note ? <Text style={styles.fileNote} testID="diff-file-note">{note}</Text> : null}
+      <View style={styles.grow} />
+      {replies > 0 ? <Text style={styles.fileNote} testID="diff-file-replies">{`\u21a9 ${replies}`}</Text> : null}
+      {file.body === "image" ? null : <><Text style={styles.fileAdd}>{`+${file.added}`}</Text><Text style={styles.fileDel}>{`\u2212${file.removed}`}</Text></>}
     </View>
   );
 }
@@ -705,8 +805,9 @@ function HunkButton({ label, onPress, testID, danger = false }: { label: string;
   );
 }
 
-const DEL_WASH = "color-mix(in srgb, var(--danger) 13%, transparent)" as string;
-const ADD_WASH = "color-mix(in srgb, var(--ok) 14%, transparent)" as string;
+// react-native-web drops a color-mix() colour (it only passes var() through), so the washes are plain rgba that reads on paper and on graphite
+const DEL_WASH = "rgba(217, 63, 63, 0.14)" as string;
+const ADD_WASH = "rgba(47, 148, 97, 0.16)" as string;
 
 const styles = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
@@ -723,6 +824,14 @@ const styles = StyleSheet.create({
   bodyStack: { flexDirection: "column" },
   files: { width: 220, padding: 8, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
   filesStack: { width: "100%", borderRightWidth: 0, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  fileHead: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 38, paddingHorizontal: 10 },
+  fileChev: { width: 22, height: 22, alignItems: "center", justifyContent: "center" },
+  fileChevText: { fontSize: 14, color: "var(--ink-3)" as string },
+  fileName: { flexShrink: 1, fontFamily: MONO, fontSize: 12.5, fontWeight: "600", color: "var(--ink)" as string },
+  fileNote: { fontSize: 11.5, color: "var(--ink-3)" as string },
+  fileAdd: { fontFamily: MONO, fontSize: 11.5, color: "var(--ok)" as string },
+  fileDel: { fontFamily: MONO, fontSize: 11.5, color: "var(--danger)" as string },
+  replyLink: { marginTop: 4, fontSize: 12, color: "var(--accent)" as string },
   fileCounts: { color: "var(--ink-3)" as string, fontSize: 11.5 },
   scroll: { flex: 1 },
   scrollBody: { padding: 14, gap: 14 },
@@ -743,16 +852,19 @@ const styles = StyleSheet.create({
   signDel: { color: "var(--danger)" as string },
   signAdd: { color: "var(--ok)" as string },
   code: { flex: 1, fontFamily: MONO, fontSize: 12.5, lineHeight: 20, color: "var(--ink)" as string },
-  markDel: { backgroundColor: "color-mix(in srgb, var(--danger) 30%, transparent)" as string, borderRadius: 3 },
-  markAdd: { backgroundColor: "color-mix(in srgb, var(--ok) 32%, transparent)" as string, borderRadius: 3 },
+  markDel: { backgroundColor: "rgba(217, 63, 63, 0.30)" as string, borderRadius: 3 },
+  inlineDel: { backgroundColor: "rgba(217, 63, 63, 0.30)" as string, borderRadius: 3, textDecorationLine: "line-through" },
+  markAdd: { backgroundColor: "rgba(47, 148, 97, 0.32)" as string, borderRadius: 3 },
   splitRow: { flexDirection: "row" },
   cell: { flex: 1, flexDirection: "row", alignItems: "flex-start", paddingVertical: 2, paddingRight: 8, minWidth: 0 },
   cellEmpty: { backgroundColor: "var(--sunk)" as string },
   para: { paddingVertical: 8, paddingHorizontal: 14 },
   prose: { color: "var(--ink)" as string, fontSize: 13.5, lineHeight: 21 },
-  comment: { flexDirection: "row", gap: 9, paddingHorizontal: 12, paddingVertical: 9, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  comment: { flexDirection: "row", gap: 9, marginHorizontal: 14, marginVertical: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)", backgroundColor: "var(--win)" as string },
   commentBody: { flex: 1, minWidth: 0, gap: 2 },
-  who: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "600" },
+  who: { flexDirection: "row", alignItems: "baseline", gap: 8 },
+  whoName: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "600" },
+  whoWhen: { color: "var(--ink-3)" as string, fontSize: 11.5 },
   text: { color: "var(--ink-2)" as string, fontSize: 13, lineHeight: 19 },
   mention: { color: "var(--accent)" as string, fontWeight: "500" },
   reply: { padding: 10, borderTopWidth: 1, borderTopColor: "var(--line)" as string },

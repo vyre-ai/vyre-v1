@@ -135,7 +135,7 @@ export async function domainAdd(ctx: MailCtx, input: { name: string; provider: P
   if (input.provider !== "resend" && input.provider !== "mailgun") bad(ctx, "Provider must be resend or mailgun.");
   if (first(ctx.db.all(`SELECT id FROM mail_domain WHERE name = ? AND deleted_at IS NULL`, name))) duplicate(ctx, "That domain is already added.");
 
-  const made = parseCreated(input.provider, await ctx.call(`${input.provider}.domains.create`, { name }));
+  const made = parseCreated(input.provider, await ctx.call(`${input.provider}.domains.create`, { name, idempotencyKey: `${input.idempotencyKey}:create` }));
   if (!made.ref) throw fail("provider.bad_response", ctx.trace.traceId, { message: "The provider did not return the domain." });
   const id = newId("dom", ctx.now());
   const now = ctx.now();
@@ -178,7 +178,7 @@ export async function domainCheck(ctx: MailCtx, input: { domainId: string }) {
   let providerVerified = stored.providerVerified;
   try {
     const answer = obj(await ctx.call(
-      `${provider}.domains.verify`, provider === "resend" ? { providerDomainId: stored.ref } : { name: stored.ref },
+      `${provider}.domains.verify`, provider === "resend" ? { providerDomainId: stored.ref, idempotencyKey: `mail.domain.check:${str(row, "id")}:${ctx.now()}` } : { name: stored.ref, idempotencyKey: `mail.domain.check:${str(row, "id")}:${ctx.now()}` },
     ));
     const d = obj(answer.domain);
     providerVerified = provider === "resend" ? d.status === "verified" : d.state === "active";
@@ -228,7 +228,7 @@ export async function domainRemove(ctx: MailCtx, input: { domainId: string }): P
     if (providerRoute && provider === "mailgun") await forgive(() => ctx.call("mailgun.routes.delete", { idempotencyKey: `mail.domains.remove:${id}:route:${str(route, "id")}`, routeId: providerRoute }));
   }
   if (stored.ref) {
-    await forgive(() => ctx.call(`${provider}.domains.delete`, provider === "resend" ? { providerDomainId: stored.ref } : { name: stored.ref }));
+    await forgive(() => ctx.call(`${provider}.domains.delete`, provider === "resend" ? { providerDomainId: stored.ref, idempotencyKey: `mail.domains.remove:${id}:domain` } : { name: stored.ref, idempotencyKey: `mail.domains.remove:${id}:domain` }));
   }
   const now = ctx.now();
   for (const route of routes) {

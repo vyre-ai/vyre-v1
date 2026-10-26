@@ -4,6 +4,7 @@
 // CONTRACT NOTE for module gate (P-L6_02): a held act is a task of kind approve whose source is { kind: 'gate', id: <holdId> }. After tasks.create the Gate writes
 // two reserved working notes, decision_id and payload_hash (tasks.working_notes.set, once each); the claims below carry them. gate.release unseals the token
 // with ctx.seal.unseal, checks the claims (task, hold, decision, hash, device) and expiry, and only then re-invokes the parked capability.
+import { isTrustedService } from "../../../lib/trust.ts";
 import {
   actionableByMe, actionableSlot, allTasks, clean, emitTask, getTask, isOpen, isRequest, openIndex, out, raise, readPolicy, sameAssignee, touch, visibleTo, whoIs,
 } from "../projections.ts";
@@ -144,7 +145,7 @@ export async function delegate(ctx: TasksCtx, input: In): Promise<unknown> {
   if (!isRequest(t.kind)) raise(ctx, "validation.precondition_failed", "Only a request is handed over. Use tasks.assign for work.", { reason: "not_a_request" });
   const slot = actionableSlot(t.state);
   if (!slot) raise(ctx, "validation.precondition_failed", "Nothing is waiting on anyone.", { reason: "closed" });
-  if (!actionableByMe(ctx, t) && ctx.principal.kind !== "service") raise(ctx, "validation.precondition_failed", "Only the person this request is waiting on can hand it over.", { reason: "wrong_actor" });
+  if (!actionableByMe(ctx, t) && !isTrustedService(ctx.principal)) raise(ctx, "validation.precondition_failed", "Only the person this request is waiting on can hand it over.", { reason: "wrong_actor" });
   const to = input.to as Assignee;
   if (!to || typeof to.id !== "string" || to.id.trim() === "") raise(ctx, "validation.bad_input", "Say who gets it.", { errors: ["/to/id: required"] });
   // delegation never widens access: a person goes through the delegate chain to the first who can act on this item

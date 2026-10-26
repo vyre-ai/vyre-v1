@@ -170,7 +170,7 @@ function Theirs({ item, actions, stream, openWork, mark }: MessageViewProps & { 
       <HoverBar m={m} mine={false} a={actions} onEdit={() => undefined} visible={h.over || h.focus} />
       {item.newgroup ? (
         <View style={st.by}>
-          <Face name={item.who.name} kind={person ? "person" : "agent"} size={20} />
+          <Face name={item.who.name} seedId={item.who.id} kind={person ? "person" : "agent"} size={20} />
           <Pressable accessibilityRole="link" accessibilityLabel={`Open ${item.who.name}`} testID={`who-${m.messageId}`} disabled={person} onPress={() => actions.openAgent(item.who.id)}>
             <Text style={st.who}>{item.who.name}</Text>
           </Pressable>

@@ -15,6 +15,11 @@ export function useHub(): ShellHub {
   return hub;
 }
 
+/** The hub when one is above (the shell has one; a place drawn on its own in a test or a screenshot has none). */
+export function useOptionalHub(): ShellHub | null {
+  return useContext(HubContext);
+}
+
 export function useHubState(hub: ShellHub): HubState {
   return useSyncExternalStore(hub.subscribe, hub.state, hub.state);
 }

@@ -1,0 +1,20 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_23-cmdk",
+      "route": "/m/P-L9_23?part=cmdk",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='cmdk-list'] [data-testid^='row-']",
+      "note": "Cmd-K over the whole shell, as the real shell opens it: empty query, Recent first, one-line rows (title, grey meta, kind at the right), the highlighted row in the accent with white text, a plain-text hint footer (the owner bans keycap glyphs, so the footer differs from the prototype on purpose). The prototype side presses its Search button. Paper and graphite, 1280 and 390 wide.",
+      "protoClick": "#searchBtn, #srchBtn"
+    },
+    {
+      "id": "P-L9_23-newtab",
+      "route": "/m/P-L9_23?part=newtab",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='cmdk-list'] [data-testid^='row-']",
+      "note": "The new-tab page over the whole shell: a \"+\" tab selected, the same search inline in its body. The prototype keeps its new-tab launcher in the Home module, so that side opens Home and presses the plus in its tab strip. Paper and graphite, 1280 and 390 wide.",
+      "protoClick": "#tabs [data-vplus]"
+    }
+  ]
+}

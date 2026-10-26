@@ -74,7 +74,7 @@ export function StatusMark({ status, size = 15 }: { status: PlanStatus; size?: n
 
 export const faceKind = (w: PlanWho): "person" | "agent" | "group" => (w.kind === "agent" ? "agent" : w.kind === "person" ? "person" : "group");
 export function Face({ who, size }: { who: PlanWho; size: number }): ReactElement {
-  return <Avatar name={who.name} kind={faceKind(who)} size={size} />;
+  return <Avatar name={who.name} {...(who.id !== undefined ? { seedId: who.id } : {})} kind={faceKind(who)} size={size} />;
 }
 
 /** A face with the review ring when a review or approval is waiting; clicking it asks for another person. Empty: a dashed ring. */

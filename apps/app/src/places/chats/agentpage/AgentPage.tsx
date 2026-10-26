@@ -119,7 +119,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
     <View testID="agent-page" accessibilityLabel={`${name}, agent page`} style={st.root}>
       <View style={[st.col, narrow && st.colNarrow]} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== colW) setColW(w); }}>
         <View testID="agent-head" style={[st.head, narrow && st.headNarrow]}>
-          <Face name={name} size={narrow ? 48 : 56} pulse={agent.status === "working"} />
+          <Face name={name} seedId={agentId} size={narrow ? 48 : 56} pulse={agent.status === "working"} />
           <View style={st.who}>
             <View style={st.nameRow}>
               <Text accessibilityRole="header" testID="agent-name" numberOfLines={1} style={st.name}>{name}</Text>
