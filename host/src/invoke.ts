@@ -14,6 +14,7 @@ import type { CapabilityDef, CapName, EventName, TraceContext } from "../../pack
 import { BindingError, resolveResource } from "./routes/resource.ts";
 import { codeForReason, fail, HostError, toVyreError } from "./routes/errors.ts";
 import type { ResourceRegistrar } from "./gateway/resources.ts";
+import type { PrincipalRegistrar } from "./gateway/principals.ts";
 
 export { HostError, VyreErr, fail, makeError } from "./routes/errors.ts";
 
@@ -115,6 +116,8 @@ export interface InvokeDeps {
   services?(seed: CtxSeed, cap: CapabilityDef): Partial<Pick<Ctx, "db" | "vault" | "http" | "schedule" | "seal" | "blobs">>;
   /** P-H_16: registers the objects a call brought into being as resources, in the same commit (host/src/gateway/resources.ts) */
   resources?: ResourceRegistrar;
+  /** an agent made by a call becomes an access principal in the same commit (host/src/gateway/principals.ts) */
+  principals?: PrincipalRegistrar;
   log?: Logger;
   onSpan?(s: SpanRecord): void;
   now?(): number;
@@ -291,6 +294,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       for (const row of deps.resources.register({ cap: c, input, space: seed.space, owner: seed.actingFor ?? seed.principal.id, events })) {
         events.push(envelope("resource.created" as EventName, `resource/${row.id}`, row, seed, trace, depth) as EventEnvelope);
       }
+    }
+    if (deps.principals && events.length) {
+      for (const r of deps.principals.register({ space: seed.space, maker: seed.actingFor ?? seed.principal.id, events })) events.push(envelope(r.type as EventName, `${r.entity}/${r.id}`, r.payload, seed, trace, depth) as EventEnvelope);
     }
 
     // 7 commit: events, inline projections and the audit row land together
