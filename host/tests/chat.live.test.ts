@@ -4,6 +4,7 @@
 // daemon's Vault port, and the CLI is the fake CLI of host/tests/fixtures/fake-cli-driver run in the platform's default sandbox (bubblewrap with the network wall on the Linux runner).
 // Runs only with VYRE_HEAVY_DOCKER=1 (the l2-heavy job).
 import test from "node:test";
+import { DatabaseSync } from "node:sqlite";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -60,12 +61,19 @@ async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: n
   return { status: r.status, data: body.data ?? body };
 }
 
-async function waitFor<T>(f: () => Promise<T | null>, ms = 40_000): Promise<T> {
+/** What the host logged at warn level or about the engine, so a reply that never comes says why. */
+function hostLog(d: Daemon): string {
+  d.sink.flush();
+  const rows = new DatabaseSync(d.paths.logs, { readOnly: true }).prepare("SELECT level, place, cap, msg, attrs FROM logs WHERE level >= 30 OR msg LIKE '%consumer%' OR msg LIKE '%bridge%' OR msg LIKE '%engine%' ORDER BY id DESC LIMIT 30").all() as Array<{ level: number; place: string | null; cap: string | null; msg: string; attrs: string | null }>;
+  return JSON.stringify(rows.map((r) => `${r.level} ${r.place ?? ""} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 300)}`));
+}
+
+async function waitFor<T>(f: () => Promise<T | null>, ms = 40_000, why?: () => string): Promise<T> {
   const end = Date.now() + ms;
   for (;;) {
     const v = await f();
     if (v !== null) return v;
-    if (Date.now() > end) throw new Error("waitFor: it never happened");
+    if (Date.now() > end) throw new Error(`waitFor: it never happened${why ? `; host log ${why()}` : ""}`);
     await new Promise<void>((r) => setTimeout(r, 200));
   }
 }
@@ -107,7 +115,7 @@ test("chat live: a person's message to an agent on a booted daemon gets a stream
       const r = await call(d, "chat.messages.list", { threadId });
       const m = (r.data.messages as Array<{ author?: { kind?: string }; body?: string }> | undefined)?.find((x) => x.author?.kind === "agent" && (x.body ?? "").includes("Hello from the fake engine."));
       return m ?? null;
-    });
+    }, 40_000, () => hostLog(d));
     assert.ok(reply, "the agent's reply is in the thread the person wrote in");
   } finally { await d.stop(); }
 });
