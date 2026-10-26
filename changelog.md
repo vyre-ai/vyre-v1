@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Scheduler: await the initial immediate repair tick before reporting the daemon started.
 - Fix: keep the missing-item fallback snapshot stable so Mail and Automations do not enter a production React render loop before an item is selected; reset place failures on route changes.
 - Agents: include deterministic idempotency keys in the `access.share` inputs as required by the capability contract.
 - Contracts: manifest types and builder DSL (packages/contracts), frozen declarations for the 72 modules plus 4 connectors and 4 Kits (manifests/), vyre-gen generator (tools/gen) with drift check, typecheck and generated contract tests.

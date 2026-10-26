@@ -941,8 +941,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     });
     return { exited, stop: () => h.close() };
   };
-  const schedulerUnit = (): Promise<RunningUnit> => {
-    scheduler.start();
+  const schedulerUnit = async (): Promise<RunningUnit> => {
+    await scheduler.start();
     return Promise.resolve({ exited: new Promise<UnitExit>(() => {}), stop: () => scheduler.stop() });
   };
 
@@ -1010,4 +1010,3 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     },
   };
 }
-
