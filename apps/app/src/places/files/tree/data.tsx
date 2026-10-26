@@ -9,7 +9,7 @@ import type { FolderNode } from "../../../../../../ui/src/FolderTree/index.tsx";
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
 
 /** The capabilities the list reads live that no screen declares. */
-export type LiveCap = "files.list" | "files.recent" | "files.shared_with_me" | "files.knowledge" | "files.trash.list" | "files.tree" | "changesets.list";
+export type LiveCap = "files.list" | "files.recent" | "files.shared_with_me" | "files.knowledge" | "files.trash.list" | "files.tree" | "changesets.list" | "stars.list";
 
 /** Where a click goes. The shell supplies these (tabs, the viewer, the share sheet, the Knowledge screens); Files never decides how a thing opens. */
 export interface FilesNav {
@@ -26,6 +26,8 @@ export interface FilesNav {
   upload?(folderId: string | null): void;
   /** Review a change set an agent staged: the shell opens its review surface. */
   reviewChanges?(changesetId: string): void;
+  /** Resolve the two edits of a file (the Conflict tag): the shell opens the conflict choice for it. */
+  resolveConflict?(fileId: string): void;
 }
 
 /** The side pane that belongs to this place: the list shows its toggle in the header. */

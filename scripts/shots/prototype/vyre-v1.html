@@ -16341,7 +16341,7 @@ mark.wd { color: inherit; border-radius: 3px; padding: 1px 0; } .dfr.add mark.wd
       case "starred": ui.main = { k: "starred" }; break;
       case "signed": full("reng-letter", () =&gt; { ui.col["reng-letter"] = "versions"; }); break;
       case "gsnap": full("mk-brief"); break;
-      case "conflict": full("rv-scan2"); break;
+      case "conflict": full("rv-scan2"); break; case "rivera": go("pj-rivera"); ui.open["pj"] = true; ui.open["pj-rivera"] = true; break; case "agents-open": ui.open["ag"] = true; ui.open["pj"] = true; break;
       case "terminals": go("tm"); break;
       case "grouped": go("rb"); break;
       case "folder-menu": go("pj"); setTimeout(() =&gt; { const r = document.querySelector('#main [data-id="pj-rivera"]'); if (r) { const b = r.getBoundingClientRect(); openPop(itemMenu(["pj-rivera"], "pj-rivera"), b.left + 240, b.top + 10, { ctx: 1 }); } }, 60); break;

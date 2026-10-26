@@ -18,7 +18,7 @@ import {
 import type { Line, SortKey, Spring } from "../tree/model.ts";
 import { Glyph, iconOfKind } from "../tree/parts.tsx";
 import { useFilesState } from "../tree/state.tsx";
-import { ColumnHeader, GridRow, LIST_ROW, RowCells, Tile, WIDE, chunk, gridKey, gridLayout } from "../FileList.tsx";
+import { ColumnHeader, GridRow, LIST_ROW, LineMarks, RowCells, Tile, WIDE, chunk, gridKey, gridLayout } from "../FileList.tsx";
 import { Toolbar, crumbTrail } from "../Toolbar.tsx";
 import { DragWrap } from "./DragWrap.tsx";
 import { StagedBanner } from "./StagedBanner.tsx";
@@ -31,13 +31,15 @@ const lineKey = (l: Line): string => l.key;
 export function lineMenuEntries(
   lines: readonly Line[],
   inTrash: boolean,
-  h: { open(l: Line): void; quickLook(l: Line): void; share(l: Line): void; rename(l: Line): void; trash(ls: readonly Line[]): void; restore(ls: readonly Line[]): void },
+  h: { open(l: Line): void; quickLook(l: Line): void; share(l: Line): void; rename(l: Line): void; trash(ls: readonly Line[]): void; restore(ls: readonly Line[]): void; star?(l: Line): void; resolve?(l: Line): void },
 ): MenuEntry[] {
   const one = lines.length === 1 ? lines[0] : undefined;
   const out: MenuEntry[] = [];
   if (inTrash) return [{ label: lines.length === 1 ? "Restore" : `Restore ${lines.length} Items`, onSelect: () => h.restore(lines) }];
   if (one) {
+    if (one.conflict === true && h.resolve) out.push({ label: "Resolve Conflict…", onSelect: () => h.resolve?.(one) }, { separator: true });
     out.push({ label: "Open", onSelect: () => h.open(one) }, { label: "Quick Look", onSelect: () => h.quickLook(one) });
+    if (one.type === "file" && h.star) out.push({ label: one.starred === true ? "Remove Star" : "Star", onSelect: () => h.star?.(one) });
     if (one.type === "folder") out.push({ label: "Share…", onSelect: () => h.share(one) });
     out.push({ label: "Rename…", onSelect: () => h.rename(one) });
     out.push({ separator: true });
@@ -92,9 +94,9 @@ function List(): ReactElement {
     if (src.status !== "ready") return [];
     const all: Line[] = [];
     for (const f of src.data.folders ?? []) all.push(folderLine(f));
-    for (const f of src.data.files) all.push(fileLine(f));
+    for (const f of src.data.files) if (state.where.kind !== "starred" || f.starred === true) all.push(fileLine(f));
     return sortLines(state.showHidden ? all : all.filter((l) => !l.name.startsWith(".")), state.sort, state.dir, data.nameOf);
-  }, [src, state.sort, state.dir, state.showHidden, data]);
+  }, [src, state.sort, state.dir, state.showHidden, state.where.kind, data]);
   const order = useMemo(() => lines.map((l) => l.key), [lines]);
   const byKey = useMemo(() => new Map(lines.map((l) => [l.key, l] as const)), [lines]);
   const c = data.clock();
@@ -122,6 +124,8 @@ function List(): ReactElement {
     const picked = state.selection.includes(l.key) ? selectedLines() : [l];
     menu.show(lineMenuEntries(picked, inTrash, {
       open, quickLook: (t) => dispatch({ type: "quicklook", key: t.key }), share: (t) => data.nav.shareFolder(t.id), rename: (t) => data.nav.renameEntry(t.type, t.id, t.name), trash: toTrash, restore,
+      star: (t) => void data.call("files.star", { fileId: t.id, starred: t.starred !== true }),
+      ...(data.nav.resolveConflict ? { resolve: (t: Line) => data.nav.resolveConflict?.(t.id) } : {}),
     }), x, y);
   };
 
@@ -196,6 +200,7 @@ function List(): ReactElement {
       <Row
         id={`line:${l.key}`}
         title={l.name}
+        titleMarks={<LineMarks starred={l.starred === true} conflict={l.conflict === true} onResolve={data.nav.resolveConflict ? () => data.nav.resolveConflict?.(l.id) : undefined} />}
         selected={state.selection.includes(l.key)}
         hovered={over === l.key}
         leading={<View style={styles.icon}><Glyph name={iconOfKind(l.kind)} size={18} color={l.type === "folder" ? "var(--accent)" : "var(--ink-3)"} /></View>}

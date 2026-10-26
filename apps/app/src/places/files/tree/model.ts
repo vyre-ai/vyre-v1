@@ -10,7 +10,7 @@ export type TreeRoots = CapMap["files.tree"]["out"]["roots"];
 export const SCREENS = { tree: "files.tree", list: "files.list" } as const;
 
 /** Where the list is. */
-export type Where = { kind: "folder"; id: string | null } | { kind: "recent" } | { kind: "shared" } | { kind: "trash" } | { kind: "knowledge" };
+export type Where = { kind: "folder"; id: string | null } | { kind: "recent" } | { kind: "starred" } | { kind: "shared" } | { kind: "trash" } | { kind: "knowledge" };
 export type SortKey = "name" | "updated" | "by" | "size" | "kind";
 export type ViewMode = "list" | "grid";
 
@@ -56,10 +56,14 @@ export interface Line {
   /** What the line holds, for a folder. */
   items: number;
   folderId: string | null;
+  /** The person starred this file (files.star). */
+  starred?: boolean;
+  /** Two edits of this file wait for a choice (the Conflict tag). */
+  conflict?: boolean;
 }
 
 export function fileLine(f: FileRow): Line {
-  return { key: `file:${f.fileId}`, type: "file", id: f.fileId, name: f.name, kind: f.kind, size: f.size, updatedAt: f.updatedAt, updatedBy: f.updatedBy, thumb: f.thumb, source: f.source?.provider ?? null, items: 0, folderId: f.folderId };
+  return { key: `file:${f.fileId}`, type: "file", id: f.fileId, name: f.name, kind: f.kind, size: f.size, updatedAt: f.updatedAt, updatedBy: f.updatedBy, thumb: f.thumb, source: f.source?.provider ?? null, items: 0, folderId: f.folderId, ...(f.starred === true ? { starred: true } : {}), ...(f.conflict === true ? { conflict: true } : {}) };
 }
 
 export function folderLine(f: FolderRow): Line {
@@ -252,13 +256,15 @@ export function sameWhere(a: Where, b: Where): boolean {
   return a.kind === b.kind && (a.kind !== "folder" || (b.kind === "folder" && a.id === b.id));
 }
 
-export const WHERE_LABEL: Record<Exclude<Where["kind"], "folder">, string> = { recent: "Recent", shared: "Shared with me", trash: "Trash", knowledge: "Knowledge" };
+export const WHERE_LABEL: Record<Exclude<Where["kind"], "folder">, string> = { recent: "Recent", starred: "Starred", shared: "Shared with me", trash: "Trash", knowledge: "Knowledge" };
 
 /** The capability and input that list a place. */
 export function sourceOf(where: Where): { cap: "files.list" | "files.recent" | "files.shared_with_me" | "files.knowledge" | "files.trash.list"; input: Record<string, unknown> } {
   switch (where.kind) {
     case "folder": return { cap: "files.list", input: where.id === null ? {} : { folder: where.id } };
     case "recent": return { cap: "files.recent", input: { limit: 50 } };
+    // Starred reads the starred flag on the files the copy holds; the list keeps the flagged ones
+    case "starred": return { cap: "files.recent", input: { limit: 500 } };
     case "shared": return { cap: "files.shared_with_me", input: {} };
     case "trash": return { cap: "files.trash.list", input: {} };
     case "knowledge": return { cap: "files.knowledge", input: {} };
@@ -281,8 +287,35 @@ export function emptyText(where: Where): string {
   switch (where.kind) {
     case "folder": return "This folder is empty.";
     case "recent": return "Nothing opened recently.";
+    case "starred": return "Nothing starred yet.";
     case "shared": return "Nothing has been shared with you yet.";
     case "trash": return "The Trash is empty.";
     case "knowledge": return "No notes in Knowledge yet.";
   }
+}
+
+// ---------------------------------------------------------------- Agents and Projects
+
+export type TreeRoot = TreeRoots[number];
+export interface SubjectGroups { agents: TreeRoot[]; projects: TreeRoot[] }
+
+/** The folders Files registers for itself (ruling 65): one per agent and one per project, read from the roots of files.tree. */
+export function subjectGroups(roots: TreeRoots): SubjectGroups {
+  const mine = roots.filter((r) => r.kind === "folder" && r.folderId !== undefined);
+  const byTitle = (a: TreeRoot, b: TreeRoot): number => a.title.localeCompare(b.title, "en", { sensitivity: "base" });
+  return {
+    agents: mine.filter((r) => r.subject?.kind === "agent").sort(byTitle),
+    projects: mine.filter((r) => r.subject?.kind === "project").sort(byTitle),
+  };
+}
+
+/** The ids of the given folders and everything under them: the main folder tree leaves these out, because the groups show them. */
+export function subtreeIds(nodes: readonly { id: string; parentId: string | null }[], rootIds: readonly string[]): Set<string> {
+  const out = new Set<string>(rootIds);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const n of nodes) if (n.parentId !== null && out.has(n.parentId) && !out.has(n.id)) { out.add(n.id); grew = true; }
+  }
+  return out;
 }

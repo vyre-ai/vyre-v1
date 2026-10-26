@@ -5,12 +5,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
-import { FilesList, StagedBanner, approveStaged, newMenuEntries, stagedText } from "../list/index.ts";
-import { KindBadge, RowCells } from "../FileList.tsx";
+import { FilesList, StagedBanner, approveStaged, lineMenuEntries, newMenuEntries, stagedText } from "../list/index.ts";
+import { KindBadge, LineMarks, RowCells } from "../FileList.tsx";
 import { createSampleFiles } from "../list/sample.ts";
 import type { SampleFiles } from "../list/sample.ts";
-import { FilesDataProvider, FilesStateProvider, INITIAL_STATE, reduce } from "../tree/index.ts";
-import type { FilesState, Where } from "../tree/index.ts";
+import { FilesDataProvider, FilesStateProvider, FilesTree, INITIAL_STATE, emptyText, fileLine, reduce, sourceOf, subjectGroups, subtreeIds } from "../tree/index.ts";
+import type { FileRow, FilesState, TreeRoots, Where } from "../tree/index.ts";
 import { isItem } from "../../../../../../ui/src/Menu/props.ts";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/props.ts";
 
@@ -105,4 +105,116 @@ test("Kind is a badge, with where it came from beside it", () => {
   assert.ok(has(mounted, ">Spreadsheet<") && has(mounted, ">Google Drive<"));
   const out = list(createSampleFiles(), folder("fld_sales"));
   assert.ok(has(out, 'data-testid="kind-badge"'));
+});
+
+// ---------------------------------------------------------------- the sidebar: Starred, Agents, Projects, the Conflict tag
+
+const tree = (s: SampleFiles, initial: Partial<FilesState> = {}): string => wrap(s, initial, <FilesTree />);
+const pos = (s: string, needle: string): number => s.indexOf(needle);
+const subjects = (): SampleFiles => createSampleFiles(undefined, { subjects: true });
+
+test("the sidebar has Starred between Recent and Shared with me, counted from the stars", () => {
+  const out = tree(createSampleFiles());
+  assert.ok(has(out, 'data-testid="row-nav:starred"') && has(out, 'data-testid="row-nav:starred-trailing"'), "a ui/Row with slots");
+  assert.equal(textOf(out, "count-starred"), "2", "Pitch deck and the Rivera letter are starred");
+  const order = [">Recent<", ">Starred<", ">Shared with me<"].map((t) => pos(out, t));
+  assert.deepEqual([...order].sort((a, b) => a - b), order);
+  assert.ok(order.every((n) => n >= 0));
+});
+
+test("Starred is a place: the list shows the starred files, with the star after the name", () => {
+  const s = createSampleFiles();
+  assert.deepEqual(sourceOf({ kind: "starred" }).cap, "files.recent");
+  assert.equal(emptyText({ kind: "starred" }), "Nothing starred yet.");
+  assert.ok(has(tree(s, { where: { kind: "starred" } }), "background-color:var(--sel)"), "the Starred row is the selected one");
+  const out = list(s, { where: { kind: "starred" } });
+  assert.ok(has(out, "Pitch deck v4.pptx") && has(out, "Rivera engagement letter.docx"));
+  assert.ok(!has(out, "Pricing sheet.xlsx") && !has(out, "Budget 2026.xlsx"), "only starred files");
+  assert.ok(has(out, 'data-testid="star-mark"'));
+  assert.ok(has(renderToStaticMarkup(<LineMarks starred conflict={false} />), 'data-testid="star-mark"') && renderToStaticMarkup(<LineMarks starred={false} conflict={false} />) === "", "no marks, nothing drawn");
+});
+
+test("starring a file goes through files.star and changes the Starred count", async () => {
+  const s = createSampleFiles();
+  await s.data.call("files.star", { fileId: "fil_pricing", starred: true });
+  assert.deepEqual(s.calls.filter((c) => c.cap === "files.star"), [{ cap: "files.star", input: { fileId: "fil_pricing", starred: true } }]);
+  assert.equal(textOf(tree(s), "count-starred"), "3");
+});
+
+test("the Agents and Projects trees list the folders Files registers for itself, an agent with its face", () => {
+  const out = tree(subjects());
+  assert.ok(has(out, 'data-testid="files-agents"') && has(out, 'data-testid="files-projects"'));
+  for (const id of ["fld_ag_docs", "fld_ag_research", "fld_ag_assistant"]) assert.ok(has(out, `data-testid="row-agents-${id}"`) && has(out, `data-testid="row-agents-${id}-trailing"`), id);
+  for (const id of ["fld_pj_rivera", "fld_pj_launch"]) assert.ok(has(out, `data-testid="row-projects-${id}"`), id);
+  assert.ok(has(out, 'data-testid="face-Docs"') && has(out, 'data-avatar="agent"'), "the agent's face, shared Avatar");
+  assert.ok(!has(out, 'data-testid="face-Rivera matter"'), "a project has a folder, not a face");
+  assert.ok(has(out, 'data-testid="agents-toggle-fld_ag_docs"') === false && has(out, 'data-testid="projects-toggle-fld_pj_rivera"'), "only a folder with subfolders opens");
+  assert.ok(!has(out, ">Contracts<"), "a closed project keeps its subfolders out");
+  assert.ok(!has(out, 'data-testid="row-folder-fld_ag_docs"') && !has(out, 'data-testid="row-folder-fld_pj_rivera"'), "the main tree does not list them twice");
+  assert.ok(has(out, 'data-testid="row-folder-fld_sales"'), "the other Space folders stay in the main tree");
+  const order = [">Space<", ">Agents<", ">Projects<", ">Memory<"].map((t) => pos(out, t));
+  assert.deepEqual([...order].sort((a, b) => a - b), order);
+});
+
+test("the selected agent or project folder is the selected row", () => {
+  const out = tree(subjects(), folder("fld_ag_docs"));
+  assert.ok(has(out, "background-color:var(--sel)"));
+  assert.equal(tree(subjects()).split("background-color:var(--sel)").length - 1, 0);
+  assert.ok(has(list(subjects(), folder("fld_ag_docs")), "Engagement letter notes.md"), "its files");
+});
+
+test("without agents or projects the sidebar has no empty groups", () => {
+  const out = tree(createSampleFiles());
+  assert.ok(!has(out, 'data-testid="files-agents"') && !has(out, 'data-testid="files-projects"'));
+});
+
+test("subjectGroups reads the roots: agents and projects by title, folders only; subtreeIds follows the children", () => {
+  const roots: TreeRoots = [
+    { key: "recent", title: "Recent", kind: "virtual", count: 3 },
+    { key: "b", title: "Zed", kind: "folder", folderId: "b", count: 1, subject: { kind: "agent", id: "agt_z" } },
+    { key: "a", title: "Docs", kind: "folder", folderId: "a", count: 2, subject: { kind: "agent", id: "agt_d" } },
+    { key: "p", title: "Rivera", kind: "folder", folderId: "p", count: 4, subject: { kind: "project", id: "pj_r" } },
+    { key: "s", title: "Sales", kind: "folder", folderId: "s", count: 5 },
+  ];
+  const g = subjectGroups(roots);
+  assert.deepEqual(g.agents.map((r) => r.title), ["Docs", "Zed"]);
+  assert.deepEqual(g.projects.map((r) => r.title), ["Rivera"]);
+  const nodes = [{ id: "p", parentId: null }, { id: "p1", parentId: "p" }, { id: "p2", parentId: "p1" }, { id: "s", parentId: null }];
+  assert.deepEqual([...subtreeIds(nodes, ["p"])].sort(), ["p", "p1", "p2"]);
+});
+
+const stub = (o: Partial<FileRow>): FileRow => ({ fileId: "fil_x", folderId: "fld_x", name: "x.png", kind: "image", mime: "", size: 1, version: 1, label: 1, ownerId: "u", createdAt: 0, updatedAt: 0, updatedBy: "u", thumb: false, holds: 0, ...o });
+
+test("a file with two edits carries the Conflict tag, a button that opens the choice", () => {
+  const s = createSampleFiles();
+  const out = list(s, folder("fld_sales"));
+  assert.ok(has(out, 'data-testid="conflict-tag"') && has(out, ">Conflict<") && has(out, 'aria-label="Conflict. Two edits. Click to resolve."'));
+  assert.equal(out.split('data-testid="conflict-tag"').length - 1, 1, "only the picture with two edits");
+  assert.ok(!has(list(s, folder("fld_intake")), 'data-testid="conflict-tag"'));
+  assert.ok(has(list(s, { where: { kind: "recent" } }), 'data-testid="conflict-tag"'), "in Recent too");
+  assert.equal(fileLine(stub({ conflict: true })).conflict, true);
+  assert.equal(fileLine(stub({})).conflict, undefined);
+  assert.ok(has(renderToStaticMarkup(<LineMarks starred={false} conflict />), 'data-testid="conflict-tag"'));
+});
+
+test("Resolve Conflict… and Star are in the menu of a line, and each does its work", () => {
+  const did: string[] = [];
+  const h = {
+    open: () => undefined, quickLook: () => undefined, share: () => undefined, rename: () => undefined, trash: () => undefined, restore: () => undefined,
+    star: (l: { id: string }) => void did.push(`star:${l.id}`), resolve: (l: { id: string }) => void did.push(`resolve:${l.id}`),
+  };
+  const bad = fileLine(stub({ fileId: "fil_logo", conflict: true }));
+  const entries = items(lineMenuEntries([bad], false, h));
+  assert.deepEqual(entries.map((e) => e.label), ["Resolve Conflict…", "Open", "Quick Look", "Star", "Rename…", "Move to Trash"]);
+  for (const e of entries.filter((x) => x.label === "Resolve Conflict…" || x.label === "Star")) e.onSelect?.();
+  assert.deepEqual(did, ["resolve:fil_logo", "star:fil_logo"]);
+  const starred = items(lineMenuEntries([fileLine(stub({ starred: true }))], false, h));
+  assert.ok(starred.some((e) => e.label === "Remove Star") && !starred.some((e) => e.label === "Resolve Conflict…"));
+  assert.ok(!items(lineMenuEntries([bad], false, { open: h.open, quickLook: h.quickLook, share: h.share, rename: h.rename, trash: h.trash, restore: h.restore })).some((e) => e.label === "Star" || e.label === "Resolve Conflict…"), "no handler, no entry");
+});
+
+test("the shell's conflict handler is asked for the file", () => {
+  const s = createSampleFiles();
+  s.data.nav.resolveConflict?.("fil_logo");
+  assert.deepEqual(s.opened, ["resolve:fil_logo"]);
 });

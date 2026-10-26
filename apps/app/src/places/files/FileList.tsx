@@ -67,6 +67,22 @@ export function KindBadge({ kind }: { kind: string }): ReactElement {
   );
 }
 
+/** After the name: a star where the file is starred, and the Conflict tag where two edits wait. The tag is a button that opens the choice (prototype: "Two edits. Click to resolve."). */
+export function LineMarks({ starred, conflict, onResolve }: { starred: boolean; conflict: boolean; onResolve?: (() => void) | undefined }): ReactElement | null {
+  if (!starred && !conflict) return null;
+  return (
+    <View style={styles.marks} testID="line-marks">
+      {conflict ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Conflict. Two edits. Click to resolve." testID="conflict-tag" {...(onResolve ? { onPress: onResolve } : {})}
+          style={({ hovered }: { hovered?: boolean }) => [styles.warn, hovered === true && WARN_HOVER]}>
+          <Text style={styles.warnText}>Conflict</Text>
+        </Pressable>
+      ) : null}
+      {starred ? <View testID="star-mark" accessibilityLabel="Starred"><Glyph name="star" size={12} color="var(--warn)" width={1.3} /></View> : null}
+    </View>
+  );
+}
+
 export interface Cells { when: string; by: string | null; byAgent?: boolean; size: string; kind: string }
 
 /** The cells of a line, in the Row's trailing slot. */
@@ -144,6 +160,7 @@ export function GridRow({ children }: { children: ReactNode }): ReactElement {
 
 // Plain objects (not StyleSheet ids), as in ui/Row, so the painted token is visible in the element's inline style.
 const HOVER = { backgroundColor: "var(--hover)" };
+const WARN_HOVER = { backgroundColor: "color-mix(in srgb, var(--warn) 28%, transparent)" };
 const SORTED = { color: "var(--ink)" };
 const TILE_SEL = { backgroundColor: "var(--accent-wash)", boxShadow: "inset 0 0 0 1.5px var(--accent-line)" };
 
@@ -162,6 +179,9 @@ const styles = StyleSheet.create({
   badge: { height: 18, paddingHorizontal: 6, borderRadius: 5, justifyContent: "center", flexShrink: 0 },
   badgeText: { fontSize: 11, fontWeight: "500" },
   src: { fontSize: 11.5, color: "var(--ink-3)" as string, flexShrink: 1 },
+  marks: { flexDirection: "row", alignItems: "center", gap: 6 },
+  warn: { height: 18, paddingHorizontal: 6, borderRadius: 5, justifyContent: "center", backgroundColor: "color-mix(in srgb, var(--warn) 16%, transparent)" as string },
+  warnText: { fontSize: 11, fontWeight: "500", color: "var(--warn)" as string },
   gridRow: { flexDirection: "row", gap: GRID_GAP, paddingHorizontal: GRID_PAD, paddingTop: 0, paddingBottom: GRID_GAP },
   tile: { borderRadius: 12, padding: 8 },
   thumb: { borderRadius: 8, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center", ...({ boxShadow: "inset 0 0 0 1px var(--line)" } as object) },
