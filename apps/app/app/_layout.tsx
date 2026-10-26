@@ -6,6 +6,7 @@ import { claimToken } from "../src/claim/logic.ts";
 import { SessionGate } from "../src/shell/session/SessionGate.tsx";
 import { UrlSync } from "../src/shell/session/UrlSync.tsx";
 import type { ShellHub } from "../src/shell/spaces/hub.ts";
+import { loadTwilioDevice } from "../src/shell/session/voice.ts";
 import { registerShellPlaces } from "../src/shell/places.ts";
 
 registerShellPlaces();
@@ -31,8 +32,7 @@ export default function Layout() {
   }
   return (
     <>
-      {/* No voice loader at start: asking for a Twilio token when the app opens made every Space without a Twilio key log a 502. The phone opens when a call is started (follow-up), not before. */}
-      <SessionGate onHub={setHub} />
+      <SessionGate onHub={setHub} voice={loadTwilioDevice} />
       {hub ? <UrlSync hub={hub} /> : null}
     </>
   );

@@ -1,7 +1,7 @@
 // The production root (ARCH 7.0): no stored session shows sign-in; a stored session paints the shell frame at once from the Space card kept on this device, then opens the real
 // session behind it (whoami, the Space, the live link) and hands the runtime to the places. A 401 or a sign-out clears the stored session and returns to sign-in. A Space that cannot
 // be reached keeps the frame and says so with Try again; it never shows another Space's rows.
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, View, useWindowDimensions } from "react-native";
 import { States } from "../../../../../ui/src/States/index.tsx";
@@ -160,17 +160,24 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
 
   const search = useMemo(() => (session ? createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current }) : null), [session, hub]);
 
-  // The phone: made once the Space is open and only when it has a number and the telephony key; the dock wraps the shell when it exists.
+  // The phone: made once the Space is open and only when a telephony provider is connected (read first, so a Space without Twilio never asks for a token and logs no error). A provider that then
+  // refuses the token (provider.auth_failed: no key in the Vault) means calls are not set up: no dock, nothing said. The dock wraps the shell when it exists.
   const [phone, setPhone] = useState<Phone | undefined>(undefined);
+  const connections = useMemo(() => (session ? session.hooks.capQuery<{ connections: { connector: string; state: string }[] }>("connections.list", {}) : null), [session]);
+  const telephony = useSyncExternalStore(
+    connections ? connections.subscribe : () => () => undefined,
+    () => { const s = connections?.getSnapshot(); return s?.status === "ready" && s.data.connections.some((c) => c.state === "active" && /twilio|telephony/i.test(c.connector)); },
+    () => false,
+  );
   useEffect(() => {
-    if (!session) return undefined;
+    if (!session || !telephony) return undefined;
     let off = false;
     let made: Phone | undefined;
     openPhone(session, { loadDevice: voice, openConversation: (id) => navRef.current?.go("inbox", id) })
       .then((p) => { if (off) { p?.close(); return; } made = p; setPhone(p); })
       .catch(() => undefined);
     return () => { off = true; made?.close(); setPhone(undefined); };
-  }, [session, voice]);
+  }, [session, voice, telephony]);
 
   // A purge signal from the server (a revoke or an epoch bump): the wipe of what this browser holds, the ack, then back to sign-in.
   const purge = useMemo<ShellPurge | undefined>(() => (session ? {
