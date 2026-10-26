@@ -55,6 +55,7 @@ type Out = {
 - permission.above_clearance
 - permission.no_grant
 - validation.bad_input
+- validation.not_found
 
 ## Example
 
