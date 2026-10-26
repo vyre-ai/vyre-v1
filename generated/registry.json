@@ -88032,7 +88032,8 @@
       "effects": "write",
       "emits": [
         "password.changed",
-        "keys.stored"
+        "keys.stored",
+        "signin.failed"
       ],
       "errors": [
         "auth.bad_credentials",
@@ -89954,7 +89955,8 @@
       "audit": "sensitive",
       "effects": "write",
       "emits": [
-        "factor.removed"
+        "factor.removed",
+        "signin.failed"
       ],
       "errors": [
         "auth.bad_credentials",

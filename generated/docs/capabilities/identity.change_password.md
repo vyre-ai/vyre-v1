@@ -19,7 +19,7 @@ Change my own password; keys are re-wrapped on the device first
 | HTTP | POST /v1/identity/change_password |
 | MCP tool | none |
 | CLI | none |
-| Emits | password.changed, keys.stored |
+| Emits | password.changed, keys.stored, signin.failed |
 
 ## Input
 
