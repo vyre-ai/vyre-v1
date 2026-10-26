@@ -93,3 +93,9 @@ test("the eight administration capabilities are real in the module's handler map
     await assert.rejects(handlers[cap](h.as(MAYA), {} as never), (e) => codeOf(e) !== "internal.not_implemented", cap);
   }
 });
+
+test("the tile takes its counts from an attention source that answers later", async () => {
+  const h = harness();
+  const tile = await handlers["spaces.switcher"]({ ...h.as(MAYA), attention: { of: async () => ({ needsYou: 2, unread: 5 }) } }, {});
+  assert.deepEqual([tile.needsYou, tile.unread], [2, 5]);
+});
