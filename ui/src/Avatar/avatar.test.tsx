@@ -181,7 +181,7 @@ test("with no seedId, or an empty one, the name seeds the face as before", () =>
   const plain = renderToStaticMarkup(<Avatar name="Maya Chen" />);
   assert.equal(faceOf(plain), faceOf(renderToStaticMarkup(<Avatar name="Maya Chen" seedId="" />)));
   assert.ok(faceOf(plain).includes(marbleInner("Maya Chen")));
-  assert.equal(faceKey("usr_1", "person", 18, ""), "person|18|||usr_1");
+  assert.equal(faceKey("usr_1", "person", 18, ""), "person|18||usr_1", "kind, size, skin (empty here) and seed, joined by bars");
 });
 
 test("the table's cell face and the Avatar are one function of one seed", () => {

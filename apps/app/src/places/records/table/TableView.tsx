@@ -162,7 +162,7 @@ const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): 
     },
     createElement("div", { className: "vrt-g" }, String(n)),
     createElement("div", { style: { width: primary.width, height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, boxSizing: "border-box", padding: "0 10px", overflow: "hidden", flex: "none" } },
-      row ? createElement("span", { className: "vrt-p", style: { ...CELL_TEXT, fontWeight: 500 } }, dot(row.id, title), title) : createElement("div", { style: GHOST }),
+      row ? createElement("span", { className: "vrt-p", style: { ...CELL_TEXT, fontWeight: 500 } }, dot(title, title), title) : createElement("div", { style: GHOST }),
       row && (hot || selected) ? <Pressable accessibilityRole="button" accessibilityLabel="Open record" testID={`open-${row.id}`} onPress={() => onOpen(row.id)} style={styles.xopen}><Glyph name="expand" size={13} color="var(--ink-2)" /></Pressable> : null,
     ),
   );
@@ -215,6 +215,7 @@ interface FaceRule { selectorText: string }
 interface FaceSheet { cssRules: { length: number; [i: number]: FaceRule }; insertRule(rule: string, index: number): number; deleteRule(index: number): void }
 interface FaceDoc { createElement(tag: string): { sheet: FaceSheet | null }; head: { appendChild(node: unknown): unknown } }
 const faceClasses = new Map<string, true>();
+const MAX_FACE_RULES = 400;
 function findRule(sheet: FaceSheet, cls: string): number {
   for (let i = 0; i < sheet.cssRules.length; i++) if (sheet.cssRules[i]!.selectorText === `.${cls}`) return i;
   return -1;
@@ -222,14 +223,15 @@ function findRule(sheet: FaceSheet, cls: string): number {
 let faceSheet: FaceSheet | null = null;
 const faceDoc = (): FaceDoc | undefined => (globalThis as { document?: FaceDoc }).document;
 /**
- * A person's face in a cell, seeded by the person's id (the record id for the Name cell), never the name, so two people with one name have two faces and a rename keeps a face: the real marble (the blurred svg the Avatar draws), rendered once per person into the shared face cache and then painted as a plain background image. Until its
+ * A person's face in a cell, seeded by the person's id (the record's own title for the Name cell, which has no person id), not the display name when there is an id, so two people with one name have two faces and a rename keeps a face: the real marble (the blurred svg the Avatar draws), rendered once per person into the shared face cache and then painted as a plain background image. Until its
  * bitmap is ready the disc wears the CSS marble gradient. The look sits in one CSS rule per person, so when a bitmap lands every cell with that face changes at once and no row re-renders.
  * A page with no document (server render, tests) gets the same disc as an inline style.
  */
 function dot(seed: string, label: string): ReactElement {
   const look = { width: 18, height: 18, flex: "none", borderRadius: 9 } as const;
   const doc = faceDoc();
-  if (doc === undefined) {
+  // a long table has a record face per title: past MAX_FACE_RULES distinct faces a new one wears the inline gradient and gets no rule or bitmap of its own
+  if (doc === undefined || (faceClasses.size >= MAX_FACE_RULES && !faceClasses.has(faceClassOf(seed)))) {
     let st = dots.get(seed);
     if (!st) { st = { ...look, backgroundColor: marbleSpec(seed).base, backgroundImage: marbleGradient(seed) }; dots.set(seed, st); }
     return createElement("span", { "aria-hidden": true, "data-testid": `face-${label}`, style: st });
