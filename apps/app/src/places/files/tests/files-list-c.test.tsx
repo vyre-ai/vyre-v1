@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
-import { FilesList, StagedBanner, approveStaged, lineMenuEntries, newMenuEntries, stagedText } from "../list/index.ts";
+import { FilesList, StagedBanner, approveStaged, lineMenuEntries, moreMenuEntries, newMenuEntries, stagedText } from "../list/index.ts";
 import { KindBadge, LineMarks, RowCells } from "../FileList.tsx";
 import { createSampleFiles } from "../list/sample.ts";
 import type { SampleFiles } from "../list/sample.ts";
@@ -98,13 +98,14 @@ test("Made by is a face: a person's, or the agent's own", () => {
   assert.ok(has(sales, 'data-testid="face-Docs"') && has(sales, 'data-testid="face-Irfad Imtiaz"'));
 });
 
-test("Kind is a badge, with where it came from beside it", () => {
+test("Kind is plain text, with where it came from beside it", () => {
   const plain = renderToStaticMarkup(<KindBadge kind="PDF" />);
   assert.ok(has(plain, ">PDF<") && !has(plain, "Google Drive"));
   const mounted = renderToStaticMarkup(<KindBadge kind={"Spreadsheet · Google Drive"} />);
   assert.ok(has(mounted, ">Spreadsheet<") && has(mounted, ">Google Drive<"));
   const out = list(createSampleFiles(), folder("fld_sales"));
-  assert.ok(has(out, 'data-testid="kind-badge"'));
+  assert.ok(has(out, 'data-testid="kind-text"') && has(out, ">Folder<"), "Kind is plain text, as the prototype has it");
+  assert.ok(!has(out, 'data-testid="kind-badge"') && !has(plain, "hsla("), "no tinted pill");
 });
 
 // ---------------------------------------------------------------- the sidebar: Starred, Agents, Projects, the Conflict tag
@@ -116,7 +117,7 @@ const subjects = (): SampleFiles => createSampleFiles(undefined, { subjects: tru
 test("the sidebar has Starred between Recent and Shared with me, counted from the stars", () => {
   const out = tree(subjects());
   assert.ok(has(out, 'data-testid="row-nav:starred"') && has(out, 'data-testid="row-nav:starred-trailing"'), "a ui/Row with slots");
-  assert.equal(textOf(out, "count-starred"), "2", "Pitch deck and the Rivera letter are starred");
+  assert.equal(textOf(out, "count-starred"), "3", "Pitch deck and the two Rivera letters are starred");
   const order = [">Recent<", ">Starred<", ">Shared with me<"].map((t) => pos(out, t));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
   assert.ok(order.every((n) => n >= 0));
@@ -138,7 +139,7 @@ test("starring a file goes through files.star and changes the Starred count", as
   const s = subjects();
   await s.data.call("files.star", { fileId: "fil_pricing", starred: true });
   assert.deepEqual(s.calls.filter((c) => c.cap === "files.star"), [{ cap: "files.star", input: { fileId: "fil_pricing", starred: true } }]);
-  assert.equal(textOf(tree(s), "count-starred"), "3");
+  assert.equal(textOf(tree(s), "count-starred"), "4");
 });
 
 test("the Agents and Projects trees list the folders Files registers for itself, an agent with its face", () => {
@@ -153,14 +154,14 @@ test("the Agents and Projects trees list the folders Files registers for itself,
   assert.ok(!has(out, ">Contracts<"), "a closed project keeps its subfolders out");
   assert.ok(!has(out, 'data-testid="row-folder-fld_ag_docs"') && !has(out, 'data-testid="row-folder-fld_pj_rivera"'), "the main tree does not list them twice");
   assert.ok(has(out, 'data-testid="row-folder-fld_sales"'), "the other Space folders stay in the main tree");
-  const order = [">Space<", ">Agents<", ">Projects<", ">Memory<"].map((t) => pos(out, t));
+  const order = [">Memory<", ">Space<", ">Agents<", ">Projects<"].map((t) => pos(out, t));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
 });
 
 test("the selected agent or project folder is the selected row", () => {
   const out = tree(subjects(), folder("fld_ag_docs"));
   assert.ok(has(out, "background-color:var(--sel)"));
-  assert.equal(tree(subjects()).split("background-color:var(--sel)").length - 1, 0);
+  assert.equal(tree(subjects()).split("background-color:var(--sel)").length - 1, 1, "at the root only All files is selected");
   assert.ok(has(list(subjects(), folder("fld_ag_docs")), "Engagement letter notes.md"), "its files");
 });
 
@@ -218,4 +219,43 @@ test("the shell's conflict handler is asked for the file", () => {
   const s = createSampleFiles();
   s.data.nav.resolveConflict?.("fil_logo");
   assert.deepEqual(s.opened, ["resolve:fil_logo"]);
+});
+
+// ---------------------------------------------------------------- in the shared place sidebar
+
+const tree2 = (s: SampleFiles, query: string): string => wrap(s, {}, <FilesTree query={query} />);
+
+test("the sidebar is the shared slot's content: Knowledge and Space open and close, Space holds All files, Agents and Projects", () => {
+  const out = tree(subjects());
+  for (const id of ["files-head-know", "files-head-space", "files-new-space", "row-folder-all", "row-group-agents", "row-group-projects"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  assert.ok(has(out, 'aria-label="Space, open"') && has(out, 'aria-label="Knowledge, open"'));
+  const order = ["row-folder-all", "row-group-agents", "row-group-projects", "row-folder-fld_billing"].map((t) => pos(out, `data-testid="${t}"`));
+  assert.deepEqual([...order].sort((a, b) => a - b), order, "All files, the Agents folders, the Projects folders, then the Space's other folders");
+  assert.ok(!has(out, "Search files") && !has(out, 'data-testid="place-sidebar"'), "the title and the search field are the shell's, not drawn here");
+});
+
+test("the search field filters the sidebar rows", () => {
+  const s = subjects();
+  const hit = tree2(s, "riv");
+  assert.ok(has(hit, "Rivera matter") && !has(hit, ">Daily<") && !has(hit, ">Recent<"));
+  assert.ok(has(hit, 'data-testid="face-Docs"') === false, "Docs does not match riv");
+  const agent = tree2(s, "docs");
+  assert.ok(has(agent, 'data-testid="face-Docs"') && has(agent, 'data-avatar="agent"'), "an agent folder keeps its face in a search");
+  assert.ok(has(tree2(s, "zzzz"), 'data-testid="files-tree-empty"'), "nothing matches says so");
+  assert.ok(has(tree2(s, ""), ">Daily<"), "an empty search keeps every row");
+});
+
+test("the more menu carries the Trash, with its count only when it holds something", () => {
+  const h = { showHidden: true, toggleHidden: () => undefined, selectAll: () => undefined, openTrash: () => undefined };
+  const empty = items(moreMenuEntries({ ...h, trashCount: 0 }));
+  assert.deepEqual(empty.map((e) => e.label), ["Show Hidden Files", "Select All", "Trash"]);
+  assert.equal(empty[2]?.count, undefined);
+  assert.equal(items(moreMenuEntries({ ...h, trashCount: 4 }))[2]?.count, 4);
+  assert.equal(empty[0]?.checked, true);
+});
+
+test("the Rivera matter folder is as the prototype has it: its files, the staged banner, the star and the Conflict tag", () => {
+  const out = list(subjects(), folder("fld_pj_rivera"));
+  for (const name of ["client-intake.pdf", "consult-prep.md", "engagement-checklist.csv", "id-scan.png", "Rivera onboarding plan", "rivera-engagement-letter.docx", "site-photo.png"]) assert.ok(has(out, name), name);
+  assert.ok(has(out, 'data-testid="staged-banner"') && has(out, 'data-testid="conflict-tag"') && has(out, 'data-testid="star-mark"'));
 });

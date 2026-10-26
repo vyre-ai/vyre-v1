@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
-import { FilesList, ListLoading, lineMenuEntries, sortMenuEntries } from "../list/index.ts";
+import { FilesList, ListLoading, lineMenuEntries, moreMenuEntries, sortMenuEntries } from "../list/index.ts";
 import { ColumnHeader, RowCells, chunk, gridLayout } from "../FileList.tsx";
 import { createSampleFiles, harbor, northwind } from "../list/sample.ts";
 import type { SampleFiles, SampleSpace } from "../list/sample.ts";
@@ -31,10 +31,11 @@ const items = (entries: readonly MenuEntry[]): MenuItem[] => entries.filter(isIt
 const folder = (id: string): Partial<FilesState> => ({ where: { kind: "folder", id } });
 const row = (id: string, folderId = "fld_x"): FileRow => ({ fileId: id, folderId, name: id, kind: "pdf", mime: "", size: 1, version: 1, label: 1, ownerId: "u", createdAt: 0, updatedAt: 0, updatedBy: "u", thumb: false, holds: 0 });
 
-test("screen: the tree lists Recent, Shared with me and Trash, then the folders in their sections, then Knowledge", () => {
+test("screen: the sidebar lists Recent, Starred and Shared with me, then Knowledge, then Space with its folders (the Trash is in the more menu)", () => {
   const out = tree();
-  const order = ["Recent", "Shared with me", "Trash", "Personal", "Space", "Knowledge", "Memory", "Graph"].map((t) => at(out, `>${t}<`));
-  assert.deepEqual([...order].sort((a, b) => a - b), order, "the virtual rows, the folder sections, then Knowledge");
+  const order = ["Recent", "Starred", "Shared with me", "Knowledge", "Memory", "Graph", "Space"].map((t) => at(out, `>${t}<`));
+  assert.deepEqual([...order].sort((a, b) => a - b), order, "the virtual rows, Knowledge, then Space");
+  assert.ok(!has(out, ">Trash<") && !has(out, ">Personal<"), "no Trash row and no Personal section any more");
   for (const label of ["Daily", "Money", "Maya's reports", "Sales", "Billing", "Intake"]) assert.ok(has(out, `>${label.replace("'", "&#x27;")}<`), label);
   assert.ok(!has(out, ">Proposals<"), "a closed folder keeps its children out of the list");
   assert.ok(has(out, 'data-testid="row-nav:recent"') && has(out, 'data-testid="row-nav:recent-trailing"') && has(out, 'data-testid="row-folder-fld_sales"'), "every row is a ui/Row with slots");
@@ -47,7 +48,7 @@ test("screen: the tree lists Recent, Shared with me and Trash, then the folders 
 test("the tree selects what the list shows", () => {
   assert.ok(has(tree({ where: { kind: "recent" } }), "background-color:var(--sel)"));
   assert.ok(has(tree(folder("fld_sales")), "background-color:var(--sel)"));
-  assert.equal(tree().split("background-color:var(--sel)").length - 1, 0, "nothing selected at the root");
+  assert.equal(tree().split("background-color:var(--sel)").length - 1, 1, "at the root only All files is selected");
   assert.deepEqual(reduce(INITIAL_STATE, { type: "go", where: { kind: "shared" } }).where, { kind: "shared" });
   assert.deepEqual(crumbs([{ id: "a", name: "A", parentId: null }, { id: "b", name: "B", parentId: "a" }], "b").map((c) => c.name), ["A", "B"]);
 });
@@ -218,7 +219,10 @@ test("moving to the Trash and restoring change what the Trash and the folder lis
   await s.data.call("files.delete", { fileId: "fil_deck" });
   assert.deepEqual(lines(html({ where: { kind: "trash" } })), ["file:fil_deck"]);
   assert.ok(!lines(html(folder("fld_sales"))).includes("file:fil_deck"));
-  assert.ok(has(wrap(s, {}, <FilesTree />), 'data-testid="count-trash"'));
+  const trashRoot = s.data.live("files.tree", {}).getSnapshot();
+  assert.ok(trashRoot.status === "ready" && trashRoot.data.roots.find((r) => r.key === "trash")?.count === 1, "the Trash holds one file");
+  assert.ok(!has(wrap(s, {}, <FilesTree />), 'data-testid="count-trash"'), "the Trash left the sidebar");
+  assert.deepEqual(items(moreMenuEntries({ showHidden: false, trashCount: 1, toggleHidden: () => undefined, selectAll: () => undefined, openTrash: () => undefined })).map((e) => [e.label, e.count]), [["Show Hidden Files", undefined], ["Select All", undefined], ["Trash", 1]], "the more menu has the Trash with its count");
   await s.data.call("files.restore", { fileId: "fil_deck" });
   assert.ok(lines(html(folder("fld_sales"))).includes("file:fil_deck") && has(html({ where: { kind: "trash" } }), "The Trash is empty."));
 });

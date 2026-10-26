@@ -93,7 +93,14 @@ const CONFLICT = new Set(["fil_logo"]);
 const SUBJECT_FILES: FileSeed[] = [
   f("fil_ag_notes", "Engagement letter notes.md", "fld_ag_docs", "markdown", 2_900, 4 * HOUR, "agt_docs"),
   f("fil_ag_comp", "Competitor pricing.md", "fld_ag_research", "markdown", 5_200, 28 * HOUR, "agt_docs"),
-  f("fil_pj_scan", "site-photo.png", "fld_pj_rivera", "image", 612_000, 5 * HOUR, "usr_maya", { conflict: true }),
+  // the Rivera matter folder as the prototype has it, the folder its Files opens on
+  f("fil_pj_intake", "client-intake.pdf", "fld_pj_rivera", "pdf", 207_000, 3 * HOUR, "agt_intake"),
+  f("fil_pj_prep", "consult-prep.md", "fld_pj_rivera", "markdown", 188, 2.5 * HOUR, "agt_intake"),
+  f("fil_pj_chk", "engagement-checklist.csv", "fld_pj_rivera", "spreadsheet", 900, 16 * HOUR, "usr_lena"),
+  f("fil_pj_id", "id-scan.png", "fld_pj_rivera", "image", 408_000, 17 * HOUR, "usr_maya"),
+  f("fil_pj_onb", "Rivera onboarding plan", "fld_pj_rivera", "document", 2_000, 2.4 * HOUR, "agt_intake"),
+  f("fil_pj_letter", "rivera-engagement-letter.docx", "fld_pj_rivera", "document", 37_000, 1.2 * HOUR, "agt_docs", { starred: true }),
+  f("fil_pj_scan", "site-photo.png", "fld_pj_rivera", "image", 598_000, 0.8 * HOUR, "usr_maya", { conflict: true }),
   f("fil_pj_plan", "Launch plan.docx", "fld_pj_launch", "document", 41_000, 2 * DAY, "usr_omar"),
 ];
 
@@ -123,7 +130,9 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
 
   const folderSeeds = o.subjects === true && space === northwind ? [...space.folders, ...SUBJECT_FOLDERS] : space.folders;
   replica.put("folders", folderSeeds.map((x): FolderSeedRow => ({ ...x, id: x.id })));
-  replica.put("changesets", (space.changesets ?? []).map((c) => ({ id: c.id, changesetId: c.id, folderId: c.folder, state: "open", by: c.by, fileCount: c.files, added: c.files * 12, removed: 0, openedAt: SAMPLE_NOW - HOUR, pushPending: false }) as Row));
+  // Docs staged three writes in the Rivera matter folder too, where the prototype shows its banner
+  const changesets = o.subjects === true && space === northwind ? [...(space.changesets ?? []), { id: "chg_rivera", folder: "fld_pj_rivera", by: "agt_docs", files: 3 }] : space.changesets ?? [];
+  replica.put("changesets", changesets.map((c) => ({ id: c.id, changesetId: c.id, folderId: c.folder, state: "open", by: c.by, fileCount: c.files, added: c.files * 12, removed: 0, openedAt: SAMPLE_NOW - HOUR, pushPending: false }) as Row));
   const rich = o.subjects === true && space === northwind;
   const files: Row[] = (rich ? [...space.files, ...SUBJECT_FILES] : space.files).map((x) => fileRow(rich ? { ...x, ...(STARRED.has(x.id) ? { starred: true } : {}), ...(CONFLICT.has(x.id) ? { conflict: true } : {}) } : x));
   if (o.bulk) {

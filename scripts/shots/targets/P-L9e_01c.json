@@ -2,24 +2,24 @@
   "targets": [
     {
       "id": "P-L9e_01c-files-header",
-      "route": "/m/P-L9e_01b",
+      "route": "/m/P-L9e_01b?subjects=1&where=pj_rivera",
       "proto": "files,{skin}",
       "waitFor": "[data-testid='files-new']",
-      "note": "The Sales folder: back and forward arrows, the path, Sort and the list/grid switch, Upload, the filled New button, the more menu and the side-pane toggle; Kind as a badge and Made by as a face on every line. The prototype side is its Files place on a folder of files in the same skin."
+      "note": "The Rivera matter folder: back and forward arrows, the path, Sort and the list/grid switch, Upload, the filled New button, the more menu and the side-pane toggle; Kind as plain text and Made by as a face on every line, beside the shared place sidebar. The prototype side is its Files place on the same folder in the same skin."
     },
     {
       "id": "P-L9e_01c-files-staged",
-      "route": "/m/P-L9e_01b?where=proposals",
-      "proto": "files,staged,{skin}",
+      "route": "/m/P-L9e_01b?subjects=1&where=pj_rivera",
+      "proto": "files,{skin}",
       "waitFor": "[data-testid='staged-banner']",
-      "note": "Proposals with the staged-writes banner: Docs staged 3 writes here, Nothing is saved until you approve, Review and Approve. The prototype side is its Rivera matter folder with a change set open (needs the staged token in the prototype copy, asked of the lead)."
+      "note": "Rivera matter with the staged-writes banner: Docs staged 3 writes here, Nothing is saved until you approve, Review and Approve. The prototype opens this same folder with its change set open."
     },
     {
       "id": "P-L9e_01c-files-sidebar",
-      "route": "/m/P-L9e_01b?subjects=1&where=root",
-      "proto": "files,agents-open,{skin}",
+      "route": "/m/P-L9e_01b?subjects=1&where=pj_rivera",
+      "proto": "files,{skin}",
       "waitFor": "[data-testid='files-agents']",
-      "note": "The sidebar: Recent, Starred with its count, Shared with me, the Space folders, then the Agents tree (an agent's face on each folder) and the Projects tree, Knowledge (Memory, Graph). The prototype side is its Files place with the same sidebar in the same skin."
+      "note": "The sidebar in the shared place sidebar: title and search, Recent, Starred with its count, Shared with me, Knowledge (Memory, Graph), then Space with All files, the Agents folders with each agent's face, the Projects folders and the Space's other folders. The prototype side is its Files place in the same skin, on the same folder."
     },
     {
       "id": "P-L9e_01c-files-starred",
@@ -31,7 +31,7 @@
     {
       "id": "P-L9e_01c-files-conflict",
       "route": "/m/P-L9e_01b?subjects=1&where=pj_rivera",
-      "proto": "files,rivera,{skin}",
+      "proto": "files,{skin}",
       "waitFor": "[data-testid='conflict-tag']",
       "note": "A file with two edits carries the Conflict tag after its name (click to resolve). The prototype side is its Rivera matter folder, where site-photo.png has the tag (new hash token rivera in the prototype copy, ruling 42)."
     }

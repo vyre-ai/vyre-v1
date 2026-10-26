@@ -11,7 +11,7 @@ import { States } from "../../../../../../ui/src/States/index.tsx";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
-import { useFilesData, useFolderNodes, useOnline, useOptionalFilesData, useSource } from "../tree/data.tsx";
+import { useFilesData, useFolderNodes, useLive, useOnline, useOptionalFilesData, useSource } from "../tree/data.tsx";
 import {
   SORTS, SORT_LABEL, WHERE_LABEL, createSpring, crumbs, dragPayload, dropMoves, emptyText, fileLine, folderLine, kindLabel, parsePayload, sizeText, sortLines, sourceOf, updatedText,
 } from "../tree/model.ts";
@@ -48,6 +48,16 @@ export function lineMenuEntries(
   return out;
 }
 
+/** The more menu: hidden files, Select All, and the Trash (it left the sidebar), with how many it holds. */
+export function moreMenuEntries(h: { showHidden: boolean; trashCount: number; toggleHidden(): void; selectAll(): void; openTrash(): void }): MenuEntry[] {
+  return [
+    { label: "Show Hidden Files", checked: h.showHidden, onSelect: h.toggleHidden },
+    { label: "Select All", onSelect: h.selectAll },
+    { separator: true },
+    { label: "Trash", ...(h.trashCount > 0 ? { count: h.trashCount } : {}), onSelect: h.openTrash },
+  ];
+}
+
 /** The New menu: a folder, and an upload where the place has one. Each opens the shell's sheet for it. */
 export function newMenuEntries(h: { newFolder(): void; upload?: (() => void) | undefined }): MenuEntry[] {
   const out: MenuEntry[] = [{ label: "New Folder", onSelect: h.newFolder }];
@@ -82,6 +92,8 @@ function List(): ReactElement {
   const online = useOnline();
   const nodes = useFolderNodes();
   const src = useSource(sourceOf(state.where));
+  const treeRoots = useLive("files.tree", {});
+  const trashCount = treeRoots.status === "ready" ? treeRoots.data.roots.find((r) => r.key === "trash")?.count ?? 0 : 0;
   const mods = useRef({ meta: false, shift: false });
   const last = useRef<{ key: string; at: number }>({ key: "", at: 0 });
   const [over, setOver] = useState<string | null>(null);
@@ -233,10 +245,10 @@ function List(): ReactElement {
   const newMenu = here !== undefined
     ? (x: number, y: number): void => { menu.show(newMenuEntries({ newFolder: () => data.nav.newFolder(scopeHere, here), upload }), x, y); }
     : undefined;
-  const moreMenu = (x: number, y: number): void => menu.show([
-    { label: "Show Hidden Files", checked: state.showHidden, onSelect: () => dispatch({ type: "hidden", on: !state.showHidden }) },
-    { label: "Select All", onSelect: () => dispatch({ type: "all", order }) },
-  ], x, y);
+  const moreMenu = (x: number, y: number): void => menu.show(moreMenuEntries({
+    showHidden: state.showHidden, trashCount, toggleHidden: () => dispatch({ type: "hidden", on: !state.showHidden }), selectAll: () => dispatch({ type: "all", order }),
+    openTrash: () => dispatch({ type: "go", where: { kind: "trash" } }),
+  }), x, y);
   const ql = state.quickLook !== null ? byKey.get(state.quickLook) : undefined;
 
   return (

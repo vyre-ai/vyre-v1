@@ -9,6 +9,7 @@ import { View, useWindowDimensions } from "react-native";
 import { FilesList } from "../../../apps/app/src/places/files/list/index.ts";
 import { createSampleFiles, harbor, northwind } from "../../../apps/app/src/places/files/list/sample.ts";
 import { FilesDataProvider, FilesStateProvider, FilesTree } from "../../../apps/app/src/places/files/tree/index.ts";
+import { SidebarBack, SidebarContent, SidebarExpand, SidebarSlot, SidebarSlotProvider, useSidebarSlot } from "../../../apps/app/src/shell/sidebar/index.ts";
 import type { FilesState, SortKey, Where } from "../../../apps/app/src/places/files/tree/index.ts";
 
 export const title = "Files";
@@ -37,21 +38,38 @@ export default function Mount(): ReactNode {
     };
   }, [q, space]);
   const width = useWindowDimensions().width;
-  const phone = width > 0 && width < 720; // 0 is "not measured yet" (the static page)
+  const compact = width > 0 && width < 720; // 0 is "not measured yet" (the static page)
   useEffect(() => {
     if (q.get("menu") !== "sort") return;
     const g = globalThis as { document?: { querySelector(s: string): { click?: () => void } | null } };
     const t = setTimeout(() => g.document?.querySelector('[data-testid="files-sort"]')?.click?.(), 400);
     return () => clearTimeout(t);
   }, [q]);
+  const store = { getItem: () => null, setItem: () => undefined };
   return (
-    <FilesDataProvider value={sample.data}>
-      <FilesStateProvider initial={initial}>
-        <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-          {phone ? null : <View style={{ width: 240 }}><FilesTree /></View>}
-          <FilesList />
-        </View>
-      </FilesStateProvider>
-    </FilesDataProvider>
+    <SidebarSlotProvider deviceId="d1" personId="p1" spaceId={space.id} place="files" epoch={1} compact={compact} storage={store}>
+      <FilesDataProvider value={sample.data}>
+        <FilesStateProvider initial={initial}>
+          <Body />
+        </FilesStateProvider>
+      </FilesDataProvider>
+    </SidebarSlotProvider>
+  );
+}
+
+/** The shell's frame in miniature: the shared sidebar slot beside the list. On the phone the sidebar is the list of places and a chosen row opens the body. */
+function Body(): ReactNode {
+  const slot = useSidebarSlot();
+  const show = !(slot.compact && slot.view === "list");
+  return (
+    <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
+      <SidebarSlot />
+      <View style={{ flex: 1, minWidth: 0, display: show ? "flex" : "none" }}>
+        <SidebarBack />
+        <SidebarExpand />
+        <FilesList />
+        <SidebarContent title="Files" searchPlaceholder="Search files">{(query, sl) => <FilesTree query={query} slot={sl} />}</SidebarContent>
+      </View>
+    </View>
   );
 }

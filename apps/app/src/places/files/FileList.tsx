@@ -48,20 +48,12 @@ function Face({ name, agent }: { name: string; agent: boolean }): ReactElement {
   return <Avatar name={name} kind={agent ? "agent" : "person"} size={16} testID={`face-${name}`} />;
 }
 
-/** A kind's tint: a hue per family so the Kind column reads at a glance, on every skin (translucent ground, the hue as ink). */
-const KIND_HUE: Readonly<Record<string, number>> = {
-  Folder: 215, Text: 210, Markdown: 210, Document: 215, Spreadsheet: 145, Presentation: 25, PDF: 5, Image: 280, Video: 330, Audio: 300, Code: 190, Archive: 40, "Google file": 215, File: 220,
-};
-
-/** The Kind cell: the kind as a small tinted badge, with where it comes from beside it ("Spreadsheet · Google Drive"). */
+/** The Kind cell: plain text, as the prototype has it, with where it comes from beside it ("Spreadsheet · Google Drive"). */
 export function KindBadge({ kind }: { kind: string }): ReactElement {
   const [base, source] = kind.split(" \u00b7 ");
-  const h = KIND_HUE[base ?? ""] ?? 220;
   return (
     <View style={styles.kind} testID="cell-kind">
-      <View testID="kind-badge" style={[styles.badge, { backgroundColor: `hsla(${h}, 65%, 52%, 0.16)` as string }]}>
-        <Text numberOfLines={1} style={[styles.badgeText, { color: `hsl(${h}, 55%, 40%)` as string }]}>{base}</Text>
-      </View>
+      <Text numberOfLines={1} style={styles.kindText} testID="kind-text">{base}</Text>
       {source ? <Text numberOfLines={1} style={styles.src}>{source}</Text> : null}
     </View>
   );
@@ -176,8 +168,7 @@ const styles = StyleSheet.create({
   who: { flexDirection: "row", alignItems: "center", gap: 7 },
   whoText: { fontSize: 12.5, color: "var(--ink-2)" as string, flexShrink: 1 },
   kind: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
-  badge: { height: 18, paddingHorizontal: 6, borderRadius: 5, justifyContent: "center", flexShrink: 0 },
-  badgeText: { fontSize: 11, fontWeight: "500" },
+  kindText: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 0 },
   src: { fontSize: 11.5, color: "var(--ink-3)" as string, flexShrink: 1 },
   marks: { flexDirection: "row", alignItems: "center", gap: 6 },
   warn: { height: 18, paddingHorizontal: 6, borderRadius: 5, justifyContent: "center", backgroundColor: "color-mix(in srgb, var(--warn) 16%, transparent)" as string },
