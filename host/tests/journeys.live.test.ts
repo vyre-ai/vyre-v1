@@ -72,7 +72,9 @@ test("journeys.create on a booted daemon makes the Journey and its record type w
     assert.deepEqual(stage.options?.stages, [{ key: "intake", title: "Intake" }, { key: "done", title: "Done" }], "the record type carries the Journey's stages");
 
     const dup = await post(d, "journeys.create", { name: "client onboarding", subjectType: "contact", idempotencyKey: "jrn-live-2" });
-    assert.equal(dup.status, 409, "the same name twice is refused");
+    const dupBody = (await dup.json()) as { error?: { code?: string } };
+    assert.equal(dup.status, 422, "the same name twice is refused");
+    assert.equal(dupBody.error?.code, "validation.duplicate", "and says why");
 
     const refused = await post(d, "journeys.create", { name: "Member's journey", subjectType: "contact", idempotencyKey: "jrn-live-3" }, "member");
     assert.equal(refused.status, 403, "a member without journeys.manage is refused");
