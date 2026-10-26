@@ -8,6 +8,7 @@
 // ctx.emit, ctx.call, ctx.db (the module's own tables) and ctx.log behave as they do in a handler, and what is emitted commits with the same ids, clock and publish. The caller is the
 // host service with `preAuth`: a hook acts as the system, not as a person.
 // The async consumers a module also exports as projections (`mode: "async"`, kernel ProjectionHost) have another shape and are not touched here.
+import { isErased } from "../../../kernel/src/events/compact.ts";
 import type { StoredEvent } from "../../../kernel/src/log/index.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
@@ -194,7 +195,8 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
       const page = await d.log.read({ after: at, limit: PAGE });
       if (!page.length) return;
       for (const e of page) {
-        if (c.on.includes(e.type)) {
+        // an erased event (events.compact) has no payload to act on: it is skipped, as the projections skip it
+        if (c.on.includes(e.type) && !isErased(e)) {
           if (!(await deliver(c, e))) { setCursor(c.name, at); return; }   // stop here: this event is tried again on the next pass, before any later one
           at = e.seq;
           setCursor(c.name, at);   // a delivered event is recorded at once, so a crash repeats at most the one in flight

@@ -4,23 +4,26 @@ import assert from "node:assert/strict";
 import { bootFlowSpace, expectStatus, short, Trail } from "./02-space.ts";
 import type { FlowSpace, Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
+import { createRelay } from "../../relay/node/server.js";
 
 export const LIVE_FOR_PERSONAL = ["spaces", "devices", "network", "access", "members", "documents", "identity"];
 
 /** Why this flow is a todo today (ruling 53). */
 export const GAPS: Gap[] = [
-  { packet: "P-H_19 (PR 479)", lane: "L7", what: "the Space is a team Space: spaces.matrix answers kind team and nothing sets a Personal Space, so teamOnly calls are not refused with permission.needs_team" },
-  { packet: "P-L7b_15 (L7b)", lane: "L7b", what: "network.endpoints lists only direct endpoints, no relay" },
-  { packet: "P-L1_LIVE", lane: "L1", what: "no document update is pushed from the host and pulled by the phone yet (the step is a placeholder until a documents flow exists)" },
+  { packet: "P-H_19 follow-up (w2q)", lane: "L7", what: "the node boots with --space-kind personal and refuses team-only calls with permission.needs_team, but spaces.matrix still answers kind team with every feature available" },
+  { packet: "L1 sync docs", lane: "L1", what: "sync.doc.update answers 404 'That document is not here': a document is a synced row (sync_rows) and no capability creates one, so there is nothing for the phone to open" },
 ];
 
 export async function runPersonal(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const trail = new Trail();
+  // the host computer reaches the phone through a relay: a relay node on loopback, given to the daemon as --relay (P-L7b_16)
+  const relay = createRelay();
+  const relayUrl = await relay.listen();
   let s = undefined as FlowSpace | undefined;
-  await trail.step("a Space boots with sync live", async () => { s = await bootFlowSpace([...live, "sync"]); });
+  await trail.step("a Space boots with sync live", async () => { s = await bootFlowSpace([...live, "sync"], { spaceKind: "personal", relay: relayUrl }); });
   if (!s) {
-    await trail.step("the same Space boots with sync as a stub, to check what else is wired", async () => { s = await bootFlowSpace(live); });
-    if (!s) return { events: [], trail };
+    await trail.step("the same Space boots with sync as a stub, to check what else is wired", async () => { s = await bootFlowSpace(live, { spaceKind: "personal", relay: relayUrl }); });
+    if (!s) { await relay.close(); return { events: [], trail }; }
   }
   const synced = trail.lines.some((l) => l.startsWith("ok    a Space boots with sync live"));
   try {
@@ -34,8 +37,16 @@ export async function runPersonal(live: readonly string[]): Promise<{ events: Ob
       assert.equal(r.body?.error?.code, "permission.needs_team", `members.invites.create on a Personal Space: ${r.status} ${short(r.body?.error ?? r.body)}`);
     });
     await trail.step("the endpoint list carries the relay", async () => {
-      const e = expectStatus(await space.call("network.endpoints", admin, {}), 200, "network.endpoints").endpoints as { kind: string }[];
-      assert.ok(e.some((x) => x.kind === "relay"), `endpoints ${short(e)}`);
+      // the node dials the relay after it starts; the relay row appears once the control socket is up
+      let e: { kind: string; url: string }[] = [];
+      for (let i = 0; i < 50; i++) {
+        e = expectStatus(await space.call("network.endpoints", admin, {}), 200, "network.endpoints").endpoints as { kind: string; url: string }[];
+        if (e.some((x) => x.kind === "relay")) break;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      const r = e.find((x) => x.kind === "relay");
+      assert.ok(r, `endpoints ${short(e)}`);
+      assert.match(r.url, /#box=[A-Za-z0-9_-]{43}$/, `the relay entry carries the pinned box key: ${r.url}`);
     });
     const phone = await trail.step("the phone pairs with a code from the signed-in device", async () => {
       const made = expectStatus(await space.call("identity.pair_create", admin, { idempotencyKey: "golden-15-pair", purpose: "app" }), 200, "identity.pair_create");
@@ -67,7 +78,7 @@ export async function runPersonal(live: readonly string[]): Promise<{ events: Ob
       assert.equal(r.status, 401, `the phone's token after revoke: ${r.status}`);
     }, ["the phone pairs with a code from the signed-in device"]);
     return { events: await space.events(), trail };
-  } finally { await s?.stop(); }
+  } finally { await s?.stop(); await relay.close(); }
 }
 
 export default async function steps(): Promise<Observed[]> {
