@@ -5,7 +5,7 @@
 // packet's FileList.tsx and Toolbar.tsx sit beside the list/ folder, and the wiring is here.)
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
@@ -21,6 +21,7 @@ import { useFilesState } from "../tree/state.tsx";
 import { ColumnHeader, GridRow, LIST_ROW, RowCells, Tile, WIDE, chunk, gridKey, gridLayout } from "../FileList.tsx";
 import { Toolbar, crumbTrail } from "../Toolbar.tsx";
 import { DragWrap } from "./DragWrap.tsx";
+import { PlainLine } from "./PlainLine.tsx";
 import { QuickLook } from "./QuickLook.tsx";
 
 const DOUBLE_MS = 450;
@@ -182,7 +183,19 @@ function List(): ReactElement {
   const sizeOfLine = (l: Line): string => (l.type === "folder" ? `${l.items} item${l.items === 1 ? "" : "s"}` : sizeText(l.size));
   const kindOfLine = (l: Line): string => `${kindLabel(l.kind)}${l.source ? ` \u00b7 ${l.source}` : ""}`;
 
-  const renderLine = (l: Line): ReactElement => dragged(l, (
+  // on the web a line is one plain element (PlainLine); off it the shared Row draws it
+  const renderLine = (l: Line): ReactElement => Platform.OS === "web" ? (
+    <PlainLine
+      id={`line:${l.key}`} name={l.name} icon={iconOfKind(l.kind)} folder={l.type === "folder"} selected={state.selection.includes(l.key)} hovered={over === l.key} wide={wide}
+      cells={{ when: whenOf(l), by: byOf(l), size: sizeOfLine(l), kind: kindOfLine(l) }}
+      payload={() => dragPayload(state, l.key)}
+      onPress={(m) => { mods.current = m; press(l); }}
+      onMenu={(x, y) => lineMenu(l, x, y)}
+      onOver={() => { setOver(l.key); spring.current?.enter(l.id); }}
+      onLeave={() => { setOver((o) => (o === l.key ? null : o)); spring.current?.leave(l.id); }}
+      onDrop={(payload) => drop(l, payload)}
+    />
+  ) : dragged(l, (
     <View style={styles.lineSlot}>
       <Row
         id={`line:${l.key}`}
