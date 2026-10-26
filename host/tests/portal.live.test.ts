@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { bootCore } from "../../fixtures/seed/core/index.ts";
 import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
@@ -36,7 +37,9 @@ function seededDir(): string {
 interface Sent { mailboxId: string; route: string; to: { address: string }[]; subject: string; text: string }
 
 /** Mail is live, so the service mailbox is a real one (created below through the gateway). Only mail.send and sites.get are replaced: a real send needs a DNS-verified sending domain and a provider key. */
+let lastDir = "";
 function boot(dir: string, sent: Sent[]): Promise<Daemon> {
+  lastDir = dir;
   return startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({
@@ -79,6 +82,14 @@ async function serviceMailbox(d: Daemon): Promise<string> {
 }
 const invite = (d: Daemon, token = OWNER_TOKEN, email = "pat@client.test") => post(d, token, "portal.account_create", { siteId: SITE, email, method: "magic_link" });
 const linkOf = (sent: Sent[]): string => /(https:\/\/space\.example)(\/portal\/[^\s?]+)/.exec(sent.at(-1)?.text ?? "")?.[2] ?? "";
+/** Why a portal email failed: the mailer records code and message in logs.db (the portal module itself only says the email could not be sent). */
+async function whyMail(): Promise<string> {
+  await new Promise((r) => setTimeout(r, 400));
+  try {
+    const db = new DatabaseSync(path.join(lastDir, "logs.db"), { readOnly: true });
+    try { return JSON.stringify(db.prepare("SELECT msg, attrs FROM logs WHERE place = 'portal'").all()); } finally { db.close(); }
+  } catch (e) { return `(no log: ${e instanceof Error ? e.message : "unreadable"})`; }
+}
 const get = async (d: Daemon, p: string) => { const r = await fetch(`${d.url}${p}`); return { status: r.status, headers: r.headers, text: await r.text() }; };
 
 test("portal live: portal is live in host/modules.json and the daemon wires its mailer", async () => {
@@ -97,7 +108,7 @@ test("portal live: an invitation is emailed from the real service mailbox with a
   try {
     const mailbox = await serviceMailbox(d);
     const r = await invite(d);
-    assert.equal(r.status, 200, JSON.stringify(r.data));
+    assert.equal(r.status, 200, `${JSON.stringify(r.data)} ${r.status === 200 ? "" : await whyMail()}`);
     assert.equal(r.data.account.email, "pat@client.test");
     assert.equal(sent.length, 1, "one email went through mail.send");
     assert.equal(sent[0]?.mailboxId, mailbox);
@@ -116,7 +127,7 @@ test("portal live: the invitation link opens a landing page for the invited clie
   try {
     await serviceMailbox(d);
     const made = await invite(d);
-    assert.equal(made.status, 200, JSON.stringify(made.data));
+    assert.equal(made.status, 200, `${JSON.stringify(made.data)} ${made.status === 200 ? "" : await whyMail()}`);
     const link = linkOf(sent);
     const token = link.split("/").at(-1) ?? "";
 

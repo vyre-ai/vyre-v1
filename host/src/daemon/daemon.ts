@@ -455,7 +455,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const hostDrivers: Record<string, SeamDriver> = {
         setPushPort: () => createPushPort(o.seams?.push),
         // portal invitations and sign-in links go out through mail.send from the service mailbox (P-L8_17)
-        configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: d.publicUrl, owner: () => cfg.owner ?? access.owner() ?? null }),
+        configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: d.publicUrl, owner: () => cfg.owner ?? access.owner() ?? null, warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "portal", attrs }) }),
         // the updates module: the compiled-in release key, the GitHub Releases feed and the vyre-server installer (P-L7b_17)
         configureUpdates: () => createUpdatesHost(),
         // A Kit is a resource in the access projection (type "kit") so that the capabilities on it can be authorized. The module cannot create resources, so the host does: one

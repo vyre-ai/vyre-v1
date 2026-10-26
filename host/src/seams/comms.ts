@@ -115,6 +115,8 @@ export interface PortalHostDeps {
   publicUrl?: ((space: string) => Promise<string>) | undefined;
   /** The Space owner: the person the portal email is sent as. The person who asks for a link is an outside client who is not signed in, and the host's service identity sees no mailbox. */
   owner(): string | null;
+  /** Where a failed send is recorded (the portal module only says the email could not be sent): code and message, never the token. */
+  warn?(msg: string, attrs: Record<string, unknown>): void;
 }
 
 const TRACE_ZERO = "0".repeat(32);
@@ -132,21 +134,28 @@ const LEAD: Record<PortalLinkMessage["purpose"], string> = {
  * a message that says what to create, and the portal module removes the account it had just made.
  */
 export function createPortalHost(d: PortalHostDeps): PortalHostSeam {
+  async function send(msg: PortalLinkMessage): Promise<void> {
+    const owner = d.owner();
+    if (owner === null) throw fail("internal.unavailable", TRACE_ZERO, { message: "This Space has no owner to send portal email as." });
+    const seed = { space: d.space, principal: { kind: "person", id: owner }, origin: "portal" } as const;
+    if (!d.publicUrl) throw fail("internal.unavailable", TRACE_ZERO, { message: "This server has no public address yet, so a portal link cannot point at it." });
+    const boxes = await d.invoke("mail.mailbox.list", { kind: "service", scope: "all" }, seed);
+    const first = boxes.status === "ok" ? ((boxes.output as { mailboxes?: Array<{ id?: unknown }> } | null)?.mailboxes ?? [])[0] : undefined;
+    if (typeof first?.id !== "string") throw fail("validation.precondition_failed", TRACE_ZERO, { message: "No service mailbox is set up to send portal emails from. Create one in Console, Comms." });
+    const base = (await d.publicUrl(d.space)).replace(/\/+$/, "");
+    const url = `${base}/portal/${encodeURIComponent(msg.siteId)}/link/${encodeURIComponent(msg.token)}?purpose=${msg.purpose}`;
+    const sent = await d.invoke("mail.send", { mailboxId: first.id, route: "space_domain", to: [{ address: msg.email }], subject: SUBJECT[msg.purpose], text: `${LEAD[msg.purpose]}\n\n${url}\n\nThe link works once and expires.` }, seed);
+    const status = sent.status === "ok" ? (sent.output as { status?: unknown } | null)?.status : "held";
+    if (status !== "queued" && status !== "sent") throw fail("provider.unavailable", TRACE_ZERO, { message: `The portal email was not sent (${typeof status === "string" ? status : "unknown"}).` });
+  }
   return {
     mailer: {
       async sendLink(msg) {
-        const owner = d.owner();
-        if (owner === null) throw fail("internal.unavailable", TRACE_ZERO, { message: "This Space has no owner to send portal email as." });
-        const seed = { space: d.space, principal: { kind: "person", id: owner }, origin: "portal" } as const;
-        if (!d.publicUrl) throw fail("internal.unavailable", TRACE_ZERO, { message: "This server has no public address yet, so a portal link cannot point at it." });
-        const boxes = await d.invoke("mail.mailbox.list", { kind: "service", scope: "all" }, seed);
-        const first = boxes.status === "ok" ? ((boxes.output as { mailboxes?: Array<{ id?: unknown }> } | null)?.mailboxes ?? [])[0] : undefined;
-        if (typeof first?.id !== "string") throw fail("validation.precondition_failed", TRACE_ZERO, { message: "No service mailbox is set up to send portal emails from. Create one in Console, Comms." });
-        const base = (await d.publicUrl(d.space)).replace(/\/+$/, "");
-        const url = `${base}/portal/${encodeURIComponent(msg.siteId)}/link/${encodeURIComponent(msg.token)}?purpose=${msg.purpose}`;
-        const sent = await d.invoke("mail.send", { mailboxId: first.id, route: "space_domain", to: [{ address: msg.email }], subject: SUBJECT[msg.purpose], text: `${LEAD[msg.purpose]}\n\n${url}\n\nThe link works once and expires.` }, seed);
-        const status = sent.status === "ok" ? (sent.output as { status?: unknown } | null)?.status : "held";
-        if (status !== "queued" && status !== "sent") throw fail("provider.unavailable", TRACE_ZERO, { message: `The portal email was not sent (${typeof status === "string" ? status : "unknown"}).` });
+        try { await send(msg); } catch (e) {
+          const code = (e as { error?: { code?: unknown } } | null)?.error?.code;
+          d.warn?.("portal.mail_failed", { purpose: msg.purpose, code: typeof code === "string" ? code : "unknown", message: e instanceof Error ? e.message.slice(0, 300) : "failed" });
+          throw e;
+        }
       },
     },
   };
