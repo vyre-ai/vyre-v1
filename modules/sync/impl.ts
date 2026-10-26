@@ -170,7 +170,7 @@ export const handlers = {
   "sync.epoch.bump": async (ctx: SessionCtx, input: BumpInput) => {
     const res = await createPurgeHandlers(purgeDepsOf(live(), hub))["sync.epoch.bump"](toPurgeCtx(ctx), input);
     // the Space log carries the announcement (the sync store keeps its own copy): the person, the epoch and why, never a row
-    ctx.emit?.("sync.epoch_bumped", `entity/${input.personId}`, { personId: input.personId, epoch: res.epoch, reason: input.reason, ...(input.deviceId !== undefined ? { deviceId: input.deviceId } : {}) });
+    ctx.emit?.("sync.epoch_bumped", `entity/${input.personId}`, { personId: input.personId, epoch: res.epoch, reason: input.reason, ...(input.deviceId !== undefined ? { deviceId: input.deviceId } : {}) }, { vis: "owner" });
     return res;
   },
   "sync.acl.reindex": (ctx: SessionCtx, input: ReindexInput) => createPurgeHandlers(purgeDepsOf(live(), hub))["sync.acl.reindex"](toPurgeCtx(ctx), input),
