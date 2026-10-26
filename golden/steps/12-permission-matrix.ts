@@ -43,10 +43,13 @@ export async function runMatrix(live: readonly string[]): Promise<{ events: Obse
       assert.equal(r.status, 403, `access.view_as as a temp: ${r.status} ${short(r.body?.error ?? r.body)}`);
     });
     await trail.step("the General channel is not visible to Tess", async () => { assert.equal(await allowed("before"), false); });
+    const folder = await trail.step("a Clients folder is made", async () =>
+      expectStatus(await s.call("folders.create", admin, { idempotencyKey: "golden-12-folder", type: "channel", name: "Clients", scope: "space" }), 200, "folders.create").folder.id as string);
     const grant = await trail.step("the Clients folder is shared with Tess", async () =>
-      expectStatus(await s.call("access.share", admin, { idempotencyKey: "golden-12-share", resource: { type: "folder", id: "fld_clients" }, subject: TESS, level: "view" }), 200, "access.share").grant.id as string);
+      expectStatus(await s.call("access.share", admin, { idempotencyKey: "golden-12-share", resource: { type: "folder", id: folder! }, subject: TESS, level: "view" }), 200, "access.share").grant.id as string,
+    ["a Clients folder is made"]);
     await trail.step("an item placed in the shared folder is visible to Tess", async () => {
-      expectStatus(await s.call("folders.place", admin, { resource: CHANNEL, folderId: "fld_clients" }), 200, "folders.place");
+      expectStatus(await s.call("folders.place", admin, { resource: CHANNEL, folderId: folder! }), 200, "folders.place");
       assert.equal(await allowed("placed"), true);
     }, ["the Clients folder is shared with Tess"]);
     await trail.step("moved out of the shared folder it is hidden again", async () => {
