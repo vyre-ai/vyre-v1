@@ -12,6 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { median } from "./open.mjs";
+import { traceEnabled, startMountTrace, finishMountTrace } from "./mount-trace.mjs";
 
 export const DEFAULT_RUNS = 6;
 export const MIN_RUNS = 3;
@@ -97,10 +98,13 @@ export async function readMount(browser, { url, selector, viewport, scheme, thro
   try {
     const page = await ctx.newPage();
     if (throttle > 1) { const cdp = await ctx.newCDPSession(page); await cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle }); }
+    if (traceEnabled()) await startMountTrace(browser, page);
     await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
     await page.waitForSelector(selector, { timeout: timeoutMs });
     await page.waitForFunction((ks) => { const p = window.__probes; return !!p && (p.ready === true || ks.every((k) => typeof p[k] === "number")); }, kinds, { timeout: timeoutMs });
-    return await page.evaluate(() => ({ ...window.__probes }));
+    const got = await page.evaluate(() => ({ ...window.__probes }));
+    if (traceEnabled()) await finishMountTrace(browser, url);
+    return got;
   } catch { return null; } finally { await ctx.close(); }
 }
 
