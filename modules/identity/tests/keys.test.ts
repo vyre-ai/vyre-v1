@@ -184,7 +184,7 @@ test("a recovery code is burned after five wrong tries, whoever made them: the r
   await assert.rejects(handlers["identity.recovery_restore"](h.anon, { username: P.username, recoveryProof: sha(wrap), newPassword: NEW_PASSWORD, keys: fresh, ...DEVICE }), (e) => codeOf(e) === "auth.invalid_code", "the right proof no longer works");
 });
 
-test("recovery_restore emits only the events its manifest declares, on a wrong proof and on success", async () => {
+test("recovery_restore emits only the events its manifest declares, and a wrong proof is a signin.failed", async () => {
   const h = await world();
   const { ctx } = await signedIn(h);
   const wrap = "cmVjb3ZlcnktY2lwaGVydGV4dA==";
@@ -194,6 +194,7 @@ test("recovery_restore emits only the events its manifest declares, on a wrong p
   const before = h.events.length;
   await assert.rejects(handlers["identity.recovery_restore"](h.anon, { username: P.username, recoveryProof: "wrong", newPassword: NEW_PASSWORD, keys: fresh, ...DEVICE }), (e) => codeOf(e) === "auth.invalid_code");
   assert.deepEqual(h.events.slice(before).filter((e) => !declared.has(e.name)).map((e) => e.name), [], "a failed restore emits nothing undeclared");
+  assert.deepEqual(h.events.slice(before).filter((e) => e.name === "signin.failed").map((e) => e.payload), [{ username: P.username, reason: "bad_code" }], "a failed restore stays visible to the audit log");
   await handlers["identity.recovery_restore"](h.anon, { username: P.username, recoveryProof: sha(wrap), newPassword: NEW_PASSWORD, keys: fresh, ...DEVICE });
   assert.deepEqual(h.events.slice(before).filter((e) => !declared.has(e.name)).map((e) => e.name), [], "a restore emits nothing undeclared");
 });

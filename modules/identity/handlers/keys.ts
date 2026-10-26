@@ -68,11 +68,11 @@ export async function recoveryRestore(ctx: IdentityCtx, input: Device & { userna
   const a = accountByName(ctx, name);
   if (!a || !a.recovery_hash || lockedFor(a, ctx.now()) > 0) {
     await burnVerify(input.newPassword);
-    noteFail(ctx, a, name, a && lockedFor(a, ctx.now()) > 0 ? "locked" : "bad_code", false);
+    noteFail(ctx, a, name, a && lockedFor(a, ctx.now()) > 0 ? "locked" : "bad_code");
     raise(ctx.trace.traceId, "auth.invalid_code");
   }
   if (input.recoveryProof !== a.recovery_hash) {
-    noteFail(ctx, a, name, "bad_code", false);
+    noteFail(ctx, a, name, "bad_code");
     // the recovery code is burned after LOCK_AFTER wrong tries, whoever made them: it guards the person's keys, and a new one is saved from a signed-in device
     if (a.fails + 1 >= LOCK_AFTER) ctx.db.run(`UPDATE identity_accounts SET recovery_hash = NULL WHERE person_id = ?`, a.person_id);
     raise(ctx.trace.traceId, "auth.invalid_code");

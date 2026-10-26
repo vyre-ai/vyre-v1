@@ -209,14 +209,13 @@ export function setKeys(ctx: IdentityCtx, personId: string, keys: KeyBundle, rea
 
 // ---- failures and lockout
 export function lockedFor(a: Account, now: number): number { return a.locked_until > now ? Math.ceil((a.locked_until - now) / 1000) : 0; }
-export function noteFail(ctx: IdentityCtx, a: Account | undefined, username: string, reason: "bad_credentials" | "bad_code" | "locked" | "sso_denied", announce = true): void {
+export function noteFail(ctx: IdentityCtx, a: Account | undefined, username: string, reason: "bad_credentials" | "bad_code" | "locked" | "sso_denied"): void {
   if (a && reason !== "locked") {
     const fails = a.fails + 1;
     const until = fails >= LOCK_AFTER ? ctx.now() + Math.min(15 * 60_000, 15_000 * 2 ** (fails - LOCK_AFTER)) : a.locked_until;
     ctx.db.run(`UPDATE identity_accounts SET fails = ?, locked_until = ? WHERE person_id = ?`, fails, until, a.person_id);
   }
-  // identity.recovery_restore declares no signin.failed (its failures still count toward the lockout), so it passes announce = false
-  if (announce) ctx.emit("signin.failed", username, { username, reason });
+  ctx.emit("signin.failed", username, { username, reason });
 }
 export function clearFails(ctx: IdentityCtx, a: Account): void {
   if (a.fails > 0 || a.locked_until > 0) ctx.db.run(`UPDATE identity_accounts SET fails = 0, locked_until = 0 WHERE person_id = ?`, a.person_id);
