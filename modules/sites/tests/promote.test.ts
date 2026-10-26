@@ -13,7 +13,7 @@ import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { hexOf } from "../handlers/deploy.ts";
 import { githubRepo, productionHost } from "../handlers/promote.ts";
-import { handlers } from "../impl.ts";
+import { handlers } from "../handlers/index.ts";
 import { SPACE_DOMAIN } from "../fixtures/fakes.ts";
 import { MemoryDb, readMigration } from "../fixtures/db.ts";
 import { harness } from "../fixtures/world.ts";
