@@ -44,11 +44,10 @@ export const northwind: SampleSpace = {
     f("fil_notes", "Notes 2025-10-24.md", "fld_daily", "markdown", 2_400, 0.5 * HOUR, "usr_irfad"),
     f("fil_budget", "Budget 2026.xlsx", "fld_money", "spreadsheet", 48_000, 5 * HOUR, "usr_irfad"),
     f("fil_q3", "Q3 report.pdf", "fld_maya", "pdf", 1_240_000, 26 * HOUR, "usr_maya", { shared: true }),
-    f("fil_deck", "Pitch deck v4.pptx", "fld_sales", "presentation", 8_900_000, 2 * HOUR, "usr_omar", { starred: true }),
+    f("fil_deck", "Pitch deck v4.pptx", "fld_sales", "presentation", 8_900_000, 2 * HOUR, "usr_omar"),
     f("fil_pricing", "Pricing sheet.xlsx", "fld_sales", "spreadsheet", 62_000, 30 * HOUR, "usr_omar"),
-    // two edits of a picture wait for a choice (the prototype's site photo): the Conflict tag
-    f("fil_logo", "logo-northwind.png", "fld_sales", "image", 210_000, 9 * DAY, "usr_maya", { conflict: true }),
-    f("fil_rivera", "Rivera engagement letter.docx", "fld_proposals", "document", 31_000, 3 * HOUR, "agt_docs", { starred: true }),
+    f("fil_logo", "logo-northwind.png", "fld_sales", "image", 210_000, 9 * DAY, "usr_maya"),
+    f("fil_rivera", "Rivera engagement letter.docx", "fld_proposals", "document", 31_000, 3 * HOUR, "agt_docs"),
     f("fil_harlow", "Harlow & Price worksheet.xlsx", "fld_proposals", "spreadsheet", 77_000, 2 * DAY, "usr_irfad", { source: "Google Drive" }),
     f("fil_inv", "Invoice 1042.pdf", "fld_billing", "pdf", 58_000, 6 * HOUR, "agt_billing"),
     f("fil_inv2", "Invoice 1041.pdf", "fld_billing", "pdf", 61_000, 30 * HOUR, "agt_billing"),
@@ -88,6 +87,9 @@ const SUBJECT_FOLDERS: FolderSeed[] = [
   F("fld_pj_rivera_docs", "Contracts", "fld_pj_rivera", "space"),
   F("fld_pj_launch", "Northwind launch", null, "space", { subject: { kind: "project", id: "pj_launch" } }),
 ];
+/** What the person starred, and the picture with two edits (the prototype's site photo), in the rich sample (`subjects: true`). */
+const STARRED = new Set(["fil_deck", "fil_rivera"]);
+const CONFLICT = new Set(["fil_logo"]);
 const SUBJECT_FILES: FileSeed[] = [
   f("fil_ag_notes", "Engagement letter notes.md", "fld_ag_docs", "markdown", 2_900, 4 * HOUR, "agt_docs"),
   f("fil_ag_comp", "Competitor pricing.md", "fld_ag_research", "markdown", 5_200, 28 * HOUR, "agt_docs"),
@@ -122,7 +124,8 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
   const folderSeeds = o.subjects === true && space === northwind ? [...space.folders, ...SUBJECT_FOLDERS] : space.folders;
   replica.put("folders", folderSeeds.map((x): FolderSeedRow => ({ ...x, id: x.id })));
   replica.put("changesets", (space.changesets ?? []).map((c) => ({ id: c.id, changesetId: c.id, folderId: c.folder, state: "open", by: c.by, fileCount: c.files, added: c.files * 12, removed: 0, openedAt: SAMPLE_NOW - HOUR, pushPending: false }) as Row));
-  const files: Row[] = (o.subjects === true && space === northwind ? [...space.files, ...SUBJECT_FILES] : space.files).map((x) => fileRow(x));
+  const rich = o.subjects === true && space === northwind;
+  const files: Row[] = (rich ? [...space.files, ...SUBJECT_FILES] : space.files).map((x) => fileRow(rich ? { ...x, ...(STARRED.has(x.id) ? { starred: true } : {}), ...(CONFLICT.has(x.id) ? { conflict: true } : {}) } : x));
   if (o.bulk) {
     const target = space.folders.find((x) => x.section === "space")?.id ?? space.folders[0]!.id;
     for (let i = 0; i < o.bulk; i++) files.push(fileRow({ id: `bulk${i}`, name: `Scan ${String(i).padStart(5, "0")}.pdf`, folder: target, kind: i % 4 === 0 ? "image" : "pdf", size: 10_000 + (i * 37) % 900_000, ago: HOUR + i * 60_000, by: "usr_irfad" }));

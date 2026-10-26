@@ -114,7 +114,7 @@ const pos = (s: string, needle: string): number => s.indexOf(needle);
 const subjects = (): SampleFiles => createSampleFiles(undefined, { subjects: true });
 
 test("the sidebar has Starred between Recent and Shared with me, counted from the stars", () => {
-  const out = tree(createSampleFiles());
+  const out = tree(subjects());
   assert.ok(has(out, 'data-testid="row-nav:starred"') && has(out, 'data-testid="row-nav:starred-trailing"'), "a ui/Row with slots");
   assert.equal(textOf(out, "count-starred"), "2", "Pitch deck and the Rivera letter are starred");
   const order = [">Recent<", ">Starred<", ">Shared with me<"].map((t) => pos(out, t));
@@ -123,7 +123,7 @@ test("the sidebar has Starred between Recent and Shared with me, counted from th
 });
 
 test("Starred is a place: the list shows the starred files, with the star after the name", () => {
-  const s = createSampleFiles();
+  const s = subjects();
   assert.deepEqual(sourceOf({ kind: "starred" }).cap, "files.recent");
   assert.equal(emptyText({ kind: "starred" }), "Nothing starred yet.");
   assert.ok(has(tree(s, { where: { kind: "starred" } }), "background-color:var(--sel)"), "the Starred row is the selected one");
@@ -135,7 +135,7 @@ test("Starred is a place: the list shows the starred files, with the star after 
 });
 
 test("starring a file goes through files.star and changes the Starred count", async () => {
-  const s = createSampleFiles();
+  const s = subjects();
   await s.data.call("files.star", { fileId: "fil_pricing", starred: true });
   assert.deepEqual(s.calls.filter((c) => c.cap === "files.star"), [{ cap: "files.star", input: { fileId: "fil_pricing", starred: true } }]);
   assert.equal(textOf(tree(s), "count-starred"), "3");
@@ -164,9 +164,9 @@ test("the selected agent or project folder is the selected row", () => {
   assert.ok(has(list(subjects(), folder("fld_ag_docs")), "Engagement letter notes.md"), "its files");
 });
 
-test("without agents or projects the sidebar has no empty groups", () => {
+test("without agents or projects the sidebar has no empty groups, and nothing starred shows no count", () => {
   const out = tree(createSampleFiles());
-  assert.ok(!has(out, 'data-testid="files-agents"') && !has(out, 'data-testid="files-projects"'));
+  assert.ok(!has(out, 'data-testid="files-agents"') && !has(out, 'data-testid="files-projects"') && !has(out, 'data-testid="count-starred"'));
 });
 
 test("subjectGroups reads the roots: agents and projects by title, folders only; subtreeIds follows the children", () => {
@@ -187,7 +187,7 @@ test("subjectGroups reads the roots: agents and projects by title, folders only;
 const stub = (o: Partial<FileRow>): FileRow => ({ fileId: "fil_x", folderId: "fld_x", name: "x.png", kind: "image", mime: "", size: 1, version: 1, label: 1, ownerId: "u", createdAt: 0, updatedAt: 0, updatedBy: "u", thumb: false, holds: 0, ...o });
 
 test("a file with two edits carries the Conflict tag, a button that opens the choice", () => {
-  const s = createSampleFiles();
+  const s = subjects();
   const out = list(s, folder("fld_sales"));
   assert.ok(has(out, 'data-testid="conflict-tag"') && has(out, ">Conflict<") && has(out, 'aria-label="Conflict. Two edits. Click to resolve."'));
   assert.equal(out.split('data-testid="conflict-tag"').length - 1, 1, "only the picture with two edits");
