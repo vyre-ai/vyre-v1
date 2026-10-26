@@ -7626,7 +7626,9 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "space"
+      "type": "folder",
+      "create": true,
+      "parent": "/name"
     },
     "idempotency": "key",
     "risk": "medium",

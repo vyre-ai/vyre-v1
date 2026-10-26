@@ -58890,7 +58890,9 @@
       },
       "permission": null,
       "resource": {
-        "type": "space"
+        "create": true,
+        "parent": "/name",
+        "type": "folder"
       },
       "risk": "medium",
       "since": "1.0.0",

@@ -2,7 +2,7 @@
   "module": "email-builder-api",
   "capabilities": {
     "email_builder.ask_diff@1": "7704797a8075916abe0ec22f669f85295ea0f8c10c7f93514c5d6fc4c8fee0a6",
-    "email_builder.create@1": "d0f2051c740ff79109ef203891e36fce75f5681ad607cbae3e7f830e9fb3107a",
+    "email_builder.create@1": "40cf8e6de06008530fd8dfa5982bea250360e6420c05a0f172345c8bca386d89",
     "email_builder.get@1": "baed0130e5ca45bff530675049739b11a4da3c749665d64adec0e9a71c8d84a8",
     "email_builder.html_set@1": "d7f779031405e314974bde4cf1dbd5519f76b62f17c849df954f4c27e644f864",
     "email_builder.list@1": "d058071b86d1e18aa45775f9555986d2ce4437d88850b3fc5a6f1259f3114aa0",
