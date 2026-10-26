@@ -1,0 +1,28 @@
+name: run-shard
+description: One shard of the test plan (scripts/ci-select.ts --matrix), run the same way by check.yml, main.yml and release.yml, so the three cannot drift. The caller has checked out the repository.
+inputs:
+  files:
+    description: Space-separated test files of this matrix entry
+    required: true
+  slow:
+    description: "true for a slow, heavy or perf entry (scripts/test-run.ts --slow), false for a fast shard"
+    required: true
+  runner:
+    description: The matrix entry's runner (hosted, v1 or v1-perf)
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Exclusive disk for a perf job (waits for the Docker-heavy jobs on this host)
+      if: inputs.runner == 'v1-perf'
+      shell: bash
+      run: bash scripts/ci-iolock.sh exclusive
+    - uses: ./.github/actions/deps
+    - name: Run the shard (30 s file cap, pass cache by import hash)
+      shell: bash
+      env:
+        FILES: ${{ inputs.files }}
+        SLOW: ${{ inputs.slow }}
+        VYRE_PERF_RUN: ${{ inputs.runner == 'v1-perf' && '1' || '' }}   # perf files run only on the pinned perf host (test-run skips them elsewhere)
+      run: |
+        if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else NC=""; [ "$RUNNER_ENVIRONMENT" = "github-hosted" ] && NC="--no-cache"; node scripts/test-run.mjs --files $FILES $NC; fi   # a hosted VM never reads a shared pass cache

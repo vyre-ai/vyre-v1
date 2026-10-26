@@ -58,7 +58,7 @@ test("check, golden and budget are real jobs in check.yml, budget runs if always
   assert.match(b.text, /^ {4}if: always\(\)/m);
   assert.match(b.text, /ci-budget\.ts --kind push/);
   assert.match(c.text, /ci-select\.ts/);
-  assert.match(c.text, /test-run\.(ts|mjs)/);
+  assert.match(c.text, /run-shard/);
 });
 
 test("budget jobs run if always() at 5, 10 and 25 minutes", () => {
@@ -94,8 +94,12 @@ test("no npm install, docker pull or curl outside prewarm", () => {
   assert.match(wf("nightly").text, /prewarm:/);
 });
 
-test("fast shards use the 20 s cap runners: test-run.mjs for cached fast files, test-run.ts for the slow list", () => {
-  for (const n of ["check", "main", "release"]) { const t = wf(n).text; assert.match(t, /test-run\.mjs --files/); assert.match(t, /test-run\.ts --slow --files/); assert.match(t, /ci-select\.ts/); }
+test("check, main and release run their shards through the one run-shard action: test-run.mjs for fast files, test-run.ts for the slow list, so the three cannot drift", () => {
+  const action = fs.readFileSync(path.join(dir, "../actions/run-shard/action.yml"), "utf8");
+  assert.match(action, /test-run\.mjs --files/);
+  assert.match(action, /test-run\.ts --slow --files/);
+  for (const n of ["check", "main", "release"]) { const t = wf(n).text; assert.match(t, /uses: \.\/\.github\/actions\/run-shard/); assert.match(t, /ci-select\.ts/); }
+  assert.doesNotMatch(wf("release").text, /--max \d/, "release uses the same shard plan as check: no --max");
 });
 
 // P-L11_23: security.yml runs the gates for real, and each scan fails on a seeded bad input.

@@ -59,17 +59,11 @@ jobs:
       matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v5
-      - name: Exclusive disk for a perf job (waits for the Docker-heavy jobs on this host)
-        if: matrix.runner == 'v1-perf'
-        run: bash scripts/ci-iolock.sh exclusive
-      - uses: ./.github/actions/deps
-      - name: Run the shard (20 s file cap, pass cache by import hash)
-        env:
-          FILES: ${{ matrix.files }}
-          SLOW: ${{ matrix.slow }}
-          VYRE_PERF_RUN: ${{ matrix.runner == 'v1-perf' && '1' || '' }}   # perf files run only on the pinned perf host (test-run skips them elsewhere)
-        run: |
-          if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else NC=""; [ "$RUNNER_ENVIRONMENT" = "github-hosted" ] && NC="--no-cache"; node scripts/test-run.mjs --files $FILES $NC; fi  # a hosted VM never reads a shared pass cache
+      - uses: ./.github/actions/run-shard
+        with:
+          files: ${{ matrix.files }}
+          slow: ${{ matrix.slow }}
+          runner: ${{ matrix.runner }}
   golden-main:
     needs: select
     if: needs.select.outputs.full == 'true'
