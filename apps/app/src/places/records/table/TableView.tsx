@@ -162,7 +162,7 @@ const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): 
     },
     createElement("div", { className: "vrt-g" }, String(n)),
     createElement("div", { style: { width: primary.width, height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, boxSizing: "border-box", padding: "0 10px", overflow: "hidden", flex: "none" } },
-      row ? createElement("span", { className: "vrt-p", style: { ...CELL_TEXT, fontWeight: 500 } }, dot(title, title), title) : createElement("div", { style: GHOST }),
+      row ? createElement("span", { className: "vrt-p", style: { ...CELL_TEXT, fontWeight: 500 } }, dot(row.id, title), title) : createElement("div", { style: GHOST }),
       row && (hot || selected) ? <Pressable accessibilityRole="button" accessibilityLabel="Open record" testID={`open-${row.id}`} onPress={() => onOpen(row.id)} style={styles.xopen}><Glyph name="expand" size={13} color="var(--ink-2)" /></Pressable> : null,
     ),
   );
@@ -214,8 +214,12 @@ const dots = new Map<string, Record<string, string | number>>();
 interface FaceRule { selectorText: string }
 interface FaceSheet { cssRules: { length: number; [i: number]: FaceRule }; insertRule(rule: string, index: number): number; deleteRule(index: number): void }
 interface FaceDoc { createElement(tag: string): { sheet: FaceSheet | null }; head: { appendChild(node: unknown): unknown } }
+/** The faces that have a CSS rule now, oldest use first: a Map keeps insertion order, and a face drawn again moves to the end. */
 const faceClasses = new Map<string, true>();
+/** Rules kept at once. The table is virtual, so about forty rows (two or three faces each) are on screen; a face unused for this many newer ones is long off screen. */
 const MAX_FACE_RULES = 400;
+/** A full cache drops this many of the oldest at once, so the cost of looking for them is spread over many new faces. */
+const EVICT_FACES = 40;
 function findRule(sheet: FaceSheet, cls: string): number {
   for (let i = 0; i < sheet.cssRules.length; i++) if (sheet.cssRules[i]!.selectorText === `.${cls}`) return i;
   return -1;
@@ -223,31 +227,43 @@ function findRule(sheet: FaceSheet, cls: string): number {
 let faceSheet: FaceSheet | null = null;
 const faceDoc = (): FaceDoc | undefined => (globalThis as { document?: FaceDoc }).document;
 /**
- * A person's face in a cell, seeded by the person's id (the record's own title for the Name cell, which has no person id), not the display name when there is an id, so two people with one name have two faces and a rename keeps a face: the real marble (the blurred svg the Avatar draws), rendered once per person into the shared face cache and then painted as a plain background image. Until its
- * bitmap is ready the disc wears the CSS marble gradient. The look sits in one CSS rule per person, so when a bitmap lands every cell with that face changes at once and no row re-renders.
- * A page with no document (server render, tests) gets the same disc as an inline style.
+ * A person's face in a cell, seeded by the id (the person's, or the record's own for the Name cell), never the display name, so two people with one name have two faces and a rename keeps a face.
+ * It is the real marble, drawn once into the shared face cache and then painted as a plain background image; until the bitmap is ready the disc wears the CSS marble gradient. The look is one CSS
+ * rule per face, made when its row is first drawn (the table is virtual, so never for rows off screen), and the rules are an LRU of MAX_FACE_RULES, so a table of 100,000 records holds a few hundred.
+ * When a bitmap lands every cell with that face changes at once and no row re-renders. A page with no document (server render, tests) gets the same disc as an inline style.
  */
 function dot(seed: string, label: string): ReactElement {
-  const look = { width: 18, height: 18, flex: "none", borderRadius: 9 } as const;
   const doc = faceDoc();
-  // a long table has a record face per title: past MAX_FACE_RULES distinct faces a new one wears the inline gradient and gets no rule or bitmap of its own
-  if (doc === undefined || (faceClasses.size >= MAX_FACE_RULES && !faceClasses.has(faceClassOf(seed)))) {
+  if (doc === undefined) {
     let st = dots.get(seed);
-    if (!st) { st = { ...look, backgroundColor: marbleSpec(seed).base, backgroundImage: marbleGradient(seed) }; dots.set(seed, st); }
+    if (!st) { st = { width: 18, height: 18, flex: "none", borderRadius: 9, backgroundColor: marbleSpec(seed).base, backgroundImage: marbleGradient(seed) }; dots.set(seed, st); }
     return createElement("span", { "aria-hidden": true, "data-testid": `face-${label}`, style: st });
   }
   const cls = faceClassOf(seed);
-  if (!faceClasses.has(cls)) {
+  if (faceClasses.has(cls)) {
+    faceClasses.delete(cls);
+    faceClasses.set(cls, true);
+  } else {
     if (faceSheet === null) { const el = doc.createElement("style"); doc.head.appendChild(el); faceSheet = el.sheet; }
     if (faceSheet !== null) {
       const sheet = faceSheet;
+      if (faceClasses.size >= MAX_FACE_RULES) {
+        let n = 0;
+        for (const old of faceClasses.keys()) {
+          if (n++ >= EVICT_FACES) break;
+          const at = findRule(sheet, old);
+          if (at >= 0) sheet.deleteRule(at);
+          faceClasses.delete(old);
+        }
+      }
       sheet.insertRule(faceRule(seed), sheet.cssRules.length);
       faceClasses.set(cls, true);
       const key = faceKey(seed, "person", 18, currentSkin());
       requestFace(key, wrapSvg(marbleInner(seed), "0 0 80 80", 18), 18, () => {
-        // the bitmap replaces the rule: same class, the look with the real marble
+        // the bitmap replaces the rule: same class, the look with the real marble (a face dropped meanwhile is left alone)
         const at = findRule(sheet, cls);
-        if (at >= 0 && safeBitmapUrl(cachedFace(key)) !== null) { sheet.deleteRule(at); sheet.insertRule(faceRule(seed, cachedFace(key)), at); }
+        const url = cachedFace(key);
+        if (at >= 0 && safeBitmapUrl(url) !== null) { sheet.deleteRule(at); sheet.insertRule(faceRule(seed, url), at); }
       });
     }
   }

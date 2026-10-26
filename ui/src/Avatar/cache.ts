@@ -3,6 +3,8 @@
 // Browser only: where there is no document (server render, tests) nothing is cached and the caller draws the inline svg, so markup tests are unchanged.
 
 const bitmaps = new Map<string, string>();
+/** Bitmaps kept at once: a 100,000 row table asks for a face per record, so the oldest go when this many are held (an evicted face is drawn again if it comes back). */
+const MAX_BITMAPS = 1500;
 const waiting = new Map<string, Set<() => void>>();
 
 export function faceKey(seed: string, kind: string, size: number, skin: string): string {
@@ -44,7 +46,10 @@ export function requestFace(key: string, svg: string, size: number, done: () => 
     const ctx = canvas.getContext("2d");
     if (ctx !== null) {
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      try { bitmaps.set(key, canvas.toDataURL("image/png")); } catch { /* a tainted canvas keeps the inline face */ }
+      try {
+        bitmaps.set(key, canvas.toDataURL("image/png"));
+        if (bitmaps.size > MAX_BITMAPS) { const first = bitmaps.keys().next(); if (first.done !== true) bitmaps.delete(first.value); }
+      } catch { /* a tainted canvas keeps the inline face */ }
     }
     const who = waiting.get(key);
     waiting.delete(key);
