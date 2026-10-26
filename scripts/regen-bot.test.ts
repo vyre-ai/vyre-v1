@@ -55,7 +55,7 @@ test("regen bot: a test-only push on top of a stale generated/ is regenerated, w
   const out = r.run({ BEFORE: r.head(r.bot) });
   assert.equal(out.status, 0, out.stdout + out.stderr);
   assert.match(out.stdout, /committed generated files/);
-  assert.equal(sh(r.origin, "git show build/x:generated/m.txt").stdout, "TWO");
+  assert.equal(sh(r.origin, "git show build/x:generated/m.txt").stdout.trim(), "TWO");
   assert.match(fs.readFileSync(path.join(r.dir, "gh.log"), "utf8"), /workflow run check\.yml --ref build\/x/);
 });
 
@@ -69,7 +69,7 @@ test("regen bot: a push that raced it is not lost: the bot regenerates on the ne
   const log = sh(r.origin, "git log --format=%s build/x").stdout;
   assert.match(log, /worker race/, "the worker's commit survives");
   assert.match(log, /chore\(gen\): regenerate/, "the bot's commit lands on top of it");
-  assert.equal(sh(r.origin, "git show build/x:generated/m.txt").stdout, "TWO");
+  assert.equal(sh(r.origin, "git show build/x:generated/m.txt").stdout.trim(), "TWO");
 });
 
 test("regen bot: nothing stale and no contract path changed means nothing to push and nothing to rerun", () => {
