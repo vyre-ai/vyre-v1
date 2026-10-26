@@ -23,6 +23,7 @@ type Payload = {
   sourceKey: string;
   projectId?: string;
   scope: "personal" | "team";
+  spaceId: string;
   messages: number;
 };
 ```

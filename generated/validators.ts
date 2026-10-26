@@ -55883,8 +55883,12 @@ const b3560: string[] = []; lf(x3560, p, b3560, L0); if (b3560.length) e.push(..
 if (g3560 === "object") {
 if (g3560 === 'object') { const o3560 = x3560 as Record<string, unknown>;
 if (!("conversationId" in o3560)) e.push(p + "/conversationId" + ': required');
+if (!("destinationSpaceId" in o3560)) e.push(p + "/destinationSpaceId" + ': required');
+if (!("destinationScope" in o3560)) e.push(p + "/destinationScope" + ': required');
 if (!("agentId" in o3560)) e.push(p + "/agentId" + ': required');
 if ("conversationId" in o3560) lf(o3560["conversationId"], p + "/conversationId", e, L551);
+if ("destinationSpaceId" in o3560) lf(o3560["destinationSpaceId"], p + "/destinationSpaceId", e, L250);
+if ("destinationScope" in o3560) lf(o3560["destinationScope"], p + "/destinationScope", e, L251);
 if ("agentId" in o3560) lf(o3560["agentId"], p + "/agentId", e, L12);
 if ("first" in o3560) lf(o3560["first"], p + "/first", e, L2);
 }
@@ -55946,6 +55950,7 @@ if (g3564 === "object") {
 if (g3564 === 'object') { const o3564 = x3564 as Record<string, unknown>;
 if (!("kind" in o3564)) e.push(p + "/destination" + "/kind" + ': required');
 if ("kind" in o3564) lf(o3564["kind"], p + "/destination" + "/kind", e, L251);
+if ("spaceId" in o3564) lf(o3564["spaceId"], p + "/destination" + "/spaceId", e, L250);
 if ("confirmedAt" in o3564) lf(o3564["confirmedAt"], p + "/destination" + "/confirmedAt", e, L17);
 }
 }
@@ -56069,9 +56074,11 @@ if (g3573 === "object") {
 if (g3573 === 'object') { const o3573 = x3573 as Record<string, unknown>;
 if (!("kind" in o3573)) e.push(p + "/sessions" + '/' + i3571 + "/destination" + "/kind" + ': required');
 if (!("scope" in o3573)) e.push(p + "/sessions" + '/' + i3571 + "/destination" + "/scope" + ': required');
+if (!("spaceId" in o3573)) e.push(p + "/sessions" + '/' + i3571 + "/destination" + "/spaceId" + ': required');
 if ("kind" in o3573) lf(o3573["kind"], p + "/sessions" + '/' + i3571 + "/destination" + "/kind", e, L554);
 if ("projectId" in o3573) lf(o3573["projectId"], p + "/sessions" + '/' + i3571 + "/destination" + "/projectId", e, L143);
 if ("scope" in o3573) lf(o3573["scope"], p + "/sessions" + '/' + i3571 + "/destination" + "/scope", e, L251);
+if ("spaceId" in o3573) lf(o3573["spaceId"], p + "/sessions" + '/' + i3571 + "/destination" + "/spaceId", e, L250);
 }
 }
 }
@@ -73980,12 +73987,14 @@ if (!("conversationId" in o4698)) e.push(p + "/conversationId" + ': required');
 if (!("provider" in o4698)) e.push(p + "/provider" + ': required');
 if (!("sourceKey" in o4698)) e.push(p + "/sourceKey" + ': required');
 if (!("scope" in o4698)) e.push(p + "/scope" + ': required');
+if (!("spaceId" in o4698)) e.push(p + "/spaceId" + ': required');
 if (!("messages" in o4698)) e.push(p + "/messages" + ': required');
 if ("conversationId" in o4698) lf(o4698["conversationId"], p + "/conversationId", e, L551);
 if ("provider" in o4698) lf(o4698["provider"], p + "/provider", e, L552);
 if ("sourceKey" in o4698) lf(o4698["sourceKey"], p + "/sourceKey", e, L2);
 if ("projectId" in o4698) lf(o4698["projectId"], p + "/projectId", e, L143);
 if ("scope" in o4698) lf(o4698["scope"], p + "/scope", e, L251);
+if ("spaceId" in o4698) lf(o4698["spaceId"], p + "/spaceId", e, L250);
 if ("messages" in o4698) lf(o4698["messages"], p + "/messages", e, L13);
 }
 }

@@ -38705,12 +38705,28 @@
             "pattern": "^isc_[a-z0-9]+$",
             "type": "string"
           },
+          "destinationScope": {
+            "enum": [
+              "personal",
+              "team"
+            ],
+            "type": "string"
+          },
+          "destinationSpaceId": {
+            "examples": [
+              "spc_a1b2c3"
+            ],
+            "pattern": "^spc_[a-z0-9]+$",
+            "type": "string"
+          },
           "first": {
             "type": "string"
           }
         },
         "required": [
           "conversationId",
+          "destinationSpaceId",
+          "destinationScope",
           "agentId"
         ],
         "type": "object"
@@ -38768,6 +38784,13 @@
                   "personal",
                   "team"
                 ],
+                "type": "string"
+              },
+              "spaceId": {
+                "examples": [
+                  "spc_a1b2c3"
+                ],
+                "pattern": "^spc_[a-z0-9]+$",
                 "type": "string"
               }
             },

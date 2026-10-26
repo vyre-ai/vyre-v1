@@ -20221,6 +20221,8 @@ export type SearchRelatedOut = {
 };
 export type SessionsContinueIn = {
   conversationId: string;
+  destinationSpaceId: string;
+  destinationScope: "personal" | "team";
   agentId: string;
   first?: string;
 };
@@ -20237,6 +20239,7 @@ export type SessionsImportIn = {
   };
   destination?: {
     kind: "personal" | "team";
+    spaceId?: string;
     confirmedAt?: number;
   };
   sessions: Array<{
@@ -20266,6 +20269,7 @@ export type SessionsImportOut = {
         kind: "project" | "imported_sessions";
         projectId?: string;
         scope: "personal" | "team";
+        spaceId: string;
       };
     }>;
 };
@@ -30598,6 +30602,7 @@ export type SessionsImportedPayload = {
   sourceKey: string;
   projectId?: string;
   scope: "personal" | "team";
+  spaceId: string;
   messages: number;
 };
 export type SettingsChangedPayload = {

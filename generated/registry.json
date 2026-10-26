@@ -135565,6 +135565,8 @@
           "input": {
             "agentId": "agt_a1b2c3",
             "conversationId": "isc_a1b2c3",
+            "destinationScope": "personal",
+            "destinationSpaceId": "spc_a1b2c3",
             "first": "example"
           },
           "name": "example",
@@ -135591,12 +135593,28 @@
             "pattern": "^isc_[a-z0-9]+$",
             "type": "string"
           },
+          "destinationScope": {
+            "enum": [
+              "personal",
+              "team"
+            ],
+            "type": "string"
+          },
+          "destinationSpaceId": {
+            "examples": [
+              "spc_a1b2c3"
+            ],
+            "pattern": "^spc_[a-z0-9]+$",
+            "type": "string"
+          },
           "first": {
             "type": "string"
           }
         },
         "required": [
           "conversationId",
+          "destinationSpaceId",
+          "destinationScope",
           "agentId"
         ],
         "type": "object"
@@ -135665,7 +135683,8 @@
             },
             "destination": {
               "confirmedAt": 1760000000000,
-              "kind": "personal"
+              "kind": "personal",
+              "spaceId": "spc_a1b2c3"
             },
             "idempotencyKey": "idem_1",
             "provider": "codex",
@@ -135699,7 +135718,8 @@
                 "destination": {
                   "kind": "project",
                   "projectId": "prj_a1b2c3",
-                  "scope": "personal"
+                  "scope": "personal",
+                  "spaceId": "spc_a1b2c3"
                 },
                 "provider": "codex"
               }
@@ -135751,6 +135771,13 @@
                   "personal",
                   "team"
                 ],
+                "type": "string"
+              },
+              "spaceId": {
+                "examples": [
+                  "spc_a1b2c3"
+                ],
+                "pattern": "^spc_[a-z0-9]+$",
                 "type": "string"
               }
             },
@@ -135900,11 +135927,19 @@
                         "team"
                       ],
                       "type": "string"
+                    },
+                    "spaceId": {
+                      "examples": [
+                        "spc_a1b2c3"
+                      ],
+                      "pattern": "^spc_[a-z0-9]+$",
+                      "type": "string"
                     }
                   },
                   "required": [
                     "kind",
-                    "scope"
+                    "scope",
+                    "spaceId"
                   ],
                   "type": "object"
                 },
@@ -187484,6 +187519,13 @@
           },
           "sourceKey": {
             "type": "string"
+          },
+          "spaceId": {
+            "examples": [
+              "spc_a1b2c3"
+            ],
+            "pattern": "^spc_[a-z0-9]+$",
+            "type": "string"
           }
         },
         "required": [
@@ -187491,6 +187533,7 @@
           "provider",
           "sourceKey",
           "scope",
+          "spaceId",
           "messages"
         ],
         "type": "object"
