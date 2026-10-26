@@ -22,11 +22,11 @@ export const handlers: Record<string, Handler> = {
 };
 
 /**
- * The host runs this at boot and every six hours (P-L7_15, P-CC_39): every retention kind gets its first daily tick, and a kind whose tick lapsed gets a new one. It is idempotent, so a second boot
- * schedules nothing new. Without it a Space that never pressed Run now would never have retention running.
+ * The host runs this every minute (P-L7_15, P-CC_39): every retention kind gets its first daily tick, and a kind whose tick lapsed gets a new one. The host starts a periodic job after its first interval, not at
+ * boot, so a short interval is what puts the first tick within a minute of boot; the check is a few indexed reads and schedules nothing when every kind already has its tick.
  */
 export const periodic = {
-  "governance.seed_ticks": { everyMs: 6 * 3_600_000, run: (ctx: unknown) => h.seedTicks(ctx as Parameters<typeof h.seedTicks>[0]) },
+  "governance.seed_ticks": { everyMs: 60_000, run: (ctx: unknown) => h.seedTicks(ctx as Parameters<typeof h.seedTicks>[0]) },
 };
 
 export const projections = { inline: {}, consumers: {} };
