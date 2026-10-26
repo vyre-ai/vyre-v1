@@ -136,7 +136,8 @@ function settle(list: Emission[]): { changes: Change[]; hide: Hide[] } {
  * Access can change without any row changing: a grant revoked or narrowed, a share expiring, a label raised, a share given. The change feed says nothing then, so whenever the access state a device
  * was last checked under has changed (ScopeCache.stamp), the rows it holds that the person can no longer see, and the rows it does not hold that the person can now see, are asked for again with a
  * `sync.row_rescan` event each (the same event reindexScope writes). The scan that follows then hides the first kind and sends the second, and because the events are in the log, a pull whose
- * response never arrived is answered the same way. The stamp is stored once the events are written. Runs before the scan, outside its transaction.
+ * response never arrived is answered the same way. The event names the row and nothing else, and is private to the server (no reader of the log sees it); who is told what is still decided
+ * per person by the scan. The stamp is stored once the events are written. Runs before the scan, outside its transaction.
  */
 function rescanChanged(d: PullDeps, who: Who, viewer: Viewer, window: Window, cursor: number): void {
   const db = d.db;
@@ -155,7 +156,7 @@ function rescanChanged(d: PullDeps, who: Who, viewer: Viewer, window: Window, cu
     return mode !== "none" && viewer.visible(viewer.scope(cfg), row, JSON.parse(row.fields) as Cells) && window.holds(cfg, mode, row);
   };
   const ask = (entity: string, id: string): void => {
-    d.append!({ type: "sync.row_rescan", sv: 1, trace_id: "0".repeat(32), actor: "sync", vis: "space", payload: { entity, id } });
+    d.append!({ type: "sync.row_rescan", sv: 1, trace_id: "0".repeat(32), actor: "sync", vis: "private", payload: { entity, id } });
   };
   // `eff` is what the device is taken to hold at this cursor (a mark newer than the cursor is not acknowledged yet)
   const held = db.all<RowRec>(

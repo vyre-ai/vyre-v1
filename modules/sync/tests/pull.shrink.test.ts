@@ -9,7 +9,7 @@ import type { AccessSnapshot } from "../../../kernel/src/authorize/snapshot.ts";
 import { openSync } from "../impl.ts";
 import type { SyncHandle } from "../impl.ts";
 import type { PullCtx } from "../handlers/index.ts";
-import { ADA, BO, CONTACT_TYPE, NOW, buildAccess } from "../fixtures/world.ts";
+import { ADA, BO, CY, CONTACT_TYPE, NOW, buildAccess } from "../fixtures/world.ts";
 
 const TRACE = "0123456789abcdef0123456789abcdef";
 interface Rig { s: SyncHandle; access: AccessSnapshot; clock: { now: number } }
@@ -40,6 +40,12 @@ test("a revoked grant hides the rows the device holds on the next pull, without 
   assert.deepEqual(gone.changes, []);
   const again = await pull(r, ctx(BO), held.next);
   assert.deepEqual(again.hide.map((h) => h.id).sort(), [a, b].sort(), "a response that never arrived is answered the same way");
+  // the rescan events carry no row content, and a person with no access learns nothing from them
+  const feed = r.s.deps.db.all<{ op: string; fields: string }>("SELECT op, fields FROM sync_changes WHERE op = 'rescan'");
+  assert.ok(feed.length >= 2 && feed.every((c) => c.fields === "{}"), "a rescan names the row and carries no content");
+  const cy = await pull(r, ctx(CY, "dev_cy"), 0);
+  assert.deepEqual([cy.changes, cy.hide], [[], []], "a person with no access gets nothing from the rescans");
+  assert.deepEqual((await pull(r, ctx(CY, "dev_cy"), cy.next)).hide, []);
   await contact(r, { region: "us" });
   const later = await pull(r, ctx(BO), gone.next + 1);
   assert.deepEqual(later.hide, [], "once the device has moved past it the hide is not sent again");
