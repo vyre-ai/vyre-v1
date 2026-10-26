@@ -221,7 +221,7 @@ test("rendered page: steps, captcha widget, file chooser, hidden prefill, theme 
     fields: [{ field: "email", hidden: false, step: 0 }, { field: "src", hidden: true, prefillKey: "utm_x", step: 0 }, { field: "resume", hidden: false, step: 1 }],
     theme: { accent: "#123456", font: "url(http://evil.example/x)", radius: "4px;background:red", cover: "https://cdn.example/c.png" },
     css: "h1{color:red}</style><script>alert(1)</script>",
-    upload: { fields: ["resume"], maxBytes: 1000, types: ["application/pdf"] },
+    upload: { fields: ["resume"], folderId: "fld_up", maxBytes: 1000, types: ["application/pdf"] },
     thankYou: { redirect: "/thanks" },
   };
   const html = renderFormPage({ view, page: "form", nonce: "N", uploads: true, captcha: { siteKey: "SITE", scriptUrl: "https://captcha.example/api.js", className: "cf-turnstile" } });
@@ -253,7 +253,7 @@ async function serve(w: World, o: { perMinute?: number; uploads?: boolean; clock
       try { return publicFormView(w.ctx, slug, page); } catch (e) { if (e instanceof VyreErr) return null; throw e; }
     },
     async link(slug, token) { return token === "good" ? { fields: [{ field: "name", step: 0 }] } : null; },
-    ...(o.uploads ? { async upload(slug: string, file: { name: string; type: string; bytes: Uint8Array }) { stored.push({ slug, name: file.name, type: file.type, size: file.bytes.length }); return "fil_up_1"; } } : {}),
+    ...(o.uploads ? { async upload(slug: string, file: { name: string; type: string; bytes: Uint8Array; folderId: string }) { stored.push({ slug, name: file.name, type: file.type, size: file.bytes.length }); return "fil_up_1"; } } : {}),
     ...(o.perMinute !== undefined ? { perMinute: o.perMinute } : {}),
     ...(o.clock ? { now: o.clock } : {}),
   });
@@ -378,7 +378,7 @@ test("GET /book/<slug> serves a booking page with the day and time pickers", asy
 
 test("POST /f/upload/<slug> applies the form's size and type policy before it stores anything", async () => {
   const w = harness();
-  const f = await uploadForm(w, { fields: ["resume"], maxBytes: 100, types: ["application/pdf"] });
+  const f = await uploadForm(w, { fields: ["resume"], folderId: "fld_up", maxBytes: 100, types: ["application/pdf"] });
   const s = await serve(w, { uploads: true });
   try {
     const post = (body: string, type: string, name = "cv.pdf") => fetch(`${s.base}/f/upload/${f.slug}`, { method: "POST", headers: { "content-type": type, "x-file-name": encodeURIComponent(name) }, body });
@@ -399,7 +399,7 @@ test("POST /f/upload/<slug> applies the form's size and type policy before it st
 
 test("without an upload store the page draws no file chooser and the upload address is a 404", async () => {
   const w = harness();
-  const f = await uploadForm(w, { fields: ["resume"] });
+  const f = await uploadForm(w, { fields: ["resume"], folderId: "fld_up" });
   const s = await serve(w);
   try {
     assert.doesNotMatch(await (await fetch(`${s.base}/f/${f.slug}`)).text(), /type="file"/);

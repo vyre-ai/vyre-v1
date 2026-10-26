@@ -148,16 +148,17 @@ export function checkAnswers(ctx: Ctx, form: Row, link: Row | null, raw: Record<
 }
 
 // ---- upload policy ---------------------------------------------------------------------------------------------
-// forms.update stores `upload_policy` as { fields?: string[], maxBytes?: number, types?: string[] }. `types` hold MIME types ("application/pdf"), MIME families ("image/*") or
+// forms.update stores `upload_policy` as { fields?: string[], folderId?: string, maxBytes?: number, types?: string[] }. `types` hold MIME types ("application/pdf"), MIME families ("image/*") or
 // extensions (".pdf"); `maxBytes` is the most one file may be. The policy covers every answer that is a file ({ fileId }), whatever the question; `fields` names the questions the public
 // page draws as a file chooser. Each file is looked up as the form's service principal (files.get), so the size and type checked are the stored ones, not what the browser claimed.
 
-export interface UploadPolicy { fields: string[]; maxBytes?: number; types: string[] }
+export interface UploadPolicy { fields: string[]; maxBytes?: number; types: string[]; /** the Files folder public uploads land in; without it the page offers no file chooser */ folderId?: string }
 
 export function uploadPolicyOf(form: Row): UploadPolicy | undefined {
   const p = parseJson(form.upload_policy);
   if (!isRec(p)) return undefined;
   const out: UploadPolicy = { fields: nameList(p.fields), types: nameList(p.types).map((t) => t.trim().toLowerCase()).filter((t) => t.length > 0) };
+  if (typeof p.folderId === "string" && p.folderId.length > 0) out.folderId = p.folderId;
   if (typeof p.maxBytes === "number" && Number.isFinite(p.maxBytes) && p.maxBytes >= 0) out.maxBytes = p.maxBytes;
   return out;
 }

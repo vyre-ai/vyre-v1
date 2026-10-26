@@ -4,6 +4,7 @@
 import { configureForms } from "./handlers/index.ts";
 
 export { handlers, configureForms, linkView } from "./handlers/index.ts";
+export { publicFormView } from "./handlers/submit.ts";
 export { inline, consumers } from "./projections.ts";
 
 /** Ruling 32: the loader collects this. The daemon calls setFormsHost with the public address of the Space (when it has one) and with null at shutdown. */

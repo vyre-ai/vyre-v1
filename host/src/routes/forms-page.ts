@@ -6,7 +6,7 @@
 //   2. what is served: the module's read (deps.read) answers for a form that is published and of the right kind; anything else is the same 404 whether the slug never existed, is a draft or is closed.
 //   3. one-use forms open from a link: GET /f/<slug>?t=<token> asks deps.link for the questions that link still needs and the answers saved so far; without a token a one-use form says so.
 //   4. uploads: POST /f/upload/<slug> takes one file as the raw body (x-file-name names it), refuses it over the form's size or type policy before storing a byte, and returns { data: { fileId } }
-//      for the answer. The store behind it is deps.upload; without it the page draws no file chooser.
+//      for the answer. The store behind it is deps.upload and the folder is the form's upload policy folderId; without both the page draws no file chooser.
 // The page is served with a strict content security policy (its own nonce for its one script, no outside scripts but the captcha's), no-store caching and nosniff. Anything else on these paths
 // is 405 (GET and HEAD only; upload takes POST). The route is a request hook like the blob route: true when it answered, false when the daemon should carry on.
 import type http from "node:http";
@@ -27,7 +27,7 @@ export interface PublicFormView {
   captcha: boolean;
   logic?: { rules: unknown[] };
   thankYou?: { text?: string; redirect?: string };
-  upload?: { fields: string[]; maxBytes?: number; types: string[] };
+  upload?: { fields: string[]; folderId?: string; maxBytes?: number; types: string[] };
   lengthMinutes?: number;
 }
 
@@ -56,7 +56,7 @@ export interface FormsPageDeps {
   /** One-use forms: what a link still asks. Null when the link is not valid. */
   link?(slug: string, token: string, caller: PageCaller): Promise<LinkQuestions | null>;
   /** Store an uploaded file for a form; the policy was already applied to the size and declared type. Returns the file's id. */
-  upload?(slug: string, file: { name: string; type: string; bytes: Uint8Array }, caller: PageCaller): Promise<string>;
+  upload?(slug: string, file: { name: string; type: string; bytes: Uint8Array; folderId: string }, caller: PageCaller): Promise<string>;
   captcha?: CaptchaWidget;
   /** Page views per source address per minute; default 120. */
   perMinute?: number;
@@ -337,7 +337,7 @@ function fieldHtml(view: PublicFormView, f: PublicFormView["fields"][number], up
   const prefill = f.prefillKey ? ` data-prefill="${esc(f.prefillKey)}"` : "";
   if (f.hidden) return `<div class="vf-field" data-for="${name}" hidden><input type="hidden" data-field="${name}"${prefill}></div>`;
   const label = `<label for="vf-${name}">${esc(humanize(f.field))} <span class="vf-req" hidden>(required)</span></label>`;
-  if (uploads && view.upload && view.upload.fields.includes(f.field)) {
+  if (uploads && view.upload?.folderId !== undefined && view.upload.fields.includes(f.field)) {
     const accept = view.upload.types.length > 0 ? ` accept="${esc(view.upload.types.join(","))}"` : "";
     return `<div class="vf-field" data-for="${name}">${label}<input id="vf-${name}" type="file" data-field="${name}"${accept}${prefill}><span class="vf-hint"></span></div>`;
   }
@@ -467,7 +467,7 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
     const wait = allowed(source);
     if (wait > 0) return reply(res, "rate_limit.exceeded", 429, "Too many uploads just now. Try again in a minute.", { "retry-after": String(wait) });
     const view = await deps.read(slug, "form", caller);
-    if (!view || !deps.upload) return reply(res, "validation.not_found", 404, "That form is not open.");
+    if (!view || !deps.upload || !view.upload?.folderId) return reply(res, "validation.not_found", 404, "That form is not open.");
     const policy = view.upload;
     const cap = Math.min(policy?.maxBytes ?? UPLOAD_CAP, UPLOAD_CAP);
     const declared = Number(req.headers["content-length"] ?? "NaN");
@@ -484,7 +484,7 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
       chunks.push(c as Buffer);
     }
     if (size === 0) return reply(res, "validation.bad_input", 400, "That file is empty.");
-    const fileId = await deps.upload(slug, { name, type, bytes: new Uint8Array(Buffer.concat(chunks)) }, caller);
+    const fileId = await deps.upload(slug, { name, type, bytes: new Uint8Array(Buffer.concat(chunks)), folderId: view.upload.folderId }, caller);
     const body = JSON.stringify({ data: { fileId } });
     res.writeHead(200, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(body), "cache-control": "no-store" });
     res.end(body);
