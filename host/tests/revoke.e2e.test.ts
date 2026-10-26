@@ -64,15 +64,15 @@ async function realSync(root: string) {
   access.addPrincipalRole({ holder: PERSON, role: "member" });
   for (const type of ["record", "space"]) access.putGrant({ id: `gr_${type}`, subject_kind: "actor", subject_id: PERSON, resource_type: type, resource_id: null, level: "view" });
   const sync = impl.openSync({ access: () => access, clock: () => NOW });
-  impl.useSync(sync);
   const trace = "0123456789abcdef0123456789abcdef";
   const seq = sync.host.append({ type: "sync.row", sv: 1, trace_id: trace, actor: "svc_seed", hlc: "000000000001-0000-srv", vis: "space", payload: { entity: "contact", id: "c1", op: "upsert", fields: { name: "Ann", email: "a@example.com" }, at: NOW } }).seq;
-  impl.setPushDeps({
+  // armed after the daemon boots: booting calls configureSync (sync is live now), which would reset a handle given before it
+  const arm = (): void => { impl.useSync(sync); impl.setPushDeps({
     now: () => NOW, hlc: sync.deps.hlc, epochOf: () => 0,
     invoke: async () => ({ kind: "applied", seq }), clocks: () => ({}), appliedSeq: () => undefined, policy: () => ({ kind: "lww" }), restricted: () => false,
     history: () => {}, openConflict: () => "cfl_x", once: (_p: string, _c: string, _k: string, _i: unknown, run: () => unknown) => run(),
-  });
-  return { handlers: impl.handlers, sync };
+  }); };
+  return { handlers: impl.handlers, sync, arm };
 }
 
 const post = (d: Daemon, p: string, token: string | null, body: unknown) => fetch(`${d.url}${p}`, {
@@ -83,7 +83,7 @@ type PullBody = { data: { reset?: string; changes: unknown[]; epoch: number } };
 
 test("revoke e2e: devices.revoke on a booted daemon makes the device's next pull answer purge and its calls 401; the other device is unaffected", async () => {
   const root = codeRootWithDevicesLive();
-  const { handlers, sync } = await realSync(root);
+  const { handlers, sync, arm } = await realSync(root);
   const dir = seededDir();
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
@@ -100,6 +100,7 @@ test("revoke e2e: devices.revoke on a booted daemon makes the device's next pull
     extra: { handlers },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, tick: 3_600_000, hooks: 3_600_000 },
   });
+  arm();
   try {
     const A = { device: "dev_a1b2c3", session: "ses_a1b2c3" }, B = { device: "dev_d4e5f6", session: "ses_d4e5f6" };
     const now = Date.now();

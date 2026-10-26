@@ -175,12 +175,12 @@ const COPY: Record<ChecklistItemKey, { note: (space: string) => string; action: 
 
 /**
  * The card's rows. A missing AI account adds the first row and locks "Meet your assistant". A Personal Space is the assistant and the checklist only,
- * so its list has no project row. `done` flags come from the capability; the AI row is done when an account is connected.
+ * so its list has no project row and no import row (four rows: account, photo, mailbox and calendar, assistant). `done` flags come from the capability; the AI row is done when an account is connected.
  */
 export function checklistRows(list: Checklist, o: { spaceName: string; personal: boolean; aiConnected: boolean }): ChecklistRow[] {
   const rows: ChecklistRow[] = [{ key: "ai", title: "Connect an AI account", note: COPY.ai.note(o.spaceName), action: COPY.ai.action, done: o.aiConnected, locked: false }];
   for (const it of list.items) {
-    if (o.personal && it.key === "open_first_project") continue;
+    if (o.personal && (it.key === "open_first_project" || it.key === "import")) continue;
     const locked = it.key === "meet_assistant" && !o.aiConnected && !it.done;
     const c = COPY[it.key];
     rows.push({ key: it.key, title: it.title, note: it.done ? "Done" : locked ? "Connect an AI account first" : c.note(o.spaceName), action: c.action, done: it.done, locked });
