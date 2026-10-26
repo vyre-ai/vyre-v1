@@ -167,13 +167,19 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
       return out.messageId as string;
     }, ["a person approves and the campaign mails the lead"]);
     await trail.step("the campaign announces the reply", async () => {
-      // the campaigns consumer reads mail.received from the log on the projection pump, which the test daemon runs on demand (its timers are an hour long)
-      await s.d.projections?.pump();
+      // the campaigns consumer reads mail.received from the log when the hook runner pumps, which the test daemon runs on demand (its timers are an hour long)
+      await s.d.hooks?.pump();
       expectStatus(await s.call("campaigns.resume", admin, { campaignId: campaign! }), 200, "campaigns.resume");
       const replies = expectStatus(await s.call("campaigns.replies", admin, { campaignId: campaign! }), 200, "campaigns.replies").replies as unknown[];
       const inbox = expectStatus(await s.call("mail.message.list", admin, { mailboxId: mailbox!, contactId: lead! }), 200, "mail.message.list").messages as { id: string; campaignId?: string; direction: string }[];
       const got = inbox.find((m) => m.id === reply);
       assert.equal(got?.campaignId, campaign, `the reply carries the campaign: ${short(inbox)}`);
+      if (replies.length < 1) {
+        s.d.sink.flush();
+        const logs = (s.d.sink.db.prepare("SELECT msg, attrs FROM logs WHERE msg LIKE '%projection%' OR level >= 40 ORDER BY id DESC LIMIT 6").all() as { msg: string; attrs: string | null }[]).map((l) => `${l.msg} ${l.attrs ?? ""}`.slice(0, 300));
+        const cur = s.d.db!.all("SELECT * FROM host_projection_cursor") as unknown[];
+        assert.fail(`the campaign lists the reply ${reply!}: none; members ${short(s.d.db!.all("SELECT state, replied_at, reply_announced FROM campaigns_member"))} logs ${short(logs)} cursors ${short(cur).slice(0, 600)}`);
+      }
       assert.ok(replies.length >= 1, `the campaign lists the reply ${reply!}: ${short(replies)}`);
     }, ["the lead replies and the reply is matched to the lead and the campaign"]);
 
