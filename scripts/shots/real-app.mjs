@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ensureChromium } from "./ensure-deps.mjs";
 import { parseArgs, SKINS, SIZES } from "./lib.mjs";
-import { bootSpace, edge, liveModules, ownerSession, todoFor } from "../../apps/app/tests/real-app-harness.ts";
+import { bootSpace, edge, liveModules, ownerSession, todoFor } from "../../apps/app/tests/real-app-harness.test.ts";
 
 export const PLACES = [
   { id: "home", rail: "rail-home", drew: "[data-testid='s-needs'], [data-testid='home-place']", needs: ["sign in", "home"] },

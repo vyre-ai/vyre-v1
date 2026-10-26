@@ -8,7 +8,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { bootSpace, edge, liveModules, ownerSession, todoFor } from "./real-app-harness.ts";
+import { bootSpace, edge, liveModules, ownerSession, todoFor } from "./real-app-harness.test.ts";
 
 function exportApp(): string {
   return process.env["VYRE_APP_DIST"] ?? "";

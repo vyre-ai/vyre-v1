@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PHONE_TAB, PLACES, indexMd, rowFor } from "./real-app.mjs";
-import { todoFor } from "../../apps/app/tests/real-app-harness.ts";
+import { todoFor } from "../../apps/app/tests/real-app-harness.test.ts";
 
 test("real-app shots: every place the shell has is shot, each with the steps whose modules it needs", () => {
   assert.deepEqual(PLACES.map((p) => p.id), ["home", "chats", "records", "files", "inbox", "apps", "automations", "vault", "settings"]);

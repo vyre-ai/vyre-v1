@@ -84,7 +84,8 @@ function ChatsView({ rt }: { rt: ShellRuntime }): ReactElement {
   const paneCtx = useMemo(() => (threadId ? paneData(rt, actions, threadId, agent) : null), [rt, actions, threadId, agent.agentId, agent.name]); // eslint-disable-line react-hooks/exhaustive-deps -- the agent is read by id and name
 
   const toggle = useCallback(() => setPane((v) => !v), []);
-  const compact = useWindowDimensions().width < COMPACT_BELOW;
+  const width = useWindowDimensions().width;
+  const compact = width > 0 && width < COMPACT_BELOW;
   if (compact) {
     const chosen = picked ?? hashed;
     return (

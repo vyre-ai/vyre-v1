@@ -19,6 +19,11 @@ export const STEP_NEEDS: Record<string, { modules: string[]; packet: string }> =
   "chats": { modules: ["chat"], packet: "P-L2_LIVE" },
   "records": { modules: ["records"], packet: "P-L3_LIVE" },
   "files": { modules: ["files"], packet: "P-L4_LIVE" },
+  "inbox": { modules: ["inbox"], packet: "P-L5_LIVE" },
+  "apps": { modules: ["sites", "forms", "campaigns"], packet: "P-L8_LIVE" },
+  "automations": { modules: ["automations"], packet: "P-L3_LIVE" },
+  "vault": { modules: ["vault"], packet: "P-L7_LIVE" },
+  "settings": { modules: ["settings"], packet: "P-L7_LIVE" },
 };
 
 export function liveModules(root = REPO): Set<string> {
@@ -108,3 +113,14 @@ export function ownerSession(space: Space, origin: string): { baseUrl: string; t
   const def = { spaceId: space.space, name: "Space", kind: "team", address: origin, role: "Owner", tint: ["#6E5CF0", "#9B6BE8"], kit: "northwind", skinDefault: "system", starred: true, needsYou: false, console: true, terminal: true, counts: {}, dots: {} };
   return { baseUrl: origin, token: space.token, def, personId: "owner" };
 }
+
+import test from "node:test";
+import assert from "node:assert/strict";
+
+test("harness: the owner session a browser carries names the Space, the owner token and the origin it was served from", () => {
+  const s = ownerSession({ url: "http://127.0.0.1:1", token: "tok", space: "spc_core", dir: "/x", stop: async () => undefined }, "http://127.0.0.1:2");
+  assert.equal(s.baseUrl, "http://127.0.0.1:2");
+  assert.equal(s.token, "tok");
+  assert.equal(s.def["spaceId"], "spc_core");
+  for (const step of Object.keys(STEP_NEEDS)) assert.equal(typeof todoFor(step, new Set()), "string", step);
+});
