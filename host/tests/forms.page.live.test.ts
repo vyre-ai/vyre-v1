@@ -14,7 +14,6 @@ import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
-const OWNER = "tok-usr_olivia";
 const RECORD_TYPE = "rt_contact";
 
 function seededDir(): string {
@@ -43,7 +42,7 @@ async function boot(): Promise<Daemon> {
   });
 }
 
-async function call<T>(d: Daemon, p: string, body: unknown, token: string | null = OWNER): Promise<{ status: number; data?: T; error?: { code: string; details?: { field?: string } } }> {
+async function call<T>(d: Daemon, p: string, body: unknown, token: string | null | undefined = d.token): Promise<{ status: number; data?: T; error?: { code: string; details?: { field?: string } } }> {
   const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
   const j = (await r.json()) as { data?: T; error?: { code: string; details?: { field?: string } } };
   return { status: r.status, ...j };
