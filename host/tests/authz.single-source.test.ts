@@ -140,7 +140,7 @@ const withDaemon = async (people: Map<string, string>, run: (d: Awaited<ReturnTy
   try { await run(d, client(d)); } finally { await d.stop(); }
 };
 
-test("share and revoke: a person with no grant is refused a record type, a share opens it on their next call, and a revoke closes it", async () => {
+test("share and revoke: a person with no grant is refused a record type, a share opens it on their next call and over sync.pull, and a revoke closes both", async () => {
   await withDaemon(new Map([["tok-usr_tess", "usr_tess"]]), async (_d, post) => {
     const TESS = "tok-usr_tess";
     const applied = await post(OWNER_TOKEN, "/v1/schema/apply", { idempotencyKey: "authz-type", ops: [COMPANY] });
@@ -149,7 +149,13 @@ test("share and revoke: a person with no grant is refused a record type, a share
     assert.equal(made.status, 200, JSON.stringify(made.body));
     const id = made.body.data.record.id as string;
     const query = (): Promise<{ status: number; body: Json }> => post(TESS, "/v1/records/query", { type: "rt_company" });
+    const pulled = async (): Promise<boolean> => {
+      const r = await post(TESS, "/sync/v1/pull", { cursor: 0, epoch: 0 });
+      assert.equal(r.status, 200, JSON.stringify(r.body).slice(0, 300));
+      return JSON.stringify(r.body.data.changes).includes(id);
+    };
     assert.equal((await query()).status, 403, "no grant, no read");
+    assert.equal(await pulled(), false, "no grant, no row in the sync feed");
 
     const shared = await post(OWNER_TOKEN, "/v1/access/share", { idempotencyKey: "authz-share", resource: { type: "record_type", id: "rt_company" }, subject: { kind: "person", id: "usr_tess" }, level: "view" });
     assert.equal(shared.status, 200, JSON.stringify(shared.body));
@@ -157,10 +163,12 @@ test("share and revoke: a person with no grant is refused a record type, a share
     const open = await query();
     assert.equal(open.status, 200, `the share is in force on the next call: ${JSON.stringify(open.body)}`);
     assert.ok(JSON.stringify(open.body.data).includes(id), "the shared record is listed");
+    assert.equal(await pulled(), true, "the shared row reaches sync.pull");
 
     const revoked = await post(OWNER_TOKEN, "/v1/access/unshare", { grantId });
     assert.equal(revoked.status, 200, JSON.stringify(revoked.body));
     assert.equal((await query()).status, 403, "the revoke is in force on the next call");
+    assert.equal(await pulled(), false, "the revoked rows stop coming over sync.pull");
   });
 });
 

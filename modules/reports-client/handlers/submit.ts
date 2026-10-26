@@ -273,6 +273,7 @@ export async function submit(ctx: ReportsCtx, input: { bundle: unknown }) {
   const policy = await readPolicy(ctx);
   const summary = [bundle.note ? `"${bundle.note}"` : "No note.", `Where: ${bundle.context.place}.`, policy === "ask" ? "Send it to the Vyre team? Open the report and choose Send." : policy === "off" ? "It stays in this Space." : "It was sent to the Vyre team."].join(" ");
   const made = asRow(await ctx.call("tasks.create" as never, {
+    idempotencyKey: `reports.submit:${reportId}:review-task`,
     kind: "review", title, summary, why: "A person reported a problem.", assigned: { kind: "role", id: "admin" }, source: { kind: "manual", id: reportId },
   }));
   const taskId = str(asRow(made?.["task"])?.["id"]);
@@ -288,7 +289,7 @@ export async function submit(ctx: ReportsCtx, input: { bundle: unknown }) {
   let sentToVyre = false;
   if (policy === "on") {
     try {
-      const out = asRow(await ctx.call("reports.send_to_vyre" as never, { reportId }));
+      const out = asRow(await ctx.call("reports.send_to_vyre" as never, { reportId, idempotencyKey: `reports.submit:${reportId}:send` }));
       sentToVyre = out?.["stored"] === true;
     } catch { /* the report and its task exist; an admin can send it from the report page */ }
   }

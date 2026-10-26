@@ -63,3 +63,12 @@ export function createAccess(): { readonly snap: AccessSnapshot; fold(e: Foldabl
     adopted: () => own,
   };
 }
+
+/** A member or a guest: a person the Space knows who holds at least one role, or at least one grant (their own, through a group or through a role). The check behind capabilities at level 'member' (ruling 69). */
+export function isMemberOrGuest(snap: AccessSnapshot, principalId: string): boolean {
+  const me = snap.info(principalId);
+  if (!me) return false;
+  if (me.roleNames !== "no role") return true;
+  for (const g of snap.allGrantRecs()) if (me.keys.has(g.key)) return true;
+  return false;
+}
