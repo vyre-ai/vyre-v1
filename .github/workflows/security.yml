@@ -32,9 +32,12 @@ jobs:
           [ -f "$CONFIG" ] || { echo "::error::$CONFIG is missing, the cargo licence rules cannot be applied"; exit 1; }
           # cargo-deny runs `cargo metadata`: the hosts keep one Rust toolchain and cargo-deny under the tools cache (ciHosts); the runner service PATH does not include them, and rustup needs RUSTUP_HOME
           TOOLS_ROOT="${VYRE_TOOLS_CACHE:-/var/lib/ci-run/tools}"
-          export RUSTUP_HOME="$TOOLS_ROOT/rust/rustup" CARGO_HOME="$TOOLS_ROOT/rust/cargo"
-          export PATH="$CARGO_HOME/bin:$TOOLS/bin:$PATH"
-          command -v cargo >/dev/null 2>&1 || { echo "::error::no cargo under $CARGO_HOME/bin on this runner; cargo-deny needs it for cargo metadata"; exit 1; }
+          # the shared toolchain is read-only for the runner: its binaries stay on PATH, RUSTUP_HOME stays shared, and CARGO_HOME (the crates registry cargo writes) is a per-job directory
+          SHARED_CARGO="$TOOLS_ROOT/rust/cargo"
+          export RUSTUP_HOME="$TOOLS_ROOT/rust/rustup" CARGO_HOME="${RUNNER_TEMP:-/tmp}/cargo-home"
+          mkdir -p "$CARGO_HOME"
+          export PATH="$SHARED_CARGO/bin:$TOOLS/bin:$PATH"
+          command -v cargo >/dev/null 2>&1 || { echo "::error::no cargo under $SHARED_CARGO/bin on this runner; cargo-deny needs it for cargo metadata"; exit 1; }
           rc=0
           "$TOOLS/bin/cargo-deny" --manifest-path apps/desktop/src-tauri/Cargo.toml check licenses --config "$CONFIG" > cargo-deny.out 2>&1 || rc=$?
           node scripts/license-check.ts --cargo cargo-deny.out
