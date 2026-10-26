@@ -64,7 +64,8 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
     return r.output;
   };
   const call: EngineInvoke = (cap, input, as) => run(cap, input, as ? { kind: "person", id: as } : { ...SYSTEM });
-  const postAs: EngineHostSeam["postAs"] = (agentId, post) => run("chat.post", post, { kind: "agent", id: agentId });
+  // chat.post is a keyed write: the bridge's own message id is the key, so a replay of the same reply is one post
+  const postAs: EngineHostSeam["postAs"] = (agentId, post) => run("chat.post", { ...post, idempotencyKey: `brg-${post.clientId}` }, { kind: "agent", id: agentId });
   const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space }) : undefined;
   return { holder: `host:${d.space}`, call, postAs, ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), invoke: d.invoke, space: d.space };
 }
