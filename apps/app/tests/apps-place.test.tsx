@@ -19,14 +19,18 @@ const at = (s: string, n: string): number => { const i = s.indexOf(n); assert.ok
 const row = (g: AppRow["group"], id: string, title: string, state?: string): AppRow => ({ group: g, id, title, note: "", ...(state ? { state } : {}) });
 const callsTo = (s: SampleApps, cap: string): { cap: string; input: unknown }[] => s.calls.filter((c) => c.cap === cap);
 
-test("sidebar: the five groups in order with their counts, and a title, a search and New", () => {
-  const out = html(createSampleApps());
+test("sidebar: the groups in order with their counts, and a title, a search and New; Sites is not drawn while it is deferred and comes back with it", () => {
+  const out = html(createSampleApps({ deferred: [] }));
   const order = GROUPS.map((g) => at(out, `data-testid="apps-group-${g.key}"`));
   assert.deepEqual([...order].sort((a, b) => a - b), order, "Sites, Forms, Campaigns, Templates, Sending domains");
   assert.deepEqual(GROUPS.map((g) => g.title), ["Sites", "Forms", "Campaigns", "Templates", "Sending domains"]);
   const head = (k: string): string => out.slice(at(out, `data-testid="apps-head-${k}"`), at(out, `data-testid="apps-head-${k}"`) + 500);
   assert.ok(has(head("sites"), ">2<") && has(head("forms"), ">3<") && has(head("campaigns"), ">3<") && has(head("templates"), ">2<"), "counts from the Space");
   assert.ok(has(out, 'data-testid="apps-search"') && has(out, 'aria-label="New"') && has(out, ">Apps<"));
+  const deferred = html(createSampleApps());
+  assert.ok(!has(deferred, 'data-testid="apps-group-sites"') && has(deferred, 'data-testid="apps-group-forms"'), "a deferred module's group is not drawn");
+  assert.ok(!has(html(createSampleApps(), { group: "sites" }), 'data-testid="apps-head-sites"'), "even when asked to open on it");
+  assert.ok(!has(deferred, 'aria-label="New site"'));
 });
 
 test("Forms list opens with a row for each form, its kind and state, and how many answers", () => {
@@ -49,7 +53,7 @@ test("Campaigns list opens with its state and who it reaches", () => {
 test("Templates and Sites lists open; Templates offers Build a Kit", () => {
   const t = html(createSampleApps(), { group: "templates" });
   assert.ok(has(t, "Law firm intake") && has(t, "Journey · v1.2") && has(t, 'data-testid="apps-kit"') && has(t, "Adds 3"));
-  const s = html(createSampleApps(), { group: "sites" });
+  const s = html(createSampleApps({ deferred: [] }), { group: "sites" });
   assert.ok(has(s, "Booking widget") && has(s, "App · live") && has(s, "Northwind site") && has(s, "Site · on staging"));
 });
 

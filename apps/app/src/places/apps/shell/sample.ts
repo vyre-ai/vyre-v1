@@ -41,7 +41,7 @@ export interface SampleApps {
   failNext(cap: string, message?: string): void;
 }
 
-export function createSampleApps(o: { team?: boolean; gate?: boolean } = {}): SampleApps {
+export function createSampleApps(o: { team?: boolean; gate?: boolean; deferred?: readonly string[] } = {}): SampleApps {
   const replica = createFakeReplica("northwind");
   const put = (table: string, rows: readonly object[], id: (r: never) => string): void => replica.put(table, rows.map((r) => ({ ...r, id: id(r as never) }) as unknown as Row));
   put("sites", SITES, (r: SiteRow) => r.siteId); put("forms", FORMS, (r: FormRow) => r.formId); put("campaigns", CAMPAIGNS, (r: CampaignRow) => r.campaignId); put("templates", TEMPLATES, (r: TemplateRow) => r.templateId);
@@ -81,6 +81,7 @@ export function createSampleApps(o: { team?: boolean; gate?: boolean } = {}): Sa
     },
     clock: () => ({ now: SAMPLE_NOW }),
     team: o.team !== false,
+    deferred: o.deferred ?? ["sites"],
     nav: {
       open: (g, id) => void went.push(`open:${g}:${id}`), create: (g, k) => void went.push(`create:${g}${k ? `:${k}` : ""}`), joinTeam: () => void went.push("join"),
       openTask: (id) => void went.push(`task:${id}`), openThread: (id) => void went.push(`thread:${id}`),

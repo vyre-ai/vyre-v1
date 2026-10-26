@@ -22,6 +22,8 @@ export interface AppsData {
   call(cap: string, input: unknown): Promise<unknown>;
   clock(): { now: number };
   team: boolean;
+  /** Modules the Space has deferred (host/modules.json or the owner's ruling): their group is not drawn, so a list that can only fail never shows. It comes back by itself when the module is no longer deferred. */
+  deferred?: readonly string[];
   nav: AppsNav;
 }
 

@@ -60,8 +60,9 @@ function Page({ initial }: { initial?: AppsStart | undefined }): ReactElement {
   const { width } = useWindowDimensions();
   const wide = width === 0 || width >= WIDE;
   const lists = useLists();
+  const groups = GROUPS.filter((g) => !(d.deferred ?? []).includes(g.key));
   const { element, show } = useMenu();
-  const [group, setGroup] = useState<GroupKey>(initial?.group ?? "forms");
+  const [group, setGroup] = useState<GroupKey>(initial?.group && !(d.deferred ?? []).includes(initial.group) ? initial.group : "forms");
   const [selected, setSelected] = useState<string | null>(initial?.selected ?? null);
   const [q, setQ] = useState(initial?.q ?? "");
   const [closed, setClosed] = useState<ReadonlySet<GroupKey>>(new Set(initial?.closed ?? []));
@@ -86,7 +87,7 @@ function Page({ initial }: { initial?: AppsStart | undefined }): ReactElement {
   };
   const newMenu = (x: number, y: number, only?: GroupKey): void => {
     const entries: MenuEntry[] = [];
-    for (const g of GROUPS) if ((only === undefined || only === g.key) && g.key !== "domains") entries.push({ label: `New ${g.one}`, onSelect: () => d.nav.create(g.key) });
+    for (const g of groups) if ((only === undefined || only === g.key) && g.key !== "domains") entries.push({ label: `New ${g.one}`, onSelect: () => d.nav.create(g.key) });
     if (only === undefined || only === "templates") entries.push({ separator: true }, { label: "Build a Kit with an agent", onSelect: () => void openKitBuilder(d).catch((e: unknown) => setNote({ text: e instanceof Error ? e.message : "That did not work." })) });
     show(entries, x, y, "other");
   };
@@ -105,7 +106,7 @@ function Page({ initial }: { initial?: AppsStart | undefined }): ReactElement {
 
   const rowsOf = (g: GroupKey): AppRow[] => { const out: AppRow[] = []; for (const r of lists[g].rows) if (matches(r, q)) out.push(r); return out; };
   const side: ReactElement[] = [];
-  for (const g of GROUPS) {
+  for (const g of groups) {
     const rows = rowsOf(g.key);
     const open = !closed.has(g.key);
     side.push(
