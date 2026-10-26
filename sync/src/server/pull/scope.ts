@@ -34,6 +34,22 @@ export class ScopeCache {
   private map = new Map<string, ScopeResult>();
   private readonly snap: () => AccessSnapshot;
   constructor(snap: () => AccessSnapshot) { this.snap = snap; }
+  private ids = new WeakMap<object, number>();
+  private nextId = 1;
+  /**
+   * Names the access state a person's scope was compiled from: the snapshot (adopted anew, or mutated, which bumps its epoch). A person who holds a grant with an expiry or a time window also gets
+   * the RECOMPILE_MS bucket, because their scope changes with the clock; everyone else's stamp moves only when access really changed. A device whose rows were last checked under another stamp has
+   * them checked again (pull.ts sweepHeld), so a revoked, narrowed, expired or newly given share is reflected on its next pull.
+   */
+  stamp(person: string, now: number): string {
+    const snap = this.snap();
+    let id = this.ids.get(snap);
+    if (id === undefined) { id = this.nextId++; this.ids.set(snap, id); }
+    const me = snap.info(person);
+    let timed = false;
+    if (me) for (const g of snap.allGrantRecs()) if (me.keys.has(g.key) && (g.exp !== Infinity || g.nb !== -Infinity || g.na !== Infinity)) { timed = true; break; }
+    return `${id}:${snap.epoch}:${timed ? Math.floor(now / RECOMPILE_MS) : "-"}`;
+  }
   get(person: string, resource: string, now: number): ScopeResult {
     const snap = this.snap();
     if (snap.epoch !== this.epoch || now - this.at > RECOMPILE_MS || now < this.at) { this.map.clear(); this.epoch = snap.epoch; this.at = now; }
