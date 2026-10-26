@@ -9,6 +9,7 @@ import type http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { authorize } from "../../../kernel/src/authorize/index.ts";
+import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { LogClient } from "../../../kernel/src/log/index.ts";
 import { registry } from "../../../generated/registry.ts";
 import { routes } from "../../../generated/routes.ts";
@@ -60,7 +61,7 @@ import { createPushPort, wireSeams } from "../seams/index.ts";
 import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
 import { createLiveHub } from "../ws.ts";
 import type { LiveHub } from "../ws.ts";
-import { createAccess } from "./access.ts";
+import { createAccess, isAccessEvent, toAccessEvent, touchesAccess } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
 import { createResourceRegistrar } from "../gateway/resources.ts";
 import { fromStored, toNew } from "./commit.ts";
@@ -251,6 +252,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: ownNode });
   let headSeq = 0;
   const access = createAccess();
+  // Ruling 70: authorize answers from the access module's snapshot. The log's access events wait here until the module has folded them; `syncAccess` (set once the hooks run)
+  // hands them over, adopts the snapshot it answers and runs after every commit that may have changed access, so the next call already sees a join, a role change, a share or a removal.
+  let accessPending: { seq: number; type: string; payload: unknown }[] = [];
+  let syncAccess: (force?: boolean) => Promise<void> = async () => {};
 
   const writeProbe = (name: ProbeName, r: ProbeResult): void => {
     probeState.set(name, r);
@@ -291,7 +296,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       sink.log({ space, level: first.ok ? 20 : 40, msg: "events.verified", place: "boot", result: first.ok ? "ok" : "broken", attrs: first.ok ? { seq: first.seq } : { at: first.at, why: first.why } });
       for (let after = 0; ;) {
         const page = await log.read({ after, limit: 5000 });
-        for (const e of page) access.fold(e);
+        for (const e of page) { access.fold(e); if (isAccessEvent(e.type)) accessPending.push(toAccessEvent(e)); }
         if (page.length < 5000) break;
         after = page[page.length - 1]!.seq;
       }
@@ -408,8 +413,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           if (chainBroken) throw fail("internal.unavailable", trace, { message: "The event log failed verification, so this server is not accepting changes. Run vyre-server doctor." });
           const stored = await Promise.all(b.events.map((e) => log!.append(toNew(e))));
           const out = stored.map((s, i) => fromStored(s, b.events[i]!));
-          for (const s of stored) access.fold(s);
+          for (const s of stored) { access.fold(s); if (isAccessEvent(s.type)) accessPending.push(toAccessEvent(s)); }
           headSeq = Math.max(headSeq, ...out.map((e) => e.seq));
+          if (stored.some((s) => touchesAccess(s.type))) await syncAccess(true);
           if (b.audit) recordAudit(b.audit);
           return out;
         }),
@@ -433,6 +439,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       closers.push(() => hookRunner.pump().catch(() => {}));   // finish the pass in flight before the databases close
       closers.push(() => projectionRunner.pump().catch(() => {}));
       await hookRunner.start();
+      syncAccess = async (force) => {
+        const events = accessPending;
+        if (!events.length && !force && access.adopted()) return;
+        accessPending = [];
+        try { access.adopt((await hookRunner.call("access.sync", { events })) as AccessSnapshot); } catch (e) {
+          accessPending = [...events, ...accessPending];   // the module could not take them: keep them for the next pass and keep answering from the last snapshot
+          sink.log({ space: spaceId, level: 40, msg: "access.sync_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } });
+          if (!access.adopted()) throw e;   // a Space that never had the module's snapshot cannot answer; later, the last good snapshot stands and the next commit tries again
+        }
+      };
+      await syncAccess();
       // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
       const spaceLog = log;
       peopleExtras = createPeopleExtras({ access: () => access.snap, db: db!, call: (n, i, as) => hookRunner.call(n, i, as), keyring, github: o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env) });
@@ -455,7 +472,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 payload: { id: kitId, type: "kit", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 },
               });
               if (!r.ok) throw new Error(`could not register the Kit: ${r.message}`);
-              if (!r.duplicate) { access.fold(r.event); headSeq = Math.max(headSeq, r.event.seq); }
+              if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
             },
           },
         }),
@@ -547,8 +564,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         const seeding = startSchema().catch((e: unknown) => { sink.log({ space: spaceId, level: 50, msg: "schema.seed_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }); });
         closers.push(() => seeding);
         for (const rt of registry.recordTypes) {
-          access.fold({ type: "resource.created", payload: { id: rt.key, type: "record_type", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 } });
+          const created = { type: "resource.created", payload: { id: rt.key, type: "record_type", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 } };
+          access.fold(created);
+          accessPending.push({ seq: -1, ...created });   // not a log event: the module applies it at every start
         }
+        await syncAccess();
       }
 
       const owner = (): string => cfg.owner ?? access.owner() ?? "usr_owner";
