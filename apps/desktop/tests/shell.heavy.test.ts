@@ -45,9 +45,9 @@ async function stopSidecar(r: Running): Promise<void> {
   r.child.removeAllListeners("exit");
   const done = new Promise<void>((resolve) => r.child.once("exit", () => resolve()));
   r.child.kill("SIGTERM");
-  const timer = setTimeout(() => r.child.kill("SIGKILL"), 5000);
-  await done;
-  clearTimeout(timer);
+  if (process.platform === "win32" && r.child.pid) spawnSync("taskkill", ["/PID", String(r.child.pid), "/T", "/F"], { stdio: "ignore", timeout: 5000 });
+  await Promise.race([done, new Promise<void>((resolve) => setTimeout(resolve, 5000))]);
+  if (r.child.exitCode === null) r.child.kill("SIGKILL");
 }
 
 /** Same check as sidecar.rs: any 200 from /healthz. */

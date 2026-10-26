@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Desktop smoke: bound Windows sidecar shutdown and prevent failed heavy tests from hanging CI.
 - Desktop CI: bound packaged-shell readiness and guarantee Windows process cleanup on exit.
 - CI: replace the desktop placeholder with blocking macOS and Windows packaging, Rust tests, policy checks, packaged-shell smoke coverage, and captured proof artifacts.
 - Fix: keep the missing-item fallback snapshot stable so Mail and Automations do not enter a production React render loop before an item is selected; reset place failures on route changes.
