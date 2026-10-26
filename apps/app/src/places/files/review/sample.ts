@@ -44,6 +44,121 @@ export const AGENT_TOML = [
   'to = "Docs"', "",
 ].join("\n");
 
+/** The Intake agent's full agent.toml, as in the prototype: every table of the schema (the Form view's screen shows its Identity, Model and Whose AI account first). Shown when a sample asks for `intake`. */
+export const AGENT_TOML_INTAKE = [
+  "schema = 1",
+  "",
+  "[identity]",
+  "id          = \"intake\"",
+  "name        = \"Intake\"",
+  "handle      = \"@intake\"",
+  "description = \"Books first calls and gathers client details for new inquiries.\"",
+  "owner       = \"lena\"",
+  "status      = \"active\"",
+  "",
+  "[model]",
+  "primary   = \"claude-sonnet-5-5\"",
+  "fallback  = [\"claude-haiku-4-5\"]",
+  "effort    = \"medium\"",
+  "max_output_tokens = 3000",
+  "",
+  "[runs_on]",
+  "mode              = \"asker\"",
+  "scheduled_runs_as = \"owner\"",
+  "on_account_missing = \"pause_and_notify\"",
+  "",
+  "[tools]",
+  "allow = [\"calendar.read\", \"calendar.book\", \"crm.read\", \"crm.write\", \"email.draft\", \"knowledge.read\", \"files.workspace\"]",
+  "deny  = [\"email.send\", \"files.delete\", \"payments.*\"]",
+  "mcp   = [\"booking\", \"crm\"]",
+  "",
+  "[permissions]",
+  "default     = \"ask\"",
+  "file_scope  = [\"./\", \"space/knowledge/\"]",
+  "write_scope = [\"./memory/\", \"./work/\", \"./skills/\"]",
+  "network     = \"allow_listed\"",
+  "",
+  "[[approvals.rule]]",
+  "action        = \"email.send_confirmation\"",
+  "require       = \"none\"                # confirmations are templated and low risk",
+  "[[approvals.rule]]",
+  "action        = \"email.send\"",
+  "require       = \"approver\"",
+  "approver      = \"role:ops-lead\"",
+  "timeout_hours = 24",
+  "on_timeout    = \"hold\"",
+  "[[approvals.rule]]",
+  "action   = \"memory.permanent\"",
+  "require  = \"reviewer\"",
+  "reviewer = \"lena\"",
+  "",
+  "[vault]",
+  "keys        = [\"CRM_API\", \"CALENDAR_BOOKING\", \"EMAIL_SEND\"]",
+  "request_new = \"ask_owner\"",
+  "",
+  "[limits]",
+  "max_turns_per_run      = 30",
+  "max_tool_calls_per_run = 60",
+  "max_run_minutes        = 20",
+  "spend_per_run_usd      = 1.00",
+  "spend_per_day_usd      = 10.00",
+  "spend_per_month_usd    = 150.00",
+  "max_concurrent_runs    = 3",
+  "on_limit               = \"stop_and_notify\"",
+  "",
+  "[memory]",
+  "enabled         = true",
+  "index_file      = \"memory/MEMORY.md\"",
+  "auto_capture    = \"propose\"",
+  "review          = \"weekly\"",
+  "max_index_lines = 200",
+  "retention_days  = 365",
+  "share_read      = [\"space\"]",
+  "forget_on_request = true",
+  "",
+  "[context]",
+  "skills_load        = \"on_demand\"",
+  "knowledge_load     = \"on_demand\"",
+  "history_compaction = \"auto\"",
+  "history_keep_turns = 20",
+  "",
+  "[computer]",
+  "enabled           = true",
+  "size              = \"small\"",
+  "persistent        = true",
+  "browser           = true",
+  "idle_stop_minutes = 15",
+  "screen_share      = \"ask\"",
+  "allowed_apps      = [\"browser\", \"files\"]",
+  "",
+  "[[routines]]",
+  "id       = \"morning-sweep\"",
+  "prompt   = \"routines/morning-sweep.md\"",
+  "cron     = \"0 8 * * 1-5\"",
+  "timezone = \"America/New_York\"",
+  "enabled  = true",
+  "limits   = { spend_per_run_usd = 0.50, max_turns_per_run = 20 }",
+  "",
+  "[[watchers]]",
+  "id      = \"contact-form\"",
+  "on      = \"event\"",
+  "source  = \"forms.contact.submitted\"",
+  "prompt  = \"routines/new-inquiry.md\"",
+  "debounce_seconds = 30",
+  "enabled = true",
+  "",
+  "[handoff]",
+  "can_message  = [\"@billing\", \"lena\", \"irfad\"]",
+  "can_delegate = []",
+  "accepts_from = [\"*\"]",
+  "",
+  "[logging]",
+  "level     = \"info\"",
+  "keep_days = 90",
+  "redact    = [\"email\", \"phone\"]",
+  "",
+].join("\n");
+
 export const SUGGESTION_DIFF = [
   "@@ -11,3 +11,3 @@", " - Warm and brief. Two sentences, then a question.", "-- No exclamation marks.", "+- No exclamation marks. Keep replies under five lines.", " - Say what happens next, always.",
   "@@ -16,2 +16,3 @@", " - Take payment details. Ever.", " - Promise an outcome.", "+- Quote a fee before the consult.",
@@ -121,6 +236,8 @@ export interface SampleOptions {
   state?: Changeset["state"];
   /** An agent.toml with a secret in it: the lint is red. */
   secret?: boolean;
+  /** agent.toml is the full Intake file (AGENT_TOML_INTAKE), at version 3 by Lena Ortiz. */
+  intake?: boolean;
 }
 
 interface Version { versionId: string; n: number; by: string; at: number; reason?: string; name?: string; text: string }
@@ -168,7 +285,7 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
   const seed = variant === "harbor" ? HARBOR : NORTHWIND;
   const names: Record<string, string> = {
     ...namesFor(variant),
-    fld_rivera: "Projects/Rivera matter", fld_h_gallery: "Clients/Gallery",
+    fld_rivera: "Projects/Rivera matter", fld_h_gallery: "Clients/Gallery", usr_lena: "Lena Ortiz", lena: "Lena Ortiz",
   };
   const nameOf = (id: string): string => names[id] ?? (id.startsWith("usr_") ? "Someone" : id.startsWith("agt_") ? "An agent" : "Unknown");
   const replica = createFakeReplica(variant === "harbor" ? "spc_harbor" : "spc_northwind");
@@ -203,7 +320,11 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
       { versionId: "ver_a3", n: 3, by: "usr_irfad", at: t0 - 2 * DAY, reason: "Say what happens next", name: "Before the Lab", text: AGENT_MD.replace("- Promise an outcome.\n", "") },
       { versionId: "ver_a4", n: 4, by: "usr_irfad", at: t0 - 3 * 3_600_000, reason: "Allow texts in the daytime", text: AGENT_MD },
     ]],
-    [ids.toml, [
+    [ids.toml, o.intake ? [
+      { versionId: "ver_t1", n: 1, by: "usr_irfad", at: t0 - 9 * DAY, reason: "First version", text: AGENT_TOML_INTAKE.replace("max_output_tokens = 3000", "max_output_tokens = 2000") },
+      { versionId: "ver_t2", n: 2, by: "usr_maya", at: t0 - 6 * DAY, reason: "Add the booking tools", text: AGENT_TOML_INTAKE.replace("max_output_tokens = 3000", "max_output_tokens = 2000").replace('effort    = "medium"', 'effort    = "high"') },
+      { versionId: "ver_t3", n: 3, by: "usr_lena", at: t0 - 4 * DAY, reason: "Balanced effort, more room to answer", text: AGENT_TOML_INTAKE },
+    ] : [
       { versionId: "ver_t1", n: 1, by: "usr_irfad", at: t0 - 5 * DAY, reason: "Models and limits", text: AGENT_TOML.replace("daily_budget = 12", "daily_budget = 8") },
       { versionId: "ver_t2", n: 2, by: "usr_irfad", at: t0 - 1 * DAY, reason: "Raise the daily budget", text: o.secret ? AGENT_TOML.replace("ask_before_send = true", 'ask_before_send = true\nkey = "sk-live1234567890"') : AGENT_TOML },
     ]],
@@ -332,6 +453,7 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
     agents: variant === "harbor"
       ? [{ id: "agt_assistant", name: "Assistant", assistant: true }, { id: "agt_scheduler", name: "Scheduler" }, { id: "agt_proofer", name: "Proofer" }]
       : [{ id: "agt_assistant", name: "Assistant", assistant: true }, { id: "agt_intake", name: "Intake" }, { id: "agt_billing", name: "Billing" }, { id: "agt_research", name: "Research" }, { id: "agt_docs", name: "Docs" }, { id: "agt_scout", name: "Scout" }],
+    people: [{ id: "irfad", name: "Irfad Imtiaz" }, { id: "maya", name: "Maya Chen" }, { id: "omar", name: "Omar Haddad" }, { id: "lena", name: "Lena Ortiz" }, { id: "sam", name: "Sam Patel" }],
     nav,
   };
   return {
