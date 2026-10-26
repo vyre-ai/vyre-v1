@@ -9,17 +9,17 @@ export const LIVE_FOR_PERSONAL = ["spaces", "devices", "network", "access", "mem
 
 /** Why this flow is a todo today (ruling 53). */
 export const GAPS: Gap[] = [
-  { packet: "P-H_19 (PR 479)", lane: "L7", what: "the Space is a team Space: spaces.matrix answers kind team and nothing sets a Personal Space, so teamOnly calls are not refused with permission.needs_team" },
-  { packet: "P-L7b_15 (L7b)", lane: "L7b", what: "network.endpoints lists only direct endpoints, no relay" },
-  { packet: "P-L1_LIVE", lane: "L1", what: "no document update is pushed from the host and pulled by the phone yet (the step is a placeholder until a documents flow exists)" },
+  { packet: "P-H_19 follow-up (w2q)", lane: "L7", what: "the node boots with --space-kind personal and refuses team-only calls with permission.needs_team, but spaces.matrix still answers kind team with every feature available" },
+  { packet: "P-L7b_15 (L7b)", lane: "L7b", what: "network.endpoints lists only the direct endpoints, no relay entry for the connection manager to pin" },
+  { packet: "L1 sync docs", lane: "L1", what: "sync.doc.update answers 404 'That document is not here': a document is a synced row (sync_rows) and no capability creates one, so there is nothing for the phone to open" },
 ];
 
 export async function runPersonal(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const trail = new Trail();
   let s = undefined as FlowSpace | undefined;
-  await trail.step("a Space boots with sync live", async () => { s = await bootFlowSpace([...live, "sync"]); });
+  await trail.step("a Space boots with sync live", async () => { s = await bootFlowSpace([...live, "sync"], { spaceKind: "personal" }); });
   if (!s) {
-    await trail.step("the same Space boots with sync as a stub, to check what else is wired", async () => { s = await bootFlowSpace(live); });
+    await trail.step("the same Space boots with sync as a stub, to check what else is wired", async () => { s = await bootFlowSpace(live, { spaceKind: "personal" }); });
     if (!s) return { events: [], trail };
   }
   const synced = trail.lines.some((l) => l.startsWith("ok    a Space boots with sync live"));
@@ -50,7 +50,12 @@ export async function runPersonal(live: readonly string[]): Promise<{ events: Ob
     }, ["the phone pairs with a code from the signed-in device"]);
     await trail.step("a document edited on the host reaches the phone", async () => {
       assert.ok(synced, "needs sync live");
-      throw new Error("not reachable until sync is live: no document update has been pushed or pulled");
+      const doc = "not_golden15";
+      const update = Buffer.from([0, 0]).toString("base64");   // an empty Yjs update: the server appends what an accepted device sends
+      const sent = expectStatus(await space.call("sync.doc.update", admin, { doc, update }), 200, "sync.doc.update");
+      assert.ok(sent.seq >= 1, `update ${short(sent)}`);
+      const opened = expectStatus(await space.call("sync.doc.open", phone!.token, { doc }), 200, "sync.doc.open");
+      assert.ok((opened.updates as string[]).includes(update) || opened.snapshot, `the phone opens the host's update: ${short(opened)}`);
     }, ["the phone's replica scope is set and it pulls"]);
     await trail.step("refusal: the phone cannot revoke the host's other devices", async () => {
       const r = await space.call("devices.revoke", phone!.token, { deviceId: "dev_hostcomputer" });
