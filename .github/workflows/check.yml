@@ -106,6 +106,8 @@ jobs:
         run: node scripts/lint/make-emits.ts
       - name: idem-calls (report mode, whole tree, never fails yet); ctx.call to a capability with idempotency key must pass idempotencyKey
         run: node scripts/lint/idem-calls.ts
+      - name: perf-files (a perf file may hold only speed tests, since every shard outside the perf host skips it)
+        run: node scripts/lint/perf-files.ts
       - name: Typecheck every package that has a tsconfig.json above a changed file
         run: |
           git fetch -q origin main
