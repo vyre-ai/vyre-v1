@@ -251,7 +251,7 @@ test("remove through Mailgun deletes the domain and each provider route; a provi
     "mailgun.domains.delete": () => { throw hostError(h, "validation.not_found"); },
   });
   assert.deepEqual(await domainRemove(h.ctx, { domainId: "dom_mg" }), { removed: true });
-  assert.deepEqual(h.calls("mailgun.routes.delete").map((c) => c.input), [{ routeId: "mgr_77" }]);
+  assert.deepEqual(h.calls("mailgun.routes.delete").map((c) => c.input), [{ idempotencyKey: "mail.domains.remove:dom_mg:route:rte_one", routeId: "mgr_77" }]);
   assert.deepEqual(h.calls("mailgun.domains.delete").map((c) => c.input), [{ name: "example.com" }]);
 });
 
