@@ -112,6 +112,11 @@ test("security.yml has no placeholder and runs license-check, the secret scan, t
   assert.match(w.text, /cargo-deny \$CARGO_DENY_VERSION cannot be installed[^\n]*exit 1/);
   assert.match(w.text, /cargo install --locked --version "\$CARGO_DENY_VERSION"/);
   assert.doesNotMatch(w.text, /::warning::[^\n]*(not installed|not checked)/);
+  // the cargo rules are passed by absolute path and a missing file fails the step; a relative path is resolved against the manifest directory and falls back to the default config
+  assert.match(w.text, /--config "\$CONFIG"/);
+  assert.match(w.text, /CONFIG="\$GITHUB_WORKSPACE\/scripts\/security\/deny\.toml"/);
+  assert.match(w.text, /\[ -f "\$CONFIG" \] \|\| \{[^\n]*exit 1/);
+  assert.doesNotMatch(w.text, /--config scripts\/security/);
 });
 
 test("seeded bad input: a blocked license, a secret, a high advisory and an unlisted boundary violation each fail", () => {
