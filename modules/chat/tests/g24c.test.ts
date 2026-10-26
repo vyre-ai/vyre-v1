@@ -136,7 +136,8 @@ test("react adds and removes a reaction per person, and a repeat changes nothing
   assert.equal(await failure(() => g["chat.react"]!(hn.ctx, { threadId: c.mainThreadId, messageId: m, emoji: "  " })), "validation.bad_input");
   assert.equal(await failure(() => g["chat.react"]!(hn.ctx, { threadId: c.mainThreadId, messageId: "msg_none", emoji: "x" })), "validation.not_found");
   const t = await chat(hn);
-  assert.equal(await failure(() => g["chat.react"]!(hn.person(LEO), { threadId: t, messageId: await say(hn.ctx, t, "x"), emoji: "x" })), "validation.not_found");
+  const mid = await say(hn.ctx, t, "x");
+  assert.equal(await failure(() => g["chat.react"]!(hn.person(LEO), { threadId: t, messageId: mid, emoji: "x" })), "validation.not_found");
 });
 
 test("pin and unpin set the marker, emit only on a change, and pins.list shows the pinned messages in order", async () => {

@@ -75,6 +75,9 @@ test("chat live: a person's message to an agent on a booted daemon gets a stream
   const d = await boot(dir);
   try {
     assert.deepEqual(d.seams?.missing, [], "no live module is left without its driver");
+    // The Files module is still a stub here, so the Agents folder cannot be found by search: name one for the agents module, whose file steps the stub answers.
+    d.db!.run("CREATE TABLE IF NOT EXISTS agents_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+    d.db!.run("INSERT OR REPLACE INTO agents_meta (key, value) VALUES (?, ?)", "agents.root", "fld_a1b2c3");
     const made = await call(d, "agents.create", { name: "Intake", role: "You answer intake questions.", idempotencyKey: "chat-live-agent" });
     assert.equal(made.status, 200, JSON.stringify(made.data));
     const agentId = made.data.agent.agentId as string;
