@@ -218,7 +218,9 @@ test("the system halves refuse a direct call from a person, the owner included, 
     ];
     for (const token of [NOAH, OWNER]) {
       for (const [p, body] of direct) {
-        const r = await post(d, p, token, { idempotencyKey: `sweep10-${p}`, ...(body as object) });
+        // bumping your own epoch is allowed; naming someone else is the refusal
+        const aimed = p === "/v1/devices/epoch_bump" ? { ...(body as object), person: token === OWNER ? "usr_noah" : "usr_olivia" } : body;
+        const r = await post(d, p, token, { idempotencyKey: `sweep10-${p}`, ...(aimed as object) });
         const text = await r.text();
         assert.ok(r.status === 403 || r.status === 404, `${token} ${p}: a direct call is refused, got ${r.status} ${text.slice(0, 200)}`);
         assert.ok(!text.includes('"ok":true') && !text.includes("auditId") && !text.includes("sessionToken"), `${p}: no success body`);
