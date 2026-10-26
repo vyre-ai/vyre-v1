@@ -24,8 +24,13 @@ const sizes = (args.sizes || Object.keys(SIZES).join(",")).split(",").map((n) =>
 const maxExport = Number(args["max-export-s"] || MAX_EXPORT_S);
 const want = args.target || "all";
 
-// P-UI_14: the production app's startup and bundle report, on the perf runner (the target carries no screenshots)
-if (want === "P-UI_14") { const { main } = await import("./startup.mjs"); await main(args["skip-export"] ? ["--skip-export"] : []); process.exit(0); }
+// P-UI_14: the production app's startup and bundle report, on the perf runner (the target carries no screenshots). P-UI_14 ends there. On the perf job of any other branch (it runs only for a
+// head commit with [perf], ruling 66) the report runs first and the scroll probe follows, so a packet that changes what the app loads (P-L9_17) gets its startup number from its own branch.
+if (want === "P-UI_14" || args["probes-only"]) {
+  const { main } = await import("./startup.mjs");
+  await main(args["skip-export"] ? ["--skip-export"] : []);
+  if (want === "P-UI_14") process.exit(0);
+}
 
 // A packet id (P-L9b_02) selects that packet's targets, whose ids start with it; "all" runs everything.
 const targets = loadTargets(HERE).filter((t) => want === "all" || t.id === want || (want.startsWith("P-") && t.id.startsWith(want + "-")));
