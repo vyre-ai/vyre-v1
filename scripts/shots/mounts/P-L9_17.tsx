@@ -1,4 +1,4 @@
-// Mount for P-L9_17: the phone shell over the Northwind sample Space (?space=harbor for Harbor Studio). ?tab=chats (default), inbox, records, files or you opens that tab. The Chats tab is the real
+// Mount for P-L9_17 (phone shell): the phone shell over the Northwind sample Space (?space=harbor for Harbor Studio). ?tab=chats (default), inbox, records, files or you opens that tab. The Chats tab is the real
 // Chats sidebar as a full-screen list: tap a chat and the conversation opens on top (Back returns to the list), tap a Needs you row for the same. You is the real You screen. Swipe a chat row left
 // (or right-click it) for Star and Mark read. window.__probes.startup is the milliseconds from navigation start to the tab bar and the first list on screen (budget startup, phone 1.5 s at 4x CPU).
 import { useEffect, useMemo, useState } from "react";
