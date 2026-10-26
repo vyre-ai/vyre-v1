@@ -114,11 +114,13 @@ export async function ensureHomeGrants(ctx: AgentsCtx, agentId: string, ownerId:
     (have.shares ?? []).some((x) => x.grant.subject.kind === kind && x.grant.subject.id === id && (LEVEL_RANK[x.grant.level] ?? -1) >= (LEVEL_RANK[level] ?? 99));
   let wrote = 0;
   if (!holds("agent", agentId, "edit")) {
-    await call(ctx, "access.share", { resource, subject: { kind: "agent", id: agentId }, level: "edit", source: `agent:${agentId}` }, { idempotencyKey: `agent-home:${agentId}:agent` });
+    const idempotencyKey = `agent-home:${agentId}:agent`;
+    await call(ctx, "access.share", { resource, subject: { kind: "agent", id: agentId }, level: "edit", source: `agent:${agentId}`, idempotencyKey }, { idempotencyKey });
     wrote += 1;
   }
   if (!holds("person", ownerId, "manage")) {
-    await call(ctx, "access.share", { resource, subject: { kind: "person", id: ownerId }, level: "manage", source: `agent:${agentId}` }, { idempotencyKey: `agent-home:${agentId}:owner:${ownerId}` });
+    const idempotencyKey = `agent-home:${agentId}:owner:${ownerId}`;
+    await call(ctx, "access.share", { resource, subject: { kind: "person", id: ownerId }, level: "manage", source: `agent:${agentId}`, idempotencyKey }, { idempotencyKey });
     wrote += 1;
   }
   setMeta(ctx.db, marker, String(ctx.now()));
