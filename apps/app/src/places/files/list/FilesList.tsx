@@ -107,7 +107,8 @@ function List(): ReactElement {
   const last = useRef<{ key: string; at: number }>({ key: "", at: 0 });
   const [over, setOver] = useState<string | null>(null);
   const [width, setWidth] = useState(0);
-  const phone = useWindowDimensions().width < PHONE_BELOW;
+  const phoneW = useWindowDimensions().width;
+  const phone = phoneW > 0 && phoneW < PHONE_BELOW; // 0 is "not measured yet" (the static page)
   const spring = useRef<Spring | null>(null);
   if (spring.current === null) spring.current = createSpring((id) => dispatch({ type: "go", where: { kind: "folder", id } }));
   useEffect(() => () => spring.current?.cancel(), []);
