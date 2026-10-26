@@ -45,7 +45,7 @@ import { createComputersFillHost, createFillRoute } from "../seams/computers.ts"
 import { createComputersHost } from "../seams/computers-host.ts";
 import { createEngineHost } from "../seams/engine.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
-import { applyPendingRestore, createBackupHost } from "../seams/backup.ts";
+import { applyPendingRestore, clearRestoredTombstones, createBackupHost, readRestoredTombstones } from "../seams/backup.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import { startRelayBox } from "../seams/relay.ts";
 import { createSyncSeam } from "../seams/sync.ts";
@@ -665,6 +665,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           accessPending.push({ seq: -1, ...created });   // not a log event: the module applies it at every start
         }
         await syncAccess();
+      }
+
+      // A restore brought an older Space back. What was erased since is erased again, as the host, before any request is served (spec 2.26, ARCH 7.10). If it cannot be done the Space does not open.
+      const kept = loaded.serving.get("governance") === "live" ? readRestoredTombstones(paths.root) : null;
+      if (kept) {
+        const replayed = (await system("governance.tombstones.reapply", { tombstones: kept })) as { count?: number };
+        sink.log({ space: spaceId, level: 20, msg: "restore.tombstones_reapplied", place: "boot", attrs: { count: replayed?.count ?? 0 } });
+        clearRestoredTombstones(paths.root);
       }
 
       const owner = (): string => cfg.owner ?? access.owner() ?? "usr_owner";

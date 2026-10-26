@@ -266,8 +266,12 @@ export async function tombstonesList(ctx: GovCtx, input: { cursor?: string; limi
 }
 
 /** After a restore: every tombstone erased again, in the order they were written, before the Space opens for traffic. Idempotent. */
-export async function tombstonesReapply(ctx: GovCtx) {
+export async function tombstonesReapply(ctx: GovCtx, input: { tombstones?: Array<{ id: string; kind: string; subjectType: string; subjectId: string; at: number; by: string; findingId?: string }> } = {}) {
   ensure(ctx);
+  // the erasures made after the backup was taken: the restored database has not heard of them, so the host brings them over and they are kept like any other
+  for (const t of input.tombstones ?? []) {
+    ctx.db.run(`INSERT OR IGNORE INTO governance_tombstone ("id", "kind", "subjectType", "subjectId", "at", "by", "findingId") VALUES (?, ?, ?, ?, ?, ?, ?)`, t.id, t.kind, t.subjectType, t.subjectId, t.at, t.by, t.findingId ?? "");
+  }
   const rows = rowsOf(ctx.db.all(`SELECT * FROM governance_tombstone`)).sort((a, b) => num(a, "at") - num(b, "at") || str(a, "id").localeCompare(str(b, "id")));
   for (const r of rows) {
     if (str(r, "kind") === "events") {

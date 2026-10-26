@@ -66,7 +66,10 @@ export default defineManifest({
     }),
     read('governance.erase.list', 'Past erasures: who, when and which kinds (never what)', { ...V, in: { ...pageIn }, out: { erasures: t.arr(eraseRow), ...pageOut }, perm: 'policy.manage', tool: 'engineer', team: true }),
     read('governance.tombstones.list', 'Tombstones that a restore will replay (kinds and times only)', { ...V, in: { ...pageIn }, out: { tombstones: t.arr(tombstoneRow), ...pageOut }, perm: 'policy.manage', tool: 'engineer', team: true }),
-    write('governance.tombstones.reapply', 'System: replay every tombstone after a restore, before the Space opens for traffic', { ...V, in: {}, out: { count: t.int({ minimum: 0 }) }, emits: ['tombstones.reapplied'], audit: 'always' }),
+    write('governance.tombstones.reapply', 'System: replay every tombstone after a restore, before the Space opens for traffic; `tombstones` are the ones the Space held before the restore, which the restored database does not have', {
+      ...V, in: { tombstones: t.opt(t.arr(t.obj({ id: t.str(), kind: t.str(), subjectType: t.str(), subjectId: t.str(), at: t.ts(), by: t.str(), findingId: t.opt(t.str()) }))) },
+      out: { count: t.int({ minimum: 0 }) }, emits: ['tombstones.reapplied'], audit: 'always',
+    }),
 
     read('governance.jobs_health', 'Health probe: retention jobs ran on schedule', { ...V, in: {}, out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int({ minimum: 0 })) } }),
   ],

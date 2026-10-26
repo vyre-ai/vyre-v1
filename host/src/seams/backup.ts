@@ -135,7 +135,8 @@ export function createBackupHost(deps: BackupHostDeps): BackupHostSeam {
             fs.mkdirSync(path.dirname(path.join(stage, rel)), { recursive: true });
             fs.writeFileSync(path.join(stage, rel), e.bytes);
           }
-          fs.writeFileSync(path.join(stage, "tombstones.json"), JSON.stringify(tombstones));
+          // the full rows, read from the Space as it is now: the restored database predates the erasures made since the backup and does not have them (spec 2.26, ARCH 7.10)
+          fs.writeFileSync(path.join(stage, "tombstones.json"), JSON.stringify(currentTombstones(deps.root, tombstones)));
         }
         // governance.tombstones.reapply runs after the restored Space opens (it needs the restored tables), so nothing is replayed here
         return { checkedEvents: chain.events, chainOk: chain.ok, replayed: 0 };
@@ -178,6 +179,28 @@ export function createBackupHost(deps: BackupHostDeps): BackupHostSeam {
   };
 }
 
+export interface TombstoneRow { id: string; kind: string; subjectType: string; subjectId: string; at: number; by: string; findingId?: string }
+const KEPT = "restore-tombstones.json";
+
+/** Every tombstone the live Space holds, whole, read before the restore replaces its database. A Space with no governance table has none. */
+function currentTombstones(root: string, _listed: unknown): TombstoneRow[] {
+  const file = path.join(root, "modules.db");
+  if (!fs.existsSync(file)) return [];
+  const db = openDb(file, { readOnly: true });
+  try {
+    return db.all(`SELECT "id", "kind", "subjectType", "subjectId", "at", "by", "findingId" FROM governance_tombstone`) as unknown as TombstoneRow[];
+  } catch { return []; } finally { db.close(); }
+}
+
+/** The tombstones a restore kept for the first start after it, or none. */
+export function readRestoredTombstones(root: string): TombstoneRow[] | null {
+  const file = path.join(root, KEPT);
+  if (!fs.existsSync(file)) return null;
+  try { const rows = JSON.parse(fs.readFileSync(file, "utf8")) as unknown; return Array.isArray(rows) ? (rows as TombstoneRow[]) : []; } catch { return []; }
+}
+/** Once they are replayed and recorded in the restored database, the file goes. */
+export function clearRestoredTombstones(root: string): void { fs.rmSync(path.join(root, KEPT), { force: true }); }
+
 /** At the start, before any database is open: move a staged restore into place. The files it replaces are kept in restore-previous/. Returns the files moved. */
 export function applyPendingRestore(root: string): string[] {
   const stage = path.join(root, PENDING);
@@ -199,6 +222,8 @@ export function applyPendingRestore(root: string): string[] {
     fs.renameSync(path.join(stage, "blobs"), path.join(root, "blobs"));
     moved.push("blobs");
   }
+  // the tombstones outlive the stage: the Space replays them once it is open (readRestoredTombstones), because the restored database does not have the erasures made after the backup
+  if (fs.existsSync(path.join(stage, "tombstones.json"))) fs.copyFileSync(path.join(stage, "tombstones.json"), path.join(root, KEPT));
   fs.rmSync(stage, { recursive: true, force: true });
   return moved;
 }
