@@ -7,6 +7,8 @@
 //   3. one-use forms open from a link: GET /f/<slug>?t=<token> asks deps.link for the questions that link still needs and the answers saved so far; without a token a one-use form says so.
 //   4. uploads: POST /f/upload/<slug>[?t=<token>] takes one file as the raw body (x-file-name names it), refuses it over the form's size or type policy while it streams (before any byte is stored),
 //      has its own per-source budget beside the page's, and returns { data: { fileId } } where fileId is an upload id the forms module issued for this form and this visitor, never a Space file id. The store behind it is deps.upload and the folder is the form's upload policy folderId; without both the page draws no file chooser.
+// The three public capabilities a page calls (POST /f/submit, POST /book/create, GET /book/availability) have no signed-in caller, so this route answers them too: it runs them through deps.call
+// as the host and names the visitor from the socket (see publicCall). Nothing the client sends can name the visitor.
 // The page is served with a strict content security policy (its own nonce for its one script, no outside scripts but the captcha's), no-store caching and nosniff. Anything else on these paths
 // is 405 (GET and HEAD only; upload takes POST). The route is a request hook like the blob route: true when it answered, false when the daemon should carry on.
 import type http from "node:http";
@@ -57,16 +59,29 @@ export interface FormsPageDeps {
   link?(slug: string, token: string, caller: PageCaller): Promise<LinkQuestions | null>;
   /** Store an uploaded file for a form; the policy was already applied to the size and declared type. Returns the file's id. */
   upload?(slug: string, file: { name: string; type: string; bytes: Uint8Array; folderId: string }, caller: PageCaller, token?: string): Promise<string>;
+  /**
+   * Run a public capability for a signed-out visitor: the pipeline has no session to authorize, so the host calls it as itself and names the visitor in `visitor` (the route sets it from the
+   * socket address and clears whatever the client sent). Throws the pipeline's error as is.
+   */
+  call?(cap: "forms.submit" | "bookings.book" | "bookings.availability", input: Record<string, unknown>, caller: PageCaller): Promise<unknown>;
   captcha?: CaptchaWidget;
   /** Page views per source address per minute; default 120. */
   perMinute?: number;
   /** Uploads per source address per minute (its own budget beside the page's); default 10. */
   uploadsPerMinute?: number;
+  /** Submits and bookings per source address per minute; default 20. */
+  submitsPerMinute?: number;
   now?(): number;
 }
 
 const TRACE = "0".repeat(32);
 const PAGE = /^\/(f|book)\/([a-z0-9][a-z0-9-]{0,63})\/?$/;
+/** The public capabilities that have no signed-in caller: POST /f/submit, POST /book/create and GET /book/availability. The route answers them (deps.call) so a visitor needs no session. */
+const CAPS: Record<string, { method: "GET" | "POST"; cap: "forms.submit" | "bookings.book" | "bookings.availability" }> = {
+  "/f/submit": { method: "POST", cap: "forms.submit" }, "/book/create": { method: "POST", cap: "bookings.book" }, "/book/availability": { method: "GET", cap: "bookings.availability" },
+};
+const BODY_CAP = 256 * 1024;
+const DEFAULT_SUBMITS_PER_MINUTE = 20;
 const UPLOAD = /^\/f\/upload\/([a-z0-9][a-z0-9-]{0,63})$/;
 /** /book/availability and /book/create are capabilities, not pages; they are never a slug. */
 const RESERVED = new Set(["availability", "create", "submit", "partial", "upload"]);
@@ -416,13 +431,14 @@ function policyHeader(nonce: string, cap?: CaptchaWidget): string {
 export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } {
   const perMinute = deps.perMinute ?? DEFAULT_PER_MINUTE;
   const uploadsPerMinute = deps.uploadsPerMinute ?? DEFAULT_UPLOADS_PER_MINUTE;
+  const submitsPerMinute = deps.submitsPerMinute ?? DEFAULT_SUBMITS_PER_MINUTE;
   const clock = deps.now ?? Date.now;
   const hits = new Map<string, number[]>();
 
   /** Per-source page budget (ruling 64): one address cannot spend another's. A refused view is not counted, so a flood does not extend its own wait. */
-  function allowed(source: string, bucket: "page" | "upload" = "page"): number {
+  function allowed(source: string, bucket: "page" | "upload" | "submit" = "page"): number {
     const t = clock();
-    const limit = bucket === "page" ? perMinute : uploadsPerMinute;
+    const limit = bucket === "page" ? perMinute : bucket === "upload" ? uploadsPerMinute : submitsPerMinute;
     const key = `${bucket}:${source}`;
     const mine = (hits.get(key) ?? []).filter((at) => at > t - 60_000);
     if (mine.length >= limit) { hits.set(key, mine); return Math.max(1, Math.ceil(((mine[0] as number) + 60_000 - t) / 1000)); }
@@ -468,6 +484,47 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
     res.end(method === "HEAD" ? undefined : html);
   }
 
+  /** A public capability for a visitor with no session (POST /f/submit, POST /book/create, GET /book/availability). */
+  async function publicCall(req: http.IncomingMessage, res: http.ServerResponse, url: URL, def: (typeof CAPS)[string]): Promise<void> {
+    const { caller, source } = callerOf(req);
+    const wait = allowed(source, "submit");
+    if (wait > 0) return reply(res, "rate_limit.exceeded", 429, "Too many submissions just now. Try again in a minute.", { "retry-after": String(wait) });
+    let input: Record<string, unknown> = {};
+    if (def.method === "GET") {
+      const q = url.searchParams;
+      input = { slug: q.get("slug") ?? "", tz: q.get("tz") ?? "", from: Number(q.get("from")), to: Number(q.get("to")) };
+    } else {
+      const chunks: Buffer[] = [];
+      let size = 0;
+      for await (const c of req) {
+        size += (c as Buffer).length;
+        if (size > BODY_CAP) { req.destroy(); return reply(res, "validation.too_large", 413, "That is too large to send."); }
+        chunks.push(c as Buffer);
+      }
+      try {
+        const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
+        input = parsed as Record<string, unknown>;
+      } catch { return reply(res, "validation.bad_input", 400, "The request body is not JSON."); }
+    }
+    // who the visitor is comes from the socket, never from what the client sent
+    delete input["visitor"];
+    if (def.cap === "forms.submit") input["visitor"] = caller.id;
+    if (def.method === "POST" && typeof input["idempotencyKey"] !== "string") input["idempotencyKey"] = globalThis.crypto.randomUUID();
+    try {
+      const data = await deps.call!(def.cap, input, caller);
+      const body = JSON.stringify({ data });
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(body), "cache-control": "no-store" });
+      res.end(body);
+    } catch (e) {
+      const err = (e as { error?: { code?: string } }).error;
+      if (err?.code === undefined || !isKnownCode(err.code)) throw e;
+      const body = JSON.stringify({ error: err });
+      res.writeHead(httpOf(err.code), { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(body), "cache-control": "no-store" });
+      res.end(body);
+    }
+  }
+
   async function upload(req: http.IncomingMessage, res: http.ServerResponse, slug: string, token: string | undefined): Promise<void> {
     const { caller, source } = callerOf(req);
     const wait = Math.max(allowed(source), allowed(source, "upload"));
@@ -508,6 +565,12 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
     handle(req, res) {
       const url = new URL(req.url ?? "/", "http://vyred");
       const method = (req.method ?? "GET").toUpperCase();
+      const cap = CAPS[url.pathname];
+      if (cap && deps.call) {
+        if (method !== cap.method) { reply(res, "validation.bad_input", 405, `This address takes ${cap.method}.`, { allow: cap.method }); return true; }
+        void publicCall(req, res, url, cap).catch(() => { if (!res.headersSent) reply(res, "internal.unexpected", 500); else res.end(); });
+        return true;
+      }
       const up = UPLOAD.exec(url.pathname);
       const m = PAGE.exec(url.pathname);
       if (!up && !m) return false;

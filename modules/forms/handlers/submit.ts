@@ -205,7 +205,7 @@ export async function recordUpload(ctx: Ctx, f: { slug: string; fileId: string; 
  * Turn each file answer ({ fileId: <upload id> }) into the file it stands for. An upload counts only if this form took it from this visitor (and the same signed link), it is unused and under a
  * day old, and it fits the form's policy. A Space file id the visitor makes up is not an upload id and is refused. Returns the answers with the Space file ids, and the upload ids to mark used.
  */
-export function checkUploads(ctx: Ctx, form: Row, answers: Record<string, Answer>, tokenHash: string | null): { answers: Record<string, Answer>; used: string[] } {
+export function checkUploads(ctx: Ctx, form: Row, answers: Record<string, Answer>, tokenHash: string | null, visitor: string): { answers: Record<string, Answer>; used: string[] } {
   const policy = uploadPolicyOf(form);
   const out: Record<string, Answer> = { ...answers };
   const used: string[] = [];
@@ -214,7 +214,7 @@ export function checkUploads(ctx: Ctx, form: Row, answers: Record<string, Answer
     const field = `answers.${key}`;
     const bad = (): never => fail(ctx, "validation.bad_input", "That file could not be found. Choose it again.", { field });
     const row = one(ctx, "SELECT * FROM forms_upload WHERE id = ?", a.fileId);
-    if (!row || row.form_id !== form.id || row.actor !== ctx.principal.id || !isNull(row.used_at) || num(row.created_at) <= ctx.now() - UPLOAD_TTL_MS) return bad();
+    if (!row || row.form_id !== form.id || row.actor !== visitor || !isNull(row.used_at) || num(row.created_at) <= ctx.now() - UPLOAD_TTL_MS) return bad();
     if ((isNull(row.token_hash) ? null : str(row.token_hash)) !== tokenHash || used.includes(a.fileId) || !policy) return bad();
     if (policy.maxBytes !== undefined && num(row.size) > policy.maxBytes) {
       fail(ctx, "validation.too_large", `That file is over the ${Math.floor(policy.maxBytes / 1024)} KB limit.`, { field, maxBytes: policy.maxBytes });
@@ -224,6 +224,18 @@ export function checkUploads(ctx: Ctx, form: Row, answers: Record<string, Answer
     used.push(a.fileId);
   }
   return { answers: out, used };
+}
+
+/** The host's own principal: the public routes call forms.submit as the host for a signed-out visitor, who has no session the pipeline could authorize. */
+const HOST_PRINCIPAL = "svc_host";
+const VISITOR_ID = /^act_(anon|pending)_[0-9a-f]{16}$/;
+
+/**
+ * Who the submitter is. Normally the caller. When the host made the call for a signed-out visitor it names that visitor (act_anon_*, built from the socket address by the route, which clears
+ * any `visitor` the client sent); from any other principal the field is ignored, so no gateway caller can borrow another visitor's uploads.
+ */
+export function visitorOf(ctx: Ctx, o: Record<string, unknown>): string {
+  return ctx.principal.id === HOST_PRINCIPAL && typeof o.visitor === "string" && VISITOR_ID.test(o.visitor) ? o.visitor : ctx.principal.id;
 }
 
 export function principalOk(ctx: Ctx, form: Row): void {
@@ -341,7 +353,7 @@ async function submit(ctx: Ctx, input: unknown): Promise<{ recordId: string; tha
   else if (form.kind === "one_use") fail(ctx, "auth.invalid_code", "This form opens only from the link that was sent to you.");
 
   const checked = checkAnswers(ctx, form, link, rawAnswers);
-  const { answers, used } = checkUploads(ctx, form, checked, token !== undefined ? await sha256hex(token) : null);
+  const { answers, used } = checkUploads(ctx, form, checked, token !== undefined ? await sha256hex(token) : null, visitorOf(ctx, o));
   const attribution = cleanAttribution(ctx, o.attribution, consent);
 
   const digest = await digestOf(form, link, answers);

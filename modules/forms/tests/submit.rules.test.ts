@@ -148,6 +148,20 @@ test("uploads are bound to the form and the visitor: a Space file id, another vi
   assert.equal(await code(answerWith(f, "c@x.example", old)), "validation.bad_input", "an upload expires after a day");
 });
 
+test("uploads: when the host submits for a signed-out visitor it names the visitor, and only the host is believed", async () => {
+  const w = harness();
+  const f = await uploadForm(w, { fields: ["resume"] });
+  const visitor = "act_anon_0123456789abcdef";
+  const asVisitor = w.as({ kind: "actor", id: visitor });
+  const host = w.as({ kind: "service", id: "svc_host" });
+  const mine = await upload(f, FILES.small_pdf, undefined, asVisitor);
+  const send = (ctx: Ctx, who: string, email: string, id = mine) => run<SubmitOut>(ctx, "forms.submit", { slug: f.slug, visitor: who, answers: { email, resume: { fileId: id } } });
+  assert.equal(await code(send(host, "act_anon_ffffffffffffffff", "a@x.example")), "validation.bad_input", "the host names another visitor: not theirs");
+  assert.equal(await code(send(w.as({ kind: "person", id: "usr_x" }), visitor, "b@x.example")), "validation.bad_input", "a person cannot name a visitor");
+  assert.equal(await code(send(host, visitor, "d@x.example")), "none", "the host names the right visitor");
+  assert.equal(await code(send(asVisitor, "act_anon_ffffffffffffffff", "c@x.example", await upload(f, FILES.small_pdf, undefined, asVisitor))), "none", "a visitor submits as themselves, whatever the field says");
+});
+
 test("uploads: a signed-link upload is usable only on that link, and a link-free upload only without one", async () => {
   const w = harness();
   const f = await uploadForm(w, { fields: ["resume"] });
@@ -266,7 +280,8 @@ test("rendered page: steps, captcha widget, file chooser, hidden prefill, theme 
 
 interface Served { base: string; callers: PageCaller[]; uploads: { slug: string; token: string | undefined; caller: PageCaller }[]; close(): Promise<void> }
 
-async function serve(w: World, o: { perMinute?: number; uploadsPerMinute?: number; uploads?: boolean; clock?: () => number } = {}): Promise<Served> {
+type CallFn = NonNullable<Parameters<typeof createFormsPageRoute>[0]["call"]>;
+async function serve(w: World, o: { perMinute?: number; uploadsPerMinute?: number; submitsPerMinute?: number; uploads?: boolean; clock?: () => number; call?: CallFn } = {}): Promise<Served> {
   const callers: PageCaller[] = [];
   const uploads: Served["uploads"] = [];
   const route = createFormsPageRoute({
@@ -278,6 +293,8 @@ async function serve(w: World, o: { perMinute?: number; uploadsPerMinute?: numbe
     ...(o.uploads ? { async upload(slug: string, file: { name: string; type: string; bytes: Uint8Array; folderId: string }, caller: PageCaller, token?: string) { assert.equal(file.folderId, "fld_up", "a file goes only to the policy's folder"); uploads.push({ slug, token, caller }); return "upl_1"; } } : {}),
     ...(o.perMinute !== undefined ? { perMinute: o.perMinute } : {}),
     ...(o.uploadsPerMinute !== undefined ? { uploadsPerMinute: o.uploadsPerMinute } : {}),
+    ...(o.submitsPerMinute !== undefined ? { submitsPerMinute: o.submitsPerMinute } : {}),
+    ...(o.call ? { call: o.call } : {}),
     ...(o.clock ? { now: o.clock } : {}),
   });
   const server = http.createServer((req, res) => { if (!route.handle(req, res)) { res.writeHead(418); res.end(); } });
@@ -446,5 +463,53 @@ test("uploads have their own per-source budget, carry the link token to the stor
     assert.ok(Number(over.headers.get("retry-after")) >= 1);
     assert.equal(s.uploads.length, 2);
     assert.equal((await fetch(`${s.base}/f/${f.slug}`)).status, 200, "pages still have their own budget");
+  } finally { await s.close(); }
+});
+
+test("a signed-out visitor submits, books and reads availability through the route: the visitor is named from the socket, never from the request", async () => {
+  const w = harness();
+  const seen: { cap: string; input: Record<string, unknown>; caller: PageCaller }[] = [];
+  const s = await serve(w, {
+    submitsPerMinute: 4,
+    call: async (cap, input, caller) => {
+      seen.push({ cap, input, caller });
+      if (input["slug"] === "refused") throw { error: { code: "validation.duplicate", message: "This was already sent.", retryable: false, traceId: "t", next: [] } };
+      return cap === "bookings.availability" ? { slots: [], available: true } : { recordId: "rec_1" };
+    },
+  });
+  try {
+    const post = (p: string, body: unknown) => fetch(`${s.base}${p}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const ok = await post("/f/submit", { slug: "intake", answers: { email: "a@x.example" }, visitor: "act_anon_ffffffffffffffff" });
+    assert.equal(ok.status, 200);
+    assert.deepEqual(await ok.json(), { data: { recordId: "rec_1" } });
+    const sent = seen[0];
+    assert.equal(sent?.cap, "forms.submit");
+    assert.equal(sent?.input["visitor"], sent?.caller.id, "the visitor is the socket's actor, not what the client wrote");
+    assert.notEqual(sent?.input["visitor"], "act_anon_ffffffffffffffff");
+    assert.equal(typeof sent?.input["idempotencyKey"], "string");
+    assert.equal((await post("/book/create", { slug: "call", startsAt: 1, tz: "UTC", answers: {} })).status, 200);
+    assert.equal(seen[1]?.input["visitor"], undefined, "only a submit carries a visitor");
+    const av = await fetch(`${s.base}/book/availability?slug=call&tz=UTC&from=100&to=200`);
+    assert.equal(av.status, 200);
+    assert.deepEqual(seen[2]?.input, { slug: "call", tz: "UTC", from: 100, to: 200 });
+    const dup = await post("/f/submit", { slug: "refused", answers: {} });
+    assert.equal(dup.status, 422);
+    assert.equal(((await dup.json()) as { error: { code: string } }).error.code, "validation.duplicate");
+    const over = await post("/f/submit", { slug: "intake", answers: {} });
+    assert.equal(over.status, 429, "submits have a per-source budget");
+    assert.equal((await fetch(`${s.base}/f/submit`)).status, 405);
+    assert.equal((await post("/book/availability", {})).status, 405);
+  } finally { await s.close(); }
+});
+
+test("a body that is not a JSON object is refused before any capability runs", async () => {
+  const w = harness();
+  let ran = 0;
+  const s = await serve(w, { call: async () => { ran += 1; return {}; } });
+  try {
+    assert.equal((await fetch(`${s.base}/f/submit`, { method: "POST", body: "not json" })).status, 400);
+    assert.equal((await fetch(`${s.base}/f/submit`, { method: "POST", body: "[1]" })).status, 400);
+    assert.equal((await fetch(`${s.base}/f/submit`, { method: "POST", body: JSON.stringify({ pad: "x".repeat(300_000) }) })).status, 413);
+    assert.equal(ran, 0);
   } finally { await s.close(); }
 });
