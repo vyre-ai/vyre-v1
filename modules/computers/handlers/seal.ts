@@ -46,6 +46,20 @@ export function openBytes(sealed: string, key: Uint8Array, computerId: string): 
   return Buffer.concat(lines.map((l, i) => Buffer.from(aesUnwrap(key, JSON.parse(l) as Box, aadOf(computerId, i, i === lines.length - 1)))));
 }
 
+/** How many files and folders a tar holds besides its own root: an emptied profile volume reads as a tar of nothing. */
+export function tarEntries(tar: Uint8Array): number {
+  let n = 0;
+  for (let at = 0; at + 512 <= tar.length;) {
+    const head = tar.subarray(at, at + 512);
+    if (head.every((b) => b === 0)) break;
+    const name = new TextDecoder().decode(head.subarray(0, 100)).replace(/\0.*$/, "");
+    const size = parseInt(new TextDecoder().decode(head.subarray(124, 136)).replace(/\0.*$/, "").trim() || "0", 8) || 0;
+    if (name.replace(/^(\.\/)+/, "").replace(/\/+$/, "") !== "" && name !== ".") n++;
+    at += 512 + Math.ceil(size / 512) * 512;
+  }
+  return n;
+}
+
 export function createProfileSeal(d: ProfileSealDeps) {
   const timeoutMs = d.timeoutMs ?? 600_000;
 
@@ -89,9 +103,29 @@ export function createProfileSeal(d: ProfileSealDeps) {
     async unseal(computerId: string): Promise<void> {
       const file = fileOf(d, computerId);
       if (!fs.existsSync(file)) return;
-      const tar = openBytes(fs.readFileSync(file, "utf8"), keyOf(d, computerId), computerId);
+      let tar: Buffer;
+      try { tar = openBytes(fs.readFileSync(file, "utf8"), keyOf(d, computerId), computerId); } catch { throw new Error("the sealed profile did not open: it was changed, cut short or sealed under another key. The computer was not started."); }
       const r = await d.http({ method: "PUT", path: `/containers/${d.container(computerId)}/archive`, query: { path: PROFILE_GUEST }, body: tar, contentType: "application/x-tar", timeoutMs });
       if (r.status !== 200) throw new Error(`the profile could not be put back (${r.status})`);
+    },
+    /**
+     * At boot: a computer whose container is not running but whose volume still holds a profile (the daemon died between unseal and seal) is sealed now, so plaintext never waits for the next wake. A volume
+     * that is already empty is left alone, so a clean sleep's sealed file is never replaced by an empty one. Answers the computers it sealed.
+     */
+    async recoverStopped(): Promise<string[]> {
+      const list = await d.http({ method: "GET", path: "/containers/json", query: { all: "true", filters: JSON.stringify({ label: ["vyre.computer"] }) } });
+      if (list.status !== 200) throw new Error(`the computers could not be listed (${list.status})`);
+      const rows = JSON.parse(new TextDecoder().decode(list.body)) as { State?: string; Labels?: Record<string, string> }[];
+      const sealed: string[] = [];
+      for (const r of rows) {
+        const id = r.Labels?.["vyre.computer"];
+        if (!id || r.State === "running" || r.State === "restarting" || r.State === "paused") continue;
+        const arc = await d.http({ method: "GET", path: `/containers/${d.container(id)}/archive`, query: { path: `${PROFILE_GUEST}/.` }, timeoutMs });
+        if (arc.status !== 200 || tarEntries(arc.body) === 0) continue;
+        await this.seal(id);
+        sealed.push(id);
+      }
+      return sealed;
     },
     /** The computer is removed: its sealed profile goes with it. */
     async discard(computerId: string): Promise<void> {

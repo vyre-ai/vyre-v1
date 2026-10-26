@@ -68,7 +68,7 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
   assert.equal(built.code, 0, `building ${IMAGE} failed: ${built.out.slice(-1500)}`);
   process.env["VYRE_AGENT_COMPUTER_IMAGE"] = IMAGE;
   const dir = seededDir();
-  const d = await boot(dir);
+  let d = await boot(dir);
   let computerId = "";
   try {
     assert.deepEqual(d.seams?.missing, [], "no live module is left without its driver");
@@ -116,12 +116,36 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     assert.equal(fs.statSync(path.join(dir, "computers-profile.key")).mode & 0o077, 0, "the node key is private to the daemon's user");
     assert.equal(fs.statSync(sealedFile).mode & 0o077, 0, "the sealed profile is private to the daemon's user");
 
+    // a changed sealed file does not open: the wake fails with a clear reason and the container is never started with a half profile
+    const original = fs.readFileSync(sealedFile, "utf8");
+    const mid = Math.floor(original.length / 2);
+    const flipped = original.slice(0, mid) + (original[mid] === "A" ? "B" : "A") + original.slice(mid + 1);
+    fs.writeFileSync(sealedFile, flipped, { mode: 0o600 });
+    const refused = await call(d, "computers.wake", { computerId });
+    assert.notEqual(refused.status, 200, "a wake over a changed sealed profile is refused");
+    const failed = await call(d, "computers.get", { computerId });
+    assert.equal(failed.data.computer.state, "error");
+    assert.match(String(failed.data.computer.error), /sealed profile did not open/, "the reason is readable");
+    assert.equal((await docker(["ps", "-q", "--filter", `name=${box}`], 30_000)).out.trim(), "", "no container was started");
+    fs.writeFileSync(sealedFile, original, { mode: 0o600 });
+
     const again = await call(d, "computers.wake", { computerId });
     assert.equal(again.status, 200, JSON.stringify(again.data));
     const back = await docker(["exec", "-u", "10001", box, "cat", "/home/agent/.profile-disk/marker.txt"], 30_000);
     assert.equal(back.out.trim(), MARKER, "wake puts the profile back");
-    const slept2 = await call(d, "computers.sleep", { computerId });
-    assert.equal(slept2.status, 200, JSON.stringify(slept2.data));
+    // a crash between unseal and sleep: the container dies with the plaintext profile on the volume, and the next boot of the daemon seals it
+    assert.equal((await docker(["kill", box], 30_000)).code, 0, "the computer is killed");
+    const before = fs.statSync(sealedFile).mtimeMs;
+    await d.stop();
+    d = await boot(dir);
+    let emptied = false;
+    for (let i = 0; i < 60 && !emptied; i++) {
+      emptied = (await docker(["run", "--rm", "--network", "none", "--entrypoint", "find", "-v", `${box}-profile:/p:ro`, IMAGE, "/p", "-mindepth", "1"], 120_000)).out.trim() === "";
+      if (!emptied) await new Promise<void>((r) => setTimeout(r, 1_000));
+    }
+    assert.ok(emptied, "the boot sealed what the crash left on the volume");
+    assert.ok(fs.statSync(sealedFile).mtimeMs > before, "the sealed profile was rewritten with the newest state");
+    assert.ok(!fs.readFileSync(sealedFile).includes(MARKER), "and holds no plaintext");
   } finally {
     if (computerId) await call(d, "computers.remove", { computerId }).catch(() => undefined);
     await d.stop();
