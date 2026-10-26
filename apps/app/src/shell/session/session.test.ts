@@ -172,8 +172,9 @@ test("live: hello carries the cursor, hello_ok is live, each batch is acked and 
   const timers: { fn: () => void; ms: number }[] = [];
   const changes: number[] = [];
   const states: string[] = [];
+  const purges: number[] = [];
   const link = createLiveLink({
-    baseUrl: "https://s.test", token: () => "vst_1", onChange: (n) => changes.push(n), onStatus: (s) => states.push(s),
+    baseUrl: "https://s.test", token: () => "vst_1", onChange: (n) => changes.push(n), onStatus: (s) => states.push(s), onPurge: (e) => purges.push(e),
     socket: (u) => { const s = new FakeSocket(u); socks.push(s); return s; },
     setTimer: (fn, ms) => { const t = { fn, ms }; timers.push(t); return () => { timers.splice(timers.indexOf(t), 1); }; },
   });
@@ -184,6 +185,9 @@ test("live: hello carries the cursor, hello_ok is live, each batch is acked and 
   socks[0]!.say({ t: "hello_ok", head: 4, mode: "live" });
   assert.equal(link.status(), "live");
   socks[0]!.say({ t: "ev", seq: 5, items: [] });
+  assert.deepEqual(purges, [], "no purge yet");
+  socks[0]!.say({ t: "purge", epoch: 9 });
+  assert.deepEqual(purges, [9], "the server told this device to purge");
   assert.deepEqual(changes, [5]);
   assert.deepEqual(socks[0]!.sent[1], { t: "ack", seq: 5 });
   socks[0]!.onclose?.();
