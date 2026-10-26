@@ -4,6 +4,7 @@
 //   exec  one step at a time through steps-core (steps-core.run_step), called AS the Run's principal: a person's Automation acts with that person's access, a Space Automation with its own
 // The definition's own error rule is applied here: retry runs the step again with a backoff, continue goes on with the error as the step's output, route goes to the named step.
 import { registry } from "../../../generated/registry.ts";
+import { codeForReason } from "../routes/errors.ts";
 
 type Row = Record<string, unknown>;
 interface Node { id: string; key: string; input: Record<string, unknown>; next?: string[]; branches?: unknown[]; onError?: { mode: "fail" | "continue" | "retry" | "route"; max?: number; route?: string } }
@@ -20,13 +21,20 @@ const STEPS = new Map((registry.steps as unknown as { key: string; effects: "rea
 export const MAX_DRIVES = 8;
 const DENIED = new Set(["not_a_member", "suspended", "revoked"]);
 
-/** A step that ran as a person who is no longer let in (removed, suspended) fails the Run by name, so the Run's owner and the Space see why instead of a bare "unauthenticated". */
+/**
+ * A step that ran as a person who is no longer let in (removed, suspended, revoked) fails the Run with the error the gateway gives for the same case (codeForReason), and the reason
+ * rides in the details, so the Run's owner and the Space see why. Everything that reads Run errors understands catalogued codes only.
+ */
 function refusal(e: unknown): unknown {
   const err = (e as { error?: { code?: string; details?: { reason?: string } } } | null)?.error;
   const reason = err?.details?.reason;
   if (reason === undefined || !DENIED.has(reason)) return e;
-  const code = reason === "suspended" ? "permission.suspended" : "permission.not_a_member";
-  return { error: { code, message: reason === "suspended" ? "The person this run acts as is suspended, so the run stopped." : "The person this run acts as is no longer a member of this Space, so the run stopped.", retryable: false } };
+  const why: Record<string, string> = {
+    not_a_member: "The person this run acts as is no longer a member of this Space, so the run stopped.",
+    suspended: "The person this run acts as is suspended, so the run stopped.",
+    revoked: "The person this run acts as has lost access, so the run stopped.",
+  };
+  return { error: { code: codeForReason(reason), message: why[reason], retryable: false, details: { reason } } };
 }
 
 export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: string, attrs: Record<string, unknown>) => void }) {

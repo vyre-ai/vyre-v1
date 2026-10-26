@@ -119,18 +119,34 @@ test("a Run the last server left queued is driven to its end when the next one s
   } finally { await d.stop(); }
 });
 
-test("a step is authorized when it runs: a person suspended while their Run waits has the Run fail by name, and nothing after the wait runs", async () => {
+/** Noah's Run parks on a wait; `lose` takes his place in the Space away; the Run must fail by name when the wait ends, and the step after it must never run. */
+async function lostAccessMidRun(name: string, lose: (d: Daemon) => Promise<void>, why: RegExp): Promise<void> {
   const d = await boot(seededDir());
   try {
-    const id = await automation(d, "noah-note", [{ id: "pause", key: "wait", input: { forDuration: "2s" } }, mk("after", "Made by a suspended person")], NOAH);
-    const runId = await runOf(d, id, "run-noah", NOAH);
+    const title = `Made by ${name}`;
+    const id = await automation(d, `${name}-note`, [{ id: "pause", key: "wait", input: { forDuration: "2s" } }, mk("after", title)], NOAH);
+    const runId = await runOf(d, id, `run-${name}`, NOAH);
     await until("the run to wait", 10_000, async () => ((await statusOf(d, runId)) === "waiting" ? true : undefined));
-    await ok(d, "/v1/members/suspend", { personId: "usr_noah", reason: "test" });
+    await lose(d);
     const run = await until("the run to fail", 20_000, async () => {
-      const r = (await ok(d, "/v1/runs/get", { runId }))["run"] as { status?: string; errorCode?: string; error?: { code?: string } };
-      return r.status === "failed" ? r : r.status === "succeeded" ? assert.fail("the run went on as a suspended person") : undefined;
+      const r = (await ok(d, "/v1/runs/get", { runId }))["run"] as { status?: string; errorCode?: string; error?: { code?: string; details?: { reason?: string } } };
+      return r.status === "failed" ? r : r.status === "succeeded" ? assert.fail("the run went on as a person who was no longer let in") : undefined;
     });
-    assert.match(String(run.errorCode ?? run.error?.code), /permission\.(suspended|not_a_member)/, "the failure names why");
-    assert.equal(await hasNote(d, "Made by a suspended person"), false, "the step after the wait never ran");
+    const code = String(run.errorCode ?? run.error?.code);
+    assert.match(code, /^(auth\.unauthenticated|permission\.(suspended|revoked|no_grant))$/, `the failure carries a catalogued code, got ${code}`);
+    assert.match(JSON.stringify(run), why, `the failure names why: ${JSON.stringify(run)}`);
+    assert.equal(await hasNote(d, title), false, "the step after the wait never ran");
   } finally { await d.stop(); }
-});
+}
+
+test("a step is authorized when it runs: a person suspended while their Run waits has the Run fail by name", () =>
+  lostAccessMidRun("suspended", async (d) => { await ok(d, "/v1/members/suspend", { personId: "usr_noah", reason: "test" }); }, /suspended/));
+
+test("a step is authorized when it runs: a person removed while their Run waits has the Run fail by name", () =>
+  lostAccessMidRun("removed", async (d) => {
+    const preview = await ok(d, "/v1/members/remove_preview", { personId: "usr_noah" });
+    const items = preview["items"] as { kind: string; defaultAction: string; options: string[] }[];
+    // keep what Noah owns with Olivia, so the Run is not stopped by the wizard: it must fail on its own step
+    const plan = items.map((i) => (i.options.includes("reassign") ? { kind: i.kind, action: "reassign", to: "usr_olivia" } : { kind: i.kind, action: i.defaultAction }));
+    await ok(d, "/v1/members/remove", { personId: "usr_noah", plan, reason: "test" });
+  }, /no longer a member/));
