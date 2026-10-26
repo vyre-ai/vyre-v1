@@ -118,3 +118,19 @@ test("golden steps are slow by pattern: each lands in a slow job without being l
   assert.deepEqual(slowFiles, ["golden/steps/01-lead.test.ts", "golden/steps/guest.test.ts"], "a nested path is not a step");
   assert.ok(m.filter((j) => !j.slow).every((j) => !/golden\/steps\/(01|guest)/.test(j.files)));
 });
+
+test("a test that boots a daemon is slow by rule: *.live.test, *.booted.test, and any test that calls the boot helpers", () => {
+  const src: Record<string, string> = {
+    "host/tests/portal.live.test.ts": "test('x', () => {});",
+    "modules/identity/tests/lockout.booted.test.ts": "test('x', () => {});",
+    "host/tests/blobs.test.ts": 'import { startDaemon } from "../src/daemon/daemon.ts";\\ntest("x", async () => { await startDaemon({}); });',
+    "host/tests/seed.grants.test.ts": 'import { startSeeded } from "../../fixtures/seed/small/build.ts";',
+    "lib/plain.test.ts": 'test("x", () => {});',
+    "fixtures/seed/small/build.ts": "export function startSeeded() {}",
+  };
+  const files = Object.keys(src);
+  const m = toMatrix(shardFiles(files, {}, [], { read: (f) => src[f]! })).include;
+  const slowFiles = m.filter((j) => j.slow).flatMap((j) => j.files.split(" ")).sort();
+  assert.deepEqual(slowFiles, ["host/tests/blobs.test.ts", "host/tests/portal.live.test.ts", "host/tests/seed.grants.test.ts", "modules/identity/tests/lockout.booted.test.ts"]);
+  assert.deepEqual(m.filter((j) => !j.slow).flatMap((j) => j.files.split(" ")).sort(), ["fixtures/seed/small/build.ts", "lib/plain.test.ts"], "a non-test source that exports the helper stays fast");
+});
